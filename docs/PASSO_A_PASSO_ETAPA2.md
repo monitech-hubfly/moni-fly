@@ -137,13 +137,13 @@ Detalhes gerais estão em **docs/PASSO_A_PASSO.md**.
 
 ## Resumo do que você executa (checklist)
 
-| # | O que fazer | Onde |
-|---|-------------|------|
-| 1 | Rodar a migração **008** (criar tabela e RLS) | Supabase → SQL Editor → colar `008_condominios_etapa2.sql` → Run |
-| 2 | Ter as migrações **001, 002, 003, 004, 005, 007** já rodadas | Supabase → SQL Editor (ver PASSO_A_PASSO.md) |
-| 3 | Ter **.env.local** com URL e anon key do Supabase | Raiz do projeto |
-| 4 | Rodar **npm install** e **npm run dev** | Terminal na pasta do projeto |
-| 5 | Logar, criar um processo, abrir **Etapa 2**, adicionar condomínio, preencher checklist e marcar como concluída | Navegador em localhost:3000 |
+| #   | O que fazer                                                                                                    | Onde                                                             |
+| --- | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| 1   | Rodar a migração **008** (criar tabela e RLS)                                                                  | Supabase → SQL Editor → colar `008_condominios_etapa2.sql` → Run |
+| 2   | Ter as migrações **001, 002, 003, 004, 005, 007** já rodadas                                                   | Supabase → SQL Editor (ver PASSO_A_PASSO.md)                     |
+| 3   | Ter **.env.local** com URL e anon key do Supabase                                                              | Raiz do projeto                                                  |
+| 4   | Rodar **npm install** e **npm run dev**                                                                        | Terminal na pasta do projeto                                     |
+| 5   | Logar, criar um processo, abrir **Etapa 2**, adicionar condomínio, preencher checklist e marcar como concluída | Navegador em localhost:3000                                      |
 
 O restante (actions, CHECKLIST_ETAPA2.ts, Etapa2Condominios, integração na página e menção da 008 no PASSO_A_PASSO) já está implementado no código; não é necessário “executar” esses arquivos à mão, só garantir que a migração 008 foi aplicada e que o app está rodando com o `.env.local` correto.
 

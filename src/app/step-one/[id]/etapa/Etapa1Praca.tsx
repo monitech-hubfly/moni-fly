@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect, useRef } from "react";
-import dynamic from "next/dynamic";
-import { saveEtapa1Praca, type AnexoEtapa1 } from "./actions";
-import { createClient } from "@/lib/supabase/client";
-import { ProspeccaoCidadePDFContent } from "./ProspeccaoCidadePDFContent";
+import React, { useState, useEffect, useRef } from 'react';
+import dynamic from 'next/dynamic';
+import { saveEtapa1Praca, type AnexoEtapa1 } from './actions';
+import { createClient } from '@/lib/supabase/client';
+import { ProspeccaoCidadePDFContent } from './ProspeccaoCidadePDFContent';
 
-const MapaPraca = dynamic(() => import("./MapaPraca").then((m) => m.MapaPraca), { ssr: false });
+const MapaPraca = dynamic(() => import('./MapaPraca').then((m) => m.MapaPraca), { ssr: false });
 
-const BUCKET = "processo-docs";
-const ACCEPT_IMAGES = "image/jpeg,image/png,image/webp";
+const BUCKET = 'processo-docs';
+const ACCEPT_IMAGES = 'image/jpeg,image/png,image/webp';
 
 type DadosCidade = {
   populacao: string | null;
@@ -32,7 +32,7 @@ export function Etapa1Praca(props: {
   const [anexos, setAnexos] = useState<AnexoEtapa1[]>(initialAnexos);
   const [dadosCidade, setDadosCidade] = useState<DadosCidade | null>(null);
   const [loadingDados, setLoadingDados] = useState(true);
-  const [errorDados, setErrorDados] = useState("");
+  const [errorDados, setErrorDados] = useState('');
   const [savingObs, setSavingObs] = useState(false);
   const [savedObs, setSavedObs] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
@@ -46,9 +46,9 @@ export function Etapa1Praca(props: {
       return;
     }
     setLoadingDados(true);
-    setErrorDados("");
+    setErrorDados('');
     const params = new URLSearchParams({ cidade: cidade.trim() });
-    if (estado?.trim()) params.set("estado", estado.trim());
+    if (estado?.trim()) params.set('estado', estado.trim());
     fetch(`/api/etapa1/dados-cidade?${params.toString()}`)
       .then((res) => res.json())
       .then((data: DadosCidade & { error?: string }) => {
@@ -66,7 +66,7 @@ export function Etapa1Praca(props: {
         }
       })
       .catch(() => {
-        setErrorDados("Erro ao carregar dados da cidade.");
+        setErrorDados('Erro ao carregar dados da cidade.');
         setDadosCidade(null);
       })
       .finally(() => setLoadingDados(false));
@@ -90,9 +90,11 @@ export function Etapa1Praca(props: {
     const newAnexos: AnexoEtapa1[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      if (!file.type.startsWith("image/")) continue;
-      const path = `${processoId}/etapa1/${crypto.randomUUID()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-      const { error } = await supabase.storage.from(BUCKET).upload(path, file, { cacheControl: "3600", upsert: false });
+      if (!file.type.startsWith('image/')) continue;
+      const path = `${processoId}/etapa1/${crypto.randomUUID()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const { error } = await supabase.storage
+        .from(BUCKET)
+        .upload(path, file, { cacheControl: '3600', upsert: false });
       if (error) continue;
       const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
       newAnexos.push({ url: data.publicUrl, nome: file.name });
@@ -103,7 +105,7 @@ export function Etapa1Praca(props: {
       await saveEtapa1Praca(processoId, { anexos_etapa1: next });
     }
     setUploadingFile(false);
-    e.target.value = "";
+    e.target.value = '';
   };
 
   const handleRemoverAnexo = async (index: number) => {
@@ -119,25 +121,25 @@ export function Etapa1Praca(props: {
     const el = pdfRef.current;
     const run = async () => {
       try {
-        const html2pdf = (await import("html2pdf.js")).default;
+        const html2pdf = (await import('html2pdf.js')).default;
         const blob = await html2pdf()
           .set({
             margin: 10,
-            filename: "prospeccao-cidade.pdf",
-            image: { type: "jpeg", quality: 0.92 },
+            filename: 'prospeccao-cidade.pdf',
+            image: { type: 'jpeg', quality: 0.92 },
             html2canvas: { scale: 2, useCORS: true },
-            jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
           })
           .from(el)
-          .outputPdf("blob");
+          .outputPdf('blob');
         const supabase = createClient();
         const path = `${processoId}/etapa1-prospeccao.pdf`;
         const { error: uploadErr } = await supabase.storage.from(BUCKET).upload(path, blob, {
-          contentType: "application/pdf",
+          contentType: 'application/pdf',
           upsert: true,
         });
         if (uploadErr) {
-          alert("Erro ao enviar o PDF: " + uploadErr.message);
+          alert('Erro ao enviar o PDF: ' + uploadErr.message);
         } else {
           const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
           const result = await saveEtapa1Praca(processoId, { pdf_url_etapa1: urlData.publicUrl });
@@ -145,7 +147,7 @@ export function Etapa1Praca(props: {
           else alert(result.error);
         }
       } catch (err) {
-        alert(err instanceof Error ? err.message : "Erro ao gerar o PDF.");
+        alert(err instanceof Error ? err.message : 'Erro ao gerar o PDF.');
       } finally {
         setGerandoPdf(false);
       }
@@ -157,7 +159,11 @@ export function Etapa1Praca(props: {
   return (
     <div className="mt-6 space-y-8">
       <p className="text-sm text-stone-600">
-        Praça: <strong>{cidade}{estado ? `, ${estado}` : ""}</strong>
+        Praça:{' '}
+        <strong>
+          {cidade}
+          {estado ? `, ${estado}` : ''}
+        </strong>
       </p>
 
       {/* Seção 1 — Dados da cidade */}
@@ -168,31 +174,41 @@ export function Etapa1Praca(props: {
           <div className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
             <p className="text-xs font-medium uppercase text-stone-500">População</p>
             <p className="mt-1 text-xl font-semibold text-stone-800">
-              {loadingDados ? "Carregando..." : (dadosCidade?.populacao?.trim() || "Dado não disponível")}
+              {loadingDados
+                ? 'Carregando...'
+                : dadosCidade?.populacao?.trim() || 'Dado não disponível'}
             </p>
           </div>
           <div className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
             <p className="text-xs font-medium uppercase text-stone-500">PIB per capita</p>
             <p className="mt-1 text-xl font-semibold text-stone-800">
-              {loadingDados ? "Carregando..." : (dadosCidade?.pibPerCapita?.trim() || "Dado não disponível")}
+              {loadingDados
+                ? 'Carregando...'
+                : dadosCidade?.pibPerCapita?.trim() || 'Dado não disponível'}
             </p>
           </div>
           <div className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
             <p className="text-xs font-medium uppercase text-stone-500">Renda média domiciliar</p>
             <p className="mt-1 text-xl font-semibold text-stone-800">
-              {loadingDados ? "Carregando..." : (dadosCidade?.rendaMedia?.trim() || "Dado não disponível")}
+              {loadingDados
+                ? 'Carregando...'
+                : dadosCidade?.rendaMedia?.trim() || 'Dado não disponível'}
             </p>
           </div>
           <div className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
             <p className="text-xs font-medium uppercase text-stone-500">Área territorial</p>
             <p className="mt-1 text-xl font-semibold text-stone-800">
-              {loadingDados ? "Carregando..." : (dadosCidade?.areaTerritorial?.trim() || "Dado não disponível")}
+              {loadingDados
+                ? 'Carregando...'
+                : dadosCidade?.areaTerritorial?.trim() || 'Dado não disponível'}
             </p>
           </div>
           <div className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
             <p className="text-xs font-medium uppercase text-stone-500">Densidade demográfica</p>
             <p className="mt-1 text-xl font-semibold text-stone-800">
-              {loadingDados ? "Carregando..." : (dadosCidade?.densidade?.trim() || "Dado não disponível")}
+              {loadingDados
+                ? 'Carregando...'
+                : dadosCidade?.densidade?.trim() || 'Dado não disponível'}
             </p>
           </div>
         </div>
@@ -202,7 +218,8 @@ export function Etapa1Praca(props: {
       <section className="rounded-xl border border-stone-200 bg-white p-4">
         <h2 className="text-lg font-semibold text-stone-800">Seção 2 — Mapa interativo</h2>
         <p className="mt-1 text-sm text-stone-500">
-          OpenStreetMap + Leaflet + Overpass: escolas, hospitais, UBS, shoppings, supermercados, parques, praças, bancos, farmácias.
+          OpenStreetMap + Leaflet + Overpass: escolas, hospitais, UBS, shoppings, supermercados,
+          parques, praças, bancos, farmácias.
         </p>
         <div className="mt-4">
           <MapaPraca cidade={cidade} estado={estado} />
@@ -213,7 +230,8 @@ export function Etapa1Praca(props: {
       <section className="rounded-xl border border-stone-200 bg-stone-50/80 p-4">
         <h2 className="text-lg font-semibold text-stone-800">Seção 3 — Observações</h2>
         <p className="mt-1 text-sm text-stone-500">
-          Campo livre para o Frank registrar observações sobre a praça. Você pode importar imagens (JPG, PNG, WebP); texto e imagens compõem o PDF de prospecção.
+          Campo livre para o Frank registrar observações sobre a praça. Você pode importar imagens
+          (JPG, PNG, WebP); texto e imagens compõem o PDF de prospecção.
         </p>
         <textarea
           value={observacoes}
@@ -229,13 +247,13 @@ export function Etapa1Praca(props: {
             disabled={savingObs}
             className="btn-primary text-sm"
           >
-            {savingObs ? "Salvando…" : "Salvar observações"}
+            {savingObs ? 'Salvando…' : 'Salvar observações'}
           </button>
           {savedObs && <span className="text-sm text-green-600">Salvo.</span>}
         </div>
 
         <div className="mt-6 border-t border-stone-200 pt-4">
-          <p className="text-sm font-medium text-stone-700 mb-2">Anexos (imagens para o PDF)</p>
+          <p className="mb-2 text-sm font-medium text-stone-700">Anexos (imagens para o PDF)</p>
           <input
             ref={fileInputRef}
             type="file"
@@ -243,18 +261,21 @@ export function Etapa1Praca(props: {
             multiple
             onChange={handleFileSelect}
             disabled={uploadingFile}
-            className="block w-full text-sm text-stone-600 file:mr-2 file:rounded-lg file:border-0 file:bg-moni-light file:px-3 file:py-1.5 file:text-moni-accent file:font-medium"
+            className="block w-full text-sm text-stone-600 file:mr-2 file:rounded-lg file:border-0 file:bg-moni-light file:px-3 file:py-1.5 file:font-medium file:text-moni-accent"
           />
           {uploadingFile && <p className="mt-1 text-sm text-stone-500">Enviando…</p>}
           {anexos.length > 0 && (
             <ul className="mt-3 space-y-1">
               {anexos.map((a, i) => (
-                <li key={i} className="flex items-center justify-between rounded bg-white border border-stone-200 px-3 py-2 text-sm">
+                <li
+                  key={i}
+                  className="flex items-center justify-between rounded border border-stone-200 bg-white px-3 py-2 text-sm"
+                >
                   <span className="truncate">{a.nome}</span>
                   <button
                     type="button"
                     onClick={() => handleRemoverAnexo(i)}
-                    className="text-red-600 hover:underline shrink-0 ml-2"
+                    className="ml-2 shrink-0 text-red-600 hover:underline"
                   >
                     Remover
                   </button>
@@ -265,10 +286,15 @@ export function Etapa1Praca(props: {
         </div>
 
         <div className="mt-6 border-t border-stone-200 pt-4">
-          <p className="text-sm font-medium text-stone-700 mb-2">PDF de prospecção cidade</p>
+          <p className="mb-2 text-sm font-medium text-stone-700">PDF de prospecção cidade</p>
           {pdfUrlEtapa1 ? (
             <p className="text-sm">
-              <a href={pdfUrlEtapa1} target="_blank" rel="noreferrer" className="text-moni-accent font-medium hover:underline">
+              <a
+                href={pdfUrlEtapa1}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-moni-accent hover:underline"
+              >
                 Baixar PDF armazenado
               </a>
             </p>
@@ -277,17 +303,17 @@ export function Etapa1Praca(props: {
             type="button"
             onClick={handleGerarPdf}
             disabled={gerandoPdf}
-            className="mt-2 btn-primary text-sm"
+            className="btn-primary mt-2 text-sm"
           >
-            {gerandoPdf ? "Gerando PDF…" : "Gerar e guardar PDF"}
+            {gerandoPdf ? 'Gerando PDF…' : 'Gerar e guardar PDF'}
           </button>
         </div>
 
         {gerandoPdf && (
-          <div className="fixed inset-0 z-[9999] bg-white overflow-auto p-4" aria-hidden>
-            <div ref={pdfRef} style={{ width: "210mm" }} className="bg-white">
+          <div className="fixed inset-0 z-[9999] overflow-auto bg-white p-4" aria-hidden>
+            <div ref={pdfRef} style={{ width: '210mm' }} className="bg-white">
               <ProspeccaoCidadePDFContent
-                titulo={cidade.trim() || "Cidade"}
+                titulo={cidade.trim() || 'Cidade'}
                 texto={observacoes}
                 imagens={anexos.map((a) => a.url)}
               />

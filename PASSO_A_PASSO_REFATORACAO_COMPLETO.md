@@ -6,14 +6,14 @@ Este guia reúne tudo o que você precisa **executar** para a refatoração roda
 
 ## O que você vai fazer (resumo)
 
-| # | O que fazer |
-|---|-------------|
-| 1 | Rodar a migração **007** no Supabase (tabela `catalogo_escolhidos`) |
-| 2 | Subir o sistema (`npm run dev`) e abrir no navegador |
-| 3 | Fazer login e garantir que processos usam **Estado = UF** (ex.: SP) |
-| 4 | Na **Etapa 1**, clicar em **"Buscar dados do IBGE"** e salvar a narrativa |
-| 5 | Nas **Etapas 4 e 5**, conferir o texto sobre listagem manual / Apify em breve |
-| 6 | Na **Etapa 8**, escolher **3 modelos do catálogo Moní** e preencher batalhas (todas as casas ZAP × esses 3) |
+| #   | O que fazer                                                                                                 |
+| --- | ----------------------------------------------------------------------------------------------------------- |
+| 1   | Rodar a migração **007** no Supabase (tabela `catalogo_escolhidos`)                                         |
+| 2   | Subir o sistema (`npm run dev`) e abrir no navegador                                                        |
+| 3   | Fazer login e garantir que processos usam **Estado = UF** (ex.: SP)                                         |
+| 4   | Na **Etapa 1**, clicar em **"Buscar dados do IBGE"** e salvar a narrativa                                   |
+| 5   | Nas **Etapas 4 e 5**, conferir o texto sobre listagem manual / Apify em breve                               |
+| 6   | Na **Etapa 8**, escolher **3 modelos do catálogo Moní** e preencher batalhas (todas as casas ZAP × esses 3) |
 
 ---
 
@@ -104,9 +104,9 @@ Para o **IBGE** encontrar o município na Etapa 1, o **Estado** do processo deve
 ## Passo 6 — Etapas 4 e 5: texto sobre listagem manual e Apify
 
 1. Vá para **Etapa 4 — Listagem casas à venda (ZAP)**.
-   - No topo deve aparecer: *"Adicione casas à venda manualmente. A integração com Apify (varredura ZAP) será conectada em breve."*
+   - No topo deve aparecer: _"Adicione casas à venda manualmente. A integração com Apify (varredura ZAP) será conectada em breve."_
 2. Vá para **Etapa 5 — Listagem lotes à venda**.
-   - No topo deve aparecer: *"Adicione lotes à venda manualmente. A integração com Apify (varredura ZAP) será conectada em breve."*
+   - No topo deve aparecer: _"Adicione lotes à venda manualmente. A integração com Apify (varredura ZAP) será conectada em breve."_
 
 Nada mais é necessário aqui; é só conferir que a mensagem aparece. O cadastro continua **manual** até a integração com o Apify.
 
@@ -118,7 +118,7 @@ Nada mais é necessário aqui; é só conferir que a mensagem aparece. O cadastr
 2. Vá para **Etapa 6** e confira se há **pelo menos 3 modelos** no catálogo Moní (ex.: Modelo A, B, C). Se tiver menos de 3, cadastre mais no Supabase (tabela **catalogo_casas**).
 3. Na lista das 11 etapas, clique em **Etapa 8 — Batalhas (preço, produto, localização)**.
 4. **Primeira vez (ainda não escolheu 3 modelos do catálogo):**
-   - Deve aparecer o texto: *"Escolha 3 modelos do catálogo Moní que vão batalhar com todas as casas listadas na ZAP."*
+   - Deve aparecer o texto: _"Escolha 3 modelos do catálogo Moní que vão batalhar com todas as casas listadas na ZAP."_
    - Três dropdowns: **Modelo 1**, **Modelo 2**, **Modelo 3**. Em cada um, escolha um modelo do catálogo (cada modelo só pode ser escolhido uma vez).
    - Clique em **"Salvar 3 modelos escolhidos"**.
    - A página recarrega e passa a mostrar as **batalhas**.
@@ -132,16 +132,16 @@ Nada mais é necessário aqui; é só conferir que a mensagem aparece. O cadastr
 
 ## Resumo em tabela — Ordem de execução
 
-| Ordem | O que fazer |
-|-------|-------------|
-| 1 | **Supabase** → SQL Editor → abrir **007_catalogo_escolhidos.sql** → copiar todo o conteúdo → colar no Editor → **Run**. (Se ainda existir 006, pode rodar 007 direto: ela remove casas_escolhidas e cria catalogo_escolhidos.) |
-| 2 | **PowerShell** na pasta VIABILIDADE → **npm run dev** → deixar a janela aberta. |
-| 3 | **Navegador** → http://localhost:3000 (ou 3001) → **Entrar** (login). |
-| 4 | Ao **criar processo**: Cidade = nome do município; **Estado (UF)** = selecionar na lista (ex.: SP — São Paulo). |
-| 5 | **Etapa 1** → **Buscar dados do IBGE** → conferir dados na tela → preencher narrativa (opcional) → **Salvar**. |
-| 6 | **Etapa 4** e **Etapa 5** → conferir o texto sobre listagem manual e Apify em breve. |
-| 7 | **Etapa 4** → ter pelo menos **3 casas** cadastradas. |
-| 8 | **Etapa 8** → escolher **Modelo 1**, **Modelo 2**, **Modelo 3** do catálogo nos dropdowns → **Salvar 3 modelos escolhidos** → preencher batalhas (todas as casas ZAP × 3 modelos; notas -2 a +2). |
+| Ordem | O que fazer                                                                                                                                                                                                                    |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1     | **Supabase** → SQL Editor → abrir **007_catalogo_escolhidos.sql** → copiar todo o conteúdo → colar no Editor → **Run**. (Se ainda existir 006, pode rodar 007 direto: ela remove casas_escolhidas e cria catalogo_escolhidos.) |
+| 2     | **PowerShell** na pasta VIABILIDADE → **npm run dev** → deixar a janela aberta.                                                                                                                                                |
+| 3     | **Navegador** → http://localhost:3000 (ou 3001) → **Entrar** (login).                                                                                                                                                          |
+| 4     | Ao **criar processo**: Cidade = nome do município; **Estado (UF)** = selecionar na lista (ex.: SP — São Paulo).                                                                                                                |
+| 5     | **Etapa 1** → **Buscar dados do IBGE** → conferir dados na tela → preencher narrativa (opcional) → **Salvar**.                                                                                                                 |
+| 6     | **Etapa 4** e **Etapa 5** → conferir o texto sobre listagem manual e Apify em breve.                                                                                                                                           |
+| 7     | **Etapa 4** → ter pelo menos **3 casas** cadastradas.                                                                                                                                                                          |
+| 8     | **Etapa 8** → escolher **Modelo 1**, **Modelo 2**, **Modelo 3** do catálogo nos dropdowns → **Salvar 3 modelos escolhidos** → preencher batalhas (todas as casas ZAP × 3 modelos; notas -2 a +2).                              |
 
 ---
 
@@ -150,9 +150,9 @@ Nada mais é necessário aqui; é só conferir que a mensagem aparece. O cadastr
 - **"relation catalogo_escolhidos does not exist"**  
   A migração **007** não foi aplicada. Rode o **007_catalogo_escolhidos.sql** no SQL Editor do Supabase (Passo 1).
 
-- **Etapa 1 — "Buscar dados do IBGE" dá erro ou "Município não encontrado"**  
-  - Confira se o **Estado** do processo está em **UF** (2 letras: SP, RJ, MG, etc.).  
-  - Confira se o nome da **Cidade** está como no IBGE (ex.: "Campinas", "São Paulo").  
+- **Etapa 1 — "Buscar dados do IBGE" dá erro ou "Município não encontrado"**
+  - Confira se o **Estado** do processo está em **UF** (2 letras: SP, RJ, MG, etc.).
+  - Confira se o nome da **Cidade** está como no IBGE (ex.: "Campinas", "São Paulo").
   - Se o processo foi criado com estado em nome completo, edite no Supabase (Table Editor → **processo_step_one** → coluna **estado** = **SP**) ou crie um novo processo com UF.
 
 - **Etapa 1 — Dados do IBGE não aparecem após buscar**  

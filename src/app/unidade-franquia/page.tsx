@@ -1,11 +1,13 @@
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 
 export default async function UnidadeFranquiaPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -20,9 +22,7 @@ export default async function UnidadeFranquiaPage() {
         <div className="space-y-8">
           <div>
             <h1 className="text-xl font-bold text-moni-dark">Cadastro da Unidade de Franquia</h1>
-            <p className="mt-2 text-stone-600">
-              Dados da unidade, empresas e empreendimentos.
-            </p>
+            <p className="mt-2 text-stone-600">Dados da unidade, empresas e empreendimentos.</p>
           </div>
 
           <section id="dados-franquia" className="card scroll-mt-4">
@@ -30,15 +30,17 @@ export default async function UnidadeFranquiaPage() {
             <p className="mt-2 text-sm text-stone-600">
               Informações da unidade de franquia (razão social, CNPJ, endereço, etc.).
             </p>
-            <p className="mt-3 text-sm text-stone-500 italic">Formulário em construção.</p>
+            <p className="mt-3 text-sm italic text-stone-500">Formulário em construção.</p>
           </section>
 
           <section id="incorporadora-gestora" className="card scroll-mt-4">
-            <h2 className="text-lg font-semibold text-stone-800">Dados das empresas Incorporadora e Gestora</h2>
+            <h2 className="text-lg font-semibold text-stone-800">
+              Dados das empresas Incorporadora e Gestora
+            </h2>
             <p className="mt-2 text-sm text-stone-600">
               Dados da empresa incorporadora e da gestora vinculadas à unidade.
             </p>
-            <p className="mt-3 text-sm text-stone-500 italic">Formulário em construção.</p>
+            <p className="mt-3 text-sm italic text-stone-500">Formulário em construção.</p>
           </section>
 
           <section id="empreendimentos" className="card scroll-mt-4">
@@ -46,7 +48,7 @@ export default async function UnidadeFranquiaPage() {
             <p className="mt-2 text-sm text-stone-600">
               Cadastro dos empreendimentos da unidade de franquia.
             </p>
-            <p className="mt-3 text-sm text-stone-500 italic">Formulário em construção.</p>
+            <p className="mt-3 text-sm italic text-stone-500">Formulário em construção.</p>
           </section>
         </div>
       </main>

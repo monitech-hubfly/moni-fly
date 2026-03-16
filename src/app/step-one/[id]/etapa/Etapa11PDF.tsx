@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useRef } from "react";
-import { useRouter } from "next/navigation";
-import { saveEtapa11, registerPdfExport } from "./actions";
+import { useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { saveEtapa11, registerPdfExport } from './actions';
 
 export type ResumoProcesso = {
   cidade: string;
@@ -36,7 +36,7 @@ export function Etapa11PDF({
 
   const handleConcluir = async () => {
     await registerPdfExport(processoId, {
-      hipotese: "Hipótese Step One",
+      hipotese: 'Hipótese Step One',
       modelo_escolhido: modeloEscolhidoNome || null,
     });
     const res = await saveEtapa11(processoId, { concluida: true });
@@ -46,23 +46,27 @@ export function Etapa11PDF({
   return (
     <div className="mt-6 space-y-6">
       <p className="text-sm text-stone-600">
-        Resumo consolidado do processo. Use &quot;Imprimir / Salvar como PDF&quot; para gerar o documento e depois marque a etapa como concluída.
+        Resumo consolidado do processo. Use &quot;Imprimir / Salvar como PDF&quot; para gerar o
+        documento e depois marque a etapa como concluída.
       </p>
 
-      <div ref={printRef} className="rounded-lg border border-stone-200 bg-white p-6 print:border-0 print:shadow-none">
-        <h2 className="text-lg font-bold text-moni-dark mb-4">Resumo — PDF de hipóteses</h2>
+      <div
+        ref={printRef}
+        className="rounded-lg border border-stone-200 bg-white p-6 print:border-0 print:shadow-none"
+      >
+        <h2 className="mb-4 text-lg font-bold text-moni-dark">Resumo — PDF de hipóteses</h2>
 
         <section className="mb-4">
           <h3 className="font-medium text-stone-800">Praça</h3>
           <p className="text-sm text-stone-600">
-            {resumo.cidade} {resumo.estado ? `— ${resumo.estado}` : ""}
+            {resumo.cidade} {resumo.estado ? `— ${resumo.estado}` : ''}
           </p>
         </section>
 
         {resumo.narrativa && (
           <section className="mb-4">
             <h3 className="font-medium text-stone-800">Análise da praça (Etapa 1)</h3>
-            <p className="text-sm text-stone-600 whitespace-pre-wrap">{resumo.narrativa}</p>
+            <p className="whitespace-pre-wrap text-sm text-stone-600">{resumo.narrativa}</p>
           </section>
         )}
 
@@ -70,9 +74,10 @@ export function Etapa11PDF({
           <section className="mb-4">
             <h3 className="font-medium text-stone-800">Lote escolhido</h3>
             <p className="text-sm text-stone-600">
-              Condomínio: {resumo.lote.condominio ?? "—"} | Área: {resumo.lote.area_lote_m2 ?? "—"} m² | Preço:{" "}
-              {resumo.lote.preco != null ? resumo.lote.preco.toLocaleString("pt-BR") : "—"} | R$/m²:{" "}
-              {resumo.lote.preco_m2 != null ? resumo.lote.preco_m2.toLocaleString("pt-BR") : "—"}
+              Condomínio: {resumo.lote.condominio ?? '—'} | Área: {resumo.lote.area_lote_m2 ?? '—'}{' '}
+              m² | Preço:{' '}
+              {resumo.lote.preco != null ? resumo.lote.preco.toLocaleString('pt-BR') : '—'} | R$/m²:{' '}
+              {resumo.lote.preco_m2 != null ? resumo.lote.preco_m2.toLocaleString('pt-BR') : '—'}
             </p>
           </section>
         )}
@@ -80,7 +85,7 @@ export function Etapa11PDF({
         {resumo.ranking.length > 0 && (
           <section className="mb-4">
             <h3 className="font-medium text-stone-800">Ranking do catálogo</h3>
-            <ol className="list-decimal list-inside text-sm text-stone-600 space-y-1">
+            <ol className="list-inside list-decimal space-y-1 text-sm text-stone-600">
               {resumo.ranking.map((r) => (
                 <li key={r.posicao}>
                   {r.posicao}º {r.nome} (média: {r.media.toFixed(2)})
@@ -94,7 +99,7 @@ export function Etapa11PDF({
         {resumo.bcaOpcoes.length > 0 && (
           <section className="mb-4">
             <h3 className="font-medium text-stone-800">Opções de BCA</h3>
-            <ul className="text-sm text-stone-600 space-y-2">
+            <ul className="space-y-2 text-sm text-stone-600">
               {resumo.bcaOpcoes.map((op, i) => (
                 <li key={i}>
                   <strong>{op.titulo}</strong>

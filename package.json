@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "lint:fix": "next lint --fix",
+    "format": "prettier . --write",
     "db:types": "supabase gen types typescript --local > src/types/database.gen.ts",
     "rede-franqueados:import": "node --env-file=.env.local scripts/import-rede-franqueados.mjs"
   },
@@ -34,7 +36,10 @@
     "autoprefixer": "^10.4.20",
     "eslint": "^8.57.1",
     "eslint-config-next": "14.2.18",
+    "eslint-config-prettier": "^10.1.8",
     "postcss": "^8.4.49",
+    "prettier": "^3.8.1",
+    "prettier-plugin-tailwindcss": "^0.6.14",
     "tailwindcss": "^3.4.15",
     "typescript": "^5.6.3"
   }

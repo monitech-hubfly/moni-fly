@@ -1,5 +1,5 @@
-import { createServerClient } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
+import { createServerClient } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
 
 export async function updateSession(request: NextRequest) {
   const response = NextResponse.next({ request });
@@ -17,7 +17,7 @@ export async function updateSession(request: NextRequest) {
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value, options }) =>
-          response.cookies.set(name, value, options)
+          response.cookies.set(name, value, options),
         );
       },
     },
@@ -28,18 +28,18 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
-  const isStepOne = pathname.startsWith("/step-one");
-  const isStep2 = pathname === "/step-2" || pathname.startsWith("/step-2/");
-  const isAuthPage = pathname === "/login" || pathname === "/signup";
+  const isStepOne = pathname.startsWith('/step-one');
+  const isStep2 = pathname === '/step-2' || pathname.startsWith('/step-2/');
+  const isAuthPage = pathname === '/login' || pathname === '/signup';
 
   if ((isStepOne || isStep2) && !user) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("next", pathname);
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('next', pathname);
     return NextResponse.redirect(loginUrl);
   }
 
   if (isAuthPage && user) {
-    return NextResponse.redirect(new URL("/step-one", request.url));
+    return NextResponse.redirect(new URL('/step-one', request.url));
   }
 
   return response;

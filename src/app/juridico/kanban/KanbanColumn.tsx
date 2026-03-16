@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { updateJuridicoTicketStatus } from "../actions";
-import { JURIDICO_STATUS_LIST } from "../constants";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { updateJuridicoTicketStatus } from '../actions';
+import { JURIDICO_STATUS_LIST } from '../constants';
 
 type Ticket = {
   id: string;
@@ -35,31 +35,31 @@ export function KanbanColumn({
   }
 
   return (
-    <div className="w-72 shrink-0 rounded-xl border border-stone-200 bg-white shadow-sm overflow-hidden">
-      <div className="bg-stone-100 px-4 py-3 border-b border-stone-200">
+    <div className="w-72 shrink-0 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+      <div className="border-b border-stone-200 bg-stone-100 px-4 py-3">
         <h2 className="font-semibold text-stone-800">{title}</h2>
-        <p className="text-xs text-stone-500 mt-0.5">{tickets.length} ticket(s)</p>
+        <p className="mt-0.5 text-xs text-stone-500">{tickets.length} ticket(s)</p>
       </div>
-      <div className="p-2 space-y-2 max-h-[70vh] overflow-y-auto">
+      <div className="max-h-[70vh] space-y-2 overflow-y-auto p-2">
         {tickets.map((t) => (
           <div
             key={t.id}
-            className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm hover:border-moni-accent/40 transition"
+            className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm transition hover:border-moni-accent/40"
           >
             <Link href={`/juridico/${t.id}`} className="block">
-              <p className="font-medium text-stone-800 text-sm line-clamp-2">{t.titulo}</p>
+              <p className="line-clamp-2 text-sm font-medium text-stone-800">{t.titulo}</p>
               {(t.nome_frank || t.nome_condominio || t.lote) && (
-                <p className="mt-0.5 text-xs text-stone-500 line-clamp-1">
-                  {[t.nome_frank, t.nome_condominio, t.lote].filter(Boolean).join(" · ")}
+                <p className="mt-0.5 line-clamp-1 text-xs text-stone-500">
+                  {[t.nome_frank, t.nome_condominio, t.lote].filter(Boolean).join(' · ')}
                 </p>
               )}
-              <p className="mt-1 text-xs text-stone-500 line-clamp-2">{t.descricao}</p>
+              <p className="mt-1 line-clamp-2 text-xs text-stone-500">{t.descricao}</p>
               <p className="mt-1 text-xs text-stone-400">
-                {t.created_at ? new Date(t.created_at).toLocaleDateString("pt-BR") : ""}
+                {t.created_at ? new Date(t.created_at).toLocaleDateString('pt-BR') : ''}
               </p>
             </Link>
-            <div className="mt-2 pt-2 border-t border-stone-100">
-              <label className="text-xs text-stone-500 block mb-1">Mover para:</label>
+            <div className="mt-2 border-t border-stone-100 pt-2">
+              <label className="mb-1 block text-xs text-stone-500">Mover para:</label>
               <select
                 value={t.status}
                 onChange={(e) => handleStatusChange(t.id, e.target.value)}

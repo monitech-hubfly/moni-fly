@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { saveEtapa1, fetchAndSaveDadosIbgeEtapa1 } from "./actions";
-import type { MunicipioIbge } from "@/lib/ibge";
+import { useState } from 'react';
+import { saveEtapa1, fetchAndSaveDadosIbgeEtapa1 } from './actions';
+import type { MunicipioIbge } from '@/lib/ibge';
 
 interface Etapa1FormProps {
   processoId: string;
@@ -23,17 +23,17 @@ export function Etapa1Form({
 }: Etapa1FormProps) {
   const [narrativa, setNarrativa] = useState(initialNarrativa);
   const [analiseIbge, setAnaliseIbge] = useState<MunicipioIbge | null>(
-    (initialAnaliseIbge as MunicipioIbge | null) ?? null
+    (initialAnaliseIbge as MunicipioIbge | null) ?? null,
   );
   const [concluida, setConcluida] = useState(initialConcluida);
   const [loading, setLoading] = useState(false);
   const [loadingIbge, setLoadingIbge] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    setError('');
     setLoading(true);
     const result = await saveEtapa1(processoId, { narrativa, concluida });
     setLoading(false);
@@ -47,17 +47,17 @@ export function Etapa1Form({
 
   const handleBuscarIbge = async () => {
     if (!cidade.trim()) {
-      setError("Informe a cidade do processo para buscar dados do IBGE.");
+      setError('Informe a cidade do processo para buscar dados do IBGE.');
       return;
     }
-    setError("");
+    setError('');
     setLoadingIbge(true);
     const result = await fetchAndSaveDadosIbgeEtapa1(processoId, cidade.trim(), estado);
     setLoadingIbge(false);
     if (result.ok && result.data) {
       setAnaliseIbge(result.data);
     } else {
-      setError(result.error ?? "Erro ao buscar dados do IBGE.");
+      setError(result.error ?? 'Erro ao buscar dados do IBGE.');
     }
   };
 
@@ -65,7 +65,11 @@ export function Etapa1Form({
     <div className="mt-6 space-y-6">
       <div>
         <p className="text-sm text-stone-600">
-          Praça: <strong>{cidade}{estado ? `, ${estado}` : ""}</strong>
+          Praça:{' '}
+          <strong>
+            {cidade}
+            {estado ? `, ${estado}` : ''}
+          </strong>
         </p>
       </div>
 
@@ -81,17 +85,31 @@ export function Etapa1Form({
           disabled={loadingIbge}
           className="mt-2 rounded-lg bg-stone-700 px-3 py-2 text-sm font-medium text-white hover:bg-stone-800 disabled:opacity-60"
         >
-          {loadingIbge ? "Buscando…" : "Buscar dados do IBGE"}
+          {loadingIbge ? 'Buscando…' : 'Buscar dados do IBGE'}
         </button>
         {analiseIbge && (
           <div className="mt-3 rounded border border-stone-200 bg-white p-3 text-sm text-stone-700">
-            <p><strong>Município:</strong> {analiseIbge.nome} (ID {analiseIbge.id})</p>
-            <p><strong>UF:</strong> {analiseIbge.uf?.nome} ({analiseIbge.uf?.sigla})</p>
-            <p><strong>Região:</strong> {analiseIbge.regiao?.nome} ({analiseIbge.regiao?.sigla})</p>
-            <p><strong>Microrregião:</strong> {analiseIbge.microrregiao?.nome}</p>
-            <p><strong>Mesorregião:</strong> {analiseIbge.mesorregiao?.nome}</p>
-            <p><strong>Região imediata:</strong> {analiseIbge["regiao-imediata"]?.nome}</p>
-            <p><strong>Região intermediária:</strong> {analiseIbge["regiao-intermediaria"]?.nome}</p>
+            <p>
+              <strong>Município:</strong> {analiseIbge.nome} (ID {analiseIbge.id})
+            </p>
+            <p>
+              <strong>UF:</strong> {analiseIbge.uf?.nome} ({analiseIbge.uf?.sigla})
+            </p>
+            <p>
+              <strong>Região:</strong> {analiseIbge.regiao?.nome} ({analiseIbge.regiao?.sigla})
+            </p>
+            <p>
+              <strong>Microrregião:</strong> {analiseIbge.microrregiao?.nome}
+            </p>
+            <p>
+              <strong>Mesorregião:</strong> {analiseIbge.mesorregiao?.nome}
+            </p>
+            <p>
+              <strong>Região imediata:</strong> {analiseIbge['regiao-imediata']?.nome}
+            </p>
+            <p>
+              <strong>Região intermediária:</strong> {analiseIbge['regiao-intermediaria']?.nome}
+            </p>
           </div>
         )}
       </section>
@@ -102,10 +120,18 @@ export function Etapa1Form({
         <p className="mt-1 text-xs text-amber-800">
           A análise de praça passará a trazer dados automáticos destas fontes:
         </p>
-        <ul className="mt-2 text-sm text-amber-800 space-y-1">
-          <li><strong>IBGE</strong> — já integrado acima (limites, regiões).</li>
-          <li><strong>Atlas Brasil (PNUD):</strong> demografia, IDHM, indicadores municipais — integração prevista.</li>
-          <li><strong>Google Maps / Places:</strong> parques, comércio, shoppings, eixos — exige configuração de API key.</li>
+        <ul className="mt-2 space-y-1 text-sm text-amber-800">
+          <li>
+            <strong>IBGE</strong> — já integrado acima (limites, regiões).
+          </li>
+          <li>
+            <strong>Atlas Brasil (PNUD):</strong> demografia, IDHM, indicadores municipais —
+            integração prevista.
+          </li>
+          <li>
+            <strong>Google Maps / Places:</strong> parques, comércio, shoppings, eixos — exige
+            configuração de API key.
+          </li>
         </ul>
       </section>
 
@@ -113,9 +139,10 @@ export function Etapa1Form({
       <section className="rounded-lg border border-sky-100 bg-sky-50/50 p-4">
         <h3 className="font-medium text-sky-900">Referência de imagens mapeadas (em breve)</h3>
         <p className="mt-1 text-xs text-sky-800">
-          A ferramenta trará referência de imagens com todos os elementos urbanos mapeados para a praça:
+          A ferramenta trará referência de imagens com todos os elementos urbanos mapeados para a
+          praça:
         </p>
-        <ul className="mt-2 text-sm text-sky-800 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 list-disc list-inside">
+        <ul className="mt-2 grid list-inside list-disc grid-cols-1 gap-x-4 gap-y-1 text-sm text-sky-800 sm:grid-cols-2">
           <li>Escolas</li>
           <li>Hospitais</li>
           <li>Principais eixos</li>
@@ -126,7 +153,8 @@ export function Etapa1Form({
           <li>Demais elementos urbanos mapeados</li>
         </ul>
         <p className="mt-2 text-xs text-sky-700">
-          Fontes previstas: Atlas Brasil, Google Maps e bases oficiais. Integração em desenvolvimento.
+          Fontes previstas: Atlas Brasil, Google Maps e bases oficiais. Integração em
+          desenvolvimento.
         </p>
       </section>
 
@@ -164,7 +192,7 @@ export function Etapa1Form({
         {error && <p className="text-sm text-red-600">{error}</p>}
         {saved && <p className="text-sm text-green-600">Salvo com sucesso.</p>}
         <button type="submit" disabled={loading} className="btn-primary">
-          {loading ? "Salvando…" : "Salvar"}
+          {loading ? 'Salvando…' : 'Salvar'}
         </button>
       </form>
     </div>

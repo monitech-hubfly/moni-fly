@@ -3,20 +3,13 @@
  * Inclui exceção HDM: tipo 'padrao' | 'hdm', hdm_responsavel, redirecionamento.
  */
 
-export type ChamadoStatus =
-  | "nao_iniciado"
-  | "em_andamento"
-  | "concluido";
+export type ChamadoStatus = 'nao_iniciado' | 'em_andamento' | 'concluido';
 
-export type TopicoStatus =
-  | "nao_iniciado"
-  | "em_andamento"
-  | "concluido"
-  | "aprovado";
+export type TopicoStatus = 'nao_iniciado' | 'em_andamento' | 'concluido' | 'aprovado';
 
-export type ChamadoTipo = "padrao" | "hdm";
+export type ChamadoTipo = 'padrao' | 'hdm';
 
-export type HdmTime = "Homologações" | "Produto" | "Modelo Virtual";
+export type HdmTime = 'Homologações' | 'Produto' | 'Modelo Virtual';
 
 export interface Chamado {
   id: number;

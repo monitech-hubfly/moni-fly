@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { avancarParaProximoStep } from "./actions";
+import { useRouter } from 'next/navigation';
+import { avancarParaProximoStep } from './actions';
 
 export function IrParaStep3Button({ processoId }: { processoId: string }) {
   const router = useRouter();
@@ -9,10 +9,10 @@ export function IrParaStep3Button({ processoId }: { processoId: string }) {
   async function handleAvancar() {
     const result = await avancarParaProximoStep(processoId, 3);
     if (result.ok) {
-      router.push("/step-3");
+      router.push('/step-3');
       router.refresh();
     } else {
-      alert(result.error ?? "Erro ao avançar.");
+      alert(result.error ?? 'Erro ao avançar.');
     }
   }
 

@@ -44,14 +44,14 @@ Para **cada** arquivo da lista abaixo (um de cada vez):
 
 **Ordem dos arquivos (rode nesta ordem):**
 
-| # | Arquivo | O que faz |
-|---|---------|-----------|
-| 1 | **001_initial_schema.sql** | Cria tabelas iniciais (profiles, processo_step_one, etapa_progresso, etc.). |
-| 2 | **002_idempotent_schema.sql** | Ajustes idempotentes do schema. |
-| 3 | **003_fix_rls_recursion_profiles.sql** | Corrige RLS em profiles (evita recursão). |
-| 4 | **004_sprint4_listings_catalogo_lote.sql** | Cria listings_casas, listings_lotes, catalogo_casas, lote_escolhido + seed de 2 modelos. |
-| 5 | **005_batalhas_etapa8.sql** | Cria tabela batalhas (notas preço, produto, localização). |
-| 6 | **007_catalogo_escolhidos.sql** | Remove casas_escolhidas (se existir) e cria catalogo_escolhidos (3 modelos do catálogo por processo). |
+| #   | Arquivo                                    | O que faz                                                                                             |
+| --- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| 1   | **001_initial_schema.sql**                 | Cria tabelas iniciais (profiles, processo_step_one, etapa_progresso, etc.).                           |
+| 2   | **002_idempotent_schema.sql**              | Ajustes idempotentes do schema.                                                                       |
+| 3   | **003_fix_rls_recursion_profiles.sql**     | Corrige RLS em profiles (evita recursão).                                                             |
+| 4   | **004_sprint4_listings_catalogo_lote.sql** | Cria listings_casas, listings_lotes, catalogo_casas, lote_escolhido + seed de 2 modelos.              |
+| 5   | **005_batalhas_etapa8.sql**                | Cria tabela batalhas (notas preço, produto, localização).                                             |
+| 6   | **007_catalogo_escolhidos.sql**            | Remove casas_escolhidas (se existir) e cria catalogo_escolhidos (3 modelos do catálogo por processo). |
 
 **Importante:** **NÃO** rode o arquivo **006_casas_escolhidas.sql**. A lógica foi substituída pela **007** (escolha de 3 **modelos do catálogo**, não 3 casas ZAP).
 
@@ -134,7 +134,7 @@ Aperte **Enter**. Espere aparecer **"✓ Ready"** e algo como **"Local: http://l
 ### Passo 9 — Etapas 4 e 5: casas e lotes (listagem manual)
 
 1. Vá para **Etapa 4 — Listagem casas à venda (ZAP)**.
-   - Deve aparecer o texto: *"Adicione casas à venda manualmente. A integração com Apify (varredura ZAP) será conectada em breve."*
+   - Deve aparecer o texto: _"Adicione casas à venda manualmente. A integração com Apify (varredura ZAP) será conectada em breve."_
    - Cadastre **pelo menos uma casa** (Condomínio, Preço, etc.) para poder usar a Etapa 8.
 2. Vá para **Etapa 5 — Listagem lotes à venda**.
    - Texto similar sobre listagem manual e Apify em breve.
@@ -168,13 +168,13 @@ Aperte **Enter**. Espere aparecer **"✓ Ready"** e algo como **"Local: http://l
 
 ## PARTE 4 — Se algo der errado ou precisar excluir/substituir
 
-| Situação | O que fazer |
-|----------|-------------|
-| **Erro "relation catalogo_escolhidos does not exist"** | Rode a migração **007** no SQL Editor (Passo 2). |
-| **Já rodei a 006 (casas_escolhidas)** | Rode a **007**. Ela remove `casas_escolhidas` e cria `catalogo_escolhidos`. Não precisa excluir nada à mão. |
-| **Etapa 1 — "Município não encontrado"** | No Supabase, **Table Editor** → **processo_step_one** → na linha do processo, coluna **estado**, coloque a **sigla** (ex.: **SP**). |
-| **Etapa 8 — "Nenhuma casa listada na Etapa 4"** | Cadastre pelo menos **uma** casa na Etapa 4. |
-| **Etapa 8 — "O catálogo Moní precisa ter pelo menos 3 modelos"** | No Supabase, **Table Editor** → **catalogo_casas** → **Insert row** e adicione mais um modelo (ativo = true). |
+| Situação                                                            | O que fazer                                                                                                                               |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **Erro "relation catalogo_escolhidos does not exist"**              | Rode a migração **007** no SQL Editor (Passo 2).                                                                                          |
+| **Já rodei a 006 (casas_escolhidas)**                               | Rode a **007**. Ela remove `casas_escolhidas` e cria `catalogo_escolhidos`. Não precisa excluir nada à mão.                               |
+| **Etapa 1 — "Município não encontrado"**                            | No Supabase, **Table Editor** → **processo_step_one** → na linha do processo, coluna **estado**, coloque a **sigla** (ex.: **SP**).       |
+| **Etapa 8 — "Nenhuma casa listada na Etapa 4"**                     | Cadastre pelo menos **uma** casa na Etapa 4.                                                                                              |
+| **Etapa 8 — "O catálogo Moní precisa ter pelo menos 3 modelos"**    | No Supabase, **Table Editor** → **catalogo_casas** → **Insert row** e adicione mais um modelo (ativo = true).                             |
 | **Quero apagar a tabela catalogo_escolhidos e rodar a 007 de novo** | No SQL Editor: `DROP TABLE IF EXISTS public.catalogo_escolhidos;` Depois rode todo o conteúdo do **007_catalogo_escolhidos.sql** de novo. |
 
 ---

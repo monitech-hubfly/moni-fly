@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import {
   updateJuridicoTicketStatus,
   setJuridicoRespostaPublica,
   addJuridicoComentarioInterno,
   registerJuridicoAnexo,
-} from "../actions";
-import { JURIDICO_STATUS_LIST } from "../constants";
-import { UploadAnexoJuridico } from "./UploadAnexoJuridico";
+} from '../actions';
+import { JURIDICO_STATUS_LIST } from '../constants';
+import { UploadAnexoJuridico } from './UploadAnexoJuridico';
 
 type Props = {
   ticketId: string;
@@ -25,8 +25,8 @@ export function JuridicoTicketDetailClient({ ticketId, isMoni, status, comentari
   const [commentBusy, setCommentBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newStatus, setNewStatus] = useState(status);
-  const [respostaText, setRespostaText] = useState("");
-  const [commentText, setCommentText] = useState("");
+  const [respostaText, setRespostaText] = useState('');
+  const [commentText, setCommentText] = useState('');
 
   async function handleStatusChange() {
     if (newStatus === status) return;
@@ -46,7 +46,7 @@ export function JuridicoTicketDetailClient({ ticketId, isMoni, status, comentari
     setRespostaBusy(false);
     if (!result.ok) setError(result.error);
     else {
-      setRespostaText("");
+      setRespostaText('');
       router.refresh();
     }
   }
@@ -59,12 +59,12 @@ export function JuridicoTicketDetailClient({ ticketId, isMoni, status, comentari
     setCommentBusy(false);
     if (!result.ok) setError(result.error);
     else {
-      setCommentText("");
+      setCommentText('');
       router.refresh();
     }
   }
 
-  const finalizado = status === "finalizado";
+  const finalizado = status === 'finalizado';
 
   return (
     <div className="mt-8 space-y-6">
@@ -77,22 +77,30 @@ export function JuridicoTicketDetailClient({ ticketId, isMoni, status, comentari
       {!isMoni && !finalizado && (
         <section className="rounded-2xl border border-stone-200/80 bg-white p-5 shadow-sm">
           <h2 className="text-sm font-medium text-stone-700">Enviar anexo</h2>
-          <p className="mt-1 text-sm text-stone-500">Anexe documentos à sua dúvida (PDF, imagens, Word).</p>
-          <UploadAnexoJuridico ticketId={ticketId} lado="frank" onSuccess={() => router.refresh()} />
+          <p className="mt-1 text-sm text-stone-500">
+            Anexe documentos à sua dúvida (PDF, imagens, Word).
+          </p>
+          <UploadAnexoJuridico
+            ticketId={ticketId}
+            lado="frank"
+            onSuccess={() => router.refresh()}
+          />
         </section>
       )}
 
       {isMoni && (
         <>
           <section className="rounded-2xl border border-amber-200/80 bg-amber-50/30 p-5 shadow-sm">
-            <h2 className="text-sm font-medium text-amber-800">Comentários internos (Frank não vê)</h2>
+            <h2 className="text-sm font-medium text-amber-800">
+              Comentários internos (Frank não vê)
+            </h2>
             {comentarios.length > 0 && (
               <ul className="mt-3 space-y-2">
                 {comentarios.map((c) => (
                   <li key={c.id} className="rounded-lg bg-white/80 p-3 text-sm text-stone-700">
                     <p className="whitespace-pre-wrap">{c.texto}</p>
                     <p className="mt-1 text-xs text-stone-500">
-                      {new Date(c.created_at).toLocaleString("pt-BR")}
+                      {new Date(c.created_at).toLocaleString('pt-BR')}
                     </p>
                   </li>
                 ))}
@@ -112,7 +120,7 @@ export function JuridicoTicketDetailClient({ ticketId, isMoni, status, comentari
                 disabled={commentBusy || !commentText.trim()}
                 className="shrink-0 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
               >
-                {commentBusy ? "..." : "Adicionar"}
+                {commentBusy ? '...' : 'Adicionar'}
               </button>
             </div>
           </section>
@@ -137,16 +145,19 @@ export function JuridicoTicketDetailClient({ ticketId, isMoni, status, comentari
                 disabled={statusBusy || newStatus === status}
                 className="rounded-lg bg-moni-primary px-4 py-2 text-sm font-medium text-white hover:bg-moni-secondary disabled:opacity-50"
               >
-                {statusBusy ? "Salvando..." : "Aplicar"}
+                {statusBusy ? 'Salvando...' : 'Aplicar'}
               </button>
             </div>
           </section>
 
           {!finalizado && (
             <section className="rounded-2xl border border-emerald-200/80 bg-emerald-50/30 p-5 shadow-sm">
-              <h2 className="text-sm font-medium text-emerald-800">Responder ao Frank e finalizar</h2>
+              <h2 className="text-sm font-medium text-emerald-800">
+                Responder ao Frank e finalizar
+              </h2>
               <p className="mt-1 text-sm text-emerald-700">
-                Esta resposta será visível para o franqueado. Ao enviar, o ticket será marcado como Finalizado.
+                Esta resposta será visível para o franqueado. Ao enviar, o ticket será marcado como
+                Finalizado.
               </p>
               <textarea
                 value={respostaText}
@@ -162,7 +173,7 @@ export function JuridicoTicketDetailClient({ ticketId, isMoni, status, comentari
                   disabled={respostaBusy || !respostaText.trim()}
                   className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
                 >
-                  {respostaBusy ? "Enviando..." : "Enviar resposta e finalizar"}
+                  {respostaBusy ? 'Enviando...' : 'Enviar resposta e finalizar'}
                 </button>
               </div>
             </section>
@@ -170,7 +181,11 @@ export function JuridicoTicketDetailClient({ ticketId, isMoni, status, comentari
 
           <section className="rounded-2xl border border-stone-200/80 bg-white p-5 shadow-sm">
             <h2 className="text-sm font-medium text-stone-700">Anexos da Moní (resposta)</h2>
-            <UploadAnexoJuridico ticketId={ticketId} lado="moni" onSuccess={() => router.refresh()} />
+            <UploadAnexoJuridico
+              ticketId={ticketId}
+              lado="moni"
+              onSuccess={() => router.refresh()}
+            />
           </section>
         </>
       )}

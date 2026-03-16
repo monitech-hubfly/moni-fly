@@ -1,43 +1,59 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { getComiteData } from "./actions";
-import { ComiteApresentacao } from "./ComiteApresentacao";
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
+import { getComiteData } from './actions';
+import { ComiteApresentacao } from './ComiteApresentacao';
 
 type PageProps = { searchParams: Promise<{ processoId?: string }> };
 
 /** Ordem pré-cetada dos documentos na apresentação do Comitê */
 const ORDEM_COMITE = [
-  { key: "prospeccao" as const, titulo: "1. Prospecção da Cidade" },
-  { key: "score_batalha" as const, titulo: "2. Score e Batalha de Casas" },
-  { key: "resumo" as const, titulo: "3. Resumo e Hipóteses" },
+  { key: 'prospeccao' as const, titulo: '1. Prospecção da Cidade' },
+  { key: 'score_batalha' as const, titulo: '2. Score e Batalha de Casas' },
+  { key: 'resumo' as const, titulo: '3. Resumo e Hipóteses' },
 ];
 
 export default async function Step5ComitePage({ searchParams }: PageProps) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
 
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  const role = profile?.role ?? "frank";
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+  const role = profile?.role ?? 'frank';
   const params = await searchParams;
   const processoIdParam = params.processoId;
 
-  let processo: { id: string; cidade: string | null; estado: string | null; user_id: string } | null = null;
+  let processo: {
+    id: string;
+    cidade: string | null;
+    estado: string | null;
+    user_id: string;
+  } | null = null;
   let isOwner = false;
 
-  if ((role === "consultor" || role === "admin") && processoIdParam) {
+  if ((role === 'consultor' || role === 'admin') && processoIdParam) {
     const { data: p } = await supabase
-      .from("processo_step_one")
-      .select("id, cidade, estado, user_id")
-      .eq("id", processoIdParam)
+      .from('processo_step_one')
+      .select('id, cidade, estado, user_id')
+      .eq('id', processoIdParam)
       .single();
     if (p) {
-      if (role === "admin") {
+      if (role === 'admin') {
         processo = p;
         isOwner = false;
       } else {
-        const { data: frank } = await supabase.from("profiles").select("id").eq("consultor_id", user.id).eq("id", p.user_id).single();
+        const { data: frank } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('consultor_id', user.id)
+          .eq('id', p.user_id)
+          .single();
         if (frank) {
           processo = p;
           isOwner = false;
@@ -48,24 +64,24 @@ export default async function Step5ComitePage({ searchParams }: PageProps) {
 
   if (!processo) {
     const { data: p } = await supabase
-      .from("processo_step_one")
-      .select("id, cidade, estado, user_id")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
+      .from('processo_step_one')
+      .select('id, cidade, estado, user_id')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
     processo = p;
     isOwner = true;
   }
 
-  if (!processo) redirect("/steps-viabilidade");
+  if (!processo) redirect('/steps-viabilidade');
 
   const ownerUserId = isOwner ? undefined : processo.user_id;
   const comiteData = await getComiteData(processo.id, ownerUserId);
-  if (!comiteData) redirect("/steps-viabilidade");
+  if (!comiteData) redirect('/steps-viabilidade');
 
-  const backHref = processoIdParam ? "/painel" : "/steps-viabilidade";
-  const backLabel = processoIdParam ? "← Painel Moní" : "← Steps Viabilidade";
+  const backHref = processoIdParam ? '/painel' : '/steps-viabilidade';
+  const backLabel = processoIdParam ? '← Painel Moní' : '← Steps Viabilidade';
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -82,11 +98,11 @@ export default async function Step5ComitePage({ searchParams }: PageProps) {
         <div className="mb-6 print:hidden">
           <h1 className="text-2xl font-bold text-moni-dark">Step 5: Comitê</h1>
           <p className="mt-1 text-sm text-stone-600">
-            Apresentação do processo — {comiteData.processoCidade ?? "—"}
-            {comiteData.processoEstado ? `, ${comiteData.processoEstado}` : ""}
+            Apresentação do processo — {comiteData.processoCidade ?? '—'}
+            {comiteData.processoEstado ? `, ${comiteData.processoEstado}` : ''}
           </p>
           <p className="mt-2 text-sm text-stone-500">
-            Documentos na ordem: {ORDEM_COMITE.map((o) => o.titulo).join(" → ")}
+            Documentos na ordem: {ORDEM_COMITE.map((o) => o.titulo).join(' → ')}
           </p>
         </div>
 

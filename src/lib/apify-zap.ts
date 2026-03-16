@@ -4,17 +4,17 @@
  * Token: VITE_APIFY_TOKEN ou APIFY_API_TOKEN no .env.local. Opcional: APIFY_ACTOR_ZAP_ID.
  */
 
-const DEFAULT_ACTOR_ID = "fatihtahta/zap-imoveis-scraper";
-const APIFY_BASE = "https://api.apify.com/v2";
+const DEFAULT_ACTOR_ID = 'fatihtahta/zap-imoveis-scraper';
+const APIFY_BASE = 'https://api.apify.com/v2';
 
 function slugify(s: string): string {
   return s
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
     .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "");
+    .replace(/[^a-z0-9-]/g, '');
 }
 
 /**
@@ -22,51 +22,51 @@ function slugify(s: string): string {
  */
 function condominioSlug(nome: string): string {
   const t = nome.trim();
-  if (!t) return "";
+  if (!t) return '';
   const match = t.match(/^loteamento\s+(.+)$/i);
-  if (match) return "lot-" + slugify(match[1]);
+  if (match) return 'lot-' + slugify(match[1]);
   return slugify(t);
 }
 
 /** Remove acentos para o trecho BR>... do parâmetro onde. */
 function noAccent(s: string): string {
   return s
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
     .trim();
 }
 
 /** Nome completo do estado a partir da UF (para o parâmetro onde). */
 const UF_TO_STATE: Record<string, string> = {
-  sp: "São Paulo",
-  rj: "Rio de Janeiro",
-  mg: "Minas Gerais",
-  pr: "Paraná",
-  rs: "Rio Grande do Sul",
-  sc: "Santa Catarina",
-  ba: "Bahia",
-  go: "Goiás",
-  pe: "Pernambuco",
-  df: "Distrito Federal",
+  sp: 'São Paulo',
+  rj: 'Rio de Janeiro',
+  mg: 'Minas Gerais',
+  pr: 'Paraná',
+  rs: 'Rio Grande do Sul',
+  sc: 'Santa Catarina',
+  ba: 'Bahia',
+  go: 'Goiás',
+  pe: 'Pernambuco',
+  df: 'Distrito Federal',
 };
 
 /** Coordenadas aproximadas (lat,lng) por cidade para o parâmetro onde. Fallback: capital SP. */
 const CITY_COORDS: Record<string, string> = {
-  campinas: "-22.863555,-47.014484",
-  "santana de parnaiba": "-23.476859,-46.866202",
-  "são paulo": "-23.550520,-46.633308",
-  "sao paulo": "-23.550520,-46.633308",
-  "rio de janeiro": "-22.906847,-43.172897",
-  "belo horizonte": "-19.916681,-43.934493",
+  campinas: '-22.863555,-47.014484',
+  'santana de parnaiba': '-23.476859,-46.866202',
+  'são paulo': '-23.550520,-46.633308',
+  'sao paulo': '-23.550520,-46.633308',
+  'rio de janeiro': '-22.906847,-43.172897',
+  'belo horizonte': '-19.916681,-43.934493',
 };
 
 function getCoords(cidade: string, uf: string): string {
   const key = cidade.trim().toLowerCase();
-  const keyNorm = key.normalize("NFD").replace(/\p{Diacritic}/gu, "");
+  const keyNorm = key.normalize('NFD').replace(/\p{Diacritic}/gu, '');
   return (
     CITY_COORDS[key] ??
     CITY_COORDS[keyNorm] ??
-    (uf.toLowerCase() === "sp" ? "-23.550520,-46.633308" : "0,0")
+    (uf.toLowerCase() === 'sp' ? '-23.550520,-46.633308' : '0,0')
   );
 }
 
@@ -75,14 +75,14 @@ function getCoords(cidade: string, uf: string): string {
  * O Actor do Apify usa isso para "derive location filters"; sem ele retorna 0 resultados.
  */
 function buildOndeParam(cidade: string, estado: string, condominio?: string): string {
-  const uf = estado.replace(/\s/g, "").slice(0, 2).toLowerCase();
+  const uf = estado.replace(/\s/g, '').slice(0, 2).toLowerCase();
   const stateName = UF_TO_STATE[uf] ?? estado;
   const city = cidade.trim();
-  const neighborhood = (condominio || "").trim();
+  const neighborhood = (condominio || '').trim();
   const coords = getCoords(cidade, estado);
   const stateNoAccent = noAccent(stateName);
   const cityNoAccent = noAccent(city);
-  const neighborhoodNoAccent = neighborhood ? noAccent(neighborhood) : "";
+  const neighborhoodNoAccent = neighborhood ? noAccent(neighborhood) : '';
   const ondeRaw = `,${stateName},${city},,${neighborhood},,,neighborhood,BR>${stateNoAccent}>NULL>${cityNoAccent}>Barrios>${neighborhoodNoAccent},${coords},`;
   return encodeURIComponent(ondeRaw);
 }
@@ -93,15 +93,15 @@ function buildOndeParam(cidade: string, estado: string, condominio?: string): st
  * - onde: parâmetro que o Actor do Apify usa para extrair location filters (obrigatório para não dar 0 resultados)
  * - tipos + preço mínimo: R$ 4.000.000
  */
-const ZAP_TIPOS = "sobrado_residencial%2Ccondominio_residencial%2Ccasa_residencial";
+const ZAP_TIPOS = 'sobrado_residencial%2Ccondominio_residencial%2Ccasa_residencial';
 
 export function buildZapSearchUrl(cidade: string, estado: string, condominio?: string): string {
-  const uf = estado.replace(/\s/g, "").slice(0, 2).toLowerCase();
-  const citySlug = slugify(cidade || "");
+  const uf = estado.replace(/\s/g, '').slice(0, 2).toLowerCase();
+  const citySlug = slugify(cidade || '');
   if (!citySlug || !uf) {
-    return "";
+    return '';
   }
-  const condSlug = condominio ? condominioSlug(condominio) : "";
+  const condSlug = condominio ? condominioSlug(condominio) : '';
   const pathSegment = condSlug ? `${uf}+${citySlug}++${condSlug}` : `${uf}+${citySlug}`;
   const onde = buildOndeParam(cidade.trim(), estado, condominio?.trim());
   const base = `https://www.zapimoveis.com.br/venda/sobrados/${pathSegment}/?transacao=venda&onde=${onde}&tipos=${ZAP_TIPOS}&precoMinimo=4000000`;
@@ -145,31 +145,32 @@ export async function runZapScraper(
   estado: string,
   condominio?: string,
   limit = 300,
-  timeoutMs = 120_000
+  timeoutMs = 120_000,
 ): Promise<RunZapResult> {
   const token = process.env.VITE_APIFY_TOKEN || process.env.APIFY_API_TOKEN;
   const tokenPresent = !!token;
 
-  const actorId = (process.env.APIFY_ACTOR_ZAP_ID || DEFAULT_ACTOR_ID).replace(/\//g, "~");
+  const actorId = (process.env.APIFY_ACTOR_ZAP_ID || DEFAULT_ACTOR_ID).replace(/\//g, '~');
   const startUrl = buildZapSearchUrl(cidade, estado, condominio);
 
   const baseDebug: ZapRunDebug = {
     tokenPresent,
-    urlSent: startUrl || "(URL não gerada – falta cidade/estado)",
+    urlSent: startUrl || '(URL não gerada – falta cidade/estado)',
   };
 
   if (!token) {
     return {
       ok: false,
-      error: "Token Apify não configurado. Defina VITE_APIFY_TOKEN ou APIFY_API_TOKEN no .env.local.",
-      debug: { ...baseDebug, apiError: "Token ausente" },
+      error:
+        'Token Apify não configurado. Defina VITE_APIFY_TOKEN ou APIFY_API_TOKEN no .env.local.',
+      debug: { ...baseDebug, apiError: 'Token ausente' },
     };
   }
   if (!startUrl) {
     return {
       ok: false,
-      error: "Cidade e estado são obrigatórios para montar a busca ZAP.",
-      debug: { ...baseDebug, apiError: "URL não gerada" },
+      error: 'Cidade e estado são obrigatórios para montar a busca ZAP.',
+      debug: { ...baseDebug, apiError: 'URL não gerada' },
     };
   }
 
@@ -183,7 +184,7 @@ export async function runZapScraper(
 export async function runZapScraperWithUrl(
   startUrl: string,
   limit = 300,
-  timeoutMs = 120_000
+  timeoutMs = 120_000,
 ): Promise<RunZapResult> {
   const token = process.env.VITE_APIFY_TOKEN || process.env.APIFY_API_TOKEN;
   const baseDebug: ZapRunDebug = {
@@ -194,26 +195,26 @@ export async function runZapScraperWithUrl(
   if (!token) {
     return {
       ok: false,
-      error: "Token Apify não configurado.",
-      debug: { ...baseDebug, apiError: "Token ausente" },
+      error: 'Token Apify não configurado.',
+      debug: { ...baseDebug, apiError: 'Token ausente' },
     };
   }
 
-  const actorId = (process.env.APIFY_ACTOR_ZAP_ID || DEFAULT_ACTOR_ID).replace(/\//g, "~");
+  const actorId = (process.env.APIFY_ACTOR_ZAP_ID || DEFAULT_ACTOR_ID).replace(/\//g, '~');
   const runPayload = {
     startUrls: [{ url: startUrl }],
     proxyConfiguration: {
       useApifyProxy: true,
-      apifyProxyGroups: ["RESIDENTIAL"],
-      apifyProxyCountry: "BR",
+      apifyProxyGroups: ['RESIDENTIAL'],
+      apifyProxyCountry: 'BR',
     },
   };
 
   const runsUrl = `${APIFY_BASE}/acts/${actorId}/runs?token=${token}`;
   try {
     const runRes = await fetch(runsUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(runPayload),
     });
 
@@ -222,15 +223,20 @@ export async function runZapScraperWithUrl(
       return {
         ok: false,
         error: `Apify run: ${runRes.status} ${runResText}`,
-        debug: { ...baseDebug, runStatus: String(runRes.status), apiResponse: runResText, apiError: runResText },
+        debug: {
+          ...baseDebug,
+          runStatus: String(runRes.status),
+          apiResponse: runResText,
+          apiError: runResText,
+        },
       };
     }
 
     const runData = JSON.parse(runResText) as { data: { id: string } };
     const runId = runData.data.id;
-    console.log("[APIFY-ZAP] runId:", runId);
+    console.log('[APIFY-ZAP] runId:', runId);
 
-    let runStatus = "RUNNING";
+    let runStatus = 'RUNNING';
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       const statusRes = await fetch(`${APIFY_BASE}/actor-runs/${runId}?token=${token}`);
@@ -242,24 +248,31 @@ export async function runZapScraperWithUrl(
           debug: { ...baseDebug, runStatus, apiResponse: statusText, apiError: statusText },
         };
       }
-      const statusData = JSON.parse(statusText) as { data: { status: string; defaultDatasetId?: string } };
+      const statusData = JSON.parse(statusText) as {
+        data: { status: string; defaultDatasetId?: string };
+      };
       runStatus = statusData.data.status;
-      if (runStatus === "SUCCEEDED") {
+      if (runStatus === 'SUCCEEDED') {
         const defaultDatasetId = statusData.data.defaultDatasetId;
-        console.log("[APIFY-ZAP] defaultDatasetId:", defaultDatasetId ?? "(ausente)");
+        console.log('[APIFY-ZAP] defaultDatasetId:', defaultDatasetId ?? '(ausente)');
         if (!defaultDatasetId) {
           return {
             ok: false,
-            error: "Run SUCCEEDED mas a resposta não trouxe defaultDatasetId. Tente novamente.",
+            error: 'Run SUCCEEDED mas a resposta não trouxe defaultDatasetId. Tente novamente.',
             debug: { ...baseDebug, runStatus, apiResponse: statusData },
           };
         }
         const datasetRes = await fetch(
-          `${APIFY_BASE}/datasets/${defaultDatasetId}/items?token=${token}`
+          `${APIFY_BASE}/datasets/${defaultDatasetId}/items?token=${token}`,
         );
         const datasetText = await datasetRes.text();
         if (!datasetRes.ok) {
-          console.log("[APIFY-ZAP] dataset/items status:", datasetRes.status, "| body:", datasetText.slice(0, 200));
+          console.log(
+            '[APIFY-ZAP] dataset/items status:',
+            datasetRes.status,
+            '| body:',
+            datasetText.slice(0, 200),
+          );
           return {
             ok: false,
             error: `Falha ao obter itens do dataset: ${datasetRes.status}. Resposta: ${datasetText.slice(0, 200)}`,
@@ -272,21 +285,25 @@ export async function runZapScraperWithUrl(
         } catch {
           return {
             ok: false,
-            error: "Resposta do dataset não é JSON válido.",
+            error: 'Resposta do dataset não é JSON válido.',
             debug: { ...baseDebug, runStatus, apiResponse: datasetText.slice(0, 300) },
           };
         }
         const itemList = Array.isArray(items) ? items : [];
-        console.log("[APIFY-ZAP] quantidade de itens retornados pelo dataset:", itemList.length);
-        console.log("[APIFY-ZAP] primeiro item completo:", itemList[0] ?? "(nenhum)");
+        console.log('[APIFY-ZAP] quantidade de itens retornados pelo dataset:', itemList.length);
+        console.log('[APIFY-ZAP] primeiro item completo:', itemList[0] ?? '(nenhum)');
         return {
           ok: true,
           items: itemList,
           runId,
-          debug: { ...baseDebug, runStatus, apiResponse: { itemCount: itemList.length, runId, defaultDatasetId } },
+          debug: {
+            ...baseDebug,
+            runStatus,
+            apiResponse: { itemCount: itemList.length, runId, defaultDatasetId },
+          },
         };
       }
-      if (runStatus === "FAILED" || runStatus === "ABORTED" || runStatus === "TIMED-OUT") {
+      if (runStatus === 'FAILED' || runStatus === 'ABORTED' || runStatus === 'TIMED-OUT') {
         return {
           ok: false,
           error: `Apify terminou com status ${runStatus}. Veja o run no painel Apify (Runs) para mais detalhes.`,
@@ -298,8 +315,8 @@ export async function runZapScraperWithUrl(
 
     return {
       ok: false,
-      error: "Timeout: o run do Apify não terminou a tempo.",
-      debug: { ...baseDebug, runStatus: "TIMEOUT" },
+      error: 'Timeout: o run do Apify não terminou a tempo.',
+      debug: { ...baseDebug, runStatus: 'TIMEOUT' },
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -318,30 +335,33 @@ export async function runZapScraperWithUrl(
  */
 function parseLocation(
   location: string | undefined,
-  listing?: Record<string, unknown>
+  listing?: Record<string, unknown>,
 ): { cidade: string; estado: string; condominio: string | null } {
-  let cidade = "";
-  let estado = "";
+  let cidade = '';
+  let estado = '';
   let condominio: string | null = null;
 
   if (location && location.trim()) {
     const loc = location.trim();
-    const dashIdx = loc.lastIndexOf(" - ");
-    estado = dashIdx >= 0 ? loc.slice(dashIdx + 3).trim() : "";
+    const dashIdx = loc.lastIndexOf(' - ');
+    estado = dashIdx >= 0 ? loc.slice(dashIdx + 3).trim() : '';
     const beforeState = dashIdx >= 0 ? loc.slice(0, dashIdx).trim() : loc;
-    const parts = beforeState.split(",").map((p) => p.trim()).filter(Boolean);
-    cidade = parts.length >= 2 ? parts[parts.length - 1] : parts[0] || "";
-    condominio = parts.length >= 2 ? parts.slice(0, -1).join(", ") : null;
+    const parts = beforeState
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean);
+    cidade = parts.length >= 2 ? parts[parts.length - 1] : parts[0] || '';
+    condominio = parts.length >= 2 ? parts.slice(0, -1).join(', ') : null;
   }
 
-  if (!condominio && listing && typeof listing === "object") {
+  if (!condominio && listing && typeof listing === 'object') {
     const addr = listing.address as Record<string, unknown> | undefined;
     const candidates: unknown[] = [];
     if (addr) {
       candidates.push(
         addr.neighborhood,
         (addr as Record<string, unknown>).condominium,
-        (addr as Record<string, unknown>).condominiumName
+        (addr as Record<string, unknown>).condominiumName,
       );
     }
     const anyListing = listing as Record<string, unknown>;
@@ -349,11 +369,11 @@ function parseLocation(
       anyListing.condominium,
       anyListing.condominiumName,
       anyListing.project,
-      (anyListing.project as Record<string, unknown> | undefined)?.name
+      (anyListing.project as Record<string, unknown> | undefined)?.name,
     );
 
     const found = candidates
-      .map((v) => (typeof v === "string" ? v.trim() : ""))
+      .map((v) => (typeof v === 'string' ? v.trim() : ''))
       .find((v) => v.length > 0);
     if (found) condominio = found;
   }
@@ -362,29 +382,33 @@ function parseLocation(
   if (!condominio) {
     const textos: string[] = [];
     if (location) textos.push(location);
-    if (listing && typeof listing === "object") {
+    if (listing && typeof listing === 'object') {
       const anyListing = listing as Record<string, unknown>;
       const addr = anyListing.address as Record<string, unknown> | undefined;
       if (addr) {
         textos.push(
-          String(addr.neighborhood ?? ""),
-          String((addr as Record<string, unknown>).condominium ?? ""),
-          String((addr as Record<string, unknown>).condominiumName ?? "")
+          String(addr.neighborhood ?? ''),
+          String((addr as Record<string, unknown>).condominium ?? ''),
+          String((addr as Record<string, unknown>).condominiumName ?? ''),
         );
       }
       textos.push(
-        String(anyListing.condominium ?? ""),
-        String(anyListing.condominiumName ?? ""),
-        String(anyListing.project ?? ""),
-        String((anyListing.project as Record<string, unknown> | undefined)?.name ?? ""),
-        String(anyListing.title ?? "")
+        String(anyListing.condominium ?? ''),
+        String(anyListing.condominiumName ?? ''),
+        String(anyListing.project ?? ''),
+        String((anyListing.project as Record<string, unknown> | undefined)?.name ?? ''),
+        String(anyListing.title ?? ''),
       );
     }
     const hasArtesano = textos.some((t) =>
-      t.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().includes("artesano")
+      t
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .toLowerCase()
+        .includes('artesano'),
     );
     if (hasArtesano) {
-      condominio = "Loteamento Artesano";
+      condominio = 'Loteamento Artesano';
     }
   }
 
@@ -398,7 +422,7 @@ function parseLocation(
 export function mapZapItemToCasa(
   item: ZapListingItem,
   _cidadeInput: string,
-  _estadoInput: string
+  _estadoInput: string,
 ): {
   cidade: string;
   estado: string;
@@ -417,10 +441,9 @@ export function mapZapItemToCasa(
   foto_url: string | null;
   data_publicacao: string | null;
 } {
-  const priceNum = item.price ? parseInt(String(item.price).replace(/\D/g, ""), 10) : null;
-  const areaNum = item.area ? parseFloat(String(item.area).replace(",", ".")) : null;
-  const precoM2 =
-    priceNum != null && areaNum != null && areaNum > 0 ? priceNum / areaNum : null;
+  const priceNum = item.price ? parseInt(String(item.price).replace(/\D/g, ''), 10) : null;
+  const areaNum = item.area ? parseFloat(String(item.area).replace(',', '.')) : null;
+  const precoM2 = priceNum != null && areaNum != null && areaNum > 0 ? priceNum / areaNum : null;
 
   const listing = item.listing as Record<string, unknown> | undefined;
   const { cidade, estado, condominio } = parseLocation(item.location, listing);
@@ -429,7 +452,7 @@ export function mapZapItemToCasa(
 
   const firstMedia = item.medias?.[0];
   const fotoUrl =
-    typeof firstMedia === "object" && firstMedia?.url
+    typeof firstMedia === 'object' && firstMedia?.url
       ? firstMedia.url
       : Array.isArray(item.medias) && item.medias[0]
         ? (item.medias[0] as { url?: string }).url
@@ -437,10 +460,10 @@ export function mapZapItemToCasa(
 
   let piscina = false;
   let marcenaria = false;
-  if (listing && typeof listing === "object") {
+  if (listing && typeof listing === 'object') {
     const amenities = listing.amenities as string[] | undefined;
     if (Array.isArray(amenities)) {
-      const a = amenities.join(" ").toLowerCase();
+      const a = amenities.join(' ').toLowerCase();
       piscina = /piscina|pool/i.test(a);
       marcenaria = /planejad|móveis|moveis|marcenaria/i.test(a);
     }
@@ -451,7 +474,7 @@ export function mapZapItemToCasa(
   return {
     cidade: cidadeNorm,
     estado: estadoNorm,
-    status: "a_venda",
+    status: 'a_venda',
     condominio: condominio || null,
     localizacao_condominio: item.street || item.location || null,
     quartos: item.bedrooms ?? null,

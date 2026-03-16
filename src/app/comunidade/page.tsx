@@ -1,13 +1,15 @@
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import { fetchRedeFranqueados } from "@/lib/rede-franqueados";
-import { TabelaRedeFranqueados } from "@/components/TabelaRedeFranqueados";
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
+import { fetchRedeFranqueados } from '@/lib/rede-franqueados';
+import { TabelaRedeFranqueados } from '@/components/TabelaRedeFranqueados';
 
 export default async function ComunidadePage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
 
   const data = await fetchRedeFranqueados(supabase);
 
@@ -20,11 +22,12 @@ export default async function ComunidadePage() {
           </Link>
         </div>
       </header>
-      <main className="mx-auto max-w-7xl px-4 py-8 space-y-8">
+      <main className="mx-auto max-w-7xl space-y-8 px-4 py-8">
         <div className="card">
           <h1 className="text-xl font-bold text-moni-dark">COMUNIDADE Moní</h1>
           <p className="mt-2 text-stone-600">
-            Espaço onde franqueados compartilham assuntos em timelines públicas. Outros franqueados podem ver e curtir as publicações.
+            Espaço onde franqueados compartilham assuntos em timelines públicas. Outros franqueados
+            podem ver e curtir as publicações.
           </p>
           <div className="mt-6 rounded-xl border border-dashed border-stone-200 bg-stone-50 p-8 text-center">
             <p className="text-stone-500">Timeline e publicações em construção.</p>
@@ -43,9 +46,9 @@ export default async function ComunidadePage() {
               </p>
             </div>
             {data && (
-              <div className="rounded-xl border-2 border-moni-primary bg-moni-primary/5 px-6 py-4 text-right shrink-0">
+              <div className="shrink-0 rounded-xl border-2 border-moni-primary bg-moni-primary/5 px-6 py-4 text-right">
                 <p className="text-sm font-medium text-stone-600">Franqueados ativos</p>
-                <p className="text-2xl font-bold text-moni-dark mt-0.5">{data.activeCount}</p>
+                <p className="mt-0.5 text-2xl font-bold text-moni-dark">{data.activeCount}</p>
               </div>
             )}
           </div>

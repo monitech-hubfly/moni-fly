@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { saveEtapa9 } from "./actions";
+import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { saveEtapa9 } from './actions';
 
 type BatalhaRow = {
   listing_casa_id: string;
@@ -26,11 +26,9 @@ type CasaCatalogo = {
 function computeRanking(
   batalhas: BatalhaRow[],
   catalogoEscolhidos: CatalogoEscolhido[],
-  catalogo: CasaCatalogo[]
+  catalogo: CasaCatalogo[],
 ) {
-  const ids = catalogoEscolhidos
-    .sort((a, b) => a.ordem - b.ordem)
-    .map((ce) => ce.catalogo_casa_id);
+  const ids = catalogoEscolhidos.sort((a, b) => a.ordem - b.ordem).map((ce) => ce.catalogo_casa_id);
 
   const byCatalogo = ids.map((catalogoId) => {
     const rows = batalhas.filter((b) => b.catalogo_casa_id === catalogoId);
@@ -47,7 +45,7 @@ function computeRanking(
     const casa = catalogo.find((c) => c.id === catalogoId);
     return {
       catalogo_casa_id: catalogoId,
-      nome: casa?.nome ?? "—",
+      nome: casa?.nome ?? '—',
       media,
       batalhasCount: count,
     };
@@ -71,9 +69,10 @@ export function Etapa9Ranking({
   initialJustificativas?: Record<string, string>;
 }) {
   const router = useRouter();
-  const [justificativas, setJustificativas] = useState<Record<string, string>>(initialJustificativas);
+  const [justificativas, setJustificativas] =
+    useState<Record<string, string>>(initialJustificativas);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   const ranking = computeRanking(batalhas, catalogoEscolhidos, catalogo);
 
@@ -88,11 +87,11 @@ export function Etapa9Ranking({
         })
         .finally(() => setSaving(false));
     },
-    [justificativas, processoId]
+    [justificativas, processoId],
   );
 
   const handleConcluir = async () => {
-    setError("");
+    setError('');
     setSaving(true);
     const res = await saveEtapa9(processoId, { justificativas, concluida: true });
     setSaving(false);
@@ -114,14 +113,15 @@ export function Etapa9Ranking({
   return (
     <div className="mt-6 space-y-6">
       <p className="text-sm text-stone-600">
-        Ranking dos 3 modelos do catálogo com base na média das notas (preço + produto + localização) nas batalhas contra as casas ZAP.
+        Ranking dos 3 modelos do catálogo com base na média das notas (preço + produto +
+        localização) nas batalhas contra as casas ZAP.
       </p>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-sm border border-stone-200">
+        <table className="w-full border border-stone-200 text-sm">
           <thead>
             <tr className="bg-stone-100">
-              <th className="p-2 text-left w-16">Posição</th>
+              <th className="w-16 p-2 text-left">Posição</th>
               <th className="p-2 text-left">Modelo</th>
               <th className="p-2 text-right">Média (notas)</th>
               <th className="p-2 text-right">Batalhas</th>
@@ -130,9 +130,7 @@ export function Etapa9Ranking({
           <tbody>
             {ranking.map((r) => (
               <tr key={r.catalogo_casa_id} className="border-t border-stone-200">
-                <td className="p-2 font-medium">
-                  {r.posicao}º
-                </td>
+                <td className="p-2 font-medium">{r.posicao}º</td>
                 <td className="p-2">{r.nome}</td>
                 <td className="p-2 text-right">{r.media.toFixed(2)}</td>
                 <td className="p-2 text-right">{r.batalhasCount}</td>
@@ -146,10 +144,12 @@ export function Etapa9Ranking({
         <h3 className="font-medium text-stone-800">Por quê? (opcional)</h3>
         {ranking.map((r) => (
           <div key={r.catalogo_casa_id}>
-            <label className="block text-sm text-stone-600 mb-1">{r.posicao}º — {r.nome}</label>
+            <label className="mb-1 block text-sm text-stone-600">
+              {r.posicao}º — {r.nome}
+            </label>
             <textarea
-              className="w-full rounded border border-stone-300 p-2 text-sm min-h-[80px]"
-              value={justificativas[r.catalogo_casa_id] ?? ""}
+              className="min-h-[80px] w-full rounded border border-stone-300 p-2 text-sm"
+              value={justificativas[r.catalogo_casa_id] ?? ''}
               onChange={(e) => handleJustificativaChange(r.catalogo_casa_id, e.target.value)}
               placeholder="Breve justificativa..."
             />
@@ -160,13 +160,8 @@ export function Etapa9Ranking({
       {saving && <p className="text-sm text-stone-500">Salvando...</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <button
-        type="button"
-        onClick={handleConcluir}
-        disabled={saving}
-        className="btn-primary"
-      >
-        {saving ? "Salvando..." : "Marcar etapa como concluída"}
+      <button type="button" onClick={handleConcluir} disabled={saving} className="btn-primary">
+        {saving ? 'Salvando...' : 'Marcar etapa como concluída'}
       </button>
     </div>
   );

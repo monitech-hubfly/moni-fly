@@ -10,8 +10,8 @@
   --moni-light: #e8f5ef;
   --moni-dark: #062318;
   --moni-muted: #5c7c72;
-  --font-geist-sans: "Geist", system-ui, sans-serif;
-  --font-display: "Geist", system-ui, sans-serif;
+  --font-geist-sans: 'Geist', system-ui, sans-serif;
+  --font-display: 'Geist', system-ui, sans-serif;
 }
 
 body {

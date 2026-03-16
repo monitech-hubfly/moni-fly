@@ -1,11 +1,13 @@
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 
 export default async function Step6Page() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -19,13 +21,14 @@ export default async function Step6Page() {
       <main className="mx-auto max-w-7xl px-4 py-12">
         <div className="card">
           <h1 className="text-2xl font-bold text-moni-dark">Step 06: Diligência</h1>
-          <p className="mt-2 text-stone-600">
-            Etapa de diligência do fluxo de viabilidade.
-          </p>
-          <div className="mt-6 rounded-xl border border-dashed border-stone-200 bg-stone-50 p-8 text-center text-stone-500 text-sm">
+          <p className="mt-2 text-stone-600">Etapa de diligência do fluxo de viabilidade.</p>
+          <div className="mt-6 rounded-xl border border-dashed border-stone-200 bg-stone-50 p-8 text-center text-sm text-stone-500">
             Conteúdo em construção.
           </div>
-          <Link href="/steps-viabilidade" className="mt-4 inline-block text-moni-accent font-medium hover:underline">
+          <Link
+            href="/steps-viabilidade"
+            className="mt-4 inline-block font-medium text-moni-accent hover:underline"
+          >
             Voltar ao Kanban →
           </Link>
         </div>

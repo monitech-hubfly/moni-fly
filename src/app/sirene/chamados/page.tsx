@@ -1,6 +1,6 @@
-import { redirect } from "next/navigation";
-import { listChamados } from "../actions";
-import { ChamadosLista } from "../ChamadosLista";
+import { redirect } from 'next/navigation';
+import { listChamados } from '../actions';
+import { ChamadosLista } from '../ChamadosLista';
 
 type SearchParams = { tipo?: string };
 
@@ -10,8 +10,7 @@ export default async function SireneChamadosPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const filtroTipo =
-    params.tipo === "padrao" || params.tipo === "hdm" ? params.tipo : undefined;
+  const filtroTipo = params.tipo === 'padrao' || params.tipo === 'hdm' ? params.tipo : undefined;
   const listResult = await listChamados(filtroTipo);
   const chamados = listResult.ok ? listResult.chamados : [];
 

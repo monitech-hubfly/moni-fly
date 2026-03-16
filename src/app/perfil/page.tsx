@@ -1,14 +1,20 @@
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 
 export default async function PerfilPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
 
-  const { data: profile } = await supabase.from("profiles").select("full_name, email").eq("id", user.id).single();
-  const fullName = profile?.full_name ?? user.email ?? "";
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('full_name, email')
+    .eq('id', user.id)
+    .single();
+  const fullName = profile?.full_name ?? user.email ?? '';
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -27,9 +33,9 @@ export default async function PerfilPage() {
           </p>
           <div className="mt-6 rounded-lg border border-stone-200 bg-stone-50 p-4">
             <p className="text-sm font-medium text-stone-500">Nome</p>
-            <p className="mt-0.5 text-stone-900">{fullName || "—"}</p>
+            <p className="mt-0.5 text-stone-900">{fullName || '—'}</p>
             <p className="mt-3 text-sm font-medium text-stone-500">E-mail</p>
-            <p className="mt-0.5 text-stone-900">{user.email ?? "—"}</p>
+            <p className="mt-0.5 text-stone-900">{user.email ?? '—'}</p>
           </div>
           <p className="mt-4 text-sm text-stone-500">
             Formulário completo de cadastro do franqueado será implementado em breve.

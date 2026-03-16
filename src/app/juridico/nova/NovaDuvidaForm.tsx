@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { createJuridicoTicket } from "../actions";
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { createJuridicoTicket } from '../actions';
 
-export function NovaDuvidaForm({ defaultNome = "" }: { defaultNome?: string }) {
+export function NovaDuvidaForm({ defaultNome = '' }: { defaultNome?: string }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -14,28 +14,34 @@ export function NovaDuvidaForm({ defaultNome = "" }: { defaultNome?: string }) {
     setError(null);
     const form = e.currentTarget;
     const formData = new FormData(form);
-    const nome_frank = (formData.get("nome_frank") as string)?.trim();
-    const titulo = (formData.get("titulo") as string)?.trim();
-    const descricao = (formData.get("descricao") as string)?.trim();
-    const nome_condominio = (formData.get("nome_condominio") as string)?.trim() || undefined;
-    const lote = (formData.get("lote") as string)?.trim() || undefined;
+    const nome_frank = (formData.get('nome_frank') as string)?.trim();
+    const titulo = (formData.get('titulo') as string)?.trim();
+    const descricao = (formData.get('descricao') as string)?.trim();
+    const nome_condominio = (formData.get('nome_condominio') as string)?.trim() || undefined;
+    const lote = (formData.get('lote') as string)?.trim() || undefined;
     if (!nome_frank) {
-      setError("Informe seu nome.");
+      setError('Informe seu nome.');
       return;
     }
     if (!titulo || !descricao) {
-      setError("Preencha título e descrição.");
+      setError('Preencha título e descrição.');
       return;
     }
     setLoading(true);
-    const result = await createJuridicoTicket({ nome_frank, titulo, descricao, nome_condominio, lote });
+    const result = await createJuridicoTicket({
+      nome_frank,
+      titulo,
+      descricao,
+      nome_condominio,
+      lote,
+    });
     setLoading(false);
     if (!result.ok) {
       setError(result.error);
       return;
     }
     if (result.ticketId) router.push(`/juridico/${result.ticketId}`);
-    else router.push("/juridico");
+    else router.push('/juridico');
   }
 
   return (
@@ -119,7 +125,7 @@ export function NovaDuvidaForm({ defaultNome = "" }: { defaultNome?: string }) {
           disabled={loading}
           className="rounded-xl bg-moni-primary px-6 py-2.5 font-medium text-white hover:bg-moni-secondary disabled:opacity-50"
         >
-          {loading ? "Criando..." : "Criar dúvida"}
+          {loading ? 'Criando...' : 'Criar dúvida'}
         </button>
         <a
           href="/juridico"

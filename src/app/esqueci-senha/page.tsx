@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { useState } from 'react';
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 
 export default function EsqueciSenhaPage() {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    setError('');
     setLoading(true);
     try {
       const supabase = createClient();
@@ -26,7 +26,7 @@ export default function EsqueciSenhaPage() {
       }
       setSent(true);
     } catch {
-      setError("Erro ao enviar. Tente de novo.");
+      setError('Erro ao enviar. Tente de novo.');
     }
     setLoading(false);
   };
@@ -37,7 +37,8 @@ export default function EsqueciSenhaPage() {
         <div className="card w-full max-w-md">
           <h1 className="text-xl font-bold text-moni-dark">E-mail enviado</h1>
           <p className="mt-2 text-stone-600">
-            Se existir uma conta com esse e-mail, você receberá um link para redefinir sua senha. Verifique a caixa de entrada e o spam.
+            Se existir uma conta com esse e-mail, você receberá um link para redefinir sua senha.
+            Verifique a caixa de entrada e o spam.
           </p>
           <Link href="/login" className="mt-6 inline-block text-moni-accent hover:underline">
             Voltar ao login
@@ -71,7 +72,7 @@ export default function EsqueciSenhaPage() {
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button type="submit" disabled={loading} className="btn-primary w-full">
-            {loading ? "Enviando…" : "Enviar link de redefinição"}
+            {loading ? 'Enviando…' : 'Enviar link de redefinição'}
           </button>
         </form>
         <Link href="/login" className="mt-4 inline-block text-sm text-moni-accent hover:underline">

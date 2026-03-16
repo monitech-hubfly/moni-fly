@@ -157,31 +157,37 @@ O Git é um programa que permite “enviar” o projeto para o GitHub.
 3. Digite os comandos abaixo **um por vez**, apertando **Enter** após cada um. Troque **SEU_USUARIO** pelo seu usuário do GitHub e **viabilidade-moni** pelo nome do repositório que você criou, se for diferente.
 
    **Comando 1** (inicializa o Git na pasta):
+
    ```
    git init
    ```
 
    **Comando 2** (prepara todos os arquivos):
+
    ```
    git add .
    ```
 
    **Comando 3** (cria um “commit” com uma mensagem):
+
    ```
    git commit -m "Projeto inicial Step One"
    ```
 
    **Comando 4** (nome da branch principal):
+
    ```
    git branch -M main
    ```
 
    **Comando 5** (conecta à sua pasta no GitHub — **troque SEU_USUARIO e viabilidade-moni**):
+
    ```
    git remote add origin https://github.com/SEU_USUARIO/viabilidade-moni.git
    ```
 
    **Comando 6** (envia o código para o GitHub):
+
    ```
    git push -u origin main
    ```
@@ -278,8 +284,8 @@ Você pode priorizar com um desenvolvedor: por exemplo, primeiro login + salvar 
 
 ## Resumo do guia
 
-| Parte | O que fazer |
-|-------|-------------|
-| **4** | PowerShell na VIABILIDADE → `npm run dev` → deixar janela aberta → navegador em http://localhost:3000 → testar Iniciar Step One e as 11 etapas. |
-| **5** | Conta GitHub + Git instalado → criar repositório → `git init`, `add`, `commit`, `remote`, `push` → Vercel → importar repo → colocar NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY → Deploy → usar a URL que a Vercel mostrar. |
-| **Depois** | Login (Supabase Auth), salvar processo e etapas no banco, preencher conteúdo das 11 etapas (ver docs/STEP_ONE_ESPEC.md). |
+| Parte      | O que fazer                                                                                                                                                                                                                              |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **4**      | PowerShell na VIABILIDADE → `npm run dev` → deixar janela aberta → navegador em http://localhost:3000 → testar Iniciar Step One e as 11 etapas.                                                                                          |
+| **5**      | Conta GitHub + Git instalado → criar repositório → `git init`, `add`, `commit`, `remote`, `push` → Vercel → importar repo → colocar NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY → Deploy → usar a URL que a Vercel mostrar. |
+| **Depois** | Login (Supabase Auth), salvar processo e etapas no banco, preencher conteúdo das 11 etapas (ver docs/STEP_ONE_ESPEC.md).                                                                                                                 |

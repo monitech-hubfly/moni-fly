@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState, useMemo } from "react";
-import type { RedeFranqueadosData } from "@/lib/rede-franqueados";
+import { useState, useMemo } from 'react';
+import type { RedeFranqueadosData } from '@/lib/rede-franqueados';
 
 const PER_PAGE = 15;
 
@@ -13,16 +13,13 @@ type Props = {
 export function TabelaRedeFranqueados({ data, compact }: Props) {
   const [page, setPage] = useState(1);
 
-  if (!data || data.rows.length === 0) {
-    return (
-      <div className="rounded-xl border border-stone-200 bg-stone-50 p-6 text-center text-stone-600 text-sm">
-        <p className="font-medium">Nenhum franqueado cadastrado na rede.</p>
-        <p className="mt-1">Os dados são gerenciados pela ferramenta (tabela no banco de dados).</p>
-      </div>
-    );
-  }
-
-  const { headers, rows } = data;
+  const { headers, rows } = useMemo(
+    () => ({
+      headers: data?.headers ?? [],
+      rows: data?.rows ?? [],
+    }),
+    [data?.headers, data?.rows],
+  );
   const totalPages = Math.max(1, Math.ceil(rows.length / PER_PAGE));
   const safePage = Math.min(Math.max(1, page), totalPages);
   const start = (safePage - 1) * PER_PAGE;
@@ -30,16 +27,31 @@ export function TabelaRedeFranqueados({ data, compact }: Props) {
 
   const allEmpty = useMemo(
     () => rowsToShow.every((row) => row.every((cell) => !String(cell).trim())),
-    [rowsToShow]
+    [rowsToShow],
   );
+
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-xl border border-stone-200 bg-stone-50 p-6 text-center text-sm text-stone-600">
+        <p className="font-medium">Nenhum franqueado cadastrado na rede.</p>
+        <p className="mt-1">Os dados são gerenciados pela ferramenta (tabela no banco de dados).</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       {allEmpty && rows.length > 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 text-sm">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           <p className="font-medium">Os registros existem, mas estão vazios.</p>
           <p className="mt-1">
-            Isso costuma acontecer depois de alterar as colunas da tabela. Apague as linhas atuais no Supabase (Table Editor ou SQL) e <strong>reimporte o CSV</strong> com os cabeçalhos: N de Franquia, Nome Completo do Franqueado, Status da Franquia, E-mail do Frank, Telefone do Frank, Cidade Casa Frank, Estado Casa Frank, etc. Use o comando: <code className="bg-amber-100 px-1 rounded">npm run rede-franqueados:import -- seu-arquivo.csv</code>
+            Isso costuma acontecer depois de alterar as colunas da tabela. Apague as linhas atuais
+            no Supabase (Table Editor ou SQL) e <strong>reimporte o CSV</strong> com os cabeçalhos:
+            N de Franquia, Nome Completo do Franqueado, Status da Franquia, E-mail do Frank,
+            Telefone do Frank, Cidade Casa Frank, Estado Casa Frank, etc. Use o comando:{' '}
+            <code className="rounded bg-amber-100 px-1">
+              npm run rede-franqueados:import -- seu-arquivo.csv
+            </code>
           </p>
         </div>
       )}
@@ -48,7 +60,7 @@ export function TabelaRedeFranqueados({ data, compact }: Props) {
           <thead>
             <tr className="border-b border-stone-200 bg-stone-50">
               {headers.map((h, i) => (
-                <th key={i} className="px-3 py-2 font-semibold text-stone-700 whitespace-nowrap">
+                <th key={i} className="whitespace-nowrap px-3 py-2 font-semibold text-stone-700">
                   {h || `Col ${i + 1}`}
                 </th>
               ))}
@@ -58,8 +70,8 @@ export function TabelaRedeFranqueados({ data, compact }: Props) {
             {rowsToShow.map((row, ri) => (
               <tr key={start + ri} className="border-b border-stone-100 hover:bg-stone-50/80">
                 {headers.map((_, ci) => (
-                  <td key={ci} className={`text-stone-700 ${compact ? "px-2 py-1" : "px-3 py-2"}`}>
-                    {row[ci] ?? ""}
+                  <td key={ci} className={`text-stone-700 ${compact ? 'px-2 py-1' : 'px-3 py-2'}`}>
+                    {row[ci] ?? ''}
                   </td>
                 ))}
               </tr>
@@ -68,7 +80,7 @@ export function TabelaRedeFranqueados({ data, compact }: Props) {
         </table>
       </div>
 
-      <p className="text-sm text-stone-600 border-t border-stone-200 pt-3">
+      <p className="border-t border-stone-200 pt-3 text-sm text-stone-600">
         Mostrando {start + 1}–{Math.min(start + PER_PAGE, rows.length)} de {rows.length} franqueados
       </p>
 
@@ -91,8 +103,8 @@ export function TabelaRedeFranqueados({ data, compact }: Props) {
                 onClick={() => setPage(p)}
                 className={`min-w-[2.25rem] rounded-lg border px-2 py-1.5 text-sm font-medium ${
                   p === safePage
-                    ? "border-moni-primary bg-moni-primary text-white"
-                    : "border-stone-300 bg-white text-stone-700 hover:bg-stone-50"
+                    ? 'border-moni-primary bg-moni-primary text-white'
+                    : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50'
                 }`}
               >
                 {p}

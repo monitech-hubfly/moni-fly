@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState, useTransition } from "react";
-import { approveDocumentInstance, rejectDocumentInstance, enviarParaAutentique } from "./actions";
+import { useState, useTransition } from 'react';
+import { approveDocumentInstance, rejectDocumentInstance, enviarParaAutentique } from './actions';
 
 export type InstanceForRevisao = {
   id: string;
@@ -9,7 +9,12 @@ export type InstanceForRevisao = {
   status: string;
   created_at: string;
   diff_json: {
-    changes?: Array<{ type: string; templateSlice?: string; documentSlice?: string; context?: string }>;
+    changes?: Array<{
+      type: string;
+      templateSlice?: string;
+      documentSlice?: string;
+      context?: string;
+    }>;
     summary?: { total: number };
   } | null;
   motivo_reprovacao: string | null;
@@ -23,19 +28,19 @@ type Props = {
 
 export function RevisaoDocumentoCard({ instance, stepLabel }: Props) {
   const [showReject, setShowReject] = useState(false);
-  const [motivo, setMotivo] = useState("");
+  const [motivo, setMotivo] = useState('');
   const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null);
 
   const handleApprove = () => {
     setMessage(null);
     startTransition(async () => {
       const res = await approveDocumentInstance(instance.id);
       if (res.ok) {
-        setMessage({ type: "ok", text: "Documento aprovado." });
+        setMessage({ type: 'ok', text: 'Documento aprovado.' });
         window.location.reload();
       } else {
-        setMessage({ type: "error", text: res.error ?? "Erro ao aprovar." });
+        setMessage({ type: 'error', text: res.error ?? 'Erro ao aprovar.' });
       }
     });
   };
@@ -47,12 +52,12 @@ export function RevisaoDocumentoCard({ instance, stepLabel }: Props) {
     }
     setMessage(null);
     startTransition(async () => {
-      const res = await rejectDocumentInstance(instance.id, motivo.trim() || "Reprovado.");
+      const res = await rejectDocumentInstance(instance.id, motivo.trim() || 'Reprovado.');
       if (res.ok) {
-        setMessage({ type: "ok", text: "Documento reprovado. O franqueado verá o parecer." });
+        setMessage({ type: 'ok', text: 'Documento reprovado. O franqueado verá o parecer.' });
         window.location.reload();
       } else {
-        setMessage({ type: "error", text: res.error ?? "Erro ao reprovar." });
+        setMessage({ type: 'error', text: res.error ?? 'Erro ao reprovar.' });
       }
     });
   };
@@ -62,10 +67,10 @@ export function RevisaoDocumentoCard({ instance, stepLabel }: Props) {
     startTransition(async () => {
       const res = await enviarParaAutentique(instance.id);
       if (res.ok) {
-        setMessage({ type: "ok", text: "Documento enviado para assinatura no Autentique." });
+        setMessage({ type: 'ok', text: 'Documento enviado para assinatura no Autentique.' });
         window.location.reload();
       } else {
-        setMessage({ type: "error", text: res.error ?? "Erro ao enviar para assinatura." });
+        setMessage({ type: 'error', text: res.error ?? 'Erro ao enviar para assinatura.' });
       }
     });
   };
@@ -73,10 +78,10 @@ export function RevisaoDocumentoCard({ instance, stepLabel }: Props) {
   const diff = instance.diff_json;
   const totalDiffs = diff?.summary?.total ?? 0;
   const changes = diff?.changes ?? [];
-  const isAguardando = instance.status === "aguardando_revisao";
-  const isAprovado = instance.status === "aprovado";
-  const isEnviadoAssinatura = instance.status === "enviado_assinatura";
-  const isAssinado = instance.status === "assinado";
+  const isAguardando = instance.status === 'aguardando_revisao';
+  const isAprovado = instance.status === 'aprovado';
+  const isEnviadoAssinatura = instance.status === 'enviado_assinatura';
+  const isAssinado = instance.status === 'assinado';
 
   return (
     <div className="rounded border border-stone-200 bg-white p-4">
@@ -85,7 +90,7 @@ export function RevisaoDocumentoCard({ instance, stepLabel }: Props) {
           <span className="text-sm font-medium text-stone-800">Versão {instance.versao}</span>
           <span className="ml-2 text-xs uppercase text-stone-500">{instance.status}</span>
           <span className="ml-2 text-xs text-stone-400">
-            {new Date(instance.created_at).toLocaleString("pt-BR")}
+            {new Date(instance.created_at).toLocaleString('pt-BR')}
           </span>
         </div>
         {(isAguardando || isAprovado) && (
@@ -125,19 +130,17 @@ export function RevisaoDocumentoCard({ instance, stepLabel }: Props) {
         {isEnviadoAssinatura && (
           <span className="text-xs text-stone-500">Enviado para assinatura no Autentique</span>
         )}
-        {isAssinado && (
-          <span className="text-xs font-medium text-green-700">Assinado</span>
-        )}
+        {isAssinado && <span className="text-xs font-medium text-green-700">Assinado</span>}
       </div>
 
-      {instance.status === "reprovado" && instance.motivo_reprovacao && (
+      {instance.status === 'reprovado' && instance.motivo_reprovacao && (
         <p className="mt-2 rounded bg-amber-50 px-2 py-1 text-sm text-amber-800">
           Parecer: {instance.motivo_reprovacao}
         </p>
       )}
 
       {message && (
-        <p className={`mt-2 text-sm ${message.type === "ok" ? "text-green-700" : "text-red-700"}`}>
+        <p className={`mt-2 text-sm ${message.type === 'ok' ? 'text-green-700' : 'text-red-700'}`}>
           {message.text}
         </p>
       )}
@@ -183,19 +186,19 @@ export function RevisaoDocumentoCard({ instance, stepLabel }: Props) {
             {changes.slice(0, 30).map((c, i) => (
               <li key={i} className="border-b border-stone-100 py-1.5 last:border-0">
                 <span className="text-xs font-medium text-stone-500">{c.context}</span>
-                {c.type === "add" && (
+                {c.type === 'add' && (
                   <p className="mt-0.5 text-green-800">
                     <span className="font-medium">+ </span>
                     {c.documentSlice}
                   </p>
                 )}
-                {c.type === "remove" && (
+                {c.type === 'remove' && (
                   <p className="mt-0.5 text-red-800">
                     <span className="font-medium">− </span>
                     {c.templateSlice}
                   </p>
                 )}
-                {c.type === "replace" && (
+                {c.type === 'replace' && (
                   <>
                     <p className="mt-0.5 text-red-800">
                       <span className="font-medium">− </span>

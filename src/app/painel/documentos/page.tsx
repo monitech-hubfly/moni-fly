@@ -1,7 +1,7 @@
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import { listInstancesAguardandoRevisao } from "./actions";
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
+import { listInstancesAguardandoRevisao } from './actions';
 
 /**
  * Lista documentos aguardando revisão e redireciona para a etapa (Step 3 ou Step 7)
@@ -9,17 +9,26 @@ import { listInstancesAguardandoRevisao } from "./actions";
  */
 export default async function PainelDocumentosPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
 
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  const role = profile?.role ?? "frank";
-  if (role !== "consultor" && role !== "admin") redirect("/");
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+  const role = profile?.role ?? 'frank';
+  if (role !== 'consultor' && role !== 'admin') redirect('/');
 
   const instances = await listInstancesAguardandoRevisao();
 
   // Agrupar por (processo_id, step) para mostrar um link por processo/etapa
-  const keys = new Map<string, { processo_id: string; step: number; cidade: string | null; estado: string | null }>();
+  const keys = new Map<
+    string,
+    { processo_id: string; step: number; cidade: string | null; estado: string | null }
+  >();
   for (const inst of instances) {
     const key = `${inst.processo_id}-${inst.step}`;
     if (!keys.has(key)) {
@@ -47,7 +56,8 @@ export default async function PainelDocumentosPage() {
       <main className="mx-auto max-w-5xl px-4 py-8">
         <h1 className="text-2xl font-bold text-moni-dark">Documentos para revisão</h1>
         <p className="mt-1 text-sm text-stone-600">
-          Clique no link para abrir a etapa do documento (Step 3 ou Step 7), onde você visualiza as divergências, aprova, reprova e escreve o parecer.
+          Clique no link para abrir a etapa do documento (Step 3 ou Step 7), onde você visualiza as
+          divergências, aprova, reprova e escreve o parecer.
         </p>
 
         {entries.length === 0 ? (
@@ -57,10 +67,10 @@ export default async function PainelDocumentosPage() {
         ) : (
           <ul className="mt-6 space-y-2">
             {entries.map((e) => {
-              const stepPath = e.step === 3 ? "/step-3" : "/step-7";
-              const stepLabel = e.step === 3 ? "Step 3: Opções" : "Step 7: Contrato do Terreno";
+              const stepPath = e.step === 3 ? '/step-3' : '/step-7';
+              const stepLabel = e.step === 3 ? 'Step 3: Opções' : 'Step 7: Contrato do Terreno';
               const href = `${stepPath}?processoId=${e.processo_id}`;
-              const label = `${e.cidade ?? "—"}${e.estado ? `, ${e.estado}` : ""} · ${stepLabel}`;
+              const label = `${e.cidade ?? '—'}${e.estado ? `, ${e.estado}` : ''} · ${stepLabel}`;
               return (
                 <li key={`${e.processo_id}-${e.step}`}>
                   <Link

@@ -1,6 +1,6 @@
-import { redirect } from "next/navigation";
-import { listChamados } from "../actions";
-import { KanbanBoard } from "../KanbanBoard";
+import { redirect } from 'next/navigation';
+import { listChamados } from '../actions';
+import { KanbanBoard } from '../KanbanBoard';
 
 export default async function SireneKanbanPage({
   searchParams,
@@ -8,8 +8,7 @@ export default async function SireneKanbanPage({
   searchParams: Promise<{ tipo?: string }>;
 }) {
   const params = await searchParams;
-  const filtroTipo =
-    params.tipo === "padrao" || params.tipo === "hdm" ? params.tipo : undefined;
+  const filtroTipo = params.tipo === 'padrao' || params.tipo === 'hdm' ? params.tipo : undefined;
   const listResult = await listChamados(filtroTipo);
   const chamados = listResult.ok ? listResult.chamados : [];
 

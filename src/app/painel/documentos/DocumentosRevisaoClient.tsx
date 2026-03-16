@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState, useTransition } from "react";
-import type { DocInstanceRevisao } from "./actions";
+import { useState, useTransition } from 'react';
+import type { DocInstanceRevisao } from './actions';
 
 type Props = {
   instance: DocInstanceRevisao;
@@ -11,19 +11,19 @@ type Props = {
 
 export function DocumentosRevisaoClient({ instance, onApprove, onReject }: Props) {
   const [showReject, setShowReject] = useState(false);
-  const [motivo, setMotivo] = useState("");
+  const [motivo, setMotivo] = useState('');
   const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null);
 
   const handleApprove = () => {
     setMessage(null);
     startTransition(async () => {
       const res = await onApprove(instance.id);
       if (res.ok) {
-        setMessage({ type: "ok", text: "Documento aprovado. A página será atualizada." });
+        setMessage({ type: 'ok', text: 'Documento aprovado. A página será atualizada.' });
         window.location.reload();
       } else {
-        setMessage({ type: "error", text: res.error ?? "Erro ao aprovar." });
+        setMessage({ type: 'error', text: res.error ?? 'Erro ao aprovar.' });
       }
     });
   };
@@ -35,17 +35,17 @@ export function DocumentosRevisaoClient({ instance, onApprove, onReject }: Props
     }
     setMessage(null);
     startTransition(async () => {
-      const res = await onReject(instance.id, motivo.trim() || "Reprovado pelo consultor.");
+      const res = await onReject(instance.id, motivo.trim() || 'Reprovado pelo consultor.');
       if (res.ok) {
-        setMessage({ type: "ok", text: "Documento reprovado. O franqueado será notificado." });
+        setMessage({ type: 'ok', text: 'Documento reprovado. O franqueado será notificado.' });
         window.location.reload();
       } else {
-        setMessage({ type: "error", text: res.error ?? "Erro ao reprovar." });
+        setMessage({ type: 'error', text: res.error ?? 'Erro ao reprovar.' });
       }
     });
   };
 
-  const stepLabel = instance.step === 3 ? "Step 3: Opções" : "Step 7: Contrato do Terreno";
+  const stepLabel = instance.step === 3 ? 'Step 3: Opções' : 'Step 7: Contrato do Terreno';
   const diff = instance.diff_json;
   const totalDiffs = diff?.summary?.total ?? 0;
   const changes = diff?.changes ?? [];
@@ -55,15 +55,15 @@ export function DocumentosRevisaoClient({ instance, onApprove, onReject }: Props
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <span className="font-medium text-stone-800">
-            {instance.processo_cidade ?? "—"}
-            {instance.processo_estado ? `, ${instance.processo_estado}` : ""}
+            {instance.processo_cidade ?? '—'}
+            {instance.processo_estado ? `, ${instance.processo_estado}` : ''}
           </span>
           <span className="mx-2 text-stone-400">·</span>
           <span className="text-sm text-stone-600">{stepLabel}</span>
           <span className="mx-2 text-stone-400">·</span>
           <span className="text-xs text-stone-500">Versão {instance.versao}</span>
           <span className="ml-2 text-xs text-stone-400">
-            {new Date(instance.created_at).toLocaleString("pt-BR")}
+            {new Date(instance.created_at).toLocaleString('pt-BR')}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -87,9 +87,7 @@ export function DocumentosRevisaoClient({ instance, onApprove, onReject }: Props
       </div>
 
       {message && (
-        <p
-          className={`mt-2 text-sm ${message.type === "ok" ? "text-green-700" : "text-red-700"}`}
-        >
+        <p className={`mt-2 text-sm ${message.type === 'ok' ? 'text-green-700' : 'text-red-700'}`}>
           {message.text}
         </p>
       )}
@@ -135,19 +133,19 @@ export function DocumentosRevisaoClient({ instance, onApprove, onReject }: Props
             {changes.slice(0, 30).map((c, i) => (
               <li key={i} className="border-b border-stone-100 py-1.5 last:border-0">
                 <span className="text-xs font-medium text-stone-500">{c.context}</span>
-                {c.type === "add" && (
+                {c.type === 'add' && (
                   <p className="mt-0.5 text-green-800">
                     <span className="font-medium">+ </span>
                     {c.documentSlice}
                   </p>
                 )}
-                {c.type === "remove" && (
+                {c.type === 'remove' && (
                   <p className="mt-0.5 text-red-800">
                     <span className="font-medium">− </span>
                     {c.templateSlice}
                   </p>
                 )}
-                {c.type === "replace" && (
+                {c.type === 'replace' && (
                   <>
                     <p className="mt-0.5 text-red-800">
                       <span className="font-medium">− </span>
@@ -162,9 +160,7 @@ export function DocumentosRevisaoClient({ instance, onApprove, onReject }: Props
               </li>
             ))}
             {changes.length > 30 && (
-              <li className="py-1 text-stone-500">
-                … e mais {changes.length - 30} divergência(s)
-              </li>
+              <li className="py-1 text-stone-500">… e mais {changes.length - 30} divergência(s)</li>
             )}
           </ul>
         </details>

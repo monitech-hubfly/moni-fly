@@ -1,18 +1,18 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 
 const CATEGORIES = [
-  { key: "school", overpassTag: "amenity=school" },
-  { key: "hospital", overpassTag: "amenity=hospital" },
-  { key: "clinic", overpassTag: "amenity=clinic" },
-  { key: "mall", overpassTag: "shop=mall" },
-  { key: "supermarket", overpassTag: "shop=supermarket" },
-  { key: "park", overpassTag: "leisure=park" },
-  { key: "square", overpassTag: "place=square" },
-  { key: "bank", overpassTag: "amenity=bank" },
-  { key: "pharmacy", overpassTag: "amenity=pharmacy" },
+  { key: 'school', overpassTag: 'amenity=school' },
+  { key: 'hospital', overpassTag: 'amenity=hospital' },
+  { key: 'clinic', overpassTag: 'amenity=clinic' },
+  { key: 'mall', overpassTag: 'shop=mall' },
+  { key: 'supermarket', overpassTag: 'shop=supermarket' },
+  { key: 'park', overpassTag: 'leisure=park' },
+  { key: 'square', overpassTag: 'place=square' },
+  { key: 'bank', overpassTag: 'amenity=bank' },
+  { key: 'pharmacy', overpassTag: 'amenity=pharmacy' },
 ] as const;
 
-type PoiCategory = (typeof CATEGORIES)[number]["key"];
+type PoiCategory = (typeof CATEGORIES)[number]['key'];
 
 export type Poi = { lat: number; lon: number; name: string; category: PoiCategory };
 
@@ -21,12 +21,12 @@ export type Road = { name: string; coordinates: [number, number][] };
 
 async function getBbox(
   cidade: string,
-  estado: string | null
+  estado: string | null,
 ): Promise<[number, number, number, number] | null> {
   const query = estado ? `${cidade}, ${estado}, Brazil` : `${cidade}, Brazil`;
   const res = await fetch(
     `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
-    { headers: { "Accept-Language": "pt-BR", "User-Agent": "ViabilidadeApp/1.0" } }
+    { headers: { 'Accept-Language': 'pt-BR', 'User-Agent': 'ViabilidadeApp/1.0' } },
   );
   if (!res.ok) return null;
   const data = (await res.json()) as { boundingbox?: string[] }[];
@@ -38,7 +38,7 @@ async function getBbox(
 async function fetchOverpass(
   bbox: [number, number, number, number],
   tag: string,
-  category: PoiCategory
+  category: PoiCategory,
 ): Promise<Poi[]> {
   const [south, west, north, east] = bbox;
   const query = `
@@ -49,10 +49,10 @@ async function fetchOverpass(
     );
     out center;
   `;
-  const res = await fetch("https://overpass-api.de/api/interpreter", {
-    method: "POST",
+  const res = await fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
     body: query,
-    headers: { "Content-Type": "text/plain" },
+    headers: { 'Content-Type': 'text/plain' },
   });
   const text = await res.text();
   type OverpassElement = {
@@ -81,7 +81,7 @@ async function fetchOverpass(
   for (const el of elements) {
     let lat: number | undefined;
     let lon: number | undefined;
-    if (el.type === "node") {
+    if (el.type === 'node') {
       lat = el.lat;
       lon = el.lon;
     } else if (el.center) {
@@ -89,14 +89,14 @@ async function fetchOverpass(
       lon = el.center.lon;
     }
     if (lat != null && lon != null) {
-      pois.push({ lat, lon, name: el.tags?.name ?? "", category });
+      pois.push({ lat, lon, name: el.tags?.name ?? '', category });
     }
   }
   return pois;
 }
 
 type OverpassWayElement = {
-  type: "way";
+  type: 'way';
   id: number;
   nodes?: number[];
   geometry?: { lat: number; lon: number }[];
@@ -110,10 +110,10 @@ async function fetchRoads(bbox: [number, number, number, number]): Promise<Road[
     way(${south},${west},${north},${east})["highway"~"^(primary|secondary|trunk|motorway)$"];
     out geom;
   `;
-  const res = await fetch("https://overpass-api.de/api/interpreter", {
-    method: "POST",
+  const res = await fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
     body: query,
-    headers: { "Content-Type": "text/plain" },
+    headers: { 'Content-Type': 'text/plain' },
   });
   const text = await res.text();
   let json: { elements?: OverpassWayElement[]; remark?: string };
@@ -129,7 +129,7 @@ async function fetchRoads(bbox: [number, number, number, number]): Promise<Road[
     const geom = w.geometry;
     if (!geom || geom.length < 2) continue;
     const coordinates = geom.map((g) => [g.lat, g.lon] as [number, number]);
-    roads.push({ name: w.tags?.name ?? "", coordinates });
+    roads.push({ name: w.tags?.name ?? '', coordinates });
   }
   return roads;
 }
@@ -141,21 +141,18 @@ async function fetchRoads(bbox: [number, number, number, number]): Promise<Road[
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const cidade = searchParams.get("cidade")?.trim() ?? "";
-    const estado = searchParams.get("estado")?.trim() || null;
+    const cidade = searchParams.get('cidade')?.trim() ?? '';
+    const estado = searchParams.get('estado')?.trim() || null;
 
     if (!cidade) {
-      return NextResponse.json(
-        { error: "Informe o parâmetro cidade." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Informe o parâmetro cidade.' }, { status: 400 });
     }
 
     const bbox = await getBbox(cidade, estado);
     if (!bbox) {
       return NextResponse.json(
-        { error: "Não foi possível obter a área do município. Verifique cidade e estado." },
-        { status: 404 }
+        { error: 'Não foi possível obter a área do município. Verifique cidade e estado.' },
+        { status: 404 },
       );
     }
 
@@ -175,10 +172,7 @@ export async function GET(request: Request) {
       bbox: { south, west, north, east, centerLat, centerLon },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Erro ao carregar equipamentos.";
-    return NextResponse.json(
-      { error: message },
-      { status: 502 }
-    );
+    const message = err instanceof Error ? err.message : 'Erro ao carregar equipamentos.';
+    return NextResponse.json({ error: message }, { status: 502 });
   }
 }

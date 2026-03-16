@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { marcarAlertaLido } from "./actions";
+import { useRouter } from 'next/navigation';
+import { marcarAlertaLido } from './actions';
 
 export function MarcarLidoButton({ alertaId }: { alertaId: string }) {
   const router = useRouter();

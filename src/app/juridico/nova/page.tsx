@@ -1,16 +1,23 @@
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import { NovaDuvidaForm } from "./NovaDuvidaForm";
-import { MoniFooter } from "@/components/MoniFooter";
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
+import { NovaDuvidaForm } from './NovaDuvidaForm';
+import { MoniFooter } from '@/components/MoniFooter';
 
 export default async function JuridicoNovaPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
 
-  const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user.id).single();
-  const defaultNome = (profile?.full_name as string)?.trim() || (user.email?.split("@")[0] ?? "") || "";
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('full_name')
+    .eq('id', user.id)
+    .single();
+  const defaultNome =
+    (profile?.full_name as string)?.trim() || (user.email?.split('@')[0] ?? '') || '';
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-stone-50 via-white to-stone-50">

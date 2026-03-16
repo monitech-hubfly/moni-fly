@@ -1,8 +1,14 @@
-import Link from "next/link";
+import Link from 'next/link';
 
 type PorStatus = { status: string; count: number; pct: number };
 type TravaItem = { id: number; numero: number; time_abertura: string | null; incendio: string };
-type Tarefa = { chamadoId: number; numero: number; incendio: string; titulo: string; status: string };
+type Tarefa = {
+  chamadoId: number;
+  numero: number;
+  incendio: string;
+  titulo: string;
+  status: string;
+};
 
 type Props = {
   emAberto: number;
@@ -17,21 +23,21 @@ type Props = {
 };
 
 const statusLabel: Record<string, string> = {
-  nao_iniciado: "Não iniciados",
-  em_andamento: "Em andamento",
-  concluido: "Concluídos",
+  nao_iniciado: 'Não iniciados',
+  em_andamento: 'Em andamento',
+  concluido: 'Concluídos',
 };
 
 const statusColor: Record<string, string> = {
-  nao_iniciado: "text-red-400",
-  em_andamento: "text-amber-400",
-  concluido: "text-emerald-400",
+  nao_iniciado: 'text-red-400',
+  em_andamento: 'text-amber-400',
+  concluido: 'text-emerald-400',
 };
 
 const statusBarColor: Record<string, string> = {
-  nao_iniciado: "bg-red-500",
-  em_andamento: "bg-amber-500",
-  concluido: "bg-emerald-500",
+  nao_iniciado: 'bg-red-500',
+  em_andamento: 'bg-amber-500',
+  concluido: 'bg-emerald-500',
 };
 
 export function DashboardSirene({
@@ -78,13 +84,13 @@ export function DashboardSirene({
             {porStatus.map((item) => (
               <li key={item.status}>
                 <div className="flex items-center justify-between text-sm">
-                  <span className={statusColor[item.status] ?? "text-stone-400"}>
+                  <span className={statusColor[item.status] ?? 'text-stone-400'}>
                     {statusLabel[item.status] ?? item.status}: {item.count} ({item.pct.toFixed(1)}%)
                   </span>
                 </div>
                 <div className="mt-1 h-2 overflow-hidden rounded-full bg-stone-700">
                   <div
-                    className={`h-full rounded-full ${statusBarColor[item.status] ?? "bg-stone-500"}`}
+                    className={`h-full rounded-full ${statusBarColor[item.status] ?? 'bg-stone-500'}`}
                     style={{ width: `${Math.min(100, item.pct)}%` }}
                   />
                 </div>
@@ -92,7 +98,9 @@ export function DashboardSirene({
             ))}
           </ul>
           <div className="border-t border-stone-700 pt-4">
-            <p className="text-sm font-medium text-stone-400">Satisfação do criador no 1º atendimento</p>
+            <p className="text-sm font-medium text-stone-400">
+              Satisfação do criador no 1º atendimento
+            </p>
             <p className="mt-1 text-3xl font-bold text-emerald-400">{satisfacaoPct}%</p>
             <p className="mt-0.5 text-xs text-stone-500">chamados resolvidos sem reincidência</p>
           </div>
@@ -150,9 +158,9 @@ export function DashboardSirene({
                   <span className="flex items-center gap-2">
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        t.status === "Aguardando"
-                          ? "bg-amber-500/20 text-amber-400"
-                          : "bg-stone-600 text-stone-300"
+                        t.status === 'Aguardando'
+                          ? 'bg-amber-500/20 text-amber-400'
+                          : 'bg-stone-600 text-stone-300'
                       }`}
                     >
                       {t.status}

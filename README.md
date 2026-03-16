@@ -5,6 +5,7 @@ Sistema online para o **Processo Step One** de viabilidade: análise de praça, 
 ## Como rodar
 
 1. **Instalar dependências**
+
    ```bash
    npm install
    ```
@@ -24,7 +25,7 @@ Sistema online para o **Processo Step One** de viabilidade: análise de praça, 
 
 ## Fluxo principal
 
-- **Home (**`/`**):** link para *Iniciar Step One* e resumo das etapas 1–3, 4–7 e 8–11.
+- **Home (**`/`**):** link para _Iniciar Step One_ e resumo das etapas 1–3, 4–7 e 8–11.
 - **Iniciar processo (**`/step-one`**):** formulário **Cidade** + **Estado** → ao submeter redireciona para `/step-one/[id]?cidade=...&estado=...`.
 - **Processo (**`/step-one/[id]`**):** lista das 11 etapas com links para cada uma.
 - **Cada etapa (**`/step-one/[id]/etapa/[1-11]`**):** placeholder; conteúdo e integrações (IBGE, ZAP/Apify, catálogo, BCA, PDF) nas próximas sprints.

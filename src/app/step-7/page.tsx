@@ -1,36 +1,53 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { listStep7Instances, getStep7TemplateUrl } from "./actions";
-import { RevisaoDocumentoCard } from "@/app/documentos-revisao/RevisaoDocumentoCard";
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
+import { listStep7Instances, getStep7TemplateUrl } from './actions';
+import { RevisaoDocumentoCard } from '@/app/documentos-revisao/RevisaoDocumentoCard';
 
 type PageProps = { searchParams: Promise<{ processoId?: string }> };
 
 export default async function Step7Page({ searchParams }: PageProps) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
 
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  const role = profile?.role ?? "frank";
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+  const role = profile?.role ?? 'frank';
   const params = await searchParams;
   const processoIdParam = params.processoId;
 
-  let processo: { id: string; cidade: string | null; estado: string | null; step_atual: number; user_id: string } | null = null;
+  let processo: {
+    id: string;
+    cidade: string | null;
+    estado: string | null;
+    step_atual: number;
+    user_id: string;
+  } | null = null;
   let isOwner = false;
 
-  if ((role === "consultor" || role === "admin") && processoIdParam) {
+  if ((role === 'consultor' || role === 'admin') && processoIdParam) {
     const { data: p } = await supabase
-      .from("processo_step_one")
-      .select("id, cidade, estado, step_atual, user_id")
-      .eq("id", processoIdParam)
+      .from('processo_step_one')
+      .select('id, cidade, estado, step_atual, user_id')
+      .eq('id', processoIdParam)
       .single();
     if (p) {
-      if (role === "admin") {
+      if (role === 'admin') {
         processo = p;
         isOwner = false;
       } else {
-        const { data: frank } = await supabase.from("profiles").select("id").eq("consultor_id", user.id).eq("id", p.user_id).single();
+        const { data: frank } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('consultor_id', user.id)
+          .eq('id', p.user_id)
+          .single();
         if (frank) {
           processo = p;
           isOwner = false;
@@ -41,17 +58,17 @@ export default async function Step7Page({ searchParams }: PageProps) {
 
   if (!processo) {
     const { data: p } = await supabase
-      .from("processo_step_one")
-      .select("id, cidade, estado, step_atual, user_id")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
+      .from('processo_step_one')
+      .select('id, cidade, estado, step_atual, user_id')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
     processo = p;
     isOwner = true;
   }
 
-  if (!processo) redirect("/steps-viabilidade");
+  if (!processo) redirect('/steps-viabilidade');
 
   const [tplResult, instances] = await Promise.all([
     getStep7TemplateUrl(),
@@ -59,8 +76,8 @@ export default async function Step7Page({ searchParams }: PageProps) {
   ]);
 
   const templateUrl = tplResult.ok ? tplResult.url : null;
-  const backHref = processoIdParam ? "/painel" : "/steps-viabilidade";
-  const backLabel = processoIdParam ? "← Painel Moní" : "← Steps Viabilidade";
+  const backHref = processoIdParam ? '/painel' : '/steps-viabilidade';
+  const backLabel = processoIdParam ? '← Painel Moní' : '← Steps Viabilidade';
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -77,15 +94,15 @@ export default async function Step7Page({ searchParams }: PageProps) {
           <p className="mt-1 text-sm text-stone-500">
             Processo em {processo.cidade} - {processo.estado}
             {isOwner && ` · Step atual: ${processo.step_atual}`}
-            {!isOwner && " · Revisão Moní"}
+            {!isOwner && ' · Revisão Moní'}
           </p>
 
           <section className="mt-6 border-t border-stone-200 pt-4">
             <h2 className="text-lg font-semibold text-stone-800">Contrato do Terreno</h2>
             <p className="mt-1 text-sm text-stone-600">
               {isOwner
-                ? "1) Baixe o template de contrato, 2) faça os ajustes necessários, 3) anexe o contrato final para revisão e assinatura."
-                : "Revise os contratos enviados: visualize as divergências, aprove ou reprove e informe o parecer."}
+                ? '1) Baixe o template de contrato, 2) faça os ajustes necessários, 3) anexe o contrato final para revisão e assinatura.'
+                : 'Revise os contratos enviados: visualize as divergências, aprove ou reprove e informe o parecer.'}
             </p>
 
             {isOwner && (
@@ -97,7 +114,7 @@ export default async function Step7Page({ searchParams }: PageProps) {
 
             <div className="mt-6">
               <h3 className="text-sm font-medium text-stone-800">
-                {isOwner ? "Contratos enviados" : "Contratos enviados"}
+                {isOwner ? 'Contratos enviados' : 'Contratos enviados'}
               </h3>
               {instances.length === 0 ? (
                 <p className="mt-2 text-sm text-stone-500">Nenhum contrato enviado ainda.</p>
@@ -107,14 +124,16 @@ export default async function Step7Page({ searchParams }: PageProps) {
                     <li key={inst.id} className="rounded border border-stone-200 px-3 py-2">
                       <div className="flex items-center justify-between">
                         <span>
-                          Versão {inst.versao} ·{" "}
-                          <span className="uppercase text-xs font-semibold text-stone-500">{inst.status}</span>
+                          Versão {inst.versao} ·{' '}
+                          <span className="text-xs font-semibold uppercase text-stone-500">
+                            {inst.status}
+                          </span>
                         </span>
                         <span className="text-xs text-stone-400">
-                          {new Date(inst.created_at).toLocaleString("pt-BR")}
+                          {new Date(inst.created_at).toLocaleString('pt-BR')}
                         </span>
                       </div>
-                      {inst.status === "reprovado" && inst.motivo_reprovacao && (
+                      {inst.status === 'reprovado' && inst.motivo_reprovacao && (
                         <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
                           Parecer: {inst.motivo_reprovacao}
                         </p>
@@ -145,7 +164,10 @@ export default async function Step7Page({ searchParams }: PageProps) {
             </div>
 
             <div className="mt-6 text-right">
-              <Link href={backHref} className="inline-block text-moni-accent text-sm font-medium hover:underline">
+              <Link
+                href={backHref}
+                className="inline-block text-sm font-medium text-moni-accent hover:underline"
+              >
                 Voltar
               </Link>
             </div>

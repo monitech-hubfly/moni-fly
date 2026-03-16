@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 
 export default function RedefinirSenhaPage() {
   const router = useRouter();
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [error, setError] = useState("");
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
@@ -20,20 +20,20 @@ export default function RedefinirSenhaPage() {
       if (session?.user) {
         setReady(true);
       } else {
-        setError("Link inválido ou expirado. Solicite um novo link em Esqueci minha senha.");
+        setError('Link inválido ou expirado. Solicite um novo link em Esqueci minha senha.');
       }
     });
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    setError('');
     if (password !== confirm) {
-      setError("As senhas não coincidem.");
+      setError('As senhas não coincidem.');
       return;
     }
     if (password.length < 6) {
-      setError("A senha deve ter pelo menos 6 caracteres.");
+      setError('A senha deve ter pelo menos 6 caracteres.');
       return;
     }
     setLoading(true);
@@ -47,11 +47,11 @@ export default function RedefinirSenhaPage() {
       }
       setSuccess(true);
       setTimeout(() => {
-        router.push("/login");
+        router.push('/login');
         router.refresh();
       }, 2000);
     } catch {
-      setError("Erro ao alterar senha. Tente de novo.");
+      setError('Erro ao alterar senha. Tente de novo.');
     }
     setLoading(false);
   };
@@ -88,10 +88,13 @@ export default function RedefinirSenhaPage() {
         <div className="card w-full max-w-md">
           <h1 className="text-xl font-bold text-moni-dark">Link inválido</h1>
           <p className="mt-2 text-red-600">{error}</p>
-          <Link href="/esqueci-senha" className="mt-6 inline-block text-moni-accent hover:underline">
+          <Link
+            href="/esqueci-senha"
+            className="mt-6 inline-block text-moni-accent hover:underline"
+          >
             Solicitar novo link
           </Link>
-          <Link href="/login" className="mt-4 ml-4 inline-block text-moni-accent hover:underline">
+          <Link href="/login" className="ml-4 mt-4 inline-block text-moni-accent hover:underline">
             Voltar ao login
           </Link>
         </div>
@@ -136,12 +139,8 @@ export default function RedefinirSenhaPage() {
             />
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-primary w-full"
-          >
-            {loading ? "Salvando…" : "Definir nova senha"}
+          <button type="submit" disabled={loading} className="btn-primary w-full">
+            {loading ? 'Salvando…' : 'Definir nova senha'}
           </button>
         </form>
         <Link href="/login" className="mt-4 inline-block text-sm text-moni-accent hover:underline">

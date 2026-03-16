@@ -86,15 +86,15 @@ Sem este passo, as telas das etapas 4 a 7 vão dar erro ou não vão salvar.
 
 ## Resumo — O que você fez para a Sprint 4 funcionar
 
-| Ordem | O que fazer |
-|-------|--------------|
-| 1 | No **Supabase** → **SQL Editor** → **+** (nova consulta) → abrir o arquivo **004_sprint4_listings_catalogo_lote.sql** no PC → copiar todo o conteúdo → colar no Editor → **Run**. |
-| 2 | No **PowerShell**, na pasta VIABILIDADE, rodar **npm run dev** (se o servidor não estiver rodando) e deixar a janela aberta. |
-| 3 | No **navegador**, abrir **http://localhost:3000** (ou 3001) e **fazer login**. |
-| 4 | **Meus processos** → abrir um processo → **Etapa 4** → adicionar pelo menos uma casa (formulário + botão Adicionar casa). |
-| 5 | **Etapa 5** → adicionar pelo menos um lote. |
-| 6 | **Etapa 6** → conferir a tabela do catálogo Moní (Modelo A e B). |
-| 7 | **Etapa 7** → preencher e **Salvar lote escolhido** e conferir se aparece "Salvo com sucesso." e os dados ao reabrir. |
+| Ordem | O que fazer                                                                                                                                                                       |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | No **Supabase** → **SQL Editor** → **+** (nova consulta) → abrir o arquivo **004_sprint4_listings_catalogo_lote.sql** no PC → copiar todo o conteúdo → colar no Editor → **Run**. |
+| 2     | No **PowerShell**, na pasta VIABILIDADE, rodar **npm run dev** (se o servidor não estiver rodando) e deixar a janela aberta.                                                      |
+| 3     | No **navegador**, abrir **http://localhost:3000** (ou 3001) e **fazer login**.                                                                                                    |
+| 4     | **Meus processos** → abrir um processo → **Etapa 4** → adicionar pelo menos uma casa (formulário + botão Adicionar casa).                                                         |
+| 5     | **Etapa 5** → adicionar pelo menos um lote.                                                                                                                                       |
+| 6     | **Etapa 6** → conferir a tabela do catálogo Moní (Modelo A e B).                                                                                                                  |
+| 7     | **Etapa 7** → preencher e **Salvar lote escolhido** e conferir se aparece "Salvo com sucesso." e os dados ao reabrir.                                                             |
 
 ---
 

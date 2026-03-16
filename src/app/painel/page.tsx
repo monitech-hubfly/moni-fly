@@ -1,53 +1,73 @@
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 
 export default async function PainelPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
 
   const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, full_name")
-    .eq("id", user.id)
+    .from('profiles')
+    .select('role, full_name')
+    .eq('id', user.id)
     .single();
 
-  const role = profile?.role ?? "frank";
-  if (role !== "consultor" && role !== "admin") {
-    redirect("/");
+  const role = profile?.role ?? 'frank';
+  if (role !== 'consultor' && role !== 'admin') {
+    redirect('/');
   }
 
-  let processos: { id: string; cidade: string | null; estado: string | null; status: string | null; etapa_atual: number; updated_at: string | null; user_id: string }[] = [];
-  if (role === "admin") {
+  let processos: {
+    id: string;
+    cidade: string | null;
+    estado: string | null;
+    status: string | null;
+    etapa_atual: number;
+    updated_at: string | null;
+    user_id: string;
+  }[] = [];
+  if (role === 'admin') {
     const { data } = await supabase
-      .from("processo_step_one")
-      .select("id, cidade, estado, status, etapa_atual, updated_at, user_id")
-      .order("updated_at", { ascending: false })
+      .from('processo_step_one')
+      .select('id, cidade, estado, status, etapa_atual, updated_at, user_id')
+      .order('updated_at', { ascending: false })
       .limit(100);
     processos = (data ?? []) as typeof processos;
   } else {
-    const { data: franks } = await supabase.from("profiles").select("id").eq("consultor_id", user.id);
+    const { data: franks } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('consultor_id', user.id);
     const frankIds = (franks ?? []).map((f) => f.id);
     if (frankIds.length > 0) {
       const { data } = await supabase
-        .from("processo_step_one")
-        .select("id, cidade, estado, status, etapa_atual, updated_at, user_id")
-        .in("user_id", frankIds)
-        .order("updated_at", { ascending: false })
+        .from('processo_step_one')
+        .select('id, cidade, estado, status, etapa_atual, updated_at, user_id')
+        .in('user_id', frankIds)
+        .order('updated_at', { ascending: false })
         .limit(100);
       processos = (data ?? []) as typeof processos;
     }
   }
 
   const processoIds = processos.map((p) => p.id);
-  let pdfs: { id: string; processo_id: string; hipotese: string | null; modelo_escolhido: string | null; file_hash: string | null; created_at: string }[] = [];
+  let pdfs: {
+    id: string;
+    processo_id: string;
+    hipotese: string | null;
+    modelo_escolhido: string | null;
+    file_hash: string | null;
+    created_at: string;
+  }[] = [];
   if (processoIds.length > 0) {
     const { data: pdfList } = await supabase
-      .from("pdf_exports")
-      .select("id, processo_id, hipotese, modelo_escolhido, file_hash, created_at")
-      .in("processo_id", processoIds)
-      .order("created_at", { ascending: false })
+      .from('pdf_exports')
+      .select('id, processo_id, hipotese, modelo_escolhido, file_hash, created_at')
+      .in('processo_id', processoIds)
+      .order('created_at', { ascending: false })
       .limit(30);
     pdfs = (pdfList ?? []) as typeof pdfs;
   }
@@ -62,23 +82,28 @@ export default async function PainelPage() {
           </Link>
           <span className="text-stone-500">/</span>
           <span className="font-medium text-stone-700">Painel Moní</span>
-          <span className="text-xs text-stone-500">({role === "admin" ? "Admin" : "Consultor"})</span>
+          <span className="text-xs text-stone-500">
+            ({role === 'admin' ? 'Admin' : 'Consultor'})
+          </span>
         </div>
       </header>
       <main className="mx-auto max-w-7xl px-4 py-8">
         <h1 className="text-2xl font-bold text-moni-dark">Painel Moní</h1>
-        <p className="mt-1 text-stone-600 text-sm">
-          {role === "admin" ? "Todos os processos (funil por Frank, uso Apify e atividades em expansão)." : "Processos da sua carteira de Franks."}
+        <p className="mt-1 text-sm text-stone-600">
+          {role === 'admin'
+            ? 'Todos os processos (funil por Frank, uso Apify e atividades em expansão).'
+            : 'Processos da sua carteira de Franks.'}
         </p>
 
         <p className="mt-4 text-sm text-stone-600">
-          Para revisar documentos (Step 3 e Step 7), abra o processo do franqueado e use a seção <strong>Documentos</strong> nas etapas.
+          Para revisar documentos (Step 3 e Step 7), abra o processo do franqueado e use a seção{' '}
+          <strong>Documentos</strong> nas etapas.
         </p>
 
-        <div className="mt-6 rounded-lg border border-stone-200 bg-white overflow-hidden">
+        <div className="mt-6 overflow-hidden rounded-lg border border-stone-200 bg-white">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-stone-100 border-b border-stone-200">
+              <tr className="border-b border-stone-200 bg-stone-100">
                 <th className="p-2 text-left">Cidade / Estado</th>
                 <th className="p-2 text-left">Status</th>
                 <th className="p-2 text-center">Etapa</th>
@@ -96,12 +121,25 @@ export default async function PainelPage() {
               ) : (
                 processos.map((p) => (
                   <tr key={p.id} className="border-b border-stone-100">
-                    <td className="p-2 font-medium">{p.cidade ?? "—"}{p.estado ? `, ${p.estado}` : ""}</td>
-                    <td className="p-2">{p.status === "em_andamento" ? "Em andamento" : p.status === "concluido" ? "Concluído" : "Rascunho"}</td>
-                    <td className="p-2 text-center">{p.etapa_atual}/11</td>
-                    <td className="p-2 text-stone-500">{p.updated_at ? new Date(p.updated_at).toLocaleDateString("pt-BR") : "—"}</td>
+                    <td className="p-2 font-medium">
+                      {p.cidade ?? '—'}
+                      {p.estado ? `, ${p.estado}` : ''}
+                    </td>
                     <td className="p-2">
-                      <Link href={`/step-one/${p.id}`} className="text-moni-accent hover:underline">Ver</Link>
+                      {p.status === 'em_andamento'
+                        ? 'Em andamento'
+                        : p.status === 'concluido'
+                          ? 'Concluído'
+                          : 'Rascunho'}
+                    </td>
+                    <td className="p-2 text-center">{p.etapa_atual}/11</td>
+                    <td className="p-2 text-stone-500">
+                      {p.updated_at ? new Date(p.updated_at).toLocaleDateString('pt-BR') : '—'}
+                    </td>
+                    <td className="p-2">
+                      <Link href={`/step-one/${p.id}`} className="text-moni-accent hover:underline">
+                        Ver
+                      </Link>
                     </td>
                   </tr>
                 ))
@@ -113,11 +151,13 @@ export default async function PainelPage() {
         {pdfs.length > 0 && (
           <section className="mt-8">
             <h2 className="text-lg font-semibold text-moni-dark">PDFs gerados</h2>
-            <p className="mt-1 text-sm text-stone-600">Últimos registros de exportação de hipóteses.</p>
-            <div className="mt-3 rounded-lg border border-stone-200 bg-white overflow-hidden">
+            <p className="mt-1 text-sm text-stone-600">
+              Últimos registros de exportação de hipóteses.
+            </p>
+            <div className="mt-3 overflow-hidden rounded-lg border border-stone-200 bg-white">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-stone-100 border-b border-stone-200">
+                  <tr className="border-b border-stone-200 bg-stone-100">
                     <th className="p-2 text-left">Processo</th>
                     <th className="p-2 text-left">Hipótese</th>
                     <th className="p-2 text-left">Modelo</th>
@@ -131,14 +171,26 @@ export default async function PainelPage() {
                     return (
                       <tr key={pdf.id} className="border-b border-stone-100">
                         <td className="p-2">
-                          <Link href={`/step-one/${pdf.processo_id}`} className="text-moni-accent hover:underline">
-                            {p ? `${p.cidade ?? "—"}${p.estado ? `, ${p.estado}` : ""}` : pdf.processo_id.slice(0, 8)}
+                          <Link
+                            href={`/step-one/${pdf.processo_id}`}
+                            className="text-moni-accent hover:underline"
+                          >
+                            {p
+                              ? `${p.cidade ?? '—'}${p.estado ? `, ${p.estado}` : ''}`
+                              : pdf.processo_id.slice(0, 8)}
                           </Link>
                         </td>
-                        <td className="p-2 text-stone-700">{pdf.hipotese ?? "—"}</td>
-                        <td className="p-2 text-stone-600">{pdf.modelo_escolhido ?? "—"}</td>
-                        <td className="p-2 text-stone-500">{pdf.created_at ? new Date(pdf.created_at).toLocaleString("pt-BR") : "—"}</td>
-                        <td className="p-2 font-mono text-xs text-stone-400 truncate max-w-[120px]" title={pdf.file_hash ?? ""}>{pdf.file_hash ? `${pdf.file_hash.slice(0, 12)}…` : "—"}</td>
+                        <td className="p-2 text-stone-700">{pdf.hipotese ?? '—'}</td>
+                        <td className="p-2 text-stone-600">{pdf.modelo_escolhido ?? '—'}</td>
+                        <td className="p-2 text-stone-500">
+                          {pdf.created_at ? new Date(pdf.created_at).toLocaleString('pt-BR') : '—'}
+                        </td>
+                        <td
+                          className="max-w-[120px] truncate p-2 font-mono text-xs text-stone-400"
+                          title={pdf.file_hash ?? ''}
+                        >
+                          {pdf.file_hash ? `${pdf.file_hash.slice(0, 12)}…` : '—'}
+                        </td>
                       </tr>
                     );
                   })}
@@ -149,7 +201,8 @@ export default async function PainelPage() {
         )}
 
         <p className="mt-6 text-xs text-stone-500">
-          Uso Apify e relatórios de atividades serão incorporados quando a integração estiver disponível.
+          Uso Apify e relatórios de atividades serão incorporados quando a integração estiver
+          disponível.
         </p>
       </main>
     </div>

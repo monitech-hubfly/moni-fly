@@ -66,7 +66,7 @@ Se algo disso não estiver feito, use antes os guias **GUIA_PASSOS_NAO_DEV.md** 
 1. Abra o **Chrome** ou **Edge**.
 2. Na barra de endereço digite:
    - **http://localhost:3000**  
-   ou, se o PowerShell mostrou porta 3001:
+     ou, se o PowerShell mostrou porta 3001:
    - **http://localhost:3001**
 3. Aperte **Enter**.
 4. Deve abrir a **página inicial** do Viabilidade Moní.
@@ -161,18 +161,18 @@ Se isso estiver lá, a Sprint 3 está **salvando e lendo** do banco corretamente
 
 ## Resumo — O que você fez para a Sprint 3 funcionar
 
-| Ordem | O que fazer |
-|-------|-------------|
-| 1 | Abrir a pasta VIABILIDADE no Explorador e abrir o PowerShell **dentro** dessa pasta (barra de endereço → digitar `powershell` → Enter). |
-| 2 | Rodar **npm install** (e esperar terminar), se ainda não tiver feito. |
-| 3 | Rodar **npm run dev** e deixar a janela do PowerShell **aberta**. |
-| 4 | Abrir o navegador em **http://localhost:3000** (ou 3001) e **fazer login**. |
-| 5 | Verificar se no menu aparecem **Meus processos**, **Iniciar Step One** e **Sair**. |
-| 6 | Clicar em **Meus processos** e conferir a lista (ou a mensagem “nenhum processo”). Clicar em um processo para abrir. |
-| 7 | Se não tiver processo, criar um em **Iniciar Step One** (Cidade + Estado → Iniciar processo). |
-| 8 | Na lista das 11 etapas, abrir **Etapa 1 — Análise da praça** e conferir o formulário (narrativa, checkbox, Salvar). |
-| 9 | Preencher a narrativa, clicar em **Salvar**, depois marcar “concluída” e **Salvar** de novo. |
-| 10 | (Opcional) No Supabase, Table Editor → **etapa_progresso**, conferir a linha da etapa 1 com **dados_json** e **status** concluida. |
+| Ordem | O que fazer                                                                                                                             |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Abrir a pasta VIABILIDADE no Explorador e abrir o PowerShell **dentro** dessa pasta (barra de endereço → digitar `powershell` → Enter). |
+| 2     | Rodar **npm install** (e esperar terminar), se ainda não tiver feito.                                                                   |
+| 3     | Rodar **npm run dev** e deixar a janela do PowerShell **aberta**.                                                                       |
+| 4     | Abrir o navegador em **http://localhost:3000** (ou 3001) e **fazer login**.                                                             |
+| 5     | Verificar se no menu aparecem **Meus processos**, **Iniciar Step One** e **Sair**.                                                      |
+| 6     | Clicar em **Meus processos** e conferir a lista (ou a mensagem “nenhum processo”). Clicar em um processo para abrir.                    |
+| 7     | Se não tiver processo, criar um em **Iniciar Step One** (Cidade + Estado → Iniciar processo).                                           |
+| 8     | Na lista das 11 etapas, abrir **Etapa 1 — Análise da praça** e conferir o formulário (narrativa, checkbox, Salvar).                     |
+| 9     | Preencher a narrativa, clicar em **Salvar**, depois marcar “concluída” e **Salvar** de novo.                                            |
+| 10    | (Opcional) No Supabase, Table Editor → **etapa_progresso**, conferir a linha da etapa 1 com **dados_json** e **status** concluida.      |
 
 ---
 

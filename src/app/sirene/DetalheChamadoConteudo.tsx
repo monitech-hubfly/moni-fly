@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { ModalRedirecionarHDM } from "./ModalRedirecionarHDM";
-import type { Chamado } from "@/types/sirene";
-import type { SireneUserContext } from "@/lib/sirene";
+import { useState } from 'react';
+import { ModalRedirecionarHDM } from './ModalRedirecionarHDM';
+import type { Chamado } from '@/types/sirene';
+import type { SireneUserContext } from '@/lib/sirene';
 
 type Props = {
   chamado: Chamado;
@@ -48,13 +48,16 @@ export function DetalheChamadoConteudo({
         )}
 
         <section className="rounded-xl border border-stone-700 bg-stone-800/80 p-4">
-          <h2 className="text-sm font-semibold text-stone-200">Fechamento — Tema e mapeamento de perícia</h2>
+          <h2 className="text-sm font-semibold text-stone-200">
+            Fechamento — Tema e mapeamento de perícia
+          </h2>
           {podePreencherTemaMapeamento ? (
             <p className="mt-1 text-sm text-stone-300">
-              Preenchimento exclusivo do Bombeiro. Campos: parecer final, tema, mapeamento (em implementação).
+              Preenchimento exclusivo do Bombeiro. Campos: parecer final, tema, mapeamento (em
+              implementação).
             </p>
           ) : (
-            <p className="mt-1 text-sm text-stone-500 italic">
+            <p className="mt-1 text-sm italic text-stone-500">
               Apenas o Bombeiro pode preencher tema e mapeamento de perícia.
             </p>
           )}
@@ -64,10 +67,14 @@ export function DetalheChamadoConteudo({
             </div>
           )}
           {chamado.tema && (
-            <p className="mt-1 text-sm text-stone-300"><strong>Tema:</strong> {chamado.tema}</p>
+            <p className="mt-1 text-sm text-stone-300">
+              <strong>Tema:</strong> {chamado.tema}
+            </p>
           )}
           {chamado.mapeamento_pericia && (
-            <p className="mt-1 text-sm text-stone-300"><strong>Mapeamento:</strong> {chamado.mapeamento_pericia}</p>
+            <p className="mt-1 text-sm text-stone-300">
+              <strong>Mapeamento:</strong> {chamado.mapeamento_pericia}
+            </p>
           )}
         </section>
       </div>

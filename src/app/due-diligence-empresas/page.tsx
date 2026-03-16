@@ -1,11 +1,13 @@
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 
 export default async function DueDiligenceEmpresasPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -14,7 +16,7 @@ export default async function DueDiligenceEmpresasPage() {
           <Link href="/" className="text-moni-primary hover:underline">
             ← Início
           </Link>
-          <span className="text-stone-400 mx-2">/</span>
+          <span className="mx-2 text-stone-400">/</span>
           <span className="font-semibold text-moni-dark">Due Diligence Empresas</span>
         </div>
       </header>
@@ -22,7 +24,8 @@ export default async function DueDiligenceEmpresasPage() {
         <div className="card">
           <h1 className="text-xl font-bold text-moni-dark">Due Diligence Empresas</h1>
           <p className="mt-2 text-stone-600">
-            Documentação e verificação da unidade de franquia (Due Diligence do cadastro da unidade).
+            Documentação e verificação da unidade de franquia (Due Diligence do cadastro da
+            unidade).
           </p>
           <div className="mt-6 rounded-xl border border-dashed border-stone-200 bg-stone-50 p-8 text-center">
             <p className="text-stone-500">Conteúdo em construção.</p>

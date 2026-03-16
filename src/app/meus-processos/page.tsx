@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { redirect } from 'next/navigation';
 
 export default function MeusProcessosPage() {
-  redirect("/step-2");
+  redirect('/step-2');
 }

@@ -1,10 +1,10 @@
-import { redirect } from "next/navigation";
-import { getDashboardData } from "./actions";
-import { DashboardSirene } from "./DashboardSirene";
+import { redirect } from 'next/navigation';
+import { getDashboardData } from './actions';
+import { DashboardSirene } from './DashboardSirene';
 
 export default async function SirenePage() {
   const result = await getDashboardData();
-  if (!result.ok) redirect("/login");
+  if (!result.ok) redirect('/login');
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">

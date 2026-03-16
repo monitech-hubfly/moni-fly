@@ -33,21 +33,24 @@ Este guia explica como configurar o token do Apify para que o botão **"Varrer Z
 
    ```env
    VITE_APIFY_TOKEN=cole_seu_token_aqui_sem_aspas
-  # ou: APIFY_API_TOKEN=cole_seu_token_aqui_sem_aspas
    ```
 
-   - Substitua `cole_seu_token_aqui_sem_aspas` pelo token que você copiou no passo 1.
-   - **Não use aspas** em volta do token.
-   - **Não coloque espaços** antes ou depois do `=`.
-   - Pode ter outras variáveis no mesmo arquivo (ex.: `NEXT_PUBLIC_SUPABASE_URL=...`). Deixe cada variável em uma linha.
+# ou: APIFY_API_TOKEN=cole_seu_token_aqui_sem_aspas
+
+````
+
+- Substitua `cole_seu_token_aqui_sem_aspas` pelo token que você copiou no passo 1.
+- **Não use aspas** em volta do token.
+- **Não coloque espaços** antes ou depois do `=`.
+- Pode ter outras variáveis no mesmo arquivo (ex.: `NEXT_PUBLIC_SUPABASE_URL=...`). Deixe cada variável em uma linha.
 
 5. **Opcional** — Se quiser usar um Actor ZAP diferente do padrão, adicione também:
 
-   ```env
-   APIFY_ACTOR_ZAP_ID=fatihtahta/zap-imoveis-scraper
-   ```
+```env
+APIFY_ACTOR_ZAP_ID=fatihtahta/zap-imoveis-scraper
+````
 
-   (O valor acima já é o padrão; só precisa dessa linha se for outro actor.)
+(O valor acima já é o padrão; só precisa dessa linha se for outro actor.)
 
 6. **Salve o arquivo** (Ctrl+S).
 

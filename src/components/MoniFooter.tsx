@@ -1,8 +1,8 @@
 /**
  * Rodapé inspirado em moni.casa e moni.casa/franquia — Parceria, Fale conosco.
  */
-const MONI_BASE = "https://moni.casa";
-const MONI_FRANQUIA = "https://moni.casa/franquia/";
+const MONI_BASE = 'https://moni.casa';
+const MONI_FRANQUIA = 'https://moni.casa/franquia/';
 
 export function MoniFooter() {
   return (
@@ -35,20 +35,44 @@ export function MoniFooter() {
             <p className="font-medium text-stone-700">Parceria</p>
             <ul className="mt-2 space-y-1 text-stone-600">
               <li>
-                <a href={MONI_BASE} target="_blank" rel="noopener noreferrer" className="hover:text-moni-accent hover:underline">Quero ser corretor</a>
+                <a
+                  href={MONI_BASE}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-moni-accent hover:underline"
+                >
+                  Quero ser corretor
+                </a>
               </li>
               <li>
-                <a href={MONI_BASE} target="_blank" rel="noopener noreferrer" className="hover:text-moni-accent hover:underline">Quero ser fornecedor</a>
+                <a
+                  href={MONI_BASE}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-moni-accent hover:underline"
+                >
+                  Quero ser fornecedor
+                </a>
               </li>
               <li>
-                <a href={MONI_BASE} target="_blank" rel="noopener noreferrer" className="hover:text-moni-accent hover:underline">Cadastrar lote</a>
+                <a
+                  href={MONI_BASE}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-moni-accent hover:underline"
+                >
+                  Cadastrar lote
+                </a>
               </li>
             </ul>
           </div>
           <div className="text-sm text-stone-600">
             <p className="font-medium text-stone-700">Fale conosco</p>
             <p className="mt-2">(11) 95421-6610</p>
-            <a href="mailto:contato@moni.casa" className="mt-1 block hover:text-moni-accent hover:underline">
+            <a
+              href="mailto:contato@moni.casa"
+              className="mt-1 block hover:text-moni-accent hover:underline"
+            >
               contato@moni.casa
             </a>
           </div>

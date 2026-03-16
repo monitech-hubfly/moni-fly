@@ -1,10 +1,12 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
 
 export default async function SirenePericiasPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
@@ -14,7 +16,8 @@ export default async function SirenePericiasPage() {
       </p>
       <div className="mt-6 rounded-xl border border-stone-700 bg-stone-800/60 p-6">
         <p className="text-sm text-stone-500">
-          Aqui ficarão: perícias em andamento, histórico de chamados por perícia, select com busca no Planejamento de Perícias.
+          Aqui ficarão: perícias em andamento, histórico de chamados por perícia, select com busca
+          no Planejamento de Perícias.
         </p>
       </div>
     </main>

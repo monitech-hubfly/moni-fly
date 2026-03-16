@@ -28,7 +28,7 @@ Guia passo a passo, com o que você vai ver em cada tela.
 
 1. Na página **Project Settings**, no **menu da esquerda**, você verá várias opções em texto, por exemplo:
    - General
-   - **API**  ← esta aqui
+   - **API** ← esta aqui
    - Database
    - Auth
    - Storage
@@ -64,6 +64,7 @@ Guia passo a passo, com o que você vai ver em cada tela.
 5. **Cole** no Bloco de notas e salve como “Chave anon Supabase”. Você vai colar no `.env.local` depois.
 
 **Resumo:** Você precisa só destes dois valores:
+
 - **Project URL** (ex.: `https://xxxxx.supabase.co`)
 - **Chave anon (public)** (aquele texto longo que começa muitas vezes com `eyJ...`)
 
@@ -86,12 +87,12 @@ Guia passo a passo, com o que você vai ver em cada tela.
 
 1. Na pasta **migrations**, você verá dois arquivos:
    - **001_initial_schema.sql** — use só na primeira vez, em um projeto Supabase ainda vazio.
-   - **002_idempotent_schema.sql** — use **este** se ao rodar o 001 aparecer o erro *"relation profiles already exists"* (ele cria só o que falta e não dá erro se algo já existir).
+   - **002_idempotent_schema.sql** — use **este** se ao rodar o 001 aparecer o erro _"relation profiles already exists"_ (ele cria só o que falta e não dá erro se algo já existir).
 2. Para este guia, abra o **002_idempotent_schema.sql** (ou o 001 se for a primeira vez em projeto novo).
-2. **Clique com o botão direito** no arquivo.
-3. No menu que abrir, escolha **“Abrir com”** e depois **“Bloco de notas”** (ou “Notepad”).  
+3. **Clique com o botão direito** no arquivo.
+4. No menu que abrir, escolha **“Abrir com”** e depois **“Bloco de notas”** (ou “Notepad”).
    - Se não aparecer “Bloco de notas”, escolha “Outro aplicativo” / “Escolher outro app” e selecione **Bloco de notas**.  
-   → O arquivo abre no Bloco de notas com muito texto (comandos em inglês e nomes de tabelas como `profiles`, `processo_step_one`, etc.). Se escolheu o **002**, no topo do arquivo há um comentário explicando que ele serve quando o 001 deu erro de "profiles already exists".
+     → O arquivo abre no Bloco de notas com muito texto (comandos em inglês e nomes de tabelas como `profiles`, `processo_step_one`, etc.). Se escolheu o **002**, no topo do arquivo há um comentário explicando que ele serve quando o 001 deu erro de "profiles already exists".
 
 ---
 
@@ -102,7 +103,7 @@ Guia passo a passo, com o que você vai ver em cada tela.
    → Todo o texto do arquivo fica selecionado (azul).
 2. Copie: menu **Editar** → **Copiar**  
    **ou** atalho: **Ctrl + C**.  
-   → Todo o conteúdo do arquivo foi copiado para a área de transferência.  
+   → Todo o conteúdo do arquivo foi copiado para a área de transferência.
 3. Você pode **deixar o Bloco de notas aberto** ou fechar; o importante é que já copiou tudo.
 
 ---
@@ -119,14 +120,14 @@ Guia passo a passo, com o que você vai ver em cada tela.
 ### 5. Colar o conteúdo e rodar
 
 1. **Clique** uma vez **dentro** da caixa de texto grande do SQL Editor (onde está o cursor piscando).
-2. **Cole** o que você copiou do arquivo:  
+2. **Cole** o que você copiou do arquivo:
    - Menu **Editar** → **Colar** no navegador  
-   **ou** atalho: **Ctrl + V**.  
-   → O editor fica preenchido com todo o texto do arquivo SQL (várias linhas começando com `--`, `CREATE TABLE`, `CREATE POLICY`, etc.).
+     **ou** atalho: **Ctrl + V**.  
+     → O editor fica preenchido com todo o texto do arquivo SQL (várias linhas começando com `--`, `CREATE TABLE`, `CREATE POLICY`, etc.).
 3. Role até o **final** da tela do SQL Editor. Você verá um botão:
    - **“Run”** (Executar)  
-   **ou** **“Run”** com um ícone de play (▶).  
-   Em alguns layouts o botão pode estar no canto inferior direito.
+     **ou** **“Run”** com um ícone de play (▶).  
+     Em alguns layouts o botão pode estar no canto inferior direito.
 4. **Clique** em **Run**.  
    → O Supabase executa todo aquele SQL.
 5. **Resultado esperado:**
@@ -138,12 +139,12 @@ Guia passo a passo, com o que você vai ver em cada tela.
 
 ## Resumo rápido
 
-| O que fazer | Onde |
-|------------|------|
-| **Project URL** | Supabase → ícone engrenagem (Project Settings) → menu esquerda **API** → bloco **Project URL** → ícone copiar. |
-| **Chave anon** | Mesma página **API** → role até **Project API keys** → na chave **anon** / **anon public** → ícone copiar. |
-| **Abrir o SQL** | No PC: **VIABILIDADE** → **supabase** → **migrations** → botão direito em **002_idempotent_schema.sql** (ou 001 se for projeto novo) → Abrir com → Bloco de notas. |
-| **Copiar tudo** | No Bloco de notas: **Ctrl+A** (selecionar tudo) → **Ctrl+C** (copiar). |
-| **Colar e rodar** | Supabase → **SQL Editor** → colar (**Ctrl+V**) na caixa grande → clicar **Run**. |
+| O que fazer       | Onde                                                                                                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Project URL**   | Supabase → ícone engrenagem (Project Settings) → menu esquerda **API** → bloco **Project URL** → ícone copiar.                                                     |
+| **Chave anon**    | Mesma página **API** → role até **Project API keys** → na chave **anon** / **anon public** → ícone copiar.                                                         |
+| **Abrir o SQL**   | No PC: **VIABILIDADE** → **supabase** → **migrations** → botão direito em **002_idempotent_schema.sql** (ou 001 se for projeto novo) → Abrir com → Bloco de notas. |
+| **Copiar tudo**   | No Bloco de notas: **Ctrl+A** (selecionar tudo) → **Ctrl+C** (copiar).                                                                                             |
+| **Colar e rodar** | Supabase → **SQL Editor** → colar (**Ctrl+V**) na caixa grande → clicar **Run**.                                                                                   |
 
 Depois disso, você usa a **URL** e a **chave anon** no arquivo **.env.local** do projeto (conforme o guia principal **GUIA_PASSOS_NAO_DEV.md**).

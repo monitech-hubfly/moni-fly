@@ -8,12 +8,12 @@ Este guia explica **exatamente** o que executar, **em que ordem**, e **o que exc
 
 Escolha **uma** das opções abaixo. O passo a passo depende disso.
 
-| Situação | O que fazer |
-|----------|-------------|
-| **A)** Nunca rodei nenhuma migração do projeto (banco novo ou projeto novo) | Siga a **Ordem recomendada** na seção 1. |
-| **B)** Já rodei as migrações 001, 002, 003, 004 e 005 (e talvez 006) | Você **não** precisa excluir nada à mão. Rode só a **007** (ela remove a tabela antiga `casas_escolhidas` e cria `catalogo_escolhidos`). Siga a partir do **Passo 1.2**. |
-| **C)** Já rodei a 007 e quero só conferir o fluxo na tela | Vá direto para a **Seção 2** (subir o sistema e testar). |
-| **D)** Deu erro e quero saber o que excluir ou substituir | Veja a **Seção 4** (Excluir ou substituir) e depois repita o passo que falhou. |
+| Situação                                                                    | O que fazer                                                                                                                                                              |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **A)** Nunca rodei nenhuma migração do projeto (banco novo ou projeto novo) | Siga a **Ordem recomendada** na seção 1.                                                                                                                                 |
+| **B)** Já rodei as migrações 001, 002, 003, 004 e 005 (e talvez 006)        | Você **não** precisa excluir nada à mão. Rode só a **007** (ela remove a tabela antiga `casas_escolhidas` e cria `catalogo_escolhidos`). Siga a partir do **Passo 1.2**. |
+| **C)** Já rodei a 007 e quero só conferir o fluxo na tela                   | Vá direto para a **Seção 2** (subir o sistema e testar).                                                                                                                 |
+| **D)** Deu erro e quero saber o que excluir ou substituir                   | Veja a **Seção 4** (Excluir ou substituir) e depois repita o passo que falhou.                                                                                           |
 
 ---
 
@@ -132,16 +132,16 @@ Se a Etapa 8 der erro de tabela, veja **Seção 4.1**. Se faltar modelo no catá
 
 ## 3. Resumo em tabela (ordem de execução)
 
-| Ordem | O que fazer |
-|-------|-------------|
-| 1 | **Supabase** → SQL Editor → colar e rodar **007_catalogo_escolhidos.sql**. **Não** rodar 006. |
-| 2 | **PowerShell** na pasta VIABILIDADE → `npm run dev` → deixar aberto. |
-| 3 | **Navegador** → localhost:3000 → **Entrar**. |
-| 4 | **Iniciar processo** → Cidade + **Estado (UF)** pela lista. |
-| 5 | **Etapa 1** → **Buscar dados do IBGE** → Salvar (e narrativa se quiser). |
-| 6 | **Etapa 4** e **5** → conferir texto Apify. **Etapa 4** → ter pelo menos 1 casa. |
-| 7 | **Etapa 6** → ter pelo menos 3 modelos no catálogo. |
-| 8 | **Etapa 8** → escolher 3 modelos do catálogo → Salvar → preencher batalhas (todas as casas ZAP × 3 modelos). |
+| Ordem | O que fazer                                                                                                  |
+| ----- | ------------------------------------------------------------------------------------------------------------ |
+| 1     | **Supabase** → SQL Editor → colar e rodar **007_catalogo_escolhidos.sql**. **Não** rodar 006.                |
+| 2     | **PowerShell** na pasta VIABILIDADE → `npm run dev` → deixar aberto.                                         |
+| 3     | **Navegador** → localhost:3000 → **Entrar**.                                                                 |
+| 4     | **Iniciar processo** → Cidade + **Estado (UF)** pela lista.                                                  |
+| 5     | **Etapa 1** → **Buscar dados do IBGE** → Salvar (e narrativa se quiser).                                     |
+| 6     | **Etapa 4** e **5** → conferir texto Apify. **Etapa 4** → ter pelo menos 1 casa.                             |
+| 7     | **Etapa 6** → ter pelo menos 3 modelos no catálogo.                                                          |
+| 8     | **Etapa 8** → escolher 3 modelos do catálogo → Salvar → preencher batalhas (todas as casas ZAP × 3 modelos). |
 
 ---
 
@@ -231,15 +231,15 @@ A tabela **catalogo_escolhidos** continua existindo; só os registros daquele pr
 
 ## 5. Erros comuns e o que fazer
 
-| Erro ou situação | O que fazer |
-|------------------|-------------|
-| **"relation catalogo_escolhidos does not exist"** | Rodar a **007** no SQL Editor (Passo 1.2). |
-| **"relation casas_escolhidas does not exist"** | Normal se você **nunca** rodou a 006. Ignore e use só a 007. Se a 007 falhar, veja **4.4**. |
-| **Etapa 1 — "Município não encontrado"** | Ajustar **Estado** para **UF** (2 letras) no processo. Ver **4.2**. |
-| **Etapa 8 — "Nenhuma casa listada na Etapa 4"** | Cadastrar pelo menos **uma** casa na Etapa 4. |
-| **Etapa 8 — "O catálogo Moní precisa ter pelo menos 3 modelos"** | Incluir mais modelos em **catalogo_casas**. Ver **4.3**. |
-| **Etapa 8 — Erro ao salvar os 3 modelos** | Confirmar que a **007** foi aplicada e que está logado no sistema. |
-| **Quero refazer a tabela catalogo_escolhidos** | Ver **4.1** (DROP e rodar 007 de novo). |
+| Erro ou situação                                                 | O que fazer                                                                                 |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **"relation catalogo_escolhidos does not exist"**                | Rodar a **007** no SQL Editor (Passo 1.2).                                                  |
+| **"relation casas_escolhidas does not exist"**                   | Normal se você **nunca** rodou a 006. Ignore e use só a 007. Se a 007 falhar, veja **4.4**. |
+| **Etapa 1 — "Município não encontrado"**                         | Ajustar **Estado** para **UF** (2 letras) no processo. Ver **4.2**.                         |
+| **Etapa 8 — "Nenhuma casa listada na Etapa 4"**                  | Cadastrar pelo menos **uma** casa na Etapa 4.                                               |
+| **Etapa 8 — "O catálogo Moní precisa ter pelo menos 3 modelos"** | Incluir mais modelos em **catalogo_casas**. Ver **4.3**.                                    |
+| **Etapa 8 — Erro ao salvar os 3 modelos**                        | Confirmar que a **007** foi aplicada e que está logado no sistema.                          |
+| **Quero refazer a tabela catalogo_escolhidos**                   | Ver **4.1** (DROP e rodar 007 de novo).                                                     |
 
 ---
 

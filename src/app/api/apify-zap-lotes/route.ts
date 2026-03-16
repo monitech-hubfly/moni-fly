@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 
 const PAGE_SIZE = 24;
 const MAX_FROM = 500;
@@ -18,7 +18,7 @@ export type ZapLoteItem = {
 
 function parseMoney(value: string | number | undefined): number | undefined {
   if (value == null) return undefined;
-  const s = String(value).replace(/\D/g, "").replace(",", ".");
+  const s = String(value).replace(/\D/g, '').replace(',', '.');
   const n = parseFloat(s);
   return Number.isFinite(n) ? n : undefined;
 }
@@ -37,7 +37,7 @@ function mapGlueListingToLoteItem(raw: Record<string, unknown>): ZapLoteItem {
   const valor_condominio = parseMoney(pi?.monthlyCondoFee as string | number | undefined);
   const iptu = parseMoney(pi?.yearlyIptu as string | number | undefined);
   const amenities = raw.amenities as string[] | undefined;
-  const caracteristicas = amenities?.filter(Boolean).join(", ") ?? null;
+  const caracteristicas = amenities?.filter(Boolean).join(', ') ?? null;
   return {
     condominio,
     area_lote_m2: area,
@@ -59,14 +59,15 @@ function mapGlueListingToLoteItem(raw: Record<string, unknown>): ZapLoteItem {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const cidade = typeof body?.cidade === "string" ? body.cidade.trim() : "";
-    const estado = typeof body?.estado === "string" ? body.estado.trim() : "";
-    const condominio = typeof body?.condominio === "string" ? body.condominio.trim() || undefined : undefined;
+    const cidade = typeof body?.cidade === 'string' ? body.cidade.trim() : '';
+    const estado = typeof body?.estado === 'string' ? body.estado.trim() : '';
+    const condominio =
+      typeof body?.condominio === 'string' ? body.condominio.trim() || undefined : undefined;
 
     if (!cidade || !estado) {
       return NextResponse.json(
-        { ok: false, error: "Corpo da requisição deve conter cidade e estado." },
-        { status: 400 }
+        { ok: false, error: 'Corpo da requisição deve conter cidade e estado.' },
+        { status: 400 },
       );
     }
 
@@ -74,14 +75,18 @@ export async function POST(request: Request) {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
-        { ok: false, error: "Configuração Supabase ausente (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)." },
-        { status: 500 }
+        {
+          ok: false,
+          error:
+            'Configuração Supabase ausente (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).',
+        },
+        { status: 500 },
       );
     }
 
-    const projectRef = new URL(supabaseUrl).hostname.split(".")[0];
+    const projectRef = new URL(supabaseUrl).hostname.split('.')[0];
     const edgeUrl = `https://${projectRef}.supabase.co/functions/v1/zap-search-lotes`;
-    const cookieHeader = request.headers.get("cookie") ?? undefined;
+    const cookieHeader = request.headers.get('cookie') ?? undefined;
 
     const allItems: ZapLoteItem[] = [];
     let from = 0;
@@ -89,9 +94,9 @@ export async function POST(request: Request) {
 
     while (hasMore) {
       const res = await fetch(edgeUrl, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${serviceRoleKey}`,
         },
         body: JSON.stringify({
@@ -112,23 +117,27 @@ export async function POST(request: Request) {
         } catch {
           errMsg = errBody.slice(0, 300) || `Edge Function ${res.status}`;
         }
-        return NextResponse.json(
-          { ok: false, error: errMsg },
-          { status: 200 }
-        );
+        return NextResponse.json({ ok: false, error: errMsg }, { status: 200 });
       }
 
       const data = (await res.json()) as Record<string, unknown>;
-      const result = (data.search as Record<string, unknown> | undefined)?.result as Record<string, unknown> | undefined;
+      const result = (data.search as Record<string, unknown> | undefined)?.result as
+        | Record<string, unknown>
+        | undefined;
       const rawListings = result?.listings;
       const listingsArray = Array.isArray(rawListings)
-        ? (rawListings as Array<{ listing?: Record<string, unknown> }>).map((item) => item.listing).filter((l): l is Record<string, unknown> => l != null)
+        ? (rawListings as Array<{ listing?: Record<string, unknown> }>)
+            .map((item) => item.listing)
+            .filter((l): l is Record<string, unknown> => l != null)
         : [];
 
       if (!Array.isArray(rawListings)) {
         return NextResponse.json(
-          { ok: false, error: "Resposta da glue-api sem array de listings (search.result.listings)." },
-          { status: 200 }
+          {
+            ok: false,
+            error: 'Resposta da glue-api sem array de listings (search.result.listings).',
+          },
+          { status: 200 },
         );
       }
 
@@ -147,9 +156,6 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json(
-      { ok: false, error: message },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }

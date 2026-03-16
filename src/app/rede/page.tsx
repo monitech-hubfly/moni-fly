@@ -1,19 +1,21 @@
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import { RedeContatosClient } from "./RedeContatosClient";
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
+import { RedeContatosClient } from './RedeContatosClient';
 
 export default async function RedePage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
 
   const { data: contatos } = await supabase
-    .from("rede_contatos")
-    .select("id, tipo, nome, contato, created_at")
-    .eq("user_id", user.id)
-    .order("tipo", { ascending: true })
-    .order("nome", { ascending: true });
+    .from('rede_contatos')
+    .select('id, tipo, nome, contato, created_at')
+    .eq('user_id', user.id)
+    .order('tipo', { ascending: true })
+    .order('nome', { ascending: true });
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -29,7 +31,7 @@ export default async function RedePage() {
       <main className="mx-auto max-w-7xl px-4 py-8">
         <div className="card">
           <h1 className="text-xl font-bold text-moni-dark">Rede de contatos</h1>
-          <p className="mt-1 text-stone-600 text-sm">
+          <p className="mt-1 text-sm text-stone-600">
             Condomínios, corretores e imobiliárias para acompanhamento da praça.
           </p>
           <RedeContatosClient contatos={contatos ?? []} />

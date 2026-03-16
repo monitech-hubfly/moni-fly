@@ -1,25 +1,31 @@
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import { listJuridicoTickets } from "../actions";
-import { MoniFooter } from "@/components/MoniFooter";
-import { KanbanColumn } from "./KanbanColumn";
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
+import { listJuridicoTickets } from '../actions';
+import { MoniFooter } from '@/components/MoniFooter';
+import { KanbanColumn } from './KanbanColumn';
 
 const COLUMNS = [
-  { key: "nova_duvida", label: "Nova Dúvida" },
-  { key: "em_analise", label: "Em análise com Jurídico" },
-  { key: "paralisado", label: "Paralisado" },
-  { key: "finalizado", label: "Finalizado" },
+  { key: 'nova_duvida', label: 'Nova Dúvida' },
+  { key: 'em_analise', label: 'Em análise com Jurídico' },
+  { key: 'paralisado', label: 'Paralisado' },
+  { key: 'finalizado', label: 'Finalizado' },
 ] as const;
 
 export default async function JuridicoKanbanPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
 
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  const role = (profile?.role as string) ?? "frank";
-  if (role !== "consultor" && role !== "admin") redirect("/juridico");
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+  const role = (profile?.role as string) ?? 'frank';
+  if (role !== 'consultor' && role !== 'admin') redirect('/juridico');
 
   const result = await listJuridicoTickets();
   const tickets = result.ok ? result.tickets : [];
@@ -28,7 +34,7 @@ export default async function JuridicoKanbanPage() {
       acc[col.key] = tickets.filter((t) => t.status === col.key);
       return acc;
     },
-    {} as Record<string, typeof tickets>
+    {} as Record<string, typeof tickets>,
   );
 
   return (
@@ -43,9 +49,9 @@ export default async function JuridicoKanbanPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-6 overflow-x-auto">
-        <h1 className="text-xl font-bold text-moni-dark mb-4">Kanban Jurídico</h1>
-        <div className="flex gap-4 min-w-max">
+      <main className="mx-auto max-w-7xl overflow-x-auto px-4 py-6">
+        <h1 className="mb-4 text-xl font-bold text-moni-dark">Kanban Jurídico</h1>
+        <div className="flex min-w-max gap-4">
           {COLUMNS.map((col) => (
             <KanbanColumn
               key={col.key}

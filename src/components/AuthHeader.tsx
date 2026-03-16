@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 
 export function AuthHeader({ user }: { user: { email?: string } | null }) {
   const router = useRouter();
@@ -10,7 +10,7 @@ export function AuthHeader({ user }: { user: { email?: string } | null }) {
   const handleSignOut = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.push("/");
+    router.push('/');
     router.refresh();
   };
 

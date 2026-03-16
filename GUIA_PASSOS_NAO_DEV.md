@@ -113,6 +113,7 @@ Agora você vai “instalar” as dependências do projeto e dizer ao projeto qu
    - Isso abre o PowerShell já **dentro** da pasta VIABILIDADE.
 
 Se preferir:
+
 - Pressione **Windows + R**, digite **powershell**, Enter.
 - Depois digite (troque pelo seu usuário se for diferente):
   ```text
@@ -149,6 +150,7 @@ Se preferir:
 7. Salve o arquivo (Ctrl+S) e feche.
 
 Exemplo de como pode ficar (com dados fictícios):
+
 ```text
 NEXT_PUBLIC_SUPABASE_URL=https://abcdefghijk.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOi...

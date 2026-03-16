@@ -44,7 +44,7 @@ Se algo disso não estiver feito, use os guias **GUIA_PASSOS_NAO_DEV.md** e **PA
 1. Abra o **Chrome** ou **Edge**.
 2. Na barra de endereço digite:
    - **http://localhost:3000**  
-   ou, se o PowerShell mostrou porta 3001:
+     ou, se o PowerShell mostrou porta 3001:
    - **http://localhost:3001**
 3. Aperte **Enter**.
 4. Deve abrir a **página inicial** do Viabilidade Moní, com os botões **Entrar** e **Cadastrar** no topo.
@@ -146,13 +146,13 @@ Se tudo isso estiver certo, o **processo está sendo criado e salvo no banco** n
 
 ## Parte 5 — Resumo do que a Sprint 2 faz
 
-| O que você fez | O que a Sprint 2 entrega |
-|----------------|---------------------------|
-| Cadastrar (nome, e-mail, senha) | Conta no Supabase Auth + perfil na tabela **profiles** (role = frank) |
-| Entrar (e-mail, senha) | Login com Supabase; sessão mantida por cookies |
+| O que você fez                    | O que a Sprint 2 entrega                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Cadastrar (nome, e-mail, senha)   | Conta no Supabase Auth + perfil na tabela **profiles** (role = frank)                            |
+| Entrar (e-mail, senha)            | Login com Supabase; sessão mantida por cookies                                                   |
 | Iniciar processo (cidade, estado) | Registro em **processo_step_one** + 11 linhas em **etapa_progresso**; redireciona para o ID real |
-| Abrir /step-one sem login | Redireciona para /login (proteção de rota) |
-| Sair | Logout; na home aparecem de novo Entrar e Cadastrar |
+| Abrir /step-one sem login         | Redireciona para /login (proteção de rota)                                                       |
+| Sair                              | Logout; na home aparecem de novo Entrar e Cadastrar                                              |
 
 ---
 

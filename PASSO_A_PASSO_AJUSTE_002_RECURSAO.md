@@ -1,6 +1,6 @@
 # Passo a passo — Ajuste da migração 002 (evitar recursão em profiles)
 
-Este guia explica **como aplicar** o ajuste que evita o erro *"infinite recursion detected in policy for relation 'profiles'"*. Há **duas situações**; escolha a que vale para você.
+Este guia explica **como aplicar** o ajuste que evita o erro _"infinite recursion detected in policy for relation 'profiles'"_. Há **duas situações**; escolha a que vale para você.
 
 ---
 
@@ -65,7 +65,7 @@ Use esta opção se você **ainda não** rodou a 002, ou se está montando o ban
 
 ## Situação B — Você já rodou a 002 antiga e está com o erro de recursão
 
-Use esta opção se você **já** aplicou a 001 e a 002 (na versão antiga, sem `get_my_role()`) e ao clicar em **Iniciar processo** aparece *"infinite recursion detected in policy for relation 'profiles'"*.
+Use esta opção se você **já** aplicou a 001 e a 002 (na versão antiga, sem `get_my_role()`) e ao clicar em **Iniciar processo** aparece _"infinite recursion detected in policy for relation 'profiles'"_.
 
 Aqui você **não** precisa rodar a 002 inteira de novo. Só precisa **corrigir** a tabela **profiles**: criar a função e trocar as duas policies.
 
@@ -104,9 +104,9 @@ Aqui você **não** precisa rodar a 002 inteira de novo. Só precisa **corrigir*
 
 ## Resumo
 
-| Situação | O que fazer |
-|----------|-------------|
-| **A** — Ainda vai rodar migrações (ou só rodou 001) | Rodar **001**, depois **002** (já ajustada no projeto), depois **003**, **004**, **005**, **007**, nessa ordem. A 002 já inclui `get_my_role()` e as policies sem recursão. |
-| **B** — Já rodou 002 antiga e está com erro de recursão | Rodar **só** o conteúdo do arquivo **supabase/CORRIGIR_RECURSAO_PROFILES.sql** no SQL Editor. Depois recarregar a página e testar "Iniciar processo". |
+| Situação                                                | O que fazer                                                                                                                                                                 |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A** — Ainda vai rodar migrações (ou só rodou 001)     | Rodar **001**, depois **002** (já ajustada no projeto), depois **003**, **004**, **005**, **007**, nessa ordem. A 002 já inclui `get_my_role()` e as policies sem recursão. |
+| **B** — Já rodou 002 antiga e está com erro de recursão | Rodar **só** o conteúdo do arquivo **supabase/CORRIGIR_RECURSAO_PROFILES.sql** no SQL Editor. Depois recarregar a página e testar "Iniciar processo".                       |
 
 Em ambos os casos, o ajuste consiste em: **criar `get_my_role()`** e **usar essa função** nas duas policies de **profiles** ("Admin can read all profiles" e "Consultor can read Franks in portfolio") em vez de `EXISTS (SELECT ... FROM profiles ...)`.

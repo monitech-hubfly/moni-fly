@@ -1,24 +1,24 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { criarChamado } from "./actions";
-import type { HdmTime } from "@/types/sirene";
+import { useState } from 'react';
+import { criarChamado } from './actions';
+import type { HdmTime } from '@/types/sirene';
 
 const HDM_OPCOES: { value: HdmTime; label: string }[] = [
-  { value: "Homologações", label: "Homologações" },
-  { value: "Produto", label: "Produto" },
-  { value: "Modelo Virtual", label: "Modelo Virtual" },
+  { value: 'Homologações', label: 'Homologações' },
+  { value: 'Produto', label: 'Produto' },
+  { value: 'Modelo Virtual', label: 'Modelo Virtual' },
 ];
 
 type Props = { onClose: () => void; onSuccess?: () => void };
 
 export function ModalNovoChamado({ onClose, onSuccess }: Props) {
-  const [incendio, setIncendio] = useState("");
-  const [timeAbertura, setTimeAbertura] = useState("");
-  const [frankId, setFrankId] = useState("");
-  const [frankNome, setFrankNome] = useState("");
+  const [incendio, setIncendio] = useState('');
+  const [timeAbertura, setTimeAbertura] = useState('');
+  const [frankId, setFrankId] = useState('');
+  const [frankNome, setFrankNome] = useState('');
   const [ehHdm, setEhHdm] = useState(false);
-  const [hdmResponsavel, setHdmResponsavel] = useState<HdmTime | "">("");
+  const [hdmResponsavel, setHdmResponsavel] = useState<HdmTime | ''>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,12 +27,12 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     setError(null);
     setLoading(true);
     const formData = new FormData();
-    formData.set("incendio", incendio.trim());
-    formData.set("time_abertura", timeAbertura.trim());
-    formData.set("frank_id", frankId.trim());
-    formData.set("frank_nome", frankNome.trim());
-    formData.set("tipo", ehHdm ? "hdm" : "padrao");
-    if (ehHdm && hdmResponsavel) formData.set("hdm_responsavel", hdmResponsavel);
+    formData.set('incendio', incendio.trim());
+    formData.set('time_abertura', timeAbertura.trim());
+    formData.set('frank_id', frankId.trim());
+    formData.set('frank_nome', frankNome.trim());
+    formData.set('tipo', ehHdm ? 'hdm' : 'padrao');
+    if (ehHdm && hdmResponsavel) formData.set('hdm_responsavel', hdmResponsavel);
 
     const result = await criarChamado(formData);
     setLoading(false);
@@ -52,11 +52,11 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
           <h2 className="text-lg font-semibold text-stone-800">Novo chamado</h2>
         </div>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-4">
-          {error && (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-          )}
+          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
           <div>
-            <label className="mb-1 block text-sm font-medium text-stone-700">Incêndio (resumo) *</label>
+            <label className="mb-1 block text-sm font-medium text-stone-700">
+              Incêndio (resumo) *
+            </label>
             <input
               type="text"
               value={incendio}
@@ -67,7 +67,9 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-stone-700">Time de abertura</label>
+            <label className="mb-1 block text-sm font-medium text-stone-700">
+              Time de abertura
+            </label>
             <input
               type="text"
               value={timeAbertura}
@@ -87,7 +89,9 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-stone-700">Nome Franqueado</label>
+              <label className="mb-1 block text-sm font-medium text-stone-700">
+                Nome Franqueado
+              </label>
               <input
                 type="text"
                 value={frankNome}
@@ -104,7 +108,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                 checked={ehHdm}
                 onChange={(e) => {
                   setEhHdm(e.target.checked);
-                  if (!e.target.checked) setHdmResponsavel("");
+                  if (!e.target.checked) setHdmResponsavel('');
                 }}
                 className="h-4 w-4 rounded border-stone-300"
               />
@@ -112,16 +116,20 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
             </label>
             {ehHdm && (
               <div className="mt-3">
-                <label className="mb-1 block text-sm font-medium text-stone-700">Time HDM responsável *</label>
+                <label className="mb-1 block text-sm font-medium text-stone-700">
+                  Time HDM responsável *
+                </label>
                 <select
                   value={hdmResponsavel}
-                  onChange={(e) => setHdmResponsavel((e.target.value || "") as HdmTime | "")}
+                  onChange={(e) => setHdmResponsavel((e.target.value || '') as HdmTime | '')}
                   className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
                   required={ehHdm}
                 >
                   <option value="">Selecione</option>
                   {HDM_OPCOES.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -141,7 +149,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
               disabled={loading || !incendio.trim() || (ehHdm && !hdmResponsavel)}
               className="rounded-lg bg-moni-primary px-4 py-2 text-sm font-medium text-white hover:bg-moni-secondary disabled:opacity-50"
             >
-              {loading ? "Abrindo…" : "Abrir chamado"}
+              {loading ? 'Abrindo…' : 'Abrir chamado'}
             </button>
           </div>
         </form>

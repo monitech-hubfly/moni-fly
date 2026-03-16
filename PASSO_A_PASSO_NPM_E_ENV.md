@@ -33,6 +33,7 @@ Siga na ordem. Cada passo diz exatamente onde clicar e o que digitar.
    ```
 
    (Se o seu usuário do Windows for outro, troque **apsou** pelo nome da sua pasta de usuário.)
+
 5. Aperte **Enter**. O “cursor” do PowerShell deve aparecer algo como `PS ...\VIABILIDADE>` — ou seja, você está na pasta certa.
 
 ---
@@ -185,15 +186,15 @@ Siga na ordem. Cada passo diz exatamente onde clicar e o que digitar.
 
 ## Resumo rápido
 
-| O que fazer | Como |
-|------------|------|
+| O que fazer                           | Como                                                                                                                  |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | Abrir PowerShell na pasta VIABILIDADE | Explorador → OneDrive → Área de Trabalho → VIABILIDADE → clicar na barra de endereço → digitar **powershell** → Enter |
-| Rodar npm install | No PowerShell: digitar **npm install** → Enter → esperar terminar (1–5 min) |
-| Copiar .env | Na pasta VIABILIDADE: selecionar **.env.local.example** → Ctrl+C → clicar em espaço vazio → Ctrl+V |
-| Renomear a cópia | Botão direito na cópia → Renomear → nome: **.env.local** |
-| Editar .env.local | Botão direito em **.env.local** → Abrir com → Bloco de notas |
-| Trocar URL | Na 1ª linha, apagar só o que está depois do **=** e colar a **Project URL** do Supabase |
-| Trocar chave | Na 2ª linha, apagar só o que está depois do **=** e colar a chave **anon (public)** do Supabase |
-| Salvar | Ctrl+S (ou Arquivo → Salvar) e fechar o Bloco de notas |
+| Rodar npm install                     | No PowerShell: digitar **npm install** → Enter → esperar terminar (1–5 min)                                           |
+| Copiar .env                           | Na pasta VIABILIDADE: selecionar **.env.local.example** → Ctrl+C → clicar em espaço vazio → Ctrl+V                    |
+| Renomear a cópia                      | Botão direito na cópia → Renomear → nome: **.env.local**                                                              |
+| Editar .env.local                     | Botão direito em **.env.local** → Abrir com → Bloco de notas                                                          |
+| Trocar URL                            | Na 1ª linha, apagar só o que está depois do **=** e colar a **Project URL** do Supabase                               |
+| Trocar chave                          | Na 2ª linha, apagar só o que está depois do **=** e colar a chave **anon (public)** do Supabase                       |
+| Salvar                                | Ctrl+S (ou Arquivo → Salvar) e fechar o Bloco de notas                                                                |
 
 Depois disso, você pode rodar **npm run dev** no PowerShell (na pasta VIABILIDADE) e abrir **http://localhost:3000** no navegador para ver o projeto.

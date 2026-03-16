@@ -1,45 +1,49 @@
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import { StepsKanbanColumn, type ProcessoCard } from "./StepsKanbanColumn";
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
+import { StepsKanbanColumn, type ProcessoCard } from './StepsKanbanColumn';
 
 const COLUMNS: { step_atual: number; title: string }[] = [
-  { step_atual: 1, title: "Step 1: Região!" },
-  { step_atual: 2, title: "Step 2: Novo negócio" },
-  { step_atual: 3, title: "Step 3: Opções" },
-  { step_atual: 4, title: "Step 4: Check Legal" },
-  { step_atual: 5, title: "Step 5: Comitê" },
+  { step_atual: 1, title: 'Step 1: Região!' },
+  { step_atual: 2, title: 'Step 2: Novo negócio' },
+  { step_atual: 3, title: 'Step 3: Opções' },
+  { step_atual: 4, title: 'Step 4: Check Legal' },
+  { step_atual: 5, title: 'Step 5: Comitê' },
 ];
 
 export default async function StepsViabilidadeKanbanPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
 
   const { data: rows } = await supabase
-    .from("processo_step_one")
-    .select("id, cidade, estado, status, etapa_atual, updated_at, user_id, step_atual, cancelado_em")
-    .neq("status", "cancelado");
+    .from('processo_step_one')
+    .select(
+      'id, cidade, estado, status, etapa_atual, updated_at, user_id, step_atual, cancelado_em',
+    )
+    .neq('status', 'cancelado');
   const rowsNaoCancelados = (rows ?? []).filter(
-    (r) => r.status !== "cancelado" && (r as { cancelado_em?: string | null }).cancelado_em == null
+    (r) => r.status !== 'cancelado' && (r as { cancelado_em?: string | null }).cancelado_em == null,
   );
 
   const processIds = rowsNaoCancelados.map((r) => r.user_id).filter(Boolean) as string[];
   let profiles: { id: string; full_name: string | null }[] = [];
   if (processIds.length > 0) {
     const { data: prof } = await supabase
-      .from("profiles")
-      .select("id, full_name")
-      .in("id", [...new Set(processIds)]);
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', [...new Set(processIds)]);
     profiles = prof ?? [];
   }
   const profileByUserId = Object.fromEntries(profiles.map((p) => [p.id, p.full_name ?? null]));
 
   const processos: ProcessoCard[] = rowsNaoCancelados.map((r) => ({
     id: r.id,
-    cidade: r.cidade ?? "",
+    cidade: r.cidade ?? '',
     estado: r.estado ?? null,
-    status: r.status ?? "rascunho",
+    status: r.status ?? 'rascunho',
     etapa_atual: r.etapa_atual ?? 1,
     updated_at: r.updated_at ?? null,
     franqueado_nome: profileByUserId[r.user_id] ?? null,
@@ -51,7 +55,7 @@ export default async function StepsViabilidadeKanbanPage() {
       acc[col.step_atual] = processos.filter((p) => p.step_atual === col.step_atual);
       return acc;
     },
-    {} as Record<number, ProcessoCard[]>
+    {} as Record<number, ProcessoCard[]>,
   );
 
   return (
@@ -66,12 +70,12 @@ export default async function StepsViabilidadeKanbanPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-6 overflow-x-auto">
-        <h1 className="text-xl font-bold text-moni-dark mb-2">Acompanhamento dos processos</h1>
-        <p className="text-sm text-stone-600 mb-4">
+      <main className="mx-auto max-w-7xl overflow-x-auto px-4 py-6">
+        <h1 className="mb-2 text-xl font-bold text-moni-dark">Acompanhamento dos processos</h1>
+        <p className="mb-4 text-sm text-stone-600">
           Processos dos franqueados em andamento nas respectivas fases.
         </p>
-        <div className="flex gap-4 min-w-max">
+        <div className="flex min-w-max gap-4">
           {COLUMNS.map((col) => (
             <StepsKanbanColumn
               key={col.step_atual}

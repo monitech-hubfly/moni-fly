@@ -4,7 +4,7 @@
  */
 
 const TOTAL_MESES = 84;
-const MES_VENDA: Record<"planta" | "target" | "liquidacao" | "recompra", number> = {
+const MES_VENDA: Record<'planta' | 'target' | 'liquidacao' | 'recompra', number> = {
   planta: 3,
   target: 7,
   liquidacao: 10,
@@ -67,7 +67,7 @@ export function calcVgvPlanta(inputs: BcaInputs): number {
   return (t + l) / 2;
 }
 
-export type CenarioNome = "planta" | "target" | "liquidacao" | "recompra";
+export type CenarioNome = 'planta' | 'target' | 'liquidacao' | 'recompra';
 
 export type CenarioResult = {
   nome: CenarioNome;
@@ -197,7 +197,7 @@ function buildDebtSlice(
   taxaJurosAm: number,
   tac: number,
   iof: number,
-  mesVenda: number
+  mesVenda: number,
 ): DebtSlice {
   const prazo = 12; // countdown a partir de mes_venda
   const grossAmount = funding * (1 + tac - iof);
@@ -251,7 +251,7 @@ function calcCenario(
   permutaVal: number,
   taxaJurosAm: number,
   tac: number,
-  iof: number
+  iof: number,
 ): CenarioResult {
   const mesVenda = MES_VENDA[nome];
   const area = inputs.area_vendas_m2 ?? 627;
@@ -265,21 +265,28 @@ function calcCenario(
   const comissaoPct = inputs.comissao_vendas ?? -0.08;
   const impostosPct = inputs.impostos ?? 0.06;
 
-  const comissao = nome === "recompra" ? 0 : (comissaoPct * vgvVal);
+  const comissao = nome === 'recompra' ? 0 : comissaoPct * vgvVal;
   const impostosValor = impostosPct * vgvVal;
-  const vendaLiquida = vgvVal + comissao + (-impostosValor);
+  const vendaLiquida = vgvVal + comissao + -impostosValor;
 
-  const terrenoBase =
-    nome === "recompra" ? custoTerreno * (1 + itbiPct) : custoTerreno;
+  const terrenoBase = nome === 'recompra' ? custoTerreno * (1 + itbiPct) : custoTerreno;
   const terrenoVar = Math.max(0, vendaLiquida * permutaVal - Math.abs(terrenoBase));
   const casa = custoCasa;
 
   const taxaPlataformaValor = taxaPlat * vgvVal;
-  const taxaGestaoValor = nome === "recompra" ? 0 : taxaGestao * vgvVal;
-  const itbiValor = nome === "recompra" ? 0 : itbiPct * Math.abs(custoTerreno);
+  const taxaGestaoValor = nome === 'recompra' ? 0 : taxaGestao * vgvVal;
+  const itbiValor = nome === 'recompra' ? 0 : itbiPct * Math.abs(custoTerreno);
 
   const resultadoNaoAlav =
-    vendaLiquida + terrenoBase + terrenoVar + casa + taxaPlataformaValor + taxaGestaoValor + itbiValor + projetos + capitalGiro;
+    vendaLiquida +
+    terrenoBase +
+    terrenoVar +
+    casa +
+    taxaPlataformaValor +
+    taxaGestaoValor +
+    itbiValor +
+    projetos +
+    capitalGiro;
   const pctVgvNaoAlav = vgvVal !== 0 ? (resultadoNaoAlav / vgvVal) * 100 : 0;
 
   const percentualFunding = inputs.percentual_funding ?? 1;
@@ -309,14 +316,26 @@ function calcCenario(
   const fCapitalGiro = distribuirFluxo(capitalGiro, 0, 1);
   for (let m = 0; m < TOTAL_MESES; m++) {
     fluxoInvestidorNaoAlav[m] =
-      fVenda[m] + fComissao[m] + fImpostos[m] + fTerrenoBase[m] + fTerrenoVar[m] + fCasa[m] + fTaxaPlat[m] + fTaxaGestao[m] + fItbi[m] + fProjetos[m] + fCapitalGiro[m];
+      fVenda[m] +
+      fComissao[m] +
+      fImpostos[m] +
+      fTerrenoBase[m] +
+      fTerrenoVar[m] +
+      fCasa[m] +
+      fTaxaPlat[m] +
+      fTaxaGestao[m] +
+      fItbi[m] +
+      fProjetos[m] +
+      fCapitalGiro[m];
   }
 
   const vplInvNaoAlav = calcNPV(fluxoInvestidorNaoAlav, custoCapInvAm);
   const fluxoPermutante = fluxoInvestidorNaoAlav.slice();
   const vplTerrenista = calcNPV(fluxoPermutante, custoCapTerAm);
 
-  const fluxoInvestidorAlav = fluxoInvestidorNaoAlav.map((v, m) => v - slice.amortizations[m] - slice.interests[m]);
+  const fluxoInvestidorAlav = fluxoInvestidorNaoAlav.map(
+    (v, m) => v - slice.amortizations[m] - slice.interests[m],
+  );
   const vplInvAlav = calcNPV(fluxoInvestidorAlav, custoCapInvAm);
 
   const saldoAcumulado = new Array<number>(TOTAL_MESES).fill(0);
@@ -333,7 +352,14 @@ function calcCenario(
   const cetAa = calcCET([slice], 0) * 100;
 
   const totalInvestimento =
-    Math.abs(terrenoBase) + Math.abs(terrenoVar) + Math.abs(casa) + Math.abs(taxaPlataformaValor) + Math.abs(taxaGestaoValor) + Math.abs(itbiValor) + Math.abs(projetos) + Math.abs(capitalGiro);
+    Math.abs(terrenoBase) +
+    Math.abs(terrenoVar) +
+    Math.abs(casa) +
+    Math.abs(taxaPlataformaValor) +
+    Math.abs(taxaGestaoValor) +
+    Math.abs(itbiValor) +
+    Math.abs(projetos) +
+    Math.abs(capitalGiro);
   const ltv = vgvVal !== 0 ? totalInvestimento / vgvVal : 0;
 
   return {
@@ -384,44 +410,43 @@ export function calcBca(inputs: BcaInputs): BcaResults {
   const iof = calcIof();
 
   const planta = calcCenario(
-    "planta",
+    'planta',
     inputs,
     vgvPlanta,
     inputs.permuta_planta ?? 0.25,
     taxaJurosAm,
     tac,
-    iof
+    iof,
   );
   const target = calcCenario(
-    "target",
+    'target',
     inputs,
     vgvTarget,
     inputs.permuta_target ?? 0.25,
     taxaJurosAm,
     tac,
-    iof
+    iof,
   );
   const liquidacao = calcCenario(
-    "liquidacao",
+    'liquidacao',
     inputs,
     vgvLiquidacao,
     inputs.permuta_liquidacao ?? 0.25,
     taxaJurosAm,
     tac,
-    iof
+    iof,
   );
   const recompra = calcCenario(
-    "recompra",
+    'recompra',
     inputs,
     vgvRecompra,
     inputs.permuta_recompra ?? 0.36,
     taxaJurosAm,
     tac,
-    iof
+    iof,
   );
 
-  const margem =
-    liquidacao.vgv !== 0 ? (target.vgv / liquidacao.vgv - 1) * 100 : 0;
+  const margem = liquidacao.vgv !== 0 ? (target.vgv / liquidacao.vgv - 1) * 100 : 0;
 
   return {
     planta,
@@ -436,8 +461,8 @@ export function calcBca(inputs: BcaInputs): BcaResults {
 }
 
 export const BCA_DEFAULTS: BcaInputs = {
-  nome_condominio: "",
-  nome_casa: "",
+  nome_condominio: '',
+  nome_casa: '',
   area_vendas_m2: 627,
   custo_terreno: -1000000,
   itbi_percentual: 0.04,

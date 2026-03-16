@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { NextResponse } from 'next/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
-const BUCKET = "processo-docs";
+const BUCKET = 'processo-docs';
 
 type WebhookPayload = {
   event?: {
@@ -21,13 +21,13 @@ export async function POST(req: Request) {
   try {
     payload = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
   const eventType = payload.event?.type;
   const dataObject = payload.event?.data?.object;
 
-  if (eventType !== "document.finished" || !dataObject?.id) {
+  if (eventType !== 'document.finished' || !dataObject?.id) {
     return NextResponse.json({ received: true }, { status: 200 });
   }
 
@@ -37,15 +37,15 @@ export async function POST(req: Request) {
   try {
     const supabase = createAdminClient();
     const { data: instance, error: findError } = await supabase
-      .from("document_instances")
-      .select("id, processo_id, step, status")
-      .eq("autentique_document_id", autentiqueDocId)
+      .from('document_instances')
+      .select('id, processo_id, step, status')
+      .eq('autentique_document_id', autentiqueDocId)
       .single();
 
     if (findError || !instance) {
       return NextResponse.json({ received: true }, { status: 200 });
     }
-    if (instance.status === "assinado") {
+    if (instance.status === 'assinado') {
       return NextResponse.json({ received: true }, { status: 200 });
     }
 
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
           const storagePath = `processos/${instance.processo_id}/step${instance.step}/${fileName}`;
           const { error: uploadError } = await supabase.storage
             .from(BUCKET)
-            .upload(storagePath, buf, { contentType: "application/pdf", upsert: false });
+            .upload(storagePath, buf, { contentType: 'application/pdf', upsert: false });
           if (!uploadError) arquivoAssinadoPath = storagePath;
         }
       } catch {
@@ -71,46 +71,43 @@ export async function POST(req: Request) {
     }
 
     await supabase
-      .from("document_instances")
+      .from('document_instances')
       .update({
-        status: "assinado",
-        assinatura_status: "completed",
+        status: 'assinado',
+        assinatura_status: 'completed',
         arquivo_assinado_path: arquivoAssinadoPath,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", instance.id);
+      .eq('id', instance.id);
 
     const { data: processo } = await supabase
-      .from("processo_step_one")
-      .select("user_id, cidade, estado")
-      .eq("id", instance.processo_id)
+      .from('processo_step_one')
+      .select('user_id, cidade, estado')
+      .eq('id', instance.processo_id)
       .single();
 
-    const cidade = processo?.cidade ?? "";
-    const estado = processo?.estado ?? "";
-    const mensagem = `Documento da etapa ${instance.step} do processo ${cidade}${estado ? ` - ${estado}` : ""} foi assinado no Autentique.`;
+    const cidade = processo?.cidade ?? '';
+    const estado = processo?.estado ?? '';
+    const mensagem = `Documento da etapa ${instance.step} do processo ${cidade}${estado ? ` - ${estado}` : ''} foi assinado no Autentique.`;
 
     const userIdsToNotify = new Set<string>();
 
     if (processo?.user_id) {
       const { data: frankProfile } = await supabase
-        .from("profiles")
-        .select("consultor_id")
-        .eq("id", processo.user_id)
+        .from('profiles')
+        .select('consultor_id')
+        .eq('id', processo.user_id)
         .single();
       if (frankProfile?.consultor_id) userIdsToNotify.add(frankProfile.consultor_id);
     }
 
-    const { data: admins } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("role", "admin");
+    const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin');
     admins?.forEach((a) => userIdsToNotify.add(a.id));
 
     for (const userId of userIdsToNotify) {
-      await supabase.from("alertas").insert({
+      await supabase.from('alertas').insert({
         user_id: userId,
-        tipo: "documento_assinado",
+        tipo: 'documento_assinado',
         mensagem,
         lido: false,
       });

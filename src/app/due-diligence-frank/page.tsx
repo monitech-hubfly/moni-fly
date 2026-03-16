@@ -1,11 +1,13 @@
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 
 export default async function DueDiligenceFrankPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -14,7 +16,7 @@ export default async function DueDiligenceFrankPage() {
           <Link href="/" className="text-moni-primary hover:underline">
             ← Início
           </Link>
-          <span className="text-stone-400 mx-2">/</span>
+          <span className="mx-2 text-stone-400">/</span>
           <span className="font-semibold text-moni-dark">Due Diligence Frank</span>
         </div>
       </header>

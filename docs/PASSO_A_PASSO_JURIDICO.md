@@ -30,9 +30,9 @@ Sem `RESEND_API_KEY`, o alerta continua sendo criado dentro do portal (Minhas al
 
 ## 2. Onde acessar
 
-- **Franqueado (Frank):** menu **Dúvidas jurídicas** → `/juridico`  
+- **Franqueado (Frank):** menu **Dúvidas jurídicas** → `/juridico`
   - Lista de tickets, **Nova dúvida**, aba **Documentos e contratos templates**.
-- **Moní (consultor/admin):** mesmo menu → **Kanban Moní** ou `/juridico/kanban`  
+- **Moní (consultor/admin):** mesmo menu → **Kanban Moní** ou `/juridico/kanban`
   - Kanban com 4 colunas; clique no ticket para abrir detalhe em `/juridico/[id]`.
 
 ## 3. Fluxo Frank

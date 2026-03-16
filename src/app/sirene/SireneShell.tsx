@@ -1,18 +1,25 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState, useTransition } from "react";
-import { marcarNotificacaoLida } from "./actions";
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useState, useTransition } from 'react';
+import { marcarNotificacaoLida } from './actions';
 
 const TABS = [
-  { href: "/sirene", label: "Dashboard" },
-  { href: "/sirene/chamados", label: "Chamados" },
-  { href: "/sirene/kanban", label: "Organização (Kanban)" },
-  { href: "/sirene/pericias", label: "Perícias (Caneta Verde)" },
+  { href: '/sirene', label: 'Dashboard' },
+  { href: '/sirene/chamados', label: 'Chamados' },
+  { href: '/sirene/kanban', label: 'Organização (Kanban)' },
+  { href: '/sirene/pericias', label: 'Perícias (Caneta Verde)' },
 ] as const;
 
-type Notif = { id: number; chamado_id: number | null; tipo: string; texto: string | null; lida: boolean; created_at: string };
+type Notif = {
+  id: number;
+  chamado_id: number | null;
+  tipo: string;
+  texto: string | null;
+  lida: boolean;
+  created_at: string;
+};
 
 type Props = {
   userName: string;
@@ -26,17 +33,17 @@ export function SireneShell({ userName, totalNaoLidas, ultimasNotificacoes, chil
   const [dropdownAberto, setDropdownAberto] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  const isDetailPage = /^\/sirene\/[0-9]+$/.test(pathname ?? "");
+  const isDetailPage = /^\/sirene\/[0-9]+$/.test(pathname ?? '');
   const tabAtivo =
-    pathname === "/sirene"
-      ? "/sirene"
-      : pathname?.startsWith("/sirene/chamados")
-        ? "/sirene/chamados"
-        : pathname?.startsWith("/sirene/kanban")
-          ? "/sirene/kanban"
-          : pathname?.startsWith("/sirene/pericias")
-            ? "/sirene/pericias"
-            : "/sirene";
+    pathname === '/sirene'
+      ? '/sirene'
+      : pathname?.startsWith('/sirene/chamados')
+        ? '/sirene/chamados'
+        : pathname?.startsWith('/sirene/kanban')
+          ? '/sirene/kanban'
+          : pathname?.startsWith('/sirene/pericias')
+            ? '/sirene/pericias'
+            : '/sirene';
 
   function handleClickNotif(notif: Notif) {
     if (!notif.lida) {
@@ -58,7 +65,9 @@ export function SireneShell({ userName, totalNaoLidas, ultimasNotificacoes, chil
             </Link>
             <span className="text-stone-600">/</span>
             <Link href="/sirene" className="flex items-center gap-2 hover:opacity-90">
-              <span className="text-2xl" aria-hidden>🔥</span>
+              <span className="text-2xl" aria-hidden>
+                🔥
+              </span>
               <div>
                 <h1 className="text-lg font-bold tracking-tight text-white">
                   Sirene — Central de Chamados
@@ -79,7 +88,7 @@ export function SireneShell({ userName, totalNaoLidas, ultimasNotificacoes, chil
                 <span className="text-xl">🔔</span>
                 {totalNaoLidas > 0 && (
                   <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                    {totalNaoLidas > 99 ? "99+" : totalNaoLidas}
+                    {totalNaoLidas > 99 ? '99+' : totalNaoLidas}
                   </span>
                 )}
               </button>
@@ -101,9 +110,9 @@ export function SireneShell({ userName, totalNaoLidas, ultimasNotificacoes, chil
                         {ultimasNotificacoes.map((n) => (
                           <li key={n.id}>
                             <Link
-                              href={n.chamado_id ? `/sirene/${n.chamado_id}` : "/sirene"}
+                              href={n.chamado_id ? `/sirene/${n.chamado_id}` : '/sirene'}
                               onClick={() => handleClickNotif(n)}
-                              className={`block px-3 py-2 text-sm hover:bg-stone-700 ${!n.lida ? "font-medium text-white" : "text-stone-400"}`}
+                              className={`block px-3 py-2 text-sm hover:bg-stone-700 ${!n.lida ? 'font-medium text-white' : 'text-stone-400'}`}
                             >
                               {n.texto ?? n.tipo}
                             </Link>
@@ -133,8 +142,8 @@ export function SireneShell({ userName, totalNaoLidas, ultimasNotificacoes, chil
                 href={t.href}
                 className={`border-b-2 px-4 py-3 text-sm font-medium ${
                   tabAtivo === t.href
-                    ? "border-red-500 text-white"
-                    : "border-transparent text-stone-400 hover:text-stone-200"
+                    ? 'border-red-500 text-white'
+                    : 'border-transparent text-stone-400 hover:text-stone-200'
                 }`}
               >
                 {t.label}

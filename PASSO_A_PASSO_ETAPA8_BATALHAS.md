@@ -84,13 +84,13 @@ A Etapa 8 precisa de **pelo menos uma casa** cadastrada na **Etapa 4** e de **pe
 
 ## Resumo — O que fazer para a Etapa 8 funcionar
 
-| Ordem | O que fazer |
-|-------|-------------|
-| 1 | No **Supabase** → **SQL Editor** → **+** (nova consulta) → abrir o arquivo **005_batalhas_etapa8.sql** no PC → copiar todo o conteúdo → colar no Editor → **Run**. |
-| 2 | No **PowerShell**, na pasta VIABILIDADE, rodar **npm run dev** (se o servidor não estiver rodando) e deixar a janela aberta. |
-| 3 | No **navegador**, abrir **http://localhost:3000** (ou 3001) e **fazer login**. |
-| 4 | **Meus processos** → abrir um processo → conferir **Etapa 4** (pelo menos uma casa) e **Etapa 6** (catálogo com modelos). |
-| 5 | Abrir **Etapa 8** → preencher notas de preço, produto e localização nos selects → conferir que salva sozinho e que os dados permanecem ao reabrir. |
+| Ordem | O que fazer                                                                                                                                                        |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1     | No **Supabase** → **SQL Editor** → **+** (nova consulta) → abrir o arquivo **005_batalhas_etapa8.sql** no PC → copiar todo o conteúdo → colar no Editor → **Run**. |
+| 2     | No **PowerShell**, na pasta VIABILIDADE, rodar **npm run dev** (se o servidor não estiver rodando) e deixar a janela aberta.                                       |
+| 3     | No **navegador**, abrir **http://localhost:3000** (ou 3001) e **fazer login**.                                                                                     |
+| 4     | **Meus processos** → abrir um processo → conferir **Etapa 4** (pelo menos uma casa) e **Etapa 6** (catálogo com modelos).                                          |
+| 5     | Abrir **Etapa 8** → preencher notas de preço, produto e localização nos selects → conferir que salva sozinho e que os dados permanecem ao reabrir.                 |
 
 ---
 

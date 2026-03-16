@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { getJuridicoAnexoDownloadUrl } from "../actions";
+import { useState } from 'react';
+import { getJuridicoAnexoDownloadUrl } from '../actions';
 
 export function AnexoDownloadLink({ anexoId, fileName }: { anexoId: string; fileName: string }) {
   const [loading, setLoading] = useState(false);
@@ -10,7 +10,7 @@ export function AnexoDownloadLink({ anexoId, fileName }: { anexoId: string; file
     setLoading(true);
     const result = await getJuridicoAnexoDownloadUrl(anexoId);
     setLoading(false);
-    if (result.ok) window.open(result.url, "_blank");
+    if (result.ok) window.open(result.url, '_blank');
   }
 
   return (
@@ -20,7 +20,7 @@ export function AnexoDownloadLink({ anexoId, fileName }: { anexoId: string; file
       disabled={loading}
       className="text-moni-accent hover:underline disabled:opacity-50"
     >
-      {loading ? "Gerando link..." : fileName}
+      {loading ? 'Gerando link...' : fileName}
     </button>
   );
 }
