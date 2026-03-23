@@ -88,6 +88,11 @@ function extractInviteUserId(invData: unknown): string | null {
   return null;
 }
 
+function isRateLimitError(err: { message?: string; status?: number } | null | undefined): boolean {
+  const m = (err?.message ?? '').toLowerCase();
+  return m.includes('rate limit') || m.includes('too many emails') || err?.status === 429;
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = await createClient();
@@ -119,31 +124,55 @@ export async function POST(req: Request) {
     let profileId = await findProfileIdByEmail(admin, email);
 
     if (!profileId) {
-      const { data: invData, error: invErr } = await admin.auth.admin.inviteUserByEmail(email, {
-        data: { full_name: '', nome_completo: '', departamento: departamento ?? '' },
-      });
+      /** 1) Utilizador já no Auth → não chamar inviteUserByEmail (evita rate limit e e-mail duplicado do Supabase). */
+      let authUserId =
+        (await findAuthUserIdByEmailHttp(email)) ?? (await findAuthUserIdByEmailSdk(admin, email));
 
-      const invUserId = extractInviteUserId(invData);
+      if (!authUserId) {
+        const { data: invData, error: invErr } = await admin.auth.admin.inviteUserByEmail(email, {
+          data: { full_name: '', nome_completo: '', departamento: departamento ?? '' },
+        });
 
-      if (!invErr && invUserId) {
-        profileId =
-          (await waitForProfileByUserId(admin, invUserId)) ?? (await findProfileIdByUserId(admin, invUserId));
+        if (invErr) {
+          if (isRateLimitError(invErr)) {
+            return NextResponse.json(
+              {
+                error:
+                  'Limite de envio de e-mails do Supabase atingido (rate limit). Aguarde alguns minutos ou ajuste em Supabase → Project Settings → Authentication → Emails. Se o convidado já tem conta, confira também o e-mail digitado (ex.: fernanda vs fenanda).',
+              },
+              { status: 429 },
+            );
+          }
+          authUserId =
+            extractInviteUserId(invData) ??
+            (await findAuthUserIdByEmailHttp(email)) ??
+            (await findAuthUserIdByEmailSdk(admin, email));
+          if (!authUserId) {
+            return NextResponse.json(
+              {
+                error:
+                  invErr.message ??
+                  'Não foi possível convidar este e-mail. Verifique o endereço e em Supabase → Authentication → Users.',
+              },
+              { status: 500 },
+            );
+          }
+        } else {
+          const invUserId = extractInviteUserId(invData);
+          if (invUserId) {
+            profileId =
+              (await waitForProfileByUserId(admin, invUserId)) ?? (await findProfileIdByUserId(admin, invUserId));
+            if (!profileId) {
+              authUserId = invUserId;
+            }
+          } else {
+            authUserId =
+              (await findAuthUserIdByEmailHttp(email)) ?? (await findAuthUserIdByEmailSdk(admin, email));
+          }
+        }
       }
 
-      if (!profileId) {
-        const authUserId =
-          invUserId ?? (await findAuthUserIdByEmailHttp(email)) ?? (await findAuthUserIdByEmailSdk(admin, email));
-
-        if (!authUserId) {
-          const hint = invErr?.message ? ` Detalhe: ${invErr.message}` : '';
-          return NextResponse.json(
-            {
-              error: `Não foi encontrado usuário no Auth para este e-mail.${hint} Confira em Supabase → Authentication → Users.`,
-            },
-            { status: 500 },
-          );
-        }
-
+      if (!profileId && authUserId) {
         profileId = await findProfileIdByUserId(admin, authUserId);
         if (!profileId) {
           const { error: insErr } = await admin.from('profiles').insert({
