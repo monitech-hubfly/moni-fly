@@ -4,6 +4,9 @@ import { createClient } from '@/lib/supabase/server';
 import { AppShell } from '@/components/AppShell';
 import { normalizeAccessRole } from '@/lib/authz';
 
+/** Sessão + papel vêm de cookies; sem isto o shell pode servir HTML cacheado com papel errado. */
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Viabilidade Moní | Casa Moní',
   description:

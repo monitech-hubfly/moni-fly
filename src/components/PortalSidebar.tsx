@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Bell, ChevronDown, ChevronRight, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { isAdminRole } from '@/lib/authz';
+import { isAdminRole, normalizeAccessRole } from '@/lib/authz';
 import { isLiveLimitedRelease } from '@/lib/release-scope';
 
 type PortalSidebarProps = {
@@ -91,8 +91,28 @@ function isAcoplamentoActive(pathname: string) {
 export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const isAdmin = isAdminRole(userRole);
+  const [resolvedRole, setResolvedRole] = useState(userRole);
+  const isAdmin = isAdminRole(resolvedRole);
   const limitedRelease = isLiveLimitedRelease();
+
+  useEffect(() => {
+    setResolvedRole(userRole);
+  }, [userRole]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const supabase = createClient();
+    void supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.role != null) {
+          setResolvedRole(normalizeAccessRole(String(data.role)));
+        }
+      });
+  }, [user?.id]);
   const [perfilOpen, setPerfilOpen] = useState(() => (pathname ?? '') === '/perfil');
   const [redeFranqueadosOpen, setRedeFranqueadosOpen] = useState(() => isRedeFranqueadosActive(pathname ?? ''));
   const [catalogoOpen, setCatalogoOpen] = useState(() => isCatalogoActive(pathname ?? ''));
@@ -243,6 +263,12 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
 
       {/* Navegação principal com macro-itens e subitens */}
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+        {isAdmin && (
+          <Link href="/admin/usuarios" className={linkClassPrincipal(pathname.startsWith('/admin/usuarios'))}>
+            Gerenciar Usuários
+          </Link>
+        )}
+
         {renderMacro(
           'rede',
           'Rede de Franqueados',
@@ -417,8 +443,16 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
           {perfilOpen && (
             <div className="mt-1 space-y-0.5 pl-6 text-[11px]">
               <div className={isSirene ? 'text-stone-400' : 'text-stone-500'}>
-                Papel: {userRole || 'franqueado'}
+                Papel: {resolvedRole || 'franqueado'}
               </div>
+              {isAdmin && (
+                <Link
+                  href="/admin/usuarios"
+                  className={`mt-1 block text-left font-semibold ${isSirene ? 'text-emerald-200 hover:text-white' : 'text-moni-primary hover:text-moni-secondary'}`}
+                >
+                  Gerenciar Usuários
+                </Link>
+              )}
               <Link
                 href="/perfil"
                 className={`mt-1 block text-left ${isSirene ? 'text-stone-200 hover:text-white' : 'text-moni-primary hover:text-moni-secondary'}`}
