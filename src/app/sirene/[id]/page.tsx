@@ -13,15 +13,20 @@ export default async function SireneChamadoPage({ params }: { params: Promise<{ 
   const result = await getChamado(chamadoId);
   if (!result.ok) redirect('/sirene');
 
-  const { chamado, userContext } = result;
+  const { chamado, userContext, currentUserId } = result;
   const ctx = userContext ?? { papel: null, time: null };
   const isBombeiroReal = ctx.papel === 'bombeiro';
+  const isCriador = chamado.aberto_por != null && currentUserId != null && chamado.aberto_por === currentUserId;
   const isHdmTeam =
     chamado.tipo === 'hdm' &&
     chamado.hdm_responsavel != null &&
     ctx.time === chamado.hdm_responsavel;
   const podeActuarComoBombeiro = canActAsBombeiro(ctx, chamado);
-  const podePreencherTemaMapeamento = isBombeiroReal;
+  // Bombeiro preenche tema/mapeamento quando: não HDM ou (HDM e criador já aprovou uma vez); e status em_andamento (não aguardando criador)
+  const podePreencherTemaMapeamento =
+    isBombeiroReal &&
+    (chamado.tipo !== 'hdm' || chamado.resolucao_suficiente === true) &&
+    chamado.status === 'em_andamento';
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
@@ -83,6 +88,7 @@ export default async function SireneChamadoPage({ params }: { params: Promise<{ 
         podePreencherTemaMapeamento={podePreencherTemaMapeamento}
         mostrarControlesBombeiro={isHdmTeam || (isBombeiroReal && chamado.tipo !== 'hdm')}
         mostrarRedirecionarHDM={isBombeiroReal && chamado.tipo === 'padrao'}
+        isCriador={isCriador}
       />
     </main>
   );

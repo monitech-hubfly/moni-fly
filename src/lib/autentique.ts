@@ -73,7 +73,7 @@ export async function createDocument(
   const formData = new FormData();
   formData.append('operations', operations);
   formData.append('map', map);
-  const blob = new Blob([fileBuffer], {
+  const blob = new Blob([new Uint8Array(fileBuffer)], {
     type: fileName.toLowerCase().endsWith('.pdf')
       ? 'application/pdf'
       : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

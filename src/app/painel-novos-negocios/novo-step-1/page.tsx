@@ -1,0 +1,45 @@
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
+import { FormularioInicioProcesso } from '@/app/iniciar-processo/FormularioInicioProcesso';
+
+export default async function NovoStep1Page() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect(`/login?next=${encodeURIComponent('/painel-novos-negocios/novo-step-1')}`);
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('full_name')
+    .eq('id', user.id)
+    .single();
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-stone-50 to-white">
+      <header className="border-b border-stone-200 bg-white">
+        <div className="mx-auto flex h-14 max-w-3xl items-center px-4">
+          <Link href="/painel-novos-negocios" className="font-medium text-moni-primary hover:text-moni-secondary">
+            ← Painel Novos Negócios
+          </Link>
+          <span className="mx-2 text-stone-300">/</span>
+          <span className="text-stone-600">Novo Step 1</span>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-3xl px-4 py-8">
+        <FormularioInicioProcesso
+          sharePath="/painel-novos-negocios/novo-step-1"
+          destinoEtapa="step_1"
+          titulo="Novo Step 1"
+          descricao="Preencha o formulário. O novo card aparecerá na fase Step 1 (Mapeamento da Região). Cards finalizados no Step 1 permanecem nesta fase com destaque."
+          user={{ full_name: profile?.full_name ?? null, email: user.email ?? null }}
+        />
+      </main>
+    </div>
+  );
+}

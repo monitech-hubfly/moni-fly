@@ -56,8 +56,10 @@ export function Etapa1Form({
     setLoadingIbge(false);
     if (result.ok && result.data) {
       setAnaliseIbge(result.data);
+    } else if (!result.ok) {
+      setError(result.error);
     } else {
-      setError(result.error ?? 'Erro ao buscar dados do IBGE.');
+      setError('Erro ao buscar dados do IBGE.');
     }
   };
 

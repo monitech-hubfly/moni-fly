@@ -6,7 +6,7 @@ import { Etapa1Praca } from '../Etapa1Praca';
 import { Etapa2Condominios } from '../Etapa2Condominios';
 import { Etapa3Resumo } from '../Etapa3Resumo';
 import { Etapa4Casas, type CasaRow } from '../Etapa4Casas';
-import { Etapa5Lotes } from '../Etapa5Lotes';
+import { Etapa5Lotes, type LoteRow } from '../Etapa5Lotes';
 import { Etapa10BCA } from '../Etapa10BCA';
 import { Etapa11PDF, type ResumoProcesso } from '../Etapa11PDF';
 import { FinalizarEstudoButton } from '../FinalizarEstudoButton';
@@ -157,14 +157,7 @@ export default async function EtapaPage({ params }: PageProps) {
     nota_localizacao: number | null;
     nota_final: number | null;
   }[] = [];
-  let lotes: {
-    id: string;
-    condominio: string | null;
-    area_lote_m2: number | null;
-    preco: number | null;
-    preco_m2: number | null;
-    link: string | null;
-  }[] = [];
+  let lotes: LoteRow[] = [];
   let catalogo: {
     id: string;
     nome: string | null;
@@ -203,7 +196,7 @@ export default async function EtapaPage({ params }: PageProps) {
       )
       .eq('processo_id', id)
       .order('created_at', { ascending: false });
-    lotes = (data ?? []) as typeof lotes;
+    lotes = (data ?? []) as LoteRow[];
     const { data: le } = await supabase
       .from('lote_escolhido')
       .select('listing_lote_id')

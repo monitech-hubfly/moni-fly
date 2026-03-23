@@ -32,6 +32,14 @@ export default async function IniciarStepOnePage() {
       </header>
       <main className="mx-auto max-w-7xl px-4 py-12">
         <div className="card">
+          <div className="mb-4 rounded-lg border border-moni-primary/20 bg-moni-light/30 p-3">
+            <p className="text-sm text-stone-700">
+              <Link href="/iniciar-processo" className="font-medium text-moni-primary hover:underline">
+                Formulário para iniciar processo
+              </Link>
+              {' — use o link dessa página para compartilhar e alguém preencher (Estado, Cidade, Tipo de aquisição).'}
+            </p>
+          </div>
           <Step1Form />
         </div>
 

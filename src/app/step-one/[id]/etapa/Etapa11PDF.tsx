@@ -37,7 +37,7 @@ export function Etapa11PDF({
   const handleConcluir = async () => {
     await registerPdfExport(processoId, {
       hipotese: 'Hipótese Step One',
-      modelo_escolhido: modeloEscolhidoNome || null,
+      modelo_escolhido: modeloEscolhidoNome || undefined,
     });
     const res = await saveEtapa11(processoId, { concluida: true });
     if (res.ok) router.refresh();

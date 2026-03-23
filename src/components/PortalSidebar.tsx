@@ -1,11 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { Bell, ChevronDown, ChevronRight, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
-import { Activity, Bell, ChevronDown, ChevronRight, FileCheck, User, Users } from 'lucide-react';
 
 type PortalSidebarProps = {
   user: { id: string; email?: string; full_name?: string | null } | null;
@@ -22,21 +21,99 @@ function getInicialNome(fullName: string | null | undefined): string {
   return (parts[0][0] ?? '?').toUpperCase();
 }
 
+type NavItem = { href: string; label: string };
+const REDE_FRANQUEADOS_SUBITENS: NavItem[] = [
+  { href: '/rede-franqueados', label: 'Rede de Franqueados' },
+  { href: '/comunidade', label: 'Comunidade' },
+];
+const CATALOGO_SUBITENS: NavItem[] = [
+  { href: '/catalogo-produtos-moni', label: 'Catálogo de Produtos Moní' },
+];
+const REDE_CONTATOS_SUBITENS: NavItem[] = [
+  { href: '/rede', label: 'Rede de contatos' },
+];
+const STEPS_SUBITENS: NavItem[] = [
+  { href: '/step-one', label: 'Step 1: Mapeamento da Região' },
+  { href: '/step-2', label: 'Step 2: Novo Negócio' },
+  { href: '/step-3', label: 'Step 3: Opção' },
+  { href: '/painel', label: 'Step 4: Check Legal + Checklist Crédito' },
+  { href: '/acoplamento-pl', label: 'Acoplamento (paralelo Step 4)' },
+  { href: '/step-5', label: 'Step 5: Comitê' },
+  { href: '/step-6', label: 'Step 6: Diligência' },
+  { href: '/step-7', label: 'Step 7: Contrato' },
+];
+const ACOPLAMENTO_SUBITENS: NavItem[] = [
+  { href: '/acoplamento-pl', label: 'Início' },
+  { href: '/acoplamento-pl/alteracoes-acoplamento', label: 'Alterações acoplamento' },
+  { href: '/acoplamento-pl/modelagem-terreno', label: 'Modelagem terreno' },
+  { href: '/acoplamento-pl/validacao-acoplamento', label: 'Validação acoplamento' },
+  { href: '/acoplamento-pl/checklist-legal', label: 'Checklist legal' },
+  { href: '/acoplamento-pl/resumo-manuais', label: 'Resumo manuais' },
+  { href: '/acoplamento-pl/modelagem-casa-gbox', label: 'Modelagem casa Gbox' },
+];
+const PAINEL_NOVOS_NEGOCIOS_SUBITENS: NavItem[] = [
+  { href: '/dashboard-novos-negocios', label: 'Dashboard Novos Negócios' },
+  { href: '/painel-novos-negocios', label: 'Portfolio + Operações' },
+  { href: '/painel-novos-negocios/tarefas', label: 'Painel de Tarefas' },
+];
+const PAINEL_NOVOS_NEGOCIOS_ADMIN_SUBITENS: NavItem[] = [
+  { href: '/painel-contabilidade', label: 'Contabilidade' },
+  { href: '/painel-credito', label: 'Crédito' },
+];
+
+function isRedeFranqueadosActive(pathname: string) {
+  return pathname.startsWith('/rede-franqueados') || pathname.startsWith('/comunidade');
+}
+function isPainelNovosNegociosActive(pathname: string) {
+  return (
+    pathname.startsWith('/painel-novos-negocios') ||
+    pathname.startsWith('/painel-contabilidade') ||
+    pathname.startsWith('/painel-credito') ||
+    pathname.startsWith('/dashboard-novos-negocios')
+  );
+}
+function isCatalogoActive(pathname: string) {
+  return pathname.startsWith('/catalogo-produtos-moni');
+}
+function isRedeContatosActive(pathname: string) {
+  return pathname === '/rede' || (pathname.startsWith('/rede') && !pathname.startsWith('/rede-franqueados'));
+}
+function isStepsActive(pathname: string) {
+  return pathname.startsWith('/step-one') || pathname.startsWith('/step-2') || pathname.startsWith('/step-3') || pathname.startsWith('/step-5') || pathname.startsWith('/step-6') || pathname.startsWith('/step-7') || pathname.startsWith('/painel');
+}
+function isAcoplamentoActive(pathname: string) {
+  return pathname.startsWith('/acoplamento-pl');
+}
 export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [stepOneOpen, setStepOneOpen] = useState(true);
-  const [perfilOpen, setPerfilOpen] = useState(false);
-  const [frankOpen, setFrankOpen] = useState(false);
-  const [unidadeOpen, setUnidadeOpen] = useState(false);
-  const [processoSeletivoOpen, setProcessoSeletivoOpen] = useState(false);
-  const [creditoOpen, setCreditoOpen] = useState(false);
-  const [acoplamentoPlOpen, setAcoplamentoPlOpen] = useState(false);
-  const [wayzOpen, setWayzOpen] = useState(false);
+  const isAdmin = userRole === 'admin' || userRole === 'consultor' || userRole === 'supervisor';
+  const [perfilOpen, setPerfilOpen] = useState(() => (pathname ?? '') === '/perfil');
+  const [redeFranqueadosOpen, setRedeFranqueadosOpen] = useState(() => isRedeFranqueadosActive(pathname ?? ''));
+  const [catalogoOpen, setCatalogoOpen] = useState(() => isCatalogoActive(pathname ?? ''));
+  const [redeContatosOpen, setRedeContatosOpen] = useState(() => isRedeContatosActive(pathname ?? ''));
+  const [stepsOpen, setStepsOpen] = useState(() => isStepsActive(pathname ?? ''));
+  const [acoplamentoOpen, setAcoplamentoOpen] = useState(() => isAcoplamentoActive(pathname ?? ''));
+  const [painelNovosNegociosOpen, setPainelNovosNegociosOpen] = useState(() =>
+    isPainelNovosNegociosActive(pathname ?? ''),
+  );
+
+  useEffect(() => {
+    const p = pathname ?? '';
+    if (p === '/perfil') setPerfilOpen(true);
+    if (isPainelNovosNegociosActive(p)) setPainelNovosNegociosOpen(true);
+    if (isRedeFranqueadosActive(p)) setRedeFranqueadosOpen(true);
+    else if (isCatalogoActive(p)) setCatalogoOpen(true);
+    else if (isRedeContatosActive(p)) setRedeContatosOpen(true);
+    else if (isStepsActive(p)) setStepsOpen(true);
+    else if (isAcoplamentoActive(p)) setAcoplamentoOpen(true);
+    // Painel Crédito é subitem de Painel Novos Negócios (sem macro separado).
+  }, [pathname]);
 
   const isSirene = pathname.startsWith('/sirene');
+  const displayName = user?.full_name?.trim() || user?.email || 'Franqueado';
+  const inicial = getInicialNome(user?.full_name ?? null);
 
-  // Nível 0: itens principais da nav (Rede, Jurídico, Sirene, etc.)
   const linkClassPrincipal = (active: boolean) =>
     `block w-full rounded-lg px-3 py-2 text-left text-sm font-semibold transition ${
       isSirene
@@ -48,84 +125,88 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
           : 'text-moni-primary hover:bg-moni-light/50 hover:text-moni-secondary'
     }`;
 
-  // Nível 1: subitens dentro de Steps Viabilidade / outros blocos
-  const linkClassNivel1 = (active: boolean) =>
-    `block w-full rounded-lg px-3 py-2 text-left text-sm transition ${
+  const linkClassSub = (active: boolean) =>
+    `block w-full rounded py-1.5 pl-5 pr-3 text-left text-xs transition ${
       isSirene
         ? active
-          ? 'bg-stone-800 text-white border-l-2 border-red-500 -ml-px pl-3'
-          : 'text-stone-300 hover:bg-stone-800/70 hover:text-white'
+          ? 'bg-stone-800 text-white'
+          : 'text-stone-300 hover:bg-stone-800/60 hover:text-stone-100'
         : active
-          ? 'bg-moni-light text-moni-secondary border-l-2 border-moni-accent -ml-px pl-3'
-          : 'text-moni-muted hover:bg-stone-100 hover:text-moni-secondary'
+          ? 'bg-moni-light/80 font-medium text-moni-primary'
+          : 'text-stone-600 hover:bg-stone-100 hover:text-moni-secondary'
     }`;
 
-  // Nível 2: título do bloco expandível (Steps Viabilidade, Crédito, etc.)
-  const linkClassTituloBloco = (active: boolean) =>
-    `flex-1 min-w-0 rounded-lg px-3 py-2 text-left text-sm font-semibold transition ${
-      isSirene
-        ? active
-          ? 'text-white'
-          : 'text-stone-200 hover:text-white'
-        : active
-          ? 'text-moni-primary'
-          : 'text-moni-secondary hover:text-moni-primary'
-    }`;
-
-  const isConsultorOrAdmin = userRole === 'consultor' || userRole === 'admin';
-  const isAdmin = userRole === 'admin';
-  const isAdminOrSupervisor = userRole === 'admin' || userRole === 'supervisor';
-  const displayName = user?.full_name?.trim() || user?.email || 'Franqueado';
-  const inicial = getInicialNome(user?.full_name ?? null);
-
-  useEffect(() => {
-    if (pathname.startsWith('/processo-seletivo-candidatos')) setProcessoSeletivoOpen(true);
-  }, [pathname]);
-  useEffect(() => {
-    if (
-      pathname.startsWith('/credito-checklist') ||
-      pathname.startsWith('/credito-terreno') ||
-      pathname.startsWith('/credito-obra') ||
-      pathname.startsWith('/credito-abertura-conta')
-    )
-      setCreditoOpen(true);
-  }, [pathname]);
-  useEffect(() => {
-    if (pathname.startsWith('/acoplamento-pl')) setAcoplamentoPlOpen(true);
-  }, [pathname]);
-  useEffect(() => {
-    if (pathname.startsWith('/pre-obra') || pathname.startsWith('/obra-ways')) setWayzOpen(true);
-  }, [pathname]);
-  useEffect(() => {
-    if (
-      pathname === '/perfil' ||
-      pathname.startsWith('/due-diligence-frank') ||
-      pathname.startsWith('/unidade-franquia') ||
-      pathname.startsWith('/due-diligence-empresas')
-    ) {
-      setPerfilOpen(true);
-      if (pathname === '/perfil' || pathname.startsWith('/due-diligence-frank')) setFrankOpen(true);
-      if (
-        pathname.startsWith('/unidade-franquia') ||
-        pathname.startsWith('/due-diligence-empresas')
-      )
-        setUnidadeOpen(true);
-    }
-  }, [pathname]);
-
-  const handleSignOut = async () => {
+  const handleLogout = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.push('/');
+    router.push('/login');
     router.refresh();
   };
 
+  const renderMacro = (
+    key:
+      | 'rede'
+      | 'catalogo'
+      | 'redeContatos'
+      | 'steps'
+      | 'acoplamento'
+      | 'credito'
+      | 'painelNovosNegocios',
+    label: string,
+    isActive: boolean,
+    open: boolean,
+    setOpen: (v: boolean) => void,
+    subitens: NavItem[],
+    isActiveHref: (href: string) => boolean,
+  ) => {
+    const isSireneMacro = false;
+    const macroClass =
+      isSirene && isSireneMacro
+        ? 'block w-full rounded-lg bg-emerald-400 px-3 py-2 text-left text-sm font-semibold text-stone-900 transition hover:bg-emerald-300'
+        : linkClassPrincipal(isActive);
+    return (
+      <div className="space-y-0.5">
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            className={`flex flex-1 items-center gap-2 ${macroClass}`}
+          >
+            {label}
+          </button>
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            className={`rounded p-1.5 ${isSirene ? 'text-stone-400 hover:text-stone-200' : 'text-stone-500 hover:text-moni-primary'}`}
+            aria-expanded={open}
+          >
+            {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </button>
+        </div>
+        {open && (
+          <div className="mt-0.5 space-y-0.5">
+            {subitens.map((s) => (
+              <Link
+                key={s.href}
+                href={s.href}
+                className={linkClassSub(isActiveHref(s.href))}
+              >
+                {s.label}
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <aside
-      className={`flex w-56 shrink-0 flex-col border-r ${
+    <div
+      className={`flex h-screen w-56 flex-col border-r ${
         isSirene ? 'border-stone-800 bg-stone-900 text-stone-100' : 'border-stone-200 bg-white'
       }`}
     >
+      {/* Topo: logo + sino */}
       <div
         className={`flex h-14 items-center justify-between gap-2 border-b px-4 ${
           isSirene ? 'border-stone-800' : 'border-stone-200'
@@ -142,371 +223,156 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
           Moní
         </Link>
         <Link
-          href="/alertas"
+          href={isSirene ? '/sirene' : isAdmin ? '/alertas' : '/comunidade'}
           className={`flex items-center justify-center rounded-full p-1.5 ${
             isSirene
               ? 'text-amber-400 hover:bg-stone-800 hover:text-amber-300'
               : 'text-amber-500 hover:bg-amber-50 hover:text-amber-600'
           }`}
-          title="Alertas"
-          aria-label="Alertas"
+          title={isSirene ? 'Notificações Sirene' : isAdmin ? 'Alertas' : 'Comunidade'}
+          aria-label="Notificações"
         >
           <Bell className="h-5 w-5" />
         </Link>
       </div>
 
-      <nav className="flex-1 space-y-1 p-3">
+      {/* Navegação principal com macro-itens e subitens */}
+      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+        {renderMacro(
+          'rede',
+          'Rede de Franqueados',
+          isRedeFranqueadosActive(pathname ?? ''),
+          redeFranqueadosOpen,
+          setRedeFranqueadosOpen,
+          REDE_FRANQUEADOS_SUBITENS,
+          (href) => pathname?.startsWith(href) ?? false,
+        )}
+
+        {renderMacro(
+          'painelNovosNegocios',
+          'Novos Negócios',
+          isPainelNovosNegociosActive(pathname ?? ''),
+          painelNovosNegociosOpen,
+          setPainelNovosNegociosOpen,
+          isAdmin
+            ? [...PAINEL_NOVOS_NEGOCIOS_SUBITENS, ...PAINEL_NOVOS_NEGOCIOS_ADMIN_SUBITENS]
+            : PAINEL_NOVOS_NEGOCIOS_SUBITENS,
+          (href) => pathname === href || (pathname?.startsWith(href + '/') ?? false),
+        )}
+
         {isAdmin && (
-          <Link
-            href="/rede-franqueados"
-            className={linkClassPrincipal(pathname.startsWith('/rede-franqueados'))}
-          >
-            Rede de Franqueados
+          <Link href="/admin/usuarios" className={linkClassPrincipal(pathname.startsWith('/admin/usuarios'))}>
+            Gerenciar Usuários
           </Link>
         )}
 
-        {isAdminOrSupervisor && (
-          <div>
-            <div className="flex w-full items-center justify-between gap-1 rounded-lg border-l-2 border-transparent">
-              <Link
-                href="/processo-seletivo-candidatos"
-                className={linkClassTituloBloco(
-                  pathname.startsWith('/processo-seletivo-candidatos'),
-                )}
-              >
-                Processo seletivo candidatos
-              </Link>
-              <button
-                type="button"
-                onClick={() => setProcessoSeletivoOpen((o) => !o)}
-                className="shrink-0 rounded p-0.5 text-moni-muted hover:bg-moni-light/50 hover:text-moni-primary"
-                aria-label={processoSeletivoOpen ? 'Recolher' : 'Expandir'}
-              >
-                {processoSeletivoOpen ? (
-                  <ChevronDown className="h-3.5 w-3.5" />
-                ) : (
-                  <ChevronRight className="h-3.5 w-3.5" />
-                )}
-              </button>
-            </div>
-            {processoSeletivoOpen && (
-              <div className="ml-3 mt-1 space-y-0.5 border-l-2 border-moni-accent/30 pl-2">
-                <Link
-                  href="/processo-seletivo-candidatos/due-diligence-avaliacao-inicial"
-                  className={linkClassNivel1(
-                    pathname.startsWith(
-                      '/processo-seletivo-candidatos/due-diligence-avaliacao-inicial',
-                    ),
-                  )}
-                >
-                  Due Diligence: avaliação inicial
-                </Link>
-                <Link
-                  href="/processo-seletivo-candidatos/forms-cof"
-                  className={linkClassNivel1(
-                    pathname.startsWith('/processo-seletivo-candidatos/forms-cof'),
-                  )}
-                >
-                  Forms + COF
-                </Link>
-                <Link
-                  href="/processo-seletivo-candidatos/contrato-franquia"
-                  className={linkClassNivel1(
-                    pathname.startsWith('/processo-seletivo-candidatos/contrato-franquia'),
-                  )}
-                >
-                  Contrato de Franquia
-                </Link>
-                <Link
-                  href="/processo-seletivo-candidatos/termo-scr"
-                  className={linkClassNivel1(
-                    pathname.startsWith('/processo-seletivo-candidatos/termo-scr'),
-                  )}
-                >
-                  Termo SCR
-                </Link>
-              </div>
-            )}
-          </div>
+        {isAdmin &&
+          renderMacro(
+            'catalogo',
+            'Catálogo de Produtos Moní',
+            isCatalogoActive(pathname ?? ''),
+            catalogoOpen,
+            setCatalogoOpen,
+            CATALOGO_SUBITENS,
+            (href) => pathname?.startsWith(href) ?? false,
+          )}
+
+        {isAdmin &&
+          renderMacro(
+            'redeContatos',
+            'Rede de contatos',
+            isRedeContatosActive(pathname ?? ''),
+            redeContatosOpen,
+            setRedeContatosOpen,
+            REDE_CONTATOS_SUBITENS,
+            (href) => pathname === href,
+          )}
+
+        {isAdmin &&
+          renderMacro(
+            'steps',
+            'Steps Viabilidade',
+            isStepsActive(pathname ?? ''),
+            stepsOpen,
+            setStepsOpen,
+            STEPS_SUBITENS,
+            (href) => {
+              if (href === '/step-one') {
+                return Boolean(pathname?.startsWith('/step-one') && !pathname?.startsWith('/step-2'));
+              }
+              return pathname === href || (pathname?.startsWith(href + '/') ?? false);
+            },
+          )}
+
+        {isAdmin &&
+          renderMacro(
+            'acoplamento',
+            'Acoplamento + PL',
+            isAcoplamentoActive(pathname ?? ''),
+            acoplamentoOpen,
+            setAcoplamentoOpen,
+            ACOPLAMENTO_SUBITENS,
+            (href) => (pathname === href || (href !== '/acoplamento-pl' && pathname?.startsWith(href))) ?? false,
+          )}
+
+        {isAdmin && (
+          <Link
+            href="/sirene"
+            className={
+              isSirene
+                ? 'block w-full rounded-lg bg-emerald-400 px-3 py-2 text-left text-sm font-semibold text-stone-900 transition hover:bg-emerald-300'
+                : linkClassPrincipal(pathname.startsWith('/sirene'))
+            }
+          >
+            Sirene
+          </Link>
         )}
-
-        <Link
-          href="/catalogo-produtos-moni"
-          className={linkClassPrincipal(pathname.startsWith('/catalogo-produtos-moni'))}
-        >
-          Catálogo de Produtos Moní
-        </Link>
-
-        <Link
-          href="/rede"
-          className={linkClassPrincipal(
-            pathname.startsWith('/rede') && !pathname.startsWith('/rede-franqueados'),
-          )}
-        >
-          Rede de contatos
-        </Link>
-
-        <div>
-          <div className="flex w-full items-center justify-between gap-1 rounded-lg border-l-2 border-transparent">
-            <Link
-              href="/steps-viabilidade"
-              className={linkClassTituloBloco(
-                pathname.startsWith('/steps-viabilidade') || pathname.startsWith('/step-'),
-              )}
-            >
-              Steps Viabilidade
-            </Link>
-            <button
-              type="button"
-              onClick={() => setStepOneOpen((o) => !o)}
-              className="shrink-0 rounded p-0.5 text-moni-muted hover:bg-moni-light/50 hover:text-moni-primary"
-              aria-label={stepOneOpen ? 'Recolher' : 'Expandir'}
-            >
-              {stepOneOpen ? (
-                <ChevronDown className="h-3.5 w-3.5" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5" />
-              )}
-            </button>
-          </div>
-          {stepOneOpen && (
-            <div className="ml-3 mt-1 space-y-0.5 border-l-2 border-moni-accent/30 pl-2">
-              <Link
-                href="/steps-viabilidade"
-                className={linkClassNivel1(pathname === '/steps-viabilidade')}
-              >
-                Kanban (acompanhamento)
-              </Link>
-              <Link href="/step-one" className={linkClassNivel1(pathname === '/step-one')}>
-                Step 1: Região!
-              </Link>
-              <Link href="/step-2" className={linkClassNivel1(pathname === '/step-2')}>
-                Step 2: Novo negócio
-              </Link>
-              <Link
-                href="/analise-moni"
-                className={linkClassNivel1(pathname.startsWith('/analise-moni'))}
-              >
-                Análise Moní (step 1 e 2)
-              </Link>
-              <Link href="/step-3" className={linkClassNivel1(pathname.startsWith('/step-3'))}>
-                Step 3: Opções
-              </Link>
-              <Link href="/step-4" className={linkClassNivel1(pathname.startsWith('/step-4'))}>
-                Step 4: Check Legal
-              </Link>
-              <Link
-                href="/acoplamento-moni"
-                className={linkClassNivel1(pathname.startsWith('/acoplamento-moni'))}
-              >
-                Acoplamento Moní
-              </Link>
-              <Link href="/step-5" className={linkClassNivel1(pathname.startsWith('/step-5'))}>
-                Step 5: Comitê
-              </Link>
-              <Link href="/step-6" className={linkClassNivel1(pathname.startsWith('/step-6'))}>
-                Step 06: Diligência
-              </Link>
-              <Link href="/step-7" className={linkClassNivel1(pathname.startsWith('/step-7'))}>
-                Step 07: Contrato do Terreno
-              </Link>
-              {isConsultorOrAdmin && (
-                <Link href="/painel" className={linkClassNivel1(pathname.startsWith('/painel'))}>
-                  Painel
-                </Link>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div>
-          <div className="flex w-full items-center justify-between gap-1 rounded-lg border-l-2 border-transparent">
-            <Link
-              href="/acoplamento-pl"
-              className={linkClassTituloBloco(pathname.startsWith('/acoplamento-pl'))}
-            >
-              Acoplamento + PL
-            </Link>
-            <button
-              type="button"
-              onClick={() => setAcoplamentoPlOpen((o) => !o)}
-              className="shrink-0 rounded p-0.5 text-moni-muted hover:bg-moni-light/50 hover:text-moni-primary"
-              aria-label={acoplamentoPlOpen ? 'Recolher' : 'Expandir'}
-            >
-              {acoplamentoPlOpen ? (
-                <ChevronDown className="h-3.5 w-3.5" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5" />
-              )}
-            </button>
-          </div>
-          {acoplamentoPlOpen && (
-            <div className="ml-3 mt-1 space-y-0.5 border-l-2 border-moni-accent/30 pl-2">
-              <Link
-                href="/acoplamento-pl/modelagem-terreno"
-                className={linkClassNivel1(
-                  pathname.startsWith('/acoplamento-pl/modelagem-terreno'),
-                )}
-              >
-                Modelagem do Terreno
-              </Link>
-              <Link
-                href="/acoplamento-pl/resumo-manuais"
-                className={linkClassNivel1(pathname.startsWith('/acoplamento-pl/resumo-manuais'))}
-              >
-                Resumo dos Manuais
-              </Link>
-              <Link
-                href="/acoplamento-pl/checklist-legal"
-                className={linkClassNivel1(pathname.startsWith('/acoplamento-pl/checklist-legal'))}
-              >
-                Checklist Legal
-              </Link>
-              <Link
-                href="/acoplamento-pl/modelagem-casa-gbox"
-                className={linkClassNivel1(
-                  pathname.startsWith('/acoplamento-pl/modelagem-casa-gbox'),
-                )}
-              >
-                Modelagem da Casa e GBox
-              </Link>
-              <Link
-                href="/acoplamento-pl/validacao-acoplamento"
-                className={linkClassNivel1(
-                  pathname.startsWith('/acoplamento-pl/validacao-acoplamento'),
-                )}
-              >
-                Validação do Acoplamento
-              </Link>
-              <Link
-                href="/acoplamento-pl/alteracoes-acoplamento"
-                className={linkClassNivel1(
-                  pathname.startsWith('/acoplamento-pl/alteracoes-acoplamento'),
-                )}
-              >
-                Alterações do Acoplamento
-              </Link>
-            </div>
-          )}
-        </div>
-
-        <div>
-          <div className="flex w-full items-center justify-between gap-1 rounded-lg border-l-2 border-transparent">
-            <Link
-              href="/credito-checklist"
-              className={linkClassTituloBloco(
-                pathname.startsWith('/credito-checklist') ||
-                  pathname.startsWith('/credito-terreno') ||
-                  pathname.startsWith('/credito-obra') ||
-                  pathname.startsWith('/credito-abertura-conta'),
-              )}
-            >
-              Crédito
-            </Link>
-            <button
-              type="button"
-              onClick={() => setCreditoOpen((o) => !o)}
-              className="shrink-0 rounded p-0.5 text-moni-muted hover:bg-moni-light/50 hover:text-moni-primary"
-              aria-label={creditoOpen ? 'Recolher' : 'Expandir'}
-            >
-              {creditoOpen ? (
-                <ChevronDown className="h-3.5 w-3.5" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5" />
-              )}
-            </button>
-          </div>
-          {creditoOpen && (
-            <div className="ml-3 mt-1 space-y-0.5 border-l-2 border-moni-accent/30 pl-2">
-              <Link
-                href="/credito-checklist"
-                className={linkClassNivel1(pathname.startsWith('/credito-checklist'))}
-              >
-                Checklist de Crédito
-              </Link>
-              <Link
-                href="/credito-terreno"
-                className={linkClassNivel1(pathname.startsWith('/credito-terreno'))}
-              >
-                Crédito Terreno
-              </Link>
-              <Link
-                href="/credito-obra"
-                className={linkClassNivel1(pathname.startsWith('/credito-obra'))}
-              >
-                Crédito Obra
-              </Link>
-              <Link
-                href="/credito-abertura-conta"
-                className={linkClassNivel1(pathname.startsWith('/credito-abertura-conta'))}
-              >
-                Abertura de Conta
-              </Link>
-            </div>
-          )}
-        </div>
-
-        <div>
-          <div className="flex w-full items-center justify-between gap-1 rounded-lg border-l-2 border-transparent">
-            <Link
-              href="/pre-obra"
-              className={linkClassTituloBloco(
-                pathname.startsWith('/pre-obra') || pathname.startsWith('/obra-ways'),
-              )}
-            >
-              Ways
-            </Link>
-            <button
-              type="button"
-              onClick={() => setWayzOpen((o) => !o)}
-              className="shrink-0 rounded p-0.5 text-moni-muted hover:bg-moni-light/50 hover:text-moni-primary"
-              aria-label={wayzOpen ? 'Recolher' : 'Expandir'}
-            >
-              {wayzOpen ? (
-                <ChevronDown className="h-3.5 w-3.5" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5" />
-              )}
-            </button>
-          </div>
-          {wayzOpen && (
-            <div className="ml-3 mt-1 space-y-0.5 border-l-2 border-moni-accent/30 pl-2">
-              <Link href="/pre-obra" className={linkClassNivel1(pathname.startsWith('/pre-obra'))}>
-                Pré Obra
-              </Link>
-              <Link
-                href="/obra-ways"
-                className={linkClassNivel1(pathname.startsWith('/obra-ways'))}
-              >
-                Obra
-              </Link>
-            </div>
-          )}
-        </div>
-
-        <Link
-          href="/sirene"
-          className={
-            isSirene && pathname.startsWith('/sirene')
-              ? 'block w-full rounded-lg bg-emerald-400 px-3 py-2 text-left text-sm font-semibold text-stone-900 transition hover:bg-emerald-300'
-              : linkClassPrincipal(pathname.startsWith('/sirene'))
-          }
-        >
-          Sirene
-        </Link>
       </nav>
 
-      <div className="space-y-1 border-t border-stone-200 p-3">
-        <div className="flex w-full items-center gap-2 rounded-lg px-3 py-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-moni-primary text-xs font-semibold text-white">
+      {/* Bloco de perfil – verde quando está na Sirene */}
+      <div
+        className={
+          isSirene
+            ? 'space-y-1 border-t border-stone-800 bg-moni-primary/10 p-3'
+            : 'space-y-1 border-t border-stone-200 p-3'
+        }
+      >
+        <div
+          className={
+            isSirene
+              ? 'flex w-full items-center gap-2 rounded-lg bg-moni-primary px-3 py-2'
+              : 'flex w-full items-center gap-2 rounded-lg px-3 py-2'
+          }
+        >
+          <span
+            className={
+              isSirene
+                ? 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-white'
+                : 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-moni-primary text-xs font-semibold text-white'
+            }
+          >
             {inicial}
           </span>
           <div className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold text-moni-primary">
+            <span
+              className={
+                isSirene
+                  ? 'block truncate text-sm font-semibold text-white'
+                  : 'block truncate text-sm font-semibold text-moni-primary'
+              }
+            >
               {displayName}
             </span>
             {user?.email && (
-              <span className="mt-0.5 block truncate text-[10px] text-stone-300">{user.email}</span>
+              <span
+                className={
+                  isSirene
+                    ? 'mt-0.5 block truncate text-[10px] text-emerald-50/80'
+                    : 'mt-0.5 block truncate text-[10px] text-stone-300'
+                }
+              >
+                {user.email}
+              </span>
             )}
           </div>
         </div>
@@ -516,164 +382,47 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
             type="button"
             onClick={() => setPerfilOpen((o) => !o)}
             className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-medium transition ${
-              perfilOpen
-                ? 'bg-moni-light text-moni-primary'
-                : 'text-moni-secondary hover:bg-moni-light/50 hover:text-moni-primary'
+              isSirene
+                ? perfilOpen
+                  ? 'bg-emerald-500/20 text-emerald-50'
+                  : 'text-emerald-50/80 hover:bg-emerald-500/15 hover:text-emerald-50'
+                : perfilOpen
+                  ? 'bg-moni-light text-moni-primary'
+                  : 'text-moni-primary hover:bg-moni-light/70 hover:text-moni-secondary'
             }`}
           >
-            <User className="h-3.5 w-3.5 shrink-0" />
-            <span className="flex-1 text-left">Perfil</span>
-            <span className="shrink-0 text-moni-muted">
-              {perfilOpen ? (
-                <ChevronDown className="h-3.5 w-3.5" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5" />
-              )}
+            <span className="flex items-center gap-1.5">
+              <User className="h-3.5 w-3.5" />
+              <span>Perfil</span>
             </span>
+            {perfilOpen ? (
+              <ChevronDown className="h-3 w-3" />
+            ) : (
+              <ChevronRight className="h-3 w-3" />
+            )}
           </button>
           {perfilOpen && (
-            <div className="ml-3 mt-0.5 space-y-0.5 border-l-2 border-moni-accent/30 pl-2">
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setFrankOpen((o) => !o)}
-                  className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-sm font-medium text-moni-secondary hover:bg-moni-light/50"
-                >
-                  Cadastro franqueado
-                  <span className="text-moni-muted">
-                    {frankOpen ? (
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    ) : (
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    )}
-                  </span>
-                </button>
-                {frankOpen && (
-                  <div className="ml-2 mt-0.5 space-y-0.5 border-l-2 border-moni-accent/20 pl-2">
-                    <Link
-                      href="/perfil"
-                      className={`block rounded px-2 py-1.5 text-sm ${
-                        pathname === '/perfil'
-                          ? 'bg-moni-light text-moni-secondary'
-                          : 'text-moni-muted hover:text-moni-secondary'
-                      }`}
-                    >
-                      Cadastro do Franqueado
-                    </Link>
-                    <Link
-                      href="/due-diligence-frank"
-                      className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm ${
-                        pathname.startsWith('/due-diligence-frank')
-                          ? 'bg-moni-light text-moni-secondary'
-                          : 'text-moni-muted hover:text-moni-secondary'
-                      }`}
-                    >
-                      <FileCheck className="h-4 w-4 shrink-0" />
-                      Due Diligence Franqueado
-                    </Link>
-                  </div>
-                )}
+            <div className="mt-1 space-y-0.5 pl-6 text-[11px]">
+              <div className={isSirene ? 'text-stone-400' : 'text-stone-500'}>
+                Papel: {userRole || 'franqueado'}
               </div>
-
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setUnidadeOpen((o) => !o)}
-                  className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-sm font-medium text-moni-secondary hover:bg-moni-light/50"
-                >
-                  Cadastro unidade franqueadora
-                  <span className="text-moni-muted">
-                    {unidadeOpen ? (
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    ) : (
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    )}
-                  </span>
-                </button>
-                {unidadeOpen && (
-                  <div className="ml-2 mt-0.5 space-y-0.5 border-l-2 border-moni-accent/20 pl-2">
-                    <Link
-                      href="/unidade-franquia#dados-franquia"
-                      className={`block rounded px-2 py-1.5 text-sm ${
-                        pathname === '/unidade-franquia'
-                          ? 'bg-moni-light text-moni-secondary'
-                          : 'text-moni-muted hover:text-moni-secondary'
-                      }`}
-                    >
-                      Dados da Franquia
-                    </Link>
-                    <Link
-                      href="/unidade-franquia#incorporadora-gestora"
-                      className={`block rounded px-2 py-1.5 text-sm ${
-                        pathname === '/unidade-franquia'
-                          ? 'bg-moni-light text-moni-secondary'
-                          : 'text-moni-muted hover:text-moni-secondary'
-                      }`}
-                    >
-                      Dados das Empresas
-                    </Link>
-                    <Link
-                      href="/due-diligence-empresas"
-                      className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm ${
-                        pathname.startsWith('/due-diligence-empresas')
-                          ? 'bg-moni-light text-moni-secondary'
-                          : 'text-moni-muted hover:text-moni-secondary'
-                      }`}
-                    >
-                      <FileCheck className="h-4 w-4 shrink-0" />
-                      Due Diligence das Empresas
-                    </Link>
-                    <Link
-                      href="/unidade-franquia#empreendimentos"
-                      className={`block rounded px-2 py-1.5 text-sm ${
-                        pathname === '/unidade-franquia'
-                          ? 'bg-moni-light text-moni-secondary'
-                          : 'text-moni-muted hover:text-moni-secondary'
-                      }`}
-                    >
-                      Dados dos Empreendimentos
-                    </Link>
-                  </div>
-                )}
-              </div>
+              <Link
+                href="/perfil"
+                className={`mt-1 block text-left ${isSirene ? 'text-stone-200 hover:text-white' : 'text-moni-primary hover:text-moni-secondary'}`}
+              >
+                Ver perfil e configurações
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className={`mt-1 text-left ${isSirene ? 'text-red-400 hover:text-red-300' : 'text-red-600 hover:text-red-700'}`}
+              >
+                Sair
+              </button>
             </div>
           )}
         </div>
-
-        <Link
-          href="/saude-unidade"
-          className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition ${
-            pathname.startsWith('/saude-unidade')
-              ? 'bg-moni-light text-moni-primary'
-              : 'text-moni-secondary hover:bg-moni-light/50 hover:text-moni-primary'
-          }`}
-        >
-          <Activity className="h-3.5 w-3.5 shrink-0" />
-          SAÚDE da Unidade de Franquia
-        </Link>
-
-        <div className="rounded-lg border-2 border-moni-primary bg-moni-primary/5 p-0.5">
-          <Link
-            href="/comunidade"
-            className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition ${
-              pathname.startsWith('/comunidade')
-                ? 'bg-moni-light text-moni-primary'
-                : 'text-moni-secondary hover:bg-moni-light/50 hover:text-moni-primary'
-            }`}
-          >
-            <Users className="h-3.5 w-3.5 shrink-0" />
-            COMUNIDADE Moní
-          </Link>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleSignOut}
-          className="w-full rounded-lg px-3 py-2 text-left text-xs font-medium text-stone-500 hover:bg-stone-100 hover:text-stone-700"
-        >
-          Sair
-        </button>
       </div>
-    </aside>
+    </div>
   );
 }

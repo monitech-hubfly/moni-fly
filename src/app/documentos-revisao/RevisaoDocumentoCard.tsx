@@ -62,13 +62,17 @@ export function RevisaoDocumentoCard({ instance, stepLabel }: Props) {
     });
   };
 
+  const [signingLink, setSigningLink] = useState<string | null>(null);
+
   const handleEnviarAssinatura = () => {
     setMessage(null);
+    setSigningLink(null);
     startTransition(async () => {
       const res = await enviarParaAutentique(instance.id);
       if (res.ok) {
         setMessage({ type: 'ok', text: 'Documento enviado para assinatura no Autentique.' });
-        window.location.reload();
+        if (res.signingLink) setSigningLink(res.signingLink);
+        else window.location.reload();
       } else {
         setMessage({ type: 'error', text: res.error ?? 'Erro ao enviar para assinatura.' });
       }
@@ -127,7 +131,7 @@ export function RevisaoDocumentoCard({ instance, stepLabel }: Props) {
             )}
           </div>
         )}
-        {isEnviadoAssinatura && (
+        {isEnviadoAssinatura && !signingLink && (
           <span className="text-xs text-stone-500">Enviado para assinatura no Autentique</span>
         )}
         {isAssinado && <span className="text-xs font-medium text-green-700">Assinado</span>}
@@ -140,9 +144,43 @@ export function RevisaoDocumentoCard({ instance, stepLabel }: Props) {
       )}
 
       {message && (
-        <p className={`mt-2 text-sm ${message.type === 'ok' ? 'text-green-700' : 'text-red-700'}`}>
-          {message.text}
-        </p>
+        <div className="mt-2">
+          <p className={`text-sm ${message.type === 'ok' ? 'text-green-700' : 'text-red-700'}`}>
+            {message.text}
+          </p>
+          {message.type === 'ok' && signingLink && (
+            <div className="mt-2 rounded border border-stone-200 bg-stone-50 p-2">
+              <p className="text-xs font-medium text-stone-600">Link para assinatura (envie ao signatário):</p>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <a
+                  href={signingLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="truncate text-sm text-moni-accent hover:underline max-w-[280px]"
+                >
+                  {signingLink}
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(signingLink);
+                    setMessage({ type: 'ok', text: 'Link copiado. Pode atualizar a página.' });
+                  }}
+                  className="rounded border border-stone-300 px-2 py-1 text-xs text-stone-700 hover:bg-stone-100"
+                >
+                  Copiar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="rounded border border-stone-300 px-2 py-1 text-xs text-stone-700 hover:bg-stone-100"
+                >
+                  Atualizar página
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {showReject && (
@@ -183,7 +221,7 @@ export function RevisaoDocumentoCard({ instance, stepLabel }: Props) {
             Divergências em relação ao template ({totalDiffs})
           </summary>
           <ul className="mt-2 max-h-60 overflow-y-auto rounded border border-stone-200 bg-stone-50 p-2 text-sm">
-            {changes.slice(0, 30).map((c, i) => (
+            {changes.map((c, i) => (
               <li key={i} className="border-b border-stone-100 py-1.5 last:border-0">
                 <span className="text-xs font-medium text-stone-500">{c.context}</span>
                 {c.type === 'add' && (
@@ -212,9 +250,6 @@ export function RevisaoDocumentoCard({ instance, stepLabel }: Props) {
                 )}
               </li>
             ))}
-            {changes.length > 30 && (
-              <li className="py-1 text-stone-500">… e mais {changes.length - 30} divergência(s)</li>
-            )}
           </ul>
         </details>
       )}

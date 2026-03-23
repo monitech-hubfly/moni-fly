@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { AuthHeader } from '@/components/AuthHeader';
 import { MoniFooter } from '@/components/MoniFooter';
 import { getStatusLabel } from '@/app/juridico/constants';
+import { normalizeAccessRole } from '@/lib/authz';
 
 export default async function HomePage() {
   let user: { id: string; email?: string } | null = null;
+  let accessRole = 'pending' as ReturnType<typeof normalizeAccessRole>;
   let processos: {
     id: string;
     cidade: string;
@@ -19,6 +20,13 @@ export default async function HomePage() {
     const { data } = await supabase.auth.getUser();
     user = data.user;
     if (user?.id) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+      accessRole = normalizeAccessRole((profile as { role?: string | null } | null)?.role);
+
       const [processosRes, ticketsRes] = await Promise.all([
         supabase
           .from('processo_step_one')
@@ -41,25 +49,88 @@ export default async function HomePage() {
     // Supabase não configurado ou indisponível
   }
 
+  if (!user) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-stone-50 via-white to-moni-light/20 px-4">
+        <div className="flex flex-col items-center text-center">
+          <h1 className="text-3xl font-semibold tracking-tight text-moni-primary">Moní</h1>
+          <nav className="mt-10 flex flex-wrap items-center justify-center gap-4">
+            <Link
+              href="/login"
+              className="inline-flex min-w-[8rem] items-center justify-center rounded-xl border border-stone-300 bg-white px-6 py-3 text-sm font-medium text-moni-primary shadow-sm transition hover:bg-stone-50"
+            >
+              Entrar
+            </Link>
+            <Link href="/login?tab=cadastro" className="btn-primary min-w-[8rem] justify-center">
+              Cadastrar
+            </Link>
+          </nav>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-stone-50 via-white to-moni-light/20">
-      {!user && (
-        <header className="border-b border-stone-200/80 bg-white/90 backdrop-blur-sm">
-          <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
-            <Link
-              href="/"
-              className="text-xl font-semibold tracking-tight text-moni-primary hover:text-moni-secondary"
-            >
-              Viabilidade Moní
-            </Link>
-            <nav className="flex items-center gap-5 text-sm">
-              <AuthHeader user={user} />
-            </nav>
-          </div>
-        </header>
-      )}
       <main className="mx-auto max-w-7xl px-4 py-8 sm:py-12">
-        {user ? (
+        {accessRole === 'team' ? (
+          <>
+            <section>
+              <p className="text-sm font-medium uppercase tracking-wider text-moni-accent">
+                Portal Moní
+              </p>
+              <h1 className="mt-2 text-2xl font-bold tracking-tight text-moni-dark sm:text-3xl">
+                Início
+              </h1>
+              <p className="mt-1 text-sm text-stone-600">
+                Acesse a rede de franqueados, a comunidade e o painel de novos negócios pelo menu à
+                esquerda.
+              </p>
+            </section>
+            <section className="mt-8 grid gap-4 sm:grid-cols-2">
+              <Link
+                href="/rede-franqueados"
+                className="step-card block rounded-2xl border border-stone-200/80 bg-white p-5 shadow-sm"
+              >
+                <span className="text-xs font-semibold uppercase tracking-wider text-moni-accent">
+                  Rede
+                </span>
+                <h3 className="mt-2 font-semibold text-stone-900">Rede de Franqueados</h3>
+                <p className="mt-1 text-sm text-stone-600">Dados e dashboards da rede.</p>
+              </Link>
+              <Link
+                href="/comunidade"
+                className="step-card block rounded-2xl border border-stone-200/80 bg-white p-5 shadow-sm"
+              >
+                <span className="text-xs font-semibold uppercase tracking-wider text-moni-accent">
+                  Comunidade
+                </span>
+                <h3 className="mt-2 font-semibold text-stone-900">Comunidade</h3>
+                <p className="mt-1 text-sm text-stone-600">Timeline e interações.</p>
+              </Link>
+              <Link
+                href="/dashboard-novos-negocios"
+                className="step-card block rounded-2xl border border-stone-200/80 bg-white p-5 shadow-sm"
+              >
+                <span className="text-xs font-semibold uppercase tracking-wider text-moni-accent">
+                  Operações
+                </span>
+                <h3 className="mt-2 font-semibold text-stone-900">Dashboard Novos Negócios</h3>
+                <p className="mt-1 text-sm text-stone-600">Indicadores do pipeline.</p>
+              </Link>
+              <Link
+                href="/painel-novos-negocios"
+                className="step-card block rounded-2xl border border-stone-200/80 bg-white p-5 shadow-sm"
+              >
+                <span className="text-xs font-semibold uppercase tracking-wider text-moni-accent">
+                  Kanban
+                </span>
+                <h3 className="mt-2 font-semibold text-stone-900">Portfolio + Operações</h3>
+                <p className="mt-1 text-sm text-stone-600">Cards e etapas do processo.</p>
+              </Link>
+            </section>
+          </>
+        ) : (
           <>
             <section>
               <p className="text-sm font-medium uppercase tracking-wider text-moni-accent">
@@ -152,111 +223,83 @@ export default async function HomePage() {
               </Link>
             </section>
           </>
-        ) : (
-          <section className="text-center">
-            <p className="text-sm font-medium uppercase tracking-wider text-moni-accent">
-              Ferramenta para franqueados
-            </p>
-            <h1 className="mt-3 text-3xl font-bold tracking-tight text-moni-dark sm:text-4xl md:text-5xl">
-              Viabilidade com o padrão Moní
-            </h1>
-            <p className="mx-auto mt-4 max-w-2xl text-lg text-stone-600">
-              Solução completa para validar sua praça e formatar a hipótese com dados — da análise
-              ao PDF para aprovação.
-            </p>
-            <p className="mx-auto mt-2 max-w-xl text-sm text-stone-500">
-              Condomínios, catálogo, batalhas e BCA em um só fluxo.
-            </p>
-            <Link
-              href="/login"
-              className="mt-8 inline-flex items-center rounded-xl bg-moni-primary px-8 py-4 text-base font-medium text-white shadow-md transition hover:bg-moni-secondary hover:shadow-lg"
-            >
-              Entrar para começar
-            </Link>
-            <p className="mt-6 text-sm text-stone-500">
-              <a
-                href="https://moni.casa/franquia/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-moni-accent hover:underline"
-              >
-                Conheça a franquia Casa Moní →
-              </a>
-            </p>
-          </section>
         )}
-        <section className="mt-20">
-          <h2 className="moni-heading text-center text-lg">Por que usar a Viabilidade Moní?</h2>
-          <p className="mt-2 text-center text-sm text-stone-600">
-            Estruture sua análise e chegue à hipótese com o padrão Casa Moní.
-          </p>
-          <div className="mt-8 grid gap-6 sm:grid-cols-3">
-            <div className="rounded-2xl border border-stone-200/80 bg-white p-6 text-center shadow-sm">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-moni-light font-semibold text-moni-accent">
-                1
-              </span>
-              <h3 className="mt-3 font-semibold text-moni-dark">Análise estruturada</h3>
-              <p className="mt-1.5 text-sm text-stone-600">
-                Praça, condomínios &gt;5MM, checklist e tabela resumo. Dados IBGE e espaço para
-                Atlas e Google em breve.
+        {user && accessRole !== 'team' && (
+          <>
+            <section className="mt-20">
+              <h2 className="moni-heading text-center text-lg">Por que usar a Viabilidade Moní?</h2>
+              <p className="mt-2 text-center text-sm text-stone-600">
+                Estruture sua análise e chegue à hipótese com o padrão Casa Moní.
               </p>
-            </div>
-            <div className="rounded-2xl border border-stone-200/80 bg-white p-6 text-center shadow-sm">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-moni-light font-semibold text-moni-accent">
-                2
-              </span>
-              <h3 className="mt-3 font-semibold text-moni-dark">Batalhas e ranking</h3>
-              <p className="mt-1.5 text-sm text-stone-600">
-                Listagens de casas e lotes, catálogo Moní, lote escolhido. Batalhas
-                preço/produto/localização e ranking.
+              <div className="mt-8 grid gap-6 sm:grid-cols-3">
+                <div className="rounded-2xl border border-stone-200/80 bg-white p-6 text-center shadow-sm">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-moni-light font-semibold text-moni-accent">
+                    1
+                  </span>
+                  <h3 className="mt-3 font-semibold text-moni-dark">Análise estruturada</h3>
+                  <p className="mt-1.5 text-sm text-stone-600">
+                    Praça, condomínios &gt;5MM, checklist e tabela resumo. Dados IBGE e espaço para
+                    Atlas e Google em breve.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-stone-200/80 bg-white p-6 text-center shadow-sm">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-moni-light font-semibold text-moni-accent">
+                    2
+                  </span>
+                  <h3 className="mt-3 font-semibold text-moni-dark">Batalhas e ranking</h3>
+                  <p className="mt-1.5 text-sm text-stone-600">
+                    Listagens de casas e lotes, catálogo Moní, lote escolhido. Batalhas
+                    preço/produto/localização e ranking.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-stone-200/80 bg-white p-6 text-center shadow-sm">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-moni-light font-semibold text-moni-accent">
+                    3
+                  </span>
+                  <h3 className="mt-3 font-semibold text-moni-dark">BCA e PDF para aprovação</h3>
+                  <p className="mt-1.5 text-sm text-stone-600">
+                    Três opções de BCA e PDF de hipóteses consolidado. Registro e hash para auditoria.
+                  </p>
+                </div>
+              </div>
+            </section>
+            <section className="mt-16">
+              <h2 className="moni-heading text-lg">Step One em 3 blocos</h2>
+              <p className="mt-1 text-sm text-stone-600">
+                Praça, listagens, lote, batalhas e conclusão.
               </p>
-            </div>
-            <div className="rounded-2xl border border-stone-200/80 bg-white p-6 text-center shadow-sm">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-moni-light font-semibold text-moni-accent">
-                3
-              </span>
-              <h3 className="mt-3 font-semibold text-moni-dark">BCA e PDF para aprovação</h3>
-              <p className="mt-1.5 text-sm text-stone-600">
-                Três opções de BCA e PDF de hipóteses consolidado. Registro e hash para auditoria.
-              </p>
-            </div>
-          </div>
-        </section>
-        <section className="mt-16">
-          <h2 className="moni-heading text-lg">Step One em 3 blocos</h2>
-          <p className="mt-1 text-sm text-stone-600">
-            Praça, listagens, lote, batalhas e conclusão.
-          </p>
-          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            <Link href={user ? '/step-one' : '/login'} className="step-card group block">
-              <span className="text-xs font-semibold uppercase tracking-wider text-moni-accent">
-                Etapas 1–3
-              </span>
-              <h3 className="mt-2 font-semibold text-stone-900">Praça e condomínios</h3>
-              <p className="mt-1.5 text-sm text-stone-500">
-                Análise da cidade, checklist condomínios &gt;5MM, tabela resumo e conclusão.
-              </p>
-            </Link>
-            <Link href={user ? '/step-one' : '/login'} className="step-card group block">
-              <span className="text-xs font-semibold uppercase tracking-wider text-moni-accent">
-                Etapas 4–7
-              </span>
-              <h3 className="mt-2 font-semibold text-stone-900">Listagens e lote</h3>
-              <p className="mt-1.5 text-sm text-stone-500">
-                Casas e lotes (ZAP), catálogo Moní, lote escolhido pelo franqueado.
-              </p>
-            </Link>
-            <Link href={user ? '/step-one' : '/login'} className="step-card group block">
-              <span className="text-xs font-semibold uppercase tracking-wider text-moni-accent">
-                Etapas 8–11
-              </span>
-              <h3 className="mt-2 font-semibold text-stone-900">Batalhas e BCA</h3>
-              <p className="mt-1.5 text-sm text-stone-500">
-                Batalhas, ranking, 3 BCAs e PDF de hipóteses para aprovação.
-              </p>
-            </Link>
-          </div>
-        </section>
+              <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                <Link href="/step-one" className="step-card group block">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-moni-accent">
+                    Etapas 1–3
+                  </span>
+                  <h3 className="mt-2 font-semibold text-stone-900">Praça e condomínios</h3>
+                  <p className="mt-1.5 text-sm text-stone-500">
+                    Análise da cidade, checklist condomínios &gt;5MM, tabela resumo e conclusão.
+                  </p>
+                </Link>
+                <Link href="/step-one" className="step-card group block">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-moni-accent">
+                    Etapas 4–7
+                  </span>
+                  <h3 className="mt-2 font-semibold text-stone-900">Listagens e lote</h3>
+                  <p className="mt-1.5 text-sm text-stone-500">
+                    Casas e lotes (ZAP), catálogo Moní, lote escolhido pelo franqueado.
+                  </p>
+                </Link>
+                <Link href="/step-one" className="step-card group block">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-moni-accent">
+                    Etapas 8–11
+                  </span>
+                  <h3 className="mt-2 font-semibold text-stone-900">Batalhas e BCA</h3>
+                  <p className="mt-1.5 text-sm text-stone-500">
+                    Batalhas, ranking, 3 BCAs e PDF de hipóteses para aprovação.
+                  </p>
+                </Link>
+              </div>
+            </section>
+          </>
+        )}
         <MoniFooter />
       </main>
     </div>

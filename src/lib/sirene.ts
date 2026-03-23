@@ -35,6 +35,7 @@ export function formatarStatus(status: ChamadoStatus): string {
     nao_iniciado: 'Não iniciado',
     em_andamento: 'Em andamento',
     concluido: 'Concluído',
+    aguardando_aprovacao_criador: 'Aguardando aprovação do criador',
   };
   return map[status] ?? status;
 }

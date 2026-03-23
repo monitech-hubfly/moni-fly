@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { createClient } from '@/lib/supabase/server';
 import { AppShell } from '@/components/AppShell';
+import { normalizeAccessRole } from '@/lib/authz';
 
 export const metadata: Metadata = {
   title: 'Viabilidade Moní | Casa Moní',
@@ -15,7 +16,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   let user: { id: string; email?: string; full_name?: string | null } | null = null;
-  let userRole = 'frank';
+  let userRole = 'pending';
   try {
     const supabase = await createClient();
     const { data } = await supabase.auth.getUser();
@@ -26,7 +27,7 @@ export default async function RootLayout({
         .select('role, full_name')
         .eq('id', user.id)
         .single();
-      userRole = (profile?.role as string) ?? 'frank';
+      userRole = normalizeAccessRole((profile?.role as string) ?? 'pending');
       (user as { full_name?: string | null }).full_name = profile?.full_name ?? null;
     }
   } catch {

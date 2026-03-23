@@ -74,14 +74,14 @@ export default async function Step5ComitePage({ searchParams }: PageProps) {
     isOwner = true;
   }
 
-  if (!processo) redirect('/steps-viabilidade');
+  if (!processo) redirect('/painel-novos-negocios');
 
   const ownerUserId = isOwner ? undefined : processo.user_id;
   const comiteData = await getComiteData(processo.id, ownerUserId);
-  if (!comiteData) redirect('/steps-viabilidade');
+  if (!comiteData) redirect('/painel-novos-negocios');
 
-  const backHref = processoIdParam ? '/painel' : '/steps-viabilidade';
-  const backLabel = processoIdParam ? '← Painel Moní' : '← Steps Viabilidade';
+  const backHref = processoIdParam ? '/painel' : '/painel-novos-negocios';
+  const backLabel = processoIdParam ? '← Painel Moní' : '← Painel Novos Negócios';
 
   return (
     <div className="min-h-screen bg-stone-50">

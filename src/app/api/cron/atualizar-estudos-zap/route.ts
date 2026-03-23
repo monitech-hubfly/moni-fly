@@ -77,7 +77,7 @@ export async function POST(request: Request) {
     }
   }
 
-  for (const userId of usersToAlert) {
+  for (const userId of Array.from(usersToAlert)) {
     await supabase.from('alertas').insert({
       user_id: userId,
       tipo: 'Atualização mensal ZAP',

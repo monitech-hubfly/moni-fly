@@ -104,7 +104,7 @@ export async function POST(req: Request) {
     const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin');
     admins?.forEach((a) => userIdsToNotify.add(a.id));
 
-    for (const userId of userIdsToNotify) {
+    for (const userId of Array.from(userIdsToNotify)) {
       await supabase.from('alertas').insert({
         user_id: userId,
         tipo: 'documento_assinado',

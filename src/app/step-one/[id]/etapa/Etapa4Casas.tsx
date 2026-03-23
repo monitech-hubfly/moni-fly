@@ -612,8 +612,9 @@ export function Etapa4Casas(props: {
       ? parseFloat(String(preco).replace(/\D/g, '').replace(',', '.'))
       : undefined;
     const areaNum = areaCasa ? parseFloat(areaCasa.replace(',', '.')) : undefined;
-    const precoM2Num = precoM2
-      ? parseFloat(String(precoM2).replace(/\D/g, '').replace(',', '.'))
+    const precoM2FromAuto = precoM2Auto ? parseFloat(String(precoM2Auto).replace(',', '.')) : NaN;
+    const precoM2Num = Number.isFinite(precoM2FromAuto)
+      ? precoM2FromAuto
       : precoNum != null && areaNum != null && areaNum > 0
         ? precoNum / areaNum
         : undefined;

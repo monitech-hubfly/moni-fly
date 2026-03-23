@@ -16,7 +16,8 @@ function normalizar(texto: string): string {
     .trim()
     .toLowerCase()
     .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '');
+    // NFD + remover marcas combinantes (equivalente a \p{Diacritic}, sem exigir ES2018 no target TS)
+    .replace(/[\u0300-\u036f]/g, '');
 }
 
 function toUF(estado: string | null | undefined): string | null {

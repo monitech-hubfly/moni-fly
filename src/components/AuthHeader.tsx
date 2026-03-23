@@ -51,7 +51,7 @@ export function AuthHeader({ user }: { user: { email?: string } | null }) {
       <Link href="/login" className="text-stone-600 hover:text-moni-primary">
         Entrar
       </Link>
-      <Link href="/signup" className="btn-primary">
+      <Link href="/login?tab=cadastro" className="btn-primary">
         Cadastrar
       </Link>
     </>

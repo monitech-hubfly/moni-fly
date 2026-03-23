@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { fetchRedeFranqueados } from '@/lib/rede-franqueados';
 import { TabelaRedeFranqueados } from '@/components/TabelaRedeFranqueados';
+import { TimelineComunidade } from './TimelineComunidade';
 
 export default async function ComunidadePage() {
   const supabase = await createClient();
@@ -29,11 +30,8 @@ export default async function ComunidadePage() {
             Espaço onde franqueados compartilham assuntos em timelines públicas. Outros franqueados
             podem ver e curtir as publicações.
           </p>
-          <div className="mt-6 rounded-xl border border-dashed border-stone-200 bg-stone-50 p-8 text-center">
-            <p className="text-stone-500">Timeline e publicações em construção.</p>
-            <p className="mt-2 text-sm text-stone-400">
-              Em breve você poderá publicar e interagir com a comunidade.
-            </p>
+          <div className="mt-6">
+            <TimelineComunidade />
           </div>
         </div>
 

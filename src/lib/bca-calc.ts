@@ -383,7 +383,7 @@ function calcCenario(
     juros_custo_financeiro: jurosCusto,
     resultado_alavancado: resultadoAlav,
     pct_vgv_alavancado: pctVgvAlav,
-    resultado_total_frank,
+    resultado_total_frank: resultadoTotalFrank,
     tir_consolidada_aa: tirConsolidada,
     tir_investidor_nao_alav_aa: tirInvNaoAlav,
     tir_terrenista_aa: tirTerrenista,

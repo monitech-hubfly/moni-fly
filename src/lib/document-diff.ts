@@ -36,7 +36,8 @@ export async function extractTextFromDocx(buffer: Buffer): Promise<string> {
 /** Extrai texto de um buffer PDF (Node apenas). */
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
   try {
-    const pdfParse = (await import('pdf-parse')).default;
+    const mod = await import('pdf-parse');
+    const pdfParse = (mod as { default?: (b: Buffer) => Promise<unknown> }).default ?? (mod as unknown as (b: Buffer) => Promise<unknown>);
     const data = await pdfParse(buffer);
     return normalizeText((data as { text?: string }).text ?? '');
   } catch {

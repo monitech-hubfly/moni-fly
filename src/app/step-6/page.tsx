@@ -13,8 +13,8 @@ export default async function Step6Page() {
     <div className="min-h-screen bg-stone-50">
       <header className="border-b border-stone-200 bg-white">
         <div className="mx-auto flex h-14 max-w-3xl items-center px-4">
-          <Link href="/steps-viabilidade" className="font-medium text-moni-primary hover:underline">
-            ← Steps Viabilidade
+          <Link href="/painel-novos-negocios" className="font-medium text-moni-primary hover:underline">
+            ← Painel Novos Negócios
           </Link>
         </div>
       </header>
@@ -26,10 +26,10 @@ export default async function Step6Page() {
             Conteúdo em construção.
           </div>
           <Link
-            href="/steps-viabilidade"
+            href="/painel-novos-negocios"
             className="mt-4 inline-block font-medium text-moni-accent hover:underline"
           >
-            Voltar ao Kanban →
+            Voltar ao Painel →
           </Link>
         </div>
       </main>

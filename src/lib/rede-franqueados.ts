@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server';
 
 export const COLUNAS_REDE_FRANQUEADOS = [
   'N de Franquia',
+  'Modalidade',
   'Nome Completo do Franqueado',
   'Status da Franquia',
   'Classificação do Franqueado',
@@ -16,10 +17,13 @@ export const COLUNAS_REDE_FRANQUEADOS = [
   'Regional',
   'Área de Atuação da Franquia',
   'E-mail do Frank',
+  'Responsável Comercial',
   'Telefone do Frank',
   'CPF do Frank',
   'Data de Nasc. Frank',
-  'Endereço Casa do Frank (Rua + Nº + Complemento)',
+  'Rua Casa Frank',
+  'Número Casa Frank',
+  'Complemento Casa Frank',
   'CEP Casa Frank',
   'Estado Casa Frank',
   'Cidade Casa Frank',
@@ -35,8 +39,9 @@ export type RedeFranqueadosData = {
   activeCount: number;
 } | null;
 
-const DB_KEYS = [
+export const REDE_FRANQUEADOS_DB_KEYS = [
   'n_franquia',
+  'modalidade',
   'nome_completo',
   'status_franquia',
   'classificacao_franqueado',
@@ -46,18 +51,31 @@ const DB_KEYS = [
   'regional',
   'area_atuacao',
   'email_frank',
+  'responsavel_comercial',
   'telefone_frank',
   'cpf_frank',
   'data_nasc_frank',
   'endereco_casa_frank',
+  'endereco_casa_frank_numero',
+  'endereco_casa_frank_complemento',
   'cep_casa_frank',
   'estado_casa_frank',
   'cidade_casa_frank',
   'tamanho_camisa_frank',
   'socios',
+  'data_recebimento_kit_boas_vindas',
 ] as const;
 
-type RowDb = Record<(typeof DB_KEYS)[number], string | null>;
+export type RedeFranqueadoDbKey = (typeof REDE_FRANQUEADOS_DB_KEYS)[number];
+export type RedeFranqueadoRowDb = Record<RedeFranqueadoDbKey, string | null> & {
+  id: string;
+  ordem: number;
+  processo_id?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+type RowDb = Record<RedeFranqueadoDbKey, string | null>;
 type OldRow = {
   nome?: string | null;
   unidade?: string | null;
@@ -78,6 +96,7 @@ function formatDate(val: string | null | undefined): string {
 function rowToArray(r: RowAny): string[] {
   return [
     r.n_franquia ?? r.unidade ?? '',
+    (r as unknown as { modalidade?: string | null }).modalidade ?? '',
     r.nome_completo ?? r.nome ?? '',
     r.status_franquia ?? '',
     r.classificacao_franqueado ?? '',
@@ -87,10 +106,13 @@ function rowToArray(r: RowAny): string[] {
     r.regional ?? '',
     r.area_atuacao ?? '',
     r.email_frank ?? r.email ?? '',
+    (r as unknown as { responsavel_comercial?: string | null }).responsavel_comercial ?? '',
     r.telefone_frank ?? r.telefone ?? '',
     r.cpf_frank ?? '',
     formatDate(r.data_nasc_frank),
     r.endereco_casa_frank ?? '',
+    r.endereco_casa_frank_numero ?? '',
+    r.endereco_casa_frank_complemento ?? '',
     r.cep_casa_frank ?? '',
     r.estado_casa_frank ?? r.estado ?? '',
     r.cidade_casa_frank ?? r.cidade ?? '',
@@ -114,13 +136,28 @@ export async function fetchRedeFranqueados(
   if (error) return null;
   const list = data || [];
   const rows = list.map((r) => rowToArray(r as RowAny));
-  const activeCount = list.filter(
-    (r) => r?.status_franquia && /ativo/i.test(String(r.status_franquia)),
-  ).length;
+  const activeCount = list.filter((r) => {
+    const s = String((r as { status_franquia?: string | null })?.status_franquia ?? '').toLowerCase();
+    return s.includes('em operação') || s.includes('em operacao');
+  }).length;
   return {
     headers: [...COLUNAS_REDE_FRANQUEADOS],
     rows,
     totalCount: list.length,
     activeCount,
   };
+}
+
+/**
+ * Versão raw (com id) para a tabela editável (admin).
+ */
+export async function fetchRedeFranqueadosRows(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<RedeFranqueadoRowDb[] | null> {
+  const { data, error } = await supabase
+    .from('rede_franqueados')
+    .select('*')
+    .order('ordem', { ascending: true });
+  if (error) return null;
+  return (data ?? []) as RedeFranqueadoRowDb[];
 }

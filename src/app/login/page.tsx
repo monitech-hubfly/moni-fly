@@ -1,25 +1,65 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { MoniFooter } from '@/components/MoniFooter';
+import { normalizeAccessRole } from '@/lib/authz';
+import { TEAM_SEED_BY_EMAIL } from '@/lib/team-seed-signup';
+import { notifySignupComplete } from './actions';
+
+type TabKey = 'entrar' | 'cadastro';
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get('next') ?? '/step-one';
+  const next = searchParams.get('next') ?? '/rede-franqueados';
+  const status = searchParams.get('status');
+  const tabParam = searchParams.get('tab');
+
+  const [tab, setTab] = useState<TabKey>(() =>
+    tabParam === 'cadastro' || tabParam === 'signup' ? 'cadastro' : 'entrar',
+  );
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  const [fullName, setFullName] = useState('');
+  const [cargo, setCargo] = useState('');
+  const [departamento, setDepartamento] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t === 'cadastro' || t === 'signup') setTab('cadastro');
+    if (t === 'entrar' || t === 'login') setTab('entrar');
+  }, [searchParams]);
+
+  const setTabAndUrl = (t: TabKey) => {
+    setTab(t);
+    const params = new URLSearchParams(searchParams.toString());
+    if (t === 'cadastro') params.set('tab', 'cadastro');
+    else params.delete('tab');
+    const q = params.toString();
+    router.replace(q ? `/login?${q}` : '/login', { scroll: false });
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
+      const allowedDomain = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN ?? 'moni.casa';
+      const emailDomain = email.trim().toLowerCase().split('@')[1] ?? '';
+      if (emailDomain !== allowedDomain) {
+        setError(`Use um e-mail @${allowedDomain}.`);
+        setLoading(false);
+        return;
+      }
       const supabase = createClient();
       const { error: err } = await supabase.auth.signInWithPassword({ email, password });
       if (err) {
@@ -29,7 +69,33 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
-      router.push(next);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setError('Sessão não encontrada após login.');
+        setLoading(false);
+        return;
+      }
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+      const role = normalizeAccessRole((profile as { role?: string | null } | null)?.role);
+      if (role === 'pending') {
+        router.push('/login?status=pending');
+        router.refresh();
+        setLoading(false);
+        return;
+      }
+      if (role === 'blocked') {
+        router.push('/login?status=blocked');
+        router.refresh();
+        setLoading(false);
+        return;
+      }
+      router.push(role === 'admin' ? (next || '/dashboard-novos-negocios') : '/rede-franqueados');
       router.refresh();
     } catch {
       setError('Erro ao entrar. Tente de novo.');
@@ -37,61 +103,260 @@ export default function LoginPage() {
     }
   };
 
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const allowedDomain = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN ?? 'moni.casa';
+      const emailLower = email.trim().toLowerCase();
+      const emailDomain = emailLower.split('@')[1] ?? '';
+      if (emailDomain !== allowedDomain) {
+        setError(`Use um e-mail @${allowedDomain}.`);
+        setLoading(false);
+        return;
+      }
+      if (password.length < 8) {
+        setError('A senha deve ter no mínimo 8 caracteres.');
+        setLoading(false);
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError('Senha e confirmação não conferem.');
+        setLoading(false);
+        return;
+      }
+      const supabase = createClient();
+      const { error: err } = await supabase.auth.signUp({
+        email: emailLower,
+        password,
+        options: { data: { full_name: fullName, nome_completo: fullName, cargo, departamento } },
+      });
+      if (err) {
+        setError(err.message);
+        setLoading(false);
+        return;
+      }
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const seeded = TEAM_SEED_BY_EMAIL[emailLower];
+      if (user?.id) {
+        const role = seeded?.role ?? 'pending';
+        const dept = seeded?.departamento ?? departamento.trim();
+        await supabase
+          .from('profiles')
+          .update({
+            role,
+            full_name: fullName,
+            nome_completo: fullName,
+            cargo: cargo.trim(),
+            departamento: dept,
+            // Sem seed na lista → pending (sem aprovação); com seed → já liberado
+            aprovado_em: seeded ? new Date().toISOString() : null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', user.id);
+      }
+
+      await notifySignupComplete();
+
+      if (!seeded) {
+        router.push('/login?status=pending');
+      } else {
+        const role = normalizeAccessRole(seeded.role);
+        router.push(role === 'admin' ? '/dashboard-novos-negocios' : '/rede-franqueados');
+      }
+      router.refresh();
+    } catch {
+      setError('Erro ao cadastrar. Tente de novo.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const tabBtn = (active: boolean) =>
+    `flex-1 rounded-t-xl px-4 py-2.5 text-sm font-semibold transition ${
+      active
+        ? 'bg-white text-moni-dark shadow-sm ring-1 ring-stone-200'
+        : 'bg-stone-100/80 text-stone-600 hover:text-moni-dark hover:bg-stone-100'
+    }`;
+
   return (
     <div className="flex min-h-screen flex-col bg-gradient-to-b from-stone-50 to-moni-light/20">
       <div className="flex flex-1 flex-col items-center justify-center px-4 py-8">
-        <div className="card w-full max-w-md">
-          <h1 className="text-xl font-bold text-moni-dark">Entrar</h1>
-          <p className="mt-2 text-sm text-stone-600">
-            Use seu e-mail e senha para acessar o sistema.
-          </p>
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-stone-700">
-                E-mail
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="seu@email.com"
-                className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2.5 focus:border-moni-accent focus:outline-none focus:ring-2 focus:ring-moni-accent/20"
-                required
-              />
-            </div>
-            <div>
-              <div className="flex items-center justify-between">
-                <label htmlFor="password" className="block text-sm font-medium text-stone-700">
-                  Senha
-                </label>
-                <Link href="/esqueci-senha" className="text-sm text-moni-accent hover:underline">
-                  Esqueci minha senha
-                </Link>
-              </div>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2.5 focus:border-moni-accent focus:outline-none focus:ring-2 focus:ring-moni-accent/20"
-                required
-              />
-            </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <button type="submit" disabled={loading} className="btn-primary w-full">
-              {loading ? 'Entrando…' : 'Entrar'}
+        <div className="card w-full max-w-md overflow-hidden p-0">
+          <div className="flex border-b border-stone-200 bg-stone-50/90 px-2 pt-2">
+            <button type="button" className={tabBtn(tab === 'entrar')} onClick={() => setTabAndUrl('entrar')}>
+              Entrar
             </button>
-          </form>
-          <p className="mt-4 text-center text-sm text-stone-600">
-            Não tem conta?{' '}
-            <Link href="/signup" className="font-medium text-moni-accent hover:underline">
+            <button
+              type="button"
+              className={tabBtn(tab === 'cadastro')}
+              onClick={() => setTabAndUrl('cadastro')}
+            >
               Cadastrar
+            </button>
+          </div>
+
+          <div className="p-6 pt-5">
+            {tab === 'entrar' ? (
+              <>
+                <h1 className="text-xl font-bold text-moni-dark">Entrar</h1>
+                <p className="mt-2 text-sm text-stone-600">
+                  Use seu e-mail e senha para acessar o sistema.
+                </p>
+                {status === 'pending' && (
+                  <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                    Seu cadastro está pendente de aprovação do administrador.
+                  </p>
+                )}
+                {status === 'blocked' && (
+                  <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    Seu acesso está bloqueado. Fale com o administrador.
+                  </p>
+                )}
+                <form onSubmit={handleLogin} className="mt-6 space-y-4">
+                  <div>
+                    <label htmlFor="email" className="block text-sm font-medium text-stone-700">
+                      E-mail
+                    </label>
+                    <input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="seu@email.com"
+                      className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2.5 focus:border-moni-accent focus:outline-none focus:ring-2 focus:ring-moni-accent/20"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="password" className="block text-sm font-medium text-stone-700">
+                        Senha
+                      </label>
+                      <Link href="/esqueci-senha" className="text-sm text-moni-accent hover:underline">
+                        Esqueci minha senha
+                      </Link>
+                    </div>
+                    <input
+                      id="password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-stone-300 px-3 py-2.5 focus:border-moni-accent focus:outline-none focus:ring-2 focus:ring-moni-accent/20"
+                      required
+                    />
+                  </div>
+                  {error && <p className="text-sm text-red-600">{error}</p>}
+                  <button type="submit" disabled={loading} className="btn-primary w-full">
+                    {loading ? 'Entrando…' : 'Entrar'}
+                  </button>
+                </form>
+              </>
+            ) : (
+              <>
+                <h1 className="text-xl font-bold text-moni-dark">Cadastrar</h1>
+                <p className="mt-2 text-sm text-stone-600">
+                  Crie sua conta com e-mail @
+                  {process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN ?? 'moni.casa'}.
+                </p>
+                <form onSubmit={handleSignup} className="mt-6 space-y-4">
+                  <div>
+                    <label htmlFor="fullName" className="block text-sm font-medium text-stone-700">
+                      Nome completo
+                    </label>
+                    <input
+                      id="fullName"
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Seu nome"
+                      className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 focus:border-moni-accent focus:outline-none focus:ring-1 focus:ring-moni-accent"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="email-cad" className="block text-sm font-medium text-stone-700">
+                      E-mail
+                    </label>
+                    <input
+                      id="email-cad"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="seu@email.com"
+                      className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 focus:border-moni-accent focus:outline-none focus:ring-1 focus:ring-moni-accent"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="cargo" className="block text-sm font-medium text-stone-700">
+                      Cargo
+                    </label>
+                    <input
+                      id="cargo"
+                      type="text"
+                      value={cargo}
+                      onChange={(e) => setCargo(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 focus:border-moni-accent focus:outline-none focus:ring-1 focus:ring-moni-accent"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="departamento" className="block text-sm font-medium text-stone-700">
+                      Departamento
+                    </label>
+                    <input
+                      id="departamento"
+                      type="text"
+                      value={departamento}
+                      onChange={(e) => setDepartamento(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 focus:border-moni-accent focus:outline-none focus:ring-1 focus:ring-moni-accent"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="password-cad" className="block text-sm font-medium text-stone-700">
+                      Senha (mín. 8 caracteres)
+                    </label>
+                    <input
+                      id="password-cad"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      minLength={8}
+                      className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 focus:border-moni-accent focus:outline-none focus:ring-1 focus:ring-moni-accent"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="confirmPassword" className="block text-sm font-medium text-stone-700">
+                      Confirmar senha
+                    </label>
+                    <input
+                      id="confirmPassword"
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      minLength={8}
+                      className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 focus:border-moni-accent focus:outline-none focus:ring-1 focus:ring-moni-accent"
+                      required
+                    />
+                  </div>
+                  {error && <p className="text-sm text-red-600">{error}</p>}
+                  <button type="submit" disabled={loading} className="btn-primary w-full">
+                    {loading ? 'Cadastrando…' : 'Cadastrar'}
+                  </button>
+                </form>
+              </>
+            )}
+
+            <Link href="/" className="mt-6 inline-block text-sm text-moni-accent hover:underline">
+              ← Voltar ao início
             </Link>
-          </p>
-          <Link href="/" className="mt-4 inline-block text-sm text-moni-accent hover:underline">
-            ← Voltar ao início
-          </Link>
+          </div>
         </div>
       </div>
       <MoniFooter />

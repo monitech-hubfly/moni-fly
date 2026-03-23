@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { criarChamado } from './actions';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { criarChamado, getDadosNovoChamado } from './actions';
 import type { HdmTime } from '@/types/sirene';
 
 const HDM_OPCOES: { value: HdmTime; label: string }[] = [
@@ -10,17 +10,56 @@ const HDM_OPCOES: { value: HdmTime; label: string }[] = [
   { value: 'Modelo Virtual', label: 'Modelo Virtual' },
 ];
 
+type FranqueadoItem = { id: string; n_franquia: string | null; nome_completo: string | null };
+
 type Props = { onClose: () => void; onSuccess?: () => void };
 
 export function ModalNovoChamado({ onClose, onSuccess }: Props) {
+  const [dados, setDados] = useState<{
+    isFrank: boolean;
+    times: string[];
+    franqueados: FranqueadoItem[];
+  } | null>(null);
   const [incendio, setIncendio] = useState('');
   const [timeAbertura, setTimeAbertura] = useState('');
   const [frankId, setFrankId] = useState('');
   const [frankNome, setFrankNome] = useState('');
+  const [buscaFrank, setBuscaFrank] = useState('');
+  const [abertoBuscaFrank, setAbertoBuscaFrank] = useState(false);
+  const [teTrata, setTeTrata] = useState<'sim' | 'nao' | ''>('');
   const [ehHdm, setEhHdm] = useState(false);
   const [hdmResponsavel, setHdmResponsavel] = useState<HdmTime | ''>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const buscaFrankRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    getDadosNovoChamado().then((r) => {
+      if (r.ok) setDados({ isFrank: r.isFrank, times: r.times, franqueados: r.franqueados });
+    });
+  }, []);
+
+  const frankFiltrados = useMemo(() => {
+    if (!dados?.franqueados.length) return [];
+    const q = buscaFrank.trim().toLowerCase();
+    if (!q) return dados.franqueados.slice(0, 15);
+    return dados.franqueados
+      .filter(
+        (f) =>
+          (f.nome_completo?.toLowerCase().includes(q) ?? false) ||
+          (f.n_franquia?.toLowerCase().includes(q) ?? false),
+      )
+      .slice(0, 15);
+  }, [dados?.franqueados, buscaFrank]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (buscaFrankRef.current && !buscaFrankRef.current.contains(e.target as Node))
+        setAbertoBuscaFrank(false);
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,6 +70,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     formData.set('time_abertura', timeAbertura.trim());
     formData.set('frank_id', frankId.trim());
     formData.set('frank_nome', frankNome.trim());
+    if (teTrata === 'sim' || teTrata === 'nao') formData.set('te_trata', teTrata);
     formData.set('tipo', ehHdm ? 'hdm' : 'padrao');
     if (ehHdm && hdmResponsavel) formData.set('hdm_responsavel', hdmResponsavel);
 
@@ -45,6 +85,8 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     else onClose();
   }
 
+  const isFrank = dados?.isFrank ?? false;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
@@ -52,10 +94,44 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
           <h2 className="text-lg font-semibold text-stone-800">Novo chamado</h2>
         </div>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-4">
-          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+          {error && (
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+          )}
+
           <div>
             <label className="mb-1 block text-sm font-medium text-stone-700">
-              Incêndio (resumo) *
+              Esse incêndio te trava? *
+            </label>
+            <div className="flex gap-4">
+              <label className="flex cursor-pointer items-center gap-2">
+                <input
+                  type="radio"
+                  name="te_trata"
+                  checked={teTrata === 'sim'}
+                  onChange={() => setTeTrata('sim')}
+                  className="h-4 w-4 border-stone-300 text-moni-primary"
+                />
+                <span className="text-sm text-stone-700">Sim</span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-2">
+                <input
+                  type="radio"
+                  name="te_trata"
+                  checked={teTrata === 'nao'}
+                  onChange={() => setTeTrata('nao')}
+                  className="h-4 w-4 border-stone-300 text-moni-primary"
+                />
+                <span className="text-sm text-stone-700">Não</span>
+              </label>
+            </div>
+            <p className="mt-0.5 text-xs text-stone-500">
+              Os chamados são priorizados por essa resposta.
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-stone-700">
+              Incêndio (descrição do chamado) *
             </label>
             <input
               type="text"
@@ -66,40 +142,78 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
               placeholder="Breve descrição do problema"
             />
           </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-stone-700">
-              Time de abertura
-            </label>
-            <input
-              type="text"
-              value={timeAbertura}
-              onChange={(e) => setTimeAbertura(e.target.value)}
-              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
-              placeholder="Ex.: ADM, Tech, Portfólio"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-stone-700">ID Franqueado</label>
-              <input
-                type="text"
-                value={frankId}
-                onChange={(e) => setFrankId(e.target.value)}
-                className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-stone-700">
-                Nome Franqueado
-              </label>
-              <input
-                type="text"
-                value={frankNome}
-                onChange={(e) => setFrankNome(e.target.value)}
-                className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
-              />
-            </div>
-          </div>
+
+          {!isFrank && dados && (
+            <>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-stone-700">
+                  Time que está abrindo o chamado
+                </label>
+                <select
+                  value={timeAbertura}
+                  onChange={(e) => setTimeAbertura(e.target.value)}
+                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
+                >
+                  <option value="">Selecione</option>
+                  {dados.times.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div ref={buscaFrankRef} className="relative">
+                <label className="mb-1 block text-sm font-medium text-stone-700">
+                  Franqueado conectado ao ticket (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={abertoBuscaFrank ? buscaFrank : frankNome}
+                  onChange={(e) => {
+                    setBuscaFrank(e.target.value);
+                    setAbertoBuscaFrank(true);
+                    if (!abertoBuscaFrank) setFrankNome('');
+                  }}
+                  onFocus={() => setAbertoBuscaFrank(true)}
+                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
+                  placeholder="Pesquise pelo nome ou Nº da franquia"
+                />
+                {abertoBuscaFrank && frankFiltrados.length > 0 && (
+                  <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-stone-200 bg-white py-1 shadow-lg">
+                    {frankFiltrados.map((f) => (
+                      <li key={f.id}>
+                        <button
+                          type="button"
+                          className="w-full px-3 py-2 text-left text-sm text-stone-800 hover:bg-stone-100"
+                          onClick={() => {
+                            setFrankId(f.id);
+                            setFrankNome(f.nome_completo ?? f.n_franquia ?? '');
+                            setBuscaFrank('');
+                            setAbertoBuscaFrank(false);
+                          }}
+                        >
+                          {f.nome_completo ?? f.n_franquia ?? f.id}
+                          {f.n_franquia && f.nome_completo && (
+                            <span className="ml-1 text-stone-500">({f.n_franquia})</span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {abertoBuscaFrank && buscaFrank.trim() && frankFiltrados.length === 0 && (
+                  <p className="absolute z-10 mt-1 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-500 shadow-lg">
+                    Nenhum franqueado encontrado.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+
+          <p className="text-xs text-stone-500">
+            Aberto por: preenchido automaticamente com seu login.
+          </p>
 
           <div className="border-t border-stone-200 pt-3">
             <label className="flex cursor-pointer items-center gap-2">
@@ -117,13 +231,12 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
             {ehHdm && (
               <div className="mt-3">
                 <label className="mb-1 block text-sm font-medium text-stone-700">
-                  Time HDM responsável *
+                  Time HDM responsável (opcional)
                 </label>
                 <select
                   value={hdmResponsavel}
                   onChange={(e) => setHdmResponsavel((e.target.value || '') as HdmTime | '')}
                   className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
-                  required={ehHdm}
                 >
                   <option value="">Selecione</option>
                   {HDM_OPCOES.map((o) => (
@@ -146,7 +259,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
             </button>
             <button
               type="submit"
-              disabled={loading || !incendio.trim() || (ehHdm && !hdmResponsavel)}
+              disabled={loading || !incendio.trim() || teTrata === ''}
               className="rounded-lg bg-moni-primary px-4 py-2 text-sm font-medium text-white hover:bg-moni-secondary disabled:opacity-50"
             >
               {loading ? 'Abrindo…' : 'Abrir chamado'}

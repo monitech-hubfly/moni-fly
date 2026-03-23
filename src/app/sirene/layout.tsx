@@ -1,26 +1,16 @@
-import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import { getNotificacoesResumo } from './actions';
+import { getSireneLayoutContext, enviarNotificacoesAtrasoTopicos } from './actions';
 import { SireneShell } from './SireneShell';
 
 export default async function SireneLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  const ctx = await getSireneLayoutContext();
+  if (!ctx.ok) redirect('/login');
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('full_name')
-    .eq('id', user.id)
-    .single();
-  const userName = (profile?.full_name as string)?.trim() || user.email?.split('@')[0] || 'Usuário';
-
-  const { totalNaoLidas, ultimas } = await getNotificacoesResumo();
+  // Sinaliza aos times: > 2 dias úteis atrasados e TOP 10 (dedup 24h)
+  void enviarNotificacoesAtrasoTopicos();
 
   return (
-    <SireneShell userName={userName} totalNaoLidas={totalNaoLidas} ultimasNotificacoes={ultimas}>
+    <SireneShell userName={ctx.userName} isBombeiro={ctx.isBombeiro}>
       {children}
     </SireneShell>
   );

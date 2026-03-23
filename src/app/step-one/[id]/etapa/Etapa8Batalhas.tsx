@@ -90,7 +90,11 @@ export function Etapa8Batalhas({
     const payload = { ...atuais, [campo]: valor };
     setError('');
     setSaving(`${listingCasaId}-${catalogoCasaId}`);
-    const result = await saveBatalha(processoId, listingCasaId, catalogoCasaId, payload);
+    const result = await saveBatalha(processoId, listingCasaId, catalogoCasaId, {
+      nota_preco: payload.nota_preco ?? undefined,
+      nota_produto: payload.nota_produto ?? undefined,
+      nota_localizacao: payload.nota_localizacao ?? undefined,
+    });
     setSaving(null);
     if (result.ok) router.refresh();
     else setError(result.error);

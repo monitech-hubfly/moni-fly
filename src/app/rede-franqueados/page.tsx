@@ -1,8 +1,14 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import { fetchRedeFranqueados } from '@/lib/rede-franqueados';
-import { TabelaRedeFranqueados } from '@/components/TabelaRedeFranqueados';
+import { fetchRedeFranqueados, fetchRedeFranqueadosRows } from '@/lib/rede-franqueados';
+import { TabelaRedeFranqueadosEditavel } from '@/components/TabelaRedeFranqueadosEditavel';
+import { contarLinhasSemCard } from './actions';
+import { CriarCardsDesdeRedeButton } from './CriarCardsDesdeRedeButton';
+import { ImportarRedeCSVButton } from './ImportarRedeCSVButton';
+import { ExportarRedeCSVButton } from './ExportarRedeCSVButton';
+import { AdicionarRedeECardButton } from './AdicionarRedeECardButton';
+import { RedeDashboard } from './RedeDashboard';
 
 export default async function RedeFranqueadosPage() {
   const supabase = await createClient();
@@ -19,7 +25,12 @@ export default async function RedeFranqueadosPage() {
   const role = (profile?.role as string) ?? 'frank';
   if (role !== 'admin') redirect('/comunidade');
 
-  const data = await fetchRedeFranqueados(supabase);
+  const [data, rows, countResult] = await Promise.all([
+    fetchRedeFranqueados(supabase),
+    fetchRedeFranqueadosRows(supabase),
+    contarLinhasSemCard(),
+  ]);
+  const linhasSemCard = countResult.ok ? countResult.total : 0;
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -40,14 +51,26 @@ export default async function RedeFranqueadosPage() {
               Tabela de franqueados gerenciada dentro da ferramenta (fonte: banco de dados).
             </p>
           </div>
-          {data && (
-            <div className="shrink-0 rounded-xl border-2 border-moni-primary bg-moni-primary/5 px-6 py-4 text-right">
-              <p className="text-sm font-medium text-stone-600">Franqueados ativos</p>
-              <p className="mt-0.5 text-2xl font-bold text-moni-dark">{data.activeCount}</p>
-            </div>
-          )}
         </div>
-        <TabelaRedeFranqueados data={data} />
+
+        {rows && rows.length > 0 && (
+          <div className="mb-6">
+            <RedeDashboard rows={rows} />
+          </div>
+        )}
+
+        <div className="mb-6 space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <AdicionarRedeECardButton />
+          </div>
+          <ImportarRedeCSVButton />
+          <CriarCardsDesdeRedeButton linhasSemCard={linhasSemCard} />
+        </div>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-stone-800">Tabela de Rede de Franqueados</h2>
+          {rows && <ExportarRedeCSVButton rows={rows} />}
+        </div>
+        {rows ? <TabelaRedeFranqueadosEditavel rows={rows} /> : <p className="text-sm text-red-600">Erro ao carregar a tabela.</p>}
       </main>
     </div>
   );

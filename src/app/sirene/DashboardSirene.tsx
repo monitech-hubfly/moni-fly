@@ -1,3 +1,6 @@
+'use client';
+
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 type PorStatus = { status: string; count: number; pct: number };
@@ -20,6 +23,7 @@ type Props = {
   chamadosComTrava: number;
   recentesComTrava: TravaItem[];
   minhasTarefas: Tarefa[];
+  filtroTipo: 'todos' | 'padrao' | 'hdm';
 };
 
 const statusLabel: Record<string, string> = {
@@ -50,11 +54,35 @@ export function DashboardSirene({
   chamadosComTrava,
   recentesComTrava,
   minhasTarefas,
+  filtroTipo,
 }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const total = emAberto + emAndamento + concluidos;
+
+  const setFiltroTipo = (value: 'todos' | 'padrao' | 'hdm') => {
+    const p = new URLSearchParams(searchParams.toString());
+    if (value === 'todos') p.delete('tipo');
+    else p.set('tipo', value);
+    const qs = p.toString();
+    router.push(qs ? `/sirene?${qs}` : '/sirene');
+  };
 
   return (
     <div className="min-h-screen bg-stone-900 text-stone-100">
+      <div className="mb-6 flex items-center gap-2">
+        <span className="text-sm font-medium text-stone-400">Tipo:</span>
+        <select
+          value={filtroTipo}
+          onChange={(e) => setFiltroTipo(e.target.value as 'todos' | 'padrao' | 'hdm')}
+          className="rounded-lg border border-stone-600 bg-stone-800 px-3 py-1.5 text-sm text-stone-200"
+        >
+          <option value="todos">Todos</option>
+          <option value="padrao">Padrão</option>
+          <option value="hdm">HDM</option>
+        </select>
+      </div>
       {/* KPIs — linha superior */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="rounded-xl border border-stone-700 bg-stone-800/80 p-4">

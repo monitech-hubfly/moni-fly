@@ -3,7 +3,11 @@
  * Inclui exceção HDM: tipo 'padrao' | 'hdm', hdm_responsavel, redirecionamento.
  */
 
-export type ChamadoStatus = 'nao_iniciado' | 'em_andamento' | 'concluido';
+export type ChamadoStatus =
+  | 'nao_iniciado'
+  | 'em_andamento'
+  | 'concluido'
+  | 'aguardando_aprovacao_criador';
 
 export type TopicoStatus = 'nao_iniciado' | 'em_andamento' | 'concluido' | 'aprovado';
 
@@ -22,6 +26,7 @@ export interface Chamado {
   aberto_por_nome: string | null;
   trava: boolean;
   incendio: string;
+  te_trata: boolean | null;
   prioridade: string;
   status: ChamadoStatus;
   resolucao_pontual: string | null;
@@ -51,6 +56,7 @@ export interface Topico {
   responsavel_nome: string | null;
   data_inicio: string | null;
   data_fim: string | null;
+  trava: boolean;
   status: TopicoStatus;
   resolucao_time: string | null;
   aprovado_bombeiro: boolean | null;
