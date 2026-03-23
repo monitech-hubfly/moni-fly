@@ -125,7 +125,7 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
 
   useEffect(() => {
     const p = pathname ?? '';
-    if (p === '/perfil') setPerfilOpen(true);
+    if (p === '/perfil' || p.startsWith('/admin/usuarios')) setPerfilOpen(true);
     if (isPainelNovosNegociosActive(p)) setPainelNovosNegociosOpen(true);
     if (isRedeFranqueadosActive(p)) setRedeFranqueadosOpen(true);
     else if (isCatalogoActive(p)) setCatalogoOpen(true);
