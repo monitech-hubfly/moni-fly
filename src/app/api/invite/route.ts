@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmailViaResend } from '@/lib/email';
@@ -93,6 +93,40 @@ function isRateLimitError(err: { message?: string; status?: number } | null | un
   return m.includes('rate limit') || m.includes('too many emails') || err?.status === 429;
 }
 
+/** Senha aleatória só para satisfazer createUser; o convidado define senha em /aceitar-convite. */
+function randomBootstrapPassword(): string {
+  return randomBytes(32).toString('base64url');
+}
+
+/**
+ * Cria utilizador no Auth sem enviar e-mail (evita rate limit do inviteUserByEmail).
+ * Se já existir, devolve null e o chamador deve fazer lookup por e-mail.
+ */
+async function createAuthUserWithoutEmail(
+  admin: SupabaseClient,
+  email: string,
+  departamento: string | null,
+): Promise<{ userId: string } | { error: string } | null> {
+  const { data, error } = await admin.auth.admin.createUser({
+    email,
+    password: randomBootstrapPassword(),
+    email_confirm: false,
+    user_metadata: {
+      full_name: '',
+      nome_completo: '',
+      departamento: departamento ?? '',
+    },
+  });
+  if (!error && data?.user?.id) {
+    return { userId: data.user.id };
+  }
+  const msg = (error?.message ?? '').toLowerCase();
+  if (msg.includes('already') || msg.includes('registered') || msg.includes('exists') || msg.includes('duplicate')) {
+    return null;
+  }
+  return { error: error?.message ?? 'createUser falhou.' };
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = await createClient();
@@ -135,27 +169,39 @@ export async function POST(req: Request) {
 
         if (invErr) {
           if (isRateLimitError(invErr)) {
-            return NextResponse.json(
-              {
-                error:
-                  'Limite de envio de e-mails do Supabase atingido (rate limit). Aguarde alguns minutos ou ajuste em Supabase → Project Settings → Authentication → Emails. Se o convidado já tem conta, confira também o e-mail digitado (ex.: fernanda vs fenanda).',
-              },
-              { status: 429 },
-            );
-          }
-          authUserId =
-            extractInviteUserId(invData) ??
-            (await findAuthUserIdByEmailHttp(email)) ??
-            (await findAuthUserIdByEmailSdk(admin, email));
-          if (!authUserId) {
-            return NextResponse.json(
-              {
-                error:
-                  invErr.message ??
-                  'Não foi possível convidar este e-mail. Verifique o endereço e em Supabase → Authentication → Users.',
-              },
-              { status: 500 },
-            );
+            const created = await createAuthUserWithoutEmail(admin, email, departamento);
+            if (created && 'userId' in created) {
+              authUserId = created.userId;
+            } else if (created && 'error' in created) {
+              return NextResponse.json({ error: created.error }, { status: 500 });
+            } else {
+              authUserId =
+                (await findAuthUserIdByEmailHttp(email)) ?? (await findAuthUserIdByEmailSdk(admin, email));
+              if (!authUserId) {
+                return NextResponse.json(
+                  {
+                    error:
+                      'Limite de e-mails do Supabase (rate limit) e não foi possível criar o utilizador. Aguarde alguns minutos, configure SMTP em Authentication → Emails, ou confira o e-mail digitado.',
+                  },
+                  { status: 429 },
+                );
+              }
+            }
+          } else {
+            authUserId =
+              extractInviteUserId(invData) ??
+              (await findAuthUserIdByEmailHttp(email)) ??
+              (await findAuthUserIdByEmailSdk(admin, email));
+            if (!authUserId) {
+              return NextResponse.json(
+                {
+                  error:
+                    invErr.message ??
+                    'Não foi possível convidar este e-mail. Verifique o endereço e em Supabase → Authentication → Users.',
+                },
+                { status: 500 },
+              );
+            }
           }
         } else {
           const invUserId = extractInviteUserId(invData);
@@ -173,7 +219,8 @@ export async function POST(req: Request) {
       }
 
       if (!profileId && authUserId) {
-        profileId = await findProfileIdByUserId(admin, authUserId);
+        profileId =
+          (await waitForProfileByUserId(admin, authUserId)) ?? (await findProfileIdByUserId(admin, authUserId));
         if (!profileId) {
           const { error: insErr } = await admin.from('profiles').insert({
             id: authUserId,
