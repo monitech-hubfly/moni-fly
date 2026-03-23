@@ -1,7 +1,9 @@
 export type AccessRole = 'admin' | 'team' | 'pending' | 'blocked';
 
 export function normalizeAccessRole(role: string | null | undefined): AccessRole {
-  const r = String(role ?? '').toLowerCase();
+  const r = String(role ?? '')
+    .trim()
+    .toLowerCase();
   if (r === 'admin') return 'admin';
   if (r === 'team') return 'team';
   if (r === 'pending') return 'pending';

@@ -22,6 +22,7 @@ export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/painel-credito',
   '/login',
   '/perfil',
+  '/admin/usuarios',
   '/api',
   '/_next',
 ] as const;

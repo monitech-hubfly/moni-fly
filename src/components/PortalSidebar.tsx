@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Bell, ChevronDown, ChevronRight, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { isAdminRole } from '@/lib/authz';
 import { isLiveLimitedRelease } from '@/lib/release-scope';
 
 type PortalSidebarProps = {
@@ -90,7 +91,7 @@ function isAcoplamentoActive(pathname: string) {
 export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const isAdmin = userRole === 'admin' || userRole === 'consultor' || userRole === 'supervisor';
+  const isAdmin = isAdminRole(userRole);
   const limitedRelease = isLiveLimitedRelease();
   const [perfilOpen, setPerfilOpen] = useState(() => (pathname ?? '') === '/perfil');
   const [redeFranqueadosOpen, setRedeFranqueadosOpen] = useState(() => isRedeFranqueadosActive(pathname ?? ''));
@@ -268,7 +269,7 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
           (href) => pathname === href || (pathname?.startsWith(href + '/') ?? false),
         )}
 
-        {!limitedRelease && isAdmin && (
+        {isAdmin && (
           <Link href="/admin/usuarios" className={linkClassPrincipal(pathname.startsWith('/admin/usuarios'))}>
             Gerenciar Usuários
           </Link>
