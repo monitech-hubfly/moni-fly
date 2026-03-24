@@ -931,6 +931,13 @@ function isProcessoChecklistPainelExcluido(p: {
   );
 }
 
+/** processo_id do checklist é o id base; a linha raiz pode não vir no SELECT (ex.: só filhos com historico_base_id = B). */
+function resolveLineageRowForBase(B: string, roots: any[], children: any[]): any | undefined {
+  const root = roots.find((p: any) => String(p.id) === B);
+  if (root) return root;
+  return children.find((p: any) => String(p.historico_base_id) === B);
+}
+
 /** Painel de Tarefas: atividades do checklist do card (todas as etapas/cards do usuário). */
 export async function getAtividadesChecklistPainel(): Promise<
   | {
@@ -1016,7 +1023,7 @@ export async function getAtividadesChecklistPainel(): Promise<
 
   const excludedBases = new Set<string>();
   for (const B of baseIds) {
-    const directRow = lineageByRowId.get(B);
+    const directRow = resolveLineageRowForBase(B, roots, children);
     if (isProcessoChecklistPainelExcluido(directRow)) excludedBases.add(B);
     for (const r of lineageByRowId.values()) {
       const belongs = String(r.id) === B || String(r.historico_base_id ?? '') === B;
