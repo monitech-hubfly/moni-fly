@@ -53,13 +53,22 @@ export function TarefasPainelConteudo({ basePath = '/painel-novos-negocios' }: T
   const router = useRouter();
   const [tarefas, setTarefas] = useState<Tarefa[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [filtros, setFiltros] = useState<PainelTarefasFiltrosState>(() => defaultPainelTarefasFiltros());
 
   useEffect(() => {
     let cancelled = false;
     getAtividadesChecklistPainel().then((r) => {
-      if (!cancelled && r.ok) setTarefas(r.tarefas);
-      if (!cancelled) setLoading(false);
+      if (!cancelled) {
+        if (r.ok) {
+          setTarefas(r.tarefas);
+          setLoadError(null);
+        } else {
+          setTarefas([]);
+          setLoadError(r.error);
+        }
+        setLoading(false);
+      }
     });
     return () => {
       cancelled = true;
@@ -70,7 +79,12 @@ export function TarefasPainelConteudo({ basePath = '/painel-novos-negocios' }: T
     const res = await updateChecklistItemStatus(atividadeId, status as 'nao_iniciada' | 'em_andamento' | 'concluido');
     if (res.ok) {
       const r = await getAtividadesChecklistPainel();
-      if (r.ok) setTarefas(r.tarefas);
+      if (r.ok) {
+        setTarefas(r.tarefas);
+        setLoadError(null);
+      } else {
+        setLoadError(r.error);
+      }
       router.refresh();
     }
   };
@@ -135,6 +149,19 @@ export function TarefasPainelConteudo({ basePath = '/painel-novos-negocios' }: T
   );
 
   if (loading) return <p className="text-sm text-stone-500">Carregando…</p>;
+
+  if (loadError) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+        <p className="font-medium">Não foi possível carregar as atividades.</p>
+        <p className="mt-1 text-red-800/90">{loadError}</p>
+        <p className="mt-2 text-xs text-red-800/80">
+          Modo visitante / listagem de todas as atividades: o servidor precisa de{' '}
+          <code className="rounded bg-red-100 px-1">SUPABASE_SERVICE_ROLE_KEY</code> (ex.: Vercel).
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

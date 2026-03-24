@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
 import { getPainelDbForPublicEdit, type PainelDbAuthOk } from '@/lib/painel-public-edit';
+import { isPublicRedeNovosNegociosEnabled } from '@/lib/public-rede-novos';
 import type { PainelColumnKey } from './painelColumns';
 import { PAINEL_COLUMNS } from './painelColumns';
 
@@ -923,7 +924,7 @@ function isProcessoChecklistPainelExcluido(p: {
   cancelado_em?: string | null;
   removido_em?: string | null;
 } | undefined): boolean {
-  if (!p) return true;
+  if (!p) return false;
   const st = String(p.status ?? '').toLowerCase();
   return (
     st === 'cancelado' ||
@@ -956,32 +957,48 @@ async function resolveSupabaseParaAgregadoPainelTarefas(auth: PainelDbAuthOk): P
   return auth.supabase;
 }
 
-/** Painel de Tarefas: atividades do checklist do card (todas as etapas/cards do usuário). */
-export async function getAtividadesChecklistPainel(): Promise<
-  | {
-      ok: true;
-      tarefas: Array<{
-        id: string;
-        processo_id: string;
-        etapa_painel: string;
-        titulo: string;
-        prazo: string | null;
-        time_nome: string | null;
-        responsavel_nome: string | null;
-        status: 'nao_iniciada' | 'em_andamento' | 'concluido';
-        processo_cidade: string;
-        processo_estado: string | null;
-        numero_franquia: string | null;
-        nome_franqueado: string | null;
-        nome_condominio: string | null;
-      }>;
-    }
-  | { ok: false; error: string }
-> {
-  const auth = await getPainelDbForPublicEdit();
-  if (!auth.ok) return { ok: false, error: auth.error };
-  const supabase = await resolveSupabaseParaAgregadoPainelTarefas(auth);
+const PROCESSO_BATCH_CHECKLIST_PAINEL = 80;
 
+async function fetchProcessosParaLinhaChecklist(
+  supabase: SupabaseClient,
+  baseIds: string[],
+): Promise<{ roots: any[]; children: any[]; error?: string }> {
+  const sel =
+    'id, historico_base_id, cidade, estado, numero_franquia, nome_franqueado, nome_condominio, status, cancelado_em, removido_em';
+  const roots: any[] = [];
+  const children: any[] = [];
+  for (let i = 0; i < baseIds.length; i += PROCESSO_BATCH_CHECKLIST_PAINEL) {
+    const slice = baseIds.slice(i, i + PROCESSO_BATCH_CHECKLIST_PAINEL);
+    const { data: byId, error: e1 } = await supabase.from('processo_step_one').select(sel).in('id', slice);
+    const { data: byBase, error: e2 } = await supabase.from('processo_step_one').select(sel).in('historico_base_id', slice);
+    if (e1) return { roots: [], children: [], error: e1.message };
+    if (e2) return { roots: [], children: [], error: e2.message };
+    roots.push(...(byId ?? []));
+    children.push(...(byBase ?? []));
+  }
+  return { roots, children };
+}
+
+type AtividadesChecklistPainelOk = {
+  ok: true;
+  tarefas: Array<{
+    id: string;
+    processo_id: string;
+    etapa_painel: string;
+    titulo: string;
+    prazo: string | null;
+    time_nome: string | null;
+    responsavel_nome: string | null;
+    status: 'nao_iniciada' | 'em_andamento' | 'concluido';
+    processo_cidade: string;
+    processo_estado: string | null;
+    numero_franquia: string | null;
+    nome_franqueado: string | null;
+    nome_condominio: string | null;
+  }>;
+};
+
+async function montarAtividadesChecklistPainel(supabase: SupabaseClient): Promise<AtividadesChecklistPainelOk | { ok: false; error: string }> {
   let checklistRows: any[] = [];
 
   try {
@@ -1026,12 +1043,10 @@ export async function getAtividadesChecklistPainel(): Promise<
   let roots: any[] = [];
   let children: any[] = [];
   if (baseIds.length > 0) {
-    const sel =
-      'id, historico_base_id, cidade, estado, numero_franquia, nome_franqueado, nome_condominio, status, cancelado_em, removido_em';
-    const { data: byId } = await supabase.from('processo_step_one').select(sel).in('id', baseIds);
-    const { data: byBase } = await supabase.from('processo_step_one').select(sel).in('historico_base_id', baseIds);
-    roots = byId ?? [];
-    children = byBase ?? [];
+    const fetched = await fetchProcessosParaLinhaChecklist(supabase, baseIds);
+    if (fetched.error) return { ok: false, error: fetched.error };
+    roots = fetched.roots;
+    children = fetched.children;
   }
 
   const lineageByRowId = new Map<string, any>();
@@ -1086,6 +1101,26 @@ export async function getAtividadesChecklistPainel(): Promise<
     });
 
   return { ok: true, tarefas };
+}
+
+/** Painel de Tarefas: atividades do checklist do card (todas as etapas/cards do usuário). */
+export async function getAtividadesChecklistPainel(): Promise<
+  AtividadesChecklistPainelOk | { ok: false; error: string }
+> {
+  const auth = await getPainelDbForPublicEdit();
+  let supabase: SupabaseClient | null = null;
+  if (auth.ok) {
+    supabase = await resolveSupabaseParaAgregadoPainelTarefas(auth);
+  } else if (isPublicRedeNovosNegociosEnabled()) {
+    try {
+      supabase = createAdminClient();
+    } catch {
+      return { ok: false, error: auth.error };
+    }
+  } else {
+    return { ok: false, error: auth.error };
+  }
+  return montarAtividadesChecklistPainel(supabase);
 }
 
 /** Documentos (anexo + link) por card e etapa */
