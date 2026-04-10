@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, MessageSquare, CheckSquare, FileText, Paperclip, Copy, Check, History } from 'lucide-react';
+import { X, MessageSquare, CheckSquare, FileText, Paperclip, Copy, Check, History, Pencil } from 'lucide-react';
 import type { PainelColumnKey } from './painelColumns';
 import { PAINEL_COLUMNS } from './painelColumns';
 import {
@@ -26,6 +26,7 @@ import {
   updateStep1AreaChecklistLink,
   updateStep1AreaChecklistAnexo,
   addChecklistItem,
+  updateChecklistItem,
   toggleChecklistItem,
   updateChecklistItemStatus,
   removeChecklistItem,
@@ -78,6 +79,33 @@ import {
   FASES_CREDITO_DASHBOARD,
 } from '@/lib/painel/cancelamento-motivos';
 import { precisaMotivoReprovacaoComiteNoCancelamento } from '@/lib/painel/dashboard-etapas';
+import { itemMatchesResponsavelFilter, itemMatchesTimeFilter } from '@/lib/checklist-atividade-arrays';
+
+function prazoDbToDateInput(prazo: string | null): string {
+  const raw = (prazo ?? '').trim();
+  if (!raw) return '';
+  const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  return '';
+}
+
+function dateInputToPrazoDb(iso: string): string | null {
+  const t = iso.trim();
+  if (!t) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  const [y, m, d] = t.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function toggleNomeLista(list: string[], nome: string, ligado: boolean): string[] {
+  const s = nome.trim();
+  if (!s) return list;
+  const set = new Set(list);
+  if (ligado) set.add(s);
+  else set.delete(s);
+  return [...set].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+}
 
 const RESPONSAVEIS_POR_TIME: Record<string, string[]> = {
   Marketing: ['Negão'],
@@ -229,7 +257,15 @@ export function CardDetalheModal({
 
   const [loadingChecklistHistory, setLoadingChecklistHistory] = useState(false);
   const [checklistAnexosHistory, setChecklistAnexosHistory] = useState<
-    Array<{ id: string; autor_nome: string | null; etapa_painel: string | null; tipo: string; descricao: string | null; created_at: string }>
+    Array<{
+      id: string;
+      autor_nome: string | null;
+      etapa_painel: string | null;
+      tipo: string;
+      descricao: string | null;
+      created_at: string;
+      detalhes: Record<string, unknown> | null;
+    }>
   >([]);
 
   const [checklistItens, setChecklistItens] = useState<
@@ -237,6 +273,8 @@ export function CardDetalheModal({
       id: string;
       titulo: string;
       prazo: string | null;
+      times_nomes: string[];
+      responsaveis_nomes: string[];
       time_nome: string | null;
       responsavel_nome: string | null;
       status: 'nao_iniciada' | 'em_andamento' | 'concluido';
@@ -246,9 +284,18 @@ export function CardDetalheModal({
   >([]);
   const [novoChecklistTitulo, setNovoChecklistTitulo] = useState('');
   const [novoChecklistPrazo, setNovoChecklistPrazo] = useState('');
-  const [novoChecklistTime, setNovoChecklistTime] = useState('');
-  const [novoChecklistResponsavel, setNovoChecklistResponsavel] = useState('');
+  const [novoChecklistTimes, setNovoChecklistTimes] = useState<string[]>([]);
+  const [novoChecklistResponsaveis, setNovoChecklistResponsaveis] = useState<string[]>([]);
   const [novoChecklistStatus, setNovoChecklistStatus] = useState<'nao_iniciada' | 'em_andamento' | 'concluido'>('nao_iniciada');
+  const [atividadeEdicao, setAtividadeEdicao] = useState<null | {
+    id: string;
+    titulo: string;
+    prazoIso: string;
+    times: string[];
+    responsaveis: string[];
+    status: 'nao_iniciada' | 'em_andamento' | 'concluido';
+  }>(null);
+  const [salvandoEdicaoAtividade, setSalvandoEdicaoAtividade] = useState(false);
   const [loadingChecklist, setLoadingChecklist] = useState(false);
   const [loadingAcoplamentoChecklist, setLoadingAcoplamentoChecklist] = useState(false);
   const [updatingChecklistStatusId, setUpdatingChecklistStatusId] = useState<string | null>(null);
@@ -1394,24 +1441,18 @@ export function CardDetalheModal({
     if (!novoChecklistTitulo.trim()) return;
     setLoadingChecklist(true);
     try {
-      const prazoTrim = novoChecklistPrazo.trim();
-      const isISODate = /^\d{4}-\d{2}-\d{2}$/.test(prazoTrim);
-      // Mantém o padrão do projeto (ex.: 18/03/2026) mesmo quando o input retorna YYYY-MM-DD.
-      const prazoFormatado = isISODate
-        ? (() => {
-            const [y, m, d] = prazoTrim.split('-');
-            return `${d}/${m}/${y}`;
-          })()
-        : prazoTrim || null;
+      const prazoFormatado = dateInputToPrazoDb(novoChecklistPrazo);
 
       const res = await addChecklistItem(
         processoId,
         etapaAtual,
         novoChecklistTitulo,
         prazoFormatado,
-        novoChecklistTime || null,
-        novoChecklistResponsavel || null,
+        null,
+        null,
         novoChecklistStatus,
+        novoChecklistTimes,
+        novoChecklistResponsaveis,
       );
 
       if (!res.ok) {
@@ -1421,12 +1462,36 @@ export function CardDetalheModal({
 
       setNovoChecklistTitulo('');
       setNovoChecklistPrazo('');
-      setNovoChecklistTime('');
-      setNovoChecklistResponsavel('');
+      setNovoChecklistTimes([]);
+      setNovoChecklistResponsaveis([]);
       setNovoChecklistStatus('nao_iniciada');
       loadChecklist();
     } finally {
       setLoadingChecklist(false);
+    }
+  };
+
+  const handleSalvarEdicaoAtividade = async () => {
+    if (!atividadeEdicao) return;
+    setSalvandoEdicaoAtividade(true);
+    try {
+      const prazoFormatado = dateInputToPrazoDb(atividadeEdicao.prazoIso);
+      const res = await updateChecklistItem(atividadeEdicao.id, {
+        titulo: atividadeEdicao.titulo,
+        prazo: prazoFormatado,
+        timesNomes: atividadeEdicao.times,
+        responsaveisNomes: atividadeEdicao.responsaveis,
+        status: atividadeEdicao.status,
+      });
+      if (!res.ok) {
+        alert(res.error);
+        return;
+      }
+      setAtividadeEdicao(null);
+      await loadChecklist();
+      loadChecklistHistory();
+    } finally {
+      setSalvandoEdicaoAtividade(false);
     }
   };
 
@@ -1768,23 +1833,11 @@ export function CardDetalheModal({
     return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
   };
 
-  const checklistTimes = useMemo(() => {
-    const vals = new Set<string>();
-    for (const item of checklistItens) {
-      const t = (item.time_nome ?? '').trim();
-      if (t) vals.add(t);
-    }
-    return ['todos', ...Array.from(vals).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }))];
-  }, [checklistItens]);
-
   const checklistItensFiltradosOrdenados = useMemo(() => {
     const filtrados = checklistItens.filter((item) => {
       if (filtroChecklistStatus !== 'todos' && item.status !== filtroChecklistStatus) return false;
-      if (filtroChecklistTime !== 'todos' && (item.time_nome ?? '').trim() !== filtroChecklistTime) return false;
-      if (
-        filtroChecklistResponsavel !== 'todos' &&
-        (item.responsavel_nome ?? '').trim() !== filtroChecklistResponsavel
-      ) {
+      if (!itemMatchesTimeFilter(item.times_nomes, item.time_nome, filtroChecklistTime)) return false;
+      if (!itemMatchesResponsavelFilter(item.responsaveis_nomes, item.responsavel_nome, filtroChecklistResponsavel)) {
         return false;
       }
       return true;
@@ -1815,9 +1868,15 @@ export function CardDetalheModal({
 
     const fromItems = new Set<string>();
     for (const it of checklistItens) {
-      if (timeKey && (it.time_nome ?? '').trim() !== timeKey) continue;
-      const r = (it.responsavel_nome ?? '').trim();
-      if (r) fromItems.add(r);
+      if (timeKey && !itemMatchesTimeFilter(it.times_nomes, it.time_nome, timeKey)) continue;
+      const rs =
+        it.responsaveis_nomes.length > 0
+          ? it.responsaveis_nomes
+          : (it.responsavel_nome ?? '')
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean);
+      for (const r of rs) fromItems.add(r);
     }
 
     const normalized = new Set(base.map((x) => x.trim()).filter(Boolean));
@@ -1827,18 +1886,79 @@ export function CardDetalheModal({
   }, [checklistItens, filtroChecklistTime]);
 
   const checklistResponsaveisParaNovo = useMemo(() => {
-    const timeKey = (novoChecklistTime ?? '').trim();
-    const base = timeKey ? (RESPONSAVEIS_POR_TIME[timeKey] ?? []) : Object.values(RESPONSAVEIS_POR_TIME).flat();
-    const normalized = new Set(base.map((x) => x.trim()).filter(Boolean));
-
-    for (const it of checklistItens) {
-      if (timeKey && (it.time_nome ?? '').trim() !== timeKey) continue;
-      const r = (it.responsavel_nome ?? '').trim();
-      if (r) normalized.add(r);
+    const base = new Set<string>();
+    if (novoChecklistTimes.length === 0) {
+      for (const arr of Object.values(RESPONSAVEIS_POR_TIME)) {
+        for (const x of arr) base.add(x.trim());
+      }
+    } else {
+      for (const tk of novoChecklistTimes) {
+        for (const x of RESPONSAVEIS_POR_TIME[tk] ?? []) base.add(x.trim());
+      }
     }
 
-    return Array.from(normalized).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
-  }, [checklistItens, novoChecklistTime]);
+    for (const it of checklistItens) {
+      if (novoChecklistTimes.length > 0) {
+        const itTimes =
+          it.times_nomes.length > 0
+            ? it.times_nomes
+            : (it.time_nome ?? '')
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean);
+        if (!itTimes.some((t) => novoChecklistTimes.includes(t))) continue;
+      }
+      const rs =
+        it.responsaveis_nomes.length > 0
+          ? it.responsaveis_nomes
+          : (it.responsavel_nome ?? '')
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean);
+      for (const r of rs) {
+        if (r.trim()) base.add(r.trim());
+      }
+    }
+
+    return Array.from(base).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [checklistItens, novoChecklistTimes]);
+
+  const checklistResponsaveisParaEdicao = useMemo(() => {
+    const selTimes = atividadeEdicao?.times ?? [];
+    const base = new Set<string>();
+    if (selTimes.length === 0) {
+      for (const arr of Object.values(RESPONSAVEIS_POR_TIME)) {
+        for (const x of arr) base.add(x.trim());
+      }
+    } else {
+      for (const tk of selTimes) {
+        for (const x of RESPONSAVEIS_POR_TIME[tk] ?? []) base.add(x.trim());
+      }
+    }
+    for (const it of checklistItens) {
+      if (selTimes.length > 0) {
+        const itTimes =
+          it.times_nomes.length > 0
+            ? it.times_nomes
+            : (it.time_nome ?? '')
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean);
+        if (!itTimes.some((t) => selTimes.includes(t))) continue;
+      }
+      const rs =
+        it.responsaveis_nomes.length > 0
+          ? it.responsaveis_nomes
+          : (it.responsavel_nome ?? '')
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean);
+      for (const r of rs) {
+        if (r.trim()) base.add(r.trim());
+      }
+    }
+    return Array.from(base).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [checklistItens, atividadeEdicao?.times]);
 
   useEffect(() => {
     if (filtroChecklistResponsavel === 'todos') return;
@@ -1848,12 +1968,10 @@ export function CardDetalheModal({
   }, [checklistResponsaveisPorFiltro, filtroChecklistResponsavel]);
 
   useEffect(() => {
-    if (!novoChecklistResponsavel) return;
+    if (novoChecklistResponsaveis.length === 0) return;
     if (checklistResponsaveisParaNovo.length === 0) return;
-    if (!checklistResponsaveisParaNovo.includes(novoChecklistResponsavel)) {
-      setNovoChecklistResponsavel('');
-    }
-  }, [checklistResponsaveisParaNovo, novoChecklistResponsavel]);
+    setNovoChecklistResponsaveis((prev) => prev.filter((r) => checklistResponsaveisParaNovo.includes(r)));
+  }, [checklistResponsaveisParaNovo, novoChecklistTimes]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
@@ -2820,6 +2938,42 @@ export function CardDetalheModal({
                       <p className="mt-1 text-stone-700">{e.descricao ?? e.tipo}</p>
                       {e.etapa_painel ? (
                         <p className="mt-1 text-xs text-stone-500">Etapa: {e.etapa_painel}</p>
+                      ) : null}
+                      {e.tipo === 'checklist_edit' && e.detalhes ? (
+                        <details className="mt-2 rounded border border-stone-100 bg-stone-50 p-2 text-xs text-stone-600">
+                          <summary className="cursor-pointer font-medium text-stone-700">Ver alterações</summary>
+                          {(() => {
+                            const antes = e.detalhes.antes as Record<string, unknown> | undefined;
+                            const depois = e.detalhes.depois as Record<string, unknown> | undefined;
+                            if (!antes || !depois) {
+                              return (
+                                <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words">
+                                  {JSON.stringify(e.detalhes, null, 2)}
+                                </pre>
+                              );
+                            }
+                            const keys = ['titulo', 'prazo', 'times_nomes', 'responsaveis_nomes', 'status'] as const;
+                            return (
+                              <ul className="mt-2 space-y-1">
+                                {keys.map((k) => {
+                                  const a = antes[k];
+                                  const d = depois[k];
+                                  if (JSON.stringify(a) === JSON.stringify(d)) return null;
+                                  const fmt = (v: unknown) =>
+                                    Array.isArray(v) ? (v as string[]).join(', ') : String(v ?? '—');
+                                  return (
+                                    <li key={k}>
+                                      <span className="font-medium text-stone-700">{k}:</span>{' '}
+                                      <span className="text-red-700 line-through">{fmt(a)}</span>
+                                      {' → '}
+                                      <span className="text-green-800">{fmt(d)}</span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            );
+                          })()}
+                        </details>
                       ) : null}
                     </li>
                   ))}
@@ -5529,59 +5683,280 @@ export function CardDetalheModal({
                   <option value="responsavel">Ordenar por responsável</option>
                 </select>
               </div>
+
+              <div className="rounded-lg border border-moni-primary/25 bg-moni-primary/5 px-3 py-2 text-xs text-stone-700">
+                <p className="font-semibold text-stone-800">Vários times e responsáveis</p>
+                <p className="mt-1 text-stone-600">
+                  Marque <strong>uma ou mais</strong> caixas em Times e em Responsáveis. Para alterar título, prazo,
+                  times ou responsáveis depois de criada, use o botão <strong>Editar</strong> à direita de cada
+                  atividade.
+                </p>
+              </div>
+
+              <form onSubmit={handleAddChecklist} className="space-y-3 rounded-lg border border-stone-200 bg-stone-50/60 p-3">
+                <p className="text-xs font-semibold text-stone-600">Nova atividade</p>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_160px_200px_auto]">
+                  <input
+                    type="text"
+                    value={novoChecklistTitulo}
+                    onChange={(e) => setNovoChecklistTitulo(e.target.value)}
+                    placeholder="Atividade (o que fazer)"
+                    className="rounded border border-stone-300 px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="date"
+                    value={novoChecklistPrazo}
+                    onChange={(e) => setNovoChecklistPrazo(e.target.value)}
+                    className="rounded border border-stone-300 px-3 py-2 text-sm"
+                  />
+                  <select
+                    value={novoChecklistStatus}
+                    onChange={(e) =>
+                      setNovoChecklistStatus(e.target.value as 'nao_iniciada' | 'em_andamento' | 'concluido')
+                    }
+                    className="rounded border border-stone-300 px-3 py-2 text-sm"
+                  >
+                    <option value="nao_iniciada">Não iniciada</option>
+                    <option value="em_andamento">Em andamento</option>
+                    <option value="concluido">Concluída</option>
+                  </select>
+                  <button
+                    type="submit"
+                    disabled={loadingChecklist}
+                    className="rounded bg-moni-primary px-3 py-2 text-sm font-medium text-white hover:bg-moni-secondary disabled:opacity-50"
+                  >
+                    Adicionar
+                  </button>
+                </div>
+                <div>
+                  <p className="mb-1 text-xs font-medium text-stone-600">Times (um ou mais)</p>
+                  <div className="flex max-h-32 flex-wrap gap-x-3 gap-y-1 overflow-y-auto rounded border border-stone-200 bg-white p-2">
+                    {ATIVIDADE_TIMES.map((time) => (
+                      <label key={time} className="flex cursor-pointer items-center gap-1.5 text-xs text-stone-700">
+                        <input
+                          type="checkbox"
+                          checked={novoChecklistTimes.includes(time)}
+                          onChange={(e) =>
+                            setNovoChecklistTimes((prev) => toggleNomeLista(prev, time, e.target.checked))
+                          }
+                          className="h-3.5 w-3.5 rounded border-stone-300"
+                        />
+                        {time}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-1 text-xs font-medium text-stone-600">Responsáveis (um ou mais)</p>
+                  <div className="flex max-h-32 flex-wrap gap-x-3 gap-y-1 overflow-y-auto rounded border border-stone-200 bg-white p-2">
+                    {checklistResponsaveisParaNovo.map((r) => (
+                      <label key={r} className="flex cursor-pointer items-center gap-1.5 text-xs text-stone-700">
+                        <input
+                          type="checkbox"
+                          checked={novoChecklistResponsaveis.includes(r)}
+                          onChange={(e) =>
+                            setNovoChecklistResponsaveis((prev) => toggleNomeLista(prev, r, e.target.checked))
+                          }
+                          className="h-3.5 w-3.5 rounded border-stone-300"
+                        />
+                        {r}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </form>
+
+              <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Atividades do card</p>
               <ul className="space-y-2">
                 {checklistItensFiltradosOrdenados.map((item) => (
-                  <li key={item.id} className="flex items-start gap-2">
-                    <input
-                      type="checkbox"
-                      checked={item.concluido}
-                      onChange={() => handleToggleChecklist(item.id, item.concluido)}
-                      className="h-4 w-4 rounded border-stone-300"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className={`text-sm ${item.concluido ? 'text-stone-400 line-through' : 'text-stone-800'}`}
-                        style={{ wordBreak: 'break-word' }}
-                      >
-                        <span className="font-medium">Atividade:</span> {item.titulo}
-                      </p>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-500">
-                        <span>
-                          Prazo: <span className="font-medium text-stone-600">{item.prazo ?? '—'}</span>
-                        </span>
-                        <span>
-                          Time: <span className="font-medium text-stone-600">{item.time_nome ?? '—'}</span>
-                        </span>
-                        <span>
-                          Responsável: <span className="font-medium text-stone-600">{item.responsavel_nome ?? '—'}</span>
-                        </span>
-                        {getPrazoTag(item.prazo, item.status, item.concluido) === 'atrasado' && (
-                          <span className="rounded bg-red-100 px-1.5 py-0.5 font-medium text-red-800">Atrasado</span>
-                        )}
-                        {getPrazoTag(item.prazo, item.status, item.concluido) === 'atencao' && (
-                          <span className="rounded bg-yellow-100 px-1.5 py-0.5 font-medium text-yellow-800">Atenção</span>
-                        )}
-                        <select
-                          value={item.status}
-                          disabled={updatingChecklistStatusId === item.id}
-                          onChange={(e) =>
-                            handleChangeChecklistStatus(item.id, e.target.value as 'nao_iniciada' | 'em_andamento' | 'concluido')
+                  <li key={item.id} className="rounded-lg border border-stone-200 bg-white p-2">
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={item.concluido}
+                        onChange={() => handleToggleChecklist(item.id, item.concluido)}
+                        className="mt-1 h-4 w-4 rounded border-stone-300"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={`text-sm ${item.concluido ? 'text-stone-400 line-through' : 'text-stone-800'}`}
+                          style={{ wordBreak: 'break-word' }}
+                        >
+                          <span className="font-medium">Atividade:</span> {item.titulo}
+                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-500">
+                          <span>
+                            Prazo: <span className="font-medium text-stone-600">{item.prazo ?? '—'}</span>
+                          </span>
+                          <span>
+                            Times: <span className="font-medium text-stone-600">{item.time_nome?.trim() || '—'}</span>
+                          </span>
+                          <span>
+                            Responsáveis:{' '}
+                            <span className="font-medium text-stone-600">{item.responsavel_nome?.trim() || '—'}</span>
+                          </span>
+                          {getPrazoTag(item.prazo, item.status, item.concluido) === 'atrasado' && (
+                            <span className="rounded bg-red-100 px-1.5 py-0.5 font-medium text-red-800">Atrasado</span>
+                          )}
+                          {getPrazoTag(item.prazo, item.status, item.concluido) === 'atencao' && (
+                            <span className="rounded bg-yellow-100 px-1.5 py-0.5 font-medium text-yellow-800">Atenção</span>
+                          )}
+                          <select
+                            value={item.status}
+                            disabled={updatingChecklistStatusId === item.id}
+                            onChange={(e) =>
+                              handleChangeChecklistStatus(
+                                item.id,
+                                e.target.value as 'nao_iniciada' | 'em_andamento' | 'concluido',
+                              )
+                            }
+                            className="ml-auto min-w-[170px] rounded border border-stone-300 px-2 py-1 text-xs"
+                          >
+                            <option value="nao_iniciada">Não iniciada</option>
+                            <option value="em_andamento">Em andamento</option>
+                            <option value="concluido">Concluída</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-stretch gap-1.5 sm:items-end">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAtividadeEdicao({
+                              id: item.id,
+                              titulo: item.titulo,
+                              prazoIso: prazoDbToDateInput(item.prazo),
+                              times:
+                                item.times_nomes.length > 0
+                                  ? [...item.times_nomes]
+                                  : (item.time_nome ?? '')
+                                      .split(',')
+                                      .map((s) => s.trim())
+                                      .filter(Boolean),
+                              responsaveis:
+                                item.responsaveis_nomes.length > 0
+                                  ? [...item.responsaveis_nomes]
+                                  : (item.responsavel_nome ?? '')
+                                      .split(',')
+                                      .map((s) => s.trim())
+                                      .filter(Boolean),
+                              status: item.status,
+                            })
                           }
-                          className="ml-auto min-w-[170px] rounded border border-stone-300 px-2 py-1 text-xs"
+                          className="inline-flex items-center justify-center gap-1 rounded-md border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-medium text-stone-800 shadow-sm hover:bg-stone-50"
+                        >
+                          <Pencil className="h-3.5 w-3.5 text-moni-primary" aria-hidden />
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveChecklist(item.id)}
+                          className="text-xs text-red-600 hover:underline"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    </div>
+                    {atividadeEdicao?.id === item.id ? (
+                      <div className="mt-3 space-y-3 border-t border-stone-100 pt-3">
+                        <p className="text-xs font-semibold text-stone-600">Editar atividade</p>
+                        <input
+                          type="text"
+                          value={atividadeEdicao.titulo}
+                          onChange={(e) => setAtividadeEdicao((p) => (p ? { ...p, titulo: e.target.value } : p))}
+                          className="w-full rounded border border-stone-300 px-3 py-2 text-sm"
+                        />
+                        <input
+                          type="date"
+                          value={atividadeEdicao.prazoIso}
+                          onChange={(e) => setAtividadeEdicao((p) => (p ? { ...p, prazoIso: e.target.value } : p))}
+                          className="w-full max-w-[200px] rounded border border-stone-300 px-3 py-2 text-sm"
+                        />
+                        <div>
+                          <p className="mb-1 text-xs font-medium text-stone-600">Times</p>
+                          <div className="flex max-h-28 flex-wrap gap-x-3 gap-y-1 overflow-y-auto rounded border border-stone-200 bg-stone-50/80 p-2">
+                            {ATIVIDADE_TIMES.map((time) => (
+                              <label key={time} className="flex cursor-pointer items-center gap-1.5 text-xs text-stone-700">
+                                <input
+                                  type="checkbox"
+                                  checked={atividadeEdicao.times.includes(time)}
+                                  onChange={(e) =>
+                                    setAtividadeEdicao((p) =>
+                                      p
+                                        ? { ...p, times: toggleNomeLista(p.times, time, e.target.checked) }
+                                        : p,
+                                    )
+                                  }
+                                  className="h-3.5 w-3.5 rounded border-stone-300"
+                                />
+                                {time}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="mb-1 text-xs font-medium text-stone-600">Responsáveis</p>
+                          <div className="flex max-h-28 flex-wrap gap-x-3 gap-y-1 overflow-y-auto rounded border border-stone-200 bg-stone-50/80 p-2">
+                            {checklistResponsaveisParaEdicao.map((r) => (
+                              <label key={r} className="flex cursor-pointer items-center gap-1.5 text-xs text-stone-700">
+                                <input
+                                  type="checkbox"
+                                  checked={atividadeEdicao.responsaveis.includes(r)}
+                                  onChange={(e) =>
+                                    setAtividadeEdicao((p) =>
+                                      p
+                                        ? {
+                                            ...p,
+                                            responsaveis: toggleNomeLista(p.responsaveis, r, e.target.checked),
+                                          }
+                                        : p,
+                                    )
+                                  }
+                                  className="h-3.5 w-3.5 rounded border-stone-300"
+                                />
+                                {r}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        <select
+                          value={atividadeEdicao.status}
+                          onChange={(e) =>
+                            setAtividadeEdicao((p) =>
+                              p
+                                ? {
+                                    ...p,
+                                    status: e.target.value as 'nao_iniciada' | 'em_andamento' | 'concluido',
+                                  }
+                                : p,
+                            )
+                          }
+                          className="rounded border border-stone-300 px-2 py-1 text-sm"
                         >
                           <option value="nao_iniciada">Não iniciada</option>
                           <option value="em_andamento">Em andamento</option>
                           <option value="concluido">Concluída</option>
                         </select>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            disabled={salvandoEdicaoAtividade}
+                            onClick={() => void handleSalvarEdicaoAtividade()}
+                            className="rounded bg-moni-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-moni-secondary disabled:opacity-50"
+                          >
+                            {salvandoEdicaoAtividade ? 'Salvando…' : 'Salvar alterações'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={salvandoEdicaoAtividade}
+                            onClick={() => setAtividadeEdicao(null)}
+                            className="rounded border border-stone-300 px-3 py-1.5 text-xs text-stone-700 hover:bg-stone-50"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveChecklist(item.id)}
-                      className="ml-auto text-xs text-red-600 hover:underline"
-                    >
-                      Remover
-                    </button>
+                    ) : null}
                   </li>
                 ))}
                 {checklistItensFiltradosOrdenados.length === 0 && (
@@ -5590,64 +5965,6 @@ export function CardDetalheModal({
                   </li>
                 )}
               </ul>
-              <form onSubmit={handleAddChecklist} className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_150px_170px_200px_170px_auto]">
-                <input
-                  type="text"
-                  value={novoChecklistTitulo}
-                  onChange={(e) => setNovoChecklistTitulo(e.target.value)}
-                  placeholder="Atividade (o que fazer)"
-                  className="rounded border border-stone-300 px-3 py-2 text-sm"
-                />
-                <input
-                  type="date"
-                  value={novoChecklistPrazo}
-                  onChange={(e) => setNovoChecklistPrazo(e.target.value)}
-                  placeholder=""
-                  className="rounded border border-stone-300 px-3 py-2 text-sm"
-                />
-                <select
-                  value={novoChecklistTime}
-                  onChange={(e) => setNovoChecklistTime(e.target.value)}
-                  className="rounded border border-stone-300 px-3 py-2 text-sm"
-                >
-                  <option value="">Time</option>
-                  {ATIVIDADE_TIMES.map((time) => (
-                    <option key={time} value={time}>
-                      {time}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={novoChecklistResponsavel}
-                  onChange={(e) => setNovoChecklistResponsavel(e.target.value)}
-                  className="rounded border border-stone-300 px-3 py-2 text-sm"
-                >
-                  <option value="">Responsável</option>
-                  {checklistResponsaveisParaNovo.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={novoChecklistStatus}
-                  onChange={(e) =>
-                    setNovoChecklistStatus(e.target.value as 'nao_iniciada' | 'em_andamento' | 'concluido')
-                  }
-                  className="rounded border border-stone-300 px-3 py-2 text-sm"
-                >
-                  <option value="nao_iniciada">Não iniciada</option>
-                  <option value="em_andamento">Em andamento</option>
-                  <option value="concluido">Concluída</option>
-                </select>
-                <button
-                  type="submit"
-                  disabled={loadingChecklist}
-                  className="rounded bg-moni-primary px-3 py-2 text-sm text-white hover:bg-moni-secondary disabled:opacity-50"
-                >
-                  Adicionar
-                </button>
-              </form>
             </div>
           )}
 

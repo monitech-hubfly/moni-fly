@@ -1,4 +1,5 @@
 import { ATIVIDADE_TIMES } from '@/lib/atividade-times';
+import { itemMatchesTimeFilter } from '@/lib/checklist-atividade-arrays';
 
 /** Classes compartilhadas: mesmo padrão do grid de filtros da aba Atividades no card. */
 export const PAINEL_TAREFAS_SELECT_CLASS =
@@ -95,6 +96,8 @@ export type TarefaPainelFiltroRow = {
   titulo: string;
   time_nome: string | null;
   responsavel_nome: string | null;
+  times_nomes?: string[];
+  responsaveis_nomes?: string[];
   prazo: string | null;
   status: string;
   numero_franquia?: string | null;
@@ -121,7 +124,7 @@ export function aplicarFiltrosTarefasPainel<T extends TarefaPainelFiltroRow>(
     if (filtros.status !== 'todos' && t.status !== filtros.status) return false;
     const tagPrazo = getPrazoTagAtividade(t.prazo, t.status);
     if (filtros.tag !== 'todas' && tagPrazo !== filtros.tag) return false;
-    if (filtros.time !== 'todos' && (t.time_nome ?? '').trim() !== filtros.time) return false;
+    if (!itemMatchesTimeFilter(t.times_nomes, t.time_nome, filtros.time)) return false;
     if (filtros.franqueado !== 'todos' && (t.nome_franqueado ?? '').trim() !== filtros.franqueado) return false;
     if (filtros.etapa !== 'todas' && (t.etapa_painel ?? '').trim() !== filtros.etapa) return false;
     const buscaNorm = normalizarParaBusca(filtros.busca);

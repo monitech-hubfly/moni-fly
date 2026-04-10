@@ -7,6 +7,12 @@ import { revalidatePath } from 'next/cache';
 import { getPainelDbForPublicEdit } from '@/lib/painel-public-edit';
 import type { PainelColumnKey } from './painelColumns';
 import { PAINEL_COLUMNS } from './painelColumns';
+import {
+  formatNomesLista,
+  legacySinglesFromLists,
+  normalizeNomeList,
+  parseTextArrayColumn,
+} from '@/lib/checklist-atividade-arrays';
 
 export type CardActionResult = { ok: true } | { ok: false; error: string };
 export type ShareFormType = 'legal' | 'credito';
@@ -46,6 +52,77 @@ function erroStatusFaltando(err: unknown): boolean {
 function erroTimeFaltando(err: unknown): boolean {
   const msg = String((err as any)?.message ?? err ?? '').toLowerCase();
   return msg.includes('processo_card_checklist') && msg.includes("'time_nome'") && msg.includes('column');
+}
+
+function erroTimesNomesFaltando(err: unknown): boolean {
+  const msg = String((err as any)?.message ?? err ?? '').toLowerCase();
+  return (
+    msg.includes('processo_card_checklist') &&
+    (msg.includes("'times_nomes'") || msg.includes("'responsaveis_nomes'")) &&
+    msg.includes('column')
+  );
+}
+
+function erroTimesNomesNaMensagem(msg: string | undefined | null): boolean {
+  const m = String(msg ?? '').toLowerCase();
+  return m.includes('times_nomes') || m.includes('responsaveis_nomes');
+}
+
+function mapChecklistRowToItem(it: Record<string, unknown>): {
+  id: string;
+  titulo: string;
+  prazo: string | null;
+  times_nomes: string[];
+  responsaveis_nomes: string[];
+  time_nome: string | null;
+  responsavel_nome: string | null;
+  status: 'nao_iniciada' | 'em_andamento' | 'concluido';
+  concluido: boolean;
+  ordem: number;
+} {
+  const timesRaw = parseTextArrayColumn(it.times_nomes);
+  const respsRaw = parseTextArrayColumn(it.responsaveis_nomes);
+  const legTime = String(it.time_nome ?? '').trim();
+  const legResp = String(it.responsavel_nome ?? '').trim();
+  const times_nomes = normalizeNomeList(
+    timesRaw.length > 0
+      ? timesRaw
+      : legTime
+        ? legTime.split(',').map((s) => s.trim()).filter(Boolean)
+        : [],
+  );
+  const responsaveis_nomes = normalizeNomeList(
+    respsRaw.length > 0
+      ? respsRaw
+      : legResp
+        ? legResp.split(',').map((s) => s.trim()).filter(Boolean)
+        : [],
+  );
+  const concluido = Boolean(it.concluido);
+  const statusRaw = it.status as string | undefined;
+  const status =
+    statusRaw === 'em_andamento' || statusRaw === 'concluido' || statusRaw === 'nao_iniciada'
+      ? statusRaw
+      : concluido
+        ? 'concluido'
+        : 'nao_iniciada';
+  return {
+    id: String(it.id ?? ''),
+    titulo: String(it.titulo ?? ''),
+    prazo: (it.prazo as string | null) ?? null,
+    times_nomes,
+    responsaveis_nomes,
+    time_nome: formatNomesLista(times_nomes),
+    responsavel_nome: formatNomesLista(responsaveis_nomes),
+    status,
+    concluido,
+    ordem: Number(it.ordem ?? 0),
+  };
+}
+
+function revalidatePainelETarefas() {
+  revalidatePath('/painel-novos-negocios');
+  revalidatePath('/painel-novos-negocios/tarefas');
 }
 
 async function resolveAutorNome(
@@ -202,6 +279,7 @@ export async function getCardChecklistAnexosHistory(processoId: string): Promise
         tipo: string;
         descricao: string | null;
         created_at: string;
+        detalhes: Record<string, unknown> | null;
       }>;
     }
   | { ok: false; error: string }
@@ -213,7 +291,7 @@ export async function getCardChecklistAnexosHistory(processoId: string): Promise
   const baseId = await resolveHistoricoBaseId(supabase, processoId);
   const { data, error } = await supabase
     .from('processo_card_eventos')
-    .select('id, autor_nome, etapa_painel, tipo, descricao, created_at')
+    .select('id, autor_nome, etapa_painel, tipo, descricao, created_at, detalhes')
     .eq('processo_id', baseId)
     .order('created_at', { ascending: true });
 
@@ -229,6 +307,7 @@ export async function getCardChecklistAnexosHistory(processoId: string): Promise
       descricao: (e.descricao ?? null) as string | null,
       tipo: String(e.tipo ?? ''),
       id: String(e.id),
+      detalhes: (e.detalhes && typeof e.detalhes === 'object' ? e.detalhes : null) as Record<string, unknown> | null,
     }));
 
   return { ok: true, eventos };
@@ -366,6 +445,8 @@ export async function getChecklistCard(processoId: string, etapaPainel: string):
         id: string;
         titulo: string;
         prazo: string | null;
+        times_nomes: string[];
+        responsaveis_nomes: string[];
         time_nome: string | null;
         responsavel_nome: string | null;
         status: 'nao_iniciada' | 'em_andamento' | 'concluido';
@@ -383,35 +464,36 @@ export async function getChecklistCard(processoId: string, etapaPainel: string):
   try {
     const { data, error } = await supabase
       .from('processo_card_checklist')
-      .select('id, titulo, prazo, time_nome, responsavel_nome, concluido, status, ordem')
+      .select(
+        'id, titulo, prazo, time_nome, responsavel_nome, times_nomes, responsaveis_nomes, concluido, status, ordem',
+      )
       .eq('processo_id', baseId)
       .eq('etapa_painel', etapaPainel)
       .order('ordem', { ascending: true });
 
     if (error) return { ok: false, error: error.message };
-    return { ok: true, itens: (data ?? []) as any };
+    return { ok: true, itens: (data ?? []).map((it) => mapChecklistRowToItem(it as Record<string, unknown>)) };
   } catch (err) {
-    if (!erroStatusFaltando(err) && !erroTimeFaltando(err)) {
+    if (!erroStatusFaltando(err) && !erroTimeFaltando(err) && !erroTimesNomesFaltando(err)) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
     try {
-      // Fallback: sem coluna status e/ou time_nome.
       const { data, error } = await supabase
         .from('processo_card_checklist')
-        .select('id, titulo, prazo, time_nome, responsavel_nome, concluido, ordem')
+        .select('id, titulo, prazo, time_nome, responsavel_nome, concluido, status, ordem')
         .eq('processo_id', baseId)
         .eq('etapa_painel', etapaPainel)
         .order('ordem', { ascending: true });
 
       if (error) return { ok: false, error: error.message };
 
-      const itens = (data ?? []).map((it: any) => ({
-        ...it,
-        status: it.concluido ? 'concluido' : 'nao_iniciada',
-      }));
+      const itens = (data ?? []).map((it: Record<string, unknown>) => {
+        const row = { ...it, times_nomes: [], responsaveis_nomes: [] };
+        return mapChecklistRowToItem(row);
+      });
       return { ok: true, itens };
     } catch (err2) {
-      if (!erroTimeFaltando(err2) && !erroStatusFaltando(err2)) {
+      if (!erroTimeFaltando(err2) && !erroStatusFaltando(err2) && !erroTimesNomesFaltando(err2)) {
         return { ok: false, error: err2 instanceof Error ? err2.message : String(err2) };
       }
       const { data, error } = await supabase
@@ -421,11 +503,9 @@ export async function getChecklistCard(processoId: string, etapaPainel: string):
         .eq('etapa_painel', etapaPainel)
         .order('ordem', { ascending: true });
       if (error) return { ok: false, error: error.message };
-      const itens = (data ?? []).map((it: any) => ({
-        ...it,
-        time_nome: null,
-        status: it.concluido ? 'concluido' : 'nao_iniciada',
-      }));
+      const itens = (data ?? []).map((it: Record<string, unknown>) =>
+        mapChecklistRowToItem({ ...it, time_nome: null, times_nomes: [], responsaveis_nomes: [] }),
+      );
       return { ok: true, itens };
     }
   }
@@ -439,6 +519,8 @@ export async function addChecklistItem(
   timeNome?: string | null,
   responsavelNome?: string | null,
   status: 'nao_iniciada' | 'em_andamento' | 'concluido' = 'nao_iniciada',
+  timesNomes?: string[] | null,
+  responsaveisNomes?: string[] | null,
 ): Promise<CardActionResult> {
   const auth = await getPainelDbForPublicEdit();
   if (!auth.ok) return { ok: false, error: auth.error };
@@ -454,48 +536,56 @@ export async function addChecklistItem(
     .single();
   const ordem = ((max as { ordem?: number })?.ordem ?? -1) + 1;
   const concluido = status === 'concluido';
-  try {
-    const { error } = await supabase.from('processo_card_checklist').insert({
-      processo_id: baseId,
-      etapa_painel: etapaPainel,
-      titulo: titulo.trim(),
-      prazo: prazo && prazo.trim() !== '' ? prazo.trim() : null,
-      time_nome: timeNome && timeNome.trim() !== '' ? timeNome.trim() : null,
-      responsavel_nome: responsavelNome && responsavelNome.trim() !== '' ? responsavelNome.trim() : null,
-      concluido,
-      status,
-      ordem,
-    });
-    if (error) return { ok: false, error: error.message };
-  } catch (err) {
-    if (!erroStatusFaltando(err) && !erroTimeFaltando(err)) return { ok: false, error: err instanceof Error ? err.message : String(err) };
-    try {
-      const { error } = await supabase.from('processo_card_checklist').insert({
-        processo_id: baseId,
-        etapa_painel: etapaPainel,
-        titulo: titulo.trim(),
-        prazo: prazo && prazo.trim() !== '' ? prazo.trim() : null,
-        time_nome: timeNome && timeNome.trim() !== '' ? timeNome.trim() : null,
-        responsavel_nome: responsavelNome && responsavelNome.trim() !== '' ? responsavelNome.trim() : null,
-        concluido,
-        ordem,
-      });
-      if (error) return { ok: false, error: error.message };
-    } catch (err2) {
-      if (!erroTimeFaltando(err2)) return { ok: false, error: err2 instanceof Error ? err2.message : String(err2) };
-      const { error } = await supabase.from('processo_card_checklist').insert({
-        processo_id: baseId,
-        etapa_painel: etapaPainel,
-        titulo: titulo.trim(),
-        prazo: prazo && prazo.trim() !== '' ? prazo.trim() : null,
-        responsavel_nome: responsavelNome && responsavelNome.trim() !== '' ? responsavelNome.trim() : null,
-        concluido,
-        ordem,
-      });
-      if (error) return { ok: false, error: error.message };
+  const times = normalizeNomeList(
+    timesNomes != null && timesNomes.length > 0
+      ? timesNomes
+      : timeNome && timeNome.trim() !== ''
+        ? [timeNome]
+        : [],
+  );
+  const resps = normalizeNomeList(
+    responsaveisNomes != null && responsaveisNomes.length > 0
+      ? responsaveisNomes
+      : responsavelNome && responsavelNome.trim() !== ''
+        ? [responsavelNome]
+        : [],
+  );
+  const { time_nome, responsavel_nome } = legacySinglesFromLists(times, resps);
+  const basePayload: Record<string, unknown> = {
+    processo_id: baseId,
+    etapa_painel: etapaPainel,
+    titulo: titulo.trim(),
+    prazo: prazo && prazo.trim() !== '' ? prazo.trim() : null,
+    time_nome,
+    responsavel_nome,
+    times_nomes: times,
+    responsaveis_nomes: resps,
+    concluido,
+    status,
+    ordem,
+  };
+  const withoutArrays = { ...basePayload };
+  delete withoutArrays.times_nomes;
+  delete withoutArrays.responsaveis_nomes;
+  const withoutStatus = { ...withoutArrays };
+  delete withoutStatus.status;
+  const minimalPayload = { ...withoutStatus };
+  delete minimalPayload.time_nome;
+
+  const attempts: Record<string, unknown>[] = [basePayload, withoutArrays, withoutStatus, minimalPayload];
+  let lastMsg = '';
+  let insertOk = false;
+  for (const payload of attempts) {
+    const { error } = await supabase.from('processo_card_checklist').insert(payload);
+    if (!error) {
+      insertOk = true;
+      break;
     }
+    lastMsg = error.message;
   }
-  revalidatePath('/painel-novos-negocios');
+  if (!insertOk) return { ok: false, error: lastMsg || 'Falha ao inserir atividade.' };
+
+  revalidatePainelETarefas();
 
   await registrarEventoCard(
     supabase,
@@ -505,7 +595,126 @@ export async function addChecklistItem(
     etapaPainel,
     'checklist_add',
     `Atividade adicionada`,
-    { titulo: titulo.trim(), prazo: prazo ?? null, time_nome: timeNome ?? null, responsavel_nome: responsavelNome ?? null, status },
+    {
+      titulo: titulo.trim(),
+      prazo: prazo ?? null,
+      times_nomes: times,
+      responsaveis_nomes: resps,
+      time_nome: time_nome,
+      responsavel_nome: responsavel_nome,
+      status,
+    },
+  );
+  return { ok: true };
+}
+
+export async function updateChecklistItem(
+  itemId: string,
+  patch: {
+    titulo?: string;
+    prazo?: string | null;
+    timesNomes?: string[];
+    responsaveisNomes?: string[];
+    status?: 'nao_iniciada' | 'em_andamento' | 'concluido';
+  },
+): Promise<CardActionResult> {
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
+
+  const { data: row, error: fetchErr } = await supabase
+    .from('processo_card_checklist')
+    .select(
+      'processo_id, etapa_painel, titulo, prazo, time_nome, responsavel_nome, times_nomes, responsaveis_nomes, status, concluido',
+    )
+    .eq('id', itemId)
+    .maybeSingle();
+  if (fetchErr) return { ok: false, error: fetchErr.message };
+  if (!row) return { ok: false, error: 'Item não encontrado.' };
+
+  const before = mapChecklistRowToItem(row as Record<string, unknown>);
+
+  const titulo =
+    patch.titulo !== undefined ? (patch.titulo.trim() || before.titulo) : before.titulo;
+  const prazo =
+    patch.prazo !== undefined
+      ? patch.prazo && String(patch.prazo).trim() !== ''
+        ? String(patch.prazo).trim()
+        : null
+      : before.prazo;
+  const times = patch.timesNomes !== undefined ? normalizeNomeList(patch.timesNomes) : before.times_nomes;
+  const resps =
+    patch.responsaveisNomes !== undefined ? normalizeNomeList(patch.responsaveisNomes) : before.responsaveis_nomes;
+  const status = patch.status !== undefined ? patch.status : before.status;
+  const concluido = status === 'concluido';
+  const { time_nome, responsavel_nome } = legacySinglesFromLists(times, resps);
+
+  const antesResumo = {
+    titulo: before.titulo,
+    prazo: before.prazo,
+    times_nomes: before.times_nomes,
+    responsaveis_nomes: before.responsaveis_nomes,
+    status: before.status,
+  };
+  const depoisResumo = {
+    titulo,
+    prazo,
+    times_nomes: times,
+    responsaveis_nomes: resps,
+    status,
+  };
+
+  const same =
+    antesResumo.titulo === depoisResumo.titulo &&
+    antesResumo.prazo === depoisResumo.prazo &&
+    JSON.stringify(antesResumo.times_nomes) === JSON.stringify(depoisResumo.times_nomes) &&
+    JSON.stringify(antesResumo.responsaveis_nomes) === JSON.stringify(depoisResumo.responsaveis_nomes) &&
+    antesResumo.status === depoisResumo.status;
+  if (same) return { ok: true };
+
+  const fullUpdate: Record<string, unknown> = {
+    titulo,
+    prazo,
+    time_nome,
+    responsavel_nome,
+    times_nomes: times,
+    responsaveis_nomes: resps,
+    status,
+    concluido,
+    updated_at: new Date().toISOString(),
+  };
+  const withoutArrays = { ...fullUpdate };
+  delete withoutArrays.times_nomes;
+  delete withoutArrays.responsaveis_nomes;
+  const withoutStatus = { ...withoutArrays };
+  delete withoutStatus.status;
+
+  let lastMsg = '';
+  let ok = false;
+  for (const payload of [fullUpdate, withoutArrays, withoutStatus]) {
+    const { error } = await supabase.from('processo_card_checklist').update(payload).eq('id', itemId);
+    if (!error) {
+      ok = true;
+      break;
+    }
+    lastMsg = error.message;
+    if (!erroTimesNomesNaMensagem(lastMsg) && !erroStatusFaltando({ message: lastMsg })) {
+      return { ok: false, error: lastMsg };
+    }
+  }
+  if (!ok) return { ok: false, error: lastMsg || 'Falha ao atualizar atividade.' };
+
+  revalidatePainelETarefas();
+
+  await registrarEventoCard(
+    supabase,
+    String((row as { processo_id?: string }).processo_id ?? ''),
+    userId,
+    autorNome,
+    (row as { etapa_painel?: string | null }).etapa_painel,
+    'checklist_edit',
+    'Atividade atualizada',
+    { item_id: itemId, antes: antesResumo, depois: depoisResumo },
   );
   return { ok: true };
 }
@@ -536,7 +745,7 @@ export async function toggleChecklistItem(itemId: string, concluido: boolean): P
       .eq('id', itemId);
     if (error) return { ok: false, error: error.message };
   }
-  revalidatePath('/painel-novos-negocios');
+  revalidatePainelETarefas();
 
   await registrarEventoCard(
     supabase,
@@ -587,7 +796,7 @@ export async function updateChecklistItemStatus(itemId: string, status: 'nao_ini
       .eq('id', itemId);
     if (error) return { ok: false, error: error.message };
   }
-  revalidatePath('/painel-novos-negocios');
+  revalidatePainelETarefas();
 
   await registrarEventoCard(
     supabase,
@@ -675,7 +884,7 @@ export async function removeChecklistItem(itemId: string): Promise<CardActionRes
 
   const { error } = await supabase.from('processo_card_checklist').delete().eq('id', itemId);
   if (error) return { ok: false, error: error.message };
-  revalidatePath('/painel-novos-negocios');
+  revalidatePainelETarefas();
 
   await registrarEventoCard(
     supabase,
@@ -970,6 +1179,8 @@ type AtividadesChecklistPainelOk = {
     etapa_painel: string;
     titulo: string;
     prazo: string | null;
+    times_nomes: string[];
+    responsaveis_nomes: string[];
     time_nome: string | null;
     responsavel_nome: string | null;
     status: 'nao_iniciada' | 'em_andamento' | 'concluido';
@@ -987,13 +1198,17 @@ async function montarAtividadesChecklistPainel(supabase: SupabaseClient): Promis
   try {
     const { data, error } = await supabase
       .from('processo_card_checklist')
-      .select('id, processo_id, etapa_painel, titulo, prazo, time_nome, responsavel_nome, status, concluido')
+      .select(
+        'id, processo_id, etapa_painel, titulo, prazo, time_nome, responsavel_nome, times_nomes, responsaveis_nomes, status, concluido',
+      )
       .order('ordem', { ascending: true });
 
     if (error) return { ok: false, error: error.message };
     checklistRows = data ?? [];
   } catch (err) {
-    if (!erroStatusFaltando(err) && !erroTimeFaltando(err)) return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    if (!erroStatusFaltando(err) && !erroTimeFaltando(err) && !erroTimesNomesFaltando(err)) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
     try {
       const { data, error } = await supabase
         .from('processo_card_checklist')
@@ -1004,10 +1219,14 @@ async function montarAtividadesChecklistPainel(supabase: SupabaseClient): Promis
 
       checklistRows = (data ?? []).map((r: any) => ({
         ...r,
+        times_nomes: [],
+        responsaveis_nomes: [],
         status: r.concluido ? 'concluido' : 'nao_iniciada',
       }));
     } catch (err2) {
-      if (!erroTimeFaltando(err2) && !erroStatusFaltando(err2)) return { ok: false, error: err2 instanceof Error ? err2.message : String(err2) };
+      if (!erroTimeFaltando(err2) && !erroStatusFaltando(err2) && !erroTimesNomesFaltando(err2)) {
+        return { ok: false, error: err2 instanceof Error ? err2.message : String(err2) };
+      }
       const { data, error } = await supabase
         .from('processo_card_checklist')
         .select('id, processo_id, etapa_painel, titulo, prazo, responsavel_nome, concluido')
@@ -1016,6 +1235,8 @@ async function montarAtividadesChecklistPainel(supabase: SupabaseClient): Promis
       checklistRows = (data ?? []).map((r: any) => ({
         ...r,
         time_nome: null,
+        times_nomes: [],
+        responsaveis_nomes: [],
         status: r.concluido ? 'concluido' : 'nao_iniciada',
       }));
     }
@@ -1066,15 +1287,18 @@ async function montarAtividadesChecklistPainel(supabase: SupabaseClient): Promis
     .filter((r: any) => !excludedBases.has(String(r.processo_id)))
     .map((r: any) => {
     const p = procMap.get(r.processo_id);
+    const mapped = mapChecklistRowToItem(r as Record<string, unknown>);
     return {
-      id: String(r.id),
+      id: mapped.id,
       processo_id: String(r.processo_id),
       etapa_painel: String(r.etapa_painel ?? ''),
-      titulo: String(r.titulo ?? ''),
-      prazo: (r.prazo as string | null) ?? null,
-      time_nome: (r.time_nome as string | null) ?? null,
-      responsavel_nome: (r.responsavel_nome as string | null) ?? null,
-      status: (r.status as any) ?? (r.concluido ? 'concluido' : 'nao_iniciada'),
+      titulo: mapped.titulo,
+      prazo: mapped.prazo,
+      times_nomes: mapped.times_nomes,
+      responsaveis_nomes: mapped.responsaveis_nomes,
+      time_nome: mapped.time_nome,
+      responsavel_nome: mapped.responsavel_nome,
+      status: mapped.status,
       processo_cidade: (p as { cidade?: string } | undefined)?.cidade ?? '',
       processo_estado: (p as { estado?: string | null } | undefined)?.estado ?? null,
       numero_franquia: (p as { numero_franquia?: string | null } | undefined)?.numero_franquia ?? null,

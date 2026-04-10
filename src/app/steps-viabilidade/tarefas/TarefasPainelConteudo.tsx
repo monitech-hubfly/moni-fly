@@ -22,6 +22,8 @@ type Tarefa = {
   processo_id: string;
   etapa_painel: string;
   titulo: string;
+  times_nomes?: string[];
+  responsaveis_nomes?: string[];
   time_nome: string | null;
   responsavel_nome: string | null;
   prazo: string | null;
@@ -92,7 +94,17 @@ export function TarefasPainelConteudo({ basePath = '/painel-novos-negocios' }: T
   const etapaLabel = (key: string) => PAINEL_COLUMNS.find((c) => c.key === key)?.title ?? key;
 
   const timesDisponiveis = useMemo(
-    () => mergeTimesDisponiveis(tarefas.map((t) => (t.time_nome ?? '').trim()).filter(Boolean)),
+    () =>
+      mergeTimesDisponiveis(
+        tarefas.flatMap((t) => {
+          const arr = (t.times_nomes ?? []).map((x) => x.trim()).filter(Boolean);
+          if (arr.length) return arr;
+          return (t.time_nome ?? '')
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+        }),
+      ),
     [tarefas],
   );
   const franqueadosDisponiveis = useMemo(
@@ -310,11 +322,11 @@ export function TarefasPainelConteudo({ basePath = '/painel-novos-negocios' }: T
                       </p>
                       {filtros.ordenacao === 'prazo' ? (
                         <p className="text-[11px] text-stone-600">
-                          Time: {t.time_nome?.trim() || '—'} · Responsável:{' '}
+                          Times: {t.time_nome?.trim() || '—'} · Responsáveis:{' '}
                           {t.responsavel_nome?.trim() || 'Sem responsável'}
                         </p>
                       ) : (
-                        <p className="text-[11px] text-stone-600">Time: {t.time_nome?.trim() || '—'}</p>
+                        <p className="text-[11px] text-stone-600">Times: {t.time_nome?.trim() || '—'}</p>
                       )}
                       <span className="ml-2 mt-1 inline-block rounded bg-stone-100 px-1.5 py-0.5 text-[10px] text-stone-600">
                         {t.status === 'nao_iniciada'
