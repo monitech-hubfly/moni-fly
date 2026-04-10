@@ -1,7 +1,10 @@
 'use server';
 
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
+import { getPainelDbForPublicEdit } from '@/lib/painel-public-edit';
 import type { PainelColumnKey } from './painelColumns';
 import { PAINEL_COLUMNS } from './painelColumns';
 
@@ -115,9 +118,9 @@ export async function getOrCreatePublicFormLink(
   | { ok: true; token: string; expires_at: string }
   | { ok: false; error: string }
 > {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
   const nowIso = new Date().toISOString();
   const { data: existing, error: findErr } = await supabase
@@ -153,7 +156,7 @@ export async function getOrCreatePublicFormLink(
     form_type: formType,
     token,
     expires_at: expiresAt,
-    created_by: user.id,
+    created_by: userId,
   });
   if (insErr) {
     const msg = String(insErr.message ?? '');
@@ -174,9 +177,9 @@ export async function getComentariosCard(processoId: string): Promise<
   | { ok: true; comentarios: Array<{ id: string; autor_nome: string | null; texto: string; created_at: string }> }
   | { ok: false; error: string }
 > {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
   const baseId = await resolveHistoricoBaseId(supabase, processoId);
   const { data, error } = await supabase
@@ -203,9 +206,9 @@ export async function getCardChecklistAnexosHistory(processoId: string): Promise
     }
   | { ok: false; error: string }
 > {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
   const baseId = await resolveHistoricoBaseId(supabase, processoId);
   const { data, error } = await supabase
@@ -245,9 +248,9 @@ export async function getCardActionsHistory(processoId: string): Promise<
     }
   | { ok: false; error: string }
 > {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
   const baseId = await resolveHistoricoBaseId(supabase, processoId);
   const { data, error } = await supabase
@@ -298,11 +301,9 @@ async function getParticipantesProcesso(supabase: Awaited<ReturnType<typeof crea
 
 /** Enviar comentário no card. Parse @nome e cria alertas para menções. */
 export async function enviarComentarioCard(processoId: string, texto: string): Promise<CardActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
-
-  const autorNome = await resolveAutorNome(supabase, user.id, user.email);
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
   const textoTrim = texto?.trim();
   if (!textoTrim) return { ok: false, error: 'Digite um comentário.' };
@@ -322,7 +323,7 @@ export async function enviarComentarioCard(processoId: string, texto: string): P
 
   const { error: insertErr } = await supabase.from('processo_card_comentarios').insert({
     processo_id: baseId,
-    autor_id: user.id,
+    autor_id: userId,
     autor_nome: autorNome,
     texto: textoTrim,
     mencoes: mencoesIds.length > 0 ? mencoesIds : [],
@@ -332,7 +333,7 @@ export async function enviarComentarioCard(processoId: string, texto: string): P
   await registrarEventoCard(
     supabase,
     processoId,
-    user.id,
+    userId,
     autorNome,
     null,
     'comentario_add',
@@ -344,7 +345,7 @@ export async function enviarComentarioCard(processoId: string, texto: string): P
   const cardLabel = proc ? `${(proc as { cidade?: string }).cidade ?? ''}${(proc as { estado?: string }).estado ? `, ${(proc as { estado: string }).estado}` : ''}` : 'Card';
 
   for (const uid of mencoesIds) {
-    if (uid === user.id) continue;
+    if (uid === userId) continue;
     await supabase.from('alertas').insert({
       user_id: uid,
       tipo: 'mencao_card',
@@ -374,9 +375,9 @@ export async function getChecklistCard(processoId: string, etapaPainel: string):
     }
   | { ok: false; error: string }
 > {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
   const baseId = await resolveHistoricoBaseId(supabase, processoId);
   try {
@@ -439,11 +440,9 @@ export async function addChecklistItem(
   responsavelNome?: string | null,
   status: 'nao_iniciada' | 'em_andamento' | 'concluido' = 'nao_iniciada',
 ): Promise<CardActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
-  const autorNome = await resolveAutorNome(supabase, user.id, user.email);
-
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
   const baseId = await resolveHistoricoBaseId(supabase, processoId);
   const { data: max } = await supabase
     .from('processo_card_checklist')
@@ -501,7 +500,7 @@ export async function addChecklistItem(
   await registrarEventoCard(
     supabase,
     processoId,
-    user.id,
+    userId,
     autorNome,
     etapaPainel,
     'checklist_add',
@@ -512,11 +511,9 @@ export async function addChecklistItem(
 }
 
 export async function toggleChecklistItem(itemId: string, concluido: boolean): Promise<CardActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
-
-  const autorNome = await resolveAutorNome(supabase, user.id, user.email);
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
   const { data: before } = await supabase
     .from('processo_card_checklist')
@@ -544,7 +541,7 @@ export async function toggleChecklistItem(itemId: string, concluido: boolean): P
   await registrarEventoCard(
     supabase,
     String((before as any)?.processo_id ?? ''),
-    user.id,
+    userId,
     autorNome,
     (before as any)?.etapa_painel,
     'checklist_toggle',
@@ -555,13 +552,12 @@ export async function toggleChecklistItem(itemId: string, concluido: boolean): P
 }
 
 export async function updateChecklistItemStatus(itemId: string, status: 'nao_iniciada' | 'em_andamento' | 'concluido'): Promise<CardActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
   const concluido = status === 'concluido';
 
-  const autorNome = await resolveAutorNome(supabase, user.id, user.email);
   const { data: before } = await supabase
     .from('processo_card_checklist')
     .select('processo_id, titulo, etapa_painel')
@@ -596,7 +592,7 @@ export async function updateChecklistItemStatus(itemId: string, status: 'nao_ini
   await registrarEventoCard(
     supabase,
     String((before as any)?.processo_id ?? ''),
-    user.id,
+    userId,
     autorNome,
     (before as any)?.etapa_painel,
     'checklist_status',
@@ -610,9 +606,9 @@ export async function getChecklistPareceres(itemIds: string[]): Promise<
   | { ok: true; pareceres: Record<string, string> }
   | { ok: false; error: string }
 > {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
   const ids = [...new Set((itemIds ?? []).filter(Boolean))];
   if (ids.length === 0) return { ok: true, pareceres: {} };
 
@@ -632,11 +628,9 @@ export async function getChecklistPareceres(itemIds: string[]): Promise<
 }
 
 export async function upsertChecklistParecer(itemId: string, texto: string | null): Promise<CardActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
-  const autorNome = await resolveAutorNome(supabase, user.id, user.email);
-
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
   const { data: before } = await supabase
     .from('processo_card_checklist')
     .select('processo_id, etapa_painel, titulo')
@@ -658,7 +652,7 @@ export async function upsertChecklistParecer(itemId: string, texto: string | nul
   await registrarEventoCard(
     supabase,
     String((before as any).processo_id),
-    user.id,
+    userId,
     autorNome,
     (before as any).etapa_painel,
     'checklist_parecer_update',
@@ -669,11 +663,10 @@ export async function upsertChecklistParecer(itemId: string, texto: string | nul
 }
 
 export async function removeChecklistItem(itemId: string): Promise<CardActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
-  const autorNome = await resolveAutorNome(supabase, user.id, user.email);
   const { data: before } = await supabase
     .from('processo_card_checklist')
     .select('processo_id, titulo, etapa_painel')
@@ -687,7 +680,7 @@ export async function removeChecklistItem(itemId: string): Promise<CardActionRes
   await registrarEventoCard(
     supabase,
     String((before as any)?.processo_id ?? ''),
-    user.id,
+    userId,
     autorNome,
     (before as any)?.etapa_painel,
     'checklist_remove',
@@ -715,9 +708,9 @@ export async function getStep1AreasChecklist(processoId: string): Promise<
     }
   | { ok: false; error: string }
 > {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
   const baseId = await resolveHistoricoBaseId(supabase, processoId);
   const { data: processo, error: processoErr } = await supabase
@@ -809,11 +802,9 @@ export async function getStep1AreasChecklist(processoId: string): Promise<
 }
 
 export async function updateStep1AreaChecklistConcluido(itemId: string, concluido: boolean): Promise<CardActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
-
-  const autorNome = await resolveAutorNome(supabase, user.id, user.email);
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
   const { data: before } = await supabase
     .from('processo_step1_area_checklist')
@@ -830,7 +821,7 @@ export async function updateStep1AreaChecklistConcluido(itemId: string, concluid
   await registrarEventoCard(
     supabase,
     String((before as any)?.processo_id ?? ''),
-    user.id,
+    userId,
     autorNome,
     null,
     'step1_area_toggle',
@@ -847,12 +838,11 @@ export async function updateStep1AreaChecklistConcluido(itemId: string, concluid
 }
 
 export async function updateStep1AreaChecklistLink(itemId: string, linkUrl: string | null): Promise<CardActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
   const value = linkUrl && String(linkUrl).trim() !== '' ? String(linkUrl).trim() : null;
 
-  const autorNome = await resolveAutorNome(supabase, user.id, user.email);
   const { data: before } = await supabase
     .from('processo_step1_area_checklist')
     .select('processo_id, area_nome, etapa_nome, link_url')
@@ -868,7 +858,7 @@ export async function updateStep1AreaChecklistLink(itemId: string, linkUrl: stri
   await registrarEventoCard(
     supabase,
     String((before as any)?.processo_id ?? ''),
-    user.id,
+    userId,
     autorNome,
     null,
     'step1_area_link_update',
@@ -888,11 +878,9 @@ export async function updateStep1AreaChecklistAnexo(
   storagePath: string | null,
   nomeOriginal: string | null,
 ): Promise<CardActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
-
-  const autorNome = await resolveAutorNome(supabase, user.id, user.email);
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
   const { data: before } = await supabase
     .from('processo_step1_area_checklist')
@@ -913,7 +901,7 @@ export async function updateStep1AreaChecklistAnexo(
   await registrarEventoCard(
     supabase,
     String((before as any)?.processo_id ?? ''),
-    user.id,
+    userId,
     autorNome,
     null,
     'step1_area_anexo_update',
@@ -935,7 +923,7 @@ function isProcessoChecklistPainelExcluido(p: {
   cancelado_em?: string | null;
   removido_em?: string | null;
 } | undefined): boolean {
-  if (!p) return true;
+  if (!p) return false;
   const st = String(p.status ?? '').toLowerCase();
   return (
     st === 'cancelado' ||
@@ -945,32 +933,55 @@ function isProcessoChecklistPainelExcluido(p: {
   );
 }
 
-/** Painel de Tarefas: atividades do checklist do card (todas as etapas/cards do usuário). */
-export async function getAtividadesChecklistPainel(): Promise<
-  | {
-      ok: true;
-      tarefas: Array<{
-        id: string;
-        processo_id: string;
-        etapa_painel: string;
-        titulo: string;
-        prazo: string | null;
-        time_nome: string | null;
-        responsavel_nome: string | null;
-        status: 'nao_iniciada' | 'em_andamento' | 'concluido';
-        processo_cidade: string;
-        processo_estado: string | null;
-        numero_franquia: string | null;
-        nome_franqueado: string | null;
-        nome_condominio: string | null;
-      }>;
-    }
-  | { ok: false; error: string }
-> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+/** processo_id do checklist é o id base; a linha raiz pode não vir no SELECT (ex.: só filhos com historico_base_id = B). */
+function resolveLineageRowForBase(B: string, roots: any[], children: any[]): any | undefined {
+  const root = roots.find((p: any) => String(p.id) === B);
+  if (root) return root;
+  return children.find((p: any) => String(p.historico_base_id) === B);
+}
 
+const PROCESSO_BATCH_CHECKLIST_PAINEL = 80;
+
+async function fetchProcessosParaLinhaChecklist(
+  supabase: SupabaseClient,
+  baseIds: string[],
+): Promise<{ roots: any[]; children: any[]; error?: string }> {
+  const sel =
+    'id, historico_base_id, cidade, estado, numero_franquia, nome_franqueado, nome_condominio, status, cancelado_em, removido_em';
+  const roots: any[] = [];
+  const children: any[] = [];
+  for (let i = 0; i < baseIds.length; i += PROCESSO_BATCH_CHECKLIST_PAINEL) {
+    const slice = baseIds.slice(i, i + PROCESSO_BATCH_CHECKLIST_PAINEL);
+    const { data: byId, error: e1 } = await supabase.from('processo_step_one').select(sel).in('id', slice);
+    const { data: byBase, error: e2 } = await supabase.from('processo_step_one').select(sel).in('historico_base_id', slice);
+    if (e1) return { roots: [], children: [], error: e1.message };
+    if (e2) return { roots: [], children: [], error: e2.message };
+    roots.push(...(byId ?? []));
+    children.push(...(byBase ?? []));
+  }
+  return { roots, children };
+}
+
+type AtividadesChecklistPainelOk = {
+  ok: true;
+  tarefas: Array<{
+    id: string;
+    processo_id: string;
+    etapa_painel: string;
+    titulo: string;
+    prazo: string | null;
+    time_nome: string | null;
+    responsavel_nome: string | null;
+    status: 'nao_iniciada' | 'em_andamento' | 'concluido';
+    processo_cidade: string;
+    processo_estado: string | null;
+    numero_franquia: string | null;
+    nome_franqueado: string | null;
+    nome_condominio: string | null;
+  }>;
+};
+
+async function montarAtividadesChecklistPainel(supabase: SupabaseClient): Promise<AtividadesChecklistPainelOk | { ok: false; error: string }> {
   let checklistRows: any[] = [];
 
   try {
@@ -1015,12 +1026,10 @@ export async function getAtividadesChecklistPainel(): Promise<
   let roots: any[] = [];
   let children: any[] = [];
   if (baseIds.length > 0) {
-    const sel =
-      'id, historico_base_id, cidade, estado, numero_franquia, nome_franqueado, nome_condominio, status, cancelado_em, removido_em';
-    const { data: byId } = await supabase.from('processo_step_one').select(sel).in('id', baseIds);
-    const { data: byBase } = await supabase.from('processo_step_one').select(sel).in('historico_base_id', baseIds);
-    roots = byId ?? [];
-    children = byBase ?? [];
+    const fetched = await fetchProcessosParaLinhaChecklist(supabase, baseIds);
+    if (fetched.error) return { ok: false, error: fetched.error };
+    roots = fetched.roots;
+    children = fetched.children;
   }
 
   const lineageByRowId = new Map<string, any>();
@@ -1030,6 +1039,8 @@ export async function getAtividadesChecklistPainel(): Promise<
 
   const excludedBases = new Set<string>();
   for (const B of baseIds) {
+    const directRow = resolveLineageRowForBase(B, roots, children);
+    if (isProcessoChecklistPainelExcluido(directRow)) excludedBases.add(B);
     for (const r of lineageByRowId.values()) {
       const belongs = String(r.id) === B || String(r.historico_base_id ?? '') === B;
       if (belongs && isProcessoChecklistPainelExcluido(r)) {
@@ -1075,6 +1086,34 @@ export async function getAtividadesChecklistPainel(): Promise<
   return { ok: true, tarefas };
 }
 
+/**
+ * Painel de Tarefas: lista agregada de todas as atividades (checklist) de todos os cards.
+ * Preferência: service role (visão completa). Se SUPABASE_SERVICE_ROLE_KEY não existir ou falhar,
+ * usa sessão + RLS (útil em dev local ou quando a Vercel ainda não tem a env).
+ */
+export async function getAtividadesChecklistPainel(): Promise<
+  AtividadesChecklistPainelOk | { ok: false; error: string }
+> {
+  let supabase: SupabaseClient;
+  try {
+    supabase = createAdminClient();
+  } catch {
+    const s = await createClient();
+    const {
+      data: { user },
+    } = await s.auth.getUser();
+    if (!user) {
+      return {
+        ok: false,
+        error:
+          'Painel agregado: defina SUPABASE_SERVICE_ROLE_KEY no servidor (ex.: Vercel) ou entre com uma conta. Sem a chave, visitantes não veem todas as atividades.',
+      };
+    }
+    return montarAtividadesChecklistPainel(s);
+  }
+  return montarAtividadesChecklistPainel(supabase);
+}
+
 /** Documentos (anexo + link) por card e etapa */
 export async function getDocumentosCard(
   processoId: string,
@@ -1095,9 +1134,9 @@ export async function getDocumentosCard(
     }
   | { ok: false; error: string }
 > {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
   const baseId = await resolveHistoricoBaseId(supabase, processoId);
   const { data, error } = await supabase
@@ -1121,11 +1160,9 @@ export async function addDocumentoCard(
   etapaPainel: string,
   titulo: string,
 ): Promise<CardActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
-  const autorNome = await resolveAutorNome(supabase, user.id, user.email);
-
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
   const baseId = await resolveHistoricoBaseId(supabase, processoId);
   const { data: max } = await supabase
     .from('processo_card_documentos')
@@ -1156,7 +1193,7 @@ export async function addDocumentoCard(
   await registrarEventoCard(
     supabase,
     processoId,
-    user.id,
+    userId,
     autorNome,
     etapaPainel,
     'document_add',
@@ -1170,11 +1207,10 @@ export async function updateDocumentoCardTitulo(
   documentoId: string,
   titulo: string,
 ): Promise<CardActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
-  const autorNome = await resolveAutorNome(supabase, user.id, user.email);
   const { data: before } = await supabase
     .from('processo_card_documentos')
     .select('processo_id, etapa_painel, titulo')
@@ -1192,7 +1228,7 @@ export async function updateDocumentoCardTitulo(
   await registrarEventoCard(
     supabase,
     String((before as any)?.processo_id ?? ''),
-    user.id,
+    userId,
     autorNome,
     (before as any)?.etapa_painel,
     'document_title_update',
@@ -1206,14 +1242,13 @@ export async function updateDocumentoCardLink(
   documentoId: string,
   linkUrl: string,
 ): Promise<CardActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
   const normalized = (linkUrl ?? '').trim();
   const link = normalized === '' ? null : normalized;
 
-  const autorNome = await resolveAutorNome(supabase, user.id, user.email);
   const { data: before } = await supabase
     .from('processo_card_documentos')
     .select('processo_id, etapa_painel, titulo, link_url')
@@ -1231,7 +1266,7 @@ export async function updateDocumentoCardLink(
   await registrarEventoCard(
     supabase,
     String((before as any)?.processo_id ?? ''),
-    user.id,
+    userId,
     autorNome,
     (before as any)?.etapa_painel,
     'document_link_update',
@@ -1246,11 +1281,10 @@ export async function updateDocumentoCardAnexo(
   storagePath: string,
   nomeOriginal: string,
 ): Promise<CardActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
-  const autorNome = await resolveAutorNome(supabase, user.id, user.email);
   const { data: before } = await supabase
     .from('processo_card_documentos')
     .select('processo_id, etapa_painel, titulo, storage_path, nome_original')
@@ -1269,7 +1303,7 @@ export async function updateDocumentoCardAnexo(
   await registrarEventoCard(
     supabase,
     String((before as any)?.processo_id ?? ''),
-    user.id,
+    userId,
     autorNome,
     (before as any)?.etapa_painel,
     'document_anexo_update',
@@ -1290,11 +1324,10 @@ export async function updateDocumentoCardTexto(
   documentoId: string,
   textoLivre: string,
 ): Promise<CardActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
-  const autorNome = await resolveAutorNome(supabase, user.id, user.email);
   const { data: before } = await supabase
     .from('processo_card_documentos')
     .select('processo_id, etapa_painel, titulo, texto_livre')
@@ -1316,7 +1349,7 @@ export async function updateDocumentoCardTexto(
   await registrarEventoCard(
     supabase,
     String((before as any)?.processo_id ?? ''),
-    user.id,
+    userId,
     autorNome,
     (before as any)?.etapa_painel,
     'document_text_update',
@@ -1335,11 +1368,10 @@ export async function updateDocumentoCardAnexos(
   documentoId: string,
   anexos: Array<{ storage_path: string; nome_original: string | null }>,
 ): Promise<CardActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
-  const autorNome = await resolveAutorNome(supabase, user.id, user.email);
   const { data: before } = await supabase
     .from('processo_card_documentos')
     .select('processo_id, etapa_painel, titulo, anexos_json')
@@ -1367,7 +1399,7 @@ export async function updateDocumentoCardAnexos(
   await registrarEventoCard(
     supabase,
     String((before as any)?.processo_id ?? ''),
-    user.id,
+    userId,
     autorNome,
     (before as any)?.etapa_painel,
     'document_anexos_update',
@@ -1382,11 +1414,10 @@ export async function updateDocumentoCardAnexos(
 }
 
 export async function removeDocumentoCard(documentoId: string): Promise<CardActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
-  const autorNome = await resolveAutorNome(supabase, user.id, user.email);
   const { data: before } = await supabase
     .from('processo_card_documentos')
     .select('processo_id, etapa_painel, titulo')
@@ -1400,7 +1431,7 @@ export async function removeDocumentoCard(documentoId: string): Promise<CardActi
   await registrarEventoCard(
     supabase,
     String((before as any)?.processo_id ?? ''),
-    user.id,
+    userId,
     autorNome,
     (before as any)?.etapa_painel,
     'document_remove',
@@ -1428,9 +1459,9 @@ export async function getDadosComiteCard(
     }
   | { ok: false; error: string }
 > {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
   const baseId = await resolveHistoricoBaseId(supabase, processoId);
   const { data, error } = await supabase
@@ -1466,11 +1497,9 @@ export async function upsertDadosComiteCard(
     nome_original?: string | null;
   },
 ): Promise<CardActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
-  const autorNome = await resolveAutorNome(supabase, user.id, user.email);
-
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
   const baseId = await resolveHistoricoBaseId(supabase, processoId);
   const { data: current } = await supabase
     .from('processo_card_comite')
@@ -1497,7 +1526,7 @@ export async function upsertDadosComiteCard(
   await registrarEventoCard(
     supabase,
     processoId,
-    user.id,
+    userId,
     autorNome,
     'step_5',
     'checklist_comite_update',
@@ -1525,9 +1554,9 @@ export async function getTopicosEtapa(processoId: string, etapaPainel: string): 
     }
   | { ok: false; error: string }
 > {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
   const { data, error } = await supabase
     .from('processo_etapa_topicos')
@@ -1549,9 +1578,9 @@ export async function criarTopicoEtapa(
   responsavelNome: string | null,
   dataEntrega: string | null,
 ): Promise<CardActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
   const { error } = await supabase.from('processo_etapa_topicos').insert({
     processo_id: processoId,
@@ -1570,9 +1599,9 @@ export async function criarTopicoEtapa(
 }
 
 export async function atualizarTopicoEtapaStatus(topicoId: string, status: string): Promise<CardActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
   if (!['pendente', 'em_andamento', 'concluido'].includes(status)) return { ok: false, error: 'Status inválido.' };
   const { error } = await supabase
     .from('processo_etapa_topicos')
@@ -1585,9 +1614,9 @@ export async function atualizarTopicoEtapaStatus(topicoId: string, status: strin
 }
 
 export async function atualizarTopicoEtapaResposta(topicoId: string, resposta: string): Promise<CardActionResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
   const { error } = await supabase
     .from('processo_etapa_topicos')
     .update({ resposta: resposta.trim() || null, updated_at: new Date().toISOString() })
@@ -1603,9 +1632,9 @@ export async function getUsuariosParaResponsavel(): Promise<
   | { ok: true; usuarios: Array<{ id: string; nome: string }> }
   | { ok: false; error: string }
 > {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, user, userId, autorNome } = auth;
 
   const { data: profiles } = await supabase
     .from('profiles')
@@ -1640,16 +1669,16 @@ export async function getTarefasPainel(filtroResponsavel: 'todas' | 'minhas'): P
     }
   | { ok: false; error: string }
 > {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, userId, isServiceRole } = auth;
 
   let query = supabase
     .from('processo_etapa_topicos')
     .select('id, processo_id, etapa_painel, titulo, prioridade, responsavel_id, responsavel_nome, data_entrega, status, resposta');
 
-  if (filtroResponsavel === 'minhas') {
-    query = query.eq('responsavel_id', user.id);
+  if (filtroResponsavel === 'minhas' && !isServiceRole) {
+    query = query.eq('responsavel_id', userId);
   }
 
   const { data: topicos, error } = await query.order('data_entrega', { ascending: true, nullsFirst: false });
@@ -1660,12 +1689,19 @@ export async function getTarefasPainel(filtroResponsavel: 'todas' | 'minhas'): P
   const processoIds = [...new Set(topicos.map((t) => t.processo_id))];
   const { data: processos } = await supabase
     .from('processo_step_one')
-    .select('id, cidade, estado')
+    .select('id, cidade, estado, status, cancelado_em, removido_em')
     .in('id', processoIds);
 
   const procMap = new Map((processos ?? []).map((p) => [p.id, p]));
 
-  const tarefas = topicos.map((t) => {
+  const tarefas = topicos
+    .filter((t) => {
+      const p = procMap.get(t.processo_id) as
+        | { status?: string | null; cancelado_em?: string | null; removido_em?: string | null }
+        | undefined;
+      return !isProcessoChecklistPainelExcluido(p);
+    })
+    .map((t) => {
     const p = procMap.get(t.processo_id);
     return {
       id: t.id,
@@ -1681,7 +1717,7 @@ export async function getTarefasPainel(filtroResponsavel: 'todas' | 'minhas'): P
       processo_cidade: (p as { cidade?: string })?.cidade ?? '',
       processo_estado: (p as { estado?: string | null })?.estado ?? null,
     };
-  });
+    });
 
   return { ok: true, tarefas };
 }

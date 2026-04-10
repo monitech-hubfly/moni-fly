@@ -1,10 +1,13 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { isAppFullyPublic } from '@/lib/public-rede-novos';
 import type { ProcessoCard } from '@/app/steps-viabilidade/StepsKanbanColumn';
 import type { PainelColumnKey } from '@/app/steps-viabilidade/painelColumns';
 import { PainelContabilidadeClient } from '@/app/painel-contabilidade/PainelContabilidadeClient';
 import { dayStartLocal, parsePrazoBrOrIso } from '@/lib/painel-checklist-atraso';
+import { sortProcessosPorOrdemColuna } from '@/lib/painel-coluna-ordem';
 
 export default async function PainelContabilidadePage({
   searchParams,
@@ -15,12 +18,21 @@ export default async function PainelContabilidadePage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  if (!user && !isAppFullyPublic()) redirect('/login');
 
-  const { data: rows } = await supabase
+  let db = supabase;
+  if (!user && isAppFullyPublic()) {
+    try {
+      db = createAdminClient();
+    } catch {
+      /* RLS */
+    }
+  }
+
+  const { data: rows } = await db
     .from('processo_step_one')
     .select(
-      'id, cidade, estado, status, etapa_atual, updated_at, user_id, step_atual, cancelado_em, removido_em, cancelado_motivo, removido_motivo, etapa_painel, trava_painel, tipo_aquisicao_terreno, numero_franquia, nome_franqueado, nome_condominio, quadra_lote, historico_base_id',
+      'id, cidade, estado, status, etapa_atual, updated_at, user_id, step_atual, cancelado_em, removido_em, cancelado_motivo, removido_motivo, etapa_painel, trava_painel, tipo_aquisicao_terreno, numero_franquia, nome_franqueado, nome_condominio, quadra_lote, historico_base_id, ordem_coluna_painel',
     );
 
   const rowsTodos = rows ?? [];
@@ -34,7 +46,7 @@ export default async function PainelContabilidadePage({
   const processIds = contabProcessos.map((r) => r.user_id).filter(Boolean) as string[];
   let profiles: { id: string; full_name: string | null }[] = [];
   if (processIds.length > 0) {
-    const { data: prof } = await supabase.from('profiles').select('id, full_name').in('id', [...new Set(processIds)]);
+    const { data: prof } = await db.from('profiles').select('id, full_name').in('id', [...new Set(processIds)]);
     profiles = prof ?? [];
   }
   const profileByUserId = Object.fromEntries(profiles.map((p) => [p.id, p.full_name ?? null]));
@@ -42,7 +54,7 @@ export default async function PainelContabilidadePage({
   const baseProcessoIds = Array.from(new Set(contabProcessos.map((r) => (r.historico_base_id as string | null | undefined) ?? r.id)));
   let checklistByProcesso = new Map<string, { hasAtrasado: boolean; hasAtencao: boolean }>();
   if (baseProcessoIds.length > 0) {
-    const { data: checklistRows } = await supabase
+    const { data: checklistRows } = await db
       .from('processo_card_checklist')
       .select('processo_id, prazo, status, concluido')
       .in('processo_id', baseProcessoIds);
@@ -96,13 +108,18 @@ export default async function PainelContabilidadePage({
         isCancelado || isRemovido ? false : checklistFlags?.hasAtrasado ?? false,
       has_atividade_atencao:
         isCancelado || isRemovido ? false : checklistFlags?.hasAtencao ?? false,
+      ordem_coluna_painel: ((r as { ordem_coluna_painel?: number | null }).ordem_coluna_painel ?? 0) as number,
     };
   });
 
   const byEtapa = {
-    contabilidade_incorporadora: processos.filter((p) => p.etapa_painel === 'contabilidade_incorporadora'),
-    contabilidade_spe: processos.filter((p) => p.etapa_painel === 'contabilidade_spe'),
-    contabilidade_gestora: processos.filter((p) => p.etapa_painel === 'contabilidade_gestora'),
+    contabilidade_incorporadora: sortProcessosPorOrdemColuna(
+      processos.filter((p) => p.etapa_painel === 'contabilidade_incorporadora'),
+    ),
+    contabilidade_spe: sortProcessosPorOrdemColuna(processos.filter((p) => p.etapa_painel === 'contabilidade_spe')),
+    contabilidade_gestora: sortProcessosPorOrdemColuna(
+      processos.filter((p) => p.etapa_painel === 'contabilidade_gestora'),
+    ),
   };
 
   const cardParam = searchParams?.card;

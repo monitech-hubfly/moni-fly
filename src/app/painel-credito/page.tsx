@@ -1,10 +1,13 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { isAppFullyPublic } from '@/lib/public-rede-novos';
 import type { ProcessoCard } from '@/app/steps-viabilidade/StepsKanbanColumn';
 import { PAINEL_COLUMNS, type PainelColumnKey } from '@/app/steps-viabilidade/painelColumns';
 import { PainelCreditoClient } from '@/app/painel-credito/PainelCreditoClient';
 import { buildChecklistAtrasoByCardId } from '@/lib/painel-checklist-atraso';
+import { sortProcessosPorOrdemColuna } from '@/lib/painel-coluna-ordem';
 
 export default async function PainelCreditoPage({
   searchParams,
@@ -15,12 +18,21 @@ export default async function PainelCreditoPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  if (!user && !isAppFullyPublic()) redirect('/login');
 
-  const { data: rows } = await supabase
+  let db = supabase;
+  if (!user && isAppFullyPublic()) {
+    try {
+      db = createAdminClient();
+    } catch {
+      /* RLS */
+    }
+  }
+
+  const { data: rows } = await db
     .from('processo_step_one')
     .select(
-      'id, cidade, estado, status, etapa_atual, updated_at, user_id, step_atual, cancelado_em, removido_em, cancelado_motivo, removido_motivo, etapa_painel, trava_painel, tipo_aquisicao_terreno, numero_franquia, nome_franqueado, nome_condominio, quadra_lote, historico_base_id',
+      'id, cidade, estado, status, etapa_atual, updated_at, user_id, step_atual, cancelado_em, removido_em, cancelado_motivo, removido_motivo, etapa_painel, trava_painel, tipo_aquisicao_terreno, numero_franquia, nome_franqueado, nome_condominio, quadra_lote, historico_base_id, ordem_coluna_painel',
     )
     ;
 
@@ -32,7 +44,7 @@ export default async function PainelCreditoPage({
   const processIds = creditoProcessos.map((r) => r.user_id).filter(Boolean) as string[];
   let profiles: { id: string; full_name: string | null }[] = [];
   if (processIds.length > 0) {
-    const { data: prof } = await supabase
+    const { data: prof } = await db
       .from('profiles')
       .select('id, full_name')
       .in('id', [...new Set(processIds)]);
@@ -45,7 +57,7 @@ export default async function PainelCreditoPage({
   );
   let checklistAtrasoByCardId = new Map<string, { hasAtrasado: boolean; hasAtencao: boolean }>();
   if (baseProcessoIds.length > 0) {
-    const { data: checklistRows } = await supabase
+    const { data: checklistRows } = await db
       .from('processo_card_checklist')
       .select('processo_id, etapa_painel, prazo, status, concluido')
       .in('processo_id', baseProcessoIds);
@@ -95,12 +107,13 @@ export default async function PainelCreditoPage({
         isCancelado || isRemovido ? false : checklistAtrasoByCardId.get(r.id)?.hasAtrasado ?? false,
       has_atividade_atencao:
         isCancelado || isRemovido ? false : checklistAtrasoByCardId.get(r.id)?.hasAtencao ?? false,
+      ordem_coluna_painel: ((r as { ordem_coluna_painel?: number | null }).ordem_coluna_painel ?? 0) as number,
     };
   });
 
   const byEtapa = {
-    credito_terreno: processos.filter((p) => p.etapa_painel === 'credito_terreno'),
-    credito_obra: processos.filter((p) => p.etapa_painel === 'credito_obra'),
+    credito_terreno: sortProcessosPorOrdemColuna(processos.filter((p) => p.etapa_painel === 'credito_terreno')),
+    credito_obra: sortProcessosPorOrdemColuna(processos.filter((p) => p.etapa_painel === 'credito_obra')),
   };
 
   const titulo = PAINEL_COLUMNS.find((c) => c.key === 'credito_terreno')?.title ?? 'Crédito';

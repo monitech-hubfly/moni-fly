@@ -1,15 +1,7 @@
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
 import { TarefasPainelConteudo } from '@/app/steps-viabilidade/tarefas/TarefasPainelConteudo';
 
 export default async function PainelTarefasPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
-
   return (
     <div className="min-h-screen bg-stone-100">
       <header className="border-b border-stone-200 bg-white">
