@@ -116,28 +116,53 @@ export function StepsKanbanColumn({
 
   const isStep1 = etapaKey === 'step_1';
   const isStep2 = etapaKey === 'step_2';
+  
+  // Define cores baseadas na etapa (usando moni-tokens.css)
+  const getColumnColors = () => {
+    if (etapaKey.startsWith('contabilidade_')) {
+      return {
+        borderTop: 'var(--moni-kanban-contab)',
+        bgHeader: 'var(--moni-kanban-contab-light)',
+        textHeader: 'text-stone-800',
+      };
+    }
+    if (etapaKey.startsWith('credito_')) {
+      return {
+        borderTop: 'var(--moni-kanban-credito)',
+        bgHeader: 'var(--moni-kanban-credito-light)',
+        textHeader: 'text-stone-800',
+      };
+    }
+    // Portfolio/Operações (padrão)
+    return {
+      borderTop: 'var(--moni-kanban-portfolio)',
+      bgHeader: 'var(--moni-kanban-portfolio-light)',
+      textHeader: 'text-stone-800',
+    };
+  };
+
+  const colors = getColumnColors();
 
   return (
     <div
-      className={`w-72 shrink-0 overflow-hidden rounded-xl border shadow-sm ${
-        isStep1
-          ? 'border-green-300 bg-green-50/80'
-          : 'border-stone-200 bg-white'
-      }`}
+      className="w-80 shrink-0 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm"
+      style={{ borderTop: `3px solid ${colors.borderTop}` }}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
       <div
-        className={`border-b px-4 py-3 ${isStep1 ? 'border-green-200 bg-green-100' : 'border-stone-200 bg-stone-100'}`}
+        className="border-b border-stone-200 px-4 py-3"
+        style={{ background: colors.bgHeader }}
       >
         <div className="flex items-start justify-between gap-2">
-          <h2 className={`font-semibold ${isStep1 ? 'text-green-900' : 'text-stone-800'}`}>{title}</h2>
+          <h2 className={`font-semibold ${colors.textHeader}`}>{title}</h2>
           <div className="flex items-start gap-2">
             {isStep1 && (
               <div className="flex flex-col items-stretch gap-1">
                 <Link
                   href="/painel-novos-negocios/novo-step-1"
-                  className="shrink-0 rounded-md border border-green-600 bg-green-600 px-2 py-1 text-center text-[11px] font-medium text-white hover:bg-green-700"
+                  className="shrink-0 rounded-md px-2 py-1 text-center text-[11px] font-medium text-white transition hover:opacity-90"
+                  style={{ background: colors.borderTop }}
                 >
                   Novo Step 1
                 </Link>
@@ -147,7 +172,8 @@ export function StepsKanbanColumn({
               <div className="flex flex-col items-stretch gap-1">
                 <Link
                   href="/painel-novos-negocios/novo"
-                  className="w-full whitespace-nowrap rounded-md bg-moni-primary px-2 py-1 text-center text-[11px] font-medium text-white hover:bg-moni-secondary"
+                  className="w-full whitespace-nowrap rounded-md px-2 py-1 text-center text-[11px] font-medium text-white transition hover:opacity-90"
+                  style={{ background: colors.borderTop }}
                 >
                   Novo Negócio
                 </Link>
@@ -157,15 +183,13 @@ export function StepsKanbanColumn({
           </div>
         </div>
         {subtitle && (
-          <p className={`mt-1 text-[10px] leading-tight ${isStep1 ? 'text-green-700' : 'text-stone-500'}`}>{subtitle}</p>
+          <p className="mt-1 text-[10px] leading-tight text-stone-600">{subtitle}</p>
         )}
         <div className="mt-0.5 flex items-center justify-between gap-2">
-          <p className={`text-xs ${isStep1 ? 'text-green-700' : 'text-stone-500'}`}>{processosFiltrados.length} processo(s)</p>
+          <p className="text-xs text-stone-600">{processosFiltrados.length} processo(s)</p>
         </div>
       </div>
-      <div
-        className={`max-h-[70vh] space-y-2 overflow-y-auto p-2 ${isStep1 ? 'bg-green-50/50' : ''}`}
-      >
+      <div className="max-h-[70vh] space-y-2 overflow-y-auto p-3">
         {processosFiltrados.map((p, i) => (
           <PainelCard
             key={p.id}

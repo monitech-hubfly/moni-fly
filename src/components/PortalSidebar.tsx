@@ -57,6 +57,7 @@ const ACOPLAMENTO_SUBITENS: NavItem[] = [
 ];
 const PAINEL_NOVOS_NEGOCIOS_SUBITENS: NavItem[] = [
   { href: '/dashboard-novos-negocios', label: 'Dashboard Novos Negócios' },
+  { href: '/funil-stepone', label: 'Funil Step One' },
   { href: '/painel-novos-negocios', label: 'Portfolio + Operações' },
 ];
 const PAINEL_NOVOS_NEGOCIOS_TAREFAS: NavItem[] = [
@@ -75,7 +76,8 @@ function isPainelNovosNegociosActive(pathname: string) {
     pathname.startsWith('/painel-novos-negocios') ||
     pathname.startsWith('/painel-contabilidade') ||
     pathname.startsWith('/painel-credito') ||
-    pathname.startsWith('/dashboard-novos-negocios')
+    pathname.startsWith('/dashboard-novos-negocios') ||
+    pathname.startsWith('/funil-stepone')
   );
 }
 function isCatalogoActive(pathname: string) {

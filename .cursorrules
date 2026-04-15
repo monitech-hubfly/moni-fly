@@ -1,0 +1,84 @@
+# Casa Moní — Hub Fly
+# Regras permanentes para o Cursor neste projeto
+
+## Projeto
+Next.js + TypeScript + Supabase. Branch: funcionalidade-ingrid.
+Sistema de gestão de franquias com 4 Kanbans: Funil Step One, Portfólio + Operações, Contabilidade, Crédito.
+
+## Design System — SEMPRE usar
+O arquivo styles/moni-tokens.css (ou src/styles/moni-tokens.css) contém todas as variáveis CSS do projeto.
+Usar SEMPRE essas variáveis em qualquer componente novo ou editado. Nunca hardcodar cores.
+
+### Cores principais
+- Fundo de botões primários, headers, elementos de destaque: var(--moni-navy-800) → #0C2633
+- Verde médio (Portfólio, sucesso): var(--moni-green-800) → #2F4A3A
+- Marrom terra (Contabilidade, corpo de texto): var(--moni-earth-800) → #4A3929
+- Dourado (Crédito, destaques, SLA): var(--moni-gold-400) → #D4AD68
+
+### Texto
+- Headings e labels: var(--moni-text-primary)
+- Corpo de texto: var(--moni-text-secondary)
+- Hints e placeholders: var(--moni-text-tertiary)
+
+### Bordas e raios
+- Bordas: var(--moni-border-width) solid var(--moni-border-default) → 0.5px
+- Cards e modais: border-radius var(--moni-radius-lg) → 12px
+- Botões e badges: border-radius var(--moni-radius-md) → 8px
+
+### Tags de SLA (usar sempre as classes prontas)
+- SLA vencendo: classe CSS moni-tag-atencao (dourado)
+- SLA vencido: classe CSS moni-tag-atrasado (vermelho sóbrio)
+- Concluído: classe CSS moni-tag-concluido (verde)
+- Arquivado: classe CSS moni-tag-arquivado (neutro)
+
+### Identidade por Kanban
+- Funil Step One: var(--moni-kanban-stepone) e var(--moni-kanban-stepone-light)
+- Portfólio + Operações: var(--moni-kanban-portfolio) e var(--moni-kanban-portfolio-light)
+- Contabilidade: var(--moni-kanban-contab) e var(--moni-kanban-contab-light)
+- Crédito: var(--moni-kanban-credito) e var(--moni-kanban-credito-light)
+
+## Regras inegociáveis
+- NUNCA usar laranja em nenhuma parte do projeto (nenhum componente, nenhum estado, nenhuma tag)
+- NUNCA hardcodar hex de cores — sempre usar variáveis do moni-tokens.css
+- Bordas sempre 0.5px (não 1px, não 2px)
+- Tipografia editorial (headings grandes): font-family var(--moni-font-display) — serifada
+- Tipografia de UI (campos, tabelas, labels): font-family var(--moni-font-sans)
+- Referências de design: Porsche, Vogue, moni.casa — clean, muito espaço em branco, elegante
+
+## Mobile — sempre considerar
+- Breakpoint mobile: 640px
+- Cards do Kanban: em mobile ficam em lista vertical (não lado a lado)
+- Modal de detalhe do card (split esq/dir): em mobile empilha verticalmente
+- Botões de ação: mínimo 44px de altura
+- Usar as classes utilitárias de mobile do moni-tokens.css:
+  - moni-kanban-board, moni-kanban-column
+  - moni-card-modal-split, moni-card-modal-left, moni-card-modal-right
+  - moni-painel-grid, moni-form-novo-card
+
+## Banco de dados
+- Banco DEV: bgaadvfucnrkpimaszjv.supabase.co — usar para desenvolvimento
+- Banco PROD: aydryzoxqnwnbybvgiug.supabase.co — NUNCA alterar sem confirmação explícita
+- Novas migrações SQL: numerar sequencialmente a partir de 008
+- Scripts sempre idempotentes: usar IF NOT EXISTS e ALTER TABLE ADD COLUMN IF NOT EXISTS
+
+## Arquivos-chave
+- CardDetalheModal.tsx — modal de detalhe dos cards
+- card-actions.ts — ações dos cards (arquivar, excluir, mover fase)
+- TarefasPainelConteudo.tsx — Painel de Atividades
+- checklist-atividade-arrays.ts — checklists por fase de todos os Kanbans
+- painel-tarefas-filtros.ts — filtros do painel
+
+## Ao criar qualquer componente novo
+1. Usar variáveis do moni-tokens.css — nunca hardcodar cor
+2. Sem laranja
+3. Incluir versão mobile (media query 640px)
+4. Bordas 0.5px
+5. Se for card: border-radius 12px, sombra var(--moni-shadow-card)
+6. Se for botão primário: background var(--moni-navy-800), texto branco
+7. Se for tag de status: usar as classes moni-tag-* prontas
+
+## Ao editar componente existente
+1. Não alterar lógica — só visual
+2. Substituir cores hardcoded por variáveis moni-tokens.css
+3. Remover qualquer laranja
+4. Ajustar bordas para 0.5px se estiverem diferentes

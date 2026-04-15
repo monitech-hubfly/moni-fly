@@ -1,0 +1,393 @@
+/* ============================================================
+   CASA MONÍ — Design Tokens
+   Paleta: Verde Naval, Marrom Terra, Verde Médio, Dourado
+   Referências: Porsche, Vogue, moni.casa
+   Sem laranja em qualquer parte do projeto.
+   ============================================================ */
+
+:root {
+  /* --------------------------------------------------
+     CORES BASE — Paleta Moní (RGB da imagem de referência)
+     12/38/51  → Verde Naval escuro  (#0C2633)
+     74/57/47  → Marrom Terra        (#4A3929)
+     47/74/58  → Verde Médio         (#2F4A3A)
+     212/173/104 → Dourado           (#D4AD68)
+  -------------------------------------------------- */
+
+  /* Verde Naval */
+  --moni-navy-50:  #e8eef1;
+  --moni-navy-100: #c0d0d9;
+  --moni-navy-200: #94afc0;
+  --moni-navy-400: #3e7490;
+  --moni-navy-600: #0e3a4e;
+  --moni-navy-800: #0c2633;
+  --moni-navy-900: #071820;
+
+  /* Marrom Terra */
+  --moni-earth-50:  #f0ebe7;
+  --moni-earth-100: #d8cdc5;
+  --moni-earth-200: #bfab9f;
+  --moni-earth-400: #8c7265;
+  --moni-earth-600: #5e473a;
+  --moni-earth-800: #4a3929;
+  --moni-earth-900: #2e2418;
+
+  /* Verde Médio */
+  --moni-green-50:  #eaeff0;
+  --moni-green-100: #c4d4ca;
+  --moni-green-200: #9ab8a6;
+  --moni-green-400: #4d7a62;
+  --moni-green-600: #365848;
+  --moni-green-800: #2f4a3a;
+  --moni-green-900: #1d2f25;
+
+  /* Dourado */
+  --moni-gold-50:  #faf4e8;
+  --moni-gold-100: #f0e2c0;
+  --moni-gold-200: #e6ce96;
+  --moni-gold-400: #d4ad68;
+  --moni-gold-600: #b08a3e;
+  --moni-gold-800: #7a5f22;
+  --moni-gold-900: #4d3c12;
+
+  /* Off-white / superfícies */
+  --moni-surface-0:   #ffffff;
+  --moni-surface-50:  #f9f7f4;   /* fundo da página */
+  --moni-surface-100: #f2ede8;   /* cards em repouso */
+  --moni-surface-200: #e8e2da;   /* hover / separadores */
+
+  /* Texto */
+  --moni-text-primary:   #0c2633;   /* Verde Naval — headings, labels */
+  --moni-text-secondary: #4a3929;   /* Marrom — corpo de texto */
+  --moni-text-tertiary:  #7a6e65;   /* Muted — hints, placeholders */
+  --moni-text-inverse:   #f9f7f4;   /* Texto sobre fundos escuros */
+
+  /* Bordas */
+  --moni-border-subtle:   rgba(12, 38, 51, 0.10);
+  --moni-border-default:  rgba(12, 38, 51, 0.18);
+  --moni-border-strong:   rgba(12, 38, 51, 0.30);
+
+  /* --------------------------------------------------
+     STATUS — sem laranja, usando a paleta Moní
+  -------------------------------------------------- */
+
+  /* Atenção (SLA D-1 ou no dia) — usa dourado */
+  --moni-status-attention-bg:   #faf4e8;
+  --moni-status-attention-text: #7a5f22;
+  --moni-status-attention-border: #d4ad68;
+
+  /* Atrasado (SLA vencido) — vermelho sóbrio */
+  --moni-status-overdue-bg:   #fdf0ee;
+  --moni-status-overdue-text: #8c2a1e;
+  --moni-status-overdue-border: #c24b3a;
+
+  /* Concluído / Aprovado — verde médio */
+  --moni-status-done-bg:   #eaeff0;
+  --moni-status-done-text: #2f4a3a;
+  --moni-status-done-border: #4d7a62;
+
+  /* Em andamento — verde naval suave */
+  --moni-status-active-bg:   #e8eef1;
+  --moni-status-active-text: #0e3a4e;
+  --moni-status-active-border: #3e7490;
+
+  /* Arquivado — neutro */
+  --moni-status-archived-bg:   #f2ede8;
+  --moni-status-archived-text: #7a6e65;
+  --moni-status-archived-border: #bfab9f;
+
+  /* --------------------------------------------------
+     TIPOGRAFIA
+     Referência Vogue/Porsche: serifada para headings,
+     sans-serif clean para corpo e UI
+  -------------------------------------------------- */
+
+  --moni-font-display: 'Georgia', 'Times New Roman', serif;   /* H1, H2 editoriais */
+  --moni-font-sans:    'Inter', 'Helvetica Neue', sans-serif; /* UI, tabelas, labels */
+  --moni-font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Escalas tipográficas */
+  --moni-text-xs:   11px;
+  --moni-text-sm:   13px;
+  --moni-text-base: 15px;
+  --moni-text-md:   17px;
+  --moni-text-lg:   20px;
+  --moni-text-xl:   24px;
+  --moni-text-2xl:  32px;
+  --moni-text-3xl:  44px;
+
+  --moni-weight-regular: 400;
+  --moni-weight-medium:  500;
+  --moni-weight-bold:    600;   /* usar com parcimônia */
+
+  /* Line heights */
+  --moni-leading-tight:  1.3;
+  --moni-leading-body:   1.65;
+  --moni-leading-loose:  1.9;
+
+  /* --------------------------------------------------
+     ESPAÇAMENTO — escala 4px
+  -------------------------------------------------- */
+
+  --moni-space-1:  4px;
+  --moni-space-2:  8px;
+  --moni-space-3:  12px;
+  --moni-space-4:  16px;
+  --moni-space-5:  20px;
+  --moni-space-6:  24px;
+  --moni-space-8:  32px;
+  --moni-space-10: 40px;
+  --moni-space-12: 48px;
+  --moni-space-16: 64px;
+
+  /* --------------------------------------------------
+     BORDAS & RAIOS
+  -------------------------------------------------- */
+
+  --moni-radius-sm:   4px;
+  --moni-radius-md:   8px;
+  --moni-radius-lg:   12px;
+  --moni-radius-xl:   16px;
+  --moni-radius-pill: 100px;
+
+  --moni-border-width: 0.5px;   /* padrão — refinado */
+  --moni-border-width-em: 1px;  /* destaque — cards featured */
+
+  /* --------------------------------------------------
+     SOMBRAS — sóbrias, sem exagero
+  -------------------------------------------------- */
+
+  --moni-shadow-sm:  0 1px 3px rgba(12, 38, 51, 0.08);
+  --moni-shadow-md:  0 2px 8px rgba(12, 38, 51, 0.10);
+  --moni-shadow-lg:  0 4px 20px rgba(12, 38, 51, 0.12);
+  --moni-shadow-card: 0 1px 4px rgba(12, 38, 51, 0.07), 0 4px 16px rgba(12, 38, 51, 0.06);
+
+  /* --------------------------------------------------
+     KANBAN — cores de fase por Kanban
+     Cada Kanban tem uma cor de identidade
+  -------------------------------------------------- */
+
+  /* Funil Step One — Verde Médio (SEM azul escuro) */
+  --moni-kanban-stepone:         var(--moni-green-600);
+  --moni-kanban-stepone-light:   var(--moni-green-50);
+  --moni-kanban-stepone-accent:  var(--moni-green-400);
+
+  /* Portfólio + Operações — Verde Médio */
+  --moni-kanban-portfolio:       var(--moni-green-800);
+  --moni-kanban-portfolio-light: var(--moni-green-50);
+  --moni-kanban-portfolio-accent: var(--moni-green-400);
+
+  /* Contabilidade — Marrom Terra */
+  --moni-kanban-contab:         var(--moni-earth-800);
+  --moni-kanban-contab-light:   var(--moni-earth-50);
+  --moni-kanban-contab-accent:  var(--moni-earth-400);
+
+  /* Crédito — Dourado */
+  --moni-kanban-credito:        var(--moni-gold-800);
+  --moni-kanban-credito-light:  var(--moni-gold-50);
+  --moni-kanban-credito-accent: var(--moni-gold-400);
+
+  /* --------------------------------------------------
+     TRANSIÇÕES
+  -------------------------------------------------- */
+
+  --moni-transition-fast:   120ms ease;
+  --moni-transition-base:   200ms ease;
+  --moni-transition-slow:   350ms ease;
+
+  /* --------------------------------------------------
+     BREAKPOINTS (usar como referência no JS/Tailwind)
+     mobile:  < 640px
+     tablet:  640px – 1024px
+     desktop: > 1024px
+     wide:    > 1440px
+  -------------------------------------------------- */
+
+  --moni-bp-mobile:  640px;
+  --moni-bp-tablet:  1024px;
+  --moni-bp-desktop: 1440px;
+
+  /* --------------------------------------------------
+     KANBAN CARD — tamanhos
+  -------------------------------------------------- */
+
+  --moni-card-width-kanban:   280px;   /* largura do card na coluna */
+  --moni-card-width-min:      240px;
+  --moni-card-modal-max:      1100px;  /* largura máx do modal de detalhe */
+  --moni-column-width:        300px;   /* largura da coluna no board */
+}
+
+/* --------------------------------------------------
+   DARK MODE — DESABILITADO
+   O sistema usa apenas light mode para manter
+   consistência visual e identidade da marca
+-------------------------------------------------- */
+/* @media (prefers-color-scheme: dark) {
+  :root {
+    --moni-surface-0:   #0f1a20;
+    --moni-surface-50:  #131f27;
+    --moni-surface-100: #1a2b34;
+    --moni-surface-200: #1f3340;
+
+    --moni-text-primary:   #e8eef1;
+    --moni-text-secondary: #c4bab2;
+    --moni-text-tertiary:  #8a8078;
+    --moni-text-inverse:   #0c2633;
+
+    --moni-border-subtle:  rgba(200, 215, 222, 0.08);
+    --moni-border-default: rgba(200, 215, 222, 0.14);
+    --moni-border-strong:  rgba(200, 215, 222, 0.24);
+
+    --moni-status-attention-bg:   rgba(212, 173, 104, 0.12);
+    --moni-status-attention-text: #e6ce96;
+    --moni-status-overdue-bg:     rgba(194, 75, 58, 0.12);
+    --moni-status-overdue-text:   #f0a090;
+    --moni-status-done-bg:        rgba(77, 122, 98, 0.12);
+    --moni-status-done-text:      #9ab8a6;
+    --moni-status-active-bg:      rgba(62, 116, 144, 0.12);
+    --moni-status-active-text:    #94afc0;
+    --moni-status-archived-bg:    rgba(122, 110, 101, 0.12);
+    --moni-status-archived-text:  #bfab9f;
+  }
+} */
+
+/* --------------------------------------------------
+   UTILITIES GLOBAIS — classes utilitárias da marca
+-------------------------------------------------- */
+
+/* Tags de SLA */
+.moni-tag-atencao {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--moni-radius-pill);
+  font-size: var(--moni-text-xs);
+  font-weight: var(--moni-weight-medium);
+  background: var(--moni-status-attention-bg);
+  color: var(--moni-status-attention-text);
+  border: 0.5px solid var(--moni-status-attention-border);
+}
+
+.moni-tag-atrasado {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--moni-radius-pill);
+  font-size: var(--moni-text-xs);
+  font-weight: var(--moni-weight-medium);
+  background: var(--moni-status-overdue-bg);
+  color: var(--moni-status-overdue-text);
+  border: 0.5px solid var(--moni-status-overdue-border);
+}
+
+.moni-tag-concluido {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--moni-radius-pill);
+  font-size: var(--moni-text-xs);
+  font-weight: var(--moni-weight-medium);
+  background: var(--moni-status-done-bg);
+  color: var(--moni-status-done-text);
+  border: 0.5px solid var(--moni-status-done-border);
+}
+
+.moni-tag-arquivado {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--moni-radius-pill);
+  font-size: var(--moni-text-xs);
+  font-weight: var(--moni-weight-medium);
+  background: var(--moni-status-archived-bg);
+  color: var(--moni-status-archived-text);
+  border: 0.5px solid var(--moni-status-archived-border);
+}
+
+/* Identificadores de Kanban */
+.moni-kanban-id--stepone   { background: var(--moni-kanban-stepone-light);   color: var(--moni-kanban-stepone);   border-color: var(--moni-kanban-stepone-accent); }
+.moni-kanban-id--portfolio { background: var(--moni-kanban-portfolio-light); color: var(--moni-kanban-portfolio); border-color: var(--moni-kanban-portfolio-accent); }
+.moni-kanban-id--contab    { background: var(--moni-kanban-contab-light);    color: var(--moni-kanban-contab);    border-color: var(--moni-kanban-contab-accent); }
+.moni-kanban-id--credito   { background: var(--moni-kanban-credito-light);   color: var(--moni-kanban-credito);   border-color: var(--moni-kanban-credito-accent); }
+
+/* Tipografia editorial (H1, H2 Vogue-style) */
+.moni-heading-display {
+  font-family: var(--moni-font-display);
+  font-weight: var(--moni-weight-regular);
+  letter-spacing: -0.02em;
+  line-height: var(--moni-leading-tight);
+  color: var(--moni-text-primary);
+}
+
+/* Texto de UI padrão */
+.moni-text-ui {
+  font-family: var(--moni-font-sans);
+  font-size: var(--moni-text-base);
+  line-height: var(--moni-leading-body);
+  color: var(--moni-text-secondary);
+}
+
+/* --------------------------------------------------
+   MOBILE — overrides responsivos essenciais
+
+   No mobile, cards do Kanban ficam em lista vertical,
+   o modal de detalhe ocupa tela cheia e o split
+   esq/dir empilha verticalmente.
+-------------------------------------------------- */
+@media (max-width: 640px) {
+  :root {
+    --moni-column-width:     100%;
+    --moni-card-width-kanban: 100%;
+    --moni-card-modal-max:   100vw;
+  }
+
+  /* Kanban board: scroll horizontal → lista empilhada */
+  .moni-kanban-board {
+    flex-direction: column !important;
+    overflow-x: visible !important;
+  }
+
+  .moni-kanban-column {
+    width: 100% !important;
+    min-width: unset !important;
+  }
+
+  /* Card modal split: de lado-a-lado para empilhado */
+  .moni-card-modal-split {
+    flex-direction: column !important;
+  }
+
+  .moni-card-modal-left,
+  .moni-card-modal-right {
+    width: 100% !important;
+    max-height: none !important;
+  }
+
+  /* Painel de atividades: coluna única */
+  .moni-painel-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Tipografia menor no mobile */
+  .moni-heading-display {
+    font-size: var(--moni-text-xl);
+  }
+
+  /* Formulário de abertura: full width */
+  .moni-form-novo-card {
+    padding: var(--moni-space-4) !important;
+  }
+
+  /* Modal de card: ordem invertida no mobile (direita antes esquerda) */
+  .moni-card-modal-right {
+    order: 1 !important;
+  }
+
+  .moni-card-modal-left {
+    order: 2 !important;
+  }
+}

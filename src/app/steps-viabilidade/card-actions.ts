@@ -1318,23 +1318,47 @@ async function montarAtividadesChecklistPainel(supabase: SupabaseClient): Promis
 export async function getAtividadesChecklistPainel(): Promise<
   AtividadesChecklistPainelOk | { ok: false; error: string }
 > {
+  // DEBUG: Verificar variáveis de ambiente
+  console.log('[getAtividadesChecklistPainel] === INÍCIO DEBUG ===');
+  console.log('[getAtividadesChecklistPainel] NEXT_PUBLIC_SUPABASE_URL:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
+  console.log('[getAtividadesChecklistPainel] SUPABASE_SERVICE_ROLE_KEY exists:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+  console.log('[getAtividadesChecklistPainel] SUPABASE_SERVICE_ROLE_KEY length:', process.env.SUPABASE_SERVICE_ROLE_KEY?.length);
+  console.log('[getAtividadesChecklistPainel] SUPABASE_SERVICE_ROLE_KEY primeiros 20 chars:', process.env.SUPABASE_SERVICE_ROLE_KEY?.substring(0, 20));
+  
   let supabase: SupabaseClient;
   try {
+    console.log('[getAtividadesChecklistPainel] Tentando criar admin client...');
     supabase = createAdminClient();
-  } catch {
+    console.log('[getAtividadesChecklistPainel] ✅ Admin client criado com sucesso!');
+  } catch (err) {
+    console.error('[getAtividadesChecklistPainel] ❌ ERRO ao criar admin client:', err);
+    console.error('[getAtividadesChecklistPainel] Tipo do erro:', typeof err);
+    console.error('[getAtividadesChecklistPainel] Mensagem:', err instanceof Error ? err.message : String(err));
+    
+    // Fallback para cliente normal
+    console.log('[getAtividadesChecklistPainel] Fazendo fallback para cliente normal...');
     const s = await createClient();
     const {
       data: { user },
     } = await s.auth.getUser();
+    
+    console.log('[getAtividadesChecklistPainel] Usuário logado:', !!user);
+    console.log('[getAtividadesChecklistPainel] User ID:', user?.id);
+    
     if (!user) {
+      console.error('[getAtividadesChecklistPainel] ❌ Sem admin client E sem usuário logado');
       return {
         ok: false,
         error:
           'Painel agregado: defina SUPABASE_SERVICE_ROLE_KEY no servidor (ex.: Vercel) ou entre com uma conta. Sem a chave, visitantes não veem todas as atividades.',
       };
     }
+    
+    console.log('[getAtividadesChecklistPainel] Usando cliente normal com RLS');
     return montarAtividadesChecklistPainel(s);
   }
+  
+  console.log('[getAtividadesChecklistPainel] Usando admin client (bypass RLS)');
   return montarAtividadesChecklistPainel(supabase);
 }
 

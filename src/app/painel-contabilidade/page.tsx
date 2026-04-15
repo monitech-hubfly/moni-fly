@@ -129,26 +129,18 @@ export default async function PainelContabilidadePage({
     (Array.isArray(abrirParam) ? abrirParam[0] : abrirParam);
 
   return (
-    <div className="min-h-screen bg-stone-100">
+    <div className="min-h-screen bg-stone-50">
       <header className="border-b border-stone-200 bg-white">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4">
-          <div className="flex items-center gap-2">
-            <Link href="/" className="text-moni-primary hover:underline">
-              ← Início
-            </Link>
-            <span className="text-stone-400">/</span>
-            <span className="font-medium text-stone-700">Painel Contabilidade</span>
-          </div>
+        <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-4 px-6">
+          <Link href="/" className="text-sm text-moni-primary hover:underline">
+            ← Hub Fly
+          </Link>
+          <span className="text-stone-400">/</span>
+          <h1 className="text-lg font-semibold text-stone-800">Contabilidade</h1>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl overflow-x-auto px-4 py-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h1 className="text-xl font-bold text-moni-dark">Painel Contabilidade</h1>
-            <p className="mt-1 text-sm text-stone-600">Kanban com as fases de Contabilidade conectadas ao card pai e ao histórico compartilhado.</p>
-          </div>
-        </div>
+      <main className="mx-auto max-w-[1600px] overflow-x-auto px-6 py-8">
         <PainelContabilidadeClient byEtapa={byEtapa} initialOpenProcessId={initialOpenProcessId} />
       </main>
     </div>

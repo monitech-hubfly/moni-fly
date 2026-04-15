@@ -34,7 +34,7 @@ const CATEGORIES: {
     key: 'supermarket',
     label: 'Supermercados',
     overpassTag: 'shop=supermarket',
-    color: '#ea580c',
+    color: '#4d7a62',
     symbol: 'M',
   },
   { key: 'park', label: 'Parques', overpassTag: 'leisure=park', color: '#16a34a', symbol: 'P' },
@@ -137,7 +137,7 @@ function MapView({
     for (const road of roads) {
       const latLngs = road.coordinates.map(([lat, lon]) => [lat, lon] as [number, number]);
       const polyline = L.polyline(latLngs, {
-        color: '#b45309',
+        color: '#b08a3e',
         weight: 4,
         opacity: 0.8,
       });
@@ -304,7 +304,7 @@ export function MapaPraca({ cidade, estado }: { cidade: string; estado: string |
             />
             <span
               className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-              style={{ backgroundColor: '#b45309' }}
+              style={{ backgroundColor: 'var(--moni-gold-600)' }}
               title="Vias"
             >
               V
@@ -344,7 +344,8 @@ export function MapaPraca({ cidade, estado }: { cidade: string; estado: string |
                 .map((r, i) => (
                   <li key={`${r.name}-${i}`} className="flex items-center gap-1.5">
                     <span
-                      className="inline-block h-0.5 w-2 shrink-0 rounded bg-amber-600"
+                      className="inline-block h-0.5 w-2 shrink-0 rounded"
+                      style={{ backgroundColor: 'var(--moni-gold-600)' }}
                       aria-hidden
                     />
                     <span>{r.name}</span>

@@ -1,0 +1,14 @@
+---
+description: Configuração de idioma - responder sempre em português
+alwaysApply: true
+---
+
+# Idioma de Resposta
+
+Sempre responda em português brasileiro (pt-BR), independentemente do idioma em que o código esteja escrito.
+
+## Diretrizes
+
+- Use português brasileiro para todas as explicações, comentários e mensagens
+- Mantenha termos técnicos em inglês quando apropriado (ex: "commit", "branch", "deploy")
+- Comentários em código podem ser em português ou inglês, conforme o padrão do projeto
