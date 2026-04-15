@@ -309,8 +309,8 @@ export function CardModal({
   const sla = calcularStatusSLA(createdDate, faseAtual?.sla_dias ?? 999);
   const fasesAnteriores = fases.filter((f) => f.ordem < (faseAtual?.ordem ?? 0));
 
-  // Gera o título do card (FK0001 - Nome - Área)
-  const cardTitulo = `FK${String(card.id).padStart(4, '0')} - ${card.titulo}`;
+  // Usa o título real do card (já vem no formato FK0001 - Nome - Área)
+  const cardTitulo = card.titulo;
 
   // Aplica filtros nas atividades
   const atividadesFiltradas = atividades.filter((atividade) => {

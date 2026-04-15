@@ -60,7 +60,7 @@
   --moni-text-primary:   #0c2633;   /* Verde Naval — headings, labels */
   --moni-text-secondary: #4a3929;   /* Marrom — corpo de texto */
   --moni-text-tertiary:  #7a6e65;   /* Muted — hints, placeholders */
-  --moni-text-inverse:   #f9f7f4;   /* Texto sobre fundos escuros */
+  --moni-text-inverse:   #ffffff;   /* Texto sobre fundos escuros (branco puro) */
 
   /* Bordas */
   --moni-border-subtle:   rgba(12, 38, 51, 0.10);

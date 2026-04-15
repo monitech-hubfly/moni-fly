@@ -50,15 +50,26 @@ export function KanbanColumn({
       <div
         className="border-b px-4 py-3"
         style={{
-          background: 'var(--moni-kanban-stepone-light)',
+          background: 'var(--moni-navy-50)',
           borderBottom: '0.5px solid var(--moni-border-default)',
         }}
       >
-        <h2 className="font-semibold text-stone-800">{fase.nome}</h2>
+        <h2 className="font-semibold" style={{ color: 'var(--moni-navy-800)' }}>
+          {fase.nome}
+        </h2>
         <div className="mt-0.5 flex items-center justify-between">
-          <p className="text-xs text-stone-600">{cards.length} card(s)</p>
+          <p className="text-xs" style={{ color: 'var(--moni-navy-600)' }}>
+            {cards.length} card(s)
+          </p>
           {fase.sla_dias && (
-            <span className="rounded-full bg-white/60 px-2 py-0.5 text-[10px] font-medium text-stone-700">
+            <span 
+              className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={{
+                background: 'rgba(255, 255, 255, 0.7)',
+                color: 'var(--moni-navy-800)',
+                border: '0.5px solid var(--moni-navy-200)',
+              }}
+            >
               SLA: {fase.sla_dias}d
             </span>
           )}
