@@ -4,7 +4,8 @@
  * **Padrão: público** — não exige login em PROD (middleware + páginas).
  * Para **exigir login** nestas rotas: `NEXT_PUBLIC_PUBLIC_REDE_NOVOS_NEGOCIOS=false` na Vercel.
  *
- * Sem sessão, visualização/edição podem usar o service role no servidor (`SUPABASE_SERVICE_ROLE_KEY`).
+ * Sem sessão, visualização/edição podem usar o service role no servidor
+ * (`SUPABASE_DEV_SERVICE_ROLE_KEY` ou `SUPABASE_SERVICE_ROLE_KEY`).
  * Quem precisar de app fechada deve definir a env acima como `false`.
  */
 export function isPublicRedeNovosNegociosEnabled(): boolean {

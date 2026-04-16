@@ -14,7 +14,7 @@ import type { createClient } from '@/lib/supabase/server';
  * POST /api/cron/atualizar-estudos-zap
  * Header: Authorization: Bearer <CRON_SECRET>
  *
- * Variáveis de ambiente: CRON_SECRET, SUPABASE_SERVICE_ROLE_KEY, APIFY_API_TOKEN (ou VITE_APIFY_TOKEN).
+ * Variáveis de ambiente: CRON_SECRET, SUPABASE_DEV_SERVICE_ROLE_KEY ou SUPABASE_SERVICE_ROLE_KEY, APIFY_API_TOKEN (ou VITE_APIFY_TOKEN).
  */
 export async function POST(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     supabase = createAdminClient();
   } catch (e) {
     return NextResponse.json(
-      { error: 'Admin client não disponível. Configure SUPABASE_SERVICE_ROLE_KEY.' },
+      { error: 'Admin client não disponível. Configure SUPABASE_DEV_SERVICE_ROLE_KEY ou SUPABASE_SERVICE_ROLE_KEY.' },
       { status: 500 },
     );
   }

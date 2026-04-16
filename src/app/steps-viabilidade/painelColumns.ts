@@ -38,6 +38,11 @@ export interface PainelColumnDef {
   parallelGroup?: string;
   /** Rota para abrir o processo nesta etapa (step-one, step-2, painel, etc.). */
   hrefBase?: string;
+  /**
+   * SLA em dias úteis (como `kanban_fases.sla_dias` no Funil Step One).
+   * Omitido → usa o padrão do painel; `null` → sem SLA no cabeçalho / limite 999 d.u. no cálculo.
+   */
+  slaDiasUteis?: number | null;
 }
 
 export const PAINEL_COLUMNS: PainelColumnDef[] = [
@@ -98,6 +103,27 @@ export const PAINEL_COLUMNS: PainelColumnDef[] = [
   },
 ];
 
+/** Padrão quando a coluna não define `slaDiasUteis` (alinhado ao modal de card e ao Funil Step One). */
+const DEFAULT_SLA_DIAS_UTEIS_PAINEL_COLUNA = 7;
+const SLA_SEM_LIMITE_DU = 999;
+
+/** Dias úteis para `calcularStatusSLA` na coluna (como `fase.sla_dias ?? 999` no funil). */
+export function getPainelColumnSlaDiasUteis(etapaKey: PainelColumnKey): number {
+  const col = PAINEL_COLUMNS.find((c) => c.key === etapaKey);
+  if (col?.slaDiasUteis === null) return SLA_SEM_LIMITE_DU;
+  if (typeof col?.slaDiasUteis === 'number') return col.slaDiasUteis;
+  return DEFAULT_SLA_DIAS_UTEIS_PAINEL_COLUNA;
+}
+
+/** Valor do badge "SLA: Nd" no cabeçalho da coluna; `null` = não exibir. */
+export function getPainelColumnSlaHeaderBadgeDias(etapaKey: PainelColumnKey): string | null {
+  const col = PAINEL_COLUMNS.find((c) => c.key === etapaKey);
+  if (col?.slaDiasUteis === null) return null;
+  const n = typeof col?.slaDiasUteis === 'number' ? col.slaDiasUteis : DEFAULT_SLA_DIAS_UTEIS_PAINEL_COLUNA;
+  if (n >= SLA_SEM_LIMITE_DU) return null;
+  return String(n);
+}
+
 /** Duas colunas do kanban Crédito no painel Novos Negócios — gráficos do dashboard usam só estas (via `etapa_painel`). */
 export const PAINEL_KANBAN_CREDITO_KEYS: readonly PainelColumnKey[] = ['credito_terreno', 'credito_obra'];
 
@@ -108,9 +134,12 @@ export type PainelFlowRow =
   | { type: 'sequential'; keys: [PainelColumnKey] }
   | { type: 'parallel'; keys: PainelColumnKey[] };
 
-/** Ordem do fluxo: Crédito Terreno empilhado com Step 3; Crédito Obra empilhado com Step 6. */
+/**
+ * Ordem do fluxo no Kanban “Portfolio + Operações”.
+ * Step 1 (Mapeamento da Região) não é exibido como coluna — fluxo começa no Step 2.
+ * `step_1` permanece em `PAINEL_COLUMNS` e na ordem do modal (`getOrderedKeysForPainelCardModal`) para dados legados.
+ */
 export const PAINEL_FLOW_ROWS: PainelFlowRow[] = [
-  { type: 'sequential', keys: ['step_1'] },
   { type: 'sequential', keys: ['step_2'] },
   { type: 'sequential', keys: ['aprovacao_moni_novo_negocio'] },
   { type: 'sequential', keys: ['step_3'] },
@@ -132,6 +161,48 @@ export const PAINEL_FLOW_ROWS: PainelFlowRow[] = [
 
 export function getDefaultEtapaPainel(): PainelColumnKey {
   return DEFAULT_ETAPA;
+}
+
+/** Painéis que usam o modal de card com `?card=` e avanço alinhado ao Kanban. */
+export type PainelCardModalBoard = 'novos-negocios' | 'credito' | 'contabilidade';
+
+/** Ordem linear das colunas do fluxo principal (Portfolio + Operações), como em `PAINEL_FLOW_ROWS`. */
+export function flattenPainelFlowRowKeys(): PainelColumnKey[] {
+  const out: PainelColumnKey[] = [];
+  for (const row of PAINEL_FLOW_ROWS) {
+    out.push(...row.keys);
+  }
+  return out;
+}
+
+export function getOrderedKeysForPainelCardModal(board: PainelCardModalBoard): PainelColumnKey[] {
+  if (board === 'credito') return ['credito_terreno', 'credito_obra'];
+  if (board === 'contabilidade') {
+    return ['contabilidade_incorporadora', 'contabilidade_spe', 'contabilidade_gestora'];
+  }
+  // Inclui step_1 só na ordem lógica (modal / avanço); coluna Step 1 não entra em `PAINEL_FLOW_ROWS`.
+  return ['step_1', ...flattenPainelFlowRowKeys()];
+}
+
+/**
+ * Transições bloqueadas no drop do Kanban (`StepsKanbanColumn`).
+ * O botão “Avançar” do modal deve respeitar as mesmas regras.
+ */
+export function isPainelKanbanDropBlocked(from: PainelColumnKey, to: PainelColumnKey): boolean {
+  if (from === to) return true;
+  if (from === 'step_1' && to === 'step_2') return true;
+  if (from === 'step_2' && (to === 'step_3' || to === 'credito_terreno')) return true;
+  return false;
+}
+
+export function getNextPainelPhaseForModalBoard(
+  current: PainelColumnKey,
+  board: PainelCardModalBoard,
+): PainelColumnKey | null {
+  const keys = getOrderedKeysForPainelCardModal(board);
+  const idx = keys.indexOf(current);
+  if (idx === -1 || idx >= keys.length - 1) return null;
+  return keys[idx + 1]!;
 }
 
 export function getHrefForProcesso(etapaKey: PainelColumnKey, processoId: string): string {

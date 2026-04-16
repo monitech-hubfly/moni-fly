@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { mapGlueApiListingsToItems, type ZapListingItem } from '@/lib/zap-glue-api';
+import { resolveSupabaseServiceRoleKey } from '@/lib/supabase/admin';
 
 const PAGE_SIZE = 24;
 const MAX_FROM = 500;
@@ -25,13 +26,24 @@ export async function POST(request: Request) {
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !serviceRoleKey) {
+    let serviceRoleKey: string;
+    try {
+      serviceRoleKey = resolveSupabaseServiceRoleKey();
+    } catch {
       return NextResponse.json(
         {
           ok: false,
           error:
-            'Configuração Supabase ausente (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).',
+            'Configuração Supabase ausente (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_DEV_SERVICE_ROLE_KEY ou SUPABASE_SERVICE_ROLE_KEY válida).',
+        },
+        { status: 500 },
+      );
+    }
+    if (!supabaseUrl) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'Configuração Supabase ausente (NEXT_PUBLIC_SUPABASE_URL).',
         },
         { status: 500 },
       );

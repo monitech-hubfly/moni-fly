@@ -11,6 +11,9 @@ type Props = {
   statusFilter?: CardStatusFilter;
   tagFilter?: CardTagFilter;
   kanbanReadOnly?: boolean;
+  /** Abre detalhe via `?card=` (modal externo). */
+  openCardViaUrl?: boolean;
+  cardBasePath?: string;
 };
 
 export function PainelFlowBoard({
@@ -20,6 +23,8 @@ export function PainelFlowBoard({
   statusFilter,
   tagFilter,
   kanbanReadOnly = false,
+  openCardViaUrl = false,
+  cardBasePath,
 }: Props) {
   return (
     <div className="flex items-stretch gap-4 overflow-x-auto pb-4 pt-2">
@@ -45,6 +50,8 @@ export function PainelFlowBoard({
                     statusFilter={statusFilter}
                     tagFilter={tagFilter}
                     kanbanReadOnly={kanbanReadOnly}
+                    openCardViaUrl={openCardViaUrl}
+                    cardBasePath={cardBasePath}
                   />
                 );
               })}
@@ -69,6 +76,8 @@ export function PainelFlowBoard({
                   statusFilter={statusFilter}
                   tagFilter={tagFilter}
                   kanbanReadOnly={kanbanReadOnly}
+                  openCardViaUrl={openCardViaUrl}
+                  cardBasePath={cardBasePath}
                 />
               );
             })}

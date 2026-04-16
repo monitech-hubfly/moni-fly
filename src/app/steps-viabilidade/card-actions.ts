@@ -10,6 +10,7 @@ import { PAINEL_COLUMNS } from './painelColumns';
 import {
   formatNomesLista,
   legacySinglesFromLists,
+  mergeArraysWithLegacy,
   normalizeNomeList,
   parseTextArrayColumn,
 } from '@/lib/checklist-atividade-arrays';
@@ -122,7 +123,9 @@ function mapChecklistRowToItem(it: Record<string, unknown>): {
 
 function revalidatePainelETarefas() {
   revalidatePath('/painel-novos-negocios');
-  revalidatePath('/painel-novos-negocios/tarefas');
+  revalidatePath('/painel-credito');
+  revalidatePath('/painel-contabilidade');
+  revalidatePath('/funil-stepone');
 }
 
 async function resolveAutorNome(
@@ -811,6 +814,37 @@ export async function updateChecklistItemStatus(itemId: string, status: 'nao_ini
   return { ok: true };
 }
 
+function mapPainelStatusToKanbanAtividade(status: 'nao_iniciada' | 'em_andamento' | 'concluido'): {
+  status: string;
+  concluida_em: string | null;
+} {
+  if (status === 'concluido') return { status: 'concluida', concluida_em: new Date().toISOString() };
+  if (status === 'em_andamento') return { status: 'em_andamento', concluida_em: null };
+  return { status: 'pendente', concluida_em: null };
+}
+
+/** Painel de Interações (kanban): atualiza `kanban_atividades` a partir dos status do painel. */
+export async function updateKanbanAtividadePainelStatus(
+  atividadeId: string,
+  status: 'nao_iniciada' | 'em_andamento' | 'concluido',
+): Promise<CardActionResult> {
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase } = auth;
+  const { status: st, concluida_em } = mapPainelStatusToKanbanAtividade(status);
+  const { error } = await supabase
+    .from('kanban_atividades')
+    .update({
+      status: st,
+      concluida_em,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', atividadeId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePainelETarefas();
+  return { ok: true };
+}
+
 export async function getChecklistPareceres(itemIds: string[]): Promise<
   | { ok: true; pareceres: Record<string, string> }
   | { ok: false; error: string }
@@ -1175,9 +1209,18 @@ type AtividadesChecklistPainelOk = {
   ok: true;
   tarefas: Array<{
     id: string;
-    processo_id: string;
+    card_id: string;
+    kanban_nome: string;
+    kanban_id: string;
+    tipo: string;
+    sla_status: string | null;
+    responsavel_id: string | null;
     etapa_painel: string;
     titulo: string;
+    descricao: string | null;
+    /** ISO yyyy-mm-dd para cálculo de SLA em dias úteis no cliente */
+    prazo_iso: string | null;
+    card_titulo: string | null;
     prazo: string | null;
     times_nomes: string[];
     responsaveis_nomes: string[];
@@ -1192,173 +1235,124 @@ type AtividadesChecklistPainelOk = {
   }>;
 };
 
+function formatPrazoBrFromIsoDate(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const s = String(iso).trim().slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+function mapKanbanAtividadeStatusToPainel(raw: string): 'nao_iniciada' | 'em_andamento' | 'concluido' {
+  const x = String(raw ?? '')
+    .trim()
+    .toLowerCase();
+  if (x === 'concluida' || x === 'concluída') return 'concluido';
+  if (x === 'em_andamento') return 'em_andamento';
+  return 'nao_iniciada';
+}
+
 async function montarAtividadesChecklistPainel(supabase: SupabaseClient): Promise<AtividadesChecklistPainelOk | { ok: false; error: string }> {
-  let checklistRows: any[] = [];
+  const { data, error } = await supabase
+    .from('v_atividades_unificadas')
+    .select(
+      [
+        'id',
+        'card_id',
+        'card_titulo',
+        'fase_nome',
+        'kanban_nome',
+        'kanban_id',
+        'responsavel_id',
+        'responsavel_nome',
+        'tipo',
+        'titulo',
+        'descricao',
+        'atividade_status',
+        'data_vencimento',
+        'time_nome',
+        'times_nomes',
+        'franqueado_nome',
+        'criado_em',
+        'sla_status',
+      ].join(', '),
+    )
+    .order('criado_em', { ascending: false });
 
-  try {
-    const { data, error } = await supabase
-      .from('processo_card_checklist')
-      .select(
-        'id, processo_id, etapa_painel, titulo, prazo, time_nome, responsavel_nome, times_nomes, responsaveis_nomes, status, concluido',
-      )
-      .order('ordem', { ascending: true });
+  if (error) return { ok: false, error: error.message };
 
-    if (error) return { ok: false, error: error.message };
-    checklistRows = data ?? [];
-  } catch (err) {
-    if (!erroStatusFaltando(err) && !erroTimeFaltando(err) && !erroTimesNomesFaltando(err)) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
-    }
-    try {
-      const { data, error } = await supabase
-        .from('processo_card_checklist')
-        .select('id, processo_id, etapa_painel, titulo, prazo, time_nome, responsavel_nome, concluido')
-        .order('ordem', { ascending: true });
+  const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
 
-      if (error) return { ok: false, error: error.message };
-
-      checklistRows = (data ?? []).map((r: any) => ({
-        ...r,
-        times_nomes: [],
-        responsaveis_nomes: [],
-        status: r.concluido ? 'concluido' : 'nao_iniciada',
-      }));
-    } catch (err2) {
-      if (!erroTimeFaltando(err2) && !erroStatusFaltando(err2) && !erroTimesNomesFaltando(err2)) {
-        return { ok: false, error: err2 instanceof Error ? err2.message : String(err2) };
-      }
-      const { data, error } = await supabase
-        .from('processo_card_checklist')
-        .select('id, processo_id, etapa_painel, titulo, prazo, responsavel_nome, concluido')
-        .order('ordem', { ascending: true });
-      if (error) return { ok: false, error: error.message };
-      checklistRows = (data ?? []).map((r: any) => ({
-        ...r,
-        time_nome: null,
-        times_nomes: [],
-        responsaveis_nomes: [],
-        status: r.concluido ? 'concluido' : 'nao_iniciada',
-      }));
-    }
-  }
-
-  /** Checklist grava `processo_id` = base do histórico; cancelar/remover atualiza a linha do card atual (filho). */
-  const baseIds = [...new Set(checklistRows.map((r) => r.processo_id).filter(Boolean))] as string[];
-  let roots: any[] = [];
-  let children: any[] = [];
-  if (baseIds.length > 0) {
-    const fetched = await fetchProcessosParaLinhaChecklist(supabase, baseIds);
-    if (fetched.error) return { ok: false, error: fetched.error };
-    roots = fetched.roots;
-    children = fetched.children;
-  }
-
-  const lineageByRowId = new Map<string, any>();
-  for (const r of [...roots, ...children]) {
-    if (r?.id) lineageByRowId.set(String(r.id), r);
-  }
-
-  const excludedBases = new Set<string>();
-  for (const B of baseIds) {
-    const directRow = resolveLineageRowForBase(B, roots, children);
-    if (isProcessoChecklistPainelExcluido(directRow)) excludedBases.add(B);
-    for (const r of lineageByRowId.values()) {
-      const belongs = String(r.id) === B || String(r.historico_base_id ?? '') === B;
-      if (belongs && isProcessoChecklistPainelExcluido(r)) {
-        excludedBases.add(B);
-        break;
-      }
-    }
-  }
-
-  const procMap = new Map<string, any>();
-  for (const B of baseIds) {
-    if (excludedBases.has(B)) continue;
-    const root = roots.find((p: any) => String(p.id) === B);
-    if (root) procMap.set(B, root);
-    else {
-      const anyRow = children.find((p: any) => String(p.historico_base_id) === B);
-      if (anyRow) procMap.set(B, anyRow);
-    }
-  }
-
-  const tarefas = (checklistRows ?? [])
-    .filter((r: any) => !isChecklistAnexosEstrutural(r.etapa_painel, r.titulo))
-    .filter((r: any) => !excludedBases.has(String(r.processo_id)))
-    .map((r: any) => {
-    const p = procMap.get(r.processo_id);
-    const mapped = mapChecklistRowToItem(r as Record<string, unknown>);
-    return {
-      id: mapped.id,
-      processo_id: String(r.processo_id),
-      etapa_painel: String(r.etapa_painel ?? ''),
-      titulo: mapped.titulo,
-      prazo: mapped.prazo,
-      times_nomes: mapped.times_nomes,
-      responsaveis_nomes: mapped.responsaveis_nomes,
-      time_nome: mapped.time_nome,
-      responsavel_nome: mapped.responsavel_nome,
-      status: mapped.status,
-      processo_cidade: (p as { cidade?: string } | undefined)?.cidade ?? '',
-      processo_estado: (p as { estado?: string | null } | undefined)?.estado ?? null,
-      numero_franquia: (p as { numero_franquia?: string | null } | undefined)?.numero_franquia ?? null,
-      nome_franqueado: (p as { nome_franqueado?: string | null } | undefined)?.nome_franqueado ?? null,
-      nome_condominio: (p as { nome_condominio?: string | null } | undefined)?.nome_condominio ?? null,
-    };
+  const tarefas = rows
+    .filter((r) => String(r.atividade_status ?? '').toLowerCase() !== 'cancelada')
+    .map((r) => {
+      const timeNome = (r.time_nome as string | null | undefined) ?? null;
+      const respNome = (r.responsavel_nome as string | null | undefined) ?? null;
+      const status = mapKanbanAtividadeStatusToPainel(String(r.atividade_status ?? ''));
+      const rawDv = r.data_vencimento as string | null | undefined;
+      const prazoIso = rawDv ? String(rawDv).trim().slice(0, 10) : null;
+      const timesMerged = mergeArraysWithLegacy(parseTextArrayColumn(r.times_nomes), timeNome);
+      const descricao = (r.descricao as string | null | undefined) ?? null;
+      const tituloLinha = String(r.titulo ?? '').trim() || '(sem título)';
+      return {
+        id: String(r.id),
+        card_id: String(r.card_id),
+        kanban_nome: String(r.kanban_nome ?? ''),
+        kanban_id: String(r.kanban_id ?? ''),
+        tipo: String(r.tipo ?? 'atividade'),
+        sla_status: (r.sla_status ?? null) as string | null,
+        responsavel_id: r.responsavel_id ? String(r.responsavel_id) : null,
+        etapa_painel: String(r.fase_nome ?? ''),
+        titulo: tituloLinha,
+        descricao,
+        card_titulo: (r.card_titulo as string | null | undefined) ?? null,
+        prazo_iso: prazoIso && /^\d{4}-\d{2}-\d{2}$/.test(prazoIso) ? prazoIso : null,
+        prazo: formatPrazoBrFromIsoDate(r.data_vencimento as string | null | undefined),
+        times_nomes: timesMerged,
+        responsaveis_nomes: respNome ? [respNome] : [],
+        time_nome: timeNome,
+        responsavel_nome: respNome,
+        status,
+        processo_cidade: '',
+        processo_estado: null as string | null,
+        numero_franquia: null as string | null,
+        nome_franqueado: (r.franqueado_nome as string | null | undefined) ?? null,
+        nome_condominio: null as string | null,
+      };
     });
 
   return { ok: true, tarefas };
 }
 
 /**
- * Painel de Tarefas: lista agregada de todas as atividades (checklist) de todos os cards.
- * Preferência: service role (visão completa). Se SUPABASE_SERVICE_ROLE_KEY não existir ou falhar,
+ * Painel de Interações: lista agregada via `v_atividades_unificadas` (kanban_atividades + contexto).
+ * Preferência: service role (visão completa). Se SUPABASE_DEV_SERVICE_ROLE_KEY /
+ * SUPABASE_SERVICE_ROLE_KEY não existir ou falhar,
  * usa sessão + RLS (útil em dev local ou quando a Vercel ainda não tem a env).
  */
 export async function getAtividadesChecklistPainel(): Promise<
   AtividadesChecklistPainelOk | { ok: false; error: string }
 > {
-  // DEBUG: Verificar variáveis de ambiente
-  console.log('[getAtividadesChecklistPainel] === INÍCIO DEBUG ===');
-  console.log('[getAtividadesChecklistPainel] NEXT_PUBLIC_SUPABASE_URL:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
-  console.log('[getAtividadesChecklistPainel] SUPABASE_SERVICE_ROLE_KEY exists:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
-  console.log('[getAtividadesChecklistPainel] SUPABASE_SERVICE_ROLE_KEY length:', process.env.SUPABASE_SERVICE_ROLE_KEY?.length);
-  console.log('[getAtividadesChecklistPainel] SUPABASE_SERVICE_ROLE_KEY primeiros 20 chars:', process.env.SUPABASE_SERVICE_ROLE_KEY?.substring(0, 20));
-  
   let supabase: SupabaseClient;
   try {
-    console.log('[getAtividadesChecklistPainel] Tentando criar admin client...');
     supabase = createAdminClient();
-    console.log('[getAtividadesChecklistPainel] ✅ Admin client criado com sucesso!');
-  } catch (err) {
-    console.error('[getAtividadesChecklistPainel] ❌ ERRO ao criar admin client:', err);
-    console.error('[getAtividadesChecklistPainel] Tipo do erro:', typeof err);
-    console.error('[getAtividadesChecklistPainel] Mensagem:', err instanceof Error ? err.message : String(err));
-    
-    // Fallback para cliente normal
-    console.log('[getAtividadesChecklistPainel] Fazendo fallback para cliente normal...');
+  } catch {
     const s = await createClient();
     const {
       data: { user },
     } = await s.auth.getUser();
-    
-    console.log('[getAtividadesChecklistPainel] Usuário logado:', !!user);
-    console.log('[getAtividadesChecklistPainel] User ID:', user?.id);
-    
+
     if (!user) {
-      console.error('[getAtividadesChecklistPainel] ❌ Sem admin client E sem usuário logado');
       return {
         ok: false,
         error:
-          'Painel agregado: defina SUPABASE_SERVICE_ROLE_KEY no servidor (ex.: Vercel) ou entre com uma conta. Sem a chave, visitantes não veem todas as atividades.',
+          'Painel agregado: defina SUPABASE_DEV_SERVICE_ROLE_KEY (dev) ou SUPABASE_SERVICE_ROLE_KEY (prod) no servidor (ex.: Vercel) ou entre com uma conta. Sem a chave, visitantes não veem todas as interações.',
       };
     }
-    
-    console.log('[getAtividadesChecklistPainel] Usando cliente normal com RLS');
+
     return montarAtividadesChecklistPainel(s);
   }
-  
-  console.log('[getAtividadesChecklistPainel] Usando admin client (bypass RLS)');
+
   return montarAtividadesChecklistPainel(supabase);
 }
 
@@ -1842,7 +1836,7 @@ export async function criarTopicoEtapa(
   });
   if (error) return { ok: false, error: error.message };
   revalidatePath('/painel-novos-negocios');
-  revalidatePath('/painel-novos-negocios/tarefas');
+  revalidatePath('/painel-novos-negocios');
   return { ok: true };
 }
 
@@ -1857,7 +1851,7 @@ export async function atualizarTopicoEtapaStatus(topicoId: string, status: strin
     .eq('id', topicoId);
   if (error) return { ok: false, error: error.message };
   revalidatePath('/painel-novos-negocios');
-  revalidatePath('/painel-novos-negocios/tarefas');
+  revalidatePath('/painel-novos-negocios');
   return { ok: true };
 }
 
@@ -1871,7 +1865,7 @@ export async function atualizarTopicoEtapaResposta(topicoId: string, resposta: s
     .eq('id', topicoId);
   if (error) return { ok: false, error: error.message };
   revalidatePath('/painel-novos-negocios');
-  revalidatePath('/painel-novos-negocios/tarefas');
+  revalidatePath('/painel-novos-negocios');
   return { ok: true };
 }
 
@@ -1896,7 +1890,7 @@ export async function getUsuariosParaResponsavel(): Promise<
   return { ok: true, usuarios: list };
 }
 
-/** Painel de Tarefas: tópicos (tarefas) com filtro por responsável ou todas */
+/** Painel de Interações: tópicos com filtro por responsável ou todas */
 export async function getTarefasPainel(filtroResponsavel: 'todas' | 'minhas'): Promise<
   | {
       ok: true;

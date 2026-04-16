@@ -5,8 +5,7 @@ import { usePathname } from 'next/navigation';
 
 const TABS_BASE = [
   { href: '/sirene', label: 'Dashboard' },
-  { href: '/sirene/chamados', label: 'Chamados' },
-  { href: '/sirene/kanban', label: 'Organização (Kanban)' },
+  { href: '/sirene/interacoes', label: 'Chamados' },
   { href: '/sirene/pericias', label: 'Perícias (Caneta Verde)' },
 ] as const;
 
@@ -18,27 +17,27 @@ type Props = {
 
 export function SireneShell({ userName, isBombeiro, children }: Props) {
   const pathname = usePathname();
+  /** Bombeiro: Dashboard | Chamados | Perícias | Monitor */
   const tabs = isBombeiro
-    ? [...TABS_BASE.slice(0, 3), { href: '/sirene/monitor', label: 'Monitor dos times' }, TABS_BASE[3]]
-    : TABS_BASE;
+    ? [...TABS_BASE, { href: '/sirene/monitor', label: 'Monitor dos times' } as const]
+    : [...TABS_BASE];
 
   const isDetailPage = /^\/sirene\/[0-9]+$/.test(pathname ?? '');
   const tabAtivo =
     pathname === '/sirene'
       ? '/sirene'
-      : pathname?.startsWith('/sirene/chamados')
-        ? '/sirene/chamados'
-        : pathname?.startsWith('/sirene/kanban')
-          ? '/sirene/kanban'
-          : pathname?.startsWith('/sirene/pericias')
-            ? '/sirene/pericias'
-            : pathname?.startsWith('/sirene/monitor')
-              ? '/sirene/monitor'
+      : pathname?.startsWith('/sirene/interacoes') || pathname?.startsWith('/sirene/chamados')
+        ? '/sirene/interacoes'
+        : pathname?.startsWith('/sirene/pericias')
+          ? '/sirene/pericias'
+          : pathname?.startsWith('/sirene/monitor')
+            ? '/sirene/monitor'
+            : pathname?.startsWith('/sirene/kanban')
+              ? '/sirene'
               : '/sirene';
 
   return (
     <div className="min-h-screen bg-stone-900">
-      {/* Header: Portal, Sirene, usuário (sino fica só na sidebar à esquerda) */}
       <header className="border-b border-stone-700 bg-stone-800/80">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
@@ -67,7 +66,6 @@ export function SireneShell({ userName, isBombeiro, children }: Props) {
         </div>
       </header>
 
-      {/* Abas: Dashboard | Chamados | Kanban | Perícias — só se não for página de detalhe */}
       {!isDetailPage && (
         <nav className="border-b border-stone-700 bg-stone-800/60">
           <div className="mx-auto flex max-w-7xl gap-0 px-4">
@@ -88,7 +86,6 @@ export function SireneShell({ userName, isBombeiro, children }: Props) {
         </nav>
       )}
 
-      {/* Conteúdo da aba ou da página de detalhe */}
       {children}
     </div>
   );

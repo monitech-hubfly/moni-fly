@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { Search } from 'lucide-react';
 import type { CardStatusFilter, CardTagFilter, ProcessoCard } from '@/app/steps-viabilidade/StepsKanbanColumn';
 import { StepsKanbanColumn } from '@/app/steps-viabilidade/StepsKanbanColumn';
@@ -59,12 +58,6 @@ export function PainelContabilidadeClient({ byEtapa, initialOpenProcessId }: Pro
             className="w-full rounded-lg border border-stone-300 py-2 pl-9 pr-3 text-sm text-stone-800 placeholder:text-stone-400 focus:border-moni-primary focus:outline-none focus:ring-1 focus:ring-moni-primary"
           />
         </div>
-        <Link
-          href="/painel-novos-negocios/tarefas"
-          className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
-        >
-          Painel de Tarefas
-        </Link>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as CardStatusFilter)}
@@ -98,6 +91,8 @@ export function PainelContabilidadeClient({ byEtapa, initialOpenProcessId }: Pro
           initialOpenProcessId={initialOpenProcessId}
           statusFilter={statusFilter}
           tagFilter={tagFilter}
+          openCardViaUrl
+          cardBasePath="/painel-contabilidade"
         />
         <StepsKanbanColumn
           title={colSpe?.title ?? 'Abertura da SPE'}
@@ -107,6 +102,8 @@ export function PainelContabilidadeClient({ byEtapa, initialOpenProcessId }: Pro
           initialOpenProcessId={initialOpenProcessId}
           statusFilter={statusFilter}
           tagFilter={tagFilter}
+          openCardViaUrl
+          cardBasePath="/painel-contabilidade"
         />
         <StepsKanbanColumn
           title={colGestora?.title ?? 'Abertura da Gestora'}
@@ -116,6 +113,8 @@ export function PainelContabilidadeClient({ byEtapa, initialOpenProcessId }: Pro
           initialOpenProcessId={initialOpenProcessId}
           statusFilter={statusFilter}
           tagFilter={tagFilter}
+          openCardViaUrl
+          cardBasePath="/painel-contabilidade"
         />
       </div>
     </>

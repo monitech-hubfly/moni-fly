@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createAdminClient, resolveSupabaseServiceRoleKey } from '@/lib/supabase/admin';
 import { getPublicAppUrl } from '@/lib/app-url';
 import { humanizeResendError, sendEmailViaResend } from '@/lib/email';
 import { normalizeAccessRole } from '@/lib/authz';
@@ -39,8 +39,13 @@ async function waitForProfileByUserId(admin: SupabaseClient, userId: string): Pr
 /** GoTrue: GET /auth/v1/admin/users?page=&per_page= — mais fiável que o shape do SDK em alguns deploys. */
 async function findAuthUserIdByEmailHttp(email: string): Promise<string | null> {
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, '');
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!base || !key) return null;
+  let key: string;
+  try {
+    key = resolveSupabaseServiceRoleKey();
+  } catch {
+    return null;
+  }
+  if (!base) return null;
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${key}`,
@@ -247,7 +252,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error:
-            'Não foi possível associar este e-mail a um perfil. Confira se o usuário existe em Authentication e se SUPABASE_SERVICE_ROLE_KEY está configurada na Vercel.',
+            'Não foi possível associar este e-mail a um perfil. Confira se o usuário existe em Authentication e se SUPABASE_DEV_SERVICE_ROLE_KEY ou SUPABASE_SERVICE_ROLE_KEY está configurada na Vercel.',
         },
         { status: 500 },
       );

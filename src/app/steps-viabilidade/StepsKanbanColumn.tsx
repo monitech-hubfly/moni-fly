@@ -3,7 +3,11 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo } from 'react';
-import type { PainelColumnKey } from './painelColumns';
+import {
+  getPainelColumnSlaHeaderBadgeDias,
+  isPainelKanbanDropBlocked,
+  type PainelColumnKey,
+} from './painelColumns';
 import { PainelCard } from './PainelCard';
 import { atualizarEtapaPainel } from './actions';
 import type { ReactNode } from 'react';
@@ -35,6 +39,8 @@ export type ProcessoCard = {
   has_comite_aprovado?: boolean;
   /** Ordem dentro da coluna `etapa_painel` (menor = mais acima). */
   ordem_coluna_painel?: number | null;
+  /** Data de criação do processo (SLA como no Funil Step One: referência + dias úteis da coluna). */
+  created_at?: string | null;
 };
 
 export type CardStatusFilter = 'ativos' | 'cancelados' | 'removidos' | 'concluidos' | 'todos';
@@ -50,6 +56,8 @@ export function StepsKanbanColumn({
   statusFilter = 'ativos',
   tagFilter = 'todas',
   kanbanReadOnly = false,
+  openCardViaUrl = false,
+  cardBasePath,
 }: {
   title: string;
   subtitle?: string;
@@ -61,6 +69,10 @@ export function StepsKanbanColumn({
   tagFilter?: CardTagFilter;
   /** Sem sessão (ex.: painel público): esconde controles de reordenar. */
   kanbanReadOnly?: boolean;
+  /** Abre detalhe via query (?card=id) em vez do CardDetalheModal embutido (ex.: Crédito). */
+  openCardViaUrl?: boolean;
+  /** Caminho base para `?card=` (ex.: `/painel-credito`). Obrigatório se `openCardViaUrl`. */
+  cardBasePath?: string;
 }) {
   const router = useRouter();
 
@@ -102,11 +114,10 @@ export function StepsKanbanColumn({
     try {
       const data = JSON.parse(raw) as { processoId?: string; fromEtapa?: string };
       if (!data.processoId) return;
+      if (!data.fromEtapa) return;
       if (data.fromEtapa === etapaKey) return;
-      // Step 1 não pode passar cards para Step 2
-      if (data.fromEtapa === 'step_1' && etapaKey === 'step_2') return;
-        // Aprovação Moní é obrigatória entre Step 2 e Step 3
-        if (data.fromEtapa === 'step_2' && (etapaKey === 'step_3' || etapaKey === 'credito_terreno')) return;
+      const from = data.fromEtapa as PainelColumnKey;
+      if (isPainelKanbanDropBlocked(from, etapaKey)) return;
       const res = await atualizarEtapaPainel(data.processoId, etapaKey);
       if (res.ok) router.refresh();
     } catch {
@@ -116,32 +127,39 @@ export function StepsKanbanColumn({
 
   const isStep1 = etapaKey === 'step_1';
   const isStep2 = etapaKey === 'step_2';
-  
-  // Define cores baseadas na etapa (usando moni-tokens.css)
+
+  /** Faixa superior das colunas: mesma cor do Funil Step One (`moni-tokens.css`). */
+  const kanbanColumnTopStrip = 'var(--moni-kanban-stepone)';
+
+  // Cores do cabeçalho da coluna (faixa superior unificada com o Funil)
   const getColumnColors = () => {
     if (etapaKey.startsWith('contabilidade_')) {
       return {
-        borderTop: 'var(--moni-kanban-contab)',
-        bgHeader: 'var(--moni-kanban-contab-light)',
-        textHeader: 'text-stone-800',
+        borderTop: kanbanColumnTopStrip,
+        bgHeader: 'var(--moni-navy-50)',
+        textTitle: 'var(--moni-navy-800)',
+        textCount: 'var(--moni-navy-600)',
       };
     }
     if (etapaKey.startsWith('credito_')) {
       return {
-        borderTop: 'var(--moni-kanban-credito)',
-        bgHeader: 'var(--moni-kanban-credito-light)',
-        textHeader: 'text-stone-800',
+        borderTop: kanbanColumnTopStrip,
+        bgHeader: 'var(--moni-navy-50)',
+        textTitle: 'var(--moni-navy-800)',
+        textCount: 'var(--moni-navy-600)',
       };
     }
     // Portfolio/Operações (padrão)
     return {
-      borderTop: 'var(--moni-kanban-portfolio)',
-      bgHeader: 'var(--moni-kanban-portfolio-light)',
-      textHeader: 'text-stone-800',
+      borderTop: kanbanColumnTopStrip,
+      bgHeader: 'var(--moni-navy-50)',
+      textTitle: 'var(--moni-navy-800)',
+      textCount: 'var(--moni-navy-600)',
     };
   };
 
   const colors = getColumnColors();
+  const slaBadgeDias = getPainelColumnSlaHeaderBadgeDias(etapaKey);
 
   return (
     <div
@@ -151,11 +169,14 @@ export function StepsKanbanColumn({
       onDrop={handleDrop}
     >
       <div
-        className="border-b border-stone-200 px-4 py-3"
-        style={{ background: colors.bgHeader }}
+        className="border-b px-4 py-3"
+        style={{ 
+          background: colors.bgHeader,
+          borderBottom: '0.5px solid var(--moni-border-default)'
+        }}
       >
         <div className="flex items-start justify-between gap-2">
-          <h2 className={`font-semibold ${colors.textHeader}`}>{title}</h2>
+          <h2 className="font-semibold" style={{ color: colors.textTitle }}>{title}</h2>
           <div className="flex items-start gap-2">
             {isStep1 && (
               <div className="flex flex-col items-stretch gap-1">
@@ -183,10 +204,26 @@ export function StepsKanbanColumn({
           </div>
         </div>
         {subtitle && (
-          <p className="mt-1 text-[10px] leading-tight text-stone-600">{subtitle}</p>
+          <p className="mt-1 text-[10px] leading-tight" style={{ color: colors.textCount }}>
+            {subtitle}
+          </p>
         )}
         <div className="mt-0.5 flex items-center justify-between gap-2">
-          <p className="text-xs text-stone-600">{processosFiltrados.length} processo(s)</p>
+          <p className="text-xs" style={{ color: colors.textCount }}>
+            {processosFiltrados.length} processo(s)
+          </p>
+          {slaBadgeDias ? (
+            <span
+              className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={{
+                background: 'rgba(255, 255, 255, 0.7)',
+                color: colors.textTitle,
+                border: '0.5px solid var(--moni-navy-200)',
+              }}
+            >
+              SLA: {slaBadgeDias}d
+            </span>
+          ) : null}
         </div>
       </div>
       <div className="max-h-[70vh] space-y-2 overflow-y-auto p-3">
@@ -199,6 +236,8 @@ export function StepsKanbanColumn({
             vizinhoAcimaId={i > 0 ? processosFiltrados[i - 1]?.id : undefined}
             vizinhoAbaixoId={i < processosFiltrados.length - 1 ? processosFiltrados[i + 1]?.id : undefined}
             kanbanReadOnly={kanbanReadOnly}
+            openCardViaUrl={openCardViaUrl}
+            cardBasePath={cardBasePath}
           />
         ))}
         {processosFiltrados.length === 0 && (

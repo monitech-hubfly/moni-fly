@@ -11,7 +11,7 @@ import { isLiveLimitedRelease } from '@/lib/release-scope';
 type PortalSidebarProps = {
   user: { id: string; email?: string; full_name?: string | null } | null;
   userRole: string;
-  /** Sem sessão: só macros Rede + Novos Negócios (subitens completos para edição pública). */
+  /** Sem sessão: só macros Rede + Empreendimentos (subitens completos para edição pública). */
   publicVisitor?: boolean;
 };
 
@@ -58,14 +58,14 @@ const ACOPLAMENTO_SUBITENS: NavItem[] = [
 const PAINEL_NOVOS_NEGOCIOS_SUBITENS: NavItem[] = [
   { href: '/dashboard-novos-negocios', label: 'Dashboard Novos Negócios' },
   { href: '/funil-stepone', label: 'Funil Step One' },
-  { href: '/painel-novos-negocios', label: 'Portfolio + Operações' },
+  { href: '/portfolio', label: 'Funil Portfolio' },
+  { href: '/operacoes', label: 'Funil Operações' },
+  { href: '/painel-novos-negocios', label: 'Portfolio + Operações (legado)' },
 ];
-const PAINEL_NOVOS_NEGOCIOS_TAREFAS: NavItem[] = [
-  { href: '/painel-novos-negocios/tarefas', label: 'Painel de Tarefas' },
-];
+const SIRENE_SUBITENS: NavItem[] = [{ href: '/sirene/interacoes', label: 'Chamados' }];
 const PAINEL_NOVOS_NEGOCIOS_ADMIN_SUBITENS: NavItem[] = [
-  { href: '/painel-contabilidade', label: 'Contabilidade' },
-  { href: '/painel-credito', label: 'Crédito' },
+  { href: '/painel-contabilidade', label: 'Funil Contabilidade' },
+  { href: '/painel-credito', label: 'Funil Crédito' },
 ];
 
 function isRedeFranqueadosActive(pathname: string) {
@@ -74,11 +74,17 @@ function isRedeFranqueadosActive(pathname: string) {
 function isPainelNovosNegociosActive(pathname: string) {
   return (
     pathname.startsWith('/painel-novos-negocios') ||
+    pathname.startsWith('/portfolio') ||
+    pathname.startsWith('/operacoes') ||
     pathname.startsWith('/painel-contabilidade') ||
     pathname.startsWith('/painel-credito') ||
     pathname.startsWith('/dashboard-novos-negocios') ||
     pathname.startsWith('/funil-stepone')
   );
+}
+
+function isSireneNavActive(pathname: string) {
+  return pathname.startsWith('/sirene');
 }
 function isCatalogoActive(pathname: string) {
   return pathname.startsWith('/catalogo-produtos-moni');
@@ -127,17 +133,19 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
   const [painelNovosNegociosOpen, setPainelNovosNegociosOpen] = useState(() =>
     isPainelNovosNegociosActive(pathname ?? ''),
   );
+  const [sireneOpen, setSireneOpen] = useState(() => isSireneNavActive(pathname ?? ''));
 
   useEffect(() => {
     const p = pathname ?? '';
     if (p === '/perfil' || p.startsWith('/admin/usuarios')) setPerfilOpen(true);
     if (isPainelNovosNegociosActive(p)) setPainelNovosNegociosOpen(true);
+    if (isSireneNavActive(p)) setSireneOpen(true);
     if (isRedeFranqueadosActive(p)) setRedeFranqueadosOpen(true);
     else if (isCatalogoActive(p)) setCatalogoOpen(true);
     else if (isRedeContatosActive(p)) setRedeContatosOpen(true);
     else if (isStepsActive(p)) setStepsOpen(true);
     else if (isAcoplamentoActive(p)) setAcoplamentoOpen(true);
-    // Painel Crédito é subitem de Painel Novos Negócios (sem macro separado).
+    // Funil Crédito é subitem de Empreendimentos (sem macro separado).
   }, [pathname]);
 
   const isSirene = pathname.startsWith('/sirene');
@@ -183,7 +191,8 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
       | 'steps'
       | 'acoplamento'
       | 'credito'
-      | 'painelNovosNegocios',
+      | 'painelNovosNegocios'
+      | 'sirene',
     label: string,
     isActive: boolean,
     open: boolean,
@@ -234,13 +243,13 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
 
   return (
     <div
-      className={`flex h-screen w-56 flex-col border-r ${
+      className={`flex h-full min-h-0 w-56 shrink-0 flex-col border-r ${
         isSirene ? 'border-stone-800 bg-stone-900 text-stone-100' : 'border-stone-200 bg-white'
       }`}
     >
       {/* Topo: logo + sino */}
       <div
-        className={`flex h-14 items-center justify-between gap-2 border-b px-4 ${
+        className={`flex h-14 shrink-0 items-center justify-between gap-2 border-b px-4 ${
           isSirene ? 'border-stone-800' : 'border-stone-200'
         }`}
       >
@@ -269,7 +278,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
       </div>
 
       {/* Navegação principal com macro-itens e subitens */}
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
         {renderMacro(
           'rede',
           'Rede de Franqueados',
@@ -282,19 +291,36 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
 
         {renderMacro(
           'painelNovosNegocios',
-          'Novos Negócios',
+          'Empreendimentos',
           isPainelNovosNegociosActive(pathname ?? ''),
           painelNovosNegociosOpen,
           setPainelNovosNegociosOpen,
           showFullNovosNegociosNav
-            ? [
-                ...PAINEL_NOVOS_NEGOCIOS_SUBITENS,
-                ...PAINEL_NOVOS_NEGOCIOS_ADMIN_SUBITENS,
-                ...PAINEL_NOVOS_NEGOCIOS_TAREFAS,
-              ]
-            : [...PAINEL_NOVOS_NEGOCIOS_SUBITENS, ...PAINEL_NOVOS_NEGOCIOS_TAREFAS],
+            ? [...PAINEL_NOVOS_NEGOCIOS_SUBITENS, ...PAINEL_NOVOS_NEGOCIOS_ADMIN_SUBITENS]
+            : [...PAINEL_NOVOS_NEGOCIOS_SUBITENS],
           (href) => pathname === href || (pathname?.startsWith(href + '/') ?? false),
         )}
+
+        {!publicVisitor && !limitedRelease &&
+          isAdmin &&
+          renderMacro(
+            'sirene',
+            'Sirene',
+            isSireneNavActive(pathname ?? ''),
+            sireneOpen,
+            setSireneOpen,
+            SIRENE_SUBITENS,
+            (href) => {
+              if (href === '/sirene/interacoes') {
+                return Boolean(
+                  pathname === href ||
+                    pathname?.startsWith(`${href}/`) ||
+                    pathname?.startsWith('/sirene/chamados'),
+                );
+              }
+              return Boolean(pathname === href || pathname?.startsWith(`${href}/`));
+            },
+          )}
 
         {!publicVisitor && !limitedRelease &&
           isAdmin &&
@@ -348,25 +374,12 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
             ACOPLAMENTO_SUBITENS,
             (href) => (pathname === href || (href !== '/acoplamento-pl' && pathname?.startsWith(href))) ?? false,
           )}
-
-        {!publicVisitor && !limitedRelease && isAdmin && (
-          <Link
-            href="/sirene"
-            className={
-              isSirene
-                ? 'block w-full rounded-lg bg-emerald-400 px-3 py-2 text-left text-sm font-semibold text-stone-900 transition hover:bg-emerald-300'
-                : linkClassPrincipal(pathname.startsWith('/sirene'))
-            }
-          >
-            Sirene
-          </Link>
-        )}
       </nav>
 
       {publicVisitor ? (
-        <div className="space-y-2 border-t border-stone-200 p-3 text-xs text-stone-600">
+        <div className="shrink-0 space-y-2 border-t border-stone-200 p-3 text-xs text-stone-600">
           <p className="rounded-lg bg-stone-100 px-3 py-2 leading-snug">
-            Modo visitante — edição pública (Rede + Novos Negócios)
+            Modo visitante — edição pública (Rede + Empreendimentos)
           </p>
           <Link href="/login" className="block font-medium text-moni-primary hover:underline">
             Entrar com conta
@@ -376,8 +389,8 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
         <div
           className={
             isSirene
-              ? 'space-y-1 border-t border-stone-800 bg-moni-primary/10 p-3'
-              : 'space-y-1 border-t border-stone-200 p-3'
+              ? 'shrink-0 space-y-1 border-t border-stone-800 bg-moni-primary/10 p-3'
+              : 'shrink-0 space-y-1 border-t border-stone-200 p-3'
           }
         >
           <div

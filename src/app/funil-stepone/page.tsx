@@ -1,10 +1,13 @@
 import { guardLoginRequired } from '@/lib/auth-guard';
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import { KanbanColumn } from './KanbanColumn';
-import { KanbanWrapper } from './KanbanWrapper';
+import { KanbanBoard } from '@/components/kanban-shared/KanbanBoard';
+import { KanbanWrapper } from '@/components/kanban-shared/KanbanWrapper';
 import { KanbanTabs } from './KanbanTabs';
+import { PainelPerformance } from '@/components/kanban-shared/PainelPerformance';
+import type { KanbanCardBrief, KanbanFase } from '@/components/kanban-shared/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -122,18 +125,18 @@ export default async function FunilStepOnePage({
 
   console.log('[FunilStepOne] Cards normalizados:', cards.length);
 
-  // Organiza cards por fase
-  const cardsByFase: Record<string, typeof cards> = {};
-  fases?.forEach((f) => {
-    cardsByFase[f.id] = cards?.filter((c) => c.fase_id === f.id) || [];
-  });
-  
-  console.log('[FunilStepOne] Cards por fase:', Object.entries(cardsByFase).map(([id, cards]) => ({ fase: fases?.find(f => f.id === id)?.nome, count: cards.length })));
-
   const isAdmin = role === 'admin' || role === 'consultor';
 
   return (
-    <KanbanWrapper isAdmin={isAdmin} kanbanId={kanban.id}>
+    <KanbanWrapper
+      basePath="/funil-stepone"
+      isAdmin={isAdmin}
+      kanbanId={kanban.id}
+      kanbanNome="Funil Step One"
+      fases={fases ?? []}
+      legacyPanelHref="/painel-novos-negocios"
+      enableNovoCardModal
+    >
       <div className="min-h-screen bg-stone-50">
         {/* Header com breadcrumb e botão novo card */}
         <header className="border-b border-stone-200 bg-white">
@@ -159,43 +162,33 @@ export default async function FunilStepOnePage({
           </div>
         </header>
 
-        {/* Abas: Kanban / Painel */}
-        <KanbanTabs />
+        {/* Abas: Kanban / Painel (Suspense por useSearchParams no cliente) */}
+        <Suspense fallback={null}>
+          <KanbanTabs />
+        </Suspense>
 
         {/* Conteúdo da aba ativa */}
         {activeTab === 'kanban' && (
           <main className="mx-auto max-w-[1600px] overflow-x-auto px-6 py-8">
-            <div className="moni-kanban-board flex min-w-max gap-4">
-              {fases?.map((fase) => (
-                <KanbanColumn
-                  key={fase.id}
-                  fase={fase}
-                  cards={cardsByFase[fase.id] || []}
-                  kanbanId={kanban.id}
-                  userRole={role}
-                />
-              ))}
-            </div>
+            <KanbanBoard
+              fases={fases ?? []}
+              cards={cards}
+              basePath="/funil-stepone"
+              userRole={role}
+              columnAccent="var(--moni-kanban-stepone)"
+            />
           </main>
         )}
 
         {activeTab === 'painel' && (
           <main className="mx-auto max-w-[1600px] px-6 py-8">
-            <div className="flex min-h-[400px] items-center justify-center rounded-lg border-2 border-dashed"
-              style={{ 
-                borderColor: 'var(--moni-border-subtle)',
-                background: 'var(--moni-surface-50)',
-              }}
-            >
-              <div className="text-center">
-                <h2 className="text-lg font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-                  Painel em Desenvolvimento
-                </h2>
-                <p className="mt-2 text-sm" style={{ color: 'var(--moni-text-tertiary)' }}>
-                  Esta funcionalidade será implementada em breve.
-                </p>
-              </div>
-            </div>
+            <PainelPerformance
+              kanbanNome="Funil Step One"
+              kanbanId={String(kanban.id)}
+              fases={(fases ?? []) as KanbanFase[]}
+              cards={cards as KanbanCardBrief[]}
+              origemCards="nativo"
+            />
           </main>
         )}
       </div>

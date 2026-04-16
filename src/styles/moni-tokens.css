@@ -362,7 +362,9 @@
   }
 
   .moni-card-modal-left,
-  .moni-card-modal-right {
+  .moni-card-modal-right,
+  .moni-card-modal-center,
+  .moni-card-modal-acoes {
     width: 100% !important;
     max-height: none !important;
   }
@@ -382,12 +384,25 @@
     padding: var(--moni-space-4) !important;
   }
 
-  /* Modal de card: ordem invertida no mobile (direita antes esquerda) */
+  /* Modal de card (2 colunas): conteúdo principal antes da sidebar */
   .moni-card-modal-right {
     order: 1 !important;
   }
 
   .moni-card-modal-left {
     order: 2 !important;
+  }
+
+  /* KanbanCardModal (3 colunas): centro → ações → sidebar */
+  .moni-card-modal-center {
+    order: 1 !important;
+  }
+
+  .moni-card-modal-acoes {
+    order: 2 !important;
+  }
+
+  .moni-card-modal-split:has(.moni-card-modal-center) .moni-card-modal-left {
+    order: 3 !important;
   }
 }

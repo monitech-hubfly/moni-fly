@@ -86,6 +86,10 @@ export async function getPainelDbForPublicEdit(): Promise<PainelDbAuth> {
       isServiceRole: true,
     };
   } catch {
-    return { ok: false, error: 'Edição por link público indisponível (SUPABASE_SERVICE_ROLE_KEY).' };
+    return {
+      ok: false,
+      error:
+        'Edição por link público indisponível (SUPABASE_DEV_SERVICE_ROLE_KEY ou SUPABASE_SERVICE_ROLE_KEY).',
+    };
   }
 }

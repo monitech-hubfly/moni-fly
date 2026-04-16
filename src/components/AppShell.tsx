@@ -20,9 +20,11 @@ export function AppShell({ user, userRole, showPublicPortalNav = false, children
   }
 
   return (
-    <div className={`flex min-h-screen ${isSirene ? 'bg-stone-900' : 'bg-stone-50'}`}>
+    <div
+      className={`flex h-[100dvh] max-h-[100dvh] min-h-0 overflow-hidden ${isSirene ? 'bg-stone-900' : 'bg-stone-50'}`}
+    >
       <PortalSidebar user={user} userRole={userRole} publicVisitor={showPublicPortalNav} />
-      <main className="min-w-0 flex-1">{children}</main>
+      <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">{children}</main>
     </div>
   );
 }

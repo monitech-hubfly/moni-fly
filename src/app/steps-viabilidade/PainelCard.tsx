@@ -3,7 +3,8 @@
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
-import type { PainelColumnKey } from './painelColumns';
+import { calcularStatusSLA } from '@/lib/dias-uteis';
+import { getPainelColumnSlaDiasUteis, type PainelColumnKey } from './painelColumns';
 import { CardDetalheModal } from './CardDetalheModal';
 import type { ProcessoCard } from './StepsKanbanColumn';
 import { reordenarCardNaColunaPainel } from './actions';
@@ -15,6 +16,8 @@ export function PainelCard({
   vizinhoAcimaId,
   vizinhoAbaixoId,
   kanbanReadOnly = false,
+  openCardViaUrl = false,
+  cardBasePath,
 }: {
   p: ProcessoCard;
   etapaKey: PainelColumnKey;
@@ -24,6 +27,9 @@ export function PainelCard({
   /** Card exibido imediatamente abaixo; usado para descer. */
   vizinhoAbaixoId?: string;
   kanbanReadOnly?: boolean;
+  /** Abre detalhe com `router.push(cardBasePath + ?card=id)` (modal externo). */
+  openCardViaUrl?: boolean;
+  cardBasePath?: string;
 }) {
   const router = useRouter();
   const [reorderPending, startTransition] = useTransition();
@@ -60,11 +66,29 @@ export function PainelCard({
   const hasAtencao = Boolean(p.has_atividade_atencao) && !hasAtrasado;
   const hasComiteAprovado = Boolean(p.has_comite_aprovado);
 
+  const refSlaIso = p.created_at ?? p.updated_at;
+  const slaPainel =
+    refSlaIso && !isCancelado && !isRemovido && !isConcluido
+      ? calcularStatusSLA(new Date(refSlaIso), getPainelColumnSlaDiasUteis(etapaKey))
+      : { label: '', status: 'ok' as const, classe: '' };
+
   useEffect(() => {
     if (!autoOpen || autoOpened) return;
+    if (openCardViaUrl && cardBasePath) {
+      setAutoOpened(true);
+      return;
+    }
     setModalOpen(true);
     setAutoOpened(true);
-  }, [autoOpen, autoOpened]);
+  }, [autoOpen, autoOpened, openCardViaUrl, cardBasePath]);
+
+  function openCard() {
+    if (openCardViaUrl && cardBasePath) {
+      router.push(`${cardBasePath}?card=${encodeURIComponent(p.id)}`);
+      return;
+    }
+    setModalOpen(true);
+  }
 
   const handleReorder = (dir: 'up' | 'down', vizinhoId: string | undefined) => {
     if (!vizinhoId || reorderPending) return;
@@ -86,7 +110,7 @@ export function PainelCard({
               ? 'border-green-500 bg-green-50'
               : 'border-stone-200 bg-white'
         }`}
-        onClick={() => setModalOpen(true)}
+        onClick={() => openCard()}
         draggable={!p.trava_painel && !isCancelado && !isRemovido && !isConcluido}
         onDragStart={handleDragStart}
       >
@@ -127,7 +151,11 @@ export function PainelCard({
         <div className="absolute right-2 top-2 flex gap-0.5">
           <button
             type="button"
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setModalOpen(true); }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              openCard();
+            }}
             className="rounded p-1 text-stone-400 hover:bg-stone-200 hover:text-stone-700"
             title="Comentários, atividades e tópicos"
           >
@@ -146,14 +174,10 @@ export function PainelCard({
             </span>
           )}
           {!isCancelado && !isRemovido && hasAtrasado && (
-            <span className="mb-1 ml-1 inline-block rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-800">
-              Atrasado
-            </span>
+            <span className="mb-1 ml-1 moni-tag-atrasado text-[10px]">Checklist atrasado</span>
           )}
           {!isCancelado && !isRemovido && hasAtencao && (
-            <span className="mb-1 ml-1 inline-block rounded bg-yellow-100 px-1.5 py-0.5 text-[10px] font-medium text-yellow-800">
-              Atenção
-            </span>
+            <span className="mb-1 ml-1 moni-tag-atencao text-[10px]">Checklist em atenção</span>
           )}
           {!isCancelado && !isRemovido && hasComiteAprovado && (
             <span className="mb-1 ml-1 inline-block rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-800">
@@ -196,6 +220,16 @@ export function PainelCard({
               {p.observacoes.length > 80 ? `${p.observacoes.slice(0, 80)}…` : p.observacoes}
             </p>
           )}
+          {p.created_at ? (
+            <p className="mt-1 text-xs text-stone-400">
+              Criado: {new Date(p.created_at).toLocaleDateString('pt-BR')}
+            </p>
+          ) : null}
+          {slaPainel.label && slaPainel.status !== 'ok' ? (
+            <div className="mt-2">
+              <span className={slaPainel.classe}>{slaPainel.label}</span>
+            </div>
+          ) : null}
           <p className="mt-1 text-xs text-stone-400">
             {isCancelado ? 'Cancelado' : isRemovido ? 'Excluído' : p.status === 'concluido' ? 'Concluído' : p.status === 'em_andamento' ? 'Em andamento' : 'Rascunho'}
             {p.updated_at ? ` · ${new Date(p.updated_at).toLocaleDateString('pt-BR')}` : ''}
@@ -217,7 +251,7 @@ export function PainelCard({
             : 'Arraste o card para mudar de etapa.'}
         </div>
       </div>
-      {modalOpen && (
+      {modalOpen && !openCardViaUrl && (
         <CardDetalheModal
           processoId={p.id}
           etapaKey={etapaKey}

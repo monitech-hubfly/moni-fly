@@ -1,50 +1,61 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo } from 'react';
 import { calcularStatusSLA } from '@/lib/dias-uteis';
+import type { KanbanCardBrief, KanbanFase } from './types';
 
-type Card = {
-  id: string;
-  titulo: string;
-  status: string;
-  created_at: string;
-  fase_id: string;
-  franqueado_id: string;
-  profiles?: {
-    full_name: string | null;
-  } | null;
+export type KanbanColumnProps = {
+  fase: KanbanFase;
+  cards: KanbanCardBrief[];
+  /** Ex.: `/funil-stepone` — abre o modal com `?card=` */
+  basePath: string;
+  /** Query param do card (padrão `card`). */
+  cardQueryParam?: string;
+  userRole: string;
+  /** Cor da faixa superior da coluna (CSS). */
+  columnAccent?: string;
 };
 
-type Fase = {
-  id: string;
-  nome: string;
-  ordem: number;
-  sla_dias: number | null;
-};
+function hrefAbrirCard(
+  basePath: string,
+  cardId: string,
+  param: string,
+  origem?: KanbanCardBrief['origem'],
+) {
+  const [path, qs] = basePath.split('?');
+  const sp = new URLSearchParams(qs ?? '');
+  /** Sem isso, `?tab=painel` pode persistir (ex. histórico) e o RSC não renderiza o board — modal some ou falha o load. */
+  sp.delete('tab');
+  sp.set(param, cardId);
+  if (origem === 'legado') {
+    sp.set('origem', 'legado');
+  } else {
+    sp.delete('origem');
+  }
+  const tail = sp.toString();
+  return tail ? `${path}?${tail}` : `${path}?${param}=${encodeURIComponent(cardId)}`;
+}
 
 export function KanbanColumn({
   fase,
   cards,
-  kanbanId,
+  basePath,
+  cardQueryParam = 'card',
   userRole,
-}: {
-  fase: Fase;
-  cards: Card[];
-  kanbanId: string;
-  userRole: string;
-}) {
+  columnAccent = 'var(--moni-kanban-stepone)',
+}: KanbanColumnProps) {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-
   const isAdmin = userRole === 'admin' || userRole === 'consultor';
+
+  const accent = useMemo(() => columnAccent, [columnAccent]);
 
   return (
     <div
       className="moni-kanban-column w-80 shrink-0 overflow-hidden rounded-xl bg-white shadow-sm"
       style={{
         border: '0.5px solid var(--moni-border-default)',
-        borderTop: '3px solid var(--moni-kanban-stepone)',
+        borderTop: `3px solid ${accent}`,
       }}
     >
       <div
@@ -61,8 +72,8 @@ export function KanbanColumn({
           <p className="text-xs" style={{ color: 'var(--moni-navy-600)' }}>
             {cards.length} card(s)
           </p>
-          {fase.sla_dias && (
-            <span 
+          {fase.sla_dias ? (
+            <span
               className="rounded-full px-2 py-0.5 text-[10px] font-medium"
               style={{
                 background: 'rgba(255, 255, 255, 0.7)',
@@ -72,7 +83,7 @@ export function KanbanColumn({
             >
               SLA: {fase.sla_dias}d
             </span>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -80,14 +91,12 @@ export function KanbanColumn({
         {cards.map((card) => {
           const createdDate = new Date(card.created_at);
           const slaDiasUteis = fase.sla_dias ?? 999;
-          
-          // Calcula status do SLA em dias úteis
           const sla = calcularStatusSLA(createdDate, slaDiasUteis);
-
           return (
             <button
               key={card.id}
-              onClick={() => router.push(`/funil-stepone?card=${card.id}`)}
+              type="button"
+              onClick={() => router.push(hrefAbrirCard(basePath, card.id, cardQueryParam, card.origem))}
               className="block w-full bg-white p-3 text-left shadow-sm transition hover:shadow-md"
               style={{
                 border: '0.5px solid var(--moni-border-default)',
@@ -95,24 +104,20 @@ export function KanbanColumn({
               }}
             >
               <p className="line-clamp-2 text-sm font-medium text-stone-800">{card.titulo}</p>
-              {isAdmin && card.profiles?.full_name && (
-                <p className="mt-1 line-clamp-1 text-xs text-stone-500">
-                  {card.profiles.full_name}
-                </p>
-              )}
-              <p className="mt-1 text-xs text-stone-400">
-                Criado: {createdDate.toLocaleDateString('pt-BR')}
-              </p>
-              {sla.label && sla.status !== 'ok' && (
+              {isAdmin && card.profiles?.full_name ? (
+                <p className="mt-1 line-clamp-1 text-xs text-stone-500">{card.profiles.full_name}</p>
+              ) : null}
+              <p className="mt-1 text-xs text-stone-400">Criado: {createdDate.toLocaleDateString('pt-BR')}</p>
+              {sla.label && sla.status !== 'ok' ? (
                 <div className="mt-2">
                   <span className={sla.classe}>{sla.label}</span>
                 </div>
-              )}
+              ) : null}
             </button>
           );
         })}
 
-        {cards.length === 0 && (
+        {cards.length === 0 ? (
           <div
             className="p-6 text-center text-sm text-stone-400"
             style={{
@@ -122,7 +127,7 @@ export function KanbanColumn({
           >
             Nenhum card nesta fase
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

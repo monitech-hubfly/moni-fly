@@ -1,9 +1,14 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { isAppFullyPublic, isPublicRedeNovosNegociosEnabled } from '@/lib/public-rede-novos';
 import { type ProcessoCard } from '@/app/steps-viabilidade/StepsKanbanColumn';
 import { PAINEL_COLUMNS, type PainelColumnKey } from '@/app/steps-viabilidade/painelColumns';
 import { PainelNovosNegociosClient } from '@/app/steps-viabilidade/PainelNovosNegociosClient';
+import { PainelCardQueryModalWrapper } from '@/app/steps-viabilidade/PainelCardQueryModalWrapper';
+import { PainelKanbanTabs } from '@/app/steps-viabilidade/PainelKanbanTabs';
+import { fetchKanbanBoardSnapshot } from '@/components/kanban-shared/fetchKanbanBoardSnapshot';
+import { PainelPerformance } from '@/components/kanban-shared/PainelPerformance';
 import { buildChecklistAtrasoByCardId } from '@/lib/painel-checklist-atraso';
 import { sortProcessosPorOrdemColuna } from '@/lib/painel-coluna-ordem';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -11,7 +16,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 export default async function PainelNovosNegociosPage({
   searchParams,
 }: {
-  searchParams?: { card?: string | string[]; abrir?: string | string[] };
+  searchParams?: { card?: string | string[]; abrir?: string | string[]; tab?: string | string[] };
 }) {
   const supabase = await createClient();
   const {
@@ -28,10 +33,13 @@ export default async function PainelNovosNegociosPage({
     }
   }
 
+  const snapPortfolio = await fetchKanbanBoardSnapshot(db, 'Funil Portfólio', user?.id ?? null);
+  const snapOperacoes = await fetchKanbanBoardSnapshot(db, 'Funil Operações', user?.id ?? null);
+
   const { data: rows } = await db
     .from('processo_step_one')
     .select(
-      'id, cidade, estado, status, etapa_atual, updated_at, user_id, step_atual, cancelado_em, removido_em, cancelado_motivo, removido_motivo, etapa_painel, trava_painel, tipo_aquisicao_terreno, numero_franquia, nome_franqueado, nome_condominio, quadra_lote, historico_base_id, ordem_coluna_painel',
+      'id, cidade, estado, status, etapa_atual, created_at, updated_at, user_id, step_atual, cancelado_em, removido_em, cancelado_motivo, removido_motivo, etapa_painel, trava_painel, tipo_aquisicao_terreno, numero_franquia, nome_franqueado, nome_condominio, quadra_lote, historico_base_id, ordem_coluna_painel',
     )
   ;
 
@@ -113,6 +121,7 @@ export default async function PainelNovosNegociosPage({
       cancelado_em: (r as any).cancelado_em ?? null,
       removido_em: (r as any).removido_em ?? null,
       etapa_atual: r.etapa_atual ?? 1,
+      created_at: (r as { created_at?: string | null }).created_at ?? null,
       updated_at: r.updated_at ?? null,
       franqueado_nome: (r as { nome_franqueado?: string | null }).nome_franqueado ?? profileByUserId[r.user_id] ?? null,
       numero_franquia: (r as { numero_franquia?: string | null }).numero_franquia ?? null,
@@ -152,6 +161,10 @@ export default async function PainelNovosNegociosPage({
     (Array.isArray(cardParam) ? cardParam[0] : cardParam) ??
     (Array.isArray(abrirParam) ? abrirParam[0] : abrirParam);
 
+  const tabParam = searchParams?.tab;
+  const activeTab =
+    (Array.isArray(tabParam) ? tabParam[0] : tabParam) === 'painel' ? 'painel' : 'kanban';
+
   return (
     <div className="min-h-screen bg-stone-50">
       <header className="border-b border-stone-200 bg-white">
@@ -164,13 +177,58 @@ export default async function PainelNovosNegociosPage({
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1600px] overflow-x-auto px-6 py-8">
-        <PainelNovosNegociosClient
-          byEtapa={byEtapa}
-          initialOpenProcessId={initialOpenProcessId}
-          kanbanReadOnly={false}
-        />
-      </main>
+      <Suspense fallback={null}>
+        <PainelKanbanTabs basePath="/painel-novos-negocios" variant="portfolio" />
+      </Suspense>
+
+      {activeTab === 'kanban' ? (
+        <main className="mx-auto max-w-[1600px] overflow-x-auto px-6 py-8">
+          <Suspense fallback={null}>
+            <PainelCardQueryModalWrapper basePath="/painel-novos-negocios" board="novos-negocios">
+              <PainelNovosNegociosClient
+                byEtapa={byEtapa}
+                initialOpenProcessId={initialOpenProcessId}
+                kanbanReadOnly={false}
+              />
+            </PainelCardQueryModalWrapper>
+          </Suspense>
+        </main>
+      ) : (
+        <main className="mx-auto max-w-[1600px] space-y-8 px-6 py-8">
+          <p className="text-sm text-stone-600">
+            Performance dos funis <strong className="text-stone-800">Portfolio</strong> e{' '}
+            <strong className="text-stone-800">Operações</strong>. Para a central única de interações,{' '}
+            <Link href="/sirene/interacoes" className="font-medium text-moni-primary hover:underline">
+              Ver no Sirene →
+            </Link>
+            .
+          </p>
+          <div className="grid gap-10 lg:grid-cols-2">
+            {snapPortfolio.kanban ? (
+              <PainelPerformance
+                kanbanNome="Funil Portfólio"
+                kanbanId={snapPortfolio.kanban.id}
+                fases={snapPortfolio.fases}
+                cards={snapPortfolio.cards}
+                origemCards={snapPortfolio.cards.some((c) => c.origem === 'legado') ? 'legado' : 'nativo'}
+              />
+            ) : (
+              <p className="text-sm text-stone-500">Kanban &ldquo;Funil Portfólio&rdquo; não encontrado.</p>
+            )}
+            {snapOperacoes.kanban ? (
+              <PainelPerformance
+                kanbanNome="Funil Operações"
+                kanbanId={snapOperacoes.kanban.id}
+                fases={snapOperacoes.fases}
+                cards={snapOperacoes.cards}
+                origemCards={snapOperacoes.cards.some((c) => c.origem === 'legado') ? 'legado' : 'nativo'}
+              />
+            ) : (
+              <p className="text-sm text-stone-500">Kanban &ldquo;Funil Operações&rdquo; não encontrado.</p>
+            )}
+          </div>
+        </main>
+      )}
     </div>
   );
 }

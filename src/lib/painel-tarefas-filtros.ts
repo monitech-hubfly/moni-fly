@@ -1,5 +1,47 @@
 import { ATIVIDADE_TIMES } from '@/lib/atividade-times';
 import { itemMatchesTimeFilter } from '@/lib/checklist-atividade-arrays';
+import { calcularDiasUteis } from '@/lib/dias-uteis';
+
+function startOfLocalDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function parsePrazoIsoDate(iso: string | null | undefined): Date | null {
+  if (!iso) return null;
+  const s = String(iso).trim().slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+/**
+ * Rótulo de SLA em dias úteis para o painel de interações.
+ * Concluídas ou sem prazo retornam variante `nenhum`.
+ */
+export function rotuloSlaInteracaoPainel(
+  prazoIso: string | null | undefined,
+  statusPainel: string,
+): { variante: 'nenhum' | 'atrasado' | 'vence_hoje' | 'vence_futuro'; texto: string } {
+  const st = String(statusPainel ?? '').trim().toLowerCase();
+  if (st === 'concluido' || st === 'concluida') return { variante: 'nenhum', texto: '—' };
+  const due = parsePrazoIsoDate(prazoIso ?? null);
+  if (!due) return { variante: 'nenhum', texto: '—' };
+  const hoje = startOfLocalDay(new Date());
+  const dueD = startOfLocalDay(due);
+  if (dueD < hoje) {
+    const depoisDoPrazo = new Date(dueD);
+    depoisDoPrazo.setDate(depoisDoPrazo.getDate() + 1);
+    const du = calcularDiasUteis(startOfLocalDay(depoisDoPrazo), hoje);
+    return { variante: 'atrasado', texto: du > 0 ? `Atrasado ${du} d.u.` : 'Atrasado' };
+  }
+  if (dueD.getTime() === hoje.getTime()) {
+    return { variante: 'vence_hoje', texto: 'Vence hoje' };
+  }
+  const amanha = new Date(hoje);
+  amanha.setDate(amanha.getDate() + 1);
+  const du = calcularDiasUteis(startOfLocalDay(amanha), dueD);
+  return { variante: 'vence_futuro', texto: du > 0 ? `Vence em ${du} d.u.` : 'Vence hoje' };
+}
 
 /** Classes compartilhadas: mesmo padrão do grid de filtros da aba Atividades no card. */
 export const PAINEL_TAREFAS_SELECT_CLASS =
@@ -10,24 +52,26 @@ export const PAINEL_TAREFAS_SEARCH_CLASS =
 
 export type PainelTarefasFiltrosState = {
   busca: string;
+  /** `todos` | UUID do kanban */
+  kanban: string;
   time: string;
-  franqueado: string;
-  etapa: string;
-  /** Alinhado à aba Atividades do card: `todos` = sem filtro de status */
+  /** `todos` | `__sem_responsavel__` | `responsavel_id` (UUID) */
+  responsavel: string;
   status: 'todos' | 'nao_iniciada' | 'em_andamento' | 'concluido';
-  tag: 'todas' | 'atrasado' | 'atencao';
-  ordenacao: 'responsavel' | 'prazo';
+  tipo: 'todos' | 'atividade' | 'duvida';
+  /** Coluna `sla_status` da view (sem prazo = NULL na view) */
+  sla_status: 'todos' | 'atrasado' | 'vence_hoje' | 'ok' | 'sem_prazo';
 };
 
 export function defaultPainelTarefasFiltros(): PainelTarefasFiltrosState {
   return {
     busca: '',
+    kanban: 'todos',
     time: 'todos',
-    franqueado: 'todos',
-    etapa: 'todas',
+    responsavel: 'todos',
     status: 'todos',
-    tag: 'todas',
-    ordenacao: 'responsavel',
+    tipo: 'todos',
+    sla_status: 'todos',
   };
 }
 
@@ -35,12 +79,12 @@ export function painelTarefasFiltrosTemAlgumAtivo(f: PainelTarefasFiltrosState):
   const d = defaultPainelTarefasFiltros();
   return (
     f.busca.trim() !== d.busca ||
+    f.kanban !== d.kanban ||
     f.time !== d.time ||
-    f.franqueado !== d.franqueado ||
-    f.etapa !== d.etapa ||
+    f.responsavel !== d.responsavel ||
     f.status !== d.status ||
-    f.tag !== d.tag ||
-    f.ordenacao !== d.ordenacao
+    f.tipo !== d.tipo ||
+    f.sla_status !== d.sla_status
   );
 }
 
@@ -92,8 +136,15 @@ export function getPrazoTagAtividade(
 }
 
 export type TarefaPainelFiltroRow = {
-  etapa_painel: string;
+  etapa_painel?: string;
   titulo: string;
+  descricao?: string | null;
+  card_titulo?: string | null;
+  kanban_id?: string | null;
+  kanban_nome?: string | null;
+  tipo?: string | null;
+  sla_status?: string | null;
+  responsavel_id?: string | null;
   time_nome: string | null;
   responsavel_nome: string | null;
   times_nomes?: string[];
@@ -121,15 +172,39 @@ export function aplicarFiltrosTarefasPainel<T extends TarefaPainelFiltroRow>(
   filtros: PainelTarefasFiltrosState,
 ): T[] {
   return tarefas.filter((t) => {
+    const tipoNorm = String(t.tipo ?? 'atividade').trim().toLowerCase();
+
     if (filtros.status !== 'todos' && t.status !== filtros.status) return false;
-    const tagPrazo = getPrazoTagAtividade(t.prazo, t.status);
-    if (filtros.tag !== 'todas' && tagPrazo !== filtros.tag) return false;
+
+    if (filtros.responsavel !== 'todos') {
+      if (filtros.responsavel === '__sem_responsavel__') {
+        if (t.responsavel_id) return false;
+      } else if (String(t.responsavel_id ?? '') !== filtros.responsavel) return false;
+    }
+    if (filtros.tipo !== 'todos' && tipoNorm !== filtros.tipo) return false;
+    if (filtros.sla_status !== 'todos') {
+      const sla = t.sla_status == null || String(t.sla_status).trim() === '' ? null : String(t.sla_status);
+      if (filtros.sla_status === 'sem_prazo') {
+        if (sla != null) return false;
+      } else if (sla !== filtros.sla_status) return false;
+    }
     if (!itemMatchesTimeFilter(t.times_nomes, t.time_nome, filtros.time)) return false;
-    if (filtros.franqueado !== 'todos' && (t.nome_franqueado ?? '').trim() !== filtros.franqueado) return false;
-    if (filtros.etapa !== 'todas' && (t.etapa_painel ?? '').trim() !== filtros.etapa) return false;
+    if (filtros.kanban !== 'todos' && String(t.kanban_id ?? '') !== filtros.kanban) return false;
     const buscaNorm = normalizarParaBusca(filtros.busca);
     if (!buscaNorm) return true;
-    const texto = [t.numero_franquia, t.nome_franqueado, t.nome_condominio].filter(Boolean).join(' ') || '';
+    const texto =
+      [
+        t.numero_franquia,
+        t.nome_franqueado,
+        t.nome_condominio,
+        t.titulo,
+        t.descricao,
+        t.card_titulo,
+        t.kanban_nome,
+        t.responsavel_nome,
+      ]
+        .filter(Boolean)
+        .join(' ') || '';
     return normalizarParaBusca(texto).includes(buscaNorm);
   });
 }

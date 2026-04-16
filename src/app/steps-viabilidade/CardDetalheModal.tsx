@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, MessageSquare, CheckSquare, FileText, Paperclip, Copy, Check, History, Pencil } from 'lucide-react';
+import { X, FileText, Copy, Check, History, Pencil } from 'lucide-react';
+import { AtividadeVinculadaCard } from '@/components/AtividadeVinculadaCard';
+import { AtividadeVinculadaIcon } from '@/components/AtividadeVinculadaIcon';
+import { AtividadeVinculadaStatusPill } from '@/components/AtividadeVinculadaStatusPill';
+import {
+  labelChecklistStatusParaPill,
+  resolveAtividadeVinculadaKind,
+} from '@/lib/atividade-vinculada-visual';
 import type { PainelColumnKey } from './painelColumns';
 import { PAINEL_COLUMNS } from './painelColumns';
 import {
@@ -72,6 +79,7 @@ import {
 } from '@/app/steps-viabilidade/checklist-legal/actions';
 import { ChecklistCreditoSection } from '@/app/steps-viabilidade/ChecklistCreditoSection';
 import { ChecklistContabilidadeSection } from '@/app/steps-viabilidade/ChecklistContabilidadeSection';
+import { ProcessoQuatroSecoesDados } from '@/app/steps-viabilidade/ProcessoQuatroSecoesDados';
 import {
   MOTIVOS_CANCELAMENTO,
   MOTIVOS_REPROVACAO_COMITE,
@@ -80,6 +88,12 @@ import {
 } from '@/lib/painel/cancelamento-motivos';
 import { precisaMotivoReprovacaoComiteNoCancelamento } from '@/lib/painel/dashboard-etapas';
 import { itemMatchesResponsavelFilter, itemMatchesTimeFilter } from '@/lib/checklist-atividade-arrays';
+import {
+  checklistPassaFiltroLista,
+  ordenarItensChecklistLista,
+  type FiltroSituacaoChecklist,
+  type ListaAtividadesCard,
+} from '@/lib/atividades-card-listagem';
 
 function prazoDbToDateInput(prazo: string | null): string {
   const raw = (prazo ?? '').trim();
@@ -132,7 +146,7 @@ type Props = {
   onClose: () => void;
 };
 
-type Tab = 'dados' | 'comentarios' | 'checklist' | 'checklist_step1' | 'checklist_history' | 'documentos';
+type Tab = 'principal' | 'checklist_history';
 
 const NOVO_NEGOCIO_ESTUDOS_DOCS_TITULOS = [
   'BCA',
@@ -172,10 +186,18 @@ function isEtapaPosAprovacaoPrefeitura(etapa: PainelColumnKey | string): boolean
   return ETAPAS_POS_APROVACAO_PREFEITURA.includes(etapa as PainelColumnKey);
 }
 
-function isChecklistAnexosEstruturalCard(etapaPainel: string, titulo: string): boolean {
+export function isChecklistAnexosEstruturalCard(etapaPainel: string, titulo: string): boolean {
   const etapa = String(etapaPainel ?? '').trim();
   const nome = String(titulo ?? '').trim();
   if (!etapa || !nome) return false;
+  if (
+    etapa === 'step_1' &&
+    (NOVO_NEGOCIO_ESTUDOS_DOCS_TITULOS as readonly string[]).includes(
+      nome as (typeof NOVO_NEGOCIO_ESTUDOS_DOCS_TITULOS)[number],
+    )
+  ) {
+    return true;
+  }
   if (etapa === 'step_4' && STEP4_PLANIALTIMETRICO_CHECKLIST_TITULOS.includes(nome as (typeof STEP4_PLANIALTIMETRICO_CHECKLIST_TITULOS)[number])) return true;
   if (etapa === 'step_5' && COMITE_MATERIAL_CHECKLIST_TITULOS.includes(nome as (typeof COMITE_MATERIAL_CHECKLIST_TITULOS)[number])) return true;
   if (etapa === 'projeto_legal' && PROJETO_LEGAL_CHECKLIST_TITULOS.includes(nome as (typeof PROJETO_LEGAL_CHECKLIST_TITULOS)[number])) return true;
@@ -200,21 +222,7 @@ export function CardDetalheModal({
   onClose,
 }: Props) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>(
-    etapaKey === 'step_2' || isEtapaPosAprovacaoPrefeitura(etapaKey)
-      ? 'checklist'
-      : etapaKey === 'step_1' ||
-          etapaKey === 'step_3' ||
-          etapaKey === 'aprovacao_moni_novo_negocio' ||
-          etapaKey === 'credito_terreno' ||
-          etapaKey === 'credito_obra' ||
-          etapaKey === 'contabilidade_incorporadora' ||
-          etapaKey === 'contabilidade_spe' ||
-          etapaKey === 'contabilidade_gestora' ||
-          etapaKey === 'step_7'
-        ? 'checklist_step1'
-        : 'dados',
-  );
+  const [tab, setTab] = useState<Tab>('principal');
   const [etapaAtual, setEtapaAtual] = useState<PainelColumnKey>(etapaKey);
   const [resumo, setResumo] = useState<ProcessoResumoStep1 | null>(null);
   const [relacionados, setRelacionados] = useState<{
@@ -299,7 +307,8 @@ export function CardDetalheModal({
   const [loadingChecklist, setLoadingChecklist] = useState(false);
   const [loadingAcoplamentoChecklist, setLoadingAcoplamentoChecklist] = useState(false);
   const [updatingChecklistStatusId, setUpdatingChecklistStatusId] = useState<string | null>(null);
-  const [filtroChecklistStatus, setFiltroChecklistStatus] = useState<'todos' | 'nao_iniciada' | 'em_andamento' | 'concluido'>('todos');
+  const [listaChecklistModo, setListaChecklistModo] = useState<ListaAtividadesCard>('abertas');
+  const [filtroChecklistSituacao, setFiltroChecklistSituacao] = useState<FiltroSituacaoChecklist>('qualquer');
   const [filtroChecklistTime, setFiltroChecklistTime] = useState('todos');
   const [filtroChecklistResponsavel, setFiltroChecklistResponsavel] = useState('todos');
   const [ordenacaoChecklist, setOrdenacaoChecklist] = useState<'responsavel' | 'prazo'>('prazo');
@@ -379,10 +388,6 @@ export function CardDetalheModal({
   }, [dadosComite?.comite_resultado, etapaAtual]);
 
   const [dadosCollapsed, setDadosCollapsed] = useState({
-    franqueado: true,
-    novoNegocio: true,
-    preObra: true,
-    relacionados: true,
     aprovacoes: true,
     credito: true,
     contabilidade: true,
@@ -450,21 +455,6 @@ export function CardDetalheModal({
     }
     const path = `/public/forms/${formType}?token=${encodeURIComponent(res.token)}`;
     return typeof window === 'undefined' ? path : `${window.location.origin}${path}`;
-  };
-
-  const getLinkForRelatedCard = (processo: { id: string; etapa_painel?: string | null }) => {
-    const etapa = String(processo.etapa_painel ?? '');
-    if (etapa === 'credito_terreno' || etapa === 'credito_obra') {
-      return `/painel-credito?card=${encodeURIComponent(processo.id)}`;
-    }
-    if (
-      etapa === 'contabilidade_incorporadora' ||
-      etapa === 'contabilidade_spe' ||
-      etapa === 'contabilidade_gestora'
-    ) {
-      return `/painel-contabilidade?card=${encodeURIComponent(processo.id)}`;
-    }
-    return `/painel-novos-negocios?card=${encodeURIComponent(processo.id)}`;
   };
 
   const getDocStatusLabel = (status: string | null | undefined) => {
@@ -1264,7 +1254,7 @@ export function CardDetalheModal({
   }, [processoId]);
 
   useEffect(() => {
-    if (tab === 'comentarios') loadActionsHistory();
+    if (tab === 'principal') loadActionsHistory();
   }, [tab, processoId]);
 
   useEffect(() => {
@@ -1300,64 +1290,60 @@ export function CardDetalheModal({
 
   useEffect(() => {
     setDadosCollapsed({
-      franqueado: true,
-      novoNegocio: true,
-      preObra: true,
-      relacionados: true,
       aprovacoes: true,
       credito: true,
       contabilidade: true,
     });
   }, [processoId]);
   useEffect(() => {
-    if (tab !== 'checklist') return;
+    if (tab !== 'principal') return;
     loadChecklist();
   }, [tab, processoId, etapaAtual]);
 
   useEffect(() => {
-    if (tab !== 'checklist_step1') return;
+    if (tab !== 'principal') return;
     if ((etapaAtual === 'step_4' || etapaAtual === 'acoplamento') && step4PlanialtimetricoChecklistItens.length > 0) {
       loadChecklistDocsForEtapa('step_4', step4PlanialtimetricoChecklistItens.map((i) => i.titulo));
     }
   }, [tab, processoId, etapaAtual, step4PlanialtimetricoChecklistItens]);
 
   useEffect(() => {
-    if (tab !== 'checklist_step1') return;
+    if (tab !== 'principal') return;
     if (etapaAtual === 'step_5' && comiteMaterialChecklistItens.length > 0) {
       loadChecklistDocsForEtapa('step_5', comiteMaterialChecklistItens.map((i) => i.titulo));
     }
   }, [tab, processoId, etapaAtual, comiteMaterialChecklistItens]);
 
   useEffect(() => {
-    if (tab !== 'checklist_step1') return;
+    if (tab !== 'principal') return;
     if (etapaAtual === 'projeto_legal' && projetoLegalChecklistItens.length > 0) {
       loadChecklistDocsForEtapa('projeto_legal', projetoLegalChecklistItens.map((i) => i.titulo));
     }
   }, [tab, processoId, etapaAtual, projetoLegalChecklistItens]);
 
   useEffect(() => {
-    if (tab !== 'checklist_step1') return;
+    if (tab !== 'principal') return;
     if (etapaAtual === 'aprovacao_condominio' && aprovacaoCondominioBaseItens.length > 0) {
       loadChecklistDocsForEtapa('aprovacao_condominio', aprovacaoCondominioBaseItens.map((i) => i.titulo));
     }
   }, [tab, processoId, etapaAtual, aprovacaoCondominioBaseItens]);
 
   useEffect(() => {
-    if (tab !== 'checklist_step1') return;
+    if (tab !== 'principal') return;
     if (etapaAtual === 'aprovacao_prefeitura' && aprovacaoPrefeituraBaseItens.length > 0) {
       loadChecklistDocsForEtapa('aprovacao_prefeitura', aprovacaoPrefeituraBaseItens.map((i) => i.titulo));
     }
   }, [tab, processoId, etapaAtual, aprovacaoPrefeituraBaseItens]);
 
   useEffect(() => {
-    if (tab !== 'checklist_step1') return;
+    if (tab !== 'principal') return;
     if (etapaAtual === 'acoplamento' && acoplamentoChecklistItens.length > 0) {
       loadChecklistDocsForEtapa('acoplamento', acoplamentoChecklistItens.map((i) => i.titulo));
     }
   }, [tab, processoId, etapaAtual, acoplamentoChecklistItens]);
 
   useEffect(() => {
-    if (tab !== 'checklist_step1') return;
+    if (tab !== 'principal') return;
     if (etapaAtual === 'step_1') loadStep1AreasChecklist();
     if (etapaAtual === 'step_3' || etapaAtual === 'credito_terreno') loadStep3Opcoes();
     if (etapaAtual === 'step_7') loadStep7Contrato();
@@ -1386,14 +1372,14 @@ export function CardDetalheModal({
   }, [tab, processoId, etapaAtual]);
 
   useEffect(() => {
-    if (tab !== 'dados') return;
+    if (tab !== 'principal') return;
     if (etapaAtual !== 'step_4') return;
     loadChecklistLegal();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, processoId, etapaAtual]);
 
   useEffect(() => {
-    if (tab === 'documentos') loadDocumentos();
+    if (tab === 'principal') loadDocumentos();
   }, [tab, processoId, etapaAtual]);
 
   const handleEnviarComentario = async (e: React.FormEvent) => {
@@ -1767,22 +1753,14 @@ export function CardDetalheModal({
     const res = await atualizarEtapaPainel(processoId, destino);
     if (res.ok) {
       setEtapaAtual(destino);
-      if (tab === 'checklist') {
+      if (tab === 'principal') {
         await loadChecklist();
-      }
-      if (tab === 'documentos') {
         await loadDocumentos();
       }
       router.refresh();
     }
   };
 
-  const formatDate = (val: string | null | undefined) => {
-    if (!val) return '—';
-    const d = new Date(val);
-    return isNaN(d.getTime()) ? String(val) : d.toLocaleDateString('pt-BR');
-  };
-  const show = (val: string | null | undefined) => (val && String(val).trim() ? String(val) : '—');
   const parsePrazoBrOrIso = (prazo: string | null | undefined): Date | null => {
     if (!prazo) return null;
     const raw = String(prazo).trim();
@@ -1818,48 +1796,32 @@ export function CardDetalheModal({
     return null;
   };
 
-  const parsePrazoOrdenacao = (prazo: string | null | undefined): number => {
-    if (!prazo) return Number.POSITIVE_INFINITY;
-    const raw = String(prazo).trim();
-    const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-    if (br) {
-      const [, dd, mm, yyyy] = br;
-      const d = new Date(`${yyyy}-${mm}-${dd}T12:00:00`);
-      const t = d.getTime();
-      return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+  useEffect(() => {
+    if (listaChecklistModo === 'abertas' && filtroChecklistSituacao === 'concluido') {
+      setFiltroChecklistSituacao('qualquer');
     }
-    const d = new Date(raw);
-    const t = d.getTime();
-    return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
-  };
+  }, [listaChecklistModo, filtroChecklistSituacao]);
 
   const checklistItensFiltradosOrdenados = useMemo(() => {
+    const situacaoFiltro =
+      listaChecklistModo === 'concluidas' ? ('qualquer' as const) : filtroChecklistSituacao;
     const filtrados = checklistItens.filter((item) => {
-      if (filtroChecklistStatus !== 'todos' && item.status !== filtroChecklistStatus) return false;
+      if (!checklistPassaFiltroLista(item, listaChecklistModo, situacaoFiltro)) return false;
       if (!itemMatchesTimeFilter(item.times_nomes, item.time_nome, filtroChecklistTime)) return false;
       if (!itemMatchesResponsavelFilter(item.responsaveis_nomes, item.responsavel_nome, filtroChecklistResponsavel)) {
         return false;
       }
       return true;
     });
-
-    const copy = [...filtrados];
-    copy.sort((a, b) => {
-      if (ordenacaoChecklist === 'responsavel') {
-        const ar = (a.responsavel_nome ?? '').trim() || 'Sem responsável';
-        const br = (b.responsavel_nome ?? '').trim() || 'Sem responsável';
-        const c = ar.localeCompare(br, 'pt-BR', { sensitivity: 'base' });
-        if (c !== 0) return c;
-        return parsePrazoOrdenacao(a.prazo) - parsePrazoOrdenacao(b.prazo);
-      }
-      const cPrazo = parsePrazoOrdenacao(a.prazo) - parsePrazoOrdenacao(b.prazo);
-      if (cPrazo !== 0) return cPrazo;
-      const ar = (a.responsavel_nome ?? '').trim() || 'Sem responsável';
-      const br = (b.responsavel_nome ?? '').trim() || 'Sem responsável';
-      return ar.localeCompare(br, 'pt-BR', { sensitivity: 'base' });
-    });
-    return copy;
-  }, [checklistItens, filtroChecklistStatus, filtroChecklistTime, filtroChecklistResponsavel, ordenacaoChecklist]);
+    return ordenarItensChecklistLista(filtrados, listaChecklistModo, ordenacaoChecklist);
+  }, [
+    checklistItens,
+    listaChecklistModo,
+    filtroChecklistSituacao,
+    filtroChecklistTime,
+    filtroChecklistResponsavel,
+    ordenacaoChecklist,
+  ]);
 
   const checklistResponsaveisPorFiltro = useMemo(() => {
     const timeKey = filtroChecklistTime === 'todos' ? null : filtroChecklistTime;
@@ -1982,7 +1944,7 @@ export function CardDetalheModal({
         <div className="flex items-center justify-between border-b border-stone-200 bg-stone-50 px-4 py-3">
           <div>
             <h2 className="font-semibold text-stone-900">{processoLabel}</h2>
-            <p className="text-xs text-stone-500">Dados, comentários, atividades, checklist e documentos</p>
+            <p className="text-xs text-stone-500">Dados, checklist, atividades e documentos na mesma página; comentários ao final.</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -2203,54 +2165,40 @@ export function CardDetalheModal({
           </div>
         )}
 
-        <div className="flex items-center justify-between border-b border-stone-200">
-          <div className="flex items-center">
-            {(
-              [
-                { key: 'dados', label: 'Dados' },
-                { key: 'comentarios', label: 'Comentários' },
-                { key: 'checklist_step1', label: 'Checklist/Anexos' },
-                { key: 'checklist', label: 'Atividades' },
-                { key: 'documentos', label: 'Documentos' },
-              ] as const
-            ).map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setTab(t.key)}
-                className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium ${
-                  tab === t.key ? 'border-b-2 border-moni-primary text-moni-primary' : 'text-stone-500 hover:text-stone-700'
-                }`}
-              >
-                {t.key === 'dados' && <FileText className="h-4 w-4" />}
-                {t.key === 'comentarios' && <MessageSquare className="h-4 w-4" />}
-                {(t.key === 'checklist' || t.key === 'checklist_step1') && <CheckSquare className="h-4 w-4" />}
-                {t.key === 'documentos' && <Paperclip className="h-4 w-4" />}
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setTab('checklist_history')}
-            className={`ml-auto flex items-center gap-1.5 border-l px-4 py-2 text-sm font-medium ${
-              tab === 'checklist_history'
-                ? 'border-moni-accent bg-moni-accent/15 border-b-2 text-moni-accent'
-                : 'border-moni-accent/30 bg-moni-accent/8 text-moni-accent hover:bg-moni-accent/15'
-            }`}
-          >
-            <History className="h-4 w-4" />
-            Hist. Checklist/Anexos
-          </button>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200 bg-stone-50/80 px-3 py-2">
+          {tab === 'checklist_history' ? (
+            <button
+              type="button"
+              onClick={() => setTab('principal')}
+              className="text-sm font-medium text-moni-accent hover:underline"
+            >
+              ← Voltar ao card
+            </button>
+          ) : (
+            <p className="max-w-xl text-xs text-stone-600">
+              Tudo em uma única visualização: role a página para checklist, atividades, documentos e comentários.
+            </p>
+          )}
+          {tab === 'principal' ? (
+            <button
+              type="button"
+              onClick={() => setTab('checklist_history')}
+              className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 hover:bg-stone-50"
+            >
+              <History className="h-4 w-4" />
+              Hist. Checklist
+            </button>
+          ) : null}
         </div>
 
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4">
-          {tab === 'dados' && resumo && (
+          {tab === 'principal' && (
             <div className="mb-4 space-y-3">
-              {(etapaAtual === 'contabilidade_incorporadora' ||
-                etapaAtual === 'contabilidade_spe' ||
-                etapaAtual === 'contabilidade_gestora') && (
+              <h2 className="text-sm font-bold uppercase tracking-wide text-stone-500">Dados</h2>
+              {resumo &&
+                (etapaAtual === 'contabilidade_incorporadora' ||
+                  etapaAtual === 'contabilidade_spe' ||
+                  etapaAtual === 'contabilidade_gestora') && (
                 <div className="rounded-lg border border-stone-200 bg-amber-50/40 p-3">
                   <p className="text-xs font-semibold text-stone-700">Fase no dashboard (Contabilidade)</p>
                   <p className="mt-0.5 text-[11px] text-stone-500">
@@ -2288,7 +2236,7 @@ export function CardDetalheModal({
                   </select>
                 </div>
               )}
-              {(etapaAtual === 'credito_terreno' || etapaAtual === 'credito_obra') && (
+              {resumo && (etapaAtual === 'credito_terreno' || etapaAtual === 'credito_obra') && (
                 <div className="rounded-lg border border-stone-200 bg-sky-50/40 p-3">
                   <p className="text-xs font-semibold text-stone-700">Fase no dashboard (Crédito)</p>
                   <p className="mt-0.5 text-[11px] text-stone-500">
@@ -2324,437 +2272,18 @@ export function CardDetalheModal({
                   </select>
                 </div>
               )}
-              <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold text-stone-700">Dados do Franqueado</p>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setDadosCollapsed((prev) => ({
-                        ...prev,
-                        franqueado: !prev.franqueado,
-                      }))
-                    }
-                    className="text-xs font-medium text-moni-accent hover:underline"
-                  >
-                    {dadosCollapsed.franqueado ? 'Expandir' : 'Recolher'}
-                  </button>
-                </div>
-
-                {!dadosCollapsed.franqueado ? (
-                  <div className="mt-2 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-                    <div>
-                      <span className="text-xs text-stone-500">Nº franquia</span>
-                      <div className="text-stone-800">{show(resumo.numero_franquia)}</div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">Modalidade</span>
-                      <div className="text-stone-800">{show(resumo.modalidade)}</div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">Nome</span>
-                      <div className="text-stone-800">{show(resumo.nome_franqueado)}</div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">Status</span>
-                      <div className="text-stone-800">{show(resumo.status_franquia)}</div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">Classificação</span>
-                      <div className="text-stone-800">{show(resumo.classificacao_franqueado)}</div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">Área de atuação</span>
-                      <div className="text-stone-800">{show(resumo.area_atuacao_franquia)}</div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">E-mail</span>
-                      <div className="text-stone-800">{show(resumo.email_franqueado)}</div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">Telefone</span>
-                      <div className="text-stone-800">{show(resumo.telefone_frank)}</div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">CPF</span>
-                      <div className="text-stone-800">
-                        <span className="blur-[7px] select-none text-stone-500" aria-hidden="true">
-                          {show(resumo.cpf_frank)}
-                        </span>
-                        <span className="sr-only">{show(resumo.cpf_frank)}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">Nascimento</span>
-                      <div className="text-stone-800">
-                        <span className="blur-[7px] select-none text-stone-500" aria-hidden="true">
-                          {formatDate(resumo.data_nasc_frank)}
-                        </span>
-                        <span className="sr-only">{formatDate(resumo.data_nasc_frank)}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">Responsável comercial</span>
-                      <div className="text-stone-800">{show(resumo.responsavel_comercial)}</div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">Camiseta</span>
-                      <div className="text-stone-800">
-                        <span className="blur-[7px] select-none text-stone-500" aria-hidden="true">
-                          {show(resumo.tamanho_camiseta_frank)}
-                        </span>
-                        <span className="sr-only">{show(resumo.tamanho_camiseta_frank)}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">Ass. COF</span>
-                      <div className="text-stone-800">{formatDate(resumo.data_ass_cof)}</div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">Ass. Contrato</span>
-                      <div className="text-stone-800">{formatDate(resumo.data_ass_contrato)}</div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">Expiração</span>
-                      <div className="text-stone-800">{formatDate(resumo.data_expiracao_franquia)}</div>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <span className="text-xs text-stone-500">Endereço (casa)</span>
-                      <div className="text-stone-800">
-                        {[
-                          show(resumo.endereco_casa_frank),
-                          show(resumo.endereco_casa_frank_numero),
-                          show(resumo.endereco_casa_frank_complemento),
-                          show(resumo.cidade_casa_frank),
-                          show(resumo.estado_casa_frank),
-                          show(resumo.cep_casa_frank),
-                        ]
-                          .filter((v) => v !== '—')
-                          .join(' · ') || '—'}
-                      </div>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <span className="text-xs text-stone-500">Sócios</span>
-                      <div className="whitespace-pre-wrap text-stone-800">{show(resumo.socios)}</div>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <span className="text-xs text-stone-500">Observações</span>
-                      <div className="whitespace-pre-wrap text-stone-800">{show(resumo.observacoes)}</div>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold text-stone-700">Dados do Novo Negócio</p>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setDadosCollapsed((prev) => ({
-                        ...prev,
-                        novoNegocio: !prev.novoNegocio,
-                      }))
-                    }
-                    className="text-xs font-medium text-moni-accent hover:underline"
-                  >
-                    {dadosCollapsed.novoNegocio ? 'Expandir' : 'Recolher'}
-                  </button>
-                </div>
-
-                {!dadosCollapsed.novoNegocio ? (
-                  <div className="mt-2 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-                    <div>
-                      <span className="text-xs text-stone-500">Nº franquia</span>
-                      <div className="text-stone-800">{show(resumo.numero_franquia)}</div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">Nome do franqueado</span>
-                      <div className="text-stone-800">{show(resumo.nome_franqueado)}</div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">E-mail</span>
-                      <div className="text-stone-800">{show(resumo.email_franqueado)}</div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">Estado (UF)</span>
-                      <div className="text-stone-800">{show(resumo.estado)}</div>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <span className="text-xs text-stone-500">Cidade</span>
-                      <div className="text-stone-800">{show(resumo.cidade)}</div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">Tipo de negociação</span>
-                      <div className="text-stone-800">{show(resumo.tipo_aquisicao_terreno)}</div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">Valor do Terreno</span>
-                      <div className="text-stone-800">{show(resumo.valor_terreno)}</div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">VGV pretendido</span>
-                      <div className="text-stone-800">{show(resumo.vgv_pretendido)}</div>
-                    </div>
-                    <div>
-                      <span className="text-xs text-stone-500">Produto / Modelo</span>
-                      <div className="text-stone-800">{show(resumo.produto_modelo_casa)}</div>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <span className="text-xs text-stone-500">Link pasta no Drive</span>
-                      <div className="break-all text-stone-800">{show(resumo.link_pasta_drive)}</div>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <span className="text-xs text-stone-500">Nome do Condomínio</span>
-                      <div className="text-stone-800">{show(resumo.nome_condominio)}</div>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <span className="text-xs text-stone-500">Quadra / Lote</span>
-                      <div className="text-stone-800">{show(resumo.quadra_lote)}</div>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <span className="text-xs text-stone-500">Observações</span>
-                      <div className="whitespace-pre-wrap text-stone-800">{show(resumo.observacoes)}</div>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold text-stone-700">Dados Pré Obra</p>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setDadosCollapsed((prev) => ({
-                        ...prev,
-                        preObra: !prev.preObra,
-                      }))
-                    }
-                    className="text-xs font-medium text-moni-accent hover:underline"
-                  >
-                    {dadosCollapsed.preObra ? 'Expandir' : 'Recolher'}
-                  </button>
-                </div>
-
-                {!dadosCollapsed.preObra ? (
-                  <div className="mt-2 space-y-3">
-                    <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-                      <div className="sm:col-span-2">
-                        <label className="block text-xs text-stone-500">Previsão de Aprovação no Condomínio</label>
-                        <input
-                          type="text"
-                          value={dadosPreObraForm.previsao_aprovacao_condominio}
-                          onChange={(e) =>
-                            setDadosPreObraForm((prev) => ({
-                              ...prev,
-                              previsao_aprovacao_condominio: e.target.value,
-                            }))
-                          }
-                          placeholder="Ex.: 20/04/2026"
-                          className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="block text-xs text-stone-500">Previsão de Aprovação na Prefeitura</label>
-                        <input
-                          type="text"
-                          value={dadosPreObraForm.previsao_aprovacao_prefeitura}
-                          onChange={(e) =>
-                            setDadosPreObraForm((prev) => ({
-                              ...prev,
-                              previsao_aprovacao_prefeitura: e.target.value,
-                            }))
-                          }
-                          placeholder="Ex.: 30/04/2026"
-                          className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="block text-xs text-stone-500">Previsão de Emissão do Alvará</label>
-                        <input
-                          type="text"
-                          value={dadosPreObraForm.previsao_emissao_alvara}
-                          onChange={(e) =>
-                            setDadosPreObraForm((prev) => ({
-                              ...prev,
-                              previsao_emissao_alvara: e.target.value,
-                            }))
-                          }
-                          placeholder="Ex.: 15/05/2026"
-                          className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-stone-500">Data de Aprovação no Condomínio</label>
-                        <input
-                          type="date"
-                          value={dadosPreObraForm.data_aprovacao_condominio}
-                          onChange={(e) =>
-                            setDadosPreObraForm((prev) => ({
-                              ...prev,
-                              data_aprovacao_condominio: e.target.value,
-                            }))
-                          }
-                          className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-stone-500">Data de Aprovação na Prefeitura</label>
-                        <input
-                          type="date"
-                          value={dadosPreObraForm.data_aprovacao_prefeitura}
-                          onChange={(e) =>
-                            setDadosPreObraForm((prev) => ({
-                              ...prev,
-                              data_aprovacao_prefeitura: e.target.value,
-                            }))
-                          }
-                          className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="block text-xs text-stone-500">Data de Emissão do Alvará</label>
-                        <input
-                          type="date"
-                          value={dadosPreObraForm.data_emissao_alvara}
-                          onChange={(e) =>
-                            setDadosPreObraForm((prev) => ({
-                              ...prev,
-                              data_emissao_alvara: e.target.value,
-                            }))
-                          }
-                          className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="block text-xs text-stone-500">Data de aprovação do crédito</label>
-                        <input
-                          type="date"
-                          value={dadosPreObraForm.data_aprovacao_credito}
-                          onChange={(e) =>
-                            setDadosPreObraForm((prev) => ({
-                              ...prev,
-                              data_aprovacao_credito: e.target.value,
-                            }))
-                          }
-                          className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="block text-xs text-stone-500">Previsão de Liberação do Crédito para Obra</label>
-                        <input
-                          type="text"
-                          value={dadosPreObraForm.previsao_liberacao_credito_obra}
-                          onChange={(e) =>
-                            setDadosPreObraForm((prev) => ({
-                              ...prev,
-                              previsao_liberacao_credito_obra: e.target.value,
-                            }))
-                          }
-                          placeholder="Ex.: 25/05/2026"
-                          className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="block text-xs text-stone-500">Previsão de Início de Obra</label>
-                        <input
-                          type="text"
-                          value={dadosPreObraForm.previsao_inicio_obra}
-                          onChange={(e) =>
-                            setDadosPreObraForm((prev) => ({
-                              ...prev,
-                              previsao_inicio_obra: e.target.value,
-                            }))
-                          }
-                          placeholder="Ex.: 10/06/2026"
-                          className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={handleSalvarDadosPreObra}
-                        disabled={savingDadosPreObra}
-                        className="rounded bg-moni-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-moni-secondary disabled:opacity-60"
-                      >
-                        {savingDadosPreObra ? 'Salvando…' : 'Salvar Dados Pré Obra'}
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold text-stone-700">Relacionamentos</p>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setDadosCollapsed((prev) => ({
-                        ...prev,
-                        relacionados: !prev.relacionados,
-                      }))
-                    }
-                    className="text-xs font-medium text-moni-accent hover:underline"
-                  >
-                    {dadosCollapsed.relacionados ? 'Expandir' : 'Recolher'}
-                  </button>
-                </div>
-
-                {!dadosCollapsed.relacionados ? (
-                  <div className="mt-2 space-y-3 text-sm">
-                    {relacionados.pai ? (
-                      <div className="rounded border border-stone-200 bg-white p-2">
-                        <p className="text-xs font-semibold text-stone-600">Card pai</p>
-                        <a
-                          href={getLinkForRelatedCard(relacionados.pai)}
-                          className="mt-1 inline-flex items-center text-moni-accent hover:underline"
-                        >
-                          {(relacionados.pai.numero_franquia ?? '—') + ' · ' + (relacionados.pai.nome_condominio ?? relacionados.pai.cidade ?? 'Sem identificação')}
-                        </a>
-                      </div>
-                    ) : null}
-
-                    {relacionados.filhos.length > 0 ? (
-                      <div className="rounded border border-stone-200 bg-white p-2">
-                        <p className="text-xs font-semibold text-stone-600">Cards filhos</p>
-                        <div className="mt-1 flex flex-col gap-1">
-                          {relacionados.filhos.map((f) => (
-                            <a key={f.id} href={getLinkForRelatedCard(f)} className="text-moni-accent hover:underline">
-                              {(f.numero_franquia ?? '—') + ' · ' + (f.nome_condominio ?? f.cidade ?? 'Sem identificação')}
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {relacionados.irmaos.length > 0 ? (
-                      <div className="rounded border border-stone-200 bg-white p-2">
-                        <p className="text-xs font-semibold text-stone-600">Outros filhos relacionados</p>
-                        <div className="mt-1 flex flex-col gap-1">
-                          {relacionados.irmaos.map((f) => (
-                            <a key={f.id} href={getLinkForRelatedCard(f)} className="text-moni-accent hover:underline">
-                              {(f.numero_franquia ?? '—') + ' · ' + (f.nome_condominio ?? f.cidade ?? 'Sem identificação')}
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {!relacionados.pai && relacionados.filhos.length === 0 && relacionados.irmaos.length === 0 ? (
-                      <div className="rounded border border-dashed border-stone-200 bg-white p-3 text-xs text-stone-500">
-                        Nenhum card relacionado encontrado.
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
+              <ProcessoQuatroSecoesDados
+                resumo={resumo}
+                relacionados={relacionados}
+                dadosPreObraForm={dadosPreObraForm}
+                setDadosPreObraForm={setDadosPreObraForm}
+                onSalvarPreObra={handleSalvarDadosPreObra}
+                savingDadosPreObra={savingDadosPreObra}
+              />
             </div>
           )}
 
-          {tab === 'dados' && resumo && etapaAtual === 'step_4' && (
+          {tab === 'principal' && resumo && etapaAtual === 'step_4' && (
             <div className="space-y-3">
               <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
                 <div className="flex items-center justify-between gap-2">
@@ -2774,7 +2303,7 @@ export function CardDetalheModal({
                 </div>
                 {!dadosCollapsed.aprovacoes ? (
                   <div className="mt-2 rounded border border-stone-200 bg-white p-3 text-sm text-stone-700">
-                    Dados de aprovações do Checklist Legal seguem disponíveis na aba Checklist/Anexos.
+                    Dados de aprovações do Checklist Legal seguem disponíveis na seção Checklist abaixo.
                   </div>
                 ) : null}
               </div>
@@ -2800,7 +2329,7 @@ export function CardDetalheModal({
             </div>
           )}
 
-          {tab === 'dados' &&
+          {tab === 'principal' &&
             resumo &&
             (etapaAtual === 'contabilidade_incorporadora' ||
               etapaAtual === 'contabilidade_spe' ||
@@ -2847,66 +2376,9 @@ export function CardDetalheModal({
               </div>
             )}
 
-          {tab === 'dados' && !resumo && (
+          {tab === 'principal' && !resumo && (
             <div className="rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm text-stone-600">
               Carregando dados…
-            </div>
-          )}
-          {tab === 'comentarios' && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                {comentarios.map((c) => (
-                  <div key={c.id} className="rounded-lg border border-stone-200 bg-stone-50 p-2 text-sm">
-                    <p className="font-medium text-stone-700">{c.autor_nome ?? 'Anônimo'}</p>
-                    <p className="mt-0.5 whitespace-pre-wrap text-stone-600">{c.texto}</p>
-                    <p className="mt-1 text-[10px] text-stone-400">
-                      {new Date(c.created_at).toLocaleString('pt-BR')}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <form onSubmit={handleEnviarComentario} className="flex gap-2">
-                <input
-                  type="text"
-                  value={novoComentario}
-                  onChange={(e) => setNovoComentario(e.target.value)}
-                  placeholder="Comentário (use @nome para mencionar)"
-                  className="flex-1 rounded border border-stone-300 px-3 py-2 text-sm"
-                />
-                <button type="submit" disabled={loadingComentario} className="rounded bg-moni-primary px-3 py-2 text-sm text-white hover:bg-moni-secondary disabled:opacity-50">
-                  Enviar
-                </button>
-              </form>
-
-              <div className="mt-2 rounded-lg border border-stone-200 bg-white p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-stone-800">Histórico de ações</h3>
-                  {loadingActionsHistory ? (
-                    <span className="text-xs text-stone-500">Carregando…</span>
-                  ) : (
-                    <span className="text-xs text-stone-500">{actionsHistory.length} evento(s)</span>
-                  )}
-                </div>
-
-                {loadingActionsHistory ? (
-                  <p className="mt-2 text-sm text-stone-500">Carregando histórico…</p>
-                ) : actionsHistory.length === 0 ? (
-                  <p className="mt-2 text-sm text-stone-500">Nenhuma ação registrada ainda.</p>
-                ) : (
-                  <ul className="mt-2 space-y-2">
-                    {actionsHistory.map((e) => (
-                      <li key={e.id} className="rounded border border-stone-100 bg-stone-50 p-2">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-sm font-medium text-stone-800">{e.autor_nome ?? 'Anônimo'}</p>
-                          <p className="text-xs text-stone-400">{new Date(e.created_at).toLocaleString('pt-BR')}</p>
-                        </div>
-                        <p className="mt-1 text-sm text-stone-700">{e.descricao ?? e.tipo}</p>
-                        {e.etapa_painel ? <p className="text-xs text-stone-500">Etapa: {e.etapa_painel}</p> : null}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
             </div>
           )}
 
@@ -2982,8 +2454,10 @@ export function CardDetalheModal({
             </div>
           )}
 
-          {tab === 'checklist_step1' && (
-            etapaAtual === 'step_1' ? (
+          {tab === 'principal' && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-stone-500">Checklist</h2>
+              {etapaAtual === 'step_1' ? (
               <div className="space-y-4">
                 {(() => {
                   const grouped = step1AreasItens.reduce((acc, item) => {
@@ -5408,7 +4882,7 @@ export function CardDetalheModal({
                     {PAINEL_COLUMNS.find((c) => c.key === etapaAtual)?.title ?? etapaAtual}
                   </h3>
                   <p className="mt-2 text-sm text-stone-600">
-                    Use a aba <strong>Atividades</strong> para criar tarefas com prazo, time e responsável nesta fase.
+                    Use a seção <strong>Atividades vinculadas</strong> (abaixo) para criar tarefas com prazo, time e responsável nesta fase.
                   </p>
                 </section>
               </div>
@@ -5628,27 +5102,42 @@ export function CardDetalheModal({
               </div>
             ) : (
               <div className="rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm text-stone-600">
-                Sem checklist/anexos configurado para esta etapa.
+                Sem checklist configurado para esta etapa.
               </div>
-            )
+            )}
+            </div>
           )}
 
-          {tab === 'checklist' && (
+          {tab === 'principal' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-stone-500">Atividades vinculadas</h2>
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
                 <select
-                  value={filtroChecklistStatus}
-                  onChange={(e) =>
-                    setFiltroChecklistStatus(
-                      e.target.value as 'todos' | 'nao_iniciada' | 'em_andamento' | 'concluido',
-                    )
-                  }
+                  value={listaChecklistModo}
+                  onChange={(e) => setListaChecklistModo(e.target.value as ListaAtividadesCard)}
                   className="rounded border border-stone-300 px-3 py-2 text-sm"
                 >
-                  <option value="todos">Status: todos</option>
-                  <option value="nao_iniciada">Status: não iniciada</option>
-                  <option value="em_andamento">Status: em andamento</option>
-                  <option value="concluido">Status: concluída</option>
+                  <option value="abertas">Lista: em aberto (padrão)</option>
+                  <option value="concluidas">Lista: somente concluídas</option>
+                  <option value="todas">Lista: todas (concluídas no fim)</option>
+                </select>
+                <select
+                  value={listaChecklistModo === 'concluidas' ? 'qualquer' : filtroChecklistSituacao}
+                  disabled={listaChecklistModo === 'concluidas'}
+                  onChange={(e) => setFiltroChecklistSituacao(e.target.value as FiltroSituacaoChecklist)}
+                  className="rounded border border-stone-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                  title={
+                    listaChecklistModo === 'concluidas'
+                      ? 'Ao filtrar só concluídas, a situação é sempre concluída.'
+                      : undefined
+                  }
+                >
+                  <option value="qualquer">Situação: qualquer</option>
+                  <option value="nao_iniciada">Situação: não iniciada</option>
+                  <option value="em_andamento">Situação: em andamento</option>
+                  {listaChecklistModo !== 'abertas' ? (
+                    <option value="concluido">Situação: concluída</option>
+                  ) : null}
                 </select>
                 <select
                   value={filtroChecklistTime}
@@ -5767,58 +5256,75 @@ export function CardDetalheModal({
               </form>
 
               <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Atividades do card</p>
-              <ul className="space-y-2">
-                {checklistItensFiltradosOrdenados.map((item) => (
-                  <li key={item.id} className="rounded-lg border border-stone-200 bg-white p-2">
-                    <div className="flex items-start gap-2">
+              <ul className="list-none space-y-2">
+                {checklistItensFiltradosOrdenados.map((item) => {
+                  const avKind = resolveAtividadeVinculadaKind({
+                    concluido: item.concluido,
+                    status: item.status,
+                    prazo: item.prazo,
+                  });
+                  return (
+                  <AtividadeVinculadaCard key={item.id} kind={avKind} as="li" className="list-none">
+                    <div className="flex flex-wrap items-start gap-2">
+                      <span className="mt-0.5 shrink-0" title="Indicador de status / prazo">
+                        <AtividadeVinculadaIcon kind={avKind} size="md" />
+                      </span>
                       <input
                         type="checkbox"
                         checked={item.concluido}
                         onChange={() => handleToggleChecklist(item.id, item.concluido)}
-                        className="mt-1 h-4 w-4 rounded border-stone-300"
+                        className="mt-1 h-4 w-4 shrink-0 rounded border-stone-300 bg-white"
                       />
                       <div className="min-w-0 flex-1">
                         <p
-                          className={`text-sm ${item.concluido ? 'text-stone-400 line-through' : 'text-stone-800'}`}
+                          className={`text-sm font-medium ${item.concluido ? 'text-stone-400 line-through' : 'text-stone-800'}`}
                           style={{ wordBreak: 'break-word' }}
                         >
-                          <span className="font-medium">Atividade:</span> {item.titulo}
+                          {item.titulo}
                         </p>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-500">
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                          <AtividadeVinculadaStatusPill kind={avKind}>
+                            {labelChecklistStatusParaPill(item.status)}
+                          </AtividadeVinculadaStatusPill>
                           <span>
                             Prazo: <span className="font-medium text-stone-600">{item.prazo ?? '—'}</span>
                           </span>
+                          <span>•</span>
                           <span>
-                            Times: <span className="font-medium text-stone-600">{item.time_nome?.trim() || '—'}</span>
+                            Times:{' '}
+                            <span className="font-medium text-stone-600">{item.time_nome?.trim() || '—'}</span>
                           </span>
+                          <span>•</span>
                           <span>
-                            Responsáveis:{' '}
+                            Resp.:{' '}
                             <span className="font-medium text-stone-600">{item.responsavel_nome?.trim() || '—'}</span>
                           </span>
                           {getPrazoTag(item.prazo, item.status, item.concluido) === 'atrasado' && (
                             <span className="rounded bg-red-100 px-1.5 py-0.5 font-medium text-red-800">Atrasado</span>
                           )}
                           {getPrazoTag(item.prazo, item.status, item.concluido) === 'atencao' && (
-                            <span className="rounded bg-yellow-100 px-1.5 py-0.5 font-medium text-yellow-800">Atenção</span>
+                            <span className="rounded bg-yellow-100 px-1.5 py-0.5 font-medium text-yellow-800">
+                              Atenção
+                            </span>
                           )}
-                          <select
-                            value={item.status}
-                            disabled={updatingChecklistStatusId === item.id}
-                            onChange={(e) =>
-                              handleChangeChecklistStatus(
-                                item.id,
-                                e.target.value as 'nao_iniciada' | 'em_andamento' | 'concluido',
-                              )
-                            }
-                            className="ml-auto min-w-[170px] rounded border border-stone-300 px-2 py-1 text-xs"
-                          >
-                            <option value="nao_iniciada">Não iniciada</option>
-                            <option value="em_andamento">Em andamento</option>
-                            <option value="concluido">Concluída</option>
-                          </select>
                         </div>
                       </div>
-                      <div className="flex shrink-0 flex-col items-stretch gap-1.5 sm:items-end">
+                      <div className="flex min-w-[170px] shrink-0 flex-col items-stretch gap-1.5 sm:items-end">
+                        <select
+                          value={item.status}
+                          disabled={updatingChecklistStatusId === item.id}
+                          onChange={(e) =>
+                            handleChangeChecklistStatus(
+                              item.id,
+                              e.target.value as 'nao_iniciada' | 'em_andamento' | 'concluido',
+                            )
+                          }
+                          className="w-full rounded border border-stone-300 bg-white px-2 py-1 text-xs sm:w-auto sm:min-w-[170px]"
+                        >
+                          <option value="nao_iniciada">Não iniciada</option>
+                          <option value="em_andamento">Em andamento</option>
+                          <option value="concluido">Concluída</option>
+                        </select>
                         <button
                           type="button"
                           onClick={() =>
@@ -5851,7 +5357,7 @@ export function CardDetalheModal({
                         <button
                           type="button"
                           onClick={() => handleRemoveChecklist(item.id)}
-                          className="text-xs text-red-600 hover:underline"
+                          className="text-right text-xs text-red-600 hover:underline"
                         >
                           Remover
                         </button>
@@ -5957,8 +5463,9 @@ export function CardDetalheModal({
                         </div>
                       </div>
                     ) : null}
-                  </li>
-                ))}
+                  </AtividadeVinculadaCard>
+                  );
+                })}
                 {checklistItensFiltradosOrdenados.length === 0 && (
                   <li className="rounded border border-dashed border-stone-300 bg-stone-50 p-3 text-sm text-stone-500">
                     Nenhuma atividade encontrada para os filtros selecionados.
@@ -5968,8 +5475,9 @@ export function CardDetalheModal({
             </div>
           )}
 
-          {tab === 'documentos' && (
+          {tab === 'principal' && (
             <div className="space-y-4">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-stone-500">Documentos</h2>
               {loadingDocumentos ? (
                 <div className="rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm text-stone-600">
                   Carregando documentos…
@@ -6129,6 +5637,69 @@ export function CardDetalheModal({
                     Nenhum documento ainda.
                   </div>
                 ) : null}
+              </div>
+            </div>
+          )}
+
+          {tab === 'principal' && (
+            <div className="mx-auto mt-10 max-w-4xl space-y-4 border-t border-stone-200 pt-8">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-stone-500">Comentários</h2>
+              <div className="space-y-2">
+                {comentarios.map((c) => (
+                  <div key={c.id} className="rounded-lg border border-stone-200 bg-stone-50 p-2 text-sm">
+                    <p className="font-medium text-stone-700">{c.autor_nome ?? 'Anônimo'}</p>
+                    <p className="mt-0.5 whitespace-pre-wrap text-stone-600">{c.texto}</p>
+                    <p className="mt-1 text-[10px] text-stone-400">
+                      {new Date(c.created_at).toLocaleString('pt-BR')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <form onSubmit={handleEnviarComentario} className="flex gap-2">
+                <input
+                  type="text"
+                  value={novoComentario}
+                  onChange={(e) => setNovoComentario(e.target.value)}
+                  placeholder="Comentário (use @nome para mencionar)"
+                  className="flex-1 rounded border border-stone-300 px-3 py-2 text-sm"
+                />
+                <button
+                  type="submit"
+                  disabled={loadingComentario}
+                  className="rounded bg-moni-primary px-3 py-2 text-sm text-white hover:bg-moni-secondary disabled:opacity-50"
+                >
+                  Enviar
+                </button>
+              </form>
+
+              <div className="mt-2 rounded-lg border border-stone-200 bg-white p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-stone-800">Histórico de ações</h3>
+                  {loadingActionsHistory ? (
+                    <span className="text-xs text-stone-500">Carregando…</span>
+                  ) : (
+                    <span className="text-xs text-stone-500">{actionsHistory.length} evento(s)</span>
+                  )}
+                </div>
+
+                {loadingActionsHistory ? (
+                  <p className="mt-2 text-sm text-stone-500">Carregando histórico…</p>
+                ) : actionsHistory.length === 0 ? (
+                  <p className="mt-2 text-sm text-stone-500">Nenhuma ação registrada ainda.</p>
+                ) : (
+                  <ul className="mt-2 space-y-2">
+                    {actionsHistory.map((e) => (
+                      <li key={e.id} className="rounded border border-stone-100 bg-stone-50 p-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-medium text-stone-800">{e.autor_nome ?? 'Anônimo'}</p>
+                          <p className="text-xs text-stone-400">{new Date(e.created_at).toLocaleString('pt-BR')}</p>
+                        </div>
+                        <p className="mt-1 text-sm text-stone-700">{e.descricao ?? e.tipo}</p>
+                        {e.etapa_painel ? <p className="text-xs text-stone-500">Etapa: {e.etapa_painel}</p> : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
           )}
