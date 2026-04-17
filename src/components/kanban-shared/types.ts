@@ -9,6 +9,14 @@ export type KanbanNomeDisplay =
   | 'Funil Contabilidade'
   | 'Funil Crédito';
 
+export type KanbanFaseMaterialTipo = 'link' | 'documento' | 'video';
+
+export type KanbanFaseMaterial = {
+  titulo: string;
+  url: string;
+  tipo: KanbanFaseMaterialTipo;
+};
+
 export type KanbanFase = {
   id: string;
   nome: string;
@@ -16,6 +24,10 @@ export type KanbanFase = {
   sla_dias: number | null;
   /** Preenchido nas fases seedadas (migration 112); Funil Step One pode ser null. */
   slug?: string | null;
+  /** Texto orientativo da fase (migration 129). */
+  instrucoes?: string | null;
+  /** Links / referências (migration 129). */
+  materiais?: KanbanFaseMaterial[] | null;
 };
 
 export type KanbanCardBrief = {

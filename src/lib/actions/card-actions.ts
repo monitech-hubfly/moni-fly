@@ -1,6 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import type { KanbanFaseMaterial } from '@/components/kanban-shared/types';
+import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 import { createClient } from '@/lib/supabase/server';
 
 /**
@@ -531,4 +533,242 @@ export async function uploadContratoFranquia(formData: FormData): Promise<Upload
   revalidatePath(String(formData.get('basePath') ?? '').trim() || '/');
   revalidatePath('/');
   return { ok: true, path };
+}
+
+/** Atualiza texto e materiais da fase (admin/consultor). */
+export async function salvarInstrucoesFase(
+  faseId: string,
+  instrucoes: string | null,
+  materiais: KanbanFaseMaterial[],
+  basePath?: string,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para salvar.' };
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const role = String((profile as { role?: string } | null)?.role ?? '');
+  if (role !== 'admin' && role !== 'consultor') {
+    return { ok: false, error: 'Apenas administradores e consultores podem editar instruções da fase.' };
+  }
+
+  const fid = String(faseId ?? '').trim();
+  if (!fid) return { ok: false, error: 'Fase inválida.' };
+
+  const lista = parseKanbanFaseMateriais(materiais);
+  const inst =
+    instrucoes != null && String(instrucoes).trim() !== '' ? String(instrucoes).trim() : null;
+
+  const { error } = await supabase
+    .from('kanban_fases')
+    .update({ instrucoes: inst, materiais: lista as unknown as never })
+    .eq('id', fid);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(basePath?.trim() || '/');
+  revalidatePath('/');
+  return { ok: true };
+}
+
+export type TipoVinculoKanbanCard = 'relacionado' | 'depende_de' | 'bloqueia';
+
+export type KanbanCardVinculoListItem = {
+  id: string;
+  tipo_vinculo: TipoVinculoKanbanCard;
+  /** Card atual é a origem do registro (seta saindo) ou o destino (seta entrando). */
+  papel: 'origem' | 'destino';
+  outro_card: { id: string; titulo: string; kanban_nome: string };
+};
+
+async function perfilEhAdminOuConsultor(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+): Promise<boolean> {
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+  const role = String((profile as { role?: string } | null)?.role ?? '');
+  return role === 'admin' || role === 'consultor';
+}
+
+function kanbanNomeDeJoin(row: { kanbans?: unknown }): string {
+  const kn = row.kanbans;
+  if (Array.isArray(kn)) return String((kn[0] as { nome?: string } | undefined)?.nome ?? '').trim();
+  if (kn && typeof kn === 'object') return String((kn as { nome?: string }).nome ?? '').trim();
+  return '';
+}
+
+/** Lista vínculos em que o card participa (origem ou destino). */
+export async function listarVinculosCard(
+  cardId: string,
+): Promise<{ ok: true; items: KanbanCardVinculoListItem[] } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return { ok: false, error: 'Card inválido.' };
+
+  const { data: vins, error } = await supabase
+    .from('kanban_card_vinculos')
+    .select('id, tipo_vinculo, card_origem_id, card_destino_id')
+    .or(`card_origem_id.eq.${cid},card_destino_id.eq.${cid}`);
+
+  if (error) return { ok: false, error: error.message };
+  const rows = (vins ?? []) as {
+    id: string;
+    tipo_vinculo: string;
+    card_origem_id: string;
+    card_destino_id: string;
+  }[];
+  if (rows.length === 0) return { ok: true, items: [] };
+
+  const idSet = new Set<string>();
+  for (const v of rows) {
+    idSet.add(String(v.card_origem_id));
+    idSet.add(String(v.card_destino_id));
+  }
+  const idList = [...idSet];
+
+  const { data: cards, error: cErr } = await supabase
+    .from('kanban_cards')
+    .select('id, titulo, kanban_id, kanbans(nome)')
+    .in('id', idList);
+  if (cErr) return { ok: false, error: cErr.message };
+
+  const mapInfo = new Map<string, { titulo: string; kanban_nome: string }>();
+  for (const c of cards ?? []) {
+    const row = c as { id: string; titulo: string | null; kanbans?: unknown };
+    const nomeKanban = kanbanNomeDeJoin(row);
+    mapInfo.set(String(row.id), {
+      titulo: (row.titulo ?? '').trim() || '(sem título)',
+      kanban_nome: nomeKanban || 'Kanban',
+    });
+  }
+
+  const items: KanbanCardVinculoListItem[] = rows.map((v) => {
+    const papel: 'origem' | 'destino' = v.card_origem_id === cid ? 'origem' : 'destino';
+    const outroId = v.card_origem_id === cid ? v.card_destino_id : v.card_origem_id;
+    const info = mapInfo.get(outroId) ?? { titulo: '—', kanban_nome: '—' };
+    const tv = String(v.tipo_vinculo ?? 'relacionado');
+    const tipo: TipoVinculoKanbanCard =
+      tv === 'depende_de' || tv === 'bloqueia' || tv === 'relacionado' ? tv : 'relacionado';
+    return {
+      id: v.id,
+      tipo_vinculo: tipo,
+      papel,
+      outro_card: { id: outroId, titulo: info.titulo, kanban_nome: info.kanban_nome },
+    };
+  });
+
+  return { ok: true, items };
+}
+
+export type BuscaCardVinculoRow = { id: string; titulo: string; kanban_nome: string };
+
+/** Busca cards por título (admin/consultor) para vincular. */
+export async function buscarCardsParaVinculo(
+  termo: string,
+  excetoCardId: string,
+): Promise<{ ok: true; items: BuscaCardVinculoRow[] } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const pode = await perfilEhAdminOuConsultor(supabase, user.id);
+  if (!pode) return { ok: false, error: 'Sem permissão para buscar cards.' };
+
+  const t = String(termo ?? '').trim().replace(/%/g, '').replace(/_/g, ' ').slice(0, 120);
+  if (t.length < 2) return { ok: true, items: [] };
+
+  const ex = String(excetoCardId ?? '').trim();
+  let q = supabase
+    .from('kanban_cards')
+    .select('id, titulo, kanbans(nome)')
+    .ilike('titulo', `%${t}%`)
+    .limit(25);
+  if (ex) q = q.neq('id', ex);
+
+  const { data, error } = await q;
+  if (error) return { ok: false, error: error.message };
+
+  const items: BuscaCardVinculoRow[] = (data ?? []).map((row) => {
+    const r = row as { id: string; titulo: string | null; kanbans?: unknown };
+    return {
+      id: String(r.id),
+      titulo: (r.titulo ?? '').trim() || '(sem título)',
+      kanban_nome: kanbanNomeDeJoin(r) || 'Kanban',
+    };
+  });
+  return { ok: true, items };
+}
+
+export async function criarVinculoCard(input: {
+  cardOrigemId: string;
+  cardDestinoId: string;
+  tipo: TipoVinculoKanbanCard;
+  basePath?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const pode = await perfilEhAdminOuConsultor(supabase, user.id);
+  if (!pode) return { ok: false, error: 'Sem permissão para criar vínculo.' };
+
+  const orig = String(input.cardOrigemId ?? '').trim();
+  const dest = String(input.cardDestinoId ?? '').trim();
+  if (!orig || !dest || orig === dest) return { ok: false, error: 'Cards inválidos.' };
+
+  const tipo =
+    input.tipo === 'depende_de' || input.tipo === 'bloqueia' || input.tipo === 'relacionado'
+      ? input.tipo
+      : 'relacionado';
+
+  const { error } = await supabase.from('kanban_card_vinculos').insert({
+    card_origem_id: orig,
+    card_destino_id: dest,
+    tipo_vinculo: tipo,
+    criado_por: user.id,
+  } as never);
+
+  if (error) {
+    if (error.code === '23505') return { ok: false, error: 'Este vínculo já existe.' };
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath(input.basePath?.trim() || '/');
+  revalidatePath('/');
+  return { ok: true };
+}
+
+export async function removerVinculoCard(
+  vinculoId: string,
+  basePath?: string,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const pode = await perfilEhAdminOuConsultor(supabase, user.id);
+  if (!pode) return { ok: false, error: 'Sem permissão para remover vínculo.' };
+
+  const vid = String(vinculoId ?? '').trim();
+  if (!vid) return { ok: false, error: 'Vínculo inválido.' };
+
+  const { error } = await supabase.from('kanban_card_vinculos').delete().eq('id', vid);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(basePath?.trim() || '/');
+  revalidatePath('/');
+  return { ok: true };
 }

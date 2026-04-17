@@ -8,6 +8,7 @@ import { KanbanWrapper } from '@/components/kanban-shared/KanbanWrapper';
 import { KanbanTabs } from './KanbanTabs';
 import { PainelPerformance } from '@/components/kanban-shared/PainelPerformance';
 import type { KanbanCardBrief, KanbanFase } from '@/components/kanban-shared/types';
+import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,12 +67,22 @@ export default async function FunilStepOnePage({
   }
 
   // Busca as fases deste kanban
-  const { data: fases } = await supabase
+  const { data: fasesRaw } = await supabase
     .from('kanban_fases')
-    .select('id, nome, ordem, sla_dias')
+    .select('id, nome, ordem, sla_dias, slug, instrucoes, materiais')
     .eq('kanban_id', kanban.id)
     .eq('ativo', true)
     .order('ordem');
+
+  const fases: KanbanFase[] = (fasesRaw ?? []).map((row) => ({
+    id: String(row.id),
+    nome: String(row.nome ?? ''),
+    ordem: Number(row.ordem ?? 0),
+    sla_dias: row.sla_dias != null ? Number(row.sla_dias) : null,
+    slug: (row as { slug?: string | null }).slug ?? null,
+    instrucoes: (row as { instrucoes?: string | null }).instrucoes ?? null,
+    materiais: parseKanbanFaseMateriais((row as { materiais?: unknown }).materiais),
+  }));
 
   const selectCols = `
       id,
@@ -162,7 +173,7 @@ export default async function FunilStepOnePage({
       isAdmin={isAdmin}
       kanbanId={kanban.id}
       kanbanNome="Funil Step One"
-      fases={fases ?? []}
+      fases={fases}
       enableNovoCardModal
     >
       <div className="min-h-screen bg-stone-50">
@@ -199,7 +210,7 @@ export default async function FunilStepOnePage({
         {activeTab === 'kanban' && (
           <main className="mx-auto max-w-[1600px] overflow-x-auto px-6 py-8">
             <KanbanBoard
-              fases={fases ?? []}
+              fases={fases}
               cards={cards}
               cardsConcluidos={cardsConcluidos}
               basePath="/funil-stepone"

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
 export type KanbanBoardSnapshot = {
@@ -61,12 +62,25 @@ export async function fetchKanbanBoardSnapshot(
 
   const kanbanIdStr = String(kanban.id);
 
-  const { data: fases } = await supabase
+  const { data: fasesRows } = await supabase
     .from('kanban_fases')
-    .select('id, nome, ordem, sla_dias, slug')
+    .select('id, nome, ordem, sla_dias, slug, instrucoes, materiais')
     .eq('kanban_id', kanban.id)
     .eq('ativo', true)
     .order('ordem');
+
+  const fases: KanbanFase[] = (fasesRows ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
+    return {
+      id: String(r.id),
+      nome: String(r.nome ?? ''),
+      ordem: Number(r.ordem ?? 0),
+      sla_dias: r.sla_dias != null && r.sla_dias !== '' ? Number(r.sla_dias) : null,
+      slug: r.slug != null ? String(r.slug) : null,
+      instrucoes: r.instrucoes != null ? String(r.instrucoes) : null,
+      materiais: parseKanbanFaseMateriais(r.materiais),
+    };
+  });
 
   const { count: nativeCount } = await supabase
     .from('kanban_cards')
@@ -116,7 +130,7 @@ export async function fetchKanbanBoardSnapshot(
     }));
     return {
       kanban: { id: kanbanIdStr },
-      fases: (fases ?? []) as KanbanFase[],
+      fases,
       cards,
       cardsConcluidos: [],
       role,
@@ -195,7 +209,7 @@ export async function fetchKanbanBoardSnapshot(
 
   return {
     kanban: { id: kanbanIdStr },
-    fases: (fases ?? []) as KanbanFase[],
+    fases,
     cards,
     cardsConcluidos,
     role,

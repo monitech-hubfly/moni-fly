@@ -9,6 +9,12 @@ import {
   ChevronRight,
   CheckCircle2,
   Pencil,
+  BookOpen,
+  Link2,
+  FileText,
+  Video,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { calcularDiasUteis, calcularStatusSLA, formatIsoDateOnlyPtBr, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
@@ -16,13 +22,21 @@ import { rotuloSlaInteracaoPainel } from '@/lib/painel-tarefas-filtros';
 import {
   arquivarCard,
   atualizarStatusSubInteracao,
+  buscarCardsParaVinculo,
   criarInteracao,
   criarSubInteracao,
+  criarVinculoCard,
   editarInteracao,
   finalizarCard,
+  listarVinculosCard,
+  removerVinculoCard,
   salvarDadosPreObra,
+  salvarInstrucoesFase,
   uploadContratoFranquia,
+  type BuscaCardVinculoRow,
+  type KanbanCardVinculoListItem,
   type SubInteracaoStatusDb,
+  type TipoVinculoKanbanCard,
 } from '@/lib/actions/card-actions';
 import {
   displayOrDash,
@@ -42,7 +56,9 @@ import {
   resolveKanbanChamadoIconKind,
   resolveKanbanChamadoSurfaceKind,
 } from '@/lib/atividade-vinculada-visual';
-import type { CamposPorFaseMap, KanbanFase, KanbanNomeDisplay } from './types';
+import type { CamposPorFaseMap, KanbanFase, KanbanFaseMaterial, KanbanNomeDisplay } from './types';
+import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
+import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 import {
   countKanbanModalInteracoesFiltrosAtivos,
   KanbanInteracoesFiltrosPanel,
@@ -105,6 +121,13 @@ function kanbanStatusParaPillKind(s: InteracaoModal['status']): AtividadeVincula
   if (s === 'cancelada') return 'cancelada';
   if (s === 'em_andamento') return 'em_andamento';
   return 'pendente';
+}
+
+function IconeMaterialTipo({ tipo }: { tipo: KanbanFaseMaterial['tipo'] }) {
+  const cls = 'h-3.5 w-3.5 shrink-0 text-stone-500';
+  if (tipo === 'documento') return <FileText className={cls} aria-hidden />;
+  if (tipo === 'video') return <Video className={cls} aria-hidden />;
+  return <Link2 className={cls} aria-hidden />;
 }
 
 function inicioDiaLocal(d: Date) {
@@ -226,6 +249,15 @@ export function KanbanCardModal({
   const [salvandoPreObra, setSalvandoPreObra] = useState(false);
   const [uploadingContrato, setUploadingContrato] = useState(false);
   const contratoFileRef = useRef<HTMLInputElement>(null);
+  const [editandoInstrucoesFase, setEditandoInstrucoesFase] = useState(false);
+  const [draftInstrucoesFase, setDraftInstrucoesFase] = useState('');
+  const [draftMateriaisFase, setDraftMateriaisFase] = useState<KanbanFaseMaterial[]>([]);
+  const [salvandoInstrucoesFase, setSalvandoInstrucoesFase] = useState(false);
+  const [vinculosCard, setVinculosCard] = useState<KanbanCardVinculoListItem[]>([]);
+  const [vincularAberto, setVincularAberto] = useState(false);
+  const [buscaVinculo, setBuscaVinculo] = useState('');
+  const [tipoNovoVinculo, setTipoNovoVinculo] = useState<TipoVinculoKanbanCard>('relacionado');
+  const [resultadosBuscaVinculo, setResultadosBuscaVinculo] = useState<BuscaCardVinculoRow[]>([]);
 
   useEffect(() => {
     setArquivamentoAberto(false);
@@ -237,7 +269,61 @@ export function KanbanCardModal({
     setModalDetalhes({ rede: null, processo: null, redeIdContrato: null });
     setPreObraDraft(preObraDraftFromProcesso(null));
     setLegadoCronologiaMoves([]);
+    setEditandoInstrucoesFase(false);
+    setDraftInstrucoesFase('');
+    setDraftMateriaisFase([]);
+    setVinculosCard([]);
+    setVincularAberto(false);
+    setBuscaVinculo('');
+    setTipoNovoVinculo('relacionado');
+    setResultadosBuscaVinculo([]);
   }, [cardId]);
+
+  useEffect(() => {
+    if (!vincularAberto || !isAdmin || !card || origem === 'legado') {
+      setResultadosBuscaVinculo([]);
+      return;
+    }
+    const t = buscaVinculo.trim();
+    if (t.length < 2) {
+      setResultadosBuscaVinculo([]);
+      return;
+    }
+    let cancel = false;
+    const h = setTimeout(() => {
+      void (async () => {
+        const r = await buscarCardsParaVinculo(t, card.id);
+        if (cancel) return;
+        if (r.ok) setResultadosBuscaVinculo(r.items);
+        else setResultadosBuscaVinculo([]);
+      })();
+    }, 320);
+    return () => {
+      cancel = true;
+      clearTimeout(h);
+    };
+  }, [buscaVinculo, vincularAberto, isAdmin, card?.id, origem]);
+
+  useEffect(() => {
+    if (!card?.fase_id) return;
+    let cancel = false;
+    void (async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('kanban_fases')
+        .select('id, instrucoes, materiais')
+        .eq('id', card.fase_id)
+        .maybeSingle();
+      if (cancel || error || !data) return;
+      const materiais = parseKanbanFaseMateriais((data as { materiais?: unknown }).materiais);
+      const instrucoes = (data as { instrucoes?: string | null }).instrucoes ?? null;
+      setFaseAtual((prev) => (prev && prev.id === card.fase_id ? { ...prev, instrucoes, materiais } : prev));
+      setFases((prev) => prev.map((f) => (f.id === card.fase_id ? { ...f, instrucoes, materiais } : f)));
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [card?.fase_id, card?.id]);
 
   useEffect(() => {
     if (filtros.lista === 'abertas' && filtros.situacao === 'concluida') {
@@ -430,20 +516,40 @@ export function KanbanCardModal({
         setPreObraDraft(preObraDraftFromProcesso(null));
       }
 
+      const mapFaseRow = (row: Record<string, unknown>): KanbanFase => ({
+        id: String(row.id),
+        nome: String(row.nome ?? ''),
+        ordem: Number(row.ordem ?? 0),
+        sla_dias: row.sla_dias != null && row.sla_dias !== '' ? Number(row.sla_dias) : null,
+        slug: row.slug != null ? String(row.slug) : null,
+        instrucoes: row.instrucoes != null ? String(row.instrucoes) : null,
+        materiais: parseKanbanFaseMateriais(row.materiais),
+      });
+
       if (!fasesProp?.length) {
         const { data: fasesData } = await supabase
           .from('kanban_fases')
-          .select('id, nome, ordem, sla_dias, slug')
+          .select('id, nome, ordem, sla_dias, slug, instrucoes, materiais')
           .eq('kanban_id', loaded.kanban_id)
           .eq('ativo', true)
           .order('ordem');
-        setFases((fasesData ?? []) as KanbanFase[]);
-        const faseEncontrada = fasesData?.find((f) => f.id === loaded.fase_id) || null;
-        setFaseAtual(faseEncontrada as KanbanFase | null);
+        const mapped = (fasesData ?? []).map((r) => mapFaseRow(r as unknown as Record<string, unknown>));
+        setFases(mapped);
+        setFaseAtual(mapped.find((f) => f.id === loaded.fase_id) ?? null);
       } else {
-        setFases(fasesProp);
-        const faseEncontrada = fasesProp.find((f) => f.id === loaded.fase_id) || null;
-        setFaseAtual(faseEncontrada);
+        const normalizedFromProp = fasesProp.map((f) =>
+          mapFaseRow({
+            id: f.id,
+            nome: f.nome,
+            ordem: f.ordem,
+            sla_dias: f.sla_dias,
+            slug: f.slug ?? null,
+            instrucoes: f.instrucoes ?? null,
+            materiais: f.materiais as unknown,
+          }),
+        );
+        setFases(normalizedFromProp);
+        setFaseAtual(normalizedFromProp.find((f) => f.id === loaded.fase_id) ?? null);
       }
 
       let cacheKanbanTimes: KanbanTimeRow[] = [];
@@ -663,6 +769,17 @@ export function KanbanCardModal({
       } catch {
         setInteracoes(interacoesDemonstracao());
         setSubInteracoesPorPai({});
+      }
+
+      if (origem !== 'legado' && loaded) {
+        try {
+          const vr = await listarVinculosCard(loaded.id);
+          setVinculosCard(vr.ok ? vr.items : []);
+        } catch {
+          setVinculosCard([]);
+        }
+      } else {
+        setVinculosCard([]);
       }
     } catch {
       // noop
@@ -1205,6 +1322,88 @@ export function KanbanCardModal({
     );
   }, [card, fases, historico, legadoCronologiaMoves, origem]);
 
+  const abrirEdicaoInstrucoesFase = () => {
+    if (!faseAtual || !isAdmin) return;
+    setDraftInstrucoesFase((faseAtual.instrucoes ?? '').trim() ? String(faseAtual.instrucoes) : '');
+    setDraftMateriaisFase(
+      faseAtual.materiais && faseAtual.materiais.length > 0 ? faseAtual.materiais.map((m) => ({ ...m })) : [],
+    );
+    setEditandoInstrucoesFase(true);
+  };
+
+  async function handleSalvarInstrucoesFase() {
+    if (!faseAtual || !isAdmin) return;
+    setSalvandoInstrucoesFase(true);
+    try {
+      const res = await salvarInstrucoesFase(
+        faseAtual.id,
+        draftInstrucoesFase.trim() || null,
+        draftMateriaisFase,
+        basePath,
+      );
+      if (!res.ok) {
+        alert(res.error);
+        return;
+      }
+      setEditandoInstrucoesFase(false);
+      const materiais = parseKanbanFaseMateriais(draftMateriaisFase);
+      const inst = draftInstrucoesFase.trim() || null;
+      setFaseAtual((prev) => (prev ? { ...prev, instrucoes: inst, materiais } : prev));
+      setFases((prev) => prev.map((f) => (f.id === faseAtual.id ? { ...f, instrucoes: inst, materiais } : f)));
+      router.refresh();
+    } catch {
+      alert('Erro ao salvar instruções.');
+    } finally {
+      setSalvandoInstrucoesFase(false);
+    }
+  }
+
+  function labelTipoVinculo(t: TipoVinculoKanbanCard): string {
+    if (t === 'depende_de') return 'Depende de';
+    if (t === 'bloqueia') return 'Bloqueia';
+    return 'Relacionado';
+  }
+
+  async function handleRemoverVinculo(vinculoId: string) {
+    const res = await removerVinculoCard(vinculoId, basePath);
+    if (!res.ok) {
+      alert(res.error);
+      return;
+    }
+    if (card && origem !== 'legado') {
+      const vr = await listarVinculosCard(card.id);
+      setVinculosCard(vr.ok ? vr.items : []);
+    }
+    router.refresh();
+  }
+
+  async function handleVincularCardDestino(destinoId: string) {
+    if (!card || origem === 'legado') return;
+    setLoading(true);
+    try {
+      const res = await criarVinculoCard({
+        cardOrigemId: card.id,
+        cardDestinoId: destinoId,
+        tipo: tipoNovoVinculo,
+        basePath,
+      });
+      if (!res.ok) {
+        alert(res.error);
+        return;
+      }
+      setVincularAberto(false);
+      setBuscaVinculo('');
+      setResultadosBuscaVinculo([]);
+      const vr = await listarVinculosCard(card.id);
+      setVinculosCard(vr.ok ? vr.items : []);
+      router.refresh();
+    } catch {
+      alert('Erro ao criar vínculo.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   if (loading && !card) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -1400,6 +1599,189 @@ export function KanbanCardModal({
               {slaCard.label && slaCard.status !== 'ok' ? (
                 <span className={`text-xs leading-none ${slaCard.classe}`}>{slaCard.label}</span>
               ) : null}
+            </div>
+
+            <div className="mb-6">
+              <h4
+                className="mb-3 flex items-center gap-2 text-sm font-semibold"
+                style={{ color: 'var(--moni-text-secondary)' }}
+              >
+                <BookOpen className="h-4 w-4 shrink-0 text-stone-500" aria-hidden />
+                Instruções da fase
+              </h4>
+              <div
+                className="rounded-lg p-4"
+                style={{
+                  background: 'var(--moni-surface-50)',
+                  border: '0.5px solid var(--moni-border-default)',
+                }}
+              >
+                {!faseAtual ? (
+                  <p className="text-sm italic text-stone-400">Carregando fase…</p>
+                ) : editandoInstrucoesFase && isAdmin ? (
+                  <div className="space-y-3">
+                    <label className="block text-xs font-medium text-stone-600">
+                      Texto (quebras de linha preservadas)
+                      <textarea
+                        value={draftInstrucoesFase}
+                        onChange={(e) => setDraftInstrucoesFase(e.target.value)}
+                        rows={8}
+                        className="mt-1 w-full rounded-md border border-stone-300 px-2 py-2 text-sm text-stone-800 focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400"
+                        placeholder="Orientações para quem trabalha nesta fase…"
+                      />
+                    </label>
+                    <div>
+                      <p className="text-xs font-medium text-stone-600">Materiais (título, URL, tipo)</p>
+                      <ul className="mt-2 space-y-2">
+                        {draftMateriaisFase.map((m, idx) => (
+                          <li
+                            key={idx}
+                            className="flex flex-wrap items-end gap-2 rounded-md border border-stone-200 bg-white p-2"
+                          >
+                            <input
+                              type="text"
+                              value={m.titulo}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setDraftMateriaisFase((rows) =>
+                                  rows.map((r, i) => (i === idx ? { ...r, titulo: v } : r)),
+                                );
+                              }}
+                              placeholder="Título"
+                              className="min-w-[6rem] flex-1 rounded border border-stone-300 px-2 py-1 text-xs"
+                            />
+                            <input
+                              type="url"
+                              value={m.url}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setDraftMateriaisFase((rows) =>
+                                  rows.map((r, i) => (i === idx ? { ...r, url: v } : r)),
+                                );
+                              }}
+                              placeholder="https://…"
+                              className="min-w-[8rem] flex-[2] rounded border border-stone-300 px-2 py-1 text-xs"
+                            />
+                            <select
+                              value={m.tipo}
+                              onChange={(e) => {
+                                const v = e.target.value as KanbanFaseMaterial['tipo'];
+                                setDraftMateriaisFase((rows) =>
+                                  rows.map((r, i) => (i === idx ? { ...r, tipo: v } : r)),
+                                );
+                              }}
+                              className="rounded border border-stone-300 px-2 py-1 text-xs"
+                            >
+                              <option value="link">link</option>
+                              <option value="documento">documento</option>
+                              <option value="video">video</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDraftMateriaisFase((rows) => rows.filter((_, i) => i !== idx))
+                              }
+                              className="rounded p-1 text-stone-500 hover:bg-stone-100 hover:text-red-600"
+                              aria-label="Remover material"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDraftMateriaisFase((rows) => [
+                            ...rows,
+                            { titulo: '', url: '', tipo: 'link' as const },
+                          ])
+                        }
+                        className="mt-2 inline-flex items-center gap-1 rounded-md border border-dashed border-stone-300 px-2 py-1 text-xs font-medium text-stone-600 hover:bg-stone-50"
+                      >
+                        <Plus className="h-3.5 w-3.5" aria-hidden />
+                        Adicionar material
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleSalvarInstrucoesFase()}
+                        disabled={salvandoInstrucoesFase}
+                        className="rounded-lg px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                        style={{ background: 'var(--moni-navy-800)' }}
+                      >
+                        {salvandoInstrucoesFase ? 'Salvando…' : 'Salvar'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditandoInstrucoesFase(false);
+                          setDraftInstrucoesFase('');
+                          setDraftMateriaisFase([]);
+                        }}
+                        disabled={salvandoInstrucoesFase}
+                        className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 disabled:opacity-50"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {(() => {
+                      const txt = (faseAtual.instrucoes ?? '').trim();
+                      const mats = faseAtual.materiais ?? [];
+                      const tem = txt.length > 0 || mats.length > 0;
+                      if (!tem) {
+                        return (
+                          <p className="text-sm italic text-stone-400">
+                            Nenhuma instrução definida para esta fase
+                          </p>
+                        );
+                      }
+                      return (
+                        <div className="space-y-3">
+                          {txt ? (
+                            <div
+                              className="whitespace-pre-wrap text-sm leading-relaxed text-stone-800"
+                              style={{ color: 'var(--moni-text-primary)' }}
+                            >
+                              {txt}
+                            </div>
+                          ) : null}
+                          {mats.length > 0 ? (
+                            <ul className="space-y-1.5">
+                              {mats.map((m, i) => (
+                                <li key={`${m.url}-${i}`}>
+                                  <a
+                                    href={m.url || '#'}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex max-w-full items-center gap-2 text-sm font-medium text-moni-primary hover:underline"
+                                  >
+                                    <IconeMaterialTipo tipo={m.tipo} />
+                                    <span className="truncate">{m.titulo || m.url || 'Link'}</span>
+                                  </a>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </div>
+                      );
+                    })()}
+                    {isAdmin ? (
+                      <button
+                        type="button"
+                        onClick={abrirEdicaoInstrucoesFase}
+                        className="mt-3 text-xs font-medium text-moni-primary hover:underline"
+                      >
+                        Editar instruções
+                      </button>
+                    ) : null}
+                  </>
+                )}
+              </div>
             </div>
 
             <div className="mb-6">
@@ -2672,7 +3054,119 @@ export function KanbanCardModal({
                 {secaoHead(
                   'relacionamentos',
                   'Relacionamentos',
-                  <p className="text-xs text-stone-500">Vínculos entre cards — em breve.</p>,
+                  <div className="space-y-2">
+                    {vinculosCard.length === 0 ? (
+                      <p className="text-xs text-stone-500">Nenhum vínculo cadastrado.</p>
+                    ) : (
+                      <ul className="list-none space-y-2">
+                        {vinculosCard.map((v) => {
+                          const href = hrefAbrirCardKanban(v.outro_card.kanban_nome, v.outro_card.id);
+                          return (
+                            <li
+                              key={v.id}
+                              className="flex items-start justify-between gap-2 rounded border border-stone-100 bg-stone-50/80 px-2 py-1.5"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <a
+                                  href={href}
+                                  className="block text-[11px] font-medium text-moni-primary hover:underline"
+                                >
+                                  {v.outro_card.titulo}
+                                </a>
+                                <div className="mt-0.5 text-[10px] text-stone-500">
+                                  {v.outro_card.kanban_nome}
+                                  <span className="text-stone-400"> · </span>
+                                  {labelTipoVinculo(v.tipo_vinculo)}
+                                  <span className="text-stone-400"> · </span>
+                                  {v.papel === 'origem' ? 'Saída' : 'Entrada'}
+                                </div>
+                              </div>
+                              {isAdmin ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleRemoverVinculo(v.id)}
+                                  className="shrink-0 rounded p-0.5 text-stone-400 transition hover:bg-stone-200 hover:text-red-600"
+                                  aria-label="Remover vínculo"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              ) : null}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                    {isAdmin ? (
+                      <div className="border-t border-stone-100 pt-2">
+                        {!vincularAberto ? (
+                          <button
+                            type="button"
+                            onClick={() => setVincularAberto(true)}
+                            className="text-[11px] font-medium text-moni-primary hover:underline"
+                          >
+                            + Vincular card
+                          </button>
+                        ) : (
+                          <div className="space-y-2">
+                            <label className="block text-[10px] font-medium text-stone-600">
+                              Buscar por título
+                              <input
+                                type="search"
+                                value={buscaVinculo}
+                                onChange={(e) => setBuscaVinculo(e.target.value)}
+                                placeholder="Mín. 2 caracteres…"
+                                className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-[11px] text-stone-800"
+                              />
+                            </label>
+                            <label className="block text-[10px] font-medium text-stone-600">
+                              Tipo de vínculo (este card → outro)
+                              <select
+                                value={tipoNovoVinculo}
+                                onChange={(e) =>
+                                  setTipoNovoVinculo(e.target.value as TipoVinculoKanbanCard)
+                                }
+                                className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-[11px] text-stone-800"
+                              >
+                                <option value="relacionado">Relacionado</option>
+                                <option value="depende_de">Depende de</option>
+                                <option value="bloqueia">Bloqueia</option>
+                              </select>
+                            </label>
+                            {resultadosBuscaVinculo.length > 0 ? (
+                              <ul className="max-h-40 list-none space-y-1 overflow-y-auto rounded border border-stone-100 bg-white p-1">
+                                {resultadosBuscaVinculo.map((row) => (
+                                  <li key={row.id}>
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleVincularCardDestino(row.id)}
+                                      disabled={loading}
+                                      className="w-full rounded px-2 py-1.5 text-left text-[11px] transition hover:bg-stone-50 disabled:opacity-50"
+                                    >
+                                      <span className="font-medium text-stone-800">{row.titulo}</span>
+                                      <span className="mt-0.5 block text-[10px] text-stone-500">{row.kanban_nome}</span>
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : buscaVinculo.trim().length >= 2 ? (
+                              <p className="text-[10px] text-stone-500">Nenhum card encontrado.</p>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setVincularAberto(false);
+                                setBuscaVinculo('');
+                                setResultadosBuscaVinculo([]);
+                              }}
+                              className="text-[10px] text-stone-500 hover:underline"
+                            >
+                              Fechar
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>,
                 )}
               </>
             ) : null}
