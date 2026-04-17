@@ -16,7 +16,6 @@ export type KanbanDatabasePageConfig = {
   kanbanNomeDisplay: KanbanNomeDisplay;
   basePath: string;
   pageTitle: string;
-  legacyPanelHref: string;
   tabsVariant: PainelKanbanTabsVariant;
   columnAccent: string;
   /** Checklist / conteúdo por `fase_id` no `KanbanCardModal` (opcional por kanban). */
@@ -45,7 +44,7 @@ export async function renderKanbanDatabasePage(
   } = await supabase.auth.getUser();
   guardLoginRequired(user);
 
-  const { kanban, fases, cards, role, isAdmin } = await fetchKanbanBoardSnapshot(
+  const { kanban, fases, cards, cardsConcluidos, role, isAdmin } = await fetchKanbanBoardSnapshot(
     supabase,
     config.kanbanNomeDb,
     user.id,
@@ -76,7 +75,6 @@ export async function renderKanbanDatabasePage(
       kanbanId={kanban.id}
       kanbanNome={config.kanbanNomeDisplay}
       fases={fases ?? []}
-      legacyPanelHref={config.legacyPanelHref}
       camposPorFase={config.camposPorFase}
       enableNovoCardModal
     >
@@ -118,6 +116,7 @@ export async function renderKanbanDatabasePage(
             <KanbanBoard
               fases={fases ?? []}
               cards={cards}
+              cardsConcluidos={cardsConcluidos}
               basePath={config.basePath}
               userRole={role}
               columnAccent={config.columnAccent}

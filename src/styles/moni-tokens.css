@@ -56,6 +56,9 @@
   --moni-surface-100: #f2ede8;   /* cards em repouso */
   --moni-surface-200: #e8e2da;   /* hover / separadores */
 
+  /* Alias semântico (KPIs / painéis) */
+  --color-background-secondary: var(--moni-surface-100);
+
   /* Texto */
   --moni-text-primary:   #0c2633;   /* Verde Naval — headings, labels */
   --moni-text-secondary: #4a3929;   /* Marrom — corpo de texto */

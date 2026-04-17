@@ -1,12 +1,16 @@
 'use client';
 
 import type React from 'react';
-import { User } from 'lucide-react';
+import { MessageCircle, Pencil, User } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { rotaCardOrigem } from '@/lib/rota-card-origem';
 import {
+  atualizarInteracaoCompletaSirene,
   atualizarStatusInteracaoSirene,
+  listarComentariosCardSirene,
+  publicarComentarioCardSirene,
+  type ComentarioCardSireneRow,
   type StatusInteracaoDb,
 } from './actions';
 
@@ -32,16 +36,27 @@ export type InteracaoSireneRow = {
   trava: boolean;
   origem: string;
   responsaveis_ids: string[];
+  times_ids: string[];
 };
 
 type TimeOpt = { id: string; nome: string };
 type RespOpt = { id: string; nome: string };
+
+type EditLinhaDraft = {
+  titulo: string;
+  tipo: 'atividade' | 'duvida';
+  data: string;
+  timesIds: string[];
+  responsaveisIds: string[];
+  trava: boolean;
+};
 
 type Props = {
   interacoes: InteracaoSireneRow[];
   times: TimeOpt[];
   responsaveis: RespOpt[];
   currentUserId: string | null;
+  comentariosCountByCardId: Record<string, number>;
 };
 
 type FiltrosChamados = {
@@ -177,7 +192,24 @@ function SecaoFiltro({ titulo, children }: SecaoRadioProps) {
   );
 }
 
-export function InteracoesLista({ interacoes, times, responsaveis, currentUserId }: Props) {
+function tipoEdicaoFromRow(tipo: string): 'atividade' | 'duvida' {
+  const t = norm(tipo);
+  if (t === 'duvida' || t === 'dúvida') return 'duvida';
+  return 'atividade';
+}
+
+function nomesTimesDeIds(ids: string[], catalog: TimeOpt[]): unknown {
+  const m = new Map(catalog.map((t) => [t.id, t.nome]));
+  return ids.map((id) => m.get(id) ?? '').filter(Boolean);
+}
+
+export function InteracoesLista({
+  interacoes,
+  times,
+  responsaveis,
+  currentUserId,
+  comentariosCountByCardId,
+}: Props) {
   const [verTodas, setVerTodas] = useState(false);
   const [applied, setApplied] = useState<FiltrosChamados>(DEFAULT_FILTROS);
   const [draft, setDraft] = useState<FiltrosChamados>(DEFAULT_FILTROS);
@@ -187,11 +219,31 @@ export function InteracoesLista({ interacoes, times, responsaveis, currentUserId
 
   /** Status local após salvar (evita re-fetch; reset quando `interacoes` muda). */
   const [statusPatch, setStatusPatch] = useState<Record<string, string>>({});
+  /** Campos da linha após edição inline (merge sobre `interacoes`). */
+  const [rowPatch, setRowPatch] = useState<Record<string, Partial<InteracaoSireneRow>>>({});
   const [msgErro, setMsgErro] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<EditLinhaDraft | null>(null);
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
+  const [commentsOpenByRow, setCommentsOpenByRow] = useState<Record<string, boolean>>({});
+  const [commentsFetchedByCard, setCommentsFetchedByCard] = useState<Record<string, boolean>>({});
+  const [commentsByCardId, setCommentsByCardId] = useState<Record<string, ComentarioCardSireneRow[]>>({});
+  const [commentsLoading, setCommentsLoading] = useState<Record<string, boolean>>({});
+  const [novoComentarioPorCard, setNovoComentarioPorCard] = useState<Record<string, string>>({});
+  const [salvandoComentario, setSalvandoComentario] = useState<Record<string, boolean>>({});
+  const [countPatch, setCountPatch] = useState<Record<string, number>>({});
 
   useEffect(() => {
     setStatusPatch({});
+    setRowPatch({});
+    setEditingId(null);
+    setEditDraft(null);
+    setCommentsOpenByRow({});
+    setCommentsFetchedByCard({});
+    setCommentsByCardId({});
+    setNovoComentarioPorCard({});
+    setCountPatch({});
   }, [interacoes]);
 
   useEffect(() => {
@@ -219,11 +271,15 @@ export function InteracoesLista({ interacoes, times, responsaveis, currentUserId
 
   const linhas = useMemo(
     () =>
-      interacoes.map((r) => ({
-        ...r,
-        atividade_status: statusPatch[r.id] ?? r.atividade_status,
-      })),
-    [interacoes, statusPatch],
+      interacoes.map((r) => {
+        const p = rowPatch[r.id];
+        return {
+          ...r,
+          atividade_status: statusPatch[r.id] ?? r.atividade_status,
+          ...(p ?? {}),
+        };
+      }),
+    [interacoes, statusPatch, rowPatch],
   );
 
   const timesById = useMemo(() => new Map(times.map((t) => [t.id, t.nome])), [times]);
@@ -304,6 +360,110 @@ export function InteracoesLista({ interacoes, times, responsaveis, currentUserId
       }
       setStatusPatch((prev) => ({ ...prev, [id]: novo }));
     });
+  }
+
+  function abrirEdicao(row: InteracaoSireneRow) {
+    const rids = [...(row.responsaveis_ids ?? [])];
+    if (row.responsavel_id && !rids.includes(row.responsavel_id)) rids.unshift(row.responsavel_id);
+    setEditingId(row.id);
+    setEditDraft({
+      titulo: row.titulo,
+      tipo: tipoEdicaoFromRow(row.tipo),
+      data: row.data_vencimento ?? '',
+      timesIds: [...(row.times_ids ?? [])],
+      responsaveisIds: rids,
+      trava: row.trava,
+    });
+  }
+
+  function cancelarEdicao() {
+    setEditingId(null);
+    setEditDraft(null);
+  }
+
+  async function salvarEdicao(atividadeId: string) {
+    if (!editDraft) return;
+    if (!editDraft.titulo.trim()) {
+      setMsgErro('Informe o título.');
+      return;
+    }
+    setMsgErro(null);
+    setSalvandoEdicao(true);
+    try {
+      const res = await atualizarInteracaoCompletaSirene(atividadeId, {
+        titulo: editDraft.titulo.trim(),
+        tipo: editDraft.tipo,
+        data_vencimento: editDraft.data.trim() || null,
+        times_ids: editDraft.timesIds,
+        responsaveis_ids: editDraft.responsaveisIds,
+        trava: editDraft.trava,
+      });
+      if (!res.ok) {
+        setMsgErro(res.error);
+        return;
+      }
+      const tnomes = nomesTimesDeIds(editDraft.timesIds, times);
+      const firstTimeNome = Array.isArray(tnomes) && tnomes.length > 0 ? String(tnomes[0]) : null;
+      setRowPatch((prev) => ({
+        ...prev,
+        [atividadeId]: {
+          titulo: editDraft.titulo.trim(),
+          tipo: editDraft.tipo,
+          data_vencimento: editDraft.data.trim() || null,
+          trava: editDraft.trava,
+          times_ids: [...editDraft.timesIds],
+          responsaveis_ids: [...editDraft.responsaveisIds],
+          times_nomes: tnomes,
+          time_nome: firstTimeNome,
+        },
+      }));
+      setEditingId(null);
+      setEditDraft(null);
+    } finally {
+      setSalvandoEdicao(false);
+    }
+  }
+
+  function toggleComentarios(row: InteracaoSireneRow) {
+    const cid = row.card_id;
+    if (!cid) return;
+    const willOpen = !commentsOpenByRow[row.id];
+    setCommentsOpenByRow((p) => ({ ...p, [row.id]: willOpen }));
+    if (willOpen && !commentsFetchedByCard[cid]) {
+      setCommentsFetchedByCard((f) => ({ ...f, [cid]: true }));
+      setCommentsLoading((l) => ({ ...l, [cid]: true }));
+      void listarComentariosCardSirene(cid).then((res) => {
+        setCommentsLoading((l) => ({ ...l, [cid]: false }));
+        if (res.ok) setCommentsByCardId((c) => ({ ...c, [cid]: res.items }));
+        else setMsgErro(res.error);
+      });
+    }
+  }
+
+  async function publicarComentario(cardId: string) {
+    const texto = (novoComentarioPorCard[cardId] ?? '').trim();
+    if (!texto) return;
+    setSalvandoComentario((s) => ({ ...s, [cardId]: true }));
+    setMsgErro(null);
+    try {
+      const res = await publicarComentarioCardSirene(cardId, texto, null);
+      if (!res.ok) {
+        setMsgErro(res.error);
+        return;
+      }
+      setNovoComentarioPorCard((m) => ({ ...m, [cardId]: '' }));
+      setCountPatch((c) => ({ ...c, [cardId]: (c[cardId] ?? comentariosCountByCardId[cardId] ?? 0) + 1 }));
+      const list = await listarComentariosCardSirene(cardId);
+      if (list.ok) setCommentsByCardId((c) => ({ ...c, [cardId]: list.items }));
+    } finally {
+      setSalvandoComentario((s) => ({ ...s, [cardId]: false }));
+    }
+  }
+
+  function comentariosCount(cardId: string | null): number {
+    if (!cardId) return 0;
+    if (countPatch[cardId] != null) return countPatch[cardId]!;
+    return comentariosCountByCardId[cardId] ?? 0;
   }
 
   function iniciaisNome(nome: string): string {
@@ -580,6 +740,7 @@ export function InteracoesLista({ interacoes, times, responsaveis, currentUserId
       )}
 
       {pending && <p className="mb-2 text-xs text-stone-500">Salvando status…</p>}
+      {salvandoEdicao && <p className="mb-2 text-xs text-stone-500">Salvando chamado…</p>}
 
       <div className="space-y-8">
         {ORDEM_GRUPOS.map(({ key, titulo }) => {
@@ -591,88 +752,287 @@ export function InteracoesLista({ interacoes, times, responsaveis, currentUserId
                 {titulo}
                 <span className="ml-2 font-normal text-stone-500">({lista.length})</span>
               </h3>
-              <ul className="divide-y divide-stone-800 rounded-lg border border-stone-800 bg-stone-900/80">
+              <ul className="rounded-lg border border-stone-800 bg-stone-900/80">
                 {lista.map((row) => {
                   const tipoB = badgeTipo(row.tipo);
                   const hrefCard = rotaCardOrigem(row.kanban_nome, row.card_id);
                   const sel = statusDbParaSelect(row.atividade_status);
                   const idsResp = [...new Set([...(row.responsaveis_ids ?? []), ...(row.responsavel_id ? [row.responsavel_id] : [])])];
 
+                  const ccid = row.card_id;
+                  const cnt = ccid ? comentariosCount(ccid) : 0;
+
                   return (
-                    <li key={row.id} className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-2">
-                      <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          {row.trava && (
-                            <span className="rounded border border-red-700/60 bg-red-950/50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-200">
-                              Trava
+                    <li key={row.id} className="flex flex-col gap-0 border-b border-stone-800 px-3 py-3 last:border-b-0">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:gap-x-3 sm:gap-y-2">
+                        <div className="flex min-w-0 flex-1 flex-col gap-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {row.trava && (
+                              <span className="rounded border border-red-700/60 bg-red-950/50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-200">
+                                Trava
+                              </span>
+                            )}
+                            <span className="font-medium text-white">{row.titulo}</span>
+                            {ccid ? (
+                              <button
+                                type="button"
+                                onClick={() => toggleComentarios(row)}
+                                className="inline-flex items-center gap-1 rounded border border-stone-600 bg-stone-800 px-1.5 py-0.5 text-stone-300 hover:border-stone-500 hover:text-white"
+                                aria-expanded={Boolean(commentsOpenByRow[row.id])}
+                                aria-label={`Comentários do card (${cnt})`}
+                              >
+                                <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                <span className="min-w-[1.1rem] text-center text-[10px] font-semibold tabular-nums">{cnt}</span>
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => abrirEdicao(row)}
+                              className="rounded p-0.5 text-stone-400 hover:bg-stone-800 hover:text-white"
+                              aria-label="Editar chamado"
+                              title="Editar"
+                            >
+                              <Pencil className="h-3.5 w-3.5" aria-hidden />
+                            </button>
+                            <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase ${tipoB.className}`}>
+                              {tipoB.label}
                             </span>
-                          )}
-                          <span className="font-medium text-white">{row.titulo}</span>
-                          <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase ${tipoB.className}`}>
-                            {tipoB.label}
-                          </span>
-                        </div>
-                        {(row.franqueado_nome ?? '').trim() ? (
-                          <div className="flex items-center gap-1 text-xs text-stone-400">
-                            <User className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                            <span>{(row.franqueado_nome ?? '').trim()}</span>
                           </div>
-                        ) : null}
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-stone-400">
-                          <Link
-                            href={hrefCard}
-                            className="rounded border border-stone-600 bg-stone-800/80 px-2 py-0.5 text-stone-200 underline-offset-2 hover:text-white hover:underline"
-                          >
-                            Card: {row.card_titulo?.trim() || '—'}
-                          </Link>
-                          <span className="rounded bg-stone-600/80 px-1.5 py-0.5 text-[10px] text-stone-200">{row.kanban_nome}</span>
-                          {parseTimesNomes(row.times_nomes).map((tn) => (
-                            <span key={tn} className="rounded bg-stone-700 px-1.5 py-0.5 text-[10px] text-stone-300">
-                              {tn}
-                            </span>
-                          ))}
-                          {row.time_nome && parseTimesNomes(row.times_nomes).length === 0 && (
-                            <span className="rounded bg-stone-700 px-1.5 py-0.5 text-[10px] text-stone-300">{row.time_nome}</span>
-                          )}
+                          {(row.franqueado_nome ?? '').trim() ? (
+                            <div className="flex items-center gap-1 text-xs text-stone-400">
+                              <User className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                              <span>{(row.franqueado_nome ?? '').trim()}</span>
+                            </div>
+                          ) : null}
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-stone-400">
+                            <Link
+                              href={hrefCard}
+                              className="rounded border border-stone-600 bg-stone-800/80 px-2 py-0.5 text-stone-200 underline-offset-2 hover:text-white hover:underline"
+                            >
+                              Card: {row.card_titulo?.trim() || '—'}
+                            </Link>
+                            <span className="rounded bg-stone-600/80 px-1.5 py-0.5 text-[10px] text-stone-200">{row.kanban_nome}</span>
+                            {parseTimesNomes(row.times_nomes).map((tn) => (
+                              <span key={tn} className="rounded bg-stone-700 px-1.5 py-0.5 text-[10px] text-stone-300">
+                                {tn}
+                              </span>
+                            ))}
+                            {row.time_nome && parseTimesNomes(row.times_nomes).length === 0 && (
+                              <span className="rounded bg-stone-700 px-1.5 py-0.5 text-[10px] text-stone-300">{row.time_nome}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                          <div className="flex -space-x-1">
+                            {idsResp.slice(0, 6).map((uid) => (
+                              <span
+                                key={uid}
+                                title={nomePorUserId.get(uid) ?? uid}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-stone-600 bg-stone-700 text-[10px] font-semibold text-stone-100"
+                              >
+                                {iniciaisNome(nomePorUserId.get(uid) ?? '?')}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
+                            {row.data_vencimento ? (
+                              <span className="text-stone-400">
+                                Prazo {row.data_vencimento.split('-').reverse().join('/')}
+                              </span>
+                            ) : null}
+                            <SelectEscuro
+                              value={sel}
+                              disabled={pending}
+                              onChange={(e) => onStatusChange(row.id, e.target.value as StatusInteracaoDb)}
+                              className="min-w-[9.5rem]"
+                              aria-label="Status do chamado"
+                            >
+                              <option value="pendente">A fazer</option>
+                              <option value="em_andamento">Em andamento</option>
+                              <option value="concluida">Concluída</option>
+                            </SelectEscuro>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                        <div className="flex -space-x-1">
-                          {idsResp.slice(0, 6).map((uid) => (
-                            <span
-                              key={uid}
-                              title={nomePorUserId.get(uid) ?? uid}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-stone-600 bg-stone-700 text-[10px] font-semibold text-stone-100"
+                      {editingId === row.id && editDraft ? (
+                        <div className="mt-3 space-y-3 border-t border-stone-800 pt-3">
+                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                            Título
+                            <input
+                              type="text"
+                              value={editDraft.titulo}
+                              onChange={(e) => setEditDraft((d) => (d ? { ...d, titulo: e.target.value } : d))}
+                              className="mt-1 w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
+                            />
+                          </label>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                              Tipo
+                              <SelectEscuro
+                                value={editDraft.tipo}
+                                onChange={(e) =>
+                                  setEditDraft((d) =>
+                                    d ? { ...d, tipo: e.target.value as 'atividade' | 'duvida' } : d,
+                                  )
+                                }
+                                className="mt-1 w-full"
+                              >
+                                <option value="atividade">Atividade</option>
+                                <option value="duvida">Dúvida</option>
+                              </SelectEscuro>
+                            </label>
+                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                              Prazo
+                              <input
+                                type="date"
+                                value={editDraft.data}
+                                onChange={(e) => setEditDraft((d) => (d ? { ...d, data: e.target.value } : d))}
+                                className="mt-1 w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
+                              />
+                            </label>
+                          </div>
+                          <div>
+                            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                              Times
+                            </span>
+                            <div className="flex max-h-28 flex-wrap gap-1 overflow-y-auto">
+                              {times.map((t) => {
+                                const on = editDraft.timesIds.includes(t.id);
+                                return (
+                                  <button
+                                    key={t.id}
+                                    type="button"
+                                    onClick={() =>
+                                      setEditDraft((d) => {
+                                        if (!d) return d;
+                                        const has = d.timesIds.includes(t.id);
+                                        return {
+                                          ...d,
+                                          timesIds: has ? d.timesIds.filter((x) => x !== t.id) : [...d.timesIds, t.id],
+                                        };
+                                      })
+                                    }
+                                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                      on ? 'bg-red-700 text-white' : 'bg-stone-800 text-stone-300'
+                                    }`}
+                                  >
+                                    {t.nome}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                              Responsáveis
+                            </span>
+                            <div className="flex max-h-32 flex-wrap gap-1 overflow-y-auto">
+                              {responsaveis.map((p) => {
+                                const on = editDraft.responsaveisIds.includes(p.id);
+                                return (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() =>
+                                      setEditDraft((d) => {
+                                        if (!d) return d;
+                                        const has = d.responsaveisIds.includes(p.id);
+                                        return {
+                                          ...d,
+                                          responsaveisIds: has
+                                            ? d.responsaveisIds.filter((x) => x !== p.id)
+                                            : [...d.responsaveisIds, p.id],
+                                        };
+                                      })
+                                    }
+                                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                      on ? 'bg-red-700 text-white' : 'bg-stone-800 text-stone-300'
+                                    }`}
+                                  >
+                                    {p.nome}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          <label className="flex cursor-pointer items-center gap-2 text-sm text-stone-300">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-stone-500"
+                              checked={editDraft.trava}
+                              onChange={(e) => setEditDraft((d) => (d ? { ...d, trava: e.target.checked } : d))}
+                            />
+                            Trava — bloqueia o card até concluir
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={salvandoEdicao}
+                              onClick={() => void salvarEdicao(row.id)}
+                              className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
                             >
-                              {iniciaisNome(nomePorUserId.get(uid) ?? '?')}
-                            </span>
-                          ))}
+                              {salvandoEdicao ? 'Salvando…' : 'Salvar'}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={salvandoEdicao}
+                              onClick={cancelarEdicao}
+                              className="rounded-lg border border-stone-600 px-3 py-1.5 text-sm text-stone-200 hover:bg-stone-800"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
-                          {row.trava && (
-                            <span className="rounded border border-red-700/60 bg-red-950/50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-200">
-                              Trava
-                            </span>
+                      ) : null}
+
+                      {commentsOpenByRow[row.id] && ccid ? (
+                        <div className="mt-3 border-t border-stone-800 pt-3">
+                          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                            Comentários do card
+                          </p>
+                          {commentsLoading[ccid] ? (
+                            <p className="text-xs text-stone-500">Carregando…</p>
+                          ) : (
+                            <ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm">
+                              {(commentsByCardId[ccid] ?? []).map((c) => (
+                                <li
+                                  key={c.id}
+                                  className="rounded border border-stone-700 bg-stone-950/50 px-2 py-1.5 text-stone-200"
+                                >
+                                  <p className="text-xs text-stone-500">
+                                    {(c.autor_nome ?? '—')}{' '}
+                                    <span className="tabular-nums">
+                                      {c.created_at ? new Date(c.created_at).toLocaleString('pt-BR') : ''}
+                                    </span>
+                                  </p>
+                                  <p className="mt-0.5 whitespace-pre-wrap text-stone-100">{c.texto}</p>
+                                </li>
+                              ))}
+                            </ul>
                           )}
-                          {row.data_vencimento ? (
-                            <span className="text-stone-400">
-                              Prazo {row.data_vencimento.split('-').reverse().join('/')}
-                            </span>
-                          ) : null}
-                          <SelectEscuro
-                            value={sel}
-                            disabled={pending}
-                            onChange={(e) => onStatusChange(row.id, e.target.value as StatusInteracaoDb)}
-                            className="min-w-[9.5rem]"
-                            aria-label="Status do chamado"
-                          >
-                            <option value="pendente">A fazer</option>
-                            <option value="em_andamento">Em andamento</option>
-                            <option value="concluida">Concluída</option>
-                          </SelectEscuro>
+                          <div className="flex flex-col gap-2 sm:flex-row">
+                            <input
+                              type="text"
+                              value={novoComentarioPorCard[ccid] ?? ''}
+                              onChange={(e) =>
+                                setNovoComentarioPorCard((m) => ({ ...m, [ccid]: e.target.value }))
+                              }
+                              placeholder="Escreva um comentário…"
+                              className="min-w-0 flex-1 rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100 placeholder:text-stone-500"
+                            />
+                            <button
+                              type="button"
+                              disabled={Boolean(salvandoComentario[ccid])}
+                              onClick={() => void publicarComentario(ccid)}
+                              className="shrink-0 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
+                            >
+                              {salvandoComentario[ccid] ? '…' : 'Publicar'}
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      ) : null}
                     </li>
                   );
                 })}

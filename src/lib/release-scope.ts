@@ -19,6 +19,7 @@ export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/dashboard-novos-negocios',
   '/painel-novos-negocios',
   '/portfolio',
+  '/funil-acoplamento',
   '/operacoes',
   '/funil-stepone',
   '/painel-contabilidade',

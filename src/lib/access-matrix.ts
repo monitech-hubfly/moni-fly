@@ -9,6 +9,7 @@ export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/comunidade',
   '/painel-novos-negocios',
   '/portfolio',
+  '/funil-acoplamento',
   '/operacoes',
   '/funil-stepone',
   '/dashboard-novos-negocios',

@@ -1,4 +1,4 @@
-import { getPrazoTagAtividade } from '@/lib/painel-tarefas-filtros';
+import { classificarSlaFundoChamado, getPrazoTagAtividade } from '@/lib/painel-tarefas-filtros';
 
 /** Estado visual da linha/card de atividade (cores + ícone). */
 export type AtividadeVinculadaKind =
@@ -7,7 +7,11 @@ export type AtividadeVinculadaKind =
   | 'atencao'
   | 'em_andamento'
   | 'pendente'
-  | 'cancelada';
+  | 'cancelada'
+  /** Kanban — SLA “vence hoje / 1 d.u.” (fundo dourado claro). */
+  | 'prazo_proximo'
+  /** Kanban — SLA tranquilo ou sem prazo (fundo cinza claro). */
+  | 'prazo_calm';
 
 export function resolveAtividadeVinculadaKind(input: {
   concluido: boolean;
@@ -28,6 +32,38 @@ export function resolveAtividadeVinculadaKind(input: {
   const pr = String(input.prioridade ?? '').trim().toLowerCase();
   if (pr === 'urgente') return 'atrasado';
   if (pr === 'alta') return 'atencao';
+  return 'pendente';
+}
+
+/**
+ * Fundo da linha do chamado no modal Kanban: só por SLA do prazo efetivo
+ * (concluída/cancelada preservam os estilos “feitos”).
+ */
+export function resolveKanbanChamadoSurfaceKind(
+  status: string,
+  prazoIso: string | null | undefined,
+): AtividadeVinculadaKind {
+  const st = String(status ?? '').trim().toLowerCase();
+  if (st === 'concluido' || st === 'concluida') return 'concluido';
+  if (st === 'cancelada') return 'cancelada';
+  const f = classificarSlaFundoChamado(prazoIso ?? null);
+  if (f === 'atrasado') return 'atrasado';
+  if (f === 'proximo') return 'prazo_proximo';
+  return 'prazo_calm';
+}
+
+/**
+ * Ícone da linha no Kanban: prioriza alerta de sub atrasada, senão status (manual ou derivado).
+ */
+export function resolveKanbanChamadoIconKind(input: {
+  status: string;
+  alertaSubAtrasada: boolean;
+}): AtividadeVinculadaKind {
+  if (input.alertaSubAtrasada) return 'atrasado';
+  const st = String(input.status ?? '').trim().toLowerCase();
+  if (st === 'concluido' || st === 'concluida') return 'concluido';
+  if (st === 'cancelada') return 'cancelada';
+  if (st === 'em_andamento') return 'em_andamento';
   return 'pendente';
 }
 
@@ -82,8 +118,8 @@ export function atividadeVinculadaRowStyles(kind: AtividadeVinculadaKind): {
       };
     case 'atrasado':
       return {
-        background: 'var(--moni-status-overdue-bg)',
-        borderColor: 'var(--moni-status-overdue-border)',
+        background: '#fef2f2',
+        borderColor: '#fecaca',
         iconColor: 'var(--moni-status-overdue-text)',
       };
     case 'atencao':
@@ -91,6 +127,18 @@ export function atividadeVinculadaRowStyles(kind: AtividadeVinculadaKind): {
         background: 'var(--moni-status-attention-bg)',
         borderColor: 'var(--moni-status-attention-border)',
         iconColor: 'var(--moni-status-attention-text)',
+      };
+    case 'prazo_proximo':
+      return {
+        background: 'var(--moni-gold-50)',
+        borderColor: 'var(--moni-gold-200)',
+        iconColor: 'var(--moni-gold-800)',
+      };
+    case 'prazo_calm':
+      return {
+        background: '#fafaf9',
+        borderColor: '#e7e5e4',
+        iconColor: 'var(--moni-text-tertiary)',
       };
     case 'em_andamento':
       return {

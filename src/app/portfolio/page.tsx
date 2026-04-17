@@ -16,7 +16,6 @@ export default async function PortfolioKanbanPage({
     kanbanNomeDisplay: 'Funil Portfólio',
     basePath: '/portfolio',
     pageTitle: 'Kanban Portfolio',
-    legacyPanelHref: '/painel-novos-negocios',
     tabsVariant: 'portfolio',
     columnAccent: 'var(--moni-kanban-stepone)',
   });

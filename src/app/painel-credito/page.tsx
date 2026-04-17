@@ -102,6 +102,7 @@ export default async function PainelCreditoPage({
               <KanbanBoard
                 fases={snapshot.fases}
                 cards={snapshot.cards}
+                cardsConcluidos={snapshot.cardsConcluidos}
                 basePath="/painel-credito"
                 userRole={snapshot.role}
                 columnAccent="var(--moni-kanban-stepone)"

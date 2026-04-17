@@ -47,23 +47,26 @@ export default async function SireneInteracoesPage() {
   const rows = (viewRows ?? []) as unknown as ViewRow[];
   const ids = rows.map((r) => String(r.id)).filter(Boolean);
 
-  let kaById = new Map<string, { trava: boolean; origem: string; responsaveis_ids: string[] }>();
+  let kaById = new Map<string, { trava: boolean; origem: string; responsaveis_ids: string[]; times_ids: string[] }>();
   if (ids.length > 0) {
     const chunk = 200;
     for (let i = 0; i < ids.length; i += chunk) {
       const slice = ids.slice(i, i + chunk);
       const { data: kaRows } = await admin
         .from('kanban_atividades')
-        .select('id, trava, origem, responsaveis_ids')
+        .select('id, trava, origem, responsaveis_ids, times_ids')
         .in('id', slice);
       for (const r of kaRows ?? []) {
         const id = String((r as { id: string }).id);
         const raw = (r as { responsaveis_ids?: unknown }).responsaveis_ids;
         const arr = Array.isArray(raw) ? raw.map((x) => String(x)) : [];
+        const rawT = (r as { times_ids?: unknown }).times_ids;
+        const tids = Array.isArray(rawT) ? rawT.map((x) => String(x)) : [];
         kaById.set(id, {
           trava: Boolean((r as { trava?: boolean }).trava),
           origem: String((r as { origem?: string }).origem ?? 'nativo'),
           responsaveis_ids: arr,
+          times_ids: tids,
         });
       }
     }
@@ -101,8 +104,23 @@ export default async function SireneInteracoesPage() {
         trava: ka?.trava ?? false,
         origem: ka?.origem ?? 'nativo',
         responsaveis_ids: ka?.responsaveis_ids ?? [],
+        times_ids: ka?.times_ids ?? [],
       };
     });
+
+  const cardIdsUniq = [...new Set(interacoes.map((i) => i.card_id).filter(Boolean))] as string[];
+  const comentariosCountByCardId: Record<string, number> = {};
+  if (cardIdsUniq.length > 0) {
+    const chunk = 300;
+    for (let i = 0; i < cardIdsUniq.length; i += chunk) {
+      const slice = cardIdsUniq.slice(i, i + chunk);
+      const { data: ccRows } = await admin.from('kanban_card_comentarios').select('card_id').in('card_id', slice);
+      for (const r of ccRows ?? []) {
+        const cid = String((r as { card_id: string }).card_id);
+        comentariosCountByCardId[cid] = (comentariosCountByCardId[cid] ?? 0) + 1;
+      }
+    }
+  }
 
   const { data: timesRows } = await admin.from('kanban_times').select('id, nome').order('nome');
   const times = (timesRows ?? []).map((t) => ({
@@ -110,26 +128,17 @@ export default async function SireneInteracoesPage() {
     nome: String((t as { nome: string }).nome),
   }));
 
-  const respIdSet = new Set<string>();
-  for (const it of interacoes) {
-    if (it.responsavel_id) respIdSet.add(it.responsavel_id);
-    for (const uid of it.responsaveis_ids) respIdSet.add(uid);
-  }
-  const respIds = [...respIdSet];
-  let responsaveis: { id: string; nome: string }[] = [];
-  if (respIds.length > 0) {
-    const { data: profs } = await admin
-      .from('profiles')
-      .select('id, full_name, email')
-      .in('id', respIds);
-    responsaveis = (profs ?? []).map((p) => ({
-      id: String((p as { id: string }).id),
-      nome: String((p as { full_name?: string | null; email?: string | null }).full_name?.trim() ||
-        (p as { email?: string | null }).email ||
-        String((p as { id: string }).id).slice(0, 8)),
-    }));
-    responsaveis.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-  }
+  const { data: profsAll } = await admin
+    .from('profiles')
+    .select('id, full_name, email')
+    .order('full_name', { ascending: true, nullsFirst: false })
+    .limit(500);
+  const responsaveis = (profsAll ?? []).map((p) => ({
+    id: String((p as { id: string }).id),
+    nome: String((p as { full_name?: string | null; email?: string | null }).full_name?.trim() ||
+      (p as { email?: string | null }).email ||
+      String((p as { id: string }).id).slice(0, 8)),
+  }));
 
   const supabaseUser = await createClient();
   const {
@@ -143,6 +152,7 @@ export default async function SireneInteracoesPage() {
       times={times}
       responsaveis={responsaveis}
       currentUserId={currentUserId}
+      comentariosCountByCardId={comentariosCountByCardId}
     />
   );
 }

@@ -4,7 +4,10 @@
       "Bash(npx supabase *)",
       "Bash(SUPABASE_DB_PASSWORD='[Monicasa/07]' npx supabase migration up --db-url \"postgresql://postgres@db.bgaadvfucnrkpimaszjv.supabase.co:5432/postgres\")",
       "Bash(PGPASSWORD='[Monicasa/07]' psql *)",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }

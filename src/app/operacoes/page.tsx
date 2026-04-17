@@ -15,7 +15,6 @@ export default async function OperacoesKanbanPage({
     kanbanNomeDisplay: 'Funil Operações',
     basePath: '/operacoes',
     pageTitle: 'Kanban Operações',
-    legacyPanelHref: '/painel-novos-negocios',
     tabsVariant: 'operacoes',
     columnAccent: 'var(--moni-kanban-stepone)',
   });

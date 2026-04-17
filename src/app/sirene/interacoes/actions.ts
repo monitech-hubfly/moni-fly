@@ -9,6 +9,27 @@ export type AtualizarStatusInteracaoResult = { ok: true } | { ok: false; error: 
 /** Status persistidos em `kanban_atividades.status`. */
 export type StatusInteracaoDb = 'pendente' | 'em_andamento' | 'concluida';
 
+function uniqUuids(ids: string[] | undefined | null): string[] {
+  if (!Array.isArray(ids)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const x of ids) {
+    const u = String(x ?? '').trim();
+    if (!u || seen.has(u)) continue;
+    seen.add(u);
+    out.push(u);
+  }
+  return out;
+}
+
+/** Data `YYYY-MM-DD` do `<input type="date">` sem conversão timezone. */
+function dataCampoCalendarioIso(input: string | null | undefined): string | null {
+  const t = String(input ?? '').trim();
+  if (!t) return null;
+  const head = t.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(head) ? head : null;
+}
+
 async function usuarioPodeEditarAtividade(
   admin: ReturnType<typeof createAdminClient>,
   userId: string,
@@ -108,6 +129,151 @@ export async function atualizarStatusInteracaoSirene(
       updated_at: new Date().toISOString(),
     })
     .eq('id', atividadeId);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath('/sirene/interacoes');
+  revalidatePath('/');
+  return { ok: true };
+}
+
+export type AtualizarInteracaoCompletaSireneInput = {
+  titulo: string;
+  tipo: 'atividade' | 'duvida';
+  data_vencimento: string | null;
+  times_ids: string[];
+  responsaveis_ids: string[];
+  trava: boolean;
+};
+
+export async function atualizarInteracaoCompletaSirene(
+  atividadeId: string,
+  dados: AtualizarInteracaoCompletaSireneInput,
+): Promise<AtualizarStatusInteracaoResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const titulo = String(dados.titulo ?? '').trim();
+  if (!titulo) return { ok: false, error: 'Informe o título.' };
+
+  const admin = createAdminClient();
+  const { data: row, error: fetchErr } = await admin
+    .from('kanban_atividades')
+    .select('id, origem, card_id, responsavel_id, responsaveis_ids, criado_por')
+    .eq('id', atividadeId)
+    .maybeSingle();
+
+  if (fetchErr || !row) return { ok: false, error: 'Chamado não encontrado.' };
+
+  const pode = await usuarioPodeEditarAtividade(admin, user.id, {
+    origem: String((row as { origem?: string }).origem ?? 'nativo'),
+    card_id: (row as { card_id?: string | null }).card_id ?? null,
+    responsavel_id: (row as { responsavel_id?: string | null }).responsavel_id ?? null,
+    responsaveis_ids: (row as { responsaveis_ids?: unknown }).responsaveis_ids,
+    criado_por: (row as { criado_por?: string | null }).criado_por ?? null,
+  });
+  if (!pode) return { ok: false, error: 'Sem permissão para editar este chamado.' };
+
+  const timesIds = uniqUuids(dados.times_ids);
+  const mergedResp = uniqUuids(dados.responsaveis_ids);
+  const responsavelSingular = mergedResp.length > 0 ? mergedResp[0]! : null;
+
+  const { error } = await admin
+    .from('kanban_atividades')
+    .update({
+      titulo,
+      tipo: dados.tipo === 'duvida' ? 'duvida' : 'atividade',
+      data_vencimento: dataCampoCalendarioIso(dados.data_vencimento),
+      times_ids: timesIds,
+      responsaveis_ids: mergedResp,
+      responsavel_id: responsavelSingular,
+      trava: Boolean(dados.trava),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', atividadeId);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath('/sirene/interacoes');
+  revalidatePath('/');
+  return { ok: true };
+}
+
+export type ComentarioCardSireneRow = {
+  id: string;
+  texto: string;
+  created_at: string;
+  autor_nome: string | null;
+};
+
+export async function listarComentariosCardSirene(
+  cardId: string,
+): Promise<{ ok: true; items: ComentarioCardSireneRow[] } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return { ok: false, error: 'Card inválido.' };
+
+  const { data: rows, error } = await supabase
+    .from('kanban_card_comentarios')
+    .select('id, texto, created_at, autor_id')
+    .eq('card_id', cid)
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (error) return { ok: false, error: error.message };
+
+  const autorIds = [...new Set((rows ?? []).map((r) => r.autor_id).filter(Boolean))] as string[];
+  let nomes = new Map<string, string>();
+  if (autorIds.length > 0) {
+    const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', autorIds);
+    nomes = new Map(
+      (profs ?? []).map((p) => [
+        String((p as { id: string }).id),
+        String((p as { full_name?: string | null }).full_name ?? '').trim() || '—',
+      ]),
+    );
+  }
+
+  const items: ComentarioCardSireneRow[] = (rows ?? []).map((r) => ({
+    id: String((r as { id: string }).id),
+    texto: String((r as { texto?: string }).texto ?? ''),
+    created_at: String((r as { created_at?: string }).created_at ?? ''),
+    autor_nome: r.autor_id ? nomes.get(String(r.autor_id)) ?? null : null,
+  }));
+
+  return { ok: true, items };
+}
+
+export async function publicarComentarioCardSirene(
+  cardId: string,
+  texto: string,
+  faseId?: string | null,
+): Promise<AtualizarStatusInteracaoResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const cid = String(cardId ?? '').trim();
+  const t = String(texto ?? '').trim();
+  if (!cid) return { ok: false, error: 'Card inválido.' };
+  if (!t) return { ok: false, error: 'Digite o comentário.' };
+
+  const { error } = await supabase.from('kanban_card_comentarios').insert({
+    card_id: cid,
+    fase_id: faseId?.trim() || null,
+    autor_id: user.id,
+    texto: t,
+  });
 
   if (error) return { ok: false, error: error.message };
 

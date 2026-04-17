@@ -53,6 +53,7 @@ export async function updateSession(request: NextRequest) {
     '/painel',
     '/painel-novos-negocios',
     '/portfolio',
+    '/funil-acoplamento',
     '/operacoes',
     '/funil-stepone',
     '/dashboard-novos-negocios',

@@ -14,7 +14,6 @@ export type KanbanWrapperProps = {
   kanbanNome: KanbanNomeDisplay;
   fases: KanbanFase[];
   camposPorFase?: CamposPorFaseMap;
-  legacyPanelHref?: string;
   cardQueryParam?: string;
   tabBloqueiaCard?: string;
   /** Usa o `NovoCardModal` do Funil quando `?novo=true`. Desligado em outros kanbans. */
@@ -29,7 +28,6 @@ function KanbanWrapperInner({
   kanbanNome,
   fases,
   camposPorFase,
-  legacyPanelHref,
   cardQueryParam = 'card',
   tabBloqueiaCard = 'painel',
   enableNovoCardModal = false,
@@ -61,7 +59,6 @@ function KanbanWrapperInner({
           fases={fases}
           isAdmin={isAdmin}
           basePath={basePath}
-          legacyPanelHref={legacyPanelHref}
           camposPorFase={camposPorFase}
           origem={cardOrigem}
         />

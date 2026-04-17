@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 export type KanbanNomeDisplay =
   | 'Funil Step One'
   | 'Funil Portfólio'
+  | 'Funil Acoplamento'
   | 'Funil Operações'
   | 'Funil Contabilidade'
   | 'Funil Crédito';
@@ -24,6 +25,12 @@ export type KanbanCardBrief = {
   created_at: string;
   fase_id: string;
   franqueado_id: string;
+  /** Cards nativos arquivados (`kanban_cards.arquivado`). Legado: ausente / false. */
+  arquivado?: boolean;
+  motivo_arquivamento?: string | null;
+  /** Nativo: finalizado pelo usuário (`kanban_cards.concluido`). Legado: ausente / false. */
+  concluido?: boolean;
+  concluido_em?: string | null;
   /** `legado` quando o card veio de `processo_step_one` via view de compatibilidade. */
   origem?: 'legado' | 'nativo';
   profiles?: {

@@ -1,13 +1,14 @@
+import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
-import { calcularStatusSLA } from '@/lib/dias-uteis';
+import type {
+  PainelAtividadeDTO,
+  PainelCardDTO,
+  PainelFaseDTO,
+  PainelPerformanceDataset,
+  PainelRetrocessoDTO,
+} from '@/lib/kanban/painel-performance-types';
 import type { KanbanCardBrief, KanbanFase } from './types';
-
-function isoUtcSinceDays(days: number): string {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - days);
-  d.setUTCHours(0, 0, 0, 0);
-  return d.toISOString();
-}
+import { PainelPerformanceDashboard } from './PainelPerformanceDashboard';
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -15,8 +16,44 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
+function isPrivilegedRole(role: string | null | undefined): boolean {
+  const r = String(role ?? '').toLowerCase();
+  return r === 'admin' || r === 'consultor';
+}
+
+async function fetchPaged<T>(
+  run: (from: number, to: number) => Promise<{ data: T[] | null; error: { message: string } | null }>,
+  pageSize = 1000,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const to = from + pageSize - 1;
+    const { data, error } = await run(from, to);
+    if (error) break;
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < pageSize) break;
+  }
+  return out;
+}
+
+function applyFranqueadoFilter<Q>(q: Q, privileged: boolean, uid: string | null): Q {
+  if (!privileged && uid) {
+    return (q as unknown as { eq: (c: string, v: string) => Q }).eq('franqueado_id', uid);
+  }
+  return q;
+}
+
+function mapFases(fases: KanbanFase[]): PainelFaseDTO[] {
+  return fases.map((f) => ({
+    id: f.id,
+    nome: f.nome,
+    ordem: f.ordem,
+    sla_dias: f.sla_dias,
+  }));
+}
+
 export type PainelPerformanceProps = {
-  /** Nome exibido (ex.: Funil Portfólio). */
   kanbanNome: string;
   kanbanId: string;
   fases: KanbanFase[];
@@ -24,10 +61,71 @@ export type PainelPerformanceProps = {
   origemCards?: 'nativo' | 'legado';
 };
 
-/**
- * Painel de performance do funil: distribuição por fase, SLA, criados/concluídos (30d) e interações.
- */
-export async function PainelPerformance({
+export function PainelPerformanceLoading() {
+  return (
+    <div className="animate-pulse space-y-10 pb-10">
+      <div className="flex flex-col gap-4 border-b pb-6" style={{ borderColor: 'var(--moni-border-subtle)' }}>
+        <div className="h-8 w-48 rounded bg-stone-200" />
+        <div className="h-10 w-full max-w-md rounded-full bg-stone-100" />
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-28 min-w-[140px] flex-1"
+            style={{ borderRadius: 12, background: 'var(--color-background-secondary, #f2ede8)' }}
+          />
+        ))}
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-80 bg-white"
+            style={{ borderRadius: 12, border: '0.5px solid #E8E2DA' }}
+          />
+        ))}
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-64 bg-white"
+            style={{ borderRadius: 12, border: '0.5px solid #E8E2DA' }}
+          />
+        ))}
+      </div>
+      <div className="h-48 bg-white" style={{ borderRadius: 12, border: '0.5px solid #E8E2DA' }} />
+    </div>
+  );
+}
+
+export function PainelPerformance(props: PainelPerformanceProps) {
+  return (
+    <Suspense fallback={<PainelPerformanceLoading />}>
+      <PainelPerformanceContent {...props} />
+    </Suspense>
+  );
+}
+
+async function buildProfilesMap(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  ids: Iterable<string>,
+): Promise<Record<string, string>> {
+  const uniq = [...new Set(ids)].filter(Boolean);
+  const out: Record<string, string> = {};
+  for (const part of chunk(uniq, 120)) {
+    if (part.length === 0) continue;
+    const { data: profs } = await supabase.from('profiles').select('id,full_name').in('id', part);
+    for (const p of profs ?? []) {
+      const row = p as { id: string; full_name: string | null };
+      out[row.id] = String(row.full_name ?? '—');
+    }
+  }
+  return out;
+}
+
+async function PainelPerformanceContent({
   kanbanNome,
   kanbanId,
   fases,
@@ -35,167 +133,198 @@ export async function PainelPerformance({
   origemCards = 'nativo',
 }: PainelPerformanceProps) {
   const supabase = await createClient();
-  const sinceIso = isoUtcSinceDays(30);
   const origem = origemCards === 'legado' ? 'legado' : 'nativo';
 
-  const faseById = new Map(fases.map((f) => [f.id, f]));
-  const orderedFases = [...fases].sort((a, b) => a.ordem - b.ordem);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const uid = user?.id ?? null;
 
-  const totalPorFase = new Map<string, number>();
-  const atrasadosPorFase = new Map<string, number>();
-  for (const f of fases) {
-    totalPorFase.set(f.id, 0);
-    atrasadosPorFase.set(f.id, 0);
-  }
-  for (const c of cards) {
-    const fid = c.fase_id;
-    totalPorFase.set(fid, (totalPorFase.get(fid) ?? 0) + 1);
-    const fase = faseById.get(fid);
-    const slaDias = fase?.sla_dias ?? 999;
-    const created = new Date(c.created_at);
-    if (Number.isFinite(created.getTime()) && calcularStatusSLA(created, slaDias).status === 'atrasado') {
-      atrasadosPorFase.set(fid, (atrasadosPorFase.get(fid) ?? 0) + 1);
-    }
-  }
-  const maxPorFase = Math.max(1, ...orderedFases.map((f) => totalPorFase.get(f.id) ?? 0));
+  const { data: profile } = uid
+    ? await supabase.from('profiles').select('role').eq('id', uid).maybeSingle()
+    : { data: null as { role: string | null } | null };
+  const privileged = isPrivilegedRole(profile?.role);
 
-  let criados30 = 0;
-  let concluidos30 = 0;
+  const fasesDto = mapFases(fases);
+
   if (origemCards === 'legado') {
-    const { count: c1 } = await supabase
-      .from('v_processo_como_kanban_cards')
-      .select('id', { count: 'exact', head: true })
-      .eq('kanban_id', kanbanId)
-      .gte('criado_em', sinceIso);
-    criados30 = c1 ?? 0;
-    concluidos30 = 0;
-  } else {
-    const { count: c2 } = await supabase
-      .from('kanban_cards')
-      .select('id', { count: 'exact', head: true })
-      .eq('kanban_id', kanbanId)
-      .gte('created_at', sinceIso);
-    criados30 = c2 ?? 0;
-    const { count: c3 } = await supabase
-      .from('kanban_cards')
-      .select('id', { count: 'exact', head: true })
-      .eq('kanban_id', kanbanId)
-      .eq('status', 'arquivado')
-      .gte('updated_at', sinceIso);
-    concluidos30 = c3 ?? 0;
+    const cardsDto: PainelCardDTO[] = cards.map((c) => ({
+      id: c.id,
+      titulo: c.titulo,
+      fase_id: c.fase_id,
+      created_at: c.created_at,
+      franqueado_id: c.franqueado_id,
+      arquivado: !!c.arquivado,
+      concluido: !!c.concluido,
+      concluido_em: c.concluido_em ?? null,
+      status: c.status,
+      motivo_arquivamento: c.motivo_arquivamento ?? null,
+    }));
+
+    const cardIds = cardsDto.map((c) => c.id).filter(Boolean);
+    const atividades: PainelAtividadeDTO[] = [];
+    for (const part of chunk(cardIds, 100)) {
+      if (part.length === 0) continue;
+      const { data: rows } = await supabase
+        .from('kanban_atividades')
+        .select('id,card_id,status,trava,tipo,responsavel_id,responsaveis_ids,created_at,data_vencimento')
+        .in('card_id', part)
+        .eq('origem', origem);
+      for (const r of rows ?? []) {
+        const row = r as Record<string, unknown>;
+        atividades.push({
+          id: String(row.id),
+          card_id: String(row.card_id),
+          status: String(row.status ?? ''),
+          trava: row.trava === true,
+          tipo: row.tipo != null ? String(row.tipo) : null,
+          responsavel_id: row.responsavel_id != null ? String(row.responsavel_id) : null,
+          responsaveis_ids: Array.isArray(row.responsaveis_ids)
+            ? (row.responsaveis_ids as string[]).filter(Boolean)
+            : null,
+          created_at: String(row.created_at ?? new Date().toISOString()),
+          data_vencimento: row.data_vencimento != null ? String(row.data_vencimento) : null,
+        });
+      }
+    }
+
+    const retrocessoRows: PainelRetrocessoDTO[] = [];
+    for (const part of chunk(cardIds, 100)) {
+      if (part.length === 0) continue;
+      const { data: hrows } = await supabase
+        .from('kanban_historico')
+        .select('card_id,detalhe')
+        .in('card_id', part)
+        .eq('is_retrocesso', true);
+      for (const h of hrows ?? []) {
+        const row = h as { card_id: string; detalhe: PainelRetrocessoDTO['detalhe'] };
+        retrocessoRows.push({ card_id: row.card_id, detalhe: row.detalhe ?? null });
+      }
+    }
+
+    const profileIds = new Set<string>();
+    for (const c of cardsDto) profileIds.add(c.franqueado_id);
+    for (const a of atividades) {
+      if (a.responsavel_id) profileIds.add(a.responsavel_id);
+      for (const x of a.responsaveis_ids ?? []) profileIds.add(x);
+    }
+    for (const c of cards) {
+      if (c.franqueado_id) profileIds.add(c.franqueado_id);
+    }
+    const profiles = await buildProfilesMap(supabase, profileIds);
+    for (const c of cards) {
+      const fn = c.profiles?.full_name;
+      if (fn && c.franqueado_id) profiles[c.franqueado_id] = fn;
+    }
+
+    const dataset: PainelPerformanceDataset = {
+      mode: 'legado',
+      kanbanNome,
+      kanbanId,
+      fases: fasesDto,
+      cards: cardsDto,
+      atividades,
+      retrocessoRows,
+      profiles,
+    };
+
+    return <PainelPerformanceDashboard dataset={dataset} />;
   }
 
-  const cardIds = cards.map((c) => c.id).filter(Boolean);
-  let interacoesAbertas = 0;
-  let interacoesTrava = 0;
-  for (const part of chunk(cardIds, 120)) {
+  const cardsRows = await fetchPaged<{
+    id: string;
+    titulo: string;
+    fase_id: string;
+    created_at: string;
+    franqueado_id: string;
+    arquivado: boolean | null;
+    concluido: boolean | null;
+    concluido_em: string | null;
+    status: string;
+    motivo_arquivamento: string | null;
+  }>(async (from, to) => {
+    let q = supabase
+      .from('kanban_cards')
+      .select(
+        'id,titulo,fase_id,created_at,franqueado_id,arquivado,concluido,concluido_em,status,motivo_arquivamento',
+      )
+      .eq('kanban_id', kanbanId);
+    q = applyFranqueadoFilter(q, privileged, uid);
+    return q.range(from, to);
+  });
+
+  const cardsDto: PainelCardDTO[] = cardsRows.map((c) => ({
+    id: c.id,
+    titulo: c.titulo,
+    fase_id: c.fase_id,
+    created_at: c.created_at,
+    franqueado_id: c.franqueado_id,
+    arquivado: !!c.arquivado,
+    concluido: !!c.concluido,
+    concluido_em: c.concluido_em ?? null,
+    status: c.status ?? 'ativo',
+    motivo_arquivamento: c.motivo_arquivamento ?? null,
+  }));
+
+  const idList = cardsDto.map((c) => c.id);
+  const atividades: PainelAtividadeDTO[] = [];
+  for (const part of chunk(idList, 100)) {
     if (part.length === 0) continue;
     const { data: rows } = await supabase
       .from('kanban_atividades')
-      .select('id, status, trava')
+      .select('id,card_id,status,trava,tipo,responsavel_id,responsaveis_ids,created_at,data_vencimento')
       .in('card_id', part)
       .eq('origem', origem);
     for (const r of rows ?? []) {
-      const st = String((r as { status?: string }).status ?? '').toLowerCase();
-      const aberta = st !== 'concluida' && st !== 'cancelada';
-      if (aberta) interacoesAbertas += 1;
-      if (aberta && (r as { trava?: boolean }).trava === true) interacoesTrava += 1;
+      const row = r as Record<string, unknown>;
+      atividades.push({
+        id: String(row.id),
+        card_id: String(row.card_id),
+        status: String(row.status ?? ''),
+        trava: row.trava === true,
+        tipo: row.tipo != null ? String(row.tipo) : null,
+        responsavel_id: row.responsavel_id != null ? String(row.responsavel_id) : null,
+        responsaveis_ids: Array.isArray(row.responsaveis_ids)
+          ? (row.responsaveis_ids as string[]).filter(Boolean)
+          : null,
+        created_at: String(row.created_at ?? new Date().toISOString()),
+        data_vencimento: row.data_vencimento != null ? String(row.data_vencimento) : null,
+      });
     }
   }
 
-  const statCard = (label: string, value: number | string, hint?: string) => (
-    <div
-      className="rounded-xl border bg-white p-5 shadow-sm"
-      style={{ borderColor: 'var(--moni-border-default)' }}
-    >
-      <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
-        {label}
-      </p>
-      <p className="mt-2 text-3xl font-semibold tabular-nums" style={{ color: 'var(--moni-navy-800)' }}>
-        {value}
-      </p>
-      {hint ? (
-        <p className="mt-1 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-          {hint}
-        </p>
-      ) : null}
-    </div>
-  );
+  const retrocessoRows: PainelRetrocessoDTO[] = [];
+  for (const part of chunk(idList, 120)) {
+    if (part.length === 0) continue;
+    const { data: hrows } = await supabase
+      .from('kanban_historico')
+      .select('card_id,detalhe')
+      .in('card_id', part)
+      .eq('is_retrocesso', true);
+    for (const h of hrows ?? []) {
+      const row = h as { card_id: string; detalhe: PainelRetrocessoDTO['detalhe'] };
+      retrocessoRows.push({ card_id: row.card_id, detalhe: row.detalhe ?? null });
+    }
+  }
 
-  return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-lg font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-          Painel — {kanbanNome}
-        </h2>
-        <p className="mt-1 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
-          Visão rápida de volume por fase, SLA dos cards ativos, movimento recente e chamados vinculados.
-        </p>
-      </div>
+  const profileIds = new Set<string>();
+  for (const c of cardsDto) profileIds.add(c.franqueado_id);
+  for (const a of atividades) {
+    if (a.responsavel_id) profileIds.add(a.responsavel_id);
+    for (const x of a.responsaveis_ids ?? []) profileIds.add(x);
+  }
+  const profiles = await buildProfilesMap(supabase, profileIds);
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {statCard('Criados (30 dias)', criados30)}
-        {statCard(
-          'Concluídos (30 dias)',
-          origemCards === 'legado' ? '—' : concluidos30,
-          origemCards === 'legado' ? 'Cards legados (processo): métrica de arquivamento não aplicável aqui.' : undefined,
-        )}
-        {statCard('Chamados em aberto', interacoesAbertas, 'Pendente ou em andamento, neste funil.')}
-        {statCard('Chamados com trava', interacoesTrava, 'Somente em aberto, com trava ativa.')}
-      </div>
+  const dataset: PainelPerformanceDataset = {
+    mode: 'nativo',
+    kanbanNome,
+    kanbanId,
+    fases: fasesDto,
+    cards: cardsDto,
+    atividades,
+    retrocessoRows,
+    profiles,
+  };
 
-      <div
-        className="rounded-xl border bg-white p-6 shadow-sm"
-        style={{ borderColor: 'var(--moni-border-default)' }}
-      >
-        <h3 className="text-sm font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-          Cards por fase
-        </h3>
-        <p className="mt-1 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
-          Barras relativas ao maior volume entre as fases.
-        </p>
-        <ul className="mt-4 space-y-4">
-          {orderedFases.map((f) => {
-            const total = totalPorFase.get(f.id) ?? 0;
-            const atrasados = atrasadosPorFase.get(f.id) ?? 0;
-            const pct = Math.round((total / maxPorFase) * 100);
-            return (
-              <li key={f.id}>
-                <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <span className="font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
-                    {f.nome}
-                  </span>
-                  <span className="tabular-nums text-stone-600">
-                    {total}
-                    {atrasados > 0 ? (
-                      <span
-                        className="ml-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold"
-                        style={{
-                          borderColor: 'var(--moni-status-overdue-border)',
-                          color: 'var(--moni-status-overdue-text)',
-                          background: 'var(--moni-status-overdue-bg)',
-                        }}
-                      >
-                        SLA {atrasados}
-                      </span>
-                    ) : null}
-                  </span>
-                </div>
-                <div className="h-2.5 overflow-hidden rounded-full bg-[var(--moni-surface-200)]">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${pct}%`,
-                      minWidth: total > 0 ? '4px' : undefined,
-                      background: 'var(--moni-navy-600)',
-                    }}
-                  />
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-    </div>
-  );
+  return <PainelPerformanceDashboard dataset={dataset} />;
 }

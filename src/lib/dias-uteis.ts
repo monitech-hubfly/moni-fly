@@ -3,6 +3,47 @@
  * Considera sábados, domingos e feriados nacionais brasileiros
  */
 
+/** Parse `YYYY-MM-DD` como data de calendário local (evita deslocamento UTC de `new Date('YYYY-MM-DD')`). */
+export function parseIsoDateOnlyLocal(iso: string | null | undefined): Date | null {
+  const s = String(iso ?? '').trim().slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return null;
+  return new Date(y, mo - 1, d);
+}
+
+/** Formata `YYYY-MM-DD` para `dd/mm/aaaa` sem usar timezone de string ISO. */
+export function formatIsoDateOnlyPtBr(iso: string | null | undefined): string | null {
+  const s = String(iso ?? '').trim().slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+/** Maior data entre várias strings `YYYY-MM-DD` (ordem lexicográfica = ordem cronológica). */
+export function maxIsoDateOnly(dates: (string | null | undefined)[]): string | null {
+  const cleaned = dates
+    .map((x) => String(x ?? '').trim().slice(0, 10))
+    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+  if (cleaned.length === 0) return null;
+  return cleaned.reduce((a, b) => (a > b ? a : b));
+}
+
+/**
+ * Normaliza valor vindo de `<input type="date">` ou coluna `date` para `YYYY-MM-DD` puro,
+ * sem passar por `Date` (evita perder um dia ao gravar no Postgres em ambientes UTC−X).
+ */
+export function normalizarDataIsoYmd(input: string | null | undefined): string | null {
+  const t = String(input ?? '').trim();
+  if (!t) return null;
+  const head = t.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(head)) return head;
+  return null;
+}
+
 // Feriados nacionais brasileiros 2025-2027
 const FERIADOS_NACIONAIS = new Set([
   // 2025

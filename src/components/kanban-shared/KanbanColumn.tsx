@@ -37,6 +37,14 @@ function hrefAbrirCard(
   return tail ? `${path}?${tail}` : `${path}?${param}=${encodeURIComponent(cardId)}`;
 }
 
+function cardArquivadoVisual(card: KanbanCardBrief): boolean {
+  return card.origem !== 'legado' && Boolean(card.arquivado);
+}
+
+function cardConcluidoVisual(card: KanbanCardBrief): boolean {
+  return card.origem !== 'legado' && Boolean(card.concluido);
+}
+
 export function KanbanColumn({
   fase,
   cards,
@@ -92,18 +100,57 @@ export function KanbanColumn({
           const createdDate = new Date(card.created_at);
           const slaDiasUteis = fase.sla_dias ?? 999;
           const sla = calcularStatusSLA(createdDate, slaDiasUteis);
+          const arquivado = cardArquivadoVisual(card);
+          const concluido = cardConcluidoVisual(card);
+          const motivo = (card.motivo_arquivamento ?? '').trim();
+          const opacidadeCard = arquivado || concluido ? 'opacity-60' : '';
+          const paddingTitulo = arquivado || concluido ? 'pr-20' : '';
+
           return (
             <button
               key={card.id}
               type="button"
               onClick={() => router.push(hrefAbrirCard(basePath, card.id, cardQueryParam, card.origem))}
-              className="block w-full bg-white p-3 text-left shadow-sm transition hover:shadow-md"
+              className={`relative block w-full p-3 text-left shadow-sm transition hover:shadow-md ${opacidadeCard}`}
               style={{
-                border: '0.5px solid var(--moni-border-default)',
+                border: arquivado
+                  ? '1px dashed var(--moni-status-archived-border)'
+                  : concluido
+                    ? '1px dashed var(--moni-green-400)'
+                    : '0.5px solid var(--moni-border-default)',
                 borderRadius: 'var(--moni-radius-lg)',
+                background: 'var(--moni-surface-0)',
               }}
             >
-              <p className="line-clamp-2 text-sm font-medium text-stone-800">{card.titulo}</p>
+              {arquivado ? (
+                <span
+                  className="absolute right-2 top-2 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                  style={{
+                    background: 'var(--moni-status-archived-bg)',
+                    color: 'var(--moni-status-archived-text)',
+                    border: '0.5px solid var(--moni-status-archived-border)',
+                  }}
+                >
+                  ARQUIVADO
+                </span>
+              ) : concluido ? (
+                <span
+                  className="absolute right-2 top-2 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                  style={{
+                    background: 'var(--moni-green-50)',
+                    color: 'var(--moni-green-800)',
+                    border: '0.5px solid var(--moni-green-400)',
+                  }}
+                >
+                  CONCLUÍDO
+                </span>
+              ) : null}
+              <p className={`line-clamp-2 text-sm font-medium text-stone-800 ${paddingTitulo}`}>{card.titulo}</p>
+              {arquivado && motivo ? (
+                <p className="mt-1 line-clamp-2 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+                  {motivo}
+                </p>
+              ) : null}
               {isAdmin && card.profiles?.full_name ? (
                 <p className="mt-1 line-clamp-1 text-xs text-stone-500">{card.profiles.full_name}</p>
               ) : null}

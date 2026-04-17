@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, Search } from 'lucide-react';
 import { getAtividadesChecklistPainel, updateKanbanAtividadePainelStatus } from '../card-actions';
+import { SlaTituloBolinha } from '@/components/SlaTituloBolinha';
 import {
   aplicarFiltrosTarefasPainel,
   defaultPainelTarefasFiltros,
@@ -286,7 +287,10 @@ export function TarefasPainelConteudo({ basePath: _ = '/painel-novos-negocios' }
           />
         </td>
         <td className={`${tdClass} max-w-[220px]`}>
-          <span className="line-clamp-2 font-medium">{textoInteracao(t)}</span>
+          <div className="flex items-start gap-2">
+            <span className="min-w-0 flex-1 line-clamp-2 font-medium">{textoInteracao(t)}</span>
+            <SlaTituloBolinha prazoIso={t.prazo_iso} statusPainel={t.status} className="mt-1" />
+          </div>
         </td>
         <td className={`${tdClass} max-w-[200px]`}>
           <Link
@@ -368,7 +372,12 @@ export function TarefasPainelConteudo({ basePath: _ = '/painel-novos-negocios' }
             aria-label="Concluída"
           />
           <div className="min-w-0 flex-1 space-y-2">
-            <p className="text-sm font-semibold text-[var(--moni-text-primary)]">{textoInteracao(t)}</p>
+            <div className="flex items-start gap-2">
+              <p className="min-w-0 flex-1 text-sm font-semibold text-[var(--moni-text-primary)]">
+                {textoInteracao(t)}
+              </p>
+              <SlaTituloBolinha prazoIso={t.prazo_iso} statusPainel={t.status} className="mt-1" />
+            </div>
             <Link
               href={rotaCardOrigem(t.kanban_nome ?? '', t.card_id)}
               className="block text-sm font-medium text-[var(--moni-navy-600)] underline-offset-2 hover:underline"

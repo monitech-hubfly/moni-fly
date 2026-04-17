@@ -4,7 +4,10 @@ import type { KanbanCardBrief, KanbanFase } from './types';
 export type KanbanBoardSnapshot = {
   kanban: { id: string } | null;
   fases: KanbanFase[];
+  /** Cards ativos: não arquivados e não concluídos (board padrão). */
   cards: KanbanCardBrief[];
+  /** Nativo: cards finalizados (toggle “Mostrar concluídos”). Legado: []. */
+  cardsConcluidos: KanbanCardBrief[];
   role: string;
   isAdmin: boolean;
 };
@@ -22,7 +25,8 @@ type ViewLegadoRow = {
 };
 
 /**
- * Carrega fases e cards ativos de um kanban pelo nome (`kanbans.nome`).
+ * Carrega fases e cards do kanban pelo nome (`kanbans.nome`).
+ * Cards nativos ativos: `arquivado = false` e `concluido = false`; concluídos vêm em `cardsConcluidos`.
  * Sem `userId` (ex.: visitante com service role): não filtra por franqueado e assume visão ampla.
  *
  * Se não houver linhas em `kanban_cards` para o kanban, os cards vêm de
@@ -52,7 +56,7 @@ export async function fetchKanbanBoardSnapshot(
 
   const kanban = kanbans?.[0] ?? null;
   if (!kanban) {
-    return { kanban: null, fases: [], cards: [], role, isAdmin };
+    return { kanban: null, fases: [], cards: [], cardsConcluidos: [], role, isAdmin };
   }
 
   const kanbanIdStr = String(kanban.id);
@@ -103,52 +107,97 @@ export async function fetchKanbanBoardSnapshot(
       created_at: String(r.criado_em ?? ''),
       fase_id: String(r.fase_id ?? ''),
       franqueado_id: String(r.responsavel_id ?? ''),
+      arquivado: false,
+      motivo_arquivamento: null,
+      concluido: false,
+      concluido_em: null,
       origem: 'legado' as const,
       profiles: r.responsavel_id ? profilesMap.get(String(r.responsavel_id)) ?? null : null,
     }));
-  } else {
-    let cardsQuery = supabase
-      .from('kanban_cards')
-      .select(
-        `
+    return {
+      kanban: { id: kanbanIdStr },
+      fases: (fases ?? []) as KanbanFase[],
+      cards,
+      cardsConcluidos: [],
+      role,
+      isAdmin,
+    };
+  }
+
+  const selectCols = `
       id,
       titulo,
       status,
       created_at,
       fase_id,
-      franqueado_id
-    `,
-      )
-      .eq('kanban_id', kanban.id)
-      .eq('status', 'ativo')
-      .order('created_at', { ascending: false });
+      franqueado_id,
+      arquivado,
+      motivo_arquivamento,
+      concluido,
+      concluido_em
+    `;
 
-    if (userId && !isAdmin) {
-      cardsQuery = cardsQuery.eq('franqueado_id', userId);
-    }
+  let cardsQuery = supabase
+    .from('kanban_cards')
+    .select(selectCols)
+    .eq('kanban_id', kanban.id)
+    .eq('status', 'ativo')
+    .eq('concluido', false)
+    .order('created_at', { ascending: false });
 
-    const { data: cardsRaw } = await cardsQuery;
+  let concluidosQuery = supabase
+    .from('kanban_cards')
+    .select(selectCols)
+    .eq('kanban_id', kanban.id)
+    .eq('status', 'ativo')
+    .eq('arquivado', false)
+    .eq('concluido', true)
+    .order('created_at', { ascending: false });
 
-    const franqueadoIds = [...new Set(cardsRaw?.map((c) => c.franqueado_id).filter(Boolean) || [])];
-    const profilesMap = new Map<string, { full_name: string | null }>();
-    if (franqueadoIds.length > 0) {
-      const { data: profiles } = await supabase.from('profiles').select('id, full_name').in('id', franqueadoIds);
-      profiles?.forEach((p) => {
-        profilesMap.set(p.id, { full_name: p.full_name });
-      });
-    }
-
-    cards =
-      cardsRaw?.map((c) => ({
-        ...c,
-        profiles: profilesMap.get(c.franqueado_id) || null,
-      })) || [];
+  if (userId && !isAdmin) {
+    cardsQuery = cardsQuery.eq('franqueado_id', userId);
+    concluidosQuery = concluidosQuery.eq('franqueado_id', userId);
   }
+
+  const [{ data: cardsRaw }, { data: conclRaw }] = await Promise.all([cardsQuery, concluidosQuery]);
+
+  const franqueadoIds = [
+    ...new Set([...(cardsRaw?.map((c) => c.franqueado_id) ?? []), ...(conclRaw?.map((c) => c.franqueado_id) ?? [])]),
+  ].filter(Boolean) as string[];
+  const profilesMap = new Map<string, { full_name: string | null }>();
+  if (franqueadoIds.length > 0) {
+    const { data: profiles } = await supabase.from('profiles').select('id, full_name').in('id', franqueadoIds);
+    profiles?.forEach((p) => {
+      profilesMap.set(p.id, { full_name: p.full_name });
+    });
+  }
+
+  const mapNativo = (c: Record<string, unknown>): KanbanCardBrief => ({
+    id: String(c.id),
+    titulo: String(c.titulo ?? ''),
+    status: String(c.status ?? ''),
+    created_at: String(c.created_at ?? ''),
+    fase_id: String(c.fase_id ?? ''),
+    franqueado_id: String(c.franqueado_id ?? ''),
+    arquivado: Boolean((c as { arquivado?: boolean | null }).arquivado),
+    motivo_arquivamento: (c as { motivo_arquivamento?: string | null }).motivo_arquivamento ?? null,
+    concluido: Boolean((c as { concluido?: boolean | null }).concluido),
+    concluido_em:
+      (c as { concluido_em?: string | null }).concluido_em != null
+        ? String((c as { concluido_em?: string | null }).concluido_em)
+        : null,
+    origem: 'nativo',
+    profiles: profilesMap.get(String(c.franqueado_id)) || null,
+  });
+
+  cards = (cardsRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
+  const cardsConcluidos = (conclRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
 
   return {
     kanban: { id: kanbanIdStr },
     fases: (fases ?? []) as KanbanFase[],
     cards,
+    cardsConcluidos,
     role,
     isAdmin,
   };

@@ -1,17 +1,13 @@
 import { ATIVIDADE_TIMES } from '@/lib/atividade-times';
 import { itemMatchesTimeFilter } from '@/lib/checklist-atividade-arrays';
-import { calcularDiasUteis } from '@/lib/dias-uteis';
+import { calcularDiasUteis, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
 
 function startOfLocalDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
 function parsePrazoIsoDate(iso: string | null | undefined): Date | null {
-  if (!iso) return null;
-  const s = String(iso).trim().slice(0, 10);
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return null;
-  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return parseIsoDateOnlyLocal(iso);
 }
 
 /**
@@ -41,6 +37,47 @@ export function rotuloSlaInteracaoPainel(
   amanha.setDate(amanha.getDate() + 1);
   const du = calcularDiasUteis(startOfLocalDay(amanha), dueD);
   return { variante: 'vence_futuro', texto: du > 0 ? `Vence em ${du} d.u.` : 'Vence hoje' };
+}
+
+/**
+ * Bolinha ao lado do título do card, alinhada às tags de SLA em d.u.:
+ * - vermelho: atrasado
+ * - amarelo: vence hoje ou vence em 1 d.u. (alerta / “um dia útil antes”)
+ * - null: em dia, sem prazo ou concluído
+ */
+export function bolinhaSlaInteracaoTitulo(
+  prazoIso: string | null | undefined,
+  statusPainel: string,
+): 'vermelho' | 'amarelo' | null {
+  const r = rotuloSlaInteracaoPainel(prazoIso, statusPainel);
+  if (r.variante === 'nenhum') return null;
+  if (r.variante === 'atrasado') return 'vermelho';
+  if (r.variante === 'vence_hoje') return 'amarelo';
+  if (r.variante === 'vence_futuro') {
+    if (r.texto.includes('1 d.u.')) return 'amarelo';
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Classificação de fundo do chamado no Kanban (apenas por prazo; concluído/cancelado tratados antes).
+ * - atrasado: prazo &lt; hoje
+ * - proximo: vence hoje ou em 1 dia útil (igual ao rótulo do painel)
+ * - normal: 2+ dias úteis ou equivalente / sem alerta de brevidade
+ */
+export function classificarSlaFundoChamado(
+  prazoIso: string | null | undefined,
+): 'atrasado' | 'proximo' | 'normal' {
+  const due = parsePrazoIsoDate(prazoIso ?? null);
+  if (!due) return 'normal';
+  const hoje = startOfLocalDay(new Date());
+  const dueD = startOfLocalDay(due);
+  if (dueD < hoje) return 'atrasado';
+  const r = rotuloSlaInteracaoPainel(prazoIso, 'nao_iniciada');
+  if (r.variante === 'vence_hoje') return 'proximo';
+  if (r.variante === 'vence_futuro' && r.texto.includes('1 d.u.')) return 'proximo';
+  return 'normal';
 }
 
 /** Classes compartilhadas: mesmo padrão do grid de filtros da aba Atividades no card. */
@@ -110,8 +147,8 @@ function parsePrazoBrOrIso(prazo: string | null | undefined): Date | null {
 
   const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (iso) {
-    const d = new Date(`${raw}T12:00:00`);
-    return Number.isFinite(d.getTime()) ? d : null;
+    const d = parseIsoDateOnlyLocal(raw);
+    return d && Number.isFinite(d.getTime()) ? d : null;
   }
 
   const d = new Date(raw);

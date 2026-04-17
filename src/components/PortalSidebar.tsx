@@ -29,12 +29,10 @@ type NavItem = { href: string; label: string };
 const REDE_FRANQUEADOS_SUBITENS: NavItem[] = [
   { href: '/rede-franqueados', label: 'Rede de Franqueados' },
   { href: '/comunidade', label: 'Comunidade' },
+  { href: '/rede', label: 'Rede de Contatos' },
 ];
 const CATALOGO_SUBITENS: NavItem[] = [
   { href: '/catalogo-produtos-moni', label: 'Catálogo de Produtos Moní' },
-];
-const REDE_CONTATOS_SUBITENS: NavItem[] = [
-  { href: '/rede', label: 'Rede de contatos' },
 ];
 const STEPS_SUBITENS: NavItem[] = [
   { href: '/step-one', label: 'Step 1: Mapeamento da Região' },
@@ -46,19 +44,11 @@ const STEPS_SUBITENS: NavItem[] = [
   { href: '/step-6', label: 'Step 6: Diligência' },
   { href: '/step-7', label: 'Step 7: Contrato' },
 ];
-const ACOPLAMENTO_SUBITENS: NavItem[] = [
-  { href: '/acoplamento-pl', label: 'Início' },
-  { href: '/acoplamento-pl/alteracoes-acoplamento', label: 'Alterações acoplamento' },
-  { href: '/acoplamento-pl/modelagem-terreno', label: 'Modelagem terreno' },
-  { href: '/acoplamento-pl/validacao-acoplamento', label: 'Validação acoplamento' },
-  { href: '/acoplamento-pl/checklist-legal', label: 'Checklist legal' },
-  { href: '/acoplamento-pl/resumo-manuais', label: 'Resumo manuais' },
-  { href: '/acoplamento-pl/modelagem-casa-gbox', label: 'Modelagem casa Gbox' },
-];
 const PAINEL_NOVOS_NEGOCIOS_SUBITENS: NavItem[] = [
   { href: '/dashboard-novos-negocios', label: 'Dashboard Novos Negócios' },
   { href: '/funil-stepone', label: 'Funil Step One' },
   { href: '/portfolio', label: 'Funil Portfolio' },
+  { href: '/funil-acoplamento', label: 'Funil Acoplamento' },
   { href: '/operacoes', label: 'Funil Operações' },
   { href: '/painel-novos-negocios', label: 'Portfolio + Operações (legado)' },
 ];
@@ -69,12 +59,14 @@ const PAINEL_NOVOS_NEGOCIOS_ADMIN_SUBITENS: NavItem[] = [
 ];
 
 function isRedeFranqueadosActive(pathname: string) {
-  return pathname.startsWith('/rede-franqueados') || pathname.startsWith('/comunidade');
+  if (pathname.startsWith('/rede-franqueados') || pathname.startsWith('/comunidade')) return true;
+  return pathname === '/rede' || (pathname.startsWith('/rede') && !pathname.startsWith('/rede-franqueados'));
 }
 function isPainelNovosNegociosActive(pathname: string) {
   return (
     pathname.startsWith('/painel-novos-negocios') ||
     pathname.startsWith('/portfolio') ||
+    pathname.startsWith('/funil-acoplamento') ||
     pathname.startsWith('/operacoes') ||
     pathname.startsWith('/painel-contabilidade') ||
     pathname.startsWith('/painel-credito') ||
@@ -89,14 +81,17 @@ function isSireneNavActive(pathname: string) {
 function isCatalogoActive(pathname: string) {
   return pathname.startsWith('/catalogo-produtos-moni');
 }
-function isRedeContatosActive(pathname: string) {
-  return pathname === '/rede' || (pathname.startsWith('/rede') && !pathname.startsWith('/rede-franqueados'));
-}
 function isStepsActive(pathname: string) {
-  return pathname.startsWith('/step-one') || pathname.startsWith('/step-2') || pathname.startsWith('/step-3') || pathname.startsWith('/step-5') || pathname.startsWith('/step-6') || pathname.startsWith('/step-7') || pathname.startsWith('/painel');
-}
-function isAcoplamentoActive(pathname: string) {
-  return pathname.startsWith('/acoplamento-pl');
+  return (
+    pathname.startsWith('/step-one') ||
+    pathname.startsWith('/step-2') ||
+    pathname.startsWith('/step-3') ||
+    pathname.startsWith('/step-5') ||
+    pathname.startsWith('/step-6') ||
+    pathname.startsWith('/step-7') ||
+    pathname.startsWith('/painel') ||
+    pathname.startsWith('/acoplamento-pl')
+  );
 }
 export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalSidebarProps) {
   const pathname = usePathname();
@@ -127,9 +122,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
   const [perfilOpen, setPerfilOpen] = useState(() => (pathname ?? '') === '/perfil');
   const [redeFranqueadosOpen, setRedeFranqueadosOpen] = useState(() => isRedeFranqueadosActive(pathname ?? ''));
   const [catalogoOpen, setCatalogoOpen] = useState(() => isCatalogoActive(pathname ?? ''));
-  const [redeContatosOpen, setRedeContatosOpen] = useState(() => isRedeContatosActive(pathname ?? ''));
   const [stepsOpen, setStepsOpen] = useState(() => isStepsActive(pathname ?? ''));
-  const [acoplamentoOpen, setAcoplamentoOpen] = useState(() => isAcoplamentoActive(pathname ?? ''));
   const [painelNovosNegociosOpen, setPainelNovosNegociosOpen] = useState(() =>
     isPainelNovosNegociosActive(pathname ?? ''),
   );
@@ -142,9 +135,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
     if (isSireneNavActive(p)) setSireneOpen(true);
     if (isRedeFranqueadosActive(p)) setRedeFranqueadosOpen(true);
     else if (isCatalogoActive(p)) setCatalogoOpen(true);
-    else if (isRedeContatosActive(p)) setRedeContatosOpen(true);
     else if (isStepsActive(p)) setStepsOpen(true);
-    else if (isAcoplamentoActive(p)) setAcoplamentoOpen(true);
     // Funil Crédito é subitem de Empreendimentos (sem macro separado).
   }, [pathname]);
 
@@ -187,10 +178,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
     key:
       | 'rede'
       | 'catalogo'
-      | 'redeContatos'
       | 'steps'
-      | 'acoplamento'
-      | 'credito'
       | 'painelNovosNegocios'
       | 'sirene',
     label: string,
@@ -286,7 +274,15 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
           redeFranqueadosOpen,
           setRedeFranqueadosOpen,
           REDE_FRANQUEADOS_SUBITENS,
-          (href) => pathname?.startsWith(href) ?? false,
+          (href) => {
+            if (href === '/rede') {
+              return (
+                pathname === '/rede' ||
+                (Boolean(pathname?.startsWith('/rede/')) && !pathname.startsWith('/rede-franqueados'))
+              );
+            }
+            return pathname?.startsWith(href) ?? false;
+          },
         )}
 
         {renderMacro(
@@ -337,18 +333,6 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
         {!publicVisitor && !limitedRelease &&
           isAdmin &&
           renderMacro(
-            'redeContatos',
-            'Rede de contatos',
-            isRedeContatosActive(pathname ?? ''),
-            redeContatosOpen,
-            setRedeContatosOpen,
-            REDE_CONTATOS_SUBITENS,
-            (href) => pathname === href,
-          )}
-
-        {!publicVisitor && !limitedRelease &&
-          isAdmin &&
-          renderMacro(
             'steps',
             'Steps Viabilidade',
             isStepsActive(pathname ?? ''),
@@ -361,18 +345,6 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
               }
               return pathname === href || (pathname?.startsWith(href + '/') ?? false);
             },
-          )}
-
-        {!limitedRelease &&
-          isAdmin &&
-          renderMacro(
-            'acoplamento',
-            'Acoplamento + PL',
-            isAcoplamentoActive(pathname ?? ''),
-            acoplamentoOpen,
-            setAcoplamentoOpen,
-            ACOPLAMENTO_SUBITENS,
-            (href) => (pathname === href || (href !== '/acoplamento-pl' && pathname?.startsWith(href))) ?? false,
           )}
       </nav>
 

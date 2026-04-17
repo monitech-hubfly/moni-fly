@@ -29,10 +29,18 @@ export default async function AdminUsuariosPage() {
   return (
     <div className="min-h-screen bg-stone-50">
       <header className="border-b border-stone-200 bg-white">
-        <div className="mx-auto flex h-14 max-w-7xl items-center px-4">
-          <Link href="/" className="text-moni-primary hover:underline">
-            ← Início
-          </Link>
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4">
+          <div className="flex items-center gap-4 text-sm">
+            <Link href="/" className="text-moni-primary hover:underline">
+              ← Início
+            </Link>
+            <Link href="/admin" className="text-stone-600 hover:text-stone-900 hover:underline">
+              Admin
+            </Link>
+            <Link href="/admin/sla" className="text-stone-600 hover:text-stone-900 hover:underline">
+              SLA das fases
+            </Link>
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-7xl px-4 py-6">

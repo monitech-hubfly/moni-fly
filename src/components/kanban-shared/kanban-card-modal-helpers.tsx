@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
 import {
   ArrowLeft,
   ArrowRight,
@@ -63,18 +64,69 @@ export function slaInteracaoBadge(
 ): 'atrasado' | 'vence_hoje' | null {
   if (status === 'concluida' || status === 'cancelada') return null;
   if (!dataVencimento) return null;
-  const raw = String(dataVencimento).trim().slice(0, 10);
-  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  const d = m
-    ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0, 0)
-    : new Date(dataVencimento);
-  if (!Number.isFinite(d.getTime())) return null;
+  const d = parseIsoDateOnlyLocal(dataVencimento);
+  if (!d || !Number.isFinite(d.getTime())) return null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const alvo = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   if (alvo.getTime() < today.getTime()) return 'atrasado';
   if (alvo.getTime() === today.getTime()) return 'vence_hoje';
   return null;
+}
+
+/** Prazo exibido/SLA: com sub-interações abertas, o último `data_fim`; senão o do chamado. */
+export function prazoEfetivoParaChamado(it: InteracaoModal, subs: SubInteracaoModal[]): string | null {
+  const chamadoYmd = (): string | null => {
+    const v = it.data_vencimento ? String(it.data_vencimento).trim().slice(0, 10) : '';
+    return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+  };
+  if (!subs.length) return chamadoYmd();
+
+  const datas = subs
+    .filter((s) => Boolean(s.data_fim) && s.status !== 'concluido')
+    .map((s) => String(s.data_fim).trim().slice(0, 10))
+    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+    .sort();
+  const ultimo = datas.length > 0 ? datas[datas.length - 1]! : null;
+  return ultimo ?? chamadoYmd();
+}
+
+const subConcluida = (s: SubInteracaoModal) => s.status === 'concluido' || s.status === 'aprovado';
+
+function startLocal(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+/**
+ * Com sub-interações, o status exibido segue regras só visuais (não persiste).
+ * `alertaSubAtrasada`: sub com `data_fim` &lt; hoje e não concluída — badge laranja ao lado do status.
+ */
+export function derivarChamadoKanbanComSubs(
+  statusManual: InteracaoModal['status'],
+  subs: SubInteracaoModal[],
+): { usarDerivado: boolean; status: InteracaoModal['status']; alertaSubAtrasada: boolean } {
+  if (subs.length === 0) {
+    return { usarDerivado: false, status: statusManual, alertaSubAtrasada: false };
+  }
+  const hoje = startLocal(new Date());
+  const prazoSubPassou = (s: SubInteracaoModal) => {
+    if (!s.data_fim || subConcluida(s)) return false;
+    const p = parseIsoDateOnlyLocal(s.data_fim);
+    if (!p) return false;
+    return startLocal(p).getTime() < hoje.getTime();
+  };
+  const alertaSubAtrasada = subs.some((s) => prazoSubPassou(s));
+
+  if (subs.every(subConcluida)) {
+    return { usarDerivado: true, status: 'concluida', alertaSubAtrasada: false };
+  }
+  if (subs.some((s) => s.status === 'em_andamento')) {
+    return { usarDerivado: true, status: 'em_andamento', alertaSubAtrasada };
+  }
+  if (alertaSubAtrasada) {
+    return { usarDerivado: false, status: statusManual, alertaSubAtrasada: true };
+  }
+  return { usarDerivado: false, status: statusManual, alertaSubAtrasada: false };
 }
 
 export function tagsTimesParaLinha(it: InteracaoModal, catalog: KanbanTimeRow[]): { id: string; nome: string }[] {
@@ -121,6 +173,7 @@ export type ComentarioCardRow = {
 };
 
 export type SecaoEsquerdaId =
+  | 'cronologia'
   | 'franqueado'
   | 'novoNegocio'
   | 'preObra'
@@ -135,8 +188,21 @@ export function isoDateOffsetDays(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function isInteracaoDemonstracao(id: string): boolean {
-  return id.startsWith('__funil_demo_');
+/** UUID (Postgres gen_random_uuid / padrão RFC) — nunca tratado como linha de demo embutida. */
+const UUID_INTERACAO_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Apenas IDs dos placeholders `interacoesDemonstracao()` (`__funil_demo_*`)
+ * ou futuros `demo-1`, `demo-2`, etc. Dados reais do banco usam UUID e retornam false.
+ */
+export function isInteracaoDemonstracao(id: unknown): boolean {
+  const s = String(id ?? '').trim();
+  if (!s) return false;
+  if (UUID_INTERACAO_RE.test(s)) return false;
+  if (s.startsWith('__funil_demo_')) return true;
+  if (s.toLowerCase().startsWith('demo-')) return true;
+  return false;
 }
 
 /**

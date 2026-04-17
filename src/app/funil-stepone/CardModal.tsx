@@ -21,7 +21,6 @@ export function CardModal({
       onClose={onClose}
       isAdmin={isAdmin}
       basePath="/funil-stepone"
-      legacyPanelHref="/painel-novos-negocios"
     />
   );
 }

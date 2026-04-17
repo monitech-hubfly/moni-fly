@@ -1,8 +1,7 @@
 'use client';
 
-import type { ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import type { ChangeEvent, ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   X,
@@ -12,29 +11,52 @@ import {
   Pencil,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { calcularStatusSLA } from '@/lib/dias-uteis';
+import { calcularDiasUteis, calcularStatusSLA, formatIsoDateOnlyPtBr, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
 import { rotuloSlaInteracaoPainel } from '@/lib/painel-tarefas-filtros';
 import {
+  arquivarCard,
   atualizarStatusSubInteracao,
   criarInteracao,
   criarSubInteracao,
   editarInteracao,
+  finalizarCard,
+  salvarDadosPreObra,
+  uploadContratoFranquia,
   type SubInteracaoStatusDb,
 } from '@/lib/actions/card-actions';
+import {
+  displayOrDash,
+  fetchKanbanCardModalDetalhes,
+  fmtMoedaKanban,
+  preObraDraftFromProcesso,
+  type KanbanCardModalDetalhes,
+  type PreObraDraftKanban,
+} from '@/lib/kanban/kanban-card-modal-detalhes';
+import { SlaTituloBolinha } from '@/components/SlaTituloBolinha';
 import { AtividadeVinculadaCard } from '@/components/AtividadeVinculadaCard';
 import { AtividadeVinculadaIcon } from '@/components/AtividadeVinculadaIcon';
 import { AtividadeVinculadaStatusPill } from '@/components/AtividadeVinculadaStatusPill';
 import {
+  type AtividadeVinculadaKind,
   labelKanbanAtividadeParaPill,
-  resolveAtividadeVinculadaKind,
+  resolveKanbanChamadoIconKind,
+  resolveKanbanChamadoSurfaceKind,
 } from '@/lib/atividade-vinculada-visual';
 import type { CamposPorFaseMap, KanbanFase, KanbanNomeDisplay } from './types';
 import {
+  countKanbanModalInteracoesFiltrosAtivos,
+  KanbanInteracoesFiltrosPanel,
+  KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT,
+  type KanbanModalInteracoesFiltros,
+} from './KanbanInteracoesFiltrosPanel';
+import {
+  derivarChamadoKanbanComSubs,
   formatDataHoraHistorico,
   iconeHistoricoAcao,
   interacaoPassaFiltroTime,
   interacoesDemonstracao,
   isInteracaoDemonstracao,
+  prazoEfetivoParaChamado,
   slaInteracaoBadge,
   tagsTimesParaLinha,
   textoResumidoAcaoHistorico,
@@ -45,6 +67,11 @@ import {
   type SecaoEsquerdaId,
   type SubInteracaoModal,
 } from './kanban-card-modal-helpers';
+import {
+  buildLegadoFaseTimeline,
+  buildNativeFaseTimeline,
+  type ProcessoCardMoveEvt,
+} from '@/lib/kanban/kanban-card-timeline';
 
 type Card = {
   id: string;
@@ -56,18 +83,53 @@ type Card = {
   kanban_id: string;
   /** Preenchido quando o card veio da view `v_processo_como_kanban_cards`. */
   etapa_slug?: string | null;
+  /** Nativo: finalização explícita (`finalizarCard`). */
+  concluido?: boolean;
+  concluido_em?: string | null;
+  arquivado?: boolean;
+  /** Legado: status e updated_at do processo (conclusão aproximada quando status = concluido). */
+  processo_meta?: { status: string; updated_at: string } | null;
   profiles?: {
     full_name: string | null;
   } | null;
 };
 
-type ListaInteracoes = 'abertas' | 'concluidas' | 'todas';
-type SituacaoFiltro = 'qualquer' | InteracaoModal['status'];
-
 function mapInteracaoStatusParaPainelSla(s: InteracaoModal['status']): string {
   if (s === 'concluida' || s === 'cancelada') return 'concluido';
   if (s === 'em_andamento') return 'em_andamento';
   return 'nao_iniciada';
+}
+
+function kanbanStatusParaPillKind(s: InteracaoModal['status']): AtividadeVinculadaKind {
+  if (s === 'concluida') return 'concluido';
+  if (s === 'cancelada') return 'cancelada';
+  if (s === 'em_andamento') return 'em_andamento';
+  return 'pendente';
+}
+
+function inicioDiaLocal(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+/** Fundo da linha do chamado (listagem) conforme SLA do prazo efetivo. */
+function corFundoChamado(dataVencimento: string | null | undefined, status: string) {
+  const neutro = { background: '#f5f5f4', border: '0.5px solid #e7e5e4' };
+  const st = String(status ?? '').trim().toLowerCase();
+  if (st === 'concluida' || st === 'concluido' || st === 'cancelada') return neutro;
+  if (!dataVencimento) return neutro;
+  const alvo = parseIsoDateOnlyLocal(dataVencimento);
+  if (!alvo || !Number.isFinite(alvo.getTime())) return neutro;
+  const hoje = inicioDiaLocal(new Date());
+  const al = inicioDiaLocal(alvo);
+  if (al.getTime() < hoje.getTime()) {
+    return { background: 'rgb(254 242 242)', border: '1px solid rgb(254 202 202)' };
+  }
+  if (al.getTime() === hoje.getTime()) {
+    return { background: '#FAEEDA', border: '1px solid #D4AD68' };
+  }
+  const du = calcularDiasUteis(hoje, al);
+  if (du <= 1) return { background: '#FAEEDA', border: '1px solid #D4AD68' };
+  return neutro;
 }
 
 export type KanbanCardModalProps = {
@@ -79,7 +141,6 @@ export type KanbanCardModalProps = {
   isAdmin?: boolean;
   /** Rota do kanban (ex.: `/funil-stepone`) — usada em links auxiliares. */
   basePath?: string;
-  legacyPanelHref?: string;
   camposPorFase?: CamposPorFaseMap;
   /** `legado`: card é `processo_step_one` (view); não usa `kanban_cards`. */
   origem?: 'legado' | 'nativo';
@@ -92,7 +153,6 @@ export function KanbanCardModal({
   fases: fasesProp,
   isAdmin = false,
   basePath = '/',
-  legacyPanelHref = '/painel-novos-negocios',
   camposPorFase,
   origem = 'nativo',
 }: KanbanCardModalProps) {
@@ -102,13 +162,15 @@ export function KanbanCardModal({
   const [fases, setFases] = useState<KanbanFase[]>(fasesProp ?? []);
   const [faseAtual, setFaseAtual] = useState<KanbanFase | null>(null);
   const [secaoAberta, setSecaoAberta] = useState<Record<SecaoEsquerdaId, boolean>>({
-    franqueado: true,
-    novoNegocio: true,
-    preObra: true,
+    cronologia: false,
+    franqueado: false,
+    novoNegocio: false,
+    preObra: false,
     obra: false,
-    relacionamentos: true,
-    historico: true,
+    relacionamentos: false,
+    historico: false,
   });
+  const [legadoCronologiaMoves, setLegadoCronologiaMoves] = useState<ProcessoCardMoveEvt[]>([]);
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
   const [comentariosCard, setComentariosCard] = useState<ComentarioCardRow[]>([]);
   const [novoComentarioCard, setNovoComentarioCard] = useState('');
@@ -118,6 +180,7 @@ export function KanbanCardModal({
   const [responsaveisOpcoes, setResponsaveisOpcoes] = useState<{ id: string; nome: string }[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState({
+    titulo: '',
     descricao: '',
     tipo: 'atividade' as 'atividade' | 'duvida',
     data: '',
@@ -146,25 +209,64 @@ export function KanbanCardModal({
     trava: false,
   });
   const [salvandoSub, setSalvandoSub] = useState(false);
-  const [filtros, setFiltros] = useState<{
-    lista: ListaInteracoes;
-    situacao: SituacaoFiltro;
-    time: string;
-    responsavel: string;
-    ordenacao: string;
-  }>({
-    lista: 'abertas',
-    situacao: 'qualquer',
-    time: 'todos',
-    responsavel: 'todos',
-    ordenacao: 'prazo_asc',
+  const [filtros, setFiltros] = useState<KanbanModalInteracoesFiltros>(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT);
+  const [filtrosDraft, setFiltrosDraft] = useState<KanbanModalInteracoesFiltros>(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT);
+  const [filtrosOpen, setFiltrosOpen] = useState(false);
+  const filtrosPopoverRef = useRef<HTMLDivElement>(null);
+  const filtrosBtnRef = useRef<HTMLButtonElement>(null);
+  const [arquivamentoAberto, setArquivamentoAberto] = useState(false);
+  const [motivoArquivamento, setMotivoArquivamento] = useState('');
+  const [confirmandoFinalizar, setConfirmandoFinalizar] = useState(false);
+  const [modalDetalhes, setModalDetalhes] = useState<KanbanCardModalDetalhes>({
+    rede: null,
+    processo: null,
+    redeIdContrato: null,
   });
+  const [preObraDraft, setPreObraDraft] = useState<PreObraDraftKanban>(() => preObraDraftFromProcesso(null));
+  const [salvandoPreObra, setSalvandoPreObra] = useState(false);
+  const [uploadingContrato, setUploadingContrato] = useState(false);
+  const contratoFileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setArquivamentoAberto(false);
+    setMotivoArquivamento('');
+    setConfirmandoFinalizar(false);
+    setFiltros(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT);
+    setFiltrosDraft(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT);
+    setFiltrosOpen(false);
+    setModalDetalhes({ rede: null, processo: null, redeIdContrato: null });
+    setPreObraDraft(preObraDraftFromProcesso(null));
+    setLegadoCronologiaMoves([]);
+  }, [cardId]);
 
   useEffect(() => {
     if (filtros.lista === 'abertas' && filtros.situacao === 'concluida') {
       setFiltros((f) => ({ ...f, situacao: 'qualquer' }));
     }
   }, [filtros.lista, filtros.situacao]);
+
+  useEffect(() => {
+    if (!filtrosOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setFiltrosDraft({ ...filtros });
+        setFiltrosOpen(false);
+      }
+    };
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (filtrosPopoverRef.current?.contains(t)) return;
+      if (filtrosBtnRef.current?.contains(t)) return;
+      setFiltrosDraft({ ...filtros });
+      setFiltrosOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('mousedown', onDown);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('mousedown', onDown);
+    };
+  }, [filtrosOpen, filtros]);
 
   useEffect(() => {
     if (fasesProp?.length) setFases(fasesProp);
@@ -189,9 +291,14 @@ export function KanbanCardModal({
         franqueado_id: string;
         kanban_id: string;
         etapa_slug: string | null;
+        concluido?: boolean;
+        concluido_em?: string | null;
+        arquivado?: boolean;
+        processo_meta?: Card['processo_meta'];
       };
 
       let loaded: LoadedShape | null = null;
+      let nativeRedeFranqueadoId: string | null = null;
 
       if (origem === 'legado') {
         const { data: vRow, error: vErr } = await supabase
@@ -219,10 +326,42 @@ export function KanbanCardModal({
               ? String((vRow as { etapa_slug?: string | null }).etapa_slug)
               : null,
         };
+
+        try {
+          const [pmRes, evRes] = await Promise.all([
+            supabase.from('processo_step_one').select('status, updated_at').eq('id', loaded.id).maybeSingle(),
+            supabase
+              .from('processo_card_eventos')
+              .select('created_at, detalhes')
+              .eq('processo_id', loaded.id)
+              .eq('tipo', 'card_move')
+              .order('created_at', { ascending: true }),
+          ]);
+          const pm = pmRes.data as { status?: string | null; updated_at?: string | null } | null;
+          loaded.processo_meta = pm
+            ? {
+                status: String(pm.status ?? ''),
+                updated_at: String(pm.updated_at ?? ''),
+              }
+            : null;
+          const evRows = (evRes.data ?? []) as { created_at: string; detalhes?: unknown }[];
+          setLegadoCronologiaMoves(
+            evRows.map((r) => ({
+              created_at: String(r.created_at),
+              detalhes: (r.detalhes as Record<string, unknown> | null) ?? null,
+            })),
+          );
+        } catch {
+          loaded.processo_meta = null;
+          setLegadoCronologiaMoves([]);
+        }
       } else {
+        setLegadoCronologiaMoves([]);
         const { data: cardData, error: cardError } = await supabase
           .from('kanban_cards')
-          .select('id, titulo, status, created_at, fase_id, franqueado_id, kanban_id')
+          .select(
+            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, rede_franqueado_id, concluido, concluido_em, arquivado',
+          )
           .eq('id', cardId)
           .single();
 
@@ -232,6 +371,10 @@ export function KanbanCardModal({
           return;
         }
 
+        const rrid = (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id;
+        nativeRedeFranqueadoId = rrid != null && String(rrid).trim() !== '' ? String(rrid) : null;
+
+        const ccem = (cardData as { concluido_em?: string | null }).concluido_em;
         loaded = {
           id: String(cardData.id),
           titulo: String(cardData.titulo ?? ''),
@@ -241,6 +384,9 @@ export function KanbanCardModal({
           franqueado_id: String(cardData.franqueado_id ?? ''),
           kanban_id: String(cardData.kanban_id ?? ''),
           etapa_slug: null,
+          concluido: Boolean((cardData as { concluido?: boolean | null }).concluido),
+          concluido_em: ccem != null && String(ccem).trim() !== '' ? String(ccem) : null,
+          arquivado: Boolean((cardData as { arquivado?: boolean | null }).arquivado),
         };
       }
 
@@ -263,8 +409,26 @@ export function KanbanCardModal({
         franqueado_id: loaded.franqueado_id,
         kanban_id: loaded.kanban_id,
         etapa_slug: loaded.etapa_slug,
+        concluido: loaded.concluido ?? false,
+        concluido_em: loaded.concluido_em ?? null,
+        arquivado: loaded.arquivado ?? false,
+        processo_meta: loaded.processo_meta ?? null,
         profiles,
       });
+
+      try {
+        const det = await fetchKanbanCardModalDetalhes(supabase, {
+          origem,
+          cardId: loaded.id,
+          cardTitulo: loaded.titulo,
+          redeFranqueadoId: origem === 'nativo' ? nativeRedeFranqueadoId : null,
+        });
+        setModalDetalhes(det);
+        setPreObraDraft(preObraDraftFromProcesso(det.processo));
+      } catch {
+        setModalDetalhes({ rede: null, processo: null, redeIdContrato: null });
+        setPreObraDraft(preObraDraftFromProcesso(null));
+      }
 
       if (!fasesProp?.length) {
         const { data: fasesData } = await supabase
@@ -376,8 +540,11 @@ export function KanbanCardModal({
           .eq('origem', origemAtividade)
           .order('ordem', { ascending: true });
 
-        if (interacoesError || !interacoesData?.length) {
+        if (interacoesError) {
           setInteracoes(interacoesDemonstracao());
+          setSubInteracoesPorPai({});
+        } else if (!interacoesData?.length) {
+          setInteracoes([]);
           setSubInteracoesPorPai({});
         } else {
           const rawRespArrays = interacoesData.map((a) => (a as { responsaveis_ids?: unknown }).responsaveis_ids);
@@ -603,6 +770,7 @@ export function KanbanCardModal({
     const rids = [...(it.responsaveis_ids ?? [])];
     if (rids.length === 0 && it.responsavel_id) rids.push(it.responsavel_id);
     setEditDraft({
+      titulo: it.titulo ?? '',
       descricao: it.descricao ?? '',
       tipo: it.tipo,
       data: it.data_vencimento ? String(it.data_vencimento).slice(0, 10) : '',
@@ -614,9 +782,14 @@ export function KanbanCardModal({
 
   async function salvarEdicaoInteracao() {
     if (!editingId) return;
+    if (!editDraft.titulo.trim()) {
+      alert('Informe o título do chamado.');
+      return;
+    }
     setSalvandoEdicao(true);
     try {
       const res = await editarInteracao(editingId, {
+        titulo: editDraft.titulo.trim(),
         descricao: editDraft.descricao.trim() || null,
         tipo: editDraft.tipo,
         data_vencimento: editDraft.data.trim() || null,
@@ -639,6 +812,62 @@ export function KanbanCardModal({
     }
   }
 
+  async function reloadSubsForParent(interacaoId: string) {
+    const supabase = createClient();
+    const { data: topicosRows } = await supabase
+      .from('sirene_topicos')
+      .select('id, interacao_id, descricao, times_ids, responsaveis_ids, data_fim, status, trava')
+      .eq('interacao_id', interacaoId)
+      .order('ordem', { ascending: true });
+    const topicos = topicosRows ?? [];
+    const timeTopMap = new Map(kanbanTimes.map((t) => [t.id, t.nome]));
+    const tRespIds = [
+      ...new Set(
+        topicos.flatMap((t) => {
+          const arr = (t as { responsaveis_ids?: unknown }).responsaveis_ids;
+          return Array.isArray(arr) ? arr.map((x) => String(x)) : [];
+        }),
+      ),
+    ] as string[];
+    let profTop = new Map<string, { full_name: string | null }>();
+    if (tRespIds.length > 0) {
+      const { data: pr } = await supabase.from('profiles').select('id, full_name').in('id', tRespIds);
+      profTop = new Map(
+        (pr ?? []).map((r) => [
+          String((r as { id: string }).id),
+          { full_name: (r as { full_name?: string | null }).full_name ?? null },
+        ]),
+      );
+    }
+    const mapped: SubInteracaoModal[] = topicos.map((t) => {
+      const iid = String((t as { interacao_id: string }).interacao_id);
+      const rawTi = (t as { times_ids?: unknown }).times_ids;
+      const ti = Array.isArray(rawTi) ? rawTi.map((x) => String(x)) : [];
+      const rawRi = (t as { responsaveis_ids?: unknown }).responsaveis_ids;
+      const ri = Array.isArray(rawRi) ? rawRi.map((x) => String(x)) : [];
+      const st = String((t as { status?: string }).status ?? 'nao_iniciado') as SubInteracaoStatusDb;
+      return {
+        id: String((t as { id: number | string }).id),
+        interacao_id: iid,
+        descricao: String((t as { descricao?: string }).descricao ?? ''),
+        times_ids: ti,
+        responsaveis_ids: ri,
+        times_resolvidos: ti.map((id) => ({ id, nome: timeTopMap.get(id) ?? id.slice(0, 8) })),
+        responsaveis_resolvidos: ri.map((id) => ({
+          id,
+          nome: profTop.get(id)?.full_name?.trim() || id.slice(0, 8),
+        })),
+        data_fim:
+          (t as { data_fim?: string | null }).data_fim != null
+            ? String((t as { data_fim: string }).data_fim).slice(0, 10)
+            : null,
+        status: ['nao_iniciado', 'em_andamento', 'concluido', 'aprovado'].includes(st) ? st : 'nao_iniciado',
+        trava: Boolean((t as { trava?: boolean }).trava),
+      };
+    });
+    setSubInteracoesPorPai((prev) => ({ ...prev, [interacaoId]: mapped }));
+  }
+
   async function handleCriarSubInteracao(interacaoId: string) {
     if (!subNovaDraft.titulo.trim()) return;
     setSalvandoSub(true);
@@ -656,10 +885,10 @@ export function KanbanCardModal({
         alert(res.error);
         return;
       }
-      setSubFormInteracaoId(null);
       setSubNovaDraft({ titulo: '', timesIds: [], responsaveisIds: [], data: '', trava: false });
-      await loadCard();
-      router.refresh();
+      setSubFormInteracaoId(interacaoId);
+      setSubExpandida((s) => ({ ...s, [interacaoId]: true }));
+      await reloadSubsForParent(interacaoId);
     } catch {
       alert('Erro ao criar sub-chamado.');
     } finally {
@@ -675,6 +904,45 @@ export function KanbanCardModal({
     }
     await loadCard();
     router.refresh();
+  }
+
+  async function handleConfirmarFinalizarCard() {
+    if (!card || origem === 'legado') return;
+    setLoading(true);
+    try {
+      const r = await finalizarCard({ cardId: card.id, basePath });
+      if (!r.ok) {
+        alert(r.error ?? 'Não foi possível finalizar.');
+        return;
+      }
+      setConfirmandoFinalizar(false);
+      await loadCard();
+      router.refresh();
+    } catch {
+      alert('Erro ao finalizar o card.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function registrarMovimentoLegadoKanban(fromSlug: string, toSlug: string) {
+    if (origem !== 'legado' || !card) return;
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data: prof } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+    const nome = String((prof as { full_name?: string | null } | null)?.full_name ?? '').trim();
+    await supabase.from('processo_card_eventos').insert({
+      processo_id: card.id,
+      autor_id: user.id,
+      autor_nome: nome.length > 0 ? nome : null,
+      etapa_painel: toSlug,
+      tipo: 'card_move',
+      descricao: 'Movimentação no funil (legado)',
+      detalhes: { from: fromSlug, to: toSlug },
+    });
   }
 
   async function handleAvancarFase() {
@@ -694,8 +962,10 @@ export function KanbanCardModal({
           alert('Esta fase não tem slug cadastrado; não é possível avançar o processo por aqui.');
           return;
         }
+        const fromSlug = faseAtual.slug?.trim();
         const { error } = await supabase.from('processo_step_one').update({ etapa_painel: slug }).eq('id', card.id);
         if (error) throw error;
+        if (fromSlug) await registrarMovimentoLegadoKanban(fromSlug, slug);
       } else {
         const { error } = await supabase.from('kanban_cards').update({ fase_id: proximaFase.id }).eq('id', card.id);
         if (error) throw error;
@@ -726,8 +996,10 @@ export function KanbanCardModal({
           alert('Esta fase não tem slug cadastrado; não é possível retroceder o processo por aqui.');
           return;
         }
+        const fromSlug = faseAtual.slug?.trim();
         const { error } = await supabase.from('processo_step_one').update({ etapa_painel: slug }).eq('id', card.id);
         if (error) throw error;
+        if (fromSlug) await registrarMovimentoLegadoKanban(fromSlug, slug);
       } else {
         const { error } = await supabase.from('kanban_cards').update({ fase_id: faseAnterior.id }).eq('id', card.id);
         if (error) throw error;
@@ -770,18 +1042,22 @@ export function KanbanCardModal({
     }
   }
 
-  async function handleArquivar() {
+  async function handleConfirmarArquivar() {
     if (!card || origem === 'legado') return;
-    if (!confirm('Tem certeza que deseja arquivar este card?')) return;
+    const motivo = motivoArquivamento.trim();
+    if (!motivo) {
+      alert('Informe o motivo do arquivamento.');
+      return;
+    }
     setLoading(true);
     try {
-      const supabase = createClient();
-      const { error } = await supabase.from('kanban_cards').update({ status: 'arquivado' }).eq('id', card.id);
-      if (error) throw error;
+      const r = await arquivarCard({ cardId: card.id, motivo, basePath });
+      if (!r.ok) {
+        alert(r.error);
+        return;
+      }
       router.refresh();
       onClose();
-    } catch {
-      alert('Erro ao arquivar.');
     } finally {
       setLoading(false);
     }
@@ -791,14 +1067,87 @@ export function KanbanCardModal({
     setSecaoAberta((prev) => ({ ...prev, [id]: !prev[id] }));
   }
 
+  async function handleSalvarPreObraKanban() {
+    const pid = modalDetalhes.processo?.id;
+    if (!pid) {
+      alert('Sem processo vinculado para salvar pré-obra.');
+      return;
+    }
+    setSalvandoPreObra(true);
+    try {
+      const res = await salvarDadosPreObra({
+        processoId: pid,
+        previsao_aprovacao_condominio: preObraDraft.previsao_aprovacao_condominio,
+        previsao_aprovacao_prefeitura: preObraDraft.previsao_aprovacao_prefeitura,
+        previsao_emissao_alvara: preObraDraft.previsao_emissao_alvara,
+        previsao_liberacao_credito_obra: preObraDraft.previsao_liberacao_credito_obra,
+        previsao_inicio_obra: preObraDraft.previsao_inicio_obra,
+        data_aprovacao_condominio: preObraDraft.data_aprovacao_condominio,
+        data_aprovacao_prefeitura: preObraDraft.data_aprovacao_prefeitura,
+        data_emissao_alvara: preObraDraft.data_emissao_alvara,
+        data_aprovacao_credito: preObraDraft.data_aprovacao_credito,
+        basePath,
+      });
+      if (!res.ok) {
+        alert(res.error);
+        return;
+      }
+      await loadCard();
+      router.refresh();
+    } catch {
+      alert('Erro ao salvar pré-obra.');
+    } finally {
+      setSalvandoPreObra(false);
+    }
+  }
+
+  async function handleContratoFranquiaFile(e: ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    const rid = modalDetalhes.redeIdContrato;
+    if (!f || !rid) return;
+    setUploadingContrato(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', f);
+      fd.append('franqueadoId', rid);
+      fd.append('basePath', basePath);
+      const r = await uploadContratoFranquia(fd);
+      if (!r.ok) {
+        alert(r.error);
+        return;
+      }
+      await loadCard();
+      router.refresh();
+    } catch {
+      alert('Erro ao enviar contrato.');
+    } finally {
+      setUploadingContrato(false);
+    }
+  }
+
+  async function handleBaixarContratoFranquia() {
+    const path = modalDetalhes.rede?.contrato_franquia_path;
+    if (!path?.trim()) return;
+    const supabase = createClient();
+    const { data, error } = await supabase.storage.from('contratos-franquia').createSignedUrl(path.trim(), 3600);
+    if (error || !data?.signedUrl) {
+      alert(error?.message ?? 'Não foi possível gerar o link.');
+      return;
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  }
+
   const interacoesFiltradas = useMemo(() => {
-    const situacaoEfetiva: SituacaoFiltro =
-      filtros.lista === 'concluidas' ? 'qualquer' : filtros.situacao;
-    const prazoTs = (a: InteracaoModal) => {
-      if (!a.data_vencimento) return Number.POSITIVE_INFINITY;
-      const t = new Date(a.data_vencimento).getTime();
-      return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+    const situacaoEfetiva =
+      filtros.lista === 'concluidas' ? ('qualquer' as const) : filtros.situacao;
+    const prazoOrdKey = (a: InteracaoModal) =>
+      prazoEfetivoParaChamado(a, subInteracoesPorPai[a.id] ?? []) ?? '9999-12-31';
+    const criadoTs = (a: InteracaoModal) => {
+      const t = new Date(a.created_at).getTime();
+      return Number.isFinite(t) ? t : 0;
     };
+    const buscaNorm = filtros.busca.trim().toLowerCase();
     const filtered = interacoes.filter((it) => {
       const concl = it.status === 'concluida';
       if (filtros.lista === 'abertas') {
@@ -814,6 +1163,10 @@ export function KanbanCardModal({
         const ids = it.responsaveis_ids ?? [];
         if (!ids.includes(filtros.responsavel) && it.responsavel_id !== filtros.responsavel) return false;
       }
+      if (buscaNorm) {
+        const blob = `${it.titulo} ${it.descricao ?? ''}`.toLowerCase();
+        if (!blob.includes(buscaNorm)) return false;
+      }
       return true;
     });
     return [...filtered].sort((a, b) => {
@@ -822,13 +1175,35 @@ export function KanbanCardModal({
         const bc = b.status === 'concluida';
         if (ac !== bc) return ac ? 1 : -1;
       }
-      if (filtros.ordenacao === 'prazo_asc') return prazoTs(a) - prazoTs(b);
-      if (filtros.ordenacao === 'prazo_desc') return prazoTs(b) - prazoTs(a);
+      if (filtros.ordenacao === 'prazo_asc') return prazoOrdKey(a).localeCompare(prazoOrdKey(b));
+      if (filtros.ordenacao === 'prazo_desc') return prazoOrdKey(b).localeCompare(prazoOrdKey(a));
+      if (filtros.ordenacao === 'criado_asc') return criadoTs(a) - criadoTs(b);
+      if (filtros.ordenacao === 'criado_desc') return criadoTs(b) - criadoTs(a);
       return 0;
     });
-  }, [interacoes, filtros, kanbanTimes]);
+  }, [interacoes, filtros, kanbanTimes, subInteracoesPorPai]);
 
   const faseNomePorId = useMemo(() => new Map(fases.map((f) => [f.id, f.nome])), [fases]);
+
+  const linhasCronologiaFases = useMemo(() => {
+    if (!card || fases.length === 0) return [];
+    if (origem === 'legado') {
+      return buildLegadoFaseTimeline(
+        fases,
+        {
+          created_at: card.created_at,
+          fase_id: card.fase_id,
+          etapa_slug: card.etapa_slug ?? null,
+        },
+        legadoCronologiaMoves,
+      );
+    }
+    return buildNativeFaseTimeline(
+      fases,
+      { created_at: card.created_at, fase_id: card.fase_id },
+      historico.map((h) => ({ acao: h.acao, detalhe: h.detalhe, criado_em: h.criado_em })),
+    );
+  }, [card, fases, historico, legadoCronologiaMoves, origem]);
 
   if (loading && !card) {
     return (
@@ -841,18 +1216,65 @@ export function KanbanCardModal({
   if (!card) return null;
 
   const isLegado = origem === 'legado';
-  const painelLegadoCompletoHref = `/painel-novos-negocios?abrir=${encodeURIComponent(card.id)}`;
+
+  const fmtDataHoraOuDash = (iso: string | null | undefined) => {
+    const s = String(iso ?? '').trim();
+    if (!s) return '—';
+    return formatDataHoraHistorico(s);
+  };
+
+  const dataConclusaoExibicao =
+    isLegado && card.processo_meta?.status === 'concluido' && card.processo_meta.updated_at?.trim()
+      ? fmtDataHoraOuDash(card.processo_meta.updated_at)
+      : !isLegado && card.concluido && card.concluido_em?.trim()
+        ? fmtDataHoraOuDash(card.concluido_em)
+        : '—';
 
   const createdDate = new Date(card.created_at);
   const slaCard = calcularStatusSLA(createdDate, faseAtual?.sla_dias ?? 999);
-  const podeRetrocederFase = Boolean(faseAtual && fases.some((f) => f.ordem === faseAtual.ordem - 1));
-  const podeAvancarFase = Boolean(faseAtual && fases.some((f) => f.ordem === faseAtual.ordem + 1));
+  const cardNativoConcluido = !isLegado && Boolean(card.concluido);
+  const cardNativoArquivado = !isLegado && Boolean(card.arquivado);
+  const podeRetrocederFase =
+    !cardNativoConcluido && Boolean(faseAtual && fases.some((f) => f.ordem === faseAtual.ordem - 1));
+  const podeAvancarFase =
+    !cardNativoConcluido && Boolean(faseAtual && fases.some((f) => f.ordem === faseAtual.ordem + 1));
+  const maxOrdemFases = fases.length > 0 ? Math.max(...fases.map((f) => f.ordem)) : 0;
+  const estaNaUltimaFaseNativo = Boolean(faseAtual && faseAtual.ordem === maxOrdemFases);
+  const exibirBotaoFinalizar =
+    !isLegado && estaNaUltimaFaseNativo && !cardNativoConcluido && !cardNativoArquivado;
   const cardTitulo = card.titulo;
   const checklistExtra = card.fase_id && camposPorFase?.[card.fase_id];
 
+  const rede = modalDetalhes.rede;
+  const proc = modalDetalhes.processo;
+  const enderecoCasaLinha = rede
+    ? [
+        rede.endereco_casa_frank,
+        rede.endereco_casa_frank_numero,
+        rede.endereco_casa_frank_complemento,
+        rede.cep_casa_frank,
+        rede.cidade_casa_frank,
+        rede.estado_casa_frank,
+      ]
+        .map((x) => (x ?? '').trim())
+        .filter(Boolean)
+        .join(', ')
+    : '';
+  const fmtDataBr = (iso: string | null | undefined) => {
+    const s = String(iso ?? '').trim();
+    if (!s) return '—';
+    return formatIsoDateOnlyPtBr(s) ?? s;
+  };
+  const driveHref = (() => {
+    const raw = proc?.link_pasta_drive?.trim();
+    if (!raw) return null;
+    if (/^https?:\/\//i.test(raw)) return raw;
+    return `https://${raw}`;
+  })();
+
   const secaoHead = (id: SecaoEsquerdaId, label: string, body: ReactNode) => (
     <div
-      className="mb-3 overflow-hidden rounded-lg bg-white"
+      className="mb-2 overflow-hidden rounded-lg bg-white text-xs"
       style={{
         border: '0.5px solid var(--moni-border-default)',
         boxShadow: 'var(--moni-shadow-sm)',
@@ -861,17 +1283,17 @@ export function KanbanCardModal({
       <button
         type="button"
         onClick={() => toggleSecaoEsquerda(id)}
-        className="flex w-full items-center gap-2 p-3 text-left transition hover:bg-stone-50"
+        className="flex w-full items-center gap-2 p-2 text-left text-xs transition hover:bg-stone-50"
       >
         {secaoAberta[id] ? (
-          <ChevronDown className="h-4 w-4 shrink-0 text-stone-500" aria-hidden />
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-stone-500" aria-hidden />
         ) : (
-          <ChevronRight className="h-4 w-4 shrink-0 text-stone-500" aria-hidden />
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-stone-500" aria-hidden />
         )}
-        <span className="text-sm font-semibold text-stone-800">{label}</span>
+        <span className="text-xs font-semibold text-stone-800">{label}</span>
       </button>
       {secaoAberta[id] ? (
-        <div className="border-t px-3 pb-3 pt-2 text-sm text-stone-600" style={{ borderColor: 'var(--moni-border-subtle)' }}>
+        <div className="border-t px-2 pb-2 pt-1.5 text-xs text-stone-600" style={{ borderColor: 'var(--moni-border-subtle)' }}>
           {body}
         </div>
       ) : null}
@@ -931,6 +1353,18 @@ export function KanbanCardModal({
                 Legado
               </span>
             ) : null}
+            {!isLegado && cardNativoConcluido ? (
+              <span
+                className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                style={{
+                  background: 'var(--moni-green-50)',
+                  color: 'var(--moni-green-800)',
+                  border: '0.5px solid var(--moni-green-400)',
+                }}
+              >
+                CONCLUÍDO
+              </span>
+            ) : null}
           </div>
           <button
             type="button"
@@ -948,10 +1382,10 @@ export function KanbanCardModal({
             className="moni-card-modal-center order-1 flex h-full min-h-0 flex-1 flex-col overflow-y-auto p-6 sm:order-2 sm:min-w-0"
             style={{ background: 'var(--moni-surface-0)' }}
           >
-            <div className="mb-6 flex flex-wrap items-center gap-2">
+            <div className="mb-6 flex flex-wrap items-center gap-1.5">
               {faseAtual ? (
                 <span
-                  className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold"
+                  className="inline-flex items-center gap-0.5 px-2 py-0.5 text-xs font-semibold leading-none"
                   style={{
                     background: 'var(--moni-gold-50)',
                     color: 'var(--moni-gold-800)',
@@ -959,12 +1393,12 @@ export function KanbanCardModal({
                     borderRadius: 'var(--moni-radius-pill)',
                   }}
                 >
-                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <CheckCircle2 className="h-3 w-3 shrink-0" aria-hidden />
                   {faseAtual.nome}
                 </span>
               ) : null}
               {slaCard.label && slaCard.status !== 'ok' ? (
-                <span className={slaCard.classe}>{slaCard.label}</span>
+                <span className={`text-xs leading-none ${slaCard.classe}`}>{slaCard.label}</span>
               ) : null}
             </div>
 
@@ -1016,115 +1450,75 @@ export function KanbanCardModal({
                 </p>
               ) : null}
 
-              <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-5">
-                <div>
-                  <label className="mb-1 block text-xs text-stone-600">Lista</label>
-                  <select
-                    value={filtros.lista}
-                    onChange={(e) => setFiltros({ ...filtros, lista: e.target.value as ListaInteracoes })}
-                    className="w-full px-3 py-1.5 text-xs focus:outline-none"
-                    style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
+              <div className="relative mb-4">
+                <button
+                  ref={filtrosBtnRef}
+                  type="button"
+                  onClick={() => {
+                    if (filtrosOpen) {
+                      setFiltrosDraft({ ...filtros });
+                      setFiltrosOpen(false);
+                    } else {
+                      setFiltrosDraft({ ...filtros });
+                      setFiltrosOpen(true);
+                    }
+                  }}
+                  className="rounded-lg border px-4 py-2 text-sm font-medium transition hover:opacity-95"
+                  style={{
+                    borderColor: 'var(--moni-border-default)',
+                    background: 'var(--moni-surface-0)',
+                    color: 'var(--moni-text-primary)',
+                  }}
+                >
+                  Filtros ({countKanbanModalInteracoesFiltrosAtivos(filtros)})
+                </button>
+                {filtrosOpen ? (
+                  <div
+                    ref={filtrosPopoverRef}
+                    className="absolute left-0 top-full z-[60] mt-2 w-[min(100vw-2rem,15rem)]"
                   >
-                    <option value="abertas">Em aberto</option>
-                    <option value="concluidas">Somente concluídas</option>
-                    <option value="todas">Todas</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-stone-600">Situação</label>
-                  <select
-                    value={filtros.lista === 'concluidas' ? 'qualquer' : filtros.situacao}
-                    disabled={filtros.lista === 'concluidas'}
-                    onChange={(e) => setFiltros({ ...filtros, situacao: e.target.value as SituacaoFiltro })}
-                    className="w-full px-3 py-1.5 text-xs focus:outline-none disabled:opacity-60"
-                    style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
-                  >
-                    <option value="qualquer">Qualquer</option>
-                    <option value="pendente">Pendente</option>
-                    <option value="em_andamento">Em andamento</option>
-                    {filtros.lista !== 'abertas' ? <option value="concluida">Concluída</option> : null}
-                    <option value="cancelada">Cancelada</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-stone-600">Time</label>
-                  <select
-                    value={filtros.time}
-                    onChange={(e) => setFiltros({ ...filtros, time: e.target.value })}
-                    className="w-full px-3 py-1.5 text-xs"
-                    style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
-                  >
-                    <option value="todos">Todos</option>
-                    {kanbanTimes.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.nome}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-stone-600">Responsável (qualquer)</label>
-                  <select
-                    value={filtros.responsavel}
-                    onChange={(e) => setFiltros({ ...filtros, responsavel: e.target.value })}
-                    className="w-full px-3 py-1.5 text-xs"
-                    style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
-                  >
-                    <option value="todos">Todos</option>
-                    {responsaveisOpcoes.length === 0 ? (
-                      <option value="" disabled>
-                        Nenhum usuário encontrado
-                      </option>
-                    ) : (
-                      responsaveisOpcoes.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.nome}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-stone-600">Ordenar</label>
-                  <select
-                    value={filtros.ordenacao}
-                    onChange={(e) => setFiltros({ ...filtros, ordenacao: e.target.value })}
-                    className="w-full px-3 py-1.5 text-xs"
-                    style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
-                  >
-                    <option value="prazo_asc">Prazo ↑</option>
-                    <option value="prazo_desc">Prazo ↓</option>
-                  </select>
-                </div>
+                    <KanbanInteracoesFiltrosPanel
+                      draft={filtrosDraft}
+                      setDraft={setFiltrosDraft}
+                      kanbanTimes={kanbanTimes}
+                      responsaveisOpcoes={responsaveisOpcoes}
+                      onLimpar={() => setFiltrosDraft(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT)}
+                      onAplicar={() => {
+                        setFiltros({ ...filtrosDraft });
+                        setFiltrosOpen(false);
+                      }}
+                    />
+                  </div>
+                ) : null}
               </div>
 
               {interacoesFiltradas.length > 0 ? (
                 <div className="mb-4 space-y-2">
                   {interacoesFiltradas.map((it) => {
-                    const prazoBr =
-                      it.data_vencimento &&
-                      (() => {
-                        const d = new Date(it.data_vencimento);
-                        return Number.isFinite(d.getTime())
-                          ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                          : null;
-                      })();
-                    const avKind = resolveAtividadeVinculadaKind({
-                      concluido: it.status === 'concluida',
-                      status: it.status,
-                      prazo: prazoBr,
-                      prioridade: it.prioridade,
+                    const subs = subInteracoesPorPai[it.id] ?? [];
+                    const deriv = derivarChamadoKanbanComSubs(it.status, subs);
+                    const statusVisual = deriv.usarDerivado ? deriv.status : it.status;
+                    const prazoEfetivo = prazoEfetivoParaChamado(it, subs);
+                    const surfaceKind = resolveKanbanChamadoSurfaceKind(statusVisual, prazoEfetivo);
+                    const iconKind = resolveKanbanChamadoIconKind({
+                      status: statusVisual,
+                      alertaSubAtrasada: deriv.alertaSubAtrasada,
                     });
-                    const slaLegacy = slaInteracaoBadge(it.data_vencimento, it.status);
+                    const pillKind = kanbanStatusParaPillKind(statusVisual);
+                    const slaLegacy = slaInteracaoBadge(prazoEfetivo, statusVisual);
                     const slaDu = rotuloSlaInteracaoPainel(
-                      it.data_vencimento ? String(it.data_vencimento).slice(0, 10) : null,
-                      mapInteracaoStatusParaPainelSla(it.status),
+                      prazoEfetivo,
+                      mapInteracaoStatusParaPainelSla(statusVisual),
                     );
                     const timeTags = tagsTimesParaLinha(it, kanbanTimes);
                     const demo = isInteracaoDemonstracao(it.id);
-                    const subs = subInteracoesPorPai[it.id] ?? [];
                     return (
-                      <AtividadeVinculadaCard key={it.id} kind={avKind} as="div">
+                      <AtividadeVinculadaCard
+                        key={it.id}
+                        kind={surfaceKind}
+                        as="div"
+                        style={corFundoChamado(prazoEfetivo, statusVisual)}
+                      >
                         <div className="flex items-start gap-2">
                           {!demo ? (
                             <button
@@ -1142,21 +1536,69 @@ export function KanbanCardModal({
                             <span className="mt-0.5 inline-block w-5 shrink-0" aria-hidden />
                           )}
                           <span className="mt-0.5 shrink-0">
-                            <AtividadeVinculadaIcon kind={avKind} size="md" />
+                            <AtividadeVinculadaIcon kind={iconKind} size="md" />
                           </span>
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <h5 className="text-sm font-medium text-stone-800">{it.titulo}</h5>
-                              {!demo ? (
-                                <button
-                                  type="button"
-                                  onClick={() => abrirEdicaoInteracao(it)}
-                                  className="shrink-0 rounded p-1 text-stone-500 hover:bg-stone-200"
-                                  aria-label="Editar chamado"
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </button>
-                              ) : null}
+                            <div className="flex min-w-0 flex-nowrap items-center gap-2">
+                              {editingId === it.id ? (
+                                <>
+                                  <input
+                                    type="text"
+                                    value={editDraft.titulo}
+                                    onChange={(e) => setEditDraft((d) => ({ ...d, titulo: e.target.value }))}
+                                    className="min-w-0 flex-1 rounded border border-stone-300 px-2 py-1 text-sm font-medium text-stone-800 focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400"
+                                    aria-label="Título do chamado"
+                                    autoFocus
+                                  />
+                                  <div className="flex shrink-0 items-center gap-1">
+                                    <button
+                                      type="button"
+                                      disabled={salvandoEdicao}
+                                      onClick={() => void salvarEdicaoInteracao()}
+                                      className="rounded px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-50"
+                                      style={{ background: 'var(--moni-text-primary)' }}
+                                    >
+                                      {salvandoEdicao ? '…' : 'Salvar'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={salvandoEdicao}
+                                      onClick={() => setEditingId(null)}
+                                      className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 disabled:opacity-50"
+                                    >
+                                      Cancelar
+                                    </button>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <h5 className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
+                                    {it.titulo}
+                                  </h5>
+                                  <div className="flex shrink-0 items-center gap-1.5">
+                                    <SlaTituloBolinha
+                                      prazoIso={prazoEfetivo}
+                                      statusPainel={mapInteracaoStatusParaPainelSla(statusVisual)}
+                                      className="mt-0.5"
+                                    />
+                                    {!demo ? (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          abrirEdicaoInteracao(it);
+                                        }}
+                                        className="shrink-0 rounded p-1 text-stone-700 hover:bg-stone-200 hover:text-stone-900"
+                                        aria-label="Editar título do chamado"
+                                        title="Editar título"
+                                      >
+                                        <Pencil className="h-4 w-4 shrink-0" aria-hidden />
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                </>
+                              )}
                             </div>
                             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                               <span
@@ -1318,12 +1760,20 @@ export function KanbanCardModal({
                               <p className="mt-1 text-xs text-stone-600">{it.descricao}</p>
                             ) : null}
                             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                              <AtividadeVinculadaStatusPill kind={avKind}>
-                                {labelKanbanAtividadeParaPill(it.status)}
+                              <AtividadeVinculadaStatusPill kind={pillKind}>
+                                {labelKanbanAtividadeParaPill(statusVisual)}
                               </AtividadeVinculadaStatusPill>
-                              {it.data_vencimento ? (
+                              {deriv.alertaSubAtrasada ? (
+                                <span
+                                  className="rounded border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-900"
+                                  title="Pelo menos uma sub-interação está com prazo vencido e não concluída"
+                                >
+                                  Sub-itens atrasados
+                                </span>
+                              ) : null}
+                              {prazoEfetivo ? (
                                 <span className="text-stone-600">
-                                  Prazo: {new Date(it.data_vencimento).toLocaleDateString('pt-BR')}
+                                  Prazo{subs.length > 0 ? ' (efetivo)' : ''}: {formatIsoDateOnlyPtBr(prazoEfetivo)}
                                 </span>
                               ) : (
                                 <span className="text-stone-400">Sem prazo</span>
@@ -1357,9 +1807,27 @@ export function KanbanCardModal({
                             </div>
                             {!demo && subExpandida[it.id] ? (
                               <div className="mt-3 rounded-lg border border-stone-200 bg-stone-50/80 p-3">
-                                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-stone-500">
-                                  Sub-chamados ({subs.length})
-                                </p>
+                                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                  <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                                    Sub-chamados ({subs.length})
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSubFormInteracaoId(it.id);
+                                      setSubNovaDraft({
+                                        titulo: '',
+                                        timesIds: [],
+                                        responsaveisIds: [],
+                                        data: '',
+                                        trava: false,
+                                      });
+                                    }}
+                                    className="shrink-0 text-[11px] font-medium text-stone-700 underline-offset-2 hover:underline"
+                                  >
+                                    + Sub-interação
+                                  </button>
+                                </div>
                                 {subs.length > 0 ? (
                                   <ul className="mb-3 space-y-2">
                                     {subs.map((sub) => (
@@ -1395,8 +1863,7 @@ export function KanbanCardModal({
                                             </p>
                                             {sub.data_fim ? (
                                               <p className="text-[10px] text-stone-500">
-                                                Prazo:{' '}
-                                                {new Date(sub.data_fim).toLocaleDateString('pt-BR')}
+                                                Prazo: {formatIsoDateOnlyPtBr(sub.data_fim) ?? sub.data_fim}
                                               </p>
                                             ) : (
                                               <p className="text-[10px] text-stone-400">Sem prazo</p>
@@ -1514,28 +1981,27 @@ export function KanbanCardModal({
                                         }}
                                         className="rounded border border-stone-300 px-3 py-1.5 text-[11px]"
                                       >
-                                        Cancelar
+                                        Fechar
                                       </button>
                                     </div>
                                   </div>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setSubFormInteracaoId(it.id);
-                                      setSubNovaDraft({
-                                        titulo: '',
-                                        timesIds: [],
-                                        responsaveisIds: [],
-                                        data: '',
-                                        trava: false,
-                                      });
-                                    }}
-                                    className="text-[11px] font-medium text-stone-700 underline-offset-2 hover:underline"
-                                  >
-                                    + Sub-chamado
-                                  </button>
-                                )}
+                                ) : null}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSubFormInteracaoId(it.id);
+                                    setSubNovaDraft({
+                                      titulo: '',
+                                      timesIds: [],
+                                      responsaveisIds: [],
+                                      data: '',
+                                      trava: false,
+                                    });
+                                  }}
+                                  className="mt-2 text-[11px] font-medium text-stone-700 underline-offset-2 hover:underline"
+                                >
+                                  + Sub-interação
+                                </button>
                               </div>
                             ) : null}
                           </div>
@@ -1695,29 +2161,65 @@ export function KanbanCardModal({
               </div>
             </div>
 
-            {!isLegado ? (
+            {!isLegado && !card.concluido ? (
               <div className="mt-4 border-t pt-4" style={{ borderColor: 'var(--moni-border-default)' }}>
-                <button
-                  type="button"
-                  onClick={() => void handleArquivar()}
-                  disabled={loading}
-                  className="w-full px-6 py-2.5 text-sm font-medium disabled:opacity-50"
-                  style={{
-                    background: 'transparent',
-                    color: 'var(--moni-status-overdue-text)',
-                    border: '0.5px solid var(--moni-status-overdue-border)',
-                    borderRadius: 'var(--moni-radius-md)',
-                  }}
-                >
-                  Arquivar card
-                </button>
+                {!arquivamentoAberto ? (
+                  <button
+                    type="button"
+                    onClick={() => setArquivamentoAberto(true)}
+                    disabled={loading}
+                    className="w-full px-2 py-1 text-xs font-medium leading-tight disabled:opacity-50"
+                    style={{
+                      background: 'transparent',
+                      color: 'var(--moni-status-overdue-text)',
+                      border: '0.5px solid var(--moni-status-overdue-border)',
+                      borderRadius: 'var(--moni-radius-md)',
+                    }}
+                  >
+                    Arquivar card
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="block text-xs font-medium text-stone-600">Motivo do arquivamento</label>
+                    <textarea
+                      value={motivoArquivamento}
+                      onChange={(e) => setMotivoArquivamento(e.target.value)}
+                      rows={3}
+                      placeholder="Descreva o motivo…"
+                      className="w-full resize-none rounded-lg p-2 text-sm focus:outline-none"
+                      style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-0)' }}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleConfirmarArquivar()}
+                        disabled={loading || !motivoArquivamento.trim()}
+                        className="flex-1 rounded-lg px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+                        style={{ background: 'var(--moni-status-overdue-border)' }}
+                      >
+                        {loading ? 'Arquivando…' : 'Confirmar'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setArquivamentoAberto(false);
+                          setMotivoArquivamento('');
+                        }}
+                        disabled={loading}
+                        className="flex-1 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 disabled:opacity-50"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : null}
           </div>
 
           {/* Direita — ações de movimento do card (mobile: após o centro) */}
           <aside
-            className="moni-card-modal-acoes order-2 flex w-full shrink-0 flex-col gap-2 border-t p-4 sm:order-3 sm:h-full sm:w-[11.5rem] sm:border-l sm:border-t-0 sm:p-5"
+            className="moni-card-modal-acoes order-2 flex w-full shrink-0 flex-col gap-1.5 border-t p-2 text-xs sm:order-3 sm:h-full sm:min-w-0 sm:w-[120px] sm:max-w-[120px] sm:flex-none sm:border-l sm:border-t-0 sm:p-2"
             style={{
               borderColor: 'var(--moni-border-default)',
               background: 'var(--moni-surface-50)',
@@ -1728,7 +2230,7 @@ export function KanbanCardModal({
               type="button"
               onClick={() => void handleRetrocederFase()}
               disabled={loading || !podeRetrocederFase}
-              className="w-full px-3 py-2.5 text-sm font-medium transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full px-2 py-1 text-xs font-medium leading-tight transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
               style={{
                 background: 'var(--moni-surface-0)',
                 color: 'var(--moni-text-primary)',
@@ -1742,7 +2244,7 @@ export function KanbanCardModal({
               type="button"
               onClick={() => void handleAvancarFase()}
               disabled={loading || !podeAvancarFase}
-              className="w-full px-3 py-2.5 text-sm font-medium transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full px-2 py-1 text-xs font-medium leading-tight transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
               style={{
                 background: 'var(--moni-surface-0)',
                 color: 'var(--moni-green-800)',
@@ -1752,101 +2254,431 @@ export function KanbanCardModal({
             >
               {loading ? '…' : 'Próxima Fase'}
             </button>
-            {isLegado ? (
-              <Link
-                href={painelLegadoCompletoHref}
-                className="flex w-full items-center justify-center px-3 py-3 text-center text-sm font-semibold transition hover:opacity-95"
-                style={{
-                  background: 'var(--moni-text-primary)',
-                  color: 'var(--moni-surface-0)',
-                  borderRadius: 'var(--moni-radius-md)',
-                  boxShadow: 'var(--moni-shadow-sm)',
-                }}
-              >
-                Painel completo (legado)
-              </Link>
-            ) : (
-              <Link
-                href={legacyPanelHref}
-                className="flex w-full items-center justify-center px-3 py-2.5 text-center text-sm font-medium transition hover:bg-stone-100"
-                style={{
-                  background: 'var(--moni-surface-0)',
-                  color: 'var(--moni-text-secondary)',
-                  border: '0.5px solid var(--moni-border-default)',
-                  borderRadius: 'var(--moni-radius-md)',
-                }}
-              >
-                Painel completo (legado)
-              </Link>
-            )}
+            {exibirBotaoFinalizar || confirmandoFinalizar ? (
+              <div className="mt-1 border-t border-stone-200 pt-1.5">
+                {!confirmandoFinalizar ? (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmandoFinalizar(true)}
+                    disabled={loading}
+                    className="w-full px-2 py-1 text-xs font-semibold leading-tight transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                    style={{
+                      background: 'var(--moni-green-50)',
+                      color: 'var(--moni-green-800)',
+                      border: '0.5px solid var(--moni-green-400)',
+                      borderRadius: 'var(--moni-radius-md)',
+                    }}
+                  >
+                    Finalizar card
+                  </button>
+                ) : (
+                  <div className="space-y-1.5">
+                    <p className="text-center text-[10px] font-medium leading-snug text-stone-700">
+                      Confirmar conclusão deste card?
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void handleConfirmarFinalizarCard()}
+                      disabled={loading}
+                      className="w-full px-2 py-1 text-xs font-semibold leading-tight text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                      style={{
+                        background: 'var(--moni-green-600)',
+                        borderRadius: 'var(--moni-radius-md)',
+                      }}
+                    >
+                      {loading ? '…' : 'Confirmar'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmandoFinalizar(false)}
+                      disabled={loading}
+                      className="w-full px-2 py-1 text-xs font-medium leading-tight transition hover:bg-stone-100 disabled:opacity-50"
+                      style={{
+                        background: 'var(--moni-surface-0)',
+                        color: 'var(--moni-text-primary)',
+                        border: '0.5px solid var(--moni-border-default)',
+                        borderRadius: 'var(--moni-radius-md)',
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : null}
           </aside>
 
           {/* Esquerda — dados colapsáveis (mobile: por último) */}
           <div
-            className="moni-card-modal-left order-3 h-full w-full overflow-y-auto border-t p-6 sm:order-1 sm:w-[min(30%,20rem)] sm:shrink-0 sm:border-r sm:border-t-0"
+            className="moni-card-modal-left order-3 h-full w-full overflow-y-auto border-t p-4 text-xs sm:order-1 sm:min-w-0 sm:w-[min(45%,20rem)] sm:shrink-0 sm:border-r sm:border-t-0 sm:p-5"
             style={{
               borderColor: 'var(--moni-border-default)',
               background: 'var(--moni-surface-50)',
             }}
           >
             {secaoHead(
+              'cronologia',
+              'ID e datas do funil',
+              <div className="space-y-2">
+                <div>
+                  <div className="text-[11px] font-medium text-stone-500">ID do card</div>
+                  <div className="break-all font-mono text-[11px] text-stone-800">{card.id}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] font-medium text-stone-500">Data de entrada no funil</div>
+                  <div className="text-xs text-stone-800">{fmtDataHoraOuDash(card.created_at)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] font-medium text-stone-500">Data de conclusão</div>
+                  <div className="text-xs text-stone-800">{dataConclusaoExibicao}</div>
+                  {isLegado && card.processo_meta?.status === 'concluido' ? (
+                    <p className="mt-0.5 text-[10px] leading-snug text-stone-500">
+                      Legado: data do último update do processo com status &quot;concluído&quot; (aprox.).
+                    </p>
+                  ) : null}
+                </div>
+                <div className="border-t border-stone-100 pt-2">
+                  <p className="mb-1 text-[11px] font-semibold text-stone-600">Por fase</p>
+                  <div className="max-h-56 space-y-1.5 overflow-y-auto pr-0.5">
+                    {linhasCronologiaFases.map((row) => (
+                      <div
+                        key={row.faseId}
+                        className="rounded border border-stone-100 bg-stone-50/80 px-2 py-1.5"
+                      >
+                        <div className="text-[11px] font-medium text-stone-800">{row.faseNome}</div>
+                        <div className="mt-0.5 grid grid-cols-1 gap-0.5 text-[10px] text-stone-600 sm:grid-cols-2">
+                          <span>
+                            <span className="text-stone-500">Entrada: </span>
+                            {row.entrouEm ? fmtDataHoraOuDash(row.entrouEm) : '—'}
+                          </span>
+                          <span>
+                            <span className="text-stone-500">Saída: </span>
+                            {row.saiuEm ? fmtDataHoraOuDash(row.saiuEm) : '—'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>,
+            )}
+            {secaoHead(
               'franqueado',
               'Dados do Franqueado',
-              isAdmin && card.profiles ? (
-                <>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Responsável</p>
-                  <p className="mt-1 font-medium text-stone-800">{card.profiles.full_name || 'Não informado'}</p>
-                </>
-              ) : (
-                <p className="text-xs text-stone-500">Dados do franqueado quando disponíveis (admin).</p>
-              ),
+              <div className="space-y-2">
+                {isAdmin && card.profiles ? (
+                  <div className="mb-1 rounded border border-stone-100 bg-stone-50/80 p-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-500">Responsável (card)</p>
+                    <p className="mt-0.5 text-xs font-medium text-stone-800">
+                      {card.profiles.full_name || 'Não informado'}
+                    </p>
+                  </div>
+                ) : null}
+                {!rede ? (
+                  <p className="text-xs text-stone-500">Sem dados de franqueado vinculados ao card.</p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Nº Franquia</div>
+                        <div className="text-xs text-stone-800">{displayOrDash(rede.n_franquia)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Modalidade</div>
+                        <div className="text-xs text-stone-800">{displayOrDash(rede.modalidade)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Nome</div>
+                        <div className="text-xs text-stone-800">{displayOrDash(rede.nome_completo)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Status</div>
+                        <div className="text-xs text-stone-800">{displayOrDash(rede.status_franquia)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Classificação</div>
+                        <div className="text-xs text-stone-800">{displayOrDash(rede.classificacao_franqueado)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Área de atuação</div>
+                        <div className="text-xs text-stone-800">{displayOrDash(rede.area_atuacao)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">E-mail</div>
+                        <div className="break-all text-xs text-stone-800">{displayOrDash(rede.email_frank)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Telefone</div>
+                        <div className="text-xs text-stone-800">{displayOrDash(rede.telefone_frank)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">CPF</div>
+                        <div className="text-xs text-stone-800">{displayOrDash(rede.cpf_frank)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Nascimento</div>
+                        <div className="text-xs text-stone-800">{fmtDataBr(rede.data_nasc_frank)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Responsável comercial</div>
+                        <div className="text-xs text-stone-800">{displayOrDash(rede.responsavel_comercial)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Camiseta</div>
+                        <div className="text-xs text-stone-800">{displayOrDash(rede.tamanho_camisa_frank)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Ass. COF</div>
+                        <div className="text-xs text-stone-800">{fmtDataBr(rede.data_ass_cof)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Ass. Contrato</div>
+                        <div className="text-xs text-stone-800">{fmtDataBr(rede.data_ass_contrato)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Expiração</div>
+                        <div className="text-xs text-stone-800">{fmtDataBr(rede.data_expiracao_franquia)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">—</div>
+                        <div className="text-xs text-stone-800">—</div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">Endereço (casa)</div>
+                      <div className="text-xs text-stone-800">{displayOrDash(enderecoCasaLinha)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">Sócios</div>
+                      <div className="break-words text-xs text-stone-800">{displayOrDash(rede.socios)}</div>
+                    </div>
+                  </>
+                )}
+                <div className="mt-2 border-t border-stone-100 pt-2">
+                  <p className="text-[11px] font-semibold text-stone-600">Anexo: Contrato de Franquia</p>
+                  <input
+                    ref={contratoFileRef}
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => void handleContratoFranquiaFile(e)}
+                    accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,application/pdf"
+                  />
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    {rede?.contrato_franquia_path?.trim() ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void handleBaixarContratoFranquia()}
+                          className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50"
+                        >
+                          Baixar contrato
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => contratoFileRef.current?.click()}
+                          disabled={uploadingContrato || !modalDetalhes.redeIdContrato}
+                          className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {uploadingContrato ? 'Enviando…' : 'Substituir'}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => contratoFileRef.current?.click()}
+                        disabled={uploadingContrato || !modalDetalhes.redeIdContrato}
+                        className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {uploadingContrato ? 'Enviando…' : 'Anexar contrato'}
+                      </button>
+                    )}
+                    {!modalDetalhes.redeIdContrato ? (
+                      <span className="text-[11px] text-stone-500">Sem rede vinculada para anexar.</span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>,
             )}
             {secaoHead(
               'novoNegocio',
-              'Dados do Novo Negócio',
+              'Dados do Negócio',
               <div className="space-y-2">
-                <p>
-                  <span className="text-xs font-medium text-stone-500">Título</span>
-                  <br />
-                  <span className="text-stone-800">{cardTitulo}</span>
-                </p>
-                <p>
-                  <span className="text-xs font-medium text-stone-500">Status</span>
-                  <br />
-                  <span className="capitalize text-stone-800">{card.status}</span>
-                </p>
-                {card.etapa_slug ? (
-                  <p>
-                    <span className="text-xs font-medium text-stone-500">Etapa (slug)</span>
-                    <br />
-                    <span className="font-mono text-sm text-stone-800">{card.etapa_slug}</span>
-                  </p>
-                ) : null}
-                <p>
-                  <span className="text-xs font-medium text-stone-500">Criado em</span>
-                  <br />
-                  <span className="text-stone-800">
-                    {createdDate.toLocaleString('pt-BR', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </span>
-                </p>
-                <p className="text-xs text-stone-500">
-                  Rota: <Link href={basePath} className="text-moni-primary underline">{basePath}</Link>
-                </p>
+                {!proc ? (
+                  <p className="text-xs text-stone-500">Sem processo vinculado — dados de negócio indisponíveis.</p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Tipo de negociação</div>
+                        <div className="text-xs text-stone-800">{displayOrDash(proc.tipo_aquisicao_terreno)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Valor do Terreno</div>
+                        <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.valor_terreno)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">VGV pretendido</div>
+                        <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.vgv_pretendido)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Produto / Modelo</div>
+                        <div className="text-xs text-stone-800">{displayOrDash(proc.produto_modelo_casa)}</div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-medium text-stone-500">Link pasta no Drive</div>
+                        <div className="text-xs">
+                          {driveHref ? (
+                            <a
+                              href={driveHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-moni-primary underline break-all"
+                            >
+                              {proc.link_pasta_drive?.trim()}
+                            </a>
+                          ) : (
+                            '—'
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">—</div>
+                        <div className="text-xs text-stone-800">—</div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">Nome do Condomínio</div>
+                      <div className="text-xs text-stone-800">{displayOrDash(proc.nome_condominio)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">Quadra / Lote</div>
+                      <div className="text-xs text-stone-800">{displayOrDash(proc.quadra_lote)}</div>
+                    </div>
+                  </>
+                )}
               </div>,
+            )}
+            {secaoHead(
+              'preObra',
+              'Dados Pré Obra',
+              !proc ? (
+                <p className="text-xs text-stone-500">
+                  Sem processo vinculado — não é possível editar pré-obra neste card.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <label className="block">
+                      <span className="text-[11px] font-medium text-stone-500">Previsão de Aprovação no Condomínio</span>
+                      <input
+                        type="text"
+                        value={preObraDraft.previsao_aprovacao_condominio}
+                        onChange={(e) =>
+                          setPreObraDraft((d) => ({ ...d, previsao_aprovacao_condominio: e.target.value }))
+                        }
+                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-[11px] font-medium text-stone-500">Previsão de Aprovação na Prefeitura</span>
+                      <input
+                        type="text"
+                        value={preObraDraft.previsao_aprovacao_prefeitura}
+                        onChange={(e) =>
+                          setPreObraDraft((d) => ({ ...d, previsao_aprovacao_prefeitura: e.target.value }))
+                        }
+                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-[11px] font-medium text-stone-500">Previsão de Emissão do Alvará</span>
+                      <input
+                        type="text"
+                        value={preObraDraft.previsao_emissao_alvara}
+                        onChange={(e) => setPreObraDraft((d) => ({ ...d, previsao_emissao_alvara: e.target.value }))}
+                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-[11px] font-medium text-stone-500">
+                        Previsão de Liberação do Crédito para Obra
+                      </span>
+                      <input
+                        type="text"
+                        value={preObraDraft.previsao_liberacao_credito_obra}
+                        onChange={(e) =>
+                          setPreObraDraft((d) => ({ ...d, previsao_liberacao_credito_obra: e.target.value }))
+                        }
+                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-[11px] font-medium text-stone-500">Previsão de Início de Obra</span>
+                      <input
+                        type="text"
+                        value={preObraDraft.previsao_inicio_obra}
+                        onChange={(e) => setPreObraDraft((d) => ({ ...d, previsao_inicio_obra: e.target.value }))}
+                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                      />
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+                    <label className="block min-w-0">
+                      <span className="text-[11px] font-medium text-stone-500">Data de Aprovação no Condomínio</span>
+                      <input
+                        type="date"
+                        value={preObraDraft.data_aprovacao_condominio}
+                        onChange={(e) =>
+                          setPreObraDraft((d) => ({ ...d, data_aprovacao_condominio: e.target.value }))
+                        }
+                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-1 py-1 text-[11px] text-stone-800"
+                      />
+                    </label>
+                    <label className="block min-w-0">
+                      <span className="text-[11px] font-medium text-stone-500">Data de Aprovação na Prefeitura</span>
+                      <input
+                        type="date"
+                        value={preObraDraft.data_aprovacao_prefeitura}
+                        onChange={(e) =>
+                          setPreObraDraft((d) => ({ ...d, data_aprovacao_prefeitura: e.target.value }))
+                        }
+                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-1 py-1 text-[11px] text-stone-800"
+                      />
+                    </label>
+                    <label className="block min-w-0">
+                      <span className="text-[11px] font-medium text-stone-500">Data de Emissão do Alvará</span>
+                      <input
+                        type="date"
+                        value={preObraDraft.data_emissao_alvara}
+                        onChange={(e) => setPreObraDraft((d) => ({ ...d, data_emissao_alvara: e.target.value }))}
+                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-1 py-1 text-[11px] text-stone-800"
+                      />
+                    </label>
+                    <label className="block min-w-0">
+                      <span className="text-[11px] font-medium text-stone-500">Data de aprovação do crédito</span>
+                      <input
+                        type="date"
+                        value={preObraDraft.data_aprovacao_credito}
+                        onChange={(e) =>
+                          setPreObraDraft((d) => ({ ...d, data_aprovacao_credito: e.target.value }))
+                        }
+                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-1 py-1 text-[11px] text-stone-800"
+                      />
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleSalvarPreObraKanban()}
+                    disabled={salvandoPreObra}
+                    className="w-full rounded-lg border border-moni-primary bg-moni-primary px-3 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {salvandoPreObra ? 'Salvando…' : 'Salvar pré-obra'}
+                  </button>
+                </div>
+              ),
             )}
             {!isLegado ? (
               <>
-                {secaoHead(
-                  'preObra',
-                  'Dados Pré Obra',
-                  <p className="text-xs italic text-stone-500">Em breve — campos de pré-obra do card.</p>,
-                )}
                 {secaoHead('obra', 'Dados Obra', <p className="text-xs italic text-stone-500">Placeholder.</p>)}
                 {secaoHead(
                   'relacionamentos',
@@ -1865,23 +2697,23 @@ export function KanbanCardModal({
               <button
                 type="button"
                 onClick={() => toggleSecaoEsquerda('historico')}
-                className="flex w-full items-center gap-2 p-3 text-left transition hover:bg-stone-50"
+                className="flex w-full items-center gap-2 p-2 text-left text-xs transition hover:bg-stone-50"
               >
                 {secaoAberta.historico ? (
-                  <ChevronDown className="h-4 w-4 shrink-0 text-stone-500" aria-hidden />
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-stone-500" aria-hidden />
                 ) : (
-                  <ChevronRight className="h-4 w-4 shrink-0 text-stone-500" aria-hidden />
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-stone-500" aria-hidden />
                 )}
-                <span className="text-sm font-semibold text-stone-800">Histórico</span>
+                <span className="text-xs font-semibold text-stone-800">Histórico</span>
               </button>
               {secaoAberta.historico ? (
-                <div className="border-t px-3 pb-3 pt-2" style={{ borderColor: 'var(--moni-border-subtle)' }}>
+                <div className="border-t px-2 pb-2 pt-1.5 text-xs" style={{ borderColor: 'var(--moni-border-subtle)' }}>
                   {historico.length === 0 ? (
                     <p className="text-xs text-stone-500">Nenhum evento ainda.</p>
                   ) : (
                     <ul className="max-h-64 list-none space-y-0 overflow-y-auto">
                       {historico.map((h) => (
-                        <li key={h.id} className="flex gap-2 border-b border-stone-100 py-2.5 text-sm last:border-0">
+                        <li key={h.id} className="flex gap-2 border-b border-stone-100 py-2 text-xs last:border-0">
                           <span className="mt-0.5 shrink-0">{iconeHistoricoAcao(h.acao)}</span>
                           <div className="min-w-0 flex-1 leading-snug text-stone-800">
                             <span>{textoResumidoAcaoHistorico(h.acao, h.detalhe)}</span>

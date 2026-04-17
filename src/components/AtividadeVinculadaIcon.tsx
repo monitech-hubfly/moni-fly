@@ -22,7 +22,10 @@ export function AtividadeVinculadaIcon({ kind, className, size = 'sm' }: Props) 
     case 'atrasado':
       return <AlertCircle className={cn} style={{ color: iconColor }} aria-hidden />;
     case 'atencao':
+    case 'prazo_proximo':
       return <AlertTriangle className={cn} style={{ color: iconColor }} aria-hidden />;
+    case 'prazo_calm':
+      return <Circle className={cn} style={{ color: iconColor }} aria-hidden />;
     case 'em_andamento':
       return <RefreshCw className={cn} style={{ color: iconColor }} aria-hidden />;
     case 'cancelada':

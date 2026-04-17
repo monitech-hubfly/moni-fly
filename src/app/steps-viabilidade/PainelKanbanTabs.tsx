@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 
 export type PainelKanbanTabsVariant =
   | 'portfolio'
+  | 'acoplamento'
   | 'operacoes'
   | 'credito'
   | 'contabilidade'
@@ -14,6 +15,7 @@ const KANBAN_TAB_ACCENT = 'var(--moni-kanban-stepone)';
 
 const ACCENT: Record<PainelKanbanTabsVariant, string> = {
   portfolio: KANBAN_TAB_ACCENT,
+  acoplamento: KANBAN_TAB_ACCENT,
   operacoes: KANBAN_TAB_ACCENT,
   credito: KANBAN_TAB_ACCENT,
   contabilidade: KANBAN_TAB_ACCENT,

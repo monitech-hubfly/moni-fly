@@ -73,36 +73,56 @@ export default async function FunilStepOnePage({
     .eq('ativo', true)
     .order('ordem');
 
-  // Busca os cards (filtra por franqueado ou mostra todos para admin/consultor)
-  let cardsQuery = supabase
-    .from('kanban_cards')
-    .select(
-      `
+  const selectCols = `
       id,
       titulo,
       status,
       created_at,
       fase_id,
-      franqueado_id
-    `,
-    )
+      franqueado_id,
+      arquivado,
+      motivo_arquivamento,
+      concluido,
+      concluido_em
+    `;
+
+  let cardsQuery = supabase
+    .from('kanban_cards')
+    .select(selectCols)
     .eq('kanban_id', kanban.id)
     .eq('status', 'ativo')
+    .eq('concluido', false)
     .order('created_at', { ascending: false });
 
-  // Se não for admin/consultor, filtra apenas os próprios cards
+  let concluidosQuery = supabase
+    .from('kanban_cards')
+    .select(selectCols)
+    .eq('kanban_id', kanban.id)
+    .eq('status', 'ativo')
+    .eq('arquivado', false)
+    .eq('concluido', true)
+    .order('created_at', { ascending: false });
+
   if (role !== 'admin' && role !== 'consultor') {
     cardsQuery = cardsQuery.eq('franqueado_id', user.id);
+    concluidosQuery = concluidosQuery.eq('franqueado_id', user.id);
   }
 
-  const { data: cardsRaw, error: cardsError } = await cardsQuery;
+  const [{ data: cardsRaw, error: cardsError }, { data: conclRaw }] = await Promise.all([
+    cardsQuery,
+    concluidosQuery,
+  ]);
   
   console.log('[FunilStepOne] Cards query error:', cardsError);
   console.log('[FunilStepOne] Cards raw:', cardsRaw);
   console.log('[FunilStepOne] Total cards encontrados:', cardsRaw?.length || 0);
 
-  // Busca os perfis dos franqueados dos cards encontrados
-  const franqueadoIds = [...new Set(cardsRaw?.map(c => c.franqueado_id).filter(Boolean) || [])];
+  const franqueadoIds = [
+    ...new Set([
+      ...(cardsRaw?.map((c) => c.franqueado_id).filter(Boolean) || []),
+      ...(conclRaw?.map((c) => c.franqueado_id).filter(Boolean) || []),
+    ]),
+  ];
   let profilesMap = new Map<string, { full_name: string | null }>();
   
   if (franqueadoIds.length > 0) {
@@ -116,12 +136,21 @@ export default async function FunilStepOnePage({
     });
   }
 
-  // Normaliza os cards adicionando os perfis
-  const cards =
-    cardsRaw?.map((c) => ({
-      ...c,
-      profiles: profilesMap.get(c.franqueado_id) || null,
-    })) || [];
+  const mapCard = (c: NonNullable<typeof cardsRaw>[number]) => ({
+    ...c,
+    arquivado: Boolean((c as { arquivado?: boolean | null }).arquivado),
+    motivo_arquivamento: (c as { motivo_arquivamento?: string | null }).motivo_arquivamento ?? null,
+    concluido: Boolean((c as { concluido?: boolean | null }).concluido),
+    concluido_em:
+      (c as { concluido_em?: string | null }).concluido_em != null
+        ? String((c as { concluido_em?: string | null }).concluido_em)
+        : null,
+    origem: 'nativo' as const,
+    profiles: profilesMap.get(c.franqueado_id) || null,
+  });
+
+  const cards = cardsRaw?.map((c) => mapCard(c)) || [];
+  const cardsConcluidos = conclRaw?.map((c) => mapCard(c)) || [];
 
   console.log('[FunilStepOne] Cards normalizados:', cards.length);
 
@@ -134,7 +163,6 @@ export default async function FunilStepOnePage({
       kanbanId={kanban.id}
       kanbanNome="Funil Step One"
       fases={fases ?? []}
-      legacyPanelHref="/painel-novos-negocios"
       enableNovoCardModal
     >
       <div className="min-h-screen bg-stone-50">
@@ -173,6 +201,7 @@ export default async function FunilStepOnePage({
             <KanbanBoard
               fases={fases ?? []}
               cards={cards}
+              cardsConcluidos={cardsConcluidos}
               basePath="/funil-stepone"
               userRole={role}
               columnAccent="var(--moni-kanban-stepone)"
