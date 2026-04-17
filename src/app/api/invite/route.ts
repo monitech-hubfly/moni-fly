@@ -6,6 +6,8 @@ import { getPublicAppUrl } from '@/lib/app-url';
 import { humanizeResendError, sendEmailViaResend } from '@/lib/email';
 import { normalizeAccessRole } from '@/lib/authz';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { InviteCargo, InviteGrupoRole } from '@/lib/admin-convite-grupos';
+import { FUNIS_KANBAN_NOMES, exibirFunisNoConvite } from '@/lib/admin-convite-grupos';
 
 function getAllowedDomain() {
   return (process.env.ALLOWED_EMAIL_DOMAIN ?? 'moni.casa').toLowerCase();
@@ -94,6 +96,35 @@ function extractInviteUserId(invData: unknown): string | null {
   return null;
 }
 
+const INVITE_ROLES: InviteGrupoRole[] = ['admin', 'team', 'frank', 'parceiro', 'fornecedor', 'cliente'];
+
+function parseInviteRole(raw: string): InviteGrupoRole {
+  const s = raw.trim().toLowerCase();
+  if (INVITE_ROLES.includes(s as InviteGrupoRole)) return s as InviteGrupoRole;
+  if (s === 'consultor' || s === 'supervisor') return 'admin';
+  return 'team';
+}
+
+function parseInviteCargo(raw: unknown): InviteCargo {
+  const s = String(raw ?? 'analista')
+    .trim()
+    .toLowerCase();
+  if (s === 'adm' || s === 'analista' || s === 'estagiario') return s;
+  return 'analista';
+}
+
+function sanitizeFunisAcesso(raw: unknown, grupo: InviteGrupoRole, cargo: InviteCargo): string[] | null {
+  if (!exibirFunisNoConvite(grupo, cargo)) return null;
+  if (!Array.isArray(raw)) return [];
+  const allowed = new Set(FUNIS_KANBAN_NOMES);
+  const out: string[] = [];
+  for (const x of raw) {
+    const n = String(x ?? '').trim();
+    if (allowed.has(n as (typeof FUNIS_KANBAN_NOMES)[number])) out.push(n);
+  }
+  return out;
+}
+
 function isRateLimitError(err: { message?: string; status?: number } | null | undefined): boolean {
   const m = (err?.message ?? '').toLowerCase();
   return m.includes('rate limit') || m.includes('too many emails') || err?.status === 429;
@@ -148,7 +179,10 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const email = String(body?.email ?? '').trim().toLowerCase();
-    const role = (String(body?.role ?? 'team').trim().toLowerCase() === 'admin' ? 'admin' : 'team') as 'admin' | 'team';
+    const grupoBody = String(body?.grupo ?? body?.role ?? 'team').trim().toLowerCase();
+    const role = parseInviteRole(grupoBody);
+    const cargo = parseInviteCargo(body?.cargo);
+    const funis_acesso = sanitizeFunisAcesso(body?.funis_acesso, role, cargo);
     const departamento = String(body?.departamento ?? '').trim() || null;
     if (!email || !email.includes('@')) {
       return NextResponse.json({ error: 'E-mail inválido.' }, { status: 400 });
@@ -232,6 +266,8 @@ export async function POST(req: Request) {
             id: authUserId,
             email,
             role,
+            cargo,
+            funis_acesso,
             departamento,
             full_name: '',
             nome_completo: '',
@@ -262,6 +298,8 @@ export async function POST(req: Request) {
       .from('profiles')
       .update({
         role,
+        cargo,
+        funis_acesso,
         departamento,
         invite_token: token,
         invite_email_sent_at: null,

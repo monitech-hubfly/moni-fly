@@ -43,7 +43,7 @@ async function usuarioPodeEditarAtividade(
 ): Promise<boolean> {
   const { data: prof } = await admin.from('profiles').select('role').eq('id', userId).maybeSingle();
   const role = String((prof as { role?: string } | null)?.role ?? '');
-  if (role === 'admin' || role === 'consultor') return true;
+  if (role === 'admin' || role === 'consultor' || role === 'team' || role === 'supervisor') return true;
 
   const ids = Array.isArray(row.responsaveis_ids)
     ? (row.responsaveis_ids as unknown[]).map((x) => String(x))

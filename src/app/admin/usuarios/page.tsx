@@ -3,9 +3,24 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { normalizeAccessRole } from '@/lib/authz';
-import { updateUserRoleFormAction } from './actions';
 import { ConvidarPendentesButton } from './ConvidarPendentesButton';
 import { EnviarConviteForm } from './EnviarConviteForm';
+import { UsuarioGrupoEcargoCells } from './UsuarioGrupoEcargoCells';
+
+type ProfileRow = {
+  id: string;
+  full_name: string | null;
+  nome_completo: string | null;
+  email: string | null;
+  departamento: string | null;
+  role: string | null;
+  cargo: string | null;
+  created_at: string | null;
+  aprovado_em: string | null;
+  invite_token: string | null;
+  invite_email_sent_at: string | null;
+  invite_accepted_at: string | null;
+};
 
 export default async function AdminUsuariosPage() {
   const supabase = await createClient();
@@ -22,30 +37,25 @@ export default async function AdminUsuariosPage() {
   const { data: rows } = await supabase
     .from('profiles')
     .select(
-      'id, full_name, nome_completo, email, departamento, role, created_at, aprovado_em, invite_token, invite_email_sent_at, invite_accepted_at',
+      'id, full_name, nome_completo, email, departamento, role, cargo, created_at, aprovado_em, invite_token, invite_email_sent_at, invite_accepted_at',
     )
     .order('created_at', { ascending: false });
 
+  const list = (rows ?? []) as ProfileRow[];
+
   return (
     <div className="min-h-screen bg-stone-50">
-      <header className="border-b border-stone-200 bg-white">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4">
-          <div className="flex items-center gap-4 text-sm">
-            <Link href="/" className="text-moni-primary hover:underline">
-              ← Início
-            </Link>
-            <Link href="/admin" className="text-stone-600 hover:text-stone-900 hover:underline">
-              Admin
-            </Link>
-            <Link href="/admin/sla" className="text-stone-600 hover:text-stone-900 hover:underline">
-              SLA das fases
-            </Link>
-          </div>
-        </div>
-      </header>
       <main className="mx-auto max-w-7xl px-4 py-6">
+        <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+          <Link href="/admin" className="text-stone-600 hover:text-stone-900 hover:underline">
+            Admin
+          </Link>
+          <Link href="/admin/sla" className="text-stone-600 hover:text-stone-900 hover:underline">
+            SLA das fases
+          </Link>
+        </div>
         <h1 className="text-xl font-bold text-moni-dark">Gerenciar Usuários</h1>
-        <p className="mt-1 text-sm text-stone-600">Aprovação e ajuste de papéis de acesso.</p>
+        <p className="mt-1 text-sm text-stone-600">Aprovação, grupo, cargo e convites.</p>
         <div className="mt-4 space-y-4">
           <EnviarConviteForm />
           <ConvidarPendentesButton />
@@ -57,23 +67,23 @@ export default async function AdminUsuariosPage() {
                 <th className="px-3 py-2">Nome</th>
                 <th className="px-3 py-2">E-mail</th>
                 <th className="px-3 py-2">Departamento</th>
-                <th className="px-3 py-2">Role</th>
+                <th className="px-3 py-2">Grupo</th>
+                <th className="px-3 py-2">Cargo</th>
                 <th
                   className="px-3 py-2"
                   title="Convite pendente (token), envio por Resend, ou utilizador que já aceitou o convite e definiu senha."
                 >
                   Convite ativo
                 </th>
-                <th className="px-3 py-2">Ações</th>
               </tr>
             </thead>
             <tbody>
-              {(rows ?? []).map((r: any) => (
+              {list.map((r) => (
                 <tr key={r.id} className="border-t border-stone-100">
                   <td className="px-3 py-2">{r.nome_completo ?? r.full_name ?? '—'}</td>
                   <td className="px-3 py-2">{r.email ?? '—'}</td>
                   <td className="px-3 py-2">{r.departamento ?? '—'}</td>
-                  <td className="px-3 py-2">{r.role ?? 'pending'}</td>
+                  <UsuarioGrupoEcargoCells profileId={r.id} role={r.role ?? 'team'} cargo={r.cargo} />
                   <td className="px-3 py-2 text-stone-600">
                     {r.invite_token ? (
                       r.invite_email_sent_at ? (
@@ -96,17 +106,6 @@ export default async function AdminUsuariosPage() {
                       <span className="text-stone-400">Não</span>
                     )}
                   </td>
-                  <td className="px-3 py-2">
-                    <form action={updateUserRoleFormAction.bind(null, r.id, 'team')} className="inline-block">
-                      <button className="mr-2 rounded border px-2 py-1 hover:bg-stone-50">Team</button>
-                    </form>
-                    <form action={updateUserRoleFormAction.bind(null, r.id, 'admin')} className="inline-block">
-                      <button className="mr-2 rounded border px-2 py-1 hover:bg-stone-50">Admin</button>
-                    </form>
-                    <form action={updateUserRoleFormAction.bind(null, r.id, 'blocked')} className="inline-block">
-                      <button className="rounded border px-2 py-1 text-red-700 hover:bg-red-50">Bloquear</button>
-                    </form>
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -116,4 +115,3 @@ export default async function AdminUsuariosPage() {
     </div>
   );
 }
-

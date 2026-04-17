@@ -57,6 +57,7 @@ import {
   resolveKanbanChamadoSurfaceKind,
 } from '@/lib/atividade-vinculada-visual';
 import type { CamposPorFaseMap, KanbanFase, KanbanFaseMaterial, KanbanNomeDisplay } from './types';
+import { usePermissoes } from '@/lib/hooks/usePermissoes';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 import {
@@ -83,6 +84,8 @@ import {
   type SecaoEsquerdaId,
   type SubInteracaoModal,
 } from './kanban-card-modal-helpers';
+import { AnexosChamado } from './AnexosChamado';
+import { AnexosSubchamado } from './AnexosSubchamado';
 import {
   buildLegadoFaseTimeline,
   buildNativeFaseTimeline,
@@ -157,7 +160,7 @@ function corFundoChamado(dataVencimento: string | null | undefined, status: stri
 
 export type KanbanCardModalProps = {
   cardId: string;
-  kanbanNome: KanbanNomeDisplay;
+  kanbanNome: KanbanNomeDisplay | string;
   onClose: () => void;
   /** Se não vier, as fases são carregadas do banco após obter o card. */
   fases?: KanbanFase[];
@@ -167,6 +170,8 @@ export type KanbanCardModalProps = {
   camposPorFase?: CamposPorFaseMap;
   /** `legado`: card é `processo_step_one` (view); não usa `kanban_cards`. */
   origem?: 'legado' | 'nativo';
+  /** Portal do franqueado: oculta arquivar, finalizar e mudança de fase. */
+  portalFrank?: boolean;
 };
 
 export function KanbanCardModal({
@@ -178,8 +183,11 @@ export function KanbanCardModal({
   basePath = '/',
   camposPorFase,
   origem = 'nativo',
+  portalFrank = false,
 }: KanbanCardModalProps) {
   const router = useRouter();
+  const { pode } = usePermissoes();
+  const ocultarGestaoCard = portalFrank === true;
   const [loading, setLoading] = useState(true);
   const [card, setCard] = useState<Card | null>(null);
   const [fases, setFases] = useState<KanbanFase[]>(fasesProp ?? []);
@@ -199,6 +207,11 @@ export function KanbanCardModal({
   const [novoComentarioCard, setNovoComentarioCard] = useState('');
   const [salvandoComentario, setSalvandoComentario] = useState(false);
   const [interacoes, setInteracoes] = useState<InteracaoModal[]>([]);
+  const [modalSessao, setModalSessao] = useState<{
+    userId: string | null;
+    uploaderNome: string;
+    ehAdminOuTeam: boolean;
+  }>({ userId: null, uploaderNome: '—', ehAdminOuTeam: false });
   const [kanbanTimes, setKanbanTimes] = useState<KanbanTimeRow[]>([]);
   const [responsaveisOpcoes, setResponsaveisOpcoes] = useState<{ id: string; nome: string }[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -277,10 +290,11 @@ export function KanbanCardModal({
     setBuscaVinculo('');
     setTipoNovoVinculo('relacionado');
     setResultadosBuscaVinculo([]);
+    setModalSessao({ userId: null, uploaderNome: '—', ehAdminOuTeam: false });
   }, [cardId]);
 
   useEffect(() => {
-    if (!vincularAberto || !isAdmin || !card || origem === 'legado') {
+    if (!vincularAberto || !pode('vincular_cards') || !card || origem === 'legado') {
       setResultadosBuscaVinculo([]);
       return;
     }
@@ -302,7 +316,7 @@ export function KanbanCardModal({
       cancel = true;
       clearTimeout(h);
     };
-  }, [buscaVinculo, vincularAberto, isAdmin, card?.id, origem]);
+  }, [buscaVinculo, vincularAberto, pode, card?.id, origem]);
 
   useEffect(() => {
     if (!card?.fase_id) return;
@@ -367,6 +381,30 @@ export function KanbanCardModal({
     setLoading(true);
     try {
       const supabase = createClient();
+
+      try {
+        const {
+          data: { user: sessUser },
+        } = await supabase.auth.getUser();
+        let uid: string | null = null;
+        let unome = '—';
+        let admTeam = false;
+        if (sessUser) {
+          uid = sessUser.id;
+          const { data: me } = await supabase
+            .from('profiles')
+            .select('full_name, role')
+            .eq('id', sessUser.id)
+            .maybeSingle();
+          const fn = String((me as { full_name?: string | null } | null)?.full_name ?? '').trim();
+          unome = fn || '—';
+          const rl = String((me as { role?: string | null } | null)?.role ?? '').toLowerCase();
+          admTeam = rl === 'admin' || rl === 'team';
+        }
+        setModalSessao({ userId: uid, uploaderNome: unome, ehAdminOuTeam: admTeam });
+      } catch {
+        setModalSessao({ userId: null, uploaderNome: '—', ehAdminOuTeam: false });
+      }
 
       type LoadedShape = {
         id: string;
@@ -640,7 +678,7 @@ export function KanbanCardModal({
         const { data: interacoesData, error: interacoesError } = await supabase
           .from('kanban_atividades')
           .select(
-            'id, titulo, descricao, tipo, times_ids, responsaveis_ids, trava, status, prioridade, data_vencimento, responsavel_id, time, created_at, concluida_em, origem',
+            'id, titulo, descricao, tipo, times_ids, responsaveis_ids, trava, status, prioridade, data_vencimento, responsavel_id, time, created_at, concluida_em, origem, criado_por',
           )
           .eq('card_id', cardId)
           .eq('origem', origemAtividade)
@@ -686,6 +724,7 @@ export function KanbanCardModal({
               nome: responsaveisMap.get(id)?.full_name?.trim() || id.slice(0, 8),
             }));
             const primeiroResp = respIds[0] ?? rid;
+            const cp = (a as { criado_por?: string | null }).criado_por;
             return {
               id: String(a.id),
               titulo: String(a.titulo ?? ''),
@@ -701,6 +740,7 @@ export function KanbanCardModal({
               time: (a.time as string | null) ?? null,
               created_at: String(a.created_at),
               concluida_em: (a.concluida_em as string | null) ?? null,
+              criado_por: cp != null && String(cp).trim() !== '' ? String(cp) : null,
               profiles: primeiroResp ? responsaveisMap.get(primeiroResp) ?? null : null,
               times_resolvidos,
               responsaveis_resolvidos,
@@ -796,6 +836,10 @@ export function KanbanCardModal({
 
   async function handleAdicionarInteracao() {
     if (!card || !novaInteracao.titulo.trim()) return;
+    if (!pode('criar_chamados')) {
+      alert('Sem permissão para criar chamados.');
+      return;
+    }
     setLoading(true);
     try {
       const ordemReal = interacoes.filter((a) => !isInteracaoDemonstracao(a.id)).length;
@@ -987,6 +1031,10 @@ export function KanbanCardModal({
 
   async function handleCriarSubInteracao(interacaoId: string) {
     if (!subNovaDraft.titulo.trim()) return;
+    if (!pode('criar_chamados')) {
+      alert('Sem permissão para criar chamados.');
+      return;
+    }
     setSalvandoSub(true);
     try {
       const res = await criarSubInteracao({
@@ -1025,6 +1073,10 @@ export function KanbanCardModal({
 
   async function handleConfirmarFinalizarCard() {
     if (!card || origem === 'legado') return;
+    if (!pode('finalizar_cards')) {
+      alert('Sem permissão para finalizar cards.');
+      return;
+    }
     setLoading(true);
     try {
       const r = await finalizarCard({ cardId: card.id, basePath });
@@ -1064,6 +1116,10 @@ export function KanbanCardModal({
 
   async function handleAvancarFase() {
     if (!card || !faseAtual) return;
+    if (!pode('mover_fase')) {
+      alert('Sem permissão para mover de fase.');
+      return;
+    }
     const proximaFase = fases.find((f) => f.ordem === faseAtual.ordem + 1);
     if (!proximaFase) {
       alert('Esta é a última fase do funil.');
@@ -1098,6 +1154,10 @@ export function KanbanCardModal({
 
   async function handleRetrocederFase() {
     if (!card || !faseAtual) return;
+    if (!pode('mover_fase')) {
+      alert('Sem permissão para mover de fase.');
+      return;
+    }
     const faseAnterior = fases.find((f) => f.ordem === faseAtual.ordem - 1);
     if (!faseAnterior) {
       alert('Esta é a primeira fase do funil.');
@@ -1161,6 +1221,10 @@ export function KanbanCardModal({
 
   async function handleConfirmarArquivar() {
     if (!card || origem === 'legado') return;
+    if (!pode('arquivar_cards')) {
+      alert('Sem permissão para arquivar cards.');
+      return;
+    }
     const motivo = motivoArquivamento.trim();
     if (!motivo) {
       alert('Informe o motivo do arquivamento.');
@@ -1323,7 +1387,7 @@ export function KanbanCardModal({
   }, [card, fases, historico, legadoCronologiaMoves, origem]);
 
   const abrirEdicaoInstrucoesFase = () => {
-    if (!faseAtual || !isAdmin) return;
+    if (!faseAtual || !pode('editar_instrucoes')) return;
     setDraftInstrucoesFase((faseAtual.instrucoes ?? '').trim() ? String(faseAtual.instrucoes) : '');
     setDraftMateriaisFase(
       faseAtual.materiais && faseAtual.materiais.length > 0 ? faseAtual.materiais.map((m) => ({ ...m })) : [],
@@ -1332,7 +1396,7 @@ export function KanbanCardModal({
   };
 
   async function handleSalvarInstrucoesFase() {
-    if (!faseAtual || !isAdmin) return;
+    if (!faseAtual || !pode('editar_instrucoes')) return;
     setSalvandoInstrucoesFase(true);
     try {
       const res = await salvarInstrucoesFase(
@@ -1618,7 +1682,7 @@ export function KanbanCardModal({
               >
                 {!faseAtual ? (
                   <p className="text-sm italic text-stone-400">Carregando fase…</p>
-                ) : editandoInstrucoesFase && isAdmin ? (
+                ) : editandoInstrucoesFase && pode('editar_instrucoes') ? (
                   <div className="space-y-3">
                     <label className="block text-xs font-medium text-stone-600">
                       Texto (quebras de linha preservadas)
@@ -1770,7 +1834,7 @@ export function KanbanCardModal({
                         </div>
                       );
                     })()}
-                    {isAdmin ? (
+                    {pode('editar_instrucoes') ? (
                       <button
                         type="button"
                         onClick={abrirEdicaoInstrucoesFase}
@@ -1954,6 +2018,18 @@ export function KanbanCardModal({
                                 </>
                               ) : (
                                 <>
+                                  {!demo ? (
+                                    <AnexosChamado
+                                      chamadoId={it.id}
+                                      portalFrank={portalFrank}
+                                      uploader_nome={modalSessao.uploaderNome}
+                                      basePath={basePath}
+                                      chamadoCriadoPor={it.criado_por}
+                                      sessionUserId={modalSessao.userId}
+                                      sessionEhAdminOuTeam={modalSessao.ehAdminOuTeam}
+                                      demo={demo}
+                                    />
+                                  ) : null}
                                   <h5 className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
                                     {it.titulo}
                                   </h5>
@@ -2234,6 +2310,13 @@ export function KanbanCardModal({
                                             ) : (
                                               <p className="text-[10px] text-stone-400">Sem prazo</p>
                                             )}
+                                            <AnexosSubchamado
+                                              subchamadoId={sub.id}
+                                              uploader_nome={modalSessao.uploaderNome}
+                                              basePath={basePath}
+                                              sessionUserId={modalSessao.userId}
+                                              sessionEhAdminOuTeam={modalSessao.ehAdminOuTeam}
+                                            />
                                           </div>
                                           <select
                                             value={sub.status}
@@ -2354,7 +2437,7 @@ export function KanbanCardModal({
                                 ) : null}
                               </div>
                             ) : null}
-                            {!demo ? (
+                            {!demo && pode('criar_chamados') ? (
                               <div className="mt-2">
                                 <button
                                   type="button"
@@ -2385,6 +2468,7 @@ export function KanbanCardModal({
                 <p className="mb-4 text-sm text-stone-500">Nenhum chamado para os filtros.</p>
               )}
 
+              {pode('criar_chamados') ? (
               <div
                 className="rounded-lg p-4"
                 style={{
@@ -2482,6 +2566,9 @@ export function KanbanCardModal({
                   </button>
                 </div>
               </div>
+              ) : (
+                <p className="mb-4 text-xs text-stone-500">Criar chamados não está disponível para o seu perfil.</p>
+              )}
             </div>
 
             <div className="mt-auto border-t pt-4" style={{ borderColor: 'var(--moni-border-default)' }}>
@@ -2532,7 +2619,7 @@ export function KanbanCardModal({
               </div>
             </div>
 
-            {!isLegado && !card.concluido ? (
+            {!ocultarGestaoCard && pode('arquivar_cards') && !isLegado && !card.concluido ? (
               <div className="mt-4 border-t pt-4" style={{ borderColor: 'var(--moni-border-default)' }}>
                 {!arquivamentoAberto ? (
                   <button
@@ -2589,6 +2676,7 @@ export function KanbanCardModal({
           </div>
 
           {/* Direita — ações de movimento do card (mobile: após o centro) */}
+          {!ocultarGestaoCard && (pode('mover_fase') || pode('finalizar_cards')) ? (
           <aside
             className="moni-card-modal-acoes order-2 flex w-full shrink-0 flex-col gap-1.5 border-t p-2 text-xs sm:order-3 sm:h-full sm:min-w-0 sm:w-[120px] sm:max-w-[120px] sm:flex-none sm:border-l sm:border-t-0 sm:p-2"
             style={{
@@ -2597,35 +2685,39 @@ export function KanbanCardModal({
             }}
             aria-label="Ações do card"
           >
-            <button
-              type="button"
-              onClick={() => void handleRetrocederFase()}
-              disabled={loading || !podeRetrocederFase}
-              className="w-full px-2 py-1 text-xs font-medium leading-tight transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
-              style={{
-                background: 'var(--moni-surface-0)',
-                color: 'var(--moni-text-primary)',
-                border: '0.5px solid var(--moni-border-default)',
-                borderRadius: 'var(--moni-radius-md)',
-              }}
-            >
-              {loading ? '…' : 'Fase Anterior'}
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleAvancarFase()}
-              disabled={loading || !podeAvancarFase}
-              className="w-full px-2 py-1 text-xs font-medium leading-tight transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
-              style={{
-                background: 'var(--moni-surface-0)',
-                color: 'var(--moni-green-800)',
-                border: '0.5px solid var(--moni-green-400)',
-                borderRadius: 'var(--moni-radius-md)',
-              }}
-            >
-              {loading ? '…' : 'Próxima Fase'}
-            </button>
-            {exibirBotaoFinalizar || confirmandoFinalizar ? (
+            {pode('mover_fase') ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void handleRetrocederFase()}
+                  disabled={loading || !podeRetrocederFase}
+                  className="w-full px-2 py-1 text-xs font-medium leading-tight transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{
+                    background: 'var(--moni-surface-0)',
+                    color: 'var(--moni-text-primary)',
+                    border: '0.5px solid var(--moni-border-default)',
+                    borderRadius: 'var(--moni-radius-md)',
+                  }}
+                >
+                  {loading ? '…' : 'Fase Anterior'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleAvancarFase()}
+                  disabled={loading || !podeAvancarFase}
+                  className="w-full px-2 py-1 text-xs font-medium leading-tight transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{
+                    background: 'var(--moni-surface-0)',
+                    color: 'var(--moni-green-800)',
+                    border: '0.5px solid var(--moni-green-400)',
+                    borderRadius: 'var(--moni-radius-md)',
+                  }}
+                >
+                  {loading ? '…' : 'Próxima Fase'}
+                </button>
+              </>
+            ) : null}
+            {pode('finalizar_cards') && (exibirBotaoFinalizar || confirmandoFinalizar) ? (
               <div className="mt-1 border-t border-stone-200 pt-1.5">
                 {!confirmandoFinalizar ? (
                   <button
@@ -2678,6 +2770,7 @@ export function KanbanCardModal({
               </div>
             ) : null}
           </aside>
+          ) : null}
 
           {/* Esquerda — dados colapsáveis (mobile: por último) */}
           <div
@@ -3081,7 +3174,7 @@ export function KanbanCardModal({
                                   {v.papel === 'origem' ? 'Saída' : 'Entrada'}
                                 </div>
                               </div>
-                              {isAdmin ? (
+                              {pode('vincular_cards') ? (
                                 <button
                                   type="button"
                                   onClick={() => void handleRemoverVinculo(v.id)}
@@ -3096,7 +3189,7 @@ export function KanbanCardModal({
                         })}
                       </ul>
                     )}
-                    {isAdmin ? (
+                    {pode('vincular_cards') ? (
                       <div className="border-t border-stone-100 pt-2">
                         {!vincularAberto ? (
                           <button

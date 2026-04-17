@@ -191,6 +191,28 @@
   --moni-kanban-credito-accent: var(--moni-gold-400);
 
   /* --------------------------------------------------
+     REDE DE FRANQUEADOS — gráficos, mapa e filtros
+     (mesma identidade que Painéis: Step One / verde médio Moní)
+  -------------------------------------------------- */
+
+  --moni-rede-chart-surface:   var(--moni-status-done-bg);
+  --moni-rede-chart-border:      rgba(77, 122, 98, 0.28);
+  --moni-rede-chart-track:       var(--moni-green-100);
+  --moni-rede-chart-fill:        var(--moni-kanban-stepone);
+  --moni-rede-chart-fill-secondary: var(--moni-gold-600);
+  --moni-rede-kpi-em-operacao: var(--moni-green-800);
+  --moni-rede-filter-em-operacao-bg: var(--moni-green-600);
+  --moni-rede-filter-encerradas-bg:  var(--moni-status-overdue-border);
+  --moni-rede-hover-row:       rgba(154, 184, 166, 0.32);
+  --moni-rede-map-bg:          var(--moni-green-50);
+  --moni-rede-map-land:        var(--moni-surface-200);
+  --moni-rede-map-stroke:      var(--moni-border-default);
+  --moni-rede-map-label:       var(--moni-text-secondary);
+  --moni-rede-map-pin-outer:   var(--moni-green-800);
+  --moni-rede-map-pin-inner:   var(--moni-green-400);
+  --moni-rede-map-callout:     var(--moni-navy-400);
+
+  /* --------------------------------------------------
      TRANSIÇÕES
   -------------------------------------------------- */
 

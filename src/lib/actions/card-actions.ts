@@ -1,5 +1,6 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import type { KanbanFaseMaterial } from '@/components/kanban-shared/types';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
@@ -592,6 +593,15 @@ async function perfilEhAdminOuConsultor(
   return role === 'admin' || role === 'consultor';
 }
 
+async function perfilEhAdminOuTeam(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+): Promise<boolean> {
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+  const role = String((profile as { role?: string } | null)?.role ?? '').toLowerCase();
+  return role === 'admin' || role === 'team';
+}
+
 function kanbanNomeDeJoin(row: { kanbans?: unknown }): string {
   const kn = row.kanbans;
   if (Array.isArray(kn)) return String((kn[0] as { nome?: string } | undefined)?.nome ?? '').trim();
@@ -767,6 +777,295 @@ export async function removerVinculoCard(
 
   const { error } = await supabase.from('kanban_card_vinculos').delete().eq('id', vid);
   if (error) return { ok: false, error: error.message };
+
+  revalidatePath(basePath?.trim() || '/');
+  revalidatePath('/');
+  return { ok: true };
+}
+
+const MAX_ANEXO_BYTES = 10 * 1024 * 1024;
+
+export type ChamadoAnexoRow = {
+  id: string;
+  chamado_id: string;
+  storage_path: string;
+  nome_original: string;
+  tamanho: number | null;
+  tipo_mime: string | null;
+  uploader_id: string | null;
+  uploader_nome: string | null;
+  criado_em: string;
+};
+
+export type SubchamadoAnexoRow = {
+  id: string;
+  subchamado_id: string;
+  storage_path: string;
+  nome_original: string;
+  tamanho: number | null;
+  tipo_mime: string | null;
+  uploader_id: string | null;
+  uploader_nome: string | null;
+  criado_em: string;
+};
+
+function sanitizeNomeArquivo(nome: string): string {
+  return String(nome ?? '')
+    .replace(/[/\\]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 180);
+}
+
+export async function listarAnexosChamado(
+  chamadoId: string,
+): Promise<{ ok: true; items: ChamadoAnexoRow[] } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+  const cid = String(chamadoId ?? '').trim();
+  if (!cid) return { ok: false, error: 'Chamado inválido.' };
+
+  const { data, error } = await supabase
+    .from('chamado_anexos')
+    .select('id, chamado_id, storage_path, nome_original, tamanho, tipo_mime, uploader_id, uploader_nome, criado_em')
+    .eq('chamado_id', cid)
+    .order('criado_em', { ascending: false });
+  if (error) return { ok: false, error: error.message };
+  const items = (data ?? []) as unknown as ChamadoAnexoRow[];
+  return { ok: true, items };
+}
+
+export async function listarAnexosSubchamado(
+  subchamadoId: string,
+): Promise<{ ok: true; items: SubchamadoAnexoRow[] } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+  const sid = Number.parseInt(String(subchamadoId ?? '').trim(), 10);
+  if (!Number.isFinite(sid)) return { ok: false, error: 'Sub-chamado inválido.' };
+
+  const { data, error } = await supabase
+    .from('subchamado_anexos')
+    .select('id, subchamado_id, storage_path, nome_original, tamanho, tipo_mime, uploader_id, uploader_nome, criado_em')
+    .eq('subchamado_id', sid)
+    .order('criado_em', { ascending: false });
+  if (error) return { ok: false, error: error.message };
+  const items = (data ?? []).map((r) => {
+    const x = r as Record<string, unknown>;
+    return {
+      id: String(x.id),
+      subchamado_id: String(x.subchamado_id),
+      storage_path: String(x.storage_path ?? ''),
+      nome_original: String(x.nome_original ?? ''),
+      tamanho: x.tamanho != null ? Number(x.tamanho) : null,
+      tipo_mime: x.tipo_mime != null ? String(x.tipo_mime) : null,
+      uploader_id: x.uploader_id != null ? String(x.uploader_id) : null,
+      uploader_nome: x.uploader_nome != null ? String(x.uploader_nome) : null,
+      criado_em: String(x.criado_em ?? ''),
+    } satisfies SubchamadoAnexoRow;
+  });
+  return { ok: true, items };
+}
+
+export async function getSignedUrlAnexo(
+  bucket: string,
+  path: string,
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const b = String(bucket ?? '').trim();
+  const p = String(path ?? '').trim();
+  if (!b || !p) return { ok: false, error: 'Bucket ou caminho inválido.' };
+  if (b !== 'chamados-attachments' && b !== 'subchamados-attachments') {
+    return { ok: false, error: 'Bucket não permitido.' };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const { data, error } = await supabase.storage.from(b).createSignedUrl(p, 3600);
+  if (error || !data?.signedUrl) return { ok: false, error: error?.message ?? 'Não foi possível gerar o link.' };
+  return { ok: true, url: data.signedUrl };
+}
+
+export async function adicionarAnexoChamado(
+  formData: FormData,
+  basePath?: string,
+): Promise<ActionResult & { storagePath?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const chamadoId = String(formData.get('chamadoId') ?? '').trim();
+  const uploaderNome = String(formData.get('uploaderNome') ?? '').trim() || '—';
+  const portalFrank = formData.get('portalFrank') === 'true' || formData.get('portalFrank') === '1';
+  const file = formData.get('file');
+  if (!chamadoId) return { ok: false, error: 'Chamado inválido.' };
+  if (!(file instanceof File)) return { ok: false, error: 'Arquivo inválido.' };
+  if (file.size > MAX_ANEXO_BYTES) return { ok: false, error: 'Arquivo acima de 10 MB.' };
+
+  const { data: atv, error: eAtv } = await supabase
+    .from('kanban_atividades')
+    .select('id, criado_por, responsaveis_ids')
+    .eq('id', chamadoId)
+    .maybeSingle();
+  if (eAtv || !atv) return { ok: false, error: 'Chamado não encontrado.' };
+  const row = atv as { criado_por?: string | null; responsaveis_ids?: string[] | null };
+  const resp = Array.isArray(row.responsaveis_ids) ? row.responsaveis_ids.map(String) : [];
+  const adminTeam = await perfilEhAdminOuTeam(supabase, user.id);
+  const ehCriador = row.criado_por != null && String(row.criado_por) === user.id;
+  const ehResp = resp.includes(user.id);
+  if (portalFrank) {
+    if (!adminTeam && !ehCriador) {
+      return { ok: false, error: 'No portal do franqueado só é possível anexar em chamados criados por você.' };
+    }
+  } else if (!adminTeam && !ehCriador && !ehResp) {
+    return { ok: false, error: 'Sem permissão para anexar neste chamado.' };
+  }
+
+  const orig = sanitizeNomeArquivo(file.name || 'arquivo');
+  const storagePath = `chamados/${chamadoId}/${randomUUID()}-${orig}`;
+  const buf = Buffer.from(await file.arrayBuffer());
+
+  const { error: upErr } = await supabase.storage.from('chamados-attachments').upload(storagePath, buf, {
+    contentType: file.type || 'application/octet-stream',
+    upsert: false,
+  });
+  if (upErr) return { ok: false, error: upErr.message };
+
+  const { error: insErr } = await supabase.from('chamado_anexos').insert({
+    chamado_id: chamadoId,
+    storage_path: storagePath,
+    nome_original: orig,
+    tamanho: file.size,
+    tipo_mime: file.type || null,
+    uploader_id: user.id,
+    uploader_nome: uploaderNome,
+  } as never);
+  if (insErr) {
+    await supabase.storage.from('chamados-attachments').remove([storagePath]);
+    return { ok: false, error: insErr.message };
+  }
+
+  revalidatePath(basePath?.trim() || '/');
+  revalidatePath('/');
+  return { ok: true, storagePath };
+}
+
+export async function adicionarAnexoSubchamado(formData: FormData, basePath?: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const subIdRaw = String(formData.get('subchamadoId') ?? '').trim();
+  const uploaderNome = String(formData.get('uploaderNome') ?? '').trim() || '—';
+  const file = formData.get('file');
+  const sid = Number.parseInt(subIdRaw, 10);
+  if (!Number.isFinite(sid)) return { ok: false, error: 'Sub-chamado inválido.' };
+  if (!(file instanceof File)) return { ok: false, error: 'Arquivo inválido.' };
+  if (file.size > MAX_ANEXO_BYTES) return { ok: false, error: 'Arquivo acima de 10 MB.' };
+
+  const orig = sanitizeNomeArquivo(file.name || 'arquivo');
+  const storagePath = `subchamados/${sid}/${randomUUID()}-${orig}`;
+  const buf = Buffer.from(await file.arrayBuffer());
+
+  const { error: upErr } = await supabase.storage.from('subchamados-attachments').upload(storagePath, buf, {
+    contentType: file.type || 'application/octet-stream',
+    upsert: false,
+  });
+  if (upErr) return { ok: false, error: upErr.message };
+
+  const { error: insErr } = await supabase.from('subchamado_anexos').insert({
+    subchamado_id: sid,
+    storage_path: storagePath,
+    nome_original: orig,
+    tamanho: file.size,
+    tipo_mime: file.type || null,
+    uploader_id: user.id,
+    uploader_nome: uploaderNome,
+  } as never);
+  if (insErr) {
+    await supabase.storage.from('subchamados-attachments').remove([storagePath]);
+    return { ok: false, error: insErr.message };
+  }
+
+  revalidatePath(basePath?.trim() || '/');
+  revalidatePath('/');
+  return { ok: true };
+}
+
+export async function removerAnexoChamado(
+  anexoId: string,
+  storagePath: string,
+  basePath?: string,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const id = String(anexoId ?? '').trim();
+  const path = String(storagePath ?? '').trim();
+  if (!id || !path) return { ok: false, error: 'Dados inválidos.' };
+
+  const { data: row, error: fErr } = await supabase
+    .from('chamado_anexos')
+    .select('id, uploader_id')
+    .eq('id', id)
+    .maybeSingle();
+  if (fErr || !row) return { ok: false, error: 'Anexo não encontrado.' };
+  const up = (row as { uploader_id?: string | null }).uploader_id;
+  const adminTeam = await perfilEhAdminOuTeam(supabase, user.id);
+  if (!adminTeam && up !== user.id) return { ok: false, error: 'Sem permissão para excluir.' };
+
+  await supabase.storage.from('chamados-attachments').remove([path]);
+  const { error: delE } = await supabase.from('chamado_anexos').delete().eq('id', id);
+  if (delE) return { ok: false, error: delE.message };
+
+  revalidatePath(basePath?.trim() || '/');
+  revalidatePath('/');
+  return { ok: true };
+}
+
+export async function removerAnexoSubchamado(
+  anexoId: string,
+  storagePath: string,
+  basePath?: string,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const id = String(anexoId ?? '').trim();
+  const path = String(storagePath ?? '').trim();
+  if (!id || !path) return { ok: false, error: 'Dados inválidos.' };
+
+  const { data: row, error: fErr } = await supabase
+    .from('subchamado_anexos')
+    .select('id, uploader_id')
+    .eq('id', id)
+    .maybeSingle();
+  if (fErr || !row) return { ok: false, error: 'Anexo não encontrado.' };
+  const up = (row as { uploader_id?: string | null }).uploader_id;
+  const adminTeam = await perfilEhAdminOuTeam(supabase, user.id);
+  if (!adminTeam && up !== user.id) return { ok: false, error: 'Sem permissão para excluir.' };
+
+  await supabase.storage.from('subchamados-attachments').remove([path]);
+  const { error: delE } = await supabase.from('subchamado_anexos').delete().eq('id', id);
+  if (delE) return { ok: false, error: delE.message };
 
   revalidatePath(basePath?.trim() || '/');
   revalidatePath('/');

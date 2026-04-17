@@ -163,7 +163,13 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
-      router.push(role === 'admin' ? (next || '/dashboard-novos-negocios') : '/rede-franqueados');
+      if (role === 'admin') {
+        router.push(next || '/dashboard-novos-negocios');
+      } else if (role === 'frank') {
+        router.push('/portal-frank');
+      } else {
+        router.push('/rede-franqueados');
+      }
       router.refresh();
     } catch {
       setError('Erro ao entrar. Tente de novo.');
@@ -232,7 +238,9 @@ export default function LoginPage() {
         router.push('/login?status=pending');
       } else {
         const role = normalizeAccessRole(seeded.role);
-        router.push(role === 'admin' ? '/dashboard-novos-negocios' : '/rede-franqueados');
+        if (role === 'admin') router.push('/dashboard-novos-negocios');
+        else if (role === 'frank') router.push('/portal-frank');
+        else router.push('/rede-franqueados');
       }
       router.refresh();
     } catch (unknownErr) {

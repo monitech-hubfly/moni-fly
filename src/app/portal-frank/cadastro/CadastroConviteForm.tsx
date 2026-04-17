@@ -1,12 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { confirmarCadastroPortalFrank } from '@/app/portal-frank/actions';
 import type { RedeFrankPrefill } from '@/lib/portal-frank/rede-cadastro-types';
-import { redePrefillParaPayload } from '@/lib/portal-frank/rede-cadastro-types';
+import {
+  redePrefillParaFranquiaSomenteLeitura,
+  redePrefillParaPayload,
+} from '@/lib/portal-frank/rede-cadastro-types';
 import { RedeFrankDadosCampos } from '@/app/portal-frank/RedeFrankDadosCampos';
 
 type Props = {
@@ -15,11 +18,22 @@ type Props = {
   redePrefill: RedeFrankPrefill | null;
 };
 
+function dadosIniciaisRede(emailConvite: string, redePrefill: RedeFrankPrefill | null) {
+  const p = redePrefillParaPayload(redePrefill);
+  const ec = emailConvite.trim().toLowerCase();
+  if (!p.email_frank.trim()) return { ...p, email_frank: ec };
+  return p;
+}
+
 export function CadastroConviteForm({ token, emailConvite, redePrefill }: Props) {
   const router = useRouter();
   const email = emailConvite.trim().toLowerCase();
-  const [nome, setNome] = useState(() => String(redePrefill?.nome_completo ?? '').trim());
-  const [dadosRede, setDadosRede] = useState(() => redePrefillParaPayload(redePrefill));
+  const franquiaRo = useMemo(() => redePrefillParaFranquiaSomenteLeitura(redePrefill), [redePrefill]);
+  const nomeCompletoRede = String(franquiaRo.nome_completo ?? '').trim();
+  const nomeRedeBloqueado = Boolean(nomeCompletoRede);
+
+  const [nomeLivre, setNomeLivre] = useState('');
+  const [dadosRede, setDadosRede] = useState(() => dadosIniciaisRede(emailConvite, redePrefill));
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
@@ -28,7 +42,7 @@ export function CadastroConviteForm({ token, emailConvite, redePrefill }: Props)
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    const nomeTrim = nome.trim();
+    const nomeTrim = nomeRedeBloqueado ? nomeCompletoRede : nomeLivre.trim();
     if (!nomeTrim) {
       setError('Informe o nome completo.');
       return;
@@ -79,18 +93,28 @@ export function CadastroConviteForm({ token, emailConvite, redePrefill }: Props)
     <form className="mt-6 space-y-8" onSubmit={(ev) => void handleSubmit(ev)}>
       <section className="space-y-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">Seus dados</h2>
+        {nomeRedeBloqueado ? (
+          <div>
+            <span className="block text-sm font-medium text-stone-700">Nome completo</span>
+            <p className="mt-1 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-800">
+              {nomeCompletoRede}
+            </p>
+            <p className="mt-1 text-xs text-stone-500">Nome conforme cadastro da franquia na rede (somente leitura).</p>
+          </div>
+        ) : (
+          <label className="block text-sm font-medium text-stone-700">
+            Nome completo
+            <input
+              type="text"
+              required
+              value={nomeLivre}
+              onChange={(e) => setNomeLivre(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-900 focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400"
+            />
+          </label>
+        )}
         <label className="block text-sm font-medium text-stone-700">
-          Nome completo
-          <input
-            type="text"
-            required
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-900 focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400"
-          />
-        </label>
-        <label className="block text-sm font-medium text-stone-700">
-          E-mail
+          E-mail de acesso
           <input
             type="email"
             required
@@ -126,9 +150,10 @@ export function CadastroConviteForm({ token, emailConvite, redePrefill }: Props)
       <section className="space-y-4 border-t border-stone-200 pt-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">Dados do franqueado</h2>
         <p className="text-xs text-stone-500">
-          Confira ou complete as informações da sua unidade na rede. Elas serão salvas no seu cadastro.
+          Informações da franquia são definidas pela Moní. Atualize apenas seus dados de contato e endereço quando
+          aplicável.
         </p>
-        <RedeFrankDadosCampos value={dadosRede} onChange={setDadosRede} />
+        <RedeFrankDadosCampos franquiaSomenteLeitura={franquiaRo} value={dadosRede} onChange={setDadosRede} />
       </section>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}

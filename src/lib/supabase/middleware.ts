@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { normalizeAccessRole } from '@/lib/authz';
-import { isAdminOnlyPath, isTeamAllowedPath } from '@/lib/access-matrix';
+import { isAdminOnlyPath, isFrankAllowedPath, isTeamAllowedPath } from '@/lib/access-matrix';
 import { allowPublicAccessRedeNovos, isAppFullyPublic } from '@/lib/public-rede-novos';
 
 export async function updateSession(request: NextRequest) {
@@ -38,8 +38,14 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const isAuthPage = pathname === '/login' || pathname === '/aceitar-convite';
+  const isPortalFrankPublic =
+    pathname === '/portal-frank/login' ||
+    pathname.startsWith('/portal-frank/login/') ||
+    pathname === '/portal-frank/cadastro' ||
+    pathname.startsWith('/portal-frank/cadastro/');
   const isPublicPage =
     isAuthPage ||
+    isPortalFrankPublic ||
     pathname === '/esqueci-senha' ||
     pathname === '/redefinir-senha' ||
     pathname.startsWith('/api/webhooks/');
@@ -76,6 +82,11 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (isAuthPage && user) {
+    const { data: profLogin } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+    const roleLogin = normalizeAccessRole((profLogin as { role?: string | null } | null)?.role);
+    if (roleLogin === 'frank') {
+      return NextResponse.redirect(new URL('/portal-frank', request.url));
+    }
     return NextResponse.redirect(new URL('/rede-franqueados', request.url));
   }
 
@@ -86,7 +97,19 @@ export async function updateSession(request: NextRequest) {
     .select('role')
     .eq('id', user.id)
     .maybeSingle();
+  const rawProfileRole = String((profile as { role?: string | null } | null)?.role ?? '')
+    .trim()
+    .toLowerCase();
   const accessRole = normalizeAccessRole((profile as { role?: string | null } | null)?.role);
+
+  const sirenePath = pathname === '/sirene' || pathname.startsWith('/sirene/');
+  if (sirenePath && !pathname.startsWith('/api')) {
+    const bloqueioSirene = ['frank', 'franqueado', 'parceiro', 'fornecedor', 'cliente'];
+    if (bloqueioSirene.includes(rawProfileRole)) {
+      const dest = rawProfileRole === 'frank' || rawProfileRole === 'franqueado' ? '/portal-frank' : '/rede-franqueados';
+      return NextResponse.redirect(new URL(dest, request.url));
+    }
+  }
 
   if (accessRole === 'pending') {
     if (pathname !== '/login') {
@@ -106,6 +129,13 @@ export async function updateSession(request: NextRequest) {
     return response;
   }
 
+  // Franqueado: apenas rotas sob /portal-frank (login/cadastro públicos tratados acima).
+  if (accessRole === 'frank' && !pathname.startsWith('/api')) {
+    if (!isFrankAllowedPath(pathname)) {
+      return NextResponse.redirect(new URL('/portal-frank', request.url));
+    }
+  }
+
   // Team: só Rede, Comunidade, Novos Negócios (painel/dashboard/tarefas), Perfil e home `/`.
   // APIs seguem validação nos handlers / RLS (não redirecionar JSON).
   if (accessRole === 'team' && !pathname.startsWith('/api')) {
@@ -116,7 +146,8 @@ export async function updateSession(request: NextRequest) {
 
   const isAdminOnly = isAdminOnlyPath(pathname);
   if (isAdminOnly && accessRole !== 'admin') {
-    return NextResponse.redirect(new URL('/rede-franqueados', request.url));
+    const dest = accessRole === 'frank' ? '/portal-frank' : '/rede-franqueados';
+    return NextResponse.redirect(new URL(dest, request.url));
   }
 
   return response;

@@ -43,7 +43,8 @@ export async function fetchKanbanBoardSnapshot(
   if (userId) {
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
     role = (profile?.role as string) ?? 'frank';
-    isAdmin = role === 'admin' || role === 'consultor';
+    isAdmin =
+      role === 'admin' || role === 'consultor' || role === 'supervisor' || role === 'team';
   } else {
     isAdmin = true;
   }

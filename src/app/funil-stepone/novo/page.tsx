@@ -1,4 +1,5 @@
 import { guardLoginRequired } from '@/lib/auth-guard';
+import { getPermissoes } from '@/lib/permissoes-server';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
@@ -17,7 +18,12 @@ export default async function NovoCardPage() {
     .eq('id', user.id)
     .single();
   const role = (profile?.role as string) ?? 'frank';
-  const isAdmin = role === 'admin' || role === 'consultor';
+  const isAdmin = role === 'admin' || role === 'consultor' || role === 'supervisor' || role === 'team';
+
+  const perms = await getPermissoes(user.id);
+  if (!perms.pode('criar_cards')) {
+    redirect('/funil-stepone');
+  }
 
   // Busca o kanban "Funil Step One"
   const { data: kanban } = await supabase

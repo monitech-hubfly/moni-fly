@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import type { RedeFranqueadosData } from '@/lib/rede-franqueados';
+import { RedeFranqueadoCellClamp } from '@/components/RedeFranqueadoCellClamp';
 
 const PER_PAGE = 15;
 
@@ -70,8 +71,8 @@ export function TabelaRedeFranqueados({ data, compact }: Props) {
             {rowsToShow.map((row, ri) => (
               <tr key={start + ri} className="border-b border-stone-100 hover:bg-stone-50/80">
                 {headers.map((_, ci) => (
-                  <td key={ci} className={`text-stone-700 ${compact ? 'px-2 py-1' : 'px-3 py-2'}`}>
-                    {row[ci] ?? ''}
+                  <td key={ci} className={`min-w-0 max-w-[14rem] overflow-hidden align-top text-stone-700 ${compact ? 'px-2 py-1' : 'px-3 py-2'}`}>
+                    <RedeFranqueadoCellClamp text={String(row[ci] ?? '')} />
                   </td>
                 ))}
               </tr>

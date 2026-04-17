@@ -1,5 +1,6 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { parseAndMapRedeCSV, type RedeFranqueadoRow } from '@/lib/import-rede-csv';
@@ -596,4 +597,99 @@ export async function importarRedeFranqueadosCSV(csvText: string): Promise<Impor
     inseridos,
     mensagem: inseridos === 1 ? '1 linha importada.' : `${inseridos} linhas importadas.`,
   };
+}
+
+const MAX_REDE_DOC_BYTES = 10 * 1024 * 1024;
+
+function sanitizeRedeNomeArquivo(nome: string): string {
+  return String(nome ?? '')
+    .replace(/[/\\]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 180);
+}
+
+async function perfilPodeGerirDocsRede(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+): Promise<boolean> {
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+  const role = String((profile as { role?: string } | null)?.role ?? '').toLowerCase();
+  return role === 'admin' || role === 'team' || role === 'consultor';
+}
+
+/** Link assinado (1h) — só equipe interna (admin / team / consultor). */
+export async function getSignedUrlRedeAnexo(
+  storagePath: string,
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const p = String(storagePath ?? '').trim();
+  if (!p) return { ok: false, error: 'Caminho inválido.' };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+  if (!(await perfilPodeGerirDocsRede(supabase, user.id))) {
+    return { ok: false, error: 'Sem permissão para baixar este documento.' };
+  }
+
+  const { data, error } = await supabase.storage.from('rede-attachments').createSignedUrl(p, 3600);
+  if (error || !data?.signedUrl) return { ok: false, error: error?.message ?? 'Não foi possível gerar o link.' };
+  return { ok: true, url: data.signedUrl };
+}
+
+/** Upload COF ou contrato assinado no bucket `rede-attachments`. */
+export async function uploadRedeFranqueadoAssinado(
+  formData: FormData,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const tipo = String(formData.get('tipo') ?? '').trim();
+  const redeId = String(formData.get('redeId') ?? '').trim();
+  const file = formData.get('file');
+  if (!redeId) return { ok: false, error: 'Registro inválido.' };
+  if (tipo !== 'cof' && tipo !== 'contrato') return { ok: false, error: 'Tipo inválido.' };
+  if (!(file instanceof File)) return { ok: false, error: 'Arquivo inválido.' };
+  if (file.size > MAX_REDE_DOC_BYTES) return { ok: false, error: 'Arquivo acima de 10 MB.' };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+  if (!(await perfilPodeGerirDocsRede(supabase, user.id))) {
+    return { ok: false, error: 'Apenas administradores ou time podem enviar estes documentos.' };
+  }
+
+  const col = tipo === 'cof' ? 'anexo_cof_path' : 'anexo_contrato_path';
+  const { data: atual, error: leErr } = await supabase
+    .from('rede_franqueados')
+    .select(`id, ${col}`)
+    .eq('id', redeId)
+    .maybeSingle();
+  if (leErr || !atual) return { ok: false, error: 'Linha da rede não encontrada.' };
+
+  const orig = sanitizeRedeNomeArquivo(file.name || 'arquivo');
+  const storagePath = `rede/${redeId}/${tipo}-${randomUUID()}-${orig}`;
+  const buf = Buffer.from(await file.arrayBuffer());
+  const { error: upErr } = await supabase.storage.from('rede-attachments').upload(storagePath, buf, {
+    contentType: file.type || 'application/octet-stream',
+    upsert: false,
+  });
+  if (upErr) return { ok: false, error: upErr.message };
+
+  const oldPath = String((atual as Record<string, unknown>)[col] ?? '').trim() || null;
+
+  const { error: upRow } = await supabase
+    .from('rede_franqueados')
+    .update({ [col]: storagePath } as never)
+    .eq('id', redeId);
+  if (upRow) {
+    await supabase.storage.from('rede-attachments').remove([storagePath]);
+    return { ok: false, error: upRow.message };
+  }
+  if (oldPath) await supabase.storage.from('rede-attachments').remove([oldPath]);
+
+  revalidatePath('/rede-franqueados');
+  revalidatePath(`/rede-franqueados/${redeId}`);
+  return { ok: true };
 }

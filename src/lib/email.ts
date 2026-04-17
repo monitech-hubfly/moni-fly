@@ -227,8 +227,8 @@ export async function sendSignupNotifications(opts: {
     return;
   }
 
-  // Cadastro já liberado (seed team / fluxo aprovado): aviso ao próprio usuário (sem spam para admins).
-  if (opts.accessRole === 'team') {
+  // Cadastro já liberado (seed team / franqueado / fluxo aprovado): aviso ao próprio usuário (sem spam para admins).
+  if (opts.accessRole === 'team' || opts.accessRole === 'frank') {
     await sendEmailViaResend({
       to: opts.userEmail,
       subject: 'Conta criada — Casa Moní',

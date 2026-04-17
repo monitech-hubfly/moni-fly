@@ -79,34 +79,6 @@ export async function renderKanbanDatabasePage(
       enableNovoCardModal
     >
       <div className="min-h-screen bg-[var(--moni-surface-50)]">
-        <header
-          className="border-b bg-white"
-          style={{ borderColor: 'var(--moni-border-default)' }}
-        >
-          <div className="mx-auto flex h-14 max-w-[1600px] items-center justify-between px-6">
-            <div className="flex items-center gap-4">
-              <Link href="/" className="text-sm text-moni-primary hover:underline">
-                ← Hub Fly
-              </Link>
-              <span className="text-stone-400">/</span>
-              <h1 className="text-lg font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-                {config.pageTitle}
-              </h1>
-            </div>
-            <Link
-              href={`${config.basePath}?novo=true`}
-              className="rounded-lg px-4 py-2 text-sm font-medium transition hover:bg-stone-100"
-              style={{
-                background: 'var(--moni-surface-0)',
-                color: 'var(--moni-text-primary)',
-                border: '0.5px solid var(--moni-border-default)',
-              }}
-            >
-              + Novo card
-            </Link>
-          </div>
-        </header>
-
         <Suspense fallback={null}>
           <KanbanPainelTabsShell basePath={config.basePath} variant={config.tabsVariant} />
         </Suspense>
@@ -121,6 +93,7 @@ export async function renderKanbanDatabasePage(
               userRole={role}
               columnAccent={config.columnAccent}
               currentUserId={user.id}
+              mostrarLinkNovoCard
             />
           </main>
         ) : (

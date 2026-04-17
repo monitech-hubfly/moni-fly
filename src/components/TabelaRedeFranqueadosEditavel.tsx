@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Plus, X } from 'lucide-react';
+import Link from 'next/link';
 import type { RedeFranqueadoDbKey, RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
 import { COLUNAS_REDE_FRANQUEADOS, REDE_FRANQUEADOS_DB_KEYS } from '@/lib/rede-franqueados';
 import { atualizarRedeFranqueado, excluirRedeFranqueado } from '@/app/rede-franqueados/actions';
 import { UFS_BRASIL } from '@/lib/uf';
+import { RedeFranqueadoCellClamp } from '@/components/RedeFranqueadoCellClamp';
 
 type AreaAtuacaoItem = { estado: string; cidade: string };
 type CidadeIBGE = { id: number; nome: string };
@@ -306,7 +308,13 @@ export function TabelaRedeFranqueadosEditavel({ rows, canEditRows = true }: Prop
                   {canEditRows && (
                     <td className="whitespace-nowrap px-3 py-2">
                       {!isEditing ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Link
+                            href={`/rede-franqueados/${r.id}`}
+                            className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-moni-primary hover:bg-stone-50"
+                          >
+                            Documentos
+                          </Link>
                           <button
                             type="button"
                             onClick={() => beginEdit(r)}
@@ -358,9 +366,9 @@ export function TabelaRedeFranqueadosEditavel({ rows, canEditRows = true }: Prop
                     const shown = k === 'n_franquia' ? normalizeFKDisplay(current) : current;
                     const isAreaAtuacao = k === 'area_atuacao';
                     return (
-                      <td key={k} className="px-3 py-2 text-stone-700">
+                      <td key={k} className="min-w-0 max-w-[14rem] overflow-hidden px-3 py-2 align-top text-stone-700">
                         {!isEditing ? (
-                          <span className="whitespace-pre-wrap">{shown}</span>
+                          <RedeFranqueadoCellClamp text={shown} titleText={current} />
                         ) : isAreaAtuacao ? (
                           <div className="min-w-[280px] space-y-2">
                             {areaAtuacaoItens.length > 0 && (

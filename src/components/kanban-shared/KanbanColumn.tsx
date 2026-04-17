@@ -57,7 +57,11 @@ export function KanbanColumn({
   columnAccent = 'var(--moni-kanban-stepone)',
 }: KanbanColumnProps) {
   const router = useRouter();
-  const isAdmin = userRole === 'admin' || userRole === 'consultor';
+  const isAdmin =
+    userRole === 'admin' ||
+    userRole === 'consultor' ||
+    userRole === 'supervisor' ||
+    userRole === 'team';
 
   const accent = useMemo(() => columnAccent, [columnAccent]);
 

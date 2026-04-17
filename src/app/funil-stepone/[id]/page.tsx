@@ -17,7 +17,7 @@ export default async function CardDetailPage({ params }: { params: { id: string 
     .eq('id', user.id)
     .single();
   const role = (profile?.role as string) ?? 'frank';
-  const isAdmin = role === 'admin' || role === 'consultor';
+  const isAdmin = role === 'admin' || role === 'consultor' || role === 'supervisor' || role === 'team';
 
   // Busca o card — sem join para profiles (FK aponta para auth.users, não public.profiles)
   const { data: cardRaw, error } = await supabase
@@ -89,17 +89,10 @@ export default async function CardDetailPage({ params }: { params: { id: string 
 
   return (
     <div className="min-h-screen bg-stone-50">
-      <header className="border-b border-stone-200 bg-white">
-        <div className="mx-auto flex h-14 max-w-4xl items-center gap-4 px-6">
-          <Link href="/funil-stepone" className="text-sm text-moni-primary hover:underline">
-            ← Voltar ao Kanban
-          </Link>
-          <span className="text-stone-400">/</span>
-          <h1 className="text-lg font-semibold text-stone-800">Detalhes do Card</h1>
-        </div>
-      </header>
-
       <main className="mx-auto max-w-4xl px-6 py-8">
+        <Link href="/funil-stepone" className="mb-4 inline-block text-sm text-moni-primary hover:underline">
+          ← Voltar ao Kanban
+        </Link>
         <CardDetailClient card={card} fases={fases || []} isAdmin={isAdmin} />
       </main>
     </div>

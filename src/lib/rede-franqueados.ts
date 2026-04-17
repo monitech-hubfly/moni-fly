@@ -73,6 +73,8 @@ export type RedeFranqueadoRowDb = Record<RedeFranqueadoDbKey, string | null> & {
   processo_id?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  anexo_cof_path?: string | null;
+  anexo_contrato_path?: string | null;
 };
 
 type RowDb = Record<RedeFranqueadoDbKey, string | null>;
@@ -160,4 +162,77 @@ export async function fetchRedeFranqueadosRows(
     .order('ordem', { ascending: true });
   if (error) return null;
   return (data ?? []) as RedeFranqueadoRowDb[];
+}
+
+/** Colunas permitidas no portal Frank (tabela + agregados dos gráficos). Não inclui dados sensíveis. */
+export const REDE_PORTAL_FRANK_SELECT = [
+  'id',
+  'ordem',
+  'n_franquia',
+  'nome_completo',
+  'status_franquia',
+  'modalidade',
+  'area_atuacao',
+  'email_frank',
+  'telefone_frank',
+  'responsavel_comercial',
+  'regional',
+  'estado_casa_frank',
+].join(', ');
+
+export type RedeFranqueadoRowPortalFrank = Pick<
+  RedeFranqueadoRowDb,
+  | 'id'
+  | 'ordem'
+  | 'n_franquia'
+  | 'nome_completo'
+  | 'status_franquia'
+  | 'modalidade'
+  | 'area_atuacao'
+  | 'email_frank'
+  | 'telefone_frank'
+  | 'responsavel_comercial'
+  | 'regional'
+  | 'estado_casa_frank'
+>;
+
+function nullRedeDbFields(): Record<RedeFranqueadoDbKey, string | null> {
+  const o = {} as Record<RedeFranqueadoDbKey, string | null>;
+  for (const k of REDE_FRANQUEADOS_DB_KEYS) {
+    o[k] = null;
+  }
+  return o;
+}
+
+/** Preenche campos ausentes com null para reutilizar `RedeDashboard` sem expor colunas ocultas. */
+export function redePortalFrankRowParaDashboardRow(frank: RedeFranqueadoRowPortalFrank): RedeFranqueadoRowDb {
+  return {
+    id: frank.id,
+    ordem: frank.ordem,
+    processo_id: null,
+    created_at: null,
+    updated_at: null,
+    ...nullRedeDbFields(),
+    n_franquia: frank.n_franquia,
+    nome_completo: frank.nome_completo,
+    status_franquia: frank.status_franquia,
+    modalidade: frank.modalidade,
+    area_atuacao: frank.area_atuacao,
+    email_frank: frank.email_frank,
+    telefone_frank: frank.telefone_frank,
+    responsavel_comercial: frank.responsavel_comercial,
+    regional: frank.regional,
+    estado_casa_frank: frank.estado_casa_frank,
+  };
+}
+
+export async function fetchRedeFranqueadosRowsPortalFrank(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<RedeFranqueadoRowPortalFrank[] | null> {
+  const { data, error } = await supabase
+    .from('rede_franqueados')
+    .select(REDE_PORTAL_FRANK_SELECT)
+    .order('ordem', { ascending: true });
+  if (error) return null;
+  return (data ?? []) as unknown as RedeFranqueadoRowPortalFrank[];
 }

@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
 import { parseAreaAtuacao } from '@/lib/rede-area-atuacao';
+import redeMapBrazilOutline from '@/data/rede-map-brazil-outline.json';
+import redeMapBrazilStates from '@/data/rede-map-brazil-states.json';
 
 // Projeção: Brasil lng ~-74 a -35, lat ~-33.7 a 5.3 -> SVG 0 0 400 500
 function project(lat: number, lng: number): { x: number; y: number } {
@@ -217,61 +219,76 @@ function stateBBoxFromGeometry(geom: { type?: string; coordinates?: unknown }):
   return bboxOfPolygon([outerXY]);
 }
 
+/** Centro do rótulo do estado; se polylabel falhar, usa o centro do bbox do contorno. */
+function labelCenterWithFallback(geom: { type?: string; coordinates?: unknown }): XY | null {
+  const fromPoly = labelPointFromGeometry(geom);
+  if (fromPoly && Number.isFinite(fromPoly.x) && Number.isFinite(fromPoly.y)) return fromPoly;
+  const outer = bestOuterRingFromGeometry(geom);
+  if (!outer?.length) return null;
+  const xy = projectRingToXY(outer);
+  const bb = bboxOfPolygon([xy]);
+  return { x: (bb.minX + bb.maxX) / 2, y: (bb.minY + bb.maxY) / 2 };
+}
+
+type GeoFeat = {
+  geometry?: { type?: string; coordinates?: unknown };
+  properties?: { name?: string; sigla?: string; UF?: string };
+};
+
+type StatePathRow = {
+  path: string;
+  label: string;
+  x: number;
+  y: number;
+  bbox?: { minX: number; minY: number; maxX: number; maxY: number };
+};
+
+function firstOuterLngLatRingFromOutline(
+  geo: { features?: { geometry?: { type?: string; coordinates?: unknown } }[] },
+): [number, number][] | null {
+  const g = geo?.features?.[0]?.geometry;
+  if (!g?.coordinates) return null;
+  const c = g.coordinates as unknown;
+  if (g.type === 'Polygon') {
+    const rings = c as [number, number][][];
+    return rings?.[0] ?? null;
+  }
+  if (g.type === 'MultiPolygon') {
+    const polys = c as [number, number][][][];
+    return polys?.[0]?.[0] ?? null;
+  }
+  return null;
+}
+
+function buildBrazilPathsFromBundles(): { outlinePath: string | null; statePaths: StatePathRow[] } {
+  const ring = firstOuterLngLatRingFromOutline(redeMapBrazilOutline as { features?: { geometry?: { type?: string; coordinates?: unknown } }[] });
+  const outlinePath = ring?.length ? buildPathFromRing(ring) : null;
+
+  const geo = redeMapBrazilStates as { features?: GeoFeat[] };
+  const statePaths: StatePathRow[] = [];
+  for (const f of geo?.features ?? []) {
+    const path = buildPathFromGeometry(f?.geometry ?? {});
+    const center = labelCenterWithFallback(f?.geometry ?? {});
+    const bbox = stateBBoxFromGeometry(f?.geometry ?? {}) ?? undefined;
+    const label = f?.properties?.sigla ?? f?.properties?.UF ?? f?.properties?.name ?? '';
+    if (!path || !center || !label) continue;
+    statePaths.push({ path, label, x: center.x, y: center.y, bbox });
+  }
+
+  return { outlinePath, statePaths };
+}
+
+const REDE_MAP_STATIC = buildBrazilPathsFromBundles();
+
 type Props = { rows: RedeFranqueadoRowDb[]; filtroEstado?: string };
 
 export function MapBrazilCidadesAtuacao({ rows, filtroEstado = '' }: Props) {
   const [coords, setCoords] = useState<Record<string, { lat: number; lng: number }>>({});
-  const [brazilPath, setBrazilPath] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [statePaths, setStatePaths] = useState<
-    { path: string; label: string; x: number; y: number; bbox?: { minX: number; minY: number; maxX: number; maxY: number } }[]
-  >([]);
-
-  useEffect(() => {
-    fetch('/brazil.geojson')
-      .then((r) => r.json())
-      .then((geo: { features?: { geometry?: { coordinates?: [number, number][][] } }[] }) => {
-        const ring = geo?.features?.[0]?.geometry?.coordinates?.[0];
-        if (ring?.length) setBrazilPath(buildPathFromRing(ring));
-      })
-      .catch(() => setBrazilPath(null));
-  }, []);
-
-  useEffect(() => {
-    fetch('/brazil-states.geojson')
-      .then((r) => r.json())
-      .then((geo: {
-        features?: {
-          geometry?: { type?: string; coordinates?: unknown };
-          properties?: { name?: string; sigla?: string };
-        }[];
-      }) => {
-        const list = (geo?.features ?? [])
-          .map((f) => {
-            const path = buildPathFromGeometry(f?.geometry ?? {});
-            const center = labelPointFromGeometry(f?.geometry ?? {});
-            const bbox = stateBBoxFromGeometry(f?.geometry ?? {}) ?? undefined;
-            const label = f?.properties?.sigla ?? f?.properties?.name ?? '';
-            if (!path || !center || !label) return null;
-            return { path, label, x: center.x, y: center.y, bbox };
-          })
-          .filter(
-            (
-              x,
-            ): x is {
-              path: string;
-              label: string;
-              x: number;
-              y: number;
-              bbox: { minX: number; minY: number; maxX: number; maxY: number } | undefined;
-            } => x != null,
-          );
-        setStatePaths(list);
-      })
-      .catch(() => setStatePaths([]));
-  }, []);
+  const brazilPath = REDE_MAP_STATIC.outlinePath;
+  const statePaths = REDE_MAP_STATIC.statePaths;
 
   const { cidadesKeys, countByCity } = useMemo(() => {
     const byKey = new Map<string, number>();
@@ -409,19 +426,34 @@ export function MapBrazilCidadesAtuacao({ rows, filtroEstado = '' }: Props) {
     return [...left, ...right];
   }, [filtroEstado, pins, viewBox]);
 
+  const redeMapCardStyle: React.CSSProperties = {
+    borderColor: 'var(--moni-rede-chart-border)',
+    backgroundColor: 'var(--moni-rede-chart-surface)',
+    color: 'var(--moni-text-primary)',
+  };
+
   if (cidadesKeys.length === 0) {
     return (
-      <div className="rounded-xl border border-green-200 bg-green-50 p-6 text-center text-sm text-stone-600">
-        {filtroEstado
-          ? `Nenhuma cidade de atuação no estado ${filtroEstado}.`
-          : 'Nenhuma cidade de atuação cadastrada para exibir no mapa.'}
+      <div className="rounded-xl border p-6 text-center text-sm" style={redeMapCardStyle}>
+        <p style={{ color: 'var(--moni-text-secondary)' }}>
+          {filtroEstado
+            ? `Nenhuma cidade de atuação no estado ${filtroEstado}.`
+            : 'Nenhuma cidade de atuação cadastrada para exibir no mapa.'}
+        </p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+      <div
+        className="rounded-xl border p-4 text-sm"
+        style={{
+          borderColor: 'var(--moni-status-overdue-border)',
+          backgroundColor: 'var(--moni-status-overdue-bg)',
+          color: 'var(--moni-status-overdue-text)',
+        }}
+      >
         {error}
       </div>
     );
@@ -430,45 +462,54 @@ export function MapBrazilCidadesAtuacao({ rows, filtroEstado = '' }: Props) {
   const hasCoords = pins.length > 0;
 
   return (
-    <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-stone-900">
+    <div className="rounded-xl border p-4" style={redeMapCardStyle}>
       {loading ? (
-        <div className="flex h-[420px] items-center justify-center rounded-lg bg-green-100/60 text-sm text-stone-600">
+        <div
+          className="flex h-[420px] items-center justify-center rounded-lg text-sm"
+          style={{
+            backgroundColor: 'var(--moni-surface-100)',
+            color: 'var(--moni-text-secondary)',
+          }}
+        >
           Carregando mapa…
         </div>
       ) : !hasCoords ? (
-        <div className="flex h-[420px] items-center justify-center rounded-lg bg-green-100/60 text-sm text-stone-500">
+        <div
+          className="flex h-[420px] items-center justify-center rounded-lg text-sm"
+          style={{
+            backgroundColor: 'var(--moni-surface-100)',
+            color: 'var(--moni-text-tertiary)',
+          }}
+        >
           {filtroEstado
             ? `Nenhuma cidade no estado ${filtroEstado}.`
             : 'Não foi possível obter coordenadas para as cidades cadastradas.'}
         </div>
       ) : (
-        <div className="relative w-full overflow-hidden bg-green-50">
+        <div className="relative w-full overflow-hidden" style={{ backgroundColor: 'var(--moni-rede-map-bg)' }}>
           <svg
             viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
-            className="h-auto w-full bg-green-50"
-            style={{ maxHeight: 420 }}
+            className="h-auto w-full"
+            style={{ maxHeight: 420, backgroundColor: 'var(--moni-rede-map-bg)' }}
             preserveAspectRatio="xMidYMid meet"
           >
-            {/* Contorno do Brasil — cinza claro (estilo anterior) */}
-            {brazilPath && (
+            {brazilPath ? (
               <path
                 d={brazilPath}
-                fill="#e5e5e5"
-                stroke="#d4d4d4"
+                fill="var(--moni-rede-map-land)"
+                stroke="var(--moni-rede-map-stroke)"
                 strokeWidth={0.8}
               />
-            )}
-            {/* Limites dos estados — mesmo estilo do Brasil */}
+            ) : null}
             {statePaths.map((s, i) => (
               <path
                 key={i}
                 d={s.path}
-                fill="#e5e5e5"
-                stroke="#d4d4d4"
+                fill="var(--moni-rede-map-land)"
+                stroke="var(--moni-rede-map-stroke)"
                 strokeWidth={0.6}
               />
             ))}
-            {/* Nomes pequenos dos estados (sigla) */}
             {statePaths.map((s, i) => (
               <text
                 key={`label-${i}`}
@@ -476,13 +517,13 @@ export function MapBrazilCidadesAtuacao({ rows, filtroEstado = '' }: Props) {
                 y={s.y}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                className="fill-stone-600 select-none pointer-events-none"
+                className="select-none pointer-events-none"
+                fill="var(--moni-rede-map-label)"
                 style={{ fontSize: 8, fontWeight: 600 }}
               >
                 {s.label}
               </text>
             ))}
-            {/* Linhas de chamada + nomes das cidades (quando filtra por estado) */}
             {callouts.length > 0 && (
               <g>
                 {callouts.map((c) => (
@@ -490,7 +531,7 @@ export function MapBrazilCidadesAtuacao({ rows, filtroEstado = '' }: Props) {
                     <path
                       d={`M ${c.pinX} ${c.pinY} L ${c.elbowX} ${c.pinY} L ${c.labelX} ${c.labelY}`}
                       fill="none"
-                      stroke="#64748b"
+                      stroke="var(--moni-rede-map-callout)"
                       strokeWidth={0.9}
                       strokeDasharray="3 2"
                       opacity={0.9}
@@ -500,7 +541,8 @@ export function MapBrazilCidadesAtuacao({ rows, filtroEstado = '' }: Props) {
                       y={c.labelY}
                       textAnchor={c.side === 'right' ? 'end' : 'start'}
                       dominantBaseline="middle"
-                      className="fill-stone-800 select-none pointer-events-none"
+                      className="select-none pointer-events-none"
+                      fill="var(--moni-text-primary)"
                       style={{ fontSize: 9, fontWeight: 600 }}
                     >
                       {c.label}
@@ -509,12 +551,11 @@ export function MapBrazilCidadesAtuacao({ rows, filtroEstado = '' }: Props) {
                 ))}
               </g>
             )}
-            {/* Pins — verde escuro com centro mais claro; tooltip no hover */}
             {pins.map((p) => (
               <g key={p.key}>
                 <title>{p.label} — {p.count} franquia(s)</title>
-                <circle cx={p.x} cy={p.y} r={6} fill="#166534" />
-                <circle cx={p.x} cy={p.y} r={2.5} fill="#22c55e" />
+                <circle cx={p.x} cy={p.y} r={6} fill="var(--moni-rede-map-pin-outer)" />
+                <circle cx={p.x} cy={p.y} r={2.5} fill="var(--moni-rede-map-pin-inner)" />
               </g>
             ))}
           </svg>

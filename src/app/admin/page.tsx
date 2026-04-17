@@ -20,16 +20,6 @@ export default async function AdminHomePage() {
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--moni-surface-50)' }}>
-      <header
-        className="border-b bg-[var(--moni-surface-0)]"
-        style={{ borderColor: 'var(--moni-border-default)' }}
-      >
-        <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-4">
-          <Link href="/" className="text-sm hover:underline" style={{ color: 'var(--moni-navy-600)' }}>
-            ← Início
-          </Link>
-        </div>
-      </header>
       <main className="mx-auto max-w-2xl px-4 py-10">
         <h1 className="text-2xl font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
           Administração

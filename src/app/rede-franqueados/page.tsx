@@ -1,6 +1,4 @@
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
 import { isAdminRole } from '@/lib/authz';
 import { isAppFullyPublic, isPublicRedeNovosNegociosEnabled } from '@/lib/public-rede-novos';
 import { fetchRedeFranqueadosRows } from '@/lib/rede-franqueados';
@@ -43,50 +41,51 @@ export default async function RedeFranqueadosPage() {
   const linhasSemCard = countResult.ok ? countResult.total : 0;
 
   return (
-    <div className="min-h-screen bg-stone-50">
-      <header className="border-b border-stone-200 bg-white">
-        <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4">
-          <Link href="/" className="text-moni-primary hover:underline">
-            ← Início
-          </Link>
-          <span className="text-stone-400">/</span>
-          <span className="font-semibold text-moni-dark">Rede de Franqueados</span>
-        </div>
-      </header>
-      <main className="mx-auto max-w-7xl px-4 py-6">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold text-moni-dark">Tabela de Franqueados</h1>
-            <p className="mt-1 text-sm text-stone-600">
-              Tabela de franqueados gerenciada dentro da ferramenta (fonte: banco de dados).
-            </p>
-          </div>
-        </div>
+    <div className="min-h-screen bg-[var(--moni-surface-50)]">
+      <main className="mx-auto max-w-[1600px] px-6 py-8">
+        <header
+          className="flex flex-col gap-4 pb-6"
+          style={{ borderBottom: '0.5px solid var(--moni-border-default, #e8e2da)' }}
+        >
+          <h1 className="text-3xl font-semibold tracking-tight" style={{ color: 'var(--color-text-primary, #0c2633)' }}>
+            Rede de Franqueados
+          </h1>
+          <p className="max-w-3xl text-sm text-stone-600">
+            Tabela de franqueados gerenciada dentro da ferramenta (fonte: banco de dados).
+          </p>
+        </header>
 
-        {rows && rows.length > 0 && (
-          <div className="mb-6">
+        {rows && rows.length > 0 ? (
+          <section className="mt-10 space-y-3">
+            <h3 className="text-sm font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+              Visão geral
+            </h3>
             <RedeDashboard rows={rows} />
-          </div>
-        )}
+          </section>
+        ) : null}
 
-        {canManage && (
-          <div className="mb-6 space-y-6">
+        {canManage ? (
+          <div className="mt-10 space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <AdicionarRedeECardButton />
             </div>
             <ImportarRedeCSVButton />
             <CriarCardsDesdeRedeButton linhasSemCard={linhasSemCard} />
           </div>
-        )}
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-stone-800">Tabela de Rede de Franqueados</h2>
-          {rows && <ExportarRedeCSVButton rows={rows} />}
-        </div>
-        {rows ? (
-          <TabelaRedeFranqueadosEditavel rows={rows} canEditRows={canManage} />
-        ) : (
-          <p className="text-sm text-red-600">Erro ao carregar a tabela.</p>
-        )}
+        ) : null}
+
+        <section className="mt-10 space-y-3">
+          {rows ? (
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <ExportarRedeCSVButton rows={rows} />
+            </div>
+          ) : null}
+          {rows ? (
+            <TabelaRedeFranqueadosEditavel rows={rows} canEditRows={canManage} />
+          ) : (
+            <p className="text-sm text-red-600">Erro ao carregar a tabela.</p>
+          )}
+        </section>
       </main>
     </div>
   );

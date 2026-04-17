@@ -3,10 +3,11 @@ import { createClient } from '@/lib/supabase/server';
 import { fetchPeriodosValidadosFrank, fetchPortalFrankCards } from '@/lib/portal-frank/fetch-portal-cards';
 import {
   REDE_SELECT_FIELDS,
+  redePrefillParaFranquiaSomenteLeitura,
   redePrefillParaPayload,
   redeSqlRowParaPrefill,
 } from '@/lib/portal-frank/rede-cadastro-types';
-import type { RedeFrankCadastroPayload } from '@/lib/portal-frank/rede-cadastro-types';
+import type { RedeFrankCadastroPayload, RedeFrankFranquiaSomenteLeitura } from '@/lib/portal-frank/rede-cadastro-types';
 import { obterPeriodoValidacaoPendente } from '@/lib/portal-frank/validacao-trimestral';
 import { ensureNotificacaoValidacaoFrank } from './actions';
 import { PortalFrankHome } from './PortalFrankHome';
@@ -50,16 +51,17 @@ export default async function PortalFrankPage() {
     await ensureNotificacaoValidacaoFrank(bloqueioValidacao.periodo);
   }
 
-  let redeValidacaoInicial: RedeFrankCadastroPayload | null = null;
+  let redeValidacaoEditavel: RedeFrankCadastroPayload | null = null;
+  let redeValidacaoFranquiaRo: RedeFrankFranquiaSomenteLeitura | null = null;
   if (bloqueioValidacao && redeId) {
     const { data: rrow } = await supabase
       .from('rede_franqueados')
       .select(REDE_SELECT_FIELDS)
       .eq('id', redeId)
       .maybeSingle();
-    redeValidacaoInicial = redePrefillParaPayload(
-      redeSqlRowParaPrefill((rrow as Record<string, unknown> | null) ?? null),
-    );
+    const pre = redeSqlRowParaPrefill((rrow as Record<string, unknown> | null) ?? null);
+    redeValidacaoEditavel = redePrefillParaPayload(pre);
+    redeValidacaoFranquiaRo = redePrefillParaFranquiaSomenteLeitura(pre);
   }
 
   const cards = await fetchPortalFrankCards(supabase, user.id);
@@ -67,7 +69,8 @@ export default async function PortalFrankPage() {
     <PortalFrankHome
       initialCards={cards}
       bloqueioValidacao={bloqueioValidacao}
-      redeValidacaoInicial={redeValidacaoInicial}
+      redeValidacaoEditavel={redeValidacaoEditavel}
+      redeValidacaoFranquiaRo={redeValidacaoFranquiaRo}
     />
   );
 }

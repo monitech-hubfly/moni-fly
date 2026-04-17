@@ -1,4 +1,4 @@
-export type AccessRole = 'admin' | 'team' | 'pending' | 'blocked';
+export type AccessRole = 'admin' | 'team' | 'frank' | 'pending' | 'blocked';
 
 export function normalizeAccessRole(role: string | null | undefined): AccessRole {
   const r = String(role ?? '')
@@ -8,9 +8,9 @@ export function normalizeAccessRole(role: string | null | undefined): AccessRole
   if (r === 'team') return 'team';
   if (r === 'pending') return 'pending';
   if (r === 'blocked') return 'blocked';
+  if (r === 'frank' || r === 'franqueado') return 'frank';
   // legados
   if (r === 'consultor' || r === 'supervisor') return 'admin';
-  if (r === 'frank') return 'team';
   return 'pending';
 }
 

@@ -1,11 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useMemo } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import type { PortalFrankCardRow } from '@/lib/portal-frank/fetch-portal-cards';
-import type { RedeFrankCadastroPayload } from '@/lib/portal-frank/rede-cadastro-types';
+import type { RedeFrankCadastroPayload, RedeFrankFranquiaSomenteLeitura } from '@/lib/portal-frank/rede-cadastro-types';
 import { FrankValidacaoBloqueante } from './FrankValidacaoBloqueante';
 import { PortalFrankModalHost } from './PortalFrankModalHost';
 
@@ -22,46 +20,27 @@ function groupByKanban(cards: PortalFrankCardRow[]) {
 export function PortalFrankHome({
   initialCards,
   bloqueioValidacao,
-  redeValidacaoInicial,
+  redeValidacaoEditavel,
+  redeValidacaoFranquiaRo,
 }: {
   initialCards: PortalFrankCardRow[];
   bloqueioValidacao: { periodo: string; titulo: string } | null;
-  redeValidacaoInicial: RedeFrankCadastroPayload | null;
+  redeValidacaoEditavel: RedeFrankCadastroPayload | null;
+  redeValidacaoFranquiaRo: RedeFrankFranquiaSomenteLeitura | null;
 }) {
-  const router = useRouter();
   const grupos = useMemo(() => groupByKanban(initialCards), [initialCards]);
 
-  async function handleSair() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.replace('/portal-frank/login');
-    router.refresh();
-  }
-
-  const mostrarBloqueio = Boolean(bloqueioValidacao && redeValidacaoInicial);
+  const mostrarBloqueio = Boolean(
+    bloqueioValidacao && redeValidacaoEditavel != null && redeValidacaoFranquiaRo != null,
+  );
 
   return (
     <div className="min-h-screen bg-[var(--moni-surface-50)]">
-      <header
-        className="border-b bg-white px-4 py-3 sm:px-6"
-        style={{ borderColor: 'var(--moni-border-default)' }}
-      >
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-semibold text-stone-900">Portal do Franqueado</h1>
-            <p className="text-xs text-stone-500">Seus cards em todos os funis</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void handleSair()}
-            className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-50"
-          >
-            Sair
-          </button>
-        </div>
-      </header>
-
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        <div className="mb-6">
+          <h1 className="text-lg font-semibold text-stone-900">Portal do Franqueado</h1>
+          <p className="text-xs text-stone-500">Seus cards em todos os funis</p>
+        </div>
         {initialCards.length === 0 ? (
           <p className="rounded-lg border border-dashed border-stone-200 bg-white px-4 py-8 text-center text-sm text-stone-500">
             Nenhum card atribuído a você no momento.
@@ -105,12 +84,13 @@ export function PortalFrankHome({
 
       <PortalFrankModalHost />
 
-      {mostrarBloqueio && bloqueioValidacao && redeValidacaoInicial ? (
+      {mostrarBloqueio && bloqueioValidacao && redeValidacaoEditavel && redeValidacaoFranquiaRo ? (
         <FrankValidacaoBloqueante
           key={bloqueioValidacao.periodo}
           periodo={bloqueioValidacao.periodo}
           titulo={bloqueioValidacao.titulo}
-          dadosIniciais={redeValidacaoInicial}
+          valoresEditaveis={redeValidacaoEditavel}
+          franquiaSomenteLeitura={redeValidacaoFranquiaRo}
         />
       ) : null}
     </div>

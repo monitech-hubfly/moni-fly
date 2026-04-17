@@ -25,6 +25,7 @@ export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/painel-contabilidade',
   '/painel-credito',
   '/login',
+  '/portal-frank',
   '/perfil',
   '/admin/usuarios',
   '/api',

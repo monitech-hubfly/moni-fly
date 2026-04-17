@@ -65,34 +65,6 @@ export default async function PainelCreditoPage({
         enableNovoCardModal
       >
         <div className="min-h-screen bg-[var(--moni-surface-50)]">
-          <header
-            className="border-b bg-white"
-            style={{ borderColor: 'var(--moni-border-default)' }}
-          >
-            <div className="mx-auto flex h-14 max-w-[1600px] items-center justify-between px-6">
-              <div className="flex items-center gap-4">
-                <Link href="/" className="text-sm text-moni-primary hover:underline">
-                  ← Hub Fly
-                </Link>
-                <span className="text-stone-400">/</span>
-                <h1 className="text-lg font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-                  Crédito
-                </h1>
-              </div>
-              <Link
-                href="/painel-credito?novo=true"
-                className="rounded-lg px-4 py-2 text-sm font-medium transition hover:bg-stone-100"
-                style={{
-                  background: 'var(--moni-surface-0)',
-                  color: 'var(--moni-text-primary)',
-                  border: '0.5px solid var(--moni-border-default)',
-                }}
-              >
-                + Novo card
-              </Link>
-            </div>
-          </header>
-
           <Suspense fallback={null}>
             <PainelKanbanTabs basePath="/painel-credito" variant="credito" />
           </Suspense>
@@ -108,6 +80,7 @@ export default async function PainelCreditoPage({
                 columnAccent="var(--moni-kanban-stepone)"
                 cardQueryParam="kanbanCard"
                 currentUserId={user?.id ?? null}
+                mostrarLinkNovoCard
               />
             </main>
           ) : (
@@ -222,16 +195,6 @@ export default async function PainelCreditoPage({
 
   return (
     <div className="min-h-screen bg-stone-50">
-      <header className="border-b border-stone-200 bg-white">
-        <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-4 px-6">
-          <Link href="/" className="text-sm text-moni-primary hover:underline">
-            ← Hub Fly
-          </Link>
-          <span className="text-stone-400">/</span>
-          <h1 className="text-lg font-semibold text-stone-800">Crédito</h1>
-        </div>
-      </header>
-
       <Suspense fallback={null}>
         <PainelKanbanTabs basePath="/painel-credito" variant="credito" />
       </Suspense>

@@ -27,6 +27,8 @@ export type InteracaoModal = {
   time: string | null;
   created_at: string;
   concluida_em: string | null;
+  /** Quem abriu o chamado (portal Frank: só este usuário pode anexar). */
+  criado_por: string | null;
   profiles?: {
     full_name: string | null;
   } | null;
@@ -229,6 +231,7 @@ export function interacoesDemonstracao(): InteracaoModal[] {
       time: 'operacoes',
       created_at: now,
       concluida_em: now,
+      criado_por: null,
     },
     {
       id: '__funil_demo_andamento__',
@@ -245,6 +248,7 @@ export function interacoesDemonstracao(): InteracaoModal[] {
       time: 'juridico',
       created_at: now,
       concluida_em: null,
+      criado_por: null,
     },
     {
       id: '__funil_demo_prazo_atencao__',
@@ -261,6 +265,7 @@ export function interacoesDemonstracao(): InteracaoModal[] {
       time: 'comercial',
       created_at: now,
       concluida_em: null,
+      criado_por: null,
     },
     {
       id: '__funil_demo_urgente__',
@@ -277,6 +282,7 @@ export function interacoesDemonstracao(): InteracaoModal[] {
       time: 'juridico',
       created_at: now,
       concluida_em: null,
+      criado_por: null,
     },
     {
       id: '__funil_demo_atrasado__',
@@ -293,6 +299,7 @@ export function interacoesDemonstracao(): InteracaoModal[] {
       time: 'comercial',
       created_at: now,
       concluida_em: null,
+      criado_por: null,
     },
   ];
 }

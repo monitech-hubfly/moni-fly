@@ -114,7 +114,9 @@ export default async function FunilStepOnePage({
     .eq('concluido', true)
     .order('created_at', { ascending: false });
 
-  if (role !== 'admin' && role !== 'consultor') {
+  const visaoAmplaCards =
+    role === 'admin' || role === 'consultor' || role === 'supervisor' || role === 'team';
+  if (!visaoAmplaCards) {
     cardsQuery = cardsQuery.eq('franqueado_id', user.id);
     concluidosQuery = concluidosQuery.eq('franqueado_id', user.id);
   }
@@ -165,7 +167,7 @@ export default async function FunilStepOnePage({
 
   console.log('[FunilStepOne] Cards normalizados:', cards.length);
 
-  const isAdmin = role === 'admin' || role === 'consultor';
+  const isAdmin = role === 'admin' || role === 'consultor' || role === 'supervisor' || role === 'team';
 
   return (
     <KanbanWrapper
@@ -177,30 +179,6 @@ export default async function FunilStepOnePage({
       enableNovoCardModal
     >
       <div className="min-h-screen bg-stone-50">
-        {/* Header com breadcrumb e botão novo card */}
-        <header className="border-b border-stone-200 bg-white">
-          <div className="mx-auto flex h-14 max-w-[1600px] items-center justify-between px-6">
-            <div className="flex items-center gap-4">
-              <Link href="/" className="text-sm text-moni-primary hover:underline">
-                ← Hub Fly
-              </Link>
-              <span className="text-stone-400">/</span>
-              <h1 className="text-lg font-semibold text-stone-800">Funil Step One</h1>
-            </div>
-            <Link
-              href="/funil-stepone?novo=true"
-              className="rounded-lg px-4 py-2 text-sm font-medium transition hover:bg-stone-100"
-              style={{
-                background: 'var(--moni-surface-0)',
-                color: 'var(--moni-text-primary)',
-                border: '0.5px solid var(--moni-border-default)',
-              }}
-            >
-              + Novo card
-            </Link>
-          </div>
-        </header>
-
         {/* Abas: Kanban / Painel (Suspense por useSearchParams no cliente) */}
         <Suspense fallback={null}>
           <KanbanTabs />
@@ -217,6 +195,7 @@ export default async function FunilStepOnePage({
               userRole={role}
               columnAccent="var(--moni-kanban-stepone)"
               currentUserId={user.id}
+              mostrarLinkNovoCard
             />
           </main>
         )}

@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { usePermissoes } from '@/lib/hooks/usePermissoes';
 import { KanbanBoardFiltrosPanel } from './KanbanBoardFiltrosPanel';
 import { KanbanColumn } from './KanbanColumn';
 import {
@@ -23,6 +25,8 @@ export type KanbanBoardProps = {
   cardQueryParam?: string;
   /** Para filtro “Eu” (responsável = usuário logado). */
   currentUserId?: string | null;
+  /** Exibe o atalho “+ Novo card” (`?novo=true`) quando `pode('criar_cards')`. */
+  mostrarLinkNovoCard?: boolean;
 };
 
 export function KanbanBoard({
@@ -34,7 +38,9 @@ export function KanbanBoard({
   columnAccent = 'var(--moni-kanban-stepone)',
   cardQueryParam,
   currentUserId = null,
+  mostrarLinkNovoCard = false,
 }: KanbanBoardProps) {
+  const { pode } = usePermissoes();
   const [filtros, setFiltros] = useState<KanbanBoardFiltros>(KANBAN_BOARD_FILTROS_DEFAULT);
   const [filtrosDraft, setFiltrosDraft] = useState<KanbanBoardFiltros>(KANBAN_BOARD_FILTROS_DEFAULT);
   const [filtrosOpen, setFiltrosOpen] = useState(false);
@@ -102,10 +108,24 @@ export function KanbanBoard({
   }, [fases, cardsFiltrados]);
 
   const nAtivos = countKanbanBoardFiltrosAtivos(filtros);
+  const podeCriarCards = pode('criar_cards');
 
   return (
     <div className="space-y-3">
       <div className="relative flex flex-wrap items-center gap-3">
+        {mostrarLinkNovoCard && podeCriarCards ? (
+          <Link
+            href={`${basePath}?novo=true`}
+            className="rounded-lg px-4 py-2 text-sm font-medium transition hover:bg-stone-100"
+            style={{
+              background: 'var(--moni-surface-0)',
+              color: 'var(--moni-text-primary)',
+              border: '0.5px solid var(--moni-border-default)',
+            }}
+          >
+            + Novo card
+          </Link>
+        ) : null}
         <button
           ref={filtrosBtnRef}
           type="button"

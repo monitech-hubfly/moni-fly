@@ -73,17 +73,18 @@ export async function validarTokenConviteFrank(token: string): Promise<ConviteFr
 
 export type ConfirmarConviteFrankResult = { ok: true } | { ok: false; error: string };
 
-function montarPatchRede(d: RedeFrankCadastroPayload): Record<string, unknown> {
+/** PATCH permitido para o Frank (nunca inclui campos bloqueados da franquia). */
+function montarPatchRedeFrank(d: RedeFrankCadastroPayload): Record<string, unknown> {
   return {
+    email_frank: trimOrNull(d.email_frank),
     telefone_frank: trimOrNull(d.telefone_frank),
     data_nasc_frank: trimOrNull(d.data_nasc_frank) ?? null,
+    cpf_frank: trimOrNull(d.cpf_frank),
     endereco_casa_frank: trimOrNull(d.endereco_casa_frank),
     endereco_casa_frank_numero: trimOrNull(d.endereco_casa_frank_numero),
     endereco_casa_frank_complemento: trimOrNull(d.endereco_casa_frank_complemento),
     cep_casa_frank: trimOrNull(d.cep_casa_frank),
     tamanho_camisa_frank: trimOrNull(d.tamanho_camisa_frank),
-    socios: trimOrNull(d.socios),
-    cpf_frank: trimOrNull(d.cpf_frank),
     updated_at: new Date().toISOString(),
   };
 }
@@ -164,11 +165,7 @@ export async function confirmarCadastroPortalFrank(
   });
 
   if (franqueadoId) {
-    const patchRede: Record<string, unknown> = {
-      ...montarPatchRede(dadosRede),
-      nome_completo: nome,
-      email_frank: emUser,
-    };
+    const patchRede = montarPatchRedeFrank(dadosRede);
     const { error: upRede } = await admin.from('rede_franqueados').update(patchRede).eq('id', franqueadoId);
     if (upRede) return { ok: false, error: upRede.message };
   }
@@ -206,7 +203,7 @@ export async function submeterValidacaoTrimestralFrank(
   }
 
   const now = new Date().toISOString();
-  const patchRede = montarPatchRede(dadosRede);
+  const patchRede = montarPatchRedeFrank(dadosRede);
   const { error: rErr } = await supabase.from('rede_franqueados').update(patchRede).eq('id', redeId);
   if (rErr) return { ok: false, error: rErr.message };
 

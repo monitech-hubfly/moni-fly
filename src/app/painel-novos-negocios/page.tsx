@@ -167,16 +167,6 @@ export default async function PainelNovosNegociosPage({
 
   return (
     <div className="min-h-screen bg-stone-50">
-      <header className="border-b border-stone-200 bg-white">
-        <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-4 px-6">
-          <Link href="/" className="text-sm text-moni-primary hover:underline">
-            ← Hub Fly
-          </Link>
-          <span className="text-stone-400">/</span>
-          <h1 className="text-lg font-semibold text-stone-800">Portfolio + Operações</h1>
-        </div>
-      </header>
-
       <Suspense fallback={null}>
         <PainelKanbanTabs basePath="/painel-novos-negocios" variant="portfolio" />
       </Suspense>

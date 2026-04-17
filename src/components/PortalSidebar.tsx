@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 import { Bell, ChevronDown, ChevronRight, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { isAdminRole, normalizeAccessRole } from '@/lib/authz';
@@ -44,22 +44,31 @@ const STEPS_SUBITENS: NavItem[] = [
   { href: '/step-6', label: 'Step 6: Diligência' },
   { href: '/step-7', label: 'Step 7: Contrato' },
 ];
-const PAINEL_NOVOS_NEGOCIOS_SUBITENS: NavItem[] = [
+const PAINEL_NOVOS_NEGOCIOS_SUBITENS_HEAD: NavItem[] = [
   { href: '/dashboard-novos-negocios', label: 'Dashboard Novos Negócios' },
   { href: '/funil-stepone', label: 'Funil Step One' },
   { href: '/portfolio', label: 'Funil Portfolio' },
   { href: '/funil-acoplamento', label: 'Funil Acoplamento' },
-  { href: '/operacoes', label: 'Funil Operações' },
-  { href: '/painel-novos-negocios', label: 'Portfolio + Operações (legado)' },
 ];
-const SIRENE_SUBITENS: NavItem[] = [{ href: '/sirene/interacoes', label: 'Chamados' }];
+/** Só admin / visitante público: aparecem antes de Funil Operações. */
 const PAINEL_NOVOS_NEGOCIOS_ADMIN_SUBITENS: NavItem[] = [
   { href: '/painel-contabilidade', label: 'Funil Contabilidade' },
   { href: '/painel-credito', label: 'Funil Crédito' },
 ];
+const PAINEL_NOVOS_NEGOCIOS_SUBITENS_TAIL: NavItem[] = [
+  { href: '/operacoes', label: 'Funil Operações' },
+  { href: '/painel-novos-negocios', label: 'Portfolio + Operações (legado)' },
+];
+const SIRENE_SUBITENS: NavItem[] = [{ href: '/sirene/interacoes', label: 'Chamados' }];
 
 function isRedeFranqueadosActive(pathname: string) {
-  if (pathname.startsWith('/rede-franqueados') || pathname.startsWith('/comunidade')) return true;
+  if (
+    pathname.startsWith('/rede-franqueados') ||
+    pathname.startsWith('/comunidade') ||
+    pathname.startsWith('/portal-frank/rede')
+  ) {
+    return true;
+  }
   return pathname === '/rede' || (pathname.startsWith('/rede') && !pathname.startsWith('/rede-franqueados'));
 }
 function isPainelNovosNegociosActive(pathname: string) {
@@ -95,7 +104,6 @@ function isStepsActive(pathname: string) {
 }
 export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalSidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const [resolvedRole, setResolvedRole] = useState(userRole);
   const isAdmin = isAdminRole(resolvedRole);
   const limitedRelease = isLiveLimitedRelease();
@@ -127,6 +135,15 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
     isPainelNovosNegociosActive(pathname ?? ''),
   );
   const [sireneOpen, setSireneOpen] = useState(() => isSireneNavActive(pathname ?? ''));
+
+  /** Franqueado não acessa `/rede-franqueados` (middleware); visão consolidada em `/portal-frank/rede`. */
+  const redeFranqueadosNavSubitens = useMemo((): NavItem[] => {
+    if (publicVisitor) return REDE_FRANQUEADOS_SUBITENS;
+    if (resolvedRole === 'frank') {
+      return [{ href: '/portal-frank/rede', label: 'Rede de Franqueados' }];
+    }
+    return REDE_FRANQUEADOS_SUBITENS;
+  }, [publicVisitor, resolvedRole]);
 
   useEffect(() => {
     const p = pathname ?? '';
@@ -166,13 +183,6 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
           ? 'bg-moni-light/80 font-medium text-moni-primary'
           : 'text-stone-600 hover:bg-stone-100 hover:text-moni-secondary'
     }`;
-
-  const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
-  };
 
   const renderMacro = (
     key:
@@ -273,7 +283,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
           isRedeFranqueadosActive(pathname ?? ''),
           redeFranqueadosOpen,
           setRedeFranqueadosOpen,
-          REDE_FRANQUEADOS_SUBITENS,
+          redeFranqueadosNavSubitens,
           (href) => {
             if (href === '/rede') {
               return (
@@ -292,8 +302,8 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
           painelNovosNegociosOpen,
           setPainelNovosNegociosOpen,
           showFullNovosNegociosNav
-            ? [...PAINEL_NOVOS_NEGOCIOS_SUBITENS, ...PAINEL_NOVOS_NEGOCIOS_ADMIN_SUBITENS]
-            : [...PAINEL_NOVOS_NEGOCIOS_SUBITENS],
+            ? [...PAINEL_NOVOS_NEGOCIOS_SUBITENS_HEAD, ...PAINEL_NOVOS_NEGOCIOS_ADMIN_SUBITENS, ...PAINEL_NOVOS_NEGOCIOS_SUBITENS_TAIL]
+            : [...PAINEL_NOVOS_NEGOCIOS_SUBITENS_HEAD, ...PAINEL_NOVOS_NEGOCIOS_SUBITENS_TAIL],
           (href) => pathname === href || (pathname?.startsWith(href + '/') ?? false),
         )}
 
@@ -448,13 +458,6 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
                 >
                   Ver perfil e configurações
                 </Link>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className={`mt-1 text-left ${isSirene ? 'text-red-400 hover:text-red-300' : 'text-red-600 hover:text-red-700'}`}
-                >
-                  Sair
-                </button>
               </div>
             )}
           </div>
