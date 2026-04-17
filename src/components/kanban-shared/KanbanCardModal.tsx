@@ -1811,22 +1811,6 @@ export function KanbanCardModal({
                                   <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">
                                     Sub-chamados ({subs.length})
                                   </p>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setSubFormInteracaoId(it.id);
-                                      setSubNovaDraft({
-                                        titulo: '',
-                                        timesIds: [],
-                                        responsaveisIds: [],
-                                        data: '',
-                                        trava: false,
-                                      });
-                                    }}
-                                    className="shrink-0 text-[11px] font-medium text-stone-700 underline-offset-2 hover:underline"
-                                  >
-                                    + Sub-interação
-                                  </button>
                                 </div>
                                 {subs.length > 0 ? (
                                   <ul className="mb-3 space-y-2">
@@ -1986,9 +1970,14 @@ export function KanbanCardModal({
                                     </div>
                                   </div>
                                 ) : null}
+                              </div>
+                            ) : null}
+                            {!demo ? (
+                              <div className="mt-2">
                                 <button
                                   type="button"
                                   onClick={() => {
+                                    setSubExpandida((s) => ({ ...s, [it.id]: true }));
                                     setSubFormInteracaoId(it.id);
                                     setSubNovaDraft({
                                       titulo: '',
@@ -1998,7 +1987,7 @@ export function KanbanCardModal({
                                       trava: false,
                                     });
                                   }}
-                                  className="mt-2 text-[11px] font-medium text-stone-700 underline-offset-2 hover:underline"
+                                  className="text-left text-[11px] font-medium text-stone-700 underline-offset-2 hover:underline"
                                 >
                                   + Sub-interação
                                 </button>

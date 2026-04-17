@@ -1,28 +1,30 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { KanbanBoardFiltrosPanel } from './KanbanBoardFiltrosPanel';
 import { KanbanColumn } from './KanbanColumn';
+import {
+  cardPassaFiltrosBoard,
+  countKanbanBoardFiltrosAtivos,
+  KANBAN_BOARD_FILTROS_DEFAULT,
+  poolCardsPorStatus,
+  type KanbanBoardFiltros,
+} from './kanbanBoardFiltros';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
 export type KanbanBoardProps = {
   fases: KanbanFase[];
   cards: KanbanCardBrief[];
-  /** Nativo: cards com `concluido` (toggle “Mostrar concluídos”). */
+  /** Nativo: cards com `concluido` (aba STATUS “Concluídos”). */
   cardsConcluidos?: KanbanCardBrief[];
   basePath: string;
   userRole: string;
   columnAccent?: string;
   cardQueryParam?: string;
+  /** Para filtro “Eu” (responsável = usuário logado). */
+  currentUserId?: string | null;
 };
 
-function isCardArquivado(c: KanbanCardBrief): boolean {
-  return c.origem !== 'legado' && Boolean(c.arquivado);
-}
-
-/**
- * Colunas do kanban (fases × cards). O `KanbanWrapper` deve envolver a página para modal por `?card=`.
- * Toggles “Mostrar arquivados” / “Mostrar concluídos”: mutuamente exclusivos no filtro (como o de arquivados).
- */
 export function KanbanBoard({
   fases,
   cards,
@@ -31,67 +33,139 @@ export function KanbanBoard({
   userRole,
   columnAccent = 'var(--moni-kanban-stepone)',
   cardQueryParam,
+  currentUserId = null,
 }: KanbanBoardProps) {
-  const [mostrarArquivados, setMostrarArquivados] = useState(false);
-  const [mostrarConcluidos, setMostrarConcluidos] = useState(false);
+  const [filtros, setFiltros] = useState<KanbanBoardFiltros>(KANBAN_BOARD_FILTROS_DEFAULT);
+  const [filtrosDraft, setFiltrosDraft] = useState<KanbanBoardFiltros>(KANBAN_BOARD_FILTROS_DEFAULT);
+  const [filtrosOpen, setFiltrosOpen] = useState(false);
+  const filtrosPopoverRef = useRef<HTMLDivElement>(null);
+  const filtrosBtnRef = useRef<HTMLButtonElement>(null);
 
-  const cardsVisiveis = useMemo(() => {
-    if (mostrarArquivados) return cards.filter((c) => isCardArquivado(c));
-    if (mostrarConcluidos) return cardsConcluidos;
-    return cards.filter((c) => {
-      if (c.origem === 'legado') return true;
-      return !c.arquivado && !c.concluido;
-    });
-  }, [cards, cardsConcluidos, mostrarArquivados, mostrarConcluidos]);
+  useEffect(() => {
+    if (!filtrosOpen) return;
+    const onDown = (ev: MouseEvent) => {
+      const t = ev.target as Node;
+      if (filtrosPopoverRef.current?.contains(t)) return;
+      if (filtrosBtnRef.current?.contains(t)) return;
+      setFiltrosDraft({ ...filtros });
+      setFiltrosOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [filtrosOpen, filtros]);
 
-  const cardsByFase = useMemo(() => {
+  const faseMap = useMemo(() => new Map(fases.map((f) => [f.id, f])), [fases]);
+
+  const responsaveisOpcoes = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of [...cards, ...cardsConcluidos]) {
+      const id = c.franqueado_id;
+      if (!id) continue;
+      const nome = (c.profiles?.full_name ?? '').trim() || 'Sem nome';
+      if (!m.has(id)) m.set(id, nome);
+    }
+    return [...m.entries()]
+      .map(([id, nome]) => ({ id, nome }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  }, [cards, cardsConcluidos]);
+
+  const poolStatus = useMemo(
+    () => poolCardsPorStatus(filtros.status, cards, cardsConcluidos),
+    [filtros.status, cards, cardsConcluidos],
+  );
+
+  const rawByFase = useMemo(() => {
     const m: Record<string, KanbanCardBrief[]> = {};
     for (const f of fases) m[f.id] = [];
-    for (const c of cardsVisiveis) {
+    for (const c of poolStatus) {
       if (!m[c.fase_id]) m[c.fase_id] = [];
       m[c.fase_id].push(c);
     }
     return m;
-  }, [fases, cardsVisiveis]);
+  }, [fases, poolStatus]);
+
+  const cardsFiltrados = useMemo(
+    () => poolStatus.filter((c) => cardPassaFiltrosBoard(c, filtros, faseMap, currentUserId)),
+    [poolStatus, filtros, faseMap, currentUserId],
+  );
+
+  const clientFiltersActive = countKanbanBoardFiltrosAtivos(filtros) > 0;
+
+  const cardsByFase = useMemo(() => {
+    const m: Record<string, KanbanCardBrief[]> = {};
+    for (const f of fases) m[f.id] = [];
+    for (const c of cardsFiltrados) {
+      if (!m[c.fase_id]) m[c.fase_id] = [];
+      m[c.fase_id].push(c);
+    }
+    return m;
+  }, [fases, cardsFiltrados]);
+
+  const nAtivos = countKanbanBoardFiltrosAtivos(filtros);
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="relative flex flex-wrap items-center gap-3">
         <button
+          ref={filtrosBtnRef}
           type="button"
           onClick={() => {
-            setMostrarArquivados((v) => !v);
-            setMostrarConcluidos(false);
+            if (filtrosOpen) {
+              setFiltrosDraft({ ...filtros });
+              setFiltrosOpen(false);
+            } else {
+              setFiltrosDraft({ ...filtros });
+              setFiltrosOpen(true);
+            }
           }}
-          className="text-xs font-medium underline-offset-2 transition hover:underline"
-          style={{ color: 'var(--moni-text-tertiary)' }}
-        >
-          {mostrarArquivados ? 'Ocultar arquivados' : 'Mostrar arquivados'}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setMostrarConcluidos((v) => !v);
-            setMostrarArquivados(false);
+          className="rounded-lg border px-4 py-2 text-sm font-medium transition hover:opacity-95"
+          style={{
+            borderColor: 'var(--moni-border-default)',
+            background: 'var(--moni-surface-0)',
+            color: 'var(--moni-text-primary)',
           }}
-          className="text-xs font-medium underline-offset-2 transition hover:underline"
-          style={{ color: 'var(--moni-text-tertiary)' }}
         >
-          {mostrarConcluidos ? 'Ocultar concluídos' : 'Mostrar concluídos'}
+          Filtros ({nAtivos})
         </button>
+        {filtrosOpen ? (
+          <div
+            ref={filtrosPopoverRef}
+            className="absolute left-0 top-full z-50 mt-2 w-[min(100vw-2rem,17.5rem)]"
+          >
+            <KanbanBoardFiltrosPanel
+              draft={filtrosDraft}
+              setDraft={setFiltrosDraft}
+              fases={fases}
+              responsaveisOpcoes={responsaveisOpcoes}
+              showFiltroEu={Boolean(currentUserId)}
+              onLimpar={() => setFiltrosDraft(KANBAN_BOARD_FILTROS_DEFAULT)}
+              onAplicar={() => {
+                setFiltros({ ...filtrosDraft });
+                setFiltrosOpen(false);
+              }}
+            />
+          </div>
+        ) : null}
       </div>
+
       <div className="moni-kanban-board flex min-w-max gap-4">
-        {fases.map((fase) => (
-          <KanbanColumn
-            key={fase.id}
-            fase={fase}
-            cards={cardsByFase[fase.id] ?? []}
-            basePath={basePath}
-            cardQueryParam={cardQueryParam}
-            userRole={userRole}
-            columnAccent={columnAccent}
-          />
-        ))}
+        {fases.map((fase) => {
+          const raw = rawByFase[fase.id] ?? [];
+          const vis = cardsByFase[fase.id] ?? [];
+          const listaVaziaPorFiltro = clientFiltersActive && raw.length > 0 && vis.length === 0;
+          return (
+            <KanbanColumn
+              key={fase.id}
+              fase={fase}
+              cards={vis}
+              listaVaziaPorFiltro={listaVaziaPorFiltro}
+              basePath={basePath}
+              cardQueryParam={cardQueryParam}
+              userRole={userRole}
+              columnAccent={columnAccent}
+            />
+          );
+        })}
       </div>
     </div>
   );

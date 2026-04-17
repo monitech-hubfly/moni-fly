@@ -107,6 +107,7 @@ export default async function PainelCreditoPage({
                 userRole={snapshot.role}
                 columnAccent="var(--moni-kanban-stepone)"
                 cardQueryParam="kanbanCard"
+                currentUserId={user?.id ?? null}
               />
             </main>
           ) : (

@@ -684,29 +684,24 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
     };
   }, [cdnReady, chartDepsKey, maxTimeFase, orderedFases, dataset.kanbanNome, setDrawerFaseId]);
 
-  const slaKpiSub =
-    slaRows.length === 0 ? 'Sem ativos no funil' : pctSlaDentro >= 75 ? 'Dentro do esperado' : 'Abaixo do esperado';
-
   const kpiRow = (
     <div className="flex flex-wrap gap-3">
       <KpiTile
         label="Total no funil"
         value={formatInt(totalNoFunil)}
-        subtext={totalNoFunil ? 'Ativos no funil' : 'Nenhum ativo'}
+        subtext="Ativos no funil"
         tone={totalNoFunil ? 'neutral' : 'warn'}
       />
       <KpiTile
         label="Em andamento"
         value={formatInt(emAndamento)}
-        subtext={emAndamento ? 'Em progresso' : 'Nenhum'}
+        subtext="Em progresso"
         tone={emAndamento ? 'neutral' : 'warn'}
       />
       <KpiTile
         label="Concluídos"
         value={formatInt(concluidosKpi)}
-        subtext={
-          concluidosKpi ? (sinceMs === null ? 'No acumulado' : 'No período') : 'Nenhum ainda'
-        }
+        subtext={concluidosKpi ? 'No período' : 'Nenhum'}
         tone={concluidosKpi ? 'good' : 'neutral'}
       />
       <KpiTile
@@ -718,7 +713,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
       <KpiTile
         label="% SLA"
         value={`${formatDec(pctSlaDentro, 1)}%`}
-        subtext={slaKpiSub}
+        subtext="No funil"
         tone={
           slaRows.length === 0 ? 'neutral' : pctSlaDentro >= 75 ? 'good' : pctSlaDentro >= 50 ? 'warn' : 'bad'
         }
@@ -726,13 +721,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
       <KpiTile
         label="Lead time médio"
         value={leadMedioDias === null ? '—' : `${formatDec(leadMedioDias, 1)} d`}
-        subtext={
-          leadMedioDias === null
-            ? ''
-            : leadMedioDias <= 14
-              ? 'Razoável'
-              : 'Acima do ideal'
-        }
+        subtext="Prazo médio"
         tone={leadMedioDias === null ? 'neutral' : leadMedioDias <= 14 ? 'good' : 'warn'}
       />
     </div>

@@ -8,6 +8,8 @@ import type { KanbanCardBrief, KanbanFase } from './types';
 export type KanbanColumnProps = {
   fase: KanbanFase;
   cards: KanbanCardBrief[];
+  /** Coluna tinha cards no pool atual, mas nenhum passou nos filtros do board. */
+  listaVaziaPorFiltro?: boolean;
   /** Ex.: `/funil-stepone` — abre o modal com `?card=` */
   basePath: string;
   /** Query param do card (padrão `card`). */
@@ -48,6 +50,7 @@ function cardConcluidoVisual(card: KanbanCardBrief): boolean {
 export function KanbanColumn({
   fase,
   cards,
+  listaVaziaPorFiltro = false,
   basePath,
   cardQueryParam = 'card',
   userRole,
@@ -172,7 +175,7 @@ export function KanbanColumn({
               borderRadius: 'var(--moni-radius-lg)',
             }}
           >
-            Nenhum card nesta fase
+            {listaVaziaPorFiltro ? 'Nenhum card com estes filtros' : 'Nenhum card nesta fase'}
           </div>
         ) : null}
       </div>

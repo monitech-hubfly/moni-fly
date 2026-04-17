@@ -225,7 +225,7 @@ export async function listarComentariosCardSirene(
     .from('kanban_card_comentarios')
     .select('id, texto, created_at, autor_id')
     .eq('card_id', cid)
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: true })
     .limit(100);
 
   if (error) return { ok: false, error: error.message };

@@ -120,6 +120,7 @@ export async function renderKanbanDatabasePage(
               basePath={config.basePath}
               userRole={role}
               columnAccent={config.columnAccent}
+              currentUserId={user.id}
             />
           </main>
         ) : (

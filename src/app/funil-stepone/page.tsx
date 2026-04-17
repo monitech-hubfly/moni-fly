@@ -205,6 +205,7 @@ export default async function FunilStepOnePage({
               basePath="/funil-stepone"
               userRole={role}
               columnAccent="var(--moni-kanban-stepone)"
+              currentUserId={user.id}
             />
           </main>
         )}

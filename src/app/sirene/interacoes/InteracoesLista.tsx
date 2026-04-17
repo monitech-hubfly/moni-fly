@@ -996,20 +996,40 @@ export function InteracoesLista({
                             <p className="text-xs text-stone-500">Carregando…</p>
                           ) : (
                             <ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm">
-                              {(commentsByCardId[ccid] ?? []).map((c) => (
-                                <li
-                                  key={c.id}
-                                  className="rounded border border-stone-700 bg-stone-950/50 px-2 py-1.5 text-stone-200"
-                                >
-                                  <p className="text-xs text-stone-500">
-                                    {(c.autor_nome ?? '—')}{' '}
-                                    <span className="tabular-nums">
-                                      {c.created_at ? new Date(c.created_at).toLocaleString('pt-BR') : ''}
+                              {[...(commentsByCardId[ccid] ?? [])]
+                                .sort(
+                                  (a, b) =>
+                                    new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+                                )
+                                .map((c) => (
+                                  <li
+                                    key={c.id}
+                                    className="flex gap-2 rounded border border-stone-700 bg-stone-950/50 px-2 py-2 text-stone-200"
+                                  >
+                                    <span
+                                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-stone-600 bg-stone-800 text-[10px] font-semibold text-stone-200"
+                                      aria-hidden
+                                    >
+                                      {iniciaisNome(c.autor_nome ?? '')}
                                     </span>
-                                  </p>
-                                  <p className="mt-0.5 whitespace-pre-wrap text-stone-100">{c.texto}</p>
-                                </li>
-                              ))}
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs leading-snug">
+                                        <span className="font-medium text-stone-100">
+                                          {(c.autor_nome ?? '—').trim() || '—'}
+                                        </span>
+                                        {c.created_at ? (
+                                          <>
+                                            {' '}
+                                            <span className="tabular-nums text-stone-500">
+                                              {new Date(c.created_at).toLocaleString('pt-BR')}
+                                            </span>
+                                          </>
+                                        ) : null}
+                                      </p>
+                                      <p className="mt-1 whitespace-pre-wrap text-sm text-stone-100">{c.texto}</p>
+                                    </div>
+                                  </li>
+                                ))}
                             </ul>
                           )}
                           <div className="flex flex-col gap-2 sm:flex-row">
