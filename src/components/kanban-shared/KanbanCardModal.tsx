@@ -39,6 +39,7 @@ import {
   uploadContratoFranquia,
   verificarChecklistParaFase,
   gerarFormTokenCandidato,
+  enviarEmailCard,
   type BuscaCardVinculoRow,
   type KanbanCardVinculoListItem,
   type SubInteracaoStatusDb,
@@ -217,6 +218,12 @@ export function KanbanCardModal({
   const [comentariosCard, setComentariosCard] = useState<ComentarioCardRow[]>([]);
   const [novoComentarioCard, setNovoComentarioCard] = useState('');
   const [salvandoComentario, setSalvandoComentario] = useState(false);
+  const [abaComentarios, setAbaComentarios] = useState<'comentarios' | 'email'>('comentarios');
+  const [emailPara, setEmailPara] = useState('');
+  const [emailAssunto, setEmailAssunto] = useState('');
+  const [emailMensagem, setEmailMensagem] = useState('');
+  const [enviandoEmail, setEnviandoEmail] = useState(false);
+  const [erroEmail, setErroEmail] = useState<string | null>(null);
   const [interacoes, setInteracoes] = useState<InteracaoModal[]>([]);
   const [modalSessao, setModalSessao] = useState<{
     userId: string | null;
@@ -690,6 +697,21 @@ export function KanbanCardModal({
         }
       } catch {
         setComentariosCard([]);
+      }
+
+      try {
+        const { data: tokRow } = await supabase
+          .from('kanban_card_form_tokens')
+          .select('email_candidato')
+          .eq('card_id', cardId)
+          .not('email_candidato', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const emailTok = (tokRow as { email_candidato?: string | null } | null)?.email_candidato;
+        if (emailTok) setEmailPara(emailTok);
+      } catch {
+        // sem token — mantém campo vazio
       }
 
       try {

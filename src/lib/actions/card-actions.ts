@@ -1506,9 +1506,47 @@ export async function gerarFormTokenCandidato(
     return { ok: false, error: 'Serviço indisponível.' };
   }
 
+  // Busca itens "Nome" e "E-mail" da fase para pré-popular o token de cobrança
+  const { data: itens } = await admin
+    .from('kanban_fase_checklist_itens')
+    .select('id, label')
+    .eq('fase_id', faseId)
+    .in('label', ['Nome', 'E-mail']);
+
+  const itemPorLabel = new Map<string, string>();
+  for (const it of (itens ?? []) as { id: string; label: string }[]) {
+    itemPorLabel.set(it.label, it.id);
+  }
+
+  let nomeCandidato: string | null = null;
+  let emailCandidato: string | null = null;
+  const itemIds = [...itemPorLabel.values()];
+  if (itemIds.length) {
+    const { data: resps } = await admin
+      .from('kanban_fase_checklist_respostas')
+      .select('item_id, valor')
+      .eq('card_id', cardId)
+      .in('item_id', itemIds);
+
+    const valorPorItem = new Map<string, string>();
+    for (const r of (resps ?? []) as { item_id: string; valor: string | null }[]) {
+      if (r.valor) valorPorItem.set(r.item_id, r.valor);
+    }
+    const nomeId = itemPorLabel.get('Nome');
+    const emailId = itemPorLabel.get('E-mail');
+    if (nomeId) nomeCandidato = valorPorItem.get(nomeId) ?? null;
+    if (emailId) emailCandidato = valorPorItem.get(emailId) ?? null;
+  }
+
   const { data, error } = await admin
     .from('kanban_card_form_tokens')
-    .insert({ card_id: cardId, fase_id: faseId, created_by: user.id })
+    .insert({
+      card_id: cardId,
+      fase_id: faseId,
+      created_by: user.id,
+      nome_candidato: nomeCandidato,
+      email_candidato: emailCandidato,
+    })
     .select('token')
     .single();
   if (error) return { ok: false, error: error.message };
@@ -1519,6 +1557,49 @@ export async function gerarFormTokenCandidato(
     'http://localhost:3000';
   const token = String((data as { token: string }).token);
   return { ok: true, token, url: `${baseUrl}/formulario-candidato/${token}` };
+}
+
+// ─── E-mail a partir do card ─────────────────────────────────────────────────
+
+export type EnviarEmailCardInput = {
+  card_id: string;
+  para: string;
+  assunto: string;
+  mensagem: string;
+  basePath?: string;
+};
+
+export async function enviarEmailCard(input: EnviarEmailCardInput): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Não autenticado.' };
+
+  const para = input.para.trim();
+  const assunto = input.assunto.trim();
+  const mensagem = input.mensagem.trim();
+  if (!para || !assunto || !mensagem) return { ok: false, error: 'Preencha todos os campos.' };
+
+  const { sendEmailViaResend } = await import('@/lib/email');
+  const result = await sendEmailViaResend({
+    to: para,
+    subject: assunto,
+    text: mensagem,
+    html: `<div style="font-family:sans-serif;font-size:14px;line-height:1.6">${mensagem.replace(/\n/g, '<br>')}</div>`,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  const textoComentario = `[E-mail para: ${para}] ${assunto}\n\n${mensagem}`;
+  const { error: insErr } = await supabase.from('kanban_card_comentarios').insert({
+    card_id: input.card_id,
+    autor_id: user.id,
+    texto: textoComentario,
+  });
+  if (insErr) return { ok: false, error: insErr.message };
+
+  revalidatePath(input.basePath?.trim() || '/');
+  return { ok: true };
 }
 
 // ─── Checklist estrutural por fase ──────────────────────────────────────────
