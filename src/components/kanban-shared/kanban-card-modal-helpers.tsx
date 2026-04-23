@@ -21,6 +21,8 @@ export type InteracaoModal = {
   prioridade: 'baixa' | 'normal' | 'alta' | 'urgente';
   data_vencimento: string | null;
   responsavel_id: string | null;
+  /** Quando `responsavel_id` é null: nome livre (ex.: responsável externo). */
+  responsavel_nome_texto?: string | null;
   /** Migration 117 — múltiplos responsáveis. */
   responsaveis_ids: string[];
   trava: boolean;

@@ -719,7 +719,7 @@ export function KanbanCardModal({
         const { data: interacoesData, error: interacoesError } = await supabase
           .from('kanban_atividades')
           .select(
-            'id, titulo, descricao, tipo, times_ids, responsaveis_ids, trava, status, prioridade, data_vencimento, responsavel_id, time, created_at, concluida_em, origem, criado_por',
+            'id, titulo, descricao, tipo, times_ids, responsaveis_ids, trava, status, prioridade, data_vencimento, responsavel_id, responsavel_nome_texto, time, created_at, concluida_em, origem, criado_por',
           )
           .eq('card_id', cardId)
           .eq('origem', origemAtividade)
@@ -766,6 +766,9 @@ export function KanbanCardModal({
             }));
             const primeiroResp = respIds[0] ?? rid;
             const cp = (a as { criado_por?: string | null }).criado_por;
+            const rnt = (a as { responsavel_nome_texto?: string | null }).responsavel_nome_texto;
+            const responsavel_nome_texto =
+              rnt != null && String(rnt).trim() !== '' ? String(rnt).trim() : null;
             return {
               id: String(a.id),
               titulo: String(a.titulo ?? ''),
@@ -778,6 +781,7 @@ export function KanbanCardModal({
               prioridade: (a.prioridade as InteracaoModal['prioridade']) ?? 'normal',
               data_vencimento: (a.data_vencimento as string | null) ?? null,
               responsavel_id: rid,
+              responsavel_nome_texto,
               time: (a.time as string | null) ?? null,
               created_at: String(a.created_at),
               concluida_em: (a.concluida_em as string | null) ?? null,
@@ -2390,11 +2394,11 @@ export function KanbanCardModal({
                               <span className="text-stone-600">
                                 Resp.:{' '}
                                 <span className="font-medium">
-                                  {(it.responsaveis_resolvidos && it.responsaveis_resolvidos.length > 0
+                                  {it.responsaveis_resolvidos && it.responsaveis_resolvidos.length > 0
                                     ? it.responsaveis_resolvidos.map((r) => r.nome).join(', ')
-                                    : null) ||
-                                    it.profiles?.full_name?.trim() ||
-                                    '—'}
+                                    : it.responsavel_id
+                                      ? it.profiles?.full_name?.trim() || '—'
+                                      : it.responsavel_nome_texto ?? 'Sem responsável'}
                                 </span>
                               </span>
                             </div>
@@ -2711,9 +2715,29 @@ export function KanbanCardModal({
             </div>
 
             <div className="mt-auto border-t pt-4" style={{ borderColor: 'var(--moni-border-default)' }}>
-              <h4 className="mb-3 text-sm font-semibold" style={{ color: 'var(--moni-text-secondary)' }}>
-                Comentários
-              </h4>
+              {/* Abas comentários / e-mail */}
+              <div className="mb-3 flex gap-1">
+                {(['comentarios', 'email'] as const).map((aba) => {
+                  if (aba === 'email' && portalFrank) return null;
+                  const ativo = abaComentarios === aba;
+                  return (
+                    <button
+                      key={aba}
+                      type="button"
+                      onClick={() => setAbaComentarios(aba)}
+                      className="rounded-md px-3 py-1 text-xs font-medium transition"
+                      style={{
+                        background: ativo ? 'var(--moni-primary-600)' : 'transparent',
+                        color: ativo ? '#fff' : 'var(--moni-text-secondary)',
+                        border: ativo ? 'none' : '0.5px solid var(--moni-border-default)',
+                      }}
+                    >
+                      {aba === 'comentarios' ? 'Comentários' : 'E-mail'}
+                    </button>
+                  );
+                })}
+              </div>
+
               <div
                 className="rounded-lg p-4"
                 style={{
@@ -2721,40 +2745,116 @@ export function KanbanCardModal({
                   border: '0.5px solid var(--moni-border-default)',
                 }}
               >
-                {comentariosCard.length > 0 ? (
-                  <ul className="mb-4 max-h-48 space-y-3 overflow-y-auto">
-                    {comentariosCard.map((c) => (
-                      <li key={c.id} className="border-b border-stone-200/80 pb-3 text-sm last:border-0">
-                        <p style={{ color: 'var(--moni-text-primary)' }}>{c.texto}</p>
-                        <p className="mt-1 text-xs text-stone-500">
-                          {c.autor_nome?.trim() || 'Usuário'}
-                          {c.fase_id && faseNomePorId.has(c.fase_id) ? ` · ${faseNomePorId.get(c.fase_id)}` : ''}
-                          {' · '}
-                          {formatDataHoraHistorico(c.created_at)}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
+                {abaComentarios === 'comentarios' ? (
+                  <>
+                    {comentariosCard.length > 0 ? (
+                      <ul className="mb-4 max-h-48 space-y-3 overflow-y-auto">
+                        {comentariosCard.map((c) => (
+                          <li key={c.id} className="border-b border-stone-200/80 pb-3 text-sm last:border-0">
+                            <p style={{ color: 'var(--moni-text-primary)' }}>{c.texto}</p>
+                            <p className="mt-1 text-xs text-stone-500">
+                              {c.autor_nome?.trim() || 'Usuário'}
+                              {c.fase_id && faseNomePorId.has(c.fase_id) ? ` · ${faseNomePorId.get(c.fase_id)}` : ''}
+                              {' · '}
+                              {formatDataHoraHistorico(c.created_at)}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mb-4 text-xs text-stone-500">Nenhum comentário ainda.</p>
+                    )}
+                    <textarea
+                      value={novoComentarioCard}
+                      onChange={(e) => setNovoComentarioCard(e.target.value)}
+                      placeholder="Escreva um comentário…"
+                      rows={3}
+                      className="w-full resize-none rounded-lg p-3 text-sm focus:outline-none"
+                      style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-0)' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleEnviarComentarioCard()}
+                      disabled={salvandoComentario || !novoComentarioCard.trim()}
+                      className="mt-2 w-full rounded-lg px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
+                      style={{ background: 'var(--moni-text-primary)' }}
+                    >
+                      {salvandoComentario ? 'Enviando…' : 'Publicar'}
+                    </button>
+                  </>
                 ) : (
-                  <p className="mb-4 text-xs text-stone-500">Nenhum comentário ainda.</p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
+                        Para
+                      </label>
+                      <input
+                        type="email"
+                        value={emailPara}
+                        onChange={(e) => setEmailPara(e.target.value)}
+                        placeholder="destinatario@email.com"
+                        className="w-full rounded-lg p-2 text-sm focus:outline-none"
+                        style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-0)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
+                        Assunto
+                      </label>
+                      <input
+                        type="text"
+                        value={emailAssunto}
+                        onChange={(e) => setEmailAssunto(e.target.value)}
+                        placeholder="Assunto do e-mail"
+                        className="w-full rounded-lg p-2 text-sm focus:outline-none"
+                        style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-0)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
+                        Mensagem
+                      </label>
+                      <textarea
+                        value={emailMensagem}
+                        onChange={(e) => setEmailMensagem(e.target.value)}
+                        placeholder="Escreva a mensagem…"
+                        rows={4}
+                        className="w-full resize-none rounded-lg p-3 text-sm focus:outline-none"
+                        style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-0)' }}
+                      />
+                    </div>
+                    {erroEmail && <p className="text-xs text-red-500">{erroEmail}</p>}
+                    <button
+                      type="button"
+                      disabled={enviandoEmail || !emailPara.trim() || !emailAssunto.trim() || !emailMensagem.trim()}
+                      onClick={async () => {
+                        if (!card) return;
+                        setEnviandoEmail(true);
+                        setErroEmail(null);
+                        const res = await enviarEmailCard({
+                          card_id: card.id,
+                          para: emailPara.trim(),
+                          assunto: emailAssunto.trim(),
+                          mensagem: emailMensagem.trim(),
+                          basePath,
+                        });
+                        setEnviandoEmail(false);
+                        if (res.ok) {
+                          setEmailAssunto('');
+                          setEmailMensagem('');
+                          setAbaComentarios('comentarios');
+                          await loadCard();
+                        } else {
+                          setErroEmail(res.error);
+                        }
+                      }}
+                      className="w-full rounded-lg px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
+                      style={{ background: 'var(--moni-text-primary)' }}
+                    >
+                      {enviandoEmail ? 'Enviando…' : 'Enviar e-mail'}
+                    </button>
+                  </div>
                 )}
-                <textarea
-                  value={novoComentarioCard}
-                  onChange={(e) => setNovoComentarioCard(e.target.value)}
-                  placeholder="Escreva um comentário…"
-                  rows={3}
-                  className="w-full resize-none rounded-lg p-3 text-sm focus:outline-none"
-                  style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-0)' }}
-                />
-                <button
-                  type="button"
-                  onClick={() => void handleEnviarComentarioCard()}
-                  disabled={salvandoComentario || !novoComentarioCard.trim()}
-                  className="mt-2 w-full rounded-lg px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
-                  style={{ background: 'var(--moni-text-primary)' }}
-                >
-                  {salvandoComentario ? 'Enviando…' : 'Publicar'}
-                </button>
               </div>
             </div>
 
