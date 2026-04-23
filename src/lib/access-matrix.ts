@@ -1,8 +1,8 @@
 import { normalizeAccessRole, type AccessRole } from '@/lib/authz';
 
 /**
- * Rotas permitidas ao papel `team` (matriz: Rede, Comunidade, Novos Negócios + dashboard/tarefas, Perfil).
- * Demais seções (Steps, Catálogo, Sirene, Crédito interno, etc.) ficam só para `admin`.
+ * Rotas permitidas ao papel `team` (matriz: Rede, Comunidade, Novos Negócios + dashboard/tarefas, Perfil, Sirene).
+ * Demais seções (Steps, Catálogo, Crédito interno, etc.) ficam só para `admin`.
  */
 export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/rede-franqueados',
@@ -14,6 +14,7 @@ export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/funil-stepone',
   '/dashboard-novos-negocios',
   '/perfil',
+  '/sirene',
 ] as const;
 
 export function isTeamAllowedPath(pathname: string): boolean {

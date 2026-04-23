@@ -326,7 +326,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
         )}
 
         {!publicVisitor && !limitedRelease &&
-          isAdmin &&
+          (isAdmin || resolvedRole === 'team') &&
           renderMacro(
             'sirene',
             'Sirene',
