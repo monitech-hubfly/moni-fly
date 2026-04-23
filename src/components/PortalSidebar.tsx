@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Bell, ChevronDown, ChevronRight, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { isAdminRole, normalizeAccessRole } from '@/lib/authz';
-import { isLiveLimitedRelease } from '@/lib/release-scope';
+import { isLiveLimitedRelease, showDevOnlySidebarNav } from '@/lib/release-scope';
 
 type PortalSidebarProps = {
   user: { id: string; email?: string; full_name?: string | null } | null;
@@ -61,6 +61,13 @@ const PAINEL_NOVOS_NEGOCIOS_SUBITENS_TAIL: NavItem[] = [
 ];
 const SIRENE_SUBITENS: NavItem[] = [{ href: '/sirene/interacoes', label: 'Chamados' }];
 
+const REDE_HREFS_DEV_ONLY = new Set(['/comunidade', '/rede']);
+
+function filterRedeFranqueadosSubitensParaProd(items: NavItem[], showDevNav: boolean): NavItem[] {
+  if (showDevNav) return items;
+  return items.filter((i) => !REDE_HREFS_DEV_ONLY.has(i.href));
+}
+
 function isRedeFranqueadosActive(pathname: string) {
   if (
     pathname.startsWith('/rede-franqueados') ||
@@ -107,6 +114,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
   const [resolvedRole, setResolvedRole] = useState(userRole);
   const isAdmin = isAdminRole(resolvedRole);
   const limitedRelease = isLiveLimitedRelease();
+  const showDevNav = showDevOnlySidebarNav();
   const showFullNovosNegociosNav = publicVisitor || isAdmin;
 
   useEffect(() => {
@@ -138,12 +146,12 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
 
   /** Franqueado não acessa `/rede-franqueados` (middleware); visão consolidada em `/portal-frank/rede`. */
   const redeFranqueadosNavSubitens = useMemo((): NavItem[] => {
-    if (publicVisitor) return REDE_FRANQUEADOS_SUBITENS;
+    if (publicVisitor) return filterRedeFranqueadosSubitensParaProd(REDE_FRANQUEADOS_SUBITENS, showDevNav);
     if (resolvedRole === 'frank') {
       return [{ href: '/portal-frank/rede', label: 'Rede de Franqueados' }];
     }
-    return REDE_FRANQUEADOS_SUBITENS;
-  }, [publicVisitor, resolvedRole]);
+    return filterRedeFranqueadosSubitensParaProd(REDE_FRANQUEADOS_SUBITENS, showDevNav);
+  }, [publicVisitor, resolvedRole, showDevNav]);
 
   useEffect(() => {
     const p = pathname ?? '';
@@ -262,13 +270,23 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
           Moní
         </Link>
         <Link
-          href={isSirene ? '/sirene' : isAdmin ? '/alertas' : '/comunidade'}
+          href={
+            isSirene
+              ? '/sirene'
+              : isAdmin
+                ? '/alertas'
+                : showDevNav
+                  ? '/comunidade'
+                  : '/rede-franqueados'
+          }
           className={`flex items-center justify-center rounded-full p-1.5 ${
             isSirene
               ? 'text-amber-400 hover:bg-stone-800 hover:text-amber-300'
               : 'text-amber-500 hover:bg-amber-50 hover:text-amber-600'
           }`}
-          title={isSirene ? 'Notificações Sirene' : isAdmin ? 'Alertas' : 'Comunidade'}
+          title={
+            isSirene ? 'Notificações Sirene' : isAdmin ? 'Alertas' : showDevNav ? 'Comunidade' : 'Rede de Franqueados'
+          }
           aria-label="Notificações"
         >
           <Bell className="h-5 w-5" />
@@ -328,8 +346,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
             },
           )}
 
-        {!publicVisitor && !limitedRelease &&
-          isAdmin &&
+        {!publicVisitor && !limitedRelease && showDevNav && isAdmin &&
           renderMacro(
             'catalogo',
             'Catálogo de Produtos Moní',
@@ -340,8 +357,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
             (href) => pathname?.startsWith(href) ?? false,
           )}
 
-        {!publicVisitor && !limitedRelease &&
-          isAdmin &&
+        {!publicVisitor && !limitedRelease && showDevNav && isAdmin &&
           renderMacro(
             'steps',
             'Steps Viabilidade',
