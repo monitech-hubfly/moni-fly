@@ -36,6 +36,20 @@ export const FRANK_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/perfil',
 ] as const;
 
+/**
+ * Fora da matriz Frank: bloqueia estes caminhos mesmo que coincidam com regra ampla; middleware redireciona a frank/franqueado para /portal-frank.
+ */
+export const FRANK_FORBIDDEN_PATH_PREFIXES: readonly string[] = [
+  '/meus-processos',
+  '/iniciar-processo',
+  '/pre-obra',
+  '/saude-unidade',
+  '/unidade-franquia',
+  '/catalogo-produtos-moni',
+  '/alertas',
+  '/obra-ways',
+] as const;
+
 /** Detalhe de uma linha da rede (`/rede-franqueados/:id`): a página restringe à própria franquia. */
 export function isFrankRedeFranqueadoDetalhePath(pathname: string): boolean {
   return /^\/rede-franqueados\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\/|$|\?)/i.test(
@@ -44,6 +58,9 @@ export function isFrankRedeFranqueadoDetalhePath(pathname: string): boolean {
 }
 
 export function isFrankAllowedPath(pathname: string): boolean {
+  if (FRANK_FORBIDDEN_PATH_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    return false;
+  }
   if (FRANK_ALLOWED_PATH_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return true;
   if (isFrankRedeFranqueadoDetalhePath(pathname)) return true;
   return false;

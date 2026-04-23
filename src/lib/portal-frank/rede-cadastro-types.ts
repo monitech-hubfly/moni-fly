@@ -1,4 +1,6 @@
 /** Campos que o Frank pode enviar no UPDATE de `rede_franqueados` (contato + endereço + documentos pessoais). */
+// INTENCIONAL: 'socios' não está no payload Frank.
+// Frank não visualiza nem edita sócios — bloqueio por omissão (Matriz Frank).
 export type RedeFrankCadastroPayload = {
   email_frank: string;
   telefone_frank: string;

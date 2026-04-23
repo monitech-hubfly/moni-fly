@@ -5,8 +5,10 @@
 -- PARTE 1 — Registrar o kanban
 -- ═══════════════════════════════════════════════════════════════════════════
 INSERT INTO public.kanbans (nome, descricao)
-VALUES ('Funil Acoplamento', 'Gestão do processo de acoplamento de terreno e casa')
-ON CONFLICT (nome) DO NOTHING;
+SELECT 'Funil Acoplamento', 'Gestão do processo de acoplamento de terreno e casa'
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.kanbans WHERE nome = 'Funil Acoplamento'
+);
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- PARTE 2 — Inserir as 4 fases

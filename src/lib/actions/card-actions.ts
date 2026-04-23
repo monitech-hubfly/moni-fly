@@ -3,7 +3,9 @@
 import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import type { KanbanFaseMaterial } from '@/components/kanban-shared/types';
+import { KANBAN_APP_BASE_PATHS } from '@/lib/kanban/kanban-card-href';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 /**
@@ -1069,5 +1071,415 @@ export async function removerAnexoSubchamado(
 
   revalidatePath(basePath?.trim() || '/');
   revalidatePath('/');
+  return { ok: true };
+}
+
+// ─── Checklist por card ───────────────────────────────────────────────────────
+
+export type ChecklistItem = {
+  id: string;
+  card_id: string;
+  texto: string;
+  feito: boolean;
+  responsavel_id: string | null;
+  criado_por: string | null;
+  created_at: string;
+  updated_at: string;
+  responsavel?: { full_name: string | null } | null;
+};
+
+export async function listarChecklistCard(cardId: string): Promise<ChecklistItem[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('kanban_checklist_itens')
+    .select('*, responsavel:responsavel_id(full_name)')
+    .eq('card_id', cardId)
+    .order('created_at', { ascending: true });
+  if (error) return [];
+  return (data ?? []) as ChecklistItem[];
+}
+
+export async function criarChecklistItem(input: {
+  card_id: string;
+  texto: string;
+  responsavel_id: string | null;
+  basePath?: string;
+}): Promise<{ ok: boolean; error?: string; item?: ChecklistItem }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Não autenticado.' };
+
+  const { data, error } = await supabase
+    .from('kanban_checklist_itens')
+    .insert({ card_id: input.card_id, texto: input.texto.trim(), responsavel_id: input.responsavel_id || null, criado_por: user.id })
+    .select('*, responsavel:responsavel_id(full_name)')
+    .single();
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(input.basePath?.trim() || '/');
+  return { ok: true, item: data as ChecklistItem };
+}
+
+export async function toggleChecklistItem(input: {
+  id: string;
+  feito: boolean;
+  basePath?: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Não autenticado.' };
+
+  const { error } = await supabase
+    .from('kanban_checklist_itens')
+    .update({ feito: input.feito, updated_at: new Date().toISOString() })
+    .eq('id', input.id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(input.basePath?.trim() || '/');
+  return { ok: true };
+}
+
+export async function deletarChecklistItem(input: {
+  id: string;
+  basePath?: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Não autenticado.' };
+
+  const { error } = await supabase
+    .from('kanban_checklist_itens')
+    .delete()
+    .eq('id', input.id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(input.basePath?.trim() || '/');
+  return { ok: true };
+}
+
+// ─── Aprovação de passagem de fase ───────────────────────────────────────────
+
+export async function verificarChecklistParaFase(
+  cardId: string,
+): Promise<{ bloqueado: boolean; itens_pendentes: number }> {
+  const supabase = await createClient();
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return { bloqueado: false, itens_pendentes: 0 };
+
+  const { data, error } = await supabase
+    .from('kanban_checklist_itens')
+    .select('id')
+    .eq('card_id', cid)
+    .eq('feito', false);
+
+  if (error) return { bloqueado: false, itens_pendentes: 0 };
+  const count = (data ?? []).length;
+  return { bloqueado: count > 0, itens_pendentes: count };
+}
+
+export async function solicitarAprovacaoFase(input: {
+  card_id: string;
+  fase_destino: string;
+  card_titulo: string;
+  itens_pendentes: number;
+  basePath?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para solicitar aprovação.' };
+
+  const cid = String(input.card_id ?? '').trim();
+  const faseDest = String(input.fase_destino ?? '').trim();
+  if (!cid || !faseDest) return { ok: false, error: 'Dados inválidos.' };
+
+  const { data: prof } = await supabase
+    .from('profiles')
+    .select('full_name')
+    .eq('id', user.id)
+    .maybeSingle();
+  const nomeSolicitante =
+    String((prof as { full_name?: string | null } | null)?.full_name ?? '').trim() || 'Alguém';
+
+  const { error: insErr } = await supabase.from('kanban_aprovacoes_fase').insert({
+    card_id: cid,
+    solicitado_por: user.id,
+    fase_destino: faseDest,
+    status: 'pendente',
+  } as never);
+  if (insErr) return { ok: false, error: insErr.message };
+
+  const { data: bombeiros } = await supabase
+    .from('sirene_papeis')
+    .select('user_id')
+    .eq('papel', 'bombeiro');
+
+  const titulo = 'Solicitação de aprovação de fase';
+  const n = input.itens_pendentes;
+  const pendentesStr = n === 1 ? '1 item de checklist pendente' : `${n} itens de checklist pendentes`;
+  const mensagem = `${nomeSolicitante} quer mover o card "${input.card_titulo}" para a próxima fase, mas há ${pendentesStr}.`;
+
+  for (const b of bombeiros ?? []) {
+    const uid = String((b as { user_id: string }).user_id);
+    await supabase.from('sirene_notificacoes').insert({
+      user_id: uid,
+      chamado_id: null,
+      tipo: 'aprovacao_fase',
+      texto: mensagem,
+      titulo,
+      mensagem,
+    } as never);
+  }
+
+  revalidatePath(input.basePath?.trim() || '/');
+  revalidatePath('/sirene/monitor');
+  revalidatePath('/');
+  return { ok: true };
+}
+
+function revalidateAprovacaoFaseEMonitor() {
+  revalidatePath('/sirene/monitor');
+  for (const p of KANBAN_APP_BASE_PATHS) revalidatePath(p);
+  revalidatePath('/');
+}
+
+export type AprovacaoFasePendente = {
+  id: string;
+  card_id: string;
+  fase_destino: string;
+  solicitado_por: string;
+  created_at: string;
+  card_titulo: string;
+  funil_nome: string;
+  solicitante_nome: string;
+  itens_pendentes: number;
+};
+
+function cardEmbedRow(
+  raw: unknown,
+): { titulo: string; funil_nome: string } {
+  const r = raw as
+    | { titulo?: string; kanbans?: { nome?: string } | { nome?: string }[] | null }
+    | { titulo?: string; kanbans?: { nome?: string } | { nome?: string }[] | null }[]
+    | null
+    | undefined;
+  const node = Array.isArray(r) ? r[0] : r;
+  if (!node) return { titulo: '—', funil_nome: 'Funil' };
+  const k = node.kanbans;
+  const kn = Array.isArray(k) ? k[0] : k;
+  const funil = String(kn?.nome ?? 'Funil').trim() || 'Funil';
+  return { titulo: String(node.titulo ?? '—').trim() || '—', funil_nome: funil };
+}
+
+export async function listarAprovacoesPendentes(): Promise<
+  { ok: true; rows: AprovacaoFasePendente[] } | { ok: false; error: string }
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Não autenticado.' };
+
+  const { data: isBombeiro } = await supabase
+    .from('sirene_papeis')
+    .select('papel')
+    .eq('user_id', user.id)
+    .eq('papel', 'bombeiro')
+    .maybeSingle();
+  if (!isBombeiro) return { ok: false, error: 'Acesso restrito a bombeiro.' };
+
+  const { data: aprovs, error: aErr } = await supabase
+    .from('kanban_aprovacoes_fase')
+    .select(
+      'id, card_id, fase_destino, solicitado_por, created_at, kanban_cards!inner ( titulo, kanbans ( nome ) )',
+    )
+    .eq('status', 'pendente')
+    .order('created_at', { ascending: true });
+  if (aErr) return { ok: false, error: aErr.message };
+
+  const rows = (aprovs ?? []) as {
+    id: string;
+    card_id: string;
+    fase_destino: string;
+    solicitado_por: string;
+    created_at: string;
+    kanban_cards: unknown;
+  }[];
+  const cardIds = rows.map((r) => r.card_id);
+  const solicitIds = [...new Set(rows.map((r) => r.solicitado_por))];
+
+  const { data: profs } = await supabase
+    .from('profiles')
+    .select('id, full_name')
+    .in('id', solicitIds);
+  const nomePorId = new Map(
+    (profs ?? []).map((p) => [
+      p.id as string,
+      String(p.full_name ?? '').trim() || 'Solicitante',
+    ]),
+  );
+
+  let checklistPend: { card_id: string }[] | null = null;
+  if (cardIds.length) {
+    const { data: ck } = await supabase
+      .from('kanban_checklist_itens')
+      .select('card_id')
+      .in('card_id', cardIds)
+      .eq('feito', false);
+    checklistPend = (ck ?? []) as { card_id: string }[];
+  }
+  const pendentesPorCard = new Map<string, number>();
+  for (const c of cardIds) pendentesPorCard.set(c, 0);
+  for (const it of checklistPend ?? []) pendentesPorCard.set(
+    it.card_id,
+    (pendentesPorCard.get(it.card_id) ?? 0) + 1,
+  );
+
+  return {
+    ok: true,
+    rows: rows.map((r) => {
+      const { titulo, funil_nome } = cardEmbedRow(r.kanban_cards);
+      const name = nomePorId.get(r.solicitado_por) ?? 'Solicitante';
+      return {
+        id: r.id,
+        card_id: r.card_id,
+        fase_destino: r.fase_destino,
+        solicitado_por: r.solicitado_por,
+        created_at: r.created_at,
+        card_titulo: titulo,
+        funil_nome: funil_nome,
+        solicitante_nome: name,
+        itens_pendentes: pendentesPorCard.get(r.card_id) ?? 0,
+      };
+    }),
+  };
+}
+
+export async function aprovarPassagemFase(aprovacaoId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Não autenticado.' };
+
+  const { data: isBombeiro } = await supabase
+    .from('sirene_papeis')
+    .select('papel')
+    .eq('user_id', user.id)
+    .eq('papel', 'bombeiro')
+    .maybeSingle();
+  if (!isBombeiro) return { ok: false, error: 'Apenas bombeiro pode aprovar.' };
+
+  const id = String(aprovacaoId ?? '').trim();
+  if (!id) return { ok: false, error: 'Solicitação inválida.' };
+
+  const { data: aprov, error: rErr } = await supabase
+    .from('kanban_aprovacoes_fase')
+    .select('id, card_id, fase_destino, status')
+    .eq('id', id)
+    .eq('status', 'pendente')
+    .maybeSingle();
+  if (rErr) return { ok: false, error: rErr.message };
+  if (!aprov) return { ok: false, error: 'Aprovação não encontrada ou já tratada.' };
+
+  const aprovRow = aprov as { id: string; card_id: string; fase_destino: string; status: string };
+  const fase = String(aprovRow.fase_destino ?? '').trim();
+  if (!fase) return { ok: false, error: 'Fase de destino inválida.' };
+
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Serviço indisponível.' };
+  }
+
+  const now = new Date().toISOString();
+  const { error: cErr } = await admin
+    .from('kanban_cards')
+    .update({ fase_id: fase })
+    .eq('id', aprovRow.card_id);
+  if (cErr) return { ok: false, error: cErr.message };
+
+  const { error: uErr } = await supabase
+    .from('kanban_aprovacoes_fase')
+    .update({ status: 'aprovado', aprovado_por: user.id, updated_at: now })
+    .eq('id', aprovRow.id);
+  if (uErr) return { ok: false, error: uErr.message };
+
+  revalidateAprovacaoFaseEMonitor();
+  return { ok: true };
+}
+
+export async function rejeitarPassagemFase(aprovacaoId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Não autenticado.' };
+
+  const { data: isBombeiro } = await supabase
+    .from('sirene_papeis')
+    .select('papel')
+    .eq('user_id', user.id)
+    .eq('papel', 'bombeiro')
+    .maybeSingle();
+  if (!isBombeiro) return { ok: false, error: 'Apenas bombeiro pode rejeitar.' };
+
+  const id = String(aprovacaoId ?? '').trim();
+  if (!id) return { ok: false, error: 'Solicitação inválida.' };
+
+  const { data: aprov, error: rErr } = await supabase
+    .from('kanban_aprovacoes_fase')
+    .select('id, card_id, solicitado_por, status, kanban_cards!inner ( titulo )')
+    .eq('id', id)
+    .eq('status', 'pendente')
+    .maybeSingle();
+  if (rErr) return { ok: false, error: rErr.message };
+  if (!aprov) return { ok: false, error: 'Aprovação não encontrada ou já tratada.' };
+
+  const row = aprov as {
+    id: string;
+    card_id: string;
+    solicitado_por: string;
+    status: string;
+    kanban_cards: unknown;
+  };
+  const { titulo: tCard } = cardEmbedRow(row.kanban_cards);
+  const cardTit = tCard !== '—' ? tCard : 'Card';
+
+  const { data: perfBombeiro } = await supabase
+    .from('profiles')
+    .select('full_name')
+    .eq('id', user.id)
+    .maybeSingle();
+  const nomeBom = String(perfBombeiro?.full_name ?? '').trim() || 'Bombeiro';
+
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Serviço indisponível.' };
+  }
+
+  const now = new Date().toISOString();
+  const { error: uErr } = await supabase
+    .from('kanban_aprovacoes_fase')
+    .update({ status: 'rejeitado', aprovado_por: user.id, updated_at: now })
+    .eq('id', row.id);
+  if (uErr) return { ok: false, error: uErr.message };
+
+  const mensagem = `${nomeBom} rejeitou a solicitação de avanço do card "${cardTit}"`;
+  const { error: nErr } = await admin.from('sirene_notificacoes').insert({
+    user_id: row.solicitado_por,
+    chamado_id: null,
+    tipo: 'aprovacao_rejeitada',
+    titulo: 'Passagem de fase rejeitada',
+    mensagem,
+    texto: mensagem,
+    referencia_id: null,
+    referencia_card_id: row.card_id,
+  } as never);
+  if (nErr) return { ok: false, error: nErr.message };
+
+  revalidateAprovacaoFaseEMonitor();
   return { ok: true };
 }

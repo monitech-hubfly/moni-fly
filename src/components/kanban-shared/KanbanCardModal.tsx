@@ -32,7 +32,9 @@ import {
   removerVinculoCard,
   salvarDadosPreObra,
   salvarInstrucoesFase,
+  solicitarAprovacaoFase,
   uploadContratoFranquia,
+  verificarChecklistParaFase,
   type BuscaCardVinculoRow,
   type KanbanCardVinculoListItem,
   type SubInteracaoStatusDb,
@@ -86,6 +88,7 @@ import {
 } from './kanban-card-modal-helpers';
 import { AnexosChamado } from './AnexosChamado';
 import { AnexosSubchamado } from './AnexosSubchamado';
+import { ChecklistCard } from './ChecklistCard';
 import {
   buildLegadoFaseTimeline,
   buildNativeFaseTimeline,
@@ -271,6 +274,12 @@ export function KanbanCardModal({
   const [buscaVinculo, setBuscaVinculo] = useState('');
   const [tipoNovoVinculo, setTipoNovoVinculo] = useState<TipoVinculoKanbanCard>('relacionado');
   const [resultadosBuscaVinculo, setResultadosBuscaVinculo] = useState<BuscaCardVinculoRow[]>([]);
+  const [modalAprovacaoFase, setModalAprovacaoFase] = useState<{
+    fase: KanbanFase;
+    direcao: 'avancar' | 'retroceder';
+    itensPendentes: number;
+  } | null>(null);
+  const [solicitandoAprovacaoFase, setSolicitandoAprovacaoFase] = useState(false);
 
   useEffect(() => {
     setArquivamentoAberto(false);
@@ -291,6 +300,8 @@ export function KanbanCardModal({
     setTipoNovoVinculo('relacionado');
     setResultadosBuscaVinculo([]);
     setModalSessao({ userId: null, uploaderNome: '—', ehAdminOuTeam: false });
+    setModalAprovacaoFase(null);
+    setSolicitandoAprovacaoFase(false);
   }, [cardId]);
 
   useEffect(() => {
@@ -1114,18 +1125,8 @@ export function KanbanCardModal({
     });
   }
 
-  async function handleAvancarFase() {
+  async function executarAvancarFase(proximaFase: KanbanFase) {
     if (!card || !faseAtual) return;
-    if (!pode('mover_fase')) {
-      alert('Sem permissão para mover de fase.');
-      return;
-    }
-    const proximaFase = fases.find((f) => f.ordem === faseAtual.ordem + 1);
-    if (!proximaFase) {
-      alert('Esta é a última fase do funil.');
-      return;
-    }
-    if (!confirm(`Avançar para a fase "${proximaFase.nome}"?`)) return;
     setLoading(true);
     try {
       const supabase = createClient();
@@ -1150,6 +1151,27 @@ export function KanbanCardModal({
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleAvancarFase() {
+    if (!card || !faseAtual) return;
+    if (!pode('mover_fase')) {
+      alert('Sem permissão para mover de fase.');
+      return;
+    }
+    const proximaFase = fases.find((f) => f.ordem === faseAtual.ordem + 1);
+    if (!proximaFase) {
+      alert('Esta é a última fase do funil.');
+      return;
+    }
+    if (!confirm(`Avançar para a fase "${proximaFase.nome}"?`)) return;
+
+    const checklist = await verificarChecklistParaFase(card.id);
+    if (checklist.bloqueado) {
+      setModalAprovacaoFase({ fase: proximaFase, direcao: 'avancar', itensPendentes: checklist.itens_pendentes });
+      return;
+    }
+    await executarAvancarFase(proximaFase);
   }
 
   async function handleRetrocederFase() {
@@ -1187,6 +1209,30 @@ export function KanbanCardModal({
       alert('Erro ao retroceder fase.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSolicitarAprovacaoFase() {
+    if (!card || !modalAprovacaoFase) return;
+    setSolicitandoAprovacaoFase(true);
+    try {
+      const res = await solicitarAprovacaoFase({
+        card_id: card.id,
+        fase_destino: modalAprovacaoFase.fase.nome ?? modalAprovacaoFase.fase.id,
+        card_titulo: card.titulo,
+        itens_pendentes: modalAprovacaoFase.itensPendentes,
+        basePath,
+      });
+      if (!res.ok) {
+        alert(`Erro ao solicitar aprovação: ${res.error}`);
+        return;
+      }
+      setModalAprovacaoFase(null);
+      alert('Solicitação enviada. Aguarde aprovação do Bombeiro.');
+    } catch {
+      alert('Erro ao enviar solicitação.');
+    } finally {
+      setSolicitandoAprovacaoFase(false);
     }
   }
 
@@ -2498,6 +2544,7 @@ export function KanbanCardModal({
                       <option value="atividade">Atividade</option>
                       <option value="duvida">Dúvida</option>
                     </select>
+                    {!portalFrank && (
                     <input
                       type="date"
                       value={novaInteracao.data}
@@ -2505,7 +2552,9 @@ export function KanbanCardModal({
                       className="px-3 py-2 text-xs"
                       style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
                     />
+                    )}
                   </div>
+                  {!portalFrank && (
                   <div>
                     <span className="mb-1 block text-[10px] font-medium text-stone-500">Responsáveis</span>
                     {responsaveisOpcoes.length === 0 ? (
@@ -2528,6 +2577,7 @@ export function KanbanCardModal({
                       </div>
                     )}
                   </div>
+                  )}
                   <div>
                     <span className="mb-1 block text-[10px] font-medium text-stone-500">Times</span>
                     <div className="flex flex-wrap gap-1.5">
@@ -2687,34 +2737,73 @@ export function KanbanCardModal({
           >
             {pode('mover_fase') ? (
               <>
-                <button
-                  type="button"
-                  onClick={() => void handleRetrocederFase()}
-                  disabled={loading || !podeRetrocederFase}
-                  className="w-full px-2 py-1 text-xs font-medium leading-tight transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  style={{
-                    background: 'var(--moni-surface-0)',
-                    color: 'var(--moni-text-primary)',
-                    border: '0.5px solid var(--moni-border-default)',
-                    borderRadius: 'var(--moni-radius-md)',
-                  }}
-                >
-                  {loading ? '…' : 'Fase Anterior'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleAvancarFase()}
-                  disabled={loading || !podeAvancarFase}
-                  className="w-full px-2 py-1 text-xs font-medium leading-tight transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  style={{
-                    background: 'var(--moni-surface-0)',
-                    color: 'var(--moni-green-800)',
-                    border: '0.5px solid var(--moni-green-400)',
-                    borderRadius: 'var(--moni-radius-md)',
-                  }}
-                >
-                  {loading ? '…' : 'Próxima Fase'}
-                </button>
+                {!modalAprovacaoFase ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => void handleRetrocederFase()}
+                      disabled={loading || !podeRetrocederFase}
+                      className="w-full px-2 py-1 text-xs font-medium leading-tight transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      style={{
+                        background: 'var(--moni-surface-0)',
+                        color: 'var(--moni-text-primary)',
+                        border: '0.5px solid var(--moni-border-default)',
+                        borderRadius: 'var(--moni-radius-md)',
+                      }}
+                    >
+                      {loading ? '…' : 'Fase Anterior'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleAvancarFase()}
+                      disabled={loading || !podeAvancarFase}
+                      className="w-full px-2 py-1 text-xs font-medium leading-tight transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      style={{
+                        background: 'var(--moni-surface-0)',
+                        color: 'var(--moni-green-800)',
+                        border: '0.5px solid var(--moni-green-400)',
+                        borderRadius: 'var(--moni-radius-md)',
+                      }}
+                    >
+                      {loading ? '…' : 'Próxima Fase'}
+                    </button>
+                  </>
+                ) : (
+                  <div className="space-y-1.5">
+                    <p className="text-center text-[10px] font-medium leading-snug text-stone-700">
+                      Este card tem {modalAprovacaoFase.itensPendentes}{' '}
+                      {modalAprovacaoFase.itensPendentes === 1 ? 'item' : 'itens'} de checklist
+                      pendente{modalAprovacaoFase.itensPendentes === 1 ? '' : 's'}. Deseja solicitar
+                      aprovação para avançar de fase?
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void handleSolicitarAprovacaoFase()}
+                      disabled={solicitandoAprovacaoFase}
+                      className="w-full px-2 py-1 text-xs font-semibold leading-tight text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                      style={{
+                        background: 'var(--moni-green-600)',
+                        borderRadius: 'var(--moni-radius-md)',
+                      }}
+                    >
+                      {solicitandoAprovacaoFase ? '…' : 'Solicitar aprovação'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModalAprovacaoFase(null)}
+                      disabled={solicitandoAprovacaoFase}
+                      className="w-full px-2 py-1 text-xs font-medium leading-tight transition hover:bg-stone-100 disabled:opacity-50"
+                      style={{
+                        background: 'var(--moni-surface-0)',
+                        color: 'var(--moni-text-primary)',
+                        border: '0.5px solid var(--moni-border-default)',
+                        borderRadius: 'var(--moni-radius-md)',
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                )}
               </>
             ) : null}
             {pode('finalizar_cards') && (exibirBotaoFinalizar || confirmandoFinalizar) ? (
@@ -3263,6 +3352,15 @@ export function KanbanCardModal({
                 )}
               </>
             ) : null}
+            {card && (
+              <ChecklistCard
+                cardId={card.id}
+                userId={modalSessao.userId}
+                isFrank={portalFrank}
+                responsaveisOpcoes={responsaveisOpcoes}
+                basePath={basePath}
+              />
+            )}
             <div
               className="overflow-hidden rounded-lg bg-white"
               style={{

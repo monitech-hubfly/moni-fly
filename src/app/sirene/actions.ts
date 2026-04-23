@@ -228,7 +228,7 @@ export async function salvarResolucaoComTopicos(
 
 async function getSireneUserContext(
   supabase: Awaited<ReturnType<typeof createClient>>,
-): Promise<{ userId: string; userName: string; ctx: SireneUserContext } | null> {
+): Promise<{ userId: string; userName: string; ctx: SireneUserContext; role: string | null } | null> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -236,16 +236,18 @@ async function getSireneUserContext(
 
   const [papelRes, profileRes] = await Promise.all([
     supabase.from('sirene_papeis').select('papel').eq('user_id', user.id).maybeSingle(),
-    supabase.from('profiles').select('full_name, time').eq('id', user.id).single(),
+    supabase.from('profiles').select('full_name, time, role').eq('id', user.id).single(),
   ]);
 
   const papel = (papelRes.data?.papel as 'bombeiro' | 'caneta_verde') ?? null;
   const time = (profileRes.data?.time as string) ?? null;
+  const role = (profileRes.data?.role as string) ?? null;
 
   return {
     userId: user.id,
     userName: (profileRes.data?.full_name as string)?.trim() || user.email || 'Usuário',
     ctx: { papel, time },
+    role,
   };
 }
 
@@ -266,6 +268,13 @@ async function getUserIdsToNotify(
   return [];
 }
 
+/** Corpo estruturado opcional (ex.: mencao_comentario). `texto` permanece preenchido para compatibilidade. */
+type AvisoNotificacaoEstruturado = {
+  titulo: string;
+  mensagem: string;
+  referencia_id: number;
+};
+
 /** Insere uma notificação para um usuário. */
 async function inserirNotificacao(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -274,13 +283,20 @@ async function inserirNotificacao(
   tipo: string,
   texto: string,
   topicoId?: number | null,
+  aviso?: AvisoNotificacaoEstruturado,
 ): Promise<void> {
+  const corpo = aviso?.mensagem ?? texto;
   await supabase.from('sirene_notificacoes').insert({
     user_id: userId,
     chamado_id: chamadoId,
     tipo,
-    texto,
+    texto: corpo,
     ...(topicoId != null && { topico_id: topicoId }),
+    ...(aviso && {
+      titulo: aviso.titulo,
+      mensagem: aviso.mensagem,
+      referencia_id: aviso.referencia_id,
+    }),
   });
 }
 
@@ -468,6 +484,9 @@ export async function criarChamado(
   if (tipo === 'hdm' && hdmResponsavel && !HDM_TIMES.includes(hdmResponsavel))
     return { ok: false, error: 'Time HDM inválido.' };
 
+  const roleNorm = (me.role ?? '').toLowerCase();
+  const visivelFrank = roleNorm === 'frank' || roleNorm === 'franqueado';
+
   const { data: chamado, error } = await supabase
     .from('sirene_chamados')
     .insert({
@@ -480,6 +499,7 @@ export async function criarChamado(
       te_trata: teTrata,
       tipo,
       hdm_responsavel: hdmResponsavel,
+      visivel_frank: visivelFrank,
     })
     .select('id, numero')
     .single();
@@ -606,6 +626,52 @@ export async function definirPrioridade(
 
   if (error) return { ok: false, error: error.message };
   revalidatePath('/sirene');
+  revalidatePath(`/sirene/${chamadoId}`);
+  return { ok: true };
+}
+
+/**
+ * Permite editar tema (título) e incêndio (resumo) de um sirene_chamado.
+ * Só o criador (aberto_por) ou Bombeiro (papel em sirene_papeis) pode editar.
+ */
+export async function editarChamado(
+  chamadoId: number,
+  incendio: string,
+  tema: string | null,
+): Promise<SireneActionResult> {
+  const supabase = await createClient();
+  const me = await getSireneUserContext(supabase);
+  if (!me) return { ok: false, error: 'Faça login.' };
+
+  const { data: row } = await supabase
+    .from('sirene_chamados')
+    .select('id, aberto_por')
+    .eq('id', chamadoId)
+    .single();
+  if (!row) return { ok: false, error: 'Chamado não encontrado.' };
+
+  const isCriador = row.aberto_por != null && row.aberto_por === me.userId;
+  const isBombeiro = me.ctx.papel === 'bombeiro';
+  if (!isCriador && !isBombeiro) {
+    return { ok: false, error: 'Apenas o criador do chamado ou o Bombeiro pode editar o resumo e o tema.' };
+  }
+
+  const incendioTrim = incendio?.trim() ?? '';
+  if (!incendioTrim) return { ok: false, error: 'O resumo (incêndio) é obrigatório.' };
+  const temaTrim = tema?.trim() || null;
+
+  const { error } = await supabase
+    .from('sirene_chamados')
+    .update({
+      incendio: incendioTrim,
+      tema: temaTrim,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', chamadoId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/sirene');
+  revalidatePath('/sirene/chamados');
   revalidatePath(`/sirene/${chamadoId}`);
   return { ok: true };
 }
@@ -1248,6 +1314,7 @@ export async function getDashboardData(
         userId: '00000000-0000-0000-0000-000000000000',
         userName: 'Visitante',
         ctx: { papel: null, time: null },
+        role: null,
       };
     } catch {
       /* sem service role */
@@ -1413,6 +1480,7 @@ export async function getChamado(
       chamado: Chamado & { numero: number };
       userContext: SireneUserContext | null;
       currentUserId: string;
+      isFrank: boolean;
     }
   | { ok: false; error: string }
 > {
@@ -1429,11 +1497,13 @@ export async function getChamado(
   if (error || !chamado) return { ok: false, error: 'Chamado não encontrado.' };
 
   const c = chamado as unknown as Chamado & { numero: number };
+  const isFrank = me.role === 'frank' || me.role === 'franqueado';
   return {
     ok: true,
     chamado: c,
     userContext: me.ctx,
     currentUserId: me.userId,
+    isFrank,
   };
 }
 
@@ -1697,7 +1767,7 @@ export async function getParticipantesChamado(chamadoId: number): Promise<
   return { ok: true, participantes };
 }
 
-/** Enviar comentário no chamado. Parse @nome e cria notificações tipo mencao. */
+/** Enviar comentário no chamado. Parse @nome e cria notificações tipo mencao_comentario. */
 export async function enviarMensagemChamado(
   chamadoId: number,
   texto: string,
@@ -1707,7 +1777,7 @@ export async function enviarMensagemChamado(
   if (!me) return { ok: false, error: 'Faça login.' };
   const { data: chamado } = await supabase
     .from('sirene_chamados')
-    .select('id, numero')
+    .select('id, numero, incendio, tema')
     .eq('id', chamadoId)
     .single();
   if (!chamado) return { ok: false, error: 'Chamado não encontrado.' };
@@ -1728,27 +1798,91 @@ export async function enviarMensagemChamado(
     if (found && !mencoesIds.includes(found.id)) mencoesIds.push(found.id);
   }
 
-  const { error: msgErr } = await supabase.from('sirene_mensagens').insert({
-    chamado_id: chamadoId,
-    autor_id: me.userId,
-    autor_nome: me.userName,
-    autor_time: me.ctx.time ?? undefined,
-    texto: textoTrim,
-    mencoes: mencoesIds.length > 0 ? mencoesIds : null,
-  });
+  const { data: msgData, error: msgErr } = await supabase
+    .from('sirene_mensagens')
+    .insert({
+      chamado_id: chamadoId,
+      autor_id: me.userId,
+      autor_nome: me.userName,
+      autor_time: me.ctx.time ?? undefined,
+      texto: textoTrim,
+      mencoes: mencoesIds.length > 0 ? mencoesIds : null,
+    })
+    .select('id')
+    .single();
   if (msgErr) return { ok: false, error: msgErr.message };
   const numero = (chamado as { numero?: number })?.numero ?? chamadoId;
-  for (const uid of mencoesIds) {
-    if (uid === me.userId) continue;
-    await inserirNotificacao(
-      supabase,
-      uid,
-      chamadoId,
-      'mencao',
-      `${me.userName} mencionou você no chamado #${numero}: "${textoTrim.slice(0, 80)}${textoTrim.length > 80 ? '…' : ''}"`,
+  const temaCh = ((chamado as { tema?: string | null }).tema ?? '').trim();
+  const incendioCh = ((chamado as { incendio?: string | null }).incendio ?? '').trim();
+  const tituloChamadoNotif = temaCh || incendioCh || `Chamado #${numero}`;
+  const tituloChamadoEsc = tituloChamadoNotif.replace(/"/g, "'");
+  const tituloAvisoMencao = '@você foi mencionado em um chamado';
+  const mensagemMencao = `${me.userName} te mencionou no chamado "${tituloChamadoEsc}"`;
+  const mencoesParaOutros = mencoesIds.filter((uid) => uid !== me.userId);
+  if (mencoesParaOutros.length > 0 && msgData?.id) {
+    await supabase.from('chamado_mencoes').insert(
+      mencoesParaOutros.map((uid) => ({
+        comentario_id: msgData.id,
+        mencionado_id: uid,
+        chamado_id: chamadoId,
+      })),
     );
   }
+  for (const uid of mencoesParaOutros) {
+    await inserirNotificacao(supabase, uid, chamadoId, 'mencao_comentario', mensagemMencao, null, {
+      titulo: tituloAvisoMencao,
+      mensagem: mensagemMencao,
+      referencia_id: chamadoId,
+    });
+  }
   revalidatePath(`/sirene/${chamadoId}`);
+  return { ok: true };
+}
+
+/** Busca usuários internos para autocomplete de @menção. Exclui roles frank/franqueado. */
+export async function buscarUsuariosInternos(
+  query: string,
+): Promise<{ id: string; nome: string; avatar_url: string | null }[]> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const q = query.trim();
+  if (!q) return [];
+
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, full_name')
+    .not('role', 'in', '("frank","franqueado")')
+    .ilike('full_name', `%${q}%`)
+    .order('full_name', { ascending: true })
+    .limit(10);
+
+  return (data ?? []).map((p) => ({
+    id: p.id as string,
+    nome: ((p.full_name as string) ?? '').trim() || 'Sem nome',
+    avatar_url: null,
+  }));
+}
+
+/** Insere uma linha em chamado_mencoes por mencionado. Ignora duplicatas silenciosamente. */
+export async function inserirMencoes(
+  comentarioId: number,
+  chamadoId: number,
+  idsMencionados: string[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (idsMencionados.length === 0) return { ok: true };
+  const supabase = await createClient();
+  const { error } = await supabase.from('chamado_mencoes').insert(
+    idsMencionados.map((uid) => ({
+      comentario_id: comentarioId,
+      mencionado_id: uid,
+      chamado_id: chamadoId,
+    })),
+  );
+  if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
 
@@ -1760,6 +1894,9 @@ export async function getNotificacoesResumo(): Promise<{
     chamado_id: number | null;
     tipo: string;
     texto: string | null;
+    titulo: string | null;
+    mensagem: string | null;
+    referencia_id: number | null;
     lida: boolean;
     created_at: string;
   }>;
@@ -1772,12 +1909,22 @@ export async function getNotificacoesResumo(): Promise<{
 
   const { data: list } = await supabase
     .from('sirene_notificacoes')
-    .select('id, chamado_id, tipo, texto, lida, created_at')
+    .select('id, chamado_id, tipo, texto, titulo, mensagem, referencia_id, lida, created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(10);
 
-  const ultimas = list ?? [];
+  const ultimas = (list ?? []) as Array<{
+    id: number;
+    chamado_id: number | null;
+    tipo: string;
+    texto: string | null;
+    titulo: string | null;
+    mensagem: string | null;
+    referencia_id: number | null;
+    lida: boolean;
+    created_at: string;
+  }>;
   const totalNaoLidas = ultimas.filter((n) => !n.lida).length;
   return { totalNaoLidas, ultimas };
 }

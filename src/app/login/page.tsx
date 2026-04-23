@@ -127,7 +127,7 @@ export default function LoginPage() {
         return;
       }
       const supabase = createClient();
-      const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+      const { data: signInData, error: err } = await supabase.auth.signInWithPassword({ email, password });
       if (err) {
         setError(
           err.message === 'Invalid login credentials'
@@ -137,19 +137,26 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
+      // Aguarda o cookie de sessão propagar antes de ler claims/metadata do JWT
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const sessionUser = signInData.session?.user ?? null;
       const {
-        data: { user },
+        data: { user: refreshedUser },
       } = await supabase.auth.getUser();
-      if (!user) {
+      const u = refreshedUser ?? sessionUser;
+      if (!u) {
         setError('Sessão não encontrada após login.');
         setLoading(false);
         return;
       }
-      const { data: profile } = await supabase
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role')
-        .eq('id', user.id)
+        .eq('id', u.id)
         .maybeSingle();
+
       const role = normalizeAccessRole((profile as { role?: string | null } | null)?.role);
       if (role === 'pending') {
         router.push('/login?status=pending');

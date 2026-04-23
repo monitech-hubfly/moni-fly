@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition, useEffect, useRef, useCallback } from 'react';
+import { MencaoTextarea } from './MencaoTextarea';
 import { ModalRedirecionarHDM } from './ModalRedirecionarHDM';
 import type { Chamado } from '@/types/sirene';
 import type { SireneUserContext } from '@/lib/sirene';
@@ -21,9 +22,11 @@ import {
   listMensagensChamado,
   getParticipantesChamado,
   enviarMensagemChamado,
+  editarChamado,
   type TopicoInput,
   type AnexoOrigem,
 } from './actions';
+import { formatarStatus } from '@/lib/sirene';
 
 type Props = {
   chamado: Chamado;
@@ -33,6 +36,10 @@ type Props = {
   mostrarControlesBombeiro: boolean;
   mostrarRedirecionarHDM: boolean;
   isCriador?: boolean;
+  isFrank?: boolean;
+  podeEditarResumoChamado?: boolean;
+  isBombeiroReal?: boolean;
+  isHdmTeam?: boolean;
 };
 
 type TopicoSalvo = {
@@ -167,7 +174,16 @@ export function DetalheChamadoConteudo({
   mostrarControlesBombeiro,
   mostrarRedirecionarHDM,
   isCriador = false,
+  isFrank = false,
+  podeEditarResumoChamado = false,
+  isBombeiroReal = false,
+  isHdmTeam = false,
 }: Props) {
+  const [resumo, setResumo] = useState({ incendio: chamado.incendio, tema: chamado.tema });
+  const [editandoResumo, setEditandoResumo] = useState(false);
+  const [draftIncendio, setDraftIncendio] = useState('');
+  const [draftTema, setDraftTema] = useState('');
+  const [salvandoResumo, setSalvandoResumo] = useState(false);
   const [modalRedirecionar, setModalRedirecionar] = useState(false);
   const [topicosList, setTopicosList] = useState<TopicoSalvo[]>([]);
   const [resolucaoPorTopico, setResolucaoPorTopico] = useState<Record<number, string>>({});
@@ -258,6 +274,10 @@ export function DetalheChamadoConteudo({
       } else setErro(r.error);
     });
   };
+
+  useEffect(() => {
+    setResumo({ incendio: chamado.incendio, tema: chamado.tema });
+  }, [chamado.id, chamado.incendio, chamado.tema]);
 
   useEffect(() => {
     if (!mostrarControlesBombeiro || !chamado.id) return;
@@ -409,6 +429,32 @@ export function DetalheChamadoConteudo({
     });
   };
 
+  const abrirEdicaoResumo = () => {
+    setDraftIncendio(resumo.incendio);
+    setDraftTema(resumo.tema ?? '');
+    setEditandoResumo(true);
+    setErro(null);
+  };
+  const cancelarEdicaoResumo = () => {
+    setEditandoResumo(false);
+  };
+  const salvarEdicaoResumo = () => {
+    setSalvandoResumo(true);
+    setErro(null);
+    void editarChamado(chamado.id, draftIncendio, draftTema.trim() || null).then((r) => {
+      setSalvandoResumo(false);
+      if (!r.ok) setErro(r.error);
+      else {
+        setResumo({
+          incendio: draftIncendio.trim(),
+          tema: draftTema.trim() || null,
+        });
+        setFechamentoTema(draftTema.trim());
+        setEditandoResumo(false);
+      }
+    });
+  };
+
   const statusTopicoLabel: Record<string, string> = {
     nao_iniciado: 'Não iniciado',
     em_andamento: 'Em andamento',
@@ -418,6 +464,101 @@ export function DetalheChamadoConteudo({
 
   return (
     <>
+      <div className="rounded-xl border border-stone-700 bg-stone-800/80 p-4 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            {editandoResumo ? (
+              <div className="space-y-2">
+                <p className="text-xs text-stone-500">Chamado #{chamado.numero}</p>
+                <div>
+                  <label className="mb-0.5 block text-[10px] font-medium text-stone-500">Resumo (incêndio)</label>
+                  <input
+                    value={draftIncendio}
+                    onChange={(e) => setDraftIncendio(e.target.value)}
+                    className="w-full rounded-md border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
+                  />
+                </div>
+                <div>
+                  <label className="mb-0.5 block text-[10px] font-medium text-stone-500">Tema (título)</label>
+                  <input
+                    value={draftTema}
+                    onChange={(e) => setDraftTema(e.target.value)}
+                    placeholder="Opcional"
+                    className="w-full rounded-md border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={salvarEdicaoResumo}
+                    disabled={salvandoResumo}
+                    className="rounded-md bg-stone-600 px-3 py-1.5 text-xs text-stone-200 disabled:opacity-50"
+                  >
+                    {salvandoResumo ? 'Salvando…' : 'Salvar'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelarEdicaoResumo}
+                    disabled={salvandoResumo}
+                    className="rounded-md border border-stone-600 px-3 py-1.5 text-xs text-stone-300"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-start gap-2">
+                  <h1 className="min-w-0 break-words text-xl font-bold text-white">
+                    #{chamado.numero} — {resumo.incendio}
+                  </h1>
+                  {podeEditarResumoChamado && (
+                    <button
+                      type="button"
+                      onClick={abrirEdicaoResumo}
+                      className="shrink-0 text-xs text-stone-400 underline decoration-stone-500 hover:text-stone-200"
+                    >
+                      Editar
+                    </button>
+                  )}
+                </div>
+                {resumo.tema ? (
+                  <p className="mt-1 text-sm text-stone-300">
+                    <span className="text-stone-500">Tema: </span>
+                    {resumo.tema}
+                  </p>
+                ) : null}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span className="rounded bg-stone-600 px-2 py-0.5 text-sm text-stone-200">
+                    {formatarStatus(chamado.status)}
+                  </span>
+                  <span className="text-sm text-stone-400">{chamado.prioridade}</span>
+                  {chamado.tipo === 'hdm' && chamado.hdm_responsavel && (
+                    <span className="rounded bg-[#1e3a5f] px-2 py-0.5 text-sm font-medium text-white">
+                      HDM — {chamado.hdm_responsavel}
+                    </span>
+                  )}
+                  {chamado.trava && (
+                    <span className="rounded bg-amber-500/20 px-2 py-0.5 text-sm text-amber-400">Trava</span>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {chamado.tipo === 'hdm' && isBombeiroReal && !isHdmTeam && (
+        <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          Este chamado está sendo atendido por <strong>{chamado.hdm_responsavel}</strong>.
+        </div>
+      )}
+      {chamado.tipo === 'hdm' && isHdmTeam && (
+        <div className="mt-4 rounded-lg border border-[#1e3a5f]/50 bg-[#1e3a5f]/20 px-4 py-3 text-sm text-blue-200">
+          Você está atuando como responsável HDM neste chamado.
+        </div>
+      )}
+
       <div className="mt-8 space-y-6">
         {mostrarRedirecionarHDM && (
           <section className="rounded-xl border border-stone-700 bg-stone-800/80 p-4">
@@ -754,9 +895,9 @@ export function DetalheChamadoConteudo({
                 <strong>Parecer do Bombeiro:</strong> {chamado.parecer_final}
               </div>
             )}
-            {chamado.tema && (
+            {resumo.tema && (
               <p className="mt-1 text-sm text-stone-300">
-                <strong>Tema:</strong> {chamado.tema}
+                <strong>Tema:</strong> {resumo.tema}
               </p>
             )}
             {chamado.mapeamento_pericia && (
@@ -880,9 +1021,9 @@ export function DetalheChamadoConteudo({
               <strong>Parecer salvo:</strong> {chamado.parecer_final}
             </div>
           )}
-          {chamado.tema && (
+          {resumo.tema && (
             <p className="mt-1 text-sm text-stone-300">
-              <strong>Tema salvo:</strong> {chamado.tema}
+              <strong>Tema salvo:</strong> {resumo.tema}
             </p>
           )}
           {chamado.mapeamento_pericia && (
@@ -956,13 +1097,14 @@ export function DetalheChamadoConteudo({
             )}
           </ul>
           <div className="mt-3 flex flex-wrap gap-2">
-            <textarea
+            <MencaoTextarea
               value={novoComentario}
-              onChange={(e) => setNovoComentario(e.target.value)}
-              placeholder="Escreva um comentário… Use @nome para mencionar."
+              onChange={setNovoComentario}
+              placeholder={isFrank ? 'Escreva um comentário…' : 'Escreva um comentário… Use @nome para mencionar.'}
               rows={2}
-              className="min-w-[200px] flex-1 rounded-md border border-stone-600 bg-stone-800 px-2 py-1.5 text-sm text-stone-100"
+              className="w-full rounded-md border border-stone-600 bg-stone-800 px-2 py-1.5 text-sm text-stone-100"
               disabled={comentarioPending}
+              desabilitarMencoes={isFrank}
             />
             <button
               type="button"

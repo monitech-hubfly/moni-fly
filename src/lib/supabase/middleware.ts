@@ -84,6 +84,10 @@ export async function updateSession(request: NextRequest) {
   if (isAuthPage && user) {
     const { data: profLogin } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
     const roleLogin = normalizeAccessRole((profLogin as { role?: string | null } | null)?.role);
+    // Usuários pendentes/bloqueados precisam conseguir ver `/login?status=...` sem loop de redirect.
+    if (roleLogin === 'pending' || roleLogin === 'blocked') {
+      return response;
+    }
     if (roleLogin === 'frank') {
       return NextResponse.redirect(new URL('/portal-frank', request.url));
     }

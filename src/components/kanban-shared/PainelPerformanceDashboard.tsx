@@ -786,210 +786,201 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
       </section>
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <PanelCard
-          title="Cards por fase"
-          children={
-            <div className="space-y-4">
-              <div className="cursor-pointer">
-                <ChartCanvas canvasRef={funnelRef} heightPx={240} ariaLabel="Gráfico de barras horizontais: volume de cards por fase" />
+        <PanelCard title="Cards por fase">
+          <div className="space-y-4">
+            <div className="cursor-pointer">
+              <ChartCanvas canvasRef={funnelRef} heightPx={240} ariaLabel="Gráfico de barras horizontais: volume de cards por fase" />
+            </div>
+            <p className="text-xs font-medium" style={{ color: MONI.textMuted }}>
+              Tempo médio por fase
+            </p>
+            <ChartCanvas
+              canvasRef={tempoRef}
+              heightPx={200}
+              ariaLabel="Gráfico de barras horizontais: tempo médio em dias por fase"
+            />
+          </div>
+        </PanelCard>
+
+        <PanelCard title="SLA">
+          <div className="space-y-4">
+            <div>
+              <div className="mb-1 flex justify-between text-xs" style={{ color: MONI.textSecondary }}>
+                <span>Dentro do SLA</span>
+                <span className="tabular-nums font-semibold" style={{ color: MONI.navy900 }}>
+                  {formatDec(pctSlaDentro, 1)}%
+                </span>
               </div>
-              <p className="text-xs font-medium" style={{ color: MONI.textMuted }}>
-                Tempo médio por fase
+              <div className="relative flex h-3 overflow-hidden rounded-full" style={{ background: MONI.surface200 }}>
+                <div
+                  className="h-full"
+                  style={{
+                    width: `${pctSlaDentro}%`,
+                    background: MONI.green600,
+                    transition: 'width 0.35s ease',
+                  }}
+                />
+                <div
+                  className="h-full"
+                  style={{
+                    width: `${pctSlaFora}%`,
+                    background: MONI.overdue,
+                    transition: 'width 0.35s ease',
+                  }}
+                />
+              </div>
+              <div className="mt-1 flex justify-between text-[11px]" style={{ color: MONI.textMuted }}>
+                <span>Fora: {formatDec(pctSlaFora, 1)}%</span>
+                <span>Ativos: {formatInt(slaRows.length)}</span>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold" style={{ color: MONI.navy900 }}>
+                Fases com mais atraso
               </p>
-              <ChartCanvas
-                canvasRef={tempoRef}
-                heightPx={200}
-                ariaLabel="Gráfico de barras horizontais: tempo médio em dias por fase"
-              />
-            </div>
-          }
-        />
-
-        <PanelCard
-          title="SLA"
-          children={
-            <div className="space-y-4">
-              <div>
-                <div className="mb-1 flex justify-between text-xs" style={{ color: MONI.textSecondary }}>
-                  <span>Dentro do SLA</span>
-                  <span className="tabular-nums font-semibold" style={{ color: MONI.navy900 }}>
-                    {formatDec(pctSlaDentro, 1)}%
-                  </span>
-                </div>
-                <div className="relative flex h-3 overflow-hidden rounded-full" style={{ background: MONI.surface200 }}>
-                  <div
-                    className="h-full"
-                    style={{
-                      width: `${pctSlaDentro}%`,
-                      background: MONI.green600,
-                      transition: 'width 0.35s ease',
-                    }}
-                  />
-                  <div
-                    className="h-full"
-                    style={{
-                      width: `${pctSlaFora}%`,
-                      background: MONI.overdue,
-                      transition: 'width 0.35s ease',
-                    }}
-                  />
-                </div>
-                <div className="mt-1 flex justify-between text-[11px]" style={{ color: MONI.textMuted }}>
-                  <span>Fora: {formatDec(pctSlaFora, 1)}%</span>
-                  <span>Ativos: {formatInt(slaRows.length)}</span>
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs font-semibold" style={{ color: MONI.navy900 }}>
-                  Fases com mais atraso
-                </p>
-                <ul className="mt-2 space-y-2">
-                  {fasesMaisAtraso.length === 0 ? (
-                    <li className="text-sm" style={{ color: MONI.textMuted }}>
-                      Nenhum atraso
-                    </li>
-                  ) : (
-                    fasesMaisAtraso.map(({ f, n }) => (
-                      <li key={f.id} className="flex items-center justify-between text-sm">
-                        <span style={{ color: MONI.textSecondary }}>{f.nome}</span>
-                        <span
-                          className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                          style={{
-                            background: MONI.overdue,
-                            color: MONI.white,
-                            border: `0.5px solid ${MONI.overdueBorder}`,
-                          }}
-                        >
-                          {n} atrasados
-                        </span>
-                      </li>
-                    ))
-                  )}
-                </ul>
-              </div>
-
-              <div
-                className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium"
-                style={{ color: MONI.textSecondary }}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <span className="inline-block h-2.5 w-3 shrink-0 rounded-sm" style={{ background: MONI.navy700 }} />
-                  Tempo real (d.u.)
-                </span>
-                <span style={{ color: MONI.textMuted }} aria-hidden>
-                  |
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="inline-block h-2.5 w-3 shrink-0 rounded-sm" style={{ background: MONI.gold600 }} />
-                  SLA configurado (d.u.)
-                </span>
-              </div>
-              <ChartCanvas
-                canvasRef={slaCompareRef}
-                heightPx={220}
-                ariaLabel="Gráfico comparativo: dias úteis médios versus SLA por fase"
-              />
-            </div>
-          }
-        />
-
-        <PanelCard
-          title="Time"
-          children={
-            <div className="space-y-6">
-              <div>
-                <p className="text-xs font-medium" style={{ color: MONI.textMuted }}>
-                  Cards por franqueado
-                </p>
-                <ul className="mt-2 space-y-3">
-                  {timeRows.length === 0 ? (
-                    <li className="text-sm" style={{ color: MONI.textMuted }}>
-                      Sem dados
-                    </li>
-                  ) : (
-                    timeRows.map(([id, n]) => {
-                      const name = dataset.profiles[id] ?? id.slice(0, 8);
-                      const pct = Math.round((n / maxFranqCards) * 100);
-                      return (
-                        <li key={id} className="flex items-center gap-3">
-                          <Avatar name={name} />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex justify-between gap-2 text-sm">
-                              <span className="truncate font-medium" style={{ color: MONI.navy900 }}>
-                                {name}
-                              </span>
-                              <span className="tabular-nums" style={{ color: MONI.textSecondary }}>
-                                {n}
-                              </span>
-                            </div>
-                            <div className="relative mt-1 h-2 overflow-hidden rounded-full" style={{ background: MONI.surface200 }}>
-                              <div className="h-full rounded-full" style={{ width: `${pct}%`, background: MONI.navy700 }} />
-                            </div>
-                          </div>
-                        </li>
-                      );
-                    })
-                  )}
-                </ul>
-              </div>
-
-              <div>
-                <p className="text-xs font-semibold" style={{ color: MONI.navy900 }}>
-                  Atrasos por pessoa
-                </p>
-                <ul className="mt-2 flex flex-wrap gap-2">
-                  {[...franqAtrasos.entries()]
-                    .filter(([, n]) => n > 0)
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, 8)
-                    .map(([id, n]) => (
-                      <li
-                        key={id}
-                        className="rounded-full px-2 py-1 text-[11px] font-semibold"
+              <ul className="mt-2 space-y-2">
+                {fasesMaisAtraso.length === 0 ? (
+                  <li className="text-sm" style={{ color: MONI.textMuted }}>
+                    Nenhum atraso
+                  </li>
+                ) : (
+                  fasesMaisAtraso.map(({ f, n }) => (
+                    <li key={f.id} className="flex items-center justify-between text-sm">
+                      <span style={{ color: MONI.textSecondary }}>{f.nome}</span>
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
                         style={{
                           background: MONI.overdue,
                           color: MONI.white,
                           border: `0.5px solid ${MONI.overdueBorder}`,
                         }}
                       >
-                        {(dataset.profiles[id] ?? '').split(' ')[0] || '—'} · {n}
-                      </li>
-                    ))}
-                  {![...franqAtrasos.values()].some((n) => n > 0) ? (
-                    <li className="text-sm" style={{ color: MONI.textMuted }}>
-                      Sem atrasos por dono
+                        {n} atrasados
+                      </span>
                     </li>
-                  ) : null}
-                </ul>
-              </div>
-
-              <div>
-                <p className="text-xs font-semibold" style={{ color: MONI.navy900 }}>
-                  % SLA por pessoa
-                </p>
-                <ul className="mt-2 space-y-2">
-                  {[...franqSlaTotal.entries()]
-                    .filter(([, t]) => t > 0)
-                    .map(([id, t]) => {
-                      const ok = franqSlaOk.get(id) ?? 0;
-                      const pctP = (ok / t) * 100;
-                      return (
-                        <li key={id} className="flex items-center justify-between text-sm">
-                          <span className="truncate" style={{ color: MONI.textSecondary }}>
-                            {dataset.profiles[id] ?? id.slice(0, 8)}
-                          </span>
-                          <span className="tabular-nums font-medium" style={{ color: MONI.navy900 }}>
-                            {formatDec(pctP, 0)}%
-                          </span>
-                        </li>
-                      );
-                    })}
-                </ul>
-              </div>
+                  ))
+                )}
+              </ul>
             </div>
-          }
-        />
+
+            <div
+              className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium"
+              style={{ color: MONI.textSecondary }}
+            >
+              <span className="inline-flex items-center gap-2">
+                <span className="inline-block h-2.5 w-3 shrink-0 rounded-sm" style={{ background: MONI.navy700 }} />
+                Tempo real (d.u.)
+              </span>
+              <span style={{ color: MONI.textMuted }} aria-hidden>
+                |
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span className="inline-block h-2.5 w-3 shrink-0 rounded-sm" style={{ background: MONI.gold600 }} />
+                SLA configurado (d.u.)
+              </span>
+            </div>
+            <ChartCanvas
+              canvasRef={slaCompareRef}
+              heightPx={220}
+              ariaLabel="Gráfico comparativo: dias úteis médios versus SLA por fase"
+            />
+          </div>
+        </PanelCard>
+
+        <PanelCard title="Time">
+          <div className="space-y-6">
+            <div>
+              <p className="text-xs font-medium" style={{ color: MONI.textMuted }}>
+                Cards por franqueado
+              </p>
+              <ul className="mt-2 space-y-3">
+                {timeRows.length === 0 ? (
+                  <li className="text-sm" style={{ color: MONI.textMuted }}>
+                    Sem dados
+                  </li>
+                ) : (
+                  timeRows.map(([id, n]) => {
+                    const name = dataset.profiles[id] ?? id.slice(0, 8);
+                    const pct = Math.round((n / maxFranqCards) * 100);
+                    return (
+                      <li key={id} className="flex items-center gap-3">
+                        <Avatar name={name} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex justify-between gap-2 text-sm">
+                            <span className="truncate font-medium" style={{ color: MONI.navy900 }}>
+                              {name}
+                            </span>
+                            <span className="tabular-nums" style={{ color: MONI.textSecondary }}>
+                              {n}
+                            </span>
+                          </div>
+                          <div className="relative mt-1 h-2 overflow-hidden rounded-full" style={{ background: MONI.surface200 }}>
+                            <div className="h-full rounded-full" style={{ width: `${pct}%`, background: MONI.navy700 }} />
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })
+                )}
+              </ul>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold" style={{ color: MONI.navy900 }}>
+                Atrasos por pessoa
+              </p>
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {[...franqAtrasos.entries()]
+                  .filter(([, n]) => n > 0)
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 8)
+                  .map(([id, n]) => (
+                    <li
+                      key={id}
+                      className="rounded-full px-2 py-1 text-[11px] font-semibold"
+                      style={{
+                        background: MONI.overdue,
+                        color: MONI.white,
+                        border: `0.5px solid ${MONI.overdueBorder}`,
+                      }}
+                    >
+                      {(dataset.profiles[id] ?? '').split(' ')[0] || '—'} · {n}
+                    </li>
+                  ))}
+                {![...franqAtrasos.values()].some((n) => n > 0) ? (
+                  <li className="text-sm" style={{ color: MONI.textMuted }}>
+                    Sem atrasos por dono
+                  </li>
+                ) : null}
+              </ul>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold" style={{ color: MONI.navy900 }}>
+                % SLA por pessoa
+              </p>
+              <ul className="mt-2 space-y-2">
+                {[...franqSlaTotal.entries()]
+                  .filter(([, t]) => t > 0)
+                  .map(([id, t]) => {
+                    const ok = franqSlaOk.get(id) ?? 0;
+                    const pctP = (ok / t) * 100;
+                    return (
+                      <li key={id} className="flex items-center justify-between text-sm">
+                        <span className="truncate" style={{ color: MONI.textSecondary }}>
+                          {dataset.profiles[id] ?? id.slice(0, 8)}
+                        </span>
+                        <span className="tabular-nums font-medium" style={{ color: MONI.navy900 }}>
+                          {formatDec(pctP, 0)}%
+                        </span>
+                      </li>
+                    );
+                  })}
+              </ul>
+            </div>
+          </div>
+        </PanelCard>
       </section>
 
       <section className="space-y-4">
@@ -997,115 +988,109 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
           Qualidade e chamados
         </h2>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <PanelCard
-            title="Qualidade"
-            children={
-              <div className="space-y-4 text-sm" style={{ color: MONI.textSecondary }}>
-                <div className="flex justify-between gap-2">
-                  <span>Arquivados (% do total)</span>
-                  <strong className="tabular-nums" style={{ color: MONI.navy900 }}>
-                    {formatDec(pctArquivados, 1)}% · {formatInt(arquivadosKpi)} card(s)
-                  </strong>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold" style={{ color: MONI.navy900 }}>
-                    Motivos de arquivamento (top)
-                  </p>
-                  <ul className="mt-2 space-y-1.5">
-                    {motivosArq.length === 0 ? (
-                      <li className="text-sm" style={{ color: MONI.textMuted }}>
-                        Nenhum arquivamento com motivo registrado
-                      </li>
-                    ) : (
-                      motivosArq.map(([mot, n]) => (
-                        <li key={mot} className="flex justify-between gap-2 text-sm">
-                          <span className="min-w-0 truncate">{mot}</span>
-                          <span className="shrink-0 tabular-nums font-medium" style={{ color: MONI.navy900 }}>
-                            {formatInt(n)}
-                          </span>
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <span>Retrabalho (cards com retrocesso)</span>
-                  <strong className="tabular-nums" style={{ color: retrabalhoN ? MONI.overdue : MONI.navy900 }}>
-                    {formatInt(retrabalhoN)}
-                  </strong>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <span>Chamados por card (média no período)</span>
-                  <strong className="tabular-nums" style={{ color: MONI.navy900 }}>
-                    {formatDec(mediaChamadosPorCard, 2)}
-                  </strong>
-                </div>
+          <PanelCard title="Qualidade">
+            <div className="space-y-4 text-sm" style={{ color: MONI.textSecondary }}>
+              <div className="flex justify-between gap-2">
+                <span>Arquivados (% do total)</span>
+                <strong className="tabular-nums" style={{ color: MONI.navy900 }}>
+                  {formatDec(pctArquivados, 1)}% · {formatInt(arquivadosKpi)} card(s)
+                </strong>
               </div>
-            }
-          />
-
-          <PanelCard
-            title="Chamados — visão geral"
-            children={
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-2 text-sm" style={{ color: MONI.textSecondary }}>
-                  <div className="flex justify-between">
-                    <span>Total</span>
-                    <strong style={{ color: MONI.navy900 }}>{formatInt(atividadesScoped.length)}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Em aberto</span>
-                    <strong style={{ color: MONI.navy900 }}>{formatInt(chamadosAbertos)}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Com trava</span>
-                    <strong style={{ color: chamadosTrava ? MONI.overdue : MONI.navy900 }}>{formatInt(chamadosTrava)}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Dúvidas</span>
-                    <strong style={{ color: MONI.navy900 }}>{formatInt(countDuvidas)}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Atividades</span>
-                    <strong style={{ color: MONI.navy900 }}>{formatInt(countAtividades)}</strong>
-                  </div>
-                </div>
-                <div className="flex flex-col items-center justify-center">
-                  {atividadesScoped.length === 0 ? (
-                    <p className="text-sm" style={{ color: MONI.textMuted }}>
-                      Sem dados
-                    </p>
-                  ) : countAtividades + countDuvidas === 0 ? (
-                    <p className="text-center text-sm" style={{ color: MONI.textMuted }}>
-                      Nenhum chamado em aberto no período
-                    </p>
+              <div>
+                <p className="text-xs font-semibold" style={{ color: MONI.navy900 }}>
+                  Motivos de arquivamento (top)
+                </p>
+                <ul className="mt-2 space-y-1.5">
+                  {motivosArq.length === 0 ? (
+                    <li className="text-sm" style={{ color: MONI.textMuted }}>
+                      Nenhum arquivamento com motivo registrado
+                    </li>
                   ) : (
-                    <>
-                      <div className="relative h-44 w-44">
-                        <ChartCanvas canvasRef={doughnutRef} heightPx={176} ariaLabel="Gráfico rosca: atividades versus dúvidas em aberto" />
-                      </div>
-                      <div
-                        className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs leading-snug"
-                        style={{ color: MONI.textSecondary }}
-                      >
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: MONI.navy700 }} />
-                          Atividade {formatInt(countAtividades)} ({formatDec(pctAtivMix, 0)}%)
+                    motivosArq.map(([mot, n]) => (
+                      <li key={mot} className="flex justify-between gap-2 text-sm">
+                        <span className="min-w-0 truncate">{mot}</span>
+                        <span className="shrink-0 tabular-nums font-medium" style={{ color: MONI.navy900 }}>
+                          {formatInt(n)}
                         </span>
-                        <span className="hidden sm:inline" style={{ color: MONI.textMuted }}>
-                          |
-                        </span>
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: MONI.gold600 }} />
-                          Dúvida {formatInt(countDuvidas)} ({formatDec(pctDuvMix, 0)}%)
-                        </span>
-                      </div>
-                    </>
+                      </li>
+                    ))
                   )}
+                </ul>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span>Retrabalho (cards com retrocesso)</span>
+                <strong className="tabular-nums" style={{ color: retrabalhoN ? MONI.overdue : MONI.navy900 }}>
+                  {formatInt(retrabalhoN)}
+                </strong>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span>Chamados por card (média no período)</span>
+                <strong className="tabular-nums" style={{ color: MONI.navy900 }}>
+                  {formatDec(mediaChamadosPorCard, 2)}
+                </strong>
+              </div>
+            </div>
+          </PanelCard>
+
+          <PanelCard title="Chamados — visão geral">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2 text-sm" style={{ color: MONI.textSecondary }}>
+                <div className="flex justify-between">
+                  <span>Total</span>
+                  <strong style={{ color: MONI.navy900 }}>{formatInt(atividadesScoped.length)}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Em aberto</span>
+                  <strong style={{ color: MONI.navy900 }}>{formatInt(chamadosAbertos)}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Com trava</span>
+                  <strong style={{ color: chamadosTrava ? MONI.overdue : MONI.navy900 }}>{formatInt(chamadosTrava)}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Dúvidas</span>
+                  <strong style={{ color: MONI.navy900 }}>{formatInt(countDuvidas)}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Atividades</span>
+                  <strong style={{ color: MONI.navy900 }}>{formatInt(countAtividades)}</strong>
                 </div>
               </div>
-            }
-          />
+              <div className="flex flex-col items-center justify-center">
+                {atividadesScoped.length === 0 ? (
+                  <p className="text-sm" style={{ color: MONI.textMuted }}>
+                    Sem dados
+                  </p>
+                ) : countAtividades + countDuvidas === 0 ? (
+                  <p className="text-center text-sm" style={{ color: MONI.textMuted }}>
+                    Nenhum chamado em aberto no período
+                  </p>
+                ) : (
+                  <>
+                    <div className="relative h-44 w-44">
+                      <ChartCanvas canvasRef={doughnutRef} heightPx={176} ariaLabel="Gráfico rosca: atividades versus dúvidas em aberto" />
+                    </div>
+                    <div
+                      className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs leading-snug"
+                      style={{ color: MONI.textSecondary }}
+                    >
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: MONI.navy700 }} />
+                        Atividade {formatInt(countAtividades)} ({formatDec(pctAtivMix, 0)}%)
+                      </span>
+                      <span className="hidden sm:inline" style={{ color: MONI.textMuted }}>
+                        |
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: MONI.gold600 }} />
+                        Dúvida {formatInt(countDuvidas)} ({formatDec(pctDuvMix, 0)}%)
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </PanelCard>
         </div>
       </section>
 
@@ -1115,107 +1100,101 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
         </h2>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="space-y-4">
-            <PanelCard
-              title="Chamados por fase"
-              children={
-                <div className="space-y-3">
-                  <ChartCanvas canvasRef={faseChamadosRef} heightPx={220} ariaLabel="Chamados por fase do card" />
-                  <div>
-                    <p className="text-xs font-semibold" style={{ color: MONI.navy900 }}>
-                      Cards mais pesados
-                    </p>
-                    <ul className="mt-2 space-y-2">
-                      {topCards.length === 0 ? (
-                        <li className="text-sm" style={{ color: MONI.textMuted }}>
-                          Sem dados
+            <PanelCard title="Chamados por fase">
+              <div className="space-y-3">
+                <ChartCanvas canvasRef={faseChamadosRef} heightPx={220} ariaLabel="Chamados por fase do card" />
+                <div>
+                  <p className="text-xs font-semibold" style={{ color: MONI.navy900 }}>
+                    Cards mais pesados
+                  </p>
+                  <ul className="mt-2 space-y-2">
+                    {topCards.length === 0 ? (
+                      <li className="text-sm" style={{ color: MONI.textMuted }}>
+                        Sem dados
+                      </li>
+                    ) : (
+                      topCards.map((t) => (
+                        <li key={t.id} className="flex items-center justify-between gap-2 text-sm">
+                          <span className="truncate" style={{ color: MONI.textSecondary }}>
+                            {t.titulo}
+                          </span>
+                          <span
+                            className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums"
+                            style={{
+                              background: MONI.activeBg,
+                              color: MONI.activeText,
+                              border: `0.5px solid ${MONI.activeBorder}`,
+                            }}
+                          >
+                            {t.n}
+                          </span>
                         </li>
-                      ) : (
-                        topCards.map((t) => (
-                          <li key={t.id} className="flex items-center justify-between gap-2 text-sm">
-                            <span className="truncate" style={{ color: MONI.textSecondary }}>
-                              {t.titulo}
-                            </span>
-                            <span
-                              className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums"
-                              style={{
-                                background: MONI.activeBg,
-                                color: MONI.activeText,
-                                border: `0.5px solid ${MONI.activeBorder}`,
-                              }}
-                            >
-                              {t.n}
-                            </span>
-                          </li>
-                        ))
-                      )}
-                    </ul>
-                  </div>
+                      ))
+                    )}
+                  </ul>
                 </div>
-              }
-            />
+              </div>
+            </PanelCard>
 
-            <PanelCard
-              title="Chamados por responsável"
-              children={
-                <ul className="space-y-3">
-                  {respRows.length === 0 ? (
-                    <li className="text-sm" style={{ color: MONI.textMuted }}>
-                      Sem dados
-                    </li>
-                  ) : (
-                    respRows.map(([id, n]) => {
-                      const name = dataset.profiles[id] ?? id.slice(0, 8);
-                      const maxR = respRows[0]?.[1] ?? 1;
-                      const pct = Math.round((n / maxR) * 100);
-                      return (
-                        <li key={id} className="flex items-center gap-3">
-                          <Avatar name={name} />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex justify-between gap-2 text-sm">
-                              <span className="truncate font-medium" style={{ color: MONI.navy900 }}>
-                                {name}
-                              </span>
-                              <span className="tabular-nums" style={{ color: MONI.textSecondary }}>
-                                {n}
-                              </span>
-                            </div>
-                            <div className="relative mt-1 h-2 overflow-hidden rounded-full" style={{ background: MONI.surface200 }}>
-                              <div className="h-full rounded-full" style={{ width: `${pct}%`, background: MONI.navy700 }} />
-                            </div>
-                            <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
-                              {(respAtrasos.get(id) ?? 0) > 0 ? (
-                                <span
-                                  className="rounded-full px-1.5 py-0.5 font-semibold"
-                                  style={{
-                                    background: MONI.overdue,
-                                    color: MONI.white,
-                                    border: `0.5px solid ${MONI.overdueBorder}`,
-                                  }}
-                                >
-                                  {respAtrasos.get(id)} atraso(s)
-                                </span>
-                              ) : null}
-                              {(respDuvidas.get(id) ?? 0) > 0 ? (
-                                <span
-                                  className="rounded-full px-1.5 py-0.5 font-semibold"
-                                  style={{
-                                    background: MONI.attention,
-                                    color: MONI.navy900,
-                                    border: `0.5px solid ${MONI.gold200}`,
-                                  }}
-                                >
-                                  {respDuvidas.get(id)} dúvida(s)
-                                </span>
-                              ) : null}
-                            </div>
+            <PanelCard title="Chamados por responsável">
+              <ul className="space-y-3">
+                {respRows.length === 0 ? (
+                  <li className="text-sm" style={{ color: MONI.textMuted }}>
+                    Sem dados
+                  </li>
+                ) : (
+                  respRows.map(([id, n]) => {
+                    const name = dataset.profiles[id] ?? id.slice(0, 8);
+                    const maxR = respRows[0]?.[1] ?? 1;
+                    const pct = Math.round((n / maxR) * 100);
+                    return (
+                      <li key={id} className="flex items-center gap-3">
+                        <Avatar name={name} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex justify-between gap-2 text-sm">
+                            <span className="truncate font-medium" style={{ color: MONI.navy900 }}>
+                              {name}
+                            </span>
+                            <span className="tabular-nums" style={{ color: MONI.textSecondary }}>
+                              {n}
+                            </span>
                           </div>
-                        </li>
-                      );
-                    })
-                  )}
-                </ul>
-              }
-            />
+                          <div className="relative mt-1 h-2 overflow-hidden rounded-full" style={{ background: MONI.surface200 }}>
+                            <div className="h-full rounded-full" style={{ width: `${pct}%`, background: MONI.navy700 }} />
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
+                            {(respAtrasos.get(id) ?? 0) > 0 ? (
+                              <span
+                                className="rounded-full px-1.5 py-0.5 font-semibold"
+                                style={{
+                                  background: MONI.overdue,
+                                  color: MONI.white,
+                                  border: `0.5px solid ${MONI.overdueBorder}`,
+                                }}
+                              >
+                                {respAtrasos.get(id)} atraso(s)
+                              </span>
+                            ) : null}
+                            {(respDuvidas.get(id) ?? 0) > 0 ? (
+                              <span
+                                className="rounded-full px-1.5 py-0.5 font-semibold"
+                                style={{
+                                  background: MONI.attention,
+                                  color: MONI.navy900,
+                                  border: `0.5px solid ${MONI.gold200}`,
+                                }}
+                              >
+                                {respDuvidas.get(id)} dúvida(s)
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })
+                )}
+              </ul>
+            </PanelCard>
           </div>
 
           <div className="bg-white px-5 py-5 shadow-sm" style={{ borderRadius: R_PANEL, border: `0.5px solid ${MONI.surface200}` }}>

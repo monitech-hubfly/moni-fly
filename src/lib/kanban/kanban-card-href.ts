@@ -8,6 +8,15 @@ const KANBAN_NOME_DB_PARA_APP: Record<string, { basePath: string; cardQueryParam
   'Funil Crédito': { basePath: '/painel-credito', cardQueryParam: 'kanbanCard' },
 };
 
+/** Bases de rota de todos os funis conhecidos (invalidação de cache após mutação). */
+export const KANBAN_APP_BASE_PATHS: string[] = [
+  ...new Set(
+    (Object.values(KANBAN_NOME_DB_PARA_APP) as { basePath: string }[]).map(
+      (v) => v.basePath,
+    ),
+  ),
+];
+
 /** URL absoluta de path para abrir o card no funil correspondente. */
 export function hrefAbrirCardKanban(kanbanNomeDb: string, cardId: string): string {
   const cfg = KANBAN_NOME_DB_PARA_APP[kanbanNomeDb.trim()];

@@ -12,7 +12,10 @@
       "Bash(grep -E '\\(_exec\\\\.sql|_sem_comentarios\\\\.sql\\)$')",
       "Bash(npx tsc *)",
       "Bash(git mv *)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(xargs grep *)",
+      "Bash(SUPABASE_DB_PASSWORD=\"Monicasa/07\" npx supabase db push)",
+      "Bash(npm run *)"
     ]
   }
 }

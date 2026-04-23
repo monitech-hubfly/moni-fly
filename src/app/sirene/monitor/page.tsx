@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { listarAprovacoesPendentes } from '@/lib/actions/card-actions';
 import { isAppFullyPublic } from '@/lib/public-rede-novos';
 import { getMonitorTopicosPorTime } from '../actions';
+import { AprovacoesPendentesBombeiro } from './AprovacoesPendentesBombeiro';
 import { MonitorFiltroTipo } from './MonitorFiltroTipo';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -34,11 +36,20 @@ export default async function SireneMonitorPage({
   }
   if (!result.isBombeiro) redirect('/sirene');
 
+  const aprovPend = await listarAprovacoesPendentes();
+  const aprovacoes = aprovPend.ok ? aprovPend.rows : [];
+
   const { porTime } = result;
   const times = Object.keys(porTime).sort();
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
+      <AprovacoesPendentesBombeiro initial={aprovacoes} />
+      {aprovPend.ok ? null : (
+        <p className="mb-6 text-sm text-amber-200/80" role="status">
+          Aviso: não foi possível carregar aprovações pendentes ({aprovPend.error}).
+        </p>
+      )}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Monitor dos times</h1>

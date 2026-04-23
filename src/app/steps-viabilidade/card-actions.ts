@@ -19,6 +19,7 @@ export type CardActionResult = { ok: true } | { ok: false; error: string };
 export type ShareFormType = 'legal' | 'credito';
 
 const STEP1_AREAS_ETAPAS = [
+  'Dados do Candidato',
   'Dados da Cidade',
   'Lista de Condomínios',
   'Listagem de lotes',

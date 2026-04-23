@@ -74,6 +74,8 @@ export async function validarTokenConviteFrank(token: string): Promise<ConviteFr
 export type ConfirmarConviteFrankResult = { ok: true } | { ok: false; error: string };
 
 /** PATCH permitido para o Frank (nunca inclui campos bloqueados da franquia). */
+// INTENCIONAL: 'socios' não está no payload Frank.
+// Frank não visualiza nem edita sócios — bloqueio por omissão (Matriz Frank).
 function montarPatchRedeFrank(d: RedeFrankCadastroPayload): Record<string, unknown> {
   return {
     email_frank: trimOrNull(d.email_frank),
