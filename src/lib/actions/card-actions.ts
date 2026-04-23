@@ -7,6 +7,9 @@ import { KANBAN_APP_BASE_PATHS } from '@/lib/kanban/kanban-card-href';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import type { FaseChecklistItem } from './candidato-actions';
+
+export type { FaseChecklistItem } from './candidato-actions';
 
 /**
  * `data_vencimento` / `data_fim` vindos de `<input type="date">`: grava só `YYYY-MM-DD`,
@@ -1481,5 +1484,98 @@ export async function rejeitarPassagemFase(aprovacaoId: string): Promise<ActionR
   if (nErr) return { ok: false, error: nErr.message };
 
   revalidateAprovacaoFaseEMonitor();
+  return { ok: true };
+}
+
+// ─── Form tokens para candidatos ────────────────────────────────────────────
+
+export async function gerarFormTokenCandidato(
+  cardId: string,
+  faseId: string,
+): Promise<{ ok: true; token: string; url: string } | ActionErr> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Não autenticado.' };
+
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return { ok: false, error: 'Serviço indisponível.' };
+  }
+
+  const { data, error } = await admin
+    .from('kanban_card_form_tokens')
+    .insert({ card_id: cardId, fase_id: faseId, created_by: user.id })
+    .select('token')
+    .single();
+  if (error) return { ok: false, error: error.message };
+
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
+    'http://localhost:3000';
+  const token = String((data as { token: string }).token);
+  return { ok: true, token, url: `${baseUrl}/formulario-candidato/${token}` };
+}
+
+// ─── Checklist estrutural por fase ──────────────────────────────────────────
+// `FaseChecklistItem` é definido e reexportado a partir de `candidato-actions` (formulário público sem ciclo com este arquivo).
+
+export type FaseChecklistResposta = {
+  id: string;
+  item_id: string;
+  card_id: string;
+  valor: string | null;
+  arquivo_path: string | null;
+  preenchido_por: string | null;
+  preenchido_em: string | null;
+};
+
+export async function listarFaseChecklistItens(faseId: string): Promise<FaseChecklistItem[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('kanban_fase_checklist_itens')
+    .select('id, fase_id, ordem, label, tipo, obrigatorio, visivel_candidato, template_storage_path, placeholder')
+    .eq('fase_id', faseId)
+    .order('ordem', { ascending: true });
+  return (data ?? []) as FaseChecklistItem[];
+}
+
+export async function listarFaseChecklistRespostas(cardId: string): Promise<FaseChecklistResposta[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('kanban_fase_checklist_respostas')
+    .select('id, item_id, card_id, valor, arquivo_path, preenchido_por, preenchido_em')
+    .eq('card_id', cardId);
+  return (data ?? []) as FaseChecklistResposta[];
+}
+
+export async function upsertFaseChecklistResposta(input: {
+  item_id: string;
+  card_id: string;
+  valor?: string | null;
+  arquivo_path?: string | null;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Não autenticado.' };
+
+  const { error } = await supabase.from('kanban_fase_checklist_respostas').upsert(
+    {
+      item_id: input.item_id,
+      card_id: input.card_id,
+      valor: input.valor ?? null,
+      arquivo_path: input.arquivo_path ?? null,
+      preenchido_por: user.id,
+      preenchido_em: new Date().toISOString(),
+    },
+    { onConflict: 'item_id,card_id' },
+  );
+  if (error) return { ok: false, error: error.message };
   return { ok: true };
 }

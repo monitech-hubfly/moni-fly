@@ -15,6 +15,9 @@ import {
   Video,
   Plus,
   Trash2,
+  Copy,
+  Check,
+  Loader2,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { calcularDiasUteis, calcularStatusSLA, formatIsoDateOnlyPtBr, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
@@ -35,6 +38,7 @@ import {
   solicitarAprovacaoFase,
   uploadContratoFranquia,
   verificarChecklistParaFase,
+  gerarFormTokenCandidato,
   type BuscaCardVinculoRow,
   type KanbanCardVinculoListItem,
   type SubInteracaoStatusDb,
@@ -89,6 +93,7 @@ import {
 import { AnexosChamado } from './AnexosChamado';
 import { AnexosSubchamado } from './AnexosSubchamado';
 import { ChecklistCard } from './ChecklistCard';
+import { FaseChecklistCard } from './FaseChecklistCard';
 import {
   buildLegadoFaseTimeline,
   buildNativeFaseTimeline,
@@ -193,6 +198,9 @@ export function KanbanCardModal({
   const ocultarGestaoCard = portalFrank === true;
   const [loading, setLoading] = useState(true);
   const [card, setCard] = useState<Card | null>(null);
+  const [linkCandidato, setLinkCandidato] = useState<string | null>(null);
+  const [gerandoLink, setGerandoLink] = useState(false);
+  const [linkCopiado, setLinkCopiado] = useState(false);
   const [fases, setFases] = useState<KanbanFase[]>(fasesProp ?? []);
   const [faseAtual, setFaseAtual] = useState<KanbanFase | null>(null);
   const [secaoAberta, setSecaoAberta] = useState<Record<SecaoEsquerdaId, boolean>>({
@@ -1553,6 +1561,7 @@ export function KanbanCardModal({
     !isLegado && estaNaUltimaFaseNativo && !cardNativoConcluido && !cardNativoArquivado;
   const cardTitulo = card.titulo;
   const checklistExtra = card.fase_id && camposPorFase?.[card.fase_id];
+  const faseChecklistFaseId = card.fase_id ?? '';
 
   const rede = modalDetalhes.rede;
   const proc = modalDetalhes.processo;
@@ -1906,22 +1915,80 @@ export function KanbanCardModal({
                 }}
               >
                 {checklistExtra ?? (
-                  <div className="space-y-2">
-                    <label className="flex cursor-pointer items-center gap-2 text-sm">
-                      <input type="checkbox" className="h-4 w-4 rounded bg-white" disabled />
-                      <span style={{ color: 'var(--moni-text-primary)' }}>Item do checklist 1</span>
-                    </label>
-                    <label className="flex cursor-pointer items-center gap-2 text-sm">
-                      <input type="checkbox" className="h-4 w-4 rounded bg-white" disabled />
-                      <span style={{ color: 'var(--moni-text-primary)' }}>Item do checklist 2</span>
-                    </label>
-                    <p className="mt-3 text-xs italic" style={{ color: 'var(--moni-text-tertiary)' }}>
-                      Conteúdo padrão — passe <code className="rounded bg-white/60 px-1">camposPorFase</code> por fase no{' '}
-                      <code className="rounded bg-white/60 px-1">KanbanBoard</code>.
-                    </p>
-                  </div>
+                  <FaseChecklistCard
+                    faseId={faseChecklistFaseId}
+                    cardId={card.id}
+                    isFrank={portalFrank}
+                    isAdmin={isAdmin}
+                  />
                 )}
               </div>
+              {!portalFrank && card.fase_id && (
+                <div className="mt-3">
+                  {linkCandidato ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        readOnly
+                        value={linkCandidato}
+                        className="flex-1 rounded-md border px-3 py-1.5 text-xs"
+                        style={{
+                          borderColor: 'var(--moni-border-default)',
+                          background: 'var(--moni-surface-50)',
+                          color: 'var(--moni-text-primary)',
+                        }}
+                        onFocus={(e) => e.target.select()}
+                      />
+                      <button
+                        type="button"
+                        title="Copiar link"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(linkCandidato).then(() => {
+                            setLinkCopiado(true);
+                            setTimeout(() => setLinkCopiado(false), 2000);
+                          });
+                        }}
+                        className="flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs"
+                        style={{
+                          borderColor: 'var(--moni-border-default)',
+                          background: 'var(--moni-surface-100)',
+                          color: linkCopiado ? 'var(--moni-status-success-text)' : 'var(--moni-text-secondary)',
+                        }}
+                      >
+                        {linkCopiado ? <Check size={12} /> : <Copy size={12} />}
+                        {linkCopiado ? 'Copiado!' : 'Copiar'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={gerandoLink}
+                      onClick={async () => {
+                        setGerandoLink(true);
+                        try {
+                          const res = await gerarFormTokenCandidato(card.id, card.fase_id!);
+                          console.log('[GERAR LINK]', res);
+                          if (res.ok) setLinkCandidato(res.url);
+                        } finally {
+                          setGerandoLink(false);
+                        }
+                      }}
+                      className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs"
+                      style={{
+                        borderColor: 'var(--moni-border-default)',
+                        background: 'var(--moni-surface-100)',
+                        color: 'var(--moni-text-secondary)',
+                      }}
+                    >
+                      {gerandoLink ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <Link2 size={12} />
+                      )}
+                      {gerandoLink ? 'Gerando...' : 'Gerar link para candidato'}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="mb-6 flex-1">

@@ -15,7 +15,8 @@
       "Bash(git stash *)",
       "Bash(xargs grep *)",
       "Bash(SUPABASE_DB_PASSWORD=\"Monicasa/07\" npx supabase db push)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(grep -E \"\\\\.ts$|\\\\.tsx$\")"
     ]
   }
 }
