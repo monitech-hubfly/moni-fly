@@ -34,6 +34,20 @@ function mapAuthRateLimitMessage(raw: string): string | null {
   return 'Por segurança, aguarde alguns segundos antes de tentar novamente.';
 }
 
+/** Limite de envio de e-mail / cadastros (GoTrue), distinto do “security purposes”. */
+function mapEmailSignupRateLimitMessage(raw: string): string | null {
+  const lower = (raw ?? '').trim().toLowerCase();
+  if (
+    lower.includes('email rate limit') ||
+    lower.includes('rate limit exceeded') ||
+    lower.includes('over_email_send_rate_limit') ||
+    lower.includes('too_many_requests')
+  ) {
+    return 'Limite de cadastros atingido. Tente novamente em alguns minutos.';
+  }
+  return null;
+}
+
 /** Mensagens conhecidas do Auth (Supabase / GoTrue); ajuste se o texto do servidor mudar. */
 function mapKnownSignupAuthMessages(raw: string): string | null {
   const m = (raw ?? '').trim();
@@ -41,6 +55,9 @@ function mapKnownSignupAuthMessages(raw: string): string | null {
 
   const rate = mapAuthRateLimitMessage(m);
   if (rate) return rate;
+
+  const emailRate = mapEmailSignupRateLimitMessage(m);
+  if (emailRate) return emailRate;
 
   if (lower.includes('email not confirmed')) {
     return 'Verifique seu e-mail para confirmar o cadastro.';
@@ -53,7 +70,10 @@ function mapKnownSignupAuthMessages(raw: string): string | null {
   ) {
     return 'Este e-mail já está cadastrado. Use a opção Entrar.';
   }
-  if (lower.includes('email domain not allowed') || (lower.includes('domain') && lower.includes('not allowed'))) {
+  if (
+    lower.includes('email domain not allowed') ||
+    (lower.includes('email') && lower.includes('domain') && lower.includes('not allowed'))
+  ) {
     return `Use um e-mail @${ALLOWED_EMAIL_DOMAIN} para se cadastrar.`;
   }
   if (lower.includes('password should be at least') || /password.*at least\s*\d+/i.test(m)) {
