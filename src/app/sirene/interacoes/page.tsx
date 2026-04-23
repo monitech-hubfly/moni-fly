@@ -47,14 +47,23 @@ export default async function SireneInteracoesPage() {
   const rows = (viewRows ?? []) as unknown as ViewRow[];
   const ids = rows.map((r) => String(r.id)).filter(Boolean);
 
-  let kaById = new Map<string, { trava: boolean; origem: string; responsaveis_ids: string[]; times_ids: string[] }>();
+  let kaById = new Map<
+    string,
+    {
+      trava: boolean;
+      origem: string;
+      responsaveis_ids: string[];
+      times_ids: string[];
+      responsavel_nome_texto: string | null;
+    }
+  >();
   if (ids.length > 0) {
     const chunk = 200;
     for (let i = 0; i < ids.length; i += chunk) {
       const slice = ids.slice(i, i + chunk);
       const { data: kaRows } = await admin
         .from('kanban_atividades')
-        .select('id, trava, origem, responsaveis_ids, times_ids')
+        .select('id, trava, origem, responsaveis_ids, times_ids, responsavel_nome_texto')
         .in('id', slice);
       for (const r of kaRows ?? []) {
         const id = String((r as { id: string }).id);
@@ -62,11 +71,15 @@ export default async function SireneInteracoesPage() {
         const arr = Array.isArray(raw) ? raw.map((x) => String(x)) : [];
         const rawT = (r as { times_ids?: unknown }).times_ids;
         const tids = Array.isArray(rawT) ? rawT.map((x) => String(x)) : [];
+        const rnt = (r as { responsavel_nome_texto?: string | null }).responsavel_nome_texto;
+        const responsavel_nome_texto =
+          rnt != null && String(rnt).trim() !== '' ? String(rnt).trim() : null;
         kaById.set(id, {
           trava: Boolean((r as { trava?: boolean }).trava),
           origem: String((r as { origem?: string }).origem ?? 'nativo'),
           responsaveis_ids: arr,
           times_ids: tids,
+          responsavel_nome_texto,
         });
       }
     }
@@ -105,6 +118,7 @@ export default async function SireneInteracoesPage() {
         origem: ka?.origem ?? 'nativo',
         responsaveis_ids: ka?.responsaveis_ids ?? [],
         times_ids: ka?.times_ids ?? [],
+        responsavel_nome_texto: ka?.responsavel_nome_texto ?? null,
       };
     });
 

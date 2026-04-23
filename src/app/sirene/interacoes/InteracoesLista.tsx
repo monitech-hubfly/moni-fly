@@ -37,6 +37,8 @@ export type InteracaoSireneRow = {
   origem: string;
   responsaveis_ids: string[];
   times_ids: string[];
+  /** Quando não há `responsavel_id`: nome livre em `kanban_atividades`. */
+  responsavel_nome_texto: string | null;
 };
 
 type TimeOpt = { id: string; nome: string };
@@ -104,7 +106,22 @@ function norm(s: string): string {
 
 function temResponsavel(row: InteracaoSireneRow): boolean {
   if (row.responsavel_id) return true;
-  return (row.responsaveis_ids?.length ?? 0) > 0;
+  if ((row.responsaveis_ids?.length ?? 0) > 0) return true;
+  const txt = (row.responsavel_nome_texto ?? '').trim();
+  return txt.length > 0;
+}
+
+function textoResponsavelPainel(row: InteracaoSireneRow, nomePorUserId: Map<string, string>): string {
+  const ids = [
+    ...new Set([...(row.responsaveis_ids ?? []), ...(row.responsavel_id ? [row.responsavel_id] : [])]),
+  ].filter(Boolean) as string[];
+  if (ids.length > 0) {
+    return ids.map((id) => nomePorUserId.get(id) ?? id.slice(0, 8)).join(', ');
+  }
+  if (row.responsavel_id) {
+    return (row.responsavel_nome ?? '').trim() || '—';
+  }
+  return row.responsavel_nome_texto ?? 'Sem responsável';
 }
 
 function subGrupoFluxo(row: InteracaoSireneRow): 'a_fazer' | 'em_andamento' | 'aguardando' | 'concluido' {
@@ -804,6 +821,12 @@ export function InteracoesLista({
                               <span>{(row.franqueado_nome ?? '').trim()}</span>
                             </div>
                           ) : null}
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-stone-500">
+                            <span className="shrink-0">Resp.:</span>
+                            <span className="font-medium text-stone-400">
+                              {textoResponsavelPainel(row, nomePorUserId)}
+                            </span>
+                          </div>
                           <div className="flex flex-wrap items-center gap-2 text-xs text-stone-400">
                             <Link
                               href={hrefCard}
