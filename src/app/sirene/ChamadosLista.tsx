@@ -15,6 +15,7 @@ type Chamado = {
   tipo: string;
   hdm_responsavel: string | null;
   time_abertura: string | null;
+  abertura_responsavel_nome: string | null;
   trava: boolean;
   created_at: string;
   primeiro_topico_responsavel_nome: string | null;
@@ -79,7 +80,12 @@ export function ChamadosLista({ chamados }: { chamados: Chamado[] }) {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-white">#{c.numero}</span>
                       {c.time_abertura && (
-                        <span className="text-sm text-stone-400">{c.time_abertura}</span>
+                        <span className="text-sm text-stone-400">
+                          {c.time_abertura}
+                          {c.abertura_responsavel_nome
+                            ? ` · ${c.abertura_responsavel_nome}`
+                            : ''}
+                        </span>
                       )}
                       {c.tipo === 'hdm' && c.hdm_responsavel && (
                         <span className="rounded bg-[#1e3a5f] px-2 py-0.5 text-xs font-medium text-white">

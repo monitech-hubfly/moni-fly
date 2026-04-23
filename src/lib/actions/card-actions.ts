@@ -32,6 +32,10 @@ export type CriarInteracaoInput = {
   responsavel_id?: string | null;
   /** Novos campos (migration 117). */
   responsaveis_ids?: string[];
+  /** Nome em texto quando não há perfil (catálogo Moní). */
+  responsavel_nome_texto?: string | null;
+  /** Coluna `time` (texto) quando não há UUID em `kanban_times`. */
+  time_legado?: string | null;
   trava?: boolean;
   status?: 'pendente' | 'em_andamento' | 'concluida' | 'cancelada';
   ordem: number;
@@ -49,6 +53,8 @@ export type EditarInteracaoInput = {
   times_ids?: string[];
   responsavel_id?: string | null;
   responsaveis_ids?: string[];
+  responsavel_nome_texto?: string | null;
+  time_legado?: string | null;
   trava?: boolean;
   /** Rota do kanban para `revalidatePath`. */
   basePath?: string;
@@ -96,6 +102,10 @@ export async function criarInteracao(input: CriarInteracaoInput): Promise<Action
   const mergedResp =
     respIds.length > 0 ? respIds : legacyResp ? [legacyResp] : [];
   const responsavelSingular = mergedResp.length > 0 ? mergedResp[0]! : null;
+  const nomeTxtRaw = (input.responsavel_nome_texto ?? '').trim() || null;
+  const responsavel_nome_texto = mergedResp.length > 0 ? null : nomeTxtRaw;
+  const timeLegado = (input.time_legado ?? '').trim() || null;
+  const timeCol = timesIds.length > 0 ? null : timeLegado;
 
   const titulo = (input.titulo ?? '').trim();
   if (!titulo) return { ok: false, error: 'Informe o título do chamado.' };
@@ -108,12 +118,13 @@ export async function criarInteracao(input: CriarInteracaoInput): Promise<Action
     data_vencimento: dataCampoCalendarioIso(input.data_vencimento),
     responsavel_id: responsavelSingular,
     responsaveis_ids: mergedResp,
+    responsavel_nome_texto,
     trava: Boolean(input.trava),
     status: input.status ?? 'pendente',
     prioridade: 'normal',
     ordem: input.ordem,
     criado_por: user.id,
-    time: null,
+    time: timeCol,
     origem: input.origem === 'legado' ? 'legado' : 'nativo',
   };
 
@@ -148,6 +159,9 @@ export async function editarInteracao(id: string, dados: EditarInteracaoInput): 
     update.data_vencimento = dataCampoCalendarioIso(dados.data_vencimento);
   }
   if (dados.times_ids !== undefined) update.times_ids = uniqUuids(dados.times_ids);
+  if (dados.time_legado !== undefined) {
+    update.time = dados.time_legado?.trim() || null;
+  }
   if (dados.trava !== undefined) update.trava = Boolean(dados.trava);
 
   if (dados.responsaveis_ids !== undefined) {
@@ -158,6 +172,10 @@ export async function editarInteracao(id: string, dados: EditarInteracaoInput): 
     const r = dados.responsavel_id?.trim() || null;
     update.responsavel_id = r;
     update.responsaveis_ids = r ? [r] : [];
+  }
+  if (dados.responsavel_nome_texto !== undefined) {
+    const nt = (dados.responsavel_nome_texto ?? '').trim() || null;
+    update.responsavel_nome_texto = nt;
   }
 
   const { error } = await supabase.from('kanban_atividades').update(update as never).eq('id', id);

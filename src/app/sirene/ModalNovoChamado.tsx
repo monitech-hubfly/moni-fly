@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { criarChamado, getDadosNovoChamado } from './actions';
 import type { HdmTime } from '@/types/sirene';
+import { TIMES_MONI, responsaveisDoTimeMoni } from '@/lib/times-responsaveis';
 
 const HDM_OPCOES: { value: HdmTime; label: string }[] = [
   { value: 'Homologações', label: 'Homologações' },
@@ -17,11 +18,11 @@ type Props = { onClose: () => void; onSuccess?: () => void };
 export function ModalNovoChamado({ onClose, onSuccess }: Props) {
   const [dados, setDados] = useState<{
     isFrank: boolean;
-    times: string[];
     franqueados: FranqueadoItem[];
   } | null>(null);
   const [incendio, setIncendio] = useState('');
   const [timeAbertura, setTimeAbertura] = useState('');
+  const [responsavelAbertura, setResponsavelAbertura] = useState('');
   const [frankId, setFrankId] = useState('');
   const [frankNome, setFrankNome] = useState('');
   const [buscaFrank, setBuscaFrank] = useState('');
@@ -35,9 +36,16 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
 
   useEffect(() => {
     getDadosNovoChamado().then((r) => {
-      if (r.ok) setDados({ isFrank: r.isFrank, times: r.times, franqueados: r.franqueados });
+      if (r.ok) setDados({ isFrank: r.isFrank, franqueados: r.franqueados });
     });
   }, []);
+
+  const responsaveisDoTime = useMemo(() => responsaveisDoTimeMoni(timeAbertura), [timeAbertura]);
+
+  useEffect(() => {
+    if (!responsavelAbertura) return;
+    if (!responsaveisDoTime.includes(responsavelAbertura)) setResponsavelAbertura('');
+  }, [timeAbertura, responsaveisDoTime, responsavelAbertura]);
 
   const frankFiltrados = useMemo(() => {
     if (!dados?.franqueados.length) return [];
@@ -68,6 +76,9 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     const formData = new FormData();
     formData.set('incendio', incendio.trim());
     formData.set('time_abertura', timeAbertura.trim());
+    if (responsavelAbertura.trim()) {
+      formData.set('abertura_responsavel_nome', responsavelAbertura.trim());
+    }
     formData.set('frank_id', frankId.trim());
     formData.set('frank_nome', frankNome.trim());
     if (teTrata === 'sim' || teTrata === 'nao') formData.set('te_trata', teTrata);
@@ -155,9 +166,30 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                   className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
                 >
                   <option value="">Selecione</option>
-                  {dados.times.map((t) => (
+                  {TIMES_MONI.map((t) => (
                     <option key={t} value={t}>
                       {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-stone-700">
+                  Responsável pelo time (opcional)
+                </label>
+                <select
+                  value={responsavelAbertura}
+                  onChange={(e) => setResponsavelAbertura(e.target.value)}
+                  disabled={!timeAbertura}
+                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
+                >
+                  <option value="">
+                    {timeAbertura ? 'Selecione' : 'Selecione um time primeiro'}
+                  </option>
+                  {responsaveisDoTime.map((nome) => (
+                    <option key={nome} value={nome}>
+                      {nome}
                     </option>
                   ))}
                 </select>

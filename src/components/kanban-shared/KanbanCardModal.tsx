@@ -91,6 +91,14 @@ import {
   type SecaoEsquerdaId,
   type SubInteracaoModal,
 } from './kanban-card-modal-helpers';
+import {
+  TIMES_MONI,
+  inferResponsavelMoniFromInteracao,
+  inferTimeMoniFromInteracao,
+  resolveKanbanInteracaoFromCatalog,
+  responsaveisDoTimeMoni,
+  validarParTimeResponsavelMoni,
+} from '@/lib/times-responsaveis';
 import { AnexosChamado } from './AnexosChamado';
 import { AnexosSubchamado } from './AnexosSubchamado';
 import { ChecklistCard } from './ChecklistCard';
@@ -238,8 +246,8 @@ export function KanbanCardModal({
     descricao: '',
     tipo: 'atividade' as 'atividade' | 'duvida',
     data: '',
-    timesIds: [] as string[],
-    responsaveisIds: [] as string[],
+    timeMoni: '',
+    responsavelMoni: '',
     trava: false,
   });
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
@@ -247,8 +255,8 @@ export function KanbanCardModal({
     titulo: '',
     tipo: 'atividade' as 'atividade' | 'duvida',
     data: '',
-    timesIds: [] as string[],
-    responsaveisIds: [] as string[],
+    timeMoni: '',
+    responsavelMoni: '',
     trava: false,
     status: 'pendente' as const,
   });
@@ -317,6 +325,25 @@ export function KanbanCardModal({
     setModalSessao({ userId: null, uploaderNome: '—', ehAdminOuTeam: false });
     setModalAprovacaoFase(null);
     setSolicitandoAprovacaoFase(false);
+    setEditingId(null);
+    setNovaInteracao({
+      titulo: '',
+      tipo: 'atividade',
+      data: '',
+      timeMoni: '',
+      responsavelMoni: '',
+      trava: false,
+      status: 'pendente',
+    });
+    setEditDraft({
+      titulo: '',
+      descricao: '',
+      tipo: 'atividade',
+      data: '',
+      timeMoni: '',
+      responsavelMoni: '',
+      trava: false,
+    });
   }, [cardId]);
 
   useEffect(() => {
@@ -888,13 +915,29 @@ export function KanbanCardModal({
     setLoading(true);
     try {
       const ordemReal = interacoes.filter((a) => !isInteracaoDemonstracao(a.id)).length;
+      const vPar = validarParTimeResponsavelMoni(
+        novaInteracao.timeMoni || null,
+        novaInteracao.responsavelMoni || null,
+      );
+      if (!vPar.ok) {
+        alert(vPar.error);
+        return;
+      }
+      const resolved = resolveKanbanInteracaoFromCatalog(
+        novaInteracao.timeMoni,
+        novaInteracao.responsavelMoni,
+        kanbanTimes,
+        responsaveisOpcoes,
+      );
       const res = await criarInteracao({
         card_id: card.id,
         titulo: novaInteracao.titulo.trim(),
         tipo: novaInteracao.tipo,
-        times_ids: novaInteracao.timesIds,
+        times_ids: resolved.times_ids,
         data_vencimento: novaInteracao.data || null,
-        responsaveis_ids: novaInteracao.responsaveisIds,
+        responsaveis_ids: resolved.responsaveis_ids,
+        responsavel_nome_texto: resolved.responsavel_nome_texto,
+        time_legado: resolved.time_legado,
         trava: novaInteracao.trava,
         status: novaInteracao.status,
         ordem: ordemReal,
@@ -909,8 +952,8 @@ export function KanbanCardModal({
         titulo: '',
         tipo: 'atividade',
         data: '',
-        timesIds: [],
-        responsaveisIds: [],
+        timeMoni: '',
+        responsavelMoni: '',
         trava: false,
         status: 'pendente',
       });
@@ -921,38 +964,6 @@ export function KanbanCardModal({
     } finally {
       setLoading(false);
     }
-  }
-
-  function toggleNovaInteracaoTime(id: string) {
-    setNovaInteracao((n) => ({
-      ...n,
-      timesIds: n.timesIds.includes(id) ? n.timesIds.filter((x) => x !== id) : [...n.timesIds, id],
-    }));
-  }
-
-  function toggleEditDraftTime(id: string) {
-    setEditDraft((e) => ({
-      ...e,
-      timesIds: e.timesIds.includes(id) ? e.timesIds.filter((x) => x !== id) : [...e.timesIds, id],
-    }));
-  }
-
-  function toggleNovaInteracaoResponsavel(id: string) {
-    setNovaInteracao((n) => ({
-      ...n,
-      responsaveisIds: n.responsaveisIds.includes(id)
-        ? n.responsaveisIds.filter((x) => x !== id)
-        : [...n.responsaveisIds, id],
-    }));
-  }
-
-  function toggleEditDraftResponsavel(id: string) {
-    setEditDraft((e) => ({
-      ...e,
-      responsaveisIds: e.responsaveisIds.includes(id)
-        ? e.responsaveisIds.filter((x) => x !== id)
-        : [...e.responsaveisIds, id],
-    }));
   }
 
   function toggleSubNovaResponsavel(id: string) {
@@ -973,15 +984,22 @@ export function KanbanCardModal({
 
   function abrirEdicaoInteracao(it: InteracaoModal) {
     setEditingId(it.id);
-    const rids = [...(it.responsaveis_ids ?? [])];
-    if (rids.length === 0 && it.responsavel_id) rids.push(it.responsavel_id);
+    const timeMoni = inferTimeMoniFromInteracao(it.times_resolvidos, it.time);
+    const responsavelMoni = inferResponsavelMoniFromInteracao(
+      timeMoni,
+      it.responsaveis_resolvidos,
+      it.responsavel_nome_texto,
+      it.responsavel_id,
+      it.responsaveis_ids,
+      responsaveisOpcoes,
+    );
     setEditDraft({
       titulo: it.titulo ?? '',
       descricao: it.descricao ?? '',
       tipo: it.tipo,
       data: it.data_vencimento ? String(it.data_vencimento).slice(0, 10) : '',
-      timesIds: [...(it.times_ids ?? [])],
-      responsaveisIds: rids,
+      timeMoni,
+      responsavelMoni,
       trava: it.trava,
     });
   }
@@ -994,13 +1012,29 @@ export function KanbanCardModal({
     }
     setSalvandoEdicao(true);
     try {
+      const vPar = validarParTimeResponsavelMoni(
+        editDraft.timeMoni || null,
+        editDraft.responsavelMoni || null,
+      );
+      if (!vPar.ok) {
+        alert(vPar.error);
+        return;
+      }
+      const resolved = resolveKanbanInteracaoFromCatalog(
+        editDraft.timeMoni,
+        editDraft.responsavelMoni,
+        kanbanTimes,
+        responsaveisOpcoes,
+      );
       const res = await editarInteracao(editingId, {
         titulo: editDraft.titulo.trim(),
         descricao: editDraft.descricao.trim() || null,
         tipo: editDraft.tipo,
         data_vencimento: editDraft.data.trim() || null,
-        times_ids: editDraft.timesIds,
-        responsaveis_ids: editDraft.responsaveisIds,
+        times_ids: resolved.times_ids,
+        responsaveis_ids: resolved.responsaveis_ids,
+        responsavel_nome_texto: resolved.responsavel_nome_texto,
+        time_legado: resolved.time_legado,
         trava: editDraft.trava,
         basePath,
       });
@@ -2282,48 +2316,48 @@ export function KanbanCardModal({
                                   />
                                 </div>
                                 <div>
-                                  <span className="mb-1 block text-[10px] font-medium text-stone-500">Times</span>
-                                  <div className="flex flex-wrap gap-1">
-                                    {kanbanTimes.map((t) => {
-                                      const on = editDraft.timesIds.includes(t.id);
-                                      return (
-                                        <button
-                                          key={t.id}
-                                          type="button"
-                                          onClick={() => toggleEditDraftTime(t.id)}
-                                          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                                            on ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600'
-                                          }`}
-                                        >
-                                          {t.nome}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
+                                  <label className="mb-1 block text-[10px] font-medium text-stone-500">Time</label>
+                                  <select
+                                    value={editDraft.timeMoni}
+                                    onChange={(e) => {
+                                      const v = e.target.value;
+                                      setEditDraft((d) => ({
+                                        ...d,
+                                        timeMoni: v,
+                                        responsavelMoni: responsaveisDoTimeMoni(v).includes(d.responsavelMoni)
+                                          ? d.responsavelMoni
+                                          : '',
+                                      }));
+                                    }}
+                                    className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
+                                  >
+                                    <option value="">Selecione</option>
+                                    {TIMES_MONI.map((t) => (
+                                      <option key={t} value={t}>
+                                        {t}
+                                      </option>
+                                    ))}
+                                  </select>
                                 </div>
                                 <div>
-                                  <span className="mb-1 block text-[10px] font-medium text-stone-500">Responsáveis</span>
-                                  {responsaveisOpcoes.length === 0 ? (
-                                    <p className="text-[10px] text-stone-500">Nenhum usuário encontrado</p>
-                                  ) : (
-                                    <div className="flex flex-wrap gap-1">
-                                      {responsaveisOpcoes.map((p) => {
-                                        const on = editDraft.responsaveisIds.includes(p.id);
-                                        return (
-                                          <button
-                                            key={p.id}
-                                            type="button"
-                                            onClick={() => toggleEditDraftResponsavel(p.id)}
-                                            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                                              on ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600'
-                                            }`}
-                                          >
-                                            {p.nome}
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
+                                  <label className="mb-1 block text-[10px] font-medium text-stone-500">
+                                    Responsável (opcional)
+                                  </label>
+                                  <select
+                                    value={editDraft.responsavelMoni}
+                                    onChange={(e) => setEditDraft((d) => ({ ...d, responsavelMoni: e.target.value }))}
+                                    disabled={!editDraft.timeMoni}
+                                    className="w-full rounded border border-stone-300 px-2 py-1 text-xs disabled:cursor-not-allowed disabled:bg-stone-100"
+                                  >
+                                    <option value="">
+                                      {editDraft.timeMoni ? 'Selecione' : 'Selecione um time primeiro'}
+                                    </option>
+                                    {responsaveisDoTimeMoni(editDraft.timeMoni).map((nome) => (
+                                      <option key={nome} value={nome}>
+                                        {nome}
+                                      </option>
+                                    ))}
+                                  </select>
                                 </div>
                                 <label className="flex cursor-pointer items-center gap-2 text-xs text-stone-700">
                                   <input
@@ -2647,48 +2681,59 @@ export function KanbanCardModal({
                     />
                     )}
                   </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-medium text-stone-500">Time</label>
+                    <select
+                      value={novaInteracao.timeMoni}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setNovaInteracao((n) => ({
+                          ...n,
+                          timeMoni: v,
+                          responsavelMoni: responsaveisDoTimeMoni(v).includes(n.responsavelMoni)
+                            ? n.responsavelMoni
+                            : '',
+                        }));
+                      }}
+                      className="w-full px-3 py-2 text-xs"
+                      style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
+                    >
+                      <option value="">Selecione</option>
+                      {TIMES_MONI.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   {!portalFrank && (
-                  <div>
-                    <span className="mb-1 block text-[10px] font-medium text-stone-500">Responsáveis</span>
-                    {responsaveisOpcoes.length === 0 ? (
-                      <p className="text-xs text-stone-500">Nenhum usuário encontrado</p>
-                    ) : (
-                      <div className="flex flex-wrap gap-1.5">
-                        {responsaveisOpcoes.map((p) => {
-                          const on = novaInteracao.responsaveisIds.includes(p.id);
-                          return (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onClick={() => toggleNovaInteracaoResponsavel(p.id)}
-                              className={`rounded-full px-2.5 py-1 text-xs font-medium ${on ? 'bg-stone-800 text-white' : 'bg-white text-stone-600 ring-1 ring-stone-300'}`}
-                            >
-                              {p.nome}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                  )}
-                  <div>
-                    <span className="mb-1 block text-[10px] font-medium text-stone-500">Times</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {kanbanTimes.map((t) => {
-                        const on = novaInteracao.timesIds.includes(t.id);
-                        return (
-                          <button
-                            key={t.id}
-                            type="button"
-                            onClick={() => toggleNovaInteracaoTime(t.id)}
-                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${on ? 'bg-stone-800 text-white' : 'bg-white text-stone-600 ring-1 ring-stone-300'}`}
-                          >
-                            {t.nome}
-                          </button>
-                        );
-                      })}
+                    <div>
+                      <label className="mb-1 block text-[10px] font-medium text-stone-500">
+                        Responsável (opcional)
+                      </label>
+                      <select
+                        value={novaInteracao.responsavelMoni}
+                        onChange={(e) =>
+                          setNovaInteracao({ ...novaInteracao, responsavelMoni: e.target.value })
+                        }
+                        disabled={!novaInteracao.timeMoni}
+                        className="w-full px-3 py-2 text-xs disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
+                        style={{
+                          border: '0.5px solid var(--moni-border-default)',
+                          borderRadius: 'var(--moni-radius-md)',
+                        }}
+                      >
+                        <option value="">
+                          {novaInteracao.timeMoni ? 'Selecione' : 'Selecione um time primeiro'}
+                        </option>
+                        {responsaveisDoTimeMoni(novaInteracao.timeMoni).map((nome) => (
+                          <option key={nome} value={nome}>
+                            {nome}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                  </div>
+                  )}
                   <label className="flex cursor-pointer items-center gap-2 text-xs text-stone-700">
                     <input
                       type="checkbox"

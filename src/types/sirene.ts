@@ -20,6 +20,8 @@ export interface Chamado {
   numero: number;
   data_abertura: string;
   time_abertura: string | null;
+  /** Responsável escolhido no modal de abertura (lista fixa por time). */
+  abertura_responsavel_nome?: string | null;
   frank_id: string | null;
   frank_nome: string | null;
   aberto_por: string | null;

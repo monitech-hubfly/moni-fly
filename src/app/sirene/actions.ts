@@ -6,29 +6,15 @@ import { isAppFullyPublic } from '@/lib/public-rede-novos';
 import { revalidatePath } from 'next/cache';
 import type { Chamado, HdmTime } from '@/types/sirene';
 import { canActAsBombeiro, type SireneUserContext } from '@/lib/sirene';
+import {
+  TIMES_MONI,
+  validarParTimeResponsavelMoni,
+  validarTimeMoniOpcional,
+} from '@/lib/times-responsaveis';
 
 export type SireneActionResult = { ok: true } | { ok: false; error: string };
 
 const HDM_TIMES: HdmTime[] = ['Homologações', 'Produto', 'Modelo Virtual'];
-
-/** Times para lista suspensa "Time que está abrindo o chamado" */
-const TIMES_ABERTURA = [
-  'Produto',
-  'Homologações',
-  'Modelo Virtual',
-  'Executivo',
-  'Acoplamento',
-  'Projeto Legal',
-  'Portfólio',
-  'Contabilidade',
-  'Financeiro',
-  'Crédito',
-  'Waysers',
-  'Frank Moní',
-  'Marketing',
-  'Comercial: Novos Franks',
-  'Moní Capital',
-] as const;
 
 /** Dados do layout Sirene: nome do usuário e se é Bombeiro (para mostrar aba Monitor). */
 export async function getSireneLayoutContext(): Promise<
@@ -60,9 +46,9 @@ export async function getSireneLayoutContext(): Promise<
   return { ok: true, userName, isBombeiro };
 }
 
-/** Dados para o modal de novo chamado: se é frank, lista de times e franqueados. */
+/** Dados para o modal de novo chamado: se é frank e lista de franqueados (times vêm do catálogo fixo no cliente). */
 export async function getDadosNovoChamado(): Promise<
-  | { ok: true; isFrank: boolean; times: string[]; franqueados: { id: string; n_franquia: string | null; nome_completo: string | null }[] }
+  | { ok: true; isFrank: boolean; franqueados: { id: string; n_franquia: string | null; nome_completo: string | null }[] }
   | { ok: false; error: string }
 > {
   const supabase = await createClient();
@@ -79,7 +65,6 @@ export async function getDadosNovoChamado(): Promise<
   const role = (profile?.role as string) ?? 'franqueado';
   const isFrank = role === 'franqueado' || role === 'frank';
 
-  const times = [...TIMES_ABERTURA];
   let franqueados: { id: string; n_franquia: string | null; nome_completo: string | null }[] = [];
   if (!isFrank) {
     const { data: rows } = await supabase
@@ -93,7 +78,7 @@ export async function getDadosNovoChamado(): Promise<
     }));
   }
 
-  return { ok: true, isFrank, times, franqueados };
+  return { ok: true, isFrank, franqueados };
 }
 
 /** Lista de times para vincular a tópicos (mesma lista do modal de abertura). */
@@ -106,7 +91,7 @@ export async function getTimesParaTopicos(): Promise<
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
-  return { ok: true, times: [...TIMES_ABERTURA] };
+  return { ok: true, times: [...TIMES_MONI] };
 }
 
 /** Tópicos do chamado (para listar e exibir ações Concluir / Aprovar / Reprovar). */
@@ -471,6 +456,8 @@ export async function criarChamado(
 
   const incendio = (formData.get('incendio') as string)?.trim();
   const timeAbertura = (formData.get('time_abertura') as string)?.trim() || null;
+  const aberturaResponsavelNome =
+    (formData.get('abertura_responsavel_nome') as string)?.trim() || null;
   const frankId = (formData.get('frank_id') as string)?.trim() || null;
   const frankNome = (formData.get('frank_nome') as string)?.trim() || null;
   const teTrataRaw = formData.get('te_trata');
@@ -484,6 +471,11 @@ export async function criarChamado(
   if (tipo === 'hdm' && hdmResponsavel && !HDM_TIMES.includes(hdmResponsavel))
     return { ok: false, error: 'Time HDM inválido.' };
 
+  const vTimeAb = validarTimeMoniOpcional(timeAbertura);
+  if (!vTimeAb.ok) return { ok: false, error: vTimeAb.error };
+  const vRespAb = validarParTimeResponsavelMoni(timeAbertura, aberturaResponsavelNome);
+  if (!vRespAb.ok) return { ok: false, error: vRespAb.error };
+
   const roleNorm = (me.role ?? '').toLowerCase();
   const visivelFrank = roleNorm === 'frank' || roleNorm === 'franqueado';
 
@@ -494,6 +486,7 @@ export async function criarChamado(
       aberto_por_nome: me.userName,
       incendio,
       time_abertura: timeAbertura,
+      abertura_responsavel_nome: aberturaResponsavelNome,
       frank_id: frankId,
       frank_nome: frankNome,
       te_trata: teTrata,
@@ -1160,6 +1153,7 @@ export async function listChamados(filtroTipo?: 'todos' | 'padrao' | 'hdm'): Pro
         tipo: string;
         hdm_responsavel: string | null;
         time_abertura: string | null;
+        abertura_responsavel_nome: string | null;
         trava: boolean;
         created_at: string;
         /** Primeiro tópico do chamado (`ordem` ASC): nome do responsável, se houver. */
@@ -1179,7 +1173,7 @@ export async function listChamados(filtroTipo?: 'todos' | 'padrao' | 'hdm'): Pro
   let q = supabase
     .from('sirene_chamados')
     .select(
-      'id, numero, incendio, status, prioridade, tipo, hdm_responsavel, time_abertura, trava, created_at',
+      'id, numero, incendio, status, prioridade, tipo, hdm_responsavel, time_abertura, abertura_responsavel_nome, trava, created_at',
     )
     .order('created_at', { ascending: false });
 
