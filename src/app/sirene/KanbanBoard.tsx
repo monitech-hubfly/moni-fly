@@ -14,6 +14,8 @@ type Chamado = {
   time_abertura: string | null;
   trava: boolean;
   created_at: string;
+  primeiro_topico_responsavel_nome: string | null;
+  primeiro_topico_time_responsavel: string | null;
 };
 
 const COLS: { status: string; label: string }[] = [
@@ -75,6 +77,13 @@ export function KanbanBoard({ chamados }: { chamados: Chamado[] }) {
                     )}
                   </div>
                   <p className="mt-1 truncate text-sm text-stone-300">{c.incendio}</p>
+                  {(c.primeiro_topico_responsavel_nome || c.primeiro_topico_time_responsavel) && (
+                    <p className="mt-0.5 truncate text-xs text-stone-500">
+                      {[c.primeiro_topico_responsavel_nome, c.primeiro_topico_time_responsavel]
+                        .filter((x) => x != null && String(x).trim() !== '')
+                        .join(' · ')}
+                    </p>
+                  )}
                   <p className="mt-0.5 text-xs text-stone-500">{c.prioridade}</p>
                 </Link>
               ))}

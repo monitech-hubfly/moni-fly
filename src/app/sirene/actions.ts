@@ -1162,6 +1162,10 @@ export async function listChamados(filtroTipo?: 'todos' | 'padrao' | 'hdm'): Pro
         time_abertura: string | null;
         trava: boolean;
         created_at: string;
+        /** Primeiro tópico do chamado (`ordem` ASC): nome do responsável, se houver. */
+        primeiro_topico_responsavel_nome: string | null;
+        /** Primeiro tópico: time responsável. */
+        primeiro_topico_time_responsavel: string | null;
       }>;
     }
   | { ok: false; error: string }
@@ -1184,7 +1188,40 @@ export async function listChamados(filtroTipo?: 'todos' | 'padrao' | 'hdm'): Pro
 
   const { data, error } = await q;
   if (error) return { ok: false, error: error.message };
-  return { ok: true, chamados: data ?? [] };
+  const rows = data ?? [];
+
+  const firstTopicoByChamado = new Map<number, { responsavel_nome: string | null; time_responsavel: string | null }>();
+  if (rows.length > 0) {
+    const chamadoIds = rows.map((c) => c.id);
+    const { data: topicosRows, error: tErr } = await supabase
+      .from('sirene_topicos')
+      .select('chamado_id, ordem, responsavel_nome, time_responsavel')
+      .in('chamado_id', chamadoIds)
+      .order('chamado_id', { ascending: true })
+      .order('ordem', { ascending: true });
+    if (tErr) return { ok: false, error: tErr.message };
+    for (const t of topicosRows ?? []) {
+      const cid = Number((t as { chamado_id: number }).chamado_id);
+      if (!Number.isFinite(cid) || firstTopicoByChamado.has(cid)) continue;
+      const rn = (t as { responsavel_nome?: string | null }).responsavel_nome;
+      const tr = (t as { time_responsavel?: string | null }).time_responsavel;
+      firstTopicoByChamado.set(cid, {
+        responsavel_nome: rn != null && String(rn).trim() !== '' ? String(rn).trim() : null,
+        time_responsavel: tr != null && String(tr).trim() !== '' ? String(tr).trim() : null,
+      });
+    }
+  }
+
+  const chamados = rows.map((c) => {
+    const first = firstTopicoByChamado.get(Number(c.id));
+    return {
+      ...c,
+      primeiro_topico_responsavel_nome: first?.responsavel_nome ?? null,
+      primeiro_topico_time_responsavel: first?.time_responsavel ?? null,
+    };
+  });
+
+  return { ok: true, chamados };
 }
 
 export type MonitorTopico = {
