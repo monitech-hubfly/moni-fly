@@ -6,6 +6,12 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { rotaCardOrigem } from '@/lib/rota-card-origem';
 import {
+  MONI_RESP_FILTRO_PREFIX,
+  MONI_TIME_FILTRO_PREFIX,
+  responsaveisFiltroOpcoesComCatalogoMoni,
+  timesFiltroOpcoesComCatalogoMoni,
+} from '@/lib/times-responsaveis';
+import {
   atualizarInteracaoCompletaSirene,
   atualizarStatusInteracaoSirene,
   listarComentariosCardSirene,
@@ -182,11 +188,49 @@ function rowMatchTime(row: InteracaoSireneRow, timeFiltro: string, timesById: Ma
     const nomes = [tn, ...parseTimesNomes(row.times_nomes).map((x) => x.toLowerCase())];
     return nomes.some((n) => n.includes('bombeiro'));
   }
+  if (timeFiltro.startsWith(MONI_TIME_FILTRO_PREFIX)) {
+    const nome = timeFiltro.slice(MONI_TIME_FILTRO_PREFIX.length).trim();
+    if (!nome) return false;
+    const n = nome.toLowerCase();
+    if ((row.time_nome ?? '').trim().toLowerCase() === n) return true;
+    return parseTimesNomes(row.times_nomes).some((x) => x.trim().toLowerCase() === n);
+  }
   const nomeTime = timesById.get(timeFiltro);
   if (!nomeTime) return false;
   const n = nomeTime.toLowerCase();
   if ((row.time_nome ?? '').toLowerCase() === n) return true;
   return parseTimesNomes(row.times_nomes).some((x) => x.toLowerCase() === n);
+}
+
+function rowMatchResponsavel(
+  row: InteracaoSireneRow,
+  respF: string,
+  nomePorUserId: Map<string, string>,
+  currentUserId: string | null,
+): boolean {
+  if (respF === 'todos') return true;
+  if (respF === 'eu' && currentUserId) {
+    const ids = row.responsaveis_ids ?? [];
+    return ids.includes(currentUserId) || row.responsavel_id === currentUserId;
+  }
+  if (respF.startsWith(MONI_RESP_FILTRO_PREFIX)) {
+    let nome = '';
+    try {
+      nome = decodeURIComponent(respF.slice(MONI_RESP_FILTRO_PREFIX.length)).trim();
+    } catch {
+      nome = respF.slice(MONI_RESP_FILTRO_PREFIX.length).trim();
+    }
+    if (!nome) return false;
+    const ids = [...new Set([...(row.responsaveis_ids ?? []), ...(row.responsavel_id ? [row.responsavel_id] : [])])];
+    for (const id of ids) {
+      if ((nomePorUserId.get(id) ?? '').trim() === nome) return true;
+    }
+    if ((row.responsavel_nome_texto ?? '').trim() === nome) return true;
+    if ((row.responsavel_nome ?? '').trim() === nome) return true;
+    return false;
+  }
+  const ids = row.responsaveis_ids ?? [];
+  return ids.includes(respF) || row.responsavel_id === respF;
 }
 
 function filtroTipoMatch(row: InteracaoSireneRow, tipoF: string): boolean {
@@ -301,6 +345,12 @@ export function InteracoesLista({
 
   const timesById = useMemo(() => new Map(times.map((t) => [t.id, t.nome])), [times]);
 
+  const timesParaFiltro = useMemo(() => timesFiltroOpcoesComCatalogoMoni(times), [times]);
+  const responsaveisParaFiltro = useMemo(
+    () => responsaveisFiltroOpcoesComCatalogoMoni(responsaveis),
+    [responsaveis],
+  );
+
   const kanbans = useMemo(() => {
     const s = new Set<string>();
     for (const r of interacoes) {
@@ -340,13 +390,7 @@ export function InteracoesLista({
       if (applied.travaF === 'com' && !row.trava) return false;
       if (applied.travaF === 'sem' && row.trava) return false;
 
-      if (applied.respF === 'eu' && currentUserId) {
-        const ids = row.responsaveis_ids ?? [];
-        if (!ids.includes(currentUserId) && row.responsavel_id !== currentUserId) return false;
-      } else if (applied.respF !== 'todos' && applied.respF !== 'eu') {
-        const ids = row.responsaveis_ids ?? [];
-        if (!ids.includes(applied.respF) && row.responsavel_id !== applied.respF) return false;
-      }
+      if (!rowMatchResponsavel(row, applied.respF, nomePorUserId, currentUserId)) return false;
 
       if (q) {
         const blob = `${row.titulo} ${row.card_titulo ?? ''} ${row.descricao ?? ''} ${row.franqueado_nome ?? ''}`.toLowerCase();
@@ -355,7 +399,7 @@ export function InteracoesLista({
 
       return true;
     });
-  }, [linhas, verTodas, currentUserId, applied, timesById]);
+  }, [linhas, verTodas, currentUserId, applied, timesById, nomePorUserId]);
 
   const porGrupo = useMemo(() => {
     const m = new Map<string, InteracaoSireneRow[]>();
@@ -622,7 +666,7 @@ export function InteracoesLista({
                       />
                       Todos
                     </label>
-                    {times.map((t) => (
+                    {timesParaFiltro.map((t) => (
                       <label key={t.id} className={radioLabel}>
                         <input
                           type="radio"
@@ -671,7 +715,7 @@ export function InteracoesLista({
                         Eu
                       </label>
                     ) : null}
-                    {responsaveis.map((r) => (
+                    {responsaveisParaFiltro.map((r) => (
                       <label key={r.id} className={radioLabel}>
                         <input
                           type="radio"

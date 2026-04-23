@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { MoniFooter } from '@/components/MoniFooter';
 import { normalizeAccessRole } from '@/lib/authz';
 import { TEAM_SEED_BY_EMAIL } from '@/lib/team-seed-signup';
+import { TIMES_MONI } from '@/lib/times-responsaveis';
 import { notifySignupComplete } from './actions';
 
 type TabKey = 'entrar' | 'cadastro';
@@ -225,18 +226,20 @@ export default function LoginPage() {
       if (user?.id) {
         const role = seeded?.role ?? 'pending';
         const dept = seeded?.departamento ?? departamento.trim();
-        await supabase
-          .from('profiles')
-          .update({
-            role,
-            full_name: fullName,
-            nome_completo: fullName,
-            departamento: dept,
-            // Sem seed na lista → pending (sem aprovação); com seed → já liberado
-            aprovado_em: seeded ? new Date().toISOString() : null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', user.id);
+        const baseUpdate = {
+          role,
+          full_name: fullName,
+          nome_completo: fullName,
+          departamento: dept,
+          // Sem seed na lista → pending (sem aprovação); com seed → já liberado
+          aprovado_em: seeded ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        };
+        const cargoUpdate =
+          seeded?.role === 'team'
+            ? { cargo: seeded.cargo ?? 'analista' }
+            : {};
+        await supabase.from('profiles').update({ ...baseUpdate, ...cargoUpdate }).eq('id', user.id);
       }
 
       await notifySignupComplete();
@@ -383,14 +386,20 @@ export default function LoginPage() {
                     <label htmlFor="departamento" className="block text-sm font-medium text-stone-700">
                       Departamento
                     </label>
-                    <input
+                    <select
                       id="departamento"
-                      type="text"
                       value={departamento}
                       onChange={(e) => setDepartamento(e.target.value)}
                       className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 focus:border-moni-accent focus:outline-none focus:ring-1 focus:ring-moni-accent"
                       required
-                    />
+                    >
+                      <option value="">Selecione o time</option>
+                      {TIMES_MONI.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label htmlFor="password-cad" className="block text-sm font-medium text-stone-700">

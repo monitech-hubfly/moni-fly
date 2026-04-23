@@ -38,6 +38,54 @@ export const RESPONSAVEIS_POR_TIME: Record<string, string[]> = {
 
 export const TODOS_RESPONSAVEIS = Object.values(RESPONSAVEIS_POR_TIME).flat();
 
+/** Valor de `filtros.time` / `timeF` quando o id não existe em `kanban_times` (filtro por nome Moní). */
+export const MONI_TIME_FILTRO_PREFIX = '__monitime__:';
+
+/** Valor de `filtros.responsavel` / `respF` quando não há perfil com o mesmo nome (filtro por nome do catálogo). */
+export const MONI_RESP_FILTRO_PREFIX = '__moniresp__:';
+
+/**
+ * Lista fixa de times Moní para filtros: usa o UUID de `kanban_times` quando o nome coincide;
+ * senão um id sintético (`MONI_TIME_FILTRO_PREFIX` + nome) para filtrar por texto na atividade.
+ */
+export function timesFiltroOpcoesComCatalogoMoni(
+  kanbanTimes: readonly { id: string; nome: string }[],
+): { id: string; nome: string }[] {
+  const byNome = new Map(kanbanTimes.map((t) => [t.nome.trim(), t]));
+  return [...TIMES_MONI].map((nome) => {
+    const hit = byNome.get(nome);
+    return { id: hit?.id ?? `${MONI_TIME_FILTRO_PREFIX}${nome}`, nome };
+  });
+}
+
+/**
+ * Todos os responsáveis do catálogo + perfis extra (ex.: nomes fora da lista), sem duplicar por nome.
+ */
+export function responsaveisFiltroOpcoesComCatalogoMoni(
+  profiles: readonly { id: string; nome: string }[],
+): { id: string; nome: string }[] {
+  const seen = new Set<string>();
+  const out: { id: string; nome: string }[] = [];
+  for (const nome of TODOS_RESPONSAVEIS) {
+    const n = nome.trim();
+    if (!n) continue;
+    const key = n.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const hit = profiles.find((p) => p.nome.trim() === n);
+    out.push(hit ?? { id: `${MONI_RESP_FILTRO_PREFIX}${encodeURIComponent(n)}`, nome: n });
+  }
+  for (const p of profiles) {
+    const n = p.nome.trim();
+    if (!n) continue;
+    const key = n.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+  }
+  return out.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
 const TIMES_SET = new Set<string>(TIMES_MONI);
 
 export function isTimeMoni(t: string): boolean {

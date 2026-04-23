@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
+import { MONI_RESP_FILTRO_PREFIX, MONI_TIME_FILTRO_PREFIX } from '@/lib/times-responsaveis';
 import {
   ArrowLeft,
   ArrowRight,
@@ -150,6 +151,19 @@ export function interacaoPassaFiltroTime(
   catalog: KanbanTimeRow[],
 ): boolean {
   if (filtroId === 'todos') return true;
+  if (filtroId.startsWith(MONI_TIME_FILTRO_PREFIX)) {
+    const nome = filtroId.slice(MONI_TIME_FILTRO_PREFIX.length).trim();
+    if (!nome) return false;
+    const n = nome.toLowerCase();
+    for (const t of tagsTimesParaLinha(it, catalog)) {
+      if (t.nome.trim().toLowerCase() === n) return true;
+    }
+    if (it.time) {
+      const slug = nomeTimeParaSlugLegado(nome);
+      if (it.time.toLowerCase() === slug) return true;
+    }
+    return false;
+  }
   if ((it.times_ids ?? []).includes(filtroId)) return true;
   const sel = catalog.find((t) => t.id === filtroId);
   if (sel && it.time) {
@@ -157,6 +171,32 @@ export function interacaoPassaFiltroTime(
     if (it.time.toLowerCase() === slug) return true;
   }
   return false;
+}
+
+export function interacaoPassaFiltroResponsavel(it: InteracaoModal, filtroId: string): boolean {
+  if (filtroId === 'todos') return true;
+  if (filtroId.startsWith(MONI_RESP_FILTRO_PREFIX)) {
+    let nome = '';
+    try {
+      nome = decodeURIComponent(filtroId.slice(MONI_RESP_FILTRO_PREFIX.length)).trim();
+    } catch {
+      nome = filtroId.slice(MONI_RESP_FILTRO_PREFIX.length).trim();
+    }
+    if (!nome) return false;
+    const nomes: string[] = [];
+    for (const r of it.responsaveis_resolvidos ?? []) {
+      const x = r.nome?.trim();
+      if (x) nomes.push(x);
+    }
+    const pf = it.profiles?.full_name?.trim();
+    if (pf) nomes.push(pf);
+    const txt = it.responsavel_nome_texto?.trim();
+    if (txt) nomes.push(txt);
+    return nomes.some((x) => x === nome);
+  }
+  const ids = [...(it.responsaveis_ids ?? [])];
+  if (it.responsavel_id) ids.push(it.responsavel_id);
+  return ids.includes(filtroId);
 }
 
 export type HistoricoItem = {

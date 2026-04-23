@@ -317,7 +317,7 @@ export function KanbanInteracoesFiltrosPanel({
           badge={badges.time}
         >
           <div
-            className="flex max-h-20 flex-col gap-1 overflow-y-auto text-xs transition-all"
+            className="flex max-h-48 flex-col gap-1 overflow-y-auto text-xs transition-all"
             style={{ color: 'var(--moni-text-primary)' }}
           >
             <label className={radioLabel}>
@@ -353,7 +353,7 @@ export function KanbanInteracoesFiltrosPanel({
           badge={badges.responsavel}
         >
           <div
-            className="flex max-h-20 flex-col gap-1 overflow-y-auto text-xs transition-all"
+            className="flex max-h-48 flex-col gap-1 overflow-y-auto text-xs transition-all"
             style={{ color: 'var(--moni-text-primary)' }}
           >
             <label className={radioLabel}>

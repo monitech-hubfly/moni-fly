@@ -77,6 +77,7 @@ import {
   derivarChamadoKanbanComSubs,
   formatDataHoraHistorico,
   iconeHistoricoAcao,
+  interacaoPassaFiltroResponsavel,
   interacaoPassaFiltroTime,
   interacoesDemonstracao,
   isInteracaoDemonstracao,
@@ -95,8 +96,10 @@ import {
   TIMES_MONI,
   inferResponsavelMoniFromInteracao,
   inferTimeMoniFromInteracao,
+  responsaveisFiltroOpcoesComCatalogoMoni,
   resolveKanbanInteracaoFromCatalog,
   responsaveisDoTimeMoni,
+  timesFiltroOpcoesComCatalogoMoni,
   validarParTimeResponsavelMoni,
 } from '@/lib/times-responsaveis';
 import { AnexosChamado } from './AnexosChamado';
@@ -1433,6 +1436,15 @@ export function KanbanCardModal({
     window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
   }
 
+  const timesFiltroOpcoesModal = useMemo(
+    () => timesFiltroOpcoesComCatalogoMoni(kanbanTimes),
+    [kanbanTimes],
+  );
+  const responsaveisFiltroOpcoesModal = useMemo(
+    () => responsaveisFiltroOpcoesComCatalogoMoni(responsaveisOpcoes),
+    [responsaveisOpcoes],
+  );
+
   const interacoesFiltradas = useMemo(() => {
     const situacaoEfetiva =
       filtros.lista === 'concluidas' ? ('qualquer' as const) : filtros.situacao;
@@ -1454,10 +1466,7 @@ export function KanbanCardModal({
         return false;
       }
       if (!interacaoPassaFiltroTime(it, filtros.time, kanbanTimes)) return false;
-      if (filtros.responsavel !== 'todos') {
-        const ids = it.responsaveis_ids ?? [];
-        if (!ids.includes(filtros.responsavel) && it.responsavel_id !== filtros.responsavel) return false;
-      }
+      if (!interacaoPassaFiltroResponsavel(it, filtros.responsavel)) return false;
       if (buscaNorm) {
         const blob = `${it.titulo} ${it.descricao ?? ''}`.toLowerCase();
         if (!blob.includes(buscaNorm)) return false;
@@ -2099,8 +2108,8 @@ export function KanbanCardModal({
                     <KanbanInteracoesFiltrosPanel
                       draft={filtrosDraft}
                       setDraft={setFiltrosDraft}
-                      kanbanTimes={kanbanTimes}
-                      responsaveisOpcoes={responsaveisOpcoes}
+                      kanbanTimes={timesFiltroOpcoesModal}
+                      responsaveisOpcoes={responsaveisFiltroOpcoesModal}
                       onLimpar={() => setFiltrosDraft(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT)}
                       onAplicar={() => {
                         setFiltros({ ...filtrosDraft });
