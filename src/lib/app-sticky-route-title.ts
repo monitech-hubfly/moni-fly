@@ -5,6 +5,7 @@ const PREFIX_TITLE: { prefix: string; title: string }[] = [
   { prefix: '/portal-frank', title: 'Portal Fly' },
   { prefix: '/rede-franqueados', title: 'Rede de Franqueados' },
   { prefix: '/dashboard-novos-negocios', title: 'Dashboard Novos Negócios' },
+  { prefix: '/funil-moni-inc', title: 'Funil Moní INC' },
   { prefix: '/funil-stepone', title: 'Funil Step One' },
   { prefix: '/painel-contabilidade', title: 'Funil Contabilidade' },
   { prefix: '/painel-credito', title: 'Funil Crédito' },

@@ -1,6 +1,7 @@
 /** Nome exato em `kanbans.nome` (migrations 114+) → rota do app e query do card. */
 const KANBAN_NOME_DB_PARA_APP: Record<string, { basePath: string; cardQueryParam: string }> = {
   'Funil Step One': { basePath: '/funil-stepone', cardQueryParam: 'card' },
+  'Funil Moní INC': { basePath: '/funil-moni-inc', cardQueryParam: 'card' },
   'Funil Portfólio': { basePath: '/portfolio', cardQueryParam: 'card' },
   'Funil Operações': { basePath: '/operacoes', cardQueryParam: 'card' },
   'Funil Acoplamento': { basePath: '/funil-acoplamento', cardQueryParam: 'card' },

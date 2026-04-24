@@ -303,6 +303,24 @@ export function FormularioCandidatoForm({
               onChange={(e) => set(item.id, e.target.value)}
             />
           );
+        } else if (item.tipo === 'data') {
+          campo = (
+            <input
+              type="date"
+              className={inputBase}
+              value={valor}
+              onChange={(e) => set(item.id, e.target.value)}
+            />
+          );
+        } else if (item.tipo === 'hora') {
+          campo = (
+            <input
+              type="time"
+              className={inputBase}
+              value={valor}
+              onChange={(e) => set(item.id, e.target.value)}
+            />
+          );
         } else {
           const inputType =
             item.tipo === 'email'

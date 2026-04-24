@@ -7,6 +7,7 @@ import { contarLinhasSemCard } from './actions';
 import { CriarCardsDesdeRedeButton } from './CriarCardsDesdeRedeButton';
 import { ImportarRedeCSVButton } from './ImportarRedeCSVButton';
 import { ExportarRedeCSVButton } from './ExportarRedeCSVButton';
+import { NovoFranqueadoModal } from './NovoFranqueadoModal';
 import { AdicionarRedeECardButton } from './AdicionarRedeECardButton';
 import { RedeDashboard } from './RedeDashboard';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -77,6 +78,7 @@ export default async function RedeFranqueadosPage() {
         <section className="mt-10 space-y-3">
           {rows ? (
             <div className="flex flex-wrap items-center justify-end gap-3">
+              {canManage ? <NovoFranqueadoModal /> : null}
               <ExportarRedeCSVButton rows={rows} />
             </div>
           ) : null}

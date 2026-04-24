@@ -402,6 +402,66 @@ export async function desarquivarCard(input: DesarquivarCardInput): Promise<Acti
   return { ok: true };
 }
 
+export type CriarCardKanbanInput = {
+  titulo: string;
+  kanban_nome: string;
+  fase_id: string;
+  /** Ex.: `/funil-moni-inc` para `revalidatePath`. */
+  basePath?: string;
+};
+
+/** Card nativo no kanban (`franqueado_id` = utilizador autenticado). */
+export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para criar o card.' };
+
+  const titulo = (input.titulo ?? '').trim();
+  if (!titulo) return { ok: false, error: 'Informe o nome.' };
+
+  const kanbanNome = (input.kanban_nome ?? '').trim();
+  if (!kanbanNome) return { ok: false, error: 'Kanban inválido.' };
+
+  const faseId = (input.fase_id ?? '').trim();
+  if (!faseId) return { ok: false, error: 'Fase inválida.' };
+
+  const { data: kb, error: kbErr } = await supabase
+    .from('kanbans')
+    .select('id')
+    .eq('nome', kanbanNome)
+    .eq('ativo', true)
+    .maybeSingle();
+  if (kbErr) return { ok: false, error: kbErr.message };
+  const kanbanId = String((kb as { id?: string } | null)?.id ?? '').trim();
+  if (!kanbanId) return { ok: false, error: 'Kanban não encontrado.' };
+
+  const { data: faseRow, error: faseErr } = await supabase
+    .from('kanban_fases')
+    .select('id')
+    .eq('id', faseId)
+    .eq('kanban_id', kanbanId)
+    .eq('ativo', true)
+    .maybeSingle();
+  if (faseErr) return { ok: false, error: faseErr.message };
+  if (!faseRow) return { ok: false, error: 'Fase não pertence a este kanban.' };
+
+  const { error } = await supabase.from('kanban_cards').insert({
+    kanban_id: kanbanId,
+    fase_id: faseId,
+    franqueado_id: user.id,
+    titulo,
+    status: 'ativo',
+  } as never);
+  if (error) return { ok: false, error: error.message };
+
+  const bp = (input.basePath ?? '').trim() || '/';
+  revalidatePath(bp);
+  revalidatePath('/');
+  return { ok: true };
+}
+
 export type CardArquivadoListRow = {
   id: string;
   titulo: string;
@@ -1621,7 +1681,7 @@ export async function enviarEmailCard(input: EnviarEmailCardInput): Promise<Acti
 }
 
 // ─── Checklist estrutural por fase ──────────────────────────────────────────
-// `FaseChecklistItem` é definido e reexportado a partir de `candidato-actions` (formulário público sem ciclo com este arquivo).
+// `FaseChecklistItem` (tipos incl. `data`, `hora`) em `candidato-actions`; reexportado aqui.
 
 export type FaseChecklistResposta = {
   id: string;

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 /** Nomes de kanban suportados pelo modal compartilhado (exibição / futuros temas). */
 export type KanbanNomeDisplay =
   | 'Funil Step One'
+  | 'Funil Moní INC'
   | 'Funil Portfólio'
   | 'Funil Acoplamento'
   | 'Funil Operações'

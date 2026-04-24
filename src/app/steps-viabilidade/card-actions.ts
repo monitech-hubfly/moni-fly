@@ -127,6 +127,7 @@ function revalidatePainelETarefas() {
   revalidatePath('/painel-credito');
   revalidatePath('/painel-contabilidade');
   revalidatePath('/funil-stepone');
+  revalidatePath('/funil-moni-inc');
 }
 
 async function resolveAutorNome(

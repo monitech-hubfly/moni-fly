@@ -53,6 +53,7 @@ export function PainelKanbanTabs({
       params.delete('abrir');
       params.delete('kanbanCard');
       params.delete('origem');
+      params.delete('novo');
     }
     const q = params.toString();
     router.push(q ? `${basePath}?${q}` : basePath);

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Plus, X } from 'lucide-react';
+import { Check, FileText, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
 import type { RedeFranqueadoDbKey, RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
 import { COLUNAS_REDE_FRANQUEADOS, REDE_FRANQUEADOS_DB_KEYS } from '@/lib/rede-franqueados';
@@ -247,8 +247,7 @@ export function TabelaRedeFranqueadosEditavel({ rows, canEditRows = true }: Prop
       setAreaAtuacaoItens([]);
       setEstadoAtuacao('');
       setCidadeAtuacao('');
-      // A página server revalida, mas client-side atualiza via refresh quando o usuário recarrega.
-      // Como estamos em client component, deixamos a lista atualizar no próximo refresh/navegação.
+      router.refresh();
     } else {
       setMsg({ tipo: 'erro', texto: r.error });
     }
@@ -290,76 +289,26 @@ export function TabelaRedeFranqueadosEditavel({ rows, canEditRows = true }: Prop
         <table className="w-full min-w-[1700px] border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-stone-200 bg-stone-50">
-              {canEditRows && (
-                <th className="whitespace-nowrap px-3 py-2 font-semibold text-stone-700">Ações</th>
-              )}
               {headers.map((h, i) => (
                 <th key={i} className="whitespace-nowrap px-3 py-2 font-semibold text-stone-700">
                   {h}
                 </th>
               ))}
+              {canEditRows ? (
+                <th
+                  className="sticky right-0 z-20 w-14 min-w-[3.5rem] border-l border-stone-200 bg-stone-50 px-1 py-2 text-center shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)]"
+                  scope="col"
+                >
+                  <span className="sr-only">Operações</span>
+                </th>
+              ) : null}
             </tr>
           </thead>
           <tbody>
             {pageRows.map((r) => {
               const isEditing = editingId === r.id;
               return (
-                <tr key={r.id} className="border-b border-stone-100 align-top hover:bg-stone-50/80">
-                  {canEditRows && (
-                    <td className="whitespace-nowrap px-3 py-2">
-                      {!isEditing ? (
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Link
-                            href={`/rede-franqueados/${r.id}`}
-                            className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-moni-primary hover:bg-stone-50"
-                          >
-                            Documentos
-                          </Link>
-                          <button
-                            type="button"
-                            onClick={() => beginEdit(r)}
-                            className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 hover:bg-stone-50"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void excluir(r.id)}
-                            className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50"
-                          >
-                            Excluir
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={save}
-                            disabled={saving}
-                            className="rounded-lg bg-moni-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-moni-secondary disabled:opacity-50"
-                          >
-                            {saving ? (
-                              <>
-                                <Loader2 className="mr-1 inline h-4 w-4 animate-spin" />
-                                Salvando…
-                              </>
-                            ) : (
-                              'Salvar'
-                            )}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={cancelEdit}
-                            disabled={saving}
-                            className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-50"
-                          >
-                            Cancelar
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  )}
-
+                <tr key={r.id} className="group border-b border-stone-100 align-top hover:bg-stone-50/80">
                   {keys.map((k) => {
                     const current = (r[k] ?? '') as string;
                     const value = (draft[k] ?? '') as string;
@@ -463,6 +412,64 @@ export function TabelaRedeFranqueadosEditavel({ rows, canEditRows = true }: Prop
                       </td>
                     );
                   })}
+
+                  {canEditRows ? (
+                    <td className="sticky right-0 z-10 w-14 min-w-[3.5rem] border-l border-stone-200 bg-white px-1 py-2 align-middle shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)] group-hover:bg-stone-50/90">
+                      {!isEditing ? (
+                        <div className="flex flex-col items-center justify-center gap-1 sm:flex-row sm:opacity-0 sm:transition-opacity sm:duration-150 sm:group-hover:opacity-100">
+                          <Link
+                            href={`/rede-franqueados/${r.id}`}
+                            title="Documentos"
+                            className="rounded-md p-1.5 text-moni-primary hover:bg-moni-light/60"
+                          >
+                            <FileText className="h-4 w-4" />
+                            <span className="sr-only">Documentos</span>
+                          </Link>
+                          <button
+                            type="button"
+                            title="Editar"
+                            onClick={() => beginEdit(r)}
+                            className="rounded-md p-1.5 text-stone-600 hover:bg-stone-200/80 hover:text-stone-900"
+                          >
+                            <Pencil className="h-4 w-4" />
+                            <span className="sr-only">Editar</span>
+                          </button>
+                          <button
+                            type="button"
+                            title="Excluir"
+                            onClick={() => void excluir(r.id)}
+                            className="rounded-md p-1.5 text-red-600 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">Excluir</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center gap-1 sm:flex-row">
+                          <button
+                            type="button"
+                            title="Salvar"
+                            onClick={() => void save()}
+                            disabled={saving}
+                            className="rounded-md p-1.5 text-white bg-moni-primary hover:bg-moni-secondary disabled:opacity-50"
+                          >
+                            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                            <span className="sr-only">Salvar</span>
+                          </button>
+                          <button
+                            type="button"
+                            title="Cancelar"
+                            onClick={cancelEdit}
+                            disabled={saving}
+                            className="rounded-md border border-stone-300 bg-white p-1.5 text-stone-700 hover:bg-stone-100 disabled:opacity-50"
+                          >
+                            <X className="h-4 w-4" />
+                            <span className="sr-only">Cancelar</span>
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  ) : null}
                 </tr>
               );
             })}

@@ -6,6 +6,7 @@ export type InviteCargo = 'adm' | 'analista' | 'estagiario';
 /** Nomes exatos em `kanbans.nome` (alinhado ao seed / migrations). */
 export const FUNIS_KANBAN_NOMES = [
   'Funil Step One',
+  'Funil Moní INC',
   'Funil Portfólio',
   'Funil Operações',
   'Funil Acoplamento',

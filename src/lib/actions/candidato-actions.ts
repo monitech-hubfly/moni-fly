@@ -7,7 +7,17 @@ export type FaseChecklistItem = {
   fase_id: string;
   ordem: number;
   label: string;
-  tipo: 'texto_curto' | 'texto_longo' | 'email' | 'telefone' | 'numero' | 'anexo' | 'anexo_template' | 'checkbox';
+  tipo:
+    | 'texto_curto'
+    | 'texto_longo'
+    | 'email'
+    | 'telefone'
+    | 'numero'
+    | 'anexo'
+    | 'anexo_template'
+    | 'checkbox'
+    | 'data'
+    | 'hora';
   obrigatorio: boolean;
   visivel_candidato: boolean;
   template_storage_path: string | null;

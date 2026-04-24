@@ -266,6 +266,38 @@ function ItemField({ item, estado, cardId, isAdmin, onChange, onBlur, onArquivo 
     );
   }
 
+  if (item.tipo === 'data') {
+    return (
+      <div>
+        {labelEl}
+        <input
+          type="date"
+          className={inputClass}
+          value={estado.valor}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={(e) => onBlur(e.target.value)}
+        />
+        {erroEl}
+      </div>
+    );
+  }
+
+  if (item.tipo === 'hora') {
+    return (
+      <div>
+        {labelEl}
+        <input
+          type="time"
+          className={inputClass}
+          value={estado.valor}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={(e) => onBlur(e.target.value)}
+        />
+        {erroEl}
+      </div>
+    );
+  }
+
   if (item.tipo === 'anexo') {
     return (
       <div>

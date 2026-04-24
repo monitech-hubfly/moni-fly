@@ -13,6 +13,7 @@ export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/funil-acoplamento',
   '/operacoes',
   '/funil-stepone',
+  '/funil-moni-inc',
   '/dashboard-novos-negocios',
   '/perfil',
   '/sirene',
@@ -34,6 +35,7 @@ export const FRANK_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/operacoes',
   '/funil-acoplamento',
   '/funil-stepone',
+  '/funil-moni-inc',
   '/dashboard-novos-negocios',
   '/perfil',
 ] as const;
