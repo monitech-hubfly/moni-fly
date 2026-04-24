@@ -6,6 +6,7 @@ import type { KanbanFaseMaterial } from '@/components/kanban-shared/types';
 import { KANBAN_APP_BASE_PATHS } from '@/lib/kanban/kanban-card-href';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 import { criarChamado } from '@/app/sirene/actions';
+import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import type { FaseChecklistItem } from './candidato-actions';
@@ -61,9 +62,13 @@ export type EditarInteracaoInput = {
   basePath?: string;
 };
 
+export type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
+
 export type CriarSubInteracaoInput = {
   interacao_id: string;
   descricao: string;
+  /** Categoria do sub-chamado (`sirene_topicos.tipo`, migration 165). */
+  tipo?: SubInteracaoTipoDb;
   times_ids: string[];
   responsaveis_ids: string[];
   data_fim?: string | null;
@@ -278,6 +283,9 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
     .maybeSingle();
   const proxOrdem = ((maxRow as { ordem?: number } | null)?.ordem ?? 0) + 1;
 
+  const tipoSub: SubInteracaoTipoDb =
+    input.tipo === 'duvida' || input.tipo === 'chamado' ? input.tipo : 'atividade';
+
   const row = {
     chamado_id: null,
     interacao_id: input.interacao_id,
@@ -291,6 +299,7 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
     data_fim: dataCampoCalendarioIso(input.data_fim),
     data_inicio: null,
     status: 'nao_iniciado' as const,
+    tipo: tipoSub,
   };
 
   const { error } = await supabase.from('sirene_topicos').insert(row as never);

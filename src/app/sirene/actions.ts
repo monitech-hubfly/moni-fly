@@ -12,6 +12,7 @@ import {
   validarTimeMoniOpcional,
 } from '@/lib/times-responsaveis';
 import { rankChamadoPainelUnificado } from '@/lib/sirene-painel-chamados-rank';
+import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 
 export type SireneActionResult = { ok: true } | { ok: false; error: string };
 
@@ -116,6 +117,9 @@ export async function getTopicosChamado(
         ordem: number;
         descricao: string;
         time_responsavel: string;
+        tipo: SubInteracaoTipoDb;
+        times_ids: string[];
+        responsaveis_ids: string[];
         data_inicio: string | null;
         data_fim: string | null;
         trava: boolean;
@@ -134,24 +138,38 @@ export async function getTopicosChamado(
 
   const { data, error } = await supabase
     .from('sirene_topicos')
-    .select('id, ordem, descricao, time_responsavel, data_inicio, data_fim, status, trava, resolucao_time, motivo_reprovacao')
+    .select(
+      'id, ordem, descricao, time_responsavel, tipo, times_ids, responsaveis_ids, data_inicio, data_fim, status, trava, resolucao_time, motivo_reprovacao',
+    )
     .eq('chamado_id', chamadoId)
     .order('ordem', { ascending: true });
 
   if (error) return { ok: false, error: error.message };
   const rows = data ?? [];
-  const topicos = rows.map((r) => ({
-    id: r.id,
-    ordem: r.ordem,
-    descricao: r.descricao,
-    time_responsavel: r.time_responsavel,
-    data_inicio: r.data_inicio ?? null,
-    data_fim: r.data_fim ?? null,
-    trava: (r as { trava?: boolean }).trava ?? false,
-    status: r.status,
-    resolucao_time: r.resolucao_time ?? null,
-    motivo_reprovacao: r.motivo_reprovacao ?? null,
-  }));
+  const topicos = rows.map((r) => {
+    const rawTi = (r as { times_ids?: unknown }).times_ids;
+    const ti = Array.isArray(rawTi) ? rawTi.map((x) => String(x)) : [];
+    const rawRi = (r as { responsaveis_ids?: unknown }).responsaveis_ids;
+    const ri = Array.isArray(rawRi) ? rawRi.map((x) => String(x)) : [];
+    const tipoRaw = String((r as { tipo?: string }).tipo ?? 'atividade');
+    const tipo: SubInteracaoTipoDb =
+      tipoRaw === 'duvida' || tipoRaw === 'chamado' ? (tipoRaw as SubInteracaoTipoDb) : 'atividade';
+    return {
+      id: r.id,
+      ordem: r.ordem,
+      descricao: r.descricao,
+      time_responsavel: r.time_responsavel,
+      tipo,
+      times_ids: ti,
+      responsaveis_ids: ri,
+      data_inicio: r.data_inicio ?? null,
+      data_fim: r.data_fim ?? null,
+      trava: (r as { trava?: boolean }).trava ?? false,
+      status: r.status,
+      resolucao_time: r.resolucao_time ?? null,
+      motivo_reprovacao: r.motivo_reprovacao ?? null,
+    };
+  });
   return { ok: true, topicos };
 }
 
@@ -199,6 +217,7 @@ export async function salvarResolucaoComTopicos(
       data_fim: dataFim || null,
       trava: t.trava ?? false,
       status: 'nao_iniciado',
+      tipo: 'atividade',
     });
     if (insErr) return { ok: false, error: insErr.message };
   }
@@ -925,19 +944,52 @@ export async function atualizarChamadoPainelUnificado(
   return { ok: true };
 }
 
+export type AdicionarTopicoChamadoPainelInput = {
+  descricao: string;
+  tipo: SubInteracaoTipoDb;
+  times_ids: string[];
+  responsaveis_ids: string[];
+  data_fim: string | null;
+  trava: boolean;
+};
+
+function uniqUuidStrings(ids: string[] | undefined | null): string[] {
+  if (!Array.isArray(ids)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const x of ids) {
+    const u = String(x ?? '').trim();
+    if (!u || !UUID_RE.test(u) || seen.has(u)) continue;
+    seen.add(u);
+    out.push(u);
+  }
+  return out;
+}
+
 export async function adicionarTopicoChamadoPainel(
   chamadoId: number,
-  descricao: string,
-  time_responsavel: string,
+  payload: AdicionarTopicoChamadoPainelInput,
 ): Promise<SireneActionResult> {
   const supabase = await createClient();
   const me = await getSireneUserContext(supabase);
   if (!me) return { ok: false, error: 'Faça login.' };
 
-  const desc = descricao?.trim() ?? '';
-  const tr = time_responsavel?.trim() ?? '';
-  if (!desc) return { ok: false, error: 'Informe a descrição do tópico.' };
-  if (!tr) return { ok: false, error: 'Informe o time responsável.' };
+  const desc = payload.descricao?.trim() ?? '';
+  if (!desc) return { ok: false, error: 'Informe a descrição do sub-chamado.' };
+
+  const tipo =
+    payload.tipo === 'duvida' || payload.tipo === 'chamado' ? payload.tipo : 'atividade';
+
+  const timesIds = uniqUuidStrings(payload.times_ids);
+  if (timesIds.length === 0) {
+    return { ok: false, error: 'Selecione ao menos um time.' };
+  }
+
+  const respIds = uniqUuidStrings(payload.responsaveis_ids);
+  const dataFim = parseDataVencimentoChamado(payload.data_fim);
+
+  const { data: nomeRow } = await supabase.from('kanban_times').select('nome').eq('id', timesIds[0]!).maybeSingle();
+  const timeLabel = String((nomeRow as { nome?: string } | null)?.nome ?? '').trim() || '—';
 
   const { data: chamadoFull } = await supabase.from('sirene_chamados').select('*').eq('id', chamadoId).single();
   if (!chamadoFull) return { ok: false, error: 'Chamado não encontrado.' };
@@ -963,9 +1015,14 @@ export async function adicionarTopicoChamadoPainel(
     chamado_id: chamadoId,
     ordem: proxOrdem,
     descricao: desc,
-    time_responsavel: tr,
+    time_responsavel: timeLabel,
+    times_ids: timesIds,
+    responsavel_id: respIds.length > 0 ? respIds[0]! : null,
+    responsaveis_ids: respIds,
     status: 'nao_iniciado',
-    trava: false,
+    trava: Boolean(payload.trava),
+    data_fim: dataFim,
+    tipo,
   });
   if (insErr) return { ok: false, error: insErr.message };
 
