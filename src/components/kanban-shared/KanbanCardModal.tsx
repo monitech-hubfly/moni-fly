@@ -2053,7 +2053,7 @@ export function KanbanCardModal({
                       ) : (
                         <Link2 size={12} />
                       )}
-                      {gerandoLink ? 'Gerando...' : 'Gerar link para candidato'}
+                      {gerandoLink ? 'Gerando...' : 'Gerar link'}
                     </button>
                   )}
                 </div>
