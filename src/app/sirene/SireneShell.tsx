@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 
 const TABS_BASE = [
   { href: '/sirene', label: 'Dashboard' },
-  { href: '/sirene/interacoes', label: 'Chamados' },
+  { href: '/sirene/chamados', label: 'Chamados' },
   { href: '/sirene/pericias', label: 'Perícias (Caneta Verde)' },
 ] as const;
 
