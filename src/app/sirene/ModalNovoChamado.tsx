@@ -258,7 +258,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
             <>
               <div>
                 <label className="mb-1 block text-sm font-medium text-stone-700">
-                  Time que está abrindo o chamado
+                  Time que receberá o chamado
                 </label>
                 <select
                   value={timeAbertura}
@@ -276,7 +276,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-stone-700">
-                  Responsável pelo time (opcional)
+                  Responsável pelo atendimento (opcional)
                 </label>
                 <select
                   value={responsavelAbertura}
