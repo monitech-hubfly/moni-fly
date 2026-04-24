@@ -537,6 +537,8 @@ export function KanbanCardModal({
         }
       } else {
         setLegadoCronologiaMoves([]);
+        // DEBUG: cardId vem da URL (?card=) via KanbanWrapper — ver KanbanColumn onClick
+        console.log('[DEBUG] cardId recebido no modal:', cardId);
         const { data: cardData, error: cardError } = await supabase
           .from('kanban_cards')
           .select(
