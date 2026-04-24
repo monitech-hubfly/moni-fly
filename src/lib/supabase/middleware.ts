@@ -65,6 +65,7 @@ export async function updateSession(request: NextRequest) {
     '/dashboard-novos-negocios',
     '/rede-franqueados',
     '/comunidade',
+    '/repositorio',
     '/perfil',
     '/sirene',
   ];

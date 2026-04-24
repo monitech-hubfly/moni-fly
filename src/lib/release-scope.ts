@@ -26,6 +26,7 @@ export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/auth',
   '/rede-franqueados',
   '/comunidade',
+  '/repositorio',
   '/dashboard-novos-negocios',
   '/painel-novos-negocios',
   '/portfolio',

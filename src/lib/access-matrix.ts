@@ -7,6 +7,7 @@ import { normalizeAccessRole, type AccessRole } from '@/lib/authz';
 export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/rede-franqueados',
   '/comunidade',
+  '/repositorio',
   '/painel-novos-negocios',
   '/portfolio',
   '/funil-acoplamento',

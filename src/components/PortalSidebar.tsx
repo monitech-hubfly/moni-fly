@@ -325,6 +325,15 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
           (href) => pathname === href || (pathname?.startsWith(href + '/') ?? false),
         )}
 
+        {!publicVisitor && !limitedRelease && (isAdmin || resolvedRole === 'team') && (
+          <Link
+            href="/repositorio"
+            className={linkClassPrincipal(Boolean(pathname?.startsWith('/repositorio')))}
+          >
+            Repositório
+          </Link>
+        )}
+
         {!publicVisitor && !limitedRelease &&
           (isAdmin || resolvedRole === 'team') &&
           renderMacro(
