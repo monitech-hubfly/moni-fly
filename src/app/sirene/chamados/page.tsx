@@ -1,7 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { listChamados } from '../actions';
-import { ChamadosLista } from '../ChamadosLista';
 import { InteracoesLista, type InteracaoSireneRow } from './InteracoesLista';
 
 export const dynamic = 'force-dynamic';
@@ -15,9 +13,8 @@ export default async function SireneChamadosPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const filtroTipo = params.tipo === 'padrao' || params.tipo === 'hdm' ? params.tipo : undefined;
-  const listResult = await listChamados(filtroTipo);
-  const chamados = listResult.ok ? listResult.chamados : [];
+  const filtroTipoChamado =
+    params.tipo === 'padrao' || params.tipo === 'hdm' ? (params.tipo as 'padrao' | 'hdm') : undefined;
 
   const admin = createAdminClient();
 
@@ -45,7 +42,6 @@ export default async function SireneChamadosPage({
         'sla_status',
       ].join(', '),
     )
-    .not('card_id', 'is', null)
     .order('criado_em', { ascending: false });
 
   let painelErro: string | null = null;
@@ -55,6 +51,7 @@ export default async function SireneChamadosPage({
     responsaveis: { id: string; nome: string }[];
     currentUserId: string | null;
     comentariosCountByCardId: Record<string, number>;
+    filtroTipoChamado?: 'padrao' | 'hdm';
   } | null = null;
 
   if (viewErr) {
@@ -71,6 +68,7 @@ export default async function SireneChamadosPage({
         responsaveis_ids: string[];
         times_ids: string[];
         responsavel_nome_texto: string | null;
+        sirene_chamado_id: number | null;
       }
     >();
     if (ids.length > 0) {
@@ -79,7 +77,9 @@ export default async function SireneChamadosPage({
         const slice = ids.slice(i, i + chunk);
         const { data: kaRows } = await admin
           .from('kanban_atividades')
-          .select('id, trava, origem, responsaveis_ids, times_ids, responsavel_nome_texto')
+          .select(
+            'id, trava, origem, responsaveis_ids, times_ids, responsavel_nome_texto, sirene_chamado_id',
+          )
           .in('id', slice);
         for (const r of kaRows ?? []) {
           const id = String((r as { id: string }).id);
@@ -90,25 +90,105 @@ export default async function SireneChamadosPage({
           const rnt = (r as { responsavel_nome_texto?: string | null }).responsavel_nome_texto;
           const responsavel_nome_texto =
             rnt != null && String(rnt).trim() !== '' ? String(rnt).trim() : null;
+          const sid = (r as { sirene_chamado_id?: number | null }).sirene_chamado_id;
           kaById.set(id, {
             trava: Boolean((r as { trava?: boolean }).trava),
             origem: String((r as { origem?: string }).origem ?? 'nativo'),
             responsaveis_ids: arr,
             times_ids: tids,
             responsavel_nome_texto,
+            sirene_chamado_id: sid != null && Number.isFinite(Number(sid)) ? Number(sid) : null,
           });
         }
       }
     }
 
-    const interacoes = rows
+    const sireneIds = [
+      ...new Set(
+        [...kaById.values()]
+          .map((k) => k.sirene_chamado_id)
+          .filter((x): x is number => x != null && Number.isFinite(x)),
+      ),
+    ];
+    const sireneById = new Map<
+      number,
+      {
+        frank_id: string | null;
+        frank_nome: string | null;
+        numero: number;
+        tipo: string;
+        time_abertura: string | null;
+        abertura_responsavel_nome: string | null;
+        hdm_responsavel: string | null;
+      }
+    >();
+    if (sireneIds.length > 0) {
+      const { data: scRows } = await admin
+        .from('sirene_chamados')
+        .select(
+          'id, frank_id, frank_nome, numero, tipo, time_abertura, abertura_responsavel_nome, hdm_responsavel',
+        )
+        .in('id', sireneIds);
+      for (const s of scRows ?? []) {
+        const id = Number((s as { id: number }).id);
+        if (!Number.isFinite(id)) continue;
+        sireneById.set(id, {
+          frank_id: (s as { frank_id?: string | null }).frank_id ?? null,
+          frank_nome: (s as { frank_nome?: string | null }).frank_nome ?? null,
+          numero: Number((s as { numero?: number }).numero ?? id),
+          tipo: String((s as { tipo?: string }).tipo ?? 'padrao'),
+          time_abertura: (s as { time_abertura?: string | null }).time_abertura ?? null,
+          abertura_responsavel_nome:
+            (s as { abertura_responsavel_nome?: string | null }).abertura_responsavel_nome ?? null,
+          hdm_responsavel: (s as { hdm_responsavel?: string | null }).hdm_responsavel ?? null,
+        });
+      }
+    }
+
+    const cardIdsNativo = [
+      ...new Set(
+        rows
+          .map((r) => {
+            const id = String(r.id);
+            const ka = kaById.get(id);
+            const cid = r.card_id != null ? String(r.card_id) : null;
+            if (!cid || ka?.origem !== 'nativo') return null;
+            return cid;
+          })
+          .filter((x): x is string => Boolean(x)),
+      ),
+    ];
+    const frankIdByCard = new Map<string, string | null>();
+    if (cardIdsNativo.length > 0) {
+      const ch = 200;
+      for (let i = 0; i < cardIdsNativo.length; i += ch) {
+        const sl = cardIdsNativo.slice(i, i + ch);
+        const { data: cards } = await admin.from('kanban_cards').select('id, franqueado_id').in('id', sl);
+        for (const c of cards ?? []) {
+          frankIdByCard.set(
+            String((c as { id: string }).id),
+            (c as { franqueado_id?: string | null }).franqueado_id ?? null,
+          );
+        }
+      }
+    }
+
+    let interacoes: InteracaoSireneRow[] = rows
       .filter((r) => String(r.atividade_status ?? '').toLowerCase() !== 'cancelada')
       .map((r) => {
         const id = String(r.id);
         const ka = kaById.get(id);
+        const cardIdStr = r.card_id != null ? String(r.card_id) : null;
+        const sid = ka?.sirene_chamado_id ?? null;
+        const scMeta = sid != null ? sireneById.get(sid) : undefined;
+        const frankFromCard =
+          ka?.origem === 'nativo' && cardIdStr ? frankIdByCard.get(cardIdStr) ?? null : null;
+        const frank_id =
+          ka?.origem === 'sirene' && scMeta ? scMeta.frank_id : frankFromCard;
+
         return {
           id,
-          card_id: r.card_id != null ? String(r.card_id) : null,
+          card_id: cardIdStr,
           card_titulo: (r.card_titulo as string | null) ?? null,
           fase_nome: String(r.fase_nome ?? ''),
           kanban_nome: String(r.kanban_nome ?? ''),
@@ -124,7 +204,10 @@ export default async function SireneChamadosPage({
           times_nomes: r.times_nomes,
           franqueado_nome: (() => {
             const v = r.franqueado_nome;
-            if (v == null || typeof v !== 'string') return null;
+            if (v == null || typeof v !== 'string') {
+              if (ka?.origem === 'sirene' && scMeta?.frank_nome) return scMeta.frank_nome.trim() || null;
+              return null;
+            }
             const t = v.trim();
             return t || null;
           })(),
@@ -135,8 +218,24 @@ export default async function SireneChamadosPage({
           responsaveis_ids: ka?.responsaveis_ids ?? [],
           times_ids: ka?.times_ids ?? [],
           responsavel_nome_texto: ka?.responsavel_nome_texto ?? null,
+          sirene_chamado_id: sid,
+          sirene_numero: scMeta?.numero ?? null,
+          sirene_chamado_tipo: ka?.origem === 'sirene' && scMeta ? scMeta.tipo : null,
+          sirene_time_abertura: ka?.origem === 'sirene' && scMeta ? scMeta.time_abertura : null,
+          sirene_abertura_responsavel_nome:
+            ka?.origem === 'sirene' && scMeta ? scMeta.abertura_responsavel_nome : null,
+          sirene_hdm_responsavel: ka?.origem === 'sirene' && scMeta ? scMeta.hdm_responsavel : null,
+          frank_id,
         };
       });
+
+    if (filtroTipoChamado) {
+      interacoes = interacoes.filter((row) => {
+        if (row.origem !== 'sirene' || row.sirene_chamado_id == null) return true;
+        const t = row.sirene_chamado_tipo ?? 'padrao';
+        return filtroTipoChamado === 'hdm' ? t === 'hdm' : t === 'padrao';
+      });
+    }
 
     const cardIdsUniq = [...new Set(interacoes.map((i) => i.card_id).filter(Boolean))] as string[];
     const comentariosCountByCardId: Record<string, number> = {};
@@ -183,22 +282,18 @@ export default async function SireneChamadosPage({
       responsaveis,
       currentUserId,
       comentariosCountByCardId,
+      filtroTipoChamado,
     };
   }
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
       <h1 className="text-2xl font-bold text-white">Chamados</h1>
-      <p className="mt-1 text-stone-400">
-        Lista de chamados Sirene (tipo e novo chamado) e painel de atividades nos cards.
-      </p>
-      <section className="mt-6">
-        <ChamadosLista chamados={chamados} />
-      </section>
+      <p className="mt-1 text-stone-400">Chamados Sirene e atividades nos cards — lista unificada.</p>
 
-      <section className="mt-10 border-t border-stone-700 pt-8">
+      <section className="mt-6">
         {painelErro ? (
-          <p className="text-red-300">Erro ao carregar o painel de cards: {painelErro}</p>
+          <p className="text-red-300">Erro ao carregar o painel: {painelErro}</p>
         ) : interacoesListaProps ? (
           <InteracoesLista
             interacoes={interacoesListaProps.interacoes}
@@ -206,6 +301,7 @@ export default async function SireneChamadosPage({
             responsaveis={interacoesListaProps.responsaveis}
             currentUserId={interacoesListaProps.currentUserId}
             comentariosCountByCardId={interacoesListaProps.comentariosCountByCardId}
+            filtroTipoChamado={interacoesListaProps.filtroTipoChamado}
           />
         ) : null}
       </section>

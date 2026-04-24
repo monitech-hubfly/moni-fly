@@ -104,7 +104,7 @@ export async function atualizarStatusInteracaoSirene(
   const admin = createAdminClient();
   const { data: row, error: fetchErr } = await admin
     .from('kanban_atividades')
-    .select('id, origem, card_id, responsavel_id, responsaveis_ids, criado_por')
+    .select('id, origem, card_id, responsavel_id, responsaveis_ids, criado_por, sirene_chamado_id')
     .eq('id', atividadeId)
     .maybeSingle();
 
@@ -131,6 +131,24 @@ export async function atualizarStatusInteracaoSirene(
     .eq('id', atividadeId);
 
   if (error) return { ok: false, error: error.message };
+
+  const sireneCid = (row as { sirene_chamado_id?: number | null }).sirene_chamado_id;
+  if (sireneCid != null && Number.isFinite(Number(sireneCid))) {
+    const scStatus =
+      status === 'concluida'
+        ? 'concluido'
+        : status === 'em_andamento'
+          ? 'em_andamento'
+          : 'nao_iniciado';
+    const scPatch: Record<string, unknown> = {
+      status: scStatus,
+      updated_at: new Date().toISOString(),
+    };
+    if (status === 'concluida') {
+      scPatch.data_conclusao = new Date().toISOString();
+    }
+    await admin.from('sirene_chamados').update(scPatch).eq('id', Number(sireneCid));
+  }
 
   revalidatePath('/sirene/chamados');
   revalidatePath('/');

@@ -22,7 +22,6 @@ export function SireneShell({ userName, isBombeiro, children }: Props) {
     ? [...TABS_BASE, { href: '/sirene/monitor', label: 'Monitor dos times' } as const]
     : [...TABS_BASE];
 
-  const isDetailPage = /^\/sirene\/[0-9]+$/.test(pathname ?? '');
   const tabAtivo =
     pathname === '/sirene'
       ? '/sirene'
@@ -66,25 +65,23 @@ export function SireneShell({ userName, isBombeiro, children }: Props) {
         </div>
       </header>
 
-      {!isDetailPage && (
-        <nav className="border-b border-stone-700 bg-stone-800/60">
-          <div className="mx-auto flex max-w-7xl gap-0 px-4">
-            {tabs.map((t) => (
-              <Link
-                key={t.href}
-                href={t.href}
-                className={`border-b-2 px-4 py-3 text-sm font-medium ${
-                  tabAtivo === t.href
-                    ? 'border-red-500 text-white'
-                    : 'border-transparent text-stone-400 hover:text-stone-200'
-                }`}
-              >
-                {t.label}
-              </Link>
-            ))}
-          </div>
-        </nav>
-      )}
+      <nav className="border-b border-stone-700 bg-stone-800/60">
+        <div className="mx-auto flex max-w-7xl gap-0 px-4">
+          {tabs.map((t) => (
+            <Link
+              key={t.href}
+              href={t.href}
+              className={`border-b-2 px-4 py-3 text-sm font-medium ${
+                tabAtivo === t.href
+                  ? 'border-red-500 text-white'
+                  : 'border-transparent text-stone-400 hover:text-stone-200'
+              }`}
+            >
+              {t.label}
+            </Link>
+          ))}
+        </div>
+      </nav>
 
       {children}
     </div>

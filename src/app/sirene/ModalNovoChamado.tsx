@@ -125,8 +125,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
       return;
     }
     onSuccess?.();
-    if (result.chamadoId) window.location.href = `/sirene/${result.chamadoId}`;
-    else onClose();
+    onClose();
   }
 
   const isFrank = dados?.isFrank ?? false;
