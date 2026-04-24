@@ -234,7 +234,6 @@ export default function LoginPage() {
         options: { data: { full_name: fullName, nome_completo: fullName, departamento } },
       });
       if (err) {
-        console.error('[login/signup] signUp error (mensagem Supabase):', err.message, err);
         setError(signupErrorUserMessage(err.message));
         setLoading(false);
         return;
@@ -280,7 +279,6 @@ export default function LoginPage() {
           : typeof unknownErr === 'string'
             ? unknownErr
             : String(unknownErr);
-      console.error('[login/signup] cadastro exceção (mensagem bruta):', raw, unknownErr);
       setError(signupErrorUserMessage(raw) || raw || 'Erro ao cadastrar.');
     } finally {
       setLoading(false);

@@ -2035,7 +2035,6 @@ export function KanbanCardModal({
                         setGerandoLink(true);
                         try {
                           const res = await gerarFormTokenCandidato(card.id, card.fase_id!);
-                          console.log('[GERAR LINK]', res);
                           if (res.ok) setLinkCandidato(res.url);
                         } finally {
                           setGerandoLink(false);

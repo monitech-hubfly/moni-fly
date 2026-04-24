@@ -48,14 +48,6 @@ export function FaseChecklistCard({ faseId, cardId, isFrank, isAdmin }: Props) {
           .select('*')
           .eq('card_id', cardId);
 
-        console.log('[FaseChecklist] itens:', itensData, 'respostas:', respostasData);
-        if (itensError) {
-          console.error('[FaseChecklist] faseId:', faseId, '| erro query itens:', itensError);
-        }
-        if (respostasError) {
-          console.error('[FaseChecklist] cardId:', cardId, '| erro query respostas:', respostasError);
-        }
-
         if (cancelado) return;
 
         const itemRows = (itensData ?? []) as FaseChecklistItem[];
@@ -83,8 +75,7 @@ export function FaseChecklistCard({ faseId, cardId, isFrank, isAdmin }: Props) {
         }
         setRespostas(map);
         setCarregando(false);
-      } catch (err) {
-        console.error('[FaseChecklist] faseId:', faseId, '| cardId:', cardId, '| erro ao carregar:', err);
+      } catch {
         if (!cancelado) {
           setItens([]);
           setRespostas(new Map());
