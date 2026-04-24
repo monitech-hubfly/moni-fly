@@ -5,9 +5,11 @@ import { Download, Upload, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import {
   upsertFaseChecklistResposta,
+  type ActionResult,
   type FaseChecklistItem,
   type FaseChecklistResposta,
 } from '@/lib/actions/card-actions';
+import { ChecklistDocumentDiffModal } from '@/components/kanban-shared/ChecklistDocumentDiffModal';
 
 type Props = {
   faseId: string;
@@ -27,6 +29,7 @@ export function FaseChecklistCard({ faseId, cardId, isFrank, isAdmin }: Props) {
   const [itens, setItens] = useState<FaseChecklistItem[] | null>(null);
   const [respostas, setRespostas] = useState<Map<string, EstadoResposta>>(new Map());
   const [carregando, setCarregando] = useState(true);
+  const [diffModal, setDiffModal] = useState<{ open: boolean; lines: string[] }>({ open: false, lines: [] });
 
   useEffect(() => {
     if (!faseId || !cardId) {
@@ -95,7 +98,7 @@ export function FaseChecklistCard({ faseId, cardId, isFrank, isAdmin }: Props) {
     });
   }
 
-  async function salvar(itemId: string, valor?: string, arquivo_path?: string | null) {
+  async function salvar(itemId: string, valor?: string, arquivo_path?: string | null): Promise<ActionResult> {
     setResposta(itemId, { salvando: true, erro: null });
     const res = await upsertFaseChecklistResposta({
       item_id: itemId,
@@ -104,6 +107,30 @@ export function FaseChecklistCard({ faseId, cardId, isFrank, isAdmin }: Props) {
       arquivo_path: arquivo_path !== undefined ? arquivo_path : (respostas.get(itemId)?.arquivo_path ?? null),
     });
     setResposta(itemId, { salvando: false, erro: res.ok ? null : res.error });
+    return res;
+  }
+
+  async function compararAposAssinado(itemId: string) {
+    try {
+      const r = await fetch('/api/candidato/comparar-documentos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ item_id: itemId, card_id: cardId }),
+      });
+      const j = (await r.json()) as {
+        ok?: boolean;
+        diferencas?: string[];
+        temDiferencasRelevantes?: boolean;
+        error?: string;
+      };
+      if (!r.ok || !j.ok) return;
+      if (j.temDiferencasRelevantes && Array.isArray(j.diferencas) && j.diferencas.length > 0) {
+        setDiffModal({ open: true, lines: j.diferencas });
+      }
+    } catch {
+      /* comparação é auxiliar; falhas silenciosas */
+    }
   }
 
   if (carregando) {
@@ -127,6 +154,11 @@ export function FaseChecklistCard({ faseId, cardId, isFrank, isAdmin }: Props) {
 
   return (
     <div className="space-y-4">
+      <ChecklistDocumentDiffModal
+        open={diffModal.open}
+        diferencas={diffModal.lines}
+        onClose={() => setDiffModal({ open: false, lines: [] })}
+      />
       {itensFiltrados.map((item) => (
         <ItemField
           key={item.id}
@@ -135,10 +167,13 @@ export function FaseChecklistCard({ faseId, cardId, isFrank, isAdmin }: Props) {
           cardId={cardId}
           isAdmin={isAdmin}
           onChange={(valor) => setResposta(item.id, { valor })}
-          onBlur={(valor) => salvar(item.id, valor)}
-          onArquivo={(path) => {
+          onBlur={(valor) => void salvar(item.id, valor)}
+          onArquivo={async (path) => {
             setResposta(item.id, { arquivo_path: path });
-            salvar(item.id, undefined, path);
+            const res = await salvar(item.id, undefined, path);
+            if (res.ok && item.tipo === 'anexo_template') {
+              await compararAposAssinado(item.id);
+            }
           }}
         />
       ))}
@@ -153,7 +188,7 @@ type ItemFieldProps = {
   isAdmin: boolean;
   onChange: (valor: string) => void;
   onBlur: (valor: string) => void;
-  onArquivo: (path: string) => void;
+  onArquivo: (path: string) => void | Promise<void>;
 };
 
 function ItemField({ item, estado, cardId, isAdmin, onChange, onBlur, onArquivo }: ItemFieldProps) {
@@ -188,7 +223,7 @@ function ItemField({ item, estado, cardId, isAdmin, onChange, onBlur, onArquivo 
     const { error } = await supabase.storage.from('documentos-templates').upload(path, file, { upsert: true });
     setUploading(false);
     if (error) return;
-    onArquivo(path);
+    await onArquivo(path);
   }
 
   if (item.tipo === 'checkbox') {

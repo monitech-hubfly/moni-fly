@@ -56,6 +56,7 @@ export default async function FormularioCandidatoPage({ params }: Props) {
         <div className="rounded-2xl bg-white p-8 shadow-sm">
           <FormularioCandidatoForm
             token={token}
+            cardId={info.card_id}
             itens={itens}
             respostasIniciais={respostasIniciais}
             arquivosIniciais={arquivosIniciais}

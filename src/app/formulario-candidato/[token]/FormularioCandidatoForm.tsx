@@ -3,15 +3,23 @@
 import { useState, type ReactNode } from 'react';
 import { Loader2, CheckCircle2, Download, Upload } from 'lucide-react';
 import { salvarRespostaCandidato, type FaseChecklistItem } from '@/lib/actions/candidato-actions';
+import { ChecklistDocumentDiffModal } from '@/components/kanban-shared/ChecklistDocumentDiffModal';
 
 type Props = {
   token: string;
+  cardId: string;
   itens: FaseChecklistItem[];
   respostasIniciais: Record<string, string>;
   arquivosIniciais?: Record<string, string | null>;
 };
 
-export function FormularioCandidatoForm({ token, itens, respostasIniciais, arquivosIniciais = {} }: Props) {
+export function FormularioCandidatoForm({
+  token,
+  cardId,
+  itens,
+  respostasIniciais,
+  arquivosIniciais = {},
+}: Props) {
   const [valores, setValores] = useState<Record<string, string>>(respostasIniciais);
   const [arquivos, setArquivos] = useState<Record<string, string | null>>(() => ({ ...arquivosIniciais }));
   const [enviando, setEnviando] = useState(false);
@@ -19,6 +27,7 @@ export function FormularioCandidatoForm({ token, itens, respostasIniciais, arqui
   const [enviado, setEnviado] = useState(false);
   const [erroGeral, setErroGeral] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [diffModal, setDiffModal] = useState<{ open: boolean; lines: string[] }>({ open: false, lines: [] });
 
   function set(itemId: string, valor: string) {
     setValores((prev) => ({ ...prev, [itemId]: valor }));
@@ -73,6 +82,27 @@ export function FormularioCandidatoForm({ token, itens, respostasIniciais, arqui
         delete n[itemId];
         return n;
       });
+
+      const meta = itens.find((i) => i.id === itemId);
+      if (meta?.tipo === 'anexo_template') {
+        try {
+          const cr = await fetch('/api/candidato/comparar-documentos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, item_id: itemId, card_id: cardId }),
+          });
+          const cj = (await cr.json()) as {
+            ok?: boolean;
+            diferencas?: string[];
+            temDiferencasRelevantes?: boolean;
+          };
+          if (cr.ok && cj.ok && cj.temDiferencasRelevantes && Array.isArray(cj.diferencas) && cj.diferencas.length) {
+            setDiffModal({ open: true, lines: cj.diferencas });
+          }
+        } catch {
+          /* opcional */
+        }
+      }
     } finally {
       setUploadingId(null);
     }
@@ -146,6 +176,11 @@ export function FormularioCandidatoForm({ token, itens, respostasIniciais, arqui
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      <ChecklistDocumentDiffModal
+        open={diffModal.open}
+        diferencas={diffModal.lines}
+        onClose={() => setDiffModal({ open: false, lines: [] })}
+      />
       {itens.map((item) => {
         const valor = valores[item.id] ?? '';
         const erro = erros[item.id];
