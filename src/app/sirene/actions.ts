@@ -16,6 +16,16 @@ export type SireneActionResult = { ok: true } | { ok: false; error: string };
 
 const HDM_TIMES: HdmTime[] = ['Homologações', 'Produto', 'Modelo Virtual'];
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function parseDataVencimentoChamado(raw: string | null | undefined): string | null {
+  const t = String(raw ?? '').trim();
+  if (!t) return null;
+  const head = t.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(head) ? head : null;
+}
+
 /** Dados do layout Sirene: nome do usuário e se é Bombeiro (para mostrar aba Monitor). */
 export async function getSireneLayoutContext(): Promise<
   | { ok: true; userName: string; isBombeiro: boolean }
@@ -460,6 +470,10 @@ export async function criarChamado(
     (formData.get('abertura_responsavel_nome') as string)?.trim() || null;
   const frankId = (formData.get('frank_id') as string)?.trim() || null;
   const frankNome = (formData.get('frank_nome') as string)?.trim() || null;
+  const cardIdRaw = (formData.get('card_id') as string)?.trim() || null;
+  const cardKanbanNome = (formData.get('card_kanban_nome') as string)?.trim() || null;
+  const cardTitulo = (formData.get('card_titulo') as string)?.trim() || null;
+  const dataVencimento = parseDataVencimentoChamado(formData.get('data_vencimento') as string | null);
   const teTrataRaw = formData.get('te_trata');
   const teTrata =
     teTrataRaw === 'sim' ? true : teTrataRaw === 'nao' ? false : null;
@@ -479,6 +493,8 @@ export async function criarChamado(
   const roleNorm = (me.role ?? '').toLowerCase();
   const visivelFrank = roleNorm === 'frank' || roleNorm === 'franqueado';
 
+  const cardId = cardIdRaw && UUID_RE.test(cardIdRaw) ? cardIdRaw : null;
+
   const { data: chamado, error } = await supabase
     .from('sirene_chamados')
     .insert({
@@ -493,6 +509,14 @@ export async function criarChamado(
       tipo,
       hdm_responsavel: hdmResponsavel,
       visivel_frank: visivelFrank,
+      ...(cardId
+        ? {
+            card_id: cardId,
+            card_kanban_nome: cardKanbanNome || null,
+            card_titulo: cardTitulo || null,
+          }
+        : {}),
+      ...(dataVencimento ? { data_vencimento: dataVencimento } : {}),
     })
     .select('id, numero')
     .single();
@@ -523,6 +547,100 @@ export async function criarChamado(
   revalidatePath('/sirene');
   revalidatePath('/sirene/chamados');
   return { ok: true, chamadoId: chamado.id };
+}
+
+export type SireneVinculoCardBuscaItem = {
+  card_id: string;
+  titulo: string;
+  kanban_nome: string;
+  origem: 'nativo' | 'legado';
+};
+
+/** Autocomplete: cards nativos + legado (view) por título — para vínculo opcional no novo chamado. */
+export async function buscarCardsParaNovoChamadoSirene(
+  busca: string,
+): Promise<{ ok: true; items: SireneVinculoCardBuscaItem[] } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const q = busca.trim();
+  if (q.length < 2) return { ok: true, items: [] };
+
+  const admin = createAdminClient();
+  const pattern = `%${q.replace(/%/g, '\\%').replace(/_/g, '\\_')}%`;
+  const out: SireneVinculoCardBuscaItem[] = [];
+  const seen = new Set<string>();
+
+  const { data: nativeCards, error: nErr } = await admin
+    .from('kanban_cards')
+    .select('id, titulo, kanban_id')
+    .ilike('titulo', pattern)
+    .limit(18);
+  if (nErr) return { ok: false, error: nErr.message };
+
+  const kidSet = new Set<string>();
+  for (const r of nativeCards ?? []) {
+    const kid = String((r as { kanban_id?: string }).kanban_id ?? '');
+    if (kid) kidSet.add(kid);
+  }
+  let kbNomeById = new Map<string, string>();
+  if (kidSet.size > 0) {
+    const { data: kbs } = await admin.from('kanbans').select('id, nome').in('id', [...kidSet]);
+    kbNomeById = new Map(
+      (kbs ?? []).map((k) => [String((k as { id: string }).id), String((k as { nome?: string }).nome ?? '')]),
+    );
+  }
+  for (const r of nativeCards ?? []) {
+    const id = String((r as { id: string }).id);
+    const key = `n:${id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const kid = String((r as { kanban_id?: string }).kanban_id ?? '');
+    out.push({
+      card_id: id,
+      titulo: String((r as { titulo?: string | null }).titulo ?? 'Sem título'),
+      kanban_nome: kbNomeById.get(kid) || '—',
+      origem: 'nativo',
+    });
+  }
+
+  const { data: legRows, error: lErr } = await admin
+    .from('v_processo_como_kanban_cards')
+    .select('id, titulo, kanban_id')
+    .ilike('titulo', pattern)
+    .limit(12);
+  if (lErr) return { ok: false, error: lErr.message };
+
+  const kidSet2 = new Set<string>();
+  for (const r of legRows ?? []) {
+    const kid = String((r as { kanban_id?: string }).kanban_id ?? '');
+    if (kid) kidSet2.add(kid);
+  }
+  let kbNome2 = new Map<string, string>();
+  if (kidSet2.size > 0) {
+    const { data: kbs2 } = await admin.from('kanbans').select('id, nome').in('id', [...kidSet2]);
+    kbNome2 = new Map(
+      (kbs2 ?? []).map((k) => [String((k as { id: string }).id), String((k as { nome?: string }).nome ?? '')]),
+    );
+  }
+  for (const r of legRows ?? []) {
+    const id = String((r as { id: string }).id);
+    const key = `l:${id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const kid = String((r as { kanban_id?: string }).kanban_id ?? '');
+    out.push({
+      card_id: id,
+      titulo: String((r as { titulo?: string | null }).titulo ?? 'Sem título'),
+      kanban_nome: kbNome2.get(kid) || 'Funil Step One',
+      origem: 'legado',
+    });
+  }
+
+  return { ok: true, items: out.slice(0, 24) };
 }
 
 /** Redirecionar chamado para HDM. Apenas Bombeiro. */
@@ -1140,6 +1258,42 @@ export async function getAnexoChamadoDownloadUrl(
   return { ok: true, url: signed.signedUrl };
 }
 
+function startOfTodayLocal(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function parseDateOnlyLocal(s: string | null | undefined): Date | null {
+  if (!s) return null;
+  const head = String(s).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(head)) return null;
+  const [y, m, da] = head.split('-').map(Number);
+  return new Date(y, m - 1, da);
+}
+
+/** Ordenação da lista: trava + frank + atraso (data_vencimento) primeiro; dentro do grupo, prazo ASC. */
+function rankChamadoLista(c: {
+  frank_id?: string | null;
+  trava?: boolean | null;
+  data_vencimento?: string | null;
+}): { group: number; dueMs: number } {
+  const hasFrank = c.frank_id != null && String(c.frank_id).trim() !== '';
+  const trava = Boolean(c.trava);
+  const due = parseDateOnlyLocal((c.data_vencimento as string | null | undefined) ?? null);
+  const today = startOfTodayLocal();
+  const overdue = due != null && due < today;
+  const dueMs =
+    due != null && !Number.isNaN(due.getTime()) ? due.getTime() : Number.POSITIVE_INFINITY;
+
+  if (hasFrank && trava && overdue) return { group: 1, dueMs };
+  if (trava && overdue) return { group: 2, dueMs };
+  if (hasFrank && trava) return { group: 3, dueMs };
+  if (trava) return { group: 4, dueMs };
+  if (hasFrank) return { group: 5, dueMs };
+  return { group: 6, dueMs };
+}
+
 /** Listar chamados (filtro opcional por tipo: todos | padrao | hdm). */
 export async function listChamados(filtroTipo?: 'todos' | 'padrao' | 'hdm'): Promise<
   | {
@@ -1156,6 +1310,8 @@ export async function listChamados(filtroTipo?: 'todos' | 'padrao' | 'hdm'): Pro
         abertura_responsavel_nome: string | null;
         trava: boolean;
         created_at: string;
+        frank_id: string | null;
+        data_vencimento: string | null;
         /** Primeiro tópico do chamado (`ordem` ASC): nome do responsável, se houver. */
         primeiro_topico_responsavel_nome: string | null;
         /** Primeiro tópico: time responsável. */
@@ -1170,12 +1326,9 @@ export async function listChamados(filtroTipo?: 'todos' | 'padrao' | 'hdm'): Pro
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
 
-  let q = supabase
-    .from('sirene_chamados')
-    .select(
-      'id, numero, incendio, status, prioridade, tipo, hdm_responsavel, time_abertura, abertura_responsavel_nome, trava, created_at',
-    )
-    .order('created_at', { ascending: false });
+  let q = supabase.from('sirene_chamados').select(
+    'id, numero, incendio, status, prioridade, tipo, hdm_responsavel, time_abertura, abertura_responsavel_nome, trava, created_at, frank_id, data_vencimento',
+  );
 
   if (filtroTipo === 'padrao') q = q.eq('tipo', 'padrao');
   else if (filtroTipo === 'hdm') q = q.eq('tipo', 'hdm');
@@ -1208,11 +1361,25 @@ export async function listChamados(filtroTipo?: 'todos' | 'padrao' | 'hdm'): Pro
 
   const chamados = rows.map((c) => {
     const first = firstTopicoByChamado.get(Number(c.id));
+    const row = c as Record<string, unknown>;
     return {
       ...c,
+      frank_id: (row.frank_id as string | null | undefined) ?? null,
+      data_vencimento:
+        row.data_vencimento != null && String(row.data_vencimento).trim() !== ''
+          ? String(row.data_vencimento).slice(0, 10)
+          : null,
       primeiro_topico_responsavel_nome: first?.responsavel_nome ?? null,
       primeiro_topico_time_responsavel: first?.time_responsavel ?? null,
     };
+  });
+
+  chamados.sort((a, b) => {
+    const ra = rankChamadoLista(a);
+    const rb = rankChamadoLista(b);
+    if (ra.group !== rb.group) return ra.group - rb.group;
+    if (ra.dueMs !== rb.dueMs) return ra.dueMs - rb.dueMs;
+    return String(b.created_at ?? '').localeCompare(String(a.created_at ?? ''));
   });
 
   return { ok: true, chamados };

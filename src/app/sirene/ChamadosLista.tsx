@@ -18,6 +18,8 @@ type Chamado = {
   abertura_responsavel_nome: string | null;
   trava: boolean;
   created_at: string;
+  frank_id?: string | null;
+  data_vencimento?: string | null;
   primeiro_topico_responsavel_nome: string | null;
   primeiro_topico_time_responsavel: string | null;
 };

@@ -17,6 +17,7 @@ export const TIMES_MONI = [
   'Jurídico',
   'Crédito',
   'Novos Franqueados',
+  'Bombeiro',
 ] as const;
 
 export const RESPONSAVEIS_POR_TIME: Record<string, string[]> = {
@@ -34,6 +35,7 @@ export const RESPONSAVEIS_POR_TIME: Record<string, string[]> = {
   Jurídico: ['Isabela Correa'],
   Crédito: ['Thais Kim'],
   'Novos Franqueados': ['Paula Cruz'],
+  Bombeiro: ['Bombeiro'],
 };
 
 export const TODOS_RESPONSAVEIS = Object.values(RESPONSAVEIS_POR_TIME).flat();

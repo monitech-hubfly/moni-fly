@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition, useEffect, useRef, useCallback } from 'react';
+import Link from 'next/link';
 import { MencaoTextarea } from './MencaoTextarea';
 import { ModalRedirecionarHDM } from './ModalRedirecionarHDM';
 import type { Chamado } from '@/types/sirene';
@@ -26,6 +27,7 @@ import {
   type TopicoInput,
   type AnexoOrigem,
 } from './actions';
+import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { formatarStatus } from '@/lib/sirene';
 
 type Props = {
@@ -522,6 +524,18 @@ export function DetalheChamadoConteudo({
                     </button>
                   )}
                 </div>
+                {chamado.card_id &&
+                (chamado.card_titulo || chamado.card_kanban_nome) &&
+                chamado.card_kanban_nome ? (
+                  <p className="mt-1">
+                    <Link
+                      href={hrefAbrirCardKanban(chamado.card_kanban_nome, chamado.card_id)}
+                      className="text-xs text-stone-400 underline decoration-stone-600 hover:text-stone-200"
+                    >
+                      Card: {chamado.card_titulo ?? '—'} — {chamado.card_kanban_nome}
+                    </Link>
+                  </p>
+                ) : null}
                 {resumo.tema ? (
                   <p className="mt-1 text-sm text-stone-300">
                     <span className="text-stone-500">Tema: </span>

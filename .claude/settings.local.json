@@ -17,7 +17,22 @@
       "Bash(SUPABASE_DB_PASSWORD=\"Monicasa/07\" npx supabase db push)",
       "Bash(npm run *)",
       "Bash(grep -E \"\\\\.ts$|\\\\.tsx$\")",
-      "Bash(xargs -I {} basename {})"
+      "Bash(xargs -I {} basename {})",
+      "Bash(PGPASSWORD='Monicasa/07' psql *)",
+      "Bash(supabase --version)",
+      "Bash(timeout 15 bash -c \"PGPASSWORD='[Monicasa/07]' psql --set=sslmode=require 'postgresql://postgres@db.bgaadvfucnrkpimaszjv.supabase.co:5432/postgres' -c 'SELECT 1' 2>&1\")",
+      "Bash(timeout 12 bash -c \"PGPASSWORD='[Monicasa/07]' psql 'postgresql://postgres.bgaadvfucnrkpimaszjv@aws-0-us-east-1.pooler.supabase.com:6543/postgres' -c 'SELECT 1' 2>&1\")",
+      "Bash(timeout 12 bash -c \"PGPASSWORD='[Monicasa/07]' psql 'postgresql://postgres.bgaadvfucnrkpimaszjv@aws-0-sa-east-1.pooler.supabase.com:6543/postgres' -c 'SELECT 1' 2>&1\")",
+      "Bash(timeout 12 bash -c \"PGPASSWORD='[Monicasa/07]' psql 'postgresql://postgres.bgaadvfucnrkpimaszjv@aws-0-us-west-1.pooler.supabase.com:6543/postgres' -c 'SELECT 1' 2>&1\")",
+      "Bash(timeout 12 bash -c \"PGPASSWORD='[Monicasa/07]' psql 'postgresql://postgres.bgaadvfucnrkpimaszjv@aws-0-eu-west-1.pooler.supabase.com:6543/postgres' -c 'SELECT 1' 2>&1\")",
+      "Bash(timeout 12 bash -c \"PGPASSWORD='[Monicasa/07]' psql 'postgresql://postgres.bgaadvfucnrkpimaszjv@aws-0-eu-central-1.pooler.supabase.com:6543/postgres' -c 'SELECT 1' 2>&1\")",
+      "Bash(timeout 60 env SUPABASE_DB_PASSWORD='[Monicasa/07]' npx supabase db push --include-all)",
+      "Read(//c/Users/raffa/.supabase/**)",
+      "Read(//c/Users/raffa/.config/supabase/**)",
+      "Read(//c/Users/raffa/AppData/Roaming/supabase/**)",
+      "Read(//c/Users/raffa/AppData/Roaming/**)",
+      "PowerShell(cmdkey *)",
+      "Bash(python *)"
     ]
   }
 }

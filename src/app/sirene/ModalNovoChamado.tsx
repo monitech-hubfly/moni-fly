@@ -1,7 +1,12 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { criarChamado, getDadosNovoChamado } from './actions';
+import {
+  buscarCardsParaNovoChamadoSirene,
+  criarChamado,
+  getDadosNovoChamado,
+  type SireneVinculoCardBuscaItem,
+} from './actions';
 import type { HdmTime } from '@/types/sirene';
 import { TIMES_MONI, responsaveisDoTimeMoni } from '@/lib/times-responsaveis';
 
@@ -33,6 +38,11 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const buscaFrankRef = useRef<HTMLDivElement>(null);
+  const [buscaCard, setBuscaCard] = useState('');
+  const [cardOpcoes, setCardOpcoes] = useState<SireneVinculoCardBuscaItem[]>([]);
+  const [cardVinculo, setCardVinculo] = useState<SireneVinculoCardBuscaItem | null>(null);
+  const [abertoBuscaCard, setAbertoBuscaCard] = useState(false);
+  const [buscandoCards, setBuscandoCards] = useState(false);
 
   useEffect(() => {
     getDadosNovoChamado().then((r) => {
@@ -69,6 +79,23 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    const q = buscaCard.trim();
+    if (q.length < 2) {
+      setCardOpcoes([]);
+      return;
+    }
+    const t = window.setTimeout(() => {
+      setBuscandoCards(true);
+      buscarCardsParaNovoChamadoSirene(q).then((r) => {
+        setBuscandoCards(false);
+        if (r.ok) setCardOpcoes(r.items);
+        else setCardOpcoes([]);
+      });
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [buscaCard]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -84,6 +111,11 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     if (teTrata === 'sim' || teTrata === 'nao') formData.set('te_trata', teTrata);
     formData.set('tipo', ehHdm ? 'hdm' : 'padrao');
     if (ehHdm && hdmResponsavel) formData.set('hdm_responsavel', hdmResponsavel);
+    if (cardVinculo) {
+      formData.set('card_id', cardVinculo.card_id);
+      formData.set('card_kanban_nome', cardVinculo.kanban_nome);
+      formData.set('card_titulo', cardVinculo.titulo);
+    }
 
     const result = await criarChamado(formData);
     setLoading(false);
@@ -138,6 +170,74 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
             <p className="mt-0.5 text-xs text-stone-500">
               Os chamados são priorizados por essa resposta.
             </p>
+          </div>
+
+          <div className="relative">
+            <label className="mb-1 block text-sm font-medium text-stone-700">
+              Vincular a um card (opcional)
+            </label>
+            {cardVinculo ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-sm text-stone-800">
+                <span className="min-w-0 flex-1 truncate">
+                  {cardVinculo.titulo} — {cardVinculo.kanban_nome}
+                  <span className="ml-1 text-stone-500">({cardVinculo.origem})</span>
+                </span>
+                <button
+                  type="button"
+                  className="shrink-0 text-xs text-red-600 hover:underline"
+                  onClick={() => {
+                    setCardVinculo(null);
+                    setBuscaCard('');
+                    setCardOpcoes([]);
+                  }}
+                >
+                  Remover
+                </button>
+              </div>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  value={buscaCard}
+                  onChange={(e) => {
+                    setBuscaCard(e.target.value);
+                    setAbertoBuscaCard(true);
+                  }}
+                  onFocus={() => setAbertoBuscaCard(true)}
+                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
+                  placeholder="Buscar por título do card (nativo ou legado)…"
+                />
+                {abertoBuscaCard && (buscaCard.trim().length >= 2 || buscandoCards) && (
+                  <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-stone-200 bg-white py-1 shadow-lg">
+                    {buscandoCards && cardOpcoes.length === 0 ? (
+                      <li className="px-3 py-2 text-sm text-stone-500">Buscando…</li>
+                    ) : null}
+                    {cardOpcoes.map((c) => (
+                      <li key={`${c.origem}-${c.card_id}`}>
+                        <button
+                          type="button"
+                          className="w-full px-3 py-2 text-left text-sm text-stone-800 hover:bg-stone-100"
+                          onClick={() => {
+                            setCardVinculo(c);
+                            setBuscaCard('');
+                            setCardOpcoes([]);
+                            setAbertoBuscaCard(false);
+                          }}
+                        >
+                          <span className="font-medium">{c.titulo}</span>
+                          <span className="block text-xs text-stone-500">
+                            {c.kanban_nome} · {c.origem}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                    {!buscandoCards && buscaCard.trim().length >= 2 && cardOpcoes.length === 0 ? (
+                      <li className="px-3 py-2 text-sm text-stone-500">Nenhum card encontrado.</li>
+                    ) : null}
+                  </ul>
+                )}
+              </>
+            )}
           </div>
 
           <div>
