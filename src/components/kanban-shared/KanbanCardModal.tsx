@@ -542,7 +542,7 @@ export function KanbanCardModal({
         const { data: cardData, error: cardError } = await supabase
           .from('kanban_cards')
           .select(
-            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, rede_franqueado_id, concluido, concluido_em, arquivado',
+            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado',
           )
           .eq('id', cardId)
           .single();
@@ -552,9 +552,6 @@ export function KanbanCardModal({
           onClose();
           return;
         }
-
-        const rrid = (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id;
-        nativeRedeFranqueadoId = rrid != null && String(rrid).trim() !== '' ? String(rrid) : null;
 
         const ccem = (cardData as { concluido_em?: string | null }).concluido_em;
         loaded = {
