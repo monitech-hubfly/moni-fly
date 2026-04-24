@@ -26,8 +26,8 @@ export function SireneShell({ userName, isBombeiro, children }: Props) {
   const tabAtivo =
     pathname === '/sirene'
       ? '/sirene'
-      : pathname?.startsWith('/sirene/interacoes') || pathname?.startsWith('/sirene/chamados')
-        ? '/sirene/interacoes'
+      : pathname?.startsWith('/sirene/chamados')
+        ? '/sirene/chamados'
         : pathname?.startsWith('/sirene/pericias')
           ? '/sirene/pericias'
           : pathname?.startsWith('/sirene/monitor')

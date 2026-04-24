@@ -7,7 +7,7 @@ export function rotaCardOrigem(kanbanNome: string, cardId: string | null | undef
   const c = cardId != null && String(cardId).trim() !== '' ? String(cardId).trim() : '';
   if (!c) {
     if (nome === 'Sirene') return '/sirene/chamados';
-    if (nome === 'Externo') return '/sirene/interacoes';
+    if (nome === 'Externo') return '/sirene/chamados';
     return '/funil-stepone';
   }
   const q = encodeURIComponent(c);
@@ -29,7 +29,7 @@ export function rotaCardOrigem(kanbanNome: string, cardId: string | null | undef
     case 'Sirene':
       return '/sirene/chamados';
     case 'Externo':
-      return '/sirene/interacoes';
+      return '/sirene/chamados';
     default:
       return `/funil-stepone?card=${q}`;
   }

@@ -212,10 +212,10 @@ export default async function PainelCreditoPage({
           <p className="mb-4 text-sm text-stone-600">
             O painel de performance do kanban fica disponível quando o funil Crédito estiver cadastrado em{' '}
             <code className="rounded bg-stone-100 px-1">kanbans</code>. Use{' '}
-            <Link href="/sirene/interacoes" className="font-medium text-moni-primary hover:underline">
+            <Link href="/sirene/chamados" className="font-medium text-moni-primary hover:underline">
               Ver no Sirene →
             </Link>{' '}
-            para interações centralizadas.
+            para chamados centralizados.
           </p>
         </main>
       )}

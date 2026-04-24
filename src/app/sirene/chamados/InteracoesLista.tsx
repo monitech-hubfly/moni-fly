@@ -554,7 +554,7 @@ export function InteracoesLista({
   const radioLabel = 'inline-flex cursor-pointer items-center gap-2';
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-6 text-stone-100">
+    <div className="mx-auto max-w-7xl px-4 py-6 text-stone-100">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative">
           <button
@@ -1132,6 +1132,6 @@ export function InteracoesLista({
       {filtradas.length === 0 && (
         <p className="mt-8 text-center text-sm text-stone-500">Nenhum chamado com os filtros atuais.</p>
       )}
-    </main>
+    </div>
   );
 }

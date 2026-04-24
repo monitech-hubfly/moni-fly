@@ -132,7 +132,7 @@ export async function atualizarStatusInteracaoSirene(
 
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath('/sirene/interacoes');
+  revalidatePath('/sirene/chamados');
   revalidatePath('/');
   return { ok: true };
 }
@@ -197,7 +197,7 @@ export async function atualizarInteracaoCompletaSirene(
 
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath('/sirene/interacoes');
+  revalidatePath('/sirene/chamados');
   revalidatePath('/');
   return { ok: true };
 }
@@ -277,7 +277,7 @@ export async function publicarComentarioCardSirene(
 
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath('/sirene/interacoes');
+  revalidatePath('/sirene/chamados');
   revalidatePath('/');
   return { ok: true };
 }

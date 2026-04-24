@@ -187,8 +187,8 @@ export default async function PainelNovosNegociosPage({
         <main className="mx-auto max-w-[1600px] space-y-8 px-6 py-8">
           <p className="text-sm text-stone-600">
             Performance dos funis <strong className="text-stone-800">Portfolio</strong> e{' '}
-            <strong className="text-stone-800">Operações</strong>. Para a central única de interações,{' '}
-            <Link href="/sirene/interacoes" className="font-medium text-moni-primary hover:underline">
+            <strong className="text-stone-800">Operações</strong>. Para a central única de chamados,{' '}
+            <Link href="/sirene/chamados" className="font-medium text-moni-primary hover:underline">
               Ver no Sirene →
             </Link>
             .
