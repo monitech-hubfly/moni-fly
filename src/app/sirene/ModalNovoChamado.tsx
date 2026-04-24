@@ -8,13 +8,7 @@ import {
   type SireneVinculoCardBuscaItem,
 } from './actions';
 import type { HdmTime } from '@/types/sirene';
-import { TIMES_MONI, responsaveisDoTimeMoni } from '@/lib/times-responsaveis';
-
-const HDM_OPCOES: { value: HdmTime; label: string }[] = [
-  { value: 'Homologações', label: 'Homologações' },
-  { value: 'Produto', label: 'Produto' },
-  { value: 'Modelo Virtual', label: 'Modelo Virtual' },
-];
+import { TIMES_MONI_HDM, responsaveisDoTimeMoni, timesMoniReceberChamadoOpcoes } from '@/lib/times-responsaveis';
 
 type FranqueadoItem = { id: string; n_franquia: string | null; nome_completo: string | null };
 
@@ -50,12 +44,19 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     });
   }, []);
 
+  const timesReceberOpcoes = useMemo(() => [...timesMoniReceberChamadoOpcoes(ehHdm)], [ehHdm]);
+
   const responsaveisDoTime = useMemo(() => responsaveisDoTimeMoni(timeAbertura), [timeAbertura]);
 
   useEffect(() => {
     if (!responsavelAbertura) return;
     if (!responsaveisDoTime.includes(responsavelAbertura)) setResponsavelAbertura('');
   }, [timeAbertura, responsaveisDoTime, responsavelAbertura]);
+
+  useEffect(() => {
+    if (!timeAbertura) return;
+    if (!timesReceberOpcoes.includes(timeAbertura)) setTimeAbertura('');
+  }, [timesReceberOpcoes, timeAbertura]);
 
   const frankFiltrados = useMemo(() => {
     if (!dados?.franqueados.length) return [];
@@ -266,7 +267,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                   className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
                 >
                   <option value="">Selecione</option>
-                  {TIMES_MONI.map((t) => (
+                  {timesReceberOpcoes.map((t) => (
                     <option key={t} value={t}>
                       {t}
                     </option>
@@ -371,9 +372,9 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                   className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
                 >
                   <option value="">Selecione</option>
-                  {HDM_OPCOES.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
+                  {TIMES_MONI_HDM.map((nome) => (
+                    <option key={nome} value={nome}>
+                      {nome}
                     </option>
                   ))}
                 </select>

@@ -20,6 +20,41 @@ export const TIMES_MONI = [
   'Bombeiro',
 ] as const;
 
+/** Nomes exatos dos times Moní usados em chamados HDM (subset de `TIMES_MONI`). */
+export const TIMES_MONI_HDM = ['Homologações', 'Produto', 'Modelo Virtual'] as const;
+
+const TIMES_MONI_HDM_SET = new Set<string>(TIMES_MONI_HDM);
+
+export function isNomeTimeMoniHdm(nome: string): boolean {
+  return TIMES_MONI_HDM_SET.has(String(nome ?? '').trim());
+}
+
+/** Select "time que receberá o chamado": com HDM só os três; sem HDM oculta esses três. */
+export function timesMoniReceberChamadoOpcoes(somenteTimesHdm: boolean): readonly string[] {
+  if (somenteTimesHdm) return [...TIMES_MONI_HDM];
+  return TIMES_MONI.filter((t) => !TIMES_MONI_HDM_SET.has(t));
+}
+
+export function filtrarLinhasTimeKanbanPorHdm<T extends { nome: string }>(
+  rows: readonly T[],
+  somenteTimesHdm: boolean,
+): T[] {
+  return rows.filter((row) => {
+    const isHdm = TIMES_MONI_HDM_SET.has(row.nome.trim());
+    return somenteTimesHdm ? isHdm : !isHdm;
+  });
+}
+
+export function filtrarOpcoesTimeIdNomePorHdm(
+  opcoes: readonly { id: string; nome: string }[],
+  somenteTimesHdm: boolean,
+): { id: string; nome: string }[] {
+  return opcoes.filter((t) => {
+    const isHdm = TIMES_MONI_HDM_SET.has(t.nome.trim());
+    return somenteTimesHdm ? isHdm : !isHdm;
+  });
+}
+
 export const RESPONSAVEIS_POR_TIME: Record<string, string[]> = {
   'Caneta Verde': ['Neil Hirano', 'Murillo Morale', 'Ingrid Hora', 'Fernanda Lobão', 'Danilo Nyitray'],
   Waysers: ['Nathalia Ferezin', 'Rafael Matta'],

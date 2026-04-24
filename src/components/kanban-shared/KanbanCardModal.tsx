@@ -93,13 +93,15 @@ import {
   type SubInteracaoModal,
 } from './kanban-card-modal-helpers';
 import {
-  TIMES_MONI,
+  filtrarLinhasTimeKanbanPorHdm,
   inferResponsavelMoniFromInteracao,
   inferTimeMoniFromInteracao,
+  isNomeTimeMoniHdm,
   responsaveisFiltroOpcoesComCatalogoMoni,
   resolveKanbanInteracaoFromCatalog,
   responsaveisDoTimeMoni,
   timesFiltroOpcoesComCatalogoMoni,
+  timesMoniReceberChamadoOpcoes,
   validarParTimeResponsavelMoni,
 } from '@/lib/times-responsaveis';
 import { AnexosChamado } from './AnexosChamado';
@@ -252,6 +254,7 @@ export function KanbanCardModal({
     timeMoni: '',
     responsavelMoni: '',
     trava: false,
+    ehHdm: false,
   });
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
   const [novaInteracao, setNovaInteracao] = useState({
@@ -262,6 +265,7 @@ export function KanbanCardModal({
     responsavelMoni: '',
     trava: false,
     status: 'pendente' as const,
+    ehHdm: false,
   });
   const [subInteracoesPorPai, setSubInteracoesPorPai] = useState<Record<string, SubInteracaoModal[]>>({});
   const [subExpandida, setSubExpandida] = useState<Record<string, boolean>>({});
@@ -272,6 +276,7 @@ export function KanbanCardModal({
     responsaveisIds: [] as string[],
     data: '',
     trava: false,
+    ehHdm: false,
   });
   const [salvandoSub, setSalvandoSub] = useState(false);
   const [filtros, setFiltros] = useState<KanbanModalInteracoesFiltros>(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT);
@@ -307,6 +312,19 @@ export function KanbanCardModal({
   } | null>(null);
   const [solicitandoAprovacaoFase, setSolicitandoAprovacaoFase] = useState(false);
 
+  const timesReceberNovaOpcoes = useMemo(
+    () => [...timesMoniReceberChamadoOpcoes(novaInteracao.ehHdm)],
+    [novaInteracao.ehHdm],
+  );
+  const timesReceberEditOpcoes = useMemo(
+    () => [...timesMoniReceberChamadoOpcoes(editDraft.ehHdm)],
+    [editDraft.ehHdm],
+  );
+  const kanbanTimesSubNovaFiltrados = useMemo(
+    () => filtrarLinhasTimeKanbanPorHdm(kanbanTimes, subNovaDraft.ehHdm),
+    [kanbanTimes, subNovaDraft.ehHdm],
+  );
+
   useEffect(() => {
     setArquivamentoAberto(false);
     setMotivoArquivamento('');
@@ -337,6 +355,7 @@ export function KanbanCardModal({
       responsavelMoni: '',
       trava: false,
       status: 'pendente',
+      ehHdm: false,
     });
     setEditDraft({
       titulo: '',
@@ -346,6 +365,7 @@ export function KanbanCardModal({
       timeMoni: '',
       responsavelMoni: '',
       trava: false,
+      ehHdm: false,
     });
   }, [cardId]);
 
@@ -958,6 +978,7 @@ export function KanbanCardModal({
         responsavelMoni: '',
         trava: false,
         status: 'pendente',
+        ehHdm: false,
       });
       await loadCard();
       router.refresh();
@@ -1003,6 +1024,7 @@ export function KanbanCardModal({
       timeMoni,
       responsavelMoni,
       trava: it.trava,
+      ehHdm: isNomeTimeMoniHdm(timeMoni),
     });
   }
 
@@ -1131,7 +1153,7 @@ export function KanbanCardModal({
         alert(res.error);
         return;
       }
-      setSubNovaDraft({ titulo: '', timesIds: [], responsaveisIds: [], data: '', trava: false });
+      setSubNovaDraft({ titulo: '', timesIds: [], responsaveisIds: [], data: '', trava: false, ehHdm: false });
       setSubFormInteracaoId(interacaoId);
       setSubExpandida((s) => ({ ...s, [interacaoId]: true }));
       await reloadSubsForParent(interacaoId);
@@ -2322,6 +2344,29 @@ export function KanbanCardModal({
                                     className="rounded border border-stone-300 px-2 py-1 text-xs"
                                   />
                                 </div>
+                                <label className="flex cursor-pointer items-center gap-2 text-[11px] text-stone-700">
+                                  <input
+                                    type="checkbox"
+                                    className="h-3.5 w-3.5 rounded border-stone-400"
+                                    checked={editDraft.ehHdm}
+                                    onChange={(e) => {
+                                      const eh = e.target.checked;
+                                      setEditDraft((d) => {
+                                        const op = [...timesMoniReceberChamadoOpcoes(eh)];
+                                        let timeMoni = d.timeMoni;
+                                        let responsavelMoni = d.responsavelMoni;
+                                        if (!timeMoni || !op.includes(timeMoni)) {
+                                          timeMoni = '';
+                                          responsavelMoni = '';
+                                        } else if (!responsaveisDoTimeMoni(timeMoni).includes(responsavelMoni)) {
+                                          responsavelMoni = '';
+                                        }
+                                        return { ...d, ehHdm: eh, timeMoni, responsavelMoni };
+                                      });
+                                    }}
+                                  />
+                                  Este chamado é HDM?
+                                </label>
                                 <div>
                                   <label className="mb-1 block text-[10px] font-medium text-stone-500">Time</label>
                                   <select
@@ -2334,12 +2379,13 @@ export function KanbanCardModal({
                                         responsavelMoni: responsaveisDoTimeMoni(v).includes(d.responsavelMoni)
                                           ? d.responsavelMoni
                                           : '',
+                                        ehHdm: v ? isNomeTimeMoniHdm(v) : false,
                                       }));
                                     }}
                                     className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
                                   >
                                     <option value="">Selecione</option>
-                                    {TIMES_MONI.map((t) => (
+                                    {timesReceberEditOpcoes.map((t) => (
                                       <option key={t} value={t}>
                                         {t}
                                       </option>
@@ -2533,10 +2579,31 @@ export function KanbanCardModal({
                                       onChange={(e) => setSubNovaDraft((s) => ({ ...s, data: e.target.value }))}
                                       className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
                                     />
+                                    <label className="flex cursor-pointer items-center gap-2 text-[11px] text-stone-700">
+                                      <input
+                                        type="checkbox"
+                                        className="h-3.5 w-3.5 rounded border-stone-400"
+                                        checked={subNovaDraft.ehHdm}
+                                        onChange={(e) => {
+                                          const eh = e.target.checked;
+                                          setSubNovaDraft((s) => {
+                                            const allowed = new Set(
+                                              filtrarLinhasTimeKanbanPorHdm(kanbanTimes, eh).map((t) => t.id),
+                                            );
+                                            return {
+                                              ...s,
+                                              ehHdm: eh,
+                                              timesIds: s.timesIds.filter((id) => allowed.has(id)),
+                                            };
+                                          });
+                                        }}
+                                      />
+                                      Este chamado é HDM?
+                                    </label>
                                     <div>
                                       <span className="mb-1 block text-[10px] text-stone-500">Times</span>
                                       <div className="flex flex-wrap gap-1">
-                                        {kanbanTimes.map((t) => {
+                                        {kanbanTimesSubNovaFiltrados.map((t) => {
                                           const on = subNovaDraft.timesIds.includes(t.id);
                                           return (
                                             <button
@@ -2606,6 +2673,7 @@ export function KanbanCardModal({
                                             responsaveisIds: [],
                                             data: '',
                                             trava: false,
+                                            ehHdm: false,
                                           });
                                         }}
                                         className="rounded border border-stone-300 px-3 py-1.5 text-[11px]"
@@ -2630,6 +2698,7 @@ export function KanbanCardModal({
                                       responsaveisIds: [],
                                       data: '',
                                       trava: false,
+                                      ehHdm: false,
                                     });
                                   }}
                                   className="text-left text-[11px] font-medium text-stone-700 underline-offset-2 hover:underline"
@@ -2688,6 +2757,29 @@ export function KanbanCardModal({
                     />
                     )}
                   </div>
+                  <label className="flex cursor-pointer items-center gap-2 text-xs text-stone-700">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-stone-400"
+                      checked={novaInteracao.ehHdm}
+                      onChange={(e) => {
+                        const eh = e.target.checked;
+                        setNovaInteracao((n) => {
+                          const op = [...timesMoniReceberChamadoOpcoes(eh)];
+                          let timeMoni = n.timeMoni;
+                          let responsavelMoni = n.responsavelMoni;
+                          if (!timeMoni || !op.includes(timeMoni)) {
+                            timeMoni = '';
+                            responsavelMoni = '';
+                          } else if (!responsaveisDoTimeMoni(timeMoni).includes(responsavelMoni)) {
+                            responsavelMoni = '';
+                          }
+                          return { ...n, ehHdm: eh, timeMoni, responsavelMoni };
+                        });
+                      }}
+                    />
+                    Este chamado é HDM?
+                  </label>
                   <div>
                     <label className="mb-1 block text-[10px] font-medium text-stone-500">Time</label>
                     <select
@@ -2700,13 +2792,14 @@ export function KanbanCardModal({
                           responsavelMoni: responsaveisDoTimeMoni(v).includes(n.responsavelMoni)
                             ? n.responsavelMoni
                             : '',
+                          ehHdm: v ? isNomeTimeMoniHdm(v) : false,
                         }));
                       }}
                       className="w-full px-3 py-2 text-xs"
                       style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
                     >
                       <option value="">Selecione</option>
-                      {TIMES_MONI.map((t) => (
+                      {timesReceberNovaOpcoes.map((t) => (
                         <option key={t} value={t}>
                           {t}
                         </option>

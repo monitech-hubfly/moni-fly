@@ -8,6 +8,7 @@ import { rotaCardOrigem } from '@/lib/rota-card-origem';
 import {
   MONI_RESP_FILTRO_PREFIX,
   MONI_TIME_FILTRO_PREFIX,
+  filtrarOpcoesTimeIdNomePorHdm,
   responsaveisFiltroOpcoesComCatalogoMoni,
   timesFiltroOpcoesComCatalogoMoni,
 } from '@/lib/times-responsaveis';
@@ -72,6 +73,8 @@ type FiltrosChamados = {
   tipoF: string;
   kanbanF: string;
   timeF: string;
+  /** Lista de times no filtro: só HDM ou exclui HDM (Homologações, Produto, Modelo Virtual). */
+  timeListaSomenteHdm: boolean;
   respF: string;
   travaF: string;
   busca: string;
@@ -82,17 +85,19 @@ const DEFAULT_FILTROS: FiltrosChamados = {
   tipoF: 'todos',
   kanbanF: 'todos',
   timeF: 'todos',
+  timeListaSomenteHdm: false,
   respF: 'todos',
   travaF: 'todos',
   busca: '',
 };
 
 function countFiltrosAtivos(f: FiltrosChamados): number {
+  const d = DEFAULT_FILTROS;
   let n = 0;
   if (f.statusF !== 'todos') n++;
   if (f.tipoF !== 'todos') n++;
   if (f.kanbanF !== 'todos') n++;
-  if (f.timeF !== 'todos') n++;
+  if (f.timeF !== 'todos' || f.timeListaSomenteHdm !== d.timeListaSomenteHdm) n++;
   if (f.respF !== 'todos') n++;
   if (f.travaF !== 'todos') n++;
   if (f.busca.trim() !== '') n++;
@@ -346,6 +351,10 @@ export function InteracoesLista({
   const timesById = useMemo(() => new Map(times.map((t) => [t.id, t.nome])), [times]);
 
   const timesParaFiltro = useMemo(() => timesFiltroOpcoesComCatalogoMoni(times), [times]);
+  const timesParaFiltroVisiveis = useMemo(
+    () => filtrarOpcoesTimeIdNomePorHdm(timesParaFiltro, draft.timeListaSomenteHdm),
+    [timesParaFiltro, draft.timeListaSomenteHdm],
+  );
   const responsaveisParaFiltro = useMemo(
     () => responsaveisFiltroOpcoesComCatalogoMoni(responsaveis),
     [responsaveis],
@@ -656,6 +665,18 @@ export function InteracoesLista({
 
                 <SecaoFiltro titulo="Time">
                   <div className="flex max-h-36 flex-col gap-2 overflow-y-auto text-sm text-stone-200">
+                    <label className={`${radioLabel} mb-1 border-b border-stone-600 pb-2`}>
+                      <input
+                        type="checkbox"
+                        className="border-stone-500 text-red-500"
+                        checked={draft.timeListaSomenteHdm}
+                        onChange={(e) => {
+                          const v = e.target.checked;
+                          setDraft((d) => ({ ...d, timeListaSomenteHdm: v, timeF: 'todos' }));
+                        }}
+                      />
+                      Este chamado é HDM?
+                    </label>
                     <label className={radioLabel}>
                       <input
                         type="radio"
@@ -666,7 +687,7 @@ export function InteracoesLista({
                       />
                       Todos
                     </label>
-                    {timesParaFiltro.map((t) => (
+                    {timesParaFiltroVisiveis.map((t) => (
                       <label key={t.id} className={radioLabel}>
                         <input
                           type="radio"
