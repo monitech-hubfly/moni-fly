@@ -3753,7 +3753,7 @@ export function KanbanCardModal({
                 </p>
               ) : (
                 <div className="space-y-3">
-                  <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-2">
                     <label className="block">
                       <span className="text-[11px] font-medium text-stone-500">Previsão de Aprovação no Condomínio</span>
                       <input
@@ -3786,9 +3786,7 @@ export function KanbanCardModal({
                       />
                     </label>
                     <label className="block">
-                      <span className="text-[11px] font-medium text-stone-500">
-                        Previsão de Liberação do Crédito para Obra
-                      </span>
+                      <span className="text-[11px] font-medium text-stone-500">Previsão de Liberação do Crédito para Obra</span>
                       <input
                         type="date"
                         value={preObraDraft.previsao_liberacao_credito_obra}
@@ -3798,7 +3796,7 @@ export function KanbanCardModal({
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                       />
                     </label>
-                    <label className="block">
+                    <label className="col-span-2 block">
                       <span className="text-[11px] font-medium text-stone-500">Previsão de Início de Obra</span>
                       <input
                         type="date"
