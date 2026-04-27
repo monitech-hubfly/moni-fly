@@ -263,7 +263,7 @@ export function KanbanCardModal({
   const [editDraft, setEditDraft] = useState({
     titulo: '',
     descricao: '',
-    tipo: 'atividade' as 'atividade' | 'duvida',
+    tipo: 'atividade' as 'atividade' | 'duvida' | 'proposicoes',
     data: '',
     timeMoni: '',
     responsavelMoni: '',
@@ -273,7 +273,7 @@ export function KanbanCardModal({
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
   const [novaInteracao, setNovaInteracao] = useState({
     titulo: '',
-    tipo: 'atividade' as 'atividade' | 'duvida',
+    tipo: 'atividade' as 'atividade' | 'duvida' | 'proposicoes',
     data: '',
     timeMoni: '',
     responsavelMoni: '',
@@ -830,7 +830,7 @@ export function KanbanCardModal({
             const rid = a.responsavel_id ? String(a.responsavel_id) : null;
             if (respIds.length === 0 && rid) respIds = [rid];
             const tipoRaw = (a as { tipo?: string }).tipo;
-            const tipo: 'atividade' | 'duvida' = tipoRaw === 'duvida' ? 'duvida' : 'atividade';
+            const tipo: 'atividade' | 'duvida' | 'proposicoes' = tipoRaw === 'duvida' ? 'duvida' : tipoRaw === 'proposicoes' ? 'proposicoes' : 'atividade';
             const times_resolvidos = ids.map((id) => ({ id, nome: nomePorTimeId.get(id) ?? id.slice(0, 8) }));
             const responsaveis_resolvidos = respIds.map((id) => ({
               id,
@@ -905,7 +905,7 @@ export function KanbanCardModal({
             const st = String((t as { status?: string }).status ?? 'nao_iniciado') as SubInteracaoStatusDb;
             const tipoRaw = String((t as { tipo?: string }).tipo ?? 'atividade').toLowerCase();
             const tipoSub: SubInteracaoTipoDb =
-              tipoRaw === 'duvida' || tipoRaw === 'chamado' ? (tipoRaw as SubInteracaoTipoDb) : 'atividade';
+              tipoRaw === 'duvida' || tipoRaw === 'chamado' || tipoRaw === 'proposicoes' ? (tipoRaw as SubInteracaoTipoDb) : 'atividade';
             const row: SubInteracaoModal = {
               id: String((t as { id: number }).id),
               interacao_id: iid,
@@ -2454,12 +2454,13 @@ export function KanbanCardModal({
                                   <select
                                     value={editDraft.tipo}
                                     onChange={(e) =>
-                                      setEditDraft((d) => ({ ...d, tipo: e.target.value as 'atividade' | 'duvida' }))
+                                      setEditDraft((d) => ({ ...d, tipo: e.target.value as 'atividade' | 'duvida' | 'proposicoes' }))
                                     }
                                     className="rounded border border-stone-300 px-2 py-1 text-xs"
                                   >
                                     <option value="atividade">Atividade</option>
                                     <option value="duvida">Dúvida</option>
+                                    <option value="proposicoes">Proposições</option>
                                   </select>
                                   <input
                                     type="date"
@@ -2725,6 +2726,7 @@ export function KanbanCardModal({
                                       >
                                         <option value="atividade">Atividade</option>
                                         <option value="duvida">Dúvida</option>
+                                        <option value="proposicoes">Proposições</option>
                                         <option value="chamado">Chamado</option>
                                       </select>
                                     </div>
@@ -2943,13 +2945,14 @@ export function KanbanCardModal({
                     <select
                       value={novaInteracao.tipo}
                       onChange={(e) =>
-                        setNovaInteracao({ ...novaInteracao, tipo: e.target.value as 'atividade' | 'duvida' })
+                        setNovaInteracao({ ...novaInteracao, tipo: e.target.value as 'atividade' | 'duvida' | 'proposicoes' })
                       }
                       className="px-3 py-2 text-xs"
                       style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
                     >
                       <option value="atividade">Atividade</option>
                       <option value="duvida">Dúvida</option>
+                      <option value="proposicoes">Proposições</option>
                     </select>
                     {!portalFrank && (
                     <input

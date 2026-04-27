@@ -153,7 +153,7 @@ export async function getTopicosChamado(
     const ri = Array.isArray(rawRi) ? rawRi.map((x) => String(x)) : [];
     const tipoRaw = String((r as { tipo?: string }).tipo ?? 'atividade');
     const tipo: SubInteracaoTipoDb =
-      tipoRaw === 'duvida' || tipoRaw === 'chamado' ? (tipoRaw as SubInteracaoTipoDb) : 'atividade';
+      tipoRaw === 'duvida' || tipoRaw === 'chamado' || tipoRaw === 'proposicoes' ? (tipoRaw as SubInteracaoTipoDb) : 'atividade';
     return {
       id: r.id,
       ordem: r.ordem,
@@ -983,7 +983,7 @@ export async function adicionarTopicoChamadoPainel(
   if (!desc) return { ok: false, error: 'Informe a descrição do sub-chamado.' };
 
   const tipo =
-    payload.tipo === 'duvida' || payload.tipo === 'chamado' ? payload.tipo : 'atividade';
+    payload.tipo === 'duvida' || payload.tipo === 'chamado' || payload.tipo === 'proposicoes' ? payload.tipo : 'atividade';
 
   const timesIds = uniqUuidStrings(payload.times_ids);
   if (timesIds.length === 0) {

@@ -17,6 +17,7 @@ function normTipo(raw: string | null | undefined): SubInteracaoTipoUi {
   const t = String(raw ?? 'atividade').trim().toLowerCase();
   if (t === 'duvida' || t === 'dúvida') return 'duvida';
   if (t === 'chamado') return 'chamado';
+  if (t === 'proposicoes' || t === 'proposições') return 'proposicoes';
   return 'atividade';
 }
 
@@ -51,6 +52,7 @@ export function rotuloStatusSubInteracaoPt(status: string): string {
 function badgeTipoLabel(tipo: SubInteracaoTipoUi): string {
   if (tipo === 'duvida') return 'DÚVIDA';
   if (tipo === 'chamado') return 'CHAMADO';
+  if (tipo === 'proposicoes') return 'PROPOSIÇÕES';
   return 'ATIVIDADE';
 }
 
