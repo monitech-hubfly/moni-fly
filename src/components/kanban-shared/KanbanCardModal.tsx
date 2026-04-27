@@ -380,6 +380,8 @@ export function KanbanCardModal({
       trava: false,
       status: 'pendente',
       ehHdm: false,
+      tema: '',
+      temaOutro: '',
     });
     setEditDraft({
       titulo: '',
@@ -2879,6 +2881,8 @@ export function KanbanCardModal({
                                             data: '',
                                             trava: false,
                                             ehHdm: false,
+                                            tema: '',
+                                            temaOutro: '',
                                           });
                                         }}
                                         className="rounded border border-stone-300 px-3 py-1.5 text-[11px]"
@@ -2905,6 +2909,8 @@ export function KanbanCardModal({
                                       data: '',
                                       trava: false,
                                       ehHdm: false,
+                                      tema: '',
+                                      temaOutro: '',
                                     });
                                   }}
                                   className="text-left text-[11px] font-medium text-stone-700 underline-offset-2 hover:underline"
