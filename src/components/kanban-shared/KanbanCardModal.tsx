@@ -3738,7 +3738,7 @@ export function KanbanCardModal({
                     <label className="block">
                       <span className="text-[11px] font-medium text-stone-500">Previsão de Aprovação no Condomínio</span>
                       <input
-                        type="text"
+                        type="date"
                         value={preObraDraft.previsao_aprovacao_condominio}
                         onChange={(e) =>
                           setPreObraDraft((d) => ({ ...d, previsao_aprovacao_condominio: e.target.value }))
@@ -3749,7 +3749,7 @@ export function KanbanCardModal({
                     <label className="block">
                       <span className="text-[11px] font-medium text-stone-500">Previsão de Aprovação na Prefeitura</span>
                       <input
-                        type="text"
+                        type="date"
                         value={preObraDraft.previsao_aprovacao_prefeitura}
                         onChange={(e) =>
                           setPreObraDraft((d) => ({ ...d, previsao_aprovacao_prefeitura: e.target.value }))
@@ -3760,7 +3760,7 @@ export function KanbanCardModal({
                     <label className="block">
                       <span className="text-[11px] font-medium text-stone-500">Previsão de Emissão do Alvará</span>
                       <input
-                        type="text"
+                        type="date"
                         value={preObraDraft.previsao_emissao_alvara}
                         onChange={(e) => setPreObraDraft((d) => ({ ...d, previsao_emissao_alvara: e.target.value }))}
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
@@ -3771,7 +3771,7 @@ export function KanbanCardModal({
                         Previsão de Liberação do Crédito para Obra
                       </span>
                       <input
-                        type="text"
+                        type="date"
                         value={preObraDraft.previsao_liberacao_credito_obra}
                         onChange={(e) =>
                           setPreObraDraft((d) => ({ ...d, previsao_liberacao_credito_obra: e.target.value }))
@@ -3782,7 +3782,7 @@ export function KanbanCardModal({
                     <label className="block">
                       <span className="text-[11px] font-medium text-stone-500">Previsão de Início de Obra</span>
                       <input
-                        type="text"
+                        type="date"
                         value={preObraDraft.previsao_inicio_obra}
                         onChange={(e) => setPreObraDraft((d) => ({ ...d, previsao_inicio_obra: e.target.value }))}
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
