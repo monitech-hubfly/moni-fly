@@ -27,7 +27,7 @@ function dataCampoCalendarioIso(input: string | null | undefined): string | null
 export type CriarInteracaoInput = {
   card_id: string;
   titulo: string;
-  tipo: 'atividade' | 'duvida' | 'chamado_padrao' | 'chamado_hdm';
+  tipo: 'atividade' | 'duvida' | 'proposicoes' | 'chamado_padrao' | 'chamado_hdm';
   times_ids: string[];
   data_vencimento: string | null;
   /** Legado: um responsável; preferir `responsaveis_ids`. */
@@ -51,7 +51,7 @@ export type CriarInteracaoInput = {
 export type EditarInteracaoInput = {
   titulo?: string;
   descricao?: string | null;
-  tipo?: 'atividade' | 'duvida';
+  tipo?: 'atividade' | 'duvida' | 'proposicoes';
   data_vencimento?: string | null;
   times_ids?: string[];
   responsavel_id?: string | null;
@@ -167,14 +167,16 @@ export async function criarInteracao(input: CriarInteracaoInput): Promise<Action
     if (!cr.ok) return { ok: false, error: cr.error };
   }
 
-  const resolvedTipo: 'atividade' | 'duvida' | 'chamado_padrao' | 'chamado_hdm' =
+  const resolvedTipo: 'atividade' | 'duvida' | 'proposicoes' | 'chamado_padrao' | 'chamado_hdm' =
     input.tipo === 'chamado_padrao'
       ? 'chamado_padrao'
       : input.tipo === 'chamado_hdm'
         ? 'chamado_hdm'
         : input.tipo === 'duvida'
           ? 'duvida'
-          : 'atividade';
+          : input.tipo === 'proposicoes'
+            ? 'proposicoes'
+            : 'atividade';
 
   const row = {
     card_id: input.card_id,
@@ -221,7 +223,7 @@ export async function editarInteracao(id: string, dados: EditarInteracaoInput): 
     update.titulo = t;
   }
   if (dados.descricao !== undefined) update.descricao = dados.descricao;
-  if (dados.tipo !== undefined) update.tipo = dados.tipo === 'duvida' ? 'duvida' : 'atividade';
+  if (dados.tipo !== undefined) update.tipo = dados.tipo === 'duvida' ? 'duvida' : dados.tipo === 'proposicoes' ? 'proposicoes' : 'atividade';
   if (dados.data_vencimento !== undefined) {
     update.data_vencimento = dataCampoCalendarioIso(dados.data_vencimento);
   }
@@ -287,7 +289,7 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
   const proxOrdem = ((maxRow as { ordem?: number } | null)?.ordem ?? 0) + 1;
 
   const tipoSub: SubInteracaoTipoDb =
-    input.tipo === 'duvida' || input.tipo === 'chamado' ? input.tipo : 'atividade';
+    input.tipo === 'duvida' || input.tipo === 'chamado' || input.tipo === 'proposicoes' ? input.tipo : 'atividade';
 
   const row = {
     chamado_id: null,

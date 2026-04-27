@@ -157,7 +157,7 @@ export async function atualizarStatusInteracaoSirene(
 
 export type AtualizarInteracaoCompletaSireneInput = {
   titulo: string;
-  tipo: 'atividade' | 'duvida';
+  tipo: 'atividade' | 'duvida' | 'proposicoes';
   data_vencimento: string | null;
   times_ids: string[];
   responsaveis_ids: string[];
@@ -203,7 +203,7 @@ export async function atualizarInteracaoCompletaSirene(
     .from('kanban_atividades')
     .update({
       titulo,
-      tipo: dados.tipo === 'duvida' ? 'duvida' : 'atividade',
+      tipo: dados.tipo === 'duvida' ? 'duvida' : dados.tipo === 'proposicoes' ? 'proposicoes' : 'atividade',
       data_vencimento: dataCampoCalendarioIso(dados.data_vencimento),
       times_ids: timesIds,
       responsaveis_ids: mergedResp,

@@ -17,7 +17,7 @@ export type InteracaoModal = {
   id: string;
   titulo: string;
   descricao: string | null;
-  tipo: 'atividade' | 'duvida';
+  tipo: 'atividade' | 'duvida' | 'proposicoes';
   times_ids: string[] | null;
   status: 'pendente' | 'em_andamento' | 'concluida' | 'cancelada';
   prioridade: 'baixa' | 'normal' | 'alta' | 'urgente';

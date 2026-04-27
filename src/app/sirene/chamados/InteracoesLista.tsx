@@ -77,7 +77,7 @@ type RespOpt = { id: string; nome: string };
 
 type EditLinhaDraft = {
   titulo: string;
-  tipo: 'atividade' | 'duvida';
+  tipo: 'atividade' | 'duvida' | 'proposicoes';
   data: string;
   timesIds: string[];
   responsaveisIds: string[];
@@ -235,6 +235,8 @@ function badgeTipo(tipo: string): { label: string; className: string } {
       label: 'Dúvida',
       className: 'border-[color:var(--moni-gold-600)] bg-[rgba(212,173,104,0.12)] text-[color:var(--moni-gold-200)]',
     };
+  if (t === 'proposicoes' || t === 'proposições')
+    return { label: 'Proposições', className: 'bg-violet-900/40 text-violet-100 border-violet-700/40' };
   if (t === 'chamado_hdm') return { label: 'Chamado HDM', className: 'bg-red-900/50 text-red-100 border-red-700/40' };
   if (t === 'chamado_padrao') return { label: 'Chamado', className: 'bg-red-900/40 text-red-100 border-red-700/40' };
   return { label: 'Atividade', className: 'bg-sky-900/40 text-sky-100 border-sky-700/40' };
@@ -323,9 +325,10 @@ function SecaoFiltro({ titulo, children }: SecaoRadioProps) {
   );
 }
 
-function tipoEdicaoFromRow(tipo: string): 'atividade' | 'duvida' {
+function tipoEdicaoFromRow(tipo: string): 'atividade' | 'duvida' | 'proposicoes' {
   const t = norm(tipo);
   if (t === 'duvida' || t === 'dúvida') return 'duvida';
+  if (t === 'proposicoes' || t === 'proposições') return 'proposicoes';
   return 'atividade';
 }
 
@@ -1318,13 +1321,14 @@ export function InteracoesLista({
                                 value={editDraft.tipo}
                                 onChange={(e) =>
                                   setEditDraft((d) =>
-                                    d ? { ...d, tipo: e.target.value as 'atividade' | 'duvida' } : d,
+                                    d ? { ...d, tipo: e.target.value as 'atividade' | 'duvida' | 'proposicoes' } : d,
                                   )
                                 }
                                 className="mt-1 w-full"
                               >
                                 <option value="atividade">Atividade</option>
                                 <option value="duvida">Dúvida</option>
+                                <option value="proposicoes">Proposições</option>
                               </SelectEscuro>
                             </label>
                             <label className="block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
@@ -1762,6 +1766,7 @@ export function InteracoesLista({
                                   >
                                     <option value="atividade">Atividade</option>
                                     <option value="duvida">Dúvida</option>
+                                    <option value="proposicoes">Proposições</option>
                                     <option value="chamado">Chamado</option>
                                   </SelectEscuro>
                                 </div>

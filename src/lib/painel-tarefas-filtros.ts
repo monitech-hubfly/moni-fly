@@ -95,7 +95,7 @@ export type PainelTarefasFiltrosState = {
   /** `todos` | `__sem_responsavel__` | `responsavel_id` (UUID) */
   responsavel: string;
   status: 'todos' | 'nao_iniciada' | 'em_andamento' | 'concluido';
-  tipo: 'todos' | 'atividade' | 'duvida';
+  tipo: 'todos' | 'atividade' | 'duvida' | 'proposicoes';
   /** Coluna `sla_status` da view (sem prazo = NULL na view) */
   sla_status: 'todos' | 'atrasado' | 'vence_hoje' | 'ok' | 'sem_prazo';
 };
