@@ -39,6 +39,8 @@ export type ProcessoModalNegocioPreObra = {
   link_pasta_drive: string | null;
   nome_condominio: string | null;
   quadra_lote: string | null;
+  quadra: string | null;
+  lote: string | null;
   previsao_aprovacao_condominio: string | null;
   previsao_aprovacao_prefeitura: string | null;
   previsao_emissao_alvara: string | null;
@@ -89,6 +91,8 @@ const PROCESSO_SELECT = [
   'link_pasta_drive',
   'nome_condominio',
   'quadra_lote',
+  'quadra',
+  'lote',
   'previsao_aprovacao_condominio',
   'previsao_aprovacao_prefeitura',
   'previsao_emissao_alvara',
@@ -153,6 +157,8 @@ function mapProcesso(r: Record<string, unknown> | null): ProcessoModalNegocioPre
     link_pasta_drive: g('link_pasta_drive'),
     nome_condominio: g('nome_condominio'),
     quadra_lote: g('quadra_lote'),
+    quadra: g('quadra'),
+    lote: g('lote'),
     previsao_aprovacao_condominio: g('previsao_aprovacao_condominio'),
     previsao_aprovacao_prefeitura: g('previsao_aprovacao_prefeitura'),
     previsao_emissao_alvara: g('previsao_emissao_alvara'),
