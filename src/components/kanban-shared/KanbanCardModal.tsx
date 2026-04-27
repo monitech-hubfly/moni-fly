@@ -728,7 +728,7 @@ export function KanbanCardModal({
       try {
         const { data: comRows, error: comErr } = await supabase
           .from('kanban_card_comentarios')
-          .select('id, conteudo, created_at, fase_id, autor_id')
+          .select('id, conteudo, created_at, autor_id')
           .eq('card_id', cardId)
           .order('created_at', { ascending: false });
         if (comErr || !comRows?.length) {
@@ -745,7 +745,6 @@ export function KanbanCardModal({
               id: String(c.id),
               conteudo: String(c.conteudo ?? ''),
               created_at: String(c.created_at),
-              fase_id: c.fase_id ? String(c.fase_id) : null,
               autor_id: c.autor_id ? String(c.autor_id) : null,
               autor_nome: c.autor_id ? nomePorId.get(String(c.autor_id)) ?? null : null,
             })),
@@ -1372,7 +1371,6 @@ export function KanbanCardModal({
       }
       const { error } = await supabase.from('kanban_card_comentarios').insert({
         card_id: card.id,
-        fase_id: card.fase_id ?? null,
         autor_id: user.id,
         conteudo: novoComentarioCard.trim(),
       });
