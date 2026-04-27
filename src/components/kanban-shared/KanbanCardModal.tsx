@@ -233,6 +233,17 @@ export function KanbanCardModal({
   const [comentariosCard, setComentariosCard] = useState<ComentarioCardRow[]>([]);
   const [novoComentarioCard, setNovoComentarioCard] = useState('');
   const [salvandoComentario, setSalvandoComentario] = useState(false);
+  const [editandoNegocio, setEditandoNegocio] = useState(false);
+  const [negocioDraft, setNegocioDraft] = useState({
+    tipo_aquisicao_terreno: '',
+    valor_terreno: '',
+    vgv_pretendido: '',
+    produto_modelo_casa: '',
+    link_pasta_drive: '',
+    nome_condominio: '',
+    quadra_lote: '',
+  });
+  const [salvandoNegocio, setSalvandoNegocio] = useState(false);
   const [abaComentarios, setAbaComentarios] = useState<'comentarios' | 'email'>('comentarios');
   const [emailPara, setEmailPara] = useState('');
   const [emailAssunto, setEmailAssunto] = useState('');
@@ -1469,6 +1480,34 @@ export function KanbanCardModal({
       alert('Erro ao salvar pré-obra.');
     } finally {
       setSalvandoPreObra(false);
+    }
+  }
+
+  async function handleSalvarNegocio() {
+    const pid = modalDetalhes.processo?.id;
+    if (!pid) return;
+    setSalvandoNegocio(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from('processo_step_one')
+        .update({
+          tipo_aquisicao_terreno: negocioDraft.tipo_aquisicao_terreno || null,
+          valor_terreno: negocioDraft.valor_terreno || null,
+          vgv_pretendido: negocioDraft.vgv_pretendido || null,
+          produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
+          link_pasta_drive: negocioDraft.link_pasta_drive || null,
+          nome_condominio: negocioDraft.nome_condominio || null,
+          quadra_lote: negocioDraft.quadra_lote || null,
+        })
+        .eq('id', pid);
+      if (error) throw error;
+      setEditandoNegocio(false);
+      await loadCard();
+    } catch {
+      alert('Erro ao salvar dados do negócio.');
+    } finally {
+      setSalvandoNegocio(false);
     }
   }
 
@@ -3507,6 +3546,90 @@ export function KanbanCardModal({
               <div className="space-y-2">
                 {!proc ? (
                   <p className="text-xs text-stone-500">Sem processo vinculado — dados de negócio indisponíveis.</p>
+                ) : editandoNegocio ? (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+                      <label className="block">
+                        <span className="text-[11px] font-medium text-stone-500">Tipo de negociação</span>
+                        <input
+                          type="text"
+                          value={negocioDraft.tipo_aquisicao_terreno}
+                          onChange={(e) => setNegocioDraft((d) => ({ ...d, tipo_aquisicao_terreno: e.target.value }))}
+                          className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-[11px] font-medium text-stone-500">Valor do Terreno</span>
+                        <input
+                          type="text"
+                          value={negocioDraft.valor_terreno}
+                          onChange={(e) => setNegocioDraft((d) => ({ ...d, valor_terreno: e.target.value }))}
+                          className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-[11px] font-medium text-stone-500">VGV pretendido</span>
+                        <input
+                          type="text"
+                          value={negocioDraft.vgv_pretendido}
+                          onChange={(e) => setNegocioDraft((d) => ({ ...d, vgv_pretendido: e.target.value }))}
+                          className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-[11px] font-medium text-stone-500">Produto / Modelo</span>
+                        <input
+                          type="text"
+                          value={negocioDraft.produto_modelo_casa}
+                          onChange={(e) => setNegocioDraft((d) => ({ ...d, produto_modelo_casa: e.target.value }))}
+                          className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                        />
+                      </label>
+                    </div>
+                    <label className="block">
+                      <span className="text-[11px] font-medium text-stone-500">Link pasta no Drive</span>
+                      <input
+                        type="text"
+                        value={negocioDraft.link_pasta_drive}
+                        onChange={(e) => setNegocioDraft((d) => ({ ...d, link_pasta_drive: e.target.value }))}
+                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-[11px] font-medium text-stone-500">Nome do Condomínio</span>
+                      <input
+                        type="text"
+                        value={negocioDraft.nome_condominio}
+                        onChange={(e) => setNegocioDraft((d) => ({ ...d, nome_condominio: e.target.value }))}
+                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-[11px] font-medium text-stone-500">Quadra / Lote</span>
+                      <input
+                        type="text"
+                        value={negocioDraft.quadra_lote}
+                        onChange={(e) => setNegocioDraft((d) => ({ ...d, quadra_lote: e.target.value }))}
+                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                      />
+                    </label>
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={() => void handleSalvarNegocio()}
+                        disabled={salvandoNegocio}
+                        className="rounded bg-moni-primary px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+                      >
+                        {salvandoNegocio ? 'Salvando…' : 'Salvar'}
+                      </button>
+                      <button
+                        onClick={() => setEditandoNegocio(false)}
+                        disabled={salvandoNegocio}
+                        className="rounded border border-stone-200 px-3 py-1 text-xs text-stone-600 disabled:opacity-50"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <>
                     <div className="grid grid-cols-2 gap-x-2 gap-y-2">
@@ -3556,6 +3679,25 @@ export function KanbanCardModal({
                       <div className="text-[11px] font-medium text-stone-500">Quadra / Lote</div>
                       <div className="text-xs text-stone-800">{displayOrDash(proc.quadra_lote)}</div>
                     </div>
+                    {modalSessao.ehAdminOuTeam && (
+                      <button
+                        onClick={() => {
+                          setNegocioDraft({
+                            tipo_aquisicao_terreno: proc.tipo_aquisicao_terreno ?? '',
+                            valor_terreno: proc.valor_terreno != null ? String(proc.valor_terreno) : '',
+                            vgv_pretendido: proc.vgv_pretendido != null ? String(proc.vgv_pretendido) : '',
+                            produto_modelo_casa: proc.produto_modelo_casa ?? '',
+                            link_pasta_drive: proc.link_pasta_drive ?? '',
+                            nome_condominio: proc.nome_condominio ?? '',
+                            quadra_lote: proc.quadra_lote ?? '',
+                          });
+                          setEditandoNegocio(true);
+                        }}
+                        className="mt-1 rounded border border-stone-200 px-3 py-1 text-xs text-stone-600 hover:bg-stone-50"
+                      >
+                        Editar dados do negócio
+                      </button>
+                    )}
                   </>
                 )}
               </div>,
