@@ -1378,8 +1378,9 @@ export function KanbanCardModal({
       setNovoComentarioCard('');
       await loadCard();
       router.refresh();
-    } catch {
-      alert('Não foi possível salvar o comentário.');
+    } catch (err) {
+      console.error('Erro ao salvar comentário:', err);
+      alert(`Não foi possível salvar o comentário.\n\n${String((err as Error)?.message ?? err)}`);
     } finally {
       setSalvandoComentario(false);
     }
