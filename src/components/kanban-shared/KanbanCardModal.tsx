@@ -1379,8 +1379,29 @@ export function KanbanCardModal({
         return;
       }
       setNovoComentarioCard('');
-      await loadCard();
-      router.refresh();
+      const supabase2 = createClient();
+      const { data: comRows } = await supabase2
+        .from('kanban_card_comentarios')
+        .select('id, conteudo, created_at, autor_id')
+        .eq('card_id', card.id)
+        .order('created_at', { ascending: false });
+      if (comRows?.length) {
+        const autorIds = [...new Set(comRows.map((c) => c.autor_id).filter(Boolean))] as string[];
+        let nomePorId = new Map<string, string>();
+        if (autorIds.length > 0) {
+          const { data: profs } = await supabase2.from('profiles').select('id, full_name').in('id', autorIds);
+          nomePorId = new Map((profs ?? []).map((p) => [p.id, (p.full_name as string | null)?.trim() || '']));
+        }
+        setComentariosCard(
+          comRows.map((c) => ({
+            id: String(c.id),
+            conteudo: String(c.conteudo ?? ''),
+            created_at: String(c.created_at),
+            autor_id: c.autor_id ? String(c.autor_id) : null,
+            autor_nome: c.autor_id ? nomePorId.get(String(c.autor_id)) ?? null : null,
+          })),
+        );
+      }
     } catch (err) {
       alert(`Exceção inesperada: ${String((err as Error)?.message ?? err)}`);
     } finally {
