@@ -2994,7 +2994,6 @@ export function KanbanCardModal({
                             <p style={{ color: 'var(--moni-text-primary)' }}>{c.conteudo}</p>
                             <p className="mt-1 text-xs text-stone-500">
                               {c.autor_nome?.trim() || 'Usuário'}
-                              {c.fase_id && faseNomePorId.has(c.fase_id) ? ` · ${faseNomePorId.get(c.fase_id)}` : ''}
                               {' · '}
                               {formatDataHoraHistorico(c.created_at)}
                             </p>
