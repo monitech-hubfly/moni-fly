@@ -161,7 +161,7 @@ export function KanbanColumn({
                   {motivo}
                 </p>
               ) : null}
-              {isAdmin && card.profiles?.full_name ? (
+              {card.profiles?.full_name ? (
                 <p className="mt-1 line-clamp-1 text-xs text-stone-500">{card.profiles.full_name}</p>
               ) : null}
               <p className="mt-1 text-xs text-stone-400">Criado: {createdDate.toLocaleDateString('pt-BR')}</p>
