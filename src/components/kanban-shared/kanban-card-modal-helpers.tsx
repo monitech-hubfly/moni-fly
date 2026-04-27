@@ -213,7 +213,6 @@ export type ComentarioCardRow = {
   id: string;
   conteudo: string;
   created_at: string;
-  fase_id: string | null;
   autor_id: string | null;
   autor_nome: string | null;
 };
