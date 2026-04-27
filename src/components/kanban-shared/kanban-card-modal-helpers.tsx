@@ -211,7 +211,7 @@ export type HistoricoItem = {
 
 export type ComentarioCardRow = {
   id: string;
-  texto: string;
+  conteudo: string;
   created_at: string;
   fase_id: string | null;
   autor_id: string | null;
