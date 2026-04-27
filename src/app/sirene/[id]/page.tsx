@@ -13,9 +13,10 @@ export default async function SireneChamadoPage({ params }: { params: Promise<{ 
   const result = await getChamado(chamadoId);
   if (!result.ok) redirect('/sirene');
 
-  const { chamado, userContext, currentUserId, isFrank } = result;
+  const { chamado, userContext, currentUserId, isFrank, rawProfileRole } = result;
   const ctx = userContext ?? { papel: null, time: null };
   const isBombeiroReal = ctx.papel === 'bombeiro';
+  const rawRoleNorm = (rawProfileRole ?? '').toLowerCase();
   const isCriador = chamado.aberto_por != null && currentUserId != null && chamado.aberto_por === currentUserId;
   const isHdmTeam =
     chamado.tipo === 'hdm' &&
@@ -48,7 +49,12 @@ export default async function SireneChamadoPage({ params }: { params: Promise<{ 
         userContext={ctx}
         podeActuarComoBombeiro={podeActuarComoBombeiro}
         podePreencherTemaMapeamento={podePreencherTemaMapeamento}
-        mostrarControlesBombeiro={isHdmTeam || (isBombeiroReal && chamado.tipo !== 'hdm')}
+        mostrarControlesBombeiro={
+          isHdmTeam ||
+          isBombeiroReal ||
+          ctx.papel !== null ||
+          ['admin', 'team'].includes(rawRoleNorm)
+        }
         mostrarRedirecionarHDM={isBombeiroReal && chamado.tipo === 'padrao'}
         isCriador={isCriador}
         isFrank={isFrank}

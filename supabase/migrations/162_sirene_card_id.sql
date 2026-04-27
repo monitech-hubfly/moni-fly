@@ -12,7 +12,8 @@ COMMENT ON COLUMN public.sirene_chamados.card_kanban_nome IS 'Nome do kanban em 
 COMMENT ON COLUMN public.sirene_chamados.card_titulo IS 'Título do card no momento do vínculo.';
 COMMENT ON COLUMN public.sirene_chamados.data_vencimento IS 'Prazo exibido na ordenação da lista de chamados (opcional).';
 
-CREATE INDEX IF NOT EXISTS idx_sirene_chamados_card_id ON public.sirene_chamados (card_id)
+CREATE INDEX IF NOT EXISTS idx_sirene_chamados_card_id
+  ON public.sirene_chamados(card_id)
   WHERE card_id IS NOT NULL;
 
 ALTER TABLE public.kanban_atividades DROP CONSTRAINT IF EXISTS kanban_atividades_tipo_check;
@@ -20,3 +21,5 @@ ALTER TABLE public.kanban_atividades DROP CONSTRAINT IF EXISTS kanban_atividades
 ALTER TABLE public.kanban_atividades
   ADD CONSTRAINT kanban_atividades_tipo_check
   CHECK (tipo IN ('atividade', 'duvida', 'chamado_padrao', 'chamado_hdm'));
+
+NOTIFY pgrst, 'reload schema';
