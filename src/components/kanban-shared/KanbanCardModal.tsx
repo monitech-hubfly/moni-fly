@@ -1361,26 +1361,30 @@ export function KanbanCardModal({
     setSalvandoComentario(true);
     try {
       const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError) {
+        alert(`Erro de autenticação: ${authError.message}`);
+        return;
+      }
       if (!user) {
-        alert('Faça login para comentar.');
+        alert('Usuário não encontrado. Faça login novamente.');
         return;
       }
       const { error } = await supabase.from('kanban_card_comentarios').insert({
         card_id: card.id,
-        fase_id: card.fase_id,
+        fase_id: card.fase_id ?? null,
         autor_id: user.id,
         texto: novoComentarioCard.trim(),
       });
-      if (error) throw error;
+      if (error) {
+        alert(`Erro do banco: ${error.message}\nCódigo: ${error.code}\nDetalhes: ${error.details ?? '—'}\nHint: ${error.hint ?? '—'}`);
+        return;
+      }
       setNovoComentarioCard('');
       await loadCard();
       router.refresh();
     } catch (err) {
-      console.error('Erro ao salvar comentário:', err);
-      alert(`Não foi possível salvar o comentário.\n\n${String((err as Error)?.message ?? err)}`);
+      alert(`Exceção inesperada: ${String((err as Error)?.message ?? err)}`);
     } finally {
       setSalvandoComentario(false);
     }
