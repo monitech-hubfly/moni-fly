@@ -119,6 +119,8 @@ type NovoSubChamadoDraft = {
   responsaveisIds: string[];
   trava: boolean;
   ehHdm: boolean;
+  tema: string;
+  temaOutro: string;
 };
 
 function emptyNovoSubDraft(): NovoSubChamadoDraft {
@@ -130,6 +132,8 @@ function emptyNovoSubDraft(): NovoSubChamadoDraft {
     responsaveisIds: [],
     trava: false,
     ehHdm: false,
+    tema: '',
+    temaOutro: '',
   };
 }
 
@@ -732,6 +736,8 @@ export function InteracoesLista({
       setMsgErro('Informe a descrição do sub-chamado.');
       return;
     }
+    if (!d.tema) { setMsgErro('Selecione o tema do sub-chamado.'); return; }
+    if (d.tema === 'Outro' && !d.temaOutro.trim()) { setMsgErro('Detalhe o tema.'); return; }
     if (d.timesIds.length === 0) {
       setMsgErro('Selecione ao menos um time.');
       return;
@@ -745,6 +751,7 @@ export function InteracoesLista({
       responsaveis_ids: d.responsaveisIds,
       data_fim: d.data.trim() || null,
       trava: d.trava,
+      tema: d.tema === 'Outro' ? d.temaOutro.trim() : d.tema,
     });
     setSalvandoTopico((s) => ({ ...s, [chamadoId]: false }));
     if (!res.ok) {
@@ -1771,6 +1778,35 @@ export function InteracoesLista({
                                   onChange={(e) => setSubDraft(cid, { data: e.target.value })}
                                   className="w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
                                 />
+                                <div>
+                                  <span className="mb-1 block text-[10px] font-medium text-stone-500">Tema (obrigatório)</span>
+                                  <SelectEscuro
+                                    value={d.tema}
+                                    onChange={(e) => setSubDraft(cid, { tema: e.target.value, temaOutro: '' })}
+                                    className="w-full text-xs"
+                                  >
+                                    <option value="">Selecione</option>
+                                    <option value="Acoplamento">Acoplamento</option>
+                                    <option value="Adicionais">Adicionais</option>
+                                    <option value="BCA + Batalha">BCA + Batalha</option>
+                                    <option value="Catálogo de Casas">Catálogo de Casas</option>
+                                    <option value="Crédito p/ Obra">Crédito p/ Obra</option>
+                                    <option value="Crédito p/ Terreno">Crédito p/ Terreno</option>
+                                    <option value="Diligência Terreno">Diligência Terreno</option>
+                                    <option value="Gadgets">Gadgets</option>
+                                    <option value="Negociação com Terrenista">Negociação com Terrenista</option>
+                                    <option value="Outro">Outro</option>
+                                  </SelectEscuro>
+                                  {d.tema === 'Outro' && (
+                                    <input
+                                      type="text"
+                                      value={d.temaOutro}
+                                      onChange={(e) => setSubDraft(cid, { temaOutro: e.target.value })}
+                                      placeholder="Detalhe o tema (obrigatório)"
+                                      className="mt-1 w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
+                                    />
+                                  )}
+                                </div>
                                 {d.tipo === 'chamado' ? (
                                   <label className="flex cursor-pointer items-center gap-2 text-[11px] text-stone-300">
                                     <input
@@ -1858,7 +1894,9 @@ export function InteracoesLista({
                                   disabled={
                                     Boolean(salvandoTopico[cid]) ||
                                     !d.descricao.trim() ||
-                                    d.timesIds.length === 0
+                                    d.timesIds.length === 0 ||
+                                    !d.tema ||
+                                    (d.tema === 'Outro' && !d.temaOutro.trim())
                                   }
                                   onClick={() => void handleAdicionarTopico(cid)}
                                   className="rounded-lg bg-stone-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-stone-500 disabled:opacity-50"

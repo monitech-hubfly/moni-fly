@@ -45,6 +45,7 @@ export type CriarInteracaoInput = {
   basePath?: string;
   /** `legado` quando `card_id` é `processo_step_one.id` (migration 116). */
   origem?: 'nativo' | 'legado';
+  tema: string;
 };
 
 export type EditarInteracaoInput = {
@@ -74,6 +75,7 @@ export type CriarSubInteracaoInput = {
   data_fim?: string | null;
   trava: boolean;
   basePath?: string;
+  tema: string;
 };
 
 export type SubInteracaoStatusDb = 'nao_iniciado' | 'em_andamento' | 'concluido' | 'aprovado';
@@ -190,6 +192,7 @@ export async function criarInteracao(input: CriarInteracaoInput): Promise<Action
     criado_por: user.id,
     time: timeCol,
     origem: input.origem === 'legado' ? 'legado' : 'nativo',
+    tema: input.tema,
   };
 
   const { error } = await supabase.from('kanban_atividades').insert(row as never);
@@ -300,6 +303,7 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
     data_inicio: null,
     status: 'nao_iniciado' as const,
     tipo: tipoSub,
+    tema: input.tema,
   };
 
   const { error } = await supabase.from('sirene_topicos').insert(row as never);
