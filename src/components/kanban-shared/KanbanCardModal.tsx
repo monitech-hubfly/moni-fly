@@ -311,6 +311,7 @@ export function KanbanCardModal({
   const [salvandoPreObra, setSalvandoPreObra] = useState(false);
   const [uploadingContrato, setUploadingContrato] = useState(false);
   const contratoFileRef = useRef<HTMLInputElement>(null);
+  const comentarioEditorRef = useRef<HTMLDivElement>(null);
   const [editandoInstrucoesFase, setEditandoInstrucoesFase] = useState(false);
   const [draftInstrucoesFase, setDraftInstrucoesFase] = useState('');
   const [draftMateriaisFase, setDraftMateriaisFase] = useState<KanbanFaseMaterial[]>([]);
@@ -1391,6 +1392,7 @@ export function KanbanCardModal({
         return;
       }
       setNovoComentarioCard('');
+      if (comentarioEditorRef.current) comentarioEditorRef.current.innerHTML = '';
       const supabase2 = createClient();
       const { data: comRows } = await supabase2
         .from('kanban_card_comentarios')
@@ -3053,7 +3055,7 @@ export function KanbanCardModal({
                       <ul className="mb-4 max-h-48 space-y-3 overflow-y-auto">
                         {comentariosCard.map((c) => (
                           <li key={c.id} className="border-b border-stone-200/80 pb-3 text-sm last:border-0">
-                            <p style={{ color: 'var(--moni-text-primary)' }}>{c.conteudo}</p>
+                            <p style={{ color: 'var(--moni-text-primary)' }} dangerouslySetInnerHTML={{ __html: c.conteudo }} />
                             <p className="mt-1 text-xs text-stone-500">
                               {c.autor_nome?.trim() || 'Usuário'}
                               {' · '}
@@ -3065,14 +3067,31 @@ export function KanbanCardModal({
                     ) : (
                       <p className="mb-4 text-xs text-stone-500">Nenhum comentário ainda.</p>
                     )}
-                    <textarea
-                      value={novoComentarioCard}
-                      onChange={(e) => setNovoComentarioCard(e.target.value)}
-                      placeholder="Escreva um comentário…"
-                      rows={3}
-                      className="w-full resize-none rounded-lg p-3 text-sm focus:outline-none"
-                      style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-0)' }}
-                    />
+                    <div className="overflow-hidden rounded-lg" style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-0)' }}>
+                      <div className="flex gap-1 border-b px-2 py-1" style={{ borderColor: 'var(--moni-border-default)' }}>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => { e.preventDefault(); document.execCommand('bold'); }}
+                          className="rounded px-2 py-0.5 text-xs font-bold text-stone-600 hover:bg-stone-100"
+                          title="Negrito"
+                        >B</button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => { e.preventDefault(); document.execCommand('italic'); }}
+                          className="rounded px-2 py-0.5 text-xs italic text-stone-600 hover:bg-stone-100"
+                          title="Itálico"
+                        >I</button>
+                      </div>
+                      <div
+                        ref={comentarioEditorRef}
+                        contentEditable
+                        suppressContentEditableWarning
+                        onInput={(e) => setNovoComentarioCard((e.currentTarget as HTMLDivElement).innerHTML)}
+                        className="min-h-[80px] w-full p-3 text-sm focus:outline-none empty:before:text-stone-400 empty:before:content-[attr(data-placeholder)]"
+                        style={{ background: 'var(--moni-surface-0)' }}
+                        data-placeholder="Escreva um comentário…"
+                      />
+                    </div>
                     <button
                       type="button"
                       onClick={() => void handleEnviarComentarioCard()}
