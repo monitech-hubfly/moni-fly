@@ -500,8 +500,10 @@ export async function criarChamado(
   const tipo = ((formData.get('tipo') as string) || 'padrao') as 'padrao' | 'hdm';
   const hdmResponsavel =
     tipo === 'hdm' ? (formData.get('hdm_responsavel') as HdmTime) || null : null;
+  const tema = (formData.get('tema') as string)?.trim() || '';
 
   if (!incendio) return { ok: false, error: 'Informe o incêndio (resumo).' };
+  if (!tema) return { ok: false, error: 'Selecione o tema do chamado.' };
   if (tipo === 'hdm' && hdmResponsavel && !HDM_TIMES.includes(hdmResponsavel))
     return { ok: false, error: 'Time HDM inválido.' };
 
@@ -537,6 +539,7 @@ export async function criarChamado(
           }
         : {}),
       ...(dataVencimento ? { data_vencimento: dataVencimento } : {}),
+      tema,
     })
     .select('id, numero, created_at')
     .single();
@@ -573,6 +576,7 @@ export async function criarChamado(
     time: timeCol,
     responsavel_nome_texto: aberturaResponsavelNome,
     sirene_chamado_id: chamadoRow.id,
+    tema,
   });
   if (kaErr) {
     await admin.from('sirene_chamados').delete().eq('id', chamadoRow.id);
@@ -951,6 +955,7 @@ export type AdicionarTopicoChamadoPainelInput = {
   responsaveis_ids: string[];
   data_fim: string | null;
   trava: boolean;
+  tema: string;
 };
 
 function uniqUuidStrings(ids: string[] | undefined | null): string[] {
@@ -1023,6 +1028,7 @@ export async function adicionarTopicoChamadoPainel(
     trava: Boolean(payload.trava),
     data_fim: dataFim,
     tipo,
+    tema: payload.tema,
   });
   if (insErr) return { ok: false, error: insErr.message };
 
