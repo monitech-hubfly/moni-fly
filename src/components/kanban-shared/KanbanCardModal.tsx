@@ -241,7 +241,8 @@ export function KanbanCardModal({
     produto_modelo_casa: '',
     link_pasta_drive: '',
     nome_condominio: '',
-    quadra_lote: '',
+    quadra: '',
+    lote: '',
   });
   const [salvandoNegocio, setSalvandoNegocio] = useState(false);
   const [abaComentarios, setAbaComentarios] = useState<'comentarios' | 'email'>('comentarios');
@@ -1498,7 +1499,8 @@ export function KanbanCardModal({
           produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
           link_pasta_drive: negocioDraft.link_pasta_drive || null,
           nome_condominio: negocioDraft.nome_condominio || null,
-          quadra_lote: negocioDraft.quadra_lote || null,
+          quadra: negocioDraft.quadra || null,
+          lote: negocioDraft.lote || null,
         })
         .eq('id', pid);
       if (error) throw error;
@@ -3551,12 +3553,17 @@ export function KanbanCardModal({
                     <div className="grid grid-cols-2 gap-x-2 gap-y-2">
                       <label className="block">
                         <span className="text-[11px] font-medium text-stone-500">Tipo de negociação</span>
-                        <input
-                          type="text"
+                        <select
                           value={negocioDraft.tipo_aquisicao_terreno}
                           onChange={(e) => setNegocioDraft((d) => ({ ...d, tipo_aquisicao_terreno: e.target.value }))}
                           className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                        />
+                        >
+                          <option value="">Selecione</option>
+                          <option value="Permuta parcial">Permuta parcial</option>
+                          <option value="100% Permuta">100% Permuta</option>
+                          <option value="100% Compra e Venda Moní">100% Compra e Venda Moní</option>
+                          <option value="100% Compra e Venda Frank">100% Compra e Venda Frank</option>
+                        </select>
                       </label>
                       <label className="block">
                         <span className="text-[11px] font-medium text-stone-500">Valor do Terreno</span>
@@ -3604,15 +3611,26 @@ export function KanbanCardModal({
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                       />
                     </label>
-                    <label className="block">
-                      <span className="text-[11px] font-medium text-stone-500">Quadra / Lote</span>
-                      <input
-                        type="text"
-                        value={negocioDraft.quadra_lote}
-                        onChange={(e) => setNegocioDraft((d) => ({ ...d, quadra_lote: e.target.value }))}
-                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                      />
-                    </label>
+                    <div className="grid grid-cols-2 gap-x-2">
+                      <label className="block">
+                        <span className="text-[11px] font-medium text-stone-500">Quadra</span>
+                        <input
+                          type="text"
+                          value={negocioDraft.quadra}
+                          onChange={(e) => setNegocioDraft((d) => ({ ...d, quadra: e.target.value }))}
+                          className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-[11px] font-medium text-stone-500">Lote</span>
+                        <input
+                          type="text"
+                          value={negocioDraft.lote}
+                          onChange={(e) => setNegocioDraft((d) => ({ ...d, lote: e.target.value }))}
+                          className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                        />
+                      </label>
+                    </div>
                     <div className="flex gap-2 pt-1">
                       <button
                         onClick={() => void handleSalvarNegocio()}
@@ -3676,8 +3694,12 @@ export function KanbanCardModal({
                       <div className="text-xs text-stone-800">{displayOrDash(proc.nome_condominio)}</div>
                     </div>
                     <div>
-                      <div className="text-[11px] font-medium text-stone-500">Quadra / Lote</div>
-                      <div className="text-xs text-stone-800">{displayOrDash(proc.quadra_lote)}</div>
+                      <div className="text-[11px] font-medium text-stone-500">Quadra</div>
+                      <div className="text-xs text-stone-800">{displayOrDash(proc.quadra)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-medium text-stone-500">Lote</div>
+                      <div className="text-xs text-stone-800">{displayOrDash(proc.lote)}</div>
                     </div>
                     {modalSessao.ehAdminOuTeam && (
                       <button
@@ -3689,7 +3711,8 @@ export function KanbanCardModal({
                             produto_modelo_casa: proc.produto_modelo_casa ?? '',
                             link_pasta_drive: proc.link_pasta_drive ?? '',
                             nome_condominio: proc.nome_condominio ?? '',
-                            quadra_lote: proc.quadra_lote ?? '',
+                            quadra: proc.quadra ?? '',
+                            lote: proc.lote ?? '',
                           });
                           setEditandoNegocio(true);
                         }}
