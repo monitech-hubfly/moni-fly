@@ -117,7 +117,10 @@ export function KanbanColumn({
             <button
               key={card.id}
               type="button"
-              onClick={() => router.push(hrefAbrirCard(basePath, card.id, cardQueryParam, card.origem))}
+              onClick={() => {
+                console.log('[DEBUG] card clicado:', card.id, card);
+                router.push(hrefAbrirCard(basePath, card.id, cardQueryParam, card.origem));
+              }}
               className={`relative block w-full p-3 text-left shadow-sm transition hover:shadow-md ${opacidadeCard}`}
               style={{
                 border: arquivado

@@ -46,6 +46,12 @@ export interface Chamado {
   hdm_responsavel: HdmTime | null;
   hdm_redirecionado_por: string | null;
   hdm_redirecionado_em: string | null;
+  /** Vínculo opcional a card do kanban (migration 162). */
+  card_id?: string | null;
+  card_kanban_nome?: string | null;
+  card_titulo?: string | null;
+  /** Prazo para ordenação na lista (opcional). */
+  data_vencimento?: string | null;
 }
 
 export interface Topico {

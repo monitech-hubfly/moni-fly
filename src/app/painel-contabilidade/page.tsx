@@ -218,7 +218,7 @@ export default async function PainelContabilidadePage({
           <p className="mb-4 text-sm text-stone-600">
             O painel de performance do kanban fica disponível quando o funil Contabilidade estiver cadastrado em{' '}
             <code className="rounded bg-stone-100 px-1">kanbans</code>. Use{' '}
-            <Link href="/sirene/interacoes" className="font-medium text-moni-primary hover:underline">
+            <Link href="/sirene/chamados" className="font-medium text-moni-primary hover:underline">
               Ver no Sirene →
             </Link>{' '}
             para chamados centralizados.

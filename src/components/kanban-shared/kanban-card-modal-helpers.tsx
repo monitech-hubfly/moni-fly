@@ -11,6 +11,7 @@ import {
   PlusCircle,
 } from 'lucide-react';
 import type { SubInteracaoStatusDb } from '@/lib/actions/card-actions';
+import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 
 export type InteracaoModal = {
   id: string;
@@ -42,6 +43,7 @@ export type InteracaoModal = {
 export type SubInteracaoModal = {
   id: string;
   interacao_id: string;
+  tipo: SubInteracaoTipoDb;
   descricao: string;
   times_ids: string[];
   responsaveis_ids: string[];
@@ -209,7 +211,7 @@ export type HistoricoItem = {
 
 export type ComentarioCardRow = {
   id: string;
-  texto: string;
+  conteudo: string;
   created_at: string;
   fase_id: string | null;
   autor_id: string | null;

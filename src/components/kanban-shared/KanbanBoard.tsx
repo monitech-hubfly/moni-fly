@@ -47,6 +47,28 @@ export function KanbanBoard({
   const filtrosPopoverRef = useRef<HTMLDivElement>(null);
   const filtrosBtnRef = useRef<HTMLButtonElement>(null);
 
+  /** DEBUG PROD: comparar id completo vs URL (?card=) — remover após diagnóstico */
+  useEffect(() => {
+    for (const c of cards) {
+      console.log(
+        '[DEBUG] KanbanBoard card.id (ativos):',
+        JSON.stringify(c.id),
+        'len=',
+        c.id?.length,
+        c,
+      );
+    }
+    for (const c of cardsConcluidos) {
+      console.log(
+        '[DEBUG] KanbanBoard card.id (concluidos):',
+        JSON.stringify(c.id),
+        'len=',
+        c.id?.length,
+        c,
+      );
+    }
+  }, [cards, cardsConcluidos]);
+
   useEffect(() => {
     if (!filtrosOpen) return;
     const onDown = (ev: MouseEvent) => {

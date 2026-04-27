@@ -60,7 +60,7 @@ const PAINEL_NOVOS_NEGOCIOS_SUBITENS_TAIL: NavItem[] = [
   { href: '/operacoes', label: 'Funil Operações' },
   { href: '/painel-novos-negocios', label: 'Portfolio + Operações (legado)' },
 ];
-const SIRENE_SUBITENS: NavItem[] = [{ href: '/sirene/interacoes', label: 'Chamados' }];
+const SIRENE_SUBITENS: NavItem[] = [{ href: '/sirene/chamados', label: 'Chamados' }];
 
 const REDE_HREFS_DEV_ONLY = new Set(['/comunidade', '/rede']);
 
@@ -345,16 +345,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
             sireneOpen,
             setSireneOpen,
             SIRENE_SUBITENS,
-            (href) => {
-              if (href === '/sirene/interacoes') {
-                return Boolean(
-                  pathname === href ||
-                    pathname?.startsWith(`${href}/`) ||
-                    pathname?.startsWith('/sirene/chamados'),
-                );
-              }
-              return Boolean(pathname === href || pathname?.startsWith(`${href}/`));
-            },
+            (href) => Boolean(pathname === href || pathname?.startsWith(`${href}/`)),
           )}
 
         {!publicVisitor && !limitedRelease && showDevNav && isAdmin &&

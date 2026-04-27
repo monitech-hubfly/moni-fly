@@ -1348,7 +1348,7 @@ export async function getAtividadesChecklistPainel(): Promise<
       return {
         ok: false,
         error:
-          'Painel agregado: defina SUPABASE_DEV_SERVICE_ROLE_KEY (dev) ou SUPABASE_SERVICE_ROLE_KEY (prod) no servidor (ex.: Vercel) ou entre com uma conta. Sem a chave, visitantes não veem todas as interações.',
+          'Painel agregado: defina SUPABASE_DEV_SERVICE_ROLE_KEY (dev) ou SUPABASE_SERVICE_ROLE_KEY (prod) no servidor (ex.: Vercel) ou entre com uma conta. Sem a chave, visitantes não veem todos os chamados.',
       };
     }
 

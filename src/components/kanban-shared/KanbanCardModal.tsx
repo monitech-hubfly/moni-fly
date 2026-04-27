@@ -45,6 +45,7 @@ import {
   type SubInteracaoStatusDb,
   type TipoVinculoKanbanCard,
 } from '@/lib/actions/card-actions';
+import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import {
   displayOrDash,
   fetchKanbanCardModalDetalhes,
@@ -92,14 +93,17 @@ import {
   type SecaoEsquerdaId,
   type SubInteracaoModal,
 } from './kanban-card-modal-helpers';
+import { SubInteracaoLista, mapRawTopicoToListaItem } from '@/components/kanban-shared/SubInteracaoLista';
 import {
-  TIMES_MONI,
+  filtrarLinhasTimeKanbanPorHdm,
   inferResponsavelMoniFromInteracao,
   inferTimeMoniFromInteracao,
+  isNomeTimeMoniHdm,
   responsaveisFiltroOpcoesComCatalogoMoni,
   resolveKanbanInteracaoFromCatalog,
   responsaveisDoTimeMoni,
   timesFiltroOpcoesComCatalogoMoni,
+  timesMoniReceberChamadoOpcoes,
   validarParTimeResponsavelMoni,
 } from '@/lib/times-responsaveis';
 import { AnexosChamado } from './AnexosChamado';
@@ -252,6 +256,7 @@ export function KanbanCardModal({
     timeMoni: '',
     responsavelMoni: '',
     trava: false,
+    ehHdm: false,
   });
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
   const [novaInteracao, setNovaInteracao] = useState({
@@ -262,16 +267,19 @@ export function KanbanCardModal({
     responsavelMoni: '',
     trava: false,
     status: 'pendente' as const,
+    ehHdm: false,
   });
   const [subInteracoesPorPai, setSubInteracoesPorPai] = useState<Record<string, SubInteracaoModal[]>>({});
   const [subExpandida, setSubExpandida] = useState<Record<string, boolean>>({});
   const [subFormInteracaoId, setSubFormInteracaoId] = useState<string | null>(null);
   const [subNovaDraft, setSubNovaDraft] = useState({
+    tipoSub: 'atividade' as SubInteracaoTipoDb,
     titulo: '',
     timesIds: [] as string[],
     responsaveisIds: [] as string[],
     data: '',
     trava: false,
+    ehHdm: false,
   });
   const [salvandoSub, setSalvandoSub] = useState(false);
   const [filtros, setFiltros] = useState<KanbanModalInteracoesFiltros>(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT);
@@ -307,6 +315,23 @@ export function KanbanCardModal({
   } | null>(null);
   const [solicitandoAprovacaoFase, setSolicitandoAprovacaoFase] = useState(false);
 
+  const timesReceberNovaOpcoes = useMemo(
+    () => [...timesMoniReceberChamadoOpcoes(novaInteracao.ehHdm)],
+    [novaInteracao.ehHdm],
+  );
+  const timesReceberEditOpcoes = useMemo(
+    () => [...timesMoniReceberChamadoOpcoes(editDraft.ehHdm)],
+    [editDraft.ehHdm],
+  );
+  const kanbanTimesSubNovaFiltrados = useMemo(
+    () =>
+      filtrarLinhasTimeKanbanPorHdm(
+        kanbanTimes,
+        subNovaDraft.tipoSub === 'chamado' && subNovaDraft.ehHdm,
+      ),
+    [kanbanTimes, subNovaDraft.tipoSub, subNovaDraft.ehHdm],
+  );
+
   useEffect(() => {
     setArquivamentoAberto(false);
     setMotivoArquivamento('');
@@ -337,6 +362,7 @@ export function KanbanCardModal({
       responsavelMoni: '',
       trava: false,
       status: 'pendente',
+      ehHdm: false,
     });
     setEditDraft({
       titulo: '',
@@ -346,6 +372,7 @@ export function KanbanCardModal({
       timeMoni: '',
       responsavelMoni: '',
       trava: false,
+      ehHdm: false,
     });
   }, [cardId]);
 
@@ -537,6 +564,8 @@ export function KanbanCardModal({
         }
       } else {
         setLegadoCronologiaMoves([]);
+        // DEBUG: cardId vem da URL (?card=) via KanbanWrapper — ver KanbanColumn onClick
+        console.log('[DEBUG] cardId recebido no modal:', cardId);
         const { data: cardData, error: cardError } = await supabase
           .from('kanban_cards')
           .select(
@@ -699,7 +728,7 @@ export function KanbanCardModal({
       try {
         const { data: comRows, error: comErr } = await supabase
           .from('kanban_card_comentarios')
-          .select('id, texto, created_at, fase_id, autor_id')
+          .select('id, conteudo, created_at, fase_id, autor_id')
           .eq('card_id', cardId)
           .order('created_at', { ascending: false });
         if (comErr || !comRows?.length) {
@@ -714,7 +743,7 @@ export function KanbanCardModal({
           setComentariosCard(
             comRows.map((c) => ({
               id: String(c.id),
-              texto: String(c.texto ?? ''),
+              conteudo: String(c.conteudo ?? ''),
               created_at: String(c.created_at),
               fase_id: c.fase_id ? String(c.fase_id) : null,
               autor_id: c.autor_id ? String(c.autor_id) : null,
@@ -823,7 +852,7 @@ export function KanbanCardModal({
           const actIds = mapeadas.map((m) => m.id);
           const { data: topicosRows } = await supabase
             .from('sirene_topicos')
-            .select('id, interacao_id, descricao, times_ids, responsaveis_ids, data_fim, status, trava')
+            .select('id, interacao_id, descricao, tipo, times_ids, responsaveis_ids, data_fim, status, trava')
             .in('interacao_id', actIds)
             .order('ordem', { ascending: true });
 
@@ -858,9 +887,13 @@ export function KanbanCardModal({
             const rawRi = (t as { responsaveis_ids?: unknown }).responsaveis_ids;
             let ri = Array.isArray(rawRi) ? rawRi.map((x) => String(x)) : [];
             const st = String((t as { status?: string }).status ?? 'nao_iniciado') as SubInteracaoStatusDb;
+            const tipoRaw = String((t as { tipo?: string }).tipo ?? 'atividade').toLowerCase();
+            const tipoSub: SubInteracaoTipoDb =
+              tipoRaw === 'duvida' || tipoRaw === 'chamado' ? (tipoRaw as SubInteracaoTipoDb) : 'atividade';
             const row: SubInteracaoModal = {
               id: String((t as { id: number }).id),
               interacao_id: iid,
+              tipo: tipoSub,
               descricao: String((t as { descricao?: string }).descricao ?? ''),
               times_ids: ti,
               responsaveis_ids: ri,
@@ -956,6 +989,7 @@ export function KanbanCardModal({
         responsavelMoni: '',
         trava: false,
         status: 'pendente',
+        ehHdm: false,
       });
       await loadCard();
       router.refresh();
@@ -1001,6 +1035,7 @@ export function KanbanCardModal({
       timeMoni,
       responsavelMoni,
       trava: it.trava,
+      ehHdm: isNomeTimeMoniHdm(timeMoni),
     });
   }
 
@@ -1056,7 +1091,7 @@ export function KanbanCardModal({
     const supabase = createClient();
     const { data: topicosRows } = await supabase
       .from('sirene_topicos')
-      .select('id, interacao_id, descricao, times_ids, responsaveis_ids, data_fim, status, trava')
+      .select('id, interacao_id, descricao, tipo, times_ids, responsaveis_ids, data_fim, status, trava')
       .eq('interacao_id', interacaoId)
       .order('ordem', { ascending: true });
     const topicos = topicosRows ?? [];
@@ -1086,9 +1121,13 @@ export function KanbanCardModal({
       const rawRi = (t as { responsaveis_ids?: unknown }).responsaveis_ids;
       const ri = Array.isArray(rawRi) ? rawRi.map((x) => String(x)) : [];
       const st = String((t as { status?: string }).status ?? 'nao_iniciado') as SubInteracaoStatusDb;
+      const tipoRaw = String((t as { tipo?: string }).tipo ?? 'atividade').toLowerCase();
+      const tipoSub: SubInteracaoTipoDb =
+        tipoRaw === 'duvida' || tipoRaw === 'chamado' ? (tipoRaw as SubInteracaoTipoDb) : 'atividade';
       return {
         id: String((t as { id: number | string }).id),
         interacao_id: iid,
+        tipo: tipoSub,
         descricao: String((t as { descricao?: string }).descricao ?? ''),
         times_ids: ti,
         responsaveis_ids: ri,
@@ -1110,6 +1149,10 @@ export function KanbanCardModal({
 
   async function handleCriarSubInteracao(interacaoId: string) {
     if (!subNovaDraft.titulo.trim()) return;
+    if (subNovaDraft.timesIds.length === 0) {
+      alert('Selecione ao menos um time.');
+      return;
+    }
     if (!pode('criar_chamados')) {
       alert('Sem permissão para criar chamados.');
       return;
@@ -1119,6 +1162,7 @@ export function KanbanCardModal({
       const res = await criarSubInteracao({
         interacao_id: interacaoId,
         descricao: subNovaDraft.titulo.trim(),
+        tipo: subNovaDraft.tipoSub,
         times_ids: subNovaDraft.timesIds,
         responsaveis_ids: subNovaDraft.responsaveisIds,
         data_fim: subNovaDraft.data.trim() || null,
@@ -1129,7 +1173,15 @@ export function KanbanCardModal({
         alert(res.error);
         return;
       }
-      setSubNovaDraft({ titulo: '', timesIds: [], responsaveisIds: [], data: '', trava: false });
+      setSubNovaDraft({
+        tipoSub: 'atividade',
+        titulo: '',
+        timesIds: [],
+        responsaveisIds: [],
+        data: '',
+        trava: false,
+        ehHdm: false,
+      });
       setSubFormInteracaoId(interacaoId);
       setSubExpandida((s) => ({ ...s, [interacaoId]: true }));
       await reloadSubsForParent(interacaoId);
@@ -1309,25 +1361,30 @@ export function KanbanCardModal({
     setSalvandoComentario(true);
     try {
       const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError) {
+        alert(`Erro de autenticação: ${authError.message}`);
+        return;
+      }
       if (!user) {
-        alert('Faça login para comentar.');
+        alert('Usuário não encontrado. Faça login novamente.');
         return;
       }
       const { error } = await supabase.from('kanban_card_comentarios').insert({
         card_id: card.id,
-        fase_id: card.fase_id,
+        fase_id: card.fase_id ?? null,
         autor_id: user.id,
-        texto: novoComentarioCard.trim(),
+        conteudo: novoComentarioCard.trim(),
       });
-      if (error) throw error;
+      if (error) {
+        alert(`Erro do banco: ${error.message}\nCódigo: ${error.code}\nDetalhes: ${error.details ?? '—'}\nHint: ${error.hint ?? '—'}`);
+        return;
+      }
       setNovoComentarioCard('');
       await loadCard();
       router.refresh();
-    } catch {
-      alert('Não foi possível salvar o comentário.');
+    } catch (err) {
+      alert(`Exceção inesperada: ${String((err as Error)?.message ?? err)}`);
     } finally {
       setSalvandoComentario(false);
     }
@@ -2236,6 +2293,21 @@ export function KanbanCardModal({
                                 </>
                               )}
                             </div>
+                            {!demo && subs.length > 0 ? (
+                              <SubInteracaoLista
+                                variant="kanban"
+                                items={subs.map((s) =>
+                                  mapRawTopicoToListaItem({
+                                    id: s.id,
+                                    tipo: s.tipo,
+                                    descricao: s.descricao,
+                                    status: s.status,
+                                    data_fim: s.data_fim,
+                                    trava: s.trava,
+                                  }),
+                                )}
+                              />
+                            ) : null}
                             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                               <span
                                 className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase"
@@ -2320,6 +2392,29 @@ export function KanbanCardModal({
                                     className="rounded border border-stone-300 px-2 py-1 text-xs"
                                   />
                                 </div>
+                                <label className="flex cursor-pointer items-center gap-2 text-[11px] text-stone-700">
+                                  <input
+                                    type="checkbox"
+                                    className="h-3.5 w-3.5 rounded border-stone-400"
+                                    checked={editDraft.ehHdm}
+                                    onChange={(e) => {
+                                      const eh = e.target.checked;
+                                      setEditDraft((d) => {
+                                        const op = [...timesMoniReceberChamadoOpcoes(eh)];
+                                        let timeMoni = d.timeMoni;
+                                        let responsavelMoni = d.responsavelMoni;
+                                        if (!timeMoni || !op.includes(timeMoni)) {
+                                          timeMoni = '';
+                                          responsavelMoni = '';
+                                        } else if (!responsaveisDoTimeMoni(timeMoni).includes(responsavelMoni)) {
+                                          responsavelMoni = '';
+                                        }
+                                        return { ...d, ehHdm: eh, timeMoni, responsavelMoni };
+                                      });
+                                    }}
+                                  />
+                                  Este chamado é HDM?
+                                </label>
                                 <div>
                                   <label className="mb-1 block text-[10px] font-medium text-stone-500">Time</label>
                                   <select
@@ -2332,12 +2427,13 @@ export function KanbanCardModal({
                                         responsavelMoni: responsaveisDoTimeMoni(v).includes(d.responsavelMoni)
                                           ? d.responsavelMoni
                                           : '',
+                                        ehHdm: v ? isNomeTimeMoniHdm(v) : false,
                                       }));
                                     }}
                                     className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
                                   >
                                     <option value="">Selecione</option>
-                                    {TIMES_MONI.map((t) => (
+                                    {timesReceberEditOpcoes.map((t) => (
                                       <option key={t} value={t}>
                                         {t}
                                       </option>
@@ -2463,6 +2559,13 @@ export function KanbanCardModal({
                                                   Trava
                                                 </span>
                                               ) : null}
+                                              <span className="rounded border border-stone-300 bg-stone-100 px-1 py-0.5 text-[9px] font-bold uppercase text-stone-700">
+                                                {sub.tipo === 'duvida'
+                                                  ? 'Dúvida'
+                                                  : sub.tipo === 'chamado'
+                                                    ? 'Chamado'
+                                                    : 'Atividade'}
+                                              </span>
                                               <span className="font-medium text-stone-800">{sub.descricao}</span>
                                             </div>
                                             <div className="mt-1 flex flex-wrap gap-1">
@@ -2518,6 +2621,37 @@ export function KanbanCardModal({
                                 {subFormInteracaoId === it.id ? (
                                   <div className="space-y-2 border-t border-stone-200 pt-3">
                                     <p className="text-[10px] font-semibold text-stone-600">Novo sub-chamado</p>
+                                    <div>
+                                      <span className="mb-1 block text-[10px] font-medium text-stone-600">
+                                        Tipo (obrigatório)
+                                      </span>
+                                      <select
+                                        value={subNovaDraft.tipoSub}
+                                        onChange={(e) => {
+                                          const v = e.target.value as SubInteracaoTipoDb;
+                                          setSubNovaDraft((s) => {
+                                            const ehNext = v === 'chamado' ? s.ehHdm : false;
+                                            const allowed = new Set(
+                                              filtrarLinhasTimeKanbanPorHdm(
+                                                kanbanTimes,
+                                                v === 'chamado' && ehNext,
+                                              ).map((t) => t.id),
+                                            );
+                                            return {
+                                              ...s,
+                                              tipoSub: v,
+                                              ehHdm: ehNext,
+                                              timesIds: s.timesIds.filter((id) => allowed.has(id)),
+                                            };
+                                          });
+                                        }}
+                                        className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
+                                      >
+                                        <option value="atividade">Atividade</option>
+                                        <option value="duvida">Dúvida</option>
+                                        <option value="chamado">Chamado</option>
+                                      </select>
+                                    </div>
                                     <input
                                       type="text"
                                       value={subNovaDraft.titulo}
@@ -2531,10 +2665,36 @@ export function KanbanCardModal({
                                       onChange={(e) => setSubNovaDraft((s) => ({ ...s, data: e.target.value }))}
                                       className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
                                     />
+                                    {subNovaDraft.tipoSub === 'chamado' ? (
+                                      <label className="flex cursor-pointer items-center gap-2 text-[11px] text-stone-700">
+                                        <input
+                                          type="checkbox"
+                                          className="h-3.5 w-3.5 rounded border-stone-400"
+                                          checked={subNovaDraft.ehHdm}
+                                          onChange={(e) => {
+                                            const eh = e.target.checked;
+                                            setSubNovaDraft((s) => {
+                                              const allowed = new Set(
+                                                filtrarLinhasTimeKanbanPorHdm(
+                                                  kanbanTimes,
+                                                  s.tipoSub === 'chamado' && eh,
+                                                ).map((t) => t.id),
+                                              );
+                                              return {
+                                                ...s,
+                                                ehHdm: eh,
+                                                timesIds: s.timesIds.filter((id) => allowed.has(id)),
+                                              };
+                                            });
+                                          }}
+                                        />
+                                        Este chamado é HDM?
+                                      </label>
+                                    ) : null}
                                     <div>
                                       <span className="mb-1 block text-[10px] text-stone-500">Times</span>
                                       <div className="flex flex-wrap gap-1">
-                                        {kanbanTimes.map((t) => {
+                                        {kanbanTimesSubNovaFiltrados.map((t) => {
                                           const on = subNovaDraft.timesIds.includes(t.id);
                                           return (
                                             <button
@@ -2587,7 +2747,11 @@ export function KanbanCardModal({
                                     <div className="flex flex-wrap gap-2">
                                       <button
                                         type="button"
-                                        disabled={salvandoSub || !subNovaDraft.titulo.trim()}
+                                        disabled={
+                                          salvandoSub ||
+                                          !subNovaDraft.titulo.trim() ||
+                                          subNovaDraft.timesIds.length === 0
+                                        }
                                         onClick={() => void handleCriarSubInteracao(it.id)}
                                         className="rounded px-3 py-1.5 text-[11px] font-medium text-white disabled:opacity-50"
                                         style={{ background: 'var(--moni-text-primary)' }}
@@ -2599,11 +2763,13 @@ export function KanbanCardModal({
                                         onClick={() => {
                                           setSubFormInteracaoId(null);
                                           setSubNovaDraft({
+                                            tipoSub: 'atividade',
                                             titulo: '',
                                             timesIds: [],
                                             responsaveisIds: [],
                                             data: '',
                                             trava: false,
+                                            ehHdm: false,
                                           });
                                         }}
                                         className="rounded border border-stone-300 px-3 py-1.5 text-[11px]"
@@ -2623,11 +2789,13 @@ export function KanbanCardModal({
                                     setSubExpandida((s) => ({ ...s, [it.id]: true }));
                                     setSubFormInteracaoId(it.id);
                                     setSubNovaDraft({
+                                      tipoSub: 'atividade',
                                       titulo: '',
                                       timesIds: [],
                                       responsaveisIds: [],
                                       data: '',
                                       trava: false,
+                                      ehHdm: false,
                                     });
                                   }}
                                   className="text-left text-[11px] font-medium text-stone-700 underline-offset-2 hover:underline"
@@ -2686,6 +2854,29 @@ export function KanbanCardModal({
                     />
                     )}
                   </div>
+                  <label className="flex cursor-pointer items-center gap-2 text-xs text-stone-700">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-stone-400"
+                      checked={novaInteracao.ehHdm}
+                      onChange={(e) => {
+                        const eh = e.target.checked;
+                        setNovaInteracao((n) => {
+                          const op = [...timesMoniReceberChamadoOpcoes(eh)];
+                          let timeMoni = n.timeMoni;
+                          let responsavelMoni = n.responsavelMoni;
+                          if (!timeMoni || !op.includes(timeMoni)) {
+                            timeMoni = '';
+                            responsavelMoni = '';
+                          } else if (!responsaveisDoTimeMoni(timeMoni).includes(responsavelMoni)) {
+                            responsavelMoni = '';
+                          }
+                          return { ...n, ehHdm: eh, timeMoni, responsavelMoni };
+                        });
+                      }}
+                    />
+                    Este chamado é HDM?
+                  </label>
                   <div>
                     <label className="mb-1 block text-[10px] font-medium text-stone-500">Time</label>
                     <select
@@ -2698,13 +2889,14 @@ export function KanbanCardModal({
                           responsavelMoni: responsaveisDoTimeMoni(v).includes(n.responsavelMoni)
                             ? n.responsavelMoni
                             : '',
+                          ehHdm: v ? isNomeTimeMoniHdm(v) : false,
                         }));
                       }}
                       className="w-full px-3 py-2 text-xs"
                       style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
                     >
                       <option value="">Selecione</option>
-                      {TIMES_MONI.map((t) => (
+                      {timesReceberNovaOpcoes.map((t) => (
                         <option key={t} value={t}>
                           {t}
                         </option>
@@ -2801,7 +2993,7 @@ export function KanbanCardModal({
                       <ul className="mb-4 max-h-48 space-y-3 overflow-y-auto">
                         {comentariosCard.map((c) => (
                           <li key={c.id} className="border-b border-stone-200/80 pb-3 text-sm last:border-0">
-                            <p style={{ color: 'var(--moni-text-primary)' }}>{c.texto}</p>
+                            <p style={{ color: 'var(--moni-text-primary)' }}>{c.conteudo}</p>
                             <p className="mt-1 text-xs text-stone-500">
                               {c.autor_nome?.trim() || 'Usuário'}
                               {c.fase_id && faseNomePorId.has(c.fase_id) ? ` · ${faseNomePorId.get(c.fase_id)}` : ''}

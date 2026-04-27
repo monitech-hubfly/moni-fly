@@ -3,6 +3,7 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import { useMemo, useState } from 'react';
 import type { InteracaoModal, KanbanTimeRow } from './kanban-card-modal-helpers';
+import { filtrarLinhasTimeKanbanPorHdm } from '@/lib/times-responsaveis';
 
 export type ListaInteracoesModal = 'abertas' | 'concluidas' | 'todas';
 export type SituacaoFiltroModal = 'qualquer' | InteracaoModal['status'];
@@ -12,6 +13,8 @@ export type KanbanModalInteracoesFiltros = {
   lista: ListaInteracoesModal;
   situacao: SituacaoFiltroModal;
   time: string;
+  /** Quando true, só Homologações / Produto / Modelo Virtual na lista de times do filtro. */
+  timeListaSomenteHdm: boolean;
   responsavel: string;
   ordenacao: OrdenacaoInteracoesModal;
   busca: string;
@@ -21,6 +24,7 @@ export const KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT: KanbanModalInteracoesFiltr
   lista: 'abertas',
   situacao: 'qualquer',
   time: 'todos',
+  timeListaSomenteHdm: false,
   responsavel: 'todos',
   ordenacao: 'prazo_asc',
   busca: '',
@@ -31,7 +35,7 @@ export function countKanbanModalInteracoesFiltrosAtivos(f: KanbanModalInteracoes
   let n = 0;
   if (f.lista !== d.lista) n++;
   if ((f.lista === 'abertas' || f.lista === 'todas') && f.situacao !== d.situacao) n++;
-  if (f.time !== d.time) n++;
+  if (f.time !== d.time || f.timeListaSomenteHdm !== d.timeListaSomenteHdm) n++;
   if (f.responsavel !== d.responsavel) n++;
   if (f.ordenacao !== d.ordenacao) n++;
   if (f.busca.trim() !== '') n++;
@@ -45,7 +49,7 @@ const def = KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT;
 function computeExpandedInicial(f: KanbanModalInteracoesFiltros): Record<SecaoFiltroId, boolean> {
   const hasLista = f.lista !== def.lista;
   const hasSit = (f.lista === 'abertas' || f.lista === 'todas') && f.situacao !== def.situacao;
-  const hasTime = f.time !== def.time;
+  const hasTime = f.time !== def.time || f.timeListaSomenteHdm !== def.timeListaSomenteHdm;
   const hasResp = f.responsavel !== def.responsavel;
   const hasOrd = f.ordenacao !== def.ordenacao;
   const algum = hasLista || hasSit || hasTime || hasResp || hasOrd;
@@ -82,9 +86,12 @@ function badgeSituacao(f: KanbanModalInteracoesFiltros): string | null {
 }
 
 function badgeTime(f: KanbanModalInteracoesFiltros, times: KanbanTimeRow[]): string | null {
-  if (f.time === def.time) return null;
-  const nome = times.find((t) => t.id === f.time)?.nome;
-  return nome ?? f.time.slice(0, 8);
+  if (f.time !== def.time) {
+    const nome = times.find((t) => t.id === f.time)?.nome;
+    return nome ?? f.time.slice(0, 8);
+  }
+  if (f.timeListaSomenteHdm) return 'HDM';
+  return null;
 }
 
 function badgeResponsavel(
@@ -191,6 +198,11 @@ export function KanbanInteracoesFiltrosPanel({
   const situacaoDisabled = draft.lista === 'concluidas';
 
   const [expanded, setExpanded] = useState<Record<SecaoFiltroId, boolean>>(() => computeExpandedInicial(draft));
+
+  const kanbanTimesFiltrados = useMemo(
+    () => filtrarLinhasTimeKanbanPorHdm(kanbanTimes, draft.timeListaSomenteHdm),
+    [kanbanTimes, draft.timeListaSomenteHdm],
+  );
 
   const badges = useMemo(
     () => ({
@@ -316,6 +328,18 @@ export function KanbanInteracoesFiltrosPanel({
           onToggle={() => toggle('time')}
           badge={badges.time}
         >
+          <label className="mb-2 flex cursor-pointer items-center gap-2 text-[10px]" style={{ color: 'var(--moni-text-secondary)' }}>
+            <input
+              type="checkbox"
+              className="h-3 w-3 shrink-0 rounded border-stone-300"
+              checked={draft.timeListaSomenteHdm}
+              onChange={(e) => {
+                const v = e.target.checked;
+                setDraft((d) => ({ ...d, timeListaSomenteHdm: v, time: 'todos' }));
+              }}
+            />
+            Este chamado é HDM?
+          </label>
           <div
             className="flex max-h-48 flex-col gap-1 overflow-y-auto text-xs transition-all"
             style={{ color: 'var(--moni-text-primary)' }}
@@ -330,7 +354,7 @@ export function KanbanInteracoesFiltrosPanel({
               />
               Todos
             </label>
-            {kanbanTimes.map((t) => (
+            {kanbanTimesFiltrados.map((t) => (
               <label key={t.id} className={radioLabel}>
                 <input
                   type="radio"

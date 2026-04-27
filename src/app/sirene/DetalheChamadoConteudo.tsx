@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition, useEffect, useRef, useCallback } from 'react';
+import Link from 'next/link';
 import { MencaoTextarea } from './MencaoTextarea';
 import { ModalRedirecionarHDM } from './ModalRedirecionarHDM';
 import type { Chamado } from '@/types/sirene';
@@ -26,6 +27,7 @@ import {
   type TopicoInput,
   type AnexoOrigem,
 } from './actions';
+import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { formatarStatus } from '@/lib/sirene';
 
 type Props = {
@@ -47,6 +49,9 @@ type TopicoSalvo = {
   ordem: number;
   descricao: string;
   time_responsavel: string;
+  tipo?: string;
+  times_ids?: string[];
+  responsaveis_ids?: string[];
   status: string;
   resolucao_time: string | null;
   motivo_reprovacao: string | null;
@@ -387,6 +392,13 @@ export function DetalheChamadoConteudo({
     userContext.papel === 'bombeiro' || userContext.time === timeResponsavel;
   const isBombeiro = userContext.papel === 'bombeiro';
 
+  const mostrarBlocoAvaliacaoCriador =
+    isCriador &&
+    (chamado.status === 'aguardando_aprovacao_criador' ||
+      (chamado.status === 'em_andamento' &&
+        topicosList.length > 0 &&
+        topicosList.every((t) => t.status === 'concluido')));
+
   const handleConcluirTopico = (topicoId: number) => {
     const texto = resolucaoPorTopico[topicoId] ?? '';
     setMensagem(null);
@@ -522,6 +534,18 @@ export function DetalheChamadoConteudo({
                     </button>
                   )}
                 </div>
+                {chamado.card_id &&
+                (chamado.card_titulo || chamado.card_kanban_nome) &&
+                chamado.card_kanban_nome ? (
+                  <p className="mt-1">
+                    <Link
+                      href={hrefAbrirCardKanban(chamado.card_kanban_nome, chamado.card_id)}
+                      className="text-xs text-stone-400 underline decoration-stone-600 hover:text-stone-200"
+                    >
+                      Card: {chamado.card_titulo ?? '—'} — {chamado.card_kanban_nome}
+                    </Link>
+                  </p>
+                ) : null}
                 {resumo.tema ? (
                   <p className="mt-1 text-sm text-stone-300">
                     <span className="text-stone-500">Tema: </span>
@@ -631,7 +655,7 @@ export function DetalheChamadoConteudo({
                       <button
                         type="button"
                         onClick={() => handleConcluirTopico(t.id)}
-                        disabled={isPending}
+                        disabled={isPending || !(resolucaoPorTopico[t.id] ?? '').trim()}
                         className="mt-2 rounded-md bg-emerald-500 px-3 py-1.5 text-xs font-medium text-stone-900 hover:bg-emerald-400 disabled:opacity-60"
                       >
                         {isPending ? 'Salvando…' : 'Concluir tópico'}
@@ -881,7 +905,7 @@ export function DetalheChamadoConteudo({
           </section>
         )}
 
-        {chamado.status === 'aguardando_aprovacao_criador' && isCriador && (
+        {mostrarBlocoAvaliacaoCriador && (
           <section className="rounded-xl border-2 border-amber-500/50 bg-amber-500/10 p-4">
             <h2 className="text-sm font-semibold text-amber-200">
               Sua avaliação — O Bombeiro enviou o fechamento

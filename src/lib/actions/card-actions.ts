@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache';
 import type { KanbanFaseMaterial } from '@/components/kanban-shared/types';
 import { KANBAN_APP_BASE_PATHS } from '@/lib/kanban/kanban-card-href';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
+import { criarChamado } from '@/app/sirene/actions';
+import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import type { FaseChecklistItem } from './candidato-actions';
@@ -25,7 +27,7 @@ function dataCampoCalendarioIso(input: string | null | undefined): string | null
 export type CriarInteracaoInput = {
   card_id: string;
   titulo: string;
-  tipo: 'atividade' | 'duvida';
+  tipo: 'atividade' | 'duvida' | 'chamado_padrao' | 'chamado_hdm';
   times_ids: string[];
   data_vencimento: string | null;
   /** Legado: um responsável; preferir `responsaveis_ids`. */
@@ -60,9 +62,13 @@ export type EditarInteracaoInput = {
   basePath?: string;
 };
 
+export type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
+
 export type CriarSubInteracaoInput = {
   interacao_id: string;
   descricao: string;
+  /** Categoria do sub-chamado (`sirene_topicos.tipo`, migration 165). */
+  tipo?: SubInteracaoTipoDb;
   times_ids: string[];
   responsaveis_ids: string[];
   data_fim?: string | null;
@@ -75,6 +81,39 @@ export type SubInteracaoStatusDb = 'nao_iniciado' | 'em_andamento' | 'concluido'
 export type ActionOk = { ok: true };
 export type ActionErr = { ok: false; error: string };
 export type ActionResult = ActionOk | ActionErr;
+
+async function fetchCardMetaForSireneChamado(
+  admin: ReturnType<typeof createAdminClient>,
+  cardId: string,
+  origem: 'nativo' | 'legado',
+): Promise<{ titulo: string; kanban_nome: string } | null> {
+  if (origem === 'legado') {
+    const { data: v, error } = await admin
+      .from('v_processo_como_kanban_cards')
+      .select('titulo, kanban_id')
+      .eq('id', cardId)
+      .maybeSingle();
+    if (error || !v) return null;
+    const kid = String((v as { kanban_id?: string }).kanban_id ?? '');
+    const { data: kb } = await admin.from('kanbans').select('nome').eq('id', kid).maybeSingle();
+    return {
+      titulo: String((v as { titulo?: string | null }).titulo ?? 'Sem título'),
+      kanban_nome: String((kb as { nome?: string } | null)?.nome ?? 'Funil Step One'),
+    };
+  }
+  const { data: card, error: cErr } = await admin
+    .from('kanban_cards')
+    .select('titulo, kanban_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  if (cErr || !card) return null;
+  const kid = String((card as { kanban_id?: string }).kanban_id ?? '');
+  const { data: kb2 } = await admin.from('kanbans').select('nome').eq('id', kid).maybeSingle();
+  return {
+    titulo: String((card as { titulo?: string | null }).titulo ?? 'Sem título'),
+    kanban_nome: String((kb2 as { nome?: string } | null)?.nome ?? '—'),
+  };
+}
 
 function uniqUuids(ids: string[] | undefined | null): string[] {
   if (!Array.isArray(ids)) return [];
@@ -110,10 +149,35 @@ export async function criarInteracao(input: CriarInteracaoInput): Promise<Action
   const titulo = (input.titulo ?? '').trim();
   if (!titulo) return { ok: false, error: 'Informe o título do chamado.' };
 
+  if (input.tipo === 'chamado_padrao' || input.tipo === 'chamado_hdm') {
+    const admin = createAdminClient();
+    const meta = await fetchCardMetaForSireneChamado(admin, input.card_id, input.origem ?? 'nativo');
+    if (!meta) return { ok: false, error: 'Não foi possível resolver o card para criar o chamado Sirene.' };
+    const fd = new FormData();
+    fd.set('incendio', titulo);
+    fd.set('te_trata', 'nao');
+    fd.set('tipo', input.tipo === 'chamado_hdm' ? 'hdm' : 'padrao');
+    fd.set('card_id', input.card_id);
+    fd.set('card_kanban_nome', meta.kanban_nome);
+    fd.set('card_titulo', meta.titulo);
+    if (input.data_vencimento) fd.set('data_vencimento', input.data_vencimento);
+    const cr = await criarChamado(fd);
+    if (!cr.ok) return { ok: false, error: cr.error };
+  }
+
+  const resolvedTipo: 'atividade' | 'duvida' | 'chamado_padrao' | 'chamado_hdm' =
+    input.tipo === 'chamado_padrao'
+      ? 'chamado_padrao'
+      : input.tipo === 'chamado_hdm'
+        ? 'chamado_hdm'
+        : input.tipo === 'duvida'
+          ? 'duvida'
+          : 'atividade';
+
   const row = {
     card_id: input.card_id,
     titulo,
-    tipo: input.tipo === 'duvida' ? 'duvida' : 'atividade',
+    tipo: resolvedTipo,
     times_ids: timesIds,
     data_vencimento: dataCampoCalendarioIso(input.data_vencimento),
     responsavel_id: responsavelSingular,
@@ -219,6 +283,9 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
     .maybeSingle();
   const proxOrdem = ((maxRow as { ordem?: number } | null)?.ordem ?? 0) + 1;
 
+  const tipoSub: SubInteracaoTipoDb =
+    input.tipo === 'duvida' || input.tipo === 'chamado' ? input.tipo : 'atividade';
+
   const row = {
     chamado_id: null,
     interacao_id: input.interacao_id,
@@ -232,6 +299,7 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
     data_fim: dataCampoCalendarioIso(input.data_fim),
     data_inicio: null,
     status: 'nao_iniciado' as const,
+    tipo: tipoSub,
   };
 
   const { error } = await supabase.from('sirene_topicos').insert(row as never);

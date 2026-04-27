@@ -3,11 +3,14 @@
 import type React from 'react';
 import { MessageCircle, Pencil, User } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { rotaCardOrigem } from '@/lib/rota-card-origem';
+import { ORDEM_GRUPOS_PAINEL, rankChamadoPainelUnificado } from '@/lib/sirene-painel-chamados-rank';
 import {
   MONI_RESP_FILTRO_PREFIX,
   MONI_TIME_FILTRO_PREFIX,
+  filtrarOpcoesTimeIdNomePorHdm,
   responsaveisFiltroOpcoesComCatalogoMoni,
   timesFiltroOpcoesComCatalogoMoni,
 } from '@/lib/times-responsaveis';
@@ -19,6 +22,21 @@ import {
   type ComentarioCardSireneRow,
   type StatusInteracaoDb,
 } from './actions';
+import {
+  adicionarTopicoChamadoPainel,
+  atualizarChamadoPainelUnificado,
+  getTopicosChamado,
+} from '../actions';
+import { atualizarStatusSubInteracao, type SubInteracaoStatusDb } from '@/lib/actions/card-actions';
+import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
+import { SubInteracaoLista, mapRawTopicoToListaItem } from '@/components/kanban-shared/SubInteracaoLista';
+import { ModalNovoChamado } from '../ModalNovoChamado';
+import {
+  isNomeTimeMoniHdm,
+  responsaveisDoTimeMoni,
+  timesMoniReceberChamadoOpcoes,
+  TIMES_MONI_HDM,
+} from '@/lib/times-responsaveis';
 
 export type InteracaoSireneRow = {
   id: string;
@@ -45,6 +63,13 @@ export type InteracaoSireneRow = {
   times_ids: string[];
   /** Quando não há `responsavel_id`: nome livre em `kanban_atividades`. */
   responsavel_nome_texto: string | null;
+  sirene_chamado_id?: number | null;
+  sirene_numero?: number | null;
+  sirene_chamado_tipo?: string | null;
+  sirene_time_abertura?: string | null;
+  sirene_abertura_responsavel_nome?: string | null;
+  sirene_hdm_responsavel?: string | null;
+  frank_id?: string | null;
 };
 
 type TimeOpt = { id: string; nome: string };
@@ -59,12 +84,62 @@ type EditLinhaDraft = {
   trava: boolean;
 };
 
+type EditSireneDraft = {
+  incendio: string;
+  time_abertura: string;
+  abertura_responsavel_nome: string;
+  data: string;
+  trava: boolean;
+  tipo: 'padrao' | 'hdm';
+  hdm_responsavel: string;
+  ehHdmListaTimes: boolean;
+};
+
+type TopicoChamadoLinha = {
+  id: number;
+  ordem: number;
+  descricao: string;
+  time_responsavel: string;
+  tipo: SubInteracaoTipoDb;
+  times_ids: string[];
+  responsaveis_ids: string[];
+  data_inicio: string | null;
+  data_fim: string | null;
+  trava: boolean;
+  status: string;
+  resolucao_time: string | null;
+  motivo_reprovacao: string | null;
+};
+
+type NovoSubChamadoDraft = {
+  descricao: string;
+  tipo: SubInteracaoTipoDb;
+  data: string;
+  timesIds: string[];
+  responsaveisIds: string[];
+  trava: boolean;
+  ehHdm: boolean;
+};
+
+function emptyNovoSubDraft(): NovoSubChamadoDraft {
+  return {
+    descricao: '',
+    tipo: 'atividade',
+    data: '',
+    timesIds: [],
+    responsaveisIds: [],
+    trava: false,
+    ehHdm: false,
+  };
+}
+
 type Props = {
   interacoes: InteracaoSireneRow[];
   times: TimeOpt[];
   responsaveis: RespOpt[];
   currentUserId: string | null;
   comentariosCountByCardId: Record<string, number>;
+  filtroTipoChamado?: 'padrao' | 'hdm';
 };
 
 type FiltrosChamados = {
@@ -72,6 +147,8 @@ type FiltrosChamados = {
   tipoF: string;
   kanbanF: string;
   timeF: string;
+  /** Lista de times no filtro: só HDM ou exclui HDM (Homologações, Produto, Modelo Virtual). */
+  timeListaSomenteHdm: boolean;
   respF: string;
   travaF: string;
   busca: string;
@@ -82,17 +159,19 @@ const DEFAULT_FILTROS: FiltrosChamados = {
   tipoF: 'todos',
   kanbanF: 'todos',
   timeF: 'todos',
+  timeListaSomenteHdm: false,
   respF: 'todos',
   travaF: 'todos',
   busca: '',
 };
 
 function countFiltrosAtivos(f: FiltrosChamados): number {
+  const d = DEFAULT_FILTROS;
   let n = 0;
   if (f.statusF !== 'todos') n++;
   if (f.tipoF !== 'todos') n++;
   if (f.kanbanF !== 'todos') n++;
-  if (f.timeF !== 'todos') n++;
+  if (f.timeF !== 'todos' || f.timeListaSomenteHdm !== d.timeListaSomenteHdm) n++;
   if (f.respF !== 'todos') n++;
   if (f.travaF !== 'todos') n++;
   if (f.busca.trim() !== '') n++;
@@ -138,11 +217,6 @@ function subGrupoFluxo(row: InteracaoSireneRow): 'a_fazer' | 'em_andamento' | 'a
   return 'a_fazer';
 }
 
-function grupoLista(row: InteracaoSireneRow): 'trava' | 'a_fazer' | 'em_andamento' | 'aguardando' | 'concluido' {
-  if (row.trava) return 'trava';
-  return subGrupoFluxo(row);
-}
-
 function statusDbParaSelect(s: string): StatusInteracaoDb {
   const x = norm(s);
   if (x === 'concluida' || x === 'concluída') return 'concluida';
@@ -170,14 +244,6 @@ function SelectEscuro(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
     />
   );
 }
-
-const ORDEM_GRUPOS: Array<{ key: 'trava' | 'a_fazer' | 'em_andamento' | 'aguardando' | 'concluido'; titulo: string }> = [
-  { key: 'trava', titulo: 'Com trava' },
-  { key: 'a_fazer', titulo: 'A fazer' },
-  { key: 'em_andamento', titulo: 'Em andamento' },
-  { key: 'aguardando', titulo: 'Aguardando' },
-  { key: 'concluido', titulo: 'Concluído' },
-];
 
 const BOMBEIRO_SENTINEL = '__bombeiro__';
 
@@ -270,7 +336,20 @@ export function InteracoesLista({
   responsaveis,
   currentUserId,
   comentariosCountByCardId,
+  filtroTipoChamado: filtroTipoChamadoProp,
 }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [modalNovoAberto, setModalNovoAberto] = useState(false);
+  const [editingSireneCid, setEditingSireneCid] = useState<number | null>(null);
+  const [editSireneDraft, setEditSireneDraft] = useState<EditSireneDraft | null>(null);
+  const [salvandoSirene, setSalvandoSirene] = useState(false);
+  const [subsOpenByRow, setSubsOpenByRow] = useState<Record<string, boolean>>({});
+  const [topicosByChamado, setTopicosByChamado] = useState<Record<number, TopicoChamadoLinha[]>>({});
+  const [topicosLoading, setTopicosLoading] = useState<Record<number, boolean>>({});
+  const [novoSubPorChamado, setNovoSubPorChamado] = useState<Record<number, NovoSubChamadoDraft>>({});
+  const [salvandoTopico, setSalvandoTopico] = useState<Record<number, boolean>>({});
+
   const [verTodas, setVerTodas] = useState(false);
   const [applied, setApplied] = useState<FiltrosChamados>(DEFAULT_FILTROS);
   const [draft, setDraft] = useState<FiltrosChamados>(DEFAULT_FILTROS);
@@ -300,12 +379,42 @@ export function InteracoesLista({
     setRowPatch({});
     setEditingId(null);
     setEditDraft(null);
+    setEditingSireneCid(null);
+    setEditSireneDraft(null);
+    setSubsOpenByRow({});
+    setTopicosByChamado({});
+    setTopicosLoading({});
+    setNovoSubPorChamado({});
+    setSalvandoTopico({});
     setCommentsOpenByRow({});
     setCommentsFetchedByCard({});
     setCommentsByCardId({});
     setNovoComentarioPorCard({});
     setCountPatch({});
   }, [interacoes]);
+
+  const chamadoIdsPainel = useMemo(
+    () =>
+      [
+        ...new Set(
+          interacoes
+            .filter((r) => r.origem === 'sirene' && r.sirene_chamado_id != null)
+            .map((r) => r.sirene_chamado_id!),
+        ),
+      ],
+    [interacoes],
+  );
+
+  useEffect(() => {
+    for (const cid of chamadoIdsPainel) {
+      void (async () => {
+        setTopicosLoading((l) => ({ ...l, [cid]: true }));
+        const res = await getTopicosChamado(cid);
+        setTopicosLoading((l) => ({ ...l, [cid]: false }));
+        if (res.ok) setTopicosByChamado((m) => ({ ...m, [cid]: res.topicos }));
+      })();
+    }
+  }, [chamadoIdsPainel]);
 
   useEffect(() => {
     if (!filtrosOpen) return;
@@ -346,6 +455,10 @@ export function InteracoesLista({
   const timesById = useMemo(() => new Map(times.map((t) => [t.id, t.nome])), [times]);
 
   const timesParaFiltro = useMemo(() => timesFiltroOpcoesComCatalogoMoni(times), [times]);
+  const timesParaFiltroVisiveis = useMemo(
+    () => filtrarOpcoesTimeIdNomePorHdm(timesParaFiltro, draft.timeListaSomenteHdm),
+    [timesParaFiltro, draft.timeListaSomenteHdm],
+  );
   const responsaveisParaFiltro = useMemo(
     () => responsaveisFiltroOpcoesComCatalogoMoni(responsaveis),
     [responsaveis],
@@ -402,11 +515,40 @@ export function InteracoesLista({
   }, [linhas, verTodas, currentUserId, applied, timesById, nomePorUserId]);
 
   const porGrupo = useMemo(() => {
-    const m = new Map<string, InteracaoSireneRow[]>();
-    for (const g of ORDEM_GRUPOS) m.set(g.key, []);
+    const m = new Map<number, InteracaoSireneRow[]>();
+    for (const g of ORDEM_GRUPOS_PAINEL) m.set(g.key, []);
     for (const row of filtradas) {
-      const k = grupoLista(row);
-      m.get(k)!.push(row);
+      const rk = rankChamadoPainelUnificado({
+        frank_id: row.frank_id,
+        franqueado_nome: row.franqueado_nome,
+        trava: row.trava,
+        data_vencimento: row.data_vencimento,
+        atividade_status: row.atividade_status,
+      });
+      const list = m.get(rk.group);
+      if (list) list.push(row);
+    }
+    for (const g of ORDEM_GRUPOS_PAINEL) {
+      const list = m.get(g.key);
+      if (!list) continue;
+      list.sort((a, b) => {
+        const ra = rankChamadoPainelUnificado({
+          frank_id: a.frank_id,
+          franqueado_nome: a.franqueado_nome,
+          trava: a.trava,
+          data_vencimento: a.data_vencimento,
+          atividade_status: a.atividade_status,
+        });
+        const rb = rankChamadoPainelUnificado({
+          frank_id: b.frank_id,
+          franqueado_nome: b.franqueado_nome,
+          trava: b.trava,
+          data_vencimento: b.data_vencimento,
+          atividade_status: b.atividade_status,
+        });
+        if (ra.dueMs !== rb.dueMs) return ra.dueMs - rb.dueMs;
+        return String(b.criado_em).localeCompare(String(a.criado_em));
+      });
     }
     return m;
   }, [filtradas]);
@@ -424,6 +566,26 @@ export function InteracoesLista({
   }
 
   function abrirEdicao(row: InteracaoSireneRow) {
+    if (row.origem === 'sirene' && row.sirene_chamado_id != null) {
+      setEditingId(null);
+      setEditDraft(null);
+      setEditingSireneCid(row.sirene_chamado_id);
+      const tipoSc = (row.sirene_chamado_tipo ?? 'padrao') === 'hdm' ? 'hdm' : 'padrao';
+      const ehHdm = tipoSc === 'hdm';
+      setEditSireneDraft({
+        incendio: row.titulo,
+        time_abertura: row.sirene_time_abertura ?? '',
+        abertura_responsavel_nome: row.sirene_abertura_responsavel_nome ?? '',
+        data: row.data_vencimento ?? '',
+        trava: row.trava,
+        tipo: tipoSc,
+        hdm_responsavel: row.sirene_hdm_responsavel ?? '',
+        ehHdmListaTimes: ehHdm,
+      });
+      return;
+    }
+    setEditingSireneCid(null);
+    setEditSireneDraft(null);
     const rids = [...(row.responsaveis_ids ?? [])];
     if (row.responsavel_id && !rids.includes(row.responsavel_id)) rids.unshift(row.responsavel_id);
     setEditingId(row.id);
@@ -440,6 +602,25 @@ export function InteracoesLista({
   function cancelarEdicao() {
     setEditingId(null);
     setEditDraft(null);
+    setEditingSireneCid(null);
+    setEditSireneDraft(null);
+  }
+
+  async function carregarTopicosSeNecessario(chamadoId: number, force = false) {
+    if (!force && topicosByChamado[chamadoId] != null && !topicosLoading[chamadoId]) return;
+    setTopicosLoading((l) => ({ ...l, [chamadoId]: true }));
+    const res = await getTopicosChamado(chamadoId);
+    setTopicosLoading((l) => ({ ...l, [chamadoId]: false }));
+    if (res.ok) setTopicosByChamado((m) => ({ ...m, [chamadoId]: res.topicos }));
+    else setMsgErro(res.error);
+  }
+
+  function toggleSubsPainel(row: InteracaoSireneRow) {
+    const cid = row.sirene_chamado_id;
+    if (cid == null) return;
+    const will = !subsOpenByRow[row.id];
+    setSubsOpenByRow((p) => ({ ...p, [row.id]: will }));
+    if (will) void carregarTopicosSeNecessario(cid);
   }
 
   async function salvarEdicao(atividadeId: string) {
@@ -483,6 +664,106 @@ export function InteracoesLista({
     } finally {
       setSalvandoEdicao(false);
     }
+  }
+
+  async function salvarEdicaoSirene(atividadeRowId: string, chamadoId: number) {
+    if (!editSireneDraft) return;
+    if (!editSireneDraft.incendio.trim()) {
+      setMsgErro('Informe o resumo (incêndio).');
+      return;
+    }
+    setMsgErro(null);
+    setSalvandoSirene(true);
+    try {
+      const hdmVal =
+        editSireneDraft.tipo === 'hdm' && editSireneDraft.hdm_responsavel.trim()
+          ? (editSireneDraft.hdm_responsavel.trim() as (typeof TIMES_MONI_HDM)[number])
+          : null;
+      const res = await atualizarChamadoPainelUnificado(chamadoId, {
+        incendio: editSireneDraft.incendio.trim(),
+        time_abertura: editSireneDraft.time_abertura.trim() || null,
+        abertura_responsavel_nome: editSireneDraft.abertura_responsavel_nome.trim() || null,
+        data_vencimento: editSireneDraft.data.trim() || null,
+        trava: editSireneDraft.trava,
+        tipo: editSireneDraft.tipo,
+        hdm_responsavel: hdmVal,
+      });
+      if (!res.ok) {
+        setMsgErro(res.error);
+        return;
+      }
+      const tipoKa = editSireneDraft.tipo === 'hdm' ? 'chamado_hdm' : 'chamado_padrao';
+      setRowPatch((prev) => ({
+        ...prev,
+        [atividadeRowId]: {
+          titulo: editSireneDraft.incendio.trim(),
+          tipo: tipoKa,
+          data_vencimento: editSireneDraft.data.trim() || null,
+          trava: editSireneDraft.trava,
+          sirene_time_abertura: editSireneDraft.time_abertura.trim() || null,
+          sirene_abertura_responsavel_nome: editSireneDraft.abertura_responsavel_nome.trim() || null,
+          sirene_chamado_tipo: editSireneDraft.tipo,
+          sirene_hdm_responsavel:
+            editSireneDraft.tipo === 'hdm' ? editSireneDraft.hdm_responsavel.trim() || null : null,
+        },
+      }));
+      setEditingSireneCid(null);
+      setEditSireneDraft(null);
+    } finally {
+      setSalvandoSirene(false);
+    }
+  }
+
+  function subDraft(chamadoId: number): NovoSubChamadoDraft {
+    return novoSubPorChamado[chamadoId] ?? emptyNovoSubDraft();
+  }
+
+  function setSubDraft(chamadoId: number, patch: Partial<NovoSubChamadoDraft>) {
+    setNovoSubPorChamado((m) => ({
+      ...m,
+      [chamadoId]: { ...subDraft(chamadoId), ...patch },
+    }));
+  }
+
+  async function handleAdicionarTopico(chamadoId: number) {
+    const d = subDraft(chamadoId);
+    const desc = d.descricao.trim();
+    if (!desc) {
+      setMsgErro('Informe a descrição do sub-chamado.');
+      return;
+    }
+    if (d.timesIds.length === 0) {
+      setMsgErro('Selecione ao menos um time.');
+      return;
+    }
+    setSalvandoTopico((s) => ({ ...s, [chamadoId]: true }));
+    setMsgErro(null);
+    const res = await adicionarTopicoChamadoPainel(chamadoId, {
+      descricao: desc,
+      tipo: d.tipo,
+      times_ids: d.timesIds,
+      responsaveis_ids: d.responsaveisIds,
+      data_fim: d.data.trim() || null,
+      trava: d.trava,
+    });
+    setSalvandoTopico((s) => ({ ...s, [chamadoId]: false }));
+    if (!res.ok) {
+      setMsgErro(res.error);
+      return;
+    }
+    setNovoSubPorChamado((m) => ({ ...m, [chamadoId]: emptyNovoSubDraft() }));
+    void carregarTopicosSeNecessario(chamadoId, true);
+  }
+
+  async function handleSubStatusPainel(chamadoId: number, topicoId: number, status: SubInteracaoStatusDb) {
+    setMsgErro(null);
+    const res = await atualizarStatusSubInteracao(topicoId, status, '/sirene/chamados');
+    if (!res.ok) {
+      setMsgErro(res.error);
+      return;
+    }
+    router.refresh();
+    void carregarTopicosSeNecessario(chamadoId, true);
   }
 
   function toggleComentarios(row: InteracaoSireneRow) {
@@ -550,11 +831,51 @@ export function InteracoesLista({
 
   const ativos = countFiltrosAtivos(applied);
 
+  const tipoListaChamadoSirene = filtroTipoChamadoProp
+    ? filtroTipoChamadoProp === 'hdm'
+      ? 'hdm'
+      : 'padrao'
+    : 'todos';
+
+  function setFiltroTipoLista(value: 'todos' | 'padrao' | 'hdm') {
+    const p = new URLSearchParams(searchParams.toString());
+    if (value === 'todos') p.delete('tipo');
+    else p.set('tipo', value);
+    router.push(`/sirene/chamados?${p.toString()}`);
+  }
+
+  const timesSireneEditOpcoes = useMemo(
+    () => [...timesMoniReceberChamadoOpcoes(Boolean(editSireneDraft?.ehHdmListaTimes))],
+    [editSireneDraft?.ehHdmListaTimes],
+  );
+
   const radioRow = 'flex flex-wrap gap-x-4 gap-y-2 text-sm text-stone-200';
   const radioLabel = 'inline-flex cursor-pointer items-center gap-2';
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-6 text-stone-100">
+    <div className="mx-auto max-w-7xl px-4 py-6 text-stone-100">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-stone-400">Chamados Sirene:</span>
+          <select
+            value={tipoListaChamadoSirene}
+            onChange={(e) => setFiltroTipoLista(e.target.value as 'todos' | 'padrao' | 'hdm')}
+            className="rounded-lg border border-stone-600 bg-stone-800 px-3 py-1.5 text-sm text-stone-200"
+          >
+            <option value="todos">Todos</option>
+            <option value="padrao">Padrão</option>
+            <option value="hdm">HDM</option>
+          </select>
+        </div>
+        <button
+          type="button"
+          onClick={() => setModalNovoAberto(true)}
+          className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500"
+        >
+          Novo chamado
+        </button>
+      </div>
+
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative">
           <button
@@ -656,6 +977,18 @@ export function InteracoesLista({
 
                 <SecaoFiltro titulo="Time">
                   <div className="flex max-h-36 flex-col gap-2 overflow-y-auto text-sm text-stone-200">
+                    <label className={`${radioLabel} mb-1 border-b border-stone-600 pb-2`}>
+                      <input
+                        type="checkbox"
+                        className="border-stone-500 text-red-500"
+                        checked={draft.timeListaSomenteHdm}
+                        onChange={(e) => {
+                          const v = e.target.checked;
+                          setDraft((d) => ({ ...d, timeListaSomenteHdm: v, timeF: 'todos' }));
+                        }}
+                      />
+                      Este chamado é HDM?
+                    </label>
                     <label className={radioLabel}>
                       <input
                         type="radio"
@@ -666,7 +999,7 @@ export function InteracoesLista({
                       />
                       Todos
                     </label>
-                    {timesParaFiltro.map((t) => (
+                    {timesParaFiltroVisiveis.map((t) => (
                       <label key={t.id} className={radioLabel}>
                         <input
                           type="radio"
@@ -802,9 +1135,10 @@ export function InteracoesLista({
 
       {pending && <p className="mb-2 text-xs text-stone-500">Salvando status…</p>}
       {salvandoEdicao && <p className="mb-2 text-xs text-stone-500">Salvando chamado…</p>}
+      {salvandoSirene && <p className="mb-2 text-xs text-stone-500">Salvando chamado Sirene…</p>}
 
       <div className="space-y-8">
-        {ORDEM_GRUPOS.map(({ key, titulo }) => {
+        {ORDEM_GRUPOS_PAINEL.map(({ key, titulo }) => {
           const lista = porGrupo.get(key) ?? [];
           if (lista.length === 0) return null;
           return (
@@ -816,7 +1150,7 @@ export function InteracoesLista({
               <ul className="rounded-lg border border-stone-800 bg-stone-900/80">
                 {lista.map((row) => {
                   const tipoB = badgeTipo(row.tipo);
-                  const hrefCard = rotaCardOrigem(row.kanban_nome, row.card_id);
+                  const hrefCard = row.card_id ? rotaCardOrigem(row.kanban_nome, row.card_id) : null;
                   const sel = statusDbParaSelect(row.atividade_status);
                   const idsResp = [...new Set([...(row.responsaveis_ids ?? []), ...(row.responsavel_id ? [row.responsavel_id] : [])])];
 
@@ -833,6 +1167,11 @@ export function InteracoesLista({
                                 Trava
                               </span>
                             )}
+                            {row.sirene_numero != null ? (
+                              <span className="rounded bg-stone-700 px-1.5 py-0.5 text-[10px] font-semibold text-stone-200">
+                                #{row.sirene_numero}
+                              </span>
+                            ) : null}
                             <span className="font-medium text-white">{row.titulo}</span>
                             {ccid ? (
                               <button
@@ -844,6 +1183,16 @@ export function InteracoesLista({
                               >
                                 <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
                                 <span className="min-w-[1.1rem] text-center text-[10px] font-semibold tabular-nums">{cnt}</span>
+                              </button>
+                            ) : null}
+                            {row.origem === 'sirene' && row.sirene_chamado_id != null ? (
+                              <button
+                                type="button"
+                                onClick={() => toggleSubsPainel(row)}
+                                className="rounded border border-stone-600 bg-stone-800 px-1.5 py-0.5 text-[10px] text-stone-300 hover:text-white"
+                                aria-expanded={Boolean(subsOpenByRow[row.id])}
+                              >
+                                Sub-interações
                               </button>
                             ) : null}
                             <button
@@ -859,6 +1208,25 @@ export function InteracoesLista({
                               {tipoB.label}
                             </span>
                           </div>
+                          {row.origem === 'sirene' && row.sirene_chamado_id != null ? (
+                            topicosLoading[row.sirene_chamado_id] ? (
+                              <p className="text-[10px] text-stone-500">Carregando subinterações…</p>
+                            ) : (topicosByChamado[row.sirene_chamado_id] ?? []).length > 0 ? (
+                              <SubInteracaoLista
+                                variant="sirene"
+                                items={(topicosByChamado[row.sirene_chamado_id] ?? []).map((t) =>
+                                  mapRawTopicoToListaItem({
+                                    id: t.id,
+                                    tipo: t.tipo,
+                                    descricao: t.descricao,
+                                    status: t.status,
+                                    data_fim: t.data_fim,
+                                    trava: t.trava,
+                                  }),
+                                )}
+                              />
+                            ) : null
+                          ) : null}
                           {(row.franqueado_nome ?? '').trim() ? (
                             <div className="flex items-center gap-1 text-xs text-stone-400">
                               <User className="h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -872,12 +1240,14 @@ export function InteracoesLista({
                             </span>
                           </div>
                           <div className="flex flex-wrap items-center gap-2 text-xs text-stone-400">
-                            <Link
-                              href={hrefCard}
-                              className="rounded border border-stone-600 bg-stone-800/80 px-2 py-0.5 text-stone-200 underline-offset-2 hover:text-white hover:underline"
-                            >
-                              Card: {row.card_titulo?.trim() || '—'}
-                            </Link>
+                            {ccid && hrefCard ? (
+                              <Link
+                                href={hrefCard}
+                                className="rounded border border-stone-600 bg-stone-800/80 px-2 py-0.5 text-stone-200 underline-offset-2 hover:text-white hover:underline"
+                              >
+                                Card: {row.card_titulo?.trim() || '—'}
+                              </Link>
+                            ) : null}
                             <span className="rounded bg-stone-600/80 px-1.5 py-0.5 text-[10px] text-stone-200">{row.kanban_nome}</span>
                             {parseTimesNomes(row.times_nomes).map((tn) => (
                               <span key={tn} className="rounded bg-stone-700 px-1.5 py-0.5 text-[10px] text-stone-300">
@@ -1054,6 +1424,192 @@ export function InteracoesLista({
                         </div>
                       ) : null}
 
+                      {row.sirene_chamado_id != null &&
+                      editingSireneCid === row.sirene_chamado_id &&
+                      editSireneDraft ? (
+                        <div className="mt-3 space-y-3 border-t border-stone-800 pt-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                            Chamado Sirene
+                          </p>
+                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                            Incêndio (resumo)
+                            <textarea
+                              value={editSireneDraft.incendio}
+                              onChange={(e) =>
+                                setEditSireneDraft((d) => (d ? { ...d, incendio: e.target.value } : d))
+                              }
+                              rows={3}
+                              className="mt-1 w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
+                            />
+                          </label>
+                          <label className="flex cursor-pointer items-center gap-2 text-sm text-stone-300">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-stone-500"
+                              checked={editSireneDraft.ehHdmListaTimes}
+                              onChange={(e) => {
+                                const eh = e.target.checked;
+                                setEditSireneDraft((d) => {
+                                  if (!d) return d;
+                                  const op = [...timesMoniReceberChamadoOpcoes(eh)];
+                                  let time_abertura = d.time_abertura;
+                                  let abertura_responsavel_nome = d.abertura_responsavel_nome;
+                                  if (!time_abertura || !op.includes(time_abertura)) {
+                                    time_abertura = '';
+                                    abertura_responsavel_nome = '';
+                                  } else if (!responsaveisDoTimeMoni(time_abertura).includes(abertura_responsavel_nome)) {
+                                    abertura_responsavel_nome = '';
+                                  }
+                                  return { ...d, ehHdmListaTimes: eh, time_abertura, abertura_responsavel_nome };
+                                });
+                              }}
+                            />
+                            Este chamado é HDM?
+                          </label>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                              Time (abertura)
+                              <select
+                                value={editSireneDraft.time_abertura}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setEditSireneDraft((d) =>
+                                    d
+                                      ? {
+                                          ...d,
+                                          time_abertura: v,
+                                          abertura_responsavel_nome: responsaveisDoTimeMoni(v).includes(
+                                            d.abertura_responsavel_nome,
+                                          )
+                                            ? d.abertura_responsavel_nome
+                                            : '',
+                                          tipo: v && isNomeTimeMoniHdm(v) ? 'hdm' : d.tipo,
+                                          ehHdmListaTimes: v ? isNomeTimeMoniHdm(v) : d.ehHdmListaTimes,
+                                        }
+                                      : d,
+                                  );
+                                }}
+                                className="mt-1 w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
+                              >
+                                <option value="">Selecione</option>
+                                {timesSireneEditOpcoes.map((t) => (
+                                  <option key={t} value={t}>
+                                    {t}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                              Responsável (abertura)
+                              <select
+                                value={editSireneDraft.abertura_responsavel_nome}
+                                onChange={(e) =>
+                                  setEditSireneDraft((d) =>
+                                    d ? { ...d, abertura_responsavel_nome: e.target.value } : d,
+                                  )
+                                }
+                                disabled={!editSireneDraft.time_abertura}
+                                className="mt-1 w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100 disabled:opacity-50"
+                              >
+                                <option value="">—</option>
+                                {responsaveisDoTimeMoni(editSireneDraft.time_abertura).map((n) => (
+                                  <option key={n} value={n}>
+                                    {n}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
+                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                            Prazo
+                            <input
+                              type="date"
+                              value={editSireneDraft.data}
+                              onChange={(e) =>
+                                setEditSireneDraft((d) => (d ? { ...d, data: e.target.value } : d))
+                              }
+                              className="mt-1 w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
+                            />
+                          </label>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                              Tipo chamado
+                              <SelectEscuro
+                                value={editSireneDraft.tipo}
+                                onChange={(e) => {
+                                  const v = e.target.value as 'padrao' | 'hdm';
+                                  setEditSireneDraft((d) =>
+                                    d
+                                      ? {
+                                          ...d,
+                                          tipo: v,
+                                          hdm_responsavel: v === 'hdm' ? d.hdm_responsavel : '',
+                                        }
+                                      : d,
+                                  );
+                                }}
+                                className="mt-1 w-full"
+                              >
+                                <option value="padrao">Padrão</option>
+                                <option value="hdm">HDM</option>
+                              </SelectEscuro>
+                            </label>
+                            {editSireneDraft.tipo === 'hdm' ? (
+                              <label className="block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                                Time HDM
+                                <SelectEscuro
+                                  value={editSireneDraft.hdm_responsavel}
+                                  onChange={(e) =>
+                                    setEditSireneDraft((d) =>
+                                      d ? { ...d, hdm_responsavel: e.target.value } : d,
+                                    )
+                                  }
+                                  className="mt-1 w-full"
+                                >
+                                  <option value="">—</option>
+                                  {TIMES_MONI_HDM.map((n) => (
+                                    <option key={n} value={n}>
+                                      {n}
+                                    </option>
+                                  ))}
+                                </SelectEscuro>
+                              </label>
+                            ) : (
+                              <span />
+                            )}
+                          </div>
+                          <label className="flex cursor-pointer items-center gap-2 text-sm text-stone-300">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-stone-500"
+                              checked={editSireneDraft.trava}
+                              onChange={(e) =>
+                                setEditSireneDraft((d) => (d ? { ...d, trava: e.target.checked } : d))
+                              }
+                            />
+                            Trava
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={salvandoSirene}
+                              onClick={() => void salvarEdicaoSirene(row.id, row.sirene_chamado_id!)}
+                              className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
+                            >
+                              {salvandoSirene ? 'Salvando…' : 'Salvar'}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={salvandoSirene}
+                              onClick={cancelarEdicao}
+                              className="rounded-lg border border-stone-600 px-3 py-1.5 text-sm text-stone-200 hover:bg-stone-800"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+
                       {commentsOpenByRow[row.id] && ccid ? (
                         <div className="mt-3 border-t border-stone-800 pt-3">
                           <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-stone-500">
@@ -1120,6 +1676,200 @@ export function InteracoesLista({
                           </div>
                         </div>
                       ) : null}
+
+                      {row.origem === 'sirene' && row.sirene_chamado_id != null && subsOpenByRow[row.id] ? (
+                        <div className="mt-3 border-t border-stone-800 pt-3">
+                          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                            Gerir subinterações
+                          </p>
+                          {topicosLoading[row.sirene_chamado_id] ? (
+                            <p className="text-xs text-stone-500">Carregando…</p>
+                          ) : (
+                            <ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm text-stone-200">
+                              {(topicosByChamado[row.sirene_chamado_id] ?? []).map((t) => (
+                                <li
+                                  key={t.id}
+                                  className="rounded border border-stone-700 bg-stone-950/50 px-2 py-2 text-xs"
+                                >
+                                  <div className="flex flex-wrap items-start justify-between gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <p className="font-medium text-stone-100">{t.descricao}</p>
+                                      <p className="mt-1 text-[10px] text-stone-500">
+                                        Time: {t.time_responsavel}
+                                        {t.data_fim ? ` · Prazo ${t.data_fim.split('-').reverse().join('/')}` : ''}
+                                      </p>
+                                    </div>
+                                    <SelectEscuro
+                                      value={t.status}
+                                      onChange={(e) =>
+                                        void handleSubStatusPainel(
+                                          row.sirene_chamado_id!,
+                                          t.id,
+                                          e.target.value as SubInteracaoStatusDb,
+                                        )
+                                      }
+                                      className="min-w-[7.5rem] text-[10px]"
+                                      aria-label="Status do sub-chamado"
+                                    >
+                                      <option value="nao_iniciado">Não iniciado</option>
+                                      <option value="em_andamento">Em andamento</option>
+                                      <option value="concluido">Concluído</option>
+                                      <option value="aprovado">Aprovado</option>
+                                    </SelectEscuro>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {(() => {
+                            const cid = row.sirene_chamado_id!;
+                            const d = subDraft(cid);
+                            const timesOpts = filtrarOpcoesTimeIdNomePorHdm(
+                              times,
+                              d.tipo === 'chamado' && d.ehHdm,
+                            );
+                            return (
+                              <div className="space-y-2 border-t border-stone-800 pt-3">
+                                <p className="text-[10px] font-semibold text-stone-400">Novo sub-chamado</p>
+                                <div>
+                                  <span className="mb-1 block text-[10px] font-medium text-stone-500">
+                                    Tipo (obrigatório)
+                                  </span>
+                                  <SelectEscuro
+                                    value={d.tipo}
+                                    onChange={(e) => {
+                                      const v = e.target.value as SubInteracaoTipoDb;
+                                      const ehNext = v === 'chamado' ? d.ehHdm : false;
+                                      const allowed = new Set(
+                                        filtrarOpcoesTimeIdNomePorHdm(times, v === 'chamado' && ehNext).map(
+                                          (x) => x.id,
+                                        ),
+                                      );
+                                      setSubDraft(cid, {
+                                        tipo: v,
+                                        ehHdm: ehNext,
+                                        timesIds: d.timesIds.filter((id) => allowed.has(id)),
+                                      });
+                                    }}
+                                    className="w-full text-xs"
+                                  >
+                                    <option value="atividade">Atividade</option>
+                                    <option value="duvida">Dúvida</option>
+                                    <option value="chamado">Chamado</option>
+                                  </SelectEscuro>
+                                </div>
+                                <input
+                                  type="text"
+                                  value={d.descricao}
+                                  onChange={(e) => setSubDraft(cid, { descricao: e.target.value })}
+                                  placeholder="Descrição (obrigatório)"
+                                  className="w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
+                                />
+                                <input
+                                  type="date"
+                                  value={d.data}
+                                  onChange={(e) => setSubDraft(cid, { data: e.target.value })}
+                                  className="w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
+                                />
+                                {d.tipo === 'chamado' ? (
+                                  <label className="flex cursor-pointer items-center gap-2 text-[11px] text-stone-300">
+                                    <input
+                                      type="checkbox"
+                                      className="h-3.5 w-3.5 rounded border-stone-500"
+                                      checked={d.ehHdm}
+                                      onChange={(e) => {
+                                        const eh = e.target.checked;
+                                        setSubDraft(cid, {
+                                          ehHdm: eh,
+                                          timesIds: d.timesIds.filter((id) =>
+                                            filtrarOpcoesTimeIdNomePorHdm(times, d.tipo === 'chamado' && eh).some(
+                                              (x) => x.id === id,
+                                            ),
+                                          ),
+                                        });
+                                      }}
+                                    />
+                                    Este chamado é HDM?
+                                  </label>
+                                ) : null}
+                                <div>
+                                  <span className="mb-1 block text-[10px] text-stone-500">Times</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {timesOpts.map((topt) => {
+                                      const on = d.timesIds.includes(topt.id);
+                                      return (
+                                        <button
+                                          key={topt.id}
+                                          type="button"
+                                          onClick={() =>
+                                            setSubDraft(cid, {
+                                              timesIds: on
+                                                ? d.timesIds.filter((x) => x !== topt.id)
+                                                : [...d.timesIds, topt.id],
+                                            })
+                                          }
+                                          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                            on ? 'bg-stone-100 text-stone-900' : 'bg-stone-800 text-stone-300'
+                                          }`}
+                                        >
+                                          {topt.nome}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                                <div>
+                                  <span className="mb-1 block text-[10px] text-stone-500">Responsáveis</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {responsaveis.map((p) => {
+                                      const on = d.responsaveisIds.includes(p.id);
+                                      return (
+                                        <button
+                                          key={p.id}
+                                          type="button"
+                                          onClick={() =>
+                                            setSubDraft(cid, {
+                                              responsaveisIds: on
+                                                ? d.responsaveisIds.filter((x) => x !== p.id)
+                                                : [...d.responsaveisIds, p.id],
+                                            })
+                                          }
+                                          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                            on ? 'bg-stone-100 text-stone-900' : 'bg-stone-800 text-stone-300'
+                                          }`}
+                                        >
+                                          {p.nome}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                                <label className="flex cursor-pointer items-center gap-2 text-[11px] text-stone-300">
+                                  <input
+                                    type="checkbox"
+                                    className="h-3.5 w-3.5 rounded border-stone-500"
+                                    checked={d.trava}
+                                    onChange={(e) => setSubDraft(cid, { trava: e.target.checked })}
+                                  />
+                                  Trava — estou bloqueado até este sub-chamado ser concluído
+                                </label>
+                                <button
+                                  type="button"
+                                  disabled={
+                                    Boolean(salvandoTopico[cid]) ||
+                                    !d.descricao.trim() ||
+                                    d.timesIds.length === 0
+                                  }
+                                  onClick={() => void handleAdicionarTopico(cid)}
+                                  className="rounded-lg bg-stone-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-stone-500 disabled:opacity-50"
+                                >
+                                  {salvandoTopico[cid] ? '…' : '+ Adicionar subinteração'}
+                                </button>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      ) : null}
                     </li>
                   );
                 })}
@@ -1132,6 +1882,16 @@ export function InteracoesLista({
       {filtradas.length === 0 && (
         <p className="mt-8 text-center text-sm text-stone-500">Nenhum chamado com os filtros atuais.</p>
       )}
-    </main>
+
+      {modalNovoAberto ? (
+        <ModalNovoChamado
+          onClose={() => setModalNovoAberto(false)}
+          onSuccess={() => {
+            setModalNovoAberto(false);
+            router.refresh();
+          }}
+        />
+      ) : null}
+    </div>
   );
 }
