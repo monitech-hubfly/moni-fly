@@ -29,11 +29,23 @@ export function NovoCardModal({
   const [franqueadoRedeId, setFranqueadoRedeId] = useState('');
   const [faseId, setFaseId] = useState('');
   const [fases, setFases] = useState<Fase[]>([]);
+  const [nomeCondominio, setNomeCondominio] = useState('');
+  const [quadra, setQuadra] = useState('');
+  const [lote, setLote] = useState('');
+  const [tituloPreview, setTituloPreview] = useState('');
 
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const nFranquiaSelected = franqueados.find((f) => f.id === franqueadoRedeId)?.n_franquia ?? '';
+    const partes = [nFranquiaSelected, franqueadoNome, nomeCondominio.trim(), quadra.trim(), lote.trim()].filter(
+      Boolean,
+    );
+    setTituloPreview(partes.join(' - '));
+  }, [franqueadoRedeId, franqueadoNome, franqueados, nomeCondominio, quadra, lote]);
 
   async function loadData() {
     try {
@@ -81,8 +93,7 @@ export function NovoCardModal({
       } = await supabase.auth.getUser();
       if (!user) throw new Error('Não autenticado');
 
-      const nFranquiaSelected = franqueados.find((f) => f.id === franqueadoRedeId)?.n_franquia ?? '';
-      const tituloAuto = `${nFranquiaSelected} - ${franqueadoNome}`;
+      const tituloAuto = tituloPreview || franqueadoNome;
 
       const { error } = await supabase.from('kanban_cards').insert({
         kanban_id: kanbanId,
@@ -104,10 +115,6 @@ export function NovoCardModal({
       setLoading(false);
     }
   }
-
-  // Preview do título
-  const nFranquiaPreview = franqueados.find((f) => f.id === franqueadoRedeId)?.n_franquia ?? '';
-  const tituloPreview = `${nFranquiaPreview} - ${franqueadoNome}`;
 
   return (
     <div
@@ -172,6 +179,48 @@ export function NovoCardModal({
               </select>
             </div>
 
+            <div>
+              <label className="block text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                Nome do Condomínio <span className="text-stone-400 text-xs">(opcional)</span>
+              </label>
+              <input
+                type="text"
+                value={nomeCondominio}
+                onChange={(e) => setNomeCondominio(e.target.value)}
+                placeholder="Ex: Condomínio Alphaville"
+                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                disabled={loading}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                  Quadra <span className="text-stone-400 text-xs">(opcional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={quadra}
+                  onChange={(e) => setQuadra(e.target.value)}
+                  placeholder="Ex: A"
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                  disabled={loading}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                  Lote <span className="text-stone-400 text-xs">(opcional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={lote}
+                  onChange={(e) => setLote(e.target.value)}
+                  placeholder="Ex: 12"
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                  disabled={loading}
+                />
+              </div>
+            </div>
+
             {/* Campo Fase Inicial */}
             <div>
               <label htmlFor="fase" className="block text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
@@ -210,7 +259,7 @@ export function NovoCardModal({
                 PREVIEW DO TÍTULO
               </p>
               <p className="text-sm font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-                {franqueadoRedeId && faseId ? tituloPreview : 'Selecione os campos acima'}
+                {tituloPreview || 'Preencha os campos acima'}
               </p>
               <p className="mt-1 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
                 O título será gerado automaticamente ao criar o card

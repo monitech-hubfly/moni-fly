@@ -1683,6 +1683,38 @@ export function KanbanCardModal({
         })
         .eq('id', pid);
       if (error) throw error;
+
+      if (origem === 'nativo' && card && negocioDraft.nome_condominio !== undefined) {
+        const { data: cardData } = await supabase
+          .from('kanban_cards')
+          .select('titulo, rede_franqueado_id')
+          .eq('id', card.id)
+          .maybeSingle();
+        if (cardData) {
+          const redeFk = (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id;
+          if (redeFk) {
+            const { data: redeData } = await supabase
+              .from('rede_franqueados')
+              .select('n_franquia, nome_completo')
+              .eq('id', redeFk)
+              .maybeSingle();
+            if (redeData) {
+              const partes = [
+                String((redeData as { n_franquia?: string | null }).n_franquia ?? ''),
+                String((redeData as { nome_completo?: string | null }).nome_completo ?? ''),
+                negocioDraft.nome_condominio?.trim() ?? '',
+                negocioDraft.quadra?.trim() ?? '',
+                negocioDraft.lote?.trim() ?? '',
+              ].filter(Boolean);
+              const novoTitulo = partes.join(' - ');
+              if (novoTitulo) {
+                await supabase.from('kanban_cards').update({ titulo: novoTitulo }).eq('id', card.id);
+              }
+            }
+          }
+        }
+      }
+
       setEditandoNegocio(false);
       await loadCard();
     } catch {
