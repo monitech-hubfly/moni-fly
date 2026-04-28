@@ -179,7 +179,8 @@ export async function fetchKanbanBoardSnapshot(
       arquivado,
       motivo_arquivamento,
       concluido,
-      concluido_em
+      concluido_em,
+      rede_franqueado_id
     `;
 
   let cardsRaw: unknown[] = [];
@@ -237,8 +238,23 @@ export async function fetchKanbanBoardSnapshot(
     });
   }
 
+  const redeIdsDiretos = [
+    ...new Set([
+      ...(cardsRaw?.map((c) => (c as { rede_franqueado_id?: string | null }).rede_franqueado_id) ?? []).filter(Boolean),
+      ...(conclRaw?.map((c) => (c as { rede_franqueado_id?: string | null }).rede_franqueado_id) ?? []).filter(Boolean),
+    ]),
+  ] as string[];
+  const redeNomeDiretoMap = new Map<string, string>();
+  if (redeIdsDiretos.length > 0) {
+    const { data: redes } = await supabase.from('rede_franqueados').select('id, nome_completo').in('id', redeIdsDiretos);
+    (redes ?? []).forEach((r) => {
+      if (r.nome_completo) redeNomeDiretoMap.set(String(r.id), String(r.nome_completo));
+    });
+  }
+
   const mapNativo = (c: Record<string, unknown>): KanbanCardBrief => {
     const fid = String(c.franqueado_id ?? '');
+    const redeId = String((c as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '');
     return {
       id: String(c.id),
       titulo: String(c.titulo ?? ''),
@@ -254,9 +270,11 @@ export async function fetchKanbanBoardSnapshot(
           ? String((c as { concluido_em?: string | null }).concluido_em)
           : null,
       origem: 'nativo',
-      profiles: redeNomeMapNativo.has(fid)
-        ? { full_name: redeNomeMapNativo.get(fid) ?? null }
-        : (profilesMap.get(fid) ?? null),
+      profiles: redeNomeDiretoMap.has(redeId)
+        ? { full_name: redeNomeDiretoMap.get(redeId) ?? null }
+        : redeNomeMapNativo.has(fid)
+          ? { full_name: redeNomeMapNativo.get(fid) ?? null }
+          : (profilesMap.get(fid) ?? null),
     };
   };
 
