@@ -316,6 +316,41 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
   return { ok: true };
 }
 
+export async function editarSubInteracao(
+  topicoId: string,
+  payload: {
+    descricao: string;
+    tipo: SubInteracaoTipoDb;
+    times_ids: string[];
+    responsaveis_ids: string[];
+    data_fim: string | null;
+    trava: boolean;
+    tema: string;
+  },
+  basePath?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('sirene_topicos')
+      .update({
+        descricao: payload.descricao.trim(),
+        tipo: payload.tipo,
+        times_ids: payload.times_ids,
+        responsaveis_ids: payload.responsaveis_ids,
+        data_fim: payload.data_fim?.trim() || null,
+        trava: payload.trava,
+        tema: payload.tema,
+      })
+      .eq('id', topicoId);
+    if (error) return { ok: false, error: error.message };
+    revalidatePath(basePath ?? '/');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
 export async function atualizarStatusSubInteracao(
   id: number | string,
   status: SubInteracaoStatusDb,

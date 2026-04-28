@@ -862,6 +862,8 @@ export type AtualizarChamadoPainelInput = {
   trava: boolean;
   tipo: 'padrao' | 'hdm';
   hdm_responsavel: HdmTime | null;
+  times_ids?: string[];
+  responsaveis_ids?: string[];
 };
 
 /** Edição inline na lista unificada: atualiza sirene_chamados e espelho em kanban_atividades. */
@@ -917,15 +919,19 @@ export async function atualizarChamadoPainelUnificado(
   if (scErr) return { ok: false, error: scErr.message };
 
   const admin = createAdminClient();
-  let timesIdsKa: string[] = [];
+  let timesIdsKa: string[] = dados.times_ids ?? [];
   let timeCol: string | null = null;
-  if (timeAb) {
+  if (timesIdsKa.length === 0 && timeAb) {
     const { data: trow } = await admin.from('kanban_times').select('id').eq('nome', timeAb).maybeSingle();
     if (trow && (trow as { id?: string }).id) {
       timesIdsKa = [String((trow as { id: string }).id)];
       timeCol = timeAb;
     }
+  } else if (timesIdsKa.length > 0) {
+    const { data: trow } = await admin.from('kanban_times').select('nome').eq('id', timesIdsKa[0]!).maybeSingle();
+    timeCol = String((trow as { nome?: string } | null)?.nome ?? '').trim() || null;
   }
+  const respIdsKa: string[] = dados.responsaveis_ids ?? [];
   const tipoKa = tipo === 'hdm' ? 'chamado_hdm' : 'chamado_padrao';
   const { error: kaErr } = await admin
     .from('kanban_atividades')
@@ -937,6 +943,7 @@ export async function atualizarChamadoPainelUnificado(
       times_ids: timesIdsKa,
       time: timeCol,
       responsavel_nome_texto: respAb,
+      ...(respIdsKa.length > 0 ? { responsaveis_ids: respIdsKa } : {}),
       updated_at: new Date().toISOString(),
     })
     .eq('sirene_chamado_id', chamadoId);
@@ -1035,6 +1042,40 @@ export async function adicionarTopicoChamadoPainel(
   revalidatePath('/sirene/chamados');
   revalidatePath(`/sirene/${chamadoId}`);
   return { ok: true };
+}
+
+export async function editarTopico(
+  topicoId: number,
+  payload: {
+    descricao: string;
+    tipo: SubInteracaoTipoDb;
+    times_ids: string[];
+    responsaveis_ids: string[];
+    data_fim: string | null;
+    trava: boolean;
+    tema: string;
+  },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const admin = createAdminClient();
+    const dataFim = payload.data_fim?.trim() || null;
+    const { error } = await admin
+      .from('sirene_topicos')
+      .update({
+        descricao: payload.descricao.trim(),
+        tipo: payload.tipo,
+        times_ids: payload.times_ids,
+        responsaveis_ids: payload.responsaveis_ids,
+        data_fim: dataFim,
+        trava: payload.trava,
+        tema: payload.tema,
+      })
+      .eq('id', topicoId);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
 }
 
 /** Salvar resolução pontual do chamado. canActAsBombeiro. */
