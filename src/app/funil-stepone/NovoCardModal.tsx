@@ -106,6 +106,27 @@ export function NovoCardModal({
 
       if (error) throw error;
 
+      if (nomeCondominio.trim() || quadra.trim() || lote.trim()) {
+        const { data: cardCriado } = await supabase
+          .from('kanban_cards')
+          .select('id')
+          .eq('kanban_id', kanbanId)
+          .eq('titulo', tituloAuto)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (cardCriado) {
+          await supabase
+            .from('kanban_cards')
+            .update({
+              nome_condominio: nomeCondominio.trim() || null,
+              quadra: quadra.trim() || null,
+              lote: lote.trim() || null,
+            })
+            .eq('id', (cardCriado as { id: string }).id);
+        }
+      }
+
       router.refresh();
       onClose();
     } catch (err) {

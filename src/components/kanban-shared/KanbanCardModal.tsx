@@ -130,6 +130,9 @@ type Card = {
   fase_id: string;
   franqueado_id: string;
   kanban_id: string;
+  nome_condominio?: string | null;
+  quadra?: string | null;
+  lote?: string | null;
   /** Preenchido quando o card veio da view `v_processo_como_kanban_cards`. */
   etapa_slug?: string | null;
   /** Nativo: finalização explícita (`finalizarCard`). */
@@ -587,6 +590,9 @@ export function KanbanCardModal({
         concluido?: boolean;
         concluido_em?: string | null;
         arquivado?: boolean;
+        nome_condominio?: string | null;
+        quadra?: string | null;
+        lote?: string | null;
         processo_meta?: Card['processo_meta'];
       };
 
@@ -655,7 +661,7 @@ export function KanbanCardModal({
         const { data: cardData, error: cardError } = await supabase
           .from('kanban_cards')
           .select(
-            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id',
+            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, quadra, lote',
           )
           .eq('id', cardId)
           .single();
@@ -679,6 +685,9 @@ export function KanbanCardModal({
           concluido: Boolean((cardData as { concluido?: boolean | null }).concluido),
           concluido_em: ccem != null && String(ccem).trim() !== '' ? String(ccem) : null,
           arquivado: Boolean((cardData as { arquivado?: boolean | null }).arquivado),
+          nome_condominio: (cardData as { nome_condominio?: string | null }).nome_condominio ?? null,
+          quadra: (cardData as { quadra?: string | null }).quadra ?? null,
+          lote: (cardData as { lote?: string | null }).lote ?? null,
         };
         nativeRedeFranqueadoId =
           (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? null;
@@ -702,6 +711,9 @@ export function KanbanCardModal({
         fase_id: loaded.fase_id,
         franqueado_id: loaded.franqueado_id,
         kanban_id: loaded.kanban_id,
+        nome_condominio: loaded.nome_condominio ?? null,
+        quadra: loaded.quadra ?? null,
+        lote: loaded.lote ?? null,
         etapa_slug: loaded.etapa_slug,
         concluido: loaded.concluido ?? false,
         concluido_em: loaded.concluido_em ?? null,
@@ -1665,24 +1677,38 @@ export function KanbanCardModal({
 
   async function handleSalvarNegocio() {
     const pid = modalDetalhes.processo?.id;
-    if (!pid) return;
     setSalvandoNegocio(true);
     try {
       const supabase = createClient();
-      const { error } = await supabase
-        .from('processo_step_one')
-        .update({
-          tipo_aquisicao_terreno: negocioDraft.tipo_aquisicao_terreno || null,
-          valor_terreno: negocioDraft.valor_terreno || null,
-          vgv_pretendido: negocioDraft.vgv_pretendido || null,
-          produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
-          link_pasta_drive: negocioDraft.link_pasta_drive || null,
-          nome_condominio: negocioDraft.nome_condominio || null,
-          quadra: negocioDraft.quadra || null,
-          lote: negocioDraft.lote || null,
-        })
-        .eq('id', pid);
-      if (error) throw error;
+      if (pid) {
+        const { error } = await supabase
+          .from('processo_step_one')
+          .update({
+            tipo_aquisicao_terreno: negocioDraft.tipo_aquisicao_terreno || null,
+            valor_terreno: negocioDraft.valor_terreno || null,
+            vgv_pretendido: negocioDraft.vgv_pretendido || null,
+            produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
+            link_pasta_drive: negocioDraft.link_pasta_drive || null,
+            nome_condominio: negocioDraft.nome_condominio || null,
+            quadra: negocioDraft.quadra || null,
+            lote: negocioDraft.lote || null,
+          })
+          .eq('id', pid);
+        if (error) throw error;
+      } else if (origem === 'nativo' && card) {
+        const { error } = await supabase
+          .from('kanban_cards')
+          .update({
+            nome_condominio: negocioDraft.nome_condominio?.trim() || null,
+            quadra: negocioDraft.quadra?.trim() || null,
+            lote: negocioDraft.lote?.trim() || null,
+          })
+          .eq('id', card.id);
+        if (error) throw error;
+      } else {
+        alert('Sem processo vinculado para salvar dados do negócio.');
+        return;
+      }
 
       if (origem === 'nativo' && card && negocioDraft.nome_condominio !== undefined) {
         const { data: cardData } = await supabase
@@ -4202,7 +4228,100 @@ export function KanbanCardModal({
               'Dados do Negócio',
               <div className="space-y-2">
                 {!proc ? (
-                  <p className="text-xs text-stone-500">Sem processo vinculado — dados de negócio indisponíveis.</p>
+                  origem === 'nativo' && card ? (
+                    editandoNegocio ? (
+                      <div className="space-y-2">
+                        <p className="text-[11px] text-stone-500">
+                          Card sem processo vinculado — edite condomínio, quadra e lote no próprio card.
+                        </p>
+                        <label className="block">
+                          <span className="text-[11px] font-medium text-stone-500">Nome do Condomínio</span>
+                          <input
+                            type="text"
+                            value={negocioDraft.nome_condominio}
+                            onChange={(e) => setNegocioDraft((d) => ({ ...d, nome_condominio: e.target.value }))}
+                            className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                          />
+                        </label>
+                        <div className="grid grid-cols-2 gap-x-2">
+                          <label className="block">
+                            <span className="text-[11px] font-medium text-stone-500">Quadra</span>
+                            <input
+                              type="text"
+                              value={negocioDraft.quadra}
+                              onChange={(e) => setNegocioDraft((d) => ({ ...d, quadra: e.target.value }))}
+                              className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="text-[11px] font-medium text-stone-500">Lote</span>
+                            <input
+                              type="text"
+                              value={negocioDraft.lote}
+                              onChange={(e) => setNegocioDraft((d) => ({ ...d, lote: e.target.value }))}
+                              className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                            />
+                          </label>
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => void handleSalvarNegocio()}
+                            disabled={salvandoNegocio}
+                            className="rounded bg-moni-primary px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+                          >
+                            {salvandoNegocio ? 'Salvando…' : 'Salvar'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditandoNegocio(false)}
+                            disabled={salvandoNegocio}
+                            className="rounded border border-stone-200 px-3 py-1 text-xs text-stone-600 disabled:opacity-50"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <div className="text-[11px] font-medium text-stone-500">Nome do Condomínio</div>
+                          <div className="text-xs text-stone-800">{displayOrDash(card.nome_condominio)}</div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] font-medium text-stone-500">Quadra</div>
+                          <div className="text-xs text-stone-800">{displayOrDash(card.quadra)}</div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] font-medium text-stone-500">Lote</div>
+                          <div className="text-xs text-stone-800">{displayOrDash(card.lote)}</div>
+                        </div>
+                        {modalSessao.ehAdminOuTeam ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNegocioDraft({
+                                tipo_aquisicao_terreno: '',
+                                valor_terreno: '',
+                                vgv_pretendido: '',
+                                produto_modelo_casa: '',
+                                link_pasta_drive: '',
+                                nome_condominio: card.nome_condominio ?? '',
+                                quadra: card.quadra ?? '',
+                                lote: card.lote ?? '',
+                              });
+                              setEditandoNegocio(true);
+                            }}
+                            className="mt-1 rounded border border-stone-200 px-3 py-1 text-xs text-stone-600 hover:bg-stone-50"
+                          >
+                            Editar dados do negócio
+                          </button>
+                        ) : null}
+                      </>
+                    )
+                  ) : (
+                    <p className="text-xs text-stone-500">Sem processo vinculado — dados de negócio indisponíveis.</p>
+                  )
                 ) : editandoNegocio ? (
                   <div className="space-y-2">
                     <div className="grid grid-cols-2 gap-x-2 gap-y-2">
