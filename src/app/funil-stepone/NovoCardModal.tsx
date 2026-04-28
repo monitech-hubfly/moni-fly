@@ -41,11 +41,9 @@ export function NovoCardModal({
 
   useEffect(() => {
     const nFranquiaSelected = franqueados.find((f) => f.id === franqueadoRedeId)?.n_franquia ?? '';
-    const partes = [nFranquiaSelected, franqueadoNome, nomeCondominio.trim(), quadra.trim(), lote.trim()].filter(
-      Boolean,
-    );
+    const partes = [nFranquiaSelected, nomeCondominio.trim(), quadra.trim(), lote.trim()].filter(Boolean);
     setTituloPreview(partes.join(' - '));
-  }, [franqueadoRedeId, franqueadoNome, franqueados, nomeCondominio, quadra, lote]);
+  }, [franqueadoRedeId, franqueados, nomeCondominio, quadra, lote]);
 
   async function loadData() {
     try {
@@ -93,7 +91,9 @@ export function NovoCardModal({
       } = await supabase.auth.getUser();
       if (!user) throw new Error('Não autenticado');
 
-      const tituloAuto = tituloPreview || franqueadoNome;
+      const nFranquiaSelected = franqueados.find((f) => f.id === franqueadoRedeId)?.n_franquia ?? '';
+      const partes = [nFranquiaSelected, nomeCondominio.trim(), quadra.trim(), lote.trim()].filter(Boolean);
+      const tituloAuto = partes.join(' - ');
 
       const { error } = await supabase.from('kanban_cards').insert({
         kanban_id: kanbanId,
