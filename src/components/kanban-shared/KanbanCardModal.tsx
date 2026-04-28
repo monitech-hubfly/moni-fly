@@ -26,18 +26,23 @@ import {
   arquivarCard,
   atualizarStatusSubInteracao,
   buscarCardsParaVinculo,
+  criarTagKanban,
   criarInteracao,
   criarSubInteracao,
   criarVinculoCard,
+  desvincularTagCard,
   editarInteracao,
   editarSubInteracao,
   finalizarCard,
+  listarTagsCard,
+  listarTagsKanban,
   listarVinculosCard,
   removerVinculoCard,
   salvarDadosPreObra,
   salvarInstrucoesFase,
   solicitarAprovacaoFase,
   uploadContratoFranquia,
+  vincularTagCard,
   verificarChecklistParaFase,
   gerarFormTokenCandidato,
   enviarEmailCard,
@@ -247,6 +252,12 @@ export function KanbanCardModal({
   const [editingComentarioId, setEditingComentarioId] = useState<string | null>(null);
   const [editComentarioDraft, setEditComentarioDraft] = useState('');
   const [salvandoEdicaoComentario, setSalvandoEdicaoComentario] = useState(false);
+  const [tagsKanban, setTagsKanban] = useState<{ id: string; nome: string; cor: string }[]>([]);
+  const [tagsCard, setTagsCard] = useState<{ id: string; tag_id: string; nome: string; cor: string }[]>([]);
+  const [tagsOpen, setTagsOpen] = useState(false);
+  const [novatagsNome, setNovaTagNome] = useState('');
+  const [novaTagCor, setNovaTagCor] = useState('#F5A100');
+  const [criandoTag, setCriandoTag] = useState(false);
   const [editandoNegocio, setEditandoNegocio] = useState(false);
   const [negocioDraft, setNegocioDraft] = useState({
     tipo_aquisicao_terreno: '',
@@ -406,6 +417,12 @@ export function KanbanCardModal({
     setEditingComentarioId(null);
     setEditComentarioDraft('');
     setSalvandoEdicaoComentario(false);
+    setTagsKanban([]);
+    setTagsCard([]);
+    setTagsOpen(false);
+    setNovaTagNome('');
+    setNovaTagCor('#F5A100');
+    setCriandoTag(false);
     setEditingId(null);
     setNovaInteracao({
       titulo: '',
@@ -690,6 +707,13 @@ export function KanbanCardModal({
         processo_meta: loaded.processo_meta ?? null,
         profiles,
       });
+
+      // Carregar tags
+      if (loaded.kanban_id) {
+        const [tk, tc] = await Promise.all([listarTagsKanban(loaded.kanban_id), listarTagsCard(loaded.id)]);
+        setTagsKanban(tk);
+        setTagsCard(tc);
+      }
 
       try {
         const det = await fetchKanbanCardModalDetalhes(supabase, {
@@ -3686,6 +3710,109 @@ export function KanbanCardModal({
             }}
             aria-label="Ações do card"
           >
+            <div className="mb-2 border-b pb-2" style={{ borderColor: 'var(--moni-border-default)' }}>
+              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-stone-500">Tags</p>
+              <div className="mb-1.5 flex flex-wrap gap-1">
+                {tagsCard.map((t) => (
+                  <span
+                    key={t.id}
+                    className="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                    style={{ background: t.cor + '22', color: t.cor, border: `1px solid ${t.cor}55` }}
+                  >
+                    {t.nome}
+                    {!ocultarGestaoCard && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void desvincularTagCard(t.id, basePath).then(() =>
+                            setTagsCard((prev) => prev.filter((x) => x.id !== t.id)),
+                          )
+                        }
+                        className="ml-0.5 text-current opacity-60 hover:opacity-100"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </span>
+                ))}
+                {tagsCard.length === 0 && <p className="text-[10px] text-stone-400">Nenhuma tag</p>}
+              </div>
+              {!ocultarGestaoCard && card ? (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setTagsOpen((v) => !v)}
+                    className="text-[10px] font-medium text-moni-primary hover:underline"
+                  >
+                    + Adicionar tag
+                  </button>
+                  {tagsOpen && (
+                    <div className="mt-1.5 space-y-1.5">
+                      <div className="flex flex-wrap gap-1">
+                        {tagsKanban
+                          .filter((t) => !tagsCard.some((tc) => tc.tag_id === t.id))
+                          .map((t) => (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() =>
+                                void vincularTagCard(card.id, t.id, basePath).then(async () => {
+                                  const tc = await listarTagsCard(card.id);
+                                  setTagsCard(tc);
+                                  setTagsOpen(false);
+                                })
+                              }
+                              className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                              style={{ background: t.cor + '22', color: t.cor, border: `1px solid ${t.cor}55` }}
+                            >
+                              {t.nome}
+                            </button>
+                          ))}
+                      </div>
+                      {pode('criar_chamados') && (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={novatagsNome}
+                            onChange={(e) => setNovaTagNome(e.target.value)}
+                            placeholder="Nova tag..."
+                            className="flex-1 rounded border border-stone-300 px-1.5 py-0.5 text-[10px]"
+                          />
+                          <input
+                            type="color"
+                            value={novaTagCor}
+                            onChange={(e) => setNovaTagCor(e.target.value)}
+                            className="h-5 w-5 cursor-pointer rounded border-0"
+                          />
+                          <button
+                            type="button"
+                            disabled={criandoTag || !novatagsNome.trim()}
+                            onClick={() =>
+                              void (async () => {
+                                if (!card?.kanban_id) return;
+                                setCriandoTag(true);
+                                const res = await criarTagKanban(card.kanban_id, novatagsNome.trim(), novaTagCor, basePath);
+                                if (res.ok) {
+                                  const tk = await listarTagsKanban(card.kanban_id);
+                                  setTagsKanban(tk);
+                                  setNovaTagNome('');
+                                }
+                                setCriandoTag(false);
+                              })()
+                            }
+                            className="rounded px-1.5 py-0.5 text-[10px] font-medium text-white disabled:opacity-50"
+                            style={{ background: 'var(--moni-text-primary)' }}
+                          >
+                            {criandoTag ? '…' : 'Criar'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+
             {pode('mover_fase') ? (
               <>
                 {!modalAprovacaoFase ? (

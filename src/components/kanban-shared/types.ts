@@ -38,6 +38,7 @@ export type KanbanCardBrief = {
   created_at: string;
   fase_id: string;
   franqueado_id: string;
+  tagsCard?: { tag_id: string; nome: string; cor: string }[];
   /** Cards nativos arquivados (`kanban_cards.arquivado`). Legado: ausente / false. */
   arquivado?: boolean;
   motivo_arquivamento?: string | null;

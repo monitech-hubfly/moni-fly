@@ -65,6 +65,86 @@ export type EditarInteracaoInput = {
 
 export type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 
+export async function listarTagsKanban(
+  kanbanId: string,
+): Promise<{ id: string; nome: string; cor: string }[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('kanban_tags')
+    .select('id, nome, cor')
+    .eq('kanban_id', kanbanId)
+    .order('nome');
+  return (data ?? []).map((t) => ({ id: String(t.id), nome: String(t.nome), cor: String(t.cor) }));
+}
+
+export async function criarTagKanban(
+  kanbanId: string,
+  nome: string,
+  cor: string,
+  basePath?: string,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('kanban_tags')
+      .insert({ kanban_id: kanbanId, nome: nome.trim(), cor })
+      .select('id')
+      .single();
+    if (error) return { ok: false, error: error.message };
+    revalidatePath(basePath ?? '/');
+    return { ok: true, id: String((data as { id: string }).id) };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+export async function listarTagsCard(
+  cardId: string,
+): Promise<{ id: string; tag_id: string; nome: string; cor: string }[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('kanban_card_tags')
+    .select('id, tag_id, kanban_tags(nome, cor)')
+    .eq('card_id', cardId);
+  return (data ?? []).map((r) => ({
+    id: String(r.id),
+    tag_id: String(r.tag_id),
+    nome: String((r.kanban_tags as { nome: string } | null)?.nome ?? ''),
+    cor: String((r.kanban_tags as { cor: string } | null)?.cor ?? '#cccccc'),
+  }));
+}
+
+export async function vincularTagCard(
+  cardId: string,
+  tagId: string,
+  basePath?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.from('kanban_card_tags').insert({ card_id: cardId, tag_id: tagId });
+    if (error) return { ok: false, error: error.message };
+    revalidatePath(basePath ?? '/');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+export async function desvincularTagCard(
+  cardTagId: string,
+  basePath?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.from('kanban_card_tags').delete().eq('id', cardTagId);
+    if (error) return { ok: false, error: error.message };
+    revalidatePath(basePath ?? '/');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
 export type CriarSubInteracaoInput = {
   interacao_id: string;
   descricao: string;

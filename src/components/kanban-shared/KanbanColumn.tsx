@@ -164,6 +164,19 @@ export function KanbanColumn({
               {card.profiles?.full_name ? (
                 <p className="mt-1 line-clamp-1 text-xs text-stone-500">{card.profiles.full_name}</p>
               ) : null}
+              {card.tagsCard && card.tagsCard.length > 0 ? (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {card.tagsCard.slice(0, 6).map((t) => (
+                    <span
+                      key={t.tag_id}
+                      className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
+                      style={{ background: t.cor + '22', color: t.cor, border: `1px solid ${t.cor}55` }}
+                    >
+                      {t.nome}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
               <p className="mt-1 text-xs text-stone-400">Criado: {createdDate.toLocaleDateString('pt-BR')}</p>
               {sla.label && sla.status !== 'ok' ? (
                 <div className="mt-2">
