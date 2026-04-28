@@ -22,11 +22,11 @@ export function NovoCardModal({
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [nFranquia, setNFranquia] = useState('');
+  const [franqueados, setFranqueados] = useState<
+    { id: string; n_franquia: string; nome_completo: string }[]
+  >([]);
   const [franqueadoNome, setFranqueadoNome] = useState('');
   const [franqueadoRedeId, setFranqueadoRedeId] = useState('');
-  const [buscandoFranqueado, setBuscandoFranqueado] = useState(false);
-  const [erroFranqueado, setErroFranqueado] = useState('');
   const [faseId, setFaseId] = useState('');
   const [fases, setFases] = useState<Fase[]>([]);
 
@@ -34,38 +34,6 @@ export function NovoCardModal({
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    const n = nFranquia.trim().toUpperCase();
-    if (!n) {
-      setFranqueadoNome('');
-      setFranqueadoRedeId('');
-      setErroFranqueado('');
-      return;
-    }
-    const t = setTimeout(async () => {
-      setBuscandoFranqueado(true);
-      setErroFranqueado('');
-      const supabase = createClient();
-      const { data } = await supabase
-        .from('rede_franqueados')
-        .select('id, nome_completo, n_franquia')
-        .ilike('n_franquia', n)
-        .limit(1)
-        .maybeSingle();
-      setBuscandoFranqueado(false);
-      if (data) {
-        setFranqueadoNome(String((data as { nome_completo?: string | null }).nome_completo ?? ''));
-        setFranqueadoRedeId(String((data as { id: string }).id));
-        setErroFranqueado('');
-      } else {
-        setFranqueadoNome('');
-        setFranqueadoRedeId('');
-        setErroFranqueado('Franqueado não encontrado');
-      }
-    }, 500);
-    return () => clearTimeout(t);
-  }, [nFranquia]);
 
   async function loadData() {
     try {
@@ -83,6 +51,18 @@ export function NovoCardModal({
         setFases(fasesData);
         setFaseId(fasesData[0].id); // Primeira fase como padrão
       }
+
+      const { data: redesData } = await supabase
+        .from('rede_franqueados')
+        .select('id, n_franquia, nome_completo')
+        .order('n_franquia');
+      setFranqueados(
+        redesData?.map((r) => ({
+          id: String(r.id),
+          n_franquia: String((r as { n_franquia?: string | null }).n_franquia ?? ''),
+          nome_completo: String((r as { nome_completo?: string | null }).nome_completo ?? ''),
+        })) ?? [],
+      );
     } catch (err) {
       console.error('Erro ao carregar dados:', err);
     }
@@ -181,21 +161,25 @@ export function NovoCardModal({
             {/* Campo Franqueado (apenas para admin) */}
             <div>
               <label className="block text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
-                N° da Franquia <span className="text-red-500">*</span>
+                Franqueado <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
-                value={nFranquia}
-                onChange={(e) => setNFranquia(e.target.value.toUpperCase())}
-                placeholder="Ex: FK0012"
-                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+              <select
+                value={franqueadoRedeId}
+                onChange={(e) => {
+                  const selected = franqueados.find((f) => f.id === e.target.value);
+                  setFranqueadoRedeId(e.target.value);
+                  setFranqueadoNome(selected?.nome_completo ?? '');
+                }}
                 disabled={loading}
-              />
-              {buscandoFranqueado && <p className="mt-1 text-xs text-stone-400">Buscando...</p>}
-              {franqueadoNome && !buscandoFranqueado && (
-                <p className="mt-1 text-xs font-medium text-green-700">✓ {franqueadoNome}</p>
-              )}
-              {erroFranqueado && <p className="mt-1 text-xs text-red-500">{erroFranqueado}</p>}
+                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+              >
+                <option value="">Selecione o franqueado</option>
+                {franqueados.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.n_franquia} — {f.nome_completo}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Campo Fase Inicial */}
