@@ -17,7 +17,8 @@ export type FaseChecklistItem = {
     | 'anexo_template'
     | 'checkbox'
     | 'data'
-    | 'hora';
+    | 'hora'
+    | 'tabela';
   obrigatorio: boolean;
   visivel_candidato: boolean;
   template_storage_path: string | null;
