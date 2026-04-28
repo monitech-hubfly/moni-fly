@@ -330,7 +330,7 @@ export async function editarSubInteracao(
   basePath?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { error } = await supabase
       .from('sirene_topicos')
       .update({
