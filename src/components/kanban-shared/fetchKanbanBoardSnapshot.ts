@@ -288,11 +288,21 @@ export async function fetchKanbanBoardSnapshot(
     cards = cards.map((c) => ({ ...c, tagsCard: byCardId.get(c.id) ?? [] }));
     const cardsConcluidosTagged = cardsConcluidos.map((c) => ({ ...c, tagsCard: byCardId.get(c.id) ?? [] }));
 
+    return {
+      kanban: { id: kanbanIdStr },
+      fases,
+      cards,
+      cardsConcluidos: cardsConcluidosTagged,
+      role,
+      isAdmin,
+    };
+  }
+
   return {
     kanban: { id: kanbanIdStr },
     fases,
     cards,
-    cardsConcluidos: cardsConcluidosTagged,
+    cardsConcluidos,
     role,
     isAdmin,
   };
