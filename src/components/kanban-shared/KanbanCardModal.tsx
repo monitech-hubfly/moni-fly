@@ -1375,7 +1375,11 @@ export function KanbanCardModal({
         if (fromSlug) await registrarMovimentoLegadoKanban(fromSlug, slug);
       } else {
         const { error } = await supabase.from('kanban_cards').update({ fase_id: proximaFase.id }).eq('id', card.id);
-        if (error) throw error;
+        if (error) {
+          console.error('Erro ao avançar fase:', error);
+          alert(`Erro ao avançar fase: ${error.message} (código: ${error.code})`);
+          return;
+        }
       }
       await loadCard();
       router.refresh();
