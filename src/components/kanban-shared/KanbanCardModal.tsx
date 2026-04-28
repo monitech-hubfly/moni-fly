@@ -265,18 +265,20 @@ export function KanbanCardModal({
     descricao: '',
     tipo: 'atividade' as 'atividade' | 'duvida' | 'proposicoes',
     data: '',
-    timeMoni: '',
-    responsavelMoni: '',
+    timesIds: [] as string[],
+    responsaveisIds: [] as string[],
     trava: false,
     ehHdm: false,
+    tema: '',
+    temaOutro: '',
   });
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
   const [novaInteracao, setNovaInteracao] = useState({
     titulo: '',
     tipo: 'atividade' as 'atividade' | 'duvida' | 'proposicoes',
     data: '',
-    timeMoni: '',
-    responsavelMoni: '',
+    timesIds: [] as string[],
+    responsaveisIds: [] as string[],
     trava: false,
     status: 'pendente' as const,
     ehHdm: false,
@@ -332,13 +334,13 @@ export function KanbanCardModal({
   } | null>(null);
   const [solicitandoAprovacaoFase, setSolicitandoAprovacaoFase] = useState(false);
 
-  const timesReceberNovaOpcoes = useMemo(
-    () => [...timesMoniReceberChamadoOpcoes(novaInteracao.ehHdm)],
-    [novaInteracao.ehHdm],
+  const timesNovaFiltrados = useMemo(
+    () => filtrarLinhasTimeKanbanPorHdm(kanbanTimes, novaInteracao.ehHdm),
+    [kanbanTimes, novaInteracao.ehHdm],
   );
-  const timesReceberEditOpcoes = useMemo(
-    () => [...timesMoniReceberChamadoOpcoes(editDraft.ehHdm)],
-    [editDraft.ehHdm],
+  const timesEditFiltrados = useMemo(
+    () => filtrarLinhasTimeKanbanPorHdm(kanbanTimes, editDraft.ehHdm),
+    [kanbanTimes, editDraft.ehHdm],
   );
   const kanbanTimesSubNovaFiltrados = useMemo(
     () =>
@@ -375,8 +377,8 @@ export function KanbanCardModal({
       titulo: '',
       tipo: 'atividade',
       data: '',
-      timeMoni: '',
-      responsavelMoni: '',
+      timesIds: [],
+      responsaveisIds: [],
       trava: false,
       status: 'pendente',
       ehHdm: false,
@@ -388,10 +390,12 @@ export function KanbanCardModal({
       descricao: '',
       tipo: 'atividade',
       data: '',
-      timeMoni: '',
-      responsavelMoni: '',
+      timesIds: [],
+      responsaveisIds: [],
       trava: false,
       ehHdm: false,
+      tema: '',
+      temaOutro: '',
     });
   }, [cardId]);
 
@@ -968,20 +972,12 @@ export function KanbanCardModal({
     setLoading(true);
     try {
       const ordemReal = interacoes.filter((a) => !isInteracaoDemonstracao(a.id)).length;
-      const vPar = validarParTimeResponsavelMoni(
-        novaInteracao.timeMoni || null,
-        novaInteracao.responsavelMoni || null,
-      );
-      if (!vPar.ok) {
-        alert(vPar.error);
-        return;
-      }
-      const resolved = resolveKanbanInteracaoFromCatalog(
-        novaInteracao.timeMoni,
-        novaInteracao.responsavelMoni,
-        kanbanTimes,
-        responsaveisOpcoes,
-      );
+      const resolved = {
+        times_ids: novaInteracao.timesIds,
+        responsaveis_ids: novaInteracao.responsaveisIds,
+        responsavel_nome_texto: null as string | null,
+        time_legado: null as string | null,
+      };
       const res = await criarInteracao({
         card_id: card.id,
         titulo: novaInteracao.titulo.trim(),
@@ -1006,8 +1002,8 @@ export function KanbanCardModal({
         titulo: '',
         tipo: 'atividade',
         data: '',
-        timeMoni: '',
-        responsavelMoni: '',
+        timesIds: [],
+        responsaveisIds: [],
         trava: false,
         status: 'pendente',
         ehHdm: false,
@@ -1041,24 +1037,24 @@ export function KanbanCardModal({
 
   function abrirEdicaoInteracao(it: InteracaoModal) {
     setEditingId(it.id);
-    const timeMoni = inferTimeMoniFromInteracao(it.times_resolvidos, it.time);
-    const responsavelMoni = inferResponsavelMoniFromInteracao(
-      timeMoni,
-      it.responsaveis_resolvidos,
-      it.responsavel_nome_texto,
-      it.responsavel_id,
-      it.responsaveis_ids,
-      responsaveisOpcoes,
-    );
+    const rids = [...(it.responsaveis_ids ?? [])];
+    if (it.responsavel_id && !rids.includes(it.responsavel_id)) rids.unshift(it.responsavel_id);
+    const tids = [...(it.times_ids ?? [])];
+    const ehHdm = tids.some((id) => {
+      const t = kanbanTimes.find((x) => x.id === id);
+      return t ? isNomeTimeMoniHdm(t.nome) : false;
+    });
     setEditDraft({
       titulo: it.titulo ?? '',
       descricao: it.descricao ?? '',
       tipo: it.tipo,
       data: it.data_vencimento ? String(it.data_vencimento).slice(0, 10) : '',
-      timeMoni,
-      responsavelMoni,
+      timesIds: tids,
+      responsaveisIds: rids,
       trava: it.trava,
-      ehHdm: isNomeTimeMoniHdm(timeMoni),
+      ehHdm,
+      tema: '',
+      temaOutro: '',
     });
   }
 
@@ -1070,29 +1066,15 @@ export function KanbanCardModal({
     }
     setSalvandoEdicao(true);
     try {
-      const vPar = validarParTimeResponsavelMoni(
-        editDraft.timeMoni || null,
-        editDraft.responsavelMoni || null,
-      );
-      if (!vPar.ok) {
-        alert(vPar.error);
-        return;
-      }
-      const resolved = resolveKanbanInteracaoFromCatalog(
-        editDraft.timeMoni,
-        editDraft.responsavelMoni,
-        kanbanTimes,
-        responsaveisOpcoes,
-      );
       const res = await editarInteracao(editingId, {
         titulo: editDraft.titulo.trim(),
         descricao: editDraft.descricao.trim() || null,
         tipo: editDraft.tipo,
         data_vencimento: editDraft.data.trim() || null,
-        times_ids: resolved.times_ids,
-        responsaveis_ids: resolved.responsaveis_ids,
-        responsavel_nome_texto: resolved.responsavel_nome_texto,
-        time_legado: resolved.time_legado,
+        times_ids: editDraft.timesIds,
+        responsaveis_ids: editDraft.responsaveisIds,
+        responsavel_nome_texto: null,
+        time_legado: null,
         trava: editDraft.trava,
         basePath,
       });
@@ -2478,66 +2460,62 @@ export function KanbanCardModal({
                                     checked={editDraft.ehHdm}
                                     onChange={(e) => {
                                       const eh = e.target.checked;
-                                      setEditDraft((d) => {
-                                        const op = [...timesMoniReceberChamadoOpcoes(eh)];
-                                        let timeMoni = d.timeMoni;
-                                        let responsavelMoni = d.responsavelMoni;
-                                        if (!timeMoni || !op.includes(timeMoni)) {
-                                          timeMoni = '';
-                                          responsavelMoni = '';
-                                        } else if (!responsaveisDoTimeMoni(timeMoni).includes(responsavelMoni)) {
-                                          responsavelMoni = '';
-                                        }
-                                        return { ...d, ehHdm: eh, timeMoni, responsavelMoni };
-                                      });
+                                      setEditDraft((d) => ({ ...d, ehHdm: eh, timesIds: [], responsaveisIds: [] }));
                                     }}
                                   />
                                   Este chamado é HDM?
                                 </label>
                                 <div>
-                                  <label className="mb-1 block text-[10px] font-medium text-stone-500">Time</label>
-                                  <select
-                                    value={editDraft.timeMoni}
-                                    onChange={(e) => {
-                                      const v = e.target.value;
-                                      setEditDraft((d) => ({
-                                        ...d,
-                                        timeMoni: v,
-                                        responsavelMoni: responsaveisDoTimeMoni(v).includes(d.responsavelMoni)
-                                          ? d.responsavelMoni
-                                          : '',
-                                        ehHdm: v ? isNomeTimeMoniHdm(v) : false,
-                                      }));
-                                    }}
-                                    className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
-                                  >
-                                    <option value="">Selecione</option>
-                                    {timesReceberEditOpcoes.map((t) => (
-                                      <option key={t} value={t}>
-                                        {t}
-                                      </option>
-                                    ))}
-                                  </select>
+                                  <label className="mb-1 block text-[10px] font-medium text-stone-500">Times</label>
+                                  <div className="flex flex-wrap gap-1">
+                                    {timesEditFiltrados.map((t) => {
+                                      const on = editDraft.timesIds.includes(t.id);
+                                      return (
+                                        <button
+                                          key={t.id}
+                                          type="button"
+                                          onClick={() =>
+                                            setEditDraft((d) => ({
+                                              ...d,
+                                              timesIds: on
+                                                ? d.timesIds.filter((x) => x !== t.id)
+                                                : [...d.timesIds, t.id],
+                                            }))
+                                          }
+                                          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${on ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600'}`}
+                                        >
+                                          {t.nome}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                                 <div>
                                   <label className="mb-1 block text-[10px] font-medium text-stone-500">
-                                    Responsável (opcional)
+                                    Responsáveis (opcional)
                                   </label>
-                                  <select
-                                    value={editDraft.responsavelMoni}
-                                    onChange={(e) => setEditDraft((d) => ({ ...d, responsavelMoni: e.target.value }))}
-                                    disabled={!editDraft.timeMoni}
-                                    className="w-full rounded border border-stone-300 px-2 py-1 text-xs disabled:cursor-not-allowed disabled:bg-stone-100"
-                                  >
-                                    <option value="">
-                                      {editDraft.timeMoni ? 'Selecione' : 'Selecione um time primeiro'}
-                                    </option>
-                                    {responsaveisDoTimeMoni(editDraft.timeMoni).map((nome) => (
-                                      <option key={nome} value={nome}>
-                                        {nome}
-                                      </option>
-                                    ))}
-                                  </select>
+                                  <div className="flex flex-wrap gap-1">
+                                    {responsaveisOpcoes.map((p) => {
+                                      const on = editDraft.responsaveisIds.includes(p.id);
+                                      return (
+                                        <button
+                                          key={p.id}
+                                          type="button"
+                                          onClick={() =>
+                                            setEditDraft((d) => ({
+                                              ...d,
+                                              responsaveisIds: on
+                                                ? d.responsaveisIds.filter((x) => x !== p.id)
+                                                : [...d.responsaveisIds, p.id],
+                                            }))
+                                          }
+                                          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${on ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600'}`}
+                                        >
+                                          {p.nome}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                                 <label className="flex cursor-pointer items-center gap-2 text-xs text-stone-700">
                                   <input
@@ -3008,74 +2986,61 @@ export function KanbanCardModal({
                       checked={novaInteracao.ehHdm}
                       onChange={(e) => {
                         const eh = e.target.checked;
-                        setNovaInteracao((n) => {
-                          const op = [...timesMoniReceberChamadoOpcoes(eh)];
-                          let timeMoni = n.timeMoni;
-                          let responsavelMoni = n.responsavelMoni;
-                          if (!timeMoni || !op.includes(timeMoni)) {
-                            timeMoni = '';
-                            responsavelMoni = '';
-                          } else if (!responsaveisDoTimeMoni(timeMoni).includes(responsavelMoni)) {
-                            responsavelMoni = '';
-                          }
-                          return { ...n, ehHdm: eh, timeMoni, responsavelMoni };
-                        });
+                        setNovaInteracao((n) => ({ ...n, ehHdm: eh, timesIds: [], responsaveisIds: [] }));
                       }}
                     />
                     Este chamado é HDM?
                   </label>
                   <div>
-                    <label className="mb-1 block text-[10px] font-medium text-stone-500">Time</label>
-                    <select
-                      value={novaInteracao.timeMoni}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setNovaInteracao((n) => ({
-                          ...n,
-                          timeMoni: v,
-                          responsavelMoni: responsaveisDoTimeMoni(v).includes(n.responsavelMoni)
-                            ? n.responsavelMoni
-                            : '',
-                          ehHdm: v ? isNomeTimeMoniHdm(v) : false,
-                        }));
-                      }}
-                      className="w-full px-3 py-2 text-xs"
-                      style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
-                    >
-                      <option value="">Selecione</option>
-                      {timesReceberNovaOpcoes.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
+                    <label className="mb-1 block text-[10px] font-medium text-stone-500">Times</label>
+                    <div className="flex flex-wrap gap-1">
+                      {timesNovaFiltrados.map((t) => {
+                        const on = novaInteracao.timesIds.includes(t.id);
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() =>
+                              setNovaInteracao((n) => ({
+                                ...n,
+                                timesIds: on ? n.timesIds.filter((x) => x !== t.id) : [...n.timesIds, t.id],
+                              }))
+                            }
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${on ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600'}`}
+                          >
+                            {t.nome}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                   {!portalFrank && (
                     <div>
                       <label className="mb-1 block text-[10px] font-medium text-stone-500">
-                        Responsável (opcional)
+                        Responsáveis (opcional)
                       </label>
-                      <select
-                        value={novaInteracao.responsavelMoni}
-                        onChange={(e) =>
-                          setNovaInteracao({ ...novaInteracao, responsavelMoni: e.target.value })
-                        }
-                        disabled={!novaInteracao.timeMoni}
-                        className="w-full px-3 py-2 text-xs disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
-                        style={{
-                          border: '0.5px solid var(--moni-border-default)',
-                          borderRadius: 'var(--moni-radius-md)',
-                        }}
-                      >
-                        <option value="">
-                          {novaInteracao.timeMoni ? 'Selecione' : 'Selecione um time primeiro'}
-                        </option>
-                        {responsaveisDoTimeMoni(novaInteracao.timeMoni).map((nome) => (
-                          <option key={nome} value={nome}>
-                            {nome}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex flex-wrap gap-1">
+                        {responsaveisOpcoes.map((p) => {
+                          const on = novaInteracao.responsaveisIds.includes(p.id);
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() =>
+                                setNovaInteracao((n) => ({
+                                  ...n,
+                                  responsaveisIds: on
+                                    ? n.responsaveisIds.filter((x) => x !== p.id)
+                                    : [...n.responsaveisIds, p.id],
+                                }))
+                              }
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${on ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600'}`}
+                            >
+                              {p.nome}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                   <label className="flex cursor-pointer items-center gap-2 text-xs text-stone-700">
