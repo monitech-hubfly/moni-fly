@@ -561,6 +561,7 @@ export function KanbanCardModal({
   }, [cardId, origem]);
 
   async function loadCard() {
+    console.log('[DEBUG loadCard] cardId:', cardId, 'origem:', origem);
     setLoading(true);
     try {
       const supabase = createClient();
@@ -1758,6 +1759,12 @@ export function KanbanCardModal({
       }
 
       setEditandoNegocio(false);
+      console.log(
+        '[DEBUG handleSalvarNegocio] card.id:',
+        card?.id,
+        'negocioDraft.nome_condominio:',
+        negocioDraft.nome_condominio,
+      );
       await loadCard();
     } catch {
       alert('Erro ao salvar dados do negócio.');
