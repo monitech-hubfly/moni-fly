@@ -30,6 +30,7 @@ import {
   criarSubInteracao,
   criarVinculoCard,
   editarInteracao,
+  editarSubInteracao,
   finalizarCard,
   listarVinculosCard,
   removerVinculoCard,
@@ -300,6 +301,18 @@ export function KanbanCardModal({
     temaOutro: '',
   });
   const [salvandoSub, setSalvandoSub] = useState(false);
+  const [editingSubId, setEditingSubId] = useState<string | null>(null);
+  const [editSubDraft, setEditSubDraft] = useState({
+    descricao: '',
+    tipo: 'atividade' as SubInteracaoTipoDb,
+    timesIds: [] as string[],
+    responsaveisIds: [] as string[],
+    data_fim: '',
+    trava: false,
+    tema: '',
+    temaOutro: '',
+  });
+  const [salvandoEditSub, setSalvandoEditSub] = useState(false);
   const [filtros, setFiltros] = useState<KanbanModalInteracoesFiltros>(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT);
   const [filtrosDraft, setFiltrosDraft] = useState<KanbanModalInteracoesFiltros>(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT);
   const [filtrosOpen, setFiltrosOpen] = useState(false);
@@ -349,6 +362,10 @@ export function KanbanCardModal({
         subNovaDraft.tipoSub === 'chamado' && subNovaDraft.ehHdm,
       ),
     [kanbanTimes, subNovaDraft.tipoSub, subNovaDraft.ehHdm],
+  );
+  const kanbanTimesSubEditFiltrados = useMemo(
+    () => filtrarLinhasTimeKanbanPorHdm(kanbanTimes, false),
+    [kanbanTimes],
   );
 
   useEffect(() => {
@@ -1199,6 +1216,37 @@ export function KanbanCardModal({
       alert('Erro ao criar sub-chamado.');
     } finally {
       setSalvandoSub(false);
+    }
+  }
+
+  async function handleEditarSubInteracao(subId: string) {
+    if (!editSubDraft.descricao.trim()) { alert('Informe a descrição.'); return; }
+    if (!editSubDraft.tema) { alert('Selecione o tema.'); return; }
+    if (editSubDraft.tema === 'Outro' && !editSubDraft.temaOutro.trim()) { alert('Detalhe o tema.'); return; }
+    if (editSubDraft.timesIds.length === 0) { alert('Selecione ao menos um time.'); return; }
+    setSalvandoEditSub(true);
+    try {
+      const res = await editarSubInteracao(
+        subId,
+        {
+          descricao: editSubDraft.descricao.trim(),
+          tipo: editSubDraft.tipo,
+          times_ids: editSubDraft.timesIds,
+          responsaveis_ids: editSubDraft.responsaveisIds,
+          data_fim: editSubDraft.data_fim.trim() || null,
+          trava: editSubDraft.trava,
+          tema: editSubDraft.tema === 'Outro' ? editSubDraft.temaOutro.trim() : editSubDraft.tema,
+        },
+        basePath,
+      );
+      if (!res.ok) { alert(res.error); return; }
+      setEditingSubId(null);
+      const pai = Object.entries(subInteracoesPorPai).find(([, subs]) => subs.some((s) => s.id === subId));
+      if (pai) await reloadSubsForParent(pai[0]);
+    } catch {
+      alert('Erro ao salvar sub-chamado.');
+    } finally {
+      setSalvandoEditSub(false);
     }
   }
 
@@ -2608,6 +2656,150 @@ export function KanbanCardModal({
                                         key={sub.id}
                                         className="rounded-md border border-stone-200 bg-white px-2 py-2 text-xs"
                                       >
+                                        {editingSubId === sub.id ? (
+                                          <div className="space-y-2">
+                                            <p className="text-[10px] font-semibold text-stone-600">Editar sub-chamado</p>
+                                            <div>
+                                              <span className="mb-1 block text-[10px] font-medium text-stone-600">Tipo</span>
+                                              <select
+                                                value={editSubDraft.tipo}
+                                                onChange={(e) => {
+                                                  const v = e.target.value as SubInteracaoTipoDb;
+                                                  const allowed = new Set(filtrarLinhasTimeKanbanPorHdm(kanbanTimes, false).map((t) => t.id));
+                                                  setEditSubDraft((s) => ({ ...s, tipo: v, timesIds: s.timesIds.filter((id) => allowed.has(id)) }));
+                                                }}
+                                                className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
+                                              >
+                                                <option value="atividade">Atividade</option>
+                                                <option value="duvida">Dúvida</option>
+                                                <option value="chamado">Chamado</option>
+                                              </select>
+                                            </div>
+                                            <input
+                                              type="text"
+                                              value={editSubDraft.descricao}
+                                              onChange={(e) => setEditSubDraft((s) => ({ ...s, descricao: e.target.value }))}
+                                              placeholder="Descrição (obrigatório)"
+                                              className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
+                                            />
+                                            <div>
+                                              <span className="mb-1 block text-[10px] font-medium text-stone-600">Tema (obrigatório)</span>
+                                              <select
+                                                value={editSubDraft.tema}
+                                                onChange={(e) => setEditSubDraft((s) => ({ ...s, tema: e.target.value, temaOutro: '' }))}
+                                                className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
+                                              >
+                                                <option value="">Selecione</option>
+                                                <option value="Acoplamento">Acoplamento</option>
+                                                <option value="Adicionais">Adicionais</option>
+                                                <option value="BCA + Batalha">BCA + Batalha</option>
+                                                <option value="Catálogo de Casas">Catálogo de Casas</option>
+                                                <option value="Crédito p/ Obra">Crédito p/ Obra</option>
+                                                <option value="Crédito p/ Terreno">Crédito p/ Terreno</option>
+                                                <option value="Diligência Terreno">Diligência Terreno</option>
+                                                <option value="Gadgets">Gadgets</option>
+                                                <option value="Negociação com Terrenista">Negociação com Terrenista</option>
+                                                <option value="Outro">Outro</option>
+                                              </select>
+                                              {editSubDraft.tema === 'Outro' && (
+                                                <input
+                                                  type="text"
+                                                  value={editSubDraft.temaOutro}
+                                                  onChange={(e) => setEditSubDraft((s) => ({ ...s, temaOutro: e.target.value }))}
+                                                  placeholder="Detalhe o tema (obrigatório)"
+                                                  className="mt-1 w-full rounded border border-stone-300 px-2 py-1 text-xs"
+                                                />
+                                              )}
+                                            </div>
+                                            <input
+                                              type="date"
+                                              value={editSubDraft.data_fim}
+                                              onChange={(e) => setEditSubDraft((s) => ({ ...s, data_fim: e.target.value }))}
+                                              className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
+                                            />
+                                            <div>
+                                              <span className="mb-1 block text-[10px] text-stone-500">Times</span>
+                                              <div className="flex flex-wrap gap-1">
+                                                {kanbanTimesSubEditFiltrados.map((t) => {
+                                                  const on = editSubDraft.timesIds.includes(t.id);
+                                                  return (
+                                                    <button
+                                                      key={t.id}
+                                                      type="button"
+                                                      onClick={() =>
+                                                        setEditSubDraft((s) => ({
+                                                          ...s,
+                                                          timesIds: on ? s.timesIds.filter((id) => id !== t.id) : [...s.timesIds, t.id],
+                                                        }))
+                                                      }
+                                                      className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${on ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600'}`}
+                                                    >
+                                                      {t.nome}
+                                                    </button>
+                                                  );
+                                                })}
+                                              </div>
+                                            </div>
+                                            <div>
+                                              <span className="mb-1 block text-[10px] text-stone-500">Responsáveis</span>
+                                              <div className="flex flex-wrap gap-1">
+                                                {responsaveisOpcoes.map((p) => {
+                                                  const on = editSubDraft.responsaveisIds.includes(p.id);
+                                                  return (
+                                                    <button
+                                                      key={p.id}
+                                                      type="button"
+                                                      onClick={() =>
+                                                        setEditSubDraft((s) => ({
+                                                          ...s,
+                                                          responsaveisIds: on
+                                                            ? s.responsaveisIds.filter((id) => id !== p.id)
+                                                            : [...s.responsaveisIds, p.id],
+                                                        }))
+                                                      }
+                                                      className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${on ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600'}`}
+                                                    >
+                                                      {p.nome}
+                                                    </button>
+                                                  );
+                                                })}
+                                              </div>
+                                            </div>
+                                            <label className="flex cursor-pointer items-center gap-2 text-[11px] text-stone-700">
+                                              <input
+                                                type="checkbox"
+                                                className="h-3.5 w-3.5"
+                                                checked={editSubDraft.trava}
+                                                onChange={(e) => setEditSubDraft((s) => ({ ...s, trava: e.target.checked }))}
+                                              />
+                                              Trava — estou bloqueado até este chamado ser concluído
+                                            </label>
+                                            <div className="flex flex-wrap gap-2">
+                                              <button
+                                                type="button"
+                                                disabled={
+                                                  salvandoEditSub ||
+                                                  !editSubDraft.descricao.trim() ||
+                                                  editSubDraft.timesIds.length === 0 ||
+                                                  !editSubDraft.tema ||
+                                                  (editSubDraft.tema === 'Outro' && !editSubDraft.temaOutro.trim())
+                                                }
+                                                onClick={() => void handleEditarSubInteracao(sub.id)}
+                                                className="rounded px-3 py-1.5 text-[11px] font-medium text-white disabled:opacity-50"
+                                                style={{ background: 'var(--moni-text-primary)' }}
+                                              >
+                                                {salvandoEditSub ? '…' : 'Salvar'}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => setEditingSubId(null)}
+                                                className="rounded border border-stone-300 px-3 py-1.5 text-[11px]"
+                                              >
+                                                Cancelar
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ) : (
                                         <div className="flex flex-wrap items-start justify-between gap-2">
                                           <div className="min-w-0 flex-1">
                                             <div className="flex flex-wrap items-center gap-1.5">
@@ -2624,6 +2816,47 @@ export function KanbanCardModal({
                                                     : 'Atividade'}
                                               </span>
                                               <span className="font-medium text-stone-800">{sub.descricao}</span>
+                                              {pode('criar_chamados') ? (
+                                                <button
+                                                  type="button"
+                                                  title="Editar sub-chamado"
+                                                  onClick={() => {
+                                                    setEditSubDraft({
+                                                      descricao: sub.descricao,
+                                                      tipo: sub.tipo,
+                                                      timesIds: sub.times_ids,
+                                                      responsaveisIds: sub.responsaveis_ids,
+                                                      data_fim: sub.data_fim ?? '',
+                                                      trava: sub.trava,
+                                                      tema: '',
+                                                      temaOutro: '',
+                                                    });
+                                                    void (async () => {
+                                                      const supabase = createClient();
+                                                      const { data } = await supabase
+                                                        .from('sirene_topicos')
+                                                        .select('tema')
+                                                        .eq('id', sub.id)
+                                                        .maybeSingle();
+                                                      const temaDb = (data as { tema?: string | null } | null)?.tema ?? '';
+                                                      const TEMAS_CONHECIDOS = [
+                                                        'Acoplamento','Adicionais','BCA + Batalha','Catálogo de Casas',
+                                                        'Crédito p/ Obra','Crédito p/ Terreno','Diligência Terreno',
+                                                        'Gadgets','Negociação com Terrenista',
+                                                      ];
+                                                      if (TEMAS_CONHECIDOS.includes(temaDb)) {
+                                                        setEditSubDraft((s) => ({ ...s, tema: temaDb, temaOutro: '' }));
+                                                      } else if (temaDb) {
+                                                        setEditSubDraft((s) => ({ ...s, tema: 'Outro', temaOutro: temaDb }));
+                                                      }
+                                                    })();
+                                                    setEditingSubId(sub.id);
+                                                  }}
+                                                  className="ml-0.5 rounded p-0.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
+                                                >
+                                                  <Pencil className="h-3 w-3" />
+                                                </button>
+                                              ) : null}
                                             </div>
                                             <div className="mt-1 flex flex-wrap gap-1">
                                               {sub.times_resolvidos.map((tg) => (
@@ -2669,6 +2902,7 @@ export function KanbanCardModal({
                                             <option value="aprovado">Aprovado</option>
                                           </select>
                                         </div>
+                                        )}
                                       </li>
                                     ))}
                                   </ul>
