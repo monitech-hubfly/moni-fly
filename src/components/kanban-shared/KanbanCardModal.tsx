@@ -1710,10 +1710,10 @@ export function KanbanCardModal({
         return;
       }
 
-      if (origem === 'nativo' && card && negocioDraft.nome_condominio !== undefined) {
+      if (origem === 'nativo' && card) {
         const { data: cardData } = await supabase
           .from('kanban_cards')
-          .select('titulo, rede_franqueado_id')
+          .select('rede_franqueado_id')
           .eq('id', card.id)
           .maybeSingle();
         if (cardData) {
@@ -1721,20 +1721,25 @@ export function KanbanCardModal({
           if (redeFk) {
             const { data: redeData } = await supabase
               .from('rede_franqueados')
-              .select('n_franquia, nome_completo')
+              .select('n_franquia')
               .eq('id', redeFk)
               .maybeSingle();
             if (redeData) {
+              const nFq = String((redeData as { n_franquia?: string | null }).n_franquia ?? '');
               const partes = [
-                String((redeData as { n_franquia?: string | null }).n_franquia ?? ''),
-                String((redeData as { nome_completo?: string | null }).nome_completo ?? ''),
+                nFq,
                 negocioDraft.nome_condominio?.trim() ?? '',
                 negocioDraft.quadra?.trim() ?? '',
                 negocioDraft.lote?.trim() ?? '',
               ].filter(Boolean);
               const novoTitulo = partes.join(' - ');
               if (novoTitulo) {
-                await supabase.from('kanban_cards').update({ titulo: novoTitulo }).eq('id', card.id);
+                const { error: tituloErr } = await supabase
+                  .from('kanban_cards')
+                  .update({ titulo: novoTitulo })
+                  .eq('id', card.id);
+                if (tituloErr) throw tituloErr;
+                setCard((prev) => (prev ? { ...prev, titulo: novoTitulo } : prev));
               }
             }
           }
