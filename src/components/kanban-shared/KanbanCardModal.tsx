@@ -158,6 +158,16 @@ function IconeMaterialTipo({ tipo }: { tipo: KanbanFaseMaterial['tipo'] }) {
   return <Link2 className={cls} aria-hidden />;
 }
 
+/** Texto visível mínimo de um `contentEditable` (innerHTML) para habilitar Salvar/Publicar. */
+function richTextPlainTrimmed(html: string): string {
+  if (typeof document === 'undefined') {
+    return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  const d = document.createElement('div');
+  d.innerHTML = html;
+  return (d.textContent || '').trim();
+}
+
 function inicioDiaLocal(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
@@ -234,6 +244,9 @@ export function KanbanCardModal({
   const [comentariosCard, setComentariosCard] = useState<ComentarioCardRow[]>([]);
   const [novoComentarioCard, setNovoComentarioCard] = useState('');
   const [salvandoComentario, setSalvandoComentario] = useState(false);
+  const [editingComentarioId, setEditingComentarioId] = useState<string | null>(null);
+  const [editComentarioDraft, setEditComentarioDraft] = useState('');
+  const [salvandoEdicaoComentario, setSalvandoEdicaoComentario] = useState(false);
   const [editandoNegocio, setEditandoNegocio] = useState(false);
   const [negocioDraft, setNegocioDraft] = useState({
     tipo_aquisicao_terreno: '',
@@ -331,6 +344,7 @@ export function KanbanCardModal({
   const [uploadingContrato, setUploadingContrato] = useState(false);
   const contratoFileRef = useRef<HTMLInputElement>(null);
   const comentarioEditorRef = useRef<HTMLDivElement>(null);
+  const comentarioEdicaoRef = useRef<HTMLDivElement>(null);
   const [editandoInstrucoesFase, setEditandoInstrucoesFase] = useState(false);
   const [draftInstrucoesFase, setDraftInstrucoesFase] = useState('');
   const [draftMateriaisFase, setDraftMateriaisFase] = useState<KanbanFaseMaterial[]>([]);
@@ -389,6 +403,9 @@ export function KanbanCardModal({
     setModalSessao({ userId: null, uploaderNome: '—', ehAdminOuTeam: false });
     setModalAprovacaoFase(null);
     setSolicitandoAprovacaoFase(false);
+    setEditingComentarioId(null);
+    setEditComentarioDraft('');
+    setSalvandoEdicaoComentario(false);
     setEditingId(null);
     setNovaInteracao({
       titulo: '',
@@ -494,6 +511,18 @@ export function KanbanCardModal({
   useEffect(() => {
     if (fasesProp?.length) setFases(fasesProp);
   }, [fasesProp]);
+
+  useEffect(() => {
+    if (!editingComentarioId) return;
+    const el = comentarioEdicaoRef.current;
+    if (!el) return;
+    const row = comentariosCard.find((x) => x.id === editingComentarioId);
+    if (!row) return;
+    el.innerHTML = row.conteudo;
+    setEditComentarioDraft(row.conteudo);
+    queueMicrotask(() => el.focus());
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- apenas ao abrir edição; evita apagar rascunho quando a lista recarrega.
+  }, [editingComentarioId]);
 
   useEffect(() => {
     void loadCard();
@@ -768,7 +797,7 @@ export function KanbanCardModal({
       try {
         const { data: comRows, error: comErr } = await supabase
           .from('kanban_card_comentarios')
-          .select('id, conteudo, created_at, autor_id')
+          .select('id, texto, created_at, autor_id')
           .eq('card_id', cardId)
           .order('created_at', { ascending: false });
         if (comErr || !comRows?.length) {
@@ -783,7 +812,7 @@ export function KanbanCardModal({
           setComentariosCard(
             comRows.map((c) => ({
               id: String(c.id),
-              conteudo: String(c.conteudo ?? ''),
+              conteudo: String((c as { texto?: string | null }).texto ?? ''),
               created_at: String(c.created_at),
               autor_id: c.autor_id ? String(c.autor_id) : null,
               autor_nome: c.autor_id ? nomePorId.get(String(c.autor_id)) ?? null : null,
@@ -1430,8 +1459,9 @@ export function KanbanCardModal({
       }
       const { error } = await supabase.from('kanban_card_comentarios').insert({
         card_id: card.id,
+        fase_id: card.fase_id ?? null,
         autor_id: user.id,
-        conteudo: novoComentarioCard.trim(),
+        texto: novoComentarioCard.trim(),
       });
       if (error) {
         alert(`Erro do banco: ${error.message}\nCódigo: ${error.code}\nDetalhes: ${error.details ?? '—'}\nHint: ${error.hint ?? '—'}`);
@@ -1442,7 +1472,7 @@ export function KanbanCardModal({
       const supabase2 = createClient();
       const { data: comRows } = await supabase2
         .from('kanban_card_comentarios')
-        .select('id, conteudo, created_at, autor_id')
+        .select('id, texto, created_at, autor_id')
         .eq('card_id', card.id)
         .order('created_at', { ascending: false });
       if (comRows?.length) {
@@ -1455,17 +1485,73 @@ export function KanbanCardModal({
         setComentariosCard(
           comRows.map((c) => ({
             id: String(c.id),
-            conteudo: String(c.conteudo ?? ''),
+            conteudo: String((c as { texto?: string | null }).texto ?? ''),
             created_at: String(c.created_at),
             autor_id: c.autor_id ? String(c.autor_id) : null,
             autor_nome: c.autor_id ? nomePorId.get(String(c.autor_id)) ?? null : null,
           })),
         );
+      } else {
+        setComentariosCard([]);
       }
     } catch (err) {
       alert(`Exceção inesperada: ${String((err as Error)?.message ?? err)}`);
     } finally {
       setSalvandoComentario(false);
+    }
+  }
+
+  async function handleEditarComentario(comentarioId: string) {
+    if (!card) return;
+    const uid = modalSessao.userId;
+    if (!uid) {
+      alert('Faça login para editar o comentário.');
+      return;
+    }
+    const html = (comentarioEdicaoRef.current?.innerHTML ?? editComentarioDraft).trim();
+    const plain = (comentarioEdicaoRef.current?.innerText ?? '').trim();
+    if (!plain) return;
+    setSalvandoEdicaoComentario(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from('kanban_card_comentarios')
+        .update({ texto: html, updated_at: new Date().toISOString() })
+        .eq('id', comentarioId)
+        .eq('autor_id', uid);
+      if (error) throw error;
+      setEditingComentarioId(null);
+      setEditComentarioDraft('');
+      if (comentarioEdicaoRef.current) comentarioEdicaoRef.current.innerHTML = '';
+      const supabase2 = createClient();
+      const { data: comRows } = await supabase2
+        .from('kanban_card_comentarios')
+        .select('id, texto, created_at, autor_id')
+        .eq('card_id', card.id)
+        .order('created_at', { ascending: false });
+      if (comRows?.length) {
+        const autorIds = [...new Set(comRows.map((c) => c.autor_id).filter(Boolean))] as string[];
+        let nomePorId = new Map<string, string>();
+        if (autorIds.length > 0) {
+          const { data: profs } = await supabase2.from('profiles').select('id, full_name').in('id', autorIds);
+          nomePorId = new Map((profs ?? []).map((p) => [p.id, (p.full_name as string | null)?.trim() || '']));
+        }
+        setComentariosCard(
+          comRows.map((c) => ({
+            id: String(c.id),
+            conteudo: String((c as { texto?: string | null }).texto ?? ''),
+            created_at: String(c.created_at),
+            autor_id: c.autor_id ? String(c.autor_id) : null,
+            autor_nome: c.autor_id ? nomePorId.get(String(c.autor_id)) ?? null : null,
+          })),
+        );
+      } else {
+        setComentariosCard([]);
+      }
+    } catch {
+      alert('Erro ao editar comentário.');
+    } finally {
+      setSalvandoEdicaoComentario(false);
     }
   }
 
@@ -3339,12 +3425,85 @@ export function KanbanCardModal({
                       <ul className="mb-4 max-h-48 space-y-3 overflow-y-auto">
                         {comentariosCard.map((c) => (
                           <li key={c.id} className="border-b border-stone-200/80 pb-3 text-sm last:border-0">
-                            <p style={{ color: 'var(--moni-text-primary)' }} dangerouslySetInnerHTML={{ __html: c.conteudo }} />
-                            <p className="mt-1 text-xs text-stone-500">
-                              {c.autor_nome?.trim() || 'Usuário'}
-                              {' · '}
-                              {formatDataHoraHistorico(c.created_at)}
-                            </p>
+                            {editingComentarioId === c.id ? (
+                              <div className="space-y-2">
+                                <div className="overflow-hidden rounded-lg" style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-0)' }}>
+                                  <div className="flex gap-1 border-b px-2 py-1" style={{ borderColor: 'var(--moni-border-default)' }}>
+                                    <button
+                                      type="button"
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        comentarioEdicaoRef.current?.focus();
+                                        document.execCommand('bold');
+                                      }}
+                                      className="rounded px-2 py-0.5 text-xs font-bold text-stone-600 hover:bg-stone-100"
+                                      title="Negrito"
+                                    >B</button>
+                                    <button
+                                      type="button"
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        comentarioEdicaoRef.current?.focus();
+                                        document.execCommand('italic');
+                                      }}
+                                      className="rounded px-2 py-0.5 text-xs italic text-stone-600 hover:bg-stone-100"
+                                      title="Itálico"
+                                    >I</button>
+                                  </div>
+                                  <div
+                                    ref={comentarioEdicaoRef}
+                                    contentEditable
+                                    suppressContentEditableWarning
+                                    onInput={(e) => setEditComentarioDraft((e.currentTarget as HTMLDivElement).innerHTML)}
+                                    className="min-h-[60px] w-full p-3 text-sm focus:outline-none"
+                                    style={{ background: 'var(--moni-surface-0)' }}
+                                  />
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      salvandoEdicaoComentario || !richTextPlainTrimmed(editComentarioDraft)
+                                    }
+                                    onClick={() => void handleEditarComentario(c.id)}
+                                    className="rounded px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                                    style={{ background: 'var(--moni-text-primary)' }}
+                                  >
+                                    {salvandoEdicaoComentario ? '…' : 'Salvar'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingComentarioId(null);
+                                      setEditComentarioDraft('');
+                                      if (comentarioEdicaoRef.current) comentarioEdicaoRef.current.innerHTML = '';
+                                    }}
+                                    className="rounded border border-stone-300 px-3 py-1.5 text-xs"
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <p style={{ color: 'var(--moni-text-primary)' }} dangerouslySetInnerHTML={{ __html: c.conteudo }} />
+                                <p className="mt-1 flex items-center gap-0.5 text-xs text-stone-500">
+                                  {c.autor_nome?.trim() || 'Usuário'}
+                                  {c.autor_id === modalSessao.userId ? (
+                                    <button
+                                      type="button"
+                                      title="Editar comentário"
+                                      onClick={() => { setEditingComentarioId(c.id); setEditComentarioDraft(c.conteudo); }}
+                                      className="ml-1 rounded p-0.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
+                                    >
+                                      <Pencil size={12} />
+                                    </button>
+                                  ) : null}
+                                  {' · '}
+                                  {formatDataHoraHistorico(c.created_at)}
+                                </p>
+                              </>
+                            )}
                           </li>
                         ))}
                       </ul>
