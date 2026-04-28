@@ -106,12 +106,15 @@ export async function listarTagsCard(
     .from('kanban_card_tags')
     .select('id, tag_id, kanban_tags(nome, cor)')
     .eq('card_id', cardId);
-  return (data ?? []).map((r) => ({
-    id: String(r.id),
-    tag_id: String(r.tag_id),
-    nome: String((r.kanban_tags as { nome: string } | null)?.nome ?? ''),
-    cor: String((r.kanban_tags as { cor: string } | null)?.cor ?? '#cccccc'),
-  }));
+  return (data ?? []).map((r) => {
+    const tag = Array.isArray(r.kanban_tags) ? r.kanban_tags[0] : r.kanban_tags;
+    return {
+      id: String(r.id),
+      tag_id: String(r.tag_id),
+      nome: String((tag as { nome?: string } | null)?.nome ?? ''),
+      cor: String((tag as { cor?: string } | null)?.cor ?? '#cccccc'),
+    };
+  });
 }
 
 export async function vincularTagCard(
