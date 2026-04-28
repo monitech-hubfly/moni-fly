@@ -451,6 +451,17 @@ export function KanbanCardModal({
       tema: '',
       temaOutro: '',
     });
+    setNegocioDraft({
+      tipo_aquisicao_terreno: '',
+      valor_terreno: '',
+      vgv_pretendido: '',
+      produto_modelo_casa: '',
+      link_pasta_drive: '',
+      nome_condominio: '',
+      quadra: '',
+      lote: '',
+    });
+    setEditandoNegocio(false);
   }, [cardId]);
 
   useEffect(() => {
@@ -2014,6 +2025,36 @@ export function KanbanCardModal({
     if (/^https?:\/\//i.test(raw)) return raw;
     return `https://${raw}`;
   })();
+
+  function abrirEdicaoNegocio() {
+    if (!proc && origem === 'nativo' && card) {
+      setNegocioDraft({
+        tipo_aquisicao_terreno: '',
+        valor_terreno: '',
+        vgv_pretendido: '',
+        produto_modelo_casa: '',
+        link_pasta_drive: '',
+        nome_condominio: card.nome_condominio ?? '',
+        quadra: card.quadra ?? '',
+        lote: card.lote ?? '',
+      });
+      setEditandoNegocio(true);
+      return;
+    }
+    if (proc) {
+      setNegocioDraft({
+        tipo_aquisicao_terreno: proc.tipo_aquisicao_terreno ?? '',
+        valor_terreno: proc.valor_terreno != null ? String(proc.valor_terreno) : '',
+        vgv_pretendido: proc.vgv_pretendido != null ? String(proc.vgv_pretendido) : '',
+        produto_modelo_casa: proc.produto_modelo_casa ?? '',
+        link_pasta_drive: proc.link_pasta_drive ?? '',
+        nome_condominio: proc.nome_condominio ?? '',
+        quadra: proc.quadra ?? '',
+        lote: proc.lote ?? '',
+      });
+      setEditandoNegocio(true);
+    }
+  }
 
   const secaoHead = (id: SecaoEsquerdaId, label: string, body: ReactNode) => (
     <div
@@ -4304,19 +4345,7 @@ export function KanbanCardModal({
                         {modalSessao.ehAdminOuTeam ? (
                           <button
                             type="button"
-                            onClick={() => {
-                              setNegocioDraft({
-                                tipo_aquisicao_terreno: '',
-                                valor_terreno: '',
-                                vgv_pretendido: '',
-                                produto_modelo_casa: '',
-                                link_pasta_drive: '',
-                                nome_condominio: card.nome_condominio ?? '',
-                                quadra: card.quadra ?? '',
-                                lote: card.lote ?? '',
-                              });
-                              setEditandoNegocio(true);
-                            }}
+                            onClick={() => abrirEdicaoNegocio()}
                             className="mt-1 rounded border border-stone-200 px-3 py-1 text-xs text-stone-600 hover:bg-stone-50"
                           >
                             Editar dados do negócio
@@ -4482,19 +4511,8 @@ export function KanbanCardModal({
                     </div>
                     {modalSessao.ehAdminOuTeam && (
                       <button
-                        onClick={() => {
-                          setNegocioDraft({
-                            tipo_aquisicao_terreno: proc.tipo_aquisicao_terreno ?? '',
-                            valor_terreno: proc.valor_terreno != null ? String(proc.valor_terreno) : '',
-                            vgv_pretendido: proc.vgv_pretendido != null ? String(proc.vgv_pretendido) : '',
-                            produto_modelo_casa: proc.produto_modelo_casa ?? '',
-                            link_pasta_drive: proc.link_pasta_drive ?? '',
-                            nome_condominio: proc.nome_condominio ?? '',
-                            quadra: proc.quadra ?? '',
-                            lote: proc.lote ?? '',
-                          });
-                          setEditandoNegocio(true);
-                        }}
+                        type="button"
+                        onClick={() => abrirEdicaoNegocio()}
                         className="mt-1 rounded border border-stone-200 px-3 py-1 text-xs text-stone-600 hover:bg-stone-50"
                       >
                         Editar dados do negócio
