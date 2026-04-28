@@ -3755,13 +3755,16 @@ export function KanbanCardModal({
                             <button
                               key={t.id}
                               type="button"
-                              onClick={() =>
-                                void vincularTagCard(card.id, t.id, basePath).then(async () => {
-                                  const tc = await listarTagsCard(card.id);
-                                  setTagsCard(tc);
-                                  setTagsOpen(false);
-                                })
-                              }
+                              onClick={async () => {
+                                const res = await vincularTagCard(card.id, t.id, basePath);
+                                if (!res.ok) {
+                                  alert('Erro ao vincular tag: ' + res.error);
+                                  return;
+                                }
+                                const tc = await listarTagsCard(card.id);
+                                setTagsCard(tc);
+                                setTagsOpen(false);
+                              }}
                               className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
                               style={{ background: t.cor + '22', color: t.cor, border: `1px solid ${t.cor}55` }}
                             >
