@@ -797,7 +797,7 @@ export function KanbanCardModal({
       try {
         const { data: comRows, error: comErr } = await supabase
           .from('kanban_card_comentarios')
-          .select('id, texto, created_at, autor_id')
+          .select('id, conteudo, created_at, autor_id')
           .eq('card_id', cardId)
           .order('created_at', { ascending: false });
         if (comErr || !comRows?.length) {
@@ -812,7 +812,7 @@ export function KanbanCardModal({
           setComentariosCard(
             comRows.map((c) => ({
               id: String(c.id),
-              conteudo: String((c as { texto?: string | null }).texto ?? ''),
+              conteudo: String((c as { conteudo?: string | null }).conteudo ?? ''),
               created_at: String(c.created_at),
               autor_id: c.autor_id ? String(c.autor_id) : null,
               autor_nome: c.autor_id ? nomePorId.get(String(c.autor_id)) ?? null : null,
@@ -1459,9 +1459,8 @@ export function KanbanCardModal({
       }
       const { error } = await supabase.from('kanban_card_comentarios').insert({
         card_id: card.id,
-        fase_id: card.fase_id ?? null,
         autor_id: user.id,
-        texto: novoComentarioCard.trim(),
+        conteudo: novoComentarioCard.trim(),
       });
       if (error) {
         alert(`Erro do banco: ${error.message}\nCódigo: ${error.code}\nDetalhes: ${error.details ?? '—'}\nHint: ${error.hint ?? '—'}`);
@@ -1472,7 +1471,7 @@ export function KanbanCardModal({
       const supabase2 = createClient();
       const { data: comRows } = await supabase2
         .from('kanban_card_comentarios')
-        .select('id, texto, created_at, autor_id')
+        .select('id, conteudo, created_at, autor_id')
         .eq('card_id', card.id)
         .order('created_at', { ascending: false });
       if (comRows?.length) {
@@ -1485,7 +1484,7 @@ export function KanbanCardModal({
         setComentariosCard(
           comRows.map((c) => ({
             id: String(c.id),
-            conteudo: String((c as { texto?: string | null }).texto ?? ''),
+            conteudo: String((c as { conteudo?: string | null }).conteudo ?? ''),
             created_at: String(c.created_at),
             autor_id: c.autor_id ? String(c.autor_id) : null,
             autor_nome: c.autor_id ? nomePorId.get(String(c.autor_id)) ?? null : null,
@@ -1516,7 +1515,7 @@ export function KanbanCardModal({
       const supabase = createClient();
       const { error } = await supabase
         .from('kanban_card_comentarios')
-        .update({ texto: html, updated_at: new Date().toISOString() })
+        .update({ conteudo: html })
         .eq('id', comentarioId)
         .eq('autor_id', uid);
       if (error) throw error;
@@ -1526,7 +1525,7 @@ export function KanbanCardModal({
       const supabase2 = createClient();
       const { data: comRows } = await supabase2
         .from('kanban_card_comentarios')
-        .select('id, texto, created_at, autor_id')
+        .select('id, conteudo, created_at, autor_id')
         .eq('card_id', card.id)
         .order('created_at', { ascending: false });
       if (comRows?.length) {
@@ -1539,7 +1538,7 @@ export function KanbanCardModal({
         setComentariosCard(
           comRows.map((c) => ({
             id: String(c.id),
-            conteudo: String((c as { texto?: string | null }).texto ?? ''),
+            conteudo: String((c as { conteudo?: string | null }).conteudo ?? ''),
             created_at: String(c.created_at),
             autor_id: c.autor_id ? String(c.autor_id) : null,
             autor_nome: c.autor_id ? nomePorId.get(String(c.autor_id)) ?? null : null,
