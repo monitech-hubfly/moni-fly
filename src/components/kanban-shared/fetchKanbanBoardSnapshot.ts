@@ -126,6 +126,28 @@ export async function fetchKanbanBoardSnapshot(
       });
     }
 
+    const processoIds = rows.map((r) => String(r.id)).filter(Boolean);
+    const franqueadoNomeMap = new Map<string, string>();
+    if (processoIds.length > 0) {
+      const { data: processos } = await supabase
+        .from('processo_step_one')
+        .select('id, numero_franquia')
+        .in('id', processoIds);
+      const numeros = [...new Set((processos ?? []).map((p) => p.numero_franquia).filter(Boolean))] as string[];
+      if (numeros.length > 0) {
+        const { data: redes } = await supabase
+          .from('rede_franqueados')
+          .select('n_franquia, nome_completo')
+          .in('n_franquia', numeros);
+        const redeByNumero = new Map((redes ?? []).map((r) => [String(r.n_franquia), String(r.nome_completo ?? '')]));
+        (processos ?? []).forEach((p) => {
+          if (p.numero_franquia && redeByNumero.has(p.numero_franquia)) {
+            franqueadoNomeMap.set(String(p.id), redeByNumero.get(p.numero_franquia)!);
+          }
+        });
+      }
+    }
+
     cards = rows.map((r) => {
       const fid = r.responsavel_id ? String(r.responsavel_id) : null;
       return {
@@ -140,11 +162,13 @@ export async function fetchKanbanBoardSnapshot(
         concluido: false,
         concluido_em: null,
         origem: 'legado' as const,
-        profiles: fid
-          ? redeNomeMapLegado.has(fid)
-            ? { full_name: redeNomeMapLegado.get(fid) ?? null }
-            : (profilesMap.get(fid) ?? null)
-          : null,
+        profiles: franqueadoNomeMap.has(String(r.id))
+          ? { full_name: franqueadoNomeMap.get(String(r.id)) ?? null }
+          : fid
+            ? redeNomeMapLegado.has(fid)
+              ? { full_name: redeNomeMapLegado.get(fid) ?? null }
+              : (profilesMap.get(fid) ?? null)
+            : null,
       };
     });
     return {
