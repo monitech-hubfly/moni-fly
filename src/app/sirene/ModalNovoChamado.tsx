@@ -8,7 +8,8 @@ import {
   type SireneVinculoCardBuscaItem,
 } from './actions';
 import type { HdmTime } from '@/types/sirene';
-import { TIMES_MONI_HDM, responsaveisDoTimeMoni, timesMoniReceberChamadoOpcoes } from '@/lib/times-responsaveis';
+import { TIMES_MONI_HDM } from '@/lib/times-responsaveis';
+import { createClient } from '@/lib/supabase/client';
 
 type FranqueadoItem = { id: string; n_franquia: string | null; nome_completo: string | null };
 
@@ -20,8 +21,10 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     franqueados: FranqueadoItem[];
   } | null>(null);
   const [incendio, setIncendio] = useState('');
-  const [timeAbertura, setTimeAbertura] = useState('');
-  const [responsavelAbertura, setResponsavelAbertura] = useState('');
+  const [timesIds, setTimesIds] = useState<string[]>([]);
+  const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
+  const [kanbanTimes, setKanbanTimes] = useState<{ id: string; nome: string }[]>([]);
+  const [responsaveisOpcoes, setResponsaveisOpcoes] = useState<{ id: string; nome: string }[]>([]);
   const [frankId, setFrankId] = useState('');
   const [frankNome, setFrankNome] = useState('');
   const [buscaFrank, setBuscaFrank] = useState('');
@@ -46,19 +49,24 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     });
   }, []);
 
-  const timesReceberOpcoes = useMemo(() => [...timesMoniReceberChamadoOpcoes(ehHdm)], [ehHdm]);
-
-  const responsaveisDoTime = useMemo(() => responsaveisDoTimeMoni(timeAbertura), [timeAbertura]);
-
   useEffect(() => {
-    if (!responsavelAbertura) return;
-    if (!responsaveisDoTime.includes(responsavelAbertura)) setResponsavelAbertura('');
-  }, [timeAbertura, responsaveisDoTime, responsavelAbertura]);
-
-  useEffect(() => {
-    if (!timeAbertura) return;
-    if (!timesReceberOpcoes.includes(timeAbertura)) setTimeAbertura('');
-  }, [timesReceberOpcoes, timeAbertura]);
+    void (async () => {
+      const supabase = createClient();
+      const { data: kt } = await supabase.from('kanban_times').select('id, nome').order('nome');
+      setKanbanTimes((kt ?? []).map((r) => ({ id: String(r.id), nome: String(r.nome) })));
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .order('full_name', { ascending: true, nullsFirst: false })
+        .limit(500);
+      setResponsaveisOpcoes(
+        (profs ?? []).map((p) => ({
+          id: String(p.id),
+          nome: String((p as { full_name?: string | null }).full_name ?? '').trim() || String(p.id).slice(0, 8),
+        })),
+      );
+    })();
+  }, []);
 
   const frankFiltrados = useMemo(() => {
     if (!dados?.franqueados.length) return [];
@@ -105,10 +113,12 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     setLoading(true);
     const formData = new FormData();
     formData.set('incendio', incendio.trim());
-    formData.set('time_abertura', timeAbertura.trim());
-    if (responsavelAbertura.trim()) {
-      formData.set('abertura_responsavel_nome', responsavelAbertura.trim());
-    }
+    const timeNome = kanbanTimes.find((t) => timesIds[0] === t.id)?.nome ?? '';
+    const respNome = responsaveisOpcoes.find((p) => responsaveisIds[0] === p.id)?.nome ?? '';
+    formData.set('time_abertura', timeNome);
+    if (respNome) formData.set('abertura_responsavel_nome', respNome);
+    formData.set('times_ids', JSON.stringify(timesIds));
+    formData.set('responsaveis_ids', JSON.stringify(responsaveisIds));
     formData.set('frank_id', frankId.trim());
     formData.set('frank_nome', frankNome.trim());
     if (teTrata === 'sim' || teTrata === 'nao') formData.set('te_trata', teTrata);
@@ -297,39 +307,49 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                 <label className="mb-1 block text-sm font-medium text-stone-700">
                   Time que receberá o chamado
                 </label>
-                <select
-                  value={timeAbertura}
-                  onChange={(e) => setTimeAbertura(e.target.value)}
-                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
-                >
-                  <option value="">Selecione</option>
-                  {timesReceberOpcoes.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {(ehHdm
+                    ? kanbanTimes.filter((t) => ['Homologações', 'Produto', 'Modelo Virtual'].includes(t.nome))
+                    : kanbanTimes
+                  ).map((t) => {
+                    const on = timesIds.includes(t.id);
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() =>
+                          setTimesIds((prev) => (on ? prev.filter((x) => x !== t.id) : [...prev, t.id]))
+                        }
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium border ${on ? 'bg-stone-800 text-white border-stone-800' : 'bg-white text-stone-600 border-stone-300'}`}
+                      >
+                        {t.nome}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-stone-700">
                   Responsável pelo atendimento (opcional)
                 </label>
-                <select
-                  value={responsavelAbertura}
-                  onChange={(e) => setResponsavelAbertura(e.target.value)}
-                  disabled={!timeAbertura}
-                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
-                >
-                  <option value="">
-                    {timeAbertura ? 'Selecione' : 'Selecione um time primeiro'}
-                  </option>
-                  {responsaveisDoTime.map((nome) => (
-                    <option key={nome} value={nome}>
-                      {nome}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {responsaveisOpcoes.map((p) => {
+                    const on = responsaveisIds.includes(p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() =>
+                          setResponsaveisIds((prev) => (on ? prev.filter((x) => x !== p.id) : [...prev, p.id]))
+                        }
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium border ${on ? 'bg-stone-800 text-white border-stone-800' : 'bg-white text-stone-600 border-stone-300'}`}
+                      >
+                        {p.nome}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div ref={buscaFrankRef} className="relative">
@@ -391,6 +411,8 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                 checked={ehHdm}
                 onChange={(e) => {
                   setEhHdm(e.target.checked);
+                  setTimesIds([]);
+                  setResponsaveisIds([]);
                   if (!e.target.checked) setHdmResponsavel('');
                 }}
                 className="h-4 w-4 rounded border-stone-300"
@@ -428,7 +450,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
             </button>
             <button
               type="submit"
-              disabled={loading || !incendio.trim() || teTrata === '' || !tema || (tema === 'Outro' && !temaOutro.trim())}
+              disabled={loading || !incendio.trim() || teTrata === '' || !tema || (tema === 'Outro' && !temaOutro.trim()) || (!isFrank && timesIds.length === 0)}
               className="rounded-lg bg-moni-primary px-4 py-2 text-sm font-medium text-white hover:bg-moni-secondary disabled:opacity-50"
             >
               {loading ? 'Abrindo…' : 'Abrir chamado'}
