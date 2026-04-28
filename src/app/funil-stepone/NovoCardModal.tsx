@@ -81,11 +81,8 @@ export function NovoCardModal({
       } = await supabase.auth.getUser();
       if (!user) throw new Error('Não autenticado');
 
-      const nomeFranqueado = franqueadoNome || 'Sem nome';
-      const faseNome = fases.find((f) => f.id === faseId)?.nome || 'Fase';
-
-      // Gera título automático: "Franqueado - Fase"
-      const tituloAuto = `${nomeFranqueado} - ${faseNome}`;
+      const nFranquiaSelected = franqueados.find((f) => f.id === franqueadoRedeId)?.n_franquia ?? '';
+      const tituloAuto = `${nFranquiaSelected} - ${franqueadoNome}`;
 
       const { error } = await supabase.from('kanban_cards').insert({
         kanban_id: kanbanId,
@@ -109,15 +106,8 @@ export function NovoCardModal({
   }
 
   // Preview do título
-  const getFranqueadoNome = () => {
-    return franqueadoNome || 'Franqueado';
-  };
-
-  const getFaseNome = () => {
-    return fases.find((f) => f.id === faseId)?.nome || 'Fase';
-  };
-
-  const tituloPreview = `${getFranqueadoNome()} - ${getFaseNome()}`;
+  const nFranquiaPreview = franqueados.find((f) => f.id === franqueadoRedeId)?.n_franquia ?? '';
+  const tituloPreview = `${nFranquiaPreview} - ${franqueadoNome}`;
 
   return (
     <div
