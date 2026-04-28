@@ -115,20 +115,38 @@ export async function fetchKanbanBoardSnapshot(
       });
     }
 
-    cards = rows.map((r) => ({
-      id: String(r.id),
-      titulo: String(r.titulo ?? ''),
-      status: String(r.status ?? ''),
-      created_at: String(r.criado_em ?? ''),
-      fase_id: String(r.fase_id ?? ''),
-      franqueado_id: String(r.responsavel_id ?? ''),
-      arquivado: false,
-      motivo_arquivamento: null,
-      concluido: false,
-      concluido_em: null,
-      origem: 'legado' as const,
-      profiles: r.responsavel_id ? profilesMap.get(String(r.responsavel_id)) ?? null : null,
-    }));
+    const redeNomeMapLegado = new Map<string, string>();
+    if (franqueadoIds.length > 0) {
+      const { data: redes } = await supabase
+        .from('rede_franqueados')
+        .select('id, nome_completo')
+        .in('id', franqueadoIds);
+      (redes ?? []).forEach((r) => {
+        if (r.nome_completo) redeNomeMapLegado.set(String(r.id), String(r.nome_completo));
+      });
+    }
+
+    cards = rows.map((r) => {
+      const fid = r.responsavel_id ? String(r.responsavel_id) : null;
+      return {
+        id: String(r.id),
+        titulo: String(r.titulo ?? ''),
+        status: String(r.status ?? ''),
+        created_at: String(r.criado_em ?? ''),
+        fase_id: String(r.fase_id ?? ''),
+        franqueado_id: fid ?? '',
+        arquivado: false,
+        motivo_arquivamento: null,
+        concluido: false,
+        concluido_em: null,
+        origem: 'legado' as const,
+        profiles: fid
+          ? redeNomeMapLegado.has(fid)
+            ? { full_name: redeNomeMapLegado.get(fid) ?? null }
+            : (profilesMap.get(fid) ?? null)
+          : null,
+      };
+    });
     return {
       kanban: { id: kanbanIdStr },
       fases,
@@ -187,23 +205,39 @@ export async function fetchKanbanBoardSnapshot(
     });
   }
 
-  const mapNativo = (c: Record<string, unknown>): KanbanCardBrief => ({
-    id: String(c.id),
-    titulo: String(c.titulo ?? ''),
-    status: String(c.status ?? ''),
-    created_at: String(c.created_at ?? ''),
-    fase_id: String(c.fase_id ?? ''),
-    franqueado_id: String(c.franqueado_id ?? ''),
-    arquivado: Boolean((c as { arquivado?: boolean | null }).arquivado),
-    motivo_arquivamento: (c as { motivo_arquivamento?: string | null }).motivo_arquivamento ?? null,
-    concluido: Boolean((c as { concluido?: boolean | null }).concluido),
-    concluido_em:
-      (c as { concluido_em?: string | null }).concluido_em != null
-        ? String((c as { concluido_em?: string | null }).concluido_em)
-        : null,
-    origem: 'nativo',
-    profiles: profilesMap.get(String(c.franqueado_id)) || null,
-  });
+  const redeNomeMapNativo = new Map<string, string>();
+  if (franqueadoIds.length > 0) {
+    const { data: redes } = await supabase
+      .from('rede_franqueados')
+      .select('id, nome_completo')
+      .in('id', franqueadoIds);
+    (redes ?? []).forEach((r) => {
+      if (r.nome_completo) redeNomeMapNativo.set(String(r.id), String(r.nome_completo));
+    });
+  }
+
+  const mapNativo = (c: Record<string, unknown>): KanbanCardBrief => {
+    const fid = String(c.franqueado_id ?? '');
+    return {
+      id: String(c.id),
+      titulo: String(c.titulo ?? ''),
+      status: String(c.status ?? ''),
+      created_at: String(c.created_at ?? ''),
+      fase_id: String(c.fase_id ?? ''),
+      franqueado_id: fid,
+      arquivado: Boolean((c as { arquivado?: boolean | null }).arquivado),
+      motivo_arquivamento: (c as { motivo_arquivamento?: string | null }).motivo_arquivamento ?? null,
+      concluido: Boolean((c as { concluido?: boolean | null }).concluido),
+      concluido_em:
+        (c as { concluido_em?: string | null }).concluido_em != null
+          ? String((c as { concluido_em?: string | null }).concluido_em)
+          : null,
+      origem: 'nativo',
+      profiles: redeNomeMapNativo.has(fid)
+        ? { full_name: redeNomeMapNativo.get(fid) ?? null }
+        : (profilesMap.get(fid) ?? null),
+    };
+  };
 
   cards = (cardsRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
   const cardsConcluidos = (conclRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
