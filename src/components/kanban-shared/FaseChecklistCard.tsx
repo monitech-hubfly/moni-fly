@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import { Download, Upload, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -413,6 +413,10 @@ function ItemField({ item, estado, cardId, isAdmin, onChange, onBlur, onArquivo 
     );
   }
 
+  if (item.tipo === 'tabela') {
+    return <TabelaCondominios item={item} estado={estado} onChange={onChange} onBlur={onBlur} />;
+  }
+
   // texto_curto | email | telefone | numero
   const inputType =
     item.tipo === 'email' ? 'email' : item.tipo === 'telefone' ? 'tel' : item.tipo === 'numero' ? 'number' : 'text';
@@ -429,6 +433,198 @@ function ItemField({ item, estado, cardId, isAdmin, onChange, onBlur, onArquivo 
         onBlur={(e) => onBlur(e.target.value)}
       />
       {erroEl}
+    </div>
+  );
+}
+
+// ─── Tabela de Condomínios ────────────────────────────────────────────────────
+
+type LinhaTabela = {
+  condominio: string;
+  ticket_lote: string;
+  ticket_casas: string;
+  ticket_m2: string;
+  estimativa_giro: string;
+};
+
+const LINHA_VAZIA: LinhaTabela = {
+  condominio: '',
+  ticket_lote: '',
+  ticket_casas: '',
+  ticket_m2: '',
+  estimativa_giro: '',
+};
+
+const COLUNAS_TABELA = [
+  { key: 'condominio' as keyof LinhaTabela, header: 'Condomínio', type: 'text' },
+  { key: 'ticket_lote' as keyof LinhaTabela, header: 'Ticket Médio lote R$', type: 'text' },
+  { key: 'ticket_casas' as keyof LinhaTabela, header: 'Ticket Médio casas R$', type: 'text' },
+  { key: 'ticket_m2' as keyof LinhaTabela, header: 'Ticket Médio casas R$/m²', type: 'text' },
+  { key: 'estimativa_giro' as keyof LinhaTabela, header: 'Estimativa de Casas Vendidas/Ano', type: 'number' },
+];
+
+function parseTabelaValor(valor: string): LinhaTabela[] {
+  try {
+    const parsed = JSON.parse(valor || '[]') as unknown;
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed as LinhaTabela[];
+  } catch {
+    /* valor inválido — começa com 1 linha vazia */
+  }
+  return [{ ...LINHA_VAZIA }];
+}
+
+function TabelaCondominios({
+  item,
+  estado,
+  onChange,
+  onBlur,
+}: {
+  item: FaseChecklistItem;
+  estado: EstadoResposta;
+  onChange: (valor: string) => void;
+  onBlur: (valor: string) => void;
+}) {
+  const [linhas, setLinhas] = useState<LinhaTabela[]>(() => parseTabelaValor(estado.valor));
+
+  function atualizarCelula(idx: number, campo: keyof LinhaTabela, valor: string): LinhaTabela[] {
+    const novas = linhas.map((l, i) => (i === idx ? { ...l, [campo]: valor } : l));
+    setLinhas(novas);
+    onChange(JSON.stringify(novas));
+    return novas;
+  }
+
+  function adicionarLinha() {
+    if (linhas.length >= 20) return;
+    const novas = [...linhas, { ...LINHA_VAZIA }];
+    setLinhas(novas);
+    const json = JSON.stringify(novas);
+    onChange(json);
+    onBlur(json);
+  }
+
+  function removerLinha(idx: number) {
+    const novas = linhas.filter((_, i) => i !== idx);
+    const semVazias = novas.length === 0 ? [{ ...LINHA_VAZIA }] : novas;
+    setLinhas(semVazias);
+    const json = JSON.stringify(semVazias);
+    onChange(json);
+    onBlur(json);
+  }
+
+  const cellStyle: CSSProperties = {
+    border: '1px solid var(--moni-border-default)',
+    padding: 0,
+  };
+
+  const inputCellStyle: CSSProperties = {
+    width: '100%',
+    border: 'none',
+    outline: 'none',
+    padding: '4px 8px',
+    background: 'transparent',
+    fontSize: '0.75rem',
+    color: 'var(--moni-text-primary)',
+    minWidth: 90,
+  };
+
+  return (
+    <div>
+      <span className="mb-2 block text-xs font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
+        {item.label}
+        {item.obrigatorio && <span className="ml-1 text-red-500">*</span>}
+        {estado.salvando && <Loader2 size={10} className="ml-1 inline animate-spin" />}
+      </span>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+          <thead>
+            <tr>
+              {COLUNAS_TABELA.map((col) => (
+                <th
+                  key={col.key}
+                  style={{
+                    border: '1px solid var(--moni-border-default)',
+                    padding: '6px 8px',
+                    textAlign: 'left',
+                    fontWeight: 600,
+                    background: 'var(--moni-surface-100)',
+                    whiteSpace: 'nowrap',
+                    color: 'var(--moni-text-secondary)',
+                  }}
+                >
+                  {col.header}
+                </th>
+              ))}
+              <th
+                style={{
+                  border: '1px solid var(--moni-border-default)',
+                  padding: '6px 4px',
+                  width: 28,
+                  background: 'var(--moni-surface-100)',
+                }}
+              />
+            </tr>
+          </thead>
+          <tbody>
+            {linhas.map((linha, idx) => (
+              <tr key={idx}>
+                {COLUNAS_TABELA.map((col) => (
+                  <td key={col.key} style={cellStyle}>
+                    <input
+                      type={col.type}
+                      value={linha[col.key]}
+                      placeholder={col.type === 'number' ? '0' : '—'}
+                      style={inputCellStyle}
+                      onChange={(e) => atualizarCelula(idx, col.key, e.target.value)}
+                      onBlur={(e) => {
+                        const novas = linhas.map((l, i) =>
+                          i === idx ? { ...l, [col.key]: e.target.value } : l,
+                        );
+                        onBlur(JSON.stringify(novas));
+                      }}
+                    />
+                  </td>
+                ))}
+                <td style={{ ...cellStyle, textAlign: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => removerLinha(idx)}
+                    title="Remover linha"
+                    style={{
+                      color: 'var(--moni-text-tertiary)',
+                      fontSize: '1rem',
+                      lineHeight: 1,
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: '0 4px',
+                    }}
+                  >
+                    ×
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {linhas.length < 20 && (
+        <button
+          type="button"
+          onClick={adicionarLinha}
+          style={{
+            marginTop: 8,
+            fontSize: '0.75rem',
+            color: 'var(--moni-primary-600)',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 0,
+          }}
+        >
+          + Adicionar linha
+        </button>
+      )}
+      {estado.erro && <p className="mt-1 text-xs text-red-500">{estado.erro}</p>}
     </div>
   );
 }
