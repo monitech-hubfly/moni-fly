@@ -655,7 +655,7 @@ export function KanbanCardModal({
         const { data: cardData, error: cardError } = await supabase
           .from('kanban_cards')
           .select(
-            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado',
+            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id',
           )
           .eq('id', cardId)
           .single();
@@ -680,6 +680,8 @@ export function KanbanCardModal({
           concluido_em: ccem != null && String(ccem).trim() !== '' ? String(ccem) : null,
           arquivado: Boolean((cardData as { arquivado?: boolean | null }).arquivado),
         };
+        nativeRedeFranqueadoId =
+          (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? null;
       }
 
       let profiles: Card['profiles'] = null;
