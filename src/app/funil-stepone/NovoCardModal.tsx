@@ -11,11 +11,6 @@ type Fase = {
   ordem: number;
 };
 
-type Franqueado = {
-  id: string;
-  full_name: string | null;
-};
-
 export function NovoCardModal({
   kanbanId,
   onClose,
@@ -27,28 +22,54 @@ export function NovoCardModal({
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [franqueadoId, setFranqueadoId] = useState('');
+  const [nFranquia, setNFranquia] = useState('');
+  const [franqueadoNome, setFranqueadoNome] = useState('');
+  const [franqueadoRedeId, setFranqueadoRedeId] = useState('');
+  const [buscandoFranqueado, setBuscandoFranqueado] = useState(false);
+  const [erroFranqueado, setErroFranqueado] = useState('');
   const [faseId, setFaseId] = useState('');
   const [fases, setFases] = useState<Fase[]>([]);
-  const [franqueados, setFranqueados] = useState<Franqueado[]>([]);
 
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const n = nFranquia.trim().toUpperCase();
+    if (!n) {
+      setFranqueadoNome('');
+      setFranqueadoRedeId('');
+      setErroFranqueado('');
+      return;
+    }
+    const t = setTimeout(async () => {
+      setBuscandoFranqueado(true);
+      setErroFranqueado('');
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('rede_franqueados')
+        .select('id, nome_completo, n_franquia')
+        .ilike('n_franquia', n)
+        .limit(1)
+        .maybeSingle();
+      setBuscandoFranqueado(false);
+      if (data) {
+        setFranqueadoNome(String((data as { nome_completo?: string | null }).nome_completo ?? ''));
+        setFranqueadoRedeId(String((data as { id: string }).id));
+        setErroFranqueado('');
+      } else {
+        setFranqueadoNome('');
+        setFranqueadoRedeId('');
+        setErroFranqueado('Franqueado não encontrado');
+      }
+    }, 500);
+    return () => clearTimeout(t);
+  }, [nFranquia]);
+
   async function loadData() {
     try {
       const supabase = createClient();
-
-      // Busca o usuário atual
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        setFranqueadoId(user.id);
-      }
 
       // Busca as fases
       const { data: fasesData } = await supabase
@@ -62,16 +83,6 @@ export function NovoCardModal({
         setFases(fasesData);
         setFaseId(fasesData[0].id); // Primeira fase como padrão
       }
-
-      // Se for admin, busca lista de franqueados
-      if (isAdmin) {
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('id, full_name')
-          .order('full_name');
-
-        setFranqueados(profilesData || []);
-      }
     } catch (err) {
       console.error('Erro ao carregar dados:', err);
     }
@@ -79,20 +90,18 @@ export function NovoCardModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!franqueadoId || !faseId) return;
+    if (!franqueadoRedeId || !faseId) return;
 
     setLoading(true);
     try {
       const supabase = createClient();
 
-      // Busca o nome do franqueado para gerar título
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', franqueadoId)
-        .single();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error('Não autenticado');
 
-      const nomeFranqueado = profileData?.full_name || 'Sem nome';
+      const nomeFranqueado = franqueadoNome || 'Sem nome';
       const faseNome = fases.find((f) => f.id === faseId)?.nome || 'Fase';
 
       // Gera título automático: "Franqueado - Fase"
@@ -101,7 +110,8 @@ export function NovoCardModal({
       const { error } = await supabase.from('kanban_cards').insert({
         kanban_id: kanbanId,
         fase_id: faseId,
-        franqueado_id: franqueadoId,
+        franqueado_id: user.id,
+        rede_franqueado_id: franqueadoRedeId || null,
         titulo: tituloAuto,
         status: 'ativo',
       });
@@ -120,11 +130,7 @@ export function NovoCardModal({
 
   // Preview do título
   const getFranqueadoNome = () => {
-    if (isAdmin && franqueadoId) {
-      const franqueado = franqueados.find((f) => f.id === franqueadoId);
-      return franqueado?.full_name || 'Franqueado';
-    }
-    return 'Você';
+    return franqueadoNome || 'Franqueado';
   };
 
   const getFaseNome = () => {
@@ -173,32 +179,24 @@ export function NovoCardModal({
         <div className="p-6">
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Campo Franqueado (apenas para admin) */}
-            {isAdmin && (
-              <div>
-                <label htmlFor="franqueado" className="block text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
-                  Franqueado <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="franqueado"
-                  value={franqueadoId}
-                  onChange={(e) => setFranqueadoId(e.target.value)}
-                  required
-                  disabled={loading}
-                  className="mt-1 w-full px-4 py-2 text-sm focus:outline-none disabled:bg-stone-50"
-                  style={{
-                    border: '0.5px solid var(--moni-border-default)',
-                    borderRadius: 'var(--moni-radius-md)',
-                  }}
-                >
-                  <option value="">Selecione o franqueado</option>
-                  {franqueados.map((franqueado) => (
-                    <option key={franqueado.id} value={franqueado.id}>
-                      {franqueado.full_name || franqueado.id}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+            <div>
+              <label className="block text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                N° da Franquia <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={nFranquia}
+                onChange={(e) => setNFranquia(e.target.value.toUpperCase())}
+                placeholder="Ex: FK0012"
+                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                disabled={loading}
+              />
+              {buscandoFranqueado && <p className="mt-1 text-xs text-stone-400">Buscando...</p>}
+              {franqueadoNome && !buscandoFranqueado && (
+                <p className="mt-1 text-xs font-medium text-green-700">✓ {franqueadoNome}</p>
+              )}
+              {erroFranqueado && <p className="mt-1 text-xs text-red-500">{erroFranqueado}</p>}
+            </div>
 
             {/* Campo Fase Inicial */}
             <div>
@@ -238,7 +236,7 @@ export function NovoCardModal({
                 PREVIEW DO TÍTULO
               </p>
               <p className="text-sm font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-                {franqueadoId && faseId ? tituloPreview : 'Selecione os campos acima'}
+                {franqueadoRedeId && faseId ? tituloPreview : 'Selecione os campos acima'}
               </p>
               <p className="mt-1 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
                 O título será gerado automaticamente ao criar o card
@@ -249,7 +247,7 @@ export function NovoCardModal({
             <div className="flex flex-col gap-3 pt-2 sm:flex-row">
               <button
                 type="submit"
-                disabled={loading || !franqueadoId || !faseId}
+                disabled={loading || !faseId || !franqueadoRedeId}
                 className="flex-1 px-6 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
                 style={{
                   background: 'var(--moni-navy-800)',
