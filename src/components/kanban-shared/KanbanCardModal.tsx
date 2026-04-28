@@ -1584,6 +1584,22 @@ export function KanbanCardModal({
     }
   }
 
+  async function handleExcluirComentario(comentarioId: string) {
+    if (!confirm('Excluir este comentário?')) return;
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from('kanban_card_comentarios')
+        .delete()
+        .eq('id', comentarioId)
+        .eq('autor_id', modalSessao.userId ?? '');
+      if (error) throw error;
+      setComentariosCard((prev) => prev.filter((c) => c.id !== comentarioId));
+    } catch {
+      alert('Erro ao excluir comentário.');
+    }
+  }
+
   async function handleConfirmarArquivar() {
     if (!card || origem === 'legado') return;
     if (!pode('arquivar_cards')) {
@@ -3519,14 +3535,24 @@ export function KanbanCardModal({
                                 <p className="mt-1 flex items-center gap-0.5 text-xs text-stone-500">
                                   {c.autor_nome?.trim() || 'Usuário'}
                                   {c.autor_id === modalSessao.userId ? (
-                                    <button
-                                      type="button"
-                                      title="Editar comentário"
-                                      onClick={() => { setEditingComentarioId(c.id); setEditComentarioDraft(c.conteudo); }}
-                                      className="ml-1 rounded p-0.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
-                                    >
-                                      <Pencil size={12} />
-                                    </button>
+                                    <>
+                                      <button
+                                        type="button"
+                                        title="Editar comentário"
+                                        onClick={() => { setEditingComentarioId(c.id); setEditComentarioDraft(c.conteudo); }}
+                                        className="ml-1 rounded p-0.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
+                                      >
+                                        <Pencil size={12} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleExcluirComentario(c.id)}
+                                        className="ml-1 rounded p-0.5 text-stone-400 hover:bg-red-50 hover:text-red-500"
+                                        title="Excluir comentário"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                    </>
                                   ) : null}
                                   {' · '}
                                   {formatDataHoraHistorico(c.created_at)}
