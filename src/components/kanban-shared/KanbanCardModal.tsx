@@ -2361,9 +2361,12 @@ export function KanbanCardModal({
 
             <div className="mb-4 flex flex-wrap gap-3">
               <div className="flex items-center gap-1.5">
-                <span title="Data de Reunião" className="text-sm cursor-default">
-                  📅
-                </span>
+                <div className="relative group">
+                  <span className="text-sm cursor-default">📅</span>
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block whitespace-nowrap rounded bg-stone-800 px-2 py-0.5 text-[10px] text-white z-10">
+                    Data de Reunião
+                  </div>
+                </div>
                 <input
                   type="date"
                   value={dataReuniao}
@@ -2384,9 +2387,12 @@ export function KanbanCardModal({
                 )}
               </div>
               <div className="flex items-center gap-1.5">
-                <span title="Data de Follow-up" className="text-sm cursor-default">
-                  🔄
-                </span>
+                <div className="relative group">
+                  <span className="text-sm cursor-default">🔄</span>
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block whitespace-nowrap rounded bg-stone-800 px-2 py-0.5 text-[10px] text-white z-10">
+                    Data de Follow-up
+                  </div>
+                </div>
                 <input
                   type="date"
                   value={dataFollowup}
