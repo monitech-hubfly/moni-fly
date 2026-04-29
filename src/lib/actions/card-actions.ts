@@ -1873,7 +1873,7 @@ export async function enviarEmailCard(input: EnviarEmailCardInput): Promise<Acti
 
   const fromEmail =
     kanbanNome === 'Funil Step One' || kanbanNome === 'Funil Portfólio'
-      ? 'Atendimento Moní <atendimento@moni.casa>'
+      ? 'Atendimento Moní <onboarding@moni.casa>'
       : (process.env.RESEND_FROM ?? 'Casa Moní <onboarding@moni.casa>');
 
   const { sendEmailViaResend } = await import('@/lib/email');
