@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 
@@ -61,9 +62,11 @@ type Props = {
   /** `kanban`: fundo claro; `sirene`: tema escuro do painel */
   variant: 'kanban' | 'sirene';
   className?: string;
+  /** Conteúdo extra à direita de cada linha (ex.: arquivar). */
+  renderTrailing?: (item: SubInteracaoListaItem) => ReactNode;
 };
 
-export function SubInteracaoLista({ items, variant, className = '' }: Props) {
+export function SubInteracaoLista({ items, variant, className = '', renderTrailing }: Props) {
   if (items.length === 0) return null;
 
   const isSirene = variant === 'sirene';
@@ -118,6 +121,7 @@ export function SubInteracaoLista({ items, variant, className = '' }: Props) {
             <span className={`min-w-0 flex-1 truncate font-medium ${text}`} title={it.descricao}>
               {it.descricao}
             </span>
+            {renderTrailing ? <span className="shrink-0">{renderTrailing(it)}</span> : null}
           </li>
         );
       })}

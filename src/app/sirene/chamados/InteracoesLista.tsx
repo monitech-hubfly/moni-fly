@@ -1,7 +1,7 @@
 'use client';
 
 import type React from 'react';
-import { MessageCircle, Pencil, User } from 'lucide-react';
+import { Archive, MessageCircle, Pencil, User } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
@@ -25,6 +25,7 @@ import {
 import {
   adicionarTopicoChamadoPainel,
   arquivarChamado,
+  arquivarTopico,
   atualizarChamadoPainelUnificado,
   getTopicosChamado,
 } from '../actions';
@@ -389,6 +390,9 @@ export function InteracoesLista({
   const [modalArquivar, setModalArquivar] = useState<{ cid: number } | null>(null);
   const [motivoArquivamento, setMotivoArquivamento] = useState('');
   const [salvandoArquivamento, setSalvandoArquivamento] = useState(false);
+  const [modalArquivarTopico, setModalArquivarTopico] = useState<{ topicoId: number; sireneCid: number } | null>(null);
+  const [motivoArquivarTopico, setMotivoArquivarTopico] = useState('');
+  const [salvandoArquivarTopico, setSalvandoArquivarTopico] = useState(false);
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
 
   useEffect(() => {
@@ -1782,23 +1786,42 @@ export function InteracoesLista({
                                         {t.data_fim ? ` · Prazo ${t.data_fim.split('-').reverse().join('/')}` : ''}
                                       </p>
                                     </div>
-                                    <SelectEscuro
-                                      value={t.status}
-                                      onChange={(e) =>
-                                        void handleSubStatusPainel(
-                                          row.sirene_chamado_id!,
-                                          t.id,
-                                          e.target.value as SubInteracaoStatusDb,
-                                        )
-                                      }
-                                      className="min-w-[7.5rem] text-[10px]"
-                                      aria-label="Status do sub-chamado"
-                                    >
-                                      <option value="nao_iniciado">Não iniciado</option>
-                                      <option value="em_andamento">Em andamento</option>
-                                      <option value="concluido">Concluído</option>
-                                      <option value="aprovado">Aprovado</option>
-                                    </SelectEscuro>
+                                    <div className="flex shrink-0 items-center gap-1">
+                                      {podeArquivarChamados ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setModalArquivarTopico({
+                                              topicoId: t.id,
+                                              sireneCid: row.sirene_chamado_id!,
+                                            });
+                                            setMotivoArquivarTopico('');
+                                          }}
+                                          className="rounded p-1 text-stone-500 hover:bg-red-950/50 hover:text-red-300"
+                                          title="Arquivar sub-chamado"
+                                          aria-label="Arquivar sub-chamado"
+                                        >
+                                          <Archive className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                        </button>
+                                      ) : null}
+                                      <SelectEscuro
+                                        value={t.status}
+                                        onChange={(e) =>
+                                          void handleSubStatusPainel(
+                                            row.sirene_chamado_id!,
+                                            t.id,
+                                            e.target.value as SubInteracaoStatusDb,
+                                          )
+                                        }
+                                        className="min-w-[7.5rem] text-[10px]"
+                                        aria-label="Status do sub-chamado"
+                                      >
+                                        <option value="nao_iniciado">Não iniciado</option>
+                                        <option value="em_andamento">Em andamento</option>
+                                        <option value="concluido">Concluído</option>
+                                        <option value="aprovado">Aprovado</option>
+                                      </SelectEscuro>
+                                    </div>
                                   </div>
                                 </li>
                               ))}
@@ -2006,6 +2029,66 @@ export function InteracoesLista({
             router.refresh();
           }}
         />
+      ) : null}
+
+      {modalArquivarTopico ? (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h3 className="mb-1 text-base font-semibold text-stone-800">Arquivar sub-chamado</h3>
+            <p className="mb-4 text-sm text-stone-500">
+              Informe o motivo do arquivamento. Esta ação não pode ser desfeita.
+            </p>
+            <textarea
+              value={motivoArquivarTopico}
+              onChange={(e) => setMotivoArquivarTopico(e.target.value)}
+              rows={3}
+              placeholder="Descreva o motivo…"
+              className="w-full resize-none rounded-lg border border-stone-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-stone-400"
+              autoFocus
+            />
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                disabled={salvandoArquivarTopico || !motivoArquivarTopico.trim()}
+                onClick={async () => {
+                  if (!confirm('Tem certeza que deseja arquivar este sub-chamado?')) return;
+                  setSalvandoArquivarTopico(true);
+                  try {
+                    const res = await arquivarTopico(modalArquivarTopico.topicoId, motivoArquivarTopico);
+                    if (!res.ok) {
+                      alert(res.error);
+                      return;
+                    }
+                    const cid = modalArquivarTopico.sireneCid;
+                    setModalArquivarTopico(null);
+                    setMotivoArquivarTopico('');
+                    const tr = await getTopicosChamado(cid);
+                    if (tr.ok) {
+                      setTopicosByChamado((m) => ({ ...m, [cid]: tr.topicos }));
+                    }
+                    router.refresh();
+                  } finally {
+                    setSalvandoArquivarTopico(false);
+                  }
+                }}
+                className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {salvandoArquivarTopico ? 'Arquivando…' : 'Confirmar arquivamento'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setModalArquivarTopico(null);
+                  setMotivoArquivarTopico('');
+                }}
+                disabled={salvandoArquivarTopico}
+                className="flex-1 rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {modalArquivar ? (

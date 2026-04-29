@@ -594,6 +594,93 @@ export async function desarquivarCard(input: DesarquivarCardInput): Promise<Acti
   return { ok: true };
 }
 
+export async function arquivarInteracao(
+  interacaoId: string,
+  motivo: string,
+  basePath?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: 'Não autenticado.' };
+
+    const { data: ka, error: kaErr } = await supabase
+      .from('kanban_atividades')
+      .update({
+        arquivado: true,
+        arquivado_em: new Date().toISOString(),
+        arquivado_por: user.id,
+        motivo_arquivamento: motivo.trim(),
+        status: 'concluida',
+      })
+      .eq('id', interacaoId)
+      .select('sirene_chamado_id')
+      .single();
+    if (kaErr) return { ok: false, error: kaErr.message };
+
+    const sid = (ka as { sirene_chamado_id?: number | null }).sirene_chamado_id;
+    if (sid) {
+      const { error: scErr } = await supabase
+        .from('sirene_chamados')
+        .update({
+          arquivado: true,
+          arquivado_em: new Date().toISOString(),
+          arquivado_por: user.id,
+          motivo_arquivamento_sirene: motivo.trim(),
+          status: 'concluido',
+        })
+        .eq('id', sid);
+      if (scErr) return { ok: false, error: scErr.message };
+    }
+
+    const bp = basePath?.trim() || '/';
+    revalidatePath(bp);
+    revalidatePath('/');
+    if (sid) {
+      revalidatePath('/sirene');
+      revalidatePath('/sirene/chamados');
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+export async function arquivarSubInteracao(
+  topicoId: string,
+  motivo: string,
+  basePath?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: 'Não autenticado.' };
+    const { error } = await supabase
+      .from('sirene_topicos')
+      .update({
+        arquivado: true,
+        arquivado_em: new Date().toISOString(),
+        arquivado_por: user.id,
+        motivo_arquivamento: motivo.trim(),
+        status: 'concluido',
+      })
+      .eq('id', topicoId);
+    if (error) return { ok: false, error: error.message };
+    const bp = basePath?.trim() || '/';
+    revalidatePath(bp);
+    revalidatePath('/');
+    revalidatePath('/sirene');
+    revalidatePath('/sirene/chamados');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
 export type CriarCardKanbanInput = {
   titulo: string;
   kanban_nome: string;

@@ -38,6 +38,8 @@ export type InteracaoModal = {
   } | null;
   times_resolvidos?: { id: string; nome: string }[];
   responsaveis_resolvidos?: { id: string; nome: string }[];
+  /** Quando true, linha oculta no modal (filtrada após carregar). */
+  arquivado?: boolean;
 };
 
 export type SubInteracaoModal = {

@@ -68,6 +68,36 @@ export async function arquivarChamado(
   }
 }
 
+export async function arquivarTopico(
+  topicoId: number,
+  motivo: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const admin = createAdminClient();
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: 'Não autenticado.' };
+    const { error } = await admin
+      .from('sirene_topicos')
+      .update({
+        arquivado: true,
+        arquivado_em: new Date().toISOString(),
+        arquivado_por: user.id,
+        motivo_arquivamento: motivo.trim(),
+        status: 'concluido',
+      })
+      .eq('id', topicoId);
+    if (error) return { ok: false, error: error.message };
+    revalidatePath('/sirene');
+    revalidatePath('/sirene/chamados');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
 const HDM_TIMES: HdmTime[] = ['Homologações', 'Produto', 'Modelo Virtual'];
 
 const UUID_RE =
@@ -194,6 +224,7 @@ export async function getTopicosChamado(
       'id, ordem, descricao, time_responsavel, tipo, times_ids, responsaveis_ids, data_inicio, data_fim, status, trava, resolucao_time, motivo_reprovacao',
     )
     .eq('chamado_id', chamadoId)
+    .eq('arquivado', false)
     .order('ordem', { ascending: true });
 
   if (error) return { ok: false, error: error.message };

@@ -9,6 +9,7 @@ import {
   ChevronRight,
   CheckCircle2,
   Pencil,
+  Archive,
   BookOpen,
   Link2,
   FileText,
@@ -24,6 +25,8 @@ import { calcularDiasUteis, calcularStatusSLA, formatIsoDateOnlyPtBr, parseIsoDa
 import { rotuloSlaInteracaoPainel } from '@/lib/painel-tarefas-filtros';
 import {
   arquivarCard,
+  arquivarInteracao,
+  arquivarSubInteracao,
   atualizarStatusSubInteracao,
   buscarCardsParaVinculo,
   criarTagKanban,
@@ -360,6 +363,11 @@ export function KanbanCardModal({
   const filtrosBtnRef = useRef<HTMLButtonElement>(null);
   const [arquivamentoAberto, setArquivamentoAberto] = useState(false);
   const [motivoArquivamento, setMotivoArquivamento] = useState('');
+  const [modalArquivarInteracao, setModalArquivarInteracao] = useState<{ id: string; tipo: 'chamado' | 'sub' } | null>(
+    null,
+  );
+  const [motivoArquivarInteracao, setMotivoArquivarInteracao] = useState('');
+  const [salvandoArquivarInteracao, setSalvandoArquivarInteracao] = useState(false);
   const [confirmandoFinalizar, setConfirmandoFinalizar] = useState(false);
   const [modalDetalhes, setModalDetalhes] = useState<KanbanCardModalDetalhes>({
     rede: null,
@@ -963,7 +971,7 @@ export function KanbanCardModal({
         const { data: interacoesData, error: interacoesError } = await supabase
           .from('kanban_atividades')
           .select(
-            'id, titulo, descricao, tipo, times_ids, responsaveis_ids, trava, status, prioridade, data_vencimento, responsavel_id, responsavel_nome_texto, time, created_at, concluida_em, origem, criado_por',
+            'id, titulo, descricao, tipo, times_ids, responsaveis_ids, trava, status, prioridade, data_vencimento, responsavel_id, responsavel_nome_texto, time, created_at, concluida_em, origem, criado_por, arquivado',
           )
           .eq('card_id', cardId)
           .eq('origem', origemAtividade)
@@ -994,7 +1002,8 @@ export function KanbanCardModal({
               .in('id', responsavelIds);
             responsaveisMap = new Map(responsaveisData?.map((r) => [r.id, { full_name: r.full_name }]) || []);
           }
-          const mapeadas: InteracaoModal[] = interacoesData.map((a) => {
+          const mapeadas: InteracaoModal[] = interacoesData
+            .map((a) => {
             const rawIds = (a as { times_ids?: unknown }).times_ids;
             const ids = Array.isArray(rawIds) ? rawIds.map((x) => String(x)) : [];
             const rawR = (a as { responsaveis_ids?: unknown }).responsaveis_ids;
@@ -1033,14 +1042,17 @@ export function KanbanCardModal({
               profiles: primeiroResp ? responsaveisMap.get(primeiroResp) ?? null : null,
               times_resolvidos,
               responsaveis_resolvidos,
+              arquivado: Boolean((a as { arquivado?: boolean | null }).arquivado),
             };
-          });
+          })
+            .filter((a) => !a.arquivado);
           setInteracoes(mapeadas);
 
           const actIds = mapeadas.map((m) => m.id);
           const { data: topicosRows } = await supabase
             .from('sirene_topicos')
-            .select('id, interacao_id, descricao, tipo, times_ids, responsaveis_ids, data_fim, status, trava')
+            .select('id, interacao_id, descricao, tipo, times_ids, responsaveis_ids, data_fim, status, trava, arquivado')
+            .eq('arquivado', false)
             .in('interacao_id', actIds)
             .order('ordem', { ascending: true });
 
@@ -2258,6 +2270,7 @@ export function KanbanCardModal({
   }
 
   return (
+    <>
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       onClick={onClose}
@@ -2860,6 +2873,19 @@ export function KanbanCardModal({
                                         <Pencil className="h-4 w-4 shrink-0" aria-hidden />
                                       </button>
                                     ) : null}
+                                    {!demo && pode('criar_chamados') ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setModalArquivarInteracao({ id: it.id, tipo: 'chamado' });
+                                          setMotivoArquivarInteracao('');
+                                        }}
+                                        className="shrink-0 rounded p-1 text-stone-400 hover:bg-red-50 hover:text-red-500"
+                                        title="Arquivar chamado"
+                                      >
+                                        <Archive className="h-4 w-4 shrink-0" aria-hidden />
+                                      </button>
+                                    ) : null}
                                   </div>
                                 </>
                               )}
@@ -2877,6 +2903,23 @@ export function KanbanCardModal({
                                     trava: s.trava,
                                   }),
                                 )}
+                                renderTrailing={
+                                  pode('criar_chamados')
+                                    ? (item) => (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setModalArquivarInteracao({ id: String(item.id), tipo: 'sub' });
+                                            setMotivoArquivarInteracao('');
+                                          }}
+                                          className="rounded p-1 text-stone-400 hover:bg-red-50 hover:text-red-500"
+                                          title="Arquivar sub-chamado"
+                                        >
+                                          <Archive className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                        </button>
+                                      )
+                                    : undefined
+                                }
                               />
                             ) : null}
                             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -5123,5 +5166,60 @@ export function KanbanCardModal({
         </div>
       </div>
     </div>
+    {modalArquivarInteracao ? (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
+        <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+          <h3 className="mb-1 text-base font-semibold text-stone-800">
+            Arquivar {modalArquivarInteracao.tipo === 'chamado' ? 'chamado' : 'sub-chamado'}
+          </h3>
+          <p className="mb-4 text-sm text-stone-500">Informe o motivo. Esta ação não pode ser desfeita.</p>
+          <textarea
+            value={motivoArquivarInteracao}
+            onChange={(e) => setMotivoArquivarInteracao(e.target.value)}
+            rows={3}
+            placeholder="Descreva o motivo…"
+            className="w-full resize-none rounded-lg border border-stone-300 px-3 py-2 text-sm focus:outline-none"
+            autoFocus
+          />
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              disabled={salvandoArquivarInteracao || !motivoArquivarInteracao.trim()}
+              onClick={async () => {
+                if (!confirm('Tem certeza que deseja arquivar?')) return;
+                setSalvandoArquivarInteracao(true);
+                const res =
+                  modalArquivarInteracao.tipo === 'chamado'
+                    ? await arquivarInteracao(modalArquivarInteracao.id, motivoArquivarInteracao, basePath)
+                    : await arquivarSubInteracao(modalArquivarInteracao.id, motivoArquivarInteracao, basePath);
+                setSalvandoArquivarInteracao(false);
+                if (!res.ok) {
+                  alert(res.error);
+                  return;
+                }
+                setModalArquivarInteracao(null);
+                setMotivoArquivarInteracao('');
+                await loadCard();
+                router.refresh();
+              }}
+              className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {salvandoArquivarInteracao ? 'Arquivando…' : 'Confirmar'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setModalArquivarInteracao(null);
+                setMotivoArquivarInteracao('');
+              }}
+              className="flex-1 rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+    </>
   );
 }
