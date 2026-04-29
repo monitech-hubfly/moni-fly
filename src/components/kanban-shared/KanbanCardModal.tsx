@@ -130,6 +130,8 @@ type Card = {
   fase_id: string;
   franqueado_id: string;
   kanban_id: string;
+  /** Nativo: FK em `rede_franqueados` para dados do franqueado do negócio. */
+  rede_franqueado_id?: string | null;
   nome_condominio?: string | null;
   quadra?: string | null;
   lote?: string | null;
@@ -273,6 +275,12 @@ export function KanbanCardModal({
     lote: '',
   });
   const [salvandoNegocio, setSalvandoNegocio] = useState(false);
+  const [editandoFranqueado, setEditandoFranqueado] = useState(false);
+  const [franqueadosLista, setFranqueadosLista] = useState<
+    { id: string; n_franquia: string; nome_completo: string }[]
+  >([]);
+  const [novoFranqueadoId, setNovoFranqueadoId] = useState('');
+  const [salvandoFranqueado, setSalvandoFranqueado] = useState(false);
   const [abaComentarios, setAbaComentarios] = useState<'comentarios' | 'email'>('comentarios');
   const [emailPara, setEmailPara] = useState('');
   const [emailAssunto, setEmailAssunto] = useState('');
@@ -462,6 +470,10 @@ export function KanbanCardModal({
       lote: '',
     });
     setEditandoNegocio(false);
+    setEditandoFranqueado(false);
+    setFranqueadosLista([]);
+    setNovoFranqueadoId('');
+    setSalvandoFranqueado(false);
   }, [cardId]);
 
   useEffect(() => {
@@ -605,6 +617,7 @@ export function KanbanCardModal({
         nome_condominio?: string | null;
         quadra?: string | null;
         lote?: string | null;
+        rede_franqueado_id?: string | null;
         processo_meta?: Card['processo_meta'];
       };
 
@@ -700,6 +713,8 @@ export function KanbanCardModal({
           nome_condominio: (cardData as { nome_condominio?: string | null }).nome_condominio ?? null,
           quadra: (cardData as { quadra?: string | null }).quadra ?? null,
           lote: (cardData as { lote?: string | null }).lote ?? null,
+          rede_franqueado_id:
+            (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? null,
         };
         nativeRedeFranqueadoId =
           (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? null;
@@ -726,6 +741,7 @@ export function KanbanCardModal({
         nome_condominio: loaded.nome_condominio ?? null,
         quadra: loaded.quadra ?? null,
         lote: loaded.lote ?? null,
+        rede_franqueado_id: loaded.rede_franqueado_id ?? null,
         etapa_slug: loaded.etapa_slug,
         concluido: loaded.concluido ?? false,
         concluido_em: loaded.concluido_em ?? null,
@@ -1770,6 +1786,82 @@ export function KanbanCardModal({
       alert('Erro ao salvar dados do negócio.');
     } finally {
       setSalvandoNegocio(false);
+    }
+  }
+
+  async function abrirEdicaoFranqueado() {
+    try {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('rede_franqueados')
+        .select('id, n_franquia, nome_completo')
+        .order('n_franquia');
+      setFranqueadosLista(
+        (data ?? []).map((r) => ({
+          id: String(r.id),
+          n_franquia: String((r as { n_franquia?: string | null }).n_franquia ?? ''),
+          nome_completo: String((r as { nome_completo?: string | null }).nome_completo ?? ''),
+        })),
+      );
+      setNovoFranqueadoId('');
+      setEditandoFranqueado(true);
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao carregar lista de franqueados.');
+    }
+  }
+
+  async function handleSalvarFranqueado() {
+    if (!novoFranqueadoId || !card) return;
+    setSalvandoFranqueado(true);
+    try {
+      const supabase = createClient();
+      const franqueadoSelecionado = franqueadosLista.find((f) => f.id === novoFranqueadoId);
+      if (!franqueadoSelecionado) return;
+
+      if (origem === 'nativo') {
+        const partes = [
+          franqueadoSelecionado.n_franquia,
+          card.nome_condominio?.trim() ?? '',
+          card.quadra?.trim() ?? '',
+          card.lote?.trim() ?? '',
+        ].filter(Boolean);
+        const novoTitulo = partes.join(' - ');
+        const patch: { rede_franqueado_id: string; titulo?: string } = {
+          rede_franqueado_id: novoFranqueadoId,
+        };
+        if (novoTitulo) patch.titulo = novoTitulo;
+        const { error } = await supabase.from('kanban_cards').update(patch).eq('id', card.id);
+        if (error) throw error;
+        setCard((prev) =>
+          prev
+            ? {
+                ...prev,
+                rede_franqueado_id: novoFranqueadoId,
+                ...(novoTitulo ? { titulo: novoTitulo } : {}),
+              }
+            : prev,
+        );
+      } else {
+        const pid = card.id;
+        const { error } = await supabase
+          .from('processo_step_one')
+          .update({
+            origem_rede_franqueados_id: novoFranqueadoId,
+            numero_franquia: franqueadoSelecionado.n_franquia || null,
+          })
+          .eq('id', pid);
+        if (error) throw error;
+      }
+
+      setEditandoFranqueado(false);
+      await loadCard();
+      router.refresh();
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao salvar franqueado vinculado.');
+    } finally {
+      setSalvandoFranqueado(false);
     }
   }
 
@@ -4151,10 +4243,48 @@ export function KanbanCardModal({
                     </p>
                   </div>
                 ) : null}
-                {!rede ? (
-                  <p className="text-xs text-stone-500">Sem dados de franqueado vinculados ao card.</p>
+                {editandoFranqueado ? (
+                  <div className="space-y-2">
+                    <label className="block">
+                      <span className="text-[11px] font-medium text-stone-500">Franqueado (rede)</span>
+                      <select
+                        value={novoFranqueadoId}
+                        onChange={(e) => setNovoFranqueadoId(e.target.value)}
+                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                      >
+                        <option value="">Selecione o franqueado</option>
+                        {franqueadosLista.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.n_franquia} — {f.nome_completo}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleSalvarFranqueado()}
+                        disabled={salvandoFranqueado || !novoFranqueadoId}
+                        className="rounded bg-moni-primary px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+                      >
+                        {salvandoFranqueado ? 'Salvando…' : 'Salvar'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditandoFranqueado(false)}
+                        disabled={salvandoFranqueado}
+                        className="rounded border border-stone-200 px-3 py-1 text-xs text-stone-600 disabled:opacity-50"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <>
+                    {!rede ? (
+                      <p className="text-xs text-stone-500">Sem dados de franqueado vinculados ao card.</p>
+                    ) : (
+                      <>
                     <div className="grid grid-cols-2 gap-x-2 gap-y-2">
                       <div>
                         <div className="text-[11px] font-medium text-stone-500">Nº Franquia</div>
@@ -4229,6 +4359,17 @@ export function KanbanCardModal({
                       <div className="text-[11px] font-medium text-stone-500">Sócios</div>
                       <div className="break-words text-xs text-stone-800">{displayOrDash(rede.socios)}</div>
                     </div>
+                      </>
+                    )}
+                    {modalSessao.ehAdminOuTeam ? (
+                      <button
+                        type="button"
+                        onClick={() => void abrirEdicaoFranqueado()}
+                        className="mt-1 rounded border border-stone-200 px-3 py-1 text-xs text-stone-600 hover:bg-stone-50"
+                      >
+                        {rede ? 'Alterar franqueado vinculado' : 'Vincular franqueado'}
+                      </button>
+                    ) : null}
                   </>
                 )}
                 <div className="mt-2 border-t border-stone-100 pt-2">
