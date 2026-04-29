@@ -47,6 +47,28 @@ function cardConcluidoVisual(card: KanbanCardBrief): boolean {
   return card.origem !== 'legado' && Boolean(card.concluido);
 }
 
+/** Mesma lógica de alerta do modal (reunião / follow-up). */
+function calcularCorData(dataIso: string): string {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const data = new Date(`${dataIso}T00:00:00`);
+  const diffDias = Math.floor((data.getTime() - hoje.getTime()) / 86400000);
+  if (diffDias < 0) return 'text-red-600';
+  if (diffDias <= 1) return 'text-yellow-600';
+  return 'text-stone-500';
+}
+
+function labelData(dataIso: string): string {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const data = new Date(`${dataIso}T00:00:00`);
+  const diffDias = Math.floor((data.getTime() - hoje.getTime()) / 86400000);
+  if (diffDias < 0) return `Atrasado ${Math.abs(diffDias)}d`;
+  if (diffDias === 0) return 'Hoje';
+  if (diffDias === 1) return 'Amanhã';
+  return `Em ${diffDias}d`;
+}
+
 export function KanbanColumn({
   fase,
   cards,
@@ -163,6 +185,26 @@ export function KanbanColumn({
               ) : null}
               {card.profiles?.full_name ? (
                 <p className="mt-1 line-clamp-1 text-xs text-stone-500">{card.profiles.full_name}</p>
+              ) : null}
+              {card.data_reuniao || card.data_followup ? (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {card.data_reuniao ? (
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${calcularCorData(card.data_reuniao)}`}
+                      style={{ background: 'var(--moni-surface-50)', border: '0.5px solid var(--moni-border-subtle)' }}
+                    >
+                      Reunião: {labelData(card.data_reuniao)}
+                    </span>
+                  ) : null}
+                  {card.data_followup ? (
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${calcularCorData(card.data_followup)}`}
+                      style={{ background: 'var(--moni-surface-50)', border: '0.5px solid var(--moni-border-subtle)' }}
+                    >
+                      Follow-up: {labelData(card.data_followup)}
+                    </span>
+                  ) : null}
+                </div>
               ) : null}
               {card.tagsCard && card.tagsCard.length > 0 ? (
                 <div className="mt-1 flex flex-wrap gap-1">

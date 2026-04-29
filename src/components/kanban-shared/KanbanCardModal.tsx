@@ -289,6 +289,9 @@ export function KanbanCardModal({
   const [emailMensagem, setEmailMensagem] = useState('');
   const [enviandoEmail, setEnviandoEmail] = useState(false);
   const [erroEmail, setErroEmail] = useState<string | null>(null);
+  const [dataReuniao, setDataReuniao] = useState('');
+  const [dataFollowup, setDataFollowup] = useState('');
+  const [salvandoDatas, setSalvandoDatas] = useState(false);
   const [interacoes, setInteracoes] = useState<InteracaoModal[]>([]);
   const [modalSessao, setModalSessao] = useState<{
     userId: string | null;
@@ -481,6 +484,8 @@ export function KanbanCardModal({
     setEmailBcc('');
     setEmailAssunto('');
     setEmailMensagem('');
+    setDataReuniao('');
+    setDataFollowup('');
   }, [cardId]);
 
   // Assunto padrão ao abrir o card (N°Franquia_NomeCondomínio a partir do título).
@@ -590,6 +595,27 @@ export function KanbanCardModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardId, origem]);
 
+  async function salvarDatasCard(campo: 'data_reuniao' | 'data_followup', valor: string) {
+    if (!card) return;
+    setSalvandoDatas(true);
+    try {
+      const supabase = createClient();
+      const dataValor = valor.trim() || null;
+      const q =
+        origem === 'nativo'
+          ? supabase.from('kanban_cards').update({ [campo]: dataValor }).eq('id', card.id)
+          : supabase.from('processo_step_one').update({ [campo]: dataValor }).eq('id', card.id);
+      const { error } = await q;
+      if (error) throw error;
+      if (campo === 'data_reuniao') setDataReuniao(valor.trim() ? valor.trim().slice(0, 10) : '');
+      else setDataFollowup(valor.trim() ? valor.trim().slice(0, 10) : '');
+    } catch {
+      alert('Erro ao salvar data.');
+    } finally {
+      setSalvandoDatas(false);
+    }
+  }
+
   async function loadCard() {
     console.log('[DEBUG loadCard] cardId:', cardId, 'origem:', origem);
     setLoading(true);
@@ -637,6 +663,8 @@ export function KanbanCardModal({
         lote?: string | null;
         rede_franqueado_id?: string | null;
         processo_meta?: Card['processo_meta'];
+        data_reuniao?: string | null;
+        data_followup?: string | null;
       };
 
       let loaded: LoadedShape | null = null;
@@ -645,7 +673,9 @@ export function KanbanCardModal({
       if (origem === 'legado') {
         const { data: vRow, error: vErr } = await supabase
           .from('v_processo_como_kanban_cards')
-          .select('id, titulo, status, criado_em, fase_id, responsavel_id, kanban_id, etapa_slug, origem')
+          .select(
+            'id, titulo, status, criado_em, fase_id, responsavel_id, kanban_id, etapa_slug, origem, data_reuniao, data_followup',
+          )
           .eq('id', cardId)
           .maybeSingle();
 
@@ -667,6 +697,8 @@ export function KanbanCardModal({
             (vRow as { etapa_slug?: string | null }).etapa_slug != null
               ? String((vRow as { etapa_slug?: string | null }).etapa_slug)
               : null,
+          data_reuniao: (vRow as { data_reuniao?: string | null }).data_reuniao ?? null,
+          data_followup: (vRow as { data_followup?: string | null }).data_followup ?? null,
         };
 
         try {
@@ -704,7 +736,7 @@ export function KanbanCardModal({
         const { data: cardData, error: cardError } = await supabase
           .from('kanban_cards')
           .select(
-            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, quadra, lote',
+            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, quadra, lote, data_reuniao, data_followup',
           )
           .eq('id', cardId)
           .single();
@@ -733,6 +765,8 @@ export function KanbanCardModal({
           lote: (cardData as { lote?: string | null }).lote ?? null,
           rede_franqueado_id:
             (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? null,
+          data_reuniao: (cardData as { data_reuniao?: string | null }).data_reuniao ?? null,
+          data_followup: (cardData as { data_followup?: string | null }).data_followup ?? null,
         };
         nativeRedeFranqueadoId =
           (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? null;
@@ -767,6 +801,8 @@ export function KanbanCardModal({
         processo_meta: loaded.processo_meta ?? null,
         profiles,
       });
+      setDataReuniao(loaded.data_reuniao ? String(loaded.data_reuniao).slice(0, 10) : '');
+      setDataFollowup(loaded.data_followup ? String(loaded.data_followup).slice(0, 10) : '');
 
       // Carregar tags
       if (loaded.kanban_id) {
@@ -2201,6 +2237,26 @@ export function KanbanCardModal({
     </div>
   );
 
+  function calcularCorData(dataIso: string): string {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const data = new Date(`${dataIso}T00:00:00`);
+    const diffDias = Math.floor((data.getTime() - hoje.getTime()) / 86400000);
+    if (diffDias < 0) return 'text-red-600';
+    if (diffDias <= 1) return 'text-yellow-600';
+    return 'text-stone-500';
+  }
+  function labelData(dataIso: string): string {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const data = new Date(`${dataIso}T00:00:00`);
+    const diffDias = Math.floor((data.getTime() - hoje.getTime()) / 86400000);
+    if (diffDias < 0) return `Atrasado ${Math.abs(diffDias)}d`;
+    if (diffDias === 0) return 'Hoje';
+    if (diffDias === 1) return 'Amanhã';
+    return `Em ${diffDias}d`;
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
@@ -2301,6 +2357,43 @@ export function KanbanCardModal({
               {slaCard.label && slaCard.status !== 'ok' ? (
                 <span className={`text-xs leading-none ${slaCard.classe}`}>{slaCard.label}</span>
               ) : null}
+            </div>
+
+            <div className="mb-4 flex flex-wrap gap-3">
+              <div className="flex items-center gap-2">
+                <label className="whitespace-nowrap text-xs font-medium text-stone-500">📅 Reunião</label>
+                <input
+                  type="date"
+                  value={dataReuniao}
+                  onChange={(e) => setDataReuniao(e.target.value)}
+                  onBlur={(e) => void salvarDatasCard('data_reuniao', e.target.value)}
+                  disabled={salvandoDatas}
+                  className="rounded border px-2 py-1 text-xs"
+                  style={{ borderColor: 'var(--moni-border-default)' }}
+                />
+                {dataReuniao ? (
+                  <span className={calcularCorData(dataReuniao)} style={{ fontSize: '10px', fontWeight: 600 }}>
+                    {labelData(dataReuniao)}
+                  </span>
+                ) : null}
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="whitespace-nowrap text-xs font-medium text-stone-500">🔄 Follow-up</label>
+                <input
+                  type="date"
+                  value={dataFollowup}
+                  onChange={(e) => setDataFollowup(e.target.value)}
+                  onBlur={(e) => void salvarDatasCard('data_followup', e.target.value)}
+                  disabled={salvandoDatas}
+                  className="rounded border px-2 py-1 text-xs"
+                  style={{ borderColor: 'var(--moni-border-default)' }}
+                />
+                {dataFollowup ? (
+                  <span className={calcularCorData(dataFollowup)} style={{ fontSize: '10px', fontWeight: 600 }}>
+                    {labelData(dataFollowup)}
+                  </span>
+                ) : null}
+              </div>
             </div>
 
             <div className="mb-6">

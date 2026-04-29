@@ -23,7 +23,15 @@ type ViewLegadoRow = {
   responsavel_id: string | null;
   etapa_slug: string | null;
   origem: string | null;
+  data_reuniao?: string | null;
+  data_followup?: string | null;
 };
+
+function dataIsoParaInput(v: unknown): string | null {
+  if (v == null || v === '') return null;
+  const s = String(v);
+  return s.length >= 10 ? s.slice(0, 10) : s;
+}
 
 /**
  * Carrega fases e cards do kanban pelo nome (`kanbans.nome`).
@@ -92,7 +100,7 @@ export async function fetchKanbanBoardSnapshot(
   // Sempre busca cards legados (view); mistura com nativo quando existirem ambos.
   let viewQuery = supabase
     .from('v_processo_como_kanban_cards')
-    .select('id, kanban_id, fase_id, titulo, status, criado_em, responsavel_id, etapa_slug, origem')
+    .select('id, kanban_id, fase_id, titulo, status, criado_em, responsavel_id, etapa_slug, origem, data_reuniao, data_followup')
     .eq('kanban_id', kanban.id)
     .order('criado_em', { ascending: false });
 
@@ -159,6 +167,8 @@ export async function fetchKanbanBoardSnapshot(
       concluido: false,
       concluido_em: null,
       origem: 'legado' as const,
+      data_reuniao: dataIsoParaInput(r.data_reuniao),
+      data_followup: dataIsoParaInput(r.data_followup),
       profiles: franqueadoNomeMap.has(String(r.id))
         ? { full_name: franqueadoNomeMap.get(String(r.id)) ?? null }
         : fid
@@ -180,7 +190,9 @@ export async function fetchKanbanBoardSnapshot(
       motivo_arquivamento,
       concluido,
       concluido_em,
-      rede_franqueado_id
+      rede_franqueado_id,
+      data_reuniao,
+      data_followup
     `;
 
   let cardsRaw: unknown[] = [];
@@ -270,6 +282,8 @@ export async function fetchKanbanBoardSnapshot(
           ? String((c as { concluido_em?: string | null }).concluido_em)
           : null,
       origem: 'nativo',
+      data_reuniao: dataIsoParaInput(c.data_reuniao),
+      data_followup: dataIsoParaInput(c.data_followup),
       profiles: redeNomeDiretoMap.has(redeId)
         ? { full_name: redeNomeDiretoMap.get(redeId) ?? null }
         : redeNomeMapNativo.has(fid)

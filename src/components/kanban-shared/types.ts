@@ -50,6 +50,9 @@ export type KanbanCardBrief = {
   profiles?: {
     full_name: string | null;
   } | null;
+  /** ISO date `YYYY-MM-DD` ou null (nativo e legado). */
+  data_reuniao?: string | null;
+  data_followup?: string | null;
 };
 
 /** Conteúdo extra do checklist por `fase_id` (sobrescreve placeholder). */
