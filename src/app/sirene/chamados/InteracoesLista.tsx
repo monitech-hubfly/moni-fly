@@ -1262,6 +1262,18 @@ export function InteracoesLista({
                             >
                               <Pencil className="h-3.5 w-3.5" aria-hidden />
                             </button>
+                            {(() => {
+                              if (podeArquivarChamados)
+                                console.log(
+                                  '[DEBUG arquivar]',
+                                  row.sirene_chamado_id,
+                                  'origem:',
+                                  row.origem,
+                                  'arquivado:',
+                                  row.sirene_arquivado,
+                                );
+                              return null;
+                            })()}
                             {podeArquivarChamados &&
                             row.origem === 'sirene' &&
                             row.sirene_chamado_id != null &&
