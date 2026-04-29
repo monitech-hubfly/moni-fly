@@ -2360,39 +2360,51 @@ export function KanbanCardModal({
             </div>
 
             <div className="mb-4 flex flex-wrap gap-3">
-              <div className="flex items-center gap-2">
-                <label className="whitespace-nowrap text-xs font-medium text-stone-500">📅 Reunião</label>
+              <div className="flex items-center gap-1.5">
+                <span title="Data de Reunião" className="text-sm cursor-default">
+                  📅
+                </span>
                 <input
                   type="date"
                   value={dataReuniao}
                   onChange={(e) => setDataReuniao(e.target.value)}
                   onBlur={(e) => void salvarDatasCard('data_reuniao', e.target.value)}
                   disabled={salvandoDatas}
-                  className="rounded border px-2 py-1 text-xs"
-                  style={{ borderColor: 'var(--moni-border-default)' }}
+                  className="rounded px-2 py-1 text-xs"
+                  style={{
+                    background: 'var(--moni-surface-50)',
+                    border: '0.5px solid var(--moni-border-default)',
+                    borderRadius: 'var(--moni-radius-md)',
+                  }}
                 />
-                {dataReuniao ? (
-                  <span className={calcularCorData(dataReuniao)} style={{ fontSize: '10px', fontWeight: 600 }}>
+                {dataReuniao && (
+                  <span className={`text-[10px] font-semibold ${calcularCorData(dataReuniao)}`}>
                     {labelData(dataReuniao)}
                   </span>
-                ) : null}
+                )}
               </div>
-              <div className="flex items-center gap-2">
-                <label className="whitespace-nowrap text-xs font-medium text-stone-500">🔄 Follow-up</label>
+              <div className="flex items-center gap-1.5">
+                <span title="Data de Follow-up" className="text-sm cursor-default">
+                  🔄
+                </span>
                 <input
                   type="date"
                   value={dataFollowup}
                   onChange={(e) => setDataFollowup(e.target.value)}
                   onBlur={(e) => void salvarDatasCard('data_followup', e.target.value)}
                   disabled={salvandoDatas}
-                  className="rounded border px-2 py-1 text-xs"
-                  style={{ borderColor: 'var(--moni-border-default)' }}
+                  className="rounded px-2 py-1 text-xs"
+                  style={{
+                    background: 'var(--moni-surface-50)',
+                    border: '0.5px solid var(--moni-border-default)',
+                    borderRadius: 'var(--moni-radius-md)',
+                  }}
                 />
-                {dataFollowup ? (
-                  <span className={calcularCorData(dataFollowup)} style={{ fontSize: '10px', fontWeight: 600 }}>
+                {dataFollowup && (
+                  <span className={`text-[10px] font-semibold ${calcularCorData(dataFollowup)}`}>
                     {labelData(dataFollowup)}
                   </span>
-                ) : null}
+                )}
               </div>
             </div>
 
