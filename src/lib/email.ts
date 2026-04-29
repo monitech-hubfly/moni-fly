@@ -71,6 +71,12 @@ export function humanizeResendError(raw: string): string {
   return raw;
 }
 
+function normalizeEmailRecipients(v?: string | string[]): string[] {
+  if (v == null) return [];
+  const arr = Array.isArray(v) ? v : [v];
+  return arr.flatMap((s) => s.split(/[,;]/).map((x) => x.trim())).filter(Boolean);
+}
+
 /**
  * Envia e-mail via Resend. Em dev sem RESEND_API_KEY devolve ok + skipped (não quebra fluxos locais).
  * Em produção sem chave também skipped — o chamador pode avisar o admin.
@@ -81,6 +87,8 @@ export async function sendEmailViaResend(input: {
   text: string;
   html: string;
   attachments?: ResendAttachment[];
+  cc?: string | string[];
+  bcc?: string | string[];
 }): Promise<SendEmailResult> {
   const recipients = (Array.isArray(input.to) ? input.to : [input.to])
     .map((e) => e.trim())
@@ -90,21 +98,28 @@ export async function sendEmailViaResend(input: {
     return { ok: true, skipped: true };
   }
 
+  const ccList = normalizeEmailRecipients(input.cc);
+  const bccList = normalizeEmailRecipients(input.bcc);
+
   try {
+    const body: Record<string, unknown> = {
+      from: RESEND_FROM,
+      to: recipients,
+      subject: input.subject,
+      text: input.text,
+      html: input.html,
+      attachments: input.attachments,
+    };
+    if (ccList.length) body.cc = ccList;
+    if (bccList.length) body.bcc = bccList;
+
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
-      body: JSON.stringify({
-        from: RESEND_FROM,
-        to: recipients,
-        subject: input.subject,
-        text: input.text,
-        html: input.html,
-        attachments: input.attachments,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!res.ok) {

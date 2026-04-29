@@ -1836,6 +1836,8 @@ export type EnviarEmailCardInput = {
   para: string;
   assunto: string;
   mensagem: string;
+  cc?: string;
+  bcc?: string;
   basePath?: string;
 };
 
@@ -1849,6 +1851,8 @@ export async function enviarEmailCard(input: EnviarEmailCardInput): Promise<Acti
   const para = input.para.trim();
   const assunto = input.assunto.trim();
   const mensagem = input.mensagem.trim();
+  const cc = input.cc?.trim() ?? '';
+  const bcc = input.bcc?.trim() ?? '';
   if (!para || !assunto || !mensagem) return { ok: false, error: 'Preencha todos os campos.' };
 
   const { sendEmailViaResend } = await import('@/lib/email');
@@ -1857,10 +1861,20 @@ export async function enviarEmailCard(input: EnviarEmailCardInput): Promise<Acti
     subject: assunto,
     text: mensagem,
     html: `<div style="font-family:sans-serif;font-size:14px;line-height:1.6">${mensagem.replace(/\n/g, '<br>')}</div>`,
+    ...(cc ? { cc } : {}),
+    ...(bcc ? { bcc } : {}),
   });
   if (!result.ok) return { ok: false, error: result.error };
 
-  const textoComentario = `[E-mail para: ${para}] ${assunto}\n\n${mensagem}`;
+  const meta = [
+    `[E-mail para: ${para}]`,
+    cc ? `[CC: ${cc}]` : '',
+    bcc ? `[BCC: ${bcc}]` : '',
+    assunto,
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const textoComentario = `${meta}\n\n${mensagem}`;
   const { error: insErr } = await supabase.from('kanban_card_comentarios').insert({
     card_id: input.card_id,
     autor_id: user.id,

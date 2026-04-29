@@ -283,6 +283,8 @@ export function KanbanCardModal({
   const [salvandoFranqueado, setSalvandoFranqueado] = useState(false);
   const [abaComentarios, setAbaComentarios] = useState<'comentarios' | 'email'>('comentarios');
   const [emailPara, setEmailPara] = useState('');
+  const [emailCc, setEmailCc] = useState('');
+  const [emailBcc, setEmailBcc] = useState('');
   const [emailAssunto, setEmailAssunto] = useState('');
   const [emailMensagem, setEmailMensagem] = useState('');
   const [enviandoEmail, setEnviandoEmail] = useState(false);
@@ -474,7 +476,23 @@ export function KanbanCardModal({
     setFranqueadosLista([]);
     setNovoFranqueadoId('');
     setSalvandoFranqueado(false);
+    setEmailPara('');
+    setEmailCc('');
+    setEmailBcc('');
+    setEmailAssunto('');
+    setEmailMensagem('');
   }, [cardId]);
+
+  // Assunto padrão ao abrir o card (N°Franquia_NomeCondomínio a partir do título).
+  useEffect(() => {
+    if (!card || String(card.id) !== String(cardId)) return;
+    const titulo = card.titulo ?? '';
+    const partes = titulo.split(' - ');
+    const nFranquia = partes[0]?.trim() ?? '';
+    const condominio = partes[1]?.trim() ?? '';
+    const assuntoPadrao = [nFranquia, condominio].filter(Boolean).join('_');
+    setEmailAssunto(assuntoPadrao);
+  }, [card?.id, cardId]);
 
   useEffect(() => {
     if (!vincularAberto || !pode('vincular_cards') || !card || origem === 'legado') {
@@ -3820,6 +3838,32 @@ export function KanbanCardModal({
                     </div>
                     <div>
                       <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
+                        CC (cópia)
+                      </label>
+                      <input
+                        type="text"
+                        value={emailCc}
+                        onChange={(e) => setEmailCc(e.target.value)}
+                        placeholder="cc@email.com, cc2@email.com"
+                        className="w-full rounded-lg p-2 text-sm focus:outline-none"
+                        style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-0)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
+                        BCC (cópia oculta)
+                      </label>
+                      <input
+                        type="text"
+                        value={emailBcc}
+                        onChange={(e) => setEmailBcc(e.target.value)}
+                        placeholder="bcc@email.com, bcc2@email.com"
+                        className="w-full rounded-lg p-2 text-sm focus:outline-none"
+                        style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-0)' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
                         Assunto
                       </label>
                       <input
@@ -3857,10 +3901,15 @@ export function KanbanCardModal({
                           para: emailPara.trim(),
                           assunto: emailAssunto.trim(),
                           mensagem: emailMensagem.trim(),
+                          cc: emailCc.trim(),
+                          bcc: emailBcc.trim(),
                           basePath,
                         });
                         setEnviandoEmail(false);
                         if (res.ok) {
+                          setEmailPara('');
+                          setEmailCc('');
+                          setEmailBcc('');
                           setEmailAssunto('');
                           setEmailMensagem('');
                           setAbaComentarios('comentarios');
