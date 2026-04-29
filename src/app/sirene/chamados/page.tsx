@@ -52,11 +52,18 @@ export default async function SireneChamadosPage({
     currentUserId: string | null;
     comentariosCountByCardId: Record<string, number>;
     filtroTipoChamado?: 'padrao' | 'hdm';
+    podeArquivarChamados: boolean;
   } | null = null;
 
   if (viewErr) {
     painelErro = viewErr.message;
   } else {
+    const supabaseUser = await createClient();
+    const {
+      data: { user },
+    } = await supabaseUser.auth.getUser();
+    const currentUserId = user?.id ?? null;
+
     const rows = (viewRows ?? []) as unknown as ViewRow[];
     const ids = rows.map((r) => String(r.id)).filter(Boolean);
 
@@ -120,13 +127,14 @@ export default async function SireneChamadosPage({
         time_abertura: string | null;
         abertura_responsavel_nome: string | null;
         hdm_responsavel: string | null;
+        arquivado: boolean;
       }
     >();
     if (sireneIds.length > 0) {
       const { data: scRows } = await admin
         .from('sirene_chamados')
         .select(
-          'id, frank_id, frank_nome, numero, tipo, time_abertura, abertura_responsavel_nome, hdm_responsavel',
+          'id, frank_id, frank_nome, numero, tipo, time_abertura, abertura_responsavel_nome, hdm_responsavel, arquivado',
         )
         .in('id', sireneIds);
       for (const s of scRows ?? []) {
@@ -141,6 +149,7 @@ export default async function SireneChamadosPage({
           abertura_responsavel_nome:
             (s as { abertura_responsavel_nome?: string | null }).abertura_responsavel_nome ?? null,
           hdm_responsavel: (s as { hdm_responsavel?: string | null }).hdm_responsavel ?? null,
+          arquivado: Boolean((s as { arquivado?: boolean | null }).arquivado),
         });
       }
     }
@@ -226,6 +235,7 @@ export default async function SireneChamadosPage({
             ka?.origem === 'sirene' && scMeta ? scMeta.abertura_responsavel_nome : null,
           sirene_hdm_responsavel: ka?.origem === 'sirene' && scMeta ? scMeta.hdm_responsavel : null,
           frank_id,
+          sirene_arquivado: ka?.origem === 'sirene' && scMeta ? scMeta.arquivado : false,
         };
       });
 
@@ -235,6 +245,15 @@ export default async function SireneChamadosPage({
         const t = row.sirene_chamado_tipo ?? 'padrao';
         return filtroTipoChamado === 'hdm' ? t === 'hdm' : t === 'padrao';
       });
+    }
+
+    const { data: profileRow } = user
+      ? await supabaseUser.from('profiles').select('role').eq('id', user.id).maybeSingle()
+      : { data: null };
+    const userRole = String((profileRow as { role?: string | null } | null)?.role ?? '').toLowerCase();
+    const podeArquivarChamados = userRole === 'admin' || userRole === 'team';
+    if (!podeArquivarChamados) {
+      interacoes = interacoes.filter((r) => !r.sirene_arquivado);
     }
 
     const cardIdsUniq = [...new Set(interacoes.map((i) => i.card_id).filter(Boolean))] as string[];
@@ -270,12 +289,6 @@ export default async function SireneChamadosPage({
           String((p as { id: string }).id).slice(0, 8)),
     }));
 
-    const supabaseUser = await createClient();
-    const {
-      data: { user },
-    } = await supabaseUser.auth.getUser();
-    const currentUserId = user?.id ?? null;
-
     interacoesListaProps = {
       interacoes,
       times,
@@ -283,6 +296,7 @@ export default async function SireneChamadosPage({
       currentUserId,
       comentariosCountByCardId,
       filtroTipoChamado,
+      podeArquivarChamados,
     };
   }
 
@@ -302,6 +316,7 @@ export default async function SireneChamadosPage({
             currentUserId={interacoesListaProps.currentUserId}
             comentariosCountByCardId={interacoesListaProps.comentariosCountByCardId}
             filtroTipoChamado={interacoesListaProps.filtroTipoChamado}
+            podeArquivarChamados={interacoesListaProps.podeArquivarChamados}
           />
         ) : null}
       </section>

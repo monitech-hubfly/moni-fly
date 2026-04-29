@@ -24,6 +24,7 @@ import {
 } from './actions';
 import {
   adicionarTopicoChamadoPainel,
+  arquivarChamado,
   atualizarChamadoPainelUnificado,
   getTopicosChamado,
 } from '../actions';
@@ -70,6 +71,8 @@ export type InteracaoSireneRow = {
   sirene_abertura_responsavel_nome?: string | null;
   sirene_hdm_responsavel?: string | null;
   frank_id?: string | null;
+  /** Chamado Sirene arquivado (admin/team pode exibir com toggle). */
+  sirene_arquivado?: boolean;
 };
 
 type TimeOpt = { id: string; nome: string };
@@ -144,6 +147,8 @@ type Props = {
   currentUserId: string | null;
   comentariosCountByCardId: Record<string, number>;
   filtroTipoChamado?: 'padrao' | 'hdm';
+  /** Exibe arquivar e toggle “Mostrar arquivados” (admin / team). */
+  podeArquivarChamados?: boolean;
 };
 
 type FiltrosChamados = {
@@ -344,6 +349,7 @@ export function InteracoesLista({
   currentUserId,
   comentariosCountByCardId,
   filtroTipoChamado: filtroTipoChamadoProp,
+  podeArquivarChamados = false,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -380,6 +386,10 @@ export function InteracoesLista({
   const [novoComentarioPorCard, setNovoComentarioPorCard] = useState<Record<string, string>>({});
   const [salvandoComentario, setSalvandoComentario] = useState<Record<string, boolean>>({});
   const [countPatch, setCountPatch] = useState<Record<string, number>>({});
+  const [arquivandoCid, setArquivandoCid] = useState<number | null>(null);
+  const [motivoArquivamento, setMotivoArquivamento] = useState('');
+  const [salvandoArquivamento, setSalvandoArquivamento] = useState(false);
+  const [mostrarArquivados, setMostrarArquivados] = useState(false);
 
   useEffect(() => {
     setStatusPatch({});
@@ -398,6 +408,9 @@ export function InteracoesLista({
     setCommentsByCardId({});
     setNovoComentarioPorCard({});
     setCountPatch({});
+    setArquivandoCid(null);
+    setMotivoArquivamento('');
+    setMostrarArquivados(false);
   }, [interacoes]);
 
   const chamadoIdsPainel = useMemo(
@@ -482,9 +495,39 @@ export function InteracoesLista({
 
   const nomePorUserId = useMemo(() => new Map(responsaveis.map((r) => [r.id, r.nome])), [responsaveis]);
 
+  async function handleArquivarChamado(chamadoId: number) {
+    if (!motivoArquivamento.trim()) {
+      setMsgErro('Informe o motivo do arquivamento.');
+      return;
+    }
+    setSalvandoArquivamento(true);
+    setMsgErro(null);
+    try {
+      const res = await arquivarChamado(chamadoId, motivoArquivamento);
+      if (!res.ok) {
+        setMsgErro(res.error);
+        return;
+      }
+      setArquivandoCid(null);
+      setMotivoArquivamento('');
+      router.refresh();
+    } finally {
+      setSalvandoArquivamento(false);
+    }
+  }
+
   const filtradas = useMemo(() => {
     const q = norm(applied.busca);
     return linhas.filter((row) => {
+      if (
+        row.origem === 'sirene' &&
+        row.sirene_arquivado &&
+        podeArquivarChamados &&
+        !mostrarArquivados
+      ) {
+        return false;
+      }
+
       if (!verTodas && currentUserId) {
         const ids = row.responsaveis_ids ?? [];
         const mine = ids.includes(currentUserId) || row.responsavel_id === currentUserId;
@@ -519,7 +562,16 @@ export function InteracoesLista({
 
       return true;
     });
-  }, [linhas, verTodas, currentUserId, applied, timesById, nomePorUserId]);
+  }, [
+    linhas,
+    verTodas,
+    currentUserId,
+    applied,
+    timesById,
+    nomePorUserId,
+    podeArquivarChamados,
+    mostrarArquivados,
+  ]);
 
   const porGrupo = useMemo(() => {
     const m = new Map<number, InteracaoSireneRow[]>();
@@ -1115,25 +1167,38 @@ export function InteracoesLista({
           ) : null}
         </div>
 
-        <div className="flex rounded-lg border border-stone-600 bg-stone-800 p-0.5 text-sm">
-          <button
-            type="button"
-            onClick={() => setVerTodas(false)}
-            className={`rounded-md px-3 py-1.5 font-medium transition ${
-              !verTodas ? 'bg-stone-600 text-white' : 'text-stone-400 hover:text-stone-200'
-            }`}
-          >
-            Ver minhas
-          </button>
-          <button
-            type="button"
-            onClick={() => setVerTodas(true)}
-            className={`rounded-md px-3 py-1.5 font-medium transition ${
-              verTodas ? 'bg-stone-600 text-white' : 'text-stone-400 hover:text-stone-200'
-            }`}
-          >
-            Ver todas
-          </button>
+        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-3">
+          <div className="flex rounded-lg border border-stone-600 bg-stone-800 p-0.5 text-sm">
+            <button
+              type="button"
+              onClick={() => setVerTodas(false)}
+              className={`rounded-md px-3 py-1.5 font-medium transition ${
+                !verTodas ? 'bg-stone-600 text-white' : 'text-stone-400 hover:text-stone-200'
+              }`}
+            >
+              Ver minhas
+            </button>
+            <button
+              type="button"
+              onClick={() => setVerTodas(true)}
+              className={`rounded-md px-3 py-1.5 font-medium transition ${
+                verTodas ? 'bg-stone-600 text-white' : 'text-stone-400 hover:text-stone-200'
+              }`}
+            >
+              Ver todas
+            </button>
+          </div>
+          {podeArquivarChamados ? (
+            <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-stone-300">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-stone-500"
+                checked={mostrarArquivados}
+                onChange={(e) => setMostrarArquivados(e.target.checked)}
+              />
+              Mostrar arquivados
+            </label>
+          ) : null}
         </div>
       </div>
 
@@ -1146,6 +1211,7 @@ export function InteracoesLista({
       {pending && <p className="mb-2 text-xs text-stone-500">Salvando status…</p>}
       {salvandoEdicao && <p className="mb-2 text-xs text-stone-500">Salvando chamado…</p>}
       {salvandoSirene && <p className="mb-2 text-xs text-stone-500">Salvando chamado Sirene…</p>}
+      {salvandoArquivamento && <p className="mb-2 text-xs text-stone-500">Arquivando chamado…</p>}
 
       <div className="space-y-8">
         {ORDEM_GRUPOS_PAINEL.map(({ key, titulo }) => {
@@ -1182,6 +1248,11 @@ export function InteracoesLista({
                                 #{row.sirene_numero}
                               </span>
                             ) : null}
+                            {row.sirene_arquivado ? (
+                              <span className="rounded border border-stone-500 bg-stone-800 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-stone-400">
+                                Arquivado
+                              </span>
+                            ) : null}
                             <span className="font-medium text-white">{row.titulo}</span>
                             {ccid ? (
                               <button
@@ -1214,10 +1285,65 @@ export function InteracoesLista({
                             >
                               <Pencil className="h-3.5 w-3.5" aria-hidden />
                             </button>
+                            {podeArquivarChamados &&
+                            row.origem === 'sirene' &&
+                            row.sirene_chamado_id != null &&
+                            !row.sirene_arquivado ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setMsgErro(null);
+                                  setArquivandoCid(row.sirene_chamado_id!);
+                                  setMotivoArquivamento('');
+                                }}
+                                className="rounded border border-stone-600 bg-stone-800 px-1.5 py-0.5 text-[10px] text-stone-300 hover:border-stone-500 hover:text-white"
+                              >
+                                Arquivar
+                              </button>
+                            ) : null}
                             <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase ${tipoB.className}`}>
                               {tipoB.label}
                             </span>
                           </div>
+                          {arquivandoCid === row.sirene_chamado_id ? (
+                            <div className="mt-2 w-full rounded-lg border border-stone-600 bg-stone-950/80 p-3">
+                              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                                Motivo do arquivamento (obrigatório)
+                              </label>
+                              <textarea
+                                value={motivoArquivamento}
+                                onChange={(e) => setMotivoArquivamento(e.target.value)}
+                                rows={3}
+                                placeholder="Descreva o motivo…"
+                                className="w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-2 text-sm text-stone-100 placeholder:text-stone-500"
+                                disabled={salvandoArquivamento}
+                              />
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  disabled={salvandoArquivamento}
+                                  onClick={() =>
+                                    row.sirene_chamado_id != null &&
+                                    void handleArquivarChamado(row.sirene_chamado_id)
+                                  }
+                                  className="rounded-lg bg-red-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-50"
+                                >
+                                  Confirmar arquivamento
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={salvandoArquivamento}
+                                  onClick={() => {
+                                    setArquivandoCid(null);
+                                    setMotivoArquivamento('');
+                                  }}
+                                  className="rounded-lg border border-stone-600 px-3 py-1.5 text-sm text-stone-200 hover:bg-stone-800"
+                                >
+                                  Cancelar
+                                </button>
+                              </div>
+                            </div>
+                          ) : null}
                           {row.origem === 'sirene' && row.sirene_chamado_id != null ? (
                             topicosLoading[row.sirene_chamado_id] ? (
                               <p className="text-[10px] text-stone-500">Carregando subinterações…</p>

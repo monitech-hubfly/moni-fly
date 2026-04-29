@@ -16,6 +16,58 @@ import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 
 export type SireneActionResult = { ok: true } | { ok: false; error: string };
 
+/** Arquiva chamado Sirene com motivo (apenas admin/team). Atualiza espelho em `kanban_atividades`. */
+export async function arquivarChamado(
+  chamadoId: number,
+  motivo: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: 'Não autenticado.' };
+
+    const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+    const role = String((prof as { role?: string | null } | null)?.role ?? '').toLowerCase();
+    if (role !== 'admin' && role !== 'team') {
+      return { ok: false, error: 'Apenas administradores ou equipe podem arquivar chamados.' };
+    }
+
+    const motivoTrim = motivo.trim();
+    if (!motivoTrim) return { ok: false, error: 'Informe o motivo do arquivamento.' };
+
+    const admin = createAdminClient();
+    const agora = new Date().toISOString();
+    const { error } = await admin
+      .from('sirene_chamados')
+      .update({
+        arquivado: true,
+        arquivado_em: agora,
+        arquivado_por: user.id,
+        motivo_arquivamento_sirene: motivoTrim,
+        status: 'concluido',
+        updated_at: agora,
+      })
+      .eq('id', chamadoId);
+
+    if (error) return { ok: false, error: error.message };
+
+    await admin
+      .from('kanban_atividades')
+      .update({ status: 'concluida', updated_at: agora })
+      .eq('sirene_chamado_id', chamadoId)
+      .eq('origem', 'sirene');
+
+    revalidatePath('/sirene');
+    revalidatePath('/sirene/chamados');
+    revalidatePath('/sirene/kanban');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
 const HDM_TIMES: HdmTime[] = ['Homologações', 'Produto', 'Modelo Virtual'];
 
 const UUID_RE =
@@ -1577,8 +1629,11 @@ function statusSireneParaRankLista(status: string): string {
   return 'pendente';
 }
 
-/** Listar chamados (filtro opcional por tipo: todos | padrao | hdm). */
-export async function listChamados(filtroTipo?: 'todos' | 'padrao' | 'hdm'): Promise<
+/** Listar chamados (filtro opcional por tipo: todos | padrao | hdm). Por padrão exclui arquivados. */
+export async function listChamados(
+  filtroTipo?: 'todos' | 'padrao' | 'hdm',
+  incluirArquivados = false,
+): Promise<
   | {
       ok: true;
       chamados: Array<{
@@ -1610,9 +1665,10 @@ export async function listChamados(filtroTipo?: 'todos' | 'padrao' | 'hdm'): Pro
   if (!user) return { ok: false, error: 'Faça login.' };
 
   let q = supabase.from('sirene_chamados').select(
-    'id, numero, incendio, status, prioridade, tipo, hdm_responsavel, time_abertura, abertura_responsavel_nome, trava, created_at, frank_id, data_vencimento',
+    'id, numero, incendio, status, prioridade, tipo, hdm_responsavel, time_abertura, abertura_responsavel_nome, trava, created_at, frank_id, data_vencimento, arquivado',
   );
 
+  if (!incluirArquivados) q = q.eq('arquivado', false);
   if (filtroTipo === 'padrao') q = q.eq('tipo', 'padrao');
   else if (filtroTipo === 'hdm') q = q.eq('tipo', 'hdm');
 
