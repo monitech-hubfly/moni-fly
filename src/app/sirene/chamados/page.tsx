@@ -252,6 +252,7 @@ export default async function SireneChamadosPage({
       : { data: null };
     const userRole = String((profileRow as { role?: string | null } | null)?.role ?? '').toLowerCase();
     const podeArquivarChamados = userRole === 'admin' || userRole === 'team';
+    console.log('[SERVER DEBUG] userRole:', userRole, 'podeArquivarChamados:', podeArquivarChamados);
     if (!podeArquivarChamados) {
       interacoes = interacoes.filter((r) => !r.sirene_arquivado);
     }
