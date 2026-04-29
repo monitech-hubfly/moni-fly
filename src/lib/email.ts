@@ -89,6 +89,7 @@ export async function sendEmailViaResend(input: {
   attachments?: ResendAttachment[];
   cc?: string | string[];
   bcc?: string | string[];
+  from?: string;
 }): Promise<SendEmailResult> {
   const recipients = (Array.isArray(input.to) ? input.to : [input.to])
     .map((e) => e.trim())
@@ -103,7 +104,7 @@ export async function sendEmailViaResend(input: {
 
   try {
     const body: Record<string, unknown> = {
-      from: RESEND_FROM,
+      from: input.from ?? RESEND_FROM,
       to: recipients,
       subject: input.subject,
       text: input.text,

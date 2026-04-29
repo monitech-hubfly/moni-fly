@@ -1855,12 +1855,34 @@ export async function enviarEmailCard(input: EnviarEmailCardInput): Promise<Acti
   const bcc = input.bcc?.trim() ?? '';
   if (!para || !assunto || !mensagem) return { ok: false, error: 'Preencha todos os campos.' };
 
+  const { data: cardInfo } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id, kanbans(nome)')
+    .eq('id', input.card_id)
+    .maybeSingle();
+
+  let kanbanNome = String((cardInfo?.kanbans as { nome?: string } | null)?.nome ?? '');
+  if (!kanbanNome.trim()) {
+    const { data: vRow } = await supabase
+      .from('v_processo_como_kanban_cards')
+      .select('kanban_id, kanbans(nome)')
+      .eq('id', input.card_id)
+      .maybeSingle();
+    kanbanNome = String((vRow?.kanbans as { nome?: string } | null)?.nome ?? '');
+  }
+
+  const fromEmail =
+    kanbanNome === 'Funil Step One' || kanbanNome === 'Funil Portfólio'
+      ? 'Atendimento Moní <atendimento@moni.casa>'
+      : (process.env.RESEND_FROM ?? 'Casa Moní <onboarding@moni.casa>');
+
   const { sendEmailViaResend } = await import('@/lib/email');
   const result = await sendEmailViaResend({
     to: para,
     subject: assunto,
     text: mensagem,
     html: `<div style="font-family:sans-serif;font-size:14px;line-height:1.6">${mensagem.replace(/\n/g, '<br>')}</div>`,
+    from: fromEmail,
     ...(cc ? { cc } : {}),
     ...(bcc ? { bcc } : {}),
   });
