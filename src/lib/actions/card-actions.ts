@@ -1900,7 +1900,7 @@ export async function enviarEmailCard(input: EnviarEmailCardInput): Promise<Acti
   const { error: insErr } = await supabase.from('kanban_card_comentarios').insert({
     card_id: input.card_id,
     autor_id: user.id,
-    texto: textoComentario,
+    conteudo: textoComentario,
   });
   if (insErr) return { ok: false, error: insErr.message };
 
