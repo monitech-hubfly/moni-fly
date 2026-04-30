@@ -188,30 +188,59 @@ export async function getTimesParaTopicos(): Promise<
   return { ok: true, times: [...TIMES_MONI] };
 }
 
+export type TopicoPainelLinha = {
+  id: number;
+  ordem: number;
+  descricao: string;
+  time_responsavel: string;
+  tipo: SubInteracaoTipoDb;
+  times_ids: string[];
+  responsaveis_ids: string[];
+  data_inicio: string | null;
+  data_fim: string | null;
+  trava: boolean;
+  status: string;
+  resolucao_time: string | null;
+  motivo_reprovacao: string | null;
+};
+
+type GetTopicosPainelResult =
+  | { ok: true; topicos: TopicoPainelLinha[] }
+  | { ok: false; error: string };
+
+function mapRowsToTopicosPainel(rows: Record<string, unknown>[]): TopicoPainelLinha[] {
+  return rows.map((r) => {
+    const rawTi = (r as { times_ids?: unknown }).times_ids;
+    const ti = Array.isArray(rawTi) ? rawTi.map((x) => String(x)) : [];
+    const rawRi = (r as { responsaveis_ids?: unknown }).responsaveis_ids;
+    const ri = Array.isArray(rawRi) ? rawRi.map((x) => String(x)) : [];
+    const tipoRaw = String((r as { tipo?: string }).tipo ?? 'atividade');
+    const tipo: SubInteracaoTipoDb =
+      tipoRaw === 'duvida' || tipoRaw === 'chamado' || tipoRaw === 'proposicoes' ? (tipoRaw as SubInteracaoTipoDb) : 'atividade';
+    const di = (r as { data_inicio?: unknown }).data_inicio;
+    const df = (r as { data_fim?: unknown }).data_fim;
+    const rt = (r as { resolucao_time?: unknown }).resolucao_time;
+    const mr = (r as { motivo_reprovacao?: unknown }).motivo_reprovacao;
+    return {
+      id: r.id as number,
+      ordem: r.ordem as number,
+      descricao: r.descricao as string,
+      time_responsavel: r.time_responsavel as string,
+      tipo,
+      times_ids: ti,
+      responsaveis_ids: ri,
+      data_inicio: di != null && typeof di === 'string' ? di : null,
+      data_fim: df != null && typeof df === 'string' ? df : null,
+      trava: (r as { trava?: boolean }).trava ?? false,
+      status: r.status as string,
+      resolucao_time: rt != null && typeof rt === 'string' ? rt : null,
+      motivo_reprovacao: mr != null && typeof mr === 'string' ? mr : null,
+    };
+  });
+}
+
 /** Tópicos do chamado (para listar e exibir ações Concluir / Aprovar / Reprovar). */
-export async function getTopicosChamado(
-  chamadoId: number,
-): Promise<
-  | {
-      ok: true;
-      topicos: Array<{
-        id: number;
-        ordem: number;
-        descricao: string;
-        time_responsavel: string;
-        tipo: SubInteracaoTipoDb;
-        times_ids: string[];
-        responsaveis_ids: string[];
-        data_inicio: string | null;
-        data_fim: string | null;
-        trava: boolean;
-        status: string;
-        resolucao_time: string | null;
-        motivo_reprovacao: string | null;
-      }>;
-    }
-  | { ok: false; error: string }
-> {
+export async function getTopicosChamado(chamadoId: number): Promise<GetTopicosPainelResult> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -228,32 +257,30 @@ export async function getTopicosChamado(
     .order('ordem', { ascending: true });
 
   if (error) return { ok: false, error: error.message };
-  const rows = data ?? [];
-  const topicos = rows.map((r) => {
-    const rawTi = (r as { times_ids?: unknown }).times_ids;
-    const ti = Array.isArray(rawTi) ? rawTi.map((x) => String(x)) : [];
-    const rawRi = (r as { responsaveis_ids?: unknown }).responsaveis_ids;
-    const ri = Array.isArray(rawRi) ? rawRi.map((x) => String(x)) : [];
-    const tipoRaw = String((r as { tipo?: string }).tipo ?? 'atividade');
-    const tipo: SubInteracaoTipoDb =
-      tipoRaw === 'duvida' || tipoRaw === 'chamado' || tipoRaw === 'proposicoes' ? (tipoRaw as SubInteracaoTipoDb) : 'atividade';
-    return {
-      id: r.id,
-      ordem: r.ordem,
-      descricao: r.descricao,
-      time_responsavel: r.time_responsavel,
-      tipo,
-      times_ids: ti,
-      responsaveis_ids: ri,
-      data_inicio: r.data_inicio ?? null,
-      data_fim: r.data_fim ?? null,
-      trava: (r as { trava?: boolean }).trava ?? false,
-      status: r.status,
-      resolucao_time: r.resolucao_time ?? null,
-      motivo_reprovacao: r.motivo_reprovacao ?? null,
-    };
-  });
-  return { ok: true, topicos };
+  const rows = (data ?? []) as Record<string, unknown>[];
+  return { ok: true, topicos: mapRowsToTopicosPainel(rows) };
+}
+
+/** Tópicos só de card (kanban_atividades), sem `sirene_chamados`. */
+export async function getTopicosPorInteracaoId(interacaoId: string): Promise<GetTopicosPainelResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const { data, error } = await supabase
+    .from('sirene_topicos')
+    .select(
+      'id, ordem, descricao, time_responsavel, tipo, times_ids, responsaveis_ids, data_inicio, data_fim, status, trava, resolucao_time, motivo_reprovacao',
+    )
+    .eq('interacao_id', interacaoId)
+    .eq('arquivado', false)
+    .order('ordem', { ascending: true });
+
+  if (error) return { ok: false, error: error.message };
+  const rows = (data ?? []) as Record<string, unknown>[];
+  return { ok: true, topicos: mapRowsToTopicosPainel(rows) };
 }
 
 export type TopicoInput = {

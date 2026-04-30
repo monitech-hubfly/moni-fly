@@ -29,10 +29,12 @@ import {
   arquivarTopico,
   atualizarChamadoPainelUnificado,
   getTopicosChamado,
+  getTopicosPorInteracaoId,
 } from '../actions';
 import {
   arquivarInteracao,
   atualizarStatusSubInteracao,
+  criarSubInteracao,
   type SubInteracaoStatusDb,
 } from '@/lib/actions/card-actions';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
@@ -131,6 +133,12 @@ type NovoSubChamadoDraft = {
   tema: string;
   temaOutro: string;
 };
+
+/** Chave de cache de tópicos: `c:{sirene_chamado_id}` ou `i:{kanban_atividades.id}`. */
+function topicosAlvoKey(row: { id: string; sirene_chamado_id?: number | null }): string {
+  if (row.sirene_chamado_id != null) return `c:${row.sirene_chamado_id}`;
+  return `i:${row.id}`;
+}
 
 function emptyNovoSubDraft(): NovoSubChamadoDraft {
   return {
@@ -361,10 +369,10 @@ export function InteracoesLista({
   const [editSireneDraft, setEditSireneDraft] = useState<EditSireneDraft | null>(null);
   const [salvandoSirene, setSalvandoSirene] = useState(false);
   const [subsOpenByRow, setSubsOpenByRow] = useState<Record<string, boolean>>({});
-  const [topicosByChamado, setTopicosByChamado] = useState<Record<number, TopicoChamadoLinha[]>>({});
-  const [topicosLoading, setTopicosLoading] = useState<Record<number, boolean>>({});
-  const [novoSubPorChamado, setNovoSubPorChamado] = useState<Record<number, NovoSubChamadoDraft>>({});
-  const [salvandoTopico, setSalvandoTopico] = useState<Record<number, boolean>>({});
+  const [topicosPorAlvo, setTopicosPorAlvo] = useState<Record<string, TopicoChamadoLinha[]>>({});
+  const [topicosLoading, setTopicosLoading] = useState<Record<string, boolean>>({});
+  const [novoSubPorAlvo, setNovoSubPorAlvo] = useState<Record<string, NovoSubChamadoDraft>>({});
+  const [salvandoTopico, setSalvandoTopico] = useState<Record<string, boolean>>({});
 
   const [verTodas, setVerTodas] = useState(false);
   const [applied, setApplied] = useState<FiltrosChamados>(DEFAULT_FILTROS);
@@ -392,7 +400,10 @@ export function InteracoesLista({
   const [modalArquivar, setModalArquivar] = useState<{ cid: number | null; interacaoId: string } | null>(null);
   const [motivoArquivamento, setMotivoArquivamento] = useState('');
   const [salvandoArquivamento, setSalvandoArquivamento] = useState(false);
-  const [modalArquivarTopico, setModalArquivarTopico] = useState<{ topicoId: number; sireneCid: number } | null>(null);
+  const [modalArquivarTopico, setModalArquivarTopico] = useState<{
+    topicoId: number;
+    alvoKey: string;
+  } | null>(null);
   const [motivoArquivarTopico, setMotivoArquivarTopico] = useState('');
   const [salvandoArquivarTopico, setSalvandoArquivarTopico] = useState(false);
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
@@ -419,9 +430,9 @@ export function InteracoesLista({
     setEditingSireneCid(null);
     setEditSireneDraft(null);
     setSubsOpenByRow({});
-    setTopicosByChamado({});
+    setTopicosPorAlvo({});
     setTopicosLoading({});
-    setNovoSubPorChamado({});
+    setNovoSubPorAlvo({});
     setSalvandoTopico({});
     setCommentsOpenByRow({});
     setCommentsFetchedByCard({});
@@ -433,26 +444,36 @@ export function InteracoesLista({
     setMostrarArquivados(false);
   }, [interacoes]);
 
-  const chamadoIdsPainel = useMemo(
-    () =>
-      [
-        ...new Set(
-          interacoes.filter((r) => r.sirene_chamado_id != null).map((r) => r.sirene_chamado_id!),
-        ),
-      ],
-    [interacoes],
-  );
+  const painelTopicosPrefetch = useMemo(() => {
+    const cids = new Set<number>();
+    const iids = new Set<string>();
+    for (const r of interacoes) {
+      if (r.sirene_chamado_id != null) cids.add(r.sirene_chamado_id);
+      else iids.add(r.id);
+    }
+    return { cids: [...cids], iids: [...iids] };
+  }, [interacoes]);
 
   useEffect(() => {
-    for (const cid of chamadoIdsPainel) {
+    for (const cid of painelTopicosPrefetch.cids) {
+      const key = `c:${cid}`;
       void (async () => {
-        setTopicosLoading((l) => ({ ...l, [cid]: true }));
+        setTopicosLoading((l) => ({ ...l, [key]: true }));
         const res = await getTopicosChamado(cid);
-        setTopicosLoading((l) => ({ ...l, [cid]: false }));
-        if (res.ok) setTopicosByChamado((m) => ({ ...m, [cid]: res.topicos }));
+        setTopicosLoading((l) => ({ ...l, [key]: false }));
+        if (res.ok) setTopicosPorAlvo((m) => ({ ...m, [key]: res.topicos }));
       })();
     }
-  }, [chamadoIdsPainel]);
+    for (const iid of painelTopicosPrefetch.iids) {
+      const key = `i:${iid}`;
+      void (async () => {
+        setTopicosLoading((l) => ({ ...l, [key]: true }));
+        const res = await getTopicosPorInteracaoId(iid);
+        setTopicosLoading((l) => ({ ...l, [key]: false }));
+        if (res.ok) setTopicosPorAlvo((m) => ({ ...m, [key]: res.topicos }));
+      })();
+    }
+  }, [painelTopicosPrefetch]);
 
   useEffect(() => {
     if (!filtrosOpen) return;
@@ -663,21 +684,23 @@ export function InteracoesLista({
     setEditSireneDraft(null);
   }
 
-  async function carregarTopicosSeNecessario(chamadoId: number, force = false) {
-    if (!force && topicosByChamado[chamadoId] != null && !topicosLoading[chamadoId]) return;
-    setTopicosLoading((l) => ({ ...l, [chamadoId]: true }));
-    const res = await getTopicosChamado(chamadoId);
-    setTopicosLoading((l) => ({ ...l, [chamadoId]: false }));
-    if (res.ok) setTopicosByChamado((m) => ({ ...m, [chamadoId]: res.topicos }));
+  async function carregarTopicosSeNecessario(row: InteracaoSireneRow, force = false) {
+    const key = topicosAlvoKey(row);
+    if (!force && topicosPorAlvo[key] != null && !topicosLoading[key]) return;
+    setTopicosLoading((l) => ({ ...l, [key]: true }));
+    const res =
+      row.sirene_chamado_id != null
+        ? await getTopicosChamado(row.sirene_chamado_id)
+        : await getTopicosPorInteracaoId(row.id);
+    setTopicosLoading((l) => ({ ...l, [key]: false }));
+    if (res.ok) setTopicosPorAlvo((m) => ({ ...m, [key]: res.topicos }));
     else setMsgErro(res.error);
   }
 
   function toggleSubsPainel(row: InteracaoSireneRow) {
-    const cid = row.sirene_chamado_id;
-    if (cid == null) return;
     const will = !subsOpenByRow[row.id];
     setSubsOpenByRow((p) => ({ ...p, [row.id]: will }));
-    if (will) void carregarTopicosSeNecessario(cid);
+    if (will) void carregarTopicosSeNecessario(row, true);
   }
 
   async function salvarEdicao(atividadeId: string) {
@@ -771,19 +794,20 @@ export function InteracoesLista({
     }
   }
 
-  function subDraft(chamadoId: number): NovoSubChamadoDraft {
-    return novoSubPorChamado[chamadoId] ?? emptyNovoSubDraft();
+  function subDraft(alvoKey: string): NovoSubChamadoDraft {
+    return novoSubPorAlvo[alvoKey] ?? emptyNovoSubDraft();
   }
 
-  function setSubDraft(chamadoId: number, patch: Partial<NovoSubChamadoDraft>) {
-    setNovoSubPorChamado((m) => ({
+  function setSubDraft(alvoKey: string, patch: Partial<NovoSubChamadoDraft>) {
+    setNovoSubPorAlvo((m) => ({
       ...m,
-      [chamadoId]: { ...subDraft(chamadoId), ...patch },
+      [alvoKey]: { ...subDraft(alvoKey), ...patch },
     }));
   }
 
-  async function handleAdicionarTopico(chamadoId: number) {
-    const d = subDraft(chamadoId);
+  async function handleAdicionarTopico(row: InteracaoSireneRow) {
+    const alvoKey = topicosAlvoKey(row);
+    const d = subDraft(alvoKey);
     const desc = d.descricao.trim();
     if (!desc) {
       setMsgErro('Informe a descrição do sub-chamado.');
@@ -795,35 +819,53 @@ export function InteracoesLista({
       setMsgErro('Selecione ao menos um time.');
       return;
     }
-    setSalvandoTopico((s) => ({ ...s, [chamadoId]: true }));
+    setSalvandoTopico((s) => ({ ...s, [alvoKey]: true }));
     setMsgErro(null);
-    const res = await adicionarTopicoChamadoPainel(chamadoId, {
-      descricao: desc,
-      tipo: d.tipo,
-      times_ids: d.timesIds,
-      responsaveis_ids: d.responsaveisIds,
-      data_fim: d.data.trim() || null,
-      trava: d.trava,
-      tema: d.tema === 'Outro' ? d.temaOutro.trim() : d.tema,
-    });
-    setSalvandoTopico((s) => ({ ...s, [chamadoId]: false }));
+    const temaFinal = d.tema === 'Outro' ? d.temaOutro.trim() : d.tema;
+    const res =
+      row.sirene_chamado_id != null
+        ? await adicionarTopicoChamadoPainel(row.sirene_chamado_id, {
+            descricao: desc,
+            tipo: d.tipo,
+            times_ids: d.timesIds,
+            responsaveis_ids: d.responsaveisIds,
+            data_fim: d.data.trim() || null,
+            trava: d.trava,
+            tema: temaFinal,
+          })
+        : await criarSubInteracao({
+            interacao_id: row.id,
+            descricao: desc,
+            tipo: d.tipo,
+            times_ids: d.timesIds,
+            responsaveis_ids: d.responsaveisIds,
+            data_fim: d.data.trim() || null,
+            trava: d.trava,
+            tema: temaFinal,
+            basePath: '/sirene/chamados',
+          });
+    setSalvandoTopico((s) => ({ ...s, [alvoKey]: false }));
     if (!res.ok) {
       setMsgErro(res.error);
       return;
     }
-    setNovoSubPorChamado((m) => ({ ...m, [chamadoId]: emptyNovoSubDraft() }));
-    void carregarTopicosSeNecessario(chamadoId, true);
+    setNovoSubPorAlvo((m) => ({ ...m, [alvoKey]: emptyNovoSubDraft() }));
+    void carregarTopicosSeNecessario(row, true);
   }
 
-  async function handleSubStatusPainel(chamadoId: number, topicoId: number, status: SubInteracaoStatusDb) {
+  async function handleSubStatusPainel(
+    row: InteracaoSireneRow,
+    topicoId: number,
+    status: SubInteracaoStatusDb,
+  ) {
     setMsgErro(null);
-    const res = await atualizarStatusSubInteracao(topicoId, status, '/sirene/chamados');
+    const res = await atualizarStatusSubInteracao(String(topicoId), status, '/sirene/chamados');
     if (!res.ok) {
       setMsgErro(res.error);
       return;
     }
     router.refresh();
-    void carregarTopicosSeNecessario(chamadoId, true);
+    void carregarTopicosSeNecessario(row, true);
   }
 
   function toggleComentarios(row: InteracaoSireneRow) {
@@ -1228,6 +1270,7 @@ export function InteracoesLista({
 
                   const ccid = row.card_id;
                   const cnt = ccid ? comentariosCount(ccid) : 0;
+                  const alvoK = topicosAlvoKey(row);
 
                   return (
                     <li key={row.id} className="flex flex-col gap-0 border-b border-stone-800 px-3 py-3 last:border-b-0">
@@ -1262,16 +1305,14 @@ export function InteracoesLista({
                                 <span className="min-w-[1.1rem] text-center text-[10px] font-semibold tabular-nums">{cnt}</span>
                               </button>
                             ) : null}
-                            {row.sirene_chamado_id != null ? (
-                              <button
-                                type="button"
-                                onClick={() => toggleSubsPainel(row)}
-                                className="rounded border border-stone-600 bg-stone-800 px-1.5 py-0.5 text-[10px] text-stone-300 hover:text-white"
-                                aria-expanded={Boolean(subsOpenByRow[row.id])}
-                              >
-                                Sub-interações
-                              </button>
-                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => toggleSubsPainel(row)}
+                              className="rounded border border-stone-600 bg-stone-800 px-1.5 py-0.5 text-[10px] text-stone-300 hover:text-white"
+                              aria-expanded={Boolean(subsOpenByRow[row.id])}
+                            >
+                              Sub-interações
+                            </button>
                             <button
                               type="button"
                               onClick={() => abrirEdicao(row)}
@@ -1299,24 +1340,22 @@ export function InteracoesLista({
                               {tipoB.label}
                             </span>
                           </div>
-                          {row.sirene_chamado_id != null ? (
-                            topicosLoading[row.sirene_chamado_id] ? (
-                              <p className="text-[10px] text-stone-500">Carregando subinterações…</p>
-                            ) : (topicosByChamado[row.sirene_chamado_id] ?? []).length > 0 ? (
-                              <SubInteracaoLista
-                                variant="sirene"
-                                items={(topicosByChamado[row.sirene_chamado_id] ?? []).map((t) =>
-                                  mapRawTopicoToListaItem({
-                                    id: t.id,
-                                    tipo: t.tipo,
-                                    descricao: t.descricao,
-                                    status: t.status,
-                                    data_fim: t.data_fim,
-                                    trava: t.trava,
-                                  }),
-                                )}
-                              />
-                            ) : null
+                          {topicosLoading[alvoK] ? (
+                            <p className="text-[10px] text-stone-500">Carregando subinterações…</p>
+                          ) : (topicosPorAlvo[alvoK] ?? []).length > 0 ? (
+                            <SubInteracaoLista
+                              variant="sirene"
+                              items={(topicosPorAlvo[alvoK] ?? []).map((t) =>
+                                mapRawTopicoToListaItem({
+                                  id: t.id,
+                                  tipo: t.tipo,
+                                  descricao: t.descricao,
+                                  status: t.status,
+                                  data_fim: t.data_fim,
+                                  trava: t.trava,
+                                }),
+                              )}
+                            />
                           ) : null}
                           {(row.franqueado_nome ?? '').trim() ? (
                             <div className="flex items-center gap-1 text-xs text-stone-400">
@@ -1769,16 +1808,16 @@ export function InteracoesLista({
                         </div>
                       ) : null}
 
-                      {row.sirene_chamado_id != null && subsOpenByRow[row.id] ? (
+                      {subsOpenByRow[row.id] ? (
                         <div className="mt-3 border-t border-stone-800 pt-3">
                           <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-stone-500">
                             Gerir subinterações
                           </p>
-                          {topicosLoading[row.sirene_chamado_id] ? (
+                          {topicosLoading[alvoK] ? (
                             <p className="text-xs text-stone-500">Carregando…</p>
                           ) : (
                             <ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm text-stone-200">
-                              {(topicosByChamado[row.sirene_chamado_id] ?? []).map((t) => (
+                              {(topicosPorAlvo[alvoK] ?? []).map((t) => (
                                 <li
                                   key={t.id}
                                   className="rounded border border-stone-700 bg-stone-950/50 px-2 py-2 text-xs"
@@ -1798,7 +1837,7 @@ export function InteracoesLista({
                                           onClick={() => {
                                             setModalArquivarTopico({
                                               topicoId: t.id,
-                                              sireneCid: row.sirene_chamado_id!,
+                                              alvoKey: alvoK,
                                             });
                                             setMotivoArquivarTopico('');
                                           }}
@@ -1813,7 +1852,7 @@ export function InteracoesLista({
                                         value={t.status}
                                         onChange={(e) =>
                                           void handleSubStatusPainel(
-                                            row.sirene_chamado_id!,
+                                            row,
                                             t.id,
                                             e.target.value as SubInteracaoStatusDb,
                                           )
@@ -1833,8 +1872,7 @@ export function InteracoesLista({
                             </ul>
                           )}
                           {(() => {
-                            const cid = row.sirene_chamado_id!;
-                            const d = subDraft(cid);
+                            const d = subDraft(alvoK);
                             const timesOpts = filtrarOpcoesTimeIdNomePorHdm(
                               times,
                               d.tipo === 'chamado' && d.ehHdm,
@@ -1856,7 +1894,7 @@ export function InteracoesLista({
                                           (x) => x.id,
                                         ),
                                       );
-                                      setSubDraft(cid, {
+                                      setSubDraft(alvoK, {
                                         tipo: v,
                                         ehHdm: ehNext,
                                         timesIds: d.timesIds.filter((id) => allowed.has(id)),
@@ -1873,21 +1911,21 @@ export function InteracoesLista({
                                 <input
                                   type="text"
                                   value={d.descricao}
-                                  onChange={(e) => setSubDraft(cid, { descricao: e.target.value })}
+                                  onChange={(e) => setSubDraft(alvoK, { descricao: e.target.value })}
                                   placeholder="Descrição (obrigatório)"
                                   className="w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
                                 />
                                 <input
                                   type="date"
                                   value={d.data}
-                                  onChange={(e) => setSubDraft(cid, { data: e.target.value })}
+                                  onChange={(e) => setSubDraft(alvoK, { data: e.target.value })}
                                   className="w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
                                 />
                                 <div>
                                   <span className="mb-1 block text-[10px] font-medium text-stone-500">Tema (obrigatório)</span>
                                   <SelectEscuro
                                     value={d.tema}
-                                    onChange={(e) => setSubDraft(cid, { tema: e.target.value, temaOutro: '' })}
+                                    onChange={(e) => setSubDraft(alvoK, { tema: e.target.value, temaOutro: '' })}
                                     className="w-full text-xs"
                                   >
                                     <option value="">Selecione</option>
@@ -1906,7 +1944,7 @@ export function InteracoesLista({
                                     <input
                                       type="text"
                                       value={d.temaOutro}
-                                      onChange={(e) => setSubDraft(cid, { temaOutro: e.target.value })}
+                                      onChange={(e) => setSubDraft(alvoK, { temaOutro: e.target.value })}
                                       placeholder="Detalhe o tema (obrigatório)"
                                       className="mt-1 w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
                                     />
@@ -1920,7 +1958,7 @@ export function InteracoesLista({
                                       checked={d.ehHdm}
                                       onChange={(e) => {
                                         const eh = e.target.checked;
-                                        setSubDraft(cid, {
+                                        setSubDraft(alvoK, {
                                           ehHdm: eh,
                                           timesIds: d.timesIds.filter((id) =>
                                             filtrarOpcoesTimeIdNomePorHdm(times, d.tipo === 'chamado' && eh).some(
@@ -1943,7 +1981,7 @@ export function InteracoesLista({
                                           key={topt.id}
                                           type="button"
                                           onClick={() =>
-                                            setSubDraft(cid, {
+                                            setSubDraft(alvoK, {
                                               timesIds: on
                                                 ? d.timesIds.filter((x) => x !== topt.id)
                                                 : [...d.timesIds, topt.id],
@@ -1969,7 +2007,7 @@ export function InteracoesLista({
                                           key={p.id}
                                           type="button"
                                           onClick={() =>
-                                            setSubDraft(cid, {
+                                            setSubDraft(alvoK, {
                                               responsaveisIds: on
                                                 ? d.responsaveisIds.filter((x) => x !== p.id)
                                                 : [...d.responsaveisIds, p.id],
@@ -1990,23 +2028,23 @@ export function InteracoesLista({
                                     type="checkbox"
                                     className="h-3.5 w-3.5 rounded border-stone-500"
                                     checked={d.trava}
-                                    onChange={(e) => setSubDraft(cid, { trava: e.target.checked })}
+                                    onChange={(e) => setSubDraft(alvoK, { trava: e.target.checked })}
                                   />
                                   Trava — estou bloqueado até este sub-chamado ser concluído
                                 </label>
                                 <button
                                   type="button"
                                   disabled={
-                                    Boolean(salvandoTopico[cid]) ||
+                                    Boolean(salvandoTopico[alvoK]) ||
                                     !d.descricao.trim() ||
                                     d.timesIds.length === 0 ||
                                     !d.tema ||
                                     (d.tema === 'Outro' && !d.temaOutro.trim())
                                   }
-                                  onClick={() => void handleAdicionarTopico(cid)}
+                                  onClick={() => void handleAdicionarTopico(row)}
                                   className="rounded-lg bg-stone-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-stone-500 disabled:opacity-50"
                                 >
-                                  {salvandoTopico[cid] ? '…' : '+ Adicionar subinteração'}
+                                  {salvandoTopico[alvoK] ? '…' : '+ Adicionar subinteração'}
                                 </button>
                               </div>
                             );
@@ -2064,12 +2102,15 @@ export function InteracoesLista({
                       alert(res.error);
                       return;
                     }
-                    const cid = modalArquivarTopico.sireneCid;
+                    const ak = modalArquivarTopico.alvoKey;
                     setModalArquivarTopico(null);
                     setMotivoArquivarTopico('');
-                    const tr = await getTopicosChamado(cid);
-                    if (tr.ok) {
-                      setTopicosByChamado((m) => ({ ...m, [cid]: tr.topicos }));
+                    if (ak.startsWith('c:')) {
+                      const tr = await getTopicosChamado(Number(ak.slice(2)));
+                      if (tr.ok) setTopicosPorAlvo((m) => ({ ...m, [ak]: tr.topicos }));
+                    } else if (ak.startsWith('i:')) {
+                      const tr = await getTopicosPorInteracaoId(ak.slice(2));
+                      if (tr.ok) setTopicosPorAlvo((m) => ({ ...m, [ak]: tr.topicos }));
                     }
                     router.refresh();
                   } finally {
