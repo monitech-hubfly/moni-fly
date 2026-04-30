@@ -320,7 +320,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                         onClick={() =>
                           setTimesIds((prev) => (on ? prev.filter((x) => x !== t.id) : [...prev, t.id]))
                         }
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium border ${on ? 'bg-stone-800 text-white border-stone-800' : 'bg-white text-stone-600 border-stone-300'}`}
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium border ${on ? 'border-red-600 bg-red-600 text-white' : 'border-[color:var(--moni-border-default)] bg-white text-[color:var(--moni-text-secondary)]'}`}
                       >
                         {t.nome}
                       </button>
@@ -343,7 +343,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                         onClick={() =>
                           setResponsaveisIds((prev) => (on ? prev.filter((x) => x !== p.id) : [...prev, p.id]))
                         }
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium border ${on ? 'bg-stone-800 text-white border-stone-800' : 'bg-white text-stone-600 border-stone-300'}`}
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium border ${on ? 'border-red-600 bg-red-600 text-white' : 'border-[color:var(--moni-border-default)] bg-white text-[color:var(--moni-text-secondary)]'}`}
                       >
                         {p.nome}
                       </button>

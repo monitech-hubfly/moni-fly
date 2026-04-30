@@ -59,7 +59,7 @@ function badgeTipoLabel(tipo: SubInteracaoTipoUi): string {
 
 type Props = {
   items: SubInteracaoListaItem[];
-  /** `kanban`: fundo claro; `sirene`: tema escuro do painel */
+  /** `kanban`: fundo claro; `sirene`: painel Sirene (também claro, alinhado aos tokens Moní) */
   variant: 'kanban' | 'sirene';
   className?: string;
   /** Conteúdo extra à direita de cada linha (ex.: arquivar). */
@@ -79,28 +79,28 @@ export function SubInteracaoLista({ items, variant, className = '', renderTraili
         const statusPt = rotuloStatusSubInteracaoPt(it.status);
 
         const baseRow = isSirene
-          ? 'rounded border border-stone-700/80 bg-stone-950/40 px-2 py-1'
+          ? 'rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-2 py-1'
           : 'rounded border border-stone-200 bg-stone-50/90 px-2 py-1';
 
         const tipoClass =
           it.tipo === 'duvida'
             ? isSirene
-              ? 'border-amber-700/50 bg-amber-950/40 text-amber-100'
+              ? 'border-amber-300 bg-amber-50 text-amber-900'
               : 'border-amber-200 bg-amber-50 text-amber-900'
             : it.tipo === 'chamado'
               ? isSirene
-                ? 'border-red-800/50 bg-red-950/35 text-red-100'
+                ? 'border-red-200 bg-red-50 text-red-900'
                 : 'border-red-200 bg-red-50 text-red-900'
               : isSirene
-                ? 'border-sky-800/50 bg-sky-950/35 text-sky-100'
+                ? 'border-sky-200 bg-sky-50 text-sky-900'
                 : 'border-sky-200 bg-sky-50 text-sky-900';
 
         const statusClass = isSirene
-          ? 'border-stone-600 bg-stone-800 text-stone-200'
+          ? 'border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] text-[color:var(--moni-text-primary)]'
           : 'border-stone-300 bg-white text-stone-700';
 
-        const muted = isSirene ? 'text-stone-500' : 'text-stone-500';
-        const text = isSirene ? 'text-stone-200' : 'text-stone-800';
+        const muted = 'text-stone-500';
+        const text = isSirene ? 'text-[color:var(--moni-text-primary)]' : 'text-stone-800';
 
         return (
           <li key={String(it.id)} className={`flex flex-wrap items-center gap-1.5 text-[10px] leading-snug ${baseRow}`}>
@@ -109,7 +109,7 @@ export function SubInteracaoLista({ items, variant, className = '', renderTraili
               <span
                 className={
                   isSirene
-                    ? 'rounded border border-red-800/60 bg-red-950/50 px-1 py-0.5 font-bold uppercase text-red-200'
+                    ? 'rounded border border-red-200 bg-red-50 px-1 py-0.5 font-bold uppercase text-red-800'
                     : 'rounded border border-red-300 bg-red-50 px-1 py-0.5 font-bold uppercase text-red-800'
                 }
               >

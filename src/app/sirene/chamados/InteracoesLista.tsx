@@ -250,20 +250,26 @@ function badgeTipo(tipo: string): { label: string; className: string } {
   if (t === 'duvida' || t === 'dúvida')
     return {
       label: 'Dúvida',
-      className: 'border-[color:var(--moni-gold-600)] bg-[rgba(212,173,104,0.12)] text-[color:var(--moni-gold-200)]',
+      className:
+        'border-[color:var(--moni-gold-600)] bg-[rgba(212,173,104,0.12)] text-[color:var(--moni-gold-800)]',
     };
   if (t === 'proposicoes' || t === 'proposições')
-    return { label: 'Proposições', className: 'bg-violet-900/40 text-violet-100 border-violet-700/40' };
-  if (t === 'chamado_hdm') return { label: 'Chamado HDM', className: 'bg-red-900/50 text-red-100 border-red-700/40' };
-  if (t === 'chamado_padrao') return { label: 'Chamado', className: 'bg-red-900/40 text-red-100 border-red-700/40' };
-  return { label: 'Atividade', className: 'bg-sky-900/40 text-sky-100 border-sky-700/40' };
+    return {
+      label: 'Proposições',
+      className: 'border-violet-300 bg-violet-100 text-violet-900',
+    };
+  if (t === 'chamado_hdm')
+    return { label: 'Chamado HDM', className: 'border-red-300 bg-red-50 text-red-900' };
+  if (t === 'chamado_padrao')
+    return { label: 'Chamado', className: 'border-red-200 bg-red-50 text-red-800' };
+  return { label: 'Atividade', className: 'border-sky-300 bg-sky-50 text-sky-900' };
 }
 
-function SelectEscuro(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
+function SelectMoni(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className={`rounded-lg border border-stone-600 bg-stone-700 px-2 py-1.5 text-sm text-stone-100 outline-none focus:border-stone-500 ${props.className ?? ''}`}
+      className={`rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)] outline-none focus:border-[color:var(--moni-navy-400)] focus:ring-1 focus:ring-[color:var(--moni-navy-400)] ${props.className ?? ''}`}
     />
   );
 }
@@ -335,8 +341,10 @@ type SecaoRadioProps = {
 
 function SecaoFiltro({ titulo, children }: SecaoRadioProps) {
   return (
-    <fieldset className="space-y-2 border-b border-stone-600 pb-3 last:border-b-0">
-      <legend className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-stone-400">{titulo}</legend>
+    <fieldset className="space-y-2 border-b border-[color:var(--moni-border-default)] pb-3 last:border-b-0">
+      <legend className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
+        {titulo}
+      </legend>
       {children}
     </fieldset>
   );
@@ -951,18 +959,18 @@ export function InteracoesLista({
     [editSireneDraft?.ehHdmListaTimes],
   );
 
-  const radioRow = 'flex flex-wrap gap-x-4 gap-y-2 text-sm text-stone-200';
+  const radioRow = 'flex flex-wrap gap-x-4 gap-y-2 text-sm text-[color:var(--moni-text-secondary)]';
   const radioLabel = 'inline-flex cursor-pointer items-center gap-2';
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 text-stone-100">
+    <div className="mx-auto max-w-7xl px-4 py-6 text-[color:var(--moni-text-primary)]">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-stone-400">Chamados Sirene:</span>
+          <span className="text-sm font-medium text-[color:var(--moni-text-tertiary)]">Chamados Sirene:</span>
           <select
             value={tipoListaChamadoSirene}
             onChange={(e) => setFiltroTipoLista(e.target.value as 'todos' | 'padrao' | 'hdm')}
-            className="rounded-lg border border-stone-600 bg-stone-800 px-3 py-1.5 text-sm text-stone-200"
+            className="rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-3 py-1.5 text-sm text-[color:var(--moni-text-secondary)]"
           >
             <option value="todos">Todos</option>
             <option value="padrao">Padrão</option>
@@ -984,24 +992,24 @@ export function InteracoesLista({
             ref={filtrosBtnRef}
             type="button"
             onClick={() => (filtrosOpen ? (setDraft({ ...applied }), setFiltrosOpen(false)) : abrirPainelFiltros())}
-            className="rounded-lg border border-stone-600 bg-stone-800 px-4 py-2 text-sm font-medium text-stone-200 hover:bg-stone-700"
+            className="rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-4 py-2 text-sm font-medium text-[color:var(--moni-text-secondary)] hover:bg-[var(--moni-surface-100)]"
           >
             Filtros ({ativos})
           </button>
           {filtrosOpen ? (
             <div
               ref={popoverRef}
-              className="absolute left-0 top-full z-50 mt-2 w-[min(100vw-2rem,28rem)] rounded-lg border border-stone-600 bg-stone-800 p-4 shadow-xl"
+              className="absolute left-0 top-full z-50 mt-2 w-[min(100vw-2rem,28rem)] rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-4 shadow-xl"
             >
               <div className="max-h-[min(70vh,32rem)] space-y-4 overflow-y-auto pr-1">
-                <label className="block text-xs text-stone-400">
+                <label className="block text-xs text-[color:var(--moni-text-tertiary)]">
                   <span className="mb-1 block font-semibold uppercase tracking-wide">Buscar</span>
                   <input
                     type="search"
                     value={draft.busca}
                     onChange={(e) => setDraft((d) => ({ ...d, busca: e.target.value }))}
                     placeholder="Buscar…"
-                    className="mt-1 w-full rounded-lg border border-stone-600 bg-stone-900 px-3 py-2 text-sm text-stone-100 placeholder:text-stone-500 focus:border-stone-500 focus:outline-none"
+                    className="mt-1 w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-3 py-2 text-sm text-[color:var(--moni-text-primary)] placeholder:text-[color:var(--moni-text-tertiary)] focus:border-[color:var(--moni-border-default)] focus:outline-none"
                   />
                 </label>
 
@@ -1020,7 +1028,7 @@ export function InteracoesLista({
                           name="filtro-status"
                           checked={draft.statusF === v}
                           onChange={() => setDraft((d) => ({ ...d, statusF: v }))}
-                          className="border-stone-500 text-red-500 focus:ring-red-400"
+                          className="border-[color:var(--moni-border-default)] text-red-500 focus:ring-red-400"
                         />
                         {lab}
                       </label>
@@ -1042,7 +1050,7 @@ export function InteracoesLista({
                           name="filtro-tipo"
                           checked={draft.tipoF === v}
                           onChange={() => setDraft((d) => ({ ...d, tipoF: v }))}
-                          className="border-stone-500 text-red-500 focus:ring-red-400"
+                          className="border-[color:var(--moni-border-default)] text-red-500 focus:ring-red-400"
                         />
                         {lab}
                       </label>
@@ -1051,14 +1059,14 @@ export function InteracoesLista({
                 </SecaoFiltro>
 
                 <SecaoFiltro titulo="Kanban">
-                  <div className="flex max-h-40 flex-col gap-2 overflow-y-auto text-sm text-stone-200">
+                  <div className="flex max-h-40 flex-col gap-2 overflow-y-auto text-sm text-[color:var(--moni-text-secondary)]">
                     <label className={radioLabel}>
                       <input
                         type="radio"
                         name="filtro-kanban"
                         checked={draft.kanbanF === 'todos'}
                         onChange={() => setDraft((d) => ({ ...d, kanbanF: 'todos' }))}
-                        className="border-stone-500 text-red-500"
+                        className="border-[color:var(--moni-border-default)] text-red-500"
                       />
                       Todos
                     </label>
@@ -1069,7 +1077,7 @@ export function InteracoesLista({
                           name="filtro-kanban"
                           checked={draft.kanbanF === k}
                           onChange={() => setDraft((d) => ({ ...d, kanbanF: k }))}
-                          className="border-stone-500 text-red-500"
+                          className="border-[color:var(--moni-border-default)] text-red-500"
                         />
                         {k}
                       </label>
@@ -1078,11 +1086,11 @@ export function InteracoesLista({
                 </SecaoFiltro>
 
                 <SecaoFiltro titulo="Time">
-                  <div className="flex max-h-36 flex-col gap-2 overflow-y-auto text-sm text-stone-200">
-                    <label className={`${radioLabel} mb-1 border-b border-stone-600 pb-2`}>
+                  <div className="flex max-h-36 flex-col gap-2 overflow-y-auto text-sm text-[color:var(--moni-text-secondary)]">
+                    <label className={`${radioLabel} mb-1 border-b border-[color:var(--moni-border-default)] pb-2`}>
                       <input
                         type="checkbox"
-                        className="border-stone-500 text-red-500"
+                        className="border-[color:var(--moni-border-default)] text-red-500"
                         checked={draft.timeListaSomenteHdm}
                         onChange={(e) => {
                           const v = e.target.checked;
@@ -1097,7 +1105,7 @@ export function InteracoesLista({
                         name="filtro-time"
                         checked={draft.timeF === 'todos'}
                         onChange={() => setDraft((d) => ({ ...d, timeF: 'todos' }))}
-                        className="border-stone-500 text-red-500"
+                        className="border-[color:var(--moni-border-default)] text-red-500"
                       />
                       Todos
                     </label>
@@ -1108,7 +1116,7 @@ export function InteracoesLista({
                           name="filtro-time"
                           checked={draft.timeF === t.id}
                           onChange={() => setDraft((d) => ({ ...d, timeF: t.id }))}
-                          className="border-stone-500 text-red-500"
+                          className="border-[color:var(--moni-border-default)] text-red-500"
                         />
                         {t.nome}
                       </label>
@@ -1119,7 +1127,7 @@ export function InteracoesLista({
                         name="filtro-time"
                         checked={draft.timeF === BOMBEIRO_SENTINEL}
                         onChange={() => setDraft((d) => ({ ...d, timeF: BOMBEIRO_SENTINEL }))}
-                        className="border-stone-500 text-red-500"
+                        className="border-[color:var(--moni-border-default)] text-red-500"
                       />
                       Bombeiro
                     </label>
@@ -1127,14 +1135,14 @@ export function InteracoesLista({
                 </SecaoFiltro>
 
                 <SecaoFiltro titulo="Responsável">
-                  <div className="flex max-h-36 flex-col gap-2 overflow-y-auto text-sm text-stone-200">
+                  <div className="flex max-h-36 flex-col gap-2 overflow-y-auto text-sm text-[color:var(--moni-text-secondary)]">
                     <label className={radioLabel}>
                       <input
                         type="radio"
                         name="filtro-resp"
                         checked={draft.respF === 'todos'}
                         onChange={() => setDraft((d) => ({ ...d, respF: 'todos' }))}
-                        className="border-stone-500 text-red-500"
+                        className="border-[color:var(--moni-border-default)] text-red-500"
                       />
                       Todos
                     </label>
@@ -1145,7 +1153,7 @@ export function InteracoesLista({
                           name="filtro-resp"
                           checked={draft.respF === 'eu'}
                           onChange={() => setDraft((d) => ({ ...d, respF: 'eu' }))}
-                          className="border-stone-500 text-red-500"
+                          className="border-[color:var(--moni-border-default)] text-red-500"
                         />
                         Eu
                       </label>
@@ -1157,7 +1165,7 @@ export function InteracoesLista({
                           name="filtro-resp"
                           checked={draft.respF === r.id}
                           onChange={() => setDraft((d) => ({ ...d, respF: r.id }))}
-                          className="border-stone-500 text-red-500"
+                          className="border-[color:var(--moni-border-default)] text-red-500"
                         />
                         {r.nome}
                       </label>
@@ -1178,7 +1186,7 @@ export function InteracoesLista({
                           name="filtro-trava"
                           checked={draft.travaF === v}
                           onChange={() => setDraft((d) => ({ ...d, travaF: v }))}
-                          className="border-stone-500 text-red-500"
+                          className="border-[color:var(--moni-border-default)] text-red-500"
                         />
                         {lab}
                       </label>
@@ -1187,11 +1195,11 @@ export function InteracoesLista({
                 </SecaoFiltro>
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2 border-t border-stone-600 pt-3">
+              <div className="mt-4 flex flex-wrap gap-2 border-t border-[color:var(--moni-border-default)] pt-3">
                 <button
                   type="button"
                   onClick={limparDraftFiltros}
-                  className="rounded-lg border border-stone-600 px-3 py-1.5 text-sm text-stone-300 hover:bg-stone-700"
+                  className="rounded-lg border border-[color:var(--moni-border-default)] px-3 py-1.5 text-sm text-[color:var(--moni-text-secondary)] hover:bg-[var(--moni-surface-100)]"
                 >
                   Limpar filtros
                 </button>
@@ -1208,12 +1216,14 @@ export function InteracoesLista({
         </div>
 
         <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-3">
-          <div className="flex rounded-lg border border-stone-600 bg-stone-800 p-0.5 text-sm">
+          <div className="flex rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-0.5 text-sm">
             <button
               type="button"
               onClick={() => setVerTodas(false)}
               className={`rounded-md px-3 py-1.5 font-medium transition ${
-                !verTodas ? 'bg-stone-600 text-white' : 'text-stone-400 hover:text-stone-200'
+                !verTodas
+                  ? 'bg-red-600 text-white'
+                  : 'text-[color:var(--moni-text-tertiary)] hover:text-[color:var(--moni-text-primary)]'
               }`}
             >
               Ver minhas
@@ -1222,17 +1232,19 @@ export function InteracoesLista({
               type="button"
               onClick={() => setVerTodas(true)}
               className={`rounded-md px-3 py-1.5 font-medium transition ${
-                verTodas ? 'bg-stone-600 text-white' : 'text-stone-400 hover:text-stone-200'
+                verTodas
+                  ? 'bg-red-600 text-white'
+                  : 'text-[color:var(--moni-text-tertiary)] hover:text-[color:var(--moni-text-primary)]'
               }`}
             >
               Ver todas
             </button>
           </div>
           {podeArquivar ? (
-            <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-stone-300">
+            <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-[color:var(--moni-text-secondary)]">
               <input
                 type="checkbox"
-                className="h-4 w-4 rounded border-stone-500"
+                className="h-4 w-4 rounded border-[color:var(--moni-border-default)]"
                 checked={mostrarArquivados}
                 onChange={(e) => setMostrarArquivados(e.target.checked)}
               />
@@ -1243,25 +1255,25 @@ export function InteracoesLista({
       </div>
 
       {msgErro && (
-        <div className="mb-4 rounded-lg border border-red-800/60 bg-red-950/40 px-3 py-2 text-sm text-red-200">
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           {msgErro}
         </div>
       )}
 
-      {pending && <p className="mb-2 text-xs text-stone-500">Salvando status…</p>}
-      {salvandoEdicao && <p className="mb-2 text-xs text-stone-500">Salvando chamado…</p>}
-      {salvandoSirene && <p className="mb-2 text-xs text-stone-500">Salvando chamado Sirene…</p>}
+      {pending && <p className="mb-2 text-xs text-[color:var(--moni-text-tertiary)]">Salvando status…</p>}
+      {salvandoEdicao && <p className="mb-2 text-xs text-[color:var(--moni-text-tertiary)]">Salvando chamado…</p>}
+      {salvandoSirene && <p className="mb-2 text-xs text-[color:var(--moni-text-tertiary)]">Salvando chamado Sirene…</p>}
       <div className="space-y-8">
         {ORDEM_GRUPOS_PAINEL.map(({ key, titulo }) => {
           const lista = porGrupo.get(key) ?? [];
           if (lista.length === 0) return null;
           return (
             <section key={key}>
-              <h3 className="mb-3 border-b border-stone-700 bg-stone-800 px-3 py-2 text-sm font-semibold text-stone-100">
+              <h3 className="mb-3 border-b border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-3 py-2 text-sm font-semibold text-[color:var(--moni-text-primary)]">
                 {titulo}
-                <span className="ml-2 font-normal text-stone-500">({lista.length})</span>
+                <span className="ml-2 font-normal text-[color:var(--moni-text-tertiary)]">({lista.length})</span>
               </h3>
-              <ul className="rounded-lg border border-stone-800 bg-stone-900/80">
+              <ul className="rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)]">
                 {lista.map((row) => {
                   const tipoB = badgeTipo(row.tipo);
                   const hrefCard = row.card_id ? rotaCardOrigem(row.kanban_nome, row.card_id) : null;
@@ -1273,31 +1285,31 @@ export function InteracoesLista({
                   const alvoK = topicosAlvoKey(row);
 
                   return (
-                    <li key={row.id} className="flex flex-col gap-0 border-b border-stone-800 px-3 py-3 last:border-b-0">
+                    <li key={row.id} className="flex flex-col gap-0 border-b border-[color:var(--moni-border-default)] px-3 py-3 last:border-b-0">
                       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:gap-x-3 sm:gap-y-2">
                         <div className="flex min-w-0 flex-1 flex-col gap-1">
                           <div className="flex flex-wrap items-center gap-2">
                             {row.trava && (
-                              <span className="rounded border border-red-700/60 bg-red-950/50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-200">
+                              <span className="rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-800">
                                 Trava
                               </span>
                             )}
                             {row.sirene_numero != null ? (
-                              <span className="rounded bg-stone-700 px-1.5 py-0.5 text-[10px] font-semibold text-stone-200">
+                              <span className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] font-semibold text-[color:var(--moni-text-secondary)]">
                                 #{row.sirene_numero}
                               </span>
                             ) : null}
                             {row.sirene_arquivado ? (
-                              <span className="rounded border border-stone-500 bg-stone-800 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-stone-400">
+                              <span className="rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[color:var(--moni-text-tertiary)]">
                                 Arquivado
                               </span>
                             ) : null}
-                            <span className="font-medium text-white">{row.titulo}</span>
+                            <span className="font-medium text-[color:var(--moni-text-primary)]">{row.titulo}</span>
                             {ccid ? (
                               <button
                                 type="button"
                                 onClick={() => toggleComentarios(row)}
-                                className="inline-flex items-center gap-1 rounded border border-stone-600 bg-stone-800 px-1.5 py-0.5 text-stone-300 hover:border-stone-500 hover:text-white"
+                                className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]"
                                 aria-expanded={Boolean(commentsOpenByRow[row.id])}
                                 aria-label={`Comentários do card (${cnt})`}
                               >
@@ -1308,7 +1320,7 @@ export function InteracoesLista({
                             <button
                               type="button"
                               onClick={() => toggleSubsPainel(row)}
-                              className="rounded border border-stone-600 bg-stone-800 px-1.5 py-0.5 text-[10px] text-stone-300 hover:text-white"
+                              className="rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)] hover:text-[color:var(--moni-text-primary)]"
                               aria-expanded={Boolean(subsOpenByRow[row.id])}
                             >
                               Sub-interações
@@ -1316,7 +1328,7 @@ export function InteracoesLista({
                             <button
                               type="button"
                               onClick={() => abrirEdicao(row)}
-                              className="rounded p-0.5 text-stone-400 hover:bg-stone-800 hover:text-white"
+                              className="rounded p-0.5 text-[color:var(--moni-text-tertiary)] hover:bg-[var(--moni-surface-100)] hover:text-[color:var(--moni-text-primary)]"
                               aria-label="Editar chamado"
                               title="Editar"
                             >
@@ -1331,7 +1343,7 @@ export function InteracoesLista({
                                     interacaoId: row.id,
                                   })
                                 }
-                                className="rounded border border-stone-600 bg-stone-800 px-1.5 py-0.5 text-[10px] text-stone-300 hover:border-stone-500 hover:text-white"
+                                className="rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]"
                               >
                                 Arquivar
                               </button>
@@ -1341,7 +1353,7 @@ export function InteracoesLista({
                             </span>
                           </div>
                           {topicosLoading[alvoK] ? (
-                            <p className="text-[10px] text-stone-500">Carregando subinterações…</p>
+                            <p className="text-[10px] text-[color:var(--moni-text-tertiary)]">Carregando subinterações…</p>
                           ) : (topicosPorAlvo[alvoK] ?? []).length > 0 ? (
                             <SubInteracaoLista
                               variant="sirene"
@@ -1358,34 +1370,36 @@ export function InteracoesLista({
                             />
                           ) : null}
                           {(row.franqueado_nome ?? '').trim() ? (
-                            <div className="flex items-center gap-1 text-xs text-stone-400">
+                            <div className="flex items-center gap-1 text-xs text-[color:var(--moni-text-tertiary)]">
                               <User className="h-3.5 w-3.5 shrink-0" aria-hidden />
                               <span>{(row.franqueado_nome ?? '').trim()}</span>
                             </div>
                           ) : null}
-                          <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-stone-500">
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-[color:var(--moni-text-tertiary)]">
                             <span className="shrink-0">Resp.:</span>
-                            <span className="font-medium text-stone-400">
+                            <span className="font-medium text-[color:var(--moni-text-tertiary)]">
                               {textoResponsavelPainel(row, nomePorUserId)}
                             </span>
                           </div>
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-stone-400">
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--moni-text-tertiary)]">
                             {ccid && hrefCard ? (
                               <Link
                                 href={hrefCard}
-                                className="rounded border border-stone-600 bg-stone-800/80 px-2 py-0.5 text-stone-200 underline-offset-2 hover:text-white hover:underline"
+                                className="rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-0.5 text-[color:var(--moni-text-secondary)] underline-offset-2 hover:text-[color:var(--moni-navy-600)] hover:underline"
                               >
                                 Card: {row.card_titulo?.trim() || '—'}
                               </Link>
                             ) : null}
-                            <span className="rounded bg-stone-600/80 px-1.5 py-0.5 text-[10px] text-stone-200">{row.kanban_nome}</span>
+                            <span className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)]">
+                              {row.kanban_nome}
+                            </span>
                             {parseTimesNomes(row.times_nomes).map((tn) => (
-                              <span key={tn} className="rounded bg-stone-700 px-1.5 py-0.5 text-[10px] text-stone-300">
+                              <span key={tn} className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)]">
                                 {tn}
                               </span>
                             ))}
                             {row.time_nome && parseTimesNomes(row.times_nomes).length === 0 && (
-                              <span className="rounded bg-stone-700 px-1.5 py-0.5 text-[10px] text-stone-300">{row.time_nome}</span>
+                              <span className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)]">{row.time_nome}</span>
                             )}
                           </div>
                         </div>
@@ -1396,7 +1410,7 @@ export function InteracoesLista({
                               <span
                                 key={uid}
                                 title={nomePorUserId.get(uid) ?? uid}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-stone-600 bg-stone-700 text-[10px] font-semibold text-stone-100"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-100)] text-[10px] font-semibold text-[color:var(--moni-text-primary)]"
                               >
                                 {iniciaisNome(nomePorUserId.get(uid) ?? '?')}
                               </span>
@@ -1404,11 +1418,11 @@ export function InteracoesLista({
                           </div>
                           <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
                             {row.data_vencimento ? (
-                              <span className="text-stone-400">
+                              <span className="text-[color:var(--moni-text-tertiary)]">
                                 Prazo {row.data_vencimento.split('-').reverse().join('/')}
                               </span>
                             ) : null}
-                            <SelectEscuro
+                            <SelectMoni
                               value={sel}
                               disabled={pending}
                               onChange={(e) => onStatusChange(row.id, e.target.value as StatusInteracaoDb)}
@@ -1418,26 +1432,26 @@ export function InteracoesLista({
                               <option value="pendente">A fazer</option>
                               <option value="em_andamento">Em andamento</option>
                               <option value="concluida">Concluída</option>
-                            </SelectEscuro>
+                            </SelectMoni>
                           </div>
                         </div>
                       </div>
 
                       {editingId === row.id && editDraft ? (
-                        <div className="mt-3 space-y-3 border-t border-stone-800 pt-3">
-                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                        <div className="mt-3 space-y-3 border-t border-[color:var(--moni-border-default)] pt-3">
+                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
                             Título
                             <input
                               type="text"
                               value={editDraft.titulo}
                               onChange={(e) => setEditDraft((d) => (d ? { ...d, titulo: e.target.value } : d))}
-                              className="mt-1 w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
+                              className="mt-1 w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)]"
                             />
                           </label>
                           <div className="grid gap-3 sm:grid-cols-2">
-                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
                               Tipo
-                              <SelectEscuro
+                              <SelectMoni
                                 value={editDraft.tipo}
                                 onChange={(e) =>
                                   setEditDraft((d) =>
@@ -1449,20 +1463,20 @@ export function InteracoesLista({
                                 <option value="atividade">Atividade</option>
                                 <option value="duvida">Dúvida</option>
                                 <option value="proposicoes">Proposições</option>
-                              </SelectEscuro>
+                              </SelectMoni>
                             </label>
-                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
                               Prazo
                               <input
                                 type="date"
                                 value={editDraft.data}
                                 onChange={(e) => setEditDraft((d) => (d ? { ...d, data: e.target.value } : d))}
-                                className="mt-1 w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
+                                className="mt-1 w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)]"
                               />
                             </label>
                           </div>
                           <div>
-                            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
                               Times
                             </span>
                             <div className="flex max-h-28 flex-wrap gap-1 overflow-y-auto">
@@ -1483,7 +1497,7 @@ export function InteracoesLista({
                                       })
                                     }
                                     className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                                      on ? 'bg-red-700 text-white' : 'bg-stone-800 text-stone-300'
+                                      on ? 'bg-red-600 text-white' : 'bg-[var(--moni-surface-100)] text-[color:var(--moni-text-secondary)]'
                                     }`}
                                   >
                                     {t.nome}
@@ -1493,7 +1507,7 @@ export function InteracoesLista({
                             </div>
                           </div>
                           <div>
-                            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
                               Responsáveis
                             </span>
                             <div className="flex max-h-32 flex-wrap gap-1 overflow-y-auto">
@@ -1516,7 +1530,7 @@ export function InteracoesLista({
                                       })
                                     }
                                     className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                                      on ? 'bg-red-700 text-white' : 'bg-stone-800 text-stone-300'
+                                      on ? 'bg-red-600 text-white' : 'bg-[var(--moni-surface-100)] text-[color:var(--moni-text-secondary)]'
                                     }`}
                                   >
                                     {p.nome}
@@ -1525,10 +1539,10 @@ export function InteracoesLista({
                               })}
                             </div>
                           </div>
-                          <label className="flex cursor-pointer items-center gap-2 text-sm text-stone-300">
+                          <label className="flex cursor-pointer items-center gap-2 text-sm text-[color:var(--moni-text-secondary)]">
                             <input
                               type="checkbox"
-                              className="h-4 w-4 rounded border-stone-500"
+                              className="h-4 w-4 rounded border-[color:var(--moni-border-default)]"
                               checked={editDraft.trava}
                               onChange={(e) => setEditDraft((d) => (d ? { ...d, trava: e.target.checked } : d))}
                             />
@@ -1547,7 +1561,7 @@ export function InteracoesLista({
                               type="button"
                               disabled={salvandoEdicao}
                               onClick={cancelarEdicao}
-                              className="rounded-lg border border-stone-600 px-3 py-1.5 text-sm text-stone-200 hover:bg-stone-800"
+                              className="rounded-lg border border-[color:var(--moni-border-default)] px-3 py-1.5 text-sm text-[color:var(--moni-text-secondary)] hover:bg-[var(--moni-surface-100)]"
                             >
                               Cancelar
                             </button>
@@ -1558,11 +1572,11 @@ export function InteracoesLista({
                       {row.sirene_chamado_id != null &&
                       editingSireneCid === row.sirene_chamado_id &&
                       editSireneDraft ? (
-                        <div className="mt-3 space-y-3 border-t border-stone-800 pt-3">
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                        <div className="mt-3 space-y-3 border-t border-[color:var(--moni-border-default)] pt-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
                             Chamado Sirene
                           </p>
-                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
                             Incêndio (resumo)
                             <textarea
                               value={editSireneDraft.incendio}
@@ -1570,13 +1584,13 @@ export function InteracoesLista({
                                 setEditSireneDraft((d) => (d ? { ...d, incendio: e.target.value } : d))
                               }
                               rows={3}
-                              className="mt-1 w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
+                              className="mt-1 w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)]"
                             />
                           </label>
-                          <label className="flex cursor-pointer items-center gap-2 text-sm text-stone-300">
+                          <label className="flex cursor-pointer items-center gap-2 text-sm text-[color:var(--moni-text-secondary)]">
                             <input
                               type="checkbox"
-                              className="h-4 w-4 rounded border-stone-500"
+                              className="h-4 w-4 rounded border-[color:var(--moni-border-default)]"
                               checked={editSireneDraft.ehHdmListaTimes}
                               onChange={(e) => {
                                 const eh = e.target.checked;
@@ -1598,7 +1612,7 @@ export function InteracoesLista({
                             Este chamado é HDM?
                           </label>
                           <div className="grid gap-3 sm:grid-cols-2">
-                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
                               Time (abertura)
                               <select
                                 value={editSireneDraft.time_abertura}
@@ -1620,7 +1634,7 @@ export function InteracoesLista({
                                       : d,
                                   );
                                 }}
-                                className="mt-1 w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
+                                className="mt-1 w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)]"
                               >
                                 <option value="">Selecione</option>
                                 {timesSireneEditOpcoes.map((t) => (
@@ -1630,7 +1644,7 @@ export function InteracoesLista({
                                 ))}
                               </select>
                             </label>
-                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
                               Responsável (abertura)
                               <select
                                 value={editSireneDraft.abertura_responsavel_nome}
@@ -1640,7 +1654,7 @@ export function InteracoesLista({
                                   )
                                 }
                                 disabled={!editSireneDraft.time_abertura}
-                                className="mt-1 w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100 disabled:opacity-50"
+                                className="mt-1 w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)] disabled:opacity-50"
                               >
                                 <option value="">—</option>
                                 {responsaveisDoTimeMoni(editSireneDraft.time_abertura).map((n) => (
@@ -1651,7 +1665,7 @@ export function InteracoesLista({
                               </select>
                             </label>
                           </div>
-                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
                             Prazo
                             <input
                               type="date"
@@ -1659,13 +1673,13 @@ export function InteracoesLista({
                               onChange={(e) =>
                                 setEditSireneDraft((d) => (d ? { ...d, data: e.target.value } : d))
                               }
-                              className="mt-1 w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
+                              className="mt-1 w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)]"
                             />
                           </label>
                           <div className="grid gap-3 sm:grid-cols-2">
-                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
                               Tipo chamado
-                              <SelectEscuro
+                              <SelectMoni
                                 value={editSireneDraft.tipo}
                                 onChange={(e) => {
                                   const v = e.target.value as 'padrao' | 'hdm';
@@ -1683,12 +1697,12 @@ export function InteracoesLista({
                               >
                                 <option value="padrao">Padrão</option>
                                 <option value="hdm">HDM</option>
-                              </SelectEscuro>
+                              </SelectMoni>
                             </label>
                             {editSireneDraft.tipo === 'hdm' ? (
-                              <label className="block text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                              <label className="block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
                                 Time HDM
-                                <SelectEscuro
+                                <SelectMoni
                                   value={editSireneDraft.hdm_responsavel}
                                   onChange={(e) =>
                                     setEditSireneDraft((d) =>
@@ -1703,16 +1717,16 @@ export function InteracoesLista({
                                       {n}
                                     </option>
                                   ))}
-                                </SelectEscuro>
+                                </SelectMoni>
                               </label>
                             ) : (
                               <span />
                             )}
                           </div>
-                          <label className="flex cursor-pointer items-center gap-2 text-sm text-stone-300">
+                          <label className="flex cursor-pointer items-center gap-2 text-sm text-[color:var(--moni-text-secondary)]">
                             <input
                               type="checkbox"
-                              className="h-4 w-4 rounded border-stone-500"
+                              className="h-4 w-4 rounded border-[color:var(--moni-border-default)]"
                               checked={editSireneDraft.trava}
                               onChange={(e) =>
                                 setEditSireneDraft((d) => (d ? { ...d, trava: e.target.checked } : d))
@@ -1733,7 +1747,7 @@ export function InteracoesLista({
                               type="button"
                               disabled={salvandoSirene}
                               onClick={cancelarEdicao}
-                              className="rounded-lg border border-stone-600 px-3 py-1.5 text-sm text-stone-200 hover:bg-stone-800"
+                              className="rounded-lg border border-[color:var(--moni-border-default)] px-3 py-1.5 text-sm text-[color:var(--moni-text-secondary)] hover:bg-[var(--moni-surface-100)]"
                             >
                               Cancelar
                             </button>
@@ -1742,12 +1756,12 @@ export function InteracoesLista({
                       ) : null}
 
                       {commentsOpenByRow[row.id] && ccid ? (
-                        <div className="mt-3 border-t border-stone-800 pt-3">
-                          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                        <div className="mt-3 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3">
+                          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
                             Comentários do card
                           </p>
                           {commentsLoading[ccid] ? (
-                            <p className="text-xs text-stone-500">Carregando…</p>
+                            <p className="text-xs text-[color:var(--moni-text-tertiary)]">Carregando…</p>
                           ) : (
                             <ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm">
                               {[...(commentsByCardId[ccid] ?? [])]
@@ -1758,29 +1772,29 @@ export function InteracoesLista({
                                 .map((c) => (
                                   <li
                                     key={c.id}
-                                    className="flex gap-2 rounded border border-stone-700 bg-stone-950/50 px-2 py-2 text-stone-200"
+                                    className="flex gap-2 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-2 text-[color:var(--moni-text-secondary)]"
                                   >
                                     <span
-                                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-stone-600 bg-stone-800 text-[10px] font-semibold text-stone-200"
+                                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] text-[10px] font-semibold text-[color:var(--moni-text-secondary)]"
                                       aria-hidden
                                     >
                                       {iniciaisNome(c.autor_nome ?? '')}
                                     </span>
                                     <div className="min-w-0 flex-1">
                                       <p className="text-xs leading-snug">
-                                        <span className="font-medium text-stone-100">
+                                        <span className="font-medium text-[color:var(--moni-text-primary)]">
                                           {(c.autor_nome ?? '—').trim() || '—'}
                                         </span>
                                         {c.created_at ? (
                                           <>
                                             {' '}
-                                            <span className="tabular-nums text-stone-500">
+                                            <span className="tabular-nums text-[color:var(--moni-text-tertiary)]">
                                               {new Date(c.created_at).toLocaleString('pt-BR')}
                                             </span>
                                           </>
                                         ) : null}
                                       </p>
-                                      <p className="mt-1 whitespace-pre-wrap text-sm text-stone-100">{c.texto}</p>
+                                      <p className="mt-1 whitespace-pre-wrap text-sm text-[color:var(--moni-text-primary)]">{c.texto}</p>
                                     </div>
                                   </li>
                                 ))}
@@ -1794,7 +1808,7 @@ export function InteracoesLista({
                                 setNovoComentarioPorCard((m) => ({ ...m, [ccid]: e.target.value }))
                               }
                               placeholder="Escreva um comentário…"
-                              className="min-w-0 flex-1 rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100 placeholder:text-stone-500"
+                              className="min-w-0 flex-1 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)] placeholder:text-[color:var(--moni-text-tertiary)]"
                             />
                             <button
                               type="button"
@@ -1809,23 +1823,23 @@ export function InteracoesLista({
                       ) : null}
 
                       {subsOpenByRow[row.id] ? (
-                        <div className="mt-3 border-t border-stone-800 pt-3">
-                          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                        <div className="mt-3 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3">
+                          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
                             Gerir subinterações
                           </p>
                           {topicosLoading[alvoK] ? (
-                            <p className="text-xs text-stone-500">Carregando…</p>
+                            <p className="text-xs text-[color:var(--moni-text-tertiary)]">Carregando…</p>
                           ) : (
-                            <ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm text-stone-200">
+                            <ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm text-[color:var(--moni-text-secondary)]">
                               {(topicosPorAlvo[alvoK] ?? []).map((t) => (
                                 <li
                                   key={t.id}
-                                  className="rounded border border-stone-700 bg-stone-950/50 px-2 py-2 text-xs"
+                                  className="rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-2 text-xs"
                                 >
                                   <div className="flex flex-wrap items-start justify-between gap-2">
                                     <div className="min-w-0 flex-1">
-                                      <p className="font-medium text-stone-100">{t.descricao}</p>
-                                      <p className="mt-1 text-[10px] text-stone-500">
+                                      <p className="font-medium text-[color:var(--moni-text-primary)]">{t.descricao}</p>
+                                      <p className="mt-1 text-[10px] text-[color:var(--moni-text-tertiary)]">
                                         Time: {t.time_responsavel}
                                         {t.data_fim ? ` · Prazo ${t.data_fim.split('-').reverse().join('/')}` : ''}
                                       </p>
@@ -1841,14 +1855,14 @@ export function InteracoesLista({
                                             });
                                             setMotivoArquivarTopico('');
                                           }}
-                                          className="rounded p-1 text-stone-500 hover:bg-red-950/50 hover:text-red-300"
+                                          className="rounded p-1 text-[color:var(--moni-text-tertiary)] hover:bg-red-50 hover:text-red-700"
                                           title="Arquivar sub-chamado"
                                           aria-label="Arquivar sub-chamado"
                                         >
                                           <Archive className="h-3.5 w-3.5 shrink-0" aria-hidden />
                                         </button>
                                       ) : null}
-                                      <SelectEscuro
+                                      <SelectMoni
                                         value={t.status}
                                         onChange={(e) =>
                                           void handleSubStatusPainel(
@@ -1864,7 +1878,7 @@ export function InteracoesLista({
                                         <option value="em_andamento">Em andamento</option>
                                         <option value="concluido">Concluído</option>
                                         <option value="aprovado">Aprovado</option>
-                                      </SelectEscuro>
+                                      </SelectMoni>
                                     </div>
                                   </div>
                                 </li>
@@ -1878,13 +1892,13 @@ export function InteracoesLista({
                               d.tipo === 'chamado' && d.ehHdm,
                             );
                             return (
-                              <div className="space-y-2 border-t border-stone-800 pt-3">
-                                <p className="text-[10px] font-semibold text-stone-400">Novo sub-chamado</p>
+                              <div className="space-y-2 border-t border-[color:var(--moni-border-default)] pt-3">
+                                <p className="text-[10px] font-semibold text-[color:var(--moni-text-tertiary)]">Novo sub-chamado</p>
                                 <div>
-                                  <span className="mb-1 block text-[10px] font-medium text-stone-500">
+                                  <span className="mb-1 block text-[10px] font-medium text-[color:var(--moni-text-tertiary)]">
                                     Tipo (obrigatório)
                                   </span>
-                                  <SelectEscuro
+                                  <SelectMoni
                                     value={d.tipo}
                                     onChange={(e) => {
                                       const v = e.target.value as SubInteracaoTipoDb;
@@ -1906,24 +1920,24 @@ export function InteracoesLista({
                                     <option value="duvida">Dúvida</option>
                                     <option value="proposicoes">Proposições</option>
                                     <option value="chamado">Chamado</option>
-                                  </SelectEscuro>
+                                  </SelectMoni>
                                 </div>
                                 <input
                                   type="text"
                                   value={d.descricao}
                                   onChange={(e) => setSubDraft(alvoK, { descricao: e.target.value })}
                                   placeholder="Descrição (obrigatório)"
-                                  className="w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
+                                  className="w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)]"
                                 />
                                 <input
                                   type="date"
                                   value={d.data}
                                   onChange={(e) => setSubDraft(alvoK, { data: e.target.value })}
-                                  className="w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
+                                  className="w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)]"
                                 />
                                 <div>
-                                  <span className="mb-1 block text-[10px] font-medium text-stone-500">Tema (obrigatório)</span>
-                                  <SelectEscuro
+                                  <span className="mb-1 block text-[10px] font-medium text-[color:var(--moni-text-tertiary)]">Tema (obrigatório)</span>
+                                  <SelectMoni
                                     value={d.tema}
                                     onChange={(e) => setSubDraft(alvoK, { tema: e.target.value, temaOutro: '' })}
                                     className="w-full text-xs"
@@ -1939,22 +1953,22 @@ export function InteracoesLista({
                                     <option value="Gadgets">Gadgets</option>
                                     <option value="Negociação com Terrenista">Negociação com Terrenista</option>
                                     <option value="Outro">Outro</option>
-                                  </SelectEscuro>
+                                  </SelectMoni>
                                   {d.tema === 'Outro' && (
                                     <input
                                       type="text"
                                       value={d.temaOutro}
                                       onChange={(e) => setSubDraft(alvoK, { temaOutro: e.target.value })}
                                       placeholder="Detalhe o tema (obrigatório)"
-                                      className="mt-1 w-full rounded-lg border border-stone-600 bg-stone-900 px-2 py-1.5 text-sm text-stone-100"
+                                      className="mt-1 w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)]"
                                     />
                                   )}
                                 </div>
                                 {d.tipo === 'chamado' ? (
-                                  <label className="flex cursor-pointer items-center gap-2 text-[11px] text-stone-300">
+                                  <label className="flex cursor-pointer items-center gap-2 text-[11px] text-[color:var(--moni-text-secondary)]">
                                     <input
                                       type="checkbox"
-                                      className="h-3.5 w-3.5 rounded border-stone-500"
+                                      className="h-3.5 w-3.5 rounded border-[color:var(--moni-border-default)]"
                                       checked={d.ehHdm}
                                       onChange={(e) => {
                                         const eh = e.target.checked;
@@ -1972,7 +1986,7 @@ export function InteracoesLista({
                                   </label>
                                 ) : null}
                                 <div>
-                                  <span className="mb-1 block text-[10px] text-stone-500">Times</span>
+                                  <span className="mb-1 block text-[10px] text-[color:var(--moni-text-tertiary)]">Times</span>
                                   <div className="flex flex-wrap gap-1">
                                     {timesOpts.map((topt) => {
                                       const on = d.timesIds.includes(topt.id);
@@ -1988,7 +2002,7 @@ export function InteracoesLista({
                                             })
                                           }
                                           className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                                            on ? 'bg-stone-100 text-stone-900' : 'bg-stone-800 text-stone-300'
+                                            on ? 'bg-red-600 text-white' : 'bg-[var(--moni-surface-100)] text-[color:var(--moni-text-secondary)]'
                                           }`}
                                         >
                                           {topt.nome}
@@ -1998,7 +2012,7 @@ export function InteracoesLista({
                                   </div>
                                 </div>
                                 <div>
-                                  <span className="mb-1 block text-[10px] text-stone-500">Responsáveis</span>
+                                  <span className="mb-1 block text-[10px] text-[color:var(--moni-text-tertiary)]">Responsáveis</span>
                                   <div className="flex flex-wrap gap-1">
                                     {responsaveis.map((p) => {
                                       const on = d.responsaveisIds.includes(p.id);
@@ -2014,7 +2028,7 @@ export function InteracoesLista({
                                             })
                                           }
                                           className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                                            on ? 'bg-stone-100 text-stone-900' : 'bg-stone-800 text-stone-300'
+                                            on ? 'bg-red-600 text-white' : 'bg-[var(--moni-surface-100)] text-[color:var(--moni-text-secondary)]'
                                           }`}
                                         >
                                           {p.nome}
@@ -2023,10 +2037,10 @@ export function InteracoesLista({
                                     })}
                                   </div>
                                 </div>
-                                <label className="flex cursor-pointer items-center gap-2 text-[11px] text-stone-300">
+                                <label className="flex cursor-pointer items-center gap-2 text-[11px] text-[color:var(--moni-text-secondary)]">
                                   <input
                                     type="checkbox"
-                                    className="h-3.5 w-3.5 rounded border-stone-500"
+                                    className="h-3.5 w-3.5 rounded border-[color:var(--moni-border-default)]"
                                     checked={d.trava}
                                     onChange={(e) => setSubDraft(alvoK, { trava: e.target.checked })}
                                   />
@@ -2042,7 +2056,7 @@ export function InteracoesLista({
                                     (d.tema === 'Outro' && !d.temaOutro.trim())
                                   }
                                   onClick={() => void handleAdicionarTopico(row)}
-                                  className="rounded-lg bg-stone-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-stone-500 disabled:opacity-50"
+                                  className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-500 disabled:opacity-50"
                                 >
                                   {salvandoTopico[alvoK] ? '…' : '+ Adicionar subinteração'}
                                 </button>
@@ -2061,7 +2075,7 @@ export function InteracoesLista({
       </div>
 
       {filtradas.length === 0 && (
-        <p className="mt-8 text-center text-sm text-stone-500">Nenhum chamado com os filtros atuais.</p>
+        <p className="mt-8 text-center text-sm text-[color:var(--moni-text-tertiary)]">Nenhum chamado com os filtros atuais.</p>
       )}
 
       {modalNovoAberto ? (
@@ -2077,8 +2091,10 @@ export function InteracoesLista({
       {modalArquivarTopico ? (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-            <h3 className="mb-1 text-base font-semibold text-stone-800">Arquivar sub-chamado</h3>
-            <p className="mb-4 text-sm text-stone-500">
+            <h3 className="mb-1 text-base font-semibold text-[color:var(--moni-text-primary)]">
+              Arquivar sub-chamado
+            </h3>
+            <p className="mb-4 text-sm text-[color:var(--moni-text-tertiary)]">
               Informe o motivo do arquivamento. Esta ação não pode ser desfeita.
             </p>
             <textarea
@@ -2086,7 +2102,7 @@ export function InteracoesLista({
               onChange={(e) => setMotivoArquivarTopico(e.target.value)}
               rows={3}
               placeholder="Descreva o motivo…"
-              className="w-full resize-none rounded-lg border border-stone-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-stone-400"
+              className="w-full resize-none rounded-lg border border-[color:var(--moni-border-default)] px-3 py-2 text-sm text-[color:var(--moni-text-primary)] focus:outline-none focus:ring-1 focus:ring-[color:var(--moni-navy-400)]"
               autoFocus
             />
             <div className="mt-4 flex gap-2">
@@ -2128,7 +2144,7 @@ export function InteracoesLista({
                   setMotivoArquivarTopico('');
                 }}
                 disabled={salvandoArquivarTopico}
-                className="flex-1 rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 disabled:opacity-50"
+                className="flex-1 rounded-lg border border-[color:var(--moni-border-default)] px-4 py-2 text-sm font-medium text-[color:var(--moni-text-secondary)] disabled:opacity-50"
               >
                 Cancelar
               </button>
@@ -2140,8 +2156,10 @@ export function InteracoesLista({
       {modalArquivar ? (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-            <h3 className="mb-1 text-base font-semibold text-stone-800">Arquivar chamado</h3>
-            <p className="mb-4 text-sm text-stone-500">
+            <h3 className="mb-1 text-base font-semibold text-[color:var(--moni-text-primary)]">
+              Arquivar chamado
+            </h3>
+            <p className="mb-4 text-sm text-[color:var(--moni-text-tertiary)]">
               Informe o motivo do arquivamento. Esta ação não pode ser desfeita.
             </p>
             <textarea
@@ -2149,7 +2167,7 @@ export function InteracoesLista({
               onChange={(e) => setMotivoArquivamento(e.target.value)}
               rows={3}
               placeholder="Descreva o motivo…"
-              className="w-full resize-none rounded-lg border border-stone-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-stone-400"
+              className="w-full resize-none rounded-lg border border-[color:var(--moni-border-default)] px-3 py-2 text-sm text-[color:var(--moni-text-primary)] focus:outline-none focus:ring-1 focus:ring-[color:var(--moni-navy-400)]"
               autoFocus
             />
             <div className="mt-4 flex gap-2">
@@ -2193,7 +2211,7 @@ export function InteracoesLista({
                   setMotivoArquivamento('');
                 }}
                 disabled={salvandoArquivamento}
-                className="flex-1 rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 disabled:opacity-50"
+                className="flex-1 rounded-lg border border-[color:var(--moni-border-default)] px-4 py-2 text-sm font-medium text-[color:var(--moni-text-secondary)] disabled:opacity-50"
               >
                 Cancelar
               </button>

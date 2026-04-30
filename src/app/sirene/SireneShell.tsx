@@ -36,36 +36,51 @@ export function SireneShell({ userName, isBombeiro, children }: Props) {
               : '/sirene';
 
   return (
-    <div className="min-h-screen bg-stone-900">
-      <header className="border-b border-stone-700 bg-stone-800/80">
+    <div className="min-h-screen" style={{ background: 'var(--moni-surface-50)' }}>
+      <header
+        className="border-b"
+        style={{
+          background: 'var(--moni-surface-0)',
+          borderBottomColor: 'var(--moni-border-default)',
+        }}
+      >
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
-            <Link href="/" className="text-stone-400 transition hover:text-stone-200">
+            <Link
+              href="/"
+              className="text-[color:var(--moni-text-tertiary)] transition hover:text-[color:var(--moni-text-secondary)]"
+            >
               ← Portal
             </Link>
-            <span className="text-stone-600">/</span>
+            <span className="text-[color:var(--moni-text-tertiary)]">/</span>
             <Link href="/sirene" className="flex items-center gap-2 hover:opacity-90">
               <span className="text-2xl" aria-hidden>
                 🔥
               </span>
               <div>
-                <h1 className="text-lg font-bold tracking-tight text-white">
+                <h1 className="text-lg font-bold tracking-tight text-[color:var(--moni-text-primary)]">
                   Sirene — Central de Chamados
                 </h1>
-                <p className="text-xs text-stone-400">Bombeiro &amp; Perícia</p>
+                <p className="text-xs text-[color:var(--moni-text-tertiary)]">Bombeiro &amp; Perícia</p>
               </div>
             </Link>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-stone-400">Olá, {userName}</span>
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-stone-600 text-stone-200">
+            <span className="text-sm text-[color:var(--moni-text-tertiary)]">Olá, {userName}</span>
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--moni-surface-100)] text-[color:var(--moni-text-secondary)]">
               {userName.slice(0, 2).toUpperCase()}
             </span>
           </div>
         </div>
       </header>
 
-      <nav className="border-b border-stone-700 bg-stone-800/60">
+      <nav
+        className="border-b"
+        style={{
+          background: 'var(--moni-surface-0)',
+          borderBottomColor: 'var(--moni-border-default)',
+        }}
+      >
         <div className="mx-auto flex max-w-7xl gap-0 px-4">
           {tabs.map((t) => (
             <Link
@@ -73,8 +88,8 @@ export function SireneShell({ userName, isBombeiro, children }: Props) {
               href={t.href}
               className={`border-b-2 px-4 py-3 text-sm font-medium ${
                 tabAtivo === t.href
-                  ? 'border-red-500 text-white'
-                  : 'border-transparent text-stone-400 hover:text-stone-200'
+                  ? 'border-red-500 text-[color:var(--moni-text-primary)]'
+                  : 'border-transparent text-[color:var(--moni-text-tertiary)] hover:text-[color:var(--moni-text-primary)]'
               }`}
             >
               {t.label}

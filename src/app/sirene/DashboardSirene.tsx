@@ -33,9 +33,9 @@ const statusLabel: Record<string, string> = {
 };
 
 const statusColor: Record<string, string> = {
-  nao_iniciado: 'text-red-400',
-  em_andamento: 'text-amber-400',
-  concluido: 'text-emerald-400',
+  nao_iniciado: 'text-red-700',
+  em_andamento: 'text-amber-700',
+  concluido: 'text-emerald-700',
 };
 
 const statusBarColor: Record<string, string> = {
@@ -70,13 +70,16 @@ export function DashboardSirene({
   };
 
   return (
-    <div className="min-h-screen bg-stone-900 text-stone-100">
+    <div
+      className="min-h-screen text-[color:var(--moni-text-primary)]"
+      style={{ background: 'var(--moni-surface-50)' }}
+    >
       <div className="mb-6 flex items-center gap-2">
-        <span className="text-sm font-medium text-stone-400">Tipo:</span>
+        <span className="text-sm font-medium text-[color:var(--moni-text-tertiary)]">Tipo:</span>
         <select
           value={filtroTipo}
           onChange={(e) => setFiltroTipo(e.target.value as 'todos' | 'padrao' | 'hdm')}
-          className="rounded-lg border border-stone-600 bg-stone-800 px-3 py-1.5 text-sm text-stone-200"
+          className="rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-3 py-1.5 text-sm text-[color:var(--moni-text-secondary)]"
         >
           <option value="todos">Todos</option>
           <option value="padrao">Padrão</option>
@@ -85,79 +88,85 @@ export function DashboardSirene({
       </div>
       {/* KPIs — linha superior */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div className="rounded-xl border border-stone-700 bg-stone-800/80 p-4">
-          <p className="text-3xl font-bold text-red-400">{emAberto}</p>
-          <p className="mt-1 text-sm text-stone-400">Em aberto</p>
+        <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-4">
+          <p className="text-3xl font-bold text-red-700">{emAberto}</p>
+          <p className="mt-1 text-sm text-[color:var(--moni-text-tertiary)]">Em aberto</p>
         </div>
-        <div className="rounded-xl border border-stone-700 bg-stone-800/80 p-4">
-          <p className="text-3xl font-bold text-amber-400">{emAndamento}</p>
-          <p className="mt-1 text-sm text-stone-400">Em andamento</p>
+        <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-4">
+          <p className="text-3xl font-bold text-amber-700">{emAndamento}</p>
+          <p className="mt-1 text-sm text-[color:var(--moni-text-tertiary)]">Em andamento</p>
         </div>
-        <div className="rounded-xl border border-stone-700 bg-stone-800/80 p-4">
-          <p className="text-3xl font-bold text-emerald-400">{concluidos}</p>
-          <p className="mt-1 text-sm text-stone-400">Concluídos</p>
+        <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-4">
+          <p className="text-3xl font-bold text-emerald-700">{concluidos}</p>
+          <p className="mt-1 text-sm text-[color:var(--moni-text-tertiary)]">Concluídos</p>
         </div>
-        <div className="rounded-xl border border-stone-700 bg-stone-800/80 p-4">
-          <p className="text-3xl font-bold text-blue-400">{tempoMedioPrimeiroAtendimento}</p>
-          <p className="mt-1 text-sm text-stone-400">Tempo médio 1º atendimento</p>
+        <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-4">
+          <p className="text-3xl font-bold text-blue-700">{tempoMedioPrimeiroAtendimento}</p>
+          <p className="mt-1 text-sm text-[color:var(--moni-text-tertiary)]">Tempo médio 1º atendimento</p>
         </div>
       </div>
 
       {/* Duas colunas: Chamados por status + Satisfação | Chamados com trava */}
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         {/* Esquerda: Chamados por status + Satisfação */}
-        <div className="space-y-6 rounded-xl border border-stone-700 bg-stone-800/60 p-5">
-          <h2 className="text-lg font-semibold text-stone-100">Chamados por status</h2>
+        <div className="space-y-6 rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-5">
+          <h2 className="text-lg font-semibold text-[color:var(--moni-text-primary)]">Chamados por status</h2>
           <ul className="space-y-3">
             {porStatus.map((item) => (
               <li key={item.status}>
                 <div className="flex items-center justify-between text-sm">
-                  <span className={statusColor[item.status] ?? 'text-stone-400'}>
+                  <span className={statusColor[item.status] ?? 'text-[color:var(--moni-text-tertiary)]'}>
                     {statusLabel[item.status] ?? item.status}: {item.count} ({item.pct.toFixed(1)}%)
                   </span>
                 </div>
-                <div className="mt-1 h-2 overflow-hidden rounded-full bg-stone-700">
+                <div className="mt-1 h-2 overflow-hidden rounded-full bg-[var(--moni-surface-200)]">
                   <div
-                    className={`h-full rounded-full ${statusBarColor[item.status] ?? 'bg-stone-500'}`}
+                    className={`h-full rounded-full ${statusBarColor[item.status] ?? 'bg-stone-400'}`}
                     style={{ width: `${Math.min(100, item.pct)}%` }}
                   />
                 </div>
               </li>
             ))}
           </ul>
-          <div className="border-t border-stone-700 pt-4">
-            <p className="text-sm font-medium text-stone-400">
+          <div className="border-t border-[color:var(--moni-border-default)] pt-4">
+            <p className="text-sm font-medium text-[color:var(--moni-text-tertiary)]">
               Satisfação do criador no 1º atendimento
             </p>
-            <p className="mt-1 text-3xl font-bold text-emerald-400">{satisfacaoPct}%</p>
-            <p className="mt-0.5 text-xs text-stone-500">chamados resolvidos sem reincidência</p>
+            <p className="mt-1 text-3xl font-bold text-emerald-700">{satisfacaoPct}%</p>
+            <p className="mt-0.5 text-xs text-[color:var(--moni-text-tertiary)]">
+              chamados resolvidos sem reincidência
+            </p>
           </div>
         </div>
 
         {/* Direita: Chamados com trava */}
-        <div className="space-y-4 rounded-xl border border-stone-700 bg-stone-800/60 p-5">
-          <h2 className="text-lg font-semibold text-stone-100">Chamados com trava</h2>
+        <div className="space-y-4 rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-5">
+          <h2 className="text-lg font-semibold text-[color:var(--moni-text-primary)]">Chamados com trava</h2>
           <div className="flex items-baseline gap-2">
-            <span className="text-4xl font-bold text-red-400">{chamadosComTrava}</span>
-            <span className="text-sm text-red-400/90">chamados ativos travam o avanço</span>
+            <span className="text-4xl font-bold text-red-700">{chamadosComTrava}</span>
+            <span className="text-sm text-red-700/90">chamados ativos travam o avanço</span>
           </div>
           <div>
-            <p className="mb-2 text-sm font-medium text-stone-400">Chamados recentes com trava</p>
+            <p className="mb-2 text-sm font-medium text-[color:var(--moni-text-tertiary)]">
+              Chamados recentes com trava
+            </p>
             <ul className="space-y-2">
               {recentesComTrava.length === 0 ? (
-                <li className="text-sm text-stone-500">Nenhum</li>
+                <li className="text-sm text-[color:var(--moni-text-tertiary)]">Nenhum</li>
               ) : (
                 recentesComTrava.map((c) => (
                   <li key={c.id}>
                     <Link
                       href={`/sirene/${c.id}`}
-                      className="block rounded-lg border border-stone-600 bg-stone-800/80 p-3 transition hover:border-red-500/50 hover:bg-stone-700/80"
+                      className="block rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3 transition hover:border-red-400 hover:bg-[var(--moni-surface-100)]"
                     >
-                      <span className="font-medium text-red-300">#{c.numero}</span>
+                      <span className="font-medium text-red-700">#{c.numero}</span>
                       {c.time_abertura && (
-                        <span className="ml-2 text-stone-400"> — {c.time_abertura}</span>
+                        <span className="ml-2 text-[color:var(--moni-text-tertiary)]"> — {c.time_abertura}</span>
                       )}
-                      <p className="mt-0.5 truncate text-sm text-stone-300">{c.incendio}</p>
+                      <p className="mt-0.5 truncate text-sm text-[color:var(--moni-text-secondary)]">
+                        {c.incendio}
+                      </p>
                     </Link>
                   </li>
                 ))
@@ -168,32 +177,32 @@ export function DashboardSirene({
       </div>
 
       {/* Minhas tarefas pendentes */}
-      <div className="mt-6 rounded-xl border border-stone-700 bg-stone-800/60 p-5">
-        <h2 className="text-lg font-semibold text-stone-100">Minhas tarefas pendentes</h2>
+      <div className="mt-6 rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-5">
+        <h2 className="text-lg font-semibold text-[color:var(--moni-text-primary)]">Minhas tarefas pendentes</h2>
         <ul className="mt-4 space-y-2">
           {minhasTarefas.length === 0 ? (
-            <li className="text-sm text-stone-500">Nenhuma tarefa pendente</li>
+            <li className="text-sm text-[color:var(--moni-text-tertiary)]">Nenhuma tarefa pendente</li>
           ) : (
             minhasTarefas.map((t) => (
               <li key={`${t.chamadoId}-${t.titulo}`}>
                 <Link
                   href={`/sirene/${t.chamadoId}`}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-stone-600 bg-stone-800/80 p-3 transition hover:border-amber-500/50 hover:bg-stone-700/80"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3 transition hover:border-amber-400 hover:bg-[var(--moni-surface-100)]"
                 >
-                  <span className="text-sm text-stone-200">
+                  <span className="text-sm text-[color:var(--moni-text-secondary)]">
                     <span className="font-medium">#{t.numero}</span> — {t.titulo}
                   </span>
                   <span className="flex items-center gap-2">
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                         t.status === 'Aguardando'
-                          ? 'bg-amber-500/20 text-amber-400'
-                          : 'bg-stone-600 text-stone-300'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-[var(--moni-surface-100)] text-[color:var(--moni-text-secondary)]'
                       }`}
                     >
                       {t.status}
                     </span>
-                    <span className="text-xs text-amber-400">Ver ↗</span>
+                    <span className="text-xs text-amber-700">Ver ↗</span>
                   </span>
                 </Link>
               </li>

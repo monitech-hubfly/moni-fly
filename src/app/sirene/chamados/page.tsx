@@ -291,12 +291,14 @@ export default async function SireneChamadosPage({
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
-      <h1 className="text-2xl font-bold text-white">Chamados</h1>
-      <p className="mt-1 text-stone-400">Chamados Sirene e atividades nos cards — lista unificada.</p>
+      <h1 className="text-2xl font-bold text-[color:var(--moni-text-primary)]">Chamados</h1>
+      <p className="mt-1 text-[color:var(--moni-text-tertiary)]">
+        Chamados Sirene e atividades nos cards — lista unificada.
+      </p>
 
       <section className="mt-6">
         {painelErro ? (
-          <p className="text-red-300">Erro ao carregar o painel: {painelErro}</p>
+          <p className="text-red-700">Erro ao carregar o painel: {painelErro}</p>
         ) : interacoesListaProps ? (
           <InteracoesLista
             interacoes={interacoesListaProps.interacoes}
