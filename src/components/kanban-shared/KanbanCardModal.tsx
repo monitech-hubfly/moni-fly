@@ -2793,6 +2793,8 @@ export function KanbanCardModal({
                 <div className="mb-4 space-y-2">
                   {interacoesFiltradas.map((it) => {
                     const subs = subInteracoesPorPai[it.id] ?? [];
+                    const subsDetalheAberto =
+                      subExpandida[it.id] !== undefined ? subExpandida[it.id]! : subs.length > 0;
                     const deriv = derivarChamadoKanbanComSubs(it.status, subs);
                     const statusVisual = deriv.usarDerivado ? deriv.status : it.status;
                     const prazoEfetivo = prazoEfetivoParaChamado(it, subs);
@@ -2828,11 +2830,15 @@ export function KanbanCardModal({
                             <button
                               type="button"
                               className="mt-0.5 shrink-0 rounded p-0.5 text-stone-500 hover:bg-stone-200"
-                              aria-expanded={Boolean(subExpandida[it.id])}
-                              onClick={() => setSubExpandida((s) => ({ ...s, [it.id]: !s[it.id] }))}
+                              aria-expanded={subsDetalheAberto}
+                              onClick={() => {
+                                const cur =
+                                  subExpandida[it.id] !== undefined ? subExpandida[it.id]! : subs.length > 0;
+                                setSubExpandida((s) => ({ ...s, [it.id]: !cur }));
+                              }}
                             >
                               <ChevronRight
-                                className={`h-4 w-4 transition-transform ${subExpandida[it.id] ? 'rotate-90' : ''}`}
+                                className={`h-4 w-4 transition-transform ${subsDetalheAberto ? 'rotate-90' : ''}`}
                                 aria-hidden
                               />
                             </button>
@@ -2929,7 +2935,7 @@ export function KanbanCardModal({
                                 </>
                               )}
                             </div>
-                            {!demo && subs.length > 0 ? (
+                            {!demo && subs.length > 0 && !subsDetalheAberto ? (
                               <SubInteracaoLista
                                 variant="kanban"
                                 items={subs.map((s) =>
@@ -3205,7 +3211,7 @@ export function KanbanCardModal({
                                 </span>
                               </span>
                             </div>
-                            {!demo && subExpandida[it.id] ? (
+                            {!demo && subsDetalheAberto ? (
                               <div className="mt-3 rounded-lg border border-stone-200 bg-stone-50/80 p-3">
                                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                                   <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">

@@ -731,7 +731,10 @@ export function InteracoesLista({
   }
 
   function toggleSubsPainel(row: InteracaoSireneRow) {
-    const will = !subsOpenByRow[row.id];
+    const key = topicosAlvoKey(row);
+    const n = (topicosPorAlvo[key] ?? []).length;
+    const cur = subsOpenByRow[row.id] !== undefined ? subsOpenByRow[row.id]! : n > 0;
+    const will = !cur;
     setSubsOpenByRow((p) => ({ ...p, [row.id]: will }));
     if (will) void carregarTopicosSeNecessario(row, true);
   }
@@ -1291,6 +1294,8 @@ export function InteracoesLista({
                   const alvoK = topicosAlvoKey(row);
                   const subs = topicosPorAlvo[alvoK] ?? [];
                   const temSubAberta = subs.some((s) => s.status !== 'concluido' && s.status !== 'aprovado');
+                  const subsPainelAberto =
+                    subsOpenByRow[row.id] !== undefined ? subsOpenByRow[row.id]! : subs.length > 0;
 
                   return (
                     <li key={row.id} className="flex flex-col gap-0 border-b border-[color:var(--moni-border-default)] px-3 py-3 last:border-b-0">
@@ -1333,7 +1338,7 @@ export function InteracoesLista({
                               type="button"
                               onClick={() => toggleSubsPainel(row)}
                               className="rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)] hover:text-[color:var(--moni-text-primary)]"
-                              aria-expanded={Boolean(subsOpenByRow[row.id])}
+                              aria-expanded={subsPainelAberto}
                             >
                               Sub-interações
                             </button>
@@ -1364,9 +1369,9 @@ export function InteracoesLista({
                               {tipoB.label}
                             </span>
                           </div>
-                          {topicosLoading[alvoK] ? (
+                          {subsPainelAberto && topicosLoading[alvoK] ? (
                             <p className="text-[10px] text-[color:var(--moni-text-tertiary)]">Carregando subinterações…</p>
-                          ) : (topicosPorAlvo[alvoK] ?? []).length > 0 ? (
+                          ) : subsPainelAberto && (topicosPorAlvo[alvoK] ?? []).length > 0 ? (
                             <SubInteracaoLista
                               variant="sirene"
                               items={(topicosPorAlvo[alvoK] ?? []).map((t) =>
@@ -1836,7 +1841,7 @@ export function InteracoesLista({
                         </div>
                       ) : null}
 
-                      {subsOpenByRow[row.id] ? (
+                      {subsPainelAberto ? (
                         <div className="mt-3 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3">
                           <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
                             Gerir subinterações
