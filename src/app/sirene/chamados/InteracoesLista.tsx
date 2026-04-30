@@ -5,6 +5,7 @@ import { Archive, MessageCircle, Pencil, User } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import { rotaCardOrigem } from '@/lib/rota-card-origem';
 import { ORDEM_GRUPOS_PAINEL, rankChamadoPainelUnificado } from '@/lib/sirene-painel-chamados-rank';
 import {
@@ -148,8 +149,6 @@ type Props = {
   currentUserId: string | null;
   comentariosCountByCardId: Record<string, number>;
   filtroTipoChamado?: 'padrao' | 'hdm';
-  /** Exibe arquivar e toggle “Mostrar arquivados” (admin / team). */
-  podeArquivarChamados?: boolean;
 };
 
 type FiltrosChamados = {
@@ -350,7 +349,6 @@ export function InteracoesLista({
   currentUserId,
   comentariosCountByCardId,
   filtroTipoChamado: filtroTipoChamadoProp,
-  podeArquivarChamados = false,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -394,6 +392,20 @@ export function InteracoesLista({
   const [motivoArquivarTopico, setMotivoArquivarTopico] = useState('');
   const [salvandoArquivarTopico, setSalvandoArquivarTopico] = useState(false);
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
+  const [podeArquivar, setPodeArquivar] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+      const role = String((profile as { role?: string | null } | null)?.role ?? '').toLowerCase();
+      setPodeArquivar(role === 'admin' || role === 'team');
+    })();
+  }, []);
 
   useEffect(() => {
     setStatusPatch({});
@@ -502,10 +514,11 @@ export function InteracoesLista({
   const filtradas = useMemo(() => {
     const q = norm(applied.busca);
     return linhas.filter((row) => {
+      if (row.origem === 'sirene' && row.sirene_arquivado && !podeArquivar) return false;
       if (
         row.origem === 'sirene' &&
         row.sirene_arquivado &&
-        podeArquivarChamados &&
+        podeArquivar &&
         !mostrarArquivados
       ) {
         return false;
@@ -552,7 +565,7 @@ export function InteracoesLista({
     applied,
     timesById,
     nomePorUserId,
-    podeArquivarChamados,
+    podeArquivar,
     mostrarArquivados,
   ]);
 
@@ -1171,7 +1184,7 @@ export function InteracoesLista({
               Ver todas
             </button>
           </div>
-          {podeArquivarChamados ? (
+          {podeArquivar ? (
             <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-stone-300">
               <input
                 type="checkbox"
@@ -1266,19 +1279,7 @@ export function InteracoesLista({
                             >
                               <Pencil className="h-3.5 w-3.5" aria-hidden />
                             </button>
-                            {(() => {
-                              if (podeArquivarChamados)
-                                console.log(
-                                  '[DEBUG arquivar]',
-                                  row.sirene_chamado_id,
-                                  'origem:',
-                                  row.origem,
-                                  'arquivado:',
-                                  row.sirene_arquivado,
-                                );
-                              return null;
-                            })()}
-                            {podeArquivarChamados &&
+                            {podeArquivar &&
                             row.origem === 'sirene' &&
                             row.sirene_chamado_id != null &&
                             !row.sirene_arquivado ? (
@@ -1787,7 +1788,7 @@ export function InteracoesLista({
                                       </p>
                                     </div>
                                     <div className="flex shrink-0 items-center gap-1">
-                                      {podeArquivarChamados ? (
+                                      {podeArquivar ? (
                                         <button
                                           type="button"
                                           onClick={() => {
