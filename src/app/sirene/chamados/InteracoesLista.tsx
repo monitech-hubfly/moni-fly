@@ -30,7 +30,11 @@ import {
   atualizarChamadoPainelUnificado,
   getTopicosChamado,
 } from '../actions';
-import { atualizarStatusSubInteracao, type SubInteracaoStatusDb } from '@/lib/actions/card-actions';
+import {
+  arquivarInteracao,
+  atualizarStatusSubInteracao,
+  type SubInteracaoStatusDb,
+} from '@/lib/actions/card-actions';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import { SubInteracaoLista, mapRawTopicoToListaItem } from '@/components/kanban-shared/SubInteracaoLista';
 import { ModalNovoChamado } from '../ModalNovoChamado';
@@ -385,7 +389,7 @@ export function InteracoesLista({
   const [novoComentarioPorCard, setNovoComentarioPorCard] = useState<Record<string, string>>({});
   const [salvandoComentario, setSalvandoComentario] = useState<Record<string, boolean>>({});
   const [countPatch, setCountPatch] = useState<Record<string, number>>({});
-  const [modalArquivar, setModalArquivar] = useState<{ cid: number } | null>(null);
+  const [modalArquivar, setModalArquivar] = useState<{ cid: number | null; interacaoId: string } | null>(null);
   const [motivoArquivamento, setMotivoArquivamento] = useState('');
   const [salvandoArquivamento, setSalvandoArquivamento] = useState(false);
   const [modalArquivarTopico, setModalArquivarTopico] = useState<{ topicoId: number; sireneCid: number } | null>(null);
@@ -433,9 +437,7 @@ export function InteracoesLista({
     () =>
       [
         ...new Set(
-          interacoes
-            .filter((r) => r.origem === 'sirene' && r.sirene_chamado_id != null)
-            .map((r) => r.sirene_chamado_id!),
+          interacoes.filter((r) => r.sirene_chamado_id != null).map((r) => r.sirene_chamado_id!),
         ),
       ],
     [interacoes],
@@ -1260,7 +1262,7 @@ export function InteracoesLista({
                                 <span className="min-w-[1.1rem] text-center text-[10px] font-semibold tabular-nums">{cnt}</span>
                               </button>
                             ) : null}
-                            {row.origem === 'sirene' && row.sirene_chamado_id != null ? (
+                            {row.sirene_chamado_id != null ? (
                               <button
                                 type="button"
                                 onClick={() => toggleSubsPainel(row)}
@@ -1279,13 +1281,15 @@ export function InteracoesLista({
                             >
                               <Pencil className="h-3.5 w-3.5" aria-hidden />
                             </button>
-                            {podeArquivar &&
-                            row.origem === 'sirene' &&
-                            row.sirene_chamado_id != null &&
-                            !row.sirene_arquivado ? (
+                            {podeArquivar && !row.sirene_arquivado ? (
                               <button
                                 type="button"
-                                onClick={() => setModalArquivar({ cid: row.sirene_chamado_id! })}
+                                onClick={() =>
+                                  setModalArquivar({
+                                    cid: row.sirene_chamado_id ?? null,
+                                    interacaoId: row.id,
+                                  })
+                                }
                                 className="rounded border border-stone-600 bg-stone-800 px-1.5 py-0.5 text-[10px] text-stone-300 hover:border-stone-500 hover:text-white"
                               >
                                 Arquivar
@@ -1295,7 +1299,7 @@ export function InteracoesLista({
                               {tipoB.label}
                             </span>
                           </div>
-                          {row.origem === 'sirene' && row.sirene_chamado_id != null ? (
+                          {row.sirene_chamado_id != null ? (
                             topicosLoading[row.sirene_chamado_id] ? (
                               <p className="text-[10px] text-stone-500">Carregando subinterações…</p>
                             ) : (topicosByChamado[row.sirene_chamado_id] ?? []).length > 0 ? (
@@ -1765,7 +1769,7 @@ export function InteracoesLista({
                         </div>
                       ) : null}
 
-                      {row.origem === 'sirene' && row.sirene_chamado_id != null && subsOpenByRow[row.id] ? (
+                      {row.sirene_chamado_id != null && subsOpenByRow[row.id] ? (
                         <div className="mt-3 border-t border-stone-800 pt-3">
                           <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-stone-500">
                             Gerir subinterações
@@ -2112,10 +2116,20 @@ export function InteracoesLista({
                 type="button"
                 disabled={salvandoArquivamento || !motivoArquivamento.trim()}
                 onClick={async () => {
+                  if (!modalArquivar) return;
                   if (!confirm('Tem certeza que deseja arquivar este chamado?')) return;
                   setSalvandoArquivamento(true);
                   try {
-                    const res = await arquivarChamado(modalArquivar.cid, motivoArquivamento);
+                    let res: { ok: true } | { ok: false; error: string };
+                    if (modalArquivar.cid != null) {
+                      res = await arquivarChamado(modalArquivar.cid, motivoArquivamento);
+                    } else {
+                      res = await arquivarInteracao(
+                        modalArquivar.interacaoId,
+                        motivoArquivamento,
+                        '/sirene/chamados',
+                      );
+                    }
                     if (!res.ok) {
                       alert(res.error);
                       return;
