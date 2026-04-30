@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 
 const TABS_BASE = [
   { href: '/sirene', label: 'Dashboard' },
@@ -17,6 +18,15 @@ type Props = {
 
 export function SireneShell({ userName, isBombeiro, children }: Props) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  async function handleSignOut() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    const dest = pathname?.startsWith('/portal-frank') ? '/portal-frank/login' : '/login';
+    router.push(dest);
+    router.refresh();
+  }
   /** Bombeiro: Dashboard | Chamados | Perícias | Monitor */
   const tabs = isBombeiro
     ? [...TABS_BASE, { href: '/sirene/monitor', label: 'Monitor dos times' } as const]
@@ -67,6 +77,13 @@ export function SireneShell({ userName, isBombeiro, children }: Props) {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-[color:var(--moni-text-tertiary)]">Olá, {userName}</span>
+            <button
+              type="button"
+              onClick={() => void handleSignOut()}
+              className="rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-3 py-1.5 text-xs font-medium text-[color:var(--moni-text-secondary)] hover:bg-[var(--moni-surface-100)]"
+            >
+              Sair
+            </button>
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--moni-surface-100)] text-[color:var(--moni-text-secondary)]">
               {userName.slice(0, 2).toUpperCase()}
             </span>
