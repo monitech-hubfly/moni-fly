@@ -3,7 +3,7 @@
 import type React from 'react';
 import { Archive, MessageCircle, Pencil, User } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { rotaCardOrigem } from '@/lib/rota-card-origem';
@@ -368,10 +368,10 @@ export function InteracoesLista({
   responsaveis,
   currentUserId,
   comentariosCountByCardId,
-  filtroTipoChamado: filtroTipoChamadoProp,
+  filtroTipoChamado: _filtroTipoChamado,
 }: Props) {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  void _filtroTipoChamado;
   const [modalNovoAberto, setModalNovoAberto] = useState(false);
   const [editingSireneCid, setEditingSireneCid] = useState<number | null>(null);
   const [editSireneDraft, setEditSireneDraft] = useState<EditSireneDraft | null>(null);
@@ -639,8 +639,33 @@ export function InteracoesLista({
     return m;
   }, [filtradas]);
 
+  /** Índice global (ordem em `filtradas`) só para linhas sem número Sirene → #K001, #K002… */
+  const indiceKanbanPorRowId = useMemo(() => {
+    let n = 0;
+    const m = new Map<string, number>();
+    for (const row of filtradas) {
+      if (row.sirene_numero == null) {
+        n += 1;
+        m.set(row.id, n);
+      }
+    }
+    return m;
+  }, [filtradas]);
+
   function onStatusChange(id: string, novo: StatusInteracaoDb) {
     setMsgErro(null);
+    if (novo === 'concluida') {
+      const row = linhas.find((r) => r.id === id);
+      if (row) {
+        const alvoKey = topicosAlvoKey(row);
+        const subs = topicosPorAlvo[alvoKey] ?? [];
+        const temSubAberta = subs.some((s) => s.status !== 'concluido' && s.status !== 'aprovado');
+        if (temSubAberta) {
+          setMsgErro('Conclua todas as sub-interações antes de concluir o chamado.');
+          return;
+        }
+      }
+    }
     startTransition(async () => {
       const res = await atualizarStatusInteracaoSirene(id, novo);
       if (!res.ok) {
@@ -872,6 +897,16 @@ export function InteracoesLista({
       setMsgErro(res.error);
       return;
     }
+    if (status === 'em_andamento') {
+      const resPai = await atualizarStatusInteracaoSirene(row.id, 'em_andamento');
+      if (!resPai.ok) {
+        setMsgErro(resPai.error);
+        router.refresh();
+        void carregarTopicosSeNecessario(row, true);
+        return;
+      }
+      setStatusPatch((prev) => ({ ...prev, [row.id]: 'em_andamento' }));
+    }
     router.refresh();
     void carregarTopicosSeNecessario(row, true);
   }
@@ -941,19 +976,6 @@ export function InteracoesLista({
 
   const ativos = countFiltrosAtivos(applied);
 
-  const tipoListaChamadoSirene = filtroTipoChamadoProp
-    ? filtroTipoChamadoProp === 'hdm'
-      ? 'hdm'
-      : 'padrao'
-    : 'todos';
-
-  function setFiltroTipoLista(value: 'todos' | 'padrao' | 'hdm') {
-    const p = new URLSearchParams(searchParams.toString());
-    if (value === 'todos') p.delete('tipo');
-    else p.set('tipo', value);
-    router.push(`/sirene/chamados?${p.toString()}`);
-  }
-
   const timesSireneEditOpcoes = useMemo(
     () => [...timesMoniReceberChamadoOpcoes(Boolean(editSireneDraft?.ehHdmListaTimes))],
     [editSireneDraft?.ehHdmListaTimes],
@@ -964,38 +986,17 @@ export function InteracoesLista({
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 text-[color:var(--moni-text-primary)]">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-[color:var(--moni-text-tertiary)]">Chamados Sirene:</span>
-          <select
-            value={tipoListaChamadoSirene}
-            onChange={(e) => setFiltroTipoLista(e.target.value as 'todos' | 'padrao' | 'hdm')}
-            className="rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-3 py-1.5 text-sm text-[color:var(--moni-text-secondary)]"
-          >
-            <option value="todos">Todos</option>
-            <option value="padrao">Padrão</option>
-            <option value="hdm">HDM</option>
-          </select>
-        </div>
-        <button
-          type="button"
-          onClick={() => setModalNovoAberto(true)}
-          className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500"
-        >
-          Novo chamado
-        </button>
-      </div>
-
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative">
-          <button
-            ref={filtrosBtnRef}
-            type="button"
-            onClick={() => (filtrosOpen ? (setDraft({ ...applied }), setFiltrosOpen(false)) : abrirPainelFiltros())}
-            className="rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-4 py-2 text-sm font-medium text-[color:var(--moni-text-secondary)] hover:bg-[var(--moni-surface-100)]"
-          >
-            Filtros ({ativos})
-          </button>
+      <div className="mb-6 flex flex-col gap-3">
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative shrink-0">
+            <button
+              ref={filtrosBtnRef}
+              type="button"
+              onClick={() => (filtrosOpen ? (setDraft({ ...applied }), setFiltrosOpen(false)) : abrirPainelFiltros())}
+              className="rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-4 py-2 text-sm font-medium text-[color:var(--moni-text-secondary)] hover:bg-[var(--moni-surface-100)]"
+            >
+              Filtros ({ativos})
+            </button>
           {filtrosOpen ? (
             <div
               ref={popoverRef}
@@ -1213,6 +1214,14 @@ export function InteracoesLista({
               </div>
             </div>
           ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={() => setModalNovoAberto(true)}
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 sm:shrink-0"
+          >
+            Novo chamado
+          </button>
         </div>
 
         <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-3">
@@ -1283,6 +1292,8 @@ export function InteracoesLista({
                   const ccid = row.card_id;
                   const cnt = ccid ? comentariosCount(ccid) : 0;
                   const alvoK = topicosAlvoKey(row);
+                  const subs = topicosPorAlvo[alvoK] ?? [];
+                  const temSubAberta = subs.some((s) => s.status !== 'concluido' && s.status !== 'aprovado');
 
                   return (
                     <li key={row.id} className="flex flex-col gap-0 border-b border-[color:var(--moni-border-default)] px-3 py-3 last:border-b-0">
@@ -1298,7 +1309,11 @@ export function InteracoesLista({
                               <span className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] font-semibold text-[color:var(--moni-text-secondary)]">
                                 #{row.sirene_numero}
                               </span>
-                            ) : null}
+                            ) : (
+                              <span className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] font-semibold text-[color:var(--moni-text-secondary)]">
+                                #K{String(indiceKanbanPorRowId.get(row.id) ?? 0).padStart(3, '0')}
+                              </span>
+                            )}
                             {row.sirene_arquivado ? (
                               <span className="rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[color:var(--moni-text-tertiary)]">
                                 Arquivado
@@ -1431,7 +1446,9 @@ export function InteracoesLista({
                             >
                               <option value="pendente">A fazer</option>
                               <option value="em_andamento">Em andamento</option>
-                              <option value="concluida">Concluída</option>
+                              <option value="concluida" disabled={temSubAberta}>
+                                Concluída
+                              </option>
                             </SelectMoni>
                           </div>
                         </div>
