@@ -986,8 +986,8 @@ export function InteracoesLista({
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 text-[color:var(--moni-text-primary)]">
-      <div className="mb-6 flex flex-col gap-3">
-        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-6 flex w-full flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
           <div className="relative shrink-0">
             <button
               ref={filtrosBtnRef}
@@ -1215,16 +1215,6 @@ export function InteracoesLista({
             </div>
           ) : null}
           </div>
-          <button
-            type="button"
-            onClick={() => setModalNovoAberto(true)}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 sm:shrink-0"
-          >
-            Novo chamado
-          </button>
-        </div>
-
-        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-3">
           <div className="flex rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-0.5 text-sm">
             <button
               type="button"
@@ -1261,6 +1251,13 @@ export function InteracoesLista({
             </label>
           ) : null}
         </div>
+        <button
+          type="button"
+          onClick={() => setModalNovoAberto(true)}
+          className="shrink-0 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500"
+        >
+          Novo chamado
+        </button>
       </div>
 
       {msgErro && (

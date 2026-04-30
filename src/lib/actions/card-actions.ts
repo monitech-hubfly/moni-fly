@@ -455,8 +455,36 @@ export async function atualizarStatusSubInteracao(
 
   if (error) return { ok: false, error: error.message };
 
+  const { data: topico } = await supabase
+    .from('sirene_topicos')
+    .select('interacao_id, chamado_id')
+    .eq('id', idNum)
+    .maybeSingle();
+
+  if (topico?.interacao_id && status === 'em_andamento') {
+    const { error: errPai } = await supabase
+      .from('kanban_atividades')
+      .update({ status: 'em_andamento' })
+      .eq('id', topico.interacao_id);
+    if (errPai) return { ok: false, error: errPai.message };
+  }
+
   revalidatePath(basePath?.trim() || '/');
   revalidatePath('/');
+  revalidatePath('/sirene/chamados');
+  return { ok: true };
+}
+
+export async function atualizarStatusInteracao(
+  id: string,
+  status: 'pendente' | 'em_andamento' | 'concluida',
+  basePath?: string,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.from('kanban_atividades').update({ status }).eq('id', id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(basePath?.trim() || '/');
+  revalidatePath('/sirene/chamados');
   return { ok: true };
 }
 

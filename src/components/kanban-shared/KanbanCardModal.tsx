@@ -27,6 +27,7 @@ import {
   arquivarCard,
   arquivarInteracao,
   arquivarSubInteracao,
+  atualizarStatusInteracao,
   atualizarStatusSubInteracao,
   buscarCardsParaVinculo,
   criarTagKanban,
@@ -1411,8 +1412,39 @@ export function KanbanCardModal({
     }
   }
 
-  async function handleSubStatusChange(topicoId: string, status: SubInteracaoStatusDb) {
+  async function handleSubStatusChange(
+    parentInteracaoId: string,
+    topicoId: string,
+    status: SubInteracaoStatusDb,
+  ) {
     const res = await atualizarStatusSubInteracao(topicoId, status, basePath);
+    if (!res.ok) {
+      alert(res.error);
+      return;
+    }
+    if (status === 'em_andamento') {
+      const resPai = await atualizarStatusInteracao(parentInteracaoId, 'em_andamento', basePath);
+      if (!resPai.ok) {
+        alert(resPai.error);
+        return;
+      }
+    }
+    await loadCard();
+    router.refresh();
+  }
+
+  async function handleInteracaoStatusChange(
+    interacaoId: string,
+    novo: 'pendente' | 'em_andamento' | 'concluida',
+  ) {
+    const temSubAberta = (subInteracoesPorPai[interacaoId] ?? []).some(
+      (s) => s.status !== 'concluido' && s.status !== 'aprovado',
+    );
+    if (novo === 'concluida' && temSubAberta) {
+      alert('Conclua todas as sub-interações antes de concluir o chamado.');
+      return;
+    }
+    const res = await atualizarStatusInteracao(interacaoId, novo, basePath);
     if (!res.ok) {
       alert(res.error);
       return;
@@ -2777,6 +2809,13 @@ export function KanbanCardModal({
                     );
                     const timeTags = tagsTimesParaLinha(it, kanbanTimes);
                     const demo = isInteracaoDemonstracao(it.id);
+                    const statusInteracaoSelect =
+                      it.status === 'pendente' || it.status === 'em_andamento' || it.status === 'concluida'
+                        ? it.status
+                        : 'pendente';
+                    const temSubAbertaPai = (subInteracoesPorPai[it.id] ?? []).some(
+                      (s) => s.status !== 'concluido' && s.status !== 'aprovado',
+                    );
                     return (
                       <AtividadeVinculadaCard
                         key={it.id}
@@ -2941,6 +2980,24 @@ export function KanbanCardModal({
                               >
                                 {it.tipo === 'duvida' ? 'Dúvida' : 'Atividade'}
                               </span>
+                              {modalSessao.ehAdminOuTeam && !demo ? (
+                                <select
+                                  value={statusInteracaoSelect}
+                                  onChange={(e) =>
+                                    void handleInteracaoStatusChange(
+                                      it.id,
+                                      e.target.value as 'pendente' | 'em_andamento' | 'concluida',
+                                    )
+                                  }
+                                  className="rounded border border-stone-300 px-1.5 py-0.5 text-[10px]"
+                                >
+                                  <option value="pendente">A fazer</option>
+                                  <option value="em_andamento">Em andamento</option>
+                                  <option value="concluida" disabled={temSubAbertaPai}>
+                                    Concluída
+                                  </option>
+                                </select>
+                              ) : null}
                               {it.trava ? (
                                 <span className="rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase text-red-700">
                                   Trava
@@ -3321,6 +3378,24 @@ export function KanbanCardModal({
                                                     ? 'Chamado'
                                                     : 'Atividade'}
                                               </span>
+                                              {modalSessao.ehAdminOuTeam ? (
+                                                <select
+                                                  value={sub.status}
+                                                  onChange={(e) =>
+                                                    void handleSubStatusChange(
+                                                      it.id,
+                                                      sub.id,
+                                                      e.target.value as SubInteracaoStatusDb,
+                                                    )
+                                                  }
+                                                  className="rounded border border-stone-300 px-1.5 py-0.5 text-[9px]"
+                                                >
+                                                  <option value="nao_iniciado">Não iniciado</option>
+                                                  <option value="em_andamento">Em andamento</option>
+                                                  <option value="concluido">Concluído</option>
+                                                  <option value="aprovado">Aprovado</option>
+                                                </select>
+                                              ) : null}
                                               <span className="font-medium text-stone-800">{sub.descricao}</span>
                                               {pode('criar_chamados') ? (
                                                 <button
@@ -3395,18 +3470,24 @@ export function KanbanCardModal({
                                               sessionEhAdminOuTeam={modalSessao.ehAdminOuTeam}
                                             />
                                           </div>
-                                          <select
-                                            value={sub.status}
-                                            onChange={(e) =>
-                                              void handleSubStatusChange(sub.id, e.target.value as SubInteracaoStatusDb)
-                                            }
-                                            className="rounded border border-stone-300 px-1.5 py-1 text-[10px]"
-                                          >
-                                            <option value="nao_iniciado">Não iniciado</option>
-                                            <option value="em_andamento">Em andamento</option>
-                                            <option value="concluido">Concluído</option>
-                                            <option value="aprovado">Aprovado</option>
-                                          </select>
+                                          {!modalSessao.ehAdminOuTeam ? (
+                                            <select
+                                              value={sub.status}
+                                              onChange={(e) =>
+                                                void handleSubStatusChange(
+                                                  it.id,
+                                                  sub.id,
+                                                  e.target.value as SubInteracaoStatusDb,
+                                                )
+                                              }
+                                              className="rounded border border-stone-300 px-1.5 py-1 text-[10px]"
+                                            >
+                                              <option value="nao_iniciado">Não iniciado</option>
+                                              <option value="em_andamento">Em andamento</option>
+                                              <option value="concluido">Concluído</option>
+                                              <option value="aprovado">Aprovado</option>
+                                            </select>
+                                          ) : null}
                                         </div>
                                         )}
                                       </li>
