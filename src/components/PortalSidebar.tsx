@@ -166,7 +166,6 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
     // Funil Crédito é subitem de Empreendimentos (sem macro separado).
   }, [pathname]);
 
-  const isSirene = pathname.startsWith('/sirene');
   const displayName = publicVisitor
     ? 'Visitante'
     : user?.full_name?.trim() || user?.email || 'Franqueado';
@@ -174,24 +173,16 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
 
   const linkClassPrincipal = (active: boolean) =>
     `block w-full rounded-lg px-3 py-2 text-left text-sm font-semibold transition ${
-      isSirene
-        ? active
-          ? 'bg-stone-800 text-white'
-          : 'text-stone-200 hover:bg-stone-800/80 hover:text-white'
-        : active
-          ? 'bg-moni-light text-moni-primary'
-          : 'text-moni-primary hover:bg-moni-light/50 hover:text-moni-secondary'
+      active
+        ? 'bg-moni-light text-moni-primary'
+        : 'text-moni-primary hover:bg-moni-light/50 hover:text-moni-secondary'
     }`;
 
   const linkClassSub = (active: boolean) =>
     `block w-full rounded py-1.5 pl-5 pr-3 text-left text-xs transition ${
-      isSirene
-        ? active
-          ? 'bg-stone-800 text-white'
-          : 'text-stone-300 hover:bg-stone-800/60 hover:text-stone-100'
-        : active
-          ? 'bg-moni-light/80 font-medium text-moni-primary'
-          : 'text-stone-600 hover:bg-stone-100 hover:text-moni-secondary'
+      active
+        ? 'bg-moni-light/80 font-medium text-moni-primary'
+        : 'text-stone-600 hover:bg-stone-100 hover:text-moni-secondary'
     }`;
 
   const renderMacro = (
@@ -208,11 +199,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
     subitens: NavItem[],
     isActiveHref: (href: string) => boolean,
   ) => {
-    const isSireneMacro = false;
-    const macroClass =
-      isSirene && isSireneMacro
-        ? 'block w-full rounded-lg bg-emerald-400 px-3 py-2 text-left text-sm font-semibold text-stone-900 transition hover:bg-emerald-300'
-        : linkClassPrincipal(isActive);
+    const macroClass = linkClassPrincipal(isActive);
     return (
       <div className="space-y-0.5">
         <div className="flex items-center gap-0.5">
@@ -226,7 +213,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
           <button
             type="button"
             onClick={() => setOpen(!open)}
-            className={`rounded p-1.5 ${isSirene ? 'text-stone-400 hover:text-stone-200' : 'text-stone-500 hover:text-moni-primary'}`}
+            className="rounded p-1.5 text-stone-500 hover:text-moni-primary"
             aria-expanded={open}
           >
             {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -250,45 +237,16 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
   };
 
   return (
-    <div
-      className={`flex h-full min-h-0 w-56 shrink-0 flex-col border-r ${
-        isSirene ? 'border-stone-800 bg-stone-900 text-stone-100' : 'border-stone-200 bg-white'
-      }`}
-    >
+    <div className="flex h-full min-h-0 w-56 shrink-0 flex-col border-r border-stone-200 bg-white">
       {/* Topo: logo + sino */}
-      <div
-        className={`flex h-14 shrink-0 items-center justify-between gap-2 border-b px-4 ${
-          isSirene ? 'border-stone-800' : 'border-stone-200'
-        }`}
-      >
-        <Link
-          href="/"
-          className={`text-lg font-semibold tracking-tight ${
-            isSirene
-              ? 'text-stone-100 hover:text-white'
-              : 'text-moni-primary hover:text-moni-secondary'
-          }`}
-        >
+      <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-stone-200 px-4">
+        <Link href="/" className="text-lg font-semibold tracking-tight text-moni-primary hover:text-moni-secondary">
           Moní
         </Link>
         <Link
-          href={
-            isSirene
-              ? '/sirene'
-              : isAdmin
-                ? '/alertas'
-                : showDevNav
-                  ? '/comunidade'
-                  : '/rede-franqueados'
-          }
-          className={`flex items-center justify-center rounded-full p-1.5 ${
-            isSirene
-              ? 'text-amber-400 hover:bg-stone-800 hover:text-amber-300'
-              : 'text-amber-500 hover:bg-amber-50 hover:text-amber-600'
-          }`}
-          title={
-            isSirene ? 'Notificações Sirene' : isAdmin ? 'Alertas' : showDevNav ? 'Comunidade' : 'Rede de Franqueados'
-          }
+          href={isAdmin ? '/alertas' : showDevNav ? '/comunidade' : '/rede-franqueados'}
+          className="flex items-center justify-center rounded-full p-1.5 text-amber-500 hover:bg-amber-50 hover:text-amber-600"
+          title={isAdmin ? 'Alertas' : showDevNav ? 'Comunidade' : 'Rede de Franqueados'}
           aria-label="Notificações"
         >
           <Bell className="h-5 w-5" />
@@ -386,49 +344,15 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
           </Link>
         </div>
       ) : (
-        <div
-          className={
-            isSirene
-              ? 'shrink-0 space-y-1 border-t border-stone-800 bg-moni-primary/10 p-3'
-              : 'shrink-0 space-y-1 border-t border-stone-200 p-3'
-          }
-        >
-          <div
-            className={
-              isSirene
-                ? 'flex w-full items-center gap-2 rounded-lg bg-moni-primary px-3 py-2'
-                : 'flex w-full items-center gap-2 rounded-lg px-3 py-2'
-            }
-          >
-            <span
-              className={
-                isSirene
-                  ? 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-white'
-                  : 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-moni-primary text-xs font-semibold text-white'
-              }
-            >
+        <div className="shrink-0 space-y-1 border-t border-stone-200 p-3">
+          <div className="flex w-full items-center gap-2 rounded-lg px-3 py-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-moni-primary text-xs font-semibold text-white">
               {inicial}
             </span>
             <div className="min-w-0 flex-1">
-              <span
-                className={
-                  isSirene
-                    ? 'block truncate text-sm font-semibold text-white'
-                    : 'block truncate text-sm font-semibold text-moni-primary'
-                }
-              >
-                {displayName}
-              </span>
+              <span className="block truncate text-sm font-semibold text-moni-primary">{displayName}</span>
               {user?.email && (
-                <span
-                  className={
-                    isSirene
-                      ? 'mt-0.5 block truncate text-[10px] text-emerald-50/80'
-                      : 'mt-0.5 block truncate text-[10px] text-stone-300'
-                  }
-                >
-                  {user.email}
-                </span>
+                <span className="mt-0.5 block truncate text-[10px] text-stone-300">{user.email}</span>
               )}
             </div>
           </div>
@@ -438,13 +362,9 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
               type="button"
               onClick={() => setPerfilOpen((o) => !o)}
               className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-medium transition ${
-                isSirene
-                  ? perfilOpen
-                    ? 'bg-emerald-500/20 text-emerald-50'
-                    : 'text-emerald-50/80 hover:bg-emerald-500/15 hover:text-emerald-50'
-                  : perfilOpen
-                    ? 'bg-moni-light text-moni-primary'
-                    : 'text-moni-primary hover:bg-moni-light/70 hover:text-moni-secondary'
+                perfilOpen
+                  ? 'bg-moni-light text-moni-primary'
+                  : 'text-moni-primary hover:bg-moni-light/70 hover:text-moni-secondary'
               }`}
             >
               <span className="flex items-center gap-1.5">
@@ -459,20 +379,18 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
             </button>
             {perfilOpen && (
               <div className="mt-1 space-y-0.5 pl-6 text-[11px]">
-                <div className={isSirene ? 'text-stone-400' : 'text-stone-500'}>
-                  Papel: {resolvedRole || 'franqueado'}
-                </div>
+                <div className="text-stone-500">Papel: {resolvedRole || 'franqueado'}</div>
                 {isAdmin && (
                   <Link
                     href="/admin/usuarios"
-                    className={`mt-1 block text-left font-semibold ${isSirene ? 'text-emerald-200 hover:text-white' : 'text-moni-primary hover:text-moni-secondary'}`}
+                    className="mt-1 block text-left font-semibold text-moni-primary hover:text-moni-secondary"
                   >
                     Gerenciar Usuários
                   </Link>
                 )}
                 <Link
                   href="/perfil"
-                  className={`mt-1 block text-left ${isSirene ? 'text-stone-200 hover:text-white' : 'text-moni-primary hover:text-moni-secondary'}`}
+                  className="mt-1 block text-left text-moni-primary hover:text-moni-secondary"
                 >
                   Ver perfil e configurações
                 </Link>
