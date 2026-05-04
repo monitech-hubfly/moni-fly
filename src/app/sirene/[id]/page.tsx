@@ -13,11 +13,14 @@ export default async function SireneChamadoPage({ params }: { params: Promise<{ 
   const result = await getChamado(chamadoId);
   if (!result.ok) redirect('/sirene');
 
-  const { chamado, userContext, currentUserId, isFrank, rawProfileRole } = result;
+  const { chamado, userContext, currentUserId, isFrank, rawProfileRole, profileCargo } = result;
   const ctx = userContext ?? { papel: null, time: null };
   const isBombeiroReal = ctx.papel === 'bombeiro';
   const rawRoleNorm = (rawProfileRole ?? '').toLowerCase();
+  const cargoNorm = (profileCargo ?? '').toLowerCase();
   const isCriador = chamado.aberto_por != null && currentUserId != null && chamado.aberto_por === currentUserId;
+  const podeExcluirChamado =
+    rawRoleNorm === 'admin' || cargoNorm === 'adm' || (currentUserId != null && chamado.aberto_por === currentUserId);
   const isHdmTeam =
     chamado.tipo === 'hdm' &&
     chamado.hdm_responsavel != null &&
@@ -61,6 +64,7 @@ export default async function SireneChamadoPage({ params }: { params: Promise<{ 
         podeEditarResumoChamado={isCriador || isBombeiroReal}
         isBombeiroReal={isBombeiroReal}
         isHdmTeam={isHdmTeam}
+        podeExcluirChamado={podeExcluirChamado}
       />
     </main>
   );

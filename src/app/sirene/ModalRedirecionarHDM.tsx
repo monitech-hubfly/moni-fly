@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { redirecionarParaHDM } from './actions';
 import type { HdmTime } from '@/types/sirene';
 
-const HDM_OPCOES: HdmTime[] = ['Homologações', 'Produto', 'Modelo Virtual'];
+const HDM_OPCOES: HdmTime[] = ['Homologações', 'Modelo Virtual', 'Produto'];
 
 type Props = { chamadoId: number; onClose: () => void; onSuccess?: () => void };
 

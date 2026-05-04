@@ -13,7 +13,7 @@ export type KanbanModalInteracoesFiltros = {
   lista: ListaInteracoesModal;
   situacao: SituacaoFiltroModal;
   time: string;
-  /** Quando true, só Homologações / Produto / Modelo Virtual na lista de times do filtro. */
+  /** Quando true, só Homologações / Modelo Virtual / Produto na lista de times do filtro. */
   timeListaSomenteHdm: boolean;
   responsavel: string;
   ordenacao: OrdenacaoInteracoesModal;

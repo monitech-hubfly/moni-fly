@@ -55,6 +55,7 @@ import {
   type SubInteracaoStatusDb,
   type TipoVinculoKanbanCard,
 } from '@/lib/actions/card-actions';
+import { deletarChamado } from '@/app/sirene/actions';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import {
   displayOrDash,
@@ -105,12 +106,12 @@ import {
 } from './kanban-card-modal-helpers';
 import { SubInteracaoLista, mapRawTopicoToListaItem } from '@/components/kanban-shared/SubInteracaoLista';
 import {
+  enrichResponsaveisIdsComLegadoMoni,
   filtrarLinhasTimeKanbanPorHdm,
-  inferResponsavelMoniFromInteracao,
-  inferTimeMoniFromInteracao,
+  filtrarOpcoesResponsaveisPorModoHdm,
+  HDM_RESPONSAVEIS_TODOS_EMAILS,
   isNomeTimeMoniHdm,
   responsaveisFiltroOpcoesComCatalogoMoni,
-  resolveKanbanInteracaoFromCatalog,
   responsaveisDoTimeMoni,
   timesFiltroOpcoesComCatalogoMoni,
   timesMoniReceberChamadoOpcoes,
@@ -301,9 +302,13 @@ export function KanbanCardModal({
     userId: string | null;
     uploaderNome: string;
     ehAdminOuTeam: boolean;
-  }>({ userId: null, uploaderNome: '—', ehAdminOuTeam: false });
+    roleNorm: string;
+    cargoNorm: string;
+  }>({ userId: null, uploaderNome: '—', ehAdminOuTeam: false, roleNorm: '', cargoNorm: '' });
   const [kanbanTimes, setKanbanTimes] = useState<KanbanTimeRow[]>([]);
-  const [responsaveisOpcoes, setResponsaveisOpcoes] = useState<{ id: string; nome: string }[]>([]);
+  const [responsaveisOpcoes, setResponsaveisOpcoes] = useState<
+    { id: string; nome: string; email?: string | null }[]
+  >([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState({
     titulo: '',
@@ -369,6 +374,8 @@ export function KanbanCardModal({
   );
   const [motivoArquivarInteracao, setMotivoArquivarInteracao] = useState('');
   const [salvandoArquivarInteracao, setSalvandoArquivarInteracao] = useState(false);
+  const [modalExcluirInteracaoId, setModalExcluirInteracaoId] = useState<string | null>(null);
+  const [salvandoExcluirInteracao, setSalvandoExcluirInteracao] = useState(false);
   const [confirmandoFinalizar, setConfirmandoFinalizar] = useState(false);
   const [modalDetalhes, setModalDetalhes] = useState<KanbanCardModalDetalhes>({
     rede: null,
@@ -436,7 +443,9 @@ export function KanbanCardModal({
     setBuscaVinculo('');
     setTipoNovoVinculo('relacionado');
     setResultadosBuscaVinculo([]);
-    setModalSessao({ userId: null, uploaderNome: '—', ehAdminOuTeam: false });
+    setModalSessao({ userId: null, uploaderNome: '—', ehAdminOuTeam: false, roleNorm: '', cargoNorm: '' });
+    setModalExcluirInteracaoId(null);
+    setSalvandoExcluirInteracao(false);
     setModalAprovacaoFase(null);
     setSolicitandoAprovacaoFase(false);
     setEditingComentarioId(null);
@@ -642,17 +651,28 @@ export function KanbanCardModal({
           uid = sessUser.id;
           const { data: me } = await supabase
             .from('profiles')
-            .select('full_name, role')
+            .select('full_name, role, cargo')
             .eq('id', sessUser.id)
             .maybeSingle();
           const fn = String((me as { full_name?: string | null } | null)?.full_name ?? '').trim();
           unome = fn || '—';
           const rl = String((me as { role?: string | null } | null)?.role ?? '').toLowerCase();
           admTeam = rl === 'admin' || rl === 'team';
+          const cg = String((me as { cargo?: string | null } | null)?.cargo ?? '')
+            .trim()
+            .toLowerCase();
+          setModalSessao({
+            userId: uid,
+            uploaderNome: unome,
+            ehAdminOuTeam: admTeam,
+            roleNorm: rl,
+            cargoNorm: cg,
+          });
+        } else {
+          setModalSessao({ userId: null, uploaderNome: '—', ehAdminOuTeam: false, roleNorm: '', cargoNorm: '' });
         }
-        setModalSessao({ userId: uid, uploaderNome: unome, ehAdminOuTeam: admTeam });
       } catch {
-        setModalSessao({ userId: null, uploaderNome: '—', ehAdminOuTeam: false });
+        setModalSessao({ userId: null, uploaderNome: '—', ehAdminOuTeam: false, roleNorm: '', cargoNorm: '' });
       }
 
       type LoadedShape = {
@@ -881,22 +901,31 @@ export function KanbanCardModal({
       const nomePorTimeId = new Map(cacheKanbanTimes.map((t) => [t.id, t.nome]));
 
       try {
-        const { data: profOpts, error: profOptsErr } = await supabase
-          .from('profiles')
-          .select('id, full_name, email')
-          .order('full_name', { ascending: true, nullsFirst: false })
-          .limit(500);
+        const emailsHdm = [...HDM_RESPONSAVEIS_TODOS_EMAILS];
+        const [hdmProfRes, profOptsRes] = await Promise.all([
+          supabase.from('profiles').select('id, full_name, email').in('email', emailsHdm),
+          supabase
+            .from('profiles')
+            .select('id, full_name, email')
+            .order('full_name', { ascending: true, nullsFirst: false })
+            .limit(500),
+        ]);
+        const profOptsErr = profOptsRes.error;
         if (profOptsErr) throw profOptsErr;
-        setResponsaveisOpcoes(
-          (profOpts ?? []).map((p) => {
-            const fn = String((p as { full_name?: string | null }).full_name ?? '').trim();
-            const em = String((p as { email?: string | null }).email ?? '').trim();
-            return {
-              id: String((p as { id: string }).id),
-              nome: fn || em || String((p as { id: string }).id).slice(0, 8),
-            };
-          }),
-        );
+        const byId = new Map<string, { id: string; nome: string; email: string | null }>();
+        const ingestProf = (rows: { id: string; full_name?: string | null; email?: string | null }[] | null) => {
+          for (const p of rows ?? []) {
+            const id = String(p.id);
+            const em = String(p.email ?? '')
+              .trim()
+              .toLowerCase();
+            const fn = String(p.full_name ?? '').trim();
+            byId.set(id, { id, nome: fn || em || id.slice(0, 8), email: em || null });
+          }
+        };
+        ingestProf((hdmProfRes.data ?? []) as { id: string; full_name?: string | null; email?: string | null }[]);
+        ingestProf((profOptsRes.data ?? []) as { id: string; full_name?: string | null; email?: string | null }[]);
+        setResponsaveisOpcoes([...byId.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')));
       } catch {
         setResponsaveisOpcoes([]);
       }
@@ -1216,8 +1245,17 @@ export function KanbanCardModal({
 
   function abrirEdicaoInteracao(it: InteracaoModal) {
     setEditingId(it.id);
-    const rids = [...(it.responsaveis_ids ?? [])];
-    if (it.responsavel_id && !rids.includes(it.responsavel_id)) rids.unshift(it.responsavel_id);
+    let rids = [...(it.responsaveis_ids ?? [])];
+    rids = enrichResponsaveisIdsComLegadoMoni(
+      rids,
+      {
+        responsavel_id: it.responsavel_id,
+        responsaveis_resolvidos: it.responsaveis_resolvidos,
+        responsavel_nome_texto: it.responsavel_nome_texto ?? null,
+        profilesLegacyNome: it.profiles?.full_name ?? null,
+      },
+      responsaveisOpcoes,
+    );
     const tids = [...(it.times_ids ?? [])];
     const ehHdm = tids.some((id) => {
       const t = kanbanTimes.find((x) => x.id === id);
@@ -2007,6 +2045,31 @@ export function KanbanCardModal({
   const responsaveisFiltroOpcoesModal = useMemo(
     () => responsaveisFiltroOpcoesComCatalogoMoni(responsaveisOpcoes),
     [responsaveisOpcoes],
+  );
+
+  const responsaveisOpcoesEditHdm = useMemo(
+    () => filtrarOpcoesResponsaveisPorModoHdm(responsaveisOpcoes, editDraft.ehHdm),
+    [responsaveisOpcoes, editDraft.ehHdm],
+  );
+  const responsaveisOpcoesNovaHdm = useMemo(
+    () => filtrarOpcoesResponsaveisPorModoHdm(responsaveisOpcoes, novaInteracao.ehHdm),
+    [responsaveisOpcoes, novaInteracao.ehHdm],
+  );
+  const responsaveisOpcoesSubNovaHdm = useMemo(
+    () => filtrarOpcoesResponsaveisPorModoHdm(responsaveisOpcoes, subNovaDraft.ehHdm),
+    [responsaveisOpcoes, subNovaDraft.ehHdm],
+  );
+  const subEdicaoSomenteTimesHdm = useMemo(
+    () =>
+      editSubDraft.timesIds.some((tid) => {
+        const nm = kanbanTimes.find((t) => t.id === tid)?.nome ?? '';
+        return isNomeTimeMoniHdm(nm);
+      }),
+    [editSubDraft.timesIds, kanbanTimes],
+  );
+  const responsaveisOpcoesSubEdicaoHdm = useMemo(
+    () => filtrarOpcoesResponsaveisPorModoHdm(responsaveisOpcoes, subEdicaoSomenteTimesHdm),
+    [responsaveisOpcoes, subEdicaoSomenteTimesHdm],
   );
 
   const interacoesFiltradas = useMemo(() => {
@@ -2931,6 +2994,20 @@ export function KanbanCardModal({
                                         <Archive className="h-4 w-4 shrink-0" aria-hidden />
                                       </button>
                                     ) : null}
+                                    {!demo &&
+                                    modalSessao.userId &&
+                                    (modalSessao.roleNorm === 'admin' ||
+                                      modalSessao.cargoNorm === 'adm' ||
+                                      (it.criado_por != null && it.criado_por === modalSessao.userId)) ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => setModalExcluirInteracaoId(it.id)}
+                                        className="shrink-0 rounded p-1 text-stone-400 hover:bg-red-50 hover:text-red-600"
+                                        title="Excluir chamado"
+                                      >
+                                        <Trash2 className="h-4 w-4 shrink-0" aria-hidden />
+                                      </button>
+                                    ) : null}
                                   </div>
                                 </>
                               )}
@@ -3112,7 +3189,7 @@ export function KanbanCardModal({
                                     Responsáveis (opcional)
                                   </label>
                                   <div className="flex flex-wrap gap-1">
-                                    {responsaveisOpcoes.map((p) => {
+                                    {responsaveisOpcoesEditHdm.map((p) => {
                                       const on = editDraft.responsaveisIds.includes(p.id);
                                       return (
                                         <button
@@ -3312,7 +3389,7 @@ export function KanbanCardModal({
                                             <div>
                                               <span className="mb-1 block text-[10px] text-stone-500">Responsáveis</span>
                                               <div className="flex flex-wrap gap-1">
-                                                {responsaveisOpcoes.map((p) => {
+                                                {responsaveisOpcoesSubEdicaoHdm.map((p) => {
                                                   const on = editSubDraft.responsaveisIds.includes(p.id);
                                                   return (
                                                     <button
@@ -3627,11 +3704,11 @@ export function KanbanCardModal({
                                     </div>
                                     <div>
                                       <span className="mb-1 block text-[10px] text-stone-500">Responsáveis</span>
-                                      {responsaveisOpcoes.length === 0 ? (
+                                      {responsaveisOpcoesSubNovaHdm.length === 0 ? (
                                         <p className="text-[10px] text-stone-500">Nenhum usuário encontrado</p>
                                       ) : (
                                         <div className="flex flex-wrap gap-1">
-                                          {responsaveisOpcoes.map((p) => {
+                                          {responsaveisOpcoesSubNovaHdm.map((p) => {
                                             const on = subNovaDraft.responsaveisIds.includes(p.id);
                                             return (
                                               <button
@@ -3742,7 +3819,7 @@ export function KanbanCardModal({
                   border: '0.5px solid var(--moni-border-default)',
                 }}
               >
-                <p className="mb-2 text-xs font-semibold text-stone-600">Nova chamada</p>
+                <p className="mb-2 text-xs font-semibold text-stone-600">Novo Chamado</p>
                 <div className="flex flex-col gap-3">
                   <input
                     type="text"
@@ -3847,7 +3924,7 @@ export function KanbanCardModal({
                         Responsáveis (opcional)
                       </label>
                       <div className="flex flex-wrap gap-1">
-                        {responsaveisOpcoes.map((p) => {
+                        {responsaveisOpcoesNovaHdm.map((p) => {
                           const on = novaInteracao.responsaveisIds.includes(p.id);
                           return (
                             <button
@@ -5253,6 +5330,54 @@ export function KanbanCardModal({
         </div>
       </div>
     </div>
+    {modalExcluirInteracaoId ? (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl"
+        >
+          <h3 className="mb-1 text-base font-semibold text-stone-800">Excluir chamado</h3>
+          <p className="mb-4 text-sm text-stone-600">
+            Tem certeza que deseja excluir este chamado? Todas as subinterações e comentários serão removidos. Esta
+            ação não pode ser desfeita.
+          </p>
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              disabled={salvandoExcluirInteracao}
+              onClick={async () => {
+                setSalvandoExcluirInteracao(true);
+                const res = await deletarChamado({
+                  modo: 'interacao_kanban',
+                  interacaoKanbanId: modalExcluirInteracaoId,
+                  basePath,
+                });
+                setSalvandoExcluirInteracao(false);
+                if (!res.ok) {
+                  alert(res.error);
+                  return;
+                }
+                setModalExcluirInteracaoId(null);
+                await loadCard();
+                router.refresh();
+              }}
+              className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {salvandoExcluirInteracao ? 'Excluindo…' : 'Excluir definitivamente'}
+            </button>
+            <button
+              type="button"
+              disabled={salvandoExcluirInteracao}
+              onClick={() => setModalExcluirInteracaoId(null)}
+              className="flex-1 rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
     {modalArquivarInteracao ? (
       <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
         <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">

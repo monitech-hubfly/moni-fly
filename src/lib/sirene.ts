@@ -5,7 +5,7 @@
 
 import type { Chamado, ChamadoStatus, HdmTime } from '@/types/sirene';
 
-const HDM_TIMES: HdmTime[] = ['Homologações', 'Produto', 'Modelo Virtual'];
+const HDM_TIMES: HdmTime[] = ['Homologações', 'Modelo Virtual', 'Produto'];
 
 /** Perfil do usuário no contexto Sirene: papel (sirene_papeis) e time (profiles.time). */
 export interface SireneUserContext {
@@ -16,7 +16,7 @@ export interface SireneUserContext {
 /**
  * Indica se o usuário pode atuar como Bombeiro neste chamado:
  * - É Bombeiro (papel = bombeiro), ou
- * - Chamado é HDM e o time do usuário é o hdm_responsavel (Homologações, Produto, Modelo Virtual).
+ * - Chamado é HDM e o time do usuário é o hdm_responsavel (Homologações, Modelo Virtual, Produto).
  */
 export function canActAsBombeiro(userContext: SireneUserContext, chamado: Chamado): boolean {
   if (userContext.papel === 'bombeiro') return true;

@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { HDM_RESPONSAVEIS_TODOS_EMAILS } from '@/lib/times-responsaveis';
 import { InteracoesLista, type InteracaoSireneRow } from './InteracoesLista';
 
 export const dynamic = 'force-dynamic';
@@ -48,7 +49,7 @@ export default async function SireneChamadosPage({
   let interacoesListaProps: {
     interacoes: InteracaoSireneRow[];
     times: { id: string; nome: string }[];
-    responsaveis: { id: string; nome: string }[];
+    responsaveis: { id: string; nome: string; email?: string | null }[];
     currentUserId: string | null;
     comentariosCountByCardId: Record<string, number>;
     filtroTipoChamado?: 'padrao' | 'hdm';
@@ -266,18 +267,33 @@ export default async function SireneChamadosPage({
       nome: String((t as { nome: string }).nome),
     }));
 
-    const { data: profsAll } = await admin
-      .from('profiles')
-      .select('id, full_name, email')
-      .order('full_name', { ascending: true, nullsFirst: false })
-      .limit(500);
-    const responsaveis = (profsAll ?? []).map((p) => ({
-      id: String((p as { id: string }).id),
-      nome:
-        String((p as { full_name?: string | null; email?: string | null }).full_name?.trim() ||
-          (p as { email?: string | null }).email ||
-          String((p as { id: string }).id).slice(0, 8)),
-    }));
+    const emailsHdm = [...HDM_RESPONSAVEIS_TODOS_EMAILS];
+    const [profsHdmRes, profsAllRes] = await Promise.all([
+      admin.from('profiles').select('id, full_name, email').in('email', emailsHdm),
+      admin
+        .from('profiles')
+        .select('id, full_name, email')
+        .order('full_name', { ascending: true, nullsFirst: false })
+        .limit(500),
+    ]);
+    const byIdProf = new Map<string, { id: string; nome: string; email: string | null }>();
+    const ingestProfRow = (rows: { id: string; full_name?: string | null; email?: string | null }[] | null) => {
+      for (const p of rows ?? []) {
+        const id = String(p.id);
+        const em = String(p.email ?? '')
+          .trim()
+          .toLowerCase();
+        const fn = String(p.full_name ?? '').trim();
+        byIdProf.set(id, {
+          id,
+          nome: fn || em || id.slice(0, 8),
+          email: em || null,
+        });
+      }
+    };
+    ingestProfRow((profsHdmRes.data ?? []) as { id: string; full_name?: string | null; email?: string | null }[]);
+    ingestProfRow((profsAllRes.data ?? []) as { id: string; full_name?: string | null; email?: string | null }[]);
+    const responsaveis = [...byIdProf.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 
     interacoesListaProps = {
       interacoes,

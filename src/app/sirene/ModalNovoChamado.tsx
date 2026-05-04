@@ -8,7 +8,11 @@ import {
   type SireneVinculoCardBuscaItem,
 } from './actions';
 import type { HdmTime } from '@/types/sirene';
-import { TIMES_MONI_HDM } from '@/lib/times-responsaveis';
+import {
+  HDM_RESPONSAVEIS_TODOS_EMAILS,
+  TIMES_MONI_HDM,
+  filtrarOpcoesResponsaveisPorModoHdm,
+} from '@/lib/times-responsaveis';
 import { createClient } from '@/lib/supabase/client';
 
 type FranqueadoItem = { id: string; n_franquia: string | null; nome_completo: string | null };
@@ -24,7 +28,9 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
   const [timesIds, setTimesIds] = useState<string[]>([]);
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [kanbanTimes, setKanbanTimes] = useState<{ id: string; nome: string }[]>([]);
-  const [responsaveisOpcoes, setResponsaveisOpcoes] = useState<{ id: string; nome: string }[]>([]);
+  const [responsaveisOpcoes, setResponsaveisOpcoes] = useState<
+    { id: string; nome: string; email?: string | null }[]
+  >([]);
   const [frankId, setFrankId] = useState('');
   const [frankNome, setFrankNome] = useState('');
   const [buscaFrank, setBuscaFrank] = useState('');
@@ -54,16 +60,30 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
       const supabase = createClient();
       const { data: kt } = await supabase.from('kanban_times').select('id, nome').order('nome');
       setKanbanTimes((kt ?? []).map((r) => ({ id: String(r.id), nome: String(r.nome) })));
-      const { data: profs } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .order('full_name', { ascending: true, nullsFirst: false })
-        .limit(500);
+      const emailsHdm = [...HDM_RESPONSAVEIS_TODOS_EMAILS];
+      const [hdmRes, bulkRes] = await Promise.all([
+        supabase.from('profiles').select('id, full_name, email').in('email', emailsHdm),
+        supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .order('full_name', { ascending: true, nullsFirst: false })
+          .limit(500),
+      ]);
+      const byId = new Map<string, { id: string; nome: string; email: string | null }>();
+      const ingest = (rows: { id: string; full_name?: string | null; email?: string | null }[] | null) => {
+        for (const p of rows ?? []) {
+          const id = String(p.id);
+          const em = String(p.email ?? '')
+            .trim()
+            .toLowerCase();
+          const fn = String(p.full_name ?? '').trim();
+          byId.set(id, { id, nome: fn || em || id.slice(0, 8), email: em || null });
+        }
+      };
+      ingest((hdmRes.data ?? []) as { id: string; full_name?: string | null; email?: string | null }[]);
+      ingest((bulkRes.data ?? []) as { id: string; full_name?: string | null; email?: string | null }[]);
       setResponsaveisOpcoes(
-        (profs ?? []).map((p) => ({
-          id: String(p.id),
-          nome: String((p as { full_name?: string | null }).full_name ?? '').trim() || String(p.id).slice(0, 8),
-        })),
+        [...byId.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
       );
     })();
   }, []);
@@ -80,6 +100,11 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
       )
       .slice(0, 15);
   }, [dados?.franqueados, buscaFrank]);
+
+  const responsaveisOpcoesVisiveis = useMemo(
+    () => filtrarOpcoesResponsaveisPorModoHdm(responsaveisOpcoes, ehHdm),
+    [responsaveisOpcoes, ehHdm],
+  );
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -309,7 +334,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                 </label>
                 <div className="flex flex-wrap gap-1.5 mt-1">
                   {(ehHdm
-                    ? kanbanTimes.filter((t) => ['Homologações', 'Produto', 'Modelo Virtual'].includes(t.nome))
+                    ? kanbanTimes.filter((t) => (TIMES_MONI_HDM as readonly string[]).includes(t.nome))
                     : kanbanTimes
                   ).map((t) => {
                     const on = timesIds.includes(t.id);
@@ -334,7 +359,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                   Responsável pelo atendimento (opcional)
                 </label>
                 <div className="flex flex-wrap gap-1.5 mt-1">
-                  {responsaveisOpcoes.map((p) => {
+                  {responsaveisOpcoesVisiveis.map((p) => {
                     const on = responsaveisIds.includes(p.id);
                     return (
                       <button

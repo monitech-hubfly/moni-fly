@@ -2,6 +2,8 @@
 
 import { useState, useTransition, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Trash2 } from 'lucide-react';
 import { MencaoTextarea } from './MencaoTextarea';
 import { ModalRedirecionarHDM } from './ModalRedirecionarHDM';
 import type { Chamado } from '@/types/sirene';
@@ -24,6 +26,7 @@ import {
   getParticipantesChamado,
   enviarMensagemChamado,
   editarChamado,
+  deletarChamado,
   type TopicoInput,
   type AnexoOrigem,
 } from './actions';
@@ -42,6 +45,7 @@ type Props = {
   podeEditarResumoChamado?: boolean;
   isBombeiroReal?: boolean;
   isHdmTeam?: boolean;
+  podeExcluirChamado?: boolean;
 };
 
 type TopicoSalvo = {
@@ -183,7 +187,9 @@ export function DetalheChamadoConteudo({
   podeEditarResumoChamado = false,
   isBombeiroReal = false,
   isHdmTeam = false,
+  podeExcluirChamado = false,
 }: Props) {
+  const router = useRouter();
   const [resumo, setResumo] = useState({ incendio: chamado.incendio, tema: chamado.tema });
   const [editandoResumo, setEditandoResumo] = useState(false);
   const [draftIncendio, setDraftIncendio] = useState('');
@@ -235,6 +241,8 @@ export function DetalheChamadoConteudo({
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [dialogExcluirAberto, setDialogExcluirAberto] = useState(false);
+  const [excluindoChamado, setExcluindoChamado] = useState(false);
 
   useEffect(() => {
     if (!chamado.id) return;
@@ -569,6 +577,19 @@ export function DetalheChamadoConteudo({
               </>
             )}
           </div>
+          {podeExcluirChamado ? (
+            <div className="shrink-0 pt-0.5">
+              <button
+                type="button"
+                onClick={() => setDialogExcluirAberto(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-red-800/60 bg-red-950/40 px-2.5 py-1.5 text-xs font-medium text-red-200 hover:bg-red-950/70"
+                title="Excluir chamado"
+              >
+                <Trash2 className="h-4 w-4 shrink-0" aria-hidden />
+                Excluir
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -1153,6 +1174,55 @@ export function DetalheChamadoConteudo({
           </div>
         )}
       </div>
+
+      {dialogExcluirAberto ? (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="titulo-excluir-chamado"
+            className="w-full max-w-md rounded-xl border border-stone-600 bg-stone-900 p-6 shadow-xl"
+          >
+            <h3 id="titulo-excluir-chamado" className="text-base font-semibold text-white">
+              Excluir chamado
+            </h3>
+            <p className="mt-3 text-sm text-stone-300">
+              Tem certeza que deseja excluir este chamado? Todas as subinterações e comentários serão removidos.
+              Esta ação não pode ser desfeita.
+            </p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                disabled={excluindoChamado}
+                onClick={() => setDialogExcluirAberto(false)}
+                className="rounded-lg border border-stone-600 px-4 py-2 text-sm font-medium text-stone-200 hover:bg-stone-800 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={excluindoChamado}
+                onClick={() => {
+                  setExcluindoChamado(true);
+                  setErro(null);
+                  void deletarChamado({ modo: 'sirene', sireneChamadoId: chamado.id }).then((r) => {
+                    setExcluindoChamado(false);
+                    if (!r.ok) {
+                      setErro(r.error);
+                      return;
+                    }
+                    setDialogExcluirAberto(false);
+                    router.push('/sirene/chamados');
+                  });
+                }}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {excluindoChamado ? 'Excluindo…' : 'Excluir definitivamente'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {modalRedirecionar && (
         <ModalRedirecionarHDM

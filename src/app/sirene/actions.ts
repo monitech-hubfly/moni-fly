@@ -17,6 +17,106 @@ import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 export type SireneActionResult = { ok: true } | { ok: false; error: string };
 
 /** Arquiva chamado Sirene com motivo (apenas admin/team). Atualiza espelho em `kanban_atividades`. */
+export type DeletarChamadoInput =
+  | { modo: 'sirene'; sireneChamadoId: number }
+  | { modo: 'interacao_kanban'; interacaoKanbanId: string; basePath?: string };
+
+function podeUsuarioExcluirChamado(opts: {
+  role: string | null;
+  cargo: string | null;
+  userId: string;
+  criadorOuAbertoPor: string | null;
+}): boolean {
+  const roleNorm = (opts.role ?? '').toLowerCase();
+  const cargoNorm = (opts.cargo ?? '').toLowerCase();
+  if (roleNorm === 'admin') return true;
+  if (cargoNorm === 'adm') return true;
+  return opts.criadorOuAbertoPor != null && opts.criadorOuAbertoPor === opts.userId;
+}
+
+/**
+ * Exclui chamado Sirene (e espelho em `kanban_atividades`) ou uma interação no card do funil.
+ * Ordem: remove `kanban_atividades` (CASCADE em `sirene_topicos.interacao_id`, notificações, etc.),
+ * depois `sirene_chamados` quando aplicável.
+ */
+export async function deletarChamado(input: DeletarChamadoInput): Promise<SireneActionResult> {
+  try {
+    const supabase = await createClient();
+    const me = await getSireneUserContext(supabase);
+    if (!me) return { ok: false, error: 'Faça login.' };
+
+    const admin = createAdminClient();
+
+    if (input.modo === 'sirene') {
+      const { data: sc, error: scErr } = await admin
+        .from('sirene_chamados')
+        .select('id, aberto_por')
+        .eq('id', input.sireneChamadoId)
+        .maybeSingle();
+      if (scErr || !sc) return { ok: false, error: 'Chamado não encontrado.' };
+      const abertoPor = (sc as { aberto_por?: string | null }).aberto_por ?? null;
+      if (!podeUsuarioExcluirChamado({ role: me.role, cargo: me.cargo, userId: me.userId, criadorOuAbertoPor: abertoPor })) {
+        return { ok: false, error: 'Sem permissão para excluir este chamado.' };
+      }
+
+      const { data: kaRows, error: kaListErr } = await admin
+        .from('kanban_atividades')
+        .select('id')
+        .eq('sirene_chamado_id', input.sireneChamadoId)
+        .eq('origem', 'sirene');
+      if (kaListErr) return { ok: false, error: kaListErr.message };
+
+      for (const row of kaRows ?? []) {
+        const kaId = String((row as { id: string }).id);
+        const { error: delKa } = await admin.from('kanban_atividades').delete().eq('id', kaId);
+        if (delKa) return { ok: false, error: delKa.message };
+      }
+
+      const { error: delSc } = await admin.from('sirene_chamados').delete().eq('id', input.sireneChamadoId);
+      if (delSc) return { ok: false, error: delSc.message };
+
+      revalidatePath('/sirene');
+      revalidatePath('/sirene/chamados');
+      revalidatePath('/sirene/kanban');
+      revalidatePath(`/sirene/${input.sireneChamadoId}`);
+      return { ok: true };
+    }
+
+    const { data: row, error: rowErr } = await admin
+      .from('kanban_atividades')
+      .select('id, criado_por, sirene_chamado_id, origem')
+      .eq('id', input.interacaoKanbanId)
+      .maybeSingle();
+    if (rowErr || !row) return { ok: false, error: 'Chamado não encontrado.' };
+    const criadoPor = (row as { criado_por?: string | null }).criado_por ?? null;
+    if (!podeUsuarioExcluirChamado({ role: me.role, cargo: me.cargo, userId: me.userId, criadorOuAbertoPor: criadoPor })) {
+      return { ok: false, error: 'Sem permissão para excluir este chamado.' };
+    }
+
+    const sid = (row as { sirene_chamado_id?: number | null }).sirene_chamado_id;
+    const origem = String((row as { origem?: string | null }).origem ?? '');
+
+    const { error: delKa } = await admin.from('kanban_atividades').delete().eq('id', input.interacaoKanbanId);
+    if (delKa) return { ok: false, error: delKa.message };
+
+    if (sid != null && origem === 'sirene') {
+      const { error: delSc } = await admin.from('sirene_chamados').delete().eq('id', sid);
+      if (delSc) return { ok: false, error: delSc.message };
+      revalidatePath('/sirene');
+      revalidatePath('/sirene/chamados');
+      revalidatePath('/sirene/kanban');
+      revalidatePath(`/sirene/${sid}`);
+    }
+
+    const bp = input.basePath?.trim() || '/';
+    revalidatePath(bp);
+    revalidatePath('/');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
 export async function arquivarChamado(
   chamadoId: number,
   motivo: string,
@@ -98,7 +198,7 @@ export async function arquivarTopico(
   }
 }
 
-const HDM_TIMES: HdmTime[] = ['Homologações', 'Produto', 'Modelo Virtual'];
+const HDM_TIMES: HdmTime[] = ['Homologações', 'Modelo Virtual', 'Produto'];
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -353,7 +453,7 @@ export async function salvarResolucaoComTopicos(
 
 async function getSireneUserContext(
   supabase: Awaited<ReturnType<typeof createClient>>,
-): Promise<{ userId: string; userName: string; ctx: SireneUserContext; role: string | null } | null> {
+): Promise<{ userId: string; userName: string; ctx: SireneUserContext; role: string | null; cargo: string | null } | null> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -361,18 +461,21 @@ async function getSireneUserContext(
 
   const [papelRes, profileRes] = await Promise.all([
     supabase.from('sirene_papeis').select('papel').eq('user_id', user.id).maybeSingle(),
-    supabase.from('profiles').select('full_name, time, role').eq('id', user.id).single(),
+    supabase.from('profiles').select('full_name, time, role, cargo').eq('id', user.id).single(),
   ]);
 
   const papel = (papelRes.data?.papel as 'bombeiro' | 'caneta_verde') ?? null;
   const time = (profileRes.data?.time as string) ?? null;
   const role = (profileRes.data?.role as string) ?? null;
+  const cargoRaw = (profileRes.data as { cargo?: string | null } | null)?.cargo;
+  const cargo = cargoRaw != null && String(cargoRaw).trim() !== '' ? String(cargoRaw).trim() : null;
 
   return {
     userId: user.id,
     userName: (profileRes.data?.full_name as string)?.trim() || user.email || 'Usuário',
     ctx: { papel, time },
     role,
+    cargo,
   };
 }
 
@@ -1922,6 +2025,7 @@ export async function getDashboardData(
         userName: 'Visitante',
         ctx: { papel: null, time: null },
         role: null,
+        cargo: null,
       };
     } catch {
       /* sem service role */
@@ -2090,6 +2194,8 @@ export async function getChamado(
       isFrank: boolean;
       /** `profiles.role` bruto (ex.: admin, team, franqueado). */
       rawProfileRole: string | null;
+      /** `profiles.cargo` bruto (ex.: adm, analista). */
+      profileCargo: string | null;
     }
   | { ok: false; error: string }
 > {
@@ -2114,6 +2220,7 @@ export async function getChamado(
     currentUserId: me.userId,
     isFrank,
     rawProfileRole: me.role,
+    profileCargo: me.cargo,
   };
 }
 

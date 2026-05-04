@@ -84,7 +84,7 @@ export type InteracaoSireneRow = {
 };
 
 type TimeOpt = { id: string; nome: string };
-type RespOpt = { id: string; nome: string };
+type RespOpt = { id: string; nome: string; email?: string | null };
 
 type EditLinhaDraft = {
   titulo: string;
@@ -168,7 +168,7 @@ type FiltrosChamados = {
   tipoF: string;
   kanbanF: string;
   timeF: string;
-  /** Lista de times no filtro: só HDM ou exclui HDM (Homologações, Produto, Modelo Virtual). */
+  /** Lista de times no filtro: só HDM ou exclui HDM (Homologações, Modelo Virtual, Produto). */
   timeListaSomenteHdm: boolean;
   respF: string;
   travaF: string;
