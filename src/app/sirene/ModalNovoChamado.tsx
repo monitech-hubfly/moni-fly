@@ -12,6 +12,7 @@ import {
   HDM_RESPONSAVEIS_TODOS_EMAILS,
   TIMES_MONI_HDM,
   filtrarOpcoesResponsaveisPorModoHdm,
+  timesMoniReceberChamadoOpcoes,
 } from '@/lib/times-responsaveis';
 import { createClient } from '@/lib/supabase/client';
 
@@ -106,6 +107,14 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     [responsaveisOpcoes, ehHdm],
   );
 
+  /** Mesma ordem do catálogo Moní (`TIMES_MONI` ou HDM); só exibe linhas existentes em `kanban_times`. */
+  const timesChipsCatalogoOrdenados = useMemo(() => {
+    const nomes = ehHdm ? [...TIMES_MONI_HDM] : [...timesMoniReceberChamadoOpcoes(false)];
+    return nomes
+      .map((nome) => kanbanTimes.find((t) => t.nome.trim() === nome))
+      .filter((t): t is { id: string; nome: string } => Boolean(t));
+  }, [ehHdm, kanbanTimes]);
+
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (buscaFrankRef.current && !buscaFrankRef.current.contains(e.target as Node))
@@ -172,7 +181,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
         <div className="border-b border-stone-200 px-4 py-3">
-          <h2 className="text-lg font-semibold text-stone-800">Novo chamado</h2>
+          <h2 className="text-lg font-semibold text-stone-800">Novo Chamado</h2>
         </div>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-4">
           {error && (
@@ -333,10 +342,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                   Time que receberá o chamado
                 </label>
                 <div className="flex flex-wrap gap-1.5 mt-1">
-                  {(ehHdm
-                    ? kanbanTimes.filter((t) => (TIMES_MONI_HDM as readonly string[]).includes(t.nome))
-                    : kanbanTimes
-                  ).map((t) => {
+                  {timesChipsCatalogoOrdenados.map((t) => {
                     const on = timesIds.includes(t.id);
                     return (
                       <button

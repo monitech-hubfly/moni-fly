@@ -4,26 +4,35 @@
 
 import type { HdmTime } from '@/types/sirene';
 
+/** Catálogo completo de times Moní (ordem alfabética pt-BR) para selects e filtros. */
 export const TIMES_MONI = [
-  'Caneta Verde',
-  'Waysers',
-  'Modelo Virtual',
-  'Executivo Local',
   'Acoplamento',
-  'Moní Inc',
-  'Homologações',
-  'Produto',
-  'Marketing',
   'Administrativo',
-  'Controladoria',
-  'Jurídico',
-  'Crédito',
-  'Novos Franqueados',
   'Bombeiro',
+  'Caneta Verde',
+  'Controladoria',
+  'Crédito',
+  'Executivo Local',
+  'Homologações',
+  'Jurídico',
+  'Marketing',
+  'Modelo Virtual',
+  'Moní Inc',
+  'Novos Franqueados',
+  'Produto',
+  'Waysers',
 ] as const;
 
 /** Nomes exatos dos times Moní usados em chamados HDM (subset de `TIMES_MONI`). */
 export const TIMES_MONI_HDM = ['Homologações', 'Modelo Virtual', 'Produto'] as const;
+
+/**
+ * Na lista geral (checkbox HDM desmarcado), estes dois times só aparecem no modo HDM.
+ * `Produto` participa do HDM mas também pode receber chamados fora do fluxo HDM.
+ */
+export const TIMES_MONI_APENAS_MODO_HDM = ['Homologações', 'Modelo Virtual'] as const;
+
+const TIMES_MONI_APENAS_MODO_HDM_SET = new Set<string>(TIMES_MONI_APENAS_MODO_HDM);
 
 /** Catálogo HDM: nome exibido + email em `profiles` (lookup por UUID via email). */
 export const HDM_RESPONSAVEIS: Record<HdmTime, { nome: string; email: string }[]> = {
@@ -126,30 +135,53 @@ export function isNomeTimeMoniHdm(nome: string): boolean {
   return TIMES_MONI_HDM_SET.has(String(nome ?? '').trim());
 }
 
-/** Select "time que receberá o chamado": com HDM só os três; sem HDM oculta esses três. */
+/** Select "time que receberá o chamado": com HDM só os três; sem HDM oculta só Homologações e Modelo Virtual. */
 export function timesMoniReceberChamadoOpcoes(somenteTimesHdm: boolean): readonly string[] {
   if (somenteTimesHdm) return [...TIMES_MONI_HDM];
-  return TIMES_MONI.filter((t) => !TIMES_MONI_HDM_SET.has(t));
+  return TIMES_MONI.filter((t) => !TIMES_MONI_APENAS_MODO_HDM_SET.has(t));
+}
+
+/** Ordena linhas de time pela ordem do catálogo Moní; HDM usa `TIMES_MONI_HDM` (não alfabética). */
+export function ordenarLinhasTimeKanbanPorCatalogoMoni<T extends { nome: string }>(
+  rows: readonly T[],
+  somenteTimesHdm: boolean,
+): T[] {
+  const catalog = (somenteTimesHdm ? TIMES_MONI_HDM : TIMES_MONI) as readonly string[];
+  const base = catalog.length;
+  return [...rows].sort((a, b) => {
+    const na = a.nome.trim();
+    const nb = b.nome.trim();
+    const ia = catalog.indexOf(na);
+    const ib = catalog.indexOf(nb);
+    const ra = ia >= 0 ? ia : base;
+    const rb = ib >= 0 ? ib : base;
+    if (ra !== rb) return ra - rb;
+    return na.localeCompare(nb, 'pt-BR');
+  });
 }
 
 export function filtrarLinhasTimeKanbanPorHdm<T extends { nome: string }>(
   rows: readonly T[],
   somenteTimesHdm: boolean,
 ): T[] {
-  return rows.filter((row) => {
-    const isHdm = TIMES_MONI_HDM_SET.has(row.nome.trim());
-    return somenteTimesHdm ? isHdm : !isHdm;
+  const filtered = rows.filter((row) => {
+    const nome = row.nome.trim();
+    if (somenteTimesHdm) return TIMES_MONI_HDM_SET.has(nome);
+    return !TIMES_MONI_APENAS_MODO_HDM_SET.has(nome);
   });
+  return ordenarLinhasTimeKanbanPorCatalogoMoni(filtered, somenteTimesHdm);
 }
 
 export function filtrarOpcoesTimeIdNomePorHdm(
   opcoes: readonly { id: string; nome: string }[],
   somenteTimesHdm: boolean,
 ): { id: string; nome: string }[] {
-  return opcoes.filter((t) => {
-    const isHdm = TIMES_MONI_HDM_SET.has(t.nome.trim());
-    return somenteTimesHdm ? isHdm : !isHdm;
+  const filtered = opcoes.filter((t) => {
+    const nome = t.nome.trim();
+    if (somenteTimesHdm) return TIMES_MONI_HDM_SET.has(nome);
+    return !TIMES_MONI_APENAS_MODO_HDM_SET.has(nome);
   });
+  return ordenarLinhasTimeKanbanPorCatalogoMoni(filtered, somenteTimesHdm);
 }
 
 export const RESPONSAVEIS_POR_TIME: Record<string, string[]> = {

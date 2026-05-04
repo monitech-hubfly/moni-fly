@@ -3963,7 +3963,7 @@ export function KanbanCardModal({
                     className="w-full px-4 py-2 text-xs font-medium text-white disabled:opacity-50 sm:w-auto"
                     style={{ background: 'var(--moni-text-primary)', borderRadius: 'var(--moni-radius-md)' }}
                   >
-                    Adicionar chamada
+                    Novo Chamado
                   </button>
                 </div>
               </div>
