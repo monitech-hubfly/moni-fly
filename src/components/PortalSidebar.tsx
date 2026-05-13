@@ -61,6 +61,18 @@ const PAINEL_NOVOS_NEGOCIOS_SUBITENS_TAIL: NavItem[] = [
   { href: '/painel-novos-negocios', label: 'Portfolio + Operações (legado)' },
 ];
 const SIRENE_SUBITENS: NavItem[] = [{ href: '/sirene/chamados', label: 'Chamados' }];
+const CAROMETRO_SUBITENS: NavItem[] = [
+  { href: '/carometro/metas-comportamentos', label: 'Comportamentos e Atividades' },
+  { href: '/carometro/gantt', label: 'Planejamento (Gantt)' },
+  { href: '/carometro/conquistas', label: 'Conquistas' },
+  { href: '/carometro/indicadores', label: 'Indicadores' },
+  { href: '/carometro/workload', label: 'Workload' },
+  { href: '/carometro/carometro', label: 'Carômetro' },
+  { href: '/carometro/dashboard-produtos', label: 'Dashboard Casas Moní' },
+  { href: '/carometro/todo', label: 'TO DO' },
+  { href: '/carometro/cadastros', label: 'Cadastros' },
+  { href: '/carometro/log', label: 'Log' },
+];
 
 const REDE_HREFS_DEV_ONLY = new Set(['/comunidade', '/rede']);
 
@@ -95,6 +107,9 @@ function isPainelNovosNegociosActive(pathname: string) {
 
 function isSireneNavActive(pathname: string) {
   return pathname.startsWith('/sirene');
+}
+function isCarometroNavActive(pathname: string) {
+  return pathname.startsWith('/carometro');
 }
 function isCatalogoActive(pathname: string) {
   return pathname.startsWith('/catalogo-produtos-moni');
@@ -145,6 +160,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
     isPainelNovosNegociosActive(pathname ?? ''),
   );
   const [sireneOpen, setSireneOpen] = useState(() => isSireneNavActive(pathname ?? ''));
+  const [carometroOpen, setCarometroOpen] = useState(() => isCarometroNavActive(pathname ?? ''));
 
   /** Franqueado não acessa `/rede-franqueados` (middleware); visão consolidada em `/portal-frank/rede`. */
   const redeFranqueadosNavSubitens = useMemo((): NavItem[] => {
@@ -160,6 +176,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
     if (p === '/perfil' || p.startsWith('/admin/usuarios')) setPerfilOpen(true);
     if (isPainelNovosNegociosActive(p)) setPainelNovosNegociosOpen(true);
     if (isSireneNavActive(p)) setSireneOpen(true);
+    if (isCarometroNavActive(p)) setCarometroOpen(true);
     if (isRedeFranqueadosActive(p)) setRedeFranqueadosOpen(true);
     else if (isCatalogoActive(p)) setCatalogoOpen(true);
     else if (isStepsActive(p)) setStepsOpen(true);
@@ -191,7 +208,8 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
       | 'catalogo'
       | 'steps'
       | 'painelNovosNegocios'
-      | 'sirene',
+      | 'sirene'
+      | 'carometro',
     label: string,
     isActive: boolean,
     open: boolean,
@@ -284,6 +302,17 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
             : [...PAINEL_NOVOS_NEGOCIOS_SUBITENS_HEAD, ...PAINEL_NOVOS_NEGOCIOS_SUBITENS_TAIL],
           (href) => pathname === href || (pathname?.startsWith(href + '/') ?? false),
         )}
+
+        {!publicVisitor && !limitedRelease && (isAdmin || resolvedRole === 'team') &&
+          renderMacro(
+            'carometro',
+            'Carômetro',
+            isCarometroNavActive(pathname ?? ''),
+            carometroOpen,
+            setCarometroOpen,
+            CAROMETRO_SUBITENS,
+            (href) => Boolean(pathname === href || pathname?.startsWith(`${href}/`)),
+          )}
 
         {!publicVisitor && !limitedRelease && (isAdmin || resolvedRole === 'team') && (
           <Link
