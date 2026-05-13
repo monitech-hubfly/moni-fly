@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hub Fly — Esquema Completo do Projeto</title>
+<style>
+  :root {
+    --verde-naval: #0C2633;
+    --verde-medio: #2F4A3A;
+    --marrom: #4A3929;
+    --dourado: #D4AD68;
+    --dourado-claro: #F0D9A8;
+    --cinza-claro: #F5F3EF;
+    --cinza-medio: #E8E4DC;
+    --texto: #1a1a1a;
+    --branco: #FFFFFF;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--cinza-claro);
+    color: var(--texto);
+    line-height: 1.5;
+  }
+
+  /* HEADER */
+  .header {
+    background: var(--verde-naval);
+    color: white;
+    padding: 40px 60px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    border-bottom: 4px solid var(--dourado);
+  }
+  .header-logo {
+    width: 64px; height: 64px;
+    background: var(--dourado);
+    border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px; font-weight: 900; color: var(--verde-naval);
+  }
+  .header-title { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; }
+  .header-sub { font-size: 14px; color: var(--dourado-claro); margin-top: 4px; }
+  .header-badge {
+    margin-left: auto;
+    background: var(--dourado);
+    color: var(--verde-naval);
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  /* LAYOUT */
+  .container { max-width: 1400px; margin: 0 auto; padding: 40px 60px; }
+  .section { margin-bottom: 48px; }
+  .section-title {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--verde-naval);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--cinza-medio);
+  }
+  .section-title .icon {
+    width: 32px; height: 32px;
+    background: var(--verde-naval);
+    color: white;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+
+  /* TECH STACK */
+  .tech-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .tech-card {
+    background: white;
+    border: 1px solid var(--cinza-medio);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+  }
+  .tech-card .tech-icon { font-size: 28px; margin-bottom: 8px; }
+  .tech-card .tech-name { font-size: 13px; font-weight: 700; color: var(--verde-naval); }
+  .tech-card .tech-desc { font-size: 11px; color: #666; margin-top: 4px; }
+
+  /* ARCHITECTURE FLOW */
+  .arch-flow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: white;
+    border: 1px solid var(--cinza-medio);
+    border-radius: 16px;
+    padding: 32px 40px;
+    overflow-x: auto;
+  }
+  .arch-node {
+    flex-shrink: 0;
+    background: var(--cinza-claro);
+    border: 2px solid var(--cinza-medio);
+    border-radius: 12px;
+    padding: 16px 20px;
+    text-align: center;
+    min-width: 140px;
+  }
+  .arch-node.primary { background: var(--verde-naval); color: white; border-color: var(--verde-naval); }
+  .arch-node.secondary { background: var(--verde-medio); color: white; border-color: var(--verde-medio); }
+  .arch-node.accent { background: var(--dourado); color: var(--verde-naval); border-color: var(--dourado); font-weight: 700; }
+  .arch-node .node-icon { font-size: 24px; margin-bottom: 6px; }
+  .arch-node .node-label { font-size: 13px; font-weight: 700; }
+  .arch-node .node-sub { font-size: 11px; opacity: 0.8; margin-top: 2px; }
+  .arch-arrow { font-size: 20px; color: var(--verde-naval); flex-shrink: 0; }
+
+  /* ROLES */
+  .roles-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  .role-card {
+    background: white;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid var(--cinza-medio);
+  }
+  .role-header {
+    padding: 16px 20px;
+    font-weight: 800;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .role-header.frank { background: var(--verde-naval); color: white; }
+  .role-header.consultor { background: var(--verde-medio); color: white; }
+  .role-header.admin { background: var(--marrom); color: white; }
+  .role-body { padding: 16px 20px; }
+  .role-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .role-item::before { content: "•"; color: var(--dourado); font-weight: 900; flex-shrink: 0; }
+
+  /* PROCESS STEPS */
+  .steps-flow {
+    display: flex;
+    gap: 0;
+    background: white;
+    border-radius: 16px;
+    border: 1px solid var(--cinza-medio);
+    overflow: hidden;
+  }
+  .step-block {
+    flex: 1;
+    padding: 20px 16px;
+    border-right: 2px solid var(--cinza-medio);
+    position: relative;
+  }
+  .step-block:last-child { border-right: none; }
+  .step-number {
+    width: 28px; height: 28px;
+    background: var(--verde-naval);
+    color: white;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 800;
+    margin-bottom: 10px;
+  }
+  .step-title { font-size: 12px; font-weight: 800; color: var(--verde-naval); margin-bottom: 6px; }
+  .step-items { font-size: 11px; color: #555; line-height: 1.8; }
+  .step-arrow {
+    position: absolute;
+    right: -12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px; height: 22px;
+    background: var(--dourado);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    z-index: 2;
+    font-weight: 900;
+    color: var(--verde-naval);
+  }
+
+  /* DATABASE TABLES */
+  .db-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .db-table {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid var(--cinza-medio);
+    overflow: hidden;
+  }
+  .db-table-header {
+    background: var(--verde-naval);
+    color: white;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .db-table-header .db-icon { opacity: 0.8; }
+  .db-table-body { padding: 12px 16px; }
+  .db-col {
+    font-size: 11.5px;
+    padding: 3px 0;
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+    border-bottom: 1px solid var(--cinza-claro);
+  }
+  .db-col:last-child { border-bottom: none; }
+  .db-col-name { font-weight: 600; color: var(--verde-naval); }
+  .db-col-type { color: #999; font-size: 10px; }
+  .db-col-note { color: var(--dourado); font-size: 10px; margin-left: auto; font-weight: 600; }
+
+  /* KANBAN PHASES */
+  .kanban-board {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    border: 1px solid var(--cinza-medio);
+  }
+  .kanban-col {
+    flex-shrink: 0;
+    width: 150px;
+    background: var(--cinza-claro);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .kanban-col-header {
+    padding: 8px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+  }
+  .kanban-col-body { padding: 8px; }
+  .kanban-card-mini {
+    background: white;
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin-bottom: 6px;
+    font-size: 10px;
+    border-left: 3px solid var(--dourado);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .kanban-card-mini .mini-title { font-weight: 600; color: var(--verde-naval); }
+  .kanban-card-mini .mini-sla { color: #e53e3e; font-size: 9px; margin-top: 2px; }
+  .kanban-card-mini .mini-sla.ok { color: #2F4A3A; }
+
+  /* MODULES */
+  .modules-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  .module-card {
+    background: white;
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid var(--cinza-medio);
+    border-top: 3px solid var(--verde-naval);
+  }
+  .module-card.secondary { border-top-color: var(--verde-medio); }
+  .module-card.accent { border-top-color: var(--dourado); }
+  .module-card.muted { border-top-color: var(--marrom); }
+  .module-icon { font-size: 20px; margin-bottom: 8px; }
+  .module-name { font-size: 13px; font-weight: 700; color: var(--verde-naval); margin-bottom: 6px; }
+  .module-route { font-size: 10px; color: #888; background: var(--cinza-claro); padding: 2px 6px; border-radius: 4px; margin-bottom: 8px; display: inline-block; }
+  .module-desc { font-size: 11px; color: #666; line-height: 1.5; }
+
+  /* MIGRATIONS TIMELINE */
+  .migrations-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .migration-group {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--cinza-medio);
+  }
+  .migration-group:last-child { border-bottom: none; }
+  .migration-range {
+    flex-shrink: 0;
+    width: 100px;
+    background: var(--verde-naval);
+    color: white;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+  }
+  .migration-range.done { background: var(--verde-medio); }
+  .migration-range.today { background: var(--dourado); color: var(--verde-naval); }
+  .migration-range.planned { background: var(--cinza-medio); color: var(--texto); }
+  .migration-tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .migration-tag {
+    background: var(--cinza-claro);
+    border: 1px solid var(--cinza-medio);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    color: #444;
+  }
+  .migration-tag.active { background: #FFF8E7; border-color: var(--dourado); color: var(--marrom); font-weight: 600; }
+
+  /* SPRINT PLAN */
+  .sprint-table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; border: 1px solid var(--cinza-medio); }
+  .sprint-table th { background: var(--verde-naval); color: white; padding: 12px 16px; font-size: 12px; text-align: left; }
+  .sprint-table td { padding: 11px 16px; font-size: 12px; border-bottom: 1px solid var(--cinza-claro); }
+  .sprint-table tr:last-child td { border-bottom: none; }
+  .sprint-table tr.today-row td { background: #FFF8E7; font-weight: 600; }
+  .sprint-table tr.deploy-row td { background: #F0FDF4; font-weight: 600; }
+  .day-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .day-badge.today { background: var(--dourado); color: var(--verde-naval); }
+  .day-badge.done { background: var(--verde-medio); color: white; }
+  .day-badge.planned { background: var(--cinza-medio); color: #555; }
+  .day-badge.deploy { background: #22c55e; color: white; }
+
+  /* INTEGRATIONS */
+  .integrations-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px;
+  }
+  .integration-card {
+    background: white;
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    border: 1px solid var(--cinza-medio);
+  }
+  .integration-icon { font-size: 24px; margin-bottom: 6px; }
+  .integration-name { font-size: 12px; font-weight: 700; color: var(--verde-naval); }
+  .integration-use { font-size: 10px; color: #888; margin-top: 3px; }
+  .integration-status {
+    margin-top: 6px;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    display: inline-block;
+    font-weight: 600;
+  }
+  .integration-status.active { background: #DCFCE7; color: #15803D; }
+  .integration-status.planned { background: #FEF9C3; color: #854D0E; }
+
+  /* FOOTER */
+  .footer {
+    background: var(--verde-naval);
+    color: white;
+    padding: 24px 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0;
+  }
+  .footer-left { font-size: 13px; opacity: 0.7; }
+  .footer-right { font-size: 12px; color: var(--dourado); font-weight: 600; }
+
+  /* UTILS */
+  .tag { display: inline-flex; align-items: center; gap: 4px; background: var(--cinza-medio); border-radius: 6px; padding: 3px 10px; font-size: 11px; font-weight: 600; }
+  .tag.green { background: #DCFCE7; color: #15803D; }
+  .tag.gold { background: #FEF9C3; color: #854D0E; }
+  .tag.red { background: #FEE2E2; color: #991B1B; }
+  .divider { height: 1px; background: var(--cinza-medio); margin: 8px 0; }
+  .subtitle { font-size: 13px; color: #666; margin-top: -12px; margin-bottom: 20px; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+  .info-box {
+    background: white;
+    border-radius: 12px;
+    padding: 20px 24px;
+    border: 1px solid var(--cinza-medio);
+  }
+  .info-box h4 { font-size: 14px; font-weight: 700; color: var(--verde-naval); margin-bottom: 10px; }
+  .info-row { display: flex; gap: 8px; font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--cinza-claro); align-items: baseline; }
+  .info-row:last-child { border-bottom: none; }
+  .info-label { color: #888; min-width: 120px; flex-shrink: 0; }
+  .info-value { color: var(--texto); font-weight: 500; }
+  .info-value.mono { font-family: monospace; font-size: 11px; color: var(--verde-medio); }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-logo">H</div>
+  <div>
+    <div class="header-title">Hub Fly — Casa Moní</div>
+    <div class="header-sub">Esquema completo do projeto · Branch: funcionalidade-ingrid · Atualizado em 16/04/2026</div>
+  </div>
+  <div class="header-badge">v1.0 · DEV ativo</div>
+</div>
+
+<div class="container">
+
+  <!-- 1. VISÃO GERAL -->
+  <div class="section">
+    <div class="section-title"><div class="icon">📋</div> Visão Geral do Projeto</div>
+    <div class="three-col">
+      <div class="info-box">
+        <h4>Identidade</h4>
+        <div class="info-row"><span class="info-label">Produto</span><span class="info-value">Hub Fly (Viabilidade Moní)</span></div>
+        <div class="info-row"><span class="info-label">Empresa</span><span class="info-value">Casa Moní</span></div>
+        <div class="info-row"><span class="info-label">Branch ativo</span><span class="info-value mono">funcionalidade-ingrid</span></div>
+        <div class="info-row"><span class="info-label">Diretório</span><span class="info-value mono">C:\Dev\moni-fly</span></div>
+        <div class="info-row"><span class="info-label">Deploy</span><span class="info-value">Vercel</span></div>
+        <div class="info-row"><span class="info-label">Onboarding Ingrid</span><span class="info-value">22/04/2026</span></div>
+      </div>
+      <div class="info-box">
+        <h4>Ambientes</h4>
+        <div class="info-row"><span class="info-label">DEV (ativo)</span><span class="info-value mono">bgaadvfucnrkpimaszjv</span></div>
+        <div class="info-row"><span class="info-label">PROD</span><span class="info-value mono">aydryzoxqnwnbybvgiug</span></div>
+        <div class="info-row"><span class="info-label">Framework</span><span class="info-value">Next.js 14 (App Router)</span></div>
+        <div class="info-row"><span class="info-label">Linguagem</span><span class="info-value">TypeScript 5.6</span></div>
+        <div class="info-row"><span class="info-label">Banco</span><span class="info-value">Supabase (PostgreSQL)</span></div>
+        <div class="info-row"><span class="info-label">Migrations</span><span class="info-value">104 aplicadas (105–106 hoje)</span></div>
+      </div>
+      <div class="info-box">
+        <h4>Propósito</h4>
+        <div style="font-size:13px; color:#444; line-height:1.7; margin-top:6px;">
+          Plataforma de gestão de viabilidade imobiliária para franqueados Moní. Gerencia o processo completo desde o mapeamento de cidade até o contrato, com kanban, tarefas, SLA em dias úteis, portal do franqueado e integração com dados externos (ZAP, IBGE).
+        </div>
+        <div style="margin-top:12px; display:flex; gap:6px; flex-wrap:wrap;">
+          <span class="tag green">✔ Multi-role</span>
+          <span class="tag green">✔ RLS ativo</span>
+          <span class="tag gold">⚡ Sprint ativo</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. TECH STACK -->
+  <div class="section">
+    <div class="section-title"><div class="icon">⚙️</div> Stack Tecnológico</div>
+    <div class="tech-grid">
+      <div class="tech-card">
+        <div class="tech-icon">⚡</div>
+        <div class="tech-name">Next.js 14</div>
+        <div class="tech-desc">App Router · Server Actions · SSR</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-icon">🔷</div>
+        <div class="tech-name">TypeScript 5.6</div>
+        <div class="tech-desc">Tipagem completa · db:types gerado</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-icon">🎨</div>
+        <div class="tech-name">Tailwind CSS 3.4</div>
+        <div class="tech-desc">moni-tokens.css · light mode only</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-icon">🗄️</div>
+        <div class="tech-name">Supabase</div>
+        <div class="tech-desc">PostgreSQL · Auth · Storage · RLS</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-icon">🧠</div>
+        <div class="tech-name">Zustand 5</div>
+        <div class="tech-desc">State management global</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-icon">🗺️</div>
+        <div class="tech-name">Leaflet 1.9</div>
+        <div class="tech-desc">Mapas interativos (react-leaflet)</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-icon">📊</div>
+        <div class="tech-name">Chart.js 4</div>
+        <div class="tech-desc">Gráficos e dashboards</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-icon">📄</div>
+        <div class="tech-name">PDF / XLSX</div>
+        <div class="tech-desc">pdf-lib · mammoth · XLSX</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. ARQUITETURA -->
+  <div class="section">
+    <div class="section-title"><div class="icon">🏗️</div> Arquitetura do Sistema</div>
+    <div class="arch-flow">
+      <div class="arch-node primary">
+        <div class="node-icon">👤</div>
+        <div class="node-label">Usuário</div>
+        <div class="node-sub">Frank / Consultor / Admin</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-node accent">
+        <div class="node-icon">🌐</div>
+        <div class="node-label">Vercel</div>
+        <div class="node-sub">Next.js 14 SSR</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-node secondary">
+        <div class="node-icon">🔐</div>
+        <div class="node-label">Middleware</div>
+        <div class="node-sub">Auth · Roles · Redirect</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-node primary">
+        <div class="node-icon">📱</div>
+        <div class="node-label">App Router</div>
+        <div class="node-sub">45+ rotas · Server Actions</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-node secondary">
+        <div class="node-icon">🗄️</div>
+        <div class="node-label">Supabase</div>
+        <div class="node-sub">PostgreSQL + RLS</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-node primary">
+        <div class="node-icon">📦</div>
+        <div class="node-label">Storage</div>
+        <div class="node-sub">Docs · PDFs · Imagens</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-node accent">
+        <div class="node-icon">🔗</div>
+        <div class="node-label">APIs Externas</div>
+        <div class="node-sub">Apify · Resend · Autentique</div>
+      </div>
+    </div>
+    <div style="margin-top:12px; font-size:12px; color:#888; text-align:center;">
+      → Client Components para interatividade real-time (modais, kanban) · Server Actions para operações de banco (sem API route separada)
+    </div>
+  </div>
+
+  <!-- 4. PAPÉIS -->
+  <div class="section">
+    <div class="section-title"><div class="icon">👥</div> Papéis de Usuário e Acesso (RLS)</div>
+    <div class="roles-grid">
+      <div class="role-card">
+        <div class="role-header frank">🏠 Frank (Franqueado)</div>
+        <div class="role-body">
+          <div class="role-item">Vê apenas seus próprios processos e cards</div>
+          <div class="role-item">Acessa portal do franqueado com login/senha</div>
+          <div class="role-item">Acompanha SLA, fases e atividades do seu card</div>
+          <div class="role-item">Não vê dados de outros franqueados</div>
+          <div class="role-item">Criado automaticamente quando cadastrado (migration 106)</div>
+          <div style="margin-top:12px;">
+            <span class="tag">role = frank</span>
+          </div>
+        </div>
+      </div>
+      <div class="role-card">
+        <div class="role-header consultor">🎯 Consultor</div>
+        <div class="role-body">
+          <div class="role-item">Vê todos os processos do seu portfólio</div>
+          <div class="role-item">Gerencia tarefas, atividades e checklist</div>
+          <div class="role-item">Acessa Painel de Tarefas e Kanban completo</div>
+          <div class="role-item">Pode mover cards entre fases e atribuir responsáveis</div>
+          <div class="role-item">Vinculado a franqueados via consultor_id</div>
+          <div style="margin-top:12px;">
+            <span class="tag">role = consultor</span>
+          </div>
+        </div>
+      </div>
+      <div class="role-card">
+        <div class="role-header admin">⚡ Admin</div>
+        <div class="role-body">
+          <div class="role-item">Acesso total — vê todos os registros</div>
+          <div class="role-item">Gerencia usuários, convites e papéis</div>
+          <div class="role-item">Acessa painel de crédito, contabilidade e jurídico</div>
+          <div class="role-item">Configura kanbans, fases e SLAs</div>
+          <div class="role-item">Importa dados via CSV (rede franqueados)</div>
+          <div style="margin-top:12px;">
+            <span class="tag">role = admin</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. PROCESSO EM 7 ETAPAS -->
+  <div class="section">
+    <div class="section-title"><div class="icon">🗺️</div> Processo de Viabilidade — 7 Etapas</div>
+    <p class="subtitle">Cada processo pertence a um Frank e passa sequencialmente pelas etapas. Cada etapa tem checklist, atividades, SLA e documentos.</p>
+    <div class="steps-flow">
+      <div class="step-block">
+        <div class="step-number">1</div>
+        <div class="step-title">Mapeamento da Região</div>
+        <div class="step-items">
+          11 sub-etapas<br>
+          Lista de condomínios<br>
+          Dados de lotes<br>
+          Competidores<br>
+          IBGE / Apify / ZAP<br>
+          <span class="tag green" style="font-size:10px; margin-top:4px; display:inline-flex;">Step One</span>
+        </div>
+        <div class="step-arrow">→</div>
+      </div>
+      <div class="step-block">
+        <div class="step-number">2</div>
+        <div class="step-title">Novo Negócio</div>
+        <div class="step-items">
+          Validação de praça<br>
+          Análise de mercado<br>
+          Estudo de viabilidade<br>
+          Decisão de avançar<br>
+          <span class="tag" style="font-size:10px; margin-top:4px; display:inline-flex;">Step 2</span>
+        </div>
+        <div class="step-arrow">→</div>
+      </div>
+      <div class="step-block">
+        <div class="step-number">3</div>
+        <div class="step-title">Opção</div>
+        <div class="step-items">
+          Seleção de terreno<br>
+          Tipo de aquisição<br>
+          Documentação inicial<br>
+          Proposta<br>
+          <span class="tag" style="font-size:10px; margin-top:4px; display:inline-flex;">Step 3</span>
+        </div>
+        <div class="step-arrow">→</div>
+      </div>
+      <div class="step-block">
+        <div class="step-number">4</div>
+        <div class="step-title">Acoplamento / Crédito</div>
+        <div class="step-items">
+          Acoplamento PL<br>
+          Crédito terreno<br>
+          Crédito obra<br>
+          Checklist crédito<br>
+          <span class="tag gold" style="font-size:10px; margin-top:4px; display:inline-flex;">Paralelo</span>
+        </div>
+        <div class="step-arrow">→</div>
+      </div>
+      <div class="step-block">
+        <div class="step-number">5</div>
+        <div class="step-title">Comitê</div>
+        <div class="step-items">
+          Apresentação comitê<br>
+          Resultado votação<br>
+          Aprovação interna<br>
+          Caneta Verde<br>
+          <span class="tag" style="font-size:10px; margin-top:4px; display:inline-flex;">Step 5</span>
+        </div>
+        <div class="step-arrow">→</div>
+      </div>
+      <div class="step-block">
+        <div class="step-number">6</div>
+        <div class="step-title">Diligência</div>
+        <div class="step-items">
+          Due diligence<br>
+          Jurídico / Docs<br>
+          Checklists legais<br>
+          Aprovação doc.<br>
+          <span class="tag" style="font-size:10px; margin-top:4px; display:inline-flex;">Step 6</span>
+        </div>
+        <div class="step-arrow">→</div>
+      </div>
+      <div class="step-block">
+        <div class="step-number">7</div>
+        <div class="step-title">Contrato</div>
+        <div class="step-items">
+          Assinatura Autentique<br>
+          Contrato final<br>
+          Registro cartório<br>
+          Conclusão processo<br>
+          <span class="tag green" style="font-size:10px; margin-top:4px; display:inline-flex;">✔ Concluído</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. FUNIL STEP ONE (KANBAN) -->
+  <div class="section">
+    <div class="section-title"><div class="icon">📌</div> Funil Step One — Kanban (7 Fases + SLA)</div>
+    <p class="subtitle">Sistema novo criado neste sprint. Cards com SLA em dias úteis, tags visuais e modal split esquerda/direita.</p>
+    <div class="kanban-board">
+      <div class="kanban-col">
+        <div class="kanban-col-header" style="background:#EDF2F7; color:#0C2633;">📍 Dados da Cidade</div>
+        <div class="kanban-col-body">
+          <div class="kanban-card-mini">
+            <div class="mini-title">FK0001 · Brasília</div>
+            <div class="mini-sla">⚠ Atrasado 3 d.u.</div>
+          </div>
+          <div class="kanban-card-mini">
+            <div class="mini-title">FK0005 · Goiânia</div>
+            <div class="mini-sla ok">✔ Vence em 5 d.u.</div>
+          </div>
+        </div>
+      </div>
+      <div class="kanban-col">
+        <div class="kanban-col-header" style="background:#E6F4EA; color:#2F4A3A;">🏘️ Lista Condomínios</div>
+        <div class="kanban-col-body">
+          <div class="kanban-card-mini">
+            <div class="mini-title">FK0002 · Campinas</div>
+            <div class="mini-sla ok">✔ 2 d.u.</div>
+          </div>
+        </div>
+      </div>
+      <div class="kanban-col">
+        <div class="kanban-col-header" style="background:#FFF8E7; color:#4A3929;">📊 Dados Condomínios</div>
+        <div class="kanban-col-body">
+          <div class="kanban-card-mini">
+            <div class="mini-title">FK0003 · Curitiba</div>
+            <div class="mini-sla">⚠ Atrasado 1 d.u.</div>
+          </div>
+        </div>
+      </div>
+      <div class="kanban-col">
+        <div class="kanban-col-header" style="background:#F3F0FF; color:#3730A3;">🗺️ Lotes Disponíveis</div>
+        <div class="kanban-col-body">
+          <div class="kanban-card-mini">
+            <div class="mini-title">FK0007 · Recife</div>
+            <div class="mini-sla ok">✔ 8 d.u.</div>
+          </div>
+        </div>
+      </div>
+      <div class="kanban-col">
+        <div class="kanban-col-header" style="background:#FFF0F0; color:#991B1B;">🏪 Competidores</div>
+        <div class="kanban-col-body">
+          <div class="kanban-card-mini">
+            <div class="mini-title">FK0004 · Manaus</div>
+            <div class="mini-sla ok">✔ 4 d.u.</div>
+          </div>
+        </div>
+      </div>
+      <div class="kanban-col">
+        <div class="kanban-col-header" style="background:#F0F9FF; color:#0369A1;">⚔️ BCA + Batalha</div>
+        <div class="kanban-col-body">
+          <div class="kanban-card-mini">
+            <div class="mini-title">FK0006 · Fortaleza</div>
+            <div class="mini-sla ok">✔ 10 d.u.</div>
+          </div>
+        </div>
+      </div>
+      <div class="kanban-col">
+        <div class="kanban-col-header" style="background:#F0FDF4; color:#15803D;">💡 Hipóteses</div>
+        <div class="kanban-col-body">
+          <div class="kanban-card-mini">
+            <div class="mini-title">FK0008 · Belém</div>
+            <div class="mini-sla ok">✔ Revisão</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+      <span class="tag red">🔴 Atrasado X d.u. — vermelho</span>
+      <span class="tag gold">🟡 Vence em X d.u. — dourado</span>
+      <span class="tag green">🟢 OK — sem urgência</span>
+      <span class="tag">Modal split: 40% histórico | 60% fase atual</span>
+      <span class="tag">Títulos: FK0001 - Cidade - Área</span>
+    </div>
+  </div>
+
+  <!-- 7. BANCO DE DADOS -->
+  <div class="section">
+    <div class="section-title"><div class="icon">🗄️</div> Principais Tabelas do Banco</div>
+    <div class="db-grid">
+
+      <div class="db-table">
+        <div class="db-table-header"><span class="db-icon">👤</span> profiles</div>
+        <div class="db-table-body">
+          <div class="db-col"><span class="db-col-name">id</span><span class="db-col-type">uuid PK→auth.users</span></div>
+          <div class="db-col"><span class="db-col-name">role</span><span class="db-col-type">text</span><span class="db-col-note">frank|consultor|admin</span></div>
+          <div class="db-col"><span class="db-col-name">full_name</span><span class="db-col-type">text</span></div>
+          <div class="db-col"><span class="db-col-name">email</span><span class="db-col-type">text</span></div>
+          <div class="db-col"><span class="db-col-name">consultor_id</span><span class="db-col-type">uuid FK→profiles</span></div>
+          <div class="db-col"><span class="db-col-name">created_at</span><span class="db-col-type">timestamptz</span></div>
+        </div>
+      </div>
+
+      <div class="db-table">
+        <div class="db-table-header"><span class="db-icon">📋</span> processo_step_one</div>
+        <div class="db-table-body">
+          <div class="db-col"><span class="db-col-name">id</span><span class="db-col-type">uuid PK</span></div>
+          <div class="db-col"><span class="db-col-name">user_id</span><span class="db-col-type">uuid FK→profiles</span></div>
+          <div class="db-col"><span class="db-col-name">cidade</span><span class="db-col-type">text</span></div>
+          <div class="db-col"><span class="db-col-name">estado</span><span class="db-col-type">text</span></div>
+          <div class="db-col"><span class="db-col-name">status</span><span class="db-col-type">text</span></div>
+          <div class="db-col"><span class="db-col-name">etapa_painel</span><span class="db-col-type">text</span><span class="db-col-note">step_1..moni_care</span></div>
+        </div>
+      </div>
+
+      <div class="db-table">
+        <div class="db-table-header"><span class="db-icon">📌</span> kanbans</div>
+        <div class="db-table-body">
+          <div class="db-col"><span class="db-col-name">id</span><span class="db-col-type">uuid PK</span></div>
+          <div class="db-col"><span class="db-col-name">nome</span><span class="db-col-type">text</span><span class="db-col-note">ex: Funil Step One</span></div>
+          <div class="db-col"><span class="db-col-name">ordem</span><span class="db-col-type">integer</span></div>
+          <div class="db-col"><span class="db-col-name">cor_hex</span><span class="db-col-type">text</span></div>
+          <div class="db-col"><span class="db-col-name">ativo</span><span class="db-col-type">boolean</span></div>
+        </div>
+      </div>
+
+      <div class="db-table">
+        <div class="db-table-header"><span class="db-icon">📂</span> kanban_fases</div>
+        <div class="db-table-body">
+          <div class="db-col"><span class="db-col-name">id</span><span class="db-col-type">uuid PK</span></div>
+          <div class="db-col"><span class="db-col-name">kanban_id</span><span class="db-col-type">uuid FK→kanbans</span></div>
+          <div class="db-col"><span class="db-col-name">nome</span><span class="db-col-type">text</span></div>
+          <div class="db-col"><span class="db-col-name">ordem</span><span class="db-col-type">integer</span></div>
+          <div class="db-col"><span class="db-col-name">sla_dias</span><span class="db-col-type">integer</span><span class="db-col-note">dias úteis</span></div>
+          <div class="db-col"><span class="db-col-name">ativo</span><span class="db-col-type">boolean</span></div>
+        </div>
+      </div>
+
+      <div class="db-table">
+        <div class="db-table-header"><span class="db-icon">🃏</span> kanban_cards</div>
+        <div class="db-table-body">
+          <div class="db-col"><span class="db-col-name">id</span><span class="db-col-type">uuid PK</span></div>
+          <div class="db-col"><span class="db-col-name">kanban_id</span><span class="db-col-type">uuid FK</span></div>
+          <div class="db-col"><span class="db-col-name">fase_id</span><span class="db-col-type">uuid FK</span></div>
+          <div class="db-col"><span class="db-col-name">franqueado_id</span><span class="db-col-type">uuid FK→auth.users</span></div>
+          <div class="db-col"><span class="db-col-name">titulo</span><span class="db-col-type">text</span><span class="db-col-note">FK0001 - Cidade</span></div>
+          <div class="db-col"><span class="db-col-name">status</span><span class="db-col-type">text</span></div>
+        </div>
+      </div>
+
+      <div class="db-table">
+        <div class="db-table-header"><span class="db-icon">✅</span> kanban_atividades</div>
+        <div class="db-table-body">
+          <div class="db-col"><span class="db-col-name">id</span><span class="db-col-type">uuid PK</span></div>
+          <div class="db-col"><span class="db-col-name">card_id</span><span class="db-col-type">uuid FK→kanban_cards</span></div>
+          <div class="db-col"><span class="db-col-name">titulo</span><span class="db-col-type">text</span></div>
+          <div class="db-col"><span class="db-col-name">status</span><span class="db-col-type">text</span><span class="db-col-note">pendente→concluída</span></div>
+          <div class="db-col"><span class="db-col-name">prioridade</span><span class="db-col-type">text</span></div>
+          <div class="db-col"><span class="db-col-name">data_vencimento</span><span class="db-col-type">date</span></div>
+          <div class="db-col"><span class="db-col-name">time</span><span class="db-col-type">text</span><span class="db-col-note">adicionado migration 104</span></div>
+        </div>
+      </div>
+
+      <div class="db-table">
+        <div class="db-table-header"><span class="db-icon">☑️</span> processo_card_checklist</div>
+        <div class="db-table-body">
+          <div class="db-col"><span class="db-col-name">id</span><span class="db-col-type">uuid PK</span></div>
+          <div class="db-col"><span class="db-col-name">processo_id</span><span class="db-col-type">uuid FK</span></div>
+          <div class="db-col"><span class="db-col-name">etapa_painel</span><span class="db-col-type">text</span></div>
+          <div class="db-col"><span class="db-col-name">titulo</span><span class="db-col-type">text</span></div>
+          <div class="db-col"><span class="db-col-name">times_nomes</span><span class="db-col-type">text[]</span></div>
+          <div class="db-col"><span class="db-col-name">responsaveis_nomes</span><span class="db-col-type">text[]</span></div>
+          <div class="db-col"><span class="db-col-name">prazo</span><span class="db-col-type">date</span></div>
+        </div>
+      </div>
+
+      <div class="db-table">
+        <div class="db-table-header"><span class="db-icon">🏢</span> rede_franqueados</div>
+        <div class="db-table-body">
+          <div class="db-col"><span class="db-col-name">id</span><span class="db-col-type">uuid PK</span></div>
+          <div class="db-col"><span class="db-col-name">nome_franqueado</span><span class="db-col-type">text</span></div>
+          <div class="db-col"><span class="db-col-name">cidade</span><span class="db-col-type">text</span></div>
+          <div class="db-col"><span class="db-col-name">numero_franquia</span><span class="db-col-type">text</span><span class="db-col-note">FK0001...</span></div>
+          <div class="db-col"><span class="db-col-name">processo_id</span><span class="db-col-type">uuid FK→processo</span></div>
+          <div class="db-col"><span class="db-col-name">35 franqueados importados do PROD</span></div>
+        </div>
+      </div>
+
+      <div class="db-table">
+        <div class="db-table-header" style="background:var(--dourado); color:var(--verde-naval);"><span class="db-icon">👁️</span> vw_atividades_unificadas <span style="font-size:9px;">(migration 105 — HOJE)</span></div>
+        <div class="db-table-body">
+          <div class="db-col"><span class="db-col-name">id</span><span class="db-col-type">uuid</span></div>
+          <div class="db-col"><span class="db-col-name">tipo_atividade</span><span class="db-col-type">text</span><span class="db-col-note">checklist|kanban</span></div>
+          <div class="db-col"><span class="db-col-name">titulo</span><span class="db-col-type">text</span></div>
+          <div class="db-col"><span class="db-col-name">status</span><span class="db-col-type">text</span></div>
+          <div class="db-col"><span class="db-col-name">franqueado_id</span><span class="db-col-type">uuid</span></div>
+          <div class="db-col"><span class="db-col-name">data_limite</span><span class="db-col-type">date</span></div>
+          <div class="db-col"><span class="db-col-name">origem_tabela</span><span class="db-col-type">text</span><span class="db-col-note">rastreabilidade</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 8. MÓDULOS DA APLICAÇÃO -->
+  <div class="section">
+    <div class="section-title"><div class="icon">🧩</div> Módulos da Aplicação</div>
+    <div class="modules-grid">
+      <div class="module-card">
+        <div class="module-icon">📊</div>
+        <div class="module-name">Painel Novos Negócios</div>
+        <div class="module-route">/painel-novos-negocios</div>
+        <div class="module-desc">Kanban principal com 30 colunas (step_1 → moni_care). Visão geral de todos os processos ativos.</div>
+      </div>
+      <div class="module-card accent">
+        <div class="module-icon">✅</div>
+        <div class="module-name">Painel de Tarefas</div>
+        <div class="module-route">/painel-novos-negocios/tarefas</div>
+        <div class="module-desc">Tarefas unificadas com filtros por time, franqueado, etapa e status. Em migração para vw_atividades_unificadas (hoje).</div>
+      </div>
+      <div class="module-card secondary">
+        <div class="module-icon">📌</div>
+        <div class="module-name">Funil Step One</div>
+        <div class="module-route">/funil-stepone</div>
+        <div class="module-desc">Kanban novo com 7 fases. SLA dias úteis, modal split, cards FK0001. Criado neste sprint.</div>
+      </div>
+      <div class="module-card">
+        <div class="module-icon">🗺️</div>
+        <div class="module-name">Step One (Mapeamento)</div>
+        <div class="module-route">/step-one</div>
+        <div class="module-desc">11 sub-etapas de mapeamento de cidade. Integração Apify/ZAP, IBGE, catálogo Moní.</div>
+      </div>
+      <div class="module-card muted">
+        <div class="module-icon">💰</div>
+        <div class="module-name">Módulo Crédito</div>
+        <div class="module-route">/credito-terreno · /credito-obra</div>
+        <div class="module-desc">Crédito terreno, obra e checklist. Painel consolidado de crédito por processo.</div>
+      </div>
+      <div class="module-card secondary">
+        <div class="module-icon">🔗</div>
+        <div class="module-name">Acoplamento PL</div>
+        <div class="module-route">/acoplamento-pl</div>
+        <div class="module-desc">Integração e acoplamento dos processos. Modelagem e validação.</div>
+      </div>
+      <div class="module-card">
+        <div class="module-icon">🏢</div>
+        <div class="module-name">Rede Franqueados</div>
+        <div class="module-route">/rede-franqueados</div>
+        <div class="module-desc">Gestão da rede. 35 franqueados importados. Import CSV. Tabela editável.</div>
+      </div>
+      <div class="module-card accent">
+        <div class="module-icon">🚪</div>
+        <div class="module-name">Portal do Franqueado</div>
+        <div class="module-route">Em desenvolvimento</div>
+        <div class="module-desc">Login com senha própria. Convite por link. Auto-criação de card ao cadastrar. Planned: 21/04.</div>
+      </div>
+      <div class="module-card muted">
+        <div class="module-icon">⚖️</div>
+        <div class="module-name">Jurídico / Docs</div>
+        <div class="module-route">/painel · /documentos-revisao</div>
+        <div class="module-desc">Checklists jurídico, contabilidade, crédito. Upload, Autentique (assinatura digital).</div>
+      </div>
+      <div class="module-card">
+        <div class="module-icon">🗳️</div>
+        <div class="module-name">Comitê</div>
+        <div class="module-route">/step-5</div>
+        <div class="module-desc">Apresentação e votação do comitê. Resultado e aprovação. "Caneta Verde".</div>
+      </div>
+      <div class="module-card secondary">
+        <div class="module-icon">💬</div>
+        <div class="module-name">Comunidade</div>
+        <div class="module-route">/comunidade</div>
+        <div class="module-desc">Posts e comentários da comunidade Moní.</div>
+      </div>
+      <div class="module-card">
+        <div class="module-icon">🔔</div>
+        <div class="module-name">Alertas (Sirene)</div>
+        <div class="module-route">/alertas</div>
+        <div class="module-desc">Notificações do sistema. Eventos críticos de processo.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. DESIGN SYSTEM -->
+  <div class="section">
+    <div class="section-title"><div class="icon">🎨</div> Design System — Moní Tokens</div>
+    <div class="info-box">
+      <h4>Paleta de Cores (moni-tokens.css)</h4>
+      <div style="display:flex; gap:16px; margin-top:12px; flex-wrap:wrap;">
+        <div style="text-align:center;">
+          <div style="width:80px; height:56px; background:#0C2633; border-radius:10px; margin-bottom:6px; border:1px solid #ddd;"></div>
+          <div style="font-size:11px; font-weight:700;">Verde Naval</div>
+          <div style="font-size:10px; color:#888;">#0C2633</div>
+          <div style="font-size:10px; color:#888;">Base / Header</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="width:80px; height:56px; background:#2F4A3A; border-radius:10px; margin-bottom:6px; border:1px solid #ddd;"></div>
+          <div style="font-size:11px; font-weight:700;">Verde Médio</div>
+          <div style="font-size:10px; color:#888;">#2F4A3A</div>
+          <div style="font-size:10px; color:#888;">Secundário</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="width:80px; height:56px; background:#4A3929; border-radius:10px; margin-bottom:6px; border:1px solid #ddd;"></div>
+          <div style="font-size:11px; font-weight:700;">Marrom Terra</div>
+          <div style="font-size:10px; color:#888;">#4A3929</div>
+          <div style="font-size:10px; color:#888;">Destaque escuro</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="width:80px; height:56px; background:#D4AD68; border-radius:10px; margin-bottom:6px; border:1px solid #ddd;"></div>
+          <div style="font-size:11px; font-weight:700;">Dourado</div>
+          <div style="font-size:10px; color:#888;">#D4AD68</div>
+          <div style="font-size:10px; color:#888;">Accent / CTA</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="width:80px; height:56px; background:#F0D9A8; border-radius:10px; margin-bottom:6px; border:1px solid #ddd;"></div>
+          <div style="font-size:11px; font-weight:700;">Dourado Claro</div>
+          <div style="font-size:10px; color:#888;">#F0D9A8</div>
+          <div style="font-size:10px; color:#888;">Backgrounds</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="width:80px; height:56px; background:#F5F3EF; border-radius:10px; margin-bottom:6px; border:1px solid #ddd;"></div>
+          <div style="font-size:11px; font-weight:700;">Cinza Quente</div>
+          <div style="font-size:10px; color:#888;">#F5F3EF</div>
+          <div style="font-size:10px; color:#888;">Fundo app</div>
+        </div>
+        <div style="margin-left:20px; align-self:center; font-size:12px; color:#555; max-width:200px; line-height:1.7;">
+          <strong>Regras:</strong><br>
+          🚫 Sem laranja<br>
+          🚫 Dark mode desabilitado<br>
+          ✅ Arquivo: <code style="font-size:10px;">src/styles/moni-tokens.css</code><br>
+          ✅ <code style="font-size:10px;">.cursorrules</code> configurado
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10. TIMES -->
+  <div class="section">
+    <div class="section-title"><div class="icon">🏷️</div> Times do Sistema</div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; background:white; padding:20px; border-radius:12px; border:1px solid var(--cinza-medio);">
+      <span class="tag" style="background:#EDF2F7;">📣 Marketing</span>
+      <span class="tag" style="background:#E6F4EA;">🤝 Novos Franks</span>
+      <span class="tag" style="background:#FFF0F0;">📁 Portfólio</span>
+      <span class="tag" style="background:#FFF8E7;">🔗 Acoplamento</span>
+      <span class="tag" style="background:#F3F0FF;">⚡ Waysers</span>
+      <span class="tag" style="background:#E6F4EA;">🏠 Frank Moní</span>
+      <span class="tag" style="background:#F0F9FF;">💳 Crédito</span>
+      <span class="tag" style="background:#EDF2F7;">🔧 Produto</span>
+      <span class="tag" style="background:#FFF8E7;">✅ Homologações</span>
+      <span class="tag" style="background:#F3F0FF;">🏗️ Modelo Virtual</span>
+      <span class="tag" style="background:#FFF0F0;">💼 Executivo</span>
+      <span class="tag" style="background:#E6F4EA; border-color:var(--dourado);">✒️ Caneta Verde</span>
+    </div>
+  </div>
+
+  <!-- 11. INTEGRAÇÕES -->
+  <div class="section">
+    <div class="section-title"><div class="icon">🔌</div> Integrações Externas</div>
+    <div class="integrations-grid">
+      <div class="integration-card">
+        <div class="integration-icon">🕷️</div>
+        <div class="integration-name">Apify</div>
+        <div class="integration-use">Scraping ZAP Imóveis</div>
+        <span class="integration-status active">Ativo</span>
+      </div>
+      <div class="integration-card">
+        <div class="integration-icon">📧</div>
+        <div class="integration-name">Resend</div>
+        <div class="integration-use">Envio de emails</div>
+        <span class="integration-status active">Ativo</span>
+      </div>
+      <div class="integration-card">
+        <div class="integration-icon">✍️</div>
+        <div class="integration-name">Autentique</div>
+        <div class="integration-use">Assinatura digital</div>
+        <span class="integration-status active">Ativo</span>
+      </div>
+      <div class="integration-card">
+        <div class="integration-icon">🏙️</div>
+        <div class="integration-name">IBGE API</div>
+        <div class="integration-use">Dados de cidades</div>
+        <span class="integration-status active">Ativo</span>
+      </div>
+      <div class="integration-card">
+        <div class="integration-icon">🚀</div>
+        <div class="integration-name">Vercel</div>
+        <div class="integration-use">Deploy produção</div>
+        <span class="integration-status active">Ativo</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 12. HISTÓRICO DE MIGRATIONS -->
+  <div class="section">
+    <div class="section-title"><div class="icon">📜</div> Histórico de Migrations (104 aplicadas + 2 hoje)</div>
+    <div class="info-box">
+      <div class="migrations-timeline">
+        <div class="migration-group">
+          <div class="migration-range done">001–010</div>
+          <div class="migration-tags">
+            <span class="migration-tag">Schema inicial</span>
+            <span class="migration-tag">profiles</span>
+            <span class="migration-tag">processo_step_one</span>
+            <span class="migration-tag">Storage policies</span>
+            <span class="migration-tag">audit_log</span>
+          </div>
+        </div>
+        <div class="migration-group">
+          <div class="migration-range done">011–030</div>
+          <div class="migration-tags">
+            <span class="migration-tag">listings_casas</span>
+            <span class="migration-tag">catalogo_escolhidos</span>
+            <span class="migration-tag">batalha_casas</span>
+            <span class="migration-tag">juridico_ticket</span>
+            <span class="migration-tag">rede_franqueados v1</span>
+          </div>
+        </div>
+        <div class="migration-group">
+          <div class="migration-range done">031–060</div>
+          <div class="migration-tags">
+            <span class="migration-tag">processo_docs</span>
+            <span class="migration-tag">checklists legais</span>
+            <span class="migration-tag">community_posts</span>
+            <span class="migration-tag">alertas (sirene)</span>
+            <span class="migration-tag">rede_contatos</span>
+          </div>
+        </div>
+        <div class="migration-group">
+          <div class="migration-range done">061–090</div>
+          <div class="migration-tags">
+            <span class="migration-tag">painel_novas_fases</span>
+            <span class="migration-tag">comite</span>
+            <span class="migration-tag">team_members</span>
+            <span class="migration-tag">access_roles_profiles</span>
+            <span class="migration-tag">portal_public_form_links</span>
+            <span class="migration-tag">dashboard_nn_campos</span>
+          </div>
+        </div>
+        <div class="migration-group">
+          <div class="migration-range done">091–104</div>
+          <div class="migration-tags">
+            <span class="migration-tag active">kanbans + kanban_fases</span>
+            <span class="migration-tag active">kanban_cards + RLS</span>
+            <span class="migration-tag active">atividades_aprimoradas</span>
+            <span class="migration-tag active">sla_arquivamento</span>
+            <span class="migration-tag active">feriados_nacionais</span>
+            <span class="migration-tag active">calcular_dias_uteis()</span>
+            <span class="migration-tag active">kanban_atividades</span>
+            <span class="migration-tag active">add time field</span>
+          </div>
+        </div>
+        <div class="migration-group">
+          <div class="migration-range today">105 — HOJE</div>
+          <div class="migration-tags">
+            <span class="migration-tag active">CREATE VIEW vw_atividades_unificadas</span>
+            <span class="migration-tag active">Unifica checklist + kanban_atividades</span>
+            <span class="migration-tag active">tipo_atividade · origem_tabela</span>
+          </div>
+        </div>
+        <div class="migration-group">
+          <div class="migration-range today">106 — HOJE</div>
+          <div class="migration-tags">
+            <span class="migration-tag active">Trigger franqueado_areas</span>
+            <span class="migration-tag active">Auto-criar card ao cadastrar Frank</span>
+            <span class="migration-tag active">PL/pgSQL + idempotente</span>
+          </div>
+        </div>
+        <div class="migration-group">
+          <div class="migration-range planned">107+ planeados</div>
+          <div class="migration-tags">
+            <span class="migration-tag">Arquivamento com motivo</span>
+            <span class="migration-tag">Vínculos entre cards</span>
+            <span class="migration-tag">Portal Franqueado</span>
+            <span class="migration-tag">Multi-time atividades</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 13. SPRINT PLAN -->
+  <div class="section">
+    <div class="section-title"><div class="icon">📅</div> Plano da Sprint — 16 a 22 de Abril</div>
+    <table class="sprint-table">
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Foco</th>
+          <th>Tarefas</th>
+          <th>Ferramentas</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="today-row">
+          <td><span class="day-badge today">16/04 Seg</span></td>
+          <td>View + Trigger</td>
+          <td>Migration 105 (view unificada) · Painel Tarefas → view · Migration 106 (trigger frank)</td>
+          <td>Claude Code + Cursor</td>
+        </tr>
+        <tr>
+          <td><span class="day-badge planned">17/04 Ter</span></td>
+          <td>Arquivamento + SLA Config</td>
+          <td>Arquivamento com motivo · Filtro franquias dropdown · SLA configurável por fase</td>
+          <td>Cursor</td>
+        </tr>
+        <tr>
+          <td><span class="day-badge planned">18/04 Qua</span></td>
+          <td>Atividades + Dúvidas</td>
+          <td>Multi-time nas atividades · Editar atividades · Seção Dúvidas no painel</td>
+          <td>Claude Code + Cursor</td>
+        </tr>
+        <tr>
+          <td><span class="day-badge planned">19/04 Qui</span></td>
+          <td>Fases + Vínculos</td>
+          <td>Instruções e materiais por fase · Vínculos entre cards de kanbans diferentes</td>
+          <td>Claude Code + Cursor</td>
+        </tr>
+        <tr>
+          <td><span class="day-badge planned">20/04 Sex</span></td>
+          <td>Design + Filtros</td>
+          <td>Design Moní em todos os kanbans · Filtros como dropdowns com categorias</td>
+          <td>Cursor</td>
+        </tr>
+        <tr>
+          <td><span class="day-badge planned">21/04 Seg</span></td>
+          <td>Portal Franqueado</td>
+          <td>Portal com login/senha · Convites por link · Role frank · Auto-criar card</td>
+          <td>Claude Code + Cursor</td>
+        </tr>
+        <tr class="deploy-row">
+          <td><span class="day-badge deploy">22/04 Ter</span></td>
+          <td>🚀 Deploy + Onboarding</td>
+          <td>Backup PROD · Migrations PROD · Deploy Vercel · Onboarding Ingrid</td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 14. DECISÕES ARQUITETURAIS -->
+  <div class="section">
+    <div class="section-title"><div class="icon">⚖️</div> Decisões Arquiteturais Tomadas</div>
+    <div class="two-col">
+      <div class="info-box">
+        <h4>✅ O que foi decidido</h4>
+        <div class="info-row"><span class="info-label">CardDetalheModal</span><span class="info-value">NÃO refatorar (6000 linhas em prod). Dois modais separados coexistem.</span></div>
+        <div class="info-row"><span class="info-label">Tabelas</span><span class="info-value">Sistema antigo (Portfolio) e novo (Funil Step One) com tabelas independentes.</span></div>
+        <div class="info-row"><span class="info-label">Integração</span><span class="info-value">Via VIEW SQL em vez de modificar TypeScript do sistema antigo.</span></div>
+        <div class="info-row"><span class="info-label">SLA</span><span class="info-value">Dias úteis apenas no Funil Step One. Sistema antigo mantém dias corridos.</span></div>
+        <div class="info-row"><span class="info-label">Portal Frank</span><span class="info-value">Login com senha própria (não magic link).</span></div>
+        <div class="info-row"><span class="info-label">Infraestrutura</span><span class="info-value">Supabase Pro aguenta volume do portal.</span></div>
+      </div>
+      <div class="info-box">
+        <h4>📁 Arquivos-Chave do Sprint</h4>
+        <div class="info-row"><span class="info-label mono">funil-stepone/page.tsx</span><span class="info-value">Página principal kanban</span></div>
+        <div class="info-row"><span class="info-label mono">KanbanColumn.tsx</span><span class="info-value">Coluna do kanban</span></div>
+        <div class="info-row"><span class="info-label mono">CardModal.tsx</span><span class="info-value">Modal split 40/60</span></div>
+        <div class="info-row"><span class="info-label mono">NovoCardModal.tsx</span><span class="info-value">Formulário novo card</span></div>
+        <div class="info-row"><span class="info-label mono">dias-uteis.ts</span><span class="info-value">Cálculo SLA úteis</span></div>
+        <div class="info-row"><span class="info-label mono">moni-tokens.css</span><span class="info-value">Design system</span></div>
+        <div class="info-row"><span class="info-label mono">TarefasPainelConteudo.tsx</span><span class="info-value">Painel de tarefas</span></div>
+        <div class="info-row"><span class="info-label mono">card-actions.ts</span><span class="info-value">Server actions DB</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div class="footer-left">Hub Fly — Casa Moní · Branch: funcionalidade-ingrid · Onboarding Ingrid: 22/04/2026</div>
+  <div class="footer-right">104 migrations aplicadas · 2 hoje · Deploy target: 22/04</div>
+</div>
+
+</body>
+</html>

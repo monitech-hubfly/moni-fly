@@ -1,0 +1,5 @@
+version: "3"
+
+# Config local (sem segredos). Rode assim:
+# ngrok http 3000 --config "c:\Dev\VIABILIDADE\ngrok.local.yml" --authtoken <SEU_TOKEN>
+

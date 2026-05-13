@@ -1,0 +1,494 @@
+'use client';
+
+import { useState, useEffect, useMemo, useRef } from 'react';
+import {
+  buscarCardsParaNovoChamadoSirene,
+  criarChamado,
+  getDadosNovoChamado,
+  type SireneVinculoCardBuscaItem,
+} from './actions';
+import type { HdmTime } from '@/types/sirene';
+import {
+  HDM_RESPONSAVEIS_TODOS_EMAILS,
+  TIMES_MONI_HDM,
+  filtrarOpcoesResponsaveisPorModoHdm,
+  timesMoniReceberChamadoOpcoes,
+} from '@/lib/times-responsaveis';
+import { createClient } from '@/lib/supabase/client';
+
+type FranqueadoItem = { id: string; n_franquia: string | null; nome_completo: string | null };
+
+type Props = { onClose: () => void; onSuccess?: () => void };
+
+export function ModalNovoChamado({ onClose, onSuccess }: Props) {
+  const [dados, setDados] = useState<{
+    isFrank: boolean;
+    franqueados: FranqueadoItem[];
+  } | null>(null);
+  const [incendio, setIncendio] = useState('');
+  const [timesIds, setTimesIds] = useState<string[]>([]);
+  const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
+  const [kanbanTimes, setKanbanTimes] = useState<{ id: string; nome: string }[]>([]);
+  const [responsaveisOpcoes, setResponsaveisOpcoes] = useState<
+    { id: string; nome: string; email?: string | null }[]
+  >([]);
+  const [frankId, setFrankId] = useState('');
+  const [frankNome, setFrankNome] = useState('');
+  const [buscaFrank, setBuscaFrank] = useState('');
+  const [abertoBuscaFrank, setAbertoBuscaFrank] = useState(false);
+  const [teTrata, setTeTrata] = useState<'sim' | 'nao' | ''>('');
+  const [ehHdm, setEhHdm] = useState(false);
+  const [hdmResponsavel, setHdmResponsavel] = useState<HdmTime | ''>('');
+  const [tema, setTema] = useState('');
+  const [temaOutro, setTemaOutro] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const buscaFrankRef = useRef<HTMLDivElement>(null);
+  const [buscaCard, setBuscaCard] = useState('');
+  const [cardOpcoes, setCardOpcoes] = useState<SireneVinculoCardBuscaItem[]>([]);
+  const [cardVinculo, setCardVinculo] = useState<SireneVinculoCardBuscaItem | null>(null);
+  const [abertoBuscaCard, setAbertoBuscaCard] = useState(false);
+  const [buscandoCards, setBuscandoCards] = useState(false);
+
+  useEffect(() => {
+    getDadosNovoChamado().then((r) => {
+      if (r.ok) setDados({ isFrank: r.isFrank, franqueados: r.franqueados });
+    });
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      const supabase = createClient();
+      const { data: kt } = await supabase.from('kanban_times').select('id, nome').order('nome');
+      setKanbanTimes((kt ?? []).map((r) => ({ id: String(r.id), nome: String(r.nome) })));
+      const emailsHdm = [...HDM_RESPONSAVEIS_TODOS_EMAILS];
+      const [hdmRes, bulkRes] = await Promise.all([
+        supabase.from('profiles').select('id, full_name, email').in('email', emailsHdm),
+        supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .order('full_name', { ascending: true, nullsFirst: false })
+          .limit(500),
+      ]);
+      const byId = new Map<string, { id: string; nome: string; email: string | null }>();
+      const ingest = (rows: { id: string; full_name?: string | null; email?: string | null }[] | null) => {
+        for (const p of rows ?? []) {
+          const id = String(p.id);
+          const em = String(p.email ?? '')
+            .trim()
+            .toLowerCase();
+          const fn = String(p.full_name ?? '').trim();
+          byId.set(id, { id, nome: fn || em || id.slice(0, 8), email: em || null });
+        }
+      };
+      ingest((hdmRes.data ?? []) as { id: string; full_name?: string | null; email?: string | null }[]);
+      ingest((bulkRes.data ?? []) as { id: string; full_name?: string | null; email?: string | null }[]);
+      setResponsaveisOpcoes(
+        [...byId.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+      );
+    })();
+  }, []);
+
+  const frankFiltrados = useMemo(() => {
+    if (!dados?.franqueados.length) return [];
+    const q = buscaFrank.trim().toLowerCase();
+    if (!q) return dados.franqueados.slice(0, 15);
+    return dados.franqueados
+      .filter(
+        (f) =>
+          (f.nome_completo?.toLowerCase().includes(q) ?? false) ||
+          (f.n_franquia?.toLowerCase().includes(q) ?? false),
+      )
+      .slice(0, 15);
+  }, [dados?.franqueados, buscaFrank]);
+
+  const responsaveisOpcoesVisiveis = useMemo(
+    () => filtrarOpcoesResponsaveisPorModoHdm(responsaveisOpcoes, ehHdm),
+    [responsaveisOpcoes, ehHdm],
+  );
+
+  /** Mesma ordem do catálogo Moní (`TIMES_MONI` ou HDM); só exibe linhas existentes em `kanban_times`. */
+  const timesChipsCatalogoOrdenados = useMemo(() => {
+    const nomes = ehHdm ? [...TIMES_MONI_HDM] : [...timesMoniReceberChamadoOpcoes(false)];
+    return nomes
+      .map((nome) => kanbanTimes.find((t) => t.nome.trim() === nome))
+      .filter((t): t is { id: string; nome: string } => Boolean(t));
+  }, [ehHdm, kanbanTimes]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (buscaFrankRef.current && !buscaFrankRef.current.contains(e.target as Node))
+        setAbertoBuscaFrank(false);
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const q = buscaCard.trim();
+    if (q.length < 2) {
+      setCardOpcoes([]);
+      return;
+    }
+    const t = window.setTimeout(() => {
+      setBuscandoCards(true);
+      buscarCardsParaNovoChamadoSirene(q).then((r) => {
+        setBuscandoCards(false);
+        if (r.ok) setCardOpcoes(r.items);
+        else setCardOpcoes([]);
+      });
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [buscaCard]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    const formData = new FormData();
+    formData.set('incendio', incendio.trim());
+    const timeNome = kanbanTimes.find((t) => timesIds[0] === t.id)?.nome ?? '';
+    const respNome = responsaveisOpcoes.find((p) => responsaveisIds[0] === p.id)?.nome ?? '';
+    formData.set('time_abertura', timeNome);
+    if (respNome) formData.set('abertura_responsavel_nome', respNome);
+    formData.set('times_ids', JSON.stringify(timesIds));
+    formData.set('responsaveis_ids', JSON.stringify(responsaveisIds));
+    formData.set('frank_id', frankId.trim());
+    formData.set('frank_nome', frankNome.trim());
+    if (teTrata === 'sim' || teTrata === 'nao') formData.set('te_trata', teTrata);
+    formData.set('tipo', ehHdm ? 'hdm' : 'padrao');
+    if (ehHdm && hdmResponsavel) formData.set('hdm_responsavel', hdmResponsavel);
+    formData.set('tema', tema === 'Outro' ? temaOutro.trim() : tema);
+    if (cardVinculo) {
+      formData.set('card_id', cardVinculo.card_id);
+      formData.set('card_kanban_nome', cardVinculo.kanban_nome);
+      formData.set('card_titulo', cardVinculo.titulo);
+    }
+
+    const result = await criarChamado(formData);
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    onSuccess?.();
+    onClose();
+  }
+
+  const isFrank = dados?.isFrank ?? false;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
+        <div className="border-b border-stone-200 px-4 py-3">
+          <h2 className="text-lg font-semibold text-stone-800">Novo Chamado</h2>
+        </div>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-4">
+          {error && (
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+          )}
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-stone-700">
+              Esse incêndio te trava? *
+            </label>
+            <div className="flex gap-4">
+              <label className="flex cursor-pointer items-center gap-2">
+                <input
+                  type="radio"
+                  name="te_trata"
+                  checked={teTrata === 'sim'}
+                  onChange={() => setTeTrata('sim')}
+                  className="h-4 w-4 border-stone-300 text-moni-primary"
+                />
+                <span className="text-sm text-stone-700">Sim</span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-2">
+                <input
+                  type="radio"
+                  name="te_trata"
+                  checked={teTrata === 'nao'}
+                  onChange={() => setTeTrata('nao')}
+                  className="h-4 w-4 border-stone-300 text-moni-primary"
+                />
+                <span className="text-sm text-stone-700">Não</span>
+              </label>
+            </div>
+            <p className="mt-0.5 text-xs text-stone-500">
+              Os chamados são priorizados por essa resposta.
+            </p>
+          </div>
+
+          <div className="relative">
+            <label className="mb-1 block text-sm font-medium text-stone-700">
+              Vincular a um card (opcional)
+            </label>
+            {cardVinculo ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-sm text-stone-800">
+                <span className="min-w-0 flex-1 truncate">
+                  {cardVinculo.titulo} — {cardVinculo.kanban_nome}
+                  <span className="ml-1 text-stone-500">({cardVinculo.origem})</span>
+                </span>
+                <button
+                  type="button"
+                  className="shrink-0 text-xs text-red-600 hover:underline"
+                  onClick={() => {
+                    setCardVinculo(null);
+                    setBuscaCard('');
+                    setCardOpcoes([]);
+                  }}
+                >
+                  Remover
+                </button>
+              </div>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  value={buscaCard}
+                  onChange={(e) => {
+                    setBuscaCard(e.target.value);
+                    setAbertoBuscaCard(true);
+                  }}
+                  onFocus={() => setAbertoBuscaCard(true)}
+                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
+                  placeholder="Buscar por título do card (nativo ou legado)…"
+                />
+                {abertoBuscaCard && (buscaCard.trim().length >= 2 || buscandoCards) && (
+                  <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-stone-200 bg-white py-1 shadow-lg">
+                    {buscandoCards && cardOpcoes.length === 0 ? (
+                      <li className="px-3 py-2 text-sm text-stone-500">Buscando…</li>
+                    ) : null}
+                    {cardOpcoes.map((c) => (
+                      <li key={`${c.origem}-${c.card_id}`}>
+                        <button
+                          type="button"
+                          className="w-full px-3 py-2 text-left text-sm text-stone-800 hover:bg-stone-100"
+                          onClick={() => {
+                            setCardVinculo(c);
+                            setBuscaCard('');
+                            setCardOpcoes([]);
+                            setAbertoBuscaCard(false);
+                          }}
+                        >
+                          <span className="font-medium">{c.titulo}</span>
+                          <span className="block text-xs text-stone-500">
+                            {c.kanban_nome} · {c.origem}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                    {!buscandoCards && buscaCard.trim().length >= 2 && cardOpcoes.length === 0 ? (
+                      <li className="px-3 py-2 text-sm text-stone-500">Nenhum card encontrado.</li>
+                    ) : null}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-stone-700">
+              Incêndio (descrição do chamado) *
+            </label>
+            <input
+              type="text"
+              value={incendio}
+              onChange={(e) => setIncendio(e.target.value)}
+              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
+              required
+              placeholder="Breve descrição do problema"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-stone-700">
+              Tema *
+            </label>
+            <select
+              value={tema}
+              onChange={(e) => { setTema(e.target.value); setTemaOutro(''); }}
+              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
+              required
+            >
+              <option value="">Selecione</option>
+              <option value="Acoplamento">Acoplamento</option>
+              <option value="Adicionais">Adicionais</option>
+              <option value="BCA + Batalha">BCA + Batalha</option>
+              <option value="Catálogo de Casas">Catálogo de Casas</option>
+              <option value="Crédito p/ Obra">Crédito p/ Obra</option>
+              <option value="Crédito p/ Terreno">Crédito p/ Terreno</option>
+              <option value="Diligência Terreno">Diligência Terreno</option>
+              <option value="Gadgets">Gadgets</option>
+              <option value="Negociação com Terrenista">Negociação com Terrenista</option>
+              <option value="Outro">Outro</option>
+            </select>
+            {tema === 'Outro' && (
+              <input
+                type="text"
+                value={temaOutro}
+                onChange={(e) => setTemaOutro(e.target.value)}
+                placeholder="Detalhe o tema (obrigatório)"
+                className="mt-2 w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
+                required
+              />
+            )}
+          </div>
+
+          {!isFrank && dados && (
+            <>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-stone-700">
+                  Time que receberá o chamado
+                </label>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {timesChipsCatalogoOrdenados.map((t) => {
+                    const on = timesIds.includes(t.id);
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() =>
+                          setTimesIds((prev) => (on ? prev.filter((x) => x !== t.id) : [...prev, t.id]))
+                        }
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium border ${on ? 'border-red-600 bg-red-600 text-white' : 'border-[color:var(--moni-border-default)] bg-white text-[color:var(--moni-text-secondary)]'}`}
+                      >
+                        {t.nome}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-stone-700">
+                  Responsável pelo atendimento (opcional)
+                </label>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {responsaveisOpcoesVisiveis.map((p) => {
+                    const on = responsaveisIds.includes(p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() =>
+                          setResponsaveisIds((prev) => (on ? prev.filter((x) => x !== p.id) : [...prev, p.id]))
+                        }
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium border ${on ? 'border-red-600 bg-red-600 text-white' : 'border-[color:var(--moni-border-default)] bg-white text-[color:var(--moni-text-secondary)]'}`}
+                      >
+                        {p.nome}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div ref={buscaFrankRef} className="relative">
+                <label className="mb-1 block text-sm font-medium text-stone-700">
+                  Franqueado conectado ao ticket (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={abertoBuscaFrank ? buscaFrank : frankNome}
+                  onChange={(e) => {
+                    setBuscaFrank(e.target.value);
+                    setAbertoBuscaFrank(true);
+                    if (!abertoBuscaFrank) setFrankNome('');
+                  }}
+                  onFocus={() => setAbertoBuscaFrank(true)}
+                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
+                  placeholder="Pesquise pelo nome ou Nº da franquia"
+                />
+                {abertoBuscaFrank && frankFiltrados.length > 0 && (
+                  <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-stone-200 bg-white py-1 shadow-lg">
+                    {frankFiltrados.map((f) => (
+                      <li key={f.id}>
+                        <button
+                          type="button"
+                          className="w-full px-3 py-2 text-left text-sm text-stone-800 hover:bg-stone-100"
+                          onClick={() => {
+                            setFrankId(f.id);
+                            setFrankNome(f.nome_completo ?? f.n_franquia ?? '');
+                            setBuscaFrank('');
+                            setAbertoBuscaFrank(false);
+                          }}
+                        >
+                          {f.nome_completo ?? f.n_franquia ?? f.id}
+                          {f.n_franquia && f.nome_completo && (
+                            <span className="ml-1 text-stone-500">({f.n_franquia})</span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {abertoBuscaFrank && buscaFrank.trim() && frankFiltrados.length === 0 && (
+                  <p className="absolute z-10 mt-1 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-500 shadow-lg">
+                    Nenhum franqueado encontrado.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+
+          <p className="text-xs text-stone-500">
+            Aberto por: preenchido automaticamente com seu login.
+          </p>
+
+          <div className="border-t border-stone-200 pt-3">
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={ehHdm}
+                onChange={(e) => {
+                  setEhHdm(e.target.checked);
+                  setTimesIds([]);
+                  setResponsaveisIds([]);
+                  if (!e.target.checked) setHdmResponsavel('');
+                }}
+                className="h-4 w-4 rounded border-stone-300"
+              />
+              <span className="text-sm font-medium text-stone-700">Este chamado é HDM?</span>
+            </label>
+            {ehHdm && (
+              <div className="mt-3">
+                <label className="mb-1 block text-sm font-medium text-stone-700">
+                  Time HDM responsável (opcional)
+                </label>
+                <select
+                  value={hdmResponsavel}
+                  onChange={(e) => setHdmResponsavel((e.target.value || '') as HdmTime | '')}
+                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
+                >
+                  <option value="">Selecione</option>
+                  {TIMES_MONI_HDM.map((nome) => (
+                    <option key={nome} value={nome}>
+                      {nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 border-t border-stone-200 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={loading || !incendio.trim() || teTrata === '' || !tema || (tema === 'Outro' && !temaOutro.trim()) || (!isFrank && timesIds.length === 0)}
+              className="rounded-lg bg-moni-primary px-4 py-2 text-sm font-medium text-white hover:bg-moni-secondary disabled:opacity-50"
+            >
+              {loading ? 'Abrindo…' : 'Abrir chamado'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

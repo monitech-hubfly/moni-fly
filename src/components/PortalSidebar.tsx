@@ -1,0 +1,404 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import { Bell, ChevronDown, ChevronRight, User } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { isAdminRole, normalizeAccessRole } from '@/lib/authz';
+import { isLiveLimitedRelease, showDevOnlySidebarNav } from '@/lib/release-scope';
+
+type PortalSidebarProps = {
+  user: { id: string; email?: string; full_name?: string | null } | null;
+  userRole: string;
+  /** Sem sessão: só macros Rede + Empreendimentos (subitens completos para edição pública). */
+  publicVisitor?: boolean;
+};
+
+function getInicialNome(fullName: string | null | undefined): string {
+  if (!fullName || !fullName.trim()) return '?';
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    const ultima = parts[parts.length - 1];
+    return (parts[0][0] + (ultima?.[0] ?? '')).toUpperCase().slice(0, 2);
+  }
+  return (parts[0][0] ?? '?').toUpperCase();
+}
+
+type NavItem = { href: string; label: string };
+const REDE_FRANQUEADOS_SUBITENS: NavItem[] = [
+  { href: '/rede-franqueados', label: 'Rede de Franqueados' },
+  { href: '/comunidade', label: 'Comunidade' },
+  { href: '/rede', label: 'Rede de Contatos' },
+];
+const CATALOGO_SUBITENS: NavItem[] = [
+  { href: '/catalogo-produtos-moni', label: 'Catálogo de Produtos Moní' },
+];
+const STEPS_SUBITENS: NavItem[] = [
+  { href: '/step-one', label: 'Step 1: Mapeamento da Região' },
+  { href: '/step-2', label: 'Step 2: Novo Negócio' },
+  { href: '/step-3', label: 'Step 3: Opção' },
+  { href: '/painel', label: 'Step 4: Check Legal + Checklist Crédito' },
+  { href: '/acoplamento-pl', label: 'Acoplamento (paralelo Step 4)' },
+  { href: '/step-5', label: 'Step 5: Comitê' },
+  { href: '/step-6', label: 'Step 6: Diligência' },
+  { href: '/step-7', label: 'Step 7: Contrato' },
+];
+const PAINEL_NOVOS_NEGOCIOS_SUBITENS_HEAD: NavItem[] = [
+  { href: '/dashboard-novos-negocios', label: 'Dashboard Novos Negócios' },
+  { href: '/funil-stepone', label: 'Funil Step One' },
+  { href: '/portfolio', label: 'Funil Portfolio' },
+  { href: '/funil-moni-inc', label: 'Funil Moní INC' },
+  { href: '/funil-acoplamento', label: 'Funil Acoplamento' },
+];
+/** Só admin / visitante público: aparecem antes de Funil Operações. */
+const PAINEL_NOVOS_NEGOCIOS_ADMIN_SUBITENS: NavItem[] = [
+  { href: '/painel-contabilidade', label: 'Funil Contabilidade' },
+  { href: '/painel-credito', label: 'Funil Crédito' },
+];
+const PAINEL_NOVOS_NEGOCIOS_SUBITENS_TAIL: NavItem[] = [
+  { href: '/operacoes', label: 'Funil Operações' },
+  { href: '/painel-novos-negocios', label: 'Portfolio + Operações (legado)' },
+];
+const SIRENE_SUBITENS: NavItem[] = [{ href: '/sirene/chamados', label: 'Chamados' }];
+
+const REDE_HREFS_DEV_ONLY = new Set(['/comunidade', '/rede']);
+
+function filterRedeFranqueadosSubitensParaProd(items: NavItem[], showDevNav: boolean): NavItem[] {
+  if (showDevNav) return items;
+  return items.filter((i) => !REDE_HREFS_DEV_ONLY.has(i.href));
+}
+
+function isRedeFranqueadosActive(pathname: string) {
+  if (
+    pathname.startsWith('/rede-franqueados') ||
+    pathname.startsWith('/comunidade') ||
+    pathname.startsWith('/portal-frank/rede')
+  ) {
+    return true;
+  }
+  return pathname === '/rede' || (pathname.startsWith('/rede') && !pathname.startsWith('/rede-franqueados'));
+}
+function isPainelNovosNegociosActive(pathname: string) {
+  return (
+    pathname.startsWith('/painel-novos-negocios') ||
+    pathname.startsWith('/portfolio') ||
+    pathname.startsWith('/funil-acoplamento') ||
+    pathname.startsWith('/operacoes') ||
+    pathname.startsWith('/painel-contabilidade') ||
+    pathname.startsWith('/painel-credito') ||
+    pathname.startsWith('/dashboard-novos-negocios') ||
+    pathname.startsWith('/funil-stepone') ||
+    pathname.startsWith('/funil-moni-inc')
+  );
+}
+
+function isSireneNavActive(pathname: string) {
+  return pathname.startsWith('/sirene');
+}
+function isCatalogoActive(pathname: string) {
+  return pathname.startsWith('/catalogo-produtos-moni');
+}
+function isStepsActive(pathname: string) {
+  return (
+    pathname.startsWith('/step-one') ||
+    pathname.startsWith('/step-2') ||
+    pathname.startsWith('/step-3') ||
+    pathname.startsWith('/step-5') ||
+    pathname.startsWith('/step-6') ||
+    pathname.startsWith('/step-7') ||
+    pathname.startsWith('/painel') ||
+    pathname.startsWith('/acoplamento-pl')
+  );
+}
+export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalSidebarProps) {
+  const pathname = usePathname();
+  const [resolvedRole, setResolvedRole] = useState(userRole);
+  const isAdmin = isAdminRole(resolvedRole);
+  const limitedRelease = isLiveLimitedRelease();
+  const showDevNav = showDevOnlySidebarNav();
+  const showFullNovosNegociosNav = publicVisitor || isAdmin;
+
+  useEffect(() => {
+    setResolvedRole(userRole);
+  }, [userRole]);
+
+  useEffect(() => {
+    if (publicVisitor || !user?.id) return;
+    const supabase = createClient();
+    void supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.role != null) {
+          setResolvedRole(normalizeAccessRole(String(data.role)));
+        }
+      });
+  }, [user?.id, publicVisitor]);
+  const [perfilOpen, setPerfilOpen] = useState(() => (pathname ?? '') === '/perfil');
+  const [redeFranqueadosOpen, setRedeFranqueadosOpen] = useState(() => isRedeFranqueadosActive(pathname ?? ''));
+  const [catalogoOpen, setCatalogoOpen] = useState(() => isCatalogoActive(pathname ?? ''));
+  const [stepsOpen, setStepsOpen] = useState(() => isStepsActive(pathname ?? ''));
+  const [painelNovosNegociosOpen, setPainelNovosNegociosOpen] = useState(() =>
+    isPainelNovosNegociosActive(pathname ?? ''),
+  );
+  const [sireneOpen, setSireneOpen] = useState(() => isSireneNavActive(pathname ?? ''));
+
+  /** Franqueado não acessa `/rede-franqueados` (middleware); visão consolidada em `/portal-frank/rede`. */
+  const redeFranqueadosNavSubitens = useMemo((): NavItem[] => {
+    if (publicVisitor) return filterRedeFranqueadosSubitensParaProd(REDE_FRANQUEADOS_SUBITENS, showDevNav);
+    if (resolvedRole === 'frank') {
+      return [{ href: '/portal-frank/rede', label: 'Rede de Franqueados' }];
+    }
+    return filterRedeFranqueadosSubitensParaProd(REDE_FRANQUEADOS_SUBITENS, showDevNav);
+  }, [publicVisitor, resolvedRole, showDevNav]);
+
+  useEffect(() => {
+    const p = pathname ?? '';
+    if (p === '/perfil' || p.startsWith('/admin/usuarios')) setPerfilOpen(true);
+    if (isPainelNovosNegociosActive(p)) setPainelNovosNegociosOpen(true);
+    if (isSireneNavActive(p)) setSireneOpen(true);
+    if (isRedeFranqueadosActive(p)) setRedeFranqueadosOpen(true);
+    else if (isCatalogoActive(p)) setCatalogoOpen(true);
+    else if (isStepsActive(p)) setStepsOpen(true);
+    // Funil Crédito é subitem de Empreendimentos (sem macro separado).
+  }, [pathname]);
+
+  const displayName = publicVisitor
+    ? 'Visitante'
+    : user?.full_name?.trim() || user?.email || 'Franqueado';
+  const inicial = publicVisitor ? 'V' : getInicialNome(user?.full_name ?? null);
+
+  const linkClassPrincipal = (active: boolean) =>
+    `block w-full rounded-lg px-3 py-2 text-left text-sm font-semibold transition ${
+      active
+        ? 'bg-moni-light text-moni-primary'
+        : 'text-moni-primary hover:bg-moni-light/50 hover:text-moni-secondary'
+    }`;
+
+  const linkClassSub = (active: boolean) =>
+    `block w-full rounded py-1.5 pl-5 pr-3 text-left text-xs transition ${
+      active
+        ? 'bg-moni-light/80 font-medium text-moni-primary'
+        : 'text-stone-600 hover:bg-stone-100 hover:text-moni-secondary'
+    }`;
+
+  const renderMacro = (
+    key:
+      | 'rede'
+      | 'catalogo'
+      | 'steps'
+      | 'painelNovosNegocios'
+      | 'sirene',
+    label: string,
+    isActive: boolean,
+    open: boolean,
+    setOpen: (v: boolean) => void,
+    subitens: NavItem[],
+    isActiveHref: (href: string) => boolean,
+  ) => {
+    const macroClass = linkClassPrincipal(isActive);
+    return (
+      <div className="space-y-0.5">
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            className={`flex flex-1 items-center gap-2 ${macroClass}`}
+          >
+            {label}
+          </button>
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            className="rounded p-1.5 text-stone-500 hover:text-moni-primary"
+            aria-expanded={open}
+          >
+            {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </button>
+        </div>
+        {open && (
+          <div className="mt-0.5 space-y-0.5">
+            {subitens.map((s) => (
+              <Link
+                key={s.href}
+                href={s.href}
+                className={linkClassSub(isActiveHref(s.href))}
+              >
+                {s.label}
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex h-full min-h-0 w-56 shrink-0 flex-col border-r border-stone-200 bg-white">
+      {/* Topo: logo + sino */}
+      <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-stone-200 px-4">
+        <Link href="/" className="text-lg font-semibold tracking-tight text-moni-primary hover:text-moni-secondary">
+          Moní
+        </Link>
+        <Link
+          href={isAdmin ? '/alertas' : showDevNav ? '/comunidade' : '/rede-franqueados'}
+          className="flex items-center justify-center rounded-full p-1.5 text-amber-500 hover:bg-amber-50 hover:text-amber-600"
+          title={isAdmin ? 'Alertas' : showDevNav ? 'Comunidade' : 'Rede de Franqueados'}
+          aria-label="Notificações"
+        >
+          <Bell className="h-5 w-5" />
+        </Link>
+      </div>
+
+      {/* Navegação principal com macro-itens e subitens */}
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
+        {renderMacro(
+          'rede',
+          'Rede de Franqueados',
+          isRedeFranqueadosActive(pathname ?? ''),
+          redeFranqueadosOpen,
+          setRedeFranqueadosOpen,
+          redeFranqueadosNavSubitens,
+          (href) => {
+            if (href === '/rede') {
+              return (
+                pathname === '/rede' ||
+                (Boolean(pathname?.startsWith('/rede/')) && !pathname.startsWith('/rede-franqueados'))
+              );
+            }
+            return pathname?.startsWith(href) ?? false;
+          },
+        )}
+
+        {renderMacro(
+          'painelNovosNegocios',
+          'Empreendimentos',
+          isPainelNovosNegociosActive(pathname ?? ''),
+          painelNovosNegociosOpen,
+          setPainelNovosNegociosOpen,
+          showFullNovosNegociosNav
+            ? [...PAINEL_NOVOS_NEGOCIOS_SUBITENS_HEAD, ...PAINEL_NOVOS_NEGOCIOS_ADMIN_SUBITENS, ...PAINEL_NOVOS_NEGOCIOS_SUBITENS_TAIL]
+            : [...PAINEL_NOVOS_NEGOCIOS_SUBITENS_HEAD, ...PAINEL_NOVOS_NEGOCIOS_SUBITENS_TAIL],
+          (href) => pathname === href || (pathname?.startsWith(href + '/') ?? false),
+        )}
+
+        {!publicVisitor && !limitedRelease && (isAdmin || resolvedRole === 'team') && (
+          <Link
+            href="/repositorio"
+            className={linkClassPrincipal(Boolean(pathname?.startsWith('/repositorio')))}
+          >
+            Repositório
+          </Link>
+        )}
+
+        {!publicVisitor && !limitedRelease &&
+          (isAdmin || resolvedRole === 'team') &&
+          renderMacro(
+            'sirene',
+            'Sirene',
+            isSireneNavActive(pathname ?? ''),
+            sireneOpen,
+            setSireneOpen,
+            SIRENE_SUBITENS,
+            (href) => Boolean(pathname === href || pathname?.startsWith(`${href}/`)),
+          )}
+
+        {!publicVisitor && !limitedRelease && showDevNav && isAdmin &&
+          renderMacro(
+            'catalogo',
+            'Catálogo de Produtos Moní',
+            isCatalogoActive(pathname ?? ''),
+            catalogoOpen,
+            setCatalogoOpen,
+            CATALOGO_SUBITENS,
+            (href) => pathname?.startsWith(href) ?? false,
+          )}
+
+        {!publicVisitor && !limitedRelease && showDevNav && isAdmin &&
+          renderMacro(
+            'steps',
+            'Steps Viabilidade',
+            isStepsActive(pathname ?? ''),
+            stepsOpen,
+            setStepsOpen,
+            STEPS_SUBITENS,
+            (href) => {
+              if (href === '/step-one') {
+                return Boolean(pathname?.startsWith('/step-one') && !pathname?.startsWith('/step-2'));
+              }
+              return pathname === href || (pathname?.startsWith(href + '/') ?? false);
+            },
+          )}
+      </nav>
+
+      {publicVisitor ? (
+        <div className="shrink-0 space-y-2 border-t border-stone-200 p-3 text-xs text-stone-600">
+          <p className="rounded-lg bg-stone-100 px-3 py-2 leading-snug">
+            Modo visitante — edição pública (Rede + Empreendimentos)
+          </p>
+          <Link href="/login" className="block font-medium text-moni-primary hover:underline">
+            Entrar com conta
+          </Link>
+        </div>
+      ) : (
+        <div className="shrink-0 space-y-1 border-t border-stone-200 p-3">
+          <div className="flex w-full items-center gap-2 rounded-lg px-3 py-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-moni-primary text-xs font-semibold text-white">
+              {inicial}
+            </span>
+            <div className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-moni-primary">{displayName}</span>
+              {user?.email && (
+                <span className="mt-0.5 block truncate text-[10px] text-stone-300">{user.email}</span>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <button
+              type="button"
+              onClick={() => setPerfilOpen((o) => !o)}
+              className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-medium transition ${
+                perfilOpen
+                  ? 'bg-moni-light text-moni-primary'
+                  : 'text-moni-primary hover:bg-moni-light/70 hover:text-moni-secondary'
+              }`}
+            >
+              <span className="flex items-center gap-1.5">
+                <User className="h-3.5 w-3.5" />
+                <span>Perfil</span>
+              </span>
+              {perfilOpen ? (
+                <ChevronDown className="h-3 w-3" />
+              ) : (
+                <ChevronRight className="h-3 w-3" />
+              )}
+            </button>
+            {perfilOpen && (
+              <div className="mt-1 space-y-0.5 pl-6 text-[11px]">
+                <div className="text-stone-500">Papel: {resolvedRole || 'franqueado'}</div>
+                {isAdmin && (
+                  <Link
+                    href="/admin/usuarios"
+                    className="mt-1 block text-left font-semibold text-moni-primary hover:text-moni-secondary"
+                  >
+                    Gerenciar Usuários
+                  </Link>
+                )}
+                <Link
+                  href="/perfil"
+                  className="mt-1 block text-left text-moni-primary hover:text-moni-secondary"
+                >
+                  Ver perfil e configurações
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
