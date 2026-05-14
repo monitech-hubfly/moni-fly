@@ -8,11 +8,13 @@ export function ModuloChecklist({
   dados,
   onAtualizar,
   onConcluir,
+  podePersistirProgresso = true,
 }: {
   conteudo: ConteudoChecklist;
   dados: Record<string, boolean>;
   onAtualizar: (dados: Record<string, boolean>) => void;
   onConcluir: (dados: Record<string, boolean>) => void;
+  podePersistirProgresso?: boolean;
 }) {
   const [local, setLocal] = useState(dados);
 
@@ -24,6 +26,7 @@ export function ModuloChecklist({
   const allChecked = itens.length > 0 && itens.every((i) => local[i.id]);
 
   function toggle(id: string) {
+    if (!podePersistirProgresso) return;
     const next = { ...local, [id]: !local[id] };
     setLocal(next);
     onAtualizar(next);
@@ -38,6 +41,7 @@ export function ModuloChecklist({
               type="checkbox"
               className="mt-1 h-4 w-4 rounded border-stone-300"
               checked={Boolean(local[it.id])}
+              disabled={!podePersistirProgresso}
               onChange={() => toggle(it.id)}
             />
             <div>
@@ -47,7 +51,10 @@ export function ModuloChecklist({
           </li>
         ))}
       </ul>
-      {allChecked ? (
+      {!podePersistirProgresso ? (
+        <p className="text-xs text-stone-500">Inicie a fase no topo da página para marcar e salvar o checklist.</p>
+      ) : null}
+      {allChecked && podePersistirProgresso ? (
         <button
           type="button"
           onClick={() => onConcluir(local)}

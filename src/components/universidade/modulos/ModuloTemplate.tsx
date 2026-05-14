@@ -6,9 +6,11 @@ import type { ConteudoTemplate } from '@/lib/universidade/types';
 export function ModuloTemplate({
   conteudo,
   onConcluir,
+  podePersistirProgresso = true,
 }: {
   conteudo: ConteudoTemplate;
   onConcluir: () => void;
+  podePersistirProgresso?: boolean;
 }) {
   return (
     <div className="space-y-4 rounded-xl border border-stone-200 bg-white p-4">
@@ -35,13 +37,19 @@ export function ModuloTemplate({
           </a>
         ) : null}
       </div>
-      <button
-        type="button"
-        onClick={onConcluir}
-        className="rounded-lg bg-moni-primary px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
-      >
-        Baixei o template
-      </button>
+      {podePersistirProgresso ? (
+        <button
+          type="button"
+          onClick={onConcluir}
+          className="rounded-lg bg-moni-primary px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+        >
+          Baixei o template
+        </button>
+      ) : (
+        <p className="text-xs text-stone-500">
+          Inicie a fase no topo da página para registrar que baixou o template.
+        </p>
+      )}
     </div>
   );
 }

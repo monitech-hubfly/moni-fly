@@ -52,6 +52,57 @@ export async function verificarEmissaoCertificado(userId: string): Promise<{ ok:
   }
 }
 
+/** Primeira linha de progresso da casa (pendente no 1.º módulo) — libera gravação nos demais módulos. */
+export async function registrarInicioFaseCasa(casaId: string): Promise<{ ok: boolean; error?: string }> {
+  const { supabase, user } = await requireUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+  const cid = casaId.trim();
+  if (!cid) return { ok: false, error: 'Casa inválida.' };
+
+  const { data: modsCasa, error: em } = await supabase.from('uni_modulos').select('id').eq('casa_id', cid);
+  if (em) return { ok: false, error: em.message };
+  const modIds = (modsCasa ?? []).map((m) => String((m as { id: string }).id));
+  if (modIds.length === 0) return { ok: false, error: 'Não há módulos nesta fase.' };
+
+  const { count, error: ec } = await supabase
+    .from('uni_progresso')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .in('modulo_id', modIds);
+  if (ec) return { ok: false, error: ec.message };
+  if ((count ?? 0) > 0) {
+    revalidateUniversidade();
+    return { ok: true };
+  }
+
+  const { data: first, error: e1 } = await supabase
+    .from('uni_modulos')
+    .select('id')
+    .eq('casa_id', cid)
+    .order('ordem', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (e1) return { ok: false, error: e1.message };
+  if (!first?.id) return { ok: false, error: 'Não há módulos nesta fase.' };
+
+  const mid = String((first as { id: string }).id);
+  if (!modIds.includes(mid)) return { ok: false, error: 'Módulo inválido para esta casa.' };
+  const { error: e2 } = await supabase.from('uni_progresso').upsert(
+    {
+      user_id: user.id,
+      modulo_id: mid,
+      casa_id: cid,
+      status: 'pendente',
+      dados: null,
+    },
+    { onConflict: 'user_id,modulo_id' },
+  );
+  if (e2) return { ok: false, error: e2.message };
+
+  revalidateUniversidade();
+  return { ok: true };
+}
+
 export async function atualizarProgresso(
   moduloId: string,
   status: UniProgressoStatus,
@@ -65,6 +116,39 @@ export async function atualizarProgresso(
   const { data: mod, error: e1 } = await supabase.from('uni_modulos').select('id, casa_id').eq('id', mid).maybeSingle();
   if (e1) return { ok: false, error: e1.message };
   if (!mod) return { ok: false, error: 'Módulo não encontrado.' };
+
+  const casaId = mod.casa_id != null ? String(mod.casa_id) : null;
+  if (casaId) {
+    const { data: rowThis } = await supabase
+      .from('uni_progresso')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('modulo_id', mid)
+      .maybeSingle();
+    if (!rowThis) {
+      const { data: modsCasa, error: em } = await supabase.from('uni_modulos').select('id').eq('casa_id', casaId);
+      if (em) return { ok: false, error: em.message };
+      const modIds = (modsCasa ?? []).map((m) => String((m as { id: string }).id));
+      if (modIds.length === 0) {
+        return {
+          ok: false,
+          error: 'Inicie a fase no topo da página para registrar progresso nesta casa.',
+        };
+      }
+      const { count, error: ec } = await supabase
+        .from('uni_progresso')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .in('modulo_id', modIds);
+      if (ec) return { ok: false, error: ec.message };
+      if ((count ?? 0) === 0) {
+        return {
+          ok: false,
+          error: 'Inicie a fase no topo da página para registrar progresso nesta casa.',
+        };
+      }
+    }
+  }
 
   const patch: Record<string, unknown> = {
     user_id: user.id,

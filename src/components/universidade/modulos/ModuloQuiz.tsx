@@ -6,9 +6,11 @@ import type { ConteudoQuiz } from '@/lib/universidade/types';
 export function ModuloQuiz({
   conteudo,
   onConcluir,
+  podePersistirProgresso = true,
 }: {
   conteudo: ConteudoQuiz;
   onConcluir: (nota: number) => void;
+  podePersistirProgresso?: boolean;
 }) {
   const perguntas = conteudo.perguntas ?? [];
   const [idx, setIdx] = useState(0);
@@ -36,7 +38,7 @@ export function ModuloQuiz({
     const n = perguntas.length > 0 ? Math.round((certas / perguntas.length) * 100) : 0;
     setNota(n);
     setFinalizado(true);
-    if (n >= 70) onConcluir(n);
+    if (n >= 70 && podePersistirProgresso) onConcluir(n);
   }
 
   if (finalizado && nota != null) {
@@ -45,8 +47,12 @@ export function ModuloQuiz({
         <p className="text-sm font-semibold text-stone-800">Resultado: {nota}%</p>
         {nota < 70 ? (
           <p className="mt-2 text-sm text-amber-800">Nota mínima 70%. Refaça o quiz para concluir.</p>
-        ) : (
+        ) : podePersistirProgresso ? (
           <p className="mt-2 text-sm text-green-800">Parabéns — módulo concluído.</p>
+        ) : (
+          <p className="mt-2 text-sm text-amber-800">
+            Inicie a fase no topo da página para registrar a conclusão do quiz com esta nota.
+          </p>
         )}
       </div>
     );

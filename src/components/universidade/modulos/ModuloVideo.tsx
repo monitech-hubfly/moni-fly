@@ -8,11 +8,13 @@ export function ModuloVideo({
   conteudo,
   concluido,
   onConcluir,
+  podePersistirProgresso = true,
 }: {
   tituloModulo: string;
   conteudo: ConteudoVideo;
   concluido: boolean;
   onConcluir: () => void;
+  podePersistirProgresso?: boolean;
 }) {
   return (
     <div className="space-y-4 rounded-xl border border-stone-200 bg-white p-4">
@@ -38,7 +40,7 @@ export function ModuloVideo({
         <p className="flex items-center gap-2 text-sm font-medium text-green-700">
           <Check className="h-4 w-4" aria-hidden /> Assistido
         </p>
-      ) : (
+      ) : podePersistirProgresso ? (
         <button
           type="button"
           onClick={onConcluir}
@@ -46,6 +48,10 @@ export function ModuloVideo({
         >
           Marcar como assistido
         </button>
+      ) : (
+        <p className="text-xs text-stone-500">
+          Inicie a fase no topo da página para registrar que assistiu a este vídeo.
+        </p>
       )}
     </div>
   );

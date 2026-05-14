@@ -12,7 +12,7 @@ import {
   Puzzle,
 } from 'lucide-react';
 import type { CasaComModulos, UniModulo, UniProgresso } from '@/lib/universidade/types';
-import { marcarModuloConcluido, atualizarProgresso } from '@/lib/universidade/actions';
+import { marcarModuloConcluido, atualizarProgresso, registrarInicioFaseCasa } from '@/lib/universidade/actions';
 import { useRouter } from 'next/navigation';
 import { ModuloVideo } from '@/components/universidade/modulos/ModuloVideo';
 import { ModuloChecklist } from '@/components/universidade/modulos/ModuloChecklist';
@@ -46,6 +46,14 @@ function IconTipo({ tipo }: { tipo: UniModulo['tipo'] }) {
 export function CasaJornadaClient({ casa, progresso }: Props) {
   const router = useRouter();
   const porModulo = useMemo(() => new Map(progresso.map((p) => [p.modulo_id, p])), [progresso]);
+
+  const faseRegistrada = useMemo(() => {
+    const mids = new Set(casa.modulos.map((m) => m.id));
+    return progresso.some((p) => mids.has(p.modulo_id));
+  }, [casa.modulos, progresso]);
+
+  const [iniciandoFase, setIniciandoFase] = useState(false);
+  const [erroInicio, setErroInicio] = useState<string | null>(null);
 
   const defaultActive = useMemo(() => {
     for (const m of casa.modulos) {
@@ -93,6 +101,38 @@ export function CasaJornadaClient({ casa, progresso }: Props) {
         </div>
       </header>
 
+      {casa.modulos.length > 0 && !faseRegistrada ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 shadow-sm">
+          <p className="font-medium text-amber-900">Explorar sem registrar progresso</p>
+          <p className="mt-2 text-amber-950/90">
+            Você pode abrir qualquer módulo e ler o conteúdo. Nada é gravado no tabuleiro até você iniciar esta fase
+            de forma explícita.
+          </p>
+          {erroInicio ? <p className="mt-2 text-xs font-medium text-red-700">{erroInicio}</p> : null}
+          <button
+            type="button"
+            disabled={iniciandoFase}
+            onClick={async () => {
+              setErroInicio(null);
+              setIniciandoFase(true);
+              try {
+                const r = await registrarInicioFaseCasa(casa.id);
+                if (!r.ok) {
+                  setErroInicio(r.error ?? 'Não foi possível iniciar.');
+                  return;
+                }
+                await refresh();
+              } finally {
+                setIniciandoFase(false);
+              }
+            }}
+            className="mt-3 rounded-lg bg-moni-primary px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {iniciandoFase ? 'Iniciando…' : 'Iniciar fase e registrar progresso'}
+          </button>
+        </div>
+      ) : null}
+
       {casa.modulos.length === 0 ? (
         <p className="rounded-xl border border-dashed border-stone-200 bg-stone-50 px-4 py-10 text-center text-sm text-stone-600">
           Ainda não há módulos publicados nesta casa. Volte em breve ou fale com o time Moní.
@@ -133,6 +173,7 @@ export function CasaJornadaClient({ casa, progresso }: Props) {
                   <ModuloBody
                     modulo={m}
                     progresso={p}
+                    podePersistirProgresso={faseRegistrada}
                     onDone={async () => {
                       await refresh();
                     }}
@@ -155,10 +196,12 @@ export function CasaJornadaClient({ casa, progresso }: Props) {
 function ModuloBody({
   modulo,
   progresso,
+  podePersistirProgresso,
   onDone,
 }: {
   modulo: UniModulo;
   progresso: UniProgresso | undefined;
+  podePersistirProgresso: boolean;
   onDone: () => Promise<void>;
 }) {
   const concluido = progresso?.status === 'concluido';
@@ -170,6 +213,7 @@ function ModuloBody({
         tituloModulo={modulo.titulo}
         conteudo={modulo.conteudo}
         concluido={concluido}
+        podePersistirProgresso={podePersistirProgresso}
         onConcluir={async () => {
           await marcarModuloConcluido(modulo.id);
           await onDone();
@@ -182,6 +226,7 @@ function ModuloBody({
       <ModuloLeitura
         conteudo={modulo.conteudo}
         concluido={concluido}
+        podePersistirProgresso={podePersistirProgresso}
         onConcluir={async () => {
           await marcarModuloConcluido(modulo.id);
           await onDone();
@@ -193,6 +238,7 @@ function ModuloBody({
     return (
       <ModuloTemplate
         conteudo={modulo.conteudo}
+        podePersistirProgresso={podePersistirProgresso}
         onConcluir={async () => {
           await marcarModuloConcluido(modulo.id);
           await onDone();
@@ -205,6 +251,7 @@ function ModuloBody({
       <ModuloChecklist
         conteudo={modulo.conteudo}
         dados={dados}
+        podePersistirProgresso={podePersistirProgresso}
         onAtualizar={async (d) => {
           await atualizarProgresso(modulo.id, 'em_progresso', d);
           await onDone();
@@ -218,13 +265,16 @@ function ModuloBody({
   }
   if (modulo.tipo === 'quiz' && modulo.conteudo) {
     return (
-      <ModuloQuiz
-        conteudo={modulo.conteudo}
-        onConcluir={async (nota) => {
-          await marcarModuloConcluido(modulo.id, { nota });
-          await onDone();
-        }}
-      />
+      <div key={`${modulo.id}-persist-${podePersistirProgresso}`}>
+        <ModuloQuiz
+          conteudo={modulo.conteudo}
+          podePersistirProgresso={podePersistirProgresso}
+          onConcluir={async (nota) => {
+            await marcarModuloConcluido(modulo.id, { nota });
+            await onDone();
+          }}
+        />
+      </div>
     );
   }
   return <p className="text-sm text-stone-500">Conteúdo indisponível para este módulo.</p>;

@@ -8,10 +8,12 @@ export function ModuloLeitura({
   conteudo,
   concluido,
   onConcluir,
+  podePersistirProgresso = true,
 }: {
   conteudo: ConteudoLeitura;
   concluido: boolean;
   onConcluir: () => void;
+  podePersistirProgresso?: boolean;
 }) {
   return (
     <div className="space-y-4 rounded-xl border border-stone-200 bg-white p-4">
@@ -23,7 +25,7 @@ export function ModuloLeitura({
         <p className="flex items-center gap-2 text-sm font-medium text-green-700">
           <Check className="h-4 w-4" aria-hidden /> Leitura concluída
         </p>
-      ) : (
+      ) : podePersistirProgresso ? (
         <button
           type="button"
           onClick={onConcluir}
@@ -31,6 +33,10 @@ export function ModuloLeitura({
         >
           Concluir esta leitura
         </button>
+      ) : (
+        <p className="text-xs text-stone-500">
+          Inicie a fase no topo da página para registrar a conclusão desta leitura.
+        </p>
       )}
     </div>
   );
