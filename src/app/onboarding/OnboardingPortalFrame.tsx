@@ -15,8 +15,8 @@ export function OnboardingPortalFrame({ anchor }: Props) {
   }, [anchor]);
 
   return (
-    <div className="h-full min-h-0 w-full bg-stone-100">
-      <iframe src={src} className="h-full min-h-[70vh] w-full border-0" title="Conteúdo do onboarding" />
+    <div className="flex min-h-0 flex-1 flex-col bg-stone-100">
+      <iframe src={src} className="min-h-0 flex-1 w-full border-0" title="Conteúdo do onboarding" />
     </div>
   );
 }

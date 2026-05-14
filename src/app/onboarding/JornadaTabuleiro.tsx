@@ -186,7 +186,7 @@ export function JornadaTabuleiro({ userInitials, userDisplayName }: Props) {
   }, []);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#e8f5f0]">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#e8f5f0]">
       <div className="shrink-0 border-b border-emerald-200/60 bg-[#ecfdf5] px-4 py-3 md:px-6">
         <h2 className="text-lg font-bold text-moni-primary md:text-xl">Jornada do franqueado</h2>
         <p className="mt-1 text-sm text-emerald-900/75">

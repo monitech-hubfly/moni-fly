@@ -2,6 +2,8 @@
 
 import { JornadaTabuleiro } from './JornadaTabuleiro';
 import { OnboardingIntroducao } from './OnboardingIntroducao';
+import { OnboardingModeloNegocio } from './OnboardingModeloNegocio';
+import { OnboardingOQueEMoni } from './OnboardingOQueEMoni';
 import { OnboardingPortalFrame } from './OnboardingPortalFrame';
 
 type Props = {
@@ -16,6 +18,12 @@ export function OnboardingSectionView({ section, userInitials, userDisplayName }
   }
   if (section === 'introducao') {
     return <OnboardingIntroducao />;
+  }
+  if (section === 'o-que-e-moni') {
+    return <OnboardingOQueEMoni />;
+  }
+  if (section === 'modelo-de-negocio') {
+    return <OnboardingModeloNegocio />;
   }
   return <OnboardingPortalFrame anchor={section} />;
 }

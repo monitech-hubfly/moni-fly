@@ -47,7 +47,7 @@ const STEPS: { title: string; bullets: string[] }[] = [
 
 export function OnboardingIntroducao() {
   return (
-    <div className="h-full min-h-0 overflow-y-auto bg-stone-50">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-stone-50">
       <div className="mx-auto max-w-3xl px-4 py-6 pb-12 md:px-6 md:py-8">
         <header className="relative mb-10 overflow-hidden rounded-xl border border-stone-200 bg-white p-5 shadow-sm md:p-6">
           {/* Padrão diagonal discreto (estrutura visual, sem cores fortes) */}
