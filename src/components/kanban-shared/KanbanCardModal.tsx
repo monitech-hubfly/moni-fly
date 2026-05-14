@@ -507,7 +507,8 @@ export function KanbanCardModal({
     const condominio = partes[1]?.trim() ?? '';
     const assuntoPadrao = [nFranquia, condominio].filter(Boolean).join('_');
     setEmailAssunto(assuntoPadrao);
-  }, [card?.id, cardId]);
+    // card: assunto deriva de titulo; id+cardId já filtram card errado, mas o linter exige card completo.
+  }, [card, cardId]);
 
   useEffect(() => {
     if (!vincularAberto || !pode('vincular_cards') || !card || origem === 'legado') {
@@ -532,7 +533,7 @@ export function KanbanCardModal({
       cancel = true;
       clearTimeout(h);
     };
-  }, [buscaVinculo, vincularAberto, pode, card?.id, origem]);
+  }, [buscaVinculo, vincularAberto, pode, card, origem]);
 
   useEffect(() => {
     if (!card?.fase_id) return;

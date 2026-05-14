@@ -682,6 +682,8 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
       chartInstances.current.forEach((c) => c.destroy());
       chartInstances.current = [];
     };
+    // chartDepsKey (useMemo acima) serializa labels/dados; incluir cada série aqui duplicaria o memo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cdnReady, chartDepsKey, maxTimeFase, orderedFases, dataset.kanbanNome, setDrawerFaseId]);
 
   const kpiRow = (
