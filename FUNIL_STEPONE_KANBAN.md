@@ -23,7 +23,6 @@ Os valores `sla_dias` gravados na fase são usados pelo Hub como **dias úteis**
 - `/funil-stepone` — Página principal (abas **Kanban** e **Painel**; query `?tab=painel` para o painel)
 - `/funil-stepone/novo` — Formulário para criar novo card (rota legada; o fluxo atual pode usar o modal “+ Novo card” na página principal)
 - `/funil-stepone/[id]` — Detalhe do card (rota legada; o detalhe costuma abrir em modal sobre o board)
-- **Onboarding pedagógico:** `/onboarding` no Hub Fly (secções React + iframe `portal.html` onde ainda for placeholder).
 
 ### Navegação
 
