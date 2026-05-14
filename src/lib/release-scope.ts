@@ -34,6 +34,7 @@ export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/operacoes',
   '/funil-stepone',
   '/funil-moni-inc',
+  '/onboarding',
   '/painel-contabilidade',
   '/painel-credito',
   '/login',

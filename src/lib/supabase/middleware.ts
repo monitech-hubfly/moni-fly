@@ -64,6 +64,7 @@ export async function updateSession(request: NextRequest) {
     '/funil-stepone',
     '/funil-moni-inc',
     '/dashboard-novos-negocios',
+    '/onboarding',
     '/rede-franqueados',
     '/comunidade',
     '/repositorio',

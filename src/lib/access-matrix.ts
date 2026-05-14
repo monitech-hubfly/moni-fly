@@ -8,6 +8,7 @@ export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/rede-franqueados',
   '/comunidade',
   '/repositorio',
+  '/onboarding',
   '/painel-novos-negocios',
   '/portfolio',
   '/funil-acoplamento',
@@ -30,6 +31,7 @@ export function isTeamAllowedPath(pathname: string): boolean {
  */
 export const FRANK_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/portal-frank',
+  '/onboarding',
   '/painel-novos-negocios',
   '/portfolio',
   '/operacoes',

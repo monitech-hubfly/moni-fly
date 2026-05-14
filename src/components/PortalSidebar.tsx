@@ -62,6 +62,39 @@ const PAINEL_NOVOS_NEGOCIOS_SUBITENS_TAIL: NavItem[] = [
 ];
 const SIRENE_SUBITENS: NavItem[] = [{ href: '/sirene/chamados', label: 'Chamados' }];
 
+type OnboardingNavEntry =
+  | { kind: 'link'; href: string; label: string }
+  | { kind: 'divider'; label: string };
+
+/** Rotas com âncora para o iframe em `/onboarding` (hash sincronizado em `page.tsx`). */
+const ONBOARDING_NAV: OnboardingNavEntry[] = [
+  { kind: 'link', href: '/onboarding#introducao', label: 'Introdução' },
+  { kind: 'link', href: '/onboarding#jornada-tabuleiro', label: 'Jornada — Tabuleiro' },
+  { kind: 'divider', label: 'Base de Conhecimento' },
+  { kind: 'link', href: '/onboarding#o-que-e-moni', label: 'O que é a Moní' },
+  { kind: 'link', href: '/onboarding#modelo-de-negocio', label: 'Modelo de Negócio' },
+  { kind: 'link', href: '/onboarding#estrutura-juridica', label: 'Estrutura Jurídica' },
+  { kind: 'link', href: '/onboarding#glossario', label: 'Glossário Completo' },
+  { kind: 'divider', label: 'Esteira de Viabilidade' },
+  { kind: 'link', href: '/onboarding#step-1-perimetro', label: 'Step 1 — Perímetro' },
+  { kind: 'link', href: '/onboarding#step-2-hipotese', label: 'Step 2 — Hipótese' },
+  { kind: 'link', href: '/onboarding#step-3-negociacao', label: 'Step 3 — Negociação' },
+  { kind: 'link', href: '/onboarding#steps-4-8', label: 'Steps 4–8' },
+  { kind: 'divider', label: 'Análises Integradas' },
+  { kind: 'link', href: '/onboarding#step-1-2-juntos', label: 'Step 1+2 Juntos' },
+  { kind: 'link', href: '/onboarding#check-legal-credito', label: 'Check Legal + Crédito' },
+  { kind: 'divider', label: 'Ferramentas' },
+  { kind: 'link', href: '/onboarding#configurador', label: 'Configurador' },
+  { kind: 'link', href: '/onboarding#bca-guia', label: 'BCA — Guia Completo' },
+  { kind: 'link', href: '/onboarding#batalha-casas', label: 'Batalha de Casas' },
+  { kind: 'link', href: '/onboarding#contratos-moni', label: 'Contratos Moní' },
+  { kind: 'link', href: '/onboarding#repositorio-materiais', label: 'Repositório de Materiais' },
+  { kind: 'divider', label: 'Operação' },
+  { kind: 'link', href: '/onboarding#pastas-drive', label: 'Pastas do Drive' },
+  { kind: 'link', href: '/onboarding#licao-de-casa', label: 'Lição de Casa' },
+  { kind: 'link', href: '/onboarding#pre-obra', label: 'Pré-Obra (em breve)' },
+];
+
 const REDE_HREFS_DEV_ONLY = new Set(['/comunidade', '/rede']);
 
 function filterRedeFranqueadosSubitensParaProd(items: NavItem[], showDevNav: boolean): NavItem[] {
@@ -79,6 +112,10 @@ function isRedeFranqueadosActive(pathname: string) {
   }
   return pathname === '/rede' || (pathname.startsWith('/rede') && !pathname.startsWith('/rede-franqueados'));
 }
+function isOnboardingNavActive(pathname: string) {
+  return pathname === '/onboarding' || pathname.startsWith('/onboarding/');
+}
+
 function isPainelNovosNegociosActive(pathname: string) {
   return (
     pathname.startsWith('/painel-novos-negocios') ||
@@ -145,6 +182,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
     isPainelNovosNegociosActive(pathname ?? ''),
   );
   const [sireneOpen, setSireneOpen] = useState(() => isSireneNavActive(pathname ?? ''));
+  const [onboardingOpen, setOnboardingOpen] = useState(() => isOnboardingNavActive(pathname ?? ''));
 
   /** Franqueado não acessa `/rede-franqueados` (middleware); visão consolidada em `/portal-frank/rede`. */
   const redeFranqueadosNavSubitens = useMemo((): NavItem[] => {
@@ -159,6 +197,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
     const p = pathname ?? '';
     if (p === '/perfil' || p.startsWith('/admin/usuarios')) setPerfilOpen(true);
     if (isPainelNovosNegociosActive(p)) setPainelNovosNegociosOpen(true);
+    if (isOnboardingNavActive(p)) setOnboardingOpen(true);
     if (isSireneNavActive(p)) setSireneOpen(true);
     if (isRedeFranqueadosActive(p)) setRedeFranqueadosOpen(true);
     else if (isCatalogoActive(p)) setCatalogoOpen(true);
@@ -283,6 +322,52 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
             ? [...PAINEL_NOVOS_NEGOCIOS_SUBITENS_HEAD, ...PAINEL_NOVOS_NEGOCIOS_ADMIN_SUBITENS, ...PAINEL_NOVOS_NEGOCIOS_SUBITENS_TAIL]
             : [...PAINEL_NOVOS_NEGOCIOS_SUBITENS_HEAD, ...PAINEL_NOVOS_NEGOCIOS_SUBITENS_TAIL],
           (href) => pathname === href || (pathname?.startsWith(href + '/') ?? false),
+        )}
+
+        {!publicVisitor && (isAdmin || resolvedRole === 'team' || resolvedRole === 'frank') && (
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => setOnboardingOpen(!onboardingOpen)}
+                className={`flex flex-1 items-center gap-2 ${linkClassPrincipal(isOnboardingNavActive(pathname ?? ''))}`}
+              >
+                Onboarding
+              </button>
+              <button
+                type="button"
+                onClick={() => setOnboardingOpen(!onboardingOpen)}
+                className="rounded p-1.5 text-stone-500 hover:text-moni-primary"
+                aria-expanded={onboardingOpen}
+              >
+                {onboardingOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </button>
+            </div>
+            {onboardingOpen && (
+              <div className="mt-0.5 space-y-0.5">
+                {ONBOARDING_NAV.map((entry, idx) =>
+                  entry.kind === 'divider' ? (
+                    <div
+                      key={`onb-div-${idx}-${entry.label}`}
+                      className="mt-1 select-none border-t border-stone-200 px-3 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-stone-400"
+                    >
+                      {entry.label}
+                    </div>
+                  ) : (
+                    <Link
+                      key={entry.href}
+                      href={entry.href}
+                      className={linkClassSub(
+                        Boolean(pathname === '/onboarding' || pathname?.startsWith('/onboarding/')),
+                      )}
+                    >
+                      {entry.label}
+                    </Link>
+                  ),
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         {!publicVisitor && !limitedRelease && (isAdmin || resolvedRole === 'team') && (
