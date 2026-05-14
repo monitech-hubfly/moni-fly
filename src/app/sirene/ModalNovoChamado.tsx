@@ -146,7 +146,13 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     setError(null);
     setLoading(true);
     const formData = new FormData();
-    formData.set('incendio', incendio.trim());
+    const incendioBase = incendio.trim();
+    const temaOutroTrim = temaOutro.trim();
+    const temaFinal = tema === 'Outro' ? 'Outro' : tema;
+    const incendioFinal =
+      tema === 'Outro' && temaOutroTrim ? `${incendioBase} — Tema: ${temaOutroTrim}` : incendioBase;
+
+    formData.set('incendio', incendioFinal);
     const timeNome = kanbanTimes.find((t) => timesIds[0] === t.id)?.nome ?? '';
     const respNome = responsaveisOpcoes.find((p) => responsaveisIds[0] === p.id)?.nome ?? '';
     formData.set('time_abertura', timeNome);
@@ -158,7 +164,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     if (teTrata === 'sim' || teTrata === 'nao') formData.set('te_trata', teTrata);
     formData.set('tipo', ehHdm ? 'hdm' : 'padrao');
     if (ehHdm && hdmResponsavel) formData.set('hdm_responsavel', hdmResponsavel);
-    formData.set('tema', tema === 'Outro' ? temaOutro.trim() : tema);
+    formData.set('tema', temaFinal);
     if (cardVinculo) {
       formData.set('card_id', cardVinculo.card_id);
       formData.set('card_kanban_nome', cardVinculo.kanban_nome);

@@ -21,17 +21,35 @@ export type DeletarChamadoInput =
   | { modo: 'sirene'; sireneChamadoId: number }
   | { modo: 'interacao_kanban'; interacaoKanbanId: string; basePath?: string };
 
+/** Mesma regra do botão no detalhe e do server action `deletarChamado`. */
+export function podeExcluirChamadoSirene(opts: {
+  role: string | null | undefined;
+  cargo: string | null | undefined;
+  userId: string | null | undefined;
+  abertoPor: string | null | undefined;
+}): boolean {
+  const roleNorm = String(opts.role ?? '').trim().toLowerCase();
+  const cargoNorm = String(opts.cargo ?? '').trim().toLowerCase();
+  if (roleNorm === 'admin') return true;
+  if (cargoNorm === 'adm') return true;
+  const aberto = opts.abertoPor != null ? String(opts.abertoPor).trim() : '';
+  const uid = opts.userId != null ? String(opts.userId).trim() : '';
+  if (!aberto || !uid) return false;
+  return aberto.toLowerCase() === uid.toLowerCase();
+}
+
 function podeUsuarioExcluirChamado(opts: {
   role: string | null;
   cargo: string | null;
   userId: string;
   criadorOuAbertoPor: string | null;
 }): boolean {
-  const roleNorm = (opts.role ?? '').toLowerCase();
-  const cargoNorm = (opts.cargo ?? '').toLowerCase();
-  if (roleNorm === 'admin') return true;
-  if (cargoNorm === 'adm') return true;
-  return opts.criadorOuAbertoPor != null && opts.criadorOuAbertoPor === opts.userId;
+  return podeExcluirChamadoSirene({
+    role: opts.role,
+    cargo: opts.cargo,
+    userId: opts.userId,
+    abertoPor: opts.criadorOuAbertoPor,
+  });
 }
 
 /**
@@ -48,12 +66,18 @@ export async function deletarChamado(input: DeletarChamadoInput): Promise<Sirene
     const admin = createAdminClient();
 
     if (input.modo === 'sirene') {
+      if (!Number.isFinite(input.sireneChamadoId)) {
+        return { ok: false, error: 'ID do chamado inválido.' };
+      }
       const { data: sc, error: scErr } = await admin
         .from('sirene_chamados')
         .select('id, aberto_por')
         .eq('id', input.sireneChamadoId)
         .maybeSingle();
-      if (scErr || !sc) return { ok: false, error: 'Chamado não encontrado.' };
+      if (scErr || !sc) {
+        console.error('[sirene] deletarChamado: falha ao buscar chamado', scErr);
+        return { ok: false, error: 'Chamado não encontrado.' };
+      }
       const abertoPor = (sc as { aberto_por?: string | null }).aberto_por ?? null;
       if (!podeUsuarioExcluirChamado({ role: me.role, cargo: me.cargo, userId: me.userId, criadorOuAbertoPor: abertoPor })) {
         return { ok: false, error: 'Sem permissão para excluir este chamado.' };
@@ -64,16 +88,32 @@ export async function deletarChamado(input: DeletarChamadoInput): Promise<Sirene
         .select('id')
         .eq('sirene_chamado_id', input.sireneChamadoId)
         .eq('origem', 'sirene');
-      if (kaListErr) return { ok: false, error: kaListErr.message };
+      if (kaListErr) {
+        console.error('[sirene] deletarChamado: falha ao listar kanban_atividades', kaListErr);
+        return { ok: false, error: kaListErr.message };
+      }
 
       for (const row of kaRows ?? []) {
         const kaId = String((row as { id: string }).id);
         const { error: delKa } = await admin.from('kanban_atividades').delete().eq('id', kaId);
-        if (delKa) return { ok: false, error: delKa.message };
+        if (delKa) {
+          console.error('[sirene] deletarChamado: falha ao deletar kanban_atividades', { kaId, delKa });
+          return { ok: false, error: delKa.message };
+        }
       }
 
-      const { error: delSc } = await admin.from('sirene_chamados').delete().eq('id', input.sireneChamadoId);
-      if (delSc) return { ok: false, error: delSc.message };
+      const { error: delSc, count: delScCount } = await admin
+        .from('sirene_chamados')
+        .delete({ count: 'exact' })
+        .eq('id', input.sireneChamadoId);
+      if (delSc) {
+        console.error('[sirene] deletarChamado: falha ao deletar sirene_chamados', delSc);
+        return { ok: false, error: delSc.message };
+      }
+      if (!delScCount) {
+        console.error('[sirene] deletarChamado: delete não removeu linhas', { chamadoId: input.sireneChamadoId });
+        return { ok: false, error: 'Não foi possível excluir o chamado (nenhuma linha removida).' };
+      }
 
       revalidatePath('/sirene');
       revalidatePath('/sirene/chamados');
@@ -87,7 +127,10 @@ export async function deletarChamado(input: DeletarChamadoInput): Promise<Sirene
       .select('id, criado_por, sirene_chamado_id, origem')
       .eq('id', input.interacaoKanbanId)
       .maybeSingle();
-    if (rowErr || !row) return { ok: false, error: 'Chamado não encontrado.' };
+    if (rowErr || !row) {
+      console.error('[sirene] deletarChamado: falha ao buscar interacao', rowErr);
+      return { ok: false, error: 'Chamado não encontrado.' };
+    }
     const criadoPor = (row as { criado_por?: string | null }).criado_por ?? null;
     if (!podeUsuarioExcluirChamado({ role: me.role, cargo: me.cargo, userId: me.userId, criadorOuAbertoPor: criadoPor })) {
       return { ok: false, error: 'Sem permissão para excluir este chamado.' };
@@ -97,11 +140,17 @@ export async function deletarChamado(input: DeletarChamadoInput): Promise<Sirene
     const origem = String((row as { origem?: string | null }).origem ?? '');
 
     const { error: delKa } = await admin.from('kanban_atividades').delete().eq('id', input.interacaoKanbanId);
-    if (delKa) return { ok: false, error: delKa.message };
+    if (delKa) {
+      console.error('[sirene] deletarChamado: falha ao deletar interacao kanban_atividades', delKa);
+      return { ok: false, error: delKa.message };
+    }
 
     if (sid != null && origem === 'sirene') {
       const { error: delSc } = await admin.from('sirene_chamados').delete().eq('id', sid);
-      if (delSc) return { ok: false, error: delSc.message };
+      if (delSc) {
+        console.error('[sirene] deletarChamado: falha ao deletar sirene_chamados via interacao', delSc);
+        return { ok: false, error: delSc.message };
+      }
       revalidatePath('/sirene');
       revalidatePath('/sirene/chamados');
       revalidatePath('/sirene/kanban');
@@ -113,6 +162,7 @@ export async function deletarChamado(input: DeletarChamadoInput): Promise<Sirene
     revalidatePath('/');
     return { ok: true };
   } catch (e) {
+    console.error('[sirene] deletarChamado: exceção', e);
     return { ok: false, error: String(e) };
   }
 }

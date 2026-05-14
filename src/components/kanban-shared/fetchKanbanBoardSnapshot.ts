@@ -109,7 +109,22 @@ export async function fetchKanbanBoardSnapshot(
   }
 
   const { data: rowsRaw } = await viewQuery;
-  const rows = (rowsRaw ?? []) as ViewLegadoRow[];
+  const rowsAll = (rowsRaw ?? []) as ViewLegadoRow[];
+
+  const processoIdsAll = rowsAll.map((r) => String(r.id)).filter(Boolean);
+  const archivedLegadoIds = new Set<string>();
+  if (processoIdsAll.length > 0) {
+    const { data: archRows } = await supabase
+      .from('kanban_cards')
+      .select('id')
+      .in('id', processoIdsAll)
+      .eq('arquivado', true);
+    for (const row of archRows ?? []) {
+      const id = String((row as { id?: string }).id ?? '').trim();
+      if (id) archivedLegadoIds.add(id);
+    }
+  }
+  const rows = rowsAll.filter((r) => !archivedLegadoIds.has(String(r.id)));
 
   const franqueadoIdsLegado = [...new Set(rows.map((r) => r.responsavel_id).filter(Boolean))] as string[];
   const profilesMapLegado = new Map<string, { full_name: string | null }>();
@@ -203,6 +218,7 @@ export async function fetchKanbanBoardSnapshot(
       .select(selectCols)
       .eq('kanban_id', kanban.id)
       .eq('status', 'ativo')
+      .eq('arquivado', false)
       .eq('concluido', false)
       .order('created_at', { ascending: false });
 

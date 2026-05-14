@@ -102,6 +102,7 @@ export default async function FunilStepOnePage({
     .select(selectCols)
     .eq('kanban_id', kanban.id)
     .eq('status', 'ativo')
+    .eq('arquivado', false)
     .eq('concluido', false)
     .order('created_at', { ascending: false });
 

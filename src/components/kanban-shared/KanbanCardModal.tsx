@@ -714,8 +714,21 @@ export function KanbanCardModal({
           return;
         }
 
+        const legadoId = String(vRow.id);
+        let arquivadoShadow = false;
+        try {
+          const { data: shadowRow } = await supabase
+            .from('kanban_cards')
+            .select('arquivado')
+            .eq('id', legadoId)
+            .maybeSingle();
+          arquivadoShadow = Boolean((shadowRow as { arquivado?: boolean | null } | null)?.arquivado);
+        } catch {
+          arquivadoShadow = false;
+        }
+
         loaded = {
-          id: String(vRow.id),
+          id: legadoId,
           titulo: String((vRow as { titulo?: string | null }).titulo ?? ''),
           status: String((vRow as { status?: string | null }).status ?? ''),
           created_at: String((vRow as { criado_em?: string | null }).criado_em ?? ''),
@@ -728,6 +741,7 @@ export function KanbanCardModal({
               : null,
           data_reuniao: (vRow as { data_reuniao?: string | null }).data_reuniao ?? null,
           data_followup: (vRow as { data_followup?: string | null }).data_followup ?? null,
+          arquivado: arquivadoShadow,
         };
 
         try {
@@ -1777,8 +1791,15 @@ export function KanbanCardModal({
   }
 
   async function handleConfirmarArquivar() {
-    if (!card || origem === 'legado') return;
-    if (!pode('arquivar_cards')) {
+    if (!card) return;
+    const rl = modalSessao.roleNorm;
+    const podeArquivar =
+      pode('arquivar_cards') ||
+      rl === 'admin' ||
+      rl === 'team' ||
+      rl === 'supervisor' ||
+      rl === 'consultor';
+    if (ocultarGestaoCard || !podeArquivar) {
       alert('Sem permissão para arquivar cards.');
       return;
     }
@@ -1789,13 +1810,20 @@ export function KanbanCardModal({
     }
     setLoading(true);
     try {
-      const r = await arquivarCard({ cardId: card.id, motivo, basePath });
+      const r = await arquivarCard({
+        cardId: card.id,
+        motivo,
+        basePath,
+        origem: origem === 'legado' ? 'legado' : 'nativo',
+      });
       if (!r.ok) {
-        alert(r.error);
+        alert(r.error ?? 'Não foi possível arquivar o card.');
         return;
       }
       router.refresh();
       onClose();
+    } catch {
+      alert('Erro ao arquivar o card. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -2246,7 +2274,9 @@ export function KanbanCardModal({
   const createdDate = new Date(card.created_at);
   const slaCard = calcularStatusSLA(createdDate, faseAtual?.sla_dias ?? 999);
   const cardNativoConcluido = !isLegado && Boolean(card.concluido);
+  const cardLegadoConcluido = isLegado && card.processo_meta?.status === 'concluido';
   const cardNativoArquivado = !isLegado && Boolean(card.arquivado);
+  const cardLegadoArquivado = isLegado && Boolean(card.arquivado);
   const podeRetrocederFase =
     !cardNativoConcluido && Boolean(faseAtual && fases.some((f) => f.ordem === faseAtual.ordem - 1));
   const podeAvancarFase =
@@ -2255,6 +2285,25 @@ export function KanbanCardModal({
   const estaNaUltimaFaseNativo = Boolean(faseAtual && faseAtual.ordem === maxOrdemFases);
   const exibirBotaoFinalizar =
     !isLegado && estaNaUltimaFaseNativo && !cardNativoConcluido && !cardNativoArquivado;
+  const rlArch = modalSessao.roleNorm;
+  const podeArquivarCardPerm =
+    !ocultarGestaoCard &&
+    (pode('arquivar_cards') ||
+      isAdmin ||
+      modalSessao.ehAdminOuTeam ||
+      rlArch === 'admin' ||
+      rlArch === 'team' ||
+      rlArch === 'supervisor' ||
+      rlArch === 'consultor');
+  const exibirBlocoArquivar =
+    podeArquivarCardPerm &&
+    !cardNativoConcluido &&
+    !cardLegadoConcluido &&
+    !cardNativoArquivado &&
+    !cardLegadoArquivado;
+  const mostrarColunaAcoesLateral =
+    !ocultarGestaoCard &&
+    (pode('mover_fase') || pode('finalizar_cards') || podeArquivarCardPerm);
   const cardTitulo = card.titulo;
   const checklistExtra = card.fase_id && camposPorFase?.[card.fase_id];
   const faseChecklistFaseId = card.fase_id ?? '';
@@ -4245,65 +4294,10 @@ export function KanbanCardModal({
                 )}
               </div>
             </div>
-
-            {!ocultarGestaoCard && pode('arquivar_cards') && !isLegado && !card.concluido ? (
-              <div className="mt-4 border-t pt-4" style={{ borderColor: 'var(--moni-border-default)' }}>
-                {!arquivamentoAberto ? (
-                  <button
-                    type="button"
-                    onClick={() => setArquivamentoAberto(true)}
-                    disabled={loading}
-                    className="w-full px-2 py-1 text-xs font-medium leading-tight disabled:opacity-50"
-                    style={{
-                      background: 'transparent',
-                      color: 'var(--moni-status-overdue-text)',
-                      border: '0.5px solid var(--moni-status-overdue-border)',
-                      borderRadius: 'var(--moni-radius-md)',
-                    }}
-                  >
-                    Arquivar card
-                  </button>
-                ) : (
-                  <div className="space-y-2">
-                    <label className="block text-xs font-medium text-stone-600">Motivo do arquivamento</label>
-                    <textarea
-                      value={motivoArquivamento}
-                      onChange={(e) => setMotivoArquivamento(e.target.value)}
-                      rows={3}
-                      placeholder="Descreva o motivo…"
-                      className="w-full resize-none rounded-lg p-2 text-sm focus:outline-none"
-                      style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-0)' }}
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void handleConfirmarArquivar()}
-                        disabled={loading || !motivoArquivamento.trim()}
-                        className="flex-1 rounded-lg px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-                        style={{ background: 'var(--moni-status-overdue-border)' }}
-                      >
-                        {loading ? 'Arquivando…' : 'Confirmar'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setArquivamentoAberto(false);
-                          setMotivoArquivamento('');
-                        }}
-                        disabled={loading}
-                        className="flex-1 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 disabled:opacity-50"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : null}
           </div>
 
           {/* Direita — ações de movimento do card (mobile: após o centro) */}
-          {!ocultarGestaoCard && (pode('mover_fase') || pode('finalizar_cards')) ? (
+          {mostrarColunaAcoesLateral ? (
           <aside
             className="moni-card-modal-acoes order-2 flex w-full shrink-0 flex-col gap-1.5 border-t p-2 text-xs sm:order-3 sm:h-full sm:min-w-0 sm:w-[120px] sm:max-w-[120px] sm:flex-none sm:border-l sm:border-t-0 sm:p-2"
             style={{
@@ -4417,6 +4411,67 @@ export function KanbanCardModal({
                 </div>
               ) : null}
             </div>
+
+            {exibirBlocoArquivar ? (
+              <div className="mb-2 border-b pb-2" style={{ borderColor: 'var(--moni-border-default)' }}>
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                  Arquivar
+                </p>
+                {!arquivamentoAberto ? (
+                  <button
+                    type="button"
+                    onClick={() => setArquivamentoAberto(true)}
+                    disabled={loading}
+                    className="w-full px-2 py-1 text-[11px] font-medium leading-tight disabled:opacity-50"
+                    style={{
+                      background: 'transparent',
+                      color: 'var(--moni-status-overdue-text)',
+                      border: '0.5px solid var(--moni-status-overdue-border)',
+                      borderRadius: 'var(--moni-radius-md)',
+                    }}
+                  >
+                    Arquivar card
+                  </button>
+                ) : (
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-medium text-stone-600">Motivo</label>
+                    <textarea
+                      value={motivoArquivamento}
+                      onChange={(e) => setMotivoArquivamento(e.target.value)}
+                      rows={3}
+                      placeholder="Motivo…"
+                      className="w-full min-w-0 resize-none rounded p-1.5 text-[11px] focus:outline-none"
+                      style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-0)' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleConfirmarArquivar()}
+                      disabled={loading || !motivoArquivamento.trim()}
+                      className="w-full px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-50"
+                      style={{ background: 'var(--moni-status-overdue-border)', borderRadius: 'var(--moni-radius-md)' }}
+                    >
+                      {loading ? '…' : 'Confirmar'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setArquivamentoAberto(false);
+                        setMotivoArquivamento('');
+                      }}
+                      disabled={loading}
+                      className="w-full px-2 py-1 text-[11px] font-medium text-stone-700 disabled:opacity-50"
+                      style={{
+                        background: 'var(--moni-surface-0)',
+                        border: '0.5px solid var(--moni-border-default)',
+                        borderRadius: 'var(--moni-radius-md)',
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : null}
 
             {pode('mover_fase') ? (
               <>

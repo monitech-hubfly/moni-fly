@@ -100,6 +100,7 @@ export default async function FunilMoniIncPage({
     .select(selectCols)
     .eq('kanban_id', kanban.id)
     .eq('status', 'ativo')
+    .eq('arquivado', false)
     .eq('concluido', false)
     .order('created_at', { ascending: false });
 

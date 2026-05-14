@@ -7,6 +7,7 @@ import { KANBAN_APP_BASE_PATHS } from '@/lib/kanban/kanban-card-href';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 import { criarChamado } from '@/app/sirene/actions';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
+import { carregarPermissoesMap } from '@/lib/permissoes-load';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import type { FaseChecklistItem } from './candidato-actions';
@@ -492,6 +493,8 @@ export type ArquivarCardInput = {
   cardId: string;
   motivo: string;
   basePath?: string;
+  /** `legado` quando `cardId` é `processo_step_one.id` (view `v_processo_como_kanban_cards`). */
+  origem?: 'nativo' | 'legado';
 };
 
 export async function finalizarCard(input: {
@@ -570,18 +573,88 @@ export async function arquivarCard(input: ArquivarCardInput): Promise<ActionResu
   const motivo = String(input.motivo ?? '').trim();
   if (!motivo) return { ok: false, error: 'Informe o motivo do arquivamento.' };
 
-  const now = new Date().toISOString();
-  const { error } = await supabase
-    .from('kanban_cards')
-    .update({
-      arquivado: true,
-      arquivado_em: now,
-      arquivado_por: user.id,
-      motivo_arquivamento: motivo,
-    } as never)
-    .eq('id', cardId);
+  const [perm, { data: meProf }] = await Promise.all([
+    carregarPermissoesMap(supabase, user.id),
+    supabase.from('profiles').select('role').eq('id', user.id).maybeSingle(),
+  ]);
+  const roleNorm = String((meProf as { role?: string | null } | null)?.role ?? '').toLowerCase();
+  const papelPrivilegiadoKanban =
+    roleNorm === 'admin' ||
+    roleNorm === 'team' ||
+    roleNorm === 'supervisor' ||
+    roleNorm === 'consultor';
+  if (!papelPrivilegiadoKanban && !perm.get('arquivar_cards')) {
+    return { ok: false, error: 'Sem permissão para arquivar cards.' };
+  }
 
-  if (error) return { ok: false, error: error.message };
+  const admin = createAdminClient();
+  const now = new Date().toISOString();
+  const origem = input.origem ?? 'nativo';
+
+  const patchArquivar = {
+    arquivado: true,
+    arquivado_em: now,
+    arquivado_por: user.id,
+    motivo_arquivamento: motivo,
+  } as const;
+
+  if (origem === 'legado') {
+    const { data: vLeg, error: vErr } = await admin
+      .from('v_processo_como_kanban_cards')
+      .select('id, kanban_id, fase_id, titulo, responsavel_id')
+      .eq('id', cardId)
+      .maybeSingle();
+
+    if (vErr) return { ok: false, error: vErr.message };
+    if (!vLeg) return { ok: false, error: 'Card legado não encontrado na view de processos.' };
+
+    const r = vLeg as {
+      kanban_id: string | null;
+      fase_id: string | null;
+      titulo: string | null;
+      responsavel_id: string | null;
+    };
+    const kid = String(r.kanban_id ?? '').trim();
+    const fid = String(r.fase_id ?? '').trim();
+    const franq = String(r.responsavel_id ?? '').trim();
+    if (!kid || !fid || !franq) {
+      return { ok: false, error: 'Dados incompletos do processo (kanban/fase/franqueado).' };
+    }
+
+    const { data: existing } = await admin.from('kanban_cards').select('id').eq('id', cardId).maybeSingle();
+
+    if (existing) {
+      const { data: upd, error: uErr } = await admin
+        .from('kanban_cards')
+        .update({ ...patchArquivar } as never)
+        .eq('id', cardId)
+        .select('id');
+      if (uErr) return { ok: false, error: uErr.message };
+      if (!upd?.length) return { ok: false, error: 'Não foi possível atualizar o registro de arquivamento.' };
+    } else {
+      const titulo = String(r.titulo ?? '').trim() || 'Sem título';
+      const { error: iErr } = await admin.from('kanban_cards').insert({
+        id: cardId,
+        kanban_id: kid,
+        fase_id: fid,
+        franqueado_id: franq,
+        titulo,
+        status: 'ativo',
+        concluido: false,
+        ...patchArquivar,
+      } as never);
+      if (iErr) return { ok: false, error: iErr.message };
+    }
+  } else {
+    const { data: updated, error } = await admin
+      .from('kanban_cards')
+      .update({ ...patchArquivar } as never)
+      .eq('id', cardId)
+      .select('id');
+
+    if (error) return { ok: false, error: error.message };
+    if (!updated?.length) return { ok: false, error: 'Card não encontrado em kanban_cards.' };
+  }
 
   const bp = input.basePath?.trim() || '/';
   revalidatePath(bp);
@@ -592,6 +665,7 @@ export async function arquivarCard(input: ArquivarCardInput): Promise<ActionResu
 export type DesarquivarCardInput = {
   cardId: string;
   basePath?: string;
+  origem?: 'nativo' | 'legado';
 };
 
 export async function desarquivarCard(input: DesarquivarCardInput): Promise<ActionResult> {
@@ -604,7 +678,22 @@ export async function desarquivarCard(input: DesarquivarCardInput): Promise<Acti
   const cardId = String(input.cardId ?? '').trim();
   if (!cardId) return { ok: false, error: 'Card inválido.' };
 
-  const { error } = await supabase
+  const [perm, { data: meProf2 }] = await Promise.all([
+    carregarPermissoesMap(supabase, user.id),
+    supabase.from('profiles').select('role').eq('id', user.id).maybeSingle(),
+  ]);
+  const roleNorm2 = String((meProf2 as { role?: string | null } | null)?.role ?? '').toLowerCase();
+  const papelPriv =
+    roleNorm2 === 'admin' ||
+    roleNorm2 === 'team' ||
+    roleNorm2 === 'supervisor' ||
+    roleNorm2 === 'consultor';
+  if (!papelPriv && !perm.get('arquivar_cards')) {
+    return { ok: false, error: 'Sem permissão para desarquivar cards.' };
+  }
+
+  const admin = createAdminClient();
+  const { data: updated, error } = await admin
     .from('kanban_cards')
     .update({
       arquivado: false,
@@ -612,9 +701,17 @@ export async function desarquivarCard(input: DesarquivarCardInput): Promise<Acti
       arquivado_por: null,
       motivo_arquivamento: null,
     } as never)
-    .eq('id', cardId);
+    .eq('id', cardId)
+    .select('id');
 
   if (error) return { ok: false, error: error.message };
+  if (!updated?.length) {
+    const hint =
+      input.origem === 'legado'
+        ? 'Não há registro em kanban_cards para este processo (nada para desarquivar).'
+        : 'Card não encontrado em kanban_cards.';
+    return { ok: false, error: hint };
+  }
 
   const bp = input.basePath?.trim() || '/';
   revalidatePath(bp);

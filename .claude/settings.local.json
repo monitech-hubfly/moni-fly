@@ -32,7 +32,9 @@
       "Read(//c/Users/raffa/AppData/Roaming/supabase/**)",
       "Read(//c/Users/raffa/AppData/Roaming/**)",
       "PowerShell(cmdkey *)",
-      "Bash(python *)"
+      "Bash(python *)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)"
     ]
   }
 }
