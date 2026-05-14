@@ -7,6 +7,7 @@ import { Bell, ChevronDown, ChevronRight, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { isAdminRole, normalizeAccessRole } from '@/lib/authz';
 import { isLiveLimitedRelease, showDevOnlySidebarNav } from '@/lib/release-scope';
+import { SidebarUniversidadeLinks } from '@/components/universidade/SidebarUniversidadeLinks';
 type PortalSidebarProps = {
   user: { id: string; email?: string; full_name?: string | null } | null;
   userRole: string;
@@ -303,6 +304,15 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
             SIRENE_SUBITENS,
             (href) => Boolean(pathname === href || pathname?.startsWith(`${href}/`)),
           )}
+
+        {!publicVisitor && !limitedRelease && (
+          <SidebarUniversidadeLinks
+            userId={user?.id}
+            resolvedRole={resolvedRole}
+            linkClassPrincipal={linkClassPrincipal}
+            linkClassSub={linkClassSub}
+          />
+        )}
 
         {!publicVisitor && !limitedRelease && showDevNav && isAdmin &&
           renderMacro(

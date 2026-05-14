@@ -547,10 +547,16 @@ export async function atualizarEtapaPainel(
         if (!ct.ok) return ct;
       }
 
+      const idxPassagem = PAINEL_COLUMNS.findIndex((c) => c.key === 'passagem_wayser');
       const idxFrom = PAINEL_COLUMNS.findIndex((c) => c.key === (beforeProc?.etapa_painel as PainelColumnKey));
       const idxTo = PAINEL_COLUMNS.findIndex((c) => c.key === etapaKey);
-      const avancouDeStep7 = beforeProc?.etapa_painel === 'step_7' && idxTo > idxFrom;
-      if (avancouDeStep7) {
+      const primeiraEntradaEmWayserOuAlem =
+        idxPassagem >= 0 &&
+        idxFrom >= 0 &&
+        idxTo >= 0 &&
+        idxFrom < idxPassagem &&
+        idxTo >= idxPassagem;
+      if (primeiraEntradaEmWayserOuAlem) {
         const ct = await createChildIfMissing('contabilidade_spe', 'origem_contabilidade_processo_id');
         if (!ct.ok) return ct;
       }

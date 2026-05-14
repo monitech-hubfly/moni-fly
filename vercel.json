@@ -2,7 +2,8 @@
   "git": {
     "deploymentEnabled": {
       "main": true,
-      "develop": true
+      "develop": true,
+      "funcionalidade-danilo": false
     }
   },
   "crons": [
