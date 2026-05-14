@@ -16,6 +16,7 @@ export const ONBOARDING_NAV_GROUPS: OnboardingNavGroup[] = [
       { slug: 'acessos-e-links', label: 'Acessos, links e planilhas' },
       { slug: 'meta-frank', label: 'Meta Frank (ritmo mensal)' },
       { slug: 'jornada-tabuleiro', label: 'Jornada — tabuleiro' },
+      { slug: 'portal-html-moni', label: 'Portal HTML completo' },
     ],
   },
   {

@@ -17,6 +17,7 @@ import { OnboardingModeloNegocio } from './OnboardingModeloNegocio';
 import { OnboardingOQueEMoni } from './OnboardingOQueEMoni';
 import { OnboardingOperacoesPreObra } from './OnboardingOperacoesPreObra';
 import { OnboardingPortalFrame } from './OnboardingPortalFrame';
+import { OnboardingPortalMoniHtml } from './OnboardingPortalMoniHtml';
 import { OnboardingSpeMapaBatalhaBca } from './OnboardingSpeMapaBatalhaBca';
 import { OnboardingStepOneOperacional } from './OnboardingStepOneOperacional';
 import { OnboardingStepOneViabilidadeHub } from './OnboardingStepOneViabilidadeHub';
@@ -30,6 +31,9 @@ type Props = {
 export function OnboardingSectionView({ section, userInitials, userDisplayName }: Props) {
   if (section === 'jornada-tabuleiro') {
     return <JornadaTabuleiro userInitials={userInitials} userDisplayName={userDisplayName} />;
+  }
+  if (section === 'portal-html-moni') {
+    return <OnboardingPortalMoniHtml />;
   }
   if (section === 'introducao') {
     return <OnboardingIntroducao />;

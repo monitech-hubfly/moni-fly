@@ -27,7 +27,10 @@ const BOARD_NODES: BoardNode[] = [
     subtitle: 'Início da jornada',
     description:
       'Ponto de partida do franqueado na Moní. Daqui a jornada ramifica para mapeamento, hipótese e, em paralelo, para temas de produto e mercado.',
-    links: [{ href: '/onboarding/introducao', label: 'Voltar à Introdução' }],
+    links: [
+      { href: '/onboarding/introducao', label: 'Voltar à Introdução' },
+      { href: '/onboarding/portal-html-moni', label: 'Portal HTML completo' },
+    ],
     x: 10,
     y: 48,
     pill: 'Kick-off',

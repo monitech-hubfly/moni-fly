@@ -56,6 +56,15 @@ export function OnboardingAcessosLinks() {
           </p>
         </header>
 
+        <p className="mt-8 text-sm text-stone-600 md:text-base">
+          <strong>Portal HTML completo (design Moní):</strong>{' '}
+          <a className="font-semibold text-moni-primary underline" href="/onboarding/portal-html-moni">
+            abrir em ecrã inteiro no Hub
+          </a>{' '}
+          — glossário, steps, Kanban, Drive, lição de casa e checklists interativos (ficheiro estático em{' '}
+          <code className="text-xs">public/onboarding/onboarding_moni_1.html</code>).
+        </p>
+
         <ul className="mt-8 list-none space-y-4 p-0">
           {LINKS.map((l) => (
             <li key={l.href} className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm md:p-5">
