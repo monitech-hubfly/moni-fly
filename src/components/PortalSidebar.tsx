@@ -67,7 +67,7 @@ const CAROMETRO_SUBITENS: NavItem[] = [
   { href: '/carometro/conquistas', label: 'Conquistas' },
   { href: '/carometro/indicadores', label: 'Indicadores' },
   { href: '/carometro/workload', label: 'Workload' },
-  { href: '/carometro/carometro', label: 'Carômetro' },
+  { href: '/carometro', label: 'Carômetro' },
   { href: '/carometro/dashboard-produtos', label: 'Dashboard Casas Moní' },
   { href: '/carometro/todo', label: 'TO DO' },
   { href: '/carometro/cadastros', label: 'Cadastros' },

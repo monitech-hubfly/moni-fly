@@ -1,9 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-if (import.meta.env.DEV && (!supabaseUrl || !supabaseAnonKey)) {
+if (process.env.NODE_ENV === 'development' && (!supabaseUrl || !supabaseAnonKey)) {
   console.error(
     '[Supabase] Defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no .env — sem isso, audit_log e demais tabelas retornam 401/erro.'
   )
