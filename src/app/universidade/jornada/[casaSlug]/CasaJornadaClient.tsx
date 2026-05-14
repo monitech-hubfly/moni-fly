@@ -70,13 +70,6 @@ export function CasaJornadaClient({ casa, progresso }: Props) {
         )
       : 0;
 
-  function prevConcluido(ordem: number): boolean {
-    if (ordem <= 1) return true;
-    const anterior = casa.modulos.find((m) => m.ordem === ordem - 1);
-    if (!anterior) return true;
-    return porModulo.get(anterior.id)?.status === 'concluido';
-  }
-
   async function refresh() {
     router.refresh();
   }
@@ -109,7 +102,6 @@ export function CasaJornadaClient({ casa, progresso }: Props) {
         {casa.modulos.map((m) => {
           const p = porModulo.get(m.id);
           const st = p?.status ?? 'pendente';
-          const clicavel = prevConcluido(m.ordem);
           const ativo = activeId === m.id;
           const icon =
             st === 'concluido' ? (
@@ -124,9 +116,8 @@ export function CasaJornadaClient({ casa, progresso }: Props) {
             <li key={m.id} className="rounded-xl border border-stone-200 bg-white">
               <button
                 type="button"
-                disabled={!clicavel}
-                onClick={() => clicavel && setActiveId(m.id)}
-                className={`flex w-full items-start gap-3 p-4 text-left ${!clicavel ? 'cursor-not-allowed opacity-50' : 'hover:bg-stone-50'}`}
+                onClick={() => setActiveId(m.id)}
+                className="flex w-full items-start gap-3 p-4 text-left hover:bg-stone-50"
               >
                 <IconTipo tipo={m.tipo} />
                 <div className="min-w-0 flex-1">
@@ -137,7 +128,7 @@ export function CasaJornadaClient({ casa, progresso }: Props) {
                   <p className="mt-1 text-xs text-stone-500">{metaModulo(m)}</p>
                 </div>
               </button>
-              {ativo && clicavel ? (
+              {ativo ? (
                 <div className="border-t border-stone-100 p-4">
                   <ModuloBody
                     modulo={m}

@@ -69,16 +69,9 @@ function Metric({ label, value, smallValue }: { label: string; value: string; sm
 }
 
 function UniversidadeCasaLink({ casa }: { casa: CasaComProgresso }) {
-  const locked = casa.status === 'bloqueada';
   return (
-    <div className={locked ? 'pointer-events-none' : ''}>
-      {locked ? (
-        <CasaCard casa={casa} />
-      ) : (
-        <Link href={`/universidade/jornada/${encodeURIComponent(casa.slug)}`} className="block">
-          <CasaCard casa={casa} />
-        </Link>
-      )}
-    </div>
+    <Link href={`/universidade/jornada/${encodeURIComponent(casa.slug)}`} className="block">
+      <CasaCard casa={casa} />
+    </Link>
   );
 }

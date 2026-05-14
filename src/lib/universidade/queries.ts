@@ -138,7 +138,7 @@ export async function getProgressoUsuario(supabase: SupabaseClient, userId: stri
   }));
 }
 
-/** Casa `numero` desbloqueada se numero=0 ou todos obrigatórios da casa anterior concluídos. */
+/** Regra sequencial casa N-1 → N (para integrações legadas). O tabuleiro e a jornada não bloqueiam por isto. */
 export async function verificarDesbloqueioDb(
   supabase: SupabaseClient,
   userId: string,
@@ -175,11 +175,16 @@ export async function verificarDesbloqueioDb(
   return obrIds.every((id) => done.has(id));
 }
 
-function casaStatus(bloqueada: boolean, totalObr: number, concl: number): CasaComProgressoStatus {
+function casaStatus(
+  bloqueada: boolean,
+  totalObr: number,
+  concl: number,
+  obrEmProgresso: number,
+): CasaComProgressoStatus {
   if (bloqueada) return 'bloqueada';
   const pct = totalObr > 0 ? Math.round((concl / totalObr) * 100) : 0;
   if (pct >= 100) return 'concluida';
-  if (pct > 0) return 'em_progresso';
+  if (pct > 0 || obrEmProgresso > 0) return 'em_progresso';
   return 'disponivel';
 }
 
@@ -203,14 +208,16 @@ export async function getCasasComProgresso(
     const obr = (mods ?? []).filter((m) => m.obrigatorio !== false);
     const totalObr = obr.length;
     let concl = 0;
+    let obrEmProgresso = 0;
     for (const m of obr) {
       const p = porModulo.get(String(m.id));
       if (p?.status === 'concluido') concl++;
+      else if (p?.status === 'em_progresso') obrEmProgresso++;
     }
     const percentual = totalObr > 0 ? Math.round((concl / totalObr) * 100) : 0;
 
-    const unlocked = await verificarDesbloqueioDb(supabase, userId, c.numero);
-    const status = casaStatus(!unlocked, totalObr, concl);
+    // Tabuleiro: todas as casas navegáveis; progresso só reflete conclusões (e status "em andamento" com atividade).
+    const status = casaStatus(false, totalObr, concl, obrEmProgresso);
 
     out.push({
       ...c,
@@ -267,7 +274,7 @@ export async function getBiblioteca(
   }));
 }
 
-/** Progresso geral: média dos percentuais das casas desbloqueadas (peso igual por casa). */
+/** Progresso geral: média dos percentuais de todas as casas (peso igual por casa; só sobe com módulos concluídos). */
 export function calcularProgressoGeral(casas: CasaComProgresso[]): number {
   const ativas = casas.filter((c) => c.status !== 'bloqueada');
   if (ativas.length === 0) return 0;
