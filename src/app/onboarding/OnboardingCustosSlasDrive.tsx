@@ -1,5 +1,7 @@
 'use client';
 
+import { GOOGLE_DRIVE_ONBOARDING_MATERIAIS } from '@/lib/onboarding-external-links';
+
 export function OnboardingCustosSlasDrive() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-stone-50">
@@ -41,12 +43,42 @@ export function OnboardingCustosSlasDrive() {
         <section className="mt-6 rounded-xl border border-amber-200/80 bg-amber-50/70 p-5 md:p-6">
           <h2 className="text-lg font-bold text-amber-950">SLAs</h2>
           <p className="text-sm text-amber-950/90">
-            <strong>Kanban Funil Step One:</strong> SLAs por fase no seed (7, 7, 10, 7, 7, 14, 7 dias corridos).
+            <strong>Kanban Funil Step One:</strong> cada fase tem um número de dias configurado (ex.: 7, 10, 14).
+            No Hub, o vencimento e o atraso do card são calculados em <strong>dias úteis</strong> (fins de semana
+            fora; feriados nacionais quando a base estiver populada) — ver também{' '}
+            <a className="font-semibold underline" href="/onboarding/funis-kanban-guia">
+              guia do Kanban
+            </a>
+            .
           </p>
           <p className="mt-2 text-sm text-amber-950/90">
             <strong>SLAs de resposta Moní → Frank</strong> (ex.: acoplamento em 5 dias úteis, jurídico em 3 dias
             úteis): <strong>a definir e publicar</strong> quando a mesa aprovar os números — deixar registro aqui
             após alinhamento.
+          </p>
+        </section>
+
+        <section className="mt-6 rounded-xl border border-blue-200/90 bg-blue-50/60 p-5 shadow-sm md:p-6">
+          <h2 className="text-lg font-bold text-blue-950">Pasta Drive — temas e melhoria de conteúdo</h2>
+          <p className="mt-2 text-sm text-blue-950/90 md:text-base">
+            Repositório central da Moní para <strong>materiais do onboarding por tema</strong>: abrir para ver o que
+            existe, comparar com o que está publicado no Hub Fly e registrar o que falta ou o que deve ser
+            atualizado (slides, planilhas, PDFs, roteiros).
+          </p>
+          <a
+            href={GOOGLE_DRIVE_ONBOARDING_MATERIAIS}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-block text-sm font-semibold text-blue-800 underline-offset-2 hover:underline md:text-base"
+          >
+            Abrir pasta no Google Drive
+          </a>
+          <p className="mt-2 break-all font-mono text-xs text-blue-900/70 md:text-sm">
+            {GOOGLE_DRIVE_ONBOARDING_MATERIAIS}
+          </p>
+          <p className="mt-3 text-xs text-blue-900/80 md:text-sm">
+            Quem não tiver acesso deve pedir permissão ao administrador do Drive da organização. O Hub continua a
+            fonte “publicada” para o franqueado; o Drive é o espaço de trabalho da equipa para evoluir os temas.
           </p>
         </section>
 

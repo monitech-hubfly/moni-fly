@@ -8,7 +8,7 @@ export function OnboardingFunilStepOneGuia() {
           <h1 className="text-2xl font-bold tracking-tight text-moni-primary md:text-3xl">Funil Step One no Hub</h1>
           <p className="mt-2 text-sm text-stone-600 md:text-base">
             Guia rápido do que a ferramenta pede em cada fase e como as respostas são gravadas. Para fases, SLAs
-            e papéis, veja também{' '}
+            e papéis (incluindo SLA em <strong>dias úteis</strong> no board), veja também{' '}
             <a className="font-medium text-moni-primary underline" href="/onboarding/funis-kanban-guia">
               Kanban Moní e Frank
             </a>

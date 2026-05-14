@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Onboarding Moní</title>
+    <title>Onboarding Moní — portal legado</title>
     <style>
       * {
         box-sizing: border-box;
@@ -66,9 +66,29 @@
         color: #57534e;
         margin: 0 0 0.75rem;
       }
+      #main a {
+        color: #0c4a6e;
+        font-weight: 500;
+      }
+      #main a:hover {
+        text-decoration: underline;
+      }
       .muted {
         color: #a8a29e;
         font-size: 0.8125rem;
+      }
+      .callout {
+        border: 1px solid #bae6fd;
+        background: #f0f9ff;
+        border-radius: 0.5rem;
+        padding: 0.75rem 1rem;
+        margin-bottom: 1.25rem;
+        font-size: 0.8125rem;
+        line-height: 1.5;
+        color: #0c4a6e;
+      }
+      .callout strong {
+        color: #0c2633;
       }
     </style>
   </head>
@@ -77,6 +97,7 @@
       <aside id="sidebar">
         <h1>Onboarding Moní</h1>
         <nav>
+          <a href="#hub-react">Versão completa no Hub</a>
           <a href="#introducao">Introdução</a>
           <a href="#jornada-tabuleiro">Jornada — Tabuleiro</a>
           <a href="#o-que-e-moni">O que é a Moní</a>
@@ -100,51 +121,134 @@
         </nav>
       </aside>
       <main id="main">
+        <div class="callout" id="hub-react">
+          <strong>Conteúdo principal no Hub Fly (Next.js):</strong> use o menu lateral <em>Onboarding</em> para
+          secções atualizadas em React (introdução, glossário, Kanban, Step One, custos, Drive, etc.). Este
+          <code>portal.html</code> serve como iframe legado ou referência rápida; os links abaixo abrem rotas do
+          mesmo domínio quando estiver dentro do app.
+          <br /><br />
+          <a href="/onboarding/introducao">Abrir onboarding completo</a>
+          ·
+          <a href="/onboarding/acessos-e-links">Acessos e links</a>
+          ·
+          <a href="/onboarding/custos-slas-drive">Drive e lição de casa</a>
+        </div>
+
         <p class="muted">
-          Portal placeholder — substitua este ficheiro pelo conteúdo completo de <code>onboarding_moni.html</code>
-          renomeado para <code>portal.html</code>, mantendo os elementos <code>id="sidebar"</code> e
-          <code>id="main"</code> e o script de <code>embedded=true</code> no final do <code>body</code>.
+          Placeholder alargado — substitua por HTML exportado dos materiais oficiais quando existir ficheiro único,
+          mantendo os <code>id</code> das âncoras para não quebrar links do menu e do iframe.
         </p>
+
         <h2 id="introducao">Introdução</h2>
-        <p>Conteúdo da secção Introdução.</p>
+        <p>Roteiro em 5 passos e contexto inicial.</p>
+        <p><a href="/onboarding/introducao">Ver Introdução no Hub →</a></p>
+
         <h2 id="jornada-tabuleiro">Jornada — Tabuleiro</h2>
-        <p>Conteúdo da jornada.</p>
+        <p>Mapa interativo do percurso do franqueado.</p>
+        <p><a href="/onboarding/jornada-tabuleiro">Abrir jornada no Hub →</a></p>
+
         <h2 id="o-que-e-moni">O que é a Moní</h2>
-        <p>Conteúdo institucional.</p>
+        <p>Quadro institucional e posicionamento.</p>
+        <p><a href="/onboarding/o-que-e-moni">Abrir secção no Hub →</a></p>
+
         <h2 id="modelo-de-negocio">Modelo de Negócio</h2>
-        <p>Conteúdo do modelo de negócio.</p>
+        <p>Permuta, compra parcial e compra e venda; tática de abordagem em permuta.</p>
+        <p><a href="/onboarding/modelo-de-negocio">Abrir secção no Hub →</a></p>
+
         <h2 id="estrutura-juridica">Estrutura Jurídica</h2>
-        <p>Conteúdo jurídico.</p>
+        <p>Incorporadora, gestora, SPE e opção de compra (visão pedagógica).</p>
+        <p><a href="/onboarding/estrutura-juridica">Abrir secção no Hub →</a></p>
+
         <h2 id="glossario">Glossário Completo</h2>
-        <p>Definições e termos.</p>
+        <p>Termos comerciais e jurídicos usados na esteira.</p>
+        <p><a href="/onboarding/glossario-completo">Abrir glossário no Hub →</a></p>
+
         <h2 id="step-1-perimetro">Step 1 — Perímetro</h2>
-        <p>Esteira de viabilidade — Step 1.</p>
+        <p>Mapeamento de praça no módulo de viabilidade e checklist de demanda.</p>
+        <p>
+          <a href="/step-one">Step One no Hub</a>
+          ·
+          <a href="/onboarding/step-one-operacional">Checklist e campo (onboarding)</a>
+        </p>
+
         <h2 id="step-2-hipotese">Step 2 — Hipótese</h2>
-        <p>Step 2.</p>
+        <p>Hipótese de negócio e estudos; ligação a BCA e batalha.</p>
+        <p>
+          <a href="/step-2">Step 2 no Hub</a>
+          ·
+          <a href="/onboarding/mapa-batalha-bca-spe">Mapa, batalha e BCA (texto)</a>
+        </p>
+
         <h2 id="step-3-negociacao">Step 3 — Negociação</h2>
-        <p>Step 3.</p>
+        <p>Negociação, opção de compra e encaminhamento a comitê.</p>
+        <p>
+          <a href="/step-3">Step 3 no Hub</a>
+          ·
+          <a href="/onboarding/esteira-negociacao-comite">Esteira negociação e comitê</a>
+        </p>
+
         <h2 id="steps-4-8">Steps 4–8</h2>
-        <p>Visão consolidada dos passos 4 a 8.</p>
+        <p>Legal, crédito, acoplamento, comitê, diligência e contrato.</p>
+        <p>
+          <a href="/painel">Painel legal/crédito</a>
+          ·
+          <a href="/acoplamento-pl">Acoplamento</a>
+          ·
+          <a href="/onboarding/acoplamento-legal-credito">Onboarding acoplamento</a>
+          ·
+          <a href="/onboarding/diligencia-contrato">Diligência e contrato</a>
+        </p>
+
         <h2 id="step-1-2-juntos">Step 1+2 Juntos</h2>
-        <p>Análise integrada.</p>
+        <p>Análise integrada quando o fluxo pedir visão combinada de mapeamento e hipótese.</p>
+        <p><a href="/funil-stepone">Funil Step One (Kanban)</a> · <a href="/onboarding/funis-kanban-guia">Guia do Kanban</a></p>
+
         <h2 id="check-legal-credito">Check Legal + Crédito</h2>
-        <p>Fluxo integrado.</p>
+        <p>Documentação e gates em paralelo à negociação.</p>
+        <p><a href="/onboarding/acoplamento-legal-credito">Secção onboarding</a></p>
+
         <h2 id="configurador">Configurador</h2>
-        <p>Ferramenta configurador.</p>
+        <p>Ambiente externo Moní; credencial pelo time — não publicar senha aqui.</p>
+        <p><a href="https://moni-configurador.vercel.app/" target="_blank" rel="noopener noreferrer">Abrir configurador ↗</a></p>
+
         <h2 id="bca-guia">BCA — Guia Completo</h2>
-        <p>Guia do BCA.</p>
+        <p>Guia detalhado do caso de negócio (preencher quando o conteúdo estiver neste HTML ou só no Drive).</p>
+        <p class="muted">Substituir por texto oficial ou linkar PDF do Drive na pasta de materiais.</p>
+
         <h2 id="batalha-casas">Batalha de Casas</h2>
-        <p>Metodologia e regras.</p>
+        <p>Metodologia e regras de comparação; no código ver <code>REGRAS_BATALHA.ts</code> no Step One.</p>
+        <p><a href="/onboarding/mapa-batalha-bca-spe">Resumo no onboarding React</a></p>
+
         <h2 id="contratos-moni">Contratos Moní</h2>
-        <p>Referência contratual.</p>
+        <p>Referência a minutas e pacotes assinados (conteúdo a anexar).</p>
+        <p class="muted">Colar aqui links públicos de leitura ou trechos aprovados para treino.</p>
+
         <h2 id="repositorio-materiais">Repositório de Materiais</h2>
-        <p>Materiais de apoio.</p>
+        <p>Índice de templates, planilhas e apresentações.</p>
+        <p><a href="/onboarding/acessos-e-links">Lista de links no Hub</a></p>
+
         <h2 id="pastas-drive">Pastas do Drive</h2>
-        <p>Organização no Drive.</p>
+        <p>
+          Pasta da equipa para <strong>materiais por tema</strong> do onboarding (revisão e evolução de conteúdos).
+          Quem não tiver acesso deve pedir permissão ao administrador do Google Workspace.
+        </p>
+        <p>
+          <a
+            href="https://drive.google.com/drive/folders/1Ci84Lq29CPBy8gpgjZbGcciij5yVmTcW"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Abrir pasta no Google Drive ↗</a
+          >
+        </p>
+        <p><a href="/onboarding/custos-slas-drive">Sugestão de estrutura de pastas + lição de casa no Hub →</a></p>
+
         <h2 id="licao-de-casa">Lição de Casa</h2>
-        <p>Conteúdo Lição de Casa.</p>
+        <p>Cidade, ranking de condomínios e ranking de lotes antes do kick-off; anexar evidências no Drive da unidade.</p>
+        <p><a href="/onboarding/custos-slas-drive">Ver secção Lição de casa no Hub →</a></p>
+
         <h2 id="pre-obra">Pré-Obra (em breve)</h2>
-        <p class="muted">Secção em preparação.</p>
+        <p class="muted">Onboarding pós-contrato em construção.</p>
+        <p><a href="/onboarding/operacoes-pre-obra">Secção no Hub →</a></p>
       </main>
     </div>
     <script>

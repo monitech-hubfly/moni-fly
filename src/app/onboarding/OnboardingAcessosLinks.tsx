@@ -1,6 +1,14 @@
 'use client';
 
+import { GOOGLE_DRIVE_ONBOARDING_MATERIAIS } from '@/lib/onboarding-external-links';
+
 const LINKS: { label: string; href: string; nota?: string }[] = [
+  {
+    label: 'Google Drive — materiais e temas do onboarding',
+    href: GOOGLE_DRIVE_ONBOARDING_MATERIAIS,
+    nota:
+      'Pasta oficial para ver todo o material por tema, alinhar versões e melhorar conteúdos. Acesso com conta Google que tenha permissão na pasta.',
+  },
   {
     label: 'Planilha (gid 546303218)',
     href: 'https://docs.google.com/spreadsheets/d/1A055PBQzdeM0y8CqwpPVca0lLEhvqScW-qCQB1eCJyE/edit?gid=546303218#gid=546303218',

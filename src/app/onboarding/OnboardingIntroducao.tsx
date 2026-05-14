@@ -17,23 +17,25 @@ const STEPS: { title: string; bullets: string[] }[] = [
   {
     title: 'Leitura da base de conhecimento',
     bullets: [
-      'Percorra “O que é a Moní”, modelo de negócio e glossário no portal de onboarding.',
+      'Percorra “O que é a Moní”, modelos de negócio, glossário completo e estrutura jurídica no menu de Onboarding.',
+      'Use “Acessos, links e planilhas” para Google Sheets, YouTube e configurador (credencial pelo time Moní).',
       'Anote dúvidas para trazer à equipa ou ao franqueado responsável.',
-      'Use os links do menu para saltar entre secções sem perder o contexto.',
     ],
   },
   {
     title: 'Esteira de viabilidade (visão geral)',
     bullets: [
-      'Entenda a ordem dos Steps 1 a 8 e o papel de cada fase no Hub (mapeamento, hipótese, legal, comitê, etc.).',
-      'Relacione os funis de Empreendimentos com as etapas que vai acompanhar no dia a dia.',
+      'Siga a “Jornada — tabuleiro” e as secções Negociação → Comitê → Diligência e contrato no onboarding.',
+      'No Hub, use Step One, Step 2–7, Funil Step One, acoplamento e painéis de legal/crédito conforme o teu papel.',
+      'Relacione os funis de Empreendimentos com as etapas que acompanhas no dia a dia.',
     ],
   },
   {
     title: 'Ferramentas, BCA e materiais',
     bullets: [
-      'Familiarize-se com o configurador, guia de BCA, batalha de casas e repositório de materiais.',
-      'Saiba onde estão os templates e pastas de Drive referenciados no onboarding.',
+      'Funil Step One: guia do Kanban (SLAs em dias úteis) e “Step One — demanda e campo” para checklist de praça.',
+      'Configurador, BCA e batalha: secções no menu ou iframe do portal; mapa/batalha/BCA também em texto em React.',
+      'Pasta Drive da equipa: em “Custos, SLAs, Drive e lição de casa” — para rever temas e alinhar conteúdos.',
     ],
   },
   {
