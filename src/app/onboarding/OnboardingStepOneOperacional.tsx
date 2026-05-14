@@ -95,6 +95,14 @@ export function OnboardingStepOneOperacional() {
             </a>
             .
           </p>
+          <p className="mt-4 rounded-lg border border-blue-200/90 bg-blue-50/60 px-4 py-3 text-sm text-blue-950/90">
+            Para a <strong>ordem completa das 11 etapas técnicas</strong> do módulo de viabilidade (praça → PDF de
+            hipóteses), abra{' '}
+            <a className="font-semibold underline" href="/onboarding/step-one-viabilidade-hub">
+              Step One — 11 etapas (viabilidade)
+            </a>
+            — alinhado a <code className="text-xs">docs/STEP_ONE_ESPEC.md</code>.
+          </p>
         </header>
 
         <section className="mt-8 space-y-4">

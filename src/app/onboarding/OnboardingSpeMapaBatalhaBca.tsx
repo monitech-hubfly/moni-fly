@@ -42,7 +42,7 @@ configurador sendo alterado para inc + kit moní
 Fazer o estudo completo
 Usar o mapa de competidores para fazer uma batalha completa, segue abaixo as regras que já tenho e usar para orientar no onboarding, passo a passo, material de ensino,...
 
-Motor numérico consolidado (notas por eixo, pesos, desempate): ver \`src/app/step-one/[id]/etapa/REGRAS_BATALHA.ts\` e documentação \`STEP_ONE_ESPEC.md\` / \`GUIA_COMPLETO_VIABILIDADE.md\` na raiz de docs do repositório.`;
+Motor numérico consolidado (notas por eixo, pesos, desempate): ver \`src/app/step-one/[id]/etapa/REGRAS_BATALHA.ts\` e \`docs/STEP_ONE_ESPEC.md\` (e, para setup local, \`GUIA_COMPLETO_VIABILIDADE.md\` na raiz do repositório).`;
 
 export function OnboardingSpeMapaBatalhaBca() {
   return (
@@ -54,7 +54,12 @@ export function OnboardingSpeMapaBatalhaBca() {
           </h1>
           <p className="mt-2 text-sm text-stone-600 md:text-base">
             Texto de trabalho enviado para o onboarding — integra catálogo, comparativos de mercado, BCA e notas
-            sobre automação futura. Ferramentas:{' '}
+            sobre automação futura. No módulo técnico, isto corresponde sobretudo às{' '}
+            <strong>etapas 6 a 10</strong> (catálogo → lote → batalhas → ranking → BCA) — ver{' '}
+            <a className="font-medium text-moni-primary underline" href="/onboarding/step-one-viabilidade-hub">
+              Step One — 11 etapas
+            </a>
+            . Ferramentas:{' '}
             <a className="font-medium text-moni-primary underline" href="/onboarding/configurador">
               Configurador
             </a>

@@ -19,6 +19,7 @@ import { OnboardingOperacoesPreObra } from './OnboardingOperacoesPreObra';
 import { OnboardingPortalFrame } from './OnboardingPortalFrame';
 import { OnboardingSpeMapaBatalhaBca } from './OnboardingSpeMapaBatalhaBca';
 import { OnboardingStepOneOperacional } from './OnboardingStepOneOperacional';
+import { OnboardingStepOneViabilidadeHub } from './OnboardingStepOneViabilidadeHub';
 
 type Props = {
   section: string;
@@ -56,6 +57,9 @@ export function OnboardingSectionView({ section, userInitials, userDisplayName }
   }
   if (section === 'funil-step-one-guia') {
     return <OnboardingFunilStepOneGuia />;
+  }
+  if (section === 'step-one-viabilidade-hub') {
+    return <OnboardingStepOneViabilidadeHub />;
   }
   if (section === 'step-one-operacional') {
     return <OnboardingStepOneOperacional />;

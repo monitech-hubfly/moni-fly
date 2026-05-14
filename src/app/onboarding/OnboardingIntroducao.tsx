@@ -26,7 +26,8 @@ const STEPS: { title: string; bullets: string[] }[] = [
     title: 'Esteira de viabilidade (visão geral)',
     bullets: [
       'Siga a “Jornada — tabuleiro” e as secções Negociação → Comitê → Diligência e contrato no onboarding.',
-      'No Hub, use Step One, Step 2–7, Funil Step One, acoplamento e painéis de legal/crédito conforme o teu papel.',
+      'Leia “Step One — 11 etapas (viabilidade)” para a ordem técnica no Hub (praça até PDF de hipóteses) e cruze com o Funil Step One em Kanban.',
+      'No Hub, use Step One, Steps 2–7, Funil Step One, acoplamento e painéis de legal/crédito conforme o teu papel.',
       'Relacione os funis de Empreendimentos com as etapas que acompanhas no dia a dia.',
     ],
   },
@@ -34,6 +35,7 @@ const STEPS: { title: string; bullets: string[] }[] = [
     title: 'Ferramentas, BCA e materiais',
     bullets: [
       'Funil Step One: guia do Kanban (SLAs em dias úteis) e “Step One — demanda e campo” para checklist de praça.',
+      '“Step One — 11 etapas (viabilidade)” resume o fluxo técnico no Hub até ao PDF de hipóteses (documentação em docs/STEP_ONE_ESPEC.md).',
       'Configurador, BCA e batalha: secções no menu ou iframe do portal; mapa/batalha/BCA também em texto em React.',
       'Pasta Drive da equipa: em “Custos, SLAs, Drive e lição de casa” — para rever temas e alinhar conteúdos.',
     ],

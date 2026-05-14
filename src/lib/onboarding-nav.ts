@@ -32,6 +32,7 @@ export const ONBOARDING_NAV_GROUPS: OnboardingNavGroup[] = [
     items: [
       { slug: 'funis-kanban-guia', label: 'Kanban Moní e Frank' },
       { slug: 'funil-step-one-guia', label: 'Funil Step One no Hub' },
+      { slug: 'step-one-viabilidade-hub', label: 'Step One — 11 etapas (viabilidade)' },
       { slug: 'step-one-operacional', label: 'Step One — demanda e campo' },
       { slug: 'mapa-batalha-bca-spe', label: 'Mapa, batalha, BCA e SPE' },
     ],

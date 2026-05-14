@@ -40,6 +40,7 @@ const BOARD_NODES: BoardNode[] = [
     links: [
       { href: '/step-one', label: 'Step 1 no Hub' },
       { href: '/funil-stepone', label: 'Funil Step One' },
+      { href: '/onboarding/step-one-viabilidade-hub', label: '11 etapas viabilidade' },
       { href: '/onboarding/step-one-operacional', label: 'Checklist demanda e campo' },
       { href: '/onboarding/funis-kanban-guia', label: 'Guia Kanban' },
     ],
