@@ -1,6 +1,6 @@
 /**
  * Secções do Onboarding (URL: /onboarding/[slug]).
- * `jornada-tabuleiro` abre o tabuleiro React; demais embutem o portal HTML com âncora.
+ * Várias secções são páginas React (ver `OnboardingSectionView`); as restantes embutem o portal HTML.
  */
 
 export type OnboardingNavGroup = {

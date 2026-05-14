@@ -1,6 +1,7 @@
 'use client';
 
 import { JornadaTabuleiro } from './JornadaTabuleiro';
+import { OnboardingEstruturaJuridica } from './OnboardingEstruturaJuridica';
 import { OnboardingIntroducao } from './OnboardingIntroducao';
 import { OnboardingModeloNegocio } from './OnboardingModeloNegocio';
 import { OnboardingOQueEMoni } from './OnboardingOQueEMoni';
@@ -24,6 +25,9 @@ export function OnboardingSectionView({ section, userInitials, userDisplayName }
   }
   if (section === 'modelo-de-negocio') {
     return <OnboardingModeloNegocio />;
+  }
+  if (section === 'estrutura-juridica') {
+    return <OnboardingEstruturaJuridica />;
   }
   return <OnboardingPortalFrame anchor={section} />;
 }
