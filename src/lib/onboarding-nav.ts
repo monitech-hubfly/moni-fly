@@ -65,6 +65,24 @@ const ALL_SLUGS = new Set(
   ONBOARDING_NAV_GROUPS.flatMap((g) => g.items.map((i) => i.slug)),
 );
 
+export type OnboardingSidebarEntry =
+  | { kind: 'link'; href: string; label: string }
+  | { kind: 'divider'; label: string };
+
+/** Itens do menu lateral (macro Onboarding expansível), alinhados aos grupos do portal. */
+export function getOnboardingSidebarNav(): OnboardingSidebarEntry[] {
+  const out: OnboardingSidebarEntry[] = [];
+  for (const g of ONBOARDING_NAV_GROUPS) {
+    if (g.title) {
+      out.push({ kind: 'divider', label: g.title });
+    }
+    for (const item of g.items) {
+      out.push({ kind: 'link', href: `/onboarding/${item.slug}`, label: item.label });
+    }
+  }
+  return out;
+}
+
 export function isValidOnboardingSection(slug: string): boolean {
   return ALL_SLUGS.has(slug);
 }

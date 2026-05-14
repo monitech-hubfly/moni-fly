@@ -7,6 +7,7 @@ import { Bell, ChevronDown, ChevronRight, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { isAdminRole, normalizeAccessRole } from '@/lib/authz';
 import { isLiveLimitedRelease, showDevOnlySidebarNav } from '@/lib/release-scope';
+import { getOnboardingSidebarNav } from '@/lib/onboarding-nav';
 
 type PortalSidebarProps = {
   user: { id: string; email?: string; full_name?: string | null } | null;
@@ -61,6 +62,8 @@ const PAINEL_NOVOS_NEGOCIOS_SUBITENS_TAIL: NavItem[] = [
   { href: '/painel-novos-negocios', label: 'Portfolio + Operações (legado)' },
 ];
 const SIRENE_SUBITENS: NavItem[] = [{ href: '/sirene/chamados', label: 'Chamados' }];
+
+const ONBOARDING_SIDEBAR_NAV = getOnboardingSidebarNav();
 
 const REDE_HREFS_DEV_ONLY = new Set(['/comunidade', '/rede']);
 
@@ -149,6 +152,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
     isPainelNovosNegociosActive(pathname ?? ''),
   );
   const [sireneOpen, setSireneOpen] = useState(() => isSireneNavActive(pathname ?? ''));
+  const [onboardingOpen, setOnboardingOpen] = useState(() => isOnboardingNavActive(pathname ?? ''));
 
   /** Franqueado não acessa `/rede-franqueados` (middleware); visão consolidada em `/portal-frank/rede`. */
   const redeFranqueadosNavSubitens = useMemo((): NavItem[] => {
@@ -163,6 +167,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
     const p = pathname ?? '';
     if (p === '/perfil' || p.startsWith('/admin/usuarios')) setPerfilOpen(true);
     if (isPainelNovosNegociosActive(p)) setPainelNovosNegociosOpen(true);
+    if (isOnboardingNavActive(p)) setOnboardingOpen(true);
     if (isSireneNavActive(p)) setSireneOpen(true);
     if (isRedeFranqueadosActive(p)) setRedeFranqueadosOpen(true);
     else if (isCatalogoActive(p)) setCatalogoOpen(true);
@@ -290,12 +295,49 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
         )}
 
         {!publicVisitor && (isAdmin || resolvedRole === 'team' || resolvedRole === 'frank') && (
-          <Link
-            href="/onboarding/introducao"
-            className={linkClassPrincipal(isOnboardingNavActive(pathname ?? ''))}
-          >
-            Onboarding
-          </Link>
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => setOnboardingOpen(!onboardingOpen)}
+                className={`flex flex-1 items-center gap-2 ${linkClassPrincipal(isOnboardingNavActive(pathname ?? ''))}`}
+              >
+                Onboarding
+              </button>
+              <button
+                type="button"
+                onClick={() => setOnboardingOpen(!onboardingOpen)}
+                className="rounded p-1.5 text-stone-500 hover:text-moni-primary"
+                aria-expanded={onboardingOpen}
+              >
+                {onboardingOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </button>
+            </div>
+            {onboardingOpen && (
+              <div className="mt-0.5 space-y-0.5">
+                {ONBOARDING_SIDEBAR_NAV.map((entry, idx) =>
+                  entry.kind === 'divider' ? (
+                    <div
+                      key={`onb-div-${idx}-${entry.label}`}
+                      className="mt-1 select-none border-t border-stone-200 px-3 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-stone-400"
+                    >
+                      {entry.label}
+                    </div>
+                  ) : (
+                    <Link
+                      key={entry.href}
+                      href={entry.href}
+                      className={linkClassSub(
+                        pathname === entry.href || Boolean(pathname?.startsWith(`${entry.href}/`)),
+                      )}
+                    >
+                      {entry.label}
+                    </Link>
+                  ),
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         {!publicVisitor && !limitedRelease && (isAdmin || resolvedRole === 'team') && (
