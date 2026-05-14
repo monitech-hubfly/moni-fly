@@ -69,6 +69,16 @@ export function OnboardingModeloNegocio() {
             </li>
           ))}
         </ul>
+
+        <section className="mt-10 rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-5 shadow-sm md:p-6">
+          <h2 className="text-lg font-bold text-emerald-950 md:text-xl">Tática em permuta (campo)</h2>
+          <p className="mt-3 text-sm leading-relaxed text-emerald-900/95 md:text-base">
+            Roteiro pedagógico enviado pelo time: costuma-se <strong>iniciar a conversa com permuta 100%</strong> e,
+            conforme resposta do terrenista e viabilidade de caixa/crédito, <strong>evoluir para permuta parcial</strong>{' '}
+            (parcela em dinheiro + parcela em produto). Isto não substitui o BCA nem o comitê — apenas organiza a
+            sequência de abordagem na mesa de negociação.
+          </p>
+        </section>
       </div>
     </div>
   );

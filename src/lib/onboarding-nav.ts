@@ -1,6 +1,6 @@
 /**
  * Secções do Onboarding (URL: /onboarding/[slug]).
- * Várias secções são páginas React (ver `OnboardingSectionView`); as restantes embutem o portal HTML.
+ * Ordem pedagógica: início → conceitos → funis/Step One → esteira contratual → custos/SLAs/operação → ferramentas (parte em React, parte em portal.html).
  */
 
 export type OnboardingNavGroup = {
@@ -13,50 +13,53 @@ export const ONBOARDING_NAV_GROUPS: OnboardingNavGroup[] = [
     title: null,
     items: [
       { slug: 'introducao', label: 'Introdução' },
-      { slug: 'jornada-tabuleiro', label: 'Jornada — Tabuleiro' },
+      { slug: 'acessos-e-links', label: 'Acessos, links e planilhas' },
+      { slug: 'meta-frank', label: 'Meta Frank (ritmo mensal)' },
+      { slug: 'jornada-tabuleiro', label: 'Jornada — tabuleiro' },
     ],
   },
   {
-    title: 'Base de Conhecimento',
+    title: 'Conceitos',
     items: [
       { slug: 'o-que-e-moni', label: 'O que é a Moní' },
-      { slug: 'modelo-de-negocio', label: 'Modelo de Negócio' },
-      { slug: 'estrutura-juridica', label: 'Estrutura Jurídica' },
-      { slug: 'glossario', label: 'Glossário Completo' },
+      { slug: 'modelo-de-negocio', label: 'Modelos de negócio' },
+      { slug: 'glossario-completo', label: 'Glossário comercial e jurídico' },
+      { slug: 'estrutura-juridica', label: 'Estrutura jurídica' },
     ],
   },
   {
-    title: 'Esteira de Viabilidade',
+    title: 'Funis e Step One',
     items: [
-      { slug: 'step-1-perimetro', label: 'Step 1 — Perímetro' },
-      { slug: 'step-2-hipotese', label: 'Step 2 — Hipótese' },
-      { slug: 'step-3-negociacao', label: 'Step 3 — Negociação' },
-      { slug: 'steps-4-8', label: 'Steps 4–8' },
+      { slug: 'funis-kanban-guia', label: 'Kanban Moní e Frank' },
+      { slug: 'funil-step-one-guia', label: 'Funil Step One no Hub' },
+      { slug: 'step-one-operacional', label: 'Step One — demanda e campo' },
+      { slug: 'mapa-batalha-bca-spe', label: 'Mapa, batalha, BCA e SPE' },
     ],
   },
   {
-    title: 'Análises Integradas',
+    title: 'Negociação ao contrato',
     items: [
-      { slug: 'step-1-2-juntos', label: 'Step 1+2 Juntos' },
-      { slug: 'check-legal-credito', label: 'Check Legal + Crédito' },
+      { slug: 'esteira-negociacao-comite', label: 'Negociação, opção e comitê' },
+      { slug: 'acoplamento-legal-credito', label: 'Acoplamento + legal e crédito' },
+      { slug: 'diligencia-contrato', label: 'Diligência e contrato final' },
     ],
   },
   {
-    title: 'Ferramentas',
+    title: 'Custos, SLAs e operação',
     items: [
-      { slug: 'configurador', label: 'Configurador' },
-      { slug: 'bca-guia', label: 'BCA — Guia Completo' },
-      { slug: 'batalha-casas', label: 'Batalha de Casas' },
-      { slug: 'contratos-moni', label: 'Contratos Moní' },
-      { slug: 'repositorio-materiais', label: 'Repositório de Materiais' },
+      { slug: 'custos-slas-drive', label: 'Custos, SLAs, Drive e lição de casa' },
+      { slug: 'operacoes-pre-obra', label: 'Operações pré-obra' },
     ],
   },
   {
-    title: 'Operação',
+    title: 'Ferramentas e documentos',
     items: [
-      { slug: 'pastas-drive', label: 'Pastas do Drive' },
-      { slug: 'licao-de-casa', label: 'Lição de Casa' },
-      { slug: 'pre-obra', label: 'Pré-Obra (em breve)' },
+      { slug: 'gadgets-configurador', label: 'Gadgets e configurador' },
+      { slug: 'configurador', label: 'Configurador (portal)' },
+      { slug: 'bca-guia', label: 'BCA — guia (portal)' },
+      { slug: 'batalha-casas', label: 'Batalha de casas (portal)' },
+      { slug: 'contratos-moni', label: 'Contratos (portal)' },
+      { slug: 'repositorio-materiais', label: 'Repositório (portal)' },
     ],
   },
 ];
@@ -69,7 +72,6 @@ export type OnboardingSidebarEntry =
   | { kind: 'link'; href: string; label: string }
   | { kind: 'divider'; label: string };
 
-/** Itens do menu lateral (macro Onboarding expansível), alinhados aos grupos do portal. */
 export function getOnboardingSidebarNav(): OnboardingSidebarEntry[] {
   const out: OnboardingSidebarEntry[] = [];
   for (const g of ONBOARDING_NAV_GROUPS) {

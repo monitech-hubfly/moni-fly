@@ -98,6 +98,17 @@ export function OnboardingEstruturaJuridica() {
             </li>
           ))}
         </ul>
+
+        <section className="mt-10 rounded-xl border border-stone-200 bg-white p-5 shadow-sm md:p-6">
+          <h2 className="text-lg font-bold text-stone-900 md:text-xl">Opção de compra</h2>
+          <p className="mt-3 text-sm leading-relaxed text-stone-700 md:text-base">
+            Instrumento que <strong>reserva o negócio</strong> e fixa condições para avançar com estudo, comitê e
+            diligência, reduzindo o risco de perder o terreno enquanto a Moní e o franqueado concluem análises. Prazos,
+            preço/permute de referência, multas rescisórias e cláusulas de exit são sensíveis:{' '}
+            <strong>sempre</strong> com minuta aprovada e interlocução com Jurídico — especialmente se o advogado do
+            terrenista levantar dúvidas (compartilhar com o jurídico Moní até fechar e assinar).
+          </p>
+        </section>
       </div>
     </div>
   );
