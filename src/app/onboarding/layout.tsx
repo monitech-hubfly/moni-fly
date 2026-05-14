@@ -1,6 +1,24 @@
-import type { ReactNode } from 'react';
+import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
+import { OnboardingShell } from './OnboardingShell';
 
-/** Área cheia sob o AppStickyHeader (h-14): o iframe controla o scroll interno. */
-export default function OnboardingLayout({ children }: { children: ReactNode }) {
-  return <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-stone-50">{children}</div>;
+export default async function OnboardingLayout({ children }: { children: React.ReactNode }) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    redirect('/login?next=/onboarding');
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('full_name')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  const userName =
+    (profile as { full_name?: string | null } | null)?.full_name?.trim() || user.email || 'Franqueado';
+
+  return <OnboardingShell userName={userName}>{children}</OnboardingShell>;
 }

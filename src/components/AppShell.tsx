@@ -14,7 +14,7 @@ type AppShellProps = {
 
 export function AppShell({ user, userRole, showPublicPortalNav = false, children }: AppShellProps) {
   const pathname = usePathname() ?? '';
-  const hideGlobalHeader = pathname.startsWith('/sirene');
+  const hideGlobalHeader = pathname.startsWith('/sirene') || pathname.startsWith('/onboarding');
 
   if (!user && !showPublicPortalNav) {
     return <>{children}</>;
@@ -25,7 +25,15 @@ export function AppShell({ user, userRole, showPublicPortalNav = false, children
       <PortalSidebar user={user} userRole={userRole} publicVisitor={showPublicPortalNav} />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {!hideGlobalHeader && <AppStickyHeader user={user} publicVisitor={showPublicPortalNav} />}
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">{children}</div>
+        <div
+          className={
+            pathname.startsWith('/onboarding')
+              ? 'min-h-0 flex-1 overflow-hidden'
+              : 'min-h-0 flex-1 overflow-y-auto overflow-x-hidden'
+          }
+        >
+          {children}
+        </div>
       </div>
     </div>
   );
