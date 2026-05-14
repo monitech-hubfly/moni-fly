@@ -1,136 +1,154 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 
 export type BoardLink = { href: string; label: string };
 
-export type BoardCell = {
+export type BoardNode = {
   id: string;
   title: string;
   subtitle: string;
   description: string;
   links: BoardLink[];
-  /** Cor da casa no tabuleiro */
-  tone: 'start' | 'step' | 'tool' | 'risk' | 'finish';
+  /** Posição no mapa (0–100), sistema de coordenadas do SVG viewBox */
+  x: number;
+  y: number;
+  /** Etiqueta opcional estilo “pill” do fluxo */
+  pill?: string;
 };
 
-const BOARD_CELLS: BoardCell[] = [
+/** Ramos da jornada (diagramação não linear, tipo mapa / fluxograma). */
+const BOARD_NODES: BoardNode[] = [
   {
     id: 'partida',
     title: 'Partida',
     subtitle: 'Início da jornada',
     description:
-      'Aqui começa o percurso do franqueado na Moní. Cada casa representa uma fase da esteira de viabilidade e da operação — avance clicando nas casas para ver detalhes e atalhos para o Hub Fly.',
-    links: [{ href: '/onboarding/introducao', label: 'Abrir Introdução (portal)' }],
-    tone: 'start',
+      'Ponto de partida do franqueado na Moní. Daqui a jornada ramifica para mapeamento, hipótese e, em paralelo, para temas de produto e mercado.',
+    links: [{ href: '/onboarding/introducao', label: 'Voltar à Introdução' }],
+    x: 10,
+    y: 48,
+    pill: 'Kick-off',
   },
   {
     id: 's1',
     title: 'Step 1',
     subtitle: 'Perímetro & mapeamento',
-    description:
-      'Mapeamento da região, praça e condomínios. É o primeiro passo para entender onde e como a Moní entra no mercado.',
+    description: 'Mapeamento da região, praça e condomínios — base para todas as decisões seguintes.',
     links: [
-      { href: '/step-one', label: 'Abrir Step 1 no Hub' },
+      { href: '/step-one', label: 'Step 1 no Hub' },
       { href: '/funil-stepone', label: 'Funil Step One' },
     ],
-    tone: 'step',
+    x: 26,
+    y: 22,
   },
   {
     id: 's2',
     title: 'Step 2',
     subtitle: 'Hipótese de negócio',
-    description: 'Construção da hipótese, estudo de viabilidade e consolidação do novo negócio.',
+    description: 'Hipótese e estudo de viabilidade; daqui pode avançar para negociação ou aprofundar produto (BCA).',
     links: [
-      { href: '/step-2', label: 'Abrir Step 2 no Hub' },
+      { href: '/step-2', label: 'Step 2 no Hub' },
       { href: '/dashboard-novos-negocios', label: 'Dashboard Novos Negócios' },
     ],
-    tone: 'step',
+    x: 42,
+    y: 40,
+  },
+  {
+    id: 'bca',
+    title: 'BCA & batalha',
+    subtitle: 'Ramo paralelo',
+    description: 'Comparativo de casas, batalha de mercado e preparação do BCA — pode correr em paralelo à esteira.',
+    links: [
+      { href: '/onboarding/bca-guia', label: 'Guia BCA' },
+      { href: '/onboarding/batalha-casas', label: 'Batalha de Casas' },
+      { href: '/portfolio', label: 'Funil Portfolio' },
+    ],
+    x: 30,
+    y: 62,
+    pill: 'Paralelo',
   },
   {
     id: 's3',
     title: 'Step 3',
     subtitle: 'Negociação',
-    description: 'Fase de opção e negociação com partes envolvidas até aprovação do caminho.',
-    links: [{ href: '/step-3', label: 'Abrir Step 3 no Hub' }],
-    tone: 'step',
+    description: 'Opção e negociação com partes até fecho do caminho aprovado.',
+    links: [{ href: '/step-3', label: 'Step 3 no Hub' }],
+    x: 58,
+    y: 24,
   },
   {
     id: 's4-8',
     title: 'Steps 4–8',
-    subtitle: 'Legal, crédito, comitê…',
-    description:
-      'Check legal, checklist de crédito, acoplamento em paralelo, comitê, diligência e contrato — bloco crítico de governança.',
+    subtitle: 'Legal · crédito · comitê',
+    description: 'Check legal, crédito, acoplamento, comitê, diligência e contrato.',
     links: [
-      { href: '/painel', label: 'Step 4 — Check Legal + Crédito' },
-      { href: '/acoplamento-pl', label: 'Acoplamento (paralelo)' },
+      { href: '/painel', label: 'Check Legal + Crédito' },
+      { href: '/acoplamento-pl', label: 'Acoplamento' },
       { href: '/step-5', label: 'Step 5 — Comitê' },
       { href: '/step-6', label: 'Step 6 — Diligência' },
       { href: '/step-7', label: 'Step 7 — Contrato' },
     ],
-    tone: 'step',
-  },
-  {
-    id: 'bca',
-    title: 'BCA & batalha',
-    subtitle: 'Produto vs mercado',
-    description: 'Comparativo de casas, modelo de negócio e preparação do BCA para o franqueado.',
-    links: [
-      { href: '/onboarding/bca-guia', label: 'Guia BCA (portal)' },
-      { href: '/onboarding/batalha-casas', label: 'Batalha de Casas (portal)' },
-      { href: '/portfolio', label: 'Funil Portfolio' },
-    ],
-    tone: 'tool',
+    x: 72,
+    y: 44,
   },
   {
     id: 'ops',
     title: 'Operação',
     subtitle: 'Drive & rotina',
-    description: 'Pastas compartilhadas, materiais e rotina operacional do dia a dia.',
+    description: 'Materiais, pastas e rotina operacional após a fase de viabilidade.',
     links: [
-      { href: '/onboarding/pastas-drive', label: 'Pastas do Drive (portal)' },
-      { href: '/onboarding/licao-de-casa', label: 'Lição de Casa (portal)' },
+      { href: '/onboarding/pastas-drive', label: 'Pastas do Drive' },
+      { href: '/onboarding/licao-de-casa', label: 'Lição de Casa' },
       { href: '/operacoes', label: 'Funil Operações' },
     ],
-    tone: 'tool',
+    x: 56,
+    y: 68,
   },
   {
     id: 'preobra',
     title: 'Pré-obra',
     subtitle: 'Em breve',
-    description: 'Próxima fase do tabuleiro: acompanhe comunicados da Moní para abertura desta casa.',
-    links: [{ href: '/onboarding/pre-obra', label: 'Ver secção Pré-obra' }],
-    tone: 'risk',
+    description: 'Próxima etapa do mapa — acompanhe comunicados Moní.',
+    links: [{ href: '/onboarding/pre-obra', label: 'Secção Pré-obra' }],
+    x: 38,
+    y: 78,
   },
   {
     id: 'meta',
     title: 'Conquista',
-    subtitle: 'Unidade em operação',
-    description:
-      'Meta da jornada: unidade franqueada madura, com processos e ferramentas alinhados à rede Moní.',
-    links: [{ href: '/dashboard-novos-negocios', label: 'Dashboard Novos Negócios' }],
-    tone: 'finish',
+    subtitle: 'Unidade madura',
+    description: 'Unidade alinhada à rede, com processos e ferramentas consolidados.',
+    links: [{ href: '/dashboard-novos-negocios', label: 'Dashboard' }],
+    x: 84,
+    y: 58,
+    pill: 'Meta',
   },
 ];
 
-const COLS = 6;
+type Edge = { from: string; to: string; dashed?: boolean };
 
-function cellGridPosition(index: number): { row: number; col: number } {
-  const row = Math.floor(index / COLS);
-  const colInRow = index % COLS;
-  const col = row % 2 === 0 ? colInRow : COLS - 1 - colInRow;
-  return { row: row + 1, col: col + 1 };
+const BOARD_EDGES: Edge[] = [
+  { from: 'partida', to: 's1' },
+  { from: 's1', to: 's2' },
+  { from: 's2', to: 's3' },
+  { from: 's2', to: 'bca' },
+  { from: 's3', to: 's4-8' },
+  { from: 'bca', to: 's4-8', dashed: true },
+  { from: 's4-8', to: 'ops' },
+  { from: 's4-8', to: 'meta', dashed: true },
+  { from: 'ops', to: 'preobra' },
+  { from: 'preobra', to: 'meta' },
+  { from: 'bca', to: 'ops', dashed: true },
+];
+
+const VB = { w: 100, h: 100 };
+
+function nodeById(id: string): BoardNode | undefined {
+  return BOARD_NODES.find((n) => n.id === id);
 }
-
-const toneClasses: Record<BoardCell['tone'], string> = {
-  start: 'from-emerald-600 to-emerald-800 border-emerald-900/40',
-  step: 'from-sky-600 to-indigo-800 border-indigo-900/40',
-  tool: 'from-amber-500 to-orange-700 border-amber-900/30',
-  risk: 'from-stone-500 to-stone-700 border-stone-900/30',
-  finish: 'from-fuchsia-600 to-violet-800 border-violet-900/40',
-};
 
 type Props = {
   userInitials: string;
@@ -138,102 +156,128 @@ type Props = {
 };
 
 export function JornadaTabuleiro({ userInitials, userDisplayName }: Props) {
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
-  const [pawnIndex, setPawnIndex] = useState(0);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [pawnId, setPawnId] = useState<string>('partida');
 
-  const rows = Math.ceil(BOARD_CELLS.length / COLS);
-  const openCell = openIndex != null ? BOARD_CELLS[openIndex] : null;
+  const openNode = openId ? nodeById(openId) : null;
 
-  const movePawnHere = useCallback((i: number) => {
-    setPawnIndex(i);
-    setOpenIndex(i);
+  const movePawnHere = useCallback((id: string) => {
+    setPawnId(id);
+    setOpenId(id);
+  }, []);
+
+  const edgesPaths = useMemo(() => {
+    const lines: { d: string; dashed?: boolean; key: string }[] = [];
+    for (const e of BOARD_EDGES) {
+      const a = nodeById(e.from);
+      const b = nodeById(e.to);
+      if (!a || !b) continue;
+      const mx = (a.x + b.x) / 2;
+      const my = (a.y + b.y) / 2;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const perp = 6 * Math.sign(dx || 1);
+      const cx = mx + (Math.abs(dy) > Math.abs(dx) ? perp : 0);
+      const cy = my + (Math.abs(dx) >= Math.abs(dy) ? perp * 0.5 : -perp * 0.5);
+      const d = `M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`;
+      lines.push({ d, dashed: e.dashed, key: `${e.from}-${e.to}` });
+    }
+    return lines;
   }, []);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto bg-gradient-to-b from-stone-200 via-stone-100 to-stone-200 px-3 py-4 md:px-6">
-      <div className="mx-auto mb-4 max-w-4xl text-center">
-        <h2 className="text-lg font-bold text-stone-800 md:text-xl">Jornada — Tabuleiro da vida Moní</h2>
-        <p className="mt-1 text-sm text-stone-600">
-          A peça <strong className="text-moni-primary">{userDisplayName}</strong> representa você no tabuleiro.
-          Clique numa casa para ler mais e abrir links do Hub.
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#e8f5f0]">
+      <div className="shrink-0 border-b border-emerald-200/60 bg-[#ecfdf5] px-4 py-3 md:px-6">
+        <h2 className="text-lg font-bold text-moni-primary md:text-xl">Jornada do franqueado</h2>
+        <p className="mt-1 text-sm text-emerald-900/75">
+          Mapa interativo — <strong className="text-emerald-950">{userDisplayName}</strong> ({userInitials}).
+          Clique num cartão para detalhes e links. Ramos tracejados indicam fluxos paralelos ou atalhos.
         </p>
       </div>
 
-      <div
-        className="mx-auto w-full max-w-5xl pb-8"
-        style={{ perspective: '1600px', perspectiveOrigin: '50% 35%' }}
-      >
-        <div
-          className="relative mx-auto origin-center transition-transform duration-500 ease-out"
-          style={{
-            transform: 'rotateX(58deg) rotateZ(-10deg)',
-            transformStyle: 'preserve-3d',
-          }}
-        >
-          {/* Tabuleiro base (feltro) */}
+      <div className="min-h-0 flex-1 overflow-auto">
+        <div className="mx-auto min-h-[620px] w-[min(100%,1100px)] p-4 pb-16 md:min-h-[700px] md:p-6">
           <div
-            className="relative rounded-3xl border-4 border-emerald-900/50 bg-gradient-to-br from-emerald-900/90 via-emerald-800 to-teal-900 p-4 shadow-2xl md:p-6"
-            style={{
-              transform: 'translateZ(0)',
-              boxShadow: '0 24px 60px rgba(0,0,0,0.35), inset 0 2px 0 rgba(255,255,255,0.12)',
-            }}
+            className="relative rounded-2xl border border-emerald-200/80 bg-[#f0fdf9] shadow-[0_12px_40px_rgba(6,78,59,0.12)]"
+            style={{ aspectRatio: `${VB.w} / ${VB.h}`, minHeight: 520 }}
           >
-            <div
-              className="grid gap-2 md:gap-3"
-              style={{
-                gridTemplateColumns: `repeat(${COLS}, minmax(0, 1fr))`,
-                gridTemplateRows: `repeat(${rows}, minmax(72px, 1fr))`,
-              }}
+            <svg
+              className="pointer-events-none absolute inset-0 h-full w-full text-emerald-900"
+              viewBox={`0 0 ${VB.w} ${VB.h}`}
+              preserveAspectRatio="xMidYMid meet"
+              aria-hidden
             >
-              {BOARD_CELLS.map((cell, i) => {
-                const { row, col } = cellGridPosition(i);
-                const isPawn = i === pawnIndex;
-                return (
-                  <button
-                    key={cell.id}
-                    type="button"
-                    onClick={() => movePawnHere(i)}
-                    className={`group relative flex flex-col items-center justify-center rounded-2xl border-2 bg-gradient-to-br p-2 text-center text-white shadow-md transition-all duration-200 hover:z-10 hover:scale-[1.03] hover:shadow-xl md:p-3 ${toneClasses[cell.tone]} ${
-                      isPawn ? 'ring-4 ring-amber-300 ring-offset-2 ring-offset-emerald-950' : ''
-                    }`}
-                    style={{
-                      gridRow: row,
-                      gridColumn: col,
-                      transform: 'translateZ(8px)',
-                      transformStyle: 'preserve-3d',
-                    }}
-                  >
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-white/80 md:text-xs">
-                      Casa {i + 1}
+              <defs>
+                <marker
+                  id="jornada-arrow"
+                  markerWidth="5"
+                  markerHeight="5"
+                  refX="4.2"
+                  refY="2.5"
+                  orient="auto"
+                >
+                  <path d="M0,0 L0,5 L5,2.5 z" className="fill-emerald-800" />
+                </marker>
+              </defs>
+              {edgesPaths.map((line) => (
+                <path
+                  key={line.key}
+                  d={line.d}
+                  fill="none"
+                  className="stroke-emerald-800"
+                  strokeWidth={0.55}
+                  strokeLinecap="round"
+                  strokeDasharray={line.dashed ? '1.8 1.2' : undefined}
+                  markerEnd="url(#jornada-arrow)"
+                  opacity={line.dashed ? 0.55 : 0.85}
+                />
+              ))}
+            </svg>
+
+            {BOARD_NODES.map((node) => {
+              const isPawn = node.id === pawnId;
+              return (
+                <button
+                  key={node.id}
+                  type="button"
+                  onClick={() => movePawnHere(node.id)}
+                  className={`absolute z-10 w-[min(42vw,200px)] max-w-[220px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-stone-200/90 bg-white text-left shadow-[0_10px_28px_rgba(15,23,42,0.14)] outline-none transition hover:z-20 hover:shadow-[0_16px_36px_rgba(15,23,42,0.18)] focus-visible:ring-2 focus-visible:ring-moni-primary md:w-[220px] ${
+                    isPawn ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-[#f0fdf9]' : ''
+                  }`}
+                  style={{ left: `${node.x}%`, top: `${node.y}%` }}
+                >
+                  <div className="flex items-center justify-between gap-1 rounded-t-xl bg-moni-primary px-2.5 py-1.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-white/95">
+                      {node.title}
                     </span>
-                    <span className="mt-0.5 text-xs font-bold leading-tight md:text-sm">{cell.title}</span>
-                    <span className="mt-0.5 hidden text-[10px] text-white/85 sm:block">{cell.subtitle}</span>
-                    {isPawn && (
-                      <div
-                        className="absolute -right-1 -top-2 flex h-9 w-9 items-center justify-center rounded-full border-2 border-amber-200 bg-gradient-to-b from-amber-300 to-amber-500 text-xs font-bold text-amber-950 shadow-lg md:h-11 md:w-11 md:text-sm"
-                        style={{ transform: 'translateZ(24px)' }}
-                        title="Sua peça"
-                        aria-hidden
-                      >
-                        {userInitials}
-                      </div>
+                    {node.pill && (
+                      <span className="shrink-0 rounded-full bg-white/20 px-1.5 py-0.5 text-[9px] font-medium text-white">
+                        {node.pill}
+                      </span>
                     )}
-                  </button>
-                );
-              })}
-            </div>
-
+                  </div>
+                  <div className="px-2.5 py-2">
+                    <p className="text-[11px] font-medium text-stone-700">{node.subtitle}</p>
+                    <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-stone-500">Toque para ver mais</p>
+                  </div>
+                  {isPawn && (
+                    <div
+                      className="absolute -right-2 -top-2 flex h-9 w-9 items-center justify-center rounded-full border-2 border-amber-200 bg-gradient-to-b from-amber-200 to-amber-400 text-[11px] font-bold text-amber-950 shadow-md"
+                      title="Sua posição"
+                    >
+                      {userInitials}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
           </div>
-
-          <p className="mt-3 text-center text-[11px] text-stone-500 md:text-xs">
-            Dica: use o scroll e a rotação visual como no tabuleiro 3D do Jogo da Vida — cada etapa é uma decisão na rede.
-          </p>
         </div>
       </div>
 
-      {openCell && openIndex != null && (
+      {openNode && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-4 sm:items-center"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
           role="dialog"
           aria-modal="true"
           aria-labelledby="jornada-modal-title"
@@ -241,28 +285,27 @@ export function JornadaTabuleiro({ userInitials, userDisplayName }: Props) {
           <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-stone-200 bg-white p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase text-stone-400">Casa {openIndex + 1}</p>
+                <p className="text-xs font-semibold uppercase text-emerald-800/80">{openNode.subtitle}</p>
                 <h3 id="jornada-modal-title" className="text-lg font-bold text-stone-900">
-                  {openCell.title}
+                  {openNode.title}
                 </h3>
-                <p className="text-sm text-moni-primary">{openCell.subtitle}</p>
               </div>
               <button
                 type="button"
-                onClick={() => setOpenIndex(null)}
-                className="rounded-full p-1 text-stone-500 hover:bg-stone-100 hover:text-stone-800"
+                onClick={() => setOpenId(null)}
+                className="rounded-full p-1 text-stone-500 hover:bg-stone-100"
                 aria-label="Fechar"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <p className="mt-3 text-sm leading-relaxed text-stone-600">{openCell.description}</p>
+            <p className="mt-3 text-sm leading-relaxed text-stone-600">{openNode.description}</p>
             <ul className="mt-4 space-y-2">
-              {openCell.links.map((l) => (
+              {openNode.links.map((l) => (
                 <li key={l.href}>
                   <Link
                     href={l.href}
-                    className="block rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-medium text-moni-primary hover:bg-moni-light/60"
+                    className="block rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-medium text-moni-primary hover:bg-moni-light/50"
                   >
                     {l.label} →
                   </Link>
@@ -271,7 +314,7 @@ export function JornadaTabuleiro({ userInitials, userDisplayName }: Props) {
             </ul>
             <button
               type="button"
-              onClick={() => setOpenIndex(null)}
+              onClick={() => setOpenId(null)}
               className="mt-5 w-full rounded-lg bg-moni-primary py-2.5 text-sm font-semibold text-white hover:opacity-95"
             >
               Fechar
