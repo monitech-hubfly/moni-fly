@@ -507,8 +507,8 @@ export function KanbanCardModal({
     const condominio = partes[1]?.trim() ?? '';
     const assuntoPadrao = [nFranquia, condominio].filter(Boolean).join('_');
     setEmailAssunto(assuntoPadrao);
-    // card: assunto deriva de titulo; id+cardId já filtram card errado, mas o linter exige card completo.
-  }, [card, cardId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intencional: reagir a id + cardId, não a cada mutação do objeto `card`
+  }, [card?.id, cardId]);
 
   useEffect(() => {
     if (!vincularAberto || !pode('vincular_cards') || !card || origem === 'legado') {
@@ -533,7 +533,8 @@ export function KanbanCardModal({
       cancel = true;
       clearTimeout(h);
     };
-  }, [buscaVinculo, vincularAberto, pode, card, origem]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intencional: debounce por busca/cardId, evitar re-disparar a cada render do objeto `card`
+  }, [buscaVinculo, vincularAberto, pode, card?.id, origem]);
 
   useEffect(() => {
     if (!card?.fase_id) return;
