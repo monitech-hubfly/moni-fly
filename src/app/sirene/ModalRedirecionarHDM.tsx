@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { redirecionarParaHDM } from './actions';
 import type { HdmTime } from '@/types/sirene';
+import { TIMES_MONI_HDM } from '@/lib/times-responsaveis';
 
-const HDM_OPCOES: HdmTime[] = ['Homologações', 'Modelo Virtual', 'Produto'];
+const HDM_OPCOES: HdmTime[] = [...TIMES_MONI_HDM];
 
 type Props = { chamadoId: number; onClose: () => void; onSuccess?: () => void };
 

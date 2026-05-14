@@ -13,7 +13,7 @@ export type TopicoStatus = 'nao_iniciado' | 'em_andamento' | 'concluido' | 'apro
 
 export type ChamadoTipo = 'padrao' | 'hdm';
 
-export type HdmTime = 'Homologações' | 'Modelo Virtual' | 'Produto';
+export type HdmTime = 'Homologações' | 'Modelo Virtual' | 'Produto' | 'Executivo Local';
 
 export interface Chamado {
   id: number;

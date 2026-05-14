@@ -12,8 +12,11 @@ import {
   MONI_RESP_FILTRO_PREFIX,
   MONI_TIME_FILTRO_PREFIX,
   filtrarOpcoesTimeIdNomePorHdm,
+  inferirHdmResponsavelPorNomesTimes,
+  responsaveisDoTimeMoni,
   responsaveisFiltroOpcoesComCatalogoMoni,
   timesFiltroOpcoesComCatalogoMoni,
+  timesMoniReceberChamadoOpcoes,
 } from '@/lib/times-responsaveis';
 import {
   atualizarInteracaoCompletaSirene,
@@ -40,12 +43,6 @@ import {
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import { SubInteracaoLista, mapRawTopicoToListaItem } from '@/components/kanban-shared/SubInteracaoLista';
 import { ModalNovoChamado } from '../ModalNovoChamado';
-import {
-  isNomeTimeMoniHdm,
-  responsaveisDoTimeMoni,
-  timesMoniReceberChamadoOpcoes,
-  TIMES_MONI_HDM,
-} from '@/lib/times-responsaveis';
 
 export type InteracaoSireneRow = {
   id: string;
@@ -103,7 +100,6 @@ type EditSireneDraft = {
   trava: boolean;
   tipo: 'padrao' | 'hdm';
   hdm_responsavel: string;
-  ehHdmListaTimes: boolean;
 };
 
 type TopicoChamadoLinha = {
@@ -129,7 +125,6 @@ type NovoSubChamadoDraft = {
   timesIds: string[];
   responsaveisIds: string[];
   trava: boolean;
-  ehHdm: boolean;
   tema: string;
   temaOutro: string;
 };
@@ -148,7 +143,6 @@ function emptyNovoSubDraft(): NovoSubChamadoDraft {
     timesIds: [],
     responsaveisIds: [],
     trava: false,
-    ehHdm: false,
     tema: '',
     temaOutro: '',
   };
@@ -682,7 +676,6 @@ export function InteracoesLista({
       setEditDraft(null);
       setEditingSireneCid(row.sirene_chamado_id);
       const tipoSc = (row.sirene_chamado_tipo ?? 'padrao') === 'hdm' ? 'hdm' : 'padrao';
-      const ehHdm = tipoSc === 'hdm';
       setEditSireneDraft({
         incendio: row.titulo,
         time_abertura: row.sirene_time_abertura ?? '',
@@ -691,7 +684,6 @@ export function InteracoesLista({
         trava: row.trava,
         tipo: tipoSc,
         hdm_responsavel: row.sirene_hdm_responsavel ?? '',
-        ehHdmListaTimes: ehHdm,
       });
       return;
     }
@@ -791,24 +783,24 @@ export function InteracoesLista({
     setMsgErro(null);
     setSalvandoSirene(true);
     try {
-      const hdmVal =
-        editSireneDraft.tipo === 'hdm' && editSireneDraft.hdm_responsavel.trim()
-          ? (editSireneDraft.hdm_responsavel.trim() as (typeof TIMES_MONI_HDM)[number])
-          : null;
+      const timeAb = editSireneDraft.time_abertura.trim();
+      const inferred = inferirHdmResponsavelPorNomesTimes(timeAb ? [timeAb] : []);
+      const tipoEff = inferred ? 'hdm' : 'padrao';
+      const hdmVal = inferred;
       const res = await atualizarChamadoPainelUnificado(chamadoId, {
         incendio: editSireneDraft.incendio.trim(),
-        time_abertura: editSireneDraft.time_abertura.trim() || null,
+        time_abertura: timeAb || null,
         abertura_responsavel_nome: editSireneDraft.abertura_responsavel_nome.trim() || null,
         data_vencimento: editSireneDraft.data.trim() || null,
         trava: editSireneDraft.trava,
-        tipo: editSireneDraft.tipo,
+        tipo: tipoEff,
         hdm_responsavel: hdmVal,
       });
       if (!res.ok) {
         setMsgErro(res.error);
         return;
       }
-      const tipoKa = editSireneDraft.tipo === 'hdm' ? 'chamado_hdm' : 'chamado_padrao';
+      const tipoKa = tipoEff === 'hdm' ? 'chamado_hdm' : 'chamado_padrao';
       setRowPatch((prev) => ({
         ...prev,
         [atividadeRowId]: {
@@ -816,11 +808,10 @@ export function InteracoesLista({
           tipo: tipoKa,
           data_vencimento: editSireneDraft.data.trim() || null,
           trava: editSireneDraft.trava,
-          sirene_time_abertura: editSireneDraft.time_abertura.trim() || null,
+          sirene_time_abertura: timeAb || null,
           sirene_abertura_responsavel_nome: editSireneDraft.abertura_responsavel_nome.trim() || null,
-          sirene_chamado_tipo: editSireneDraft.tipo,
-          sirene_hdm_responsavel:
-            editSireneDraft.tipo === 'hdm' ? editSireneDraft.hdm_responsavel.trim() || null : null,
+          sirene_chamado_tipo: tipoEff,
+          sirene_hdm_responsavel: tipoEff === 'hdm' ? hdmVal : null,
         },
       }));
       setEditingSireneCid(null);
@@ -979,10 +970,7 @@ export function InteracoesLista({
 
   const ativos = countFiltrosAtivos(applied);
 
-  const timesSireneEditOpcoes = useMemo(
-    () => [...timesMoniReceberChamadoOpcoes(Boolean(editSireneDraft?.ehHdmListaTimes))],
-    [editSireneDraft?.ehHdmListaTimes],
-  );
+  const timesSireneEditOpcoes = useMemo(() => [...timesMoniReceberChamadoOpcoes(false)], []);
 
   const radioRow = 'flex flex-wrap gap-x-4 gap-y-2 text-sm text-[color:var(--moni-text-secondary)]';
   const radioLabel = 'inline-flex cursor-pointer items-center gap-2';
@@ -1606,30 +1594,11 @@ export function InteracoesLista({
                               className="mt-1 w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)]"
                             />
                           </label>
-                          <label className="flex cursor-pointer items-center gap-2 text-sm text-[color:var(--moni-text-secondary)]">
-                            <input
-                              type="checkbox"
-                              className="h-4 w-4 rounded border-[color:var(--moni-border-default)]"
-                              checked={editSireneDraft.ehHdmListaTimes}
-                              onChange={(e) => {
-                                const eh = e.target.checked;
-                                setEditSireneDraft((d) => {
-                                  if (!d) return d;
-                                  const op = [...timesMoniReceberChamadoOpcoes(eh)];
-                                  let time_abertura = d.time_abertura;
-                                  let abertura_responsavel_nome = d.abertura_responsavel_nome;
-                                  if (!time_abertura || !op.includes(time_abertura)) {
-                                    time_abertura = '';
-                                    abertura_responsavel_nome = '';
-                                  } else if (!responsaveisDoTimeMoni(time_abertura).includes(abertura_responsavel_nome)) {
-                                    abertura_responsavel_nome = '';
-                                  }
-                                  return { ...d, ehHdmListaTimes: eh, time_abertura, abertura_responsavel_nome };
-                                });
-                              }}
-                            />
-                            Este chamado é HDM?
-                          </label>
+                          <p className="text-[11px] leading-snug text-[color:var(--moni-text-tertiary)]">
+                            O tipo <strong>HDM</strong> é definido automaticamente quando o time de abertura é{' '}
+                            <strong>Produto</strong>, <strong>Homologações</strong>, <strong>Executivo Local</strong> ou{' '}
+                            <strong>Modelo Virtual</strong>.
+                          </p>
                           <div className="grid gap-3 sm:grid-cols-2">
                             <label className="block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
                               Time (abertura)
@@ -1637,6 +1606,7 @@ export function InteracoesLista({
                                 value={editSireneDraft.time_abertura}
                                 onChange={(e) => {
                                   const v = e.target.value;
+                                  const inf = inferirHdmResponsavelPorNomesTimes(v ? [v] : []);
                                   setEditSireneDraft((d) =>
                                     d
                                       ? {
@@ -1647,8 +1617,8 @@ export function InteracoesLista({
                                           )
                                             ? d.abertura_responsavel_nome
                                             : '',
-                                          tipo: v && isNomeTimeMoniHdm(v) ? 'hdm' : d.tipo,
-                                          ehHdmListaTimes: v ? isNomeTimeMoniHdm(v) : d.ehHdmListaTimes,
+                                          tipo: inf ? 'hdm' : 'padrao',
+                                          hdm_responsavel: inf ?? '',
                                         }
                                       : d,
                                   );
@@ -1695,53 +1665,12 @@ export function InteracoesLista({
                               className="mt-1 w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)]"
                             />
                           </label>
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
-                              Tipo chamado
-                              <SelectMoni
-                                value={editSireneDraft.tipo}
-                                onChange={(e) => {
-                                  const v = e.target.value as 'padrao' | 'hdm';
-                                  setEditSireneDraft((d) =>
-                                    d
-                                      ? {
-                                          ...d,
-                                          tipo: v,
-                                          hdm_responsavel: v === 'hdm' ? d.hdm_responsavel : '',
-                                        }
-                                      : d,
-                                  );
-                                }}
-                                className="mt-1 w-full"
-                              >
-                                <option value="padrao">Padrão</option>
-                                <option value="hdm">HDM</option>
-                              </SelectMoni>
-                            </label>
-                            {editSireneDraft.tipo === 'hdm' ? (
-                              <label className="block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
-                                Time HDM
-                                <SelectMoni
-                                  value={editSireneDraft.hdm_responsavel}
-                                  onChange={(e) =>
-                                    setEditSireneDraft((d) =>
-                                      d ? { ...d, hdm_responsavel: e.target.value } : d,
-                                    )
-                                  }
-                                  className="mt-1 w-full"
-                                >
-                                  <option value="">—</option>
-                                  {TIMES_MONI_HDM.map((n) => (
-                                    <option key={n} value={n}>
-                                      {n}
-                                    </option>
-                                  ))}
-                                </SelectMoni>
-                              </label>
-                            ) : (
-                              <span />
-                            )}
-                          </div>
+                          {editSireneDraft.tipo === 'hdm' && editSireneDraft.hdm_responsavel ? (
+                            <p className="text-[11px] text-[color:var(--moni-text-secondary)]">
+                              Classificação: <strong>HDM</strong> — time responsável:{' '}
+                              <strong>{editSireneDraft.hdm_responsavel}</strong>
+                            </p>
+                          ) : null}
                           <label className="flex cursor-pointer items-center gap-2 text-sm text-[color:var(--moni-text-secondary)]">
                             <input
                               type="checkbox"
@@ -1906,10 +1835,7 @@ export function InteracoesLista({
                           )}
                           {(() => {
                             const d = subDraft(alvoK);
-                            const timesOpts = filtrarOpcoesTimeIdNomePorHdm(
-                              times,
-                              d.tipo === 'chamado' && d.ehHdm,
-                            );
+                            const timesOpts = filtrarOpcoesTimeIdNomePorHdm(times, false);
                             return (
                               <div className="space-y-2 border-t border-[color:var(--moni-border-default)] pt-3">
                                 <p className="text-[10px] font-semibold text-[color:var(--moni-text-tertiary)]">Novo sub-chamado</p>
@@ -1921,17 +1847,7 @@ export function InteracoesLista({
                                     value={d.tipo}
                                     onChange={(e) => {
                                       const v = e.target.value as SubInteracaoTipoDb;
-                                      const ehNext = v === 'chamado' ? d.ehHdm : false;
-                                      const allowed = new Set(
-                                        filtrarOpcoesTimeIdNomePorHdm(times, v === 'chamado' && ehNext).map(
-                                          (x) => x.id,
-                                        ),
-                                      );
-                                      setSubDraft(alvoK, {
-                                        tipo: v,
-                                        ehHdm: ehNext,
-                                        timesIds: d.timesIds.filter((id) => allowed.has(id)),
-                                      });
+                                      setSubDraft(alvoK, { tipo: v });
                                     }}
                                     className="w-full text-xs"
                                   >
@@ -1984,25 +1900,11 @@ export function InteracoesLista({
                                   )}
                                 </div>
                                 {d.tipo === 'chamado' ? (
-                                  <label className="flex cursor-pointer items-center gap-2 text-[11px] text-[color:var(--moni-text-secondary)]">
-                                    <input
-                                      type="checkbox"
-                                      className="h-3.5 w-3.5 rounded border-[color:var(--moni-border-default)]"
-                                      checked={d.ehHdm}
-                                      onChange={(e) => {
-                                        const eh = e.target.checked;
-                                        setSubDraft(alvoK, {
-                                          ehHdm: eh,
-                                          timesIds: d.timesIds.filter((id) =>
-                                            filtrarOpcoesTimeIdNomePorHdm(times, d.tipo === 'chamado' && eh).some(
-                                              (x) => x.id === id,
-                                            ),
-                                          ),
-                                        });
-                                      }}
-                                    />
-                                    Este chamado é HDM?
-                                  </label>
+                                  <p className="text-[10px] leading-snug text-[color:var(--moni-text-tertiary)]">
+                                    Chamados com times <strong>Produto</strong>, <strong>Homologações</strong>,{' '}
+                                    <strong>Executivo Local</strong> ou <strong>Modelo Virtual</strong> seguem o fluxo{' '}
+                                    <strong>HDM</strong> no Hub (inferido automaticamente).
+                                  </p>
                                 ) : null}
                                 <div>
                                   <span className="mb-1 block text-[10px] text-[color:var(--moni-text-tertiary)]">Times</span>

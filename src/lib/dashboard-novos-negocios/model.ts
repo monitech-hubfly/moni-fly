@@ -82,6 +82,7 @@ const CONTAB_FASE_EXCLUIR_GRAFICO = new Set(['em_andamento', 'encerrado']);
 /** Subfase `fase_credito` que não entra no gráfico (encerrado não é coluna do kanban). */
 const CRED_FASE_EXCLUIR_GRAFICO = new Set(['encerrado']);
 const ETAPAS_POS_STEP7: ReadonlySet<string> = new Set([
+  'captacao_moni_capital',
   'passagem_wayser',
   'planialtimetrico',
   'sondagem',

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { normalizeAccessRole } from '@/lib/authz';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
@@ -51,8 +52,10 @@ export async function fetchKanbanBoardSnapshot(
   if (userId) {
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
     role = (profile?.role as string) ?? 'frank';
-    isAdmin =
-      role === 'admin' || role === 'consultor' || role === 'supervisor' || role === 'team';
+    // Mesmo critério que RLS (163) e `normalizeAccessRole`: evita visão “frank” por casing/espaços
+    // ou legados já mapeados (consultor/supervisor → admin).
+    const accessRole = normalizeAccessRole(profile?.role);
+    isAdmin = accessRole === 'admin' || accessRole === 'team';
   } else {
     isAdmin = true;
   }

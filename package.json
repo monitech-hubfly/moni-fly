@@ -11,7 +11,10 @@
     "lint:fix": "next lint --fix",
     "format": "prettier . --write",
     "db:types": "supabase gen types typescript --local > src/types/database.gen.ts",
-    "rede-franqueados:import": "node --env-file=.env.local scripts/import-rede-franqueados.mjs"
+    "rede-franqueados:import": "node --env-file=.env.local scripts/import-rede-franqueados.mjs",
+    "auth:set-password": "node scripts/set-user-password.mjs",
+    "auth:check-env": "node scripts/check-supabase-env.mjs",
+    "auth:bootstrap-user": "node scripts/bootstrap-auth-user.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
@@ -31,6 +34,8 @@
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^18.3.1",
     "react-leaflet": "^4.2.1",
+    "react-markdown": "^10.1.0",
+    "swr": "^2.4.1",
     "xlsx": "^0.18.5",
     "zustand": "^5.0.1"
   },

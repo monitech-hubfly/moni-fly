@@ -11,6 +11,7 @@ import { carregarPermissoesMap } from '@/lib/permissoes-load';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import type { FaseChecklistItem } from './candidato-actions';
+import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-notify';
 
 export type { FaseChecklistItem } from './candidato-actions';
 
@@ -1883,6 +1884,20 @@ export async function aprovarPassagemFase(aprovacaoId: string): Promise<ActionRe
     .update({ fase_id: fase })
     .eq('id', aprovRow.card_id);
   if (cErr) return { ok: false, error: cErr.message };
+
+  const { data: kbNome } = await admin
+    .from('kanban_cards')
+    .select('kanbans ( nome )')
+    .eq('id', aprovRow.card_id)
+    .maybeSingle();
+  const knRaw = kbNome as { kanbans?: { nome?: string } | { nome?: string }[] } | null;
+  const knNode = Array.isArray(knRaw?.kanbans) ? knRaw.kanbans[0] : knRaw?.kanbans;
+  const kanbanNombre = String(knNode?.nome ?? '').trim();
+  void notificarUniversidadeSeAvancoStep2({
+    cardId: aprovRow.card_id,
+    newFaseId: fase,
+    kanbanNombre,
+  });
 
   const { error: uErr } = await supabase
     .from('kanban_aprovacoes_fase')

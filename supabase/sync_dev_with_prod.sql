@@ -145,6 +145,32 @@ CROSS JOIN (VALUES
 WHERE k.nome IN ('Funil Portfólio', 'Funil Operações')
 ON CONFLICT (kanban_id, slug) WHERE slug IS NOT NULL DO NOTHING;
 
+-- Funil Portfólio — fase "Captação Moní Capital" (177); não aplica ao Funil Operações.
+DO $$
+DECLARE
+  v_kanban_id uuid;
+BEGIN
+  SELECT id INTO v_kanban_id
+  FROM public.kanbans
+  WHERE nome = 'Funil Portfólio' AND COALESCE(ativo, true)
+  LIMIT 1;
+  IF v_kanban_id IS NULL THEN
+    RETURN;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM public.kanban_fases
+    WHERE kanban_id = v_kanban_id AND slug = 'captacao_moni_capital'
+  ) THEN
+    RETURN;
+  END IF;
+  UPDATE public.kanban_fases
+  SET ordem = ordem + 1
+  WHERE kanban_id = v_kanban_id
+    AND ordem >= 9;
+  INSERT INTO public.kanban_fases (kanban_id, nome, slug, ordem, sla_dias, ativo)
+  VALUES (v_kanban_id, 'Captação Moní Capital', 'captacao_moni_capital', 9, 7, true);
+END $$;
+
 -- Funil Acoplamento — 4 fases (128)
 INSERT INTO public.kanban_fases (kanban_id, nome, slug, ordem, sla_dias, ativo)
 SELECT k.id, fase.nome, fase.slug, fase.ordem, 7, true

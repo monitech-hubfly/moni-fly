@@ -8,6 +8,8 @@ import type { Chamado, HdmTime } from '@/types/sirene';
 import { canActAsBombeiro, type SireneUserContext } from '@/lib/sirene';
 import {
   TIMES_MONI,
+  TIMES_MONI_HDM,
+  inferirHdmResponsavelPorNomesTimes,
   validarParTimeResponsavelMoni,
   validarTimeMoniOpcional,
 } from '@/lib/times-responsaveis';
@@ -232,7 +234,7 @@ export async function arquivarTopico(
   }
 }
 
-const HDM_TIMES: HdmTime[] = ['Homologações', 'Modelo Virtual', 'Produto'];
+const HDM_TIMES: HdmTime[] = [...TIMES_MONI_HDM];
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -744,13 +746,35 @@ export async function criarChamado(
   const teTrataRaw = formData.get('te_trata');
   const teTrata =
     teTrataRaw === 'sim' ? true : teTrataRaw === 'nao' ? false : null;
-  const tipo = ((formData.get('tipo') as string) || 'padrao') as 'padrao' | 'hdm';
-  const hdmResponsavel =
-    tipo === 'hdm' ? (formData.get('hdm_responsavel') as HdmTime) || null : null;
   const tema = (formData.get('tema') as string)?.trim() || '';
 
   if (!incendio) return { ok: false, error: 'Informe o incêndio (resumo).' };
   if (!tema) return { ok: false, error: 'Selecione o tema do chamado.' };
+
+  const admin = createAdminClient();
+  const nomesPorTimesIds: string[] = [];
+  const timesIdsRaw = (formData.get('times_ids') as string) || '';
+  try {
+    const parsed = JSON.parse(timesIdsRaw) as unknown;
+    if (Array.isArray(parsed)) {
+      for (const rawId of parsed) {
+        const id = String(rawId ?? '').trim();
+        if (!id) continue;
+        const { data: trow } = await admin.from('kanban_times').select('nome').eq('id', id).maybeSingle();
+        const n = (trow as { nome?: string } | null)?.nome;
+        if (n) nomesPorTimesIds.push(String(n).trim());
+      }
+    }
+  } catch {
+    /* ignore JSON inválido */
+  }
+  const timeAbTrim = (timeAbertura ?? '').trim();
+  const nomesParaInferencia =
+    nomesPorTimesIds.length > 0 ? nomesPorTimesIds : timeAbTrim ? [timeAbTrim] : [];
+  const inferredHdm = inferirHdmResponsavelPorNomesTimes(nomesParaInferencia);
+  const tipo: 'padrao' | 'hdm' = inferredHdm ? 'hdm' : 'padrao';
+  const hdmResponsavel: HdmTime | null = inferredHdm;
+
   if (tipo === 'hdm' && hdmResponsavel && !HDM_TIMES.includes(hdmResponsavel))
     return { ok: false, error: 'Time HDM inválido.' };
 
@@ -794,7 +818,6 @@ export async function criarChamado(
   if (error) return { ok: false, error: error.message };
 
   const chamadoRow = chamado as { id: number; numero?: number; created_at?: string };
-  const admin = createAdminClient();
   const timeNome = timeAbertura?.trim() || null;
   let timesIdsKa: string[] = [];
   let timeCol: string | null = null;
@@ -1137,11 +1160,11 @@ export async function atualizarChamadoPainelUnificado(
   const incendioTrim = dados.incendio?.trim() ?? '';
   if (!incendioTrim) return { ok: false, error: 'O resumo (incêndio) é obrigatório.' };
 
-  const tipo = dados.tipo === 'hdm' ? 'hdm' : 'padrao';
-  const hdmRaw = tipo === 'hdm' ? dados.hdm_responsavel : null;
-  if (tipo === 'hdm' && hdmRaw && !HDM_TIMES.includes(hdmRaw)) return { ok: false, error: 'Time HDM inválido.' };
-
   const timeAb = (dados.time_abertura ?? '').trim() || null;
+  const inferredHdm = inferirHdmResponsavelPorNomesTimes(timeAb ? [timeAb] : []);
+  const tipo = inferredHdm ? 'hdm' : 'padrao';
+  const hdmRaw = inferredHdm;
+  if (tipo === 'hdm' && hdmRaw && !HDM_TIMES.includes(hdmRaw)) return { ok: false, error: 'Time HDM inválido.' };
   const respAb = (dados.abertura_responsavel_nome ?? '').trim() || null;
   const vTime = validarTimeMoniOpcional(timeAb);
   if (!vTime.ok) return { ok: false, error: vTime.error };

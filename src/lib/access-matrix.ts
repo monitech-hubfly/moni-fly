@@ -17,6 +17,8 @@ export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/dashboard-novos-negocios',
   '/perfil',
   '/sirene',
+  '/universidade',
+  '/admin/universidade',
 ] as const;
 
 export function isTeamAllowedPath(pathname: string): boolean {
@@ -38,6 +40,7 @@ export const FRANK_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/funil-moni-inc',
   '/dashboard-novos-negocios',
   '/perfil',
+  '/universidade',
 ] as const;
 
 /**
@@ -91,6 +94,9 @@ export const ADMIN_ONLY_PATH_PREFIXES: readonly string[] = [
 ] as const;
 
 export function isAdminOnlyPath(pathname: string): boolean {
+  if (pathname === '/admin/universidade' || pathname.startsWith('/admin/universidade/')) {
+    return false;
+  }
   return ADMIN_ONLY_PATH_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 

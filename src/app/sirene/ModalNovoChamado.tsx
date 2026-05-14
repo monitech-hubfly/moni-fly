@@ -7,12 +7,11 @@ import {
   getDadosNovoChamado,
   type SireneVinculoCardBuscaItem,
 } from './actions';
-import type { HdmTime } from '@/types/sirene';
 import {
   HDM_RESPONSAVEIS_TODOS_EMAILS,
-  TIMES_MONI_HDM,
   filtrarOpcoesResponsaveisPorModoHdm,
-  timesMoniReceberChamadoOpcoes,
+  inferirHdmResponsavelPorNomesTimes,
+  ordenarLinhasTimeKanbanPorCatalogoMoni,
 } from '@/lib/times-responsaveis';
 import { createClient } from '@/lib/supabase/client';
 
@@ -37,8 +36,6 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
   const [buscaFrank, setBuscaFrank] = useState('');
   const [abertoBuscaFrank, setAbertoBuscaFrank] = useState(false);
   const [teTrata, setTeTrata] = useState<'sim' | 'nao' | ''>('');
-  const [ehHdm, setEhHdm] = useState(false);
-  const [hdmResponsavel, setHdmResponsavel] = useState<HdmTime | ''>('');
   const [tema, setTema] = useState('');
   const [temaOutro, setTemaOutro] = useState('');
   const [loading, setLoading] = useState(false);
@@ -102,18 +99,29 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
       .slice(0, 15);
   }, [dados?.franqueados, buscaFrank]);
 
-  const responsaveisOpcoesVisiveis = useMemo(
-    () => filtrarOpcoesResponsaveisPorModoHdm(responsaveisOpcoes, ehHdm),
-    [responsaveisOpcoes, ehHdm],
+  const nomesTimesSelecionados = useMemo(() => {
+    const out: string[] = [];
+    for (const id of timesIds) {
+      const n = kanbanTimes.find((t) => t.id === id)?.nome?.trim();
+      if (n) out.push(n);
+    }
+    return out;
+  }, [timesIds, kanbanTimes]);
+
+  const inferidoHdm = useMemo(
+    () => inferirHdmResponsavelPorNomesTimes(nomesTimesSelecionados),
+    [nomesTimesSelecionados],
   );
 
-  /** Mesma ordem do catálogo Moní (`TIMES_MONI` ou HDM); só exibe linhas existentes em `kanban_times`. */
-  const timesChipsCatalogoOrdenados = useMemo(() => {
-    const nomes = ehHdm ? [...TIMES_MONI_HDM] : [...timesMoniReceberChamadoOpcoes(false)];
-    return nomes
-      .map((nome) => kanbanTimes.find((t) => t.nome.trim() === nome))
-      .filter((t): t is { id: string; nome: string } => Boolean(t));
-  }, [ehHdm, kanbanTimes]);
+  const responsaveisOpcoesVisiveis = useMemo(
+    () => filtrarOpcoesResponsaveisPorModoHdm(responsaveisOpcoes, inferidoHdm != null),
+    [responsaveisOpcoes, inferidoHdm],
+  );
+
+  const timesChipsCatalogoOrdenados = useMemo(
+    () => ordenarLinhasTimeKanbanPorCatalogoMoni(kanbanTimes, false),
+    [kanbanTimes],
+  );
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -162,8 +170,8 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     formData.set('frank_id', frankId.trim());
     formData.set('frank_nome', frankNome.trim());
     if (teTrata === 'sim' || teTrata === 'nao') formData.set('te_trata', teTrata);
-    formData.set('tipo', ehHdm ? 'hdm' : 'padrao');
-    if (ehHdm && hdmResponsavel) formData.set('hdm_responsavel', hdmResponsavel);
+    formData.set('tipo', inferidoHdm ? 'hdm' : 'padrao');
+    if (inferidoHdm) formData.set('hdm_responsavel', inferidoHdm);
     formData.set('tema', temaFinal);
     if (cardVinculo) {
       formData.set('card_id', cardVinculo.card_id);
@@ -313,7 +321,10 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
             </label>
             <select
               value={tema}
-              onChange={(e) => { setTema(e.target.value); setTemaOutro(''); }}
+              onChange={(e) => {
+                setTema(e.target.value);
+                setTemaOutro('');
+              }}
               className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
               required
             >
@@ -347,7 +358,12 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                 <label className="mb-1 block text-sm font-medium text-stone-700">
                   Time que receberá o chamado
                 </label>
-                <div className="flex flex-wrap gap-1.5 mt-1">
+                <p className="mb-1 text-xs text-stone-500">
+                  Se entre os times estiver <strong>Produto</strong>, <strong>Homologações</strong>,{' '}
+                  <strong>Executivo Local</strong> ou <strong>Modelo Virtual</strong>, o chamado é classificado
+                  automaticamente como <strong>HDM</strong>.
+                </p>
+                <div className="mt-1 flex flex-wrap gap-1.5">
                   {timesChipsCatalogoOrdenados.map((t) => {
                     const on = timesIds.includes(t.id);
                     return (
@@ -370,7 +386,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                 <label className="mb-1 block text-sm font-medium text-stone-700">
                   Responsável pelo atendimento (opcional)
                 </label>
-                <div className="flex flex-wrap gap-1.5 mt-1">
+                <div className="mt-1 flex flex-wrap gap-1.5">
                   {responsaveisOpcoesVisiveis.map((p) => {
                     const on = responsaveisIds.includes(p.id);
                     return (
@@ -440,42 +456,6 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
           <p className="text-xs text-stone-500">
             Aberto por: preenchido automaticamente com seu login.
           </p>
-
-          <div className="border-t border-stone-200 pt-3">
-            <label className="flex cursor-pointer items-center gap-2">
-              <input
-                type="checkbox"
-                checked={ehHdm}
-                onChange={(e) => {
-                  setEhHdm(e.target.checked);
-                  setTimesIds([]);
-                  setResponsaveisIds([]);
-                  if (!e.target.checked) setHdmResponsavel('');
-                }}
-                className="h-4 w-4 rounded border-stone-300"
-              />
-              <span className="text-sm font-medium text-stone-700">Este chamado é HDM?</span>
-            </label>
-            {ehHdm && (
-              <div className="mt-3">
-                <label className="mb-1 block text-sm font-medium text-stone-700">
-                  Time HDM responsável (opcional)
-                </label>
-                <select
-                  value={hdmResponsavel}
-                  onChange={(e) => setHdmResponsavel((e.target.value || '') as HdmTime | '')}
-                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
-                >
-                  <option value="">Selecione</option>
-                  {TIMES_MONI_HDM.map((nome) => (
-                    <option key={nome} value={nome}>
-                      {nome}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
 
           <div className="flex justify-end gap-2 border-t border-stone-200 pt-4">
             <button
