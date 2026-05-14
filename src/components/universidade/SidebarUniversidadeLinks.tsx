@@ -34,7 +34,7 @@ export function SidebarUniversidadeLinks({
 
   const isFrank = resolvedRole === 'frank';
   const isStaff = resolvedRole === 'admin' || resolvedRole === 'team';
-  /** Tabuleiro / Biblioteca / Certificados: apenas franqueado (spec). Gestão: admin e team. */
+  /** Tabuleiro / Biblioteca / Certificados: franqueado; mesmo trio + Gestão para admin/team. */
   const showFranqueadoLinks = isFrank;
 
   useEffect(() => {
@@ -105,13 +105,42 @@ export function SidebarUniversidadeLinks({
             </>
           )}
           {isStaff && (
-            <Link
-              href="/admin/universidade"
-              className={`flex items-center gap-2 ${linkClassSub(isAdminUniversidadePath(pathname))}`}
-            >
-              <Shield className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
-              Gestão
-            </Link>
+            <>
+              <Link
+                href="/universidade"
+                className={`flex items-center justify-between gap-2 ${linkClassSub(pathname === '/universidade' || pathname.startsWith('/universidade/jornada'))}`}
+              >
+                <span className="flex items-center gap-2">
+                  <LayoutDashboard className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+                  Tabuleiro
+                </span>
+              </Link>
+              <Link
+                href="/universidade/biblioteca"
+                className={`flex items-center gap-2 ${linkClassSub(pathname.startsWith('/universidade/biblioteca'))}`}
+              >
+                <span className="flex items-center gap-2">
+                  <BookOpen className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+                  Biblioteca
+                </span>
+              </Link>
+              <Link
+                href="/universidade/certificados"
+                className={`flex items-center gap-2 ${linkClassSub(pathname.startsWith('/universidade/certificados'))}`}
+              >
+                <span className="flex items-center gap-2">
+                  <Award className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+                  Certificados
+                </span>
+              </Link>
+              <Link
+                href="/admin/universidade"
+                className={`flex items-center gap-2 ${linkClassSub(isAdminUniversidadePath(pathname))}`}
+              >
+                <Shield className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+                Gestão
+              </Link>
+            </>
           )}
         </div>
       )}
