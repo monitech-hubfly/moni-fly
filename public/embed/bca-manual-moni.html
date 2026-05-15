@@ -181,8 +181,7 @@
 
     .intro-stack .card h3,
     .ordem-stack .ordem-passos-heading,
-    .validacao-stack .validacao-card h3,
-    .perguntas-obrig-card .card h3 {
+    .validacao-stack .validacao-card h3 {
       margin: 0 0 0.5rem;
       font-size: 1rem;
       font-weight: 700;
@@ -205,8 +204,7 @@
 
     .intro-stack .card h3 + p,
     .ordem-stack .ordem-passos-heading + .ordem-passos,
-    .validacao-stack .validacao-card h3 + p,
-    .perguntas-obrig-card .card h3 + ol {
+    .validacao-stack .validacao-card h3 + p {
       margin-top: 0;
     }
 
@@ -384,68 +382,6 @@
       margin: 0;
       padding-left: 1.1rem;
       font-size: 0.82rem;
-      line-height: 1.5;
-    }
-
-    .liquidez-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.75rem;
-      margin-top: 0.75rem;
-    }
-
-    @media (max-width: 600px) {
-      .liquidez-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .liquidez-bloco {
-      border-radius: 8px;
-      padding: 0.9rem 1rem;
-    }
-
-    .liquidez-bloco--up {
-      background: #e1f5ee;
-      border: 1px solid #1d9e75;
-    }
-
-    .liquidez-bloco--down {
-      background: #fcebeb;
-      border: 1px solid #a32d2d;
-    }
-
-    .liquidez-bloco strong {
-      display: block;
-      margin-bottom: 0.4rem;
-      font-size: 0.88rem;
-    }
-
-    .liquidez-bloco--up strong {
-      color: #085041;
-    }
-
-    .liquidez-bloco--down strong {
-      color: #a32d2d;
-    }
-
-    .liquidez-bloco ul {
-      margin: 0;
-      padding-left: 1.1rem;
-      font-size: 0.85rem;
-      line-height: 1.5;
-      color: #444;
-    }
-
-    .perguntas-obrig-card ol {
-      padding-left: 1.2rem;
-      margin: 0.5rem 0 0;
-    }
-
-    .perguntas-obrig-card li {
-      font-size: 0.9rem;
-      color: #444;
-      margin-bottom: 0.35rem;
       line-height: 1.5;
     }
 
@@ -1035,74 +971,6 @@
       display: block;
     }
 
-    .sim-margem-card {
-      margin-top: 1rem;
-    }
-
-    .sim-margem-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 0.75rem;
-      margin-top: 0.75rem;
-    }
-
-    @media (min-width: 560px) {
-      .sim-margem-grid {
-        grid-template-columns: 1fr 1fr;
-      }
-    }
-
-    .sim-margem-field label {
-      display: block;
-      font-size: 0.82rem;
-      font-weight: 600;
-      color: var(--c-brand-dark);
-      margin-bottom: 0.25rem;
-    }
-
-    .sim-margem-field input {
-      border: 1px solid rgba(0, 0, 0, 0.15);
-      border-radius: 6px;
-      padding: 0.5rem 0.75rem;
-      font-size: 0.95rem;
-      width: 100%;
-      box-sizing: border-box;
-    }
-
-    .sim-margem-result {
-      margin-top: 1rem;
-      padding: 0.85rem 1rem;
-      border-radius: 8px;
-      font-weight: 700;
-      font-size: 1rem;
-      display: none;
-    }
-
-    .sim-margem-result.is-visible {
-      display: block;
-    }
-
-    .sim-margem-result--ok {
-      color: var(--c-brand-dark);
-      background: var(--c-brand-light);
-    }
-
-    .sim-margem-result--mid {
-      color: #633806;
-      background: #faeeda;
-    }
-
-    .sim-margem-result--low {
-      color: #a32d2d;
-      background: #fcebeb;
-    }
-
-    .sim-margem-nota {
-      margin-top: 0.5rem;
-      font-size: 0.78rem;
-      color: #888;
-    }
-
     /* —— Comitê —— */
     .comite-stack {
       display: flex;
@@ -1216,24 +1084,6 @@
       font-size: 0.88rem;
       color: #5f5e5a;
       margin: 0;
-    }
-
-    .moni-filosofia-card {
-      background: #e1f5ee;
-      border-left: 4px solid #1d9e75;
-      border-radius: 0 10px 10px 0;
-      padding: 1.5rem 2rem;
-    }
-
-    .moni-filosofia-card p {
-      font-size: 1rem;
-      line-height: 1.8;
-      color: #085041;
-      margin: 0;
-    }
-
-    .moni-filosofia-card p + p {
-      margin-top: 0.75rem;
     }
 
     .site-header-text {
@@ -1398,7 +1248,6 @@
 
       .card,
       .defesa-card,
-      .moni-filosofia-card,
       .erro-card {
         box-shadow: none !important;
         border-color: #ccc !important;
@@ -2406,8 +2255,7 @@
                     <li>Metragem similar</li>
                     <li>Padrão similar</li>
                     <li>Número de suítes e vagas parecidos</li>
-                    <li>Casa que efetivamente fechou</li>
-                    <li>Idade do imóvel compatível</li>
+                    <li>Idade e status do imóvel compatível</li>
                   </ul>
                 </div>
               </div>
@@ -2417,83 +2265,10 @@
                   <strong>Não usar</strong>
                   <ul>
                     <li>Preço pedido sem confirmar venda</li>
-                    <li>Imóvel muito maior ou menor</li>
-                    <li>Casa parada há meses</li>
-                    <li>Padrão muito superior</li>
-                    <li>Exceção de mercado</li>
                     <li>“O vizinho disse que vendeu por X”</li>
                   </ul>
                 </div>
               </div>
-            </div>
-          </div>
-          <div class="card validacao-card">
-            <h3>Validação de liquidez</h3>
-            <div class="liquidez-grid">
-              <div class="liquidez-bloco liquidez-bloco--up">
-                <strong>O que aumenta liquidez</strong>
-                <ul>
-                  <li>Produto compatível</li>
-                  <li>Ticket correto</li>
-                  <li>Frente boa</li>
-                  <li>Metragem equilibrada</li>
-                  <li>Baixa concorrência</li>
-                  <li>Demanda reprimida</li>
-                </ul>
-              </div>
-              <div class="liquidez-bloco liquidez-bloco--down">
-                <strong>O que reduz liquidez</strong>
-                <ul>
-                  <li>Ticket acima do mercado</li>
-                  <li>Excesso de área</li>
-                  <li>Lote ruim ou frente estreita</li>
-                  <li>Estoque elevado no condomínio</li>
-                  <li>Arquitetura desalinhada</li>
-                  <li>Aclive/declive complexo</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-          <div class="card sim-margem-card">
-            <h3>Simulador rápido de margem</h3>
-            <p style="margin-top: 0.35rem; font-size: 0.88rem; color: var(--c-text-muted)">
-              Ajuste os valores para ter uma leitura rápida de sensibilidade. Não substitui o BCA.
-            </p>
-            <div class="sim-margem-grid">
-              <div class="sim-margem-field">
-                <label for="sim-vgv">VGV Target (R$)</label>
-                <input type="number" inputmode="decimal" id="sim-vgv" placeholder="6200000" min="0" step="any" />
-              </div>
-              <div class="sim-margem-field">
-                <label for="sim-terreno">Custo terreno (R$)</label>
-                <input type="number" inputmode="decimal" id="sim-terreno" placeholder="940000" min="0" step="any" />
-              </div>
-              <div class="sim-margem-field">
-                <label for="sim-casa">Custo casa (R$)</label>
-                <input type="number" inputmode="decimal" id="sim-casa" placeholder="1850776" min="0" step="any" />
-              </div>
-              <div class="sim-margem-field">
-                <label for="sim-outros">Outros custos (R$)</label>
-                <input type="number" inputmode="decimal" id="sim-outros" placeholder="435000" min="0" step="any" />
-              </div>
-            </div>
-            <div id="sim-margem-result" class="sim-margem-result" aria-live="polite"></div>
-            <p id="sim-margem-nota" class="sim-margem-nota" hidden>
-              Estimativa simplificada. Use o BCA completo para análise definitiva.
-            </p>
-          </div>
-          <div class="perguntas-obrig-card">
-            <div class="card">
-              <h3>7 perguntas obrigatórias antes de fechar hipótese</h3>
-              <ol>
-                <li>O mercado local compra esse ticket?</li>
-                <li>O condomínio já tem estoque similar parado?</li>
-                <li>Existem muitas casas concorrentes?</li>
-                <li>O lote ajuda ou atrapalha a venda?</li>
-                <li>A casa está grande demais para o condomínio?</li>
-                <li>O VGV depende de uma venda excepcional?</li>
-                <li>O prazo de venda tem base histórica?</li>
-              </ol>
             </div>
           </div>
         </div>
@@ -2512,20 +2287,8 @@
           <p>Usar o maior anúncio ou o que o terrenista espera sem confirmar vendas reais. O VGV deve ter evidência concreta de mercado.</p>
         </div>
         <div class="erro-card">
-          <strong>Escolher a maior casa possível</strong>
-          <p>Maior casa pode reduzir liquidez. O objetivo é a casa mais vendável para o lote e o condomínio, não a maior.</p>
-        </div>
-        <div class="erro-card">
           <strong>Reduzir custo para a conta fechar</strong>
           <p>Custo irreal destrói previsibilidade e gera risco operacional real. O custo deve vir do configurador Moní.</p>
-        </div>
-        <div class="erro-card">
-          <strong>Prazo de venda otimista sem evidência</strong>
-          <p>Projetar venda em 3–4 meses sem histórico de absorção mascara custo financeiro e simula saúde que a operação não tem.</p>
-        </div>
-        <div class="erro-card">
-          <strong>Alterar fórmulas</strong>
-          <p>Nunca. Se uma célula calculou errado, a premissa foi preenchida errado. Localizar e corrigir a premissa.</p>
         </div>
         <div class="erro-card">
           <strong>Ignorar o cenário de liquidação</strong>
@@ -2765,16 +2528,7 @@
         </div>
 
         <div class="defesa-card">
-          <h3>Roteiro de defesa da operação</h3>
-          <p>
-            Estamos analisando o lote <span class="campo-fill">lote</span>, no condomínio <span class="campo-fill">condomínio</span>, com o modelo
-            <span class="campo-fill">modelo</span>. O produto foi escolhido porque é compatível com a frente, área do lote e faixa de preço absorvida pelo mercado. O VGV Target foi definido em R$
-            <span class="campo-fill">VGV Target</span> com base em <span class="campo-fill">fontes de referência</span>. O cenário de liquidação considera R$
-            <span class="campo-fill">VGV Liquidação</span>, preservando margem mesmo em saída pressionada. O terreno foi negociado por R$
-            <span class="campo-fill">custo terreno</span> com condição <span class="campo-fill">condição de pagamento</span>. A operação apresenta margem de
-            <span class="campo-fill">margem Target</span> no Target e <span class="campo-fill">margem Liquidação</span> na Liquidação. O principal risco é
-            <span class="campo-fill">principal risco</span>, mitigado por <span class="campo-fill">como mitigar</span>.
-          </p>
+          <p>Roteiro de defesa da operação: usar critérios acima</p>
         </div>
 
         <div class="card">
@@ -2809,11 +2563,6 @@
               </div>
             </li>
           </ol>
-        </div>
-
-        <div class="moni-filosofia-card">
-          <p>O BCA não existe para fazer a conta fechar.</p>
-          <p>Existe para tomar decisões imobiliárias com segurança. O franqueado que preenche com disciplina, evidência e responsabilidade está pensando como incorporador.</p>
         </div>
       </div>
     </div>
@@ -3190,45 +2939,6 @@
       });
     }
 
-    function parseSimNumber(id) {
-      var el = document.getElementById(id);
-      if (!el || el.value === "") return NaN;
-      var n = parseFloat(String(el.value).replace(",", "."));
-      return Number.isFinite(n) ? n : NaN;
-    }
-
-    function updateSimMargem() {
-      var vgv = parseSimNumber("sim-vgv");
-      var terreno = parseSimNumber("sim-terreno");
-      var casa = parseSimNumber("sim-casa");
-      var outros = parseSimNumber("sim-outros");
-      var res = document.getElementById("sim-margem-result");
-      var nota = document.getElementById("sim-margem-nota");
-      if (!res) return;
-      if (!Number.isFinite(vgv) || vgv <= 0 || [terreno, casa, outros].some(function (x) { return !Number.isFinite(x); })) {
-        res.classList.remove("is-visible", "sim-margem-result--ok", "sim-margem-result--mid", "sim-margem-result--low");
-        res.textContent = "";
-        if (nota) nota.hidden = true;
-        return;
-      }
-      var margem = ((vgv * 0.88 - terreno - casa - outros) / vgv) * 100;
-      var txt = "Margem estimada não alavancada: " + margem.toFixed(1).replace(".", ",") + "%";
-      res.textContent = txt;
-      res.classList.remove("sim-margem-result--ok", "sim-margem-result--mid", "sim-margem-result--low");
-      if (margem >= 25) res.classList.add("sim-margem-result--ok");
-      else if (margem >= 15) res.classList.add("sim-margem-result--mid");
-      else res.classList.add("sim-margem-result--low");
-      res.classList.add("is-visible");
-      if (nota) nota.hidden = false;
-    }
-
-    function wireSimMargem() {
-      ["sim-vgv", "sim-terreno", "sim-casa", "sim-outros"].forEach(function (id) {
-        var el = document.getElementById(id);
-        if (el) el.addEventListener("input", updateSimMargem);
-      });
-    }
-
     function openFromHash() {
       var aliases = {
         "ordem-preenchimento": "ordem",
@@ -3338,7 +3048,6 @@
       window.restoreChecklistFromStorage();
       window.updateProgress();
       wireOutputTooltipDismiss();
-      wireSimMargem();
 
       document.addEventListener("keydown", function checklistKeyNav(e) {
         if ((e.key === "Enter" || e.key === " ") && e.target.closest(".check-item")) {
