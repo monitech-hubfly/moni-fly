@@ -70,6 +70,7 @@ export async function updateSession(request: NextRequest) {
     '/perfil',
     '/sirene',
     '/universidade',
+    '/casa0',
     '/admin/universidade',
   ];
   const matchesProtected = protectedPrefixes.some((p) => pathname.startsWith(p));

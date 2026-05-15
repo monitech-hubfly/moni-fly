@@ -41,6 +41,7 @@ export const FRANK_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/dashboard-novos-negocios',
   '/perfil',
   '/universidade',
+  '/casa0',
 ] as const;
 
 /**

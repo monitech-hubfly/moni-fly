@@ -18,6 +18,8 @@ const PREFIX_TITLE: { prefix: string; title: string }[] = [
   { prefix: '/sirene', title: 'Sirene' },
   { prefix: '/alertas', title: 'Alertas' },
   { prefix: '/perfil', title: 'Perfil' },
+  { prefix: '/casa0', title: 'Casa 0 — Onboarding' },
+  { prefix: '/preview-casa0', title: 'Preview Casa 0' },
   { prefix: '/universidade', title: 'Universidade' },
   { prefix: '/admin/universidade', title: 'Universidade — Gestão' },
   { prefix: '/admin/sla', title: 'SLA das fases' },

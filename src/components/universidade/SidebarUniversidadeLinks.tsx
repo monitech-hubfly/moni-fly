@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Award, BookOpen, ChevronDown, ChevronRight, LayoutDashboard, Shield } from 'lucide-react';
+import { Award, BookOpen, ChevronDown, ChevronRight, GraduationCap, LayoutDashboard, Shield } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { calcularProgressoGeral, getCasasComProgresso } from '@/lib/universidade/queries';
 
@@ -22,6 +22,10 @@ function isAdminUniversidadePath(p: string) {
   return p === '/admin/universidade' || p.startsWith('/admin/universidade/');
 }
 
+function isCasa0Path(p: string) {
+  return p === '/casa0' || p.startsWith('/casa0/');
+}
+
 export function SidebarUniversidadeLinks({
   userId,
   resolvedRole,
@@ -29,7 +33,9 @@ export function SidebarUniversidadeLinks({
   linkClassSub,
 }: Props) {
   const pathname = usePathname() ?? '';
-  const [open, setOpen] = useState(() => isUniversidadePath(pathname) || isAdminUniversidadePath(pathname));
+  const [open, setOpen] = useState(
+    () => isUniversidadePath(pathname) || isAdminUniversidadePath(pathname) || isCasa0Path(pathname),
+  );
   const [pct, setPct] = useState<number | null>(null);
 
   const isFrank = resolvedRole === 'frank';
@@ -38,7 +44,9 @@ export function SidebarUniversidadeLinks({
   const showFranqueadoLinks = isFrank;
 
   useEffect(() => {
-    if (isUniversidadePath(pathname) || isAdminUniversidadePath(pathname)) setOpen(true);
+    if (isUniversidadePath(pathname) || isAdminUniversidadePath(pathname) || isCasa0Path(pathname)) {
+      setOpen(true);
+    }
   }, [pathname]);
 
   useEffect(() => {
@@ -54,7 +62,8 @@ export function SidebarUniversidadeLinks({
 
   if (!showFranqueadoLinks && !isStaff) return null;
 
-  const active = isUniversidadePath(pathname) || isAdminUniversidadePath(pathname);
+  const active =
+    isUniversidadePath(pathname) || isAdminUniversidadePath(pathname) || isCasa0Path(pathname);
   const macroClass = linkClassPrincipal(active);
 
   return (
@@ -76,6 +85,13 @@ export function SidebarUniversidadeLinks({
         <div className="mt-0.5 space-y-0.5">
           {showFranqueadoLinks && (
             <>
+              <Link
+                href="/casa0"
+                className={`flex items-center gap-2 ${linkClassSub(isCasa0Path(pathname))}`}
+              >
+                <GraduationCap className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+                Universidade Moní
+              </Link>
               <Link
                 href="/universidade"
                 className={`flex items-center justify-between gap-2 ${linkClassSub(pathname === '/universidade' || pathname.startsWith('/universidade/jornada'))}`}
