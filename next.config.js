@@ -17,6 +17,7 @@ const nextConfig = {
       { source: '/onboarding/:path*', destination: '/rede-franqueados', permanent: true },
       { source: '/sirene/interacoes', destination: '/sirene/chamados', permanent: true },
       { source: '/sirene/interacoes/:path*', destination: '/sirene/chamados', permanent: true },
+      { source: '/treinamento-bca/cenarios', destination: '/treinamento-bca/ordem', permanent: true },
     ];
   },
 };

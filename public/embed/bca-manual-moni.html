@@ -844,98 +844,6 @@
       color: var(--c-brand-dark);
     }
 
-    /* —— Cenários de venda —— */
-    .cenarios-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 1rem;
-      margin-bottom: 1.5rem;
-      overflow: visible;
-    }
-
-    @media (min-width: 900px) {
-      .cenarios-grid {
-        grid-template-columns: repeat(4, 1fr);
-      }
-    }
-
-    .cenario-card {
-      border-radius: 10px;
-      padding: 1.1rem 1.25rem;
-      border: 2px solid;
-      position: relative;
-      overflow: visible;
-    }
-
-    .cenario-card--planta {
-      border-color: #0f766e;
-      background: linear-gradient(135deg, #f0fdfa, #ccfbf1);
-    }
-
-    .cenario-card--target {
-      border-color: #1d4ed8;
-      border-width: 3px;
-      background: #eff6ff;
-      box-shadow: 0 2px 8px rgba(29, 78, 216, 0.12);
-      padding-top: 2.1rem;
-    }
-
-    .cenario-card--liquidacao {
-      border-color: #d97706;
-      background: linear-gradient(135deg, #fffbeb, #fef3c7);
-    }
-
-    .cenario-card--recompra {
-      border-color: #6b7280;
-      background: linear-gradient(135deg, #f9fafb, #f3f4f6);
-    }
-
-    .cenario-card-badge {
-      font-size: 10px;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      font-weight: 700;
-      font-family: monospace;
-      margin-bottom: 0.4rem;
-    }
-
-    .cenario-ribbon {
-      position: absolute;
-      top: 0;
-      right: 0;
-      background: #1d4ed8;
-      color: white;
-      font-size: 10px;
-      font-weight: 700;
-      padding: 3px 10px;
-      border-radius: 0 10px 0 12px;
-      letter-spacing: 0.5px;
-    }
-
-    .cenario-campos-titulo {
-      font-size: 0.8rem;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      font-family: monospace;
-      font-weight: 700;
-      color: var(--c-brand-dark);
-      margin: 1.5rem 0 0.75rem;
-    }
-
-    .cenario-card h4 {
-      margin: 0 0 0.35rem;
-      font-size: 1rem;
-      font-weight: 700;
-      color: var(--c-text);
-    }
-
-    .cenario-card p {
-      margin: 0;
-      font-size: 0.85rem;
-      line-height: 1.45;
-      color: #444;
-    }
-
     /* —— Checklist final —— */
     .checklist-head {
       display: flex;
@@ -1526,23 +1434,10 @@
       .card,
       .defesa-card,
       .moni-filosofia-card,
-      .cenario-card,
       .erro-card {
         box-shadow: none !important;
         border-color: #ccc !important;
         background: #fff !important;
-        print-color-adjust: exact;
-        -webkit-print-color-adjust: exact;
-      }
-
-      .cenario-card--target,
-      .cenario-card--planta,
-      .cenario-card--liquidacao,
-      .cenario-card--recompra {
-        background: #fff !important;
-      }
-
-      .cenario-ribbon {
         print-color-adjust: exact;
         -webkit-print-color-adjust: exact;
       }
@@ -1579,7 +1474,6 @@
       <button type="button" class="active" data-section="introducao">Introdução</button>
       <button type="button" data-section="ordem">Ordem de preenchimento</button>
       <button type="button" data-section="aba-resumo">Campos do Resumo</button>
-      <button type="button" data-section="cenarios">Cenários de venda</button>
       <button type="button" data-section="abas-fluxo">Abas de fluxo</button>
       <button type="button" data-section="validacao">Validação</button>
       <button type="button" data-section="erros">Erros comuns</button>
@@ -2521,175 +2415,6 @@
       </div>
     </div>
 
-    <div id="sec-cenarios" class="section" role="region" aria-labelledby="h-cenarios">
-      <div class="section-inner">
-        <div class="card">
-          <h2 id="h-cenarios">Cenários de venda</h2>
-          <p style="margin-top: 0.35rem; font-size: 0.9rem; color: var(--c-text-muted)">
-            Quatro colunas de premissa no Resumo: cada uma testa uma hipótese de preço, prazo e caixa. O <strong>Target</strong> é o cenário central; os demais medem robustez.
-          </p>
-
-          <div class="cenarios-grid" aria-label="Visão dos quatro cenários">
-            <article class="cenario-card cenario-card--planta">
-              <div class="cenario-card-badge">Coluna C</div>
-              <h4>Venda antecipada</h4>
-              <p>Casa vendida em fase inicial. Possível desconto em relação ao Target.</p>
-            </article>
-            <article class="cenario-card cenario-card--target">
-              <span class="cenario-ribbon">Cenário principal</span>
-              <div class="cenario-card-badge">Coluna D</div>
-              <h4>Preço ideal ★</h4>
-              <p>Preço-alvo da operação. Deve ser validado com evidências de mercado. Mais importante.</p>
-            </article>
-            <article class="cenario-card cenario-card--liquidacao">
-              <div class="cenario-card-badge">Coluna E</div>
-              <h4>Cenário conservador</h4>
-              <p>Preço em saída pressionada. Mostra a proteção real da operação.</p>
-            </article>
-            <article class="cenario-card cenario-card--recompra">
-              <div class="cenario-card-badge">Coluna F</div>
-              <h4>Saída estruturada</h4>
-              <p>Valor e mês conforme contrato e premissa Moní.</p>
-            </article>
-          </div>
-
-          <h3 class="cenario-campos-titulo">Campos por cenário</h3>
-
-          <div class="campo-card">
-            <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
-              <span class="campo-celula">C85 / C88</span>
-              <span class="campo-nome">Planta — VGV e velocidade (linhas 85 e 88)</span>
-              <span class="campo-tipo campo-tipo-input">INPUT</span>
-              <i class="campo-chevron" aria-hidden="true">▾</i>
-            </button>
-            <div class="campo-body">
-              <div class="campo-body-inner">
-                <div class="campo-blocos-grid">
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">O que colocar</div>
-                    <p>VGV e ritmo de absorção do cenário <strong>Planta</strong> (coluna C), coerentes com obra em estágio inicial e política comercial de antecipação.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">De onde tirar</div>
-                    <p>Curva física da obra, precificação de planta no configurador e comparáveis de lançamento na região.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Como validar</div>
-                    <p>Bater com fluxo de obra (C48–C59) e com o Resumo na coluna C; desconto coerente com o estágio da construção.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Não fazer</div>
-                    <p>Não igualar cegamente ao Target — a Planta deve refletir venda mais cedo ou com incentivo real.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="campo-card">
-            <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
-              <span class="campo-celula">D85 / D88</span>
-              <span class="campo-nome">Target — VGV e velocidade (linhas 85 e 88)</span>
-              <span class="campo-tipo campo-tipo-input">INPUT</span>
-              <i class="campo-chevron" aria-hidden="true">▾</i>
-            </button>
-            <div class="campo-body">
-              <div class="campo-body-inner">
-                <div class="campo-blocos-grid">
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">O que colocar</div>
-                    <p>Premissa central de preço e velocidade defendida no comitê, ancorada em mapa de concorrentes e histórico de vendas fechadas.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">De onde tirar</div>
-                    <p>Pesquisa de campo, portais, CRM e diretriz comercial Moní.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Como validar</div>
-                    <p>Comparar com Planta e Liquidação; checar coerência com outputs de margem no cenário D.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Não fazer</div>
-                    <p>Não usar D88 como vitrine sem backtesting de velocidade e sem stress na coluna E.</p>
-                  </div>
-                </div>
-                <div class="alerta alerta-danger">
-                  <span class="alerta-icone" aria-hidden="true">⚠</span>
-                  <span>VGV emocional mata a operação. Usar o maior anúncio sem verificar se realmente vendeu é o erro mais grave do BCA. Validar sempre com casas que efetivamente fecharam negócio.</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="campo-card">
-            <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
-              <span class="campo-celula">E85 / E88</span>
-              <span class="campo-nome">Liquidação — VGV e velocidade (linhas 85 e 88)</span>
-              <span class="campo-tipo campo-tipo-input">INPUT</span>
-              <i class="campo-chevron" aria-hidden="true">▾</i>
-            </button>
-            <div class="campo-body">
-              <div class="campo-body-inner">
-                <div class="campo-blocos-grid">
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">O que colocar</div>
-                    <p>VGV e prazo em cenário de pressão (desconto, prazo maior ou mix mais conservador).</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">De onde tirar</div>
-                    <p>Histórico de liquidação na região, playbook de crise e orientação de risco Moní.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Como validar</div>
-                    <p>Garantir caixa mínimo e covenants; medir gap em relação ao Target (coluna D).</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Não fazer</div>
-                    <p>Não deixar Liquidação idêntica ao Target — elimina o teste de fragilidade.</p>
-                  </div>
-                </div>
-                <div class="alerta alerta-info">
-                  <span class="alerta-icone" aria-hidden="true">ℹ</span>
-                  <span>Diferença ideal: mínimo -10% do Target. Se a operação só funciona no Target, ela é frágil. A liquidação deve preservar margem real.</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="campo-card">
-            <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
-              <span class="campo-celula">F85 / F88</span>
-              <span class="campo-nome">Recompra — VGV e velocidade (linhas 85 e 88)</span>
-              <span class="campo-tipo campo-tipo-input">INPUT</span>
-              <i class="campo-chevron" aria-hidden="true">▾</i>
-            </button>
-            <div class="campo-body">
-              <div class="campo-body-inner">
-                <div class="campo-blocos-grid">
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">O que colocar</div>
-                    <p>Premissas alinhadas às <strong>cláusulas contratuais Moní</strong> de recompra, estoque residual ou recomposição de caixa.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">De onde tirar</div>
-                    <p>Contrato-padrão Moní, aditivos aprovados pelo jurídico e gatilhos documentados.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Como validar</div>
-                    <p>Cruzar F85/F88 com fluxo da coluna F e com notas do comitê; cada gatilho com data e versão de minuta.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Não fazer</div>
-                    <p>Não usar como preço de mercado se a lógica da recompra for diferente. Confirmar premissa contratual Moní antes de preencher.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <div id="sec-abas-fluxo" class="section" role="region" aria-labelledby="h-abas-fluxo">
       <div class="section-inner">
         <h2 id="h-abas-fluxo" class="intro-sec-heading">Abas de fluxo</h2>
@@ -3180,7 +2905,7 @@
   <script>
     var CHECKLIST_STORAGE_KEY = "moni-treino-bca-checklist-v1";
     var VISIT_STORAGE_KEY = "moni-treino-bca-visitadas-v1";
-    var LEITURA_TOTAL_SECOES = 9;
+    var LEITURA_TOTAL_SECOES = 8;
 
     var OBRIG_CELLS = {
       C7: 1,
@@ -3591,7 +3316,8 @@
       var aliases = {
         "ordem-preenchimento": "ordem",
         "erros-comuns": "erros",
-        "checklist-final": "checklist"
+        "checklist-final": "checklist",
+        cenarios: "ordem"
       };
       var raw = (location.hash || "").replace(/^#/, "").trim();
       var leitura = document.documentElement.classList.contains("modo-leitura");
