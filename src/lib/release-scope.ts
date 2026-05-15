@@ -40,6 +40,8 @@ export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/portal-frank',
   '/perfil',
   '/universidade',
+  '/casa0',
+  '/casa1',
   '/admin/universidade',
   '/api',
   '/_next',

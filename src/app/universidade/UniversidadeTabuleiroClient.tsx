@@ -68,9 +68,15 @@ function Metric({ label, value, smallValue }: { label: string; value: string; sm
   );
 }
 
+/** Casa 0 no tabuleiro abre o hub de onboarding (Casa0Hub), não a jornada por módulos. */
+const CASA0_SLUG = 'boas-vindas';
+
 function UniversidadeCasaLink({ casa }: { casa: CasaComProgresso }) {
+  const href =
+    casa.slug === CASA0_SLUG || casa.numero === 0 ? '/casa0' : `/universidade/jornada/${encodeURIComponent(casa.slug)}`;
+
   return (
-    <Link href={`/universidade/jornada/${encodeURIComponent(casa.slug)}`} className="block">
+    <Link href={href} className="block">
       <CasaCard casa={casa} />
     </Link>
   );

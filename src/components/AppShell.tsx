@@ -16,6 +16,10 @@ export function AppShell({ user, userRole, showPublicPortalNav = false, children
   const pathname = usePathname() ?? '';
   const hideGlobalHeader = pathname.startsWith('/sirene');
 
+  if (pathname.startsWith('/preview-casa1')) {
+    return <>{children}</>;
+  }
+
   if (!user && !showPublicPortalNav) {
     return <>{children}</>;
   }

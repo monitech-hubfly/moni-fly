@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { SetupChecklist } from '@/components/casa0/SetupChecklist';
 import {
   AlertTriangle,
   Brain,
@@ -53,9 +55,6 @@ const UI = {
   tabBtnIdle: 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
   btnSecondary:
     'w-full rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 transition-colors hover:bg-emerald-100',
-  panelEnter: 'transition-all duration-300 ease-out motion-reduce:transition-none',
-  panelVisible: 'opacity-100 translate-y-0',
-  panelHidden: 'opacity-0 translate-y-2',
 };
 
 const TABS = [
@@ -71,10 +70,19 @@ function TabIntro({ children }) {
   return <p className={UI.tabIntro}>{children}</p>;
 }
 
-function SectionBlock({ title, lead, children, className = '' }) {
+function SectionBlock({ title, lead, children, className = '', icon: TitleIcon }) {
   return (
     <section className={className}>
-      <h3 className={UI.sectionLabel}>{title}</h3>
+      <h3 className={UI.sectionLabel}>
+        {TitleIcon ? (
+          <span className="inline-flex items-center gap-2">
+            <TitleIcon className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+            <span>{title}</span>
+          </span>
+        ) : (
+          title
+        )}
+      </h3>
       {lead ? <p className={UI.sectionLead}>{lead}</p> : null}
       <div className={UI.sectionBody}>{children}</div>
     </section>
@@ -178,6 +186,31 @@ function HubCard({ titulo, descricao, Icon, iconClass }) {
 }
 
 function EcossistemaTab() {
+  const [userId, setUserId] = useState('');
+
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!cancelled) setUserId(user?.id ?? '');
+    })();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id ?? '');
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, []);
+
   return (
     <div className={UI.tabStack}>
       <TabIntro>
@@ -185,7 +218,21 @@ function EcossistemaTab() {
         concentra fluxo, avanço e prazos.
       </TabIntro>
 
-      <SectionBlock title="Áreas da Moní">
+      <SectionBlock
+        title="Setup Operacional"
+        icon={Cog}
+        lead="Conclua os itens abaixo para liberar a primeira missão. O progresso é salvo automaticamente."
+      >
+        {userId ? (
+          <SetupChecklist userId={userId} omitHeading />
+        ) : (
+          <p className={UI.tabIntro}>
+            Faça login para acompanhar e salvar o setup operacional (checklist e missão).
+          </p>
+        )}
+      </SectionBlock>
+
+      <SectionBlock title="Áreas da Moní" className="border-t border-slate-200 pt-10">
         <div className={UI.grid3}>
           {AREAS_MONI.map((area) => (
             <HubCard key={area.id} {...area} />
@@ -843,36 +890,39 @@ function renderTabContent(activeTab) {
   }
 }
 
-function TabPanel({ activeTab, label }) {
-  const [displayedTab, setDisplayedTab] = useState(activeTab);
-  const [visible, setVisible] = useState(true);
+/** Conteúdo do painel: monta com opacity 0 e, no próximo tick, vai a 1 — sem animação de saída (evita “escurecer” ao cruzar abas). */
+function TabPanelBody({ activeTab }) {
+  const [entered, setEntered] = useState(false);
 
   useEffect(() => {
-    if (activeTab === displayedTab) return undefined;
-
-    setVisible(false);
-    const timer = window.setTimeout(() => {
-      setDisplayedTab(activeTab);
-      setVisible(true);
-    }, 180);
-
-    return () => window.clearTimeout(timer);
-  }, [activeTab, displayedTab]);
+    const id = window.setTimeout(() => setEntered(true), 0);
+    return () => window.clearTimeout(id);
+  }, []);
 
   return (
+    <div
+      className={[
+        'ease-out motion-reduce:!translate-y-0 motion-reduce:!opacity-100 motion-reduce:transition-none',
+        'transition-[opacity,transform] duration-150',
+        entered ? 'translate-y-0 opacity-100' : 'translate-y-[6px] opacity-0',
+      ].join(' ')}
+      aria-live="polite"
+    >
+      {renderTabContent(activeTab)}
+    </div>
+  );
+}
+
+function TabPanel({ activeTab, label }) {
+  return (
     <section
-      id={`casa0-panel-${displayedTab}`}
+      id={`casa0-panel-${activeTab}`}
       role="tabpanel"
-      aria-labelledby={`casa0-tab-${displayedTab}`}
+      aria-labelledby={`casa0-tab-${activeTab}`}
       className="min-h-[280px] rounded-b-xl rounded-tr-xl border border-t-0 border-slate-200 bg-white p-5 shadow-sm sm:p-6"
     >
       <h2 className="sr-only">{label}</h2>
-      <div
-        className={[UI.panelEnter, visible ? UI.panelVisible : UI.panelHidden].join(' ')}
-        aria-live="polite"
-      >
-        {renderTabContent(displayedTab)}
-      </div>
+      <TabPanelBody key={activeTab} activeTab={activeTab} />
     </section>
   );
 }

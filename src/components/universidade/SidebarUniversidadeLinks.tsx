@@ -3,9 +3,11 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Award, BookOpen, ChevronDown, ChevronRight, GraduationCap, LayoutDashboard, Shield } from 'lucide-react';
+import { Award, BookOpen, Check, ChevronDown, ChevronRight, GraduationCap, LayoutDashboard, Lock, Shield } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { getCasa0TudoConcluidoServer } from '@/lib/casa0-onboarding-setup';
 import { calcularProgressoGeral, getCasasComProgresso } from '@/lib/universidade/queries';
+import { CASA1_ID, computeCasa1TudoConcluido } from '@/hooks/useCasa1Progresso';
 
 type Props = {
   userId: string | undefined;
@@ -26,6 +28,10 @@ function isCasa0Path(p: string) {
   return p === '/casa0' || p.startsWith('/casa0/');
 }
 
+function isCasa1Path(p: string) {
+  return p === '/casa1' || p.startsWith('/casa1/');
+}
+
 export function SidebarUniversidadeLinks({
   userId,
   resolvedRole,
@@ -34,9 +40,15 @@ export function SidebarUniversidadeLinks({
 }: Props) {
   const pathname = usePathname() ?? '';
   const [open, setOpen] = useState(
-    () => isUniversidadePath(pathname) || isAdminUniversidadePath(pathname) || isCasa0Path(pathname),
+    () =>
+      isUniversidadePath(pathname) ||
+      isAdminUniversidadePath(pathname) ||
+      isCasa0Path(pathname) ||
+      isCasa1Path(pathname),
   );
   const [pct, setPct] = useState<number | null>(null);
+  const [casa0TudoConcluido, setCasa0TudoConcluido] = useState<boolean | null>(null);
+  const [casa1TudoConcluido, setCasa1TudoConcluido] = useState<boolean | null>(null);
 
   const isFrank = resolvedRole === 'frank';
   const isStaff = resolvedRole === 'admin' || resolvedRole === 'team';
@@ -44,7 +56,12 @@ export function SidebarUniversidadeLinks({
   const showFranqueadoLinks = isFrank;
 
   useEffect(() => {
-    if (isUniversidadePath(pathname) || isAdminUniversidadePath(pathname) || isCasa0Path(pathname)) {
+    if (
+      isUniversidadePath(pathname) ||
+      isAdminUniversidadePath(pathname) ||
+      isCasa0Path(pathname) ||
+      isCasa1Path(pathname)
+    ) {
       setOpen(true);
     }
   }, [pathname]);
@@ -52,18 +69,39 @@ export function SidebarUniversidadeLinks({
   useEffect(() => {
     if (!isFrank || !userId) {
       setPct(null);
+      setCasa0TudoConcluido(null);
+      setCasa1TudoConcluido(null);
       return;
     }
     const supabase = createClient();
     void getCasasComProgresso(supabase, userId)
       .then((c) => setPct(calcularProgressoGeral(c)))
       .catch(() => setPct(null));
-  }, [isFrank, userId]);
+
+    void (async () => {
+      const c0 = await getCasa0TudoConcluidoServer(supabase, userId);
+      const { data: rowsC1, error: errC1 } = await supabase
+        .from('franqueado_onboarding_progresso')
+        .select('item_id, status, conteudo')
+        .eq('user_id', userId)
+        .eq('casa_id', CASA1_ID);
+      if (errC1) {
+        setCasa0TudoConcluido(c0);
+        setCasa1TudoConcluido(false);
+        return;
+      }
+      setCasa0TudoConcluido(c0);
+      setCasa1TudoConcluido(computeCasa1TudoConcluido(rowsC1 ?? []));
+    })();
+  }, [isFrank, userId, pathname]);
 
   if (!showFranqueadoLinks && !isStaff) return null;
 
   const active =
-    isUniversidadePath(pathname) || isAdminUniversidadePath(pathname) || isCasa0Path(pathname);
+    isUniversidadePath(pathname) ||
+    isAdminUniversidadePath(pathname) ||
+    isCasa0Path(pathname) ||
+    isCasa1Path(pathname);
   const macroClass = linkClassPrincipal(active);
 
   return (
@@ -92,6 +130,27 @@ export function SidebarUniversidadeLinks({
                 <GraduationCap className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
                 Universidade Moní
               </Link>
+              {casa0TudoConcluido === true ? (
+                <Link
+                  href="/casa1"
+                  className={`flex items-center gap-2 ${linkClassSub(isCasa1Path(pathname))}`}
+                >
+                  <GraduationCap className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+                  <span className="min-w-0 flex-1 truncate">Casa 1 — Ecossistema Moní</span>
+                  {casa1TudoConcluido === true ? (
+                    <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" strokeWidth={2.5} aria-hidden />
+                  ) : null}
+                </Link>
+              ) : (
+                <span
+                  className={`flex cursor-not-allowed items-center gap-2 ${linkClassSub(false)} opacity-50`}
+                  title="Conclua a Casa 0 (Universidade Moní) para desbloquear"
+                  aria-disabled="true"
+                >
+                  <Lock className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+                  <span className="min-w-0 flex-1 truncate">Casa 1 — Ecossistema Moní</span>
+                </span>
+              )}
               <Link
                 href="/universidade"
                 className={`flex items-center justify-between gap-2 ${linkClassSub(pathname === '/universidade' || pathname.startsWith('/universidade/jornada'))}`}
