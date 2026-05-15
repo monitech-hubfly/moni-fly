@@ -42,11 +42,13 @@ function iconeFerramenta(tipo: FerramentaBibliotecaIcon, className: string) {
 }
 
 function resolveLinkPrincipalHref(href: string, nomeFranqueado: string | null | undefined) {
-  if (!href.startsWith('/treinamento-bca.html')) return href;
+  const normalized = href.startsWith('/treinamento-bca.html') ? '/treinamento-bca/introducao' : href;
+  if (!normalized.startsWith('/treinamento-bca')) return href;
+
   const name = (nomeFranqueado || '').trim();
-  if (!name) return href;
-  const u = new URL(href, typeof window !== 'undefined' ? window.location.origin : 'https://localhost');
-  u.searchParams.set('frank', name);
+  const base = typeof window !== 'undefined' ? window.location.origin : 'https://localhost';
+  const u = new URL(normalized, base);
+  if (name) u.searchParams.set('frank', name);
   return u.pathname + u.search;
 }
 

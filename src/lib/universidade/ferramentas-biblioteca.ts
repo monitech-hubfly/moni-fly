@@ -28,25 +28,25 @@ export const FERRAMENTAS_BIBLIOTECA: FerramentaBiblioteca[] = [
     iconColorClass: 'text-violet-700',
     conteudoExplicativoMd: `## O que é
 
-O **BCA (Business Case Analysis)** é a planilha-mãe da Moní para decidir se um lote ou permuta faz sentido econômico. Ela consolida receitas, custos, impostos, comissões, financiamento e permuta em **três cenários** de referência.
+O **BCA (Business Case Analysis)** é a planilha-mãe da Moní para decidir se o negócio faz sentido econômico. Ela consolida receitas, custos, impostos, comissões, alavancagem e cenários diferentes de negociação.
 
 ## Os três cenários
 
-1. **Planta** — visão de construção / cronograma de obra (ex.: mês 6).
+1. **Planta** — visão no empreendimento ainda em construção.
 2. **Target** — premissa comercial alvo que o time considera realista para venda.
 3. **Liquidação** — estresse: velocidade de venda e preço defensivo.
 
 ## Como usar no dia a dia
 
-- Preencha **VGV**, comissões, terreno (fixo e variável), **% permuta**, custo de casa, taxas e juros conforme o modelo vigente (2025 ou 2026 na aba **Documentos**).
+- Preencha os campos editáveis.
 - Compare os três cenários antes de levar qualquer proposta ao comitê.
-- **Meta institucional:** %VGV Target **≥ 10%** (ajuste interno quando a política mudar).
+- Veja se os percentuais de VGV, retorno ao terrenista, liquidação e espaço entre liquidação e target estão de acordo com as premissas.
 
 ## Boas práticas
 
-- Nunca apresente preço ou permuta ao mercado sem um BCA coerente com a documentação de concorrentes (mapa e batalha de casas).
-- Versione a planilha: use sempre o arquivo oficial da biblioteca **Documentos** para não divergir de premissas.`,
-    linkPrincipal: { label: 'Abrir treinamento interativo', href: '/treinamento-bca.html' },
+- Uma vez compreendida a possibilidade de viabilizar o negócio, seguir para assinatura da opção, depois terá tempo para refinamento do negócio até o Comitê.
+- **Template do BCA:** sempre faça uma cópia do arquivo oficial da biblioteca, pois pode ter sido atualizado.`,
+    linkPrincipal: { label: 'Abrir treinamento interativo', href: '/treinamento-bca/introducao' },
   },
   {
     id: 'mapa-competidores',

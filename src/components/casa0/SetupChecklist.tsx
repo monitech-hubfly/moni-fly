@@ -1,7 +1,8 @@
 'use client';
 
-import { useCasa0Missao } from '@/hooks/useCasa0Missao';
-import { useCasa0Progresso } from '@/hooks/useCasa0Progresso';
+import { Cog } from 'lucide-react';
+import { useCasa0Missao, useCasa0Progresso } from '@/hooks';
+import type { Casa0ItemId } from '@/lib/casa0-onboarding-setup';
 import type { SetupTaskItemStatus } from '@/components/casa0/SetupTaskItem';
 import { MissionCard } from '@/components/casa0/MissionCard';
 import { ProgressTracker } from '@/components/casa0/ProgressTracker';
@@ -10,12 +11,12 @@ import { UnlockBanner } from '@/components/casa0/UnlockBanner';
 
 export type SetupChecklistProps = {
   userId: string;
-  /** Quando true, não renderiza o cabeçalho próprio (título/lead vêm do pai, ex. SectionBlock no hub). */
+  /** Quando true, não renderiza cabeçalho/lead (ex.: título no pai, como na aba Ecossistema do hub). */
   omitHeading?: boolean;
 };
 
 type SetupItemDef = {
-  id: string;
+  id: Casa0ItemId;
   titulo: string;
   descricao: string;
   orientacoes: string[];
@@ -142,16 +143,23 @@ export function SetupChecklist({ userId, omitHeading = false }: SetupChecklistPr
   );
 
   if (omitHeading) {
-    return <div className="w-full space-y-8">{body}</div>;
+    return (
+      <div className="w-full space-y-8" aria-label="Checklist de setup operacional">
+        {body}
+      </div>
+    );
   }
 
   return (
     <section className="w-full space-y-8" aria-labelledby="setup-operacional-heading">
       <header className="border-b border-slate-200 pb-4">
-        <h2 id="setup-operacional-heading" className="text-xl font-semibold tracking-tight text-slate-900">
-          Setup Operacional
-        </h2>
-        <p className="mt-1 text-sm text-slate-600">
+        <h3 id="setup-operacional-heading" className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+          <span className="inline-flex items-center gap-2">
+            <Cog className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+            <span>Setup Operacional</span>
+          </span>
+        </h3>
+        <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
           Conclua os itens abaixo para liberar a primeira missão. O progresso é salvo automaticamente.
         </p>
       </header>

@@ -2,20 +2,22 @@
 
 import { useCallback, useMemo } from 'react';
 import useSWR from 'swr';
-import { CASA0_ID, CASA0_ITEM_IDS, type Casa0ItemId } from '@/lib/casa0-onboarding-setup';
 import { createClient } from '@/lib/supabase/client';
+import { CASA0_ID, CASA0_ITEM_IDS, type Casa0ItemId } from '@/lib/casa0-onboarding-setup';
 
 export { CASA0_ID, CASA0_ITEM_IDS, type Casa0ItemId };
 
 export type Casa0ItemStatus = 'pendente' | 'em_andamento' | 'concluido';
+
+export type Casa0ItensMap = Record<string, Casa0ItemStatus>;
 
 type ProgressoRow = {
   item_id: string;
   status: Casa0ItemStatus;
 };
 
-function rowsToItens(rows: ProgressoRow[] | undefined): Record<string, Casa0ItemStatus> {
-  const out: Record<string, Casa0ItemStatus> = {};
+function rowsToItens(rows: ProgressoRow[] | undefined): Casa0ItensMap {
+  const out: Casa0ItensMap = {};
   for (const id of CASA0_ITEM_IDS) {
     out[id] = 'pendente';
   }
@@ -27,6 +29,10 @@ function rowsToItens(rows: ProgressoRow[] | undefined): Record<string, Casa0Item
   return out;
 }
 
+/**
+ * Progresso do onboarding Casa 0 (`franqueado_onboarding_progresso`, `casa_id = casa0`).
+ * Com `userId` vazio não há fetch (SWR `key = null`).
+ */
 export function useCasa0Progresso(userId: string) {
   const key = userId ? (['casa0-onboarding-progresso', userId] as const) : null;
 
@@ -89,6 +95,5 @@ export function useCasa0Progresso(userId: string) {
     updateItem,
     progresso,
     tudoConcluido,
-    mutate,
   };
 }

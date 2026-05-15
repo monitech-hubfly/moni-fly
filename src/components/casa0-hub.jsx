@@ -218,19 +218,26 @@ function EcossistemaTab() {
         concentra fluxo, avanço e prazos.
       </TabIntro>
 
-      <SectionBlock
-        title="Setup Operacional"
-        icon={Cog}
-        lead="Conclua os itens abaixo para liberar a primeira missão. O progresso é salvo automaticamente."
-      >
-        {userId ? (
-          <SetupChecklist userId={userId} omitHeading />
-        ) : (
-          <p className={UI.tabIntro}>
-            Faça login para acompanhar e salvar o setup operacional (checklist e missão).
-          </p>
-        )}
-      </SectionBlock>
+      <div className="mt-10 border-t border-slate-200 pt-10">
+        <h3 className={UI.sectionLabel}>
+          <span className="inline-flex items-center gap-2">
+            <Cog className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+            <span>Setup Operacional</span>
+          </span>
+        </h3>
+        <p className={UI.sectionLead}>
+          Conclua os itens abaixo para liberar a primeira missão. O progresso é salvo automaticamente.
+        </p>
+        <div className={UI.sectionBody}>
+          {userId ? (
+            <SetupChecklist userId={userId} omitHeading />
+          ) : (
+            <p className={UI.tabIntro}>
+              Faça login para acompanhar e salvar o setup operacional (checklist e missão).
+            </p>
+          )}
+        </div>
+      </div>
 
       <SectionBlock title="Áreas da Moní" className="border-t border-slate-200 pt-10">
         <div className={UI.grid3}>

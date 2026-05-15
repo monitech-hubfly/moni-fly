@@ -44,7 +44,7 @@ export function UnlockBanner({ desbloqueado, casaProxima }: UnlockBannerProps) {
         className={clsx(
           'inline-flex shrink-0 items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold shadow-sm transition-opacity',
           'border border-emerald-300 bg-white text-emerald-900',
-          'pointer-events-none cursor-not-allowed opacity-60',
+          'pointer-events-none cursor-not-allowed opacity-50',
         )}
         aria-disabled="true"
         tabIndex={-1}

@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import clsx from 'clsx';
+import type { Casa0MissaoStatus } from '@/hooks';
 
 export type MissionCardMissao = {
   conteudo: string;
-  status: string;
+  status: Casa0MissaoStatus;
 } | null;
 
 export type MissionCardProps = {
@@ -20,7 +20,7 @@ const ENTREGAVEIS = [
   '1 hipótese inicial de mercado',
 ] as const;
 
-function isSomenteLeitura(status: string | undefined) {
+function isSomenteLeitura(status: Casa0MissaoStatus | undefined) {
   return status === 'enviado' || status === 'aprovado';
 }
 
@@ -59,25 +59,9 @@ export function MissionCard({ missao, onSalvar, bloqueada }: MissionCardProps) {
   }
 
   return (
-    <div
-      className={clsx(
-        'relative overflow-hidden rounded-2xl border border-stone-200 bg-white p-6 shadow-sm',
-        bloqueada && 'opacity-50',
-      )}
-    >
-      {bloqueada ? (
-        <div
-          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-white/40 px-4 backdrop-blur-[1px]"
-          role="region"
-          aria-label="Missão bloqueada"
-        >
-          <p className="rounded-lg border border-stone-200 bg-white/95 px-4 py-2 text-center text-sm font-semibold text-stone-800 shadow-sm">
-            Conclua o setup para desbloquear
-          </p>
-        </div>
-      ) : null}
-
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="relative overflow-hidden rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+      <div className={bloqueada ? 'pointer-events-none' : undefined}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-lg font-semibold tracking-tight text-stone-900">Primeira Missão Operacional</h3>
@@ -92,18 +76,18 @@ export function MissionCard({ missao, onSalvar, bloqueada }: MissionCardProps) {
             Enviado ✓
           </span>
         ) : null}
-      </div>
+        </div>
 
-      <ul className="mt-4 space-y-2 border-t border-stone-100 pt-4 text-sm text-stone-700">
+        <ul className="mt-4 space-y-2 border-t border-stone-100 pt-4 text-sm text-stone-700">
         {ENTREGAVEIS.map((item) => (
           <li key={item} className="flex gap-2">
             <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden />
             <span>{item}</span>
           </li>
         ))}
-      </ul>
+        </ul>
 
-      <div className="mt-5">
+        <div className="mt-5">
         {leitura ? (
           <div className="rounded-xl border border-stone-100 bg-stone-50/80 px-4 py-3 text-sm leading-relaxed text-stone-800 whitespace-pre-wrap">
             {conteudoSalvo ? conteudoSalvo : <span className="italic text-stone-500">(sem texto registrado)</span>}
@@ -138,7 +122,20 @@ export function MissionCard({ missao, onSalvar, bloqueada }: MissionCardProps) {
             </div>
           </>
         )}
+        </div>
       </div>
+
+      {bloqueada ? (
+        <div
+          className="absolute inset-0 z-10 flex cursor-not-allowed items-center justify-center bg-white/80 px-4 opacity-60 backdrop-blur-[1px]"
+          role="region"
+          aria-label="Missão bloqueada"
+        >
+          <p className="rounded-lg border border-stone-200 bg-white/95 px-4 py-2 text-center text-sm font-semibold text-stone-800 shadow-sm">
+            Conclua o setup para desbloquear
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }

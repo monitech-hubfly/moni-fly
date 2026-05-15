@@ -28,6 +28,10 @@ function normalizeMissao(row: MissaoRow | null | undefined): Casa0Missao {
   return { conteudo: row.conteudo ?? '', status };
 }
 
+/**
+ * Missão Casa 0 (`franqueado_onboarding_missao`, `casa_id = casa0`).
+ * Com `userId` vazio não há fetch (SWR `key = null`).
+ */
 export function useCasa0Missao(userId: string) {
   const key = userId ? (['casa0-onboarding-missao', userId] as const) : null;
 
@@ -83,6 +87,5 @@ export function useCasa0Missao(userId: string) {
     error: error ?? null,
     salvarMissao,
     missaoConcluida,
-    mutate,
   };
 }

@@ -7,6 +7,7 @@ import { normalizeAccessRole, type AccessRole } from '@/lib/authz';
 export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/rede-franqueados',
   '/comunidade',
+  '/treinamento-bca',
   '/repositorio',
   '/painel-novos-negocios',
   '/portfolio',
@@ -32,6 +33,7 @@ export function isTeamAllowedPath(pathname: string): boolean {
  */
 export const FRANK_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/portal-frank',
+  '/treinamento-bca',
   '/painel-novos-negocios',
   '/portfolio',
   '/operacoes',
