@@ -1308,7 +1308,7 @@
             </p>
             <div class="alerta alerta-danger">
               <span class="alerta-icone" aria-hidden="true">⚠</span>
-              <span>O BCA não existe para fazer a conta fechar. Existe para analisar a relação entre as métricas da operação (custo do terreno vs custo da casa vs retornos franqueados e terrenistas) dentro de premissas “saudáveis”.</span>
+              <span>O BCA existe para analisar a relação entre as métricas da operação (custo do terreno vs custo da casa vs retornos franqueados e terrenistas) dentro de premissas “saudáveis”.</span>
             </div>
           </div>
           <div class="card">
@@ -2316,7 +2316,7 @@
               </div>
             </div>
             <span id="check-pct" aria-live="polite">0%</span>
-            <span id="check-count">0 / 36 itens</span>
+            <span id="check-count">0 / 27 itens</span>
             <button type="button" class="btn-checklist-clear" id="btn-checklist-clear">Limpar checklist</button>
           </div>
 
@@ -2433,31 +2433,6 @@
             <label>Custo financeiro foi analisado nos outputs</label>
           </div>
 
-          <div class="checklist-grupo-label" data-grupo="cenarios">
-            <span class="checklist-grupo-title">Cenários de venda</span>
-            <span class="checklist-grupo-count" data-grupo-count="cenarios">0 / 5</span>
-          </div>
-          <div class="check-item" data-grupo="cenarios" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
-            <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
-            <label>Target validado com evidências de mercado</label>
-          </div>
-          <div class="check-item" data-grupo="cenarios" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
-            <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
-            <label>Liquidação mínimo -10% do Target</label>
-          </div>
-          <div class="check-item" data-grupo="cenarios" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
-            <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
-            <label>Planta com desconto coerente</label>
-          </div>
-          <div class="check-item" data-grupo="cenarios" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
-            <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
-            <label>Recompra segue lógica contratual</label>
-          </div>
-          <div class="check-item" data-grupo="cenarios" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
-            <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
-            <label>Prazo de venda tem base histórica</label>
-          </div>
-
           <div class="checklist-grupo-label" data-grupo="resultado">
             <span class="checklist-grupo-title">Resultado e elegibilidade</span>
             <span class="checklist-grupo-count" data-grupo-count="resultado">0 / 5</span>
@@ -2481,27 +2456,6 @@
           <div class="check-item" data-grupo="resultado" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Ferramenta mostra OK (ou motivo do NÃO ELEGÍVEL identificado)</label>
-          </div>
-
-          <div class="checklist-grupo-label" data-grupo="fluxo-abas">
-            <span class="checklist-grupo-title">Abas de fluxo</span>
-            <span class="checklist-grupo-count" data-grupo-count="fluxo-abas">0 / 4</span>
-          </div>
-          <div class="check-item" data-grupo="fluxo-abas" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
-            <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
-            <label>Aba Target conferida</label>
-          </div>
-          <div class="check-item" data-grupo="fluxo-abas" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
-            <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
-            <label>Aba Planta conferida</label>
-          </div>
-          <div class="check-item" data-grupo="fluxo-abas" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
-            <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
-            <label>Aba Liquidação conferida</label>
-          </div>
-          <div class="check-item" data-grupo="fluxo-abas" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
-            <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
-            <label>Aba Recompra conferida</label>
           </div>
         </div>
       </div>
@@ -2569,7 +2523,7 @@
   </main>
 
   <script>
-    var CHECKLIST_STORAGE_KEY = "moni-treino-bca-checklist-v1";
+    var CHECKLIST_STORAGE_KEY = "moni-treino-bca-checklist-v2";
     var VISIT_STORAGE_KEY = "moni-treino-bca-visitadas-v1";
     var LEITURA_TOTAL_SECOES = 7;
 
