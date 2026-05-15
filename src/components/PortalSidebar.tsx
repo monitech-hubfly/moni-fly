@@ -62,7 +62,7 @@ const PAINEL_NOVOS_NEGOCIOS_SUBITENS_TAIL: NavItem[] = [
 ];
 const SIRENE_SUBITENS: NavItem[] = [{ href: '/sirene/chamados', label: 'Chamados' }];
 const CAROMETRO_SUBITENS: NavItem[] = [
-  { href: '/carometro/metas-comportamentos', label: 'Comportamentos e Atividades' },
+  { href: '/carometro/comportamentos-e-atividades', label: 'Comportamentos e Atividades' },
   { href: '/carometro/gantt', label: 'Planejamento (Gantt)' },
   { href: '/carometro/conquistas', label: 'Conquistas' },
   { href: '/carometro/indicadores', label: 'Indicadores' },
