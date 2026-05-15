@@ -1175,6 +1175,22 @@
       display: block !important;
     }
 
+    /**
+     * checklistTab=0 no iframe: [hidden] perde para html.modo-leitura .section { display:block !important }.
+     * Classe no <html> + seletor com # garante ocultar checklist na leitura pública.
+     */
+    html.bca-checklist-suppressed.modo-leitura #sec-checklist,
+    html.bca-checklist-suppressed #sec-checklist {
+      display: none !important;
+      visibility: hidden !important;
+      height: 0 !important;
+      overflow: hidden !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      border: none !important;
+      pointer-events: none !important;
+    }
+
     html.modo-leitura .nav-wrap {
       position: static;
     }
@@ -2099,7 +2115,16 @@
     }
 
     function applyHubEmbedChecklistGate() {
-      if (isChecklistTabEnabled()) return;
+      var root = document.documentElement;
+      if (isChecklistTabEnabled()) {
+        root.classList.remove("bca-checklist-suppressed");
+        var tabOn = document.querySelector('.nav-tabs button[data-section="checklist"]');
+        if (tabOn) tabOn.removeAttribute("hidden");
+        var secOn = document.getElementById("sec-checklist");
+        if (secOn) secOn.removeAttribute("hidden");
+        return;
+      }
+      root.classList.add("bca-checklist-suppressed");
       var tab = document.querySelector('.nav-tabs button[data-section="checklist"]');
       if (tab) tab.setAttribute("hidden", "");
       var sec = document.getElementById("sec-checklist");
