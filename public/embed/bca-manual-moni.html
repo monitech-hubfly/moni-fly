@@ -594,6 +594,84 @@
       color: #333;
     }
 
+    .leitura-resultados-intro {
+      margin-top: 0.25rem;
+      margin-bottom: 0.75rem;
+      font-size: 0.9rem;
+      color: var(--c-text-muted);
+    }
+
+    .leitura-resultados-grid {
+      display: grid;
+      gap: 1rem;
+      margin-top: 0.35rem;
+    }
+
+    @media (min-width: 900px) {
+      .leitura-resultados-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+
+    @media (min-width: 560px) and (max-width: 899px) {
+      .leitura-resultados-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    .leitura-resultado-card {
+      background: #fff;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+
+    .leitura-resultado-card--destaque {
+      background: #e9f4ec;
+      border-color: rgba(8, 80, 65, 0.45);
+      box-shadow: 0 1px 3px rgba(8, 80, 65, 0.12);
+    }
+
+    .leitura-resultado-top {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 0.55rem;
+    }
+
+    .leitura-resultado-ref {
+      font-family: ui-monospace, monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: #5c5c5c;
+      letter-spacing: 0.02em;
+    }
+
+    .leitura-resultado-info {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 0, 0, 0.18);
+      font-size: 11px;
+      font-weight: 700;
+      font-style: normal;
+      line-height: 1;
+      color: #666;
+      flex-shrink: 0;
+    }
+
+    .leitura-resultado-text {
+      margin: 0;
+      font-size: 0.94rem;
+      line-height: 1.48;
+      font-weight: 600;
+      color: #1a1a1a;
+    }
+
     .campo-celula {
       background: #085041;
       color: #fff;
@@ -1500,7 +1578,7 @@
     <nav class="nav-tabs" aria-label="Seções do treinamento">
       <button type="button" class="active" data-section="introducao">Introdução</button>
       <button type="button" data-section="ordem">Ordem de preenchimento</button>
-      <button type="button" data-section="aba-resumo">Aba Resumo</button>
+      <button type="button" data-section="aba-resumo">Campos do Resumo</button>
       <button type="button" data-section="cenarios">Cenários de venda</button>
       <button type="button" data-section="abas-fluxo">Abas de fluxo</button>
       <button type="button" data-section="validacao">Validação</button>
@@ -1722,198 +1800,53 @@
           </div>
 
           <h3 class="grupo-secao-label">Leitura dos resultados</h3>
-          <p style="margin-top: 0.25rem; margin-bottom: 0.75rem; font-size: 0.9rem; color: var(--c-text-muted)">
-            No <strong>Resumo</strong>, após preencher os passos, use estas linhas (por coluna de cenário) para interpretar caixa, terreno e margem antes do comitê.
+          <p class="leitura-resultados-intro">
+            Após preencher os passos, use estas linhas (por coluna de cenário) para interpretar caixa, terreno e margem antes do comitê.
           </p>
 
-          <div class="campo-card">
-            <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
-              <span class="campo-celula">L102</span>
-              <span class="campo-nome">Venda Líquida — VGV menos comissão e impostos</span>
-              <span class="campo-tipo campo-tipo-automatico">LEITURA</span>
-              <i class="campo-chevron" aria-hidden="true">▾</i>
-            </button>
-            <div class="campo-body">
-              <div class="campo-body-inner">
-                <div class="campo-blocos-grid">
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">O que mede</div>
-                    <p>Quanto sobra da venda depois de pagar comissão e impostos.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Leitura</div>
-                    <p>É o dinheiro que entra de fato na operação antes de qualquer custo de construção ou terreno.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Por cenário</div>
-                    <p>Compare C, D, E e F para ver se o VGV líquido sustenta a narrativa comercial em cada hipótese.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Conferência</div>
-                    <p>Deve conversar com preço de tabela, comissões acordadas e regime tributário da operação.</p>
-                  </div>
-                </div>
+          <div class="leitura-resultados-grid" role="list">
+            <article class="leitura-resultado-card" role="listitem">
+              <div class="leitura-resultado-top">
+                <span class="leitura-resultado-ref">L102</span>
+                <span class="leitura-resultado-info" title="Linha de leitura na planilha" aria-hidden="true">i</span>
               </div>
-            </div>
-          </div>
-
-          <div class="campo-card">
-            <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
-              <span class="campo-celula">L104</span>
-              <span class="campo-nome">Total Terreno — valor base + variável + ITBI</span>
-              <span class="campo-tipo campo-tipo-automatico">LEITURA</span>
-              <i class="campo-chevron" aria-hidden="true">▾</i>
-            </button>
-            <div class="campo-body">
-              <div class="campo-body-inner">
-                <div class="campo-blocos-grid">
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">O que mede</div>
-                    <p>Soma do valor base do terreno, da rentabilidade acumulada do terrenista e do ITBI.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Variação</div>
-                    <p>Varia por cenário porque a rentabilidade do terreno evolui com o tempo.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Uso</div>
-                    <p>Cruzar com C26–C30 e com a tese de aquisição antes de defender preço de venda.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Alerta</div>
-                    <p>Descompasso entre terreno e VGV líquido aparece primeiro aqui e em L107.</p>
-                  </div>
-                </div>
+              <p class="leitura-resultado-text">Venda Líquida — VGV menos comissão e impostos</p>
+            </article>
+            <article class="leitura-resultado-card" role="listitem">
+              <div class="leitura-resultado-top">
+                <span class="leitura-resultado-ref">L104</span>
+                <span class="leitura-resultado-info" title="Linha de leitura na planilha" aria-hidden="true">i</span>
               </div>
-            </div>
-          </div>
-
-          <div class="campo-card">
-            <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
-              <span class="campo-celula">L107</span>
-              <span class="campo-nome">% Equivalente Permuta — terreno como % do VGV líquido</span>
-              <span class="campo-tipo campo-tipo-automatico">LEITURA</span>
-              <i class="campo-chevron" aria-hidden="true">▾</i>
-            </button>
-            <div class="campo-body">
-              <div class="campo-body-inner">
-                <div class="campo-blocos-grid">
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">O que mede</div>
-                    <p>Quanto o terreno consome do VGV líquido em percentual.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Faixas de conforto</div>
-                    <p>Acima de <strong>25%</strong> começa a pesar na margem; abaixo de <strong>18%</strong> costuma ser mais confortável.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Uso</div>
-                    <p>Disciplina permuta e “peso” do terreno na conta do produto.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Conferência</div>
-                    <p>Leia em paralelo com L104 e com a política de praça do condomínio.</p>
-                  </div>
-                </div>
+              <p class="leitura-resultado-text">Total Terreno — valor base + variável + ITBI</p>
+            </article>
+            <article class="leitura-resultado-card" role="listitem">
+              <div class="leitura-resultado-top">
+                <span class="leitura-resultado-ref">L107</span>
+                <span class="leitura-resultado-info" title="Linha de leitura na planilha" aria-hidden="true">i</span>
               </div>
-            </div>
-          </div>
-
-          <div class="campo-card">
-            <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
-              <span class="campo-celula">L120</span>
-              <span class="campo-nome">Resultado não alavancado — antes do custo financeiro</span>
-              <span class="campo-tipo campo-tipo-automatico">LEITURA</span>
-              <i class="campo-chevron" aria-hidden="true">▾</i>
-            </button>
-            <div class="campo-body">
-              <div class="campo-body-inner">
-                <div class="campo-blocos-grid">
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">O que mede</div>
-                    <p>Resultado da operação <strong>sem</strong> considerar o custo do funding.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Leitura</div>
-                    <p>Mostra se o negócio faz sentido <strong>independentemente</strong> de financiamento.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Uso</div>
-                    <p>Primeiro filtro de sanidade antes de olhar margem alavancada (L124–L125).</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Conferência</div>
-                    <p>Se L120 é fraco e L124–L125 “salva” tudo, o risco está concentrado no funding.</p>
-                  </div>
-                </div>
+              <p class="leitura-resultado-text">% Equivalente Permuta — terreno como % do VGV líquido</p>
+            </article>
+            <article class="leitura-resultado-card" role="listitem">
+              <div class="leitura-resultado-top">
+                <span class="leitura-resultado-ref">L120</span>
+                <span class="leitura-resultado-info" title="Linha de leitura na planilha" aria-hidden="true">i</span>
               </div>
-            </div>
-          </div>
-
-          <div class="campo-card">
-            <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
-              <span class="campo-celula">L124-L125</span>
-              <span class="campo-nome">★ Resultado alavancado — principal indicador da operação</span>
-              <span class="campo-tipo campo-tipo-automatico">LEITURA</span>
-              <i class="campo-chevron" aria-hidden="true">▾</i>
-            </button>
-            <div class="campo-body">
-              <div class="campo-body-inner">
-                <div class="alerta alerta-ok" style="margin-top: 0; margin-bottom: 0.75rem">
-                  <span class="alerta-icone" aria-hidden="true">★</span>
-                  <span>Principal linha para comitê: margem depois de pagar tudo, <strong>incluindo funding</strong>.</span>
-                </div>
-                <div class="campo-blocos-grid">
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">O que mede</div>
-                    <p>Margem final depois de pagar todos os custos e o financeiro.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Meta de alerta</div>
-                    <p>Abaixo de <strong>10%</strong> no <strong>Target</strong> costuma ser sinal amarelo para revisão de preço, prazo ou custo.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Uso</div>
-                    <p>Compare Target vs Liquidação para ver se a operação aguenta estresse.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Conferência</div>
-                    <p>Cruzar com H85 / D125 / E125 e com as células de elegibilidade C14:D16.</p>
-                  </div>
-                </div>
+              <p class="leitura-resultado-text">Resultado não alavancado — antes do custo financeiro</p>
+            </article>
+            <article class="leitura-resultado-card leitura-resultado-card--destaque" role="listitem">
+              <div class="leitura-resultado-top">
+                <span class="leitura-resultado-ref">L124-L125</span>
+                <span class="leitura-resultado-info" title="Principal indicador" aria-hidden="true">i</span>
               </div>
-            </div>
-          </div>
-
-          <div class="campo-card">
-            <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
-              <span class="campo-celula">L129</span>
-              <span class="campo-nome">Resultado total Frank</span>
-              <span class="campo-tipo campo-tipo-automatico">LEITURA</span>
-              <i class="campo-chevron" aria-hidden="true">▾</i>
-            </button>
-            <div class="campo-body">
-              <div class="campo-body-inner">
-                <div class="campo-blocos-grid">
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">O que mede</div>
-                    <p>Resultado alocado ao franqueado na estrutura da operação.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Leitura</div>
-                    <p>Após deduções da plataforma e gestão, conforme modelo vigente.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Uso</div>
-                    <p>Alinhar expectativa de retorno do Frank com o que foi modelado no BCA.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Conferência</div>
-                    <p>Validar coerência com L124–L125 e com políticas internas de participação.</p>
-                  </div>
-                </div>
+              <p class="leitura-resultado-text">★ Resultado alavancado — principal indicador da operação</p>
+            </article>
+            <article class="leitura-resultado-card" role="listitem">
+              <div class="leitura-resultado-top">
+                <span class="leitura-resultado-ref">L129</span>
+                <span class="leitura-resultado-info" title="Linha de leitura na planilha" aria-hidden="true">i</span>
               </div>
-            </div>
+              <p class="leitura-resultado-text">Resultado total Frank</p>
+            </article>
           </div>
         </div>
       </div>
@@ -1922,7 +1855,7 @@
     <div id="sec-aba-resumo" class="section" role="region" aria-labelledby="h-aba-resumo">
       <div class="section-inner">
         <div class="card">
-          <h2 id="h-aba-resumo">Aba Resumo</h2>
+          <h2 id="h-aba-resumo">Campos do Resumo</h2>
           <p style="margin-top: 0.35rem; font-size: 0.9rem; color: var(--c-text-muted)">
             Referência campo a campo do <strong>Resumo</strong>. Expanda cada card para orientação de preenchimento e validação.
           </p>
