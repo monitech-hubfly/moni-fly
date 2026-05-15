@@ -2724,28 +2724,20 @@
     var CHECKLIST_STORAGE_KEY = "moni-treino-bca-checklist-v1";
 
     function applyFrankGreeting() {
-      try {
-        var p = new URLSearchParams(window.location.search);
-        var frank = (p.get("frank") || "").trim().replace(/[<>"'&]/g, "");
-        var el = document.getElementById("header-greeting");
-        if (!el || !frank) return;
-        el.textContent = "Olá, " + frank;
-        el.removeAttribute("hidden");
-      } catch (e) {}
+      const params = new URLSearchParams(window.location.search);
+      const raw = params.get("frank") || "";
+      const nome = raw.replace(/[<>"'&]/g, "").trim().slice(0, 60);
+      if (!nome) return;
+      const el = document.getElementById("header-greeting");
+      if (el) {
+        el.textContent = "Olá, " + nome;
+        el.hidden = false;
+      }
     }
 
     window.showSection = function (id) {
       if (document.documentElement.classList.contains("modo-leitura")) {
-        var el = document.getElementById("sec-" + id);
-        document.querySelectorAll(".nav-tabs button").forEach(function (b) {
-          b.classList.toggle("active", b.dataset.section === id);
-        });
-        location.hash = "#" + id;
-        if (el) {
-          window.requestAnimationFrame(function () {
-            el.scrollIntoView({ behavior: "smooth", block: "start" });
-          });
-        }
+        document.getElementById("sec-" + id)?.scrollIntoView({ behavior: "smooth" });
         return;
       }
       document.querySelectorAll(".section").forEach(function (s) {
@@ -2926,6 +2918,8 @@
 
       applyFrankGreeting();
       openFromHash();
+      window.restoreChecklistFromStorage();
+      window.updateProgress();
 
       document.addEventListener("keydown", function checklistKeyNav(e) {
         if ((e.key === "Enter" || e.key === " ") && e.target.closest(".check-item")) {
@@ -2948,9 +2942,6 @@
 
       var btnClear = document.getElementById("btn-checklist-clear");
       if (btnClear) btnClear.addEventListener("click", window.clearChecklistAndStorage);
-
-      window.restoreChecklistFromStorage();
-      window.updateProgress();
     }
 
     if (document.readyState === "loading") {
