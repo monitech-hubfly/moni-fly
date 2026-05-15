@@ -587,6 +587,13 @@
       color: #444;
     }
 
+    .ordem-regra-unica {
+      margin: 0;
+      font-size: 0.92rem;
+      line-height: 1.62;
+      color: #333;
+    }
+
     .campo-celula {
       background: #085041;
       color: #fff;
@@ -1560,7 +1567,7 @@
         <div class="card">
           <h2 id="h-ordem" class="intro-sec-heading" style="margin-top: 0">Ordem de preenchimento</h2>
           <p style="margin-top: 0.35rem; font-size: 0.9rem; color: var(--c-text-muted)">
-            Mesma lógica da <strong>Aba Resumo</strong>: expanda cada passo para ver o detalhe em quatro colunas. Siga a ordem numérica ao preencher o arquivo.
+            Siga a <strong>ordem numérica</strong> ao preencher o arquivo. Expanda cada passo para ver as <strong>regras de preenchimento das células</strong>.
           </p>
 
           <div class="alerta alerta-danger" style="margin-top: 0.75rem">
@@ -1572,279 +1579,144 @@
 
           <div class="campo-card">
             <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
-              <span class="campo-celula">C7-C10</span>
+              <span class="campo-celula">1</span>
               <span class="campo-nome">Identificação</span>
               <span class="campo-tipo campo-tipo-input">INPUT</span>
               <i class="campo-chevron" aria-hidden="true">▾</i>
             </button>
             <div class="campo-body">
               <div class="campo-body-inner">
-                <div class="campo-blocos-grid">
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">C7 — Condomínio</div>
-                    <p>Nome do empreendimento / condomínio alinhado ao contrato e à documentação oficial.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">C8 — Modelo</div>
-                    <p>Modelo da casa conforme catálogo e opção escolhida no configurador.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">C9 — Área de vendas</div>
-                    <p>Área total + área de vivência, conforme saída do configurador de casas.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">C10 — Área útil</div>
-                    <p>Área total do configurador; manter coerência com C9 e com o memorial aprovado.</p>
-                  </div>
-                </div>
+                <p class="ordem-regra-unica">
+                  <strong>C7</strong> condomínio, <strong>C8</strong> modelo, <strong>C9</strong> área de vendas (área total + área de vivência do configurador), <strong>C10</strong> área útil (área total do configurador).
+                </p>
               </div>
             </div>
           </div>
 
           <div class="campo-card">
             <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
-              <span class="campo-celula">C26,C28,C30</span>
+              <span class="campo-celula">2</span>
               <span class="campo-nome">Premissas do terreno</span>
               <span class="campo-tipo campo-tipo-input">INPUT</span>
               <i class="campo-chevron" aria-hidden="true">▾</i>
             </button>
             <div class="campo-body">
               <div class="campo-body-inner">
-                <div class="campo-blocos-grid">
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">C26 — Custo do terreno</div>
-                    <p>Informar como valor <strong>negativo</strong> (input), conforme convenção da planilha.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">C28 — % ITBI</div>
-                    <p>Varia por região; padrão <strong>4%</strong>. Se souber o percentual exato do seu município, ajuste.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">C30 — Opção de aquisição</div>
-                    <p>À prazo (permutas) ou à vista, conforme a negociação do terreno.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Conferência</div>
-                    <p>Custos e tributos coerentes com o modelo de aquisição escolhido antes de avançar para C31/C33–C36.</p>
-                  </div>
-                </div>
+                <p class="ordem-regra-unica">
+                  <strong>C26</strong> custo do terreno — fazer input com valor negativo. <strong>C28</strong> % ITBI — varia por região; deixamos como padrão 4%; no entanto, caso saiba exatamente o percentual da sua região, altere. <strong>C30</strong> opção de aquisição — a prazo (permutas) ou à vista.
+                </p>
               </div>
             </div>
           </div>
 
           <div class="campo-card">
             <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
-              <span class="campo-celula">C31,C33-C36</span>
+              <span class="campo-celula">3</span>
               <span class="campo-nome">Condição de aquisição</span>
               <span class="campo-tipo campo-tipo-input">INPUT</span>
               <i class="campo-chevron" aria-hidden="true">▾</i>
             </button>
             <div class="campo-body">
               <div class="campo-body-inner">
-                <div class="campo-blocos-grid">
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">À vista</div>
-                    <p><strong>C31</strong> — mês de quitação do terreno.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">A prazo</div>
-                    <p><strong>C33 a C36</strong> — entrada, parcela, mês e rentabilidade da aquisição.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Marcos M0 e M4</div>
-                    <p><strong>M0</strong> corresponde à assinatura do contrato; <strong>M4</strong> à estimativa de emissão do alvará de construção.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Sem alteração obrigatória</div>
-                    <p>Esses marcos padrão <strong>não precisam ser alterados</strong> salvo orientação do time Moní.</p>
-                  </div>
-                </div>
+                <p class="ordem-regra-unica">
+                  Se à vista: <strong>C31</strong> mês de quitação. Se a prazo: <strong>C33–C36</strong> entrada, parcela, mês e rentabilidade. <strong>M0</strong> corresponde à assinatura do contrato e <strong>M4</strong> à estimativa de emissão do alvará de construção — não há necessidade de alterar.
+                </p>
               </div>
             </div>
           </div>
 
           <div class="campo-card">
             <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
-              <span class="campo-celula">C41</span>
+              <span class="campo-celula">4</span>
               <span class="campo-nome">Custo da casa</span>
               <span class="campo-tipo campo-tipo-input">INPUT</span>
               <i class="campo-chevron" aria-hidden="true">▾</i>
             </button>
             <div class="campo-body">
               <div class="campo-body-inner">
-                <div class="campo-blocos-grid">
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Fonte</div>
-                    <p>Configurador de casas — custo do produto com a composição e opcionais definidos.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Como lançar</div>
-                    <p>Input com valor <strong>negativo</strong>, seguindo o padrão da planilha.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Conferência</div>
-                    <p>C41 alinhado ao modelo informado em <strong>C8</strong> e às áreas em C9/C10.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Não fazer</div>
-                    <p>Não estimar “no olho”; sempre trazer o custo fechado do configurador exportado.</p>
-                  </div>
-                </div>
+                <p class="ordem-regra-unica">
+                  <strong>C41</strong> custo do produto mediante consulta no configurador de casas — fazer input com valor negativo.
+                </p>
               </div>
             </div>
           </div>
 
           <div class="campo-card">
             <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
-              <span class="campo-celula">C45-C59</span>
+              <span class="campo-celula">5</span>
               <span class="campo-nome">Fluxo e início da obra</span>
               <span class="campo-tipo campo-tipo-automatico">PADRÃO</span>
               <i class="campo-chevron" aria-hidden="true">▾</i>
             </button>
             <div class="campo-body">
               <div class="campo-body-inner">
-                <div class="campo-blocos-grid">
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">C45 — Início pós-alvará</div>
-                    <p>Mês de início da obra após emissão do alvará de construção.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">C48 a C59</div>
-                    <p>Percentuais mensais de desembolso da obra — curva padrão Moní.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Não alterar</div>
-                    <p>Na rotina do franqueado <strong>não há necessidade de alterar</strong> esses percentuais.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Quando revisar</div>
-                    <p>Somente se o time Moní orientar ajuste fino de cronograma ou curva de caixa.</p>
-                  </div>
-                </div>
+                <p class="ordem-regra-unica">
+                  <strong>C45</strong> mês de início pós-alvará. <strong>C48–C59</strong> percentuais mensais — não há necessidade de alterar.
+                </p>
               </div>
             </div>
           </div>
 
           <div class="campo-card">
             <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
-              <span class="campo-celula">C70</span>
+              <span class="campo-celula">6</span>
               <span class="campo-nome">Outros custos e despesas</span>
               <span class="campo-tipo campo-tipo-automatico">PADRÃO</span>
               <i class="campo-chevron" aria-hidden="true">▾</i>
             </button>
             <div class="campo-body">
               <div class="campo-body-inner">
-                <div class="campo-blocos-grid">
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">C70 — Projetos</div>
-                    <p>Valor padrão Moní para projetos — mantém consistência entre operações.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Não alterar</div>
-                    <p>Para o fluxo usual do franqueado, <strong>não há necessidade de alterar</strong> C70.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Demais linhas</div>
-                    <p>Comissões, taxas e capital de giro seguem as premissas do template; ajuste só com validação do time.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Dúvida</div>
-                    <p>Em caso de operação atípica, alinhar com Moní antes de mexer em blocos automáticos.</p>
-                  </div>
-                </div>
+                <p class="ordem-regra-unica">
+                  <strong>C70</strong> projetos — não há necessidade de alterar.
+                </p>
               </div>
             </div>
           </div>
 
           <div class="campo-card">
             <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
-              <span class="campo-celula">C76,C78</span>
+              <span class="campo-celula">7</span>
               <span class="campo-nome">Funding</span>
               <span class="campo-tipo campo-tipo-input">INPUT</span>
               <i class="campo-chevron" aria-hidden="true">▾</i>
             </button>
             <div class="campo-body">
               <div class="campo-body-inner">
-                <div class="campo-blocos-grid">
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">C76 — CET mensal</div>
-                    <p>Taxa real de custo efetivo total do funding acordado.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">C78 — % funding</div>
-                    <p>Percentual de alavancagem (com aprovação). Preencher conforme estrutura aprovada.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Quando alterar C78</div>
-                    <p><strong>Somente</strong> se a operação <strong>não</strong> precisar de alavancagem 100% para obra — caso contrário manter o padrão acordado.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Conferência</div>
-                    <p>CET e % coerentes com minuta de crédito ou termo aprovado pelo parceiro financeiro.</p>
-                  </div>
-                </div>
+                <p class="ordem-regra-unica">
+                  <strong>C76</strong> CET mensal (taxa real). <strong>C78</strong> % funding (com aprovação) — somente alterar caso não precise de alavancagem 100% para obra.
+                </p>
               </div>
             </div>
           </div>
 
           <div class="campo-card">
             <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
-              <span class="campo-celula">D85,E85</span>
+              <span class="campo-celula">8</span>
               <span class="campo-nome">Cenários de venda</span>
               <span class="campo-tipo campo-tipo-input">INPUT</span>
               <i class="campo-chevron" aria-hidden="true">▾</i>
             </button>
             <div class="campo-body">
               <div class="campo-body-inner">
-                <div class="campo-blocos-grid">
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">D85 — Target</div>
-                    <p>Preço / VGV alvo coerente com o que o mercado sustenta na faixa estudada.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">E85 — Liquidação</div>
-                    <p>Cenário de estresse: velocidade e preço defensivo plausíveis.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Base de mercado</div>
-                    <p>Inputar valores que correspondem ao <strong>analisado no mercado local</strong> (mapa, visitas, comparáveis).</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Não fazer</div>
-                    <p>Não “forçar” preços sem evidência; o BCA deve refletir leitura honesta da praça.</p>
-                  </div>
-                </div>
+                <p class="ordem-regra-unica">
+                  <strong>D85</strong> Target, <strong>E85</strong> Liquidação — inputar valores de venda que correspondem ao analisado no mercado local.
+                </p>
               </div>
             </div>
           </div>
 
           <div class="campo-card">
             <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
-              <span class="campo-celula">H85,D125,E125</span>
-              <span class="campo-nome">Premissas — leitura dos outputs</span>
+              <span class="campo-celula">9</span>
+              <span class="campo-nome">Premissas — leitura dos outputs e conferência dos fluxos</span>
               <span class="campo-tipo campo-tipo-automatico">LEITURA</span>
               <i class="campo-chevron" aria-hidden="true">▾</i>
             </button>
             <div class="campo-body">
               <div class="campo-body-inner">
-                <div class="campo-blocos-grid">
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">H85</div>
-                    <p>Idealmente <strong>menor ou igual a −10%</strong> (referência de premissa saudável).</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">D125</div>
-                    <p>Idealmente <strong>superior a 10%</strong>.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">E125</div>
-                    <p><strong>Maior que 0%</strong>.</p>
-                  </div>
-                  <div class="campo-bloco">
-                    <div class="campo-bloco-label">Onde ver elegibilidade</div>
-                    <p>A elegibilidade desses critérios é indicada nas células <strong>C14:D14</strong>, <strong>C15:D15</strong> e <strong>C16:D16</strong>.</p>
-                  </div>
-                </div>
+                <p class="ordem-regra-unica">
+                  <strong>H85</strong> — idealmente menor ou igual a −10%. <strong>D125</strong> — idealmente superior a 10%. <strong>E125</strong> — maior que 0%. A elegibilidade desses critérios aparece indicada nas células <strong>C14:D14</strong>, <strong>C15:D15</strong> e <strong>C16:D16</strong>.
+                </p>
               </div>
             </div>
           </div>
