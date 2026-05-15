@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Award, BookOpen, Check, ChevronDown, ChevronRight, GraduationCap, LayoutDashboard, Lock, Shield } from 'lucide-react';
+import { Award, Check, ChevronDown, ChevronRight, GraduationCap, LayoutDashboard, LayoutGrid, Lock, Shield } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { getCasa0TudoConcluidoServer } from '@/lib/casa0-onboarding-setup';
 import { calcularProgressoGeral, getCasasComProgresso } from '@/lib/universidade/queries';
@@ -32,6 +32,10 @@ function isCasa1Path(p: string) {
   return p === '/casa1' || p.startsWith('/casa1/');
 }
 
+function isTreinamentoBcaHubPath(p: string) {
+  return p === '/treinamento-bca' || p.startsWith('/treinamento-bca/');
+}
+
 export function SidebarUniversidadeLinks({
   userId,
   resolvedRole,
@@ -44,7 +48,8 @@ export function SidebarUniversidadeLinks({
       isUniversidadePath(pathname) ||
       isAdminUniversidadePath(pathname) ||
       isCasa0Path(pathname) ||
-      isCasa1Path(pathname),
+      isCasa1Path(pathname) ||
+      isTreinamentoBcaHubPath(pathname),
   );
   const [pct, setPct] = useState<number | null>(null);
   const [casa0TudoConcluido, setCasa0TudoConcluido] = useState<boolean | null>(null);
@@ -52,7 +57,7 @@ export function SidebarUniversidadeLinks({
 
   const isFrank = resolvedRole === 'frank';
   const isStaff = resolvedRole === 'admin' || resolvedRole === 'team';
-  /** Tabuleiro / Biblioteca / Certificados: franqueado; mesmo trio + Gestão para admin/team. */
+  /** Tabuleiro / Ferramentas (biblioteca) / Certificados: franqueado; mesmo trio + Gestão para admin/team. */
   const showFranqueadoLinks = isFrank;
 
   useEffect(() => {
@@ -60,7 +65,8 @@ export function SidebarUniversidadeLinks({
       isUniversidadePath(pathname) ||
       isAdminUniversidadePath(pathname) ||
       isCasa0Path(pathname) ||
-      isCasa1Path(pathname)
+      isCasa1Path(pathname) ||
+      isTreinamentoBcaHubPath(pathname)
     ) {
       setOpen(true);
     }
@@ -101,8 +107,12 @@ export function SidebarUniversidadeLinks({
     isUniversidadePath(pathname) ||
     isAdminUniversidadePath(pathname) ||
     isCasa0Path(pathname) ||
-    isCasa1Path(pathname);
+    isCasa1Path(pathname) ||
+    isTreinamentoBcaHubPath(pathname);
   const macroClass = linkClassPrincipal(active);
+
+  const ferramentasActive =
+    pathname.startsWith('/universidade/biblioteca') || isTreinamentoBcaHubPath(pathname);
 
   return (
     <div className="space-y-0.5">
@@ -165,10 +175,10 @@ export function SidebarUniversidadeLinks({
               </Link>
               <Link
                 href="/universidade/biblioteca"
-                className={`flex items-center gap-2 ${linkClassSub(pathname.startsWith('/universidade/biblioteca'))}`}
+                className={`flex items-center gap-2 ${linkClassSub(ferramentasActive)}`}
               >
-                <BookOpen className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
-                Biblioteca
+                <LayoutGrid className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+                Ferramentas
               </Link>
               <Link
                 href="/universidade/certificados"
@@ -192,11 +202,11 @@ export function SidebarUniversidadeLinks({
               </Link>
               <Link
                 href="/universidade/biblioteca"
-                className={`flex items-center gap-2 ${linkClassSub(pathname.startsWith('/universidade/biblioteca'))}`}
+                className={`flex items-center gap-2 ${linkClassSub(ferramentasActive)}`}
               >
                 <span className="flex items-center gap-2">
-                  <BookOpen className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
-                  Biblioteca
+                  <LayoutGrid className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+                  Ferramentas
                 </span>
               </Link>
               <Link

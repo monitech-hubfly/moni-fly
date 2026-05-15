@@ -218,8 +218,11 @@ function EcossistemaTab() {
         concentra fluxo, avanço e prazos.
       </TabIntro>
 
-      <div className="mt-10 border-t border-slate-200 pt-10">
-        <h3 className={UI.sectionLabel}>
+      <section
+        className="mt-10 border-t border-slate-200 pt-10"
+        aria-labelledby="casa0-hub-setup-operacional-heading"
+      >
+        <h3 id="casa0-hub-setup-operacional-heading" className={UI.sectionLabel}>
           <span className="inline-flex items-center gap-2">
             <Cog className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
             <span>Setup Operacional</span>
@@ -237,7 +240,7 @@ function EcossistemaTab() {
             </p>
           )}
         </div>
-      </div>
+      </section>
 
       <SectionBlock title="Áreas da Moní" className="border-t border-slate-200 pt-10">
         <div className={UI.grid3}>

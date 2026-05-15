@@ -21,7 +21,7 @@ export function TreinamentoBcaSecaoClient({ secao }: Props) {
     const q = new URLSearchParams();
     if (frank) q.set('frank', frank);
     const qs = q.toString();
-    return `/treinamento-bca.html${qs ? `?${qs}` : ''}#${secao}`;
+    return `/embed/bca-manual-moni.html${qs ? `?${qs}` : ''}#${secao}`;
   }, [frank, secao]);
 
   const secaoLabel = BCA_TREINAMENTO_SECOES.find((x) => x.id === secao)?.label ?? secao;
@@ -43,9 +43,9 @@ export function TreinamentoBcaSecaoClient({ secao }: Props) {
       <aside className="w-full shrink-0 border-b border-stone-200 bg-white lg:w-56 lg:border-b-0 lg:border-r lg:border-stone-200">
         <div className="max-h-[38vh] overflow-y-auto p-3 lg:sticky lg:top-0 lg:max-h-none">
           <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-stone-500">
-            Treinamento BCA
+            Seções do manual
           </p>
-          <nav className="space-y-0.5" aria-label="Seções do treinamento BCA">
+          <nav className="space-y-0.5" aria-label="Seções do manual BCA">
             {BCA_TREINAMENTO_SECOES.map((s) => {
               const active = s.id === secao;
               return (

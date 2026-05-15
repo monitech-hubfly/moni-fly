@@ -154,8 +154,10 @@ export function BibliotecaClient({
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-8">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-stone-900">Biblioteca</h1>
-        <p className="mt-1 text-sm text-stone-600">Ferramentas operacionais e documentos do time Moní.</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-stone-900">Ferramentas</h1>
+        <p className="mt-1 text-sm text-stone-600">
+          Ferramentas operacionais e documentos do time Moní — use a aba <strong>Documentos</strong> para arquivos.
+        </p>
       </header>
 
       <div className="flex flex-wrap gap-2 border-b border-stone-200 pb-px">
