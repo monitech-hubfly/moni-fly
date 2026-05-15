@@ -46,6 +46,7 @@ O **BCA (Business Case Analysis)** é a planilha-mãe da Moní para decidir se u
 
 - Nunca apresente preço ou permuta ao mercado sem um BCA coerente com a documentação de concorrentes (mapa e batalha de casas).
 - Versione a planilha: use sempre o arquivo oficial da biblioteca **Documentos** para não divergir de premissas.`,
+    linkPrincipal: { label: 'Abrir treinamento interativo (manual)', href: '/treinamento-bca.html' },
   },
   {
     id: 'mapa-competidores',

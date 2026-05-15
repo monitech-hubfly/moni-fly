@@ -13,5 +13,13 @@ export default async function UniversidadeBibliotecaPage() {
   if (!user) redirect('/login?next=/universidade/biblioteca');
 
   const itens = await getBiblioteca(supabase);
-  return <BibliotecaClient itens={itens} />;
+
+  const meta = user.user_metadata as Record<string, unknown> | undefined;
+  const nomeFranqueado =
+    (typeof meta?.full_name === 'string' && meta.full_name.trim()) ||
+    (typeof meta?.name === 'string' && meta.name.trim()) ||
+    user.email?.split('@')[0]?.trim() ||
+    null;
+
+  return <BibliotecaClient itens={itens} nomeFranqueado={nomeFranqueado} />;
 }

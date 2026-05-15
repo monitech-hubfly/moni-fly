@@ -41,11 +41,22 @@ function iconeFerramenta(tipo: FerramentaBibliotecaIcon, className: string) {
   }
 }
 
+function resolveLinkPrincipalHref(href: string, nomeFranqueado: string | null | undefined) {
+  if (!href.startsWith('/treinamento-bca.html')) return href;
+  const name = (nomeFranqueado || '').trim();
+  if (!name) return href;
+  const u = new URL(href, typeof window !== 'undefined' ? window.location.origin : 'https://localhost');
+  u.searchParams.set('frank', name);
+  return u.pathname + u.search;
+}
+
 function ModalFerramenta({
   ferramenta,
+  nomeFranqueado,
   onClose,
 }: {
   ferramenta: FerramentaBiblioteca | null;
+  nomeFranqueado: string | null | undefined;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -65,6 +76,7 @@ function ModalFerramenta({
   if (!ferramenta) return null;
 
   const link = ferramenta.linkPrincipal;
+  const linkHref = link ? resolveLinkPrincipalHref(link.href, nomeFranqueado) : '';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="ferramenta-modal-titulo">
@@ -98,13 +110,13 @@ function ModalFerramenta({
           {link ? (
             <div className="mt-6 border-t border-stone-100 pt-4">
               <a
-                href={link.href}
-                target={link.href.startsWith('http') ? '_blank' : undefined}
-                rel={link.href.startsWith('http') ? 'noopener noreferrer' : undefined}
+                href={linkHref}
+                target={linkHref.startsWith('http') ? '_blank' : undefined}
+                rel={linkHref.startsWith('http') ? 'noopener noreferrer' : undefined}
                 className="inline-flex items-center gap-2 rounded-lg bg-moni-primary px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90"
               >
                 {link.label}
-                {link.href.startsWith('http') ? <ExternalLink className="h-4 w-4 opacity-90" aria-hidden /> : null}
+                {linkHref.startsWith('http') ? <ExternalLink className="h-4 w-4 opacity-90" aria-hidden /> : null}
               </a>
             </div>
           ) : null}
@@ -114,7 +126,13 @@ function ModalFerramenta({
   );
 }
 
-export function BibliotecaClient({ itens }: { itens: UniBibliotecaItem[] }) {
+export function BibliotecaClient({
+  itens,
+  nomeFranqueado,
+}: {
+  itens: UniBibliotecaItem[];
+  nomeFranqueado?: string | null;
+}) {
   const [aba, setAba] = useState<AbaBiblioteca>('ferramentas');
   const [ferramentaModal, setFerramentaModal] = useState<FerramentaBiblioteca | null>(null);
   const [cat, setCat] = useState<string>('Todos');
@@ -259,7 +277,11 @@ export function BibliotecaClient({ itens }: { itens: UniBibliotecaItem[] }) {
         </section>
       )}
 
-      <ModalFerramenta ferramenta={ferramentaModal} onClose={() => setFerramentaModal(null)} />
+      <ModalFerramenta
+        ferramenta={ferramentaModal}
+        nomeFranqueado={nomeFranqueado}
+        onClose={() => setFerramentaModal(null)}
+      />
     </div>
   );
 }

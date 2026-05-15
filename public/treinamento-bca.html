@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Treinamento BCA Moní — Manual do Franqueado</title>
   <style>
     :root {
@@ -80,10 +80,10 @@
       display: flex;
       flex-wrap: nowrap;
       gap: 0;
-      min-width: min-content;
+      min-width: max-content;
       max-width: 900px;
       margin: 0 auto;
-      padding: 0 0.75rem;
+      padding: 0 1rem 0 0.75rem;
     }
 
     .nav-tabs button {
@@ -514,6 +514,10 @@
       padding: 1.25rem 1.5rem;
     }
 
+    .campo-card.is-open .campo-body-inner {
+      overflow: visible;
+    }
+
     .campo-chevron {
       display: inline-block;
       transition: transform 0.25s ease;
@@ -699,15 +703,9 @@
 
     .outputs-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 0.75rem;
       margin-top: 0.75rem;
-    }
-
-    @media (max-width: 560px) {
-      .outputs-grid {
-        grid-template-columns: 1fr;
-      }
     }
 
     .output-linha {
@@ -750,6 +748,7 @@
       grid-template-columns: repeat(2, 1fr);
       gap: 1rem;
       margin-bottom: 1.5rem;
+      overflow: visible;
     }
 
     @media (min-width: 900px) {
@@ -763,6 +762,7 @@
       padding: 1.1rem 1.25rem;
       border: 2px solid;
       position: relative;
+      overflow: visible;
     }
 
     .cenario-card--planta {
@@ -776,7 +776,6 @@
       background: #eff6ff;
       box-shadow: 0 2px 8px rgba(29, 78, 216, 0.12);
       padding-top: 2.1rem;
-      overflow: visible;
     }
 
     .cenario-card--liquidacao {
@@ -977,13 +976,18 @@
       opacity: 0.95;
     }
 
-    .defesa-card .campo-fill {
+    .campo-fill {
       font-style: italic;
-      background: rgba(255, 255, 255, 0.15);
-      border: 1px dashed rgba(255, 255, 255, 0.4);
+      background: rgba(29, 158, 117, 0.14);
+      border: 1px dashed rgba(8, 80, 65, 0.35);
       border-radius: 4px;
       padding: 1px 6px;
       white-space: normal;
+    }
+
+    .defesa-card .campo-fill {
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px dashed rgba(255, 255, 255, 0.4);
     }
 
     .recusa-steps {
@@ -1050,12 +1054,216 @@
     .moni-filosofia-card p + p {
       margin-top: 0.75rem;
     }
+
+    .site-header-text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .site-header-greeting {
+      margin: 0.35rem 0 0;
+      font-size: 0.95rem;
+      font-weight: 500;
+      opacity: 0.92;
+    }
+
+    .site-header-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.65rem;
+    }
+
+    .modo-toggle {
+      display: inline-flex;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      overflow: hidden;
+      background: rgba(0, 0, 0, 0.12);
+    }
+
+    .modo-toggle__btn {
+      border: none;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.85);
+      font: inherit;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.45rem 0.85rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .modo-toggle__btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+    }
+
+    .modo-toggle__btn--active {
+      background: rgba(255, 255, 255, 0.22);
+      color: #fff;
+    }
+
+    .checklist-head .btn-checklist-clear {
+      margin-left: auto;
+    }
+
+    .btn-checklist-clear {
+      flex-shrink: 0;
+      margin-left: auto;
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #701616;
+      background: #fcebeb;
+      border: 1px solid #e7bcbc;
+      border-radius: 8px;
+      padding: 0.45rem 0.85rem;
+      cursor: pointer;
+    }
+
+    .btn-checklist-clear:hover {
+      background: #f8dede;
+    }
+
+    html.modo-leitura .section {
+      display: block !important;
+    }
+
+    html.modo-leitura .nav-wrap {
+      position: static;
+    }
+
+    html.modo-leitura .campo-body {
+      grid-template-rows: 1fr !important;
+      transition: none !important;
+      overflow: visible !important;
+    }
+
+    html.modo-leitura .campo-body-inner {
+      overflow: visible !important;
+    }
+
+    @media print {
+      html {
+        scroll-behavior: auto;
+      }
+
+      .nav-wrap,
+      .modo-toggle,
+      .btn-checklist-clear {
+        display: none !important;
+      }
+
+      .site-header {
+        background: #fff !important;
+        color: #000 !important;
+        border-bottom: 2px solid #1d9e75;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+
+      .site-header-greeting {
+        color: #333 !important;
+      }
+
+      .badge {
+        border-color: #ccc;
+        color: #333;
+        background: #f5f5f5;
+      }
+
+      body {
+        background: #fff !important;
+        color: #000 !important;
+      }
+
+      .section {
+        display: block !important;
+        break-inside: avoid;
+      }
+
+      .section-inner {
+        max-width: none;
+        padding: 1rem 0.75rem;
+      }
+
+      .campo-body {
+        grid-template-rows: 1fr !important;
+        overflow: visible !important;
+        transition: none !important;
+        break-inside: avoid;
+      }
+
+      .campo-body-inner {
+        overflow: visible !important;
+      }
+
+      .campo-card {
+        break-inside: avoid;
+      }
+
+      .grupo-secao-label {
+        page-break-before: always;
+        break-before: page;
+        margin-top: 1.5rem;
+      }
+
+      .grupo-secao-label:first-of-type {
+        page-break-before: auto;
+        break-before: auto;
+      }
+
+      .card,
+      .defesa-card,
+      .moni-filosofia-card,
+      .cenario-card,
+      .erro-card {
+        box-shadow: none !important;
+        border-color: #ccc !important;
+        background: #fff !important;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+
+      .cenario-card--target,
+      .cenario-card--planta,
+      .cenario-card--liquidacao,
+      .cenario-card--recompra {
+        background: #fff !important;
+      }
+
+      .cenario-ribbon {
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+
+      .output-linha--destaque {
+        background: #e8f5ef !important;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+
+      .check-item {
+        break-inside: avoid;
+      }
+    }
   </style>
 </head>
 <body>
   <header class="site-header">
-    <h1>Treinamento BCA Moní — Manual do Franqueado</h1>
-    <span class="badge">v1.1 · Treinamento interativo</span>
+    <div class="site-header-text">
+      <h1>Treinamento BCA Moní — Manual do Franqueado</h1>
+      <p id="header-greeting" class="site-header-greeting" hidden></p>
+    </div>
+    <div class="site-header-actions">
+      <div class="modo-toggle" role="group" aria-label="Modo de visualização">
+        <button type="button" id="btn-modo-treinamento" class="modo-toggle__btn modo-toggle__btn--active">Modo treinamento</button>
+        <button type="button" id="btn-modo-leitura" class="modo-toggle__btn">Modo leitura</button>
+      </div>
+      <span class="badge">v1.1 · Treinamento interativo</span>
+    </div>
   </header>
 
   <div class="nav-wrap">
@@ -2271,6 +2479,7 @@
             </div>
             <span id="check-pct" aria-live="polite">0%</span>
             <span id="check-count">0 / 36 itens</span>
+            <button type="button" class="btn-checklist-clear" id="btn-checklist-clear">Limpar checklist</button>
           </div>
 
           <div class="checklist-grupo-label">Identificação</div>
@@ -2512,7 +2721,33 @@
   </main>
 
   <script>
+    var CHECKLIST_STORAGE_KEY = "moni-treino-bca-checklist-v1";
+
+    function applyFrankGreeting() {
+      try {
+        var p = new URLSearchParams(window.location.search);
+        var frank = (p.get("frank") || "").trim().replace(/[<>"'&]/g, "");
+        var el = document.getElementById("header-greeting");
+        if (!el || !frank) return;
+        el.textContent = "Olá, " + frank;
+        el.removeAttribute("hidden");
+      } catch (e) {}
+    }
+
     window.showSection = function (id) {
+      if (document.documentElement.classList.contains("modo-leitura")) {
+        var el = document.getElementById("sec-" + id);
+        document.querySelectorAll(".nav-tabs button").forEach(function (b) {
+          b.classList.toggle("active", b.dataset.section === id);
+        });
+        location.hash = "#" + id;
+        if (el) {
+          window.requestAnimationFrame(function () {
+            el.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+        }
+        return;
+      }
       document.querySelectorAll(".section").forEach(function (s) {
         s.classList.remove("active");
       });
@@ -2521,23 +2756,165 @@
         b.classList.toggle("active", b.dataset.section === id);
       });
       location.hash = "#" + id;
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.requestAnimationFrame(function () {
+        window.requestAnimationFrame(function () {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+      });
+    };
+
+    window.updateProgress = function () {
+      var total = document.querySelectorAll(".check-item").length;
+      var done = document.querySelectorAll(".check-item.done").length;
+      var pct = total ? Math.round((done / total) * 100) : 0;
+      var fill = document.getElementById("check-bar-fill");
+      var bar = document.getElementById("check-bar");
+      var pctEl = document.getElementById("check-pct");
+      var cntEl = document.getElementById("check-count");
+      if (fill) fill.style.width = pct + "%";
+      if (bar) {
+        bar.setAttribute("aria-valuenow", String(pct));
+        bar.setAttribute("aria-valuetext", pct + "%");
+      }
+      if (pctEl) pctEl.textContent = pct + "%";
+      if (cntEl) cntEl.textContent = done + " / " + total + " itens";
+    };
+
+    window.persistChecklistToStorage = function () {
+      try {
+        var items = Array.from(document.querySelectorAll(".check-item"));
+        localStorage.setItem(
+          CHECKLIST_STORAGE_KEY,
+          JSON.stringify(items.map(function (it) {
+            return it.classList.contains("done");
+          }))
+        );
+      } catch (e) {}
+    };
+
+    window.restoreChecklistFromStorage = function () {
+      try {
+        var raw = localStorage.getItem(CHECKLIST_STORAGE_KEY);
+        if (!raw) return;
+        var flags = JSON.parse(raw);
+        if (!Array.isArray(flags)) return;
+        var items = document.querySelectorAll(".check-item");
+        for (var i = 0; i < items.length && i < flags.length; i++) {
+          if (flags[i]) {
+            items[i].classList.add("done");
+            var cb = items[i].querySelector(".check-item-box");
+            if (cb) cb.checked = true;
+            items[i].setAttribute("aria-checked", "true");
+          }
+        }
+      } catch (e) {}
+    };
+
+    window.clearChecklistAndStorage = function () {
+      document.querySelectorAll(".check-item").forEach(function (it) {
+        it.classList.remove("done");
+        var cb = it.querySelector(".check-item-box");
+        if (cb) cb.checked = false;
+        it.setAttribute("aria-checked", "false");
+      });
+      try {
+        localStorage.removeItem(CHECKLIST_STORAGE_KEY);
+      } catch (e) {}
+      window.updateProgress();
+    };
+
+    window.toggleCheck = function (el) {
+      el.classList.toggle("done");
+      var cb = el.querySelector(".check-item-box");
+      if (cb) cb.checked = el.classList.contains("done");
+      el.setAttribute("aria-checked", String(cb ? cb.checked : false));
+      window.updateProgress();
+      window.persistChecklistToStorage();
     };
 
     function openFromHash() {
-      const aliases = {
+      var aliases = {
         "ordem-preenchimento": "ordem",
         "erros-comuns": "erros",
         "checklist-final": "checklist"
       };
-      let h = (location.hash || "").replace(/^#/, "").trim();
+      var h = (location.hash || "").replace(/^#/, "").trim();
+      var leitura = document.documentElement.classList.contains("modo-leitura");
+
       if (!h) {
+        if (leitura) {
+          document.querySelectorAll(".nav-tabs button").forEach(function (b) {
+            b.classList.toggle("active", b.dataset.section === "introducao");
+          });
+          return;
+        }
         window.showSection("introducao");
         return;
       }
       h = aliases[h] || h;
-      const target = document.getElementById("sec-" + h);
+      var target = document.getElementById("sec-" + h);
+
+      if (leitura) {
+        document.querySelectorAll(".nav-tabs button").forEach(function (b) {
+          b.classList.toggle("active", b.dataset.section === h);
+        });
+        if (target) {
+          location.hash = "#" + h;
+          window.requestAnimationFrame(function () {
+            target.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+        } else {
+          document.querySelectorAll(".nav-tabs button").forEach(function (b) {
+            b.classList.toggle("active", b.dataset.section === "introducao");
+          });
+          location.hash = "#introducao";
+          var intro = document.getElementById("sec-introducao");
+          if (intro) {
+            window.requestAnimationFrame(function () {
+              intro.scrollIntoView({ behavior: "smooth", block: "start" });
+            });
+          }
+        }
+        return;
+      }
+
       window.showSection(target ? h : "introducao");
+    }
+
+    function setModoLeitura() {
+      document.documentElement.classList.add("modo-leitura");
+      document.querySelectorAll(".campo-card").forEach(function (c) {
+        c.classList.add("is-open");
+        var hh = c.querySelector(".campo-header");
+        if (hh) hh.setAttribute("aria-expanded", "true");
+      });
+      var bt = document.getElementById("btn-modo-treinamento");
+      var bl = document.getElementById("btn-modo-leitura");
+      if (bt) {
+        bt.classList.remove("modo-toggle__btn--active");
+      }
+      if (bl) {
+        bl.classList.add("modo-toggle__btn--active");
+      }
+      openFromHash();
+    }
+
+    function setModoTreinamento() {
+      document.documentElement.classList.remove("modo-leitura");
+      document.querySelectorAll(".campo-card").forEach(function (c) {
+        c.classList.remove("is-open");
+        var hdr = c.querySelector(".campo-header");
+        if (hdr) hdr.setAttribute("aria-expanded", "false");
+      });
+      var bt = document.getElementById("btn-modo-treinamento");
+      var bl = document.getElementById("btn-modo-leitura");
+      if (bt) {
+        bt.classList.add("modo-toggle__btn--active");
+      }
+      if (bl) {
+        bl.classList.remove("modo-toggle__btn--active");
+      }
+      openFromHash();
     }
 
     function initTreinoPage() {
@@ -2547,32 +2924,8 @@
       }
       window.__treinoBcaPageInit = true;
 
+      applyFrankGreeting();
       openFromHash();
-
-      window.toggleCheck = function (el) {
-        el.classList.toggle("done");
-        const cb = el.querySelector(".check-item-box");
-        if (cb) cb.checked = el.classList.contains("done");
-        el.setAttribute("aria-checked", String(cb ? cb.checked : false));
-        window.updateProgress();
-      };
-
-      window.updateProgress = function () {
-        const total = document.querySelectorAll(".check-item").length;
-        const done = document.querySelectorAll(".check-item.done").length;
-        const pct = total ? Math.round((done / total) * 100) : 0;
-        const fill = document.getElementById("check-bar-fill");
-        const bar = document.getElementById("check-bar");
-        const pctEl = document.getElementById("check-pct");
-        const cntEl = document.getElementById("check-count");
-        if (fill) fill.style.width = pct + "%";
-        if (bar) {
-          bar.setAttribute("aria-valuenow", String(pct));
-          bar.setAttribute("aria-valuetext", pct + "%");
-        }
-        if (pctEl) pctEl.textContent = pct + "%";
-        if (cntEl) cntEl.textContent = done + " / " + total + " itens";
-      };
 
       document.addEventListener("keydown", function checklistKeyNav(e) {
         if ((e.key === "Enter" || e.key === " ") && e.target.closest(".check-item")) {
@@ -2583,11 +2936,20 @@
 
       document.querySelectorAll(".nav-tabs button").forEach(function (btn) {
         btn.addEventListener("click", function () {
-          const sid = this.getAttribute("data-section");
+          var sid = this.getAttribute("data-section");
           if (sid) window.showSection(sid);
         });
       });
 
+      var btnTreino = document.getElementById("btn-modo-treinamento");
+      var btnLeitura = document.getElementById("btn-modo-leitura");
+      if (btnTreino) btnTreino.addEventListener("click", setModoTreinamento);
+      if (btnLeitura) btnLeitura.addEventListener("click", setModoLeitura);
+
+      var btnClear = document.getElementById("btn-checklist-clear");
+      if (btnClear) btnClear.addEventListener("click", window.clearChecklistAndStorage);
+
+      window.restoreChecklistFromStorage();
       window.updateProgress();
     }
 
@@ -2599,7 +2961,8 @@
     window.addEventListener("hashchange", openFromHash);
 
     window.toggleCampo = function (header) {
-      const card = header.closest(".campo-card");
+      if (document.documentElement.classList.contains("modo-leitura")) return;
+      var card = header.closest(".campo-card");
       if (!card) return;
       card.classList.toggle("is-open");
       header.setAttribute("aria-expanded", String(card.classList.contains("is-open")));
