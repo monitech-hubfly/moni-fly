@@ -5,7 +5,8 @@ import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { Link2 } from 'lucide-react';
 import {
-  BCA_TREINAMENTO_SECOES,
+  bcaTreinamentoEmbedDeveExibirChecklist,
+  getBcaTreinamentoSecoesParaHub,
   type BcaTreinamentoSecao,
 } from '@/lib/treinamento-bca-secoes';
 
@@ -22,11 +23,13 @@ export function TreinamentoBcaSecaoClient({ secao, modoPublico = false }: Props)
     const q = new URLSearchParams();
     if (frank) q.set('frank', frank);
     if (modoPublico) q.set('leitura', '1');
+    q.set('checklistTab', bcaTreinamentoEmbedDeveExibirChecklist() ? '1' : '0');
     const qs = q.toString();
     return `/embed/bca-manual-moni.html${qs ? `?${qs}` : ''}#${secao}`;
   }, [frank, secao, modoPublico]);
 
-  const secaoLabel = BCA_TREINAMENTO_SECOES.find((x) => x.id === secao)?.label ?? secao;
+  const secoesHub = getBcaTreinamentoSecoesParaHub();
+  const secaoLabel = secoesHub.find((x) => x.id === secao)?.label ?? secao;
 
   const pathInterno = `/treinamento-bca/${secao}${querySuffix}`;
   const pathPublicoLeitura = `/treinamento-bca/leitura/${secao}${querySuffix}`;
@@ -98,7 +101,7 @@ export function TreinamentoBcaSecaoClient({ secao, modoPublico = false }: Props)
             Seções do manual
           </p>
           <nav className="space-y-0.5" aria-label="Seções do manual BCA">
-            {BCA_TREINAMENTO_SECOES.map((s) => {
+            {secoesHub.map((s) => {
               const active = s.id === secao;
               return (
                 <Link

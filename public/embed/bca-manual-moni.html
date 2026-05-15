@@ -91,6 +91,19 @@
       background: #fafaf8;
     }
 
+    /* No iframe do app: usar toda a largura útil (evita faixas vazias laterais). */
+    html.hub-embed main {
+      width: 100%;
+      max-width: none;
+    }
+
+    html.hub-embed .section-inner {
+      max-width: none;
+      width: 100%;
+      margin: 0;
+      padding: 1.25rem clamp(0.75rem, 2.5vw, 2.5rem) 2.5rem;
+    }
+
     .nav-tabs {
       display: flex;
       flex-wrap: nowrap;
@@ -2075,10 +2088,31 @@
       return true;
     }
 
+    function isChecklistTabEnabled() {
+      try {
+        if (!document.documentElement.classList.contains("hub-embed")) return true;
+        var q = new URLSearchParams(window.location.search);
+        return q.get("checklistTab") === "1";
+      } catch (e) {
+        return true;
+      }
+    }
+
+    function applyHubEmbedChecklistGate() {
+      if (isChecklistTabEnabled()) return;
+      var tab = document.querySelector('.nav-tabs button[data-section="checklist"]');
+      if (tab) tab.setAttribute("hidden", "");
+      var sec = document.getElementById("sec-checklist");
+      if (sec) sec.setAttribute("hidden", "");
+    }
+
     window.showSection = function (id, options) {
       var opts = options || {};
       var skipHash = !!opts.skipHash;
       var skipScrollTop = !!opts.skipScrollTop;
+      if (id === "checklist" && !isChecklistTabEnabled()) {
+        id = "introducao";
+      }
       if (document.documentElement.classList.contains("modo-leitura")) {
         document.getElementById("sec-" + id)?.scrollIntoView({ behavior: "smooth" });
         return;
@@ -2242,6 +2276,10 @@
 
       var h = aliases[raw] || raw;
 
+      if (h === "checklist" && !isChecklistTabEnabled()) {
+        h = "introducao";
+      }
+
       if (!h) {
         if (leitura) {
           document.querySelectorAll(".nav-tabs button").forEach(function (b) {
@@ -2329,6 +2367,7 @@
     }
 
     function initTreinoPage() {
+      applyHubEmbedChecklistGate();
       if (window.__treinoBcaPageInit) {
         if (urlModoLeituraAtivo()) {
           setModoLeitura();
