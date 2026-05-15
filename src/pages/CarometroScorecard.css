@@ -1,0 +1,708 @@
+/* Scorecard Carômetro por meta — isolado do App.css */
+
+.carometro-score-wrap {
+  --carometro-sc-week: 36px;
+  /* Largura total da faixa de semanas = N × coluna (alinha cabeçalho, subcabeçalhos e células) */
+  --carometro-sc-total-px: auto;
+  border: 0.5px solid var(--moni-texto-terciario);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surf0);
+}
+
+.carometro-sc-head-scroll .carometro-sc-head-week:first-child,
+.carometro-score-wrap .carometro-sc-meta-head--scroll .carometro-sc-cell-week:first-child,
+.carometro-score-wrap .carometro-sc-sep-ativ--scroll .carometro-sc-cell-week:first-child,
+.carometro-score-wrap .carometro-sc-sep-ind--scroll .carometro-sc-cell-week:first-child,
+.carometro-score-wrap .carometro-sc-row-scroll .carometro-sc-cell-week:first-child {
+  border-left: none;
+}
+
+/*
+ * Uma grade com N linhas lógicas (cabeçalho + dados): as três colunas compartilham as mesmas
+ * faixas de linha via subgrid — evita deriva entre etiquetas, faixa de semanas e status.
+ * A coluna central tem uma única barra horizontal; scrollbar-gutter reduz salto quando a barra aparece.
+ */
+.carometro-score-main {
+  display: grid;
+  grid-template-columns: 290px minmax(0, 1fr) 80px;
+  min-width: 0;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.carometro-sc-col {
+  min-width: 0;
+  min-height: 0;
+  background: var(--surf0);
+}
+
+.carometro-sc-col--left {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  display: grid;
+  grid-template-rows: subgrid;
+  border-right: 0.5px solid var(--moni-texto-terciario);
+  overflow-x: hidden;
+}
+
+.carometro-sc-col--scroll {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  display: grid;
+  grid-template-rows: subgrid;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--moni-borda) transparent;
+}
+
+.carometro-sc-col--scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.carometro-sc-col--scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.carometro-sc-col--scroll::-webkit-scrollbar-thumb {
+  background: var(--moni-borda);
+  border-radius: 2px;
+}
+
+.carometro-sc-col--right {
+  grid-column: 3;
+  grid-row: 1 / -1;
+  display: grid;
+  grid-template-rows: subgrid;
+  border-left: 0.5px solid var(--moni-texto-terciario);
+  overflow-x: hidden;
+}
+
+/* Cada linha da faixa de semanas: largura mínima da grade; altura acompanha a linha do subgrid. */
+.carometro-sc-mid-row {
+  display: flex;
+  flex-direction: column;
+  justify-content: stretch;
+  min-width: var(--carometro-sc-total-px, max-content);
+  box-sizing: border-box;
+}
+
+.carometro-sc-mid-row--head {
+  min-width: var(--carometro-sc-total-px, max-content);
+}
+
+.carometro-sc-mid-row > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Células laterais: conteúdo pode crescer (ex.: meta vazia); altura vem do subgrid. */
+.carometro-sc-sync-cell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.carometro-sc-sync-cell > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Navegadores sem subgrid: três colunas flex (pode haver pequena deriva; subgrid é o caminho principal). */
+@supports not (grid-template-rows: subgrid) {
+  .carometro-score-main {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+  }
+
+  .carometro-sc-col--left {
+    display: flex;
+    flex-direction: column;
+    width: 290px;
+    flex-shrink: 0;
+    grid-row: auto;
+    grid-column: auto;
+  }
+
+  .carometro-sc-col--scroll {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-width: 0;
+    grid-row: auto;
+    grid-column: auto;
+  }
+
+  .carometro-sc-col--right {
+    display: flex;
+    flex-direction: column;
+    width: 80px;
+    min-width: 80px;
+    flex-shrink: 0;
+    grid-row: auto;
+    grid-column: auto;
+  }
+}
+
+/* Cabeçalho global */
+.carometro-sc-head-left,
+.carometro-sc-head-right {
+  height: 34px;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  background: var(--comp-mid);
+  color: var(--hdr-text);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0 10px;
+}
+
+.carometro-sc-head-left {
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.12);
+}
+
+.carometro-sc-head-left-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+}
+
+.carometro-sc-head-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.carometro-sc-head-key {
+  width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.carometro-sc-head-scroll {
+  height: 34px;
+  min-height: 34px;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  background: var(--comp-mid);
+  color: var(--hdr-text);
+  font-size: 11px;
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.12);
+  min-width: max-content;
+}
+
+.carometro-sc-head-week {
+  width: var(--carometro-sc-week, 36px);
+  min-width: var(--carometro-sc-week, 36px);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-left: 0.5px solid rgba(255, 255, 255, 0.1);
+}
+
+.carometro-sc-head-week.is-atual {
+  background: var(--comp-med);
+  color: var(--hdr-text);
+}
+
+.carometro-sc-head-right {
+  justify-content: center;
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Linha cabeçalho de área */
+.carometro-sc-area-bar {
+  height: 32px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background: var(--comp-dark);
+  color: var(--hdr-text);
+  font-size: 12px;
+  font-weight: 600;
+  border-top: 1px solid var(--moni-borda);
+  box-sizing: border-box;
+}
+
+.carometro-sc-area-bar--left {
+  border-right: 0.5px solid var(--moni-texto-terciario);
+}
+
+.carometro-sc-area-bar--scroll {
+  background: var(--moni-creme);
+  min-width: max-content;
+}
+
+.carometro-sc-area-bar--right {
+  border-left: 0.5px solid var(--moni-texto-terciario);
+}
+
+/* Header meta */
+.carometro-sc-meta-head {
+  height: 30px;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  background: var(--comp-dark);
+  color: var(--hdr-text);
+  font-size: 12px;
+  font-weight: 600;
+  box-sizing: border-box;
+}
+
+.carometro-sc-meta-head-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+  min-width: 0;
+}
+
+.carometro-sc-meta-head-title-block {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.carometro-sc-meta-nome {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.carometro-sc-meta-prazo {
+  font-size: 10px;
+  opacity: 0.6;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.carometro-sc-meta-head--scroll {
+  background: var(--comp-dark);
+}
+
+.carometro-sc-meta-head--scroll {
+  display: flex;
+  flex-direction: row;
+  min-width: max-content;
+}
+
+.carometro-sc-meta-head--right {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  min-height: 30px;
+  box-sizing: border-box;
+  background: var(--comp-dark);
+}
+
+/* Separadores de seção */
+.carometro-sc-sep-ativ {
+  height: 22px;
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  background: var(--surf2);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--moni-texto-terciario);
+  box-sizing: border-box;
+}
+
+.carometro-sc-sep-ativ--scroll {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  background: var(--surf2);
+  min-width: max-content;
+}
+
+.carometro-sc-sep-ativ--right {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  min-height: 22px;
+  background: var(--surf2);
+  box-sizing: border-box;
+}
+
+.carometro-sc-sep-ind {
+  height: 22px;
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  background: var(--ind-bg);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ind-text);
+  border-top: 1px solid var(--ind-bdr);
+  box-sizing: border-box;
+}
+
+.carometro-sc-sep-ind--scroll {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  background: var(--ind-bg);
+  min-width: max-content;
+  border-top: 1px solid var(--ind-bdr);
+}
+
+.carometro-sc-sep-ind--right {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  min-height: 22px;
+  background: var(--ind-bg);
+  border-top: 1px solid var(--ind-bdr);
+  box-sizing: border-box;
+}
+
+/* Linhas de dados — min-height para poder esticar com a linha do grid (subgrid) */
+.carometro-sc-row-ativ {
+  min-height: 34px;
+  height: auto;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  background: var(--moni-branco);
+  border-bottom: 0.5px solid var(--moni-texto-terciario);
+  box-sizing: border-box;
+}
+
+.carometro-sc-row-ativ-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+  min-width: 0;
+}
+
+.carometro-sc-row-ativ-name {
+  flex: 1;
+  font-size: 11px;
+  color: var(--moni-texto);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.carometro-sc-row-ind {
+  min-height: 34px;
+  height: auto;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  background: var(--ind-bg);
+  border-bottom: 0.5px solid var(--ind-bdr);
+  box-sizing: border-box;
+}
+
+.carometro-sc-row-ind-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+  min-width: 0;
+}
+
+.carometro-sc-row-ind-name {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ind-text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.carometro-sc-row-scroll {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  min-width: max-content;
+  min-height: 100%;
+  border-bottom: 0.5px solid var(--moni-texto-terciario);
+  box-sizing: border-box;
+  align-items: stretch;
+}
+
+.carometro-sc-row-scroll--ind {
+  background: var(--ind-bg);
+  border-bottom: 0.5px solid var(--ind-bdr);
+}
+
+.carometro-sc-cell-week {
+  width: var(--carometro-sc-week, 36px);
+  min-width: var(--carometro-sc-week, 36px);
+  min-height: 34px;
+  height: 100%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-left: 0.5px solid rgba(148, 148, 148, 0.2);
+}
+
+/* Linhas de dados na faixa rolável: células acompanham a altura da linha do grid */
+.carometro-sc-row-scroll .carometro-sc-cell-week {
+  align-self: stretch;
+}
+
+/* Esforço (comportamentos): faixa de % + barra inferior */
+.carometro-sc-cell-week--esf {
+  position: relative;
+  overflow: hidden;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.carometro-sc-cell-week--esf-e-100 {
+  background: rgba(30, 132, 73, 0.12);
+}
+.carometro-sc-cell-week--esf-e-75 {
+  background: rgba(82, 179, 111, 0.12);
+}
+.carometro-sc-cell-week--esf-e-50 {
+  background: rgba(242, 201, 76, 0.16);
+}
+.carometro-sc-cell-week--esf-e-low {
+  background: rgba(192, 57, 43, 0.1);
+}
+.carometro-sc-cell-week--esf-e-na {
+  background: rgba(216, 214, 206, 0.35);
+}
+
+.carometro-sc-pct-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  min-width: 0;
+  max-width: 100%;
+  border-radius: 0 1px 0 0;
+  background: var(--moni-verde-escuro);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.carometro-sc-cell-week--esf-e-100 .carometro-sc-pct-bar {
+  background: #1e8449;
+  opacity: 0.55;
+}
+.carometro-sc-cell-week--esf-e-75 .carometro-sc-pct-bar {
+  background: #52b36f;
+}
+.carometro-sc-cell-week--esf-e-50 .carometro-sc-pct-bar {
+  background: #d4a017;
+}
+.carometro-sc-cell-week--esf-e-low .carometro-sc-pct-bar {
+  background: #c0392b;
+  opacity: 0.6;
+}
+
+.carometro-sc-cell-week-fore {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+}
+
+/* Indicadores: fundo suave por faixa do semáforo */
+.carometro-sc-cell-week--ind.carometro-sc-cell-week--i-ve {
+  background: rgba(26, 107, 58, 0.1);
+}
+.carometro-sc-cell-week--ind.carometro-sc-cell-week--i-vc {
+  background: rgba(76, 175, 80, 0.1);
+}
+.carometro-sc-cell-week--ind.carometro-sc-cell-week--i-am {
+  background: rgba(249, 168, 37, 0.12);
+}
+.carometro-sc-cell-week--ind.carometro-sc-cell-week--i-vm {
+  background: rgba(192, 57, 43, 0.1);
+}
+.carometro-sc-cell-week--ind.carometro-sc-cell-week--i-na {
+  background: transparent;
+}
+
+.carometro-sc-cell-week.is-atual {
+  box-shadow: inset 0 0 0 2px rgba(184, 134, 11, 0.45);
+}
+
+.carometro-sc-row-status {
+  min-height: 34px;
+  height: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 0.5px solid var(--moni-texto-terciario);
+  box-sizing: border-box;
+}
+
+.carometro-sc-row-status--ind {
+  background: var(--ind-bg);
+  border-bottom: 0.5px solid var(--ind-bdr);
+}
+
+.carometro-sc-meta-head--scroll .carometro-sc-cell-week {
+  height: 30px;
+  border-left-color: rgba(255, 255, 255, 0.08);
+}
+
+.carometro-sc-sep-ativ--scroll .carometro-sc-cell-week,
+.carometro-sc-sep-ind--scroll .carometro-sc-cell-week {
+  height: 22px;
+  border-left-color: transparent;
+}
+
+/* Espaçador entre metas */
+.carometro-sc-meta-spacer {
+  height: 8px;
+  min-height: 8px;
+  background: var(--moni-texto-terciario);
+  border-bottom: 0.5px solid var(--moni-texto-terciario);
+  box-sizing: border-box;
+}
+
+.carometro-sc-meta-spacer--scroll {
+  min-width: max-content;
+}
+
+/* Dots */
+.carometro-sc-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.carometro-sc-dot--esf-e-100 {
+  background: #1e8449;
+}
+.carometro-sc-dot--esf-e-75 {
+  background: #52b36f;
+}
+.carometro-sc-dot--esf-e-50 {
+  background: #f2c94c;
+}
+.carometro-sc-dot--esf-e-low {
+  background: #c0392b;
+}
+.carometro-sc-dot--esf-e-na {
+  background: #d8d6ce;
+}
+
+.carometro-sc-dot--sf-i-ve {
+  background: #1a6b3a;
+}
+.carometro-sc-dot--sf-i-vc {
+  background: #4caf50;
+}
+.carometro-sc-dot--sf-i-am {
+  background: #f9a825;
+}
+.carometro-sc-dot--sf-i-vm {
+  background: #c0392b;
+}
+.carometro-sc-dot--sf-i-na {
+  background: #d8d6ce;
+}
+
+/* Toggle chave */
+.carometro-sc-key-toggle {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin: 0;
+  border-radius: 3px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  line-height: 1;
+  box-sizing: border-box;
+  border: 1px solid var(--moni-borda);
+  background: var(--moni-creme);
+  color: var(--moni-texto-suave);
+}
+
+.carometro-sc-key-toggle--on {
+  background: var(--comp-med);
+  border-color: var(--comp-med);
+  color: #fff;
+}
+
+.carometro-sc-key-toggle:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.carometro-sc-key-toggle--err {
+  outline: 2px solid #c0392b;
+  outline-offset: 1px;
+}
+
+.carometro-sc-meta-head--empty {
+  min-height: 36px;
+  height: auto;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  align-items: flex-start;
+}
+
+.carometro-sc-meta-head--empty .carometro-sc-meta-head-inner {
+  align-items: flex-start;
+}
+
+.carometro-sc-meta-empty-msg {
+  display: block;
+  width: 100%;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--moni-texto-suave);
+  margin-top: 4px;
+  line-height: 1.25;
+}
+
+.carometro-sc-key-placeholder {
+  width: 16px;
+  flex-shrink: 0;
+}
