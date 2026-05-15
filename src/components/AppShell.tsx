@@ -14,14 +14,26 @@ type AppShellProps = {
 
 export function AppShell({ user, userRole, showPublicPortalNav = false, children }: AppShellProps) {
   const pathname = usePathname() ?? '';
+  /** Manual BCA em modo leitura pública: sem sidebar global nem cabeçalho Hub. */
+  const isTreinamentoBcaLeituraPublica = pathname.startsWith('/treinamento-bca/leitura');
   const hideGlobalHeader = pathname.startsWith('/sirene');
-  const isTreinamentoBcaHub = pathname === '/treinamento-bca' || pathname.startsWith('/treinamento-bca/');
+  const isTreinamentoBcaHub =
+    pathname === '/treinamento-bca' ||
+    (pathname.startsWith('/treinamento-bca/') && !isTreinamentoBcaLeituraPublica);
   const showHubShell = Boolean(user) || showPublicPortalNav || isTreinamentoBcaHub;
   /** Visitante sem conta: menu público (Rede + Empreendimentos) ou só treinamento BCA compartilhável. */
   const publicVisitorSidebar = showPublicPortalNav || (!user && isTreinamentoBcaHub);
 
   if (pathname.startsWith('/preview-casa1')) {
     return <>{children}</>;
+  }
+
+  if (isTreinamentoBcaLeituraPublica) {
+    return (
+      <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-stone-100">
+        {children}
+      </div>
+    );
   }
 
   if (!showHubShell) {

@@ -1,7 +1,6 @@
 export const BCA_TREINAMENTO_SECOES = [
   { id: 'introducao', label: 'Introdução' },
   { id: 'ordem', label: 'Ordem de preenchimento' },
-  { id: 'aba-resumo', label: 'Campos do Resumo' },
   { id: 'validacao', label: 'Validação' },
   { id: 'erros', label: 'Erros comuns' },
   { id: 'checklist', label: 'Checklist final' },

@@ -22,6 +22,7 @@ const PREFIX_TITLE: { prefix: string; title: string }[] = [
   { prefix: '/casa1', title: 'Casa 1 — Onboarding' },
   { prefix: '/preview-casa0', title: 'Preview Casa 0' },
   { prefix: '/preview-casa1', title: 'Preview Casa 1' },
+  { prefix: '/treinamento-bca/leitura', title: 'Treinamento BCA — leitura' },
   { prefix: '/treinamento-bca', title: 'Treinamento BCA' },
   { prefix: '/universidade', title: 'Universidade' },
   { prefix: '/admin/universidade', title: 'Universidade — Gestão' },
