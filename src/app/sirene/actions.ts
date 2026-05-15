@@ -8,11 +8,14 @@ import type { Chamado, HdmTime } from '@/types/sirene';
 import { canActAsBombeiro, type SireneUserContext } from '@/lib/sirene';
 import {
   TIMES_MONI,
+  TIMES_MONI_HDM,
+  inferirHdmResponsavelPorNomesTimes,
   validarParTimeResponsavelMoni,
   validarTimeMoniOpcional,
 } from '@/lib/times-responsaveis';
 import { rankChamadoPainelUnificado } from '@/lib/sirene-painel-chamados-rank';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
+import { podeExcluirChamadoSirene } from '@/lib/sirene-utils';
 
 export type SireneActionResult = { ok: true } | { ok: false; error: string };
 
@@ -27,11 +30,12 @@ function podeUsuarioExcluirChamado(opts: {
   userId: string;
   criadorOuAbertoPor: string | null;
 }): boolean {
-  const roleNorm = (opts.role ?? '').toLowerCase();
-  const cargoNorm = (opts.cargo ?? '').toLowerCase();
-  if (roleNorm === 'admin') return true;
-  if (cargoNorm === 'adm') return true;
-  return opts.criadorOuAbertoPor != null && opts.criadorOuAbertoPor === opts.userId;
+  return podeExcluirChamadoSirene({
+    role: opts.role,
+    cargo: opts.cargo,
+    userId: opts.userId,
+    abertoPor: opts.criadorOuAbertoPor,
+  });
 }
 
 /**
@@ -48,12 +52,18 @@ export async function deletarChamado(input: DeletarChamadoInput): Promise<Sirene
     const admin = createAdminClient();
 
     if (input.modo === 'sirene') {
+      if (!Number.isFinite(input.sireneChamadoId)) {
+        return { ok: false, error: 'ID do chamado inválido.' };
+      }
       const { data: sc, error: scErr } = await admin
         .from('sirene_chamados')
         .select('id, aberto_por')
         .eq('id', input.sireneChamadoId)
         .maybeSingle();
-      if (scErr || !sc) return { ok: false, error: 'Chamado não encontrado.' };
+      if (scErr || !sc) {
+        console.error('[sirene] deletarChamado: falha ao buscar chamado', scErr);
+        return { ok: false, error: 'Chamado não encontrado.' };
+      }
       const abertoPor = (sc as { aberto_por?: string | null }).aberto_por ?? null;
       if (!podeUsuarioExcluirChamado({ role: me.role, cargo: me.cargo, userId: me.userId, criadorOuAbertoPor: abertoPor })) {
         return { ok: false, error: 'Sem permissão para excluir este chamado.' };
@@ -64,16 +74,32 @@ export async function deletarChamado(input: DeletarChamadoInput): Promise<Sirene
         .select('id')
         .eq('sirene_chamado_id', input.sireneChamadoId)
         .eq('origem', 'sirene');
-      if (kaListErr) return { ok: false, error: kaListErr.message };
+      if (kaListErr) {
+        console.error('[sirene] deletarChamado: falha ao listar kanban_atividades', kaListErr);
+        return { ok: false, error: kaListErr.message };
+      }
 
       for (const row of kaRows ?? []) {
         const kaId = String((row as { id: string }).id);
         const { error: delKa } = await admin.from('kanban_atividades').delete().eq('id', kaId);
-        if (delKa) return { ok: false, error: delKa.message };
+        if (delKa) {
+          console.error('[sirene] deletarChamado: falha ao deletar kanban_atividades', { kaId, delKa });
+          return { ok: false, error: delKa.message };
+        }
       }
 
-      const { error: delSc } = await admin.from('sirene_chamados').delete().eq('id', input.sireneChamadoId);
-      if (delSc) return { ok: false, error: delSc.message };
+      const { error: delSc, count: delScCount } = await admin
+        .from('sirene_chamados')
+        .delete({ count: 'exact' })
+        .eq('id', input.sireneChamadoId);
+      if (delSc) {
+        console.error('[sirene] deletarChamado: falha ao deletar sirene_chamados', delSc);
+        return { ok: false, error: delSc.message };
+      }
+      if (!delScCount) {
+        console.error('[sirene] deletarChamado: delete não removeu linhas', { chamadoId: input.sireneChamadoId });
+        return { ok: false, error: 'Não foi possível excluir o chamado (nenhuma linha removida).' };
+      }
 
       revalidatePath('/sirene');
       revalidatePath('/sirene/chamados');
@@ -87,7 +113,10 @@ export async function deletarChamado(input: DeletarChamadoInput): Promise<Sirene
       .select('id, criado_por, sirene_chamado_id, origem')
       .eq('id', input.interacaoKanbanId)
       .maybeSingle();
-    if (rowErr || !row) return { ok: false, error: 'Chamado não encontrado.' };
+    if (rowErr || !row) {
+      console.error('[sirene] deletarChamado: falha ao buscar interacao', rowErr);
+      return { ok: false, error: 'Chamado não encontrado.' };
+    }
     const criadoPor = (row as { criado_por?: string | null }).criado_por ?? null;
     if (!podeUsuarioExcluirChamado({ role: me.role, cargo: me.cargo, userId: me.userId, criadorOuAbertoPor: criadoPor })) {
       return { ok: false, error: 'Sem permissão para excluir este chamado.' };
@@ -97,11 +126,17 @@ export async function deletarChamado(input: DeletarChamadoInput): Promise<Sirene
     const origem = String((row as { origem?: string | null }).origem ?? '');
 
     const { error: delKa } = await admin.from('kanban_atividades').delete().eq('id', input.interacaoKanbanId);
-    if (delKa) return { ok: false, error: delKa.message };
+    if (delKa) {
+      console.error('[sirene] deletarChamado: falha ao deletar interacao kanban_atividades', delKa);
+      return { ok: false, error: delKa.message };
+    }
 
     if (sid != null && origem === 'sirene') {
       const { error: delSc } = await admin.from('sirene_chamados').delete().eq('id', sid);
-      if (delSc) return { ok: false, error: delSc.message };
+      if (delSc) {
+        console.error('[sirene] deletarChamado: falha ao deletar sirene_chamados via interacao', delSc);
+        return { ok: false, error: delSc.message };
+      }
       revalidatePath('/sirene');
       revalidatePath('/sirene/chamados');
       revalidatePath('/sirene/kanban');
@@ -113,6 +148,7 @@ export async function deletarChamado(input: DeletarChamadoInput): Promise<Sirene
     revalidatePath('/');
     return { ok: true };
   } catch (e) {
+    console.error('[sirene] deletarChamado: exceção', e);
     return { ok: false, error: String(e) };
   }
 }
@@ -198,7 +234,7 @@ export async function arquivarTopico(
   }
 }
 
-const HDM_TIMES: HdmTime[] = ['Homologações', 'Modelo Virtual', 'Produto'];
+const HDM_TIMES: HdmTime[] = [...TIMES_MONI_HDM];
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -710,13 +746,35 @@ export async function criarChamado(
   const teTrataRaw = formData.get('te_trata');
   const teTrata =
     teTrataRaw === 'sim' ? true : teTrataRaw === 'nao' ? false : null;
-  const tipo = ((formData.get('tipo') as string) || 'padrao') as 'padrao' | 'hdm';
-  const hdmResponsavel =
-    tipo === 'hdm' ? (formData.get('hdm_responsavel') as HdmTime) || null : null;
   const tema = (formData.get('tema') as string)?.trim() || '';
 
   if (!incendio) return { ok: false, error: 'Informe o incêndio (resumo).' };
   if (!tema) return { ok: false, error: 'Selecione o tema do chamado.' };
+
+  const admin = createAdminClient();
+  const nomesPorTimesIds: string[] = [];
+  const timesIdsRaw = (formData.get('times_ids') as string) || '';
+  try {
+    const parsed = JSON.parse(timesIdsRaw) as unknown;
+    if (Array.isArray(parsed)) {
+      for (const rawId of parsed) {
+        const id = String(rawId ?? '').trim();
+        if (!id) continue;
+        const { data: trow } = await admin.from('kanban_times').select('nome').eq('id', id).maybeSingle();
+        const n = (trow as { nome?: string } | null)?.nome;
+        if (n) nomesPorTimesIds.push(String(n).trim());
+      }
+    }
+  } catch {
+    /* ignore JSON inválido */
+  }
+  const timeAbTrim = (timeAbertura ?? '').trim();
+  const nomesParaInferencia =
+    nomesPorTimesIds.length > 0 ? nomesPorTimesIds : timeAbTrim ? [timeAbTrim] : [];
+  const inferredHdm = inferirHdmResponsavelPorNomesTimes(nomesParaInferencia);
+  const tipo: 'padrao' | 'hdm' = inferredHdm ? 'hdm' : 'padrao';
+  const hdmResponsavel: HdmTime | null = inferredHdm;
+
   if (tipo === 'hdm' && hdmResponsavel && !HDM_TIMES.includes(hdmResponsavel))
     return { ok: false, error: 'Time HDM inválido.' };
 
@@ -760,7 +818,6 @@ export async function criarChamado(
   if (error) return { ok: false, error: error.message };
 
   const chamadoRow = chamado as { id: number; numero?: number; created_at?: string };
-  const admin = createAdminClient();
   const timeNome = timeAbertura?.trim() || null;
   let timesIdsKa: string[] = [];
   let timeCol: string | null = null;
@@ -1103,11 +1160,11 @@ export async function atualizarChamadoPainelUnificado(
   const incendioTrim = dados.incendio?.trim() ?? '';
   if (!incendioTrim) return { ok: false, error: 'O resumo (incêndio) é obrigatório.' };
 
-  const tipo = dados.tipo === 'hdm' ? 'hdm' : 'padrao';
-  const hdmRaw = tipo === 'hdm' ? dados.hdm_responsavel : null;
-  if (tipo === 'hdm' && hdmRaw && !HDM_TIMES.includes(hdmRaw)) return { ok: false, error: 'Time HDM inválido.' };
-
   const timeAb = (dados.time_abertura ?? '').trim() || null;
+  const inferredHdm = inferirHdmResponsavelPorNomesTimes(timeAb ? [timeAb] : []);
+  const tipo = inferredHdm ? 'hdm' : 'padrao';
+  const hdmRaw = inferredHdm;
+  if (tipo === 'hdm' && hdmRaw && !HDM_TIMES.includes(hdmRaw)) return { ok: false, error: 'Time HDM inválido.' };
   const respAb = (dados.abertura_responsavel_nome ?? '').trim() || null;
   const vTime = validarTimeMoniOpcional(timeAb);
   if (!vTime.ok) return { ok: false, error: vTime.error };

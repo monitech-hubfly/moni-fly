@@ -69,6 +69,8 @@ export async function updateSession(request: NextRequest) {
     '/repositorio',
     '/perfil',
     '/sirene',
+    '/universidade',
+    '/admin/universidade',
   ];
   const matchesProtected = protectedPrefixes.some((p) => pathname.startsWith(p));
   const publicRedeNovos = allowPublicAccessRedeNovos(pathname);
@@ -139,6 +141,13 @@ export async function updateSession(request: NextRequest) {
   if (accessRole === 'frank' && !pathname.startsWith('/api')) {
     if (!isFrankAllowedPath(pathname)) {
       return NextResponse.redirect(new URL('/portal-frank', request.url));
+    }
+  }
+
+  // Team: gestão da Universidade em /admin/universidade; rotas de franqueado não usadas na sidebar.
+  if (accessRole === 'team' && !pathname.startsWith('/api')) {
+    if (pathname === '/universidade' || pathname.startsWith('/universidade/')) {
+      return NextResponse.redirect(new URL('/admin/universidade', request.url));
     }
   }
 

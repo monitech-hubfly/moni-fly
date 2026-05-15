@@ -8,19 +8,21 @@ O Kanban "Funil Step One" foi criado como um board independente para gerenciar o
 
 ### Fases do Kanban (em ordem)
 
-1. **Dados da Cidade** - SLA: 7 dias
-2. **Lista de Condomínios** - SLA: 7 dias
-3. **Dados dos Condomínios** - SLA: 10 dias
-4. **Lotes disponíveis** - SLA: 7 dias
-5. **Mapa de Competidores** - SLA: 7 dias
-6. **BCA + Batalha de Casas** - SLA: 14 dias
-7. **Hipóteses** - SLA: 7 dias
+Os valores `sla_dias` gravados na fase são usados pelo Hub como **dias úteis** no cálculo de vencimento e atraso do card (fins de semana fora; feriados nacionais excluídos quando a tabela `feriados_nacionais` estiver populada).
+
+1. **Dados da Cidade** — SLA: 7 dias úteis
+2. **Lista de Condomínios** — SLA: 7 dias úteis
+3. **Dados dos Condomínios** — SLA: 10 dias úteis
+4. **Lotes disponíveis** — SLA: 7 dias úteis
+5. **Mapa de Competidores** — SLA: 7 dias úteis
+6. **BCA + Batalha de Casas** — SLA: 14 dias úteis
+7. **Hipóteses** — SLA: 7 dias úteis
 
 ### Rotas Criadas
 
-- `/funil-stepone` - Página principal do Kanban
-- `/funil-stepone/novo` - Formulário para criar novo card
-- `/funil-stepone/[id]` - Página de detalhes do card
+- `/funil-stepone` — Página principal (abas **Kanban** e **Painel**; query `?tab=painel` para o painel)
+- `/funil-stepone/novo` — Formulário para criar novo card (rota legada; o fluxo atual pode usar o modal “+ Novo card” na página principal)
+- `/funil-stepone/[id]` — Detalhe do card (rota legada; o detalhe costuma abrir em modal sobre o board)
 
 ### Navegação
 
@@ -34,7 +36,7 @@ O Kanban aparece no menu lateral em **Novos Negócios > Funil Step One**, posici
 - Cada coluna mostra:
   - Nome da fase
   - Quantidade de cards
-  - SLA da fase (em dias)
+  - SLA da fase (número de **dias úteis** configurado em `sla_dias`)
 - Cards exibem:
   - Título
   - Data de criação

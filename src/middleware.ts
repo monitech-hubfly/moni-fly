@@ -3,10 +3,14 @@ import { updateSession } from '@/lib/supabase/middleware';
 import { isLiveLimitedRelease, isPathAllowedInLimitedRelease } from '@/lib/release-scope';
 
 export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  if (pathname === '/onboarding' || pathname.startsWith('/onboarding/')) {
+    return NextResponse.redirect(new URL('/rede-franqueados', request.url));
+  }
+
   const response = await updateSession(request);
 
   if (isLiveLimitedRelease()) {
-    const pathname = request.nextUrl.pathname;
     if (!isPathAllowedInLimitedRelease(pathname)) {
       const redirect = NextResponse.redirect(new URL('/rede-franqueados', request.url));
       response.cookies.getAll().forEach((cookie) => {

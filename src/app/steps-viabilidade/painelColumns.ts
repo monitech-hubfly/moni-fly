@@ -12,6 +12,7 @@ export type PainelColumnKey =
   | 'step_5'
   | 'step_6'
   | 'step_7'
+  | 'captacao_moni_capital'
   | 'contabilidade_incorporadora'
   | 'contabilidade_spe'
   | 'contabilidade_gestora'
@@ -69,6 +70,7 @@ export const PAINEL_COLUMNS: PainelColumnDef[] = [
     title: 'Step 7: Contrato',
     hrefBase: '/step-7',
   },
+  { key: 'captacao_moni_capital', title: 'Captação Moní Capital' },
   { key: 'passagem_wayser', title: 'Passagem para Wayser' },
   {
     key: 'planialtimetrico',
@@ -147,6 +149,7 @@ export const PAINEL_FLOW_ROWS: PainelFlowRow[] = [
   { type: 'sequential', keys: ['step_5'] },
   { type: 'sequential', keys: ['step_6'] },
   { type: 'sequential', keys: ['step_7'] },
+  { type: 'sequential', keys: ['captacao_moni_capital'] },
   { type: 'sequential', keys: ['passagem_wayser'] },
   { type: 'parallel', keys: ['planialtimetrico', 'sondagem'] },
   { type: 'sequential', keys: ['projeto_legal'] },

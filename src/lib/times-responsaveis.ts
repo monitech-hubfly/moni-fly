@@ -24,12 +24,31 @@ export const TIMES_MONI = [
 ] as const;
 
 /** Nomes exatos dos times Moní usados em chamados HDM (subset de `TIMES_MONI`). */
-export const TIMES_MONI_HDM = ['Homologações', 'Modelo Virtual', 'Produto'] as const;
+export const TIMES_MONI_HDM = ['Homologações', 'Modelo Virtual', 'Produto', 'Executivo Local'] as const;
 
 /**
- * Na lista geral (checkbox HDM desmarcado), estes dois times só aparecem no modo HDM.
- * `Produto` participa do HDM mas também pode receber chamados fora do fluxo HDM.
+ * Ordem de prioridade ao inferir `hdm_responsavel` quando vários times HDM estão selecionados.
+ * (Deve listar exatamente os mesmos nomes que `TIMES_MONI_HDM`.)
  */
+export const ORDEM_INFERENCIA_HDM_RESPONSAVEL: readonly HdmTime[] = [
+  'Homologações',
+  'Modelo Virtual',
+  'Produto',
+  'Executivo Local',
+];
+
+/**
+ * Se qualquer um destes times estiver entre os destinatários do chamado, o chamado é tratado como HDM.
+ */
+export function inferirHdmResponsavelPorNomesTimes(nomesSelecionados: readonly string[]): HdmTime | null {
+  const set = new Set(nomesSelecionados.map((n) => String(n ?? '').trim()).filter(Boolean));
+  for (const t of ORDEM_INFERENCIA_HDM_RESPONSAVEL) {
+    if (set.has(t)) return t;
+  }
+  return null;
+}
+
+/** @deprecated Mantido só por compatibilidade com comentários legados; a UI não usa mais “modo HDM” separado. */
 export const TIMES_MONI_APENAS_MODO_HDM = ['Homologações', 'Modelo Virtual'] as const;
 
 const TIMES_MONI_APENAS_MODO_HDM_SET = new Set<string>(TIMES_MONI_APENAS_MODO_HDM);
@@ -51,6 +70,7 @@ export const HDM_RESPONSAVEIS: Record<HdmTime, { nome: string; email: string }[]
     { nome: 'Mateus Palma', email: 'mateus.palma@moni.casa' },
     { nome: 'Fabio Siano', email: 'fabio.siano@moni.casa' },
   ],
+  'Executivo Local': [{ nome: 'Larissa Lima', email: 'larissa.lima@moni.casa' }],
 };
 
 const HDM_RESPONSAVEIS_EMAIL_SET = new Set(
@@ -135,10 +155,10 @@ export function isNomeTimeMoniHdm(nome: string): boolean {
   return TIMES_MONI_HDM_SET.has(String(nome ?? '').trim());
 }
 
-/** Select "time que receberá o chamado": com HDM só os três; sem HDM oculta só Homologações e Modelo Virtual. */
+/** Select "time que receberá o chamado": com HDM só os quatro; sem HDM lista o catálogo completo Moní. */
 export function timesMoniReceberChamadoOpcoes(somenteTimesHdm: boolean): readonly string[] {
   if (somenteTimesHdm) return [...TIMES_MONI_HDM];
-  return TIMES_MONI.filter((t) => !TIMES_MONI_APENAS_MODO_HDM_SET.has(t));
+  return [...TIMES_MONI];
 }
 
 /** Ordena linhas de time pela ordem do catálogo Moní; HDM usa `TIMES_MONI_HDM` (não alfabética). */
@@ -167,7 +187,7 @@ export function filtrarLinhasTimeKanbanPorHdm<T extends { nome: string }>(
   const filtered = rows.filter((row) => {
     const nome = row.nome.trim();
     if (somenteTimesHdm) return TIMES_MONI_HDM_SET.has(nome);
-    return !TIMES_MONI_APENAS_MODO_HDM_SET.has(nome);
+    return true;
   });
   return ordenarLinhasTimeKanbanPorCatalogoMoni(filtered, somenteTimesHdm);
 }
@@ -179,7 +199,7 @@ export function filtrarOpcoesTimeIdNomePorHdm(
   const filtered = opcoes.filter((t) => {
     const nome = t.nome.trim();
     if (somenteTimesHdm) return TIMES_MONI_HDM_SET.has(nome);
-    return !TIMES_MONI_APENAS_MODO_HDM_SET.has(nome);
+    return true;
   });
   return ordenarLinhasTimeKanbanPorCatalogoMoni(filtered, somenteTimesHdm);
 }

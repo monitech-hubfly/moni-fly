@@ -147,6 +147,13 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()) {
+        setError(
+          'Configuração incompleta: faltam NEXT_PUBLIC_SUPABASE_URL ou NEXT_PUBLIC_SUPABASE_ANON_KEY no build (ex.: .env.local). O login não pode conectar ao Supabase.',
+        );
+        setLoading(false);
+        return;
+      }
       const supabase = createClient();
       const { data: signInData, error: err } = await supabase.auth.signInWithPassword({ email, password });
       if (err) {
@@ -178,6 +185,15 @@ export default function LoginPage() {
         .eq('id', u.id)
         .maybeSingle();
 
+      if (profileError) {
+        console.error('[login] profiles read:', profileError.message, profileError);
+        setError(
+          `Não foi possível ler seu perfil (${profileError.message}). Verifique se o id em profiles coincide com o usuário em Authentication e se a política RLS de leitura permite o próprio utilizador.`,
+        );
+        setLoading(false);
+        return;
+      }
+
       const role = normalizeAccessRole((profile as { role?: string | null } | null)?.role);
       if (role === 'pending') {
         router.push('/login?status=pending');
@@ -199,8 +215,16 @@ export default function LoginPage() {
         router.push('/rede-franqueados');
       }
       router.refresh();
-    } catch {
-      setError('Erro ao entrar. Tente de novo.');
+    } catch (unknownErr) {
+      const raw =
+        unknownErr instanceof Error
+          ? unknownErr.message
+          : typeof unknownErr === 'string'
+            ? unknownErr
+            : String(unknownErr);
+      console.error('[login] exceção não tratada:', unknownErr);
+      const mapped = mapLoginAuthErrorMessage(raw) || supabaseNetworkErrorHint(raw);
+      setError(mapped && mapped !== raw ? mapped : raw ? `Erro ao entrar: ${raw}` : 'Erro ao entrar. Tente de novo.');
       setLoading(false);
     }
   };

@@ -243,13 +243,20 @@ export function DetalheChamadoConteudo({
   const [isPending, startTransition] = useTransition();
   const [dialogExcluirAberto, setDialogExcluirAberto] = useState(false);
   const [excluindoChamado, setExcluindoChamado] = useState(false);
+  const [topicosListCarregado, setTopicosListCarregado] = useState(false);
+  const topicosInitRef = useRef<number | null>(null);
 
-  useEffect(() => {
+  const carregarTopicosChamado = useCallback(async () => {
     if (!chamado.id) return;
-    getTopicosChamado(chamado.id).then((r) => {
-      if (r.ok) setTopicosList(r.topicos);
-    });
+    const r = await getTopicosChamado(chamado.id);
+    if (r.ok) {
+      setTopicosList(r.topicos);
+      setTopicosListCarregado(true);
+    }
   }, [chamado.id]);
+  useEffect(() => {
+    void carregarTopicosChamado();
+  }, [carregarTopicosChamado]);
 
   const carregarAnexos = useCallback(() => {
     if (!chamado.id) return;
@@ -261,20 +268,21 @@ export function DetalheChamadoConteudo({
     carregarAnexos();
   }, [carregarAnexos]);
 
-  const carregarPericia = useCallback(() => {
-    getPericiaDoChamado(chamado.id).then((r) => r.ok && setPericiaChamado(r.pericia));
-  }, [chamado.id]);
   const carregarMensagens = useCallback(() => {
     listMensagensChamado(chamado.id).then((r) => r.ok && setMensagensList(r.mensagens));
   }, [chamado.id]);
-  const carregarParticipantes = useCallback(() => {
-    getParticipantesChamado(chamado.id).then((r) => r.ok && setParticipantes(r.participantes));
-  }, [chamado.id]);
   useEffect(() => {
-    carregarPericia();
-    carregarMensagens();
-    carregarParticipantes();
-  }, [carregarPericia, carregarMensagens, carregarParticipantes]);
+    if (!chamado.id) return;
+    void Promise.all([
+      getPericiaDoChamado(chamado.id),
+      listMensagensChamado(chamado.id),
+      getParticipantesChamado(chamado.id),
+    ]).then(([per, msgs, part]) => {
+      if (per.ok) setPericiaChamado(per.pericia);
+      if (msgs.ok) setMensagensList(msgs.mensagens);
+      if (part.ok) setParticipantes(part.participantes);
+    });
+  }, [chamado.id]);
 
   const handleEnviarComentario = () => {
     if (!novoComentario.trim()) return;
@@ -297,20 +305,27 @@ export function DetalheChamadoConteudo({
     getTimesParaTopicos().then((r) => {
       if (r.ok) setTimes(r.times);
     });
-    getTopicosChamado(chamado.id).then((r) => {
-      if (r.ok && r.topicos.length > 0)
-        setTopicos(
-          r.topicos.map((t) => ({
-            descricao: t.descricao,
-            time_responsavel: t.time_responsavel,
-            data_inicio: t.data_inicio ?? '',
-            data_fim: t.data_fim ?? '',
-            trava: t.trava,
-          })),
-        );
-      else setTopicos([{ descricao: '', time_responsavel: '', data_inicio: '', data_fim: '', trava: false }]);
-    });
   }, [mostrarControlesBombeiro, chamado.id]);
+
+  useEffect(() => {
+    if (!mostrarControlesBombeiro || !chamado.id) return;
+    if (!topicosListCarregado) return;
+    if (topicosInitRef.current === chamado.id) return;
+    topicosInitRef.current = chamado.id;
+    if (topicosList.length > 0) {
+      setTopicos(
+        topicosList.map((t) => ({
+          descricao: t.descricao,
+          time_responsavel: t.time_responsavel,
+          data_inicio: t.data_inicio ?? '',
+          data_fim: t.data_fim ?? '',
+          trava: t.trava,
+        })),
+      );
+    } else {
+      setTopicos([{ descricao: '', time_responsavel: '', data_inicio: '', data_fim: '', trava: false }]);
+    }
+  }, [mostrarControlesBombeiro, chamado.id, topicosListCarregado, topicosList]);
 
   const adicionarTopico = () => {
     setTopicos((prev) => [...prev, { descricao: '', time_responsavel: times[0] ?? '', data_inicio: '', data_fim: '', trava: false }]);
@@ -416,7 +431,7 @@ export function DetalheChamadoConteudo({
       if (!result.ok && 'error' in result) setErro(result.error);
       else {
         setMensagem('Tópico concluído.');
-        getTopicosChamado(chamado.id).then((r) => r.ok && setTopicosList(r.topicos));
+        void carregarTopicosChamado();
       }
     });
   };
@@ -429,7 +444,7 @@ export function DetalheChamadoConteudo({
       if (!result.ok && 'error' in result) setErro(result.error);
       else {
         setMensagem('Tópico aprovado.');
-        getTopicosChamado(chamado.id).then((r) => r.ok && setTopicosList(r.topicos));
+        void carregarTopicosChamado();
       }
     });
   };
@@ -444,7 +459,7 @@ export function DetalheChamadoConteudo({
         setMensagem('Tópico reprovado.');
         setReprovarTopicoId(null);
         setMotivoReprovar('');
-        getTopicosChamado(chamado.id).then((r) => r.ok && setTopicosList(r.topicos));
+        void carregarTopicosChamado();
       }
     });
   };
@@ -1205,15 +1220,22 @@ export function DetalheChamadoConteudo({
                 onClick={() => {
                   setExcluindoChamado(true);
                   setErro(null);
-                  void deletarChamado({ modo: 'sirene', sireneChamadoId: chamado.id }).then((r) => {
-                    setExcluindoChamado(false);
-                    if (!r.ok) {
-                      setErro(r.error);
-                      return;
-                    }
-                    setDialogExcluirAberto(false);
-                    router.push('/sirene/chamados');
-                  });
+                  void deletarChamado({ modo: 'sirene', sireneChamadoId: chamado.id })
+                    .then((r) => {
+                      setExcluindoChamado(false);
+                      if (!r.ok) {
+                        console.error('[sirene] deletarChamado: falhou', r.error);
+                        setErro(r.error);
+                        return;
+                      }
+                      setDialogExcluirAberto(false);
+                      router.push('/sirene/chamados');
+                    })
+                    .catch((e) => {
+                      setExcluindoChamado(false);
+                      console.error('[sirene] deletarChamado: erro inesperado', e);
+                      setErro(String(e));
+                    });
                 }}
                 className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
               >
