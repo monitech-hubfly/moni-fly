@@ -99,6 +99,7 @@
       border-bottom: 3px solid transparent;
       cursor: pointer;
       transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+      position: relative;
     }
 
     .nav-tabs button:hover {
@@ -476,6 +477,7 @@
     .campo-header {
       display: flex;
       align-items: center;
+      flex-wrap: wrap;
       gap: 10px;
       width: 100%;
       background: #f1efe8;
@@ -888,6 +890,11 @@
       color: var(--c-brand-dark);
       font-weight: 700;
       margin: 1.5rem 0 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
     }
 
     .checklist-head + .checklist-grupo-label {
@@ -920,6 +927,207 @@
       accent-color: #1d9e75;
       pointer-events: none;
       flex-shrink: 0;
+    }
+
+    .checklist-grupo-title {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .checklist-grupo-count {
+      font-family: monospace;
+      font-size: 11px;
+      color: var(--c-brand-dark);
+      opacity: 0.7;
+      flex-shrink: 0;
+    }
+
+    .checklist-grupo-label.grupo-completo {
+      color: var(--c-brand);
+    }
+
+    .checklist-grupo-label.grupo-completo .checklist-grupo-title::before {
+      content: "✓ ";
+      color: var(--c-brand);
+      font-weight: 700;
+    }
+
+    .campo-anchor {
+      opacity: 0;
+      margin-left: 6px;
+      color: var(--c-brand);
+      font-size: 14px;
+      text-decoration: none;
+      transition: opacity 0.15s ease;
+      font-weight: 600;
+    }
+
+    .campo-header:hover .campo-anchor {
+      opacity: 1;
+    }
+
+    .campo-obrig,
+    .campo-rec {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      padding: 2px 7px;
+      border-radius: 100px;
+      flex-shrink: 0;
+      margin-left: 4px;
+    }
+
+    .campo-obrig {
+      background: #fcebeb;
+      color: #a32d2d;
+    }
+
+    .campo-rec {
+      background: #faeeda;
+      color: #633806;
+    }
+
+    .leitura-progress-bar {
+      position: fixed;
+      top: 45px;
+      left: 0;
+      width: 0%;
+      height: 3px;
+      background: var(--c-brand);
+      transition: width 0.4s ease;
+      z-index: 99;
+      pointer-events: none;
+    }
+
+    html.modo-leitura .leitura-progress-bar {
+      display: none !important;
+    }
+
+    @media print {
+      .leitura-progress-bar {
+        display: none !important;
+      }
+    }
+
+    .nav-tabs button.visitado:not(.active)::after {
+      content: "·";
+      color: var(--c-brand);
+      font-size: 18px;
+      position: absolute;
+      bottom: 2px;
+      left: 50%;
+      transform: translateX(-50%);
+      line-height: 1;
+    }
+
+    .output-linha-ref-row {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+      margin-bottom: 3px;
+    }
+
+    .output-linha-info {
+      border: none;
+      background: rgba(8, 80, 65, 0.08);
+      color: var(--c-brand-dark);
+      border-radius: 50%;
+      width: 22px;
+      height: 22px;
+      font-size: 12px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0;
+      flex-shrink: 0;
+    }
+
+    .output-linha-info:hover {
+      background: rgba(8, 80, 65, 0.15);
+    }
+
+    .output-linha-tooltip {
+      display: none;
+      background: #2c2c2a;
+      color: #fff;
+      font-size: 13px;
+      border-radius: 8px;
+      padding: 0.65rem 1rem;
+      margin-top: 0.5rem;
+      line-height: 1.45;
+    }
+
+    .output-linha-tooltip.is-open {
+      display: block;
+    }
+
+    .sim-margem-card {
+      margin-top: 1rem;
+    }
+
+    .sim-margem-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+    }
+
+    @media (min-width: 560px) {
+      .sim-margem-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .sim-margem-field label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--c-brand-dark);
+      margin-bottom: 0.25rem;
+    }
+
+    .sim-margem-field input {
+      border: 1px solid rgba(0, 0, 0, 0.15);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.95rem;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .sim-margem-result {
+      margin-top: 1rem;
+      padding: 0.85rem 1rem;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 1rem;
+      display: none;
+    }
+
+    .sim-margem-result.is-visible {
+      display: block;
+    }
+
+    .sim-margem-result--ok {
+      color: var(--c-brand-dark);
+      background: var(--c-brand-light);
+    }
+
+    .sim-margem-result--mid {
+      color: #633806;
+      background: #faeeda;
+    }
+
+    .sim-margem-result--low {
+      color: #a32d2d;
+      background: #fcebeb;
+    }
+
+    .sim-margem-nota {
+      margin-top: 0.5rem;
+      font-size: 0.78rem;
+      color: #888;
     }
 
     /* —— Comitê —— */
@@ -1278,6 +1486,7 @@
       <button type="button" data-section="checklist">Checklist final</button>
       <button type="button" data-section="comite">Comitê</button>
     </nav>
+    <div id="leitura-progress-bar" class="leitura-progress-bar" role="presentation" aria-hidden="true"></div>
   </div>
 
   <main>
@@ -2080,35 +2289,83 @@
           <h2 class="outputs-leitura-titulo">Leitura dos resultados</h2>
           <div class="outputs-grid">
             <div class="output-linha">
-              <div class="output-linha-ref">L102</div>
+              <div class="output-linha-ref-row">
+                <span class="output-linha-ref">L102</span>
+                <button type="button" class="output-linha-info" aria-expanded="false" aria-label="Contexto sobre L102" onclick="window.toggleOutputTooltip(event, this)">ⓘ</button>
+              </div>
+              <div class="output-linha-tooltip">
+                Quanto sobra da venda depois de pagar comissão e impostos. É o dinheiro que entra de fato na operação antes de qualquer custo de construção ou terreno.
+              </div>
               <p class="output-linha-desc">Venda Líquida — VGV menos comissão e impostos</p>
             </div>
             <div class="output-linha">
-              <div class="output-linha-ref">L104</div>
+              <div class="output-linha-ref-row">
+                <span class="output-linha-ref">L104</span>
+                <button type="button" class="output-linha-info" aria-expanded="false" aria-label="Contexto sobre L104" onclick="window.toggleOutputTooltip(event, this)">ⓘ</button>
+              </div>
+              <div class="output-linha-tooltip">
+                Soma do valor base do terreno, da rentabilidade acumulada do terrenista e do ITBI. Varia por cenário porque a rentabilidade cresce com o tempo.
+              </div>
               <p class="output-linha-desc">Total Terreno — valor base + variável + ITBI</p>
             </div>
             <div class="output-linha">
-              <div class="output-linha-ref">L107</div>
+              <div class="output-linha-ref-row">
+                <span class="output-linha-ref">L107</span>
+                <button type="button" class="output-linha-info" aria-expanded="false" aria-label="Contexto sobre L107" onclick="window.toggleOutputTooltip(event, this)">ⓘ</button>
+              </div>
+              <div class="output-linha-tooltip">
+                Quanto o terreno consome do VGV líquido em percentual. Acima de 25% começa a pesar na margem. Abaixo de 18% é confortável.
+              </div>
               <p class="output-linha-desc">% Equivalente Permuta — terreno como % do VGV líquido</p>
             </div>
             <div class="output-linha">
-              <div class="output-linha-ref">L120</div>
+              <div class="output-linha-ref-row">
+                <span class="output-linha-ref">L120</span>
+                <button type="button" class="output-linha-info" aria-expanded="false" aria-label="Contexto sobre L120" onclick="window.toggleOutputTooltip(event, this)">ⓘ</button>
+              </div>
+              <div class="output-linha-tooltip">
+                Resultado da operação sem considerar o custo do funding. Mostra se o negócio faz sentido independente de financiamento.
+              </div>
               <p class="output-linha-desc">Resultado não alavancado — antes do custo financeiro</p>
             </div>
             <div class="output-linha">
-              <div class="output-linha-ref">L122</div>
+              <div class="output-linha-ref-row">
+                <span class="output-linha-ref">L122</span>
+                <button type="button" class="output-linha-info" aria-expanded="false" aria-label="Contexto sobre L122" onclick="window.toggleOutputTooltip(event, this)">ⓘ</button>
+              </div>
+              <div class="output-linha-tooltip">
+                Custo total do capital tomado. Quanto maior o prazo e a necessidade, maior esse número. Prazo longo com CET alto pode consumir toda a margem.
+              </div>
               <p class="output-linha-desc">Juros + custo financeiro — impacto do funding</p>
             </div>
             <div class="output-linha output-linha--destaque">
-              <div class="output-linha-ref">L124–L125</div>
+              <div class="output-linha-ref-row">
+                <span class="output-linha-ref">L124–L125</span>
+                <button type="button" class="output-linha-info" aria-expanded="false" aria-label="Contexto sobre L124–L125" onclick="window.toggleOutputTooltip(event, this)">ⓘ</button>
+              </div>
+              <div class="output-linha-tooltip">
+                Margem final depois de pagar tudo, incluindo o funding. É o número que o comitê olha primeiro. Abaixo de 10% no Target é sinal de alerta.
+              </div>
               <p class="output-linha-desc"><strong>★ Resultado alavancado</strong> — principal indicador da operação</p>
             </div>
             <div class="output-linha">
-              <div class="output-linha-ref">L129</div>
+              <div class="output-linha-ref-row">
+                <span class="output-linha-ref">L129</span>
+                <button type="button" class="output-linha-info" aria-expanded="false" aria-label="Contexto sobre L129" onclick="window.toggleOutputTooltip(event, this)">ⓘ</button>
+              </div>
+              <div class="output-linha-tooltip">
+                Resultado alocado ao franqueado na estrutura da operação, após deduções da plataforma e gestão.
+              </div>
               <p class="output-linha-desc">Resultado total Frank</p>
             </div>
             <div class="output-linha">
-              <div class="output-linha-ref">L134</div>
+              <div class="output-linha-ref-row">
+                <span class="output-linha-ref">L134</span>
+                <button type="button" class="output-linha-info" aria-expanded="false" aria-label="Contexto sobre L134" onclick="window.toggleOutputTooltip(event, this)">ⓘ</button>
+              </div>
+              <div class="output-linha-tooltip">
+                Mostra se o terrenista está sendo remunerado acima do CDI. Acima de 100% do CDI é competitivo para convencer o terrenista a ficar no sucesso.
+              </div>
               <p class="output-linha-desc">TIR Terrenista vs CDI</p>
             </div>
           </div>
@@ -2407,6 +2664,34 @@
               </div>
             </div>
           </div>
+          <div class="card sim-margem-card">
+            <h3>Simulador rápido de margem</h3>
+            <p style="margin-top: 0.35rem; font-size: 0.88rem; color: var(--c-text-muted)">
+              Ajuste os valores para ter uma leitura rápida de sensibilidade. Não substitui o BCA.
+            </p>
+            <div class="sim-margem-grid">
+              <div class="sim-margem-field">
+                <label for="sim-vgv">VGV Target (R$)</label>
+                <input type="number" inputmode="decimal" id="sim-vgv" placeholder="6200000" min="0" step="any" />
+              </div>
+              <div class="sim-margem-field">
+                <label for="sim-terreno">Custo terreno (R$)</label>
+                <input type="number" inputmode="decimal" id="sim-terreno" placeholder="940000" min="0" step="any" />
+              </div>
+              <div class="sim-margem-field">
+                <label for="sim-casa">Custo casa (R$)</label>
+                <input type="number" inputmode="decimal" id="sim-casa" placeholder="1850776" min="0" step="any" />
+              </div>
+              <div class="sim-margem-field">
+                <label for="sim-outros">Outros custos (R$)</label>
+                <input type="number" inputmode="decimal" id="sim-outros" placeholder="435000" min="0" step="any" />
+              </div>
+            </div>
+            <div id="sim-margem-result" class="sim-margem-result" aria-live="polite"></div>
+            <p id="sim-margem-nota" class="sim-margem-nota" hidden>
+              Estimativa simplificada. Use o BCA completo para análise definitiva.
+            </p>
+          </div>
           <div class="perguntas-obrig-card">
             <div class="card">
               <h3>7 perguntas obrigatórias antes de fechar hipótese</h3>
@@ -2482,162 +2767,186 @@
             <button type="button" class="btn-checklist-clear" id="btn-checklist-clear">Limpar checklist</button>
           </div>
 
-          <div class="checklist-grupo-label">Identificação</div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="checklist-grupo-label" data-grupo="identificacao">
+            <span class="checklist-grupo-title">Identificação</span>
+            <span class="checklist-grupo-count" data-grupo-count="identificacao">0 / 4</span>
+          </div>
+          <div class="check-item" data-grupo="identificacao" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Nome oficial do condomínio</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="identificacao" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Modelo igual ao catálogo Moní</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="identificacao" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Área de vendas veio do configurador</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="identificacao" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Área útil coerente com o produto</label>
           </div>
 
-          <div class="checklist-grupo-label">Terreno</div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="checklist-grupo-label" data-grupo="terreno">
+            <span class="checklist-grupo-title">Terreno</span>
+            <span class="checklist-grupo-count" data-grupo-count="terreno">0 / 5</span>
+          </div>
+          <div class="check-item" data-grupo="terreno" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Custo inserido como valor negativo</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="terreno" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Valor validado com mercado (não só terrenista)</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="terreno" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>ITBI conferido para a cidade</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="terreno" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Condição reflete negociação real</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="terreno" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Rentabilidade validada no BCA antes de prometer</label>
           </div>
 
-          <div class="checklist-grupo-label">Casa e obra</div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="checklist-grupo-label" data-grupo="casa-obra">
+            <span class="checklist-grupo-title">Casa e obra</span>
+            <span class="checklist-grupo-count" data-grupo-count="casa-obra">0 / 5</span>
+          </div>
+          <div class="check-item" data-grupo="casa-obra" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Custo veio do configurador Moní</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="casa-obra" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Custo inserido como valor negativo</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="casa-obra" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Modelo em C41 bate com C8</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="casa-obra" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Início da obra realista (alvará/prefeitura confirmados)</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="casa-obra" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Fluxo de obra soma exatamente 100%</label>
           </div>
 
-          <div class="checklist-grupo-label">Custos e despesas</div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="checklist-grupo-label" data-grupo="custos">
+            <span class="checklist-grupo-title">Custos e despesas</span>
+            <span class="checklist-grupo-count" data-grupo-count="custos">0 / 5</span>
+          </div>
+          <div class="check-item" data-grupo="custos" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Comissão correta e negativa</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="custos" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Impostos validados com contabilidade</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="custos" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Taxas de plataforma e gestão usam percentuais Moní vigentes</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="custos" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Projetos e taxas de obra incluídos</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="custos" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Capital de giro inicial incluído</label>
           </div>
 
-          <div class="checklist-grupo-label">Funding</div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="checklist-grupo-label" data-grupo="funding">
+            <span class="checklist-grupo-title">Funding</span>
+            <span class="checklist-grupo-count" data-grupo-count="funding">0 / 3</span>
+          </div>
+          <div class="check-item" data-grupo="funding" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>CET mensal é a taxa real aprovada</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="funding" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Percentual de funding tem aprovação</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="funding" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Custo financeiro foi analisado nos outputs</label>
           </div>
 
-          <div class="checklist-grupo-label">Cenários de venda</div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="checklist-grupo-label" data-grupo="cenarios">
+            <span class="checklist-grupo-title">Cenários de venda</span>
+            <span class="checklist-grupo-count" data-grupo-count="cenarios">0 / 5</span>
+          </div>
+          <div class="check-item" data-grupo="cenarios" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Target validado com evidências de mercado</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="cenarios" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Liquidação mínimo -10% do Target</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="cenarios" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Planta com desconto coerente</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="cenarios" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Recompra segue lógica contratual</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="cenarios" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Prazo de venda tem base histórica</label>
           </div>
 
-          <div class="checklist-grupo-label">Resultado e elegibilidade</div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="checklist-grupo-label" data-grupo="resultado">
+            <span class="checklist-grupo-title">Resultado e elegibilidade</span>
+            <span class="checklist-grupo-count" data-grupo-count="resultado">0 / 5</span>
+          </div>
+          <div class="check-item" data-grupo="resultado" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Margem Target acima do mínimo da política</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="resultado" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Margem Liquidação ainda protege</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="resultado" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Resultado alavancado coerente</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="resultado" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Remuneração do terrenista defensável vs CDI</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="resultado" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Ferramenta mostra OK (ou motivo do NÃO ELEGÍVEL identificado)</label>
           </div>
 
-          <div class="checklist-grupo-label">Abas de fluxo</div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="checklist-grupo-label" data-grupo="fluxo-abas">
+            <span class="checklist-grupo-title">Abas de fluxo</span>
+            <span class="checklist-grupo-count" data-grupo-count="fluxo-abas">0 / 4</span>
+          </div>
+          <div class="check-item" data-grupo="fluxo-abas" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Aba Target conferida</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="fluxo-abas" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Aba Planta conferida</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="fluxo-abas" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Aba Liquidação conferida</label>
           </div>
-          <div class="check-item" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
+          <div class="check-item" data-grupo="fluxo-abas" role="checkbox" aria-checked="false" tabindex="0" onclick="window.toggleCheck(this)">
             <input type="checkbox" class="check-item-box" tabindex="-1" aria-hidden="true" />
             <label>Aba Recompra conferida</label>
           </div>
@@ -2722,6 +3031,36 @@
 
   <script>
     var CHECKLIST_STORAGE_KEY = "moni-treino-bca-checklist-v1";
+    var VISIT_STORAGE_KEY = "moni-treino-bca-visitadas-v1";
+    var LEITURA_TOTAL_SECOES = 9;
+
+    var OBRIG_CELLS = {
+      C7: 1,
+      C8: 1,
+      C9: 1,
+      C26: 1,
+      C28: 1,
+      C30: 1,
+      C41: 1,
+      C45: 1,
+      C64: 1,
+      C65: 1,
+      C66: 1,
+      C67: 1,
+      C76: 1,
+      C78: 1,
+      D85: 1,
+      E85: 1,
+      C88: 1,
+      D88: 1,
+      E88: 1,
+      F88: 1
+    };
+    for (var _oi = 48; _oi <= 59; _oi++) {
+      OBRIG_CELLS["C" + _oi] = 1;
+    }
+
+    var REC_CELLS = { C10: 1, C24: 1, C70: 1, C71: 1, C85: 1, F85: 1 };
 
     function applyFrankGreeting() {
       const params = new URLSearchParams(window.location.search);
@@ -2735,7 +3074,188 @@
       }
     }
 
-    window.showSection = function (id) {
+    function getVisitedSections() {
+      try {
+        var raw = localStorage.getItem(VISIT_STORAGE_KEY);
+        var arr = raw ? JSON.parse(raw) : [];
+        return Array.isArray(arr) ? arr : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function persistVisitedSections(arr) {
+      try {
+        localStorage.setItem(VISIT_STORAGE_KEY, JSON.stringify(arr));
+      } catch (e) {}
+    }
+
+    function markSectionVisited(slug) {
+      if (document.documentElement.classList.contains("modo-leitura")) return;
+      if (!slug) return;
+      var arr = getVisitedSections();
+      if (arr.indexOf(slug) === -1) {
+        arr.push(slug);
+        persistVisitedSections(arr);
+      }
+      syncVisitedUi();
+    }
+
+    function syncVisitedUi() {
+      var arr = getVisitedSections();
+      var map = {};
+      arr.forEach(function (s) {
+        map[s] = true;
+      });
+      document.querySelectorAll(".nav-tabs button[data-section]").forEach(function (btn) {
+        var sid = btn.getAttribute("data-section");
+        btn.classList.toggle("visitado", !!(sid && map[sid]));
+      });
+      var bar = document.getElementById("leitura-progress-bar");
+      if (bar && !document.documentElement.classList.contains("modo-leitura")) {
+        var n = arr.length;
+        var pct = Math.min(100, (n / LEITURA_TOTAL_SECOES) * 100);
+        bar.style.width = pct + "%";
+      }
+    }
+
+    function slugFromCampoCelula(text) {
+      var t = (text || "")
+        .trim()
+        .toUpperCase()
+        .replace(/–|—/g, "-");
+      t = t.replace(/\s*\/\s*/g, "-").replace(/\s+/g, "");
+      return t.replace(/[^A-Z0-9\-]/g, "");
+    }
+
+    function expandCelulaTokens(text) {
+      var out = [];
+      var s = (text || "").trim().toUpperCase().replace(/–|—/g, "-");
+      var pieces = s.split(/\s*\/\s*/);
+      pieces.forEach(function (piece) {
+        piece = piece.trim();
+        if (!piece) return;
+        piece.split(/\s*,\s*/).forEach(function (seg) {
+          seg = seg.trim().replace(/\s+/g, "");
+          if (!seg) return;
+          var rm = seg.match(/^([A-Z]+)(\d+)-([A-Z]+)(\d+)$/);
+          if (rm && rm[1] === rm[3]) {
+            var col = rm[1];
+            var a = parseInt(rm[2], 10);
+            var b = parseInt(rm[4], 10);
+            var lo = Math.min(a, b);
+            var hi = Math.max(a, b);
+            for (var k = lo; k <= hi; k++) out.push(col + k);
+          } else {
+            var m = seg.match(/^([A-Z]+)(\d+)$/);
+            if (m) out.push(m[1] + m[2]);
+          }
+        });
+      });
+      return out;
+    }
+
+    function enhanceCampoCards() {
+      document.querySelectorAll(".campo-card").forEach(function (card) {
+        if (card.dataset.campoEnhanced) return;
+        var header = card.querySelector(".campo-header");
+        if (!header) return;
+        var cel = header.querySelector(".campo-celula");
+        var nome = header.querySelector(".campo-nome");
+        var tipo = header.querySelector(".campo-tipo");
+        if (!cel || !nome) return;
+        var tokens = expandCelulaTokens(cel.textContent);
+        if (!tokens.length) return;
+        card.dataset.campoRefs = tokens.join(",");
+        var slug = slugFromCampoCelula(cel.textContent);
+        if (!slug) return;
+        var fid = "campo-" + slug;
+        card.id = fid;
+        if (!nome.querySelector(".campo-anchor")) {
+          var a = document.createElement("a");
+          a.className = "campo-anchor";
+          a.href = "#" + fid;
+          a.title = "Link direto para este campo";
+          a.textContent = "¶";
+          nome.insertAdjacentElement("afterend", a);
+        }
+        if (tipo && !tipo.classList.contains("campo-tipo-automatico")) {
+          var obr = false;
+          var rec = false;
+          tokens.forEach(function (t) {
+            if (OBRIG_CELLS[t]) obr = true;
+            if (REC_CELLS[t]) rec = true;
+          });
+          var insertAfter = tipo;
+          if (obr && !header.querySelector(".campo-obrig")) {
+            var spO = document.createElement("span");
+            spO.className = "campo-tipo campo-obrig";
+            spO.textContent = "Obrigatório";
+            insertAfter.insertAdjacentElement("afterend", spO);
+            insertAfter = spO;
+          }
+          if (rec && !header.querySelector(".campo-rec")) {
+            var spR = document.createElement("span");
+            spR.className = "campo-tipo campo-rec";
+            spR.textContent = "Recomendado";
+            insertAfter.insertAdjacentElement("afterend", spR);
+          }
+        }
+        card.dataset.campoEnhanced = "1";
+      });
+    }
+
+    function findCampoCardForHash(hashBare) {
+      var el = document.getElementById(hashBare);
+      if (el && el.classList.contains("campo-card")) return el;
+      var needle = hashBare.replace(/^campo-/, "").toUpperCase();
+      var cards = document.querySelectorAll(".campo-card[data-campo-refs]");
+      for (var i = 0; i < cards.length; i++) {
+        var refs = (cards[i].dataset.campoRefs || "").split(",");
+        if (refs.indexOf(needle) !== -1) return cards[i];
+      }
+      return null;
+    }
+
+    function openCampoFromHash(hashBare) {
+      var card = findCampoCardForHash(hashBare);
+      if (!card) return false;
+      var sec = card.closest(".section");
+      if (!sec || !sec.id || sec.id.indexOf("sec-") !== 0) return false;
+      var secSlug = sec.id.replace(/^sec-/, "");
+      var leitura = document.documentElement.classList.contains("modo-leitura");
+
+      function afterOpen() {
+        window.requestAnimationFrame(function () {
+          window.requestAnimationFrame(function () {
+            card.classList.add("is-open");
+            var hdr = card.querySelector(".campo-header");
+            if (hdr) hdr.setAttribute("aria-expanded", "true");
+            card.scrollIntoView({ behavior: "smooth", block: "start" });
+            try {
+              history.replaceState(null, "", "#" + hashBare);
+            } catch (e2) {}
+          });
+        });
+      }
+
+      if (leitura) {
+        document.querySelectorAll(".nav-tabs button").forEach(function (b) {
+          b.classList.toggle("active", b.dataset.section === secSlug);
+        });
+        afterOpen();
+        return true;
+      }
+
+      window.showSection(secSlug, { skipHash: true, skipScrollTop: true });
+      afterOpen();
+      return true;
+    }
+
+    window.showSection = function (id, options) {
+      var opts = options || {};
+      var skipHash = !!opts.skipHash;
+      var skipScrollTop = !!opts.skipScrollTop;
       if (document.documentElement.classList.contains("modo-leitura")) {
         document.getElementById("sec-" + id)?.scrollIntoView({ behavior: "smooth" });
         return;
@@ -2747,12 +3267,17 @@
       document.querySelectorAll(".nav-tabs button").forEach(function (b) {
         b.classList.toggle("active", b.dataset.section === id);
       });
-      location.hash = "#" + id;
-      window.requestAnimationFrame(function () {
+      if (!skipHash) {
+        location.hash = "#" + id;
+      }
+      markSectionVisited(id);
+      if (!skipScrollTop) {
         window.requestAnimationFrame(function () {
-          window.scrollTo({ top: 0, behavior: "smooth" });
+          window.requestAnimationFrame(function () {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          });
         });
-      });
+      }
     };
 
     window.updateProgress = function () {
@@ -2770,6 +3295,20 @@
       }
       if (pctEl) pctEl.textContent = pct + "%";
       if (cntEl) cntEl.textContent = done + " / " + total + " itens";
+
+      document.querySelectorAll(".checklist-grupo-label[data-grupo]").forEach(function (label) {
+        var gid = label.getAttribute("data-grupo");
+        if (!gid) return;
+        var items = document.querySelectorAll('.check-item[data-grupo="' + gid + '"]');
+        var t = items.length;
+        var d = 0;
+        for (var j = 0; j < items.length; j++) {
+          if (items[j].classList.contains("done")) d++;
+        }
+        var cnt = label.querySelector("[data-grupo-count]");
+        if (cnt) cnt.textContent = d + " / " + t;
+        label.classList.toggle("grupo-completo", t > 0 && d === t);
+      });
     };
 
     window.persistChecklistToStorage = function () {
@@ -2777,9 +3316,11 @@
         var items = Array.from(document.querySelectorAll(".check-item"));
         localStorage.setItem(
           CHECKLIST_STORAGE_KEY,
-          JSON.stringify(items.map(function (it) {
-            return it.classList.contains("done");
-          }))
+          JSON.stringify(
+            items.map(function (it) {
+              return it.classList.contains("done");
+            })
+          )
         );
       } catch (e) {}
     };
@@ -2824,14 +3365,95 @@
       window.persistChecklistToStorage();
     };
 
+    function closeAllOutputTooltips() {
+      document.querySelectorAll(".output-linha-tooltip.is-open").forEach(function (t) {
+        t.classList.remove("is-open");
+      });
+      document.querySelectorAll(".output-linha-info").forEach(function (b) {
+        b.setAttribute("aria-expanded", "false");
+      });
+    }
+
+    window.toggleOutputTooltip = function (ev, btn) {
+      if (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+      var row = btn.closest(".output-linha");
+      var tip = row && row.querySelector(".output-linha-tooltip");
+      var wasOpen = tip && tip.classList.contains("is-open");
+      closeAllOutputTooltips();
+      if (!wasOpen && tip) {
+        tip.classList.add("is-open");
+        btn.setAttribute("aria-expanded", "true");
+      }
+    };
+
+    function wireOutputTooltipDismiss() {
+      document.addEventListener("click", function () {
+        closeAllOutputTooltips();
+      });
+      document.querySelectorAll(".output-linha").forEach(function (row) {
+        row.addEventListener("click", function (e) {
+          e.stopPropagation();
+        });
+      });
+    }
+
+    function parseSimNumber(id) {
+      var el = document.getElementById(id);
+      if (!el || el.value === "") return NaN;
+      var n = parseFloat(String(el.value).replace(",", "."));
+      return Number.isFinite(n) ? n : NaN;
+    }
+
+    function updateSimMargem() {
+      var vgv = parseSimNumber("sim-vgv");
+      var terreno = parseSimNumber("sim-terreno");
+      var casa = parseSimNumber("sim-casa");
+      var outros = parseSimNumber("sim-outros");
+      var res = document.getElementById("sim-margem-result");
+      var nota = document.getElementById("sim-margem-nota");
+      if (!res) return;
+      if (!Number.isFinite(vgv) || vgv <= 0 || [terreno, casa, outros].some(function (x) { return !Number.isFinite(x); })) {
+        res.classList.remove("is-visible", "sim-margem-result--ok", "sim-margem-result--mid", "sim-margem-result--low");
+        res.textContent = "";
+        if (nota) nota.hidden = true;
+        return;
+      }
+      var margem = ((vgv * 0.88 - terreno - casa - outros) / vgv) * 100;
+      var txt = "Margem estimada não alavancada: " + margem.toFixed(1).replace(".", ",") + "%";
+      res.textContent = txt;
+      res.classList.remove("sim-margem-result--ok", "sim-margem-result--mid", "sim-margem-result--low");
+      if (margem >= 25) res.classList.add("sim-margem-result--ok");
+      else if (margem >= 15) res.classList.add("sim-margem-result--mid");
+      else res.classList.add("sim-margem-result--low");
+      res.classList.add("is-visible");
+      if (nota) nota.hidden = false;
+    }
+
+    function wireSimMargem() {
+      ["sim-vgv", "sim-terreno", "sim-casa", "sim-outros"].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener("input", updateSimMargem);
+      });
+    }
+
     function openFromHash() {
       var aliases = {
         "ordem-preenchimento": "ordem",
         "erros-comuns": "erros",
         "checklist-final": "checklist"
       };
-      var h = (location.hash || "").replace(/^#/, "").trim();
+      var raw = (location.hash || "").replace(/^#/, "").trim();
       var leitura = document.documentElement.classList.contains("modo-leitura");
+
+      if (raw.indexOf("campo-") === 0) {
+        openCampoFromHash(raw);
+        return;
+      }
+
+      var h = aliases[raw] || raw;
 
       if (!h) {
         if (leitura) {
@@ -2843,7 +3465,7 @@
         window.showSection("introducao");
         return;
       }
-      h = aliases[h] || h;
+
       var target = document.getElementById("sec-" + h);
 
       if (leitura) {
@@ -2906,6 +3528,7 @@
       if (bl) {
         bl.classList.remove("modo-toggle__btn--active");
       }
+      syncVisitedUi();
       openFromHash();
     }
 
@@ -2917,9 +3540,13 @@
       window.__treinoBcaPageInit = true;
 
       applyFrankGreeting();
+      enhanceCampoCards();
+      syncVisitedUi();
       openFromHash();
       window.restoreChecklistFromStorage();
       window.updateProgress();
+      wireOutputTooltipDismiss();
+      wireSimMargem();
 
       document.addEventListener("keydown", function checklistKeyNav(e) {
         if ((e.key === "Enter" || e.key === " ") && e.target.closest(".check-item")) {
