@@ -25,14 +25,17 @@ export function TreinamentoBcaSecaoClient({ secao, modoPublico = false }: Props)
     if (modoPublico) q.set('leitura', '1');
     q.set('checklistTab', bcaTreinamentoEmbedDeveExibirChecklist() ? '1' : '0');
     const qs = q.toString();
-    return `/embed/bca-manual-moni.html${qs ? `?${qs}` : ''}#${secao}`;
+    const base = `/embed/bca-manual-moni.html${qs ? `?${qs}` : ''}`;
+    /** Link público fixo: modo leitura exibe todas as seções — sem hash por aba. */
+    if (modoPublico) return base;
+    return `${base}#${secao}`;
   }, [frank, secao, modoPublico]);
 
   const secoesHub = getBcaTreinamentoSecoesParaHub();
   const secaoLabel = secoesHub.find((x) => x.id === secao)?.label ?? secao;
 
   const pathInterno = `/treinamento-bca/${secao}${querySuffix}`;
-  const pathPublicoLeitura = `/treinamento-bca/leitura/${secao}${querySuffix}`;
+  const pathPublicoLeitura = `/treinamento-bca/leitura${querySuffix}`;
 
   const copyLinkInterno = async () => {
     try {
@@ -59,33 +62,33 @@ export function TreinamentoBcaSecaoClient({ secao, modoPublico = false }: Props)
   if (modoPublico) {
     return (
       <div className="flex h-full min-h-0 flex-1 flex-col bg-stone-100">
-        <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-stone-200 bg-white px-3 py-2 md:px-4">
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-stone-200 bg-white px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] md:px-4">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-stone-800">Treinamento BCA — modo leitura</p>
-            <p className="truncate text-xs text-stone-500">{secaoLabel}</p>
+            <p className="truncate text-xs text-stone-500">Manual completo · role a página para ver todas as seções</p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => void copyLinkPublico()}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-moni-primary shadow-sm hover:bg-moni-light/40"
+              className="touch-manipulation inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-moni-primary shadow-sm hover:bg-moni-light/40 sm:min-h-0 sm:min-w-0 sm:py-1.5"
             >
               <Link2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
               {copiedPublico ? 'Link copiado!' : 'Copiar link público'}
             </button>
             <Link
               href="/login"
-              className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-50"
+              className="touch-manipulation flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-700 hover:bg-stone-50 sm:min-h-0 sm:min-w-0 sm:py-1.5"
             >
               Entrar
             </Link>
           </div>
         </header>
-        <main className="relative min-h-0 flex-1 p-2 md:p-3">
+        <main className="relative min-h-0 flex-1 overflow-hidden p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:p-3">
           <iframe
-            title={`Treinamento BCA — ${secaoLabel} (leitura)`}
+            title="Treinamento BCA — manual completo (leitura)"
             src={iframeSrc}
-            className="h-full min-h-[min(720px,calc(100dvh-5rem))] w-full rounded-xl border border-stone-200 bg-white shadow-sm"
+            className="h-full min-h-[45vh] w-full flex-1 rounded-xl border border-stone-200 bg-white shadow-sm sm:min-h-0"
             sandbox="allow-scripts allow-same-origin allow-forms"
           />
         </main>
@@ -136,7 +139,7 @@ export function TreinamentoBcaSecaoClient({ secao, modoPublico = false }: Props)
               {copiedPublico ? 'Link público copiado!' : 'Copiar link público (leitura)'}
             </button>
             <p className="px-1 text-[10px] leading-snug text-stone-500">
-              O link público abre só o manual em modo leitura, sem menu do Hub — para quem não tem acesso ao app.
+              O link público é único (/treinamento-bca/leitura): manual completo em modo leitura, sem menu do Hub — funciona no celular.
             </p>
           </div>
         </div>

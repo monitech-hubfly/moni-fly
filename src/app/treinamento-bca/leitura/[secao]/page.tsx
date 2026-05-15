@@ -1,19 +1,16 @@
-import { notFound } from 'next/navigation';
-import { Suspense } from 'react';
-import { getBcaTreinamentoSecoesParaHub, isBcaTreinamentoSecaoHubAtiva } from '@/lib/treinamento-bca-secoes';
-import { TreinamentoBcaSecaoClient } from '@/components/treinamento-bca/TreinamentoBcaSecaoClient';
+import { redirect } from 'next/navigation';
 
-export const dynamicParams = false;
+type Props = {
+  params: Promise<{ secao: string }>;
+  searchParams: Promise<{ frank?: string }>;
+};
 
-export function generateStaticParams() {
-  return getBcaTreinamentoSecoesParaHub().map((s) => ({ secao: s.id }));
-}
-
-export default function TreinamentoBcaLeituraPublicaPage({ params }: { params: { secao: string } }) {
-  if (!isBcaTreinamentoSecaoHubAtiva(params.secao)) notFound();
-  return (
-    <Suspense fallback={<div className="px-4 py-6 text-sm text-stone-600">Carregando treinamento…</div>}>
-      <TreinamentoBcaSecaoClient secao={params.secao} modoPublico />
-    </Suspense>
-  );
+/** Compat: URLs antigas `/leitura/:secao` → link único `/treinamento-bca/leitura`. */
+export default async function TreinamentoBcaLeituraSecaoParaLinkFixo(props: Props) {
+  await props.params;
+  const sp = await props.searchParams;
+  const q = new URLSearchParams();
+  if (sp.frank) q.set('frank', sp.frank);
+  const qs = q.toString();
+  redirect(`/treinamento-bca/leitura${qs ? `?${qs}` : ''}`);
 }
