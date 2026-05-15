@@ -19,9 +19,9 @@ export type FerramentaBiblioteca = {
 export const FERRAMENTAS_BIBLIOTECA: FerramentaBiblioteca[] = [
   {
     id: 'bca-analise-viabilidade',
-    titulo: 'BCA — Análise de viabilidade',
+    titulo: 'Treinamento BCA Moní — Manual do Franqueado',
     descricaoCurta:
-      'Simulador financeiro em 3 cenários: Planta, Target e Liquidação. Motor central de toda decisão de investimento. Meta: %VGV Target ≥ 10%.',
+      'Manual operacional interativo: aba Resumo campo a campo (C7 a C78), 4 cenários de venda, checklist com 36 itens, simulador de margem e roteiro de defesa no comitê.',
     tags: ['Planilha', 'Financeiro', 'Obrigatório'],
     icon: 'bca',
     iconBgClass: 'bg-violet-100',
@@ -46,7 +46,7 @@ O **BCA (Business Case Analysis)** é a planilha-mãe da Moní para decidir se u
 
 - Nunca apresente preço ou permuta ao mercado sem um BCA coerente com a documentação de concorrentes (mapa e batalha de casas).
 - Versione a planilha: use sempre o arquivo oficial da biblioteca **Documentos** para não divergir de premissas.`,
-    linkPrincipal: { label: 'Abrir treinamento interativo (manual)', href: '/treinamento-bca.html' },
+    linkPrincipal: { label: 'Abrir treinamento interativo', href: '/treinamento-bca.html' },
   },
   {
     id: 'mapa-competidores',
