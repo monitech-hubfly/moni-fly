@@ -272,13 +272,6 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
           },
         )}
 
-        <Link
-          href="/treinamento-bca/introducao"
-          className={linkClassPrincipal(Boolean(pathname?.startsWith('/treinamento-bca')))}
-        >
-          Treinamento BCA
-        </Link>
-
         {renderMacro(
           'painelNovosNegocios',
           'Empreendimentos',

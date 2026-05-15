@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import {
   BarChart3,
@@ -135,6 +136,7 @@ export function BibliotecaClient({
   itens: UniBibliotecaItem[];
   nomeFranqueado?: string | null;
 }) {
+  const router = useRouter();
   const [aba, setAba] = useState<AbaBiblioteca>('ferramentas');
   const [ferramentaModal, setFerramentaModal] = useState<FerramentaBiblioteca | null>(null);
   const [cat, setCat] = useState<string>('Todos');
@@ -189,11 +191,19 @@ export function BibliotecaClient({
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {FERRAMENTAS_BIBLIOTECA.map((f, index) => {
               const destaque = index === 0;
+              const abrirTreinoNoHub =
+                f.id === 'bca-analise-viabilidade' && f.linkPrincipal?.href?.startsWith('/treinamento-bca');
               return (
                 <button
                   key={f.id}
                   type="button"
-                  onClick={() => setFerramentaModal(f)}
+                  onClick={() => {
+                    if (abrirTreinoNoHub && f.linkPrincipal) {
+                      router.push(resolveLinkPrincipalHref(f.linkPrincipal.href, nomeFranqueado));
+                      return;
+                    }
+                    setFerramentaModal(f);
+                  }}
                   className={`flex flex-col rounded-xl bg-white p-5 text-left shadow-sm ring-offset-2 transition hover:shadow-md focus-visible:outline focus-visible:ring-2 focus-visible:ring-moni-primary ${
                     destaque
                       ? 'border-2 border-green-600 ring-1 ring-green-600/30'

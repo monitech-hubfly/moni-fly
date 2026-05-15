@@ -1848,6 +1848,201 @@
               </div>
             </div>
           </div>
+
+          <h3 class="grupo-secao-label">Leitura dos resultados</h3>
+          <p style="margin-top: 0.25rem; margin-bottom: 0.75rem; font-size: 0.9rem; color: var(--c-text-muted)">
+            No <strong>Resumo</strong>, após preencher os passos, use estas linhas (por coluna de cenário) para interpretar caixa, terreno e margem antes do comitê.
+          </p>
+
+          <div class="campo-card">
+            <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
+              <span class="campo-celula">L102</span>
+              <span class="campo-nome">Venda Líquida — VGV menos comissão e impostos</span>
+              <span class="campo-tipo campo-tipo-automatico">LEITURA</span>
+              <i class="campo-chevron" aria-hidden="true">▾</i>
+            </button>
+            <div class="campo-body">
+              <div class="campo-body-inner">
+                <div class="campo-blocos-grid">
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">O que mede</div>
+                    <p>Quanto sobra da venda depois de pagar comissão e impostos.</p>
+                  </div>
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">Leitura</div>
+                    <p>É o dinheiro que entra de fato na operação antes de qualquer custo de construção ou terreno.</p>
+                  </div>
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">Por cenário</div>
+                    <p>Compare C, D, E e F para ver se o VGV líquido sustenta a narrativa comercial em cada hipótese.</p>
+                  </div>
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">Conferência</div>
+                    <p>Deve conversar com preço de tabela, comissões acordadas e regime tributário da operação.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="campo-card">
+            <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
+              <span class="campo-celula">L104</span>
+              <span class="campo-nome">Total Terreno — valor base + variável + ITBI</span>
+              <span class="campo-tipo campo-tipo-automatico">LEITURA</span>
+              <i class="campo-chevron" aria-hidden="true">▾</i>
+            </button>
+            <div class="campo-body">
+              <div class="campo-body-inner">
+                <div class="campo-blocos-grid">
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">O que mede</div>
+                    <p>Soma do valor base do terreno, da rentabilidade acumulada do terrenista e do ITBI.</p>
+                  </div>
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">Variação</div>
+                    <p>Varia por cenário porque a rentabilidade do terreno evolui com o tempo.</p>
+                  </div>
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">Uso</div>
+                    <p>Cruzar com C26–C30 e com a tese de aquisição antes de defender preço de venda.</p>
+                  </div>
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">Alerta</div>
+                    <p>Descompasso entre terreno e VGV líquido aparece primeiro aqui e em L107.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="campo-card">
+            <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
+              <span class="campo-celula">L107</span>
+              <span class="campo-nome">% Equivalente Permuta — terreno como % do VGV líquido</span>
+              <span class="campo-tipo campo-tipo-automatico">LEITURA</span>
+              <i class="campo-chevron" aria-hidden="true">▾</i>
+            </button>
+            <div class="campo-body">
+              <div class="campo-body-inner">
+                <div class="campo-blocos-grid">
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">O que mede</div>
+                    <p>Quanto o terreno consome do VGV líquido em percentual.</p>
+                  </div>
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">Faixas de conforto</div>
+                    <p>Acima de <strong>25%</strong> começa a pesar na margem; abaixo de <strong>18%</strong> costuma ser mais confortável.</p>
+                  </div>
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">Uso</div>
+                    <p>Disciplina permuta e “peso” do terreno na conta do produto.</p>
+                  </div>
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">Conferência</div>
+                    <p>Leia em paralelo com L104 e com a política de praça do condomínio.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="campo-card">
+            <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
+              <span class="campo-celula">L120</span>
+              <span class="campo-nome">Resultado não alavancado — antes do custo financeiro</span>
+              <span class="campo-tipo campo-tipo-automatico">LEITURA</span>
+              <i class="campo-chevron" aria-hidden="true">▾</i>
+            </button>
+            <div class="campo-body">
+              <div class="campo-body-inner">
+                <div class="campo-blocos-grid">
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">O que mede</div>
+                    <p>Resultado da operação <strong>sem</strong> considerar o custo do funding.</p>
+                  </div>
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">Leitura</div>
+                    <p>Mostra se o negócio faz sentido <strong>independentemente</strong> de financiamento.</p>
+                  </div>
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">Uso</div>
+                    <p>Primeiro filtro de sanidade antes de olhar margem alavancada (L124–L125).</p>
+                  </div>
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">Conferência</div>
+                    <p>Se L120 é fraco e L124–L125 “salva” tudo, o risco está concentrado no funding.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="campo-card">
+            <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
+              <span class="campo-celula">L124-L125</span>
+              <span class="campo-nome">★ Resultado alavancado — principal indicador da operação</span>
+              <span class="campo-tipo campo-tipo-automatico">LEITURA</span>
+              <i class="campo-chevron" aria-hidden="true">▾</i>
+            </button>
+            <div class="campo-body">
+              <div class="campo-body-inner">
+                <div class="alerta alerta-ok" style="margin-top: 0; margin-bottom: 0.75rem">
+                  <span class="alerta-icone" aria-hidden="true">★</span>
+                  <span>Principal linha para comitê: margem depois de pagar tudo, <strong>incluindo funding</strong>.</span>
+                </div>
+                <div class="campo-blocos-grid">
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">O que mede</div>
+                    <p>Margem final depois de pagar todos os custos e o financeiro.</p>
+                  </div>
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">Meta de alerta</div>
+                    <p>Abaixo de <strong>10%</strong> no <strong>Target</strong> costuma ser sinal amarelo para revisão de preço, prazo ou custo.</p>
+                  </div>
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">Uso</div>
+                    <p>Compare Target vs Liquidação para ver se a operação aguenta estresse.</p>
+                  </div>
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">Conferência</div>
+                    <p>Cruzar com H85 / D125 / E125 e com as células de elegibilidade C14:D16.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="campo-card">
+            <button type="button" class="campo-header" onclick="window.toggleCampo(this)" aria-expanded="false">
+              <span class="campo-celula">L129</span>
+              <span class="campo-nome">Resultado total Frank</span>
+              <span class="campo-tipo campo-tipo-automatico">LEITURA</span>
+              <i class="campo-chevron" aria-hidden="true">▾</i>
+            </button>
+            <div class="campo-body">
+              <div class="campo-body-inner">
+                <div class="campo-blocos-grid">
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">O que mede</div>
+                    <p>Resultado alocado ao franqueado na estrutura da operação.</p>
+                  </div>
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">Leitura</div>
+                    <p>Após deduções da plataforma e gestão, conforme modelo vigente.</p>
+                  </div>
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">Uso</div>
+                    <p>Alinhar expectativa de retorno do Frank com o que foi modelado no BCA.</p>
+                  </div>
+                  <div class="campo-bloco">
+                    <div class="campo-bloco-label">Conferência</div>
+                    <p>Validar coerência com L124–L125 e com políticas internas de participação.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -2515,92 +2710,6 @@
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <h2 class="outputs-leitura-titulo">Leitura dos resultados</h2>
-          <div class="outputs-grid">
-            <div class="output-linha">
-              <div class="output-linha-ref-row">
-                <span class="output-linha-ref">L102</span>
-                <button type="button" class="output-linha-info" aria-expanded="false" aria-label="Contexto sobre L102" onclick="window.toggleOutputTooltip(event, this)">ⓘ</button>
-              </div>
-              <div class="output-linha-tooltip">
-                Quanto sobra da venda depois de pagar comissão e impostos. É o dinheiro que entra de fato na operação antes de qualquer custo de construção ou terreno.
-              </div>
-              <p class="output-linha-desc">Venda Líquida — VGV menos comissão e impostos</p>
-            </div>
-            <div class="output-linha">
-              <div class="output-linha-ref-row">
-                <span class="output-linha-ref">L104</span>
-                <button type="button" class="output-linha-info" aria-expanded="false" aria-label="Contexto sobre L104" onclick="window.toggleOutputTooltip(event, this)">ⓘ</button>
-              </div>
-              <div class="output-linha-tooltip">
-                Soma do valor base do terreno, da rentabilidade acumulada do terrenista e do ITBI. Varia por cenário porque a rentabilidade cresce com o tempo.
-              </div>
-              <p class="output-linha-desc">Total Terreno — valor base + variável + ITBI</p>
-            </div>
-            <div class="output-linha">
-              <div class="output-linha-ref-row">
-                <span class="output-linha-ref">L107</span>
-                <button type="button" class="output-linha-info" aria-expanded="false" aria-label="Contexto sobre L107" onclick="window.toggleOutputTooltip(event, this)">ⓘ</button>
-              </div>
-              <div class="output-linha-tooltip">
-                Quanto o terreno consome do VGV líquido em percentual. Acima de 25% começa a pesar na margem. Abaixo de 18% é confortável.
-              </div>
-              <p class="output-linha-desc">% Equivalente Permuta — terreno como % do VGV líquido</p>
-            </div>
-            <div class="output-linha">
-              <div class="output-linha-ref-row">
-                <span class="output-linha-ref">L120</span>
-                <button type="button" class="output-linha-info" aria-expanded="false" aria-label="Contexto sobre L120" onclick="window.toggleOutputTooltip(event, this)">ⓘ</button>
-              </div>
-              <div class="output-linha-tooltip">
-                Resultado da operação sem considerar o custo do funding. Mostra se o negócio faz sentido independente de financiamento.
-              </div>
-              <p class="output-linha-desc">Resultado não alavancado — antes do custo financeiro</p>
-            </div>
-            <div class="output-linha">
-              <div class="output-linha-ref-row">
-                <span class="output-linha-ref">L122</span>
-                <button type="button" class="output-linha-info" aria-expanded="false" aria-label="Contexto sobre L122" onclick="window.toggleOutputTooltip(event, this)">ⓘ</button>
-              </div>
-              <div class="output-linha-tooltip">
-                Custo total do capital tomado. Quanto maior o prazo e a necessidade, maior esse número. Prazo longo com CET alto pode consumir toda a margem.
-              </div>
-              <p class="output-linha-desc">Juros + custo financeiro — impacto do funding</p>
-            </div>
-            <div class="output-linha output-linha--destaque">
-              <div class="output-linha-ref-row">
-                <span class="output-linha-ref">L124–L125</span>
-                <button type="button" class="output-linha-info" aria-expanded="false" aria-label="Contexto sobre L124–L125" onclick="window.toggleOutputTooltip(event, this)">ⓘ</button>
-              </div>
-              <div class="output-linha-tooltip">
-                Margem final depois de pagar tudo, incluindo o funding. É o número que o comitê olha primeiro. Abaixo de 10% no Target é sinal de alerta.
-              </div>
-              <p class="output-linha-desc"><strong>★ Resultado alavancado</strong> — principal indicador da operação</p>
-            </div>
-            <div class="output-linha">
-              <div class="output-linha-ref-row">
-                <span class="output-linha-ref">L129</span>
-                <button type="button" class="output-linha-info" aria-expanded="false" aria-label="Contexto sobre L129" onclick="window.toggleOutputTooltip(event, this)">ⓘ</button>
-              </div>
-              <div class="output-linha-tooltip">
-                Resultado alocado ao franqueado na estrutura da operação, após deduções da plataforma e gestão.
-              </div>
-              <p class="output-linha-desc">Resultado total Frank</p>
-            </div>
-            <div class="output-linha">
-              <div class="output-linha-ref-row">
-                <span class="output-linha-ref">L134</span>
-                <button type="button" class="output-linha-info" aria-expanded="false" aria-label="Contexto sobre L134" onclick="window.toggleOutputTooltip(event, this)">ⓘ</button>
-              </div>
-              <div class="output-linha-tooltip">
-                Mostra se o terrenista está sendo remunerado acima do CDI. Acima de 100% do CDI é competitivo para convencer o terrenista a ficar no sucesso.
-              </div>
-              <p class="output-linha-desc">TIR Terrenista vs CDI</p>
             </div>
           </div>
         </div>
