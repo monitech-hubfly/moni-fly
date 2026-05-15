@@ -18,6 +18,7 @@ const nextConfig = {
       { source: '/sirene/interacoes', destination: '/sirene/chamados', permanent: true },
       { source: '/sirene/interacoes/:path*', destination: '/sirene/chamados', permanent: true },
       { source: '/treinamento-bca/cenarios', destination: '/treinamento-bca/ordem', permanent: true },
+      { source: '/treinamento-bca/abas-fluxo', destination: '/treinamento-bca/introducao', permanent: true },
     ];
   },
 };
