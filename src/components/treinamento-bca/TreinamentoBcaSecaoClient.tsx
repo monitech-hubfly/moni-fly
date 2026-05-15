@@ -12,6 +12,9 @@ import {
 
 type Props = { secao: BcaTreinamentoSecao; /** Link público: só manual, modo leitura, sem sidebar Hub. */ modoPublico?: boolean };
 
+/** Caminho canónico compartilhável: sem query (todos o mesmo link). */
+const PATH_LEITURA_PUBLICA = '/treinamento-bca/leitura';
+
 export function TreinamentoBcaSecaoClient({ secao, modoPublico = false }: Props) {
   const sp = useSearchParams();
   const frank = sp.get('frank');
@@ -21,7 +24,7 @@ export function TreinamentoBcaSecaoClient({ secao, modoPublico = false }: Props)
 
   const iframeSrc = useMemo(() => {
     const q = new URLSearchParams();
-    if (frank) q.set('frank', frank);
+    if (frank && !modoPublico) q.set('frank', frank);
     if (modoPublico) q.set('leitura', '1');
     q.set('checklistTab', bcaTreinamentoEmbedDeveExibirChecklist() ? '1' : '0');
     const qs = q.toString();
@@ -35,7 +38,7 @@ export function TreinamentoBcaSecaoClient({ secao, modoPublico = false }: Props)
   const secaoLabel = secoesHub.find((x) => x.id === secao)?.label ?? secao;
 
   const pathInterno = `/treinamento-bca/${secao}${querySuffix}`;
-  const pathPublicoLeitura = `/treinamento-bca/leitura${querySuffix}`;
+  const pathPublicoLeitura = PATH_LEITURA_PUBLICA;
 
   const copyLinkInterno = async () => {
     try {
@@ -139,7 +142,7 @@ export function TreinamentoBcaSecaoClient({ secao, modoPublico = false }: Props)
               {copiedPublico ? 'Link público copiado!' : 'Copiar link público (leitura)'}
             </button>
             <p className="px-1 text-[10px] leading-snug text-stone-500">
-              O link público é único (/treinamento-bca/leitura): manual completo em modo leitura, sem menu do Hub — funciona no celular.
+              O link público é sempre o mesmo (/treinamento-bca/leitura), sem nome na URL — manual completo em modo leitura, sem menu do Hub.
             </p>
           </div>
         </div>
