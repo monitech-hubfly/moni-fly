@@ -247,22 +247,33 @@ export async function getCertificados(supabase: SupabaseClient, userId: string):
   }));
 }
 
-export async function getBibliotecaDocumentoPorSlug(
-  supabase: SupabaseClient,
-  slug: string,
-): Promise<UniBibliotecaItem | null> {
-  const s = slug.trim();
-  if (!s) return null;
-  const { data, error } = await supabase
-    .from('uni_biblioteca')
-    .select('id, categoria, titulo, descricao, tipo, url, slug, ativo, tags, visivel_para, criado_em')
-    .eq('slug', s)
-    .eq('ativo', true)
-    .eq('tipo', 'documento-interno')
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) return null;
-  const r = data;
+const BIBLIOTECA_SELECT_FULL =
+  'id, categoria, titulo, descricao, tipo, url, slug, ativo, tags, visivel_para, criado_em';
+const BIBLIOTECA_SELECT_LEGACY =
+  'id, categoria, titulo, descricao, tipo, url, tags, visivel_para, criado_em';
+
+type BibliotecaRow = {
+  id: string;
+  categoria: string;
+  titulo: string;
+  descricao: string | null;
+  tipo: string | null;
+  url: string | null;
+  slug?: string | null;
+  ativo?: boolean | null;
+  tags: string[] | null;
+  visivel_para: string[] | null;
+  criado_em: string | null;
+};
+
+function isBibliotecaSchemaLegacyError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  if (error.code === '42703') return true;
+  const msg = error.message ?? '';
+  return msg.includes('slug') && msg.includes('does not exist');
+}
+
+function mapBibliotecaRow(r: BibliotecaRow): UniBibliotecaItem {
   return {
     id: String(r.id),
     categoria: String(r.categoria),
@@ -278,34 +289,56 @@ export async function getBibliotecaDocumentoPorSlug(
   };
 }
 
+export async function getBibliotecaDocumentoPorSlug(
+  supabase: SupabaseClient,
+  slug: string,
+): Promise<UniBibliotecaItem | null> {
+  const s = slug.trim();
+  if (!s) return null;
+  const { data, error } = await supabase
+    .from('uni_biblioteca')
+    .select(BIBLIOTECA_SELECT_FULL)
+    .eq('slug', s)
+    .eq('ativo', true)
+    .eq('tipo', 'documento-interno')
+    .maybeSingle();
+  if (isBibliotecaSchemaLegacyError(error)) return null;
+  if (error) throw error;
+  if (!data) return null;
+  return mapBibliotecaRow(data as BibliotecaRow);
+}
+
 export async function getBiblioteca(
   supabase: SupabaseClient,
   categoria?: string,
 ): Promise<UniBibliotecaItem[]> {
   let q = supabase
     .from('uni_biblioteca')
-    .select('id, categoria, titulo, descricao, tipo, url, slug, ativo, tags, visivel_para, criado_em')
+    .select(BIBLIOTECA_SELECT_FULL)
     .eq('ativo', true)
     .order('categoria', { ascending: true })
     .order('titulo', { ascending: true });
   if (categoria?.trim()) {
     q = q.eq('categoria', categoria.trim());
   }
-  const { data, error } = await q;
+  let { data, error } = await q;
+
+  if (isBibliotecaSchemaLegacyError(error)) {
+    let qLegacy = supabase
+      .from('uni_biblioteca')
+      .select(BIBLIOTECA_SELECT_LEGACY)
+      .order('categoria', { ascending: true })
+      .order('titulo', { ascending: true });
+    if (categoria?.trim()) {
+      qLegacy = qLegacy.eq('categoria', categoria.trim());
+    }
+    const legacy = await qLegacy;
+    if (legacy.error) throw legacy.error;
+    return (legacy.data ?? []).map((r) => mapBibliotecaRow(r as BibliotecaRow));
+  }
+
   if (error) throw error;
-  return (data ?? []).map((r) => ({
-    id: String(r.id),
-    categoria: String(r.categoria),
-    titulo: String(r.titulo),
-    descricao: r.descricao != null ? String(r.descricao) : null,
-    tipo: (r.tipo as UniBibliotecaItem['tipo']) ?? null,
-    url: r.url != null ? String(r.url) : null,
-    slug: r.slug != null ? String(r.slug) : null,
-    ativo: r.ativo == null ? true : Boolean(r.ativo),
-    tags: (r.tags as string[] | null) ?? null,
-    visivel_para: (r.visivel_para as string[] | null) ?? null,
-    criado_em: r.criado_em != null ? String(r.criado_em) : null,
-  }));
+  return (data ?? []).map((r) => mapBibliotecaRow(r as BibliotecaRow));
 }
 
 /** Progresso geral: média dos percentuais de todas as casas (peso igual por casa; só sobe com módulos concluídos). */
