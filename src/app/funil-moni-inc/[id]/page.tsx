@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { CardDetailClient } from './CardDetailClient';
+import { KANBAN_NOME_FUNIL_LOTEADORES } from '@/lib/kanban/funil-loteadores';
 
 export default async function FunilMoniIncCardDetailPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
@@ -62,7 +63,7 @@ export default async function FunilMoniIncCardDetailPage({ params }: { params: {
     .select('nome')
     .eq('id', (cardRaw as { kanban_id: string }).kanban_id)
     .maybeSingle();
-  if (kanbanRow?.nome !== 'Funil Moní INC') {
+  if (kanbanRow?.nome !== KANBAN_NOME_FUNIL_LOTEADORES) {
     redirect('/funil-moni-inc');
   }
 

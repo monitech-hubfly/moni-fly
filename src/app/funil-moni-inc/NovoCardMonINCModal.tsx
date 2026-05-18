@@ -4,8 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { criarCard } from '@/lib/actions/card-actions';
-
-const KANBAN_NOME = 'Funil Moní INC' as const;
+import { KANBAN_NOME_FUNIL_LOTEADORES } from '@/lib/kanban/funil-loteadores';
 
 export function NovoCardMonINCModal({
   faseId,
@@ -39,7 +38,7 @@ export function NovoCardMonINCModal({
     try {
       const res = await criarCard({
         titulo: t,
-        kanban_nome: KANBAN_NOME,
+        kanban_nome: KANBAN_NOME_FUNIL_LOTEADORES,
         fase_id: faseId,
         basePath: '/funil-moni-inc',
       });

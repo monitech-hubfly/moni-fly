@@ -110,8 +110,8 @@ import {
   filtrarOpcoesResponsaveisPorModoHdm,
   HDM_RESPONSAVEIS_TODOS_EMAILS,
   inferirHdmResponsavelPorNomesTimes,
-  ordenarLinhasTimeKanbanPorCatalogoMoni,
   responsaveisFiltroOpcoesComCatalogoMoni,
+  timesOpcoesReceberChamado,
   responsaveisDoTimeMoni,
   timesFiltroOpcoesComCatalogoMoni,
   timesMoniReceberChamadoOpcoes,
@@ -402,22 +402,10 @@ export function KanbanCardModal({
   } | null>(null);
   const [solicitandoAprovacaoFase, setSolicitandoAprovacaoFase] = useState(false);
 
-  const timesNovaFiltrados = useMemo(
-    () => ordenarLinhasTimeKanbanPorCatalogoMoni(kanbanTimes, false),
-    [kanbanTimes],
-  );
-  const timesEditFiltrados = useMemo(
-    () => ordenarLinhasTimeKanbanPorCatalogoMoni(kanbanTimes, false),
-    [kanbanTimes],
-  );
-  const kanbanTimesSubNovaFiltrados = useMemo(
-    () => ordenarLinhasTimeKanbanPorCatalogoMoni(kanbanTimes, false),
-    [kanbanTimes],
-  );
-  const kanbanTimesSubEditFiltrados = useMemo(
-    () => ordenarLinhasTimeKanbanPorCatalogoMoni(kanbanTimes, false),
-    [kanbanTimes],
-  );
+  const timesNovaFiltrados = useMemo(() => timesOpcoesReceberChamado(kanbanTimes), [kanbanTimes]);
+  const timesEditFiltrados = useMemo(() => timesOpcoesReceberChamado(kanbanTimes), [kanbanTimes]);
+  const kanbanTimesSubNovaFiltrados = useMemo(() => timesOpcoesReceberChamado(kanbanTimes), [kanbanTimes]);
+  const kanbanTimesSubEditFiltrados = useMemo(() => timesOpcoesReceberChamado(kanbanTimes), [kanbanTimes]);
 
   useEffect(() => {
     setArquivamentoAberto(false);
@@ -3384,9 +3372,7 @@ export function KanbanCardModal({
                                                 onChange={(e) => {
                                                   const v = e.target.value as SubInteracaoTipoDb;
                                                   const allowed = new Set(
-                                                    ordenarLinhasTimeKanbanPorCatalogoMoni(kanbanTimes, false).map(
-                                                      (t) => t.id,
-                                                    ),
+                                                    timesOpcoesReceberChamado(kanbanTimes).map((t) => t.id),
                                                   );
                                                   setEditSubDraft((s) => ({
                                                     ...s,

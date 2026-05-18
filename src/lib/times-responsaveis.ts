@@ -19,6 +19,7 @@ export const TIMES_MONI = [
   'Modelo Virtual',
   'Moní Inc',
   'Novos Franqueados',
+  'Portfólio',
   'Produto',
   'Waysers',
 ] as const;
@@ -219,6 +220,7 @@ export const RESPONSAVEIS_POR_TIME: Record<string, string[]> = {
   Jurídico: ['Isabela Correa'],
   Crédito: ['Thais Kim'],
   'Novos Franqueados': ['Paula Cruz'],
+  Portfólio: ['Helenna Luz'],
   Bombeiro: ['Bombeiro'],
 };
 
@@ -242,6 +244,13 @@ export function timesFiltroOpcoesComCatalogoMoni(
     const hit = byNome.get(nome);
     return { id: hit?.id ?? `${MONI_TIME_FILTRO_PREFIX}${nome}`, nome };
   });
+}
+
+/** Chips «Time que receberá o chamado» / atividades nos funis: catálogo Moní completo, ordenado. */
+export function timesOpcoesReceberChamado(
+  kanbanTimes: readonly { id: string; nome: string }[],
+): { id: string; nome: string }[] {
+  return ordenarLinhasTimeKanbanPorCatalogoMoni(timesFiltroOpcoesComCatalogoMoni(kanbanTimes), false);
 }
 
 /**

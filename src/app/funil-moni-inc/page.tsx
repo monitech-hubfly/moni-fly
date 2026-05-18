@@ -8,6 +8,7 @@ import { KanbanTabs } from './KanbanTabs';
 import { PainelPerformance } from '@/components/kanban-shared/PainelPerformance';
 import type { KanbanCardBrief, KanbanFase } from '@/components/kanban-shared/types';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
+import { KANBAN_NOME_FUNIL_LOTEADORES } from '@/lib/kanban/funil-loteadores';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +35,7 @@ export default async function FunilMoniIncPage({
   const { data: kanbans, error: kanbanError } = await supabase
     .from('kanbans')
     .select('id, nome')
-    .eq('nome', 'Funil Moní INC')
+    .eq('nome', KANBAN_NOME_FUNIL_LOTEADORES)
     .eq('ativo', true)
     .limit(1);
 
@@ -50,7 +51,7 @@ export default async function FunilMoniIncPage({
         <div className="text-center">
           <h1 className="text-xl font-bold text-stone-800">Kanban não encontrado</h1>
           <p className="mt-2 text-sm text-stone-600">
-            O Kanban &ldquo;Funil Moní INC&rdquo; ainda não foi configurado.
+            O Kanban &ldquo;{KANBAN_NOME_FUNIL_LOTEADORES}&rdquo; ainda não foi configurado.
           </p>
           <Link href="/" className="mt-4 inline-block text-sm text-moni-primary hover:underline">
             ← Voltar
@@ -171,7 +172,7 @@ export default async function FunilMoniIncPage({
       basePath="/funil-moni-inc"
       isAdmin={isAdmin}
       kanbanId={kanban.id}
-      kanbanNome="Funil Moní INC"
+      kanbanNome={KANBAN_NOME_FUNIL_LOTEADORES}
       fases={fases}
     >
       <div className="min-h-screen bg-stone-50">
@@ -201,7 +202,7 @@ export default async function FunilMoniIncPage({
         {activeTab === 'painel' && (
           <main className="mx-auto max-w-[1600px] px-6 py-8">
             <PainelPerformance
-              kanbanNome="Funil Moní INC"
+              kanbanNome={KANBAN_NOME_FUNIL_LOTEADORES}
               kanbanId={String(kanban.id)}
               fases={(fases ?? []) as KanbanFase[]}
               cards={cards as KanbanCardBrief[]}

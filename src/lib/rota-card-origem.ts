@@ -14,7 +14,7 @@ export function rotaCardOrigem(kanbanNome: string, cardId: string | null | undef
   switch (nome) {
     case 'Funil Step One':
       return `/funil-stepone?card=${q}`;
-    case 'Funil Moní INC':
+    case 'Funil Loteadores':
       return `/funil-moni-inc?card=${q}`;
     case 'Funil Portfólio':
       return `/portfolio?card=${q}&origem=legado`;

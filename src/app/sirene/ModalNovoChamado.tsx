@@ -11,7 +11,7 @@ import {
   HDM_RESPONSAVEIS_TODOS_EMAILS,
   filtrarOpcoesResponsaveisPorModoHdm,
   inferirHdmResponsavelPorNomesTimes,
-  ordenarLinhasTimeKanbanPorCatalogoMoni,
+  timesOpcoesReceberChamado,
 } from '@/lib/times-responsaveis';
 import { createClient } from '@/lib/supabase/client';
 
@@ -118,10 +118,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     [responsaveisOpcoes, inferidoHdm],
   );
 
-  const timesChipsCatalogoOrdenados = useMemo(
-    () => ordenarLinhasTimeKanbanPorCatalogoMoni(kanbanTimes, false),
-    [kanbanTimes],
-  );
+  const timesChipsCatalogoOrdenados = useMemo(() => timesOpcoesReceberChamado(kanbanTimes), [kanbanTimes]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -161,7 +158,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
       tema === 'Outro' && temaOutroTrim ? `${incendioBase} — Tema: ${temaOutroTrim}` : incendioBase;
 
     formData.set('incendio', incendioFinal);
-    const timeNome = kanbanTimes.find((t) => timesIds[0] === t.id)?.nome ?? '';
+    const timeNome = timesChipsCatalogoOrdenados.find((t) => timesIds[0] === t.id)?.nome ?? '';
     const respNome = responsaveisOpcoes.find((p) => responsaveisIds[0] === p.id)?.nome ?? '';
     formData.set('time_abertura', timeNome);
     if (respNome) formData.set('abertura_responsavel_nome', respNome);
