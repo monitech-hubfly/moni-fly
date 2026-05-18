@@ -48,13 +48,16 @@ export default async function UniversidadeFerramentasDocumentoPage({ params }: P
         <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
           <h1 className="text-lg font-semibold text-stone-900 md:text-xl">{doc.titulo}</h1>
           <div className="flex flex-col items-stretch gap-2 sm:items-end">
-            {guiaPublico ? <CopiarLinkPublicoGuia slug={slug} /> : null}
-            <Link
-              href="/universidade/ferramentas"
-              className="inline-flex justify-center rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 hover:bg-stone-50 sm:justify-end"
-            >
-              ← Voltar
-            </Link>
+            {guiaPublico ? (
+              <CopiarLinkPublicoGuia slug={slug} voltarHref="/universidade/ferramentas" />
+            ) : (
+              <Link
+                href="/universidade/ferramentas"
+                className="inline-flex justify-center rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 hover:bg-stone-50 sm:justify-end"
+              >
+                ← Voltar
+              </Link>
+            )}
           </div>
         </div>
       </header>

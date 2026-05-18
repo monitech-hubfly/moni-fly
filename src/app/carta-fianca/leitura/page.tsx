@@ -18,7 +18,7 @@ export default async function CartaFiancaLeituraPublicaPage({ searchParams }: Pr
   }
   return (
     <Suspense fallback={<div className="px-4 py-6 text-sm text-stone-600">Carregando…</div>}>
-      <DocumentoGuiaLeituraPublica slug="carta-fianca" />
+      <DocumentoGuiaLeituraPublica slug="carta-fianca" layoutHub voltarHref="/universidade/ferramentas" />
     </Suspense>
   );
 }
