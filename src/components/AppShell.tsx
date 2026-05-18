@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import { isGuiaPublicoLeituraPath } from '@/lib/universidade/documentos-publicos';
 import { PortalSidebar } from './PortalSidebar';
 import { AppStickyHeader } from './AppStickyHeader';
 
@@ -16,6 +17,7 @@ export function AppShell({ user, userRole, showPublicPortalNav = false, children
   const pathname = usePathname() ?? '';
   /** Manual BCA em modo leitura pública: sem sidebar global nem cabeçalho Hub. */
   const isTreinamentoBcaLeituraPublica = pathname.startsWith('/treinamento-bca/leitura');
+  const isGuiaDocumentoLeituraPublica = isGuiaPublicoLeituraPath(pathname);
   const hideGlobalHeader = pathname.startsWith('/sirene');
   const isTreinamentoBcaHub =
     pathname === '/treinamento-bca' ||
@@ -28,7 +30,7 @@ export function AppShell({ user, userRole, showPublicPortalNav = false, children
     return <>{children}</>;
   }
 
-  if (isTreinamentoBcaLeituraPublica) {
+  if (isTreinamentoBcaLeituraPublica || isGuiaDocumentoLeituraPublica) {
     return (
       <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-stone-100">
         {children}

@@ -20,6 +20,8 @@ const nextConfig = {
       { source: '/treinamento-bca/cenarios', destination: '/treinamento-bca/ordem', permanent: true },
       { source: '/treinamento-bca/abas-fluxo', destination: '/treinamento-bca/introducao', permanent: true },
       { source: '/treinamento-bca/aba-resumo', destination: '/treinamento-bca/ordem', permanent: true },
+      { source: '/carta-fianca', destination: '/carta-fianca/leitura', permanent: false },
+      { source: '/moni-capital', destination: '/moni-capital/leitura', permanent: false },
     ];
   },
 };

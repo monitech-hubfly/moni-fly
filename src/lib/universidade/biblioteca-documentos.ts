@@ -1,4 +1,8 @@
 import type { UniBibliotecaItem } from '@/lib/universidade/types';
+import { hrefGuiaPublicoLeitura, isGuiaPublicoSlug, type GuiaPublicoSlug } from '@/lib/universidade/documentos-publicos';
+
+export type { GuiaPublicoSlug };
+export { hrefGuiaPublicoLeitura, isGuiaPublicoSlug };
 
 export const UNI_BIBLIOTECA_TIPO_DOCUMENTO_INTERNO = 'documento-interno' as const;
 
