@@ -10,6 +10,7 @@ import type { UniEntregaTipo, UniProgressoStatus } from '@/lib/universidade/type
 function revalidateUniversidade() {
   revalidatePath(appPath('/universidade'));
   revalidatePath(appPath('/universidade/biblioteca'));
+  revalidatePath(appPath('/universidade/ferramentas'));
   revalidatePath(appPath('/universidade/certificados'));
   revalidatePath(appPath('/universidade/jornada'));
   revalidatePath(appPath('/admin/universidade'));

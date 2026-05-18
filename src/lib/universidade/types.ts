@@ -89,13 +89,17 @@ export type UniCertificado = {
   emitido_em: string | null;
 };
 
+export type UniBibliotecaTipo = 'arquivo' | 'link' | 'video' | 'documento-interno';
+
 export type UniBibliotecaItem = {
   id: string;
   categoria: string;
   titulo: string;
   descricao: string | null;
-  tipo: 'arquivo' | 'link' | 'video' | null;
+  tipo: UniBibliotecaTipo | null;
   url: string | null;
+  slug: string | null;
+  ativo: boolean | null;
   tags: string[] | null;
   visivel_para: string[] | null;
   criado_em: string | null;

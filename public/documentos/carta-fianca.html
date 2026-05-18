@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carta Fiança | Moní</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --verde: #1a3a2a;
+    --verde-medio: #2d5c42;
+    --verde-claro: #4a8c63;
+    --dourado: #c9a84c;
+    --dourado-claro: #e8c96a;
+    --creme: #f5f0e8;
+    --creme-escuro: #e8dfc8;
+    --branco: #fafaf7;
+    --texto: #1a1a1a;
+    --cinza: #6b6b6b;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--creme);
+    color: var(--texto);
+  }
+
+  /* ── HERO ── */
+  .hero {
+    background: var(--verde);
+    padding: 60px 56px 52px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -80px; right: -80px;
+    width: 320px; height: 320px;
+    border-radius: 50%;
+    border: 1px solid rgba(201,168,76,0.2);
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: -120px; left: 40%;
+    width: 500px; height: 500px;
+    border-radius: 50%;
+    border: 1px solid rgba(201,168,76,0.1);
+  }
+  .hero-label {
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: var(--dourado); margin-bottom: 20px;
+  }
+  .hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 42px; font-weight: 900;
+    color: var(--branco); line-height: 1.1;
+    max-width: 540px; margin-bottom: 16px;
+  }
+  .hero h1 em { color: var(--dourado); font-style: normal; }
+  .hero-sub {
+    font-size: 15px; color: rgba(255,255,255,0.65);
+    max-width: 480px; line-height: 1.6;
+  }
+
+  /* ── PAGE SECTIONS ── */
+  .page-section {
+    padding: 52px 56px;
+    border-bottom: 1px solid var(--creme-escuro);
+  }
+  .page-section:last-child { border-bottom: none; }
+
+  .section-label {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: var(--dourado); margin-bottom: 28px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .section-label::after {
+    content: ''; flex: 1; height: 1px;
+    background: var(--creme-escuro);
+  }
+
+  /* ── SECAO 1: O QUE É ── */
+  .highlight-box {
+    background: var(--verde);
+    border-radius: 12px; padding: 28px 32px;
+    color: white; margin-bottom: 24px;
+  }
+  .highlight-box h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 19px; color: var(--dourado); margin-bottom: 10px;
+  }
+  .highlight-box p { font-size: 14px; line-height: 1.7; color: rgba(255,255,255,0.8); }
+  .highlight-box strong { color: white; }
+
+  .entenda-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .card {
+    background: white; border-radius: 12px;
+    padding: 26px 28px; border: 1px solid var(--creme-escuro);
+  }
+  .card-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; margin-bottom: 14px;
+  }
+  .card-icon.verde { background: rgba(26,58,42,0.08); }
+  .card-icon.dourado { background: rgba(201,168,76,0.12); }
+  .card h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 16px; margin-bottom: 8px; color: var(--verde);
+  }
+  .card p { font-size: 14px; color: var(--cinza); line-height: 1.65; }
+
+  /* ── SECAO 2: TIMELINE ── */
+  .tl2-wrap { overflow-x: auto; padding-bottom: 8px; }
+  .tl2-outer { min-width: 1000px; position: relative; }
+
+  .tl2-rail {
+    display: flex; align-items: center;
+    position: relative; height: 60px; margin: 0 42px;
+  }
+  .tl2-line {
+    position: absolute; top: 50%; left: 0; right: 0;
+    height: 2px; background: var(--creme-escuro);
+    transform: translateY(-50%); z-index: 0;
+  }
+  .tl2-line-fill {
+    position: absolute; top: 50%; left: 0;
+    height: 2px; width: 62%;
+    background: linear-gradient(to right, var(--verde), var(--dourado));
+    transform: translateY(-50%); z-index: 0;
+  }
+  .tl2-nodes {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    position: relative;
+    z-index: 1;
+  }
+  .tl2-node {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .tl2-dot {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; flex-shrink: 0;
+    box-shadow: 0 0 0 4px var(--creme);
+  }
+  .tl2-dot.n1 { background: var(--verde); color: white; font-size: 13px; }
+  .tl2-dot.n2 { background: var(--creme-escuro); color: var(--cinza); border: 2px solid #ccc; font-size: 18px; }
+  .tl2-dot.n3 { background: var(--dourado); color: var(--verde); font-size: 15px; }
+  .tl2-dot.n4 { background: var(--creme-escuro); color: var(--cinza); border: 2px solid #ccc; font-size: 18px; }
+  .tl2-dot.n5 { background: var(--verde-claro); color: white; font-size: 14px; }
+
+  .tl2-cards-above, .tl2-cards-below {
+    display: flex; justify-content: space-between; padding: 0 42px;
+  }
+  .tl2-card-slot { flex: 1; padding: 0 10px; }
+  .tl2-card-slot.empty { pointer-events: none; }
+
+  .tl2-card {
+    background: white; border: 1px solid var(--creme-escuro);
+    border-radius: 12px; padding: 20px 22px;
+  }
+  .tl2-card.gold-border { border-color: var(--dourado); border-width: 2px; }
+  .tl2-card-tempo {
+    font-size: 10px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--dourado); margin-bottom: 4px;
+  }
+  .tl2-card h4 {
+    font-family: 'Playfair Display', serif;
+    font-size: 15px; color: var(--verde); margin-bottom: 8px; line-height: 1.3;
+  }
+  .tl2-card p {
+    font-size: 13px; color: var(--cinza); line-height: 1.6; margin-bottom: 6px;
+  }
+  .tl2-card p:last-child { margin-bottom: 0; }
+  .tl2-card .ref {
+    font-size: 11px; color: var(--verde-claro); font-weight: 500; margin-top: 8px;
+  }
+  .tl2-badge {
+    display: inline-block; font-size: 10px; font-weight: 700;
+    padding: 3px 10px; border-radius: 20px; margin-top: 8px;
+    background: rgba(201,168,76,0.15); color: #6a4e10;
+  }
+
+  /* ── SECAO 3: VGV ── */
+  .vgv-wrapper { width: 100%; }
+  .vgv-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 24px; color: var(--verde); margin-bottom: 6px;
+  }
+  .vgv-subtitle {
+    font-size: 14px; color: var(--cinza);
+    margin-bottom: 28px; line-height: 1.55;
+  }
+  .vgv-bar-container {
+    background: white; border-radius: 16px;
+    padding: 32px; border: 1px solid var(--creme-escuro);
+  }
+  .vgv-bar-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--cinza); margin-bottom: 14px;
+  }
+  .vgv-bar {
+    display: flex; height: 56px; border-radius: 8px;
+    overflow: visible; margin-bottom: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08); position: relative;
+  }
+  .vgv-seg {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600; color: white;
+    cursor: default; position: relative;
+  }
+  .vgv-seg span { white-space: nowrap; overflow: hidden; }
+  .seg-obra    { background: #3d7a56; border-radius: 8px 0 0 8px; }
+  .seg-terreno { background: var(--verde); }
+  .seg-carta   { background: var(--dourado); color: #3a2800; }
+  .seg-corr    { background: #8b6914; }
+  .seg-impostos { background: #6b4a1a; }
+  .seg-juros   { background: #b8860b; }
+  .seg-moni    { background: #c8a84c; color: #2a1800; }
+  .seg-retorno { background: #1a3a2a; border: 2px dashed var(--dourado-claro); border-radius: 0 8px 8px 0; }
+
+  .vgv-legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 10px;
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--texto);
+  }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 700px) {
+    .hero { padding: 40px 24px 32px; }
+    .hero h1 { font-size: 30px; }
+    .page-section { padding: 40px 24px; }
+    .entenda-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-label">Moní | Guia do Franqueado</div>
+  <h1>Carta Fiança</h1>
+  <p class="hero-sub">Entenda como a Carta Fiança se encaixa na operação e como a Moní pode recomendar formas de viabilizá-la.</p>
+</div>
+
+
+<!-- ══════════════════════════════
+     SEÇÃO 1 | O QUE É
+═════════════════════════════════ -->
+<div class="page-section">
+  <div class="section-label">O que é</div>
+
+  <div class="highlight-box">
+    <h3>O que você precisa entender primeiro</h3>
+    <p>A Carta Fiança é uma <strong>garantia exigida pelo terrenista</strong> (Primeiros Permutantes) para que ele transfira o terreno à SPE. Sem ela, o contrato prevê que a escritura não pode ser lavrada. <strong>Quem paga é o franqueado, sempre.</strong> O que a Moní pode fazer é sugerir uma estrutura de onde venha esse dinheiro para a sua operação.</p>
+  </div>
+
+  <div class="entenda-grid">
+    <div class="card">
+      <div class="card-icon verde">📋</div>
+      <h3>O que diz o contrato</h3>
+      <p>A Cláusula 6.1 estabelece que o franqueado-construtor deve apresentar <strong>seguro-garantia imobiliária ou Carta de Fiança Fidejussória</strong> antes da lavratura da escritura (Cláusula 6.2). A transferência do terreno fica condicionada a isso (Cláusulas 3.1 e 5.4.ii). É uma obrigação contratual.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon verde">🏦</div>
+      <h3>O que é a Carta Fiança</h3>
+      <p>É uma apólice emitida por uma seguradora ou banco que <strong>garante ao terrenista o recebimento do valor mínimo contratado</strong> caso o franqueado não pague. O franqueado contrata e paga o prêmio, e o terrenista é o beneficiário.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon dourado">✅</div>
+      <h3>Você já demonstrou estar pronto</h3>
+      <p>No processo seletivo, você sinalizou ter <strong>R$200 mil disponíveis</strong> para a operação. Isso mostra que você já chegou com a visão certa: uma operação imobiliária real tem custos de viabilização, e a Carta Fiança é um dos componentes do seu Aporte Inicial.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon dourado">💡</div>
+      <h3>Como a Moní pode ajudar</h3>
+      <p>A Moní estruturou um caminho para que, se você preferir não mobilizar esse valor agora, consiga captá-lo de forma organizada via <strong>Moní Capital</strong>, sem comprometer o seu retorno de forma relevante.</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════
+     SEÇÃO 2 | QUANDO CADA COISA ACONTECE
+═════════════════════════════════ -->
+<div class="page-section">
+  <div class="section-label">Quando cada coisa acontece</div>
+
+  <div class="tl2-wrap">
+  <div class="tl2-outer">
+
+    <!-- CARDS ACIMA: nós 1, 3, 5 -->
+    <div class="tl2-cards-above" style="padding-bottom:0;">
+      <div class="tl2-card-slot" style="flex:2;">
+        <div class="tl2-card">
+          <div class="tl2-card-tempo">Mês 0</div>
+          <h4>Assinatura do Contrato</h4>
+          <p>O Contrato de Compra e Venda com Permuta Financeira é assinado. A partir daqui você tem ciência contratual de que precisa de capacidade financeira para arcar com alguns custos da operação, incluindo a garantia ao terrenista.</p>
+        </div>
+      </div>
+      <div class="tl2-card-slot empty" style="flex:0.3;"></div>
+      <div class="tl2-card-slot" style="flex:2;">
+        <div class="tl2-card gold-border">
+          <div class="tl2-card-tempo">Marco principal · ~Mês 4</div>
+          <h4>Alvará de Construção</h4>
+          <p>A Carta Fiança precisa ser contratada até aqui. Em alguns casos é possível parcelar em até 6x a partir do alvará.</p>
+          <div class="tl2-badge">Até 6x de parcelamento</div>
+        </div>
+      </div>
+      <div class="tl2-card-slot empty" style="flex:0.3;"></div>
+      <div class="tl2-card-slot" style="flex:2;">
+        <div class="tl2-card">
+          <div class="tl2-card-tempo">~Mês 6</div>
+          <h4>Início da Obra</h4>
+          <p>Com terreno na SPE e crédito aprovado, a obra começa. A partir daqui, as parcelas da Carta Fiança, se parceladas em 6x, continuam, e utiliza-se os recursos captados para pagar as parcelas da carta, total ou parcialmente, complementando com receita de gestão de obra.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- HASTES SUPERIORES -->
+    <div style="display:flex; padding:0 42px; height:32px;">
+      <div style="flex:2; display:flex; justify-content:center; padding:0 10px;">
+        <div style="width:2px; height:100%; background:var(--creme-escuro);"></div>
+      </div>
+      <div style="flex:0.3;"></div>
+      <div style="flex:2; display:flex; justify-content:center; padding:0 10px;">
+        <div style="width:2px; height:100%; background:var(--dourado);"></div>
+      </div>
+      <div style="flex:0.3;"></div>
+      <div style="flex:2; display:flex; justify-content:center; padding:0 10px;">
+        <div style="width:2px; height:100%; background:var(--creme-escuro);"></div>
+      </div>
+    </div>
+
+    <!-- RAIL -->
+    <div class="tl2-rail">
+      <div class="tl2-line"></div>
+      <div class="tl2-line-fill"></div>
+      <div class="tl2-nodes">
+        <div class="tl2-node" style="flex:2;"><div class="tl2-dot n1">✓</div></div>
+        <div class="tl2-node" style="flex:0.3;"><div class="tl2-dot n2">→</div></div>
+        <div class="tl2-node" style="flex:2;"><div class="tl2-dot n3">★</div></div>
+        <div class="tl2-node" style="flex:0.3;"><div class="tl2-dot n4">→</div></div>
+        <div class="tl2-node" style="flex:2;"><div class="tl2-dot n5">🏗</div></div>
+      </div>
+    </div>
+
+    <!-- HASTES INFERIORES -->
+    <div style="display:flex; padding:0 42px; height:32px;">
+      <div style="flex:2;"></div>
+      <div style="flex:0.3; display:flex; justify-content:center;">
+        <div style="width:2px; height:100%; background:var(--creme-escuro);"></div>
+      </div>
+      <div style="flex:2;"></div>
+      <div style="flex:0.3; display:flex; justify-content:center;">
+        <div style="width:2px; height:100%; background:var(--creme-escuro);"></div>
+      </div>
+      <div style="flex:2;"></div>
+    </div>
+
+    <!-- CARDS ABAIXO: nós 2, 4 -->
+    <div class="tl2-cards-below">
+      <div class="tl2-card-slot empty" style="flex:1;"></div>
+      <div class="tl2-card-slot" style="flex:2;">
+        <div class="tl2-card">
+          <div class="tl2-card-tempo">Meses 1 a 4 (estimativa)</div>
+          <h4>Aprovação prefeitura + viabilização da Carta</h4>
+          <p>Enquanto o projeto tramita na prefeitura, você tem ~4 meses para definir de onde vem o dinheiro da carta.</p>
+          <p><strong>Opção A | Recurso próprio:</strong> usa parte dos R$200k sinalizados na seleção. Mais simples, maior retorno.</p>
+          <p><strong>Opção B | Moní Capital:</strong> abertura da SPE → cadastro na plataforma → publicação da oferta entre Family &amp; Friends e rede Moní (taxa de R$2.500 para subida).</p>
+          <div class="tl2-badge" style="margin-top:10px;">Janela ideal p/ Moní Capital</div>
+        </div>
+      </div>
+      <div class="tl2-card-slot empty" style="flex:1;"></div>
+      <div class="tl2-card-slot" style="flex:2;">
+        <div class="tl2-card">
+          <div class="tl2-card-tempo">Meses 4 a 6 (estimativa)</div>
+          <h4>Escritura, SPE e crédito para obra</h4>
+          <p>Recomendado após o alvará. A SPE recebe o terreno via escritura e os documentos são alterados para o nome da SPE.</p>
+          <p>Se houve captação via Moní Capital, os recursos podem já estar disponíveis para pagar as parcelas da carta, total ou parcialmente, complementando com receita de gestão de obra.</p>
+        </div>
+      </div>
+      <div class="tl2-card-slot empty" style="flex:1;"></div>
+    </div>
+
+  </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════
+     SEÇÃO 3 | VGV & RETORNO
+═════════════════════════════════ -->
+<div class="page-section">
+  <div class="section-label">VGV &amp; Retorno</div>
+
+  <div class="vgv-wrapper">
+    <div class="vgv-title">A barrinha do VGV</div>
+    <p class="vgv-subtitle">O VGV bruto é 100%. Cada componente consome uma fatia. Caso seja captado um valor para Contratação da Carta/Seguro, esta se encaixará no VGV e consumirá do retorno ao franqueado, mesmo que minimamente.</p>
+
+    <div class="vgv-bar-container">
+      <div class="vgv-bar-label">VGV Bruto = 100%</div>
+      <div class="vgv-bar">
+        <div class="vgv-seg seg-obra"    style="width:50%"><span>Obra</span></div>
+        <div class="vgv-seg seg-terreno" style="width:25%"><span>Terreno</span></div>
+        <div class="vgv-seg seg-carta"   style="width:3%;padding:0;overflow:visible;background:transparent;position:relative;">
+          <div style="position:absolute;inset:0;background:#c9a84c;z-index:0;"></div>
+          <div style="position:absolute;inset:-5px;border:2px dashed var(--dourado-claro);border-radius:5px;z-index:3;pointer-events:none;box-shadow:0 0 10px rgba(201,168,76,0.45);"></div>
+          <span style="font-size:8px;font-weight:800;position:relative;z-index:2;color:#3a2800;">Carta</span>
+        </div>
+        <div class="vgv-seg seg-corr"    style="width:4%"><span style="font-size:9px;">Corr.</span></div>
+        <div class="vgv-seg seg-impostos" style="width:4%"><span style="font-size:9px;">Imp.</span></div>
+        <div class="vgv-seg seg-juros"   style="width:3%"><span style="font-size:9px;">Juros</span></div>
+        <div class="vgv-seg seg-moni"    style="width:5%"><span style="font-size:9px;">Gestão</span></div>
+        <div class="vgv-seg seg-retorno" style="width:6%"><span style="font-size:9px;">Retorno</span></div>
+      </div>
+      <div class="vgv-legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#3d7a56"></div>Custo de obra
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#1a3a2a"></div>Terreno (terrenista)
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#c9a84c;outline:2px dashed var(--dourado-claro);outline-offset:2px;box-shadow:0 0 0 1px var(--dourado);"></div>
+          <strong>Carta Fiança</strong>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#8b6914"></div>Corretagem da venda
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#6b4a1a"></div>Impostos
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#b8860b"></div>Juros / financiamento
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#c8a84c"></div>Gestão / Plataforma
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#1a3a2a;border:2px dashed #e8c96a"></div>
+          <strong>Seu retorno</strong>
+        </div>
+      </div>
+      <p style="margin-top:16px; font-size:12px; color:var(--cinza); font-style:italic; border-top:1px solid var(--creme-escuro); padding-top:14px;">
+        * As proporções acima são ilustrativas. Os percentuais reais de cada componente irão depender do BCA (Business Case Analysis) de cada empreendimento.
+      </p>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

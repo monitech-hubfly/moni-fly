@@ -112,7 +112,9 @@ export function SidebarUniversidadeLinks({
   const macroClass = linkClassPrincipal(active);
 
   const ferramentasActive =
-    pathname.startsWith('/universidade/biblioteca') || isTreinamentoBcaHubPath(pathname);
+    pathname.startsWith('/universidade/ferramentas') ||
+    pathname.startsWith('/universidade/biblioteca') ||
+    isTreinamentoBcaHubPath(pathname);
 
   return (
     <div className="space-y-0.5">
@@ -174,7 +176,7 @@ export function SidebarUniversidadeLinks({
                 ) : null}
               </Link>
               <Link
-                href="/universidade/biblioteca"
+                href="/universidade/ferramentas"
                 className={`flex items-center gap-2 ${linkClassSub(ferramentasActive)}`}
               >
                 <LayoutGrid className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
@@ -201,7 +203,7 @@ export function SidebarUniversidadeLinks({
                 </span>
               </Link>
               <Link
-                href="/universidade/biblioteca"
+                href="/universidade/ferramentas"
                 className={`flex items-center gap-2 ${linkClassSub(ferramentasActive)}`}
               >
                 <span className="flex items-center gap-2">

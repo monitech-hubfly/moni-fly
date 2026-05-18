@@ -247,13 +247,45 @@ export async function getCertificados(supabase: SupabaseClient, userId: string):
   }));
 }
 
+export async function getBibliotecaDocumentoPorSlug(
+  supabase: SupabaseClient,
+  slug: string,
+): Promise<UniBibliotecaItem | null> {
+  const s = slug.trim();
+  if (!s) return null;
+  const { data, error } = await supabase
+    .from('uni_biblioteca')
+    .select('id, categoria, titulo, descricao, tipo, url, slug, ativo, tags, visivel_para, criado_em')
+    .eq('slug', s)
+    .eq('ativo', true)
+    .eq('tipo', 'documento-interno')
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const r = data;
+  return {
+    id: String(r.id),
+    categoria: String(r.categoria),
+    titulo: String(r.titulo),
+    descricao: r.descricao != null ? String(r.descricao) : null,
+    tipo: (r.tipo as UniBibliotecaItem['tipo']) ?? null,
+    url: r.url != null ? String(r.url) : null,
+    slug: r.slug != null ? String(r.slug) : null,
+    ativo: r.ativo == null ? true : Boolean(r.ativo),
+    tags: (r.tags as string[] | null) ?? null,
+    visivel_para: (r.visivel_para as string[] | null) ?? null,
+    criado_em: r.criado_em != null ? String(r.criado_em) : null,
+  };
+}
+
 export async function getBiblioteca(
   supabase: SupabaseClient,
   categoria?: string,
 ): Promise<UniBibliotecaItem[]> {
   let q = supabase
     .from('uni_biblioteca')
-    .select('id, categoria, titulo, descricao, tipo, url, tags, visivel_para, criado_em')
+    .select('id, categoria, titulo, descricao, tipo, url, slug, ativo, tags, visivel_para, criado_em')
+    .eq('ativo', true)
     .order('categoria', { ascending: true })
     .order('titulo', { ascending: true });
   if (categoria?.trim()) {
@@ -268,6 +300,8 @@ export async function getBiblioteca(
     descricao: r.descricao != null ? String(r.descricao) : null,
     tipo: (r.tipo as UniBibliotecaItem['tipo']) ?? null,
     url: r.url != null ? String(r.url) : null,
+    slug: r.slug != null ? String(r.slug) : null,
+    ativo: r.ativo == null ? true : Boolean(r.ativo),
     tags: (r.tags as string[] | null) ?? null,
     visivel_para: (r.visivel_para as string[] | null) ?? null,
     criado_em: r.criado_em != null ? String(r.criado_em) : null,

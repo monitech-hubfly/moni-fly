@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
@@ -17,6 +18,10 @@ import {
   MessageCircle,
 } from 'lucide-react';
 import type { UniBibliotecaItem } from '@/lib/universidade/types';
+import {
+  hrefFerramentasDocumentoInterno,
+  isBibliotecaDocumentoInterno,
+} from '@/lib/universidade/biblioteca-documentos';
 import type { FerramentaBiblioteca, FerramentaBibliotecaIcon } from '@/lib/universidade/ferramentas-biblioteca';
 import { FERRAMENTAS_BIBLIOTECA } from '@/lib/universidade/ferramentas-biblioteca';
 
@@ -265,7 +270,7 @@ export function BibliotecaClient({
                   <div className="flex items-center gap-2 text-stone-600">
                     {it.tipo === 'video' ? (
                       <Video className="h-4 w-4" aria-hidden />
-                    ) : it.tipo === 'arquivo' ? (
+                    ) : it.tipo === 'arquivo' || it.tipo === 'documento-interno' ? (
                       <FileText className="h-4 w-4" aria-hidden />
                     ) : (
                       <Link2 className="h-4 w-4" aria-hidden />
@@ -274,7 +279,14 @@ export function BibliotecaClient({
                   </div>
                   <h2 className="mt-2 text-sm font-semibold text-stone-900">{it.titulo}</h2>
                   {it.descricao ? <p className="mt-1 line-clamp-3 text-xs text-stone-600">{it.descricao}</p> : null}
-                  {it.url ? (
+                  {isBibliotecaDocumentoInterno(it) ? (
+                    <Link
+                      href={hrefFerramentasDocumentoInterno(it.slug!)}
+                      className="mt-3 inline-flex text-xs font-semibold text-moni-primary hover:underline"
+                    >
+                      Acessar
+                    </Link>
+                  ) : it.url ? (
                     <a
                       href={it.url}
                       target="_blank"
