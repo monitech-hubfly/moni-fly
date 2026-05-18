@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { CopiarLinkPublicoGuia } from '@/components/universidade/CopiarLinkPublicoGuia';
 import { DocumentoInternoIframe } from '@/components/universidade/DocumentoInternoIframe';
 import { createClient } from '@/lib/supabase/server';
-import { iframeSrcDocumentoInterno } from '@/lib/universidade/biblioteca-documentos';
+import { iframeSrcDocumentoInterno, isGuiaPublicoSlug } from '@/lib/universidade/biblioteca-documentos';
 import { getBibliotecaDocumentoPorSlug } from '@/lib/universidade/queries';
 
 export const dynamic = 'force-dynamic';
@@ -22,6 +23,7 @@ export default async function UniversidadeFerramentasDocumentoPage({ params }: P
   if (!doc?.slug) redirect('/universidade/ferramentas');
 
   const iframeSrc = iframeSrcDocumentoInterno(doc.slug);
+  const guiaPublico = isGuiaPublicoSlug(slug);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-stone-50">
@@ -43,14 +45,17 @@ export default async function UniversidadeFerramentasDocumentoPage({ params }: P
             <li className="font-medium text-stone-800">{doc.titulo}</li>
           </ol>
         </nav>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+        <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
           <h1 className="text-lg font-semibold text-stone-900 md:text-xl">{doc.titulo}</h1>
-          <Link
-            href="/universidade/ferramentas"
-            className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 hover:bg-stone-50"
-          >
-            ← Voltar
-          </Link>
+          <div className="flex flex-col items-stretch gap-2 sm:items-end">
+            {guiaPublico ? <CopiarLinkPublicoGuia slug={slug} /> : null}
+            <Link
+              href="/universidade/ferramentas"
+              className="inline-flex justify-center rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 hover:bg-stone-50 sm:justify-end"
+            >
+              ← Voltar
+            </Link>
+          </div>
         </div>
       </header>
       <DocumentoInternoIframe src={iframeSrc} title={doc.titulo} />
