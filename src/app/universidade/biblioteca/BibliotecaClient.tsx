@@ -16,6 +16,7 @@ import {
   Video,
   X,
   MessageCircle,
+  DollarSign,
 } from 'lucide-react';
 import type { UniBibliotecaItem } from '@/lib/universidade/types';
 import {
@@ -26,6 +27,9 @@ import type { FerramentaBiblioteca, FerramentaBibliotecaIcon } from '@/lib/unive
 import { FERRAMENTAS_BIBLIOTECA } from '@/lib/universidade/ferramentas-biblioteca';
 
 type AbaBiblioteca = 'ferramentas' | 'documentos';
+
+/** Documentos internos exibidos como card na aba Ferramentas (não em Documentos). */
+const DOCUMENTO_SLUGS_NA_ABA_FERRAMENTAS = new Set(['moni-capital']);
 
 function iconeFerramenta(tipo: FerramentaBibliotecaIcon, className: string) {
   const c = `h-5 w-5 shrink-0 ${className}`;
@@ -42,6 +46,8 @@ function iconeFerramenta(tipo: FerramentaBibliotecaIcon, className: string) {
       return <ClipboardList className={c} aria-hidden />;
     case 'demanda':
       return <MessageCircle className={c} aria-hidden />;
+    case 'capital':
+      return <DollarSign className={c} aria-hidden />;
     default:
       return <FileText className={c} aria-hidden />;
   }
@@ -146,15 +152,20 @@ export function BibliotecaClient({
   const [ferramentaModal, setFerramentaModal] = useState<FerramentaBiblioteca | null>(null);
   const [cat, setCat] = useState<string>('Todos');
 
+  const itensDocumentos = useMemo(
+    () => itens.filter((i) => !i.slug || !DOCUMENTO_SLUGS_NA_ABA_FERRAMENTAS.has(i.slug)),
+    [itens],
+  );
+
   const categoriasDoc = useMemo(() => {
-    const set = new Set(itens.map((i) => i.categoria).filter(Boolean));
+    const set = new Set(itensDocumentos.map((i) => i.categoria).filter(Boolean));
     return ['Todos', ...Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'))];
-  }, [itens]);
+  }, [itensDocumentos]);
 
   const filtrados = useMemo(() => {
-    if (cat === 'Todos') return itens;
-    return itens.filter((i) => i.categoria === cat);
-  }, [itens, cat]);
+    if (cat === 'Todos') return itensDocumentos;
+    return itensDocumentos.filter((i) => i.categoria === cat);
+  }, [itensDocumentos, cat]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-8">
@@ -200,6 +211,8 @@ export function BibliotecaClient({
               const destaque = index === 0;
               const abrirTreinoNoHub =
                 f.id === 'bca-analise-viabilidade' && f.linkPrincipal?.href?.startsWith('/treinamento-bca');
+              const abrirGuiaInternoNoHub =
+                f.id === 'moni-capital' && f.linkPrincipal?.href?.startsWith('/universidade/ferramentas/');
               return (
                 <button
                   key={f.id}
@@ -207,6 +220,10 @@ export function BibliotecaClient({
                   onClick={() => {
                     if (abrirTreinoNoHub && f.linkPrincipal) {
                       router.push(resolveLinkPrincipalHref(f.linkPrincipal.href, nomeFranqueado));
+                      return;
+                    }
+                    if (abrirGuiaInternoNoHub && f.linkPrincipal) {
+                      router.push(f.linkPrincipal.href);
                       return;
                     }
                     setFerramentaModal(f);

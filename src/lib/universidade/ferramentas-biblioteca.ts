@@ -1,4 +1,11 @@
-export type FerramentaBibliotecaIcon = 'bca' | 'mapa' | 'batalha' | 'casa' | 'clipboard' | 'demanda';
+export type FerramentaBibliotecaIcon =
+  | 'bca'
+  | 'mapa'
+  | 'batalha'
+  | 'casa'
+  | 'clipboard'
+  | 'demanda'
+  | 'capital';
 
 export type FerramentaBiblioteca = {
   id: string;
@@ -197,5 +204,38 @@ Transformar **percepção de corretor** em **dado verificável** sobre demanda, 
 ## Material
 
 Se existir PDF/checklist oficial, ele estará em **Documentos**; use este card como referência de **método**.`,
+  },
+  {
+    id: 'moni-capital',
+    titulo: 'Moní Capital',
+    descricaoCurta:
+      'Captação de recursos para o seu projeto sem tirar dinheiro do bolso. Plataforma de captação privada da rede Moní: contexto, regras, passo a passo e materiais.',
+    tags: ['Captação', 'Funding', 'Pré-obra'],
+    icon: 'capital',
+    iconBgClass: 'bg-amber-100',
+    iconColorClass: 'text-amber-800',
+    conteudoExplicativoMd: `## O que é
+
+A **Moní Capital** é a plataforma de captação privada da rede Moní para viabilizar recursos do empreendimento — por exemplo, parcelas da carta fiança ou necessidades de caixa na pré-obra — sem comprometer todo o capital próprio do franqueado.
+
+## Quando usar
+
+- Janela entre aprovação de projeto e necessidade de garantias ou desembolsos.
+- Operações em que recurso próprio é limitado, mas o BCA fecha com captação estruturada.
+- Após alinhamento com o time sobre elegibilidade e regras da oferta.
+
+## O que você encontra no guia
+
+1. Contexto e restrições da plataforma.
+2. Regras inegociáveis da oferta.
+3. Passo a passo com 7 etapas.
+4. Lista de dados e materiais necessários.
+5. Comparativo e próximos passos para publicar a oferta.
+
+## Boas práticas
+
+- Leia o guia completo antes de abrir SPE ou subir oferta.
+- Atualize o BCA com o impacto da captação no VGV e no retorno.`,
+    linkPrincipal: { label: 'Abrir guia Moní Capital', href: '/universidade/ferramentas/moni-capital' },
   },
 ];
