@@ -283,6 +283,10 @@ export function KanbanCardModal({
     link_mapa_competidores: '',
     link_acoplamento: '',
     link_apresentacao_comite: '',
+    link_moni_capital_seguro_garantia: '',
+    comentario_moni_capital_seguro_garantia: '',
+    link_moni_capital_gastos_aporte_inicial: '',
+    comentario_moni_capital_gastos_aporte_inicial: '',
     nome_condominio: '',
     quadra: '',
     lote: '',
@@ -485,6 +489,10 @@ export function KanbanCardModal({
       link_mapa_competidores: '',
       link_acoplamento: '',
       link_apresentacao_comite: '',
+      link_moni_capital_seguro_garantia: '',
+      comentario_moni_capital_seguro_garantia: '',
+      link_moni_capital_gastos_aporte_inicial: '',
+      comentario_moni_capital_gastos_aporte_inicial: '',
       nome_condominio: '',
       quadra: '',
       lote: '',
@@ -1882,6 +1890,13 @@ export function KanbanCardModal({
             link_mapa_competidores: negocioDraft.link_mapa_competidores?.trim() || null,
             link_acoplamento: negocioDraft.link_acoplamento?.trim() || null,
             link_apresentacao_comite: negocioDraft.link_apresentacao_comite?.trim() || null,
+            link_moni_capital_seguro_garantia: negocioDraft.link_moni_capital_seguro_garantia?.trim() || null,
+            comentario_moni_capital_seguro_garantia:
+              negocioDraft.comentario_moni_capital_seguro_garantia?.trim() || null,
+            link_moni_capital_gastos_aporte_inicial:
+              negocioDraft.link_moni_capital_gastos_aporte_inicial?.trim() || null,
+            comentario_moni_capital_gastos_aporte_inicial:
+              negocioDraft.comentario_moni_capital_gastos_aporte_inicial?.trim() || null,
             nome_condominio: negocioDraft.nome_condominio || null,
             quadra: negocioDraft.quadra || null,
             lote: negocioDraft.lote || null,
@@ -2463,6 +2478,72 @@ export function KanbanCardModal({
     );
   }
 
+  function renderNegocioLinkComComentarios(
+    label: string,
+    linkRaw: string | null | undefined,
+    comentarioRaw: string | null | undefined,
+    edit?: {
+      linkValue: string;
+      comentarioValue: string;
+      onLinkChange: (v: string) => void;
+      onComentarioChange: (v: string) => void;
+    },
+  ) {
+    const href = linkHrefFromText(edit ? edit.linkValue : linkRaw);
+    const comentario = String(edit ? edit.comentarioValue : comentarioRaw ?? '').trim();
+    if (edit) {
+      return (
+        <div className="space-y-1.5">
+          <label className="block">
+            <span className="text-[11px] font-medium text-stone-500">{label}</span>
+            <input
+              type="text"
+              value={edit.linkValue}
+              onChange={(e) => edit.onLinkChange(e.target.value)}
+              placeholder="https://…"
+              className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[11px] font-medium text-stone-500">Comentários</span>
+            <textarea
+              value={edit.comentarioValue}
+              onChange={(e) => edit.onComentarioChange(e.target.value)}
+              rows={2}
+              placeholder="Observações sobre este item…"
+              className="mt-0.5 w-full resize-y rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+            />
+          </label>
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-1">
+        <div>
+          <div className="text-[11px] font-medium text-stone-500">{label}</div>
+          <div className="text-xs">
+            {href ? (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="break-all text-moni-primary underline"
+              >
+                {String(linkRaw ?? '').trim()}
+              </a>
+            ) : (
+              '—'
+            )}
+          </div>
+        </div>
+        <div>
+          <div className="text-[11px] font-medium text-stone-500">Comentários</div>
+          <div className="whitespace-pre-wrap text-xs text-stone-800">{comentario || '—'}</div>
+        </div>
+      </div>
+    );
+  }
+
   function renderNegocioAnexoCampo(
     label: string,
     field: ProcessoNegocioAnexoCampo,
@@ -2544,6 +2625,16 @@ export function KanbanCardModal({
         proc.anexo_seguro_garantia_path,
         negocioSeguroGarantiaRef,
       )}
+      {renderNegocioLinkComComentarios(
+        'Moní Capital — seguro garantia',
+        proc.link_moni_capital_seguro_garantia,
+        proc.comentario_moni_capital_seguro_garantia,
+      )}
+      {renderNegocioLinkComComentarios(
+        'Moní Capital — gastos de Aporte Inicial',
+        proc.link_moni_capital_gastos_aporte_inicial,
+        proc.comentario_moni_capital_gastos_aporte_inicial,
+      )}
     </div>
   ) : null;
 
@@ -2583,6 +2674,31 @@ export function KanbanCardModal({
         proc.anexo_seguro_garantia_path,
         negocioSeguroGarantiaRef,
       )}
+      {renderNegocioLinkComComentarios(
+        'Moní Capital — seguro garantia',
+        proc.link_moni_capital_seguro_garantia,
+        proc.comentario_moni_capital_seguro_garantia,
+        {
+          linkValue: negocioDraft.link_moni_capital_seguro_garantia,
+          comentarioValue: negocioDraft.comentario_moni_capital_seguro_garantia,
+          onLinkChange: (v) => setNegocioDraft((d) => ({ ...d, link_moni_capital_seguro_garantia: v })),
+          onComentarioChange: (v) =>
+            setNegocioDraft((d) => ({ ...d, comentario_moni_capital_seguro_garantia: v })),
+        },
+      )}
+      {renderNegocioLinkComComentarios(
+        'Moní Capital — gastos de Aporte Inicial',
+        proc.link_moni_capital_gastos_aporte_inicial,
+        proc.comentario_moni_capital_gastos_aporte_inicial,
+        {
+          linkValue: negocioDraft.link_moni_capital_gastos_aporte_inicial,
+          comentarioValue: negocioDraft.comentario_moni_capital_gastos_aporte_inicial,
+          onLinkChange: (v) =>
+            setNegocioDraft((d) => ({ ...d, link_moni_capital_gastos_aporte_inicial: v })),
+          onComentarioChange: (v) =>
+            setNegocioDraft((d) => ({ ...d, comentario_moni_capital_gastos_aporte_inicial: v })),
+        },
+      )}
     </div>
   ) : null;
 
@@ -2612,6 +2728,11 @@ export function KanbanCardModal({
         link_mapa_competidores: proc.link_mapa_competidores ?? '',
         link_acoplamento: proc.link_acoplamento ?? '',
         link_apresentacao_comite: proc.link_apresentacao_comite ?? '',
+        link_moni_capital_seguro_garantia: proc.link_moni_capital_seguro_garantia ?? '',
+        comentario_moni_capital_seguro_garantia: proc.comentario_moni_capital_seguro_garantia ?? '',
+        link_moni_capital_gastos_aporte_inicial: proc.link_moni_capital_gastos_aporte_inicial ?? '',
+        comentario_moni_capital_gastos_aporte_inicial:
+          proc.comentario_moni_capital_gastos_aporte_inicial ?? '',
         nome_condominio: proc.nome_condominio ?? '',
         quadra: proc.quadra ?? '',
         lote: proc.lote ?? '',

@@ -44,6 +44,10 @@ export type ProcessoModalNegocioPreObra = {
   anexo_opcao_permuta_path: string | null;
   anexo_contrato_permuta_path: string | null;
   anexo_seguro_garantia_path: string | null;
+  link_moni_capital_seguro_garantia: string | null;
+  comentario_moni_capital_seguro_garantia: string | null;
+  link_moni_capital_gastos_aporte_inicial: string | null;
+  comentario_moni_capital_gastos_aporte_inicial: string | null;
   nome_condominio: string | null;
   quadra_lote: string | null;
   quadra: string | null;
@@ -103,6 +107,10 @@ const PROCESSO_SELECT = [
   'anexo_opcao_permuta_path',
   'anexo_contrato_permuta_path',
   'anexo_seguro_garantia_path',
+  'link_moni_capital_seguro_garantia',
+  'comentario_moni_capital_seguro_garantia',
+  'link_moni_capital_gastos_aporte_inicial',
+  'comentario_moni_capital_gastos_aporte_inicial',
   'nome_condominio',
   'quadra_lote',
   'quadra',
@@ -176,6 +184,10 @@ function mapProcesso(r: Record<string, unknown> | null): ProcessoModalNegocioPre
     anexo_opcao_permuta_path: g('anexo_opcao_permuta_path'),
     anexo_contrato_permuta_path: g('anexo_contrato_permuta_path'),
     anexo_seguro_garantia_path: g('anexo_seguro_garantia_path'),
+    link_moni_capital_seguro_garantia: g('link_moni_capital_seguro_garantia'),
+    comentario_moni_capital_seguro_garantia: g('comentario_moni_capital_seguro_garantia'),
+    link_moni_capital_gastos_aporte_inicial: g('link_moni_capital_gastos_aporte_inicial'),
+    comentario_moni_capital_gastos_aporte_inicial: g('comentario_moni_capital_gastos_aporte_inicial'),
     nome_condominio: g('nome_condominio'),
     quadra_lote: g('quadra_lote'),
     quadra: g('quadra'),
