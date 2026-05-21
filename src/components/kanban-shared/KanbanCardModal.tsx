@@ -4361,7 +4361,7 @@ export function KanbanCardModal({
               </div>
 
               <div
-                className="rounded-lg p-4"
+                className="rounded-lg p-3"
                 style={{
                   background: 'var(--moni-surface-50)',
                   border: '0.5px solid var(--moni-border-default)',
@@ -4370,9 +4370,9 @@ export function KanbanCardModal({
                 {abaComentarios === 'comentarios' ? (
                   <>
                     {comentariosCard.length > 0 ? (
-                      <ul className="mb-4 max-h-48 space-y-3 overflow-y-auto">
+                      <ul className="mb-3 max-h-40 space-y-2 overflow-y-auto">
                         {comentariosCard.map((c) => (
-                          <li key={c.id} className="border-b border-stone-200/80 pb-3 text-sm last:border-0">
+                          <li key={c.id} className="border-b border-stone-200/80 pb-2 text-[10px] last:border-0">
                             {editingComentarioId === c.id ? (
                               <div className="space-y-2">
                                 <div className="overflow-hidden rounded-lg" style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-0)' }}>
@@ -4384,7 +4384,7 @@ export function KanbanCardModal({
                                         comentarioEdicaoRef.current?.focus();
                                         document.execCommand('bold');
                                       }}
-                                      className="rounded px-2 py-0.5 text-xs font-bold text-stone-600 hover:bg-stone-100"
+                                      className="rounded px-1.5 py-px text-[10px] font-bold text-stone-600 hover:bg-stone-100"
                                       title="Negrito"
                                     >B</button>
                                     <button
@@ -4394,7 +4394,7 @@ export function KanbanCardModal({
                                         comentarioEdicaoRef.current?.focus();
                                         document.execCommand('italic');
                                       }}
-                                      className="rounded px-2 py-0.5 text-xs italic text-stone-600 hover:bg-stone-100"
+                                      className="rounded px-1.5 py-px text-[10px] italic text-stone-600 hover:bg-stone-100"
                                       title="Itálico"
                                     >I</button>
                                   </div>
@@ -4403,7 +4403,7 @@ export function KanbanCardModal({
                                     contentEditable
                                     suppressContentEditableWarning
                                     onInput={(e) => setEditComentarioDraft((e.currentTarget as HTMLDivElement).innerHTML)}
-                                    className="min-h-[60px] w-full p-3 text-sm focus:outline-none"
+                                    className="min-h-[48px] w-full p-2 text-[10px] leading-snug focus:outline-none"
                                     style={{ background: 'var(--moni-surface-0)' }}
                                   />
                                 </div>
@@ -4414,7 +4414,7 @@ export function KanbanCardModal({
                                       salvandoEdicaoComentario || !richTextPlainTrimmed(editComentarioDraft)
                                     }
                                     onClick={() => void handleEditarComentario(c.id)}
-                                    className="rounded px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                                    className="rounded px-2 py-1 text-[10px] font-medium text-white disabled:opacity-50"
                                     style={{ background: 'var(--moni-text-primary)' }}
                                   >
                                     {salvandoEdicaoComentario ? '…' : 'Salvar'}
@@ -4426,7 +4426,7 @@ export function KanbanCardModal({
                                       setEditComentarioDraft('');
                                       if (comentarioEdicaoRef.current) comentarioEdicaoRef.current.innerHTML = '';
                                     }}
-                                    className="rounded border border-stone-300 px-3 py-1.5 text-xs"
+                                    className="rounded border border-stone-300 px-2 py-1 text-[10px]"
                                   >
                                     Cancelar
                                   </button>
@@ -4434,8 +4434,12 @@ export function KanbanCardModal({
                               </div>
                             ) : (
                               <>
-                                <p style={{ color: 'var(--moni-text-primary)' }} dangerouslySetInnerHTML={{ __html: c.conteudo }} />
-                                <p className="mt-1 flex items-center gap-0.5 text-xs text-stone-500">
+                                <div
+                                  className="leading-snug [&_*]:text-[10px]"
+                                  style={{ color: 'var(--moni-text-primary)' }}
+                                  dangerouslySetInnerHTML={{ __html: c.conteudo }}
+                                />
+                                <p className="mt-0.5 flex items-center gap-0.5 text-[9px] text-stone-500">
                                   {c.autor_nome?.trim() || 'Usuário'}
                                   {c.autor_id === modalSessao.userId ? (
                                     <>
@@ -4445,7 +4449,7 @@ export function KanbanCardModal({
                                         onClick={() => { setEditingComentarioId(c.id); setEditComentarioDraft(c.conteudo); }}
                                         className="ml-1 rounded p-0.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
                                       >
-                                        <Pencil size={12} />
+                                        <Pencil size={10} />
                                       </button>
                                       <button
                                         type="button"
@@ -4453,7 +4457,7 @@ export function KanbanCardModal({
                                         className="ml-1 rounded p-0.5 text-stone-400 hover:bg-red-50 hover:text-red-500"
                                         title="Excluir comentário"
                                       >
-                                        <Trash2 size={12} />
+                                        <Trash2 size={10} />
                                       </button>
                                     </>
                                   ) : null}
@@ -4466,20 +4470,20 @@ export function KanbanCardModal({
                         ))}
                       </ul>
                     ) : (
-                      <p className="mb-4 text-xs text-stone-500">Nenhum comentário ainda.</p>
+                      <p className="mb-3 text-[10px] text-stone-500">Nenhum comentário ainda.</p>
                     )}
                     <div className="overflow-hidden rounded-lg" style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-0)' }}>
-                      <div className="flex gap-1 border-b px-2 py-1" style={{ borderColor: 'var(--moni-border-default)' }}>
+                      <div className="flex gap-1 border-b px-2 py-0.5" style={{ borderColor: 'var(--moni-border-default)' }}>
                         <button
                           type="button"
                           onMouseDown={(e) => { e.preventDefault(); document.execCommand('bold'); }}
-                          className="rounded px-2 py-0.5 text-xs font-bold text-stone-600 hover:bg-stone-100"
+                          className="rounded px-1.5 py-px text-[10px] font-bold text-stone-600 hover:bg-stone-100"
                           title="Negrito"
                         >B</button>
                         <button
                           type="button"
                           onMouseDown={(e) => { e.preventDefault(); document.execCommand('italic'); }}
-                          className="rounded px-2 py-0.5 text-xs italic text-stone-600 hover:bg-stone-100"
+                          className="rounded px-1.5 py-px text-[10px] italic text-stone-600 hover:bg-stone-100"
                           title="Itálico"
                         >I</button>
                       </div>
@@ -4488,7 +4492,7 @@ export function KanbanCardModal({
                         contentEditable
                         suppressContentEditableWarning
                         onInput={(e) => setNovoComentarioCard((e.currentTarget as HTMLDivElement).innerHTML)}
-                        className="min-h-[80px] w-full p-3 text-sm focus:outline-none empty:before:text-stone-400 empty:before:content-[attr(data-placeholder)]"
+                        className="min-h-[56px] w-full p-2 text-[10px] leading-snug focus:outline-none empty:before:text-[10px] empty:before:text-stone-400 empty:before:content-[attr(data-placeholder)]"
                         style={{ background: 'var(--moni-surface-0)' }}
                         data-placeholder="Escreva um comentário…"
                       />
@@ -4497,7 +4501,7 @@ export function KanbanCardModal({
                       type="button"
                       onClick={() => void handleEnviarComentarioCard()}
                       disabled={salvandoComentario || !novoComentarioCard.trim()}
-                      className="mt-2 w-full rounded-lg px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
+                      className="mt-1.5 w-full rounded-lg px-2 py-1.5 text-[10px] font-medium text-white disabled:opacity-50"
                       style={{ background: 'var(--moni-text-primary)' }}
                     >
                       {salvandoComentario ? 'Enviando…' : 'Publicar'}

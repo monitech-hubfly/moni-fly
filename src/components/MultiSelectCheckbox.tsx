@@ -27,7 +27,7 @@ export function MultiSelectCheckbox({
   onToggle,
   placeholder,
   variant,
-  listClassName = 'max-h-40',
+  listClassName = 'max-h-24',
 }: Props) {
   const styles = VARIANT_STYLES[variant];
   const selectedSet = new Set(selectedIds);
@@ -35,24 +35,24 @@ export function MultiSelectCheckbox({
 
   return (
     <div
-      className="overflow-hidden rounded-lg"
+      className="overflow-hidden rounded-md"
       style={{ border: '0.5px solid var(--moni-border-default)' }}
     >
-      <div className="flex min-h-[2.25rem] flex-wrap items-center gap-1.5 px-2.5 py-2">
+      <div className="flex min-h-[1.5rem] flex-wrap items-center gap-1 px-2 py-1">
         {selectedPills.length === 0 ? (
-          <span className="text-sm text-stone-500">{placeholder}</span>
+          <span className="text-[10px] leading-snug text-stone-500">{placeholder}</span>
         ) : (
           selectedPills.map((o) => (
             <span
               key={o.id}
-              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+              className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-medium leading-tight"
               style={{ backgroundColor: styles.pillBg, color: styles.pillText }}
             >
               {o.label}
               <button
                 type="button"
                 onClick={() => onToggle(o.id)}
-                className="leading-none opacity-70 hover:opacity-100"
+                className="text-[10px] leading-none opacity-70 hover:opacity-100"
                 style={{ color: styles.pillText }}
                 aria-label={`Remover ${o.label}`}
               >
@@ -76,10 +76,10 @@ export function MultiSelectCheckbox({
                 role="option"
                 aria-selected={checked}
                 onClick={() => onToggle(o.id)}
-                className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-sm text-stone-800 hover:bg-stone-50"
+                className="flex w-full items-center gap-1.5 px-2 py-1 text-left text-[10px] leading-snug text-stone-800 hover:bg-stone-50"
               >
                 <span
-                  className="flex h-4 w-4 shrink-0 items-center justify-center rounded border"
+                  className="flex h-3 w-3 shrink-0 items-center justify-center rounded border"
                   style={{
                     borderColor: checked ? styles.checkboxChecked : 'var(--moni-border-default)',
                     backgroundColor: checked ? styles.checkboxChecked : 'transparent',
@@ -89,7 +89,7 @@ export function MultiSelectCheckbox({
                   {checked ? (
                     <svg
                       viewBox="0 0 12 12"
-                      className="h-2.5 w-2.5 text-white"
+                      className="h-2 w-2 text-white"
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="2"
