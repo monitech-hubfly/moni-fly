@@ -93,24 +93,14 @@ const REDE_SELECT = [
   'contrato_franquia_path',
 ].join(',');
 
-const PROCESSO_SELECT = [
+/** Colunas existentes antes das migrations 185/186 (compatível com prod sem migrate). */
+const PROCESSO_SELECT_LEGACY = [
   'id',
   'tipo_aquisicao_terreno',
   'valor_terreno',
   'vgv_pretendido',
   'produto_modelo_casa',
   'link_pasta_drive',
-  'link_bca',
-  'link_mapa_competidores',
-  'link_acoplamento',
-  'link_apresentacao_comite',
-  'anexo_opcao_permuta_path',
-  'anexo_contrato_permuta_path',
-  'anexo_seguro_garantia_path',
-  'link_moni_capital_seguro_garantia',
-  'comentario_moni_capital_seguro_garantia',
-  'link_moni_capital_gastos_aporte_inicial',
-  'comentario_moni_capital_gastos_aporte_inicial',
   'nome_condominio',
   'quadra_lote',
   'quadra',
@@ -127,6 +117,102 @@ const PROCESSO_SELECT = [
   'numero_franquia',
   'origem_rede_franqueados_id',
 ].join(',');
+
+/** Links/anexos novos (185 + 186) — opcionais até rodar migration no Supabase. */
+const PROCESSO_SELECT_EXTENDED = [
+  'link_bca',
+  'link_mapa_competidores',
+  'link_acoplamento',
+  'link_apresentacao_comite',
+  'anexo_opcao_permuta_path',
+  'anexo_contrato_permuta_path',
+  'anexo_seguro_garantia_path',
+  'link_moni_capital_seguro_garantia',
+  'comentario_moni_capital_seguro_garantia',
+  'link_moni_capital_gastos_aporte_inicial',
+  'comentario_moni_capital_gastos_aporte_inicial',
+].join(',');
+
+const PROCESSO_SELECT = `${PROCESSO_SELECT_LEGACY},${PROCESSO_SELECT_EXTENDED}`;
+
+function isMissingColumnError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  const msg = String(error.message ?? '').toLowerCase();
+  return (
+    error.code === 'PGRST204' ||
+    error.code === '42703' ||
+    (msg.includes('column') && (msg.includes('does not exist') || msg.includes('schema cache')))
+  );
+}
+
+export type ProcessoNegocioUpdatePayload = {
+  tipo_aquisicao_terreno: string | null;
+  valor_terreno: string | null;
+  vgv_pretendido: string | null;
+  produto_modelo_casa: string | null;
+  link_pasta_drive: string | null;
+  link_bca: string | null;
+  link_mapa_competidores: string | null;
+  link_acoplamento: string | null;
+  link_apresentacao_comite: string | null;
+  link_moni_capital_seguro_garantia: string | null;
+  comentario_moni_capital_seguro_garantia: string | null;
+  link_moni_capital_gastos_aporte_inicial: string | null;
+  comentario_moni_capital_gastos_aporte_inicial: string | null;
+  nome_condominio: string | null;
+  quadra: string | null;
+  lote: string | null;
+};
+
+const PROCESSO_UPDATE_LEGACY_KEYS = [
+  'tipo_aquisicao_terreno',
+  'valor_terreno',
+  'vgv_pretendido',
+  'produto_modelo_casa',
+  'link_pasta_drive',
+  'nome_condominio',
+  'quadra',
+  'lote',
+] as const;
+
+const PROCESSO_UPDATE_EXTENDED_KEYS = [
+  'link_bca',
+  'link_mapa_competidores',
+  'link_acoplamento',
+  'link_apresentacao_comite',
+  'link_moni_capital_seguro_garantia',
+  'comentario_moni_capital_seguro_garantia',
+  'link_moni_capital_gastos_aporte_inicial',
+  'comentario_moni_capital_gastos_aporte_inicial',
+] as const;
+
+function pickPayload(
+  payload: ProcessoNegocioUpdatePayload,
+  keys: readonly string[],
+): Record<string, string | null> {
+  const out: Record<string, string | null> = {};
+  for (const k of keys) {
+    out[k] = payload[k as keyof ProcessoNegocioUpdatePayload];
+  }
+  return out;
+}
+
+/** Atualiza dados do negócio; faz fallback se colunas novas ainda não existirem no banco. */
+export async function updateProcessoNegocioCampos(
+  supabase: SupabaseClient,
+  processoId: string,
+  payload: ProcessoNegocioUpdatePayload,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const full = { ...pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS), ...pickPayload(payload, PROCESSO_UPDATE_EXTENDED_KEYS) };
+  const { error } = await supabase.from('processo_step_one').update(full as never).eq('id', processoId);
+  if (!error) return { ok: true };
+  if (!isMissingColumnError(error)) return { ok: false, error: error.message };
+
+  const legacyOnly = pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS);
+  const { error: errLegacy } = await supabase.from('processo_step_one').update(legacyOnly as never).eq('id', processoId);
+  if (errLegacy) return { ok: false, error: errLegacy.message };
+  return { ok: true };
+}
 
 function tituloParaNumeroFranquia(titulo: string): string {
   const t = titulo.trim();
@@ -207,8 +293,32 @@ function mapProcesso(r: Record<string, unknown> | null): ProcessoModalNegocioPre
 }
 
 async function fetchProcessoById(supabase: SupabaseClient, id: string) {
-  const { data } = await supabase.from('processo_step_one').select(PROCESSO_SELECT).eq('id', id).maybeSingle();
-  return mapProcesso((data as Record<string, unknown> | null) ?? null);
+  const { data, error } = await supabase.from('processo_step_one').select(PROCESSO_SELECT).eq('id', id).maybeSingle();
+  if (!error) return mapProcesso((data as Record<string, unknown> | null) ?? null);
+
+  if (isMissingColumnError(error)) {
+    const { data: legacy, error: errLegacy } = await supabase
+      .from('processo_step_one')
+      .select(PROCESSO_SELECT_LEGACY)
+      .eq('id', id)
+      .maybeSingle();
+    if (errLegacy || !legacy) return null;
+
+    const { data: extended, error: errExt } = await supabase
+      .from('processo_step_one')
+      .select(PROCESSO_SELECT_EXTENDED)
+      .eq('id', id)
+      .maybeSingle();
+
+    const merged = {
+      ...(legacy as unknown as Record<string, unknown>),
+      ...(errExt || !extended ? {} : (extended as unknown as Record<string, unknown>)),
+    };
+    return mapProcesso(merged);
+  }
+
+  console.error('[KanbanCardModal] Erro ao carregar processo:', error.message);
+  return null;
 }
 
 /**
@@ -226,23 +336,29 @@ async function resolveProcessoNativo(
   if (rede?.id) {
     const { data: byOrigem } = await supabase
       .from('processo_step_one')
-      .select(PROCESSO_SELECT)
+      .select('id')
       .eq('origem_rede_franqueados_id', rede.id)
       .maybeSingle();
-    const m = mapProcesso((byOrigem as Record<string, unknown> | null) ?? null);
-    if (m) return m;
+    const oid = (byOrigem as { id?: string } | null)?.id;
+    if (oid) {
+      const m = await fetchProcessoById(supabase, String(oid));
+      if (m) return m;
+    }
   }
   const num = rede?.n_franquia?.trim() || tituloParaNumeroFranquia(cardTitulo);
   if (num) {
     const { data: byNum } = await supabase
       .from('processo_step_one')
-      .select(PROCESSO_SELECT)
+      .select('id')
       .eq('numero_franquia', num)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    const m2 = mapProcesso((byNum as Record<string, unknown> | null) ?? null);
-    if (m2) return m2;
+    const nid = (byNum as { id?: string } | null)?.id;
+    if (nid) {
+      const m2 = await fetchProcessoById(supabase, String(nid));
+      if (m2) return m2;
+    }
   }
   return null;
 }

@@ -64,6 +64,7 @@ import {
   fetchKanbanCardModalDetalhes,
   fmtMoedaKanban,
   preObraDraftFromProcesso,
+  updateProcessoNegocioCampos,
   type KanbanCardModalDetalhes,
   type PreObraDraftKanban,
 } from '@/lib/kanban/kanban-card-modal-detalhes';
@@ -870,7 +871,8 @@ export function KanbanCardModal({
         });
         setModalDetalhes(det);
         setPreObraDraft(preObraDraftFromProcesso(det.processo));
-      } catch {
+      } catch (detErr) {
+        console.error('[KanbanCardModal] Falha ao carregar detalhes do card:', detErr);
         setModalDetalhes({ rede: null, processo: null, redeIdContrato: null });
         setPreObraDraft(preObraDraftFromProcesso(null));
       }
@@ -1878,31 +1880,28 @@ export function KanbanCardModal({
     try {
       const supabase = createClient();
       if (pid) {
-        const { error } = await supabase
-          .from('processo_step_one')
-          .update({
-            tipo_aquisicao_terreno: negocioDraft.tipo_aquisicao_terreno || null,
-            valor_terreno: negocioDraft.valor_terreno || null,
-            vgv_pretendido: negocioDraft.vgv_pretendido || null,
-            produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
-            link_pasta_drive: negocioDraft.link_pasta_drive || null,
-            link_bca: negocioDraft.link_bca?.trim() || null,
-            link_mapa_competidores: negocioDraft.link_mapa_competidores?.trim() || null,
-            link_acoplamento: negocioDraft.link_acoplamento?.trim() || null,
-            link_apresentacao_comite: negocioDraft.link_apresentacao_comite?.trim() || null,
-            link_moni_capital_seguro_garantia: negocioDraft.link_moni_capital_seguro_garantia?.trim() || null,
-            comentario_moni_capital_seguro_garantia:
-              negocioDraft.comentario_moni_capital_seguro_garantia?.trim() || null,
-            link_moni_capital_gastos_aporte_inicial:
-              negocioDraft.link_moni_capital_gastos_aporte_inicial?.trim() || null,
-            comentario_moni_capital_gastos_aporte_inicial:
-              negocioDraft.comentario_moni_capital_gastos_aporte_inicial?.trim() || null,
-            nome_condominio: negocioDraft.nome_condominio || null,
-            quadra: negocioDraft.quadra || null,
-            lote: negocioDraft.lote || null,
-          })
-          .eq('id', pid);
-        if (error) throw error;
+        const upd = await updateProcessoNegocioCampos(supabase, pid, {
+          tipo_aquisicao_terreno: negocioDraft.tipo_aquisicao_terreno || null,
+          valor_terreno: negocioDraft.valor_terreno || null,
+          vgv_pretendido: negocioDraft.vgv_pretendido || null,
+          produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
+          link_pasta_drive: negocioDraft.link_pasta_drive || null,
+          link_bca: negocioDraft.link_bca?.trim() || null,
+          link_mapa_competidores: negocioDraft.link_mapa_competidores?.trim() || null,
+          link_acoplamento: negocioDraft.link_acoplamento?.trim() || null,
+          link_apresentacao_comite: negocioDraft.link_apresentacao_comite?.trim() || null,
+          link_moni_capital_seguro_garantia: negocioDraft.link_moni_capital_seguro_garantia?.trim() || null,
+          comentario_moni_capital_seguro_garantia:
+            negocioDraft.comentario_moni_capital_seguro_garantia?.trim() || null,
+          link_moni_capital_gastos_aporte_inicial:
+            negocioDraft.link_moni_capital_gastos_aporte_inicial?.trim() || null,
+          comentario_moni_capital_gastos_aporte_inicial:
+            negocioDraft.comentario_moni_capital_gastos_aporte_inicial?.trim() || null,
+          nome_condominio: negocioDraft.nome_condominio || null,
+          quadra: negocioDraft.quadra || null,
+          lote: negocioDraft.lote || null,
+        });
+        if (!upd.ok) throw new Error(upd.error);
       } else if (origem === 'nativo' && card) {
         const { error } = await supabase
           .from('kanban_cards')
