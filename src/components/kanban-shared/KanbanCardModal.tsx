@@ -46,6 +46,8 @@ import {
   salvarInstrucoesFase,
   solicitarAprovacaoFase,
   uploadContratoFranquia,
+  uploadProcessoNegocioAnexo,
+  type ProcessoNegocioAnexoCampo,
   vincularTagCard,
   verificarChecklistParaFase,
   gerarFormTokenCandidato,
@@ -277,6 +279,10 @@ export function KanbanCardModal({
     vgv_pretendido: '',
     produto_modelo_casa: '',
     link_pasta_drive: '',
+    link_bca: '',
+    link_mapa_competidores: '',
+    link_acoplamento: '',
+    link_apresentacao_comite: '',
     nome_condominio: '',
     quadra: '',
     lote: '',
@@ -384,6 +390,12 @@ export function KanbanCardModal({
   const [preObraDraft, setPreObraDraft] = useState<PreObraDraftKanban>(() => preObraDraftFromProcesso(null));
   const [salvandoPreObra, setSalvandoPreObra] = useState(false);
   const [uploadingContrato, setUploadingContrato] = useState(false);
+  const [uploadingNegocioAnexo, setUploadingNegocioAnexo] = useState<ProcessoNegocioAnexoCampo | null>(
+    null,
+  );
+  const negocioOpcaoPermutaRef = useRef<HTMLInputElement>(null);
+  const negocioContratoPermutaRef = useRef<HTMLInputElement>(null);
+  const negocioSeguroGarantiaRef = useRef<HTMLInputElement>(null);
   const contratoFileRef = useRef<HTMLInputElement>(null);
   const comentarioEditorRef = useRef<HTMLDivElement>(null);
   const comentarioEdicaoRef = useRef<HTMLDivElement>(null);
@@ -469,6 +481,10 @@ export function KanbanCardModal({
       vgv_pretendido: '',
       produto_modelo_casa: '',
       link_pasta_drive: '',
+      link_bca: '',
+      link_mapa_competidores: '',
+      link_acoplamento: '',
+      link_apresentacao_comite: '',
       nome_condominio: '',
       quadra: '',
       lote: '',
@@ -1862,6 +1878,10 @@ export function KanbanCardModal({
             vgv_pretendido: negocioDraft.vgv_pretendido || null,
             produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
             link_pasta_drive: negocioDraft.link_pasta_drive || null,
+            link_bca: negocioDraft.link_bca?.trim() || null,
+            link_mapa_competidores: negocioDraft.link_mapa_competidores?.trim() || null,
+            link_acoplamento: negocioDraft.link_acoplamento?.trim() || null,
+            link_apresentacao_comite: negocioDraft.link_apresentacao_comite?.trim() || null,
             nome_condominio: negocioDraft.nome_condominio || null,
             quadra: negocioDraft.quadra || null,
             lote: negocioDraft.lote || null,
@@ -2040,6 +2060,46 @@ export function KanbanCardModal({
     if (!path?.trim()) return;
     const supabase = createClient();
     const { data, error } = await supabase.storage.from('contratos-franquia').createSignedUrl(path.trim(), 3600);
+    if (error || !data?.signedUrl) {
+      alert(error?.message ?? 'Não foi possível gerar o link.');
+      return;
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  async function handleNegocioAnexoFile(
+    e: ChangeEvent<HTMLInputElement>,
+    field: ProcessoNegocioAnexoCampo,
+  ) {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    const pid = modalDetalhes.processo?.id;
+    if (!f || !pid) return;
+    setUploadingNegocioAnexo(field);
+    try {
+      const fd = new FormData();
+      fd.append('file', f);
+      fd.append('processoId', pid);
+      fd.append('field', field);
+      fd.append('basePath', basePath);
+      const r = await uploadProcessoNegocioAnexo(fd);
+      if (!r.ok) {
+        alert(r.error);
+        return;
+      }
+      await loadCard();
+      router.refresh();
+    } catch {
+      alert('Erro ao enviar anexo.');
+    } finally {
+      setUploadingNegocioAnexo(null);
+    }
+  }
+
+  async function handleBaixarNegocioAnexo(path: string) {
+    if (!path.trim()) return;
+    const supabase = createClient();
+    const { data, error } = await supabase.storage.from('processo-docs').createSignedUrl(path.trim(), 3600);
     if (error || !data?.signedUrl) {
       alert(error?.message ?? 'Não foi possível gerar o link.');
       return;
@@ -2355,6 +2415,177 @@ export function KanbanCardModal({
     return `https://${raw}`;
   })();
 
+  const linkHrefFromText = (raw: string | null | undefined) => {
+    const t = String(raw ?? '').trim();
+    if (!t) return null;
+    if (/^https?:\/\//i.test(t)) return t;
+    return `https://${t}`;
+  };
+
+  function renderNegocioLinkCampo(
+    label: string,
+    raw: string | null | undefined,
+    edit?: { value: string; onChange: (v: string) => void },
+  ) {
+    const href = linkHrefFromText(edit ? edit.value : raw);
+    if (edit) {
+      return (
+        <label className="block">
+          <span className="text-[11px] font-medium text-stone-500">{label}</span>
+          <input
+            type="text"
+            value={edit.value}
+            onChange={(e) => edit.onChange(e.target.value)}
+            placeholder="https://…"
+            className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+          />
+        </label>
+      );
+    }
+    return (
+      <div>
+        <div className="text-[11px] font-medium text-stone-500">{label}</div>
+        <div className="text-xs">
+          {href ? (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="break-all text-moni-primary underline"
+            >
+              {String(raw ?? '').trim()}
+            </a>
+          ) : (
+            '—'
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function renderNegocioAnexoCampo(
+    label: string,
+    field: ProcessoNegocioAnexoCampo,
+    path: string | null | undefined,
+    inputRef: React.RefObject<HTMLInputElement | null>,
+  ) {
+    if (!proc?.id) return null;
+    const uploading = uploadingNegocioAnexo === field;
+    const canAnexar = modalSessao.ehAdminOuTeam;
+    return (
+      <div>
+        <p className="text-[11px] font-medium text-stone-500">{label}</p>
+        <input
+          ref={inputRef}
+          type="file"
+          className="hidden"
+          onChange={(e) => void handleNegocioAnexoFile(e, field)}
+          accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf"
+        />
+        <div className="mt-0.5 flex flex-wrap items-center gap-2">
+          {path?.trim() ? (
+            <>
+              <button
+                type="button"
+                onClick={() => void handleBaixarNegocioAnexo(path)}
+                className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50"
+              >
+                Baixar
+              </button>
+              {canAnexar ? (
+                <button
+                  type="button"
+                  onClick={() => inputRef.current?.click()}
+                  disabled={uploading}
+                  className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {uploading ? 'Enviando…' : 'Substituir'}
+                </button>
+              ) : null}
+            </>
+          ) : canAnexar ? (
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              disabled={uploading}
+              className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {uploading ? 'Enviando…' : 'Anexar'}
+            </button>
+          ) : (
+            <span className="text-[11px] text-stone-500">—</span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const dadosNegocioLinksEAnexosView = proc ? (
+    <div className="space-y-2 border-t border-stone-100 pt-2">
+      {renderNegocioAnexoCampo(
+        'Opção de Permuta',
+        'opcao_permuta',
+        proc.anexo_opcao_permuta_path,
+        negocioOpcaoPermutaRef,
+      )}
+      {renderNegocioLinkCampo('BCA', proc.link_bca)}
+      {renderNegocioLinkCampo('Mapa de Competidores', proc.link_mapa_competidores)}
+      {renderNegocioLinkCampo('Acoplamento', proc.link_acoplamento)}
+      {renderNegocioLinkCampo('Apresentação do Comitê', proc.link_apresentacao_comite)}
+      {renderNegocioAnexoCampo(
+        'Contrato de Permuta',
+        'contrato_permuta',
+        proc.anexo_contrato_permuta_path,
+        negocioContratoPermutaRef,
+      )}
+      {renderNegocioAnexoCampo(
+        'Seguro garantia',
+        'seguro_garantia',
+        proc.anexo_seguro_garantia_path,
+        negocioSeguroGarantiaRef,
+      )}
+    </div>
+  ) : null;
+
+  const dadosNegocioLinksEAnexosEdit = proc ? (
+    <div className="space-y-2 border-t border-stone-100 pt-2">
+      {renderNegocioAnexoCampo(
+        'Opção de Permuta',
+        'opcao_permuta',
+        proc.anexo_opcao_permuta_path,
+        negocioOpcaoPermutaRef,
+      )}
+      {renderNegocioLinkCampo('BCA', proc.link_bca, {
+        value: negocioDraft.link_bca,
+        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_bca: v })),
+      })}
+      {renderNegocioLinkCampo('Mapa de Competidores', proc.link_mapa_competidores, {
+        value: negocioDraft.link_mapa_competidores,
+        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_mapa_competidores: v })),
+      })}
+      {renderNegocioLinkCampo('Acoplamento', proc.link_acoplamento, {
+        value: negocioDraft.link_acoplamento,
+        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_acoplamento: v })),
+      })}
+      {renderNegocioLinkCampo('Apresentação do Comitê', proc.link_apresentacao_comite, {
+        value: negocioDraft.link_apresentacao_comite,
+        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_apresentacao_comite: v })),
+      })}
+      {renderNegocioAnexoCampo(
+        'Contrato de Permuta',
+        'contrato_permuta',
+        proc.anexo_contrato_permuta_path,
+        negocioContratoPermutaRef,
+      )}
+      {renderNegocioAnexoCampo(
+        'Seguro garantia',
+        'seguro_garantia',
+        proc.anexo_seguro_garantia_path,
+        negocioSeguroGarantiaRef,
+      )}
+    </div>
+  ) : null;
+
   function abrirEdicaoNegocio() {
     if (!proc && origem === 'nativo' && card) {
       setNegocioDraft({
@@ -2377,6 +2608,10 @@ export function KanbanCardModal({
         vgv_pretendido: proc.vgv_pretendido != null ? String(proc.vgv_pretendido) : '',
         produto_modelo_casa: proc.produto_modelo_casa ?? '',
         link_pasta_drive: proc.link_pasta_drive ?? '',
+        link_bca: proc.link_bca ?? '',
+        link_mapa_competidores: proc.link_mapa_competidores ?? '',
+        link_acoplamento: proc.link_acoplamento ?? '',
+        link_apresentacao_comite: proc.link_apresentacao_comite ?? '',
         nome_condominio: proc.nome_condominio ?? '',
         quadra: proc.quadra ?? '',
         lote: proc.lote ?? '',
@@ -4968,6 +5203,7 @@ export function KanbanCardModal({
                         />
                       </label>
                     </div>
+                    {dadosNegocioLinksEAnexosEdit}
                     <div className="flex gap-2 pt-1">
                       <button
                         onClick={() => void handleSalvarNegocio()}
@@ -5038,6 +5274,7 @@ export function KanbanCardModal({
                       <div className="text-[11px] font-medium text-stone-500">Lote</div>
                       <div className="text-xs text-stone-800">{displayOrDash(proc.lote)}</div>
                     </div>
+                    {dadosNegocioLinksEAnexosView}
                     {modalSessao.ehAdminOuTeam && (
                       <button
                         type="button"

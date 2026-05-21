@@ -989,6 +989,57 @@ export async function salvarDadosPreObra(input: SalvarDadosPreObraInput): Promis
 
 export type UploadContratoFranquiaResult = ActionResult & { path?: string };
 
+export type ProcessoNegocioAnexoCampo =
+  | 'opcao_permuta'
+  | 'contrato_permuta'
+  | 'seguro_garantia';
+
+const PROCESSO_NEGOCIO_ANEXO_COL: Record<ProcessoNegocioAnexoCampo, string> = {
+  opcao_permuta: 'anexo_opcao_permuta_path',
+  contrato_permuta: 'anexo_contrato_permuta_path',
+  seguro_garantia: 'anexo_seguro_garantia_path',
+};
+
+/** Upload de anexo em `processo-docs` e grava path em `processo_step_one` (dados do negócio). */
+export async function uploadProcessoNegocioAnexo(
+  formData: FormData,
+): Promise<UploadContratoFranquiaResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para anexar.' };
+
+  const processoId = String(formData.get('processoId') ?? '').trim();
+  const field = String(formData.get('field') ?? '').trim() as ProcessoNegocioAnexoCampo;
+  if (!processoId) return { ok: false, error: 'Processo inválido.' };
+  if (!PROCESSO_NEGOCIO_ANEXO_COL[field]) return { ok: false, error: 'Campo de anexo inválido.' };
+
+  const file = formData.get('file');
+  if (!file || !(file instanceof File) || file.size === 0) return { ok: false, error: 'Selecione um arquivo.' };
+
+  const safeName = file.name.replace(/[^\w.\-()+ ]/g, '_').slice(0, 180);
+  const path = `${processoId}/dados-negocio/${field}/${Date.now()}_${safeName}`;
+
+  const buf = Buffer.from(await file.arrayBuffer());
+  const { error: upErr } = await supabase.storage.from('processo-docs').upload(path, buf, {
+    contentType: file.type || 'application/octet-stream',
+    upsert: true,
+  });
+  if (upErr) return { ok: false, error: upErr.message };
+
+  const col = PROCESSO_NEGOCIO_ANEXO_COL[field];
+  const { error: dbErr } = await supabase
+    .from('processo_step_one')
+    .update({ [col]: path } as never)
+    .eq('id', processoId);
+  if (dbErr) return { ok: false, error: dbErr.message };
+
+  revalidatePath(String(formData.get('basePath') ?? '').trim() || '/');
+  revalidatePath('/');
+  return { ok: true, path };
+}
+
 /** Upload de contrato para `contratos-franquia` e grava `contrato_franquia_path` em `rede_franqueados`. */
 export async function uploadContratoFranquia(formData: FormData): Promise<UploadContratoFranquiaResult> {
   const supabase = await createClient();

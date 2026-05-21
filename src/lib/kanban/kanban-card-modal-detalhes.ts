@@ -37,6 +37,13 @@ export type ProcessoModalNegocioPreObra = {
   vgv_pretendido: string | null;
   produto_modelo_casa: string | null;
   link_pasta_drive: string | null;
+  link_bca: string | null;
+  link_mapa_competidores: string | null;
+  link_acoplamento: string | null;
+  link_apresentacao_comite: string | null;
+  anexo_opcao_permuta_path: string | null;
+  anexo_contrato_permuta_path: string | null;
+  anexo_seguro_garantia_path: string | null;
   nome_condominio: string | null;
   quadra_lote: string | null;
   quadra: string | null;
@@ -89,6 +96,13 @@ const PROCESSO_SELECT = [
   'vgv_pretendido',
   'produto_modelo_casa',
   'link_pasta_drive',
+  'link_bca',
+  'link_mapa_competidores',
+  'link_acoplamento',
+  'link_apresentacao_comite',
+  'anexo_opcao_permuta_path',
+  'anexo_contrato_permuta_path',
+  'anexo_seguro_garantia_path',
   'nome_condominio',
   'quadra_lote',
   'quadra',
@@ -155,6 +169,13 @@ function mapProcesso(r: Record<string, unknown> | null): ProcessoModalNegocioPre
     vgv_pretendido: g('vgv_pretendido'),
     produto_modelo_casa: g('produto_modelo_casa'),
     link_pasta_drive: g('link_pasta_drive'),
+    link_bca: g('link_bca'),
+    link_mapa_competidores: g('link_mapa_competidores'),
+    link_acoplamento: g('link_acoplamento'),
+    link_apresentacao_comite: g('link_apresentacao_comite'),
+    anexo_opcao_permuta_path: g('anexo_opcao_permuta_path'),
+    anexo_contrato_permuta_path: g('anexo_contrato_permuta_path'),
+    anexo_seguro_garantia_path: g('anexo_seguro_garantia_path'),
     nome_condominio: g('nome_condominio'),
     quadra_lote: g('quadra_lote'),
     quadra: g('quadra'),
