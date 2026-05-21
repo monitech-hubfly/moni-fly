@@ -14,6 +14,7 @@ import {
   timesOpcoesReceberChamado,
 } from '@/lib/times-responsaveis';
 import { createClient } from '@/lib/supabase/client';
+import { MultiSelectCheckbox } from '@/components/MultiSelectCheckbox';
 
 type FranqueadoItem = { id: string; n_franquia: string | null; nome_completo: string | null };
 
@@ -360,46 +361,34 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                   <strong>Executivo Local</strong> ou <strong>Modelo Virtual</strong>, o chamado é classificado
                   automaticamente como <strong>HDM</strong>.
                 </p>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {timesChipsCatalogoOrdenados.map((t) => {
-                    const on = timesIds.includes(t.id);
-                    return (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() =>
-                          setTimesIds((prev) => (on ? prev.filter((x) => x !== t.id) : [...prev, t.id]))
-                        }
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium border ${on ? 'border-red-600 bg-red-600 text-white' : 'border-[color:var(--moni-border-default)] bg-white text-[color:var(--moni-text-secondary)]'}`}
-                      >
-                        {t.nome}
-                      </button>
-                    );
-                  })}
-                </div>
+                <MultiSelectCheckbox
+                  variant="times"
+                  placeholder="Selecione os times..."
+                  options={timesChipsCatalogoOrdenados.map((t) => ({ id: t.id, label: t.nome }))}
+                  selectedIds={timesIds}
+                  onToggle={(id) =>
+                    setTimesIds((prev) =>
+                      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+                    )
+                  }
+                />
               </div>
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-stone-700">
                   Responsável pelo atendimento (opcional)
                 </label>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {responsaveisOpcoesVisiveis.map((p) => {
-                    const on = responsaveisIds.includes(p.id);
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() =>
-                          setResponsaveisIds((prev) => (on ? prev.filter((x) => x !== p.id) : [...prev, p.id]))
-                        }
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium border ${on ? 'border-red-600 bg-red-600 text-white' : 'border-[color:var(--moni-border-default)] bg-white text-[color:var(--moni-text-secondary)]'}`}
-                      >
-                        {p.nome}
-                      </button>
-                    );
-                  })}
-                </div>
+                <MultiSelectCheckbox
+                  variant="responsaveis"
+                  placeholder="Selecione os responsáveis..."
+                  options={responsaveisOpcoesVisiveis.map((p) => ({ id: p.id, label: p.nome }))}
+                  selectedIds={responsaveisIds}
+                  onToggle={(id) =>
+                    setResponsaveisIds((prev) =>
+                      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+                    )
+                  }
+                />
               </div>
 
               <div ref={buscaFrankRef} className="relative">
