@@ -5135,6 +5135,7 @@ export function KanbanCardModal({
                           <option value="100% Permuta">100% Permuta</option>
                           <option value="100% Compra e Venda Moní">100% Compra e Venda Moní</option>
                           <option value="100% Compra e Venda Frank">100% Compra e Venda Frank</option>
+                          <option value="Terreno do Franqueado">Terreno do Franqueado</option>
                         </select>
                       </label>
                       <label className="block">
