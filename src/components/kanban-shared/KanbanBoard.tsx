@@ -182,7 +182,7 @@ export function KanbanBoard({
           onChange={(e) => setBuscaTitulo(e.target.value)}
           placeholder="Buscar no título do card…"
           aria-label="Buscar cards pelo título"
-          className="ml-auto min-w-[12rem] max-w-md flex-1 rounded-lg px-3 py-2 text-sm placeholder:text-stone-400 focus:outline-none focus:ring-1"
+          className="w-64 max-w-full rounded-lg px-3 py-2 text-sm placeholder:text-stone-400 focus:outline-none focus:ring-1"
           style={{
             border: '0.5px solid var(--moni-border-default)',
             background: 'var(--moni-surface-0)',
