@@ -66,6 +66,7 @@ import {
   type PreObraDraftKanban,
 } from '@/lib/kanban/kanban-card-modal-detalhes';
 import { SlaTituloBolinha } from '@/components/SlaTituloBolinha';
+import { MultiSelectCheckbox } from '@/components/MultiSelectCheckbox';
 import { AtividadeVinculadaCard } from '@/components/AtividadeVinculadaCard';
 import { AtividadeVinculadaIcon } from '@/components/AtividadeVinculadaIcon';
 import { AtividadeVinculadaStatusPill } from '@/components/AtividadeVinculadaStatusPill';
@@ -3918,54 +3919,40 @@ export function KanbanCardModal({
                   </p>
                   <div>
                     <label className="mb-1 block text-[10px] font-medium text-stone-500">Times</label>
-                    <div className="flex flex-wrap gap-1">
-                      {timesNovaFiltrados.map((t) => {
-                        const on = novaInteracao.timesIds.includes(t.id);
-                        return (
-                          <button
-                            key={t.id}
-                            type="button"
-                            onClick={() =>
-                              setNovaInteracao((n) => ({
-                                ...n,
-                                timesIds: on ? n.timesIds.filter((x) => x !== t.id) : [...n.timesIds, t.id],
-                              }))
-                            }
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${on ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600'}`}
-                          >
-                            {t.nome}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <MultiSelectCheckbox
+                      variant="times"
+                      placeholder="Selecione os times..."
+                      options={timesNovaFiltrados.map((t) => ({ id: t.id, label: t.nome }))}
+                      selectedIds={novaInteracao.timesIds}
+                      onToggle={(id) =>
+                        setNovaInteracao((n) => ({
+                          ...n,
+                          timesIds: n.timesIds.includes(id)
+                            ? n.timesIds.filter((x) => x !== id)
+                            : [...n.timesIds, id],
+                        }))
+                      }
+                    />
                   </div>
                   {!portalFrank && (
                     <div>
                       <label className="mb-1 block text-[10px] font-medium text-stone-500">
                         Responsáveis (opcional)
                       </label>
-                      <div className="flex flex-wrap gap-1">
-                        {responsaveisOpcoesNovaHdm.map((p) => {
-                          const on = novaInteracao.responsaveisIds.includes(p.id);
-                          return (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onClick={() =>
-                                setNovaInteracao((n) => ({
-                                  ...n,
-                                  responsaveisIds: on
-                                    ? n.responsaveisIds.filter((x) => x !== p.id)
-                                    : [...n.responsaveisIds, p.id],
-                                }))
-                              }
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${on ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600'}`}
-                            >
-                              {p.nome}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <MultiSelectCheckbox
+                        variant="responsaveis"
+                        placeholder="Selecione os responsáveis..."
+                        options={responsaveisOpcoesNovaHdm.map((p) => ({ id: p.id, label: p.nome }))}
+                        selectedIds={novaInteracao.responsaveisIds}
+                        onToggle={(id) =>
+                          setNovaInteracao((n) => ({
+                            ...n,
+                            responsaveisIds: n.responsaveisIds.includes(id)
+                              ? n.responsaveisIds.filter((x) => x !== id)
+                              : [...n.responsaveisIds, id],
+                          }))
+                        }
+                      />
                     </div>
                   )}
                   <label className="flex cursor-pointer items-center gap-2 text-xs text-stone-700">
