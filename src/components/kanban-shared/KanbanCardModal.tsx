@@ -4286,6 +4286,7 @@ export function KanbanCardModal({
                     <MultiSelectCheckbox
                       variant="times"
                       placeholder="Selecione os times..."
+                      searchPlaceholder="Pesquisar time…"
                       options={timesNovaFiltrados.map((t) => ({ id: t.id, label: t.nome }))}
                       selectedIds={novaInteracao.timesIds}
                       onToggle={(id) =>
@@ -4306,6 +4307,7 @@ export function KanbanCardModal({
                       <MultiSelectCheckbox
                         variant="responsaveis"
                         placeholder="Selecione os responsáveis..."
+                        searchPlaceholder="Pesquisar responsável…"
                         options={responsaveisOpcoesNovaHdm.map((p) => ({ id: p.id, label: p.nome }))}
                         selectedIds={novaInteracao.responsaveisIds}
                         onToggle={(id) =>

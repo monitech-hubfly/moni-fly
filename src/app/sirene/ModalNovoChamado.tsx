@@ -364,6 +364,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                 <MultiSelectCheckbox
                   variant="times"
                   placeholder="Selecione os times..."
+                  searchPlaceholder="Pesquisar time…"
                   options={timesChipsCatalogoOrdenados.map((t) => ({ id: t.id, label: t.nome }))}
                   selectedIds={timesIds}
                   onToggle={(id) =>
@@ -381,6 +382,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                 <MultiSelectCheckbox
                   variant="responsaveis"
                   placeholder="Selecione os responsáveis..."
+                  searchPlaceholder="Pesquisar responsável…"
                   options={responsaveisOpcoesVisiveis.map((p) => ({ id: p.id, label: p.nome }))}
                   selectedIds={responsaveisIds}
                   onToggle={(id) =>
