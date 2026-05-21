@@ -64,6 +64,7 @@ const SIRENE_SUBITENS: NavItem[] = [{ href: '/sirene/chamados', label: 'Chamados
 const CAROMETRO_SUBITENS: NavItem[] = [
   { href: '/carometro/comportamentos-e-atividades', label: 'Comportamentos e Atividades' },
   { href: '/carometro/gantt', label: 'Planejamento (Gantt)' },
+  { href: '/carometro/status-preenchimento', label: 'Status de Preenchimento' },
   { href: '/carometro/conquistas', label: 'Conquistas' },
   { href: '/carometro/indicadores', label: 'Indicadores' },
   { href: '/carometro/workload', label: 'Workload' },
