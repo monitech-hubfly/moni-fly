@@ -2829,11 +2829,11 @@ ALTER TABLE indicadores
     return (comp.acoes || []).reduce((s, a) => s + (a.tempo_estimado_minutos || 0), 0)
   }
   return (
-    <>
+    <div className="workload-comportamentos-page">
       <header className="workload-header">
         <div>
-          <h1>Comportamentos e Atividades</h1>
-          <p className="workload-subtitle">Cadastre comportamentos e atividades do dia a dia (recorrentes ou pontuais), incluindo sua carga horária.</p>
+          <h1 className="carometro-page-title">Comportamentos e Atividades</h1>
+          <p className="carometro-page-subtitle">Cadastre comportamentos e atividades do dia a dia (recorrentes ou pontuais), incluindo sua carga horária.</p>
         </div>
         <div className="workload-area-row">
           {areas.length > 0 && (
@@ -3418,20 +3418,61 @@ ALTER TABLE indicadores
               </div>
               <div className="workload-drawer-field">
                 <label className="workload-drawer-label" htmlFor="workload-wd-comp-area">Área</label>
-                <select
-                  id="workload-wd-comp-area"
-                  className="workload-drawer-control"
-                  value={workloadDrawerMode === 'editar-comportamento' ? (compForEdit?.area_id || '') : areaId}
-                  onChange={e => {
-                    if (workloadDrawerMode === 'editar-comportamento') return
-                    const v = e.target.value
-                    setAreaId(v)
-                    if (v) mergeSetAreaUrl(router, pathname, searchParams, v)
-                  }}
-                  disabled={workloadDrawerMode === 'editar-comportamento'}
-                >
-                  {areas.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
-                </select>
+                {workloadDrawerMode === 'novo-comportamento' ? (
+                  <>
+                    <div
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: 6,
+                        border: '0.5px solid #e0d9ce',
+                        fontSize: 13,
+                        color: '#5f5e5a',
+                        background: '#f7f5f0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'not-allowed'
+                      }}
+                    >
+                      <span>{areas.find(a => a.id === areaId)?.nome || '—'}</span>
+                      <span style={{ fontSize: 11, color: '#aaa89e' }}>🔒</span>
+                    </div>
+                    <span style={{ fontSize: 11, color: '#aaa89e', marginTop: 3 }}>
+                      Área definida pelo filtro da página
+                    </span>
+                    <select
+                      id="workload-wd-comp-area"
+                      className="workload-drawer-control"
+                      style={{ display: 'none' }}
+                      value={areaId}
+                      onChange={e => {
+                        const v = e.target.value
+                        setAreaId(v)
+                        if (v) mergeSetAreaUrl(router, pathname, searchParams, v)
+                      }}
+                      tabIndex={-1}
+                      aria-hidden
+                    >
+                      {areas.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                    </select>
+                  </>
+                ) : (
+                  <select
+                    id="workload-wd-comp-area"
+                    className="workload-drawer-control"
+                    value={compForEdit?.area_id || ''}
+                    onChange={e => {
+                      if (workloadDrawerMode === 'editar-comportamento') return
+                      const v = e.target.value
+                      setAreaId(v)
+                      if (v) mergeSetAreaUrl(router, pathname, searchParams, v)
+                    }}
+                    disabled={workloadDrawerMode === 'editar-comportamento'}
+                  >
+                    {areas.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                  </select>
+                )}
               </div>
             </>
           )}
@@ -3927,28 +3968,28 @@ ALTER TABLE indicadores
 
       {comportamentoExcluirId && (
         <div
-          className="modal-overlay"
+          className="workload-remove-modal-overlay"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget && !comportamentoExcluindo) setComportamentoExcluirId(null)
           }}
         >
           <div
-            className="modal-card"
+            className="workload-remove-modal-card"
             role="dialog"
             aria-modal="true"
             aria-labelledby="comportamento-excluir-title"
             aria-describedby="comportamento-excluir-desc"
           >
-            <div className="modal-header">
+            <div className="workload-remove-modal-header">
               <div>
-                <h2 id="comportamento-excluir-title">Remover comportamento</h2>
+                <h2 id="comportamento-excluir-title" className="workload-remove-modal-title">Remover comportamento</h2>
                 {nomeComportamentoExcluir ? (
-                  <p className="modal-subtitle">{nomeComportamentoExcluir}</p>
+                  <p className="workload-remove-modal-subtitle">{nomeComportamentoExcluir}</p>
                 ) : null}
               </div>
               <button
                 type="button"
-                className="modal-close-btn"
+                className="workload-remove-modal-close"
                 onClick={() => !comportamentoExcluindo && setComportamentoExcluirId(null)}
                 disabled={comportamentoExcluindo}
                 aria-label="Fechar"
@@ -3956,19 +3997,24 @@ ALTER TABLE indicadores
                 ×
               </button>
             </div>
-            <div className="modal-body">
-              <p id="comportamento-excluir-desc" className="modal-hint" style={{ margin: 0 }}>
+            <div className="workload-remove-modal-body">
+              <p id="comportamento-excluir-desc">
                 Remover este comportamento e todas as tarefas?
               </p>
             </div>
-            <div className="modal-footer">
-              <button type="button" className="btn" onClick={() => setComportamentoExcluirId(null)} disabled={comportamentoExcluindo}>
+            <div className="workload-remove-modal-footer">
+              <button
+                type="button"
+                className="workload-remove-modal-btn workload-remove-modal-btn--cancel"
+                onClick={() => setComportamentoExcluirId(null)}
+                disabled={comportamentoExcluindo}
+              >
                 Cancelar
               </button>
               <button
                 ref={compExcluirConfirmRef}
                 type="button"
-                className="btn btn-danger"
+                className="workload-remove-modal-btn workload-remove-modal-btn--danger"
                 onClick={confirmarRemocaoComportamento}
                 disabled={comportamentoExcluindo}
               >
@@ -3981,30 +4027,30 @@ ALTER TABLE indicadores
 
       {atividadeExcluirIds?.length ? (
         <div
-          className="modal-overlay"
+          className="workload-remove-modal-overlay"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget && !atividadeExcluindo) setAtividadeExcluirIds(null)
           }}
         >
           <div
-            className="modal-card"
+            className="workload-remove-modal-card"
             role="dialog"
             aria-modal="true"
             aria-labelledby="atividade-excluir-title"
             aria-describedby="atividade-excluir-desc"
           >
-            <div className="modal-header">
+            <div className="workload-remove-modal-header">
               <div>
-                <h2 id="atividade-excluir-title">
+                <h2 id="atividade-excluir-title" className="workload-remove-modal-title">
                   {atividadeExcluirIds.length > 1 ? 'Remover atividade esteira' : 'Remover atividade'}
                 </h2>
                 {nomeAtividadeExcluir ? (
-                  <p className="modal-subtitle">{nomeAtividadeExcluir}</p>
+                  <p className="workload-remove-modal-subtitle">{nomeAtividadeExcluir}</p>
                 ) : null}
               </div>
               <button
                 type="button"
-                className="modal-close-btn"
+                className="workload-remove-modal-close"
                 onClick={() => !atividadeExcluindo && setAtividadeExcluirIds(null)}
                 disabled={atividadeExcluindo}
                 aria-label="Fechar"
@@ -4012,21 +4058,26 @@ ALTER TABLE indicadores
                 ×
               </button>
             </div>
-            <div className="modal-body">
-              <p id="atividade-excluir-desc" className="modal-hint" style={{ margin: 0 }}>
+            <div className="workload-remove-modal-body">
+              <p id="atividade-excluir-desc">
                 {atividadeExcluirIds.length > 1
                   ? 'Serão removidas as duas linhas do par (modelagem e documentação). Deseja continuar?'
                   : 'Remover esta atividade?'}
               </p>
             </div>
-            <div className="modal-footer">
-              <button type="button" className="btn" onClick={() => setAtividadeExcluirIds(null)} disabled={atividadeExcluindo}>
+            <div className="workload-remove-modal-footer">
+              <button
+                type="button"
+                className="workload-remove-modal-btn workload-remove-modal-btn--cancel"
+                onClick={() => setAtividadeExcluirIds(null)}
+                disabled={atividadeExcluindo}
+              >
                 Cancelar
               </button>
               <button
                 ref={atividadeExcluirConfirmRef}
                 type="button"
-                className="btn btn-danger"
+                className="workload-remove-modal-btn workload-remove-modal-btn--danger"
                 onClick={confirmarRemocaoAtividade}
                 disabled={atividadeExcluindo}
               >
@@ -4037,6 +4088,6 @@ ALTER TABLE indicadores
         </div>
       ) : null}
 
-    </>
+    </div>
   )
 }

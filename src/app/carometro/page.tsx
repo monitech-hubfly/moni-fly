@@ -5,7 +5,7 @@
  * Carômetro — Scorecard Executivo.
  * Dados: `cronograma` (acao_id → acoes.tarefa_id; semana ISO; periodo_id + status).
  * Comportamento no período: planejamento em `gantt_planejamento` OU dados em `cronograma` nas semanas ISO do período.
- * Engajamento por célula: semana sem Gantt e sem cronograma → "—"; senão % concluídas/total de ações da tarefa.
+ * Engajamento por célula: sem planejamento Gantt na semana → "—"; senão % concluídas no cronograma / planejadas no Gantt.
  * Gantt: `semanas_selecionadas` (ISO) + `semana_inicio`/`semana_fim` (legado) via `ganttRowPlanejadoNaSemanaIso`.
  * Indicadores: `indicador_lancamentos` por `periodo_id` + `semana` (ISO).
  * Filtro de período: além do UUID selecionado, inclui todos os `periodos` que cruzam o mesmo intervalo de datas
@@ -34,14 +34,19 @@ import {
   posicaoRelativaParaSemanaIso
 } from '@/utils/periodos'
 import SemanaComentarioPillHost from '@/components/SemanaComentarioPillHost'
+import { useAdmin } from '@/context/AdminContext'
 
-/** Semana ISO (UTC) — alinhado ao pedido v5. */
-function getSemanaISOAtual() {
-  const hoje = new Date()
-  const d = new Date(Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()))
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7))
+/** Semana ISO 8601 (UTC, semana começa na segunda). */
+function getSemanaISO(date = new Date()) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
   return Math.ceil((((d - yearStart) / 86400000 + 1) / 7))
+}
+
+function getSemanaISOAtual() {
+  return getSemanaISO(new Date())
 }
 
 /**
@@ -219,6 +224,20 @@ function temPlanejamentoNaSemanaEngajamentoCar(
   return false
 }
 
+/** Ações do comportamento planejadas na semana ISO via `gantt_planejamento.semanas_selecionadas`. */
+function acoesPlanejadasNaSemanaGanttCar(ganttRows, acoesDaTarefa, semanaIsoNum) {
+  const sn = Number(semanaIsoNum)
+  if (!Number.isFinite(sn)) return []
+  return (acoesDaTarefa || []).filter(acao => {
+    const aid = String(acao.id ?? '')
+    return (ganttRows || []).some(g => {
+      if (String(g.acao_id ?? '') !== aid) return false
+      const ss = normalizarSemanasSelecionadasGantt(g?.semanas_selecionadas)
+      return ss.some(w => Number(w) === sn)
+    })
+  })
+}
+
 /**
  * Planejado na coluna ISO `sn`: modelo atual = `semanas_selecionadas` (semanas ISO do ano);
  * legado = `semana_inicio`/`semana_fim` internas 1–13 + conversão ISO→interna.
@@ -323,45 +342,98 @@ function semanaPassadaParaEngajamento(semanaIsoNum, periodoRow, agora = new Date
   return colMon.getTime() < curMon.getTime()
 }
 
-/**
- * Engajamento de um comportamento numa semana ISO: (ações concluídas naquela semana) / (total de ações do comportamento).
- * Semana atual/futura → null. Semana passada → % (inclui 0%).
- */
-function calcularEngajamentoSemana(
-  tarefaId,
-  semanaISO,
-  acoesRows,
-  cronogramaList,
-  ganttPlanejamento,
+/** Linhas do cronograma do comportamento na coluna ISO (converte semana relativa → ISO como no Gantt). */
+function cronogramaLinhasComportamentoSemanaIso(
+  cronoRows,
+  acaoIdsSet,
+  semanaIsoNum,
   semanasGrid,
-  periodoRow,
   dataInicioPorPeriodoCronoId,
   dataInicioVisualizadoCrono
 ) {
-  void ganttPlanejamento
+  const sn = Number(semanaIsoNum)
+  if (!Number.isFinite(sn)) return []
+  return (cronoRows || []).filter(c => {
+    if (!acaoIdsSet.has(String(c.acao_id ?? ''))) return false
+    const w = semanaCronogramaIsoNaGrade(c, semanasGrid, dataInicioPorPeriodoCronoId, dataInicioVisualizadoCrono)
+    return w != null && Number(w) === sn
+  })
+}
+
+/**
+ * Engajamento por comportamento/semana: concluídas no cronograma / planejadas no Gantt.
+ * Denominador = `gantt_planejamento` do período visualizado; sem planejamento na semana → null.
+ */
+function calcularEngajamentoSemana(tarefaId, semanaISO, acoes, cronoRows, ganttPlan) {
+  const acoesDaTarefa = (acoes || []).filter(a => a.tarefa_id === tarefaId)
+  if (acoesDaTarefa.length === 0) return null
+  const acaoIds = acoesDaTarefa.map(a => a.id)
   const sn = Number(semanaISO)
   if (!Number.isFinite(sn)) return null
-  const acoesDaTarefa = acoesRows.filter(a => a.tarefa_id === tarefaId)
-  const totalAcoes = acoesDaTarefa.length
-  if (totalAcoes === 0) return null
-  if (!semanaPassadaParaEngajamento(sn, periodoRow)) return null
 
-  let concluidas = 0
-  for (const a of acoesDaTarefa) {
-    if (
-      acaoConcluidaNaSemanaCronograma(
-        cronogramaList,
-        a.id,
-        sn,
-        semanasGrid,
-        dataInicioPorPeriodoCronoId,
-        dataInicioVisualizadoCrono
-      )
-    ) {
-      concluidas++
-    }
+  const planejadosNaSemana = (ganttPlan || []).filter(
+    g =>
+      acaoIds.includes(g.acao_id) &&
+      Array.isArray(g.semanas_selecionadas) &&
+      g.semanas_selecionadas.map(Number).includes(sn)
+  )
+
+  if (planejadosNaSemana.length === 0) return null
+
+  const semanaAtual = getSemanaISO()
+  if (sn > semanaAtual) {
+    const temConclusao = (cronoRows || []).some(
+      c =>
+        acaoIds.includes(c.acao_id) &&
+        Number(c.semana) === sn &&
+        statusCronogramaConcluido(c.status)
+    )
+    if (!temConclusao) return null
   }
-  return Math.round((concluidas / totalAcoes) * 100)
+
+  const concluidas = (cronoRows || []).filter(
+    c =>
+      acaoIds.includes(c.acao_id) &&
+      Number(c.semana) === sn &&
+      statusCronogramaConcluido(c.status)
+  ).length
+
+  return Math.round((concluidas / planejadosNaSemana.length) * 100)
+}
+
+/** Faixas de cor do engajamento de comportamentos (células e status). */
+function corEngajamento(pct) {
+  if (pct === null || pct === undefined) return 'sem-dado'
+  if (pct < 30) return 'vermelho'
+  if (pct < 60) return 'amarelo'
+  if (pct < 75) return 'verde-claro'
+  return 'verde-escuro'
+}
+
+function codEsforcoPorPctEngajamento(pct) {
+  const map = {
+    'verde-escuro': 'e100',
+    'verde-claro': 'e75',
+    amarelo: 'e50',
+    vermelho: 'elow',
+    'sem-dado': 'ena'
+  }
+  return map[corEngajamento(pct)] ?? 'ena'
+}
+
+function estiloBadgeEngajamentoComportamento(pct) {
+  switch (corEngajamento(pct)) {
+    case 'verde-escuro':
+      return { background: '#1A5C38', color: '#fff' }
+    case 'verde-claro':
+      return { background: '#27AE60', color: '#fff' }
+    case 'amarelo':
+      return { background: '#F1C40F', color: '#333' }
+    case 'vermelho':
+      return { background: '#C0392B', color: '#fff' }
+    default:
+      return null
+  }
 }
 
 /**
@@ -508,12 +580,12 @@ function statusCarometroIndicadorCelula(ind, valor) {
   return mapSemaforoParaCar(st)
 }
 
-/** Badges semáforo — faixas de % (UI scorecard; alinhado à legenda) */
+/** Badges de engajamento de comportamentos — faixas <30 / 30–59 / 60–74 / ≥75 */
 const BADGE_COMPORT_SOLID = {
-  e100: { background: '#2e7d32', color: '#fff' },
-  e75: { background: '#8bc34a', color: '#fff' },
-  e50: { background: '#e6a817', color: '#fff' },
-  elow: { background: '#e74c3c', color: '#fff' }
+  e100: { background: '#1A5C38', color: '#fff' },
+  e75: { background: '#27AE60', color: '#fff' },
+  e50: { background: '#F1C40F', color: '#333' },
+  elow: { background: '#C0392B', color: '#fff' }
 }
 
 const BADGE_IND_SOLID = {
@@ -662,14 +734,49 @@ function CarinhaBlocoResumo({ tipo, codigo, labelColor, imgAlt = 'carinha', cari
   )
 }
 
-function SemBadge({ children, variant, empty, style }) {
+function pillClassPorCodComp(cod) {
+  const map = {
+    e100: 'pill-verde-escuro',
+    e75: 'pill-verde-claro',
+    e50: 'pill-amarelo',
+    elow: 'pill-vermelho',
+    ena: 'pill-vazio'
+  }
+  return map[cod] ?? 'pill-vazio'
+}
+
+function pillClassPorCodInd(cod) {
+  const map = {
+    ive: 'pill-verde-escuro',
+    ivc: 'pill-verde-claro',
+    iam: 'pill-amarelo',
+    ivm: 'pill-vermelho',
+    ina: 'pill-vazio'
+  }
+  return map[cod] ?? 'pill-vazio'
+}
+
+function pillClassPorPctEngajamento(pct) {
+  const map = {
+    'verde-escuro': 'pill-verde-escuro',
+    'verde-claro': 'pill-verde-claro',
+    amarelo: 'pill-amarelo',
+    vermelho: 'pill-vermelho',
+    'sem-dado': 'pill-vazio'
+  }
+  return map[corEngajamento(pct)] ?? 'pill-vazio'
+}
+
+function SemBadge({ children, variant, empty, style, className }) {
   const cls = ['sem-badge']
   if (variant === 'cell') cls.push('sem-badge--cell')
   if (variant === 'status') cls.push('sem-badge--status')
   if (variant === 'legend') cls.push('sem-badge--legend')
-  if (empty) cls.push('sem-badge--empty')
+  if (empty && !className) cls.push('sem-badge--empty')
+  if (className) cls.push(className)
+  const usePill = className && String(className).startsWith('pill-')
   return (
-    <span className={cls.join(' ')} style={empty ? undefined : style}>
+    <span className={cls.join(' ')} style={usePill ? undefined : empty ? undefined : style}>
       {children}
     </span>
   )
@@ -754,7 +861,7 @@ function CelulaSemanaComportamento({ cod, pct, comentarioTooltip }) {
   if (cod === 'ena' || p == null) {
     const badge = (
       <span style={{ position: 'relative', display: 'inline-block' }}>
-        <SemBadge variant="cell" empty>
+        <SemBadge variant="cell" className="pill-vazio">
           —
         </SemBadge>
         {tip ? (
@@ -770,11 +877,11 @@ function CelulaSemanaComportamento({ cod, pct, comentarioTooltip }) {
       </div>
     )
   }
-  const st = BADGE_COMPORT_SOLID[cod] || BADGE_COMPORT_SOLID.elow
   const badge = (
     <SemBadge
       variant="cell"
-      style={{ ...st, position: tip ? 'relative' : undefined, display: tip ? 'inline-block' : undefined }}
+      className={pillClassPorCodComp(cod)}
+      style={tip ? { position: 'relative', display: 'inline-block' } : undefined}
     >
       {p}%
       {tip ? (
@@ -797,13 +904,16 @@ function PillStatusComportamento({ cod, pctMedia }) {
     pctMedia != null && !Number.isNaN(pctMedia) ? Math.round(Number(pctMedia)) : null
   if (pct == null) {
     return (
-      <SemBadge variant="status" empty>
+      <SemBadge variant="status" className="pill-vazio">
         —
       </SemBadge>
     )
   }
-  const st = estiloBadgePctSolido(pct)
-  return <SemBadge variant="status" style={st}>{pct}%</SemBadge>
+  return (
+    <SemBadge variant="status" className={pillClassPorPctEngajamento(pct)}>
+      {pct}%
+    </SemBadge>
+  )
 }
 
 function PillStatusIndicador({ cod, pctMedia }) {
@@ -812,13 +922,16 @@ function PillStatusIndicador({ cod, pctMedia }) {
     pctMedia != null && !Number.isNaN(pctMedia) ? Math.round(Number(pctMedia)) : null
   if (pct == null) {
     return (
-      <SemBadge variant="status" empty>
+      <SemBadge variant="status" className="pill-vazio">
         —
       </SemBadge>
     )
   }
-  const st = estiloBadgePctSolido(pct)
-  return <SemBadge variant="status" style={st}>{pct}%</SemBadge>
+  return (
+    <SemBadge variant="status" className={pillClassPorPctEngajamento(pct)}>
+      {pct}%
+    </SemBadge>
+  )
 }
 
 function CelulaIndicadorSemana({ cod, valor, comentarioTooltip }) {
@@ -837,7 +950,7 @@ function CelulaIndicadorSemana({ cod, valor, comentarioTooltip }) {
   if (cod === 'ina') {
     const badge = (
       <span style={{ position: 'relative', display: 'inline-block' }}>
-        <SemBadge variant="cell" empty>
+        <SemBadge variant="cell" className="pill-vazio">
           —
         </SemBadge>
         {tip ? (
@@ -853,14 +966,14 @@ function CelulaIndicadorSemana({ cod, valor, comentarioTooltip }) {
       </div>
     )
   }
-  const st = BADGE_IND_SOLID[cod] || BADGE_IND_SOLID.ivm
   let content = indLabels[cod] ?? '—'
   if (showNum) content = raw
   else if (raw !== '') content = raw
   const badge = (
     <SemBadge
       variant="cell"
-      style={{ ...st, position: tip ? 'relative' : undefined, display: tip ? 'inline-block' : undefined }}
+      className={pillClassPorCodInd(cod)}
+      style={tip ? { position: 'relative', display: 'inline-block' } : undefined}
     >
       {content}
       {tip ? (
@@ -1148,9 +1261,14 @@ function bandPctParaCodigoComportamento(codInd) {
   return map[codInd] ?? 'ena'
 }
 
+function erroPermissaoChaveSupabase(error) {
+  const msg = `${error?.message ?? ''} ${error?.details ?? ''}`.toLowerCase()
+  return error?.code === '42501' || msg.includes('permission denied')
+}
+
 export default function Carometro() {
   const supabase = createClient()
-  const isAdmin = false
+  const { isAdmin } = useAdmin()
 
   const [periodo, setPeriodo] = useState('mes')
   const [selecao, setSelecao] = useState('')
@@ -1193,11 +1311,13 @@ export default function Carometro() {
     return ord.length ? [...ord] : []
   }, [semanasOrdenadas])
 
-  /** Coluna destacada: última semana visível (= atual quando a atual está no período). */
-  const semanaColunaDestaque = useMemo(
-    () => (semanasVisiveis.length ? semanasVisiveis[semanasVisiveis.length - 1] : null),
-    [semanasVisiveis]
-  )
+  /** Coluna destacada: semana ISO corrente, se estiver na grade do período exibido. */
+  const semanaColunaDestaque = useMemo(() => {
+    if (!semanasVisiveis.length) return null
+    const wAtual = getSemanaISO(new Date())
+    const nums = semanasVisiveis.map(Number).filter(Number.isFinite)
+    return nums.includes(wAtual) ? wAtual : null
+  }, [semanasVisiveis])
 
   const anoDatasSemana = periodoDb?.ano != null ? Number(periodoDb.ano) : new Date().getFullYear()
 
@@ -1644,7 +1764,12 @@ export default function Carometro() {
        * Não confiar só em `.in('semana', semanas do mês)`: no banco `semana` pode ser relativa ao trimestre,
        * e um subconjunto “parcial” na primeira query impedia o fallback amplo — engajamento e indicadores sumiam.
        */
+      /** Mês visualizado + períodos que cruzam o intervalo (ex.: trimestre onde o Gantt gravou). */
+      const periodosValidosEngajamento = idsParaFiltro.filter(Boolean)
+      const periodosValidosEngajamentoSet = new Set(periodosValidosEngajamento.map(id => String(id)))
+
       let cronoList = []
+      let accWideCronoDiag = []
       if (acaoIdsParaCrono.length > 0 && semanaGridArr.length > 0) {
         const LOTE_CR = 40
         const accWide = []
@@ -1666,8 +1791,18 @@ export default function Carometro() {
           }
           if (respW.data?.length) accWide.push(...respW.data)
         }
-        cronoList = (accWide || []).filter(cr =>
-          cronogramaLinhaCaiNaGradePeriodoCar(cr, semanasCalc, periodoDataInicioMap, p?.data_inicio, semanaGridArr)
+        accWideCronoDiag = accWide
+        cronoList = (accWide || []).filter(
+          cr =>
+            cronogramaLinhaCaiNaGradePeriodoCar(
+              cr,
+              semanasCalc,
+              periodoDataInicioMap,
+              p?.data_inicio,
+              semanaGridArr
+            ) &&
+            periodosValidosEngajamentoSet.size > 0 &&
+            periodosValidosEngajamentoSet.has(String(cr?.periodo_id ?? ''))
         )
       }
 
@@ -1678,34 +1813,72 @@ export default function Carometro() {
       }
       let semanasIsoLancamentoCronoArr = Array.from(semSetIsoCrono)
 
-      // Engajamento: todas as semanas ISO do período; concluídas na semana / total de ações do comportamento
+      // Engajamento: linhas concluídas / linhas do cronograma do comportamento na semana ISO
       const LOTE = 20
-      const wAtual = getSemanaISOAtual()
       const semanaGridFull = semanasCalc.map(Number).filter(Number.isFinite)
       const semanasGridNums = [...semanaGridFull].sort((a, b) => a - b)
 
-      // PASSO B — gantt_planejamento por ação (sem filtro periodo_id: trimestre vs mês no banco)
-      const GANTT_SEL_WIDE = 'acao_id, semanas_selecionadas, semana_inicio, semana_fim'
-      const GANTT_SEL_MIN = 'acao_id, semanas_selecionadas'
-      let ganttRows = []
-      if (allAcaoIdsDasMetas.length > 0) {
+      // gantt_planejamento: mês + trimestre (e demais períodos que cruzam o intervalo)
+      const GANTT_PLAN_SEL = 'id, acao_id, semanas_selecionadas, periodo_id'
+      let ganttPlan = []
+      if (allAcaoIdsDasMetas.length > 0 && periodosValidosEngajamento.length > 0) {
         for (let i = 0; i < allAcaoIdsDasMetas.length; i += LOTE) {
           const lote = allAcaoIdsDasMetas.slice(i, i + LOTE)
-          let respG = await supabase.from('gantt_planejamento').select(GANTT_SEL_WIDE).in('acao_id', lote)
-          if (respG.error && erroColunaOuSchemaSupabase(respG.error)) {
-            respG = await supabase.from('gantt_planejamento').select(GANTT_SEL_MIN).in('acao_id', lote)
-          }
+          const respG = await supabase
+            .from('gantt_planejamento')
+            .select(GANTT_PLAN_SEL)
+            .in('periodo_id', periodosValidosEngajamento)
+            .in('acao_id', lote)
           if (respG.error) {
             setError(respG.error.message)
-            ganttRows = []
+            ganttPlan = []
             break
           }
-          if (respG.data?.length) ganttRows = [...ganttRows, ...respG.data]
+          if (respG.data?.length) ganttPlan = [...ganttPlan, ...respG.data]
         }
       }
 
       // Mesmo conjunto já carregado acima (CRONO_SEL inclui periodo_id — semana relativa vs ISO)
       const cronoRows = cronoList || []
+
+      // [DIAG] engajamento — remover após auditoria
+      if (typeof window !== 'undefined') {
+        const hoje = new Date()
+        console.log('[DIAG semana atual] hoje:', hoje.toISOString())
+        console.log('[DIAG semana atual] semanaAtualCalculada:', getSemanaISOAtual())
+        console.log('[DIAG semana atual] semanasGrid:', semanaGridArr)
+        const diagComp = nome =>
+          (comps || []).find(t =>
+            String(t.nome ?? t.descricao ?? '')
+              .toUpperCase()
+              .includes(nome)
+          )
+        const compAcoplamento = diagComp('ACOPLAMENTO')
+        const compChecklist = diagComp('RECEBIMENTO CHECKLIST')
+        const logCronogramaComp = (label, tarefaId, lista) => {
+          if (!tarefaId) return
+          const acoesDa = (acoesRows || []).filter(a => a.tarefa_id === tarefaId)
+          const linhas = (lista || []).filter(c => acoesDa.map(a => a.id).includes(c.acao_id))
+          console.log(`[DIAG ${label}] tarefa_id:`, tarefaId)
+          console.log(`[DIAG ${label}] acoes:`, JSON.stringify(acoesDa, null, 2))
+          console.log(`[DIAG ${label}] linhas cronograma (periodo filtrado):`, JSON.stringify(linhas, null, 2))
+          console.log(
+            `[DIAG ${label}] linhas cronograma (fetch amplo):`,
+            JSON.stringify(
+              (accWideCronoDiag || []).filter(c => acoesDa.map(a => a.id).includes(c.acao_id)),
+              null,
+              2
+            )
+          )
+          console.log(`[DIAG ${label}] semanas raw:`, [...new Set(linhas.map(c => c.semana))])
+          console.log(
+            `[DIAG ${label}] status por semana:`,
+            linhas.map(c => ({ semana: c.semana, status: c.status, acao_id: c.acao_id, periodo_id: c.periodo_id }))
+          )
+        }
+        logCronogramaComp('acoplamento', compAcoplamento?.id, cronoRows)
+        logCronogramaComp('checklist', compChecklist?.id, cronoRows)
+      }
 
       // Atualiza semanas com lançamento do cronograma (ISO na grade do período)
       const semSetIsoCrono2 = new Set()
@@ -1726,7 +1899,7 @@ export default function Carometro() {
         if (!tid) continue
         const acoesDaTarefa = (acoesRows || []).filter(a => a.tarefa_id === tid)
         const tem =
-          acoesDaTarefa.some(a => ganttAcaoPlanejadaNoPeriodo(ganttRows, a.id, semanasCalc, p)) ||
+          acoesDaTarefa.some(a => ganttAcaoPlanejadaNoPeriodo(ganttPlan, a.id, semanasCalc, p)) ||
           acoesDaTarefa.some(a => acaoTemCronogramaNoPeriodoCar(cronoRows, a.id))
         visivelNoPeriodoPorTarefa[tid] = tem
       }
@@ -1736,8 +1909,6 @@ export default function Carometro() {
 
       for (const tarefa of comps || []) {
         const tid = tarefa.id
-        const acoesDaTarefa = (acoesRows || []).filter(a => a.tarefa_id === tid)
-        const totalAcoesTarefa = acoesDaTarefa.length
 
         esforco[tid] = {}
         esforcoPct[tid] = {}
@@ -1747,47 +1918,17 @@ export default function Carometro() {
           const semNum = Number(semISO)
           if (!Number.isFinite(semNum)) return
 
-          // Semana atual ou futura → não calcula (UI exibe "—")
-          if (semNum >= wAtual) {
+          const pct = calcularEngajamentoSemana(tid, semNum, acoesRows, cronoRows, ganttPlan)
+          if (pct == null) {
             pctSemanas[semNum] = null
             esforco[tid][semNum] = 'ena'
             esforcoPct[tid][semNum] = null
             return
           }
-
-          if (totalAcoesTarefa === 0) {
-            pctSemanas[semNum] = null
-            esforco[tid][semNum] = 'ena'
-            esforcoPct[tid][semNum] = null
-            return
-          }
-
-          const acaoIdsSet = new Set(acoesDaTarefa.map(a => String(a.id ?? '')))
-          const temPlanoNaSemana = temPlanejamentoNaSemanaEngajamentoCar(
-            ganttRows,
-            acoesDaTarefa,
-            semNum,
-            semanasCalc,
-            p
-          )
-          const cronoNaSemana = cronogramaLinhasTarefaSemanaLiteral(cronoRows, acaoIdsSet, semNum)
-          const temCronograma = cronoNaSemana.length > 0
-          if (!temPlanoNaSemana && !temCronograma) {
-            pctSemanas[semNum] = null
-            esforco[tid][semNum] = 'ena'
-            esforcoPct[tid][semNum] = null
-            return
-          }
-
-          const feitas = cronoNaSemana.filter(c => statusCronogramaConcluido(c.status)).length
-          const pct = Math.round((feitas / totalAcoesTarefa) * 100)
 
           pctSemanas[semNum] = pct
           esforcoPct[tid][semNum] = pct
-          if (pct >= 75) esforco[tid][semNum] = 'e100'
-          else if (pct >= 60) esforco[tid][semNum] = 'e75'
-          else if (pct >= 30) esforco[tid][semNum] = 'e50'
-          else esforco[tid][semNum] = 'elow'
+          esforco[tid][semNum] = codEsforcoPorPctEngajamento(pct)
         })
 
         const vals = Object.values(pctSemanas).filter(v => v != null && !Number.isNaN(v))
@@ -1889,110 +2030,93 @@ export default function Carometro() {
     }
   }, [carregarDados, selecao, periodoDb, semanasMemo])
 
-  async function toggleChaveTarefa(t) {
+  async function toggleComportamentoChave(tarefaId, valorAtual) {
     if (!isAdmin) return
-    const atual = !!t.is_chave
-    const novo = !atual
-    setSalvandoChave(`t-${t.id}`)
+    const novoValor = valorAtual ? 'nao' : 'sim'
+    const novoChave = !valorAtual
+    setSalvandoChave(`t-${tarefaId}`)
     setDados(prev =>
       prev.map(block => ({
         ...block,
         metas: block.metas.map(m => ({
           ...m,
-          comportamentos: m.comportamentos.map(c => (c.id === t.id ? { ...c, isChave: novo } : c))
+          comportamentos: m.comportamentos.map(c =>
+            c.id === tarefaId ? { ...c, isChave: novoChave } : c
+          )
         }))
       }))
     )
-    let res = await supabase
+    const { error } = await supabase
       .from('acoes')
-      .update({ caneta_verde: novo ? 'sim' : 'nao' })
-      .eq('tarefa_id', t.id)
-    if (res.error && erroColunaOuSchemaSupabase(res.error)) {
-      res = await supabase.from('tarefas').update({ is_chave: novo }).eq('id', t.id)
-    }
-    if (res.error) {
-      console.error('[Carometro] erro ao salvar chave tarefa:', res.error.message)
-      setError('Não foi possível salvar. Verifique a configuração do banco.')
-      return
-    }
-    if (res.error) {
+      .update({ caneta_verde: novoValor })
+      .eq('tarefa_id', tarefaId)
+    if (error) {
+      console.error('[CHAVE] Erro ao salvar caneta_verde:', error)
+      if (erroPermissaoChaveSupabase(error)) {
+        console.error(
+          '[CHAVE] permission denied — execute GRANT UPDATE (caneta_verde) ON acoes TO anon, authenticated; NOTIFY pgrst, \'reload schema\';'
+        )
+      }
       setDados(prev =>
         prev.map(block => ({
           ...block,
           metas: block.metas.map(m => ({
             ...m,
-            comportamentos: m.comportamentos.map(c => (c.id === t.id ? { ...c, isChave: atual } : c))
+            comportamentos: m.comportamentos.map(c =>
+              c.id === tarefaId ? { ...c, isChave: valorAtual } : c
+            )
           }))
         }))
       )
-      setError(res.error.message)
-    } else {
-      void registrarLog({
-        modulo: 'Carômetro',
-        area: areaSelecionada?.nome,
-        entidade: 'tarefa',
-        entidade_id: t.id,
-        operacao: 'UPDATE',
-        valor_anterior: { is_chave: atual },
-        valor_novo: { is_chave: novo },
-        descricao: `Alterou chave da tarefa "${t.nome || t.id}"`
-      })
+      setSalvandoChave(null)
+      return
     }
     setSalvandoChave(null)
   }
 
-  async function toggleChaveIndicador(ind) {
+  async function toggleIndicadorChave(indicadorId, valorAtual) {
     if (!isAdmin) return
-    const atual = !!ind.isChave
-    const novo = !atual
-    setSalvandoChave(`i-${ind.id}`)
+    const novoValor = !valorAtual
+    setSalvandoChave(`i-${indicadorId}`)
     setDados(prev =>
       prev.map(block => ({
         ...block,
         metas: block.metas.map(m => ({
           ...m,
           indicadores: m.indicadores.map(i =>
-            i.id === ind.id ? { ...i, isChave: novo, indicador_chave: novo } : i
+            i.id === indicadorId
+              ? { ...i, isChave: novoValor, indicador_chave: novoValor }
+              : i
           )
         }))
       }))
     )
-    let res = await supabase.from('indicadores').update({ indicador_chave: novo }).eq('id', ind.id)
-    if (res.error && erroColunaOuSchemaSupabase(res.error)) {
-      res = await supabase.from('indicadores').update({ is_chave: novo }).eq('id', ind.id)
-    }
-    if (res.error && erroColunaOuSchemaSupabase(res.error)) {
-      res = await supabase.from('indicadores').update({ chave: novo }).eq('id', ind.id)
-    }
-    if (res.error) {
-      console.error('[Carometro] erro ao salvar chave indicador:', res.error.message)
-      setError('Não foi possível salvar. Verifique a configuração do banco.')
-      return
-    }
-    if (res.error) {
+    const { error } = await supabase
+      .from('indicadores')
+      .update({ indicador_chave: novoValor })
+      .eq('id', indicadorId)
+    if (error) {
+      console.error('[CHAVE] Erro ao salvar indicador_chave:', error)
+      if (erroPermissaoChaveSupabase(error)) {
+        console.error(
+          '[CHAVE] permission denied — execute GRANT UPDATE (indicador_chave) ON indicadores TO anon, authenticated; NOTIFY pgrst, \'reload schema\';'
+        )
+      }
       setDados(prev =>
         prev.map(block => ({
           ...block,
           metas: block.metas.map(m => ({
             ...m,
             indicadores: m.indicadores.map(i =>
-              i.id === ind.id ? { ...i, isChave: atual, indicador_chave: atual } : i
+              i.id === indicadorId
+                ? { ...i, isChave: valorAtual, indicador_chave: valorAtual }
+                : i
             )
           }))
         }))
       )
-      setError(res.error.message)
-    } else {
-      void registrarLog({
-        modulo: 'Carômetro',
-        area: areaSelecionada?.nome,
-        entidade: 'indicadores',
-        entidade_id: ind.id,
-        operacao: 'UPDATE',
-        valor_anterior: { indicador_chave: atual, is_chave: atual },
-        valor_novo: { indicador_chave: novo, is_chave: novo },
-        descricao: `Alterou indicador chave "${ind.nome || ind.id}"`
-      })
+      setSalvandoChave(null)
+      return
     }
     setSalvandoChave(null)
   }
@@ -3490,147 +3614,53 @@ export default function Carometro() {
               <col style={{ width: 96 }} />
             </colgroup>
             <thead>
-              <tr style={{ background: 'var(--comp-mid)', color: 'var(--hdr-text)' }}>
-                <th
-                  style={{
-                    padding: '10px 8px',
-                    textAlign: 'left',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    borderBottom: '0.5px solid rgba(255,255,255,0.12)',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  Comportamento / Indicador
-                </th>
-                <th
-                  style={{
-                    padding: '8px 2px',
-                    textAlign: 'center',
-                    fontSize: 10,
-                    fontWeight: 600,
-                    borderBottom: '0.5px solid rgba(255,255,255,0.12)',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  Chave
-                </th>
-                <th
-                  style={{
-                    padding: '10px 4px',
-                    textAlign: 'center',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    borderBottom: '0.5px solid rgba(255,255,255,0.12)',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  Responsável
-                </th>
+              <tr className="carometro-thead-row">
+                <th className="carometro-th carometro-th--label">Comportamento / Indicador</th>
+                <th className="carometro-th carometro-th--chave">Chave</th>
+                <th className="carometro-th carometro-th--resp">Responsável</th>
                 {semanasVisiveis.map(w => {
                   const dest = w === semanaColunaDestaque
                   return (
                     <th
                       key={w}
-                      style={{
-                        padding: '8px 2px',
-                        textAlign: 'center',
-                        fontSize: 10,
-                        fontWeight: 600,
-                        borderBottom: '0.5px solid rgba(255,255,255,0.12)',
-                        background: dest ? 'var(--comp-med)' : 'var(--comp-mid)',
-                        color: 'var(--hdr-text)',
-                        whiteSpace: 'nowrap'
-                      }}
+                      className={`carometro-th carometro-th--week${dest ? ' carometro-th--week-atual' : ''}`}
                     >
                       S{w}
                       {dest ? ' ★' : ''}
-                      <span
-                        style={{
-                          fontSize: 9,
-                          fontWeight: 400,
-                          color: 'var(--hdr-sub)',
-                          display: 'block',
-                          marginTop: 1,
-                          letterSpacing: 0,
-                          textTransform: 'none'
-                        }}
-                      >
+                      <span className="carometro-th-week-dates">
                         {getDatasSemanaCurta(w, anoDatasSemana)}
                       </span>
                     </th>
                   )
                 })}
-                <th
-                  style={{
-                    padding: '8px 4px',
-                    textAlign: 'center',
-                    fontSize: 10,
-                    fontWeight: 600,
-                    borderBottom: '0.5px solid rgba(255,255,255,0.12)',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  Status
-                </th>
+                <th className="carometro-th carometro-th--status">Status</th>
               </tr>
             </thead>
             <tbody>
               {dadosProcessados.map(block => (
                 <Fragment key={block.area.id}>
-                  <tr
-                    className="carometro-row--area"
-                    style={{ background: 'var(--comp-dark)', color: 'var(--hdr-text)', cursor: 'default', fontWeight: 600 }}
-                  >
-                    <td
-                      colSpan={4 + semanasVisiveis.length}
-                      style={{
-                        background: 'var(--comp-dark)',
-                        padding: '10px 12px',
-                        fontWeight: 600,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        fontSize: 12,
-                        borderBottom: '0.5px solid rgba(255,255,255,0.12)',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                      }}
-                    >
+                  <tr className="carometro-row--area">
+                    <td colSpan={4 + semanasVisiveis.length} className="carometro-td-area">
                       {block.area.nome}
                     </td>
                   </tr>
                   {block.metas.map(meta => (
                     <Fragment key={meta.id}>
-                      <tr
-                        className="carometro-row--meta"
-                        style={{ background: 'var(--comp-dark)', color: 'var(--hdr-text)', cursor: 'default', fontWeight: 600 }}
-                      >
-                        <td
-                          style={{
-                            background: 'var(--comp-dark)',
-                            padding: '10px 10px',
-                            verticalAlign: 'middle',
-                            borderBottom: '0.5px solid rgba(255,255,255,0.1)',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis'
-                          }}
-                        >
-                          <div style={{ fontWeight: 600, fontSize: 12 }}>{meta.descricao}</div>
-                          {meta.prazo && (
-                            <div style={{ fontSize: 11, color: 'var(--hdr-sub)', marginTop: 4 }}>Prazo {meta.prazo}</div>
-                          )}
+                      <tr className="carometro-row--meta">
+                        <td className="carometro-td-meta">
+                          <div className="carometro-meta-title">
+                            {meta.descricao}
+                            {meta.prazo && (
+                              <span className="carometro-meta-prazo">Prazo {meta.prazo}</span>
+                            )}
+                          </div>
                         </td>
-                        <td style={{ background: 'var(--comp-dark)', borderBottom: '0.5px solid rgba(255,255,255,0.1)' }} />
-                        <td style={{ background: 'var(--comp-dark)', borderBottom: '0.5px solid rgba(255,255,255,0.1)' }} />
+                        <td className="carometro-td-meta-fill" />
+                        <td className="carometro-td-meta-fill" />
                         {semanasVisiveis.map(w => (
-                          <td
-                            key={w}
-                            style={{ borderBottom: '0.5px solid rgba(255,255,255,0.1)', background: 'var(--comp-dark)' }}
-                          />
+                          <td key={w} className="carometro-td-meta-fill" />
                         ))}
-                        <td style={{ background: 'var(--comp-dark)', borderBottom: '0.5px solid rgba(255,255,255,0.1)' }} />
+                        <td className="carometro-td-meta-fill" />
                       </tr>
                       {meta.comportamentos.map(c => (
                         <tr key={c.id} className="carometro-row--comp" style={{ background: '#fff' }}>
@@ -3667,51 +3697,44 @@ export default function Carometro() {
                               verticalAlign: 'middle'
                             }}
                           >
-                            <input
-                              type="checkbox"
-                              checked={!!c.isChave}
-                              disabled={!isAdmin || salvandoChave === `t-${c.id}`}
-                              onChange={() =>
-                                toggleChaveTarefa({ id: c.id, is_chave: c.isChave })
-                              }
-                              title={
-                                isAdmin
-                                  ? 'Comportamento chave (caneta verde nas ações)'
-                                  : 'Somente administradores podem alterar'
-                              }
-                              style={{
-                                width: 12,
-                                height: 12,
-                                cursor: isAdmin ? 'pointer' : 'not-allowed',
-                                accentColor: 'var(--comp-light)'
-                              }}
-                            />
+                            {isAdmin ? (
+                              <input
+                                type="checkbox"
+                                checked={!!c.isChave}
+                                disabled={salvandoChave === `t-${c.id}`}
+                                onChange={() =>
+                                  toggleComportamentoChave(c.id, !!c.isChave)
+                                }
+                                title="Comportamento chave (caneta verde nas ações)"
+                                style={{
+                                  width: 12,
+                                  height: 12,
+                                  cursor: 'pointer',
+                                  accentColor: 'var(--comp-light)'
+                                }}
+                              />
+                            ) : (
+                              <input
+                                type="checkbox"
+                                checked={!!c.isChave}
+                                disabled
+                                style={{
+                                  opacity: 0.5,
+                                  pointerEvents: 'none',
+                                  width: 12,
+                                  height: 12,
+                                  accentColor: 'var(--comp-light)'
+                                }}
+                              />
+                            )}
                           </td>
-                          <td
-                            style={{
-                              textAlign: 'center',
-                              fontSize: 12,
-                              borderBottom: '0.5px solid rgba(0,0,0,0.08)',
-                              verticalAlign: 'middle',
-                              color: 'var(--moni-texto)',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis'
-                            }}
-                          >
-                            {c.responsavel}
-                          </td>
+                          <td className="carometro-td-comp-resp">{c.responsavel}</td>
                           {semanasVisiveis.map(w => (
                             <td
                               key={w}
-                              style={{
-                                borderBottom: '0.5px solid rgba(0,0,0,0.08)',
-                                verticalAlign: 'middle',
-                                background: w === semanaColunaDestaque ? 'var(--comp-bg)' : undefined,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis'
-                              }}
+                              className={`carometro-td-week carometro-td-week--comp${
+                                w === semanaColunaDestaque ? ' carometro-td-week--atual' : ''
+                              }`}
                             >
                               <CelulaSemanaComportamento
                                 cod={c.semanas[Number(w)] ?? 'ena'}
@@ -3720,13 +3743,7 @@ export default function Carometro() {
                               />
                             </td>
                           ))}
-                          <td
-                            style={{
-                              textAlign: 'center',
-                              borderBottom: '0.5px solid rgba(0,0,0,0.08)',
-                              verticalAlign: 'middle'
-                            }}
-                          >
+                          <td className="carometro-td-comp-status">
                             <PillStatusComportamento
                               cod={statusConsolidadoComportamento(
                                 c.pctSemanas || {},
@@ -3743,85 +3760,52 @@ export default function Carometro() {
                         </tr>
                       ))}
                       {meta.indicadores.map(ind => (
-                        <tr
-                          key={ind.id}
-                          className="carometro-row--ind"
-                          style={{
-                            background: 'var(--ind-bg)',
-                            color: 'var(--ind-text)',
-                            borderBottom: '0.5px solid var(--ind-bdr)'
-                          }}
-                        >
-                          <td
-                            style={{
-                              padding: '8px 10px',
-                              borderBottom: '0.5px solid var(--ind-bdr)',
-                              verticalAlign: 'middle',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              fontSize: 12
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 3, overflow: 'hidden' }}>
+                        <tr key={ind.id} className="carometro-row--ind">
+                          <td className="carometro-td-ind-label">
+                            <div className="carometro-ind-label-inner">
                               <span className="chip-ind">Ind.</span>
-                              <span
-                                style={{
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                  fontSize: 11,
-                                  fontStyle: 'italic'
-                                }}
-                              >
-                                {ind.nome}
-                              </span>
+                              <span className="carometro-ind-nome">{ind.nome}</span>
                             </div>
                           </td>
-                          <td
-                            style={{
-                              textAlign: 'center',
-                              borderBottom: '0.5px solid var(--ind-bdr)',
-                              verticalAlign: 'middle'
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={!!ind.isChave}
-                              disabled={!isAdmin || salvandoChave === `i-${ind.id}`}
-                              onChange={() => toggleChaveIndicador(ind)}
-                              title={isAdmin ? 'Indicador chave' : 'Somente administradores'}
-                              style={{
-                                width: 12,
-                                height: 12,
-                                cursor: isAdmin ? 'pointer' : 'not-allowed',
-                                accentColor: 'var(--ind-light)'
-                              }}
-                            />
+                          <td className="carometro-td-ind-chave">
+                            {isAdmin ? (
+                              <input
+                                type="checkbox"
+                                checked={!!ind.isChave}
+                                disabled={salvandoChave === `i-${ind.id}`}
+                                onChange={() =>
+                                  toggleIndicadorChave(ind.id, !!ind.isChave)
+                                }
+                                title="Indicador chave"
+                                style={{
+                                  width: 12,
+                                  height: 12,
+                                  cursor: 'pointer',
+                                  accentColor: 'var(--ind-light)'
+                                }}
+                              />
+                            ) : (
+                              <input
+                                type="checkbox"
+                                checked={!!ind.isChave}
+                                disabled
+                                style={{
+                                  opacity: 0.5,
+                                  pointerEvents: 'none',
+                                  width: 12,
+                                  height: 12,
+                                  accentColor: 'var(--ind-light)'
+                                }}
+                              />
+                            )}
                           </td>
-                          <td
-                            style={{
-                              textAlign: 'center',
-                              fontSize: 12,
-                              borderBottom: '0.5px solid var(--ind-bdr)',
-                              verticalAlign: 'middle',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            —
-                          </td>
+                          <td className="carometro-td-ind-resp">—</td>
                           {semanasVisiveis.map(w => (
                             <td
                               key={w}
-                              style={{
-                                borderBottom: '0.5px solid var(--ind-bdr)',
-                                textAlign: 'center',
-                                verticalAlign: 'middle',
-                                background: w === semanaColunaDestaque ? '#d4e6f0' : 'var(--ind-bg)',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis'
-                              }}
+                              className={`carometro-td-week carometro-td-week--ind${
+                                w === semanaColunaDestaque ? ' carometro-td-week--atual' : ''
+                              }`}
                             >
                               <CelulaIndicadorSemana
                                 cod={ind.semanas[Number(w)] ?? 'ina'}
@@ -3830,13 +3814,7 @@ export default function Carometro() {
                               />
                             </td>
                           ))}
-                          <td
-                            style={{
-                              textAlign: 'center',
-                              borderBottom: '0.5px solid var(--ind-bdr)',
-                              verticalAlign: 'middle'
-                            }}
-                          >
+                          <td className="carometro-td-ind-status">
                             <PillStatusIndicador
                               cod={statusUltimoIndicador(ind.semanas || {}, semanasVisiveis)}
                               pctMedia={mediaPctIndicador(ind.semanas || {}, semanasVisiveis)}

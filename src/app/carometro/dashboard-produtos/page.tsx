@@ -29,6 +29,24 @@ function getCorProgresso(pct) {
   return { text: '#8B1A1A', bar: '#B01A1A' }
 }
 
+const HEADER_BG = '#1C3A2B'
+const HEADER_BORDER_RIGHT = '1px solid #2E5A42'
+const HEADER_CASA_TEXT = '#A8D4BE'
+const SECTION_BG = '#2A5240'
+
+function estiloPillTotal(pct) {
+  const atrasado = pct !== null && pct < 50
+  return {
+    fontSize: 13,
+    fontWeight: 600,
+    padding: '2px 8px',
+    borderRadius: 10,
+    display: 'inline-block',
+    background: atrasado ? 'rgba(220,60,60,0.15)' : 'rgba(0,0,0,0.08)',
+    color: atrasado ? '#A32D2D' : '#333333'
+  }
+}
+
 function statusCronogramaConcluido(status) {
   const x = String(status ?? '')
     .toLowerCase()
@@ -341,7 +359,7 @@ export default function Page() {
       <tr
         key={tarefa.id}
         style={{
-          background: 'var(--color-background-primary)',
+          background: '#ffffff',
           borderBottom: '0.5px solid var(--color-border-tertiary)'
         }}
       >
@@ -385,7 +403,7 @@ export default function Page() {
       <tr
         key={tarefa.id}
         style={{
-          background: 'var(--color-background-primary)',
+          background: '#ffffff',
           borderBottom: '0.5px solid var(--color-border-tertiary)'
         }}
       >
@@ -466,8 +484,8 @@ export default function Page() {
 
   return (
     <>
-      <h1>Dashboard Casas Moní</h1>
-      <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1.25rem', maxWidth: '720px' }}>
+      <h1 className="carometro-page-title">Dashboard Casas Moní</h1>
+      <p className="carometro-page-subtitle" style={{ marginBottom: '1.25rem', maxWidth: '720px' }}>
         Evolução acumulada dos comportamentos por casa — Produto e Projetos - Modelo Virtual
       </p>
 
@@ -574,16 +592,16 @@ export default function Page() {
                 <th
                   rowSpan={2}
                   style={{
-                    background: '#243B26',
+                    background: HEADER_BG,
                     textAlign: 'left',
                     verticalAlign: 'middle',
                     padding: '8px 10px',
-                    color: '#C8E6A0',
+                    color: '#ffffff',
                     fontSize: 10,
                     fontWeight: 500,
                     textTransform: 'uppercase',
                     letterSpacing: '0.05em',
-                    borderRight: '0.5px solid rgba(255,255,255,0.08)',
+                    borderRight: HEADER_BORDER_RIGHT,
                     borderBottom: 'none'
                   }}
                 >
@@ -592,10 +610,10 @@ export default function Page() {
                 <th
                   colSpan={Math.max(1, casasVisiveis.length)}
                   style={{
-                    background: '#243B26',
+                    background: HEADER_BG,
                     textAlign: 'center',
                     padding: '8px 10px',
-                    color: '#C8E6A0',
+                    color: '#ffffff',
                     fontSize: 10,
                     fontWeight: 500,
                     textTransform: 'uppercase',
@@ -615,13 +633,13 @@ export default function Page() {
                     <th
                       key={casaGroup.nome}
                       style={{
-                        background: '#3A5528',
+                        background: HEADER_BG,
                         textAlign: 'center',
                         padding: '5px 4px',
-                        color: '#C8E6A0',
+                        color: HEADER_CASA_TEXT,
                         fontSize: 9,
                         fontWeight: 500,
-                        borderRight: '0.5px solid rgba(255,255,255,0.08)'
+                        borderRight: HEADER_BORDER_RIGHT
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
@@ -649,55 +667,35 @@ export default function Page() {
                   <tr>
                     <td
                       style={{
-                        background: '#1a2e1a',
-                        color: '#C8E6A0',
+                        background: SECTION_BG,
+                        color: '#ffffff',
                         fontSize: 10,
                         fontWeight: 500,
                         padding: '5px 8px',
                         textTransform: 'uppercase',
-                        letterSpacing: '0.04em'
+                        letterSpacing: '0.04em',
+                        borderRight: HEADER_BORDER_RIGHT
                       }}
                     >
                       {area.nome}
                     </td>
                     {casasVisiveis.map(casaGroup => {
                       const pct = calcularPctArea(area.id, casaGroup)
-                      const cor =
-                        pct === null
-                          ? null
-                          : pct === 100
-                            ? '#0F7A4A'
-                            : pct >= 75
-                              ? '#5A9A1A'
-                              : pct >= 50
-                                ? '#EF9F27'
-                                : '#B01A1A'
                       return (
                         <td
                           key={casaGroup.nome}
                           style={{
-                            background: '#1a2e1a',
+                            background: SECTION_BG,
+                            color: '#ffffff',
                             textAlign: 'center',
-                            borderBottom: '0.5px solid rgba(255,255,255,0.08)',
-                            padding: '5px 4px'
+                            padding: '5px 4px',
+                            borderRight: HEADER_BORDER_RIGHT
                           }}
                         >
                           {pct === null ? (
-                            <span style={{ color: '#a8d080', fontSize: 10 }}>—</span>
+                            <span style={{ color: '#ffffff', fontSize: 10 }}>—</span>
                           ) : (
-                            <span
-                              style={{
-                                fontSize: 11,
-                                fontWeight: 500,
-                                color: cor,
-                                background: `${cor}22`,
-                                padding: '1px 7px',
-                                borderRadius: 10,
-                                display: 'inline-block'
-                              }}
-                            >
-                              {pct}%
-                            </span>
+                            <span style={{ color: '#ffffff', fontWeight: 600, fontSize: 11 }}>{pct}%</span>
                           )}
                         </td>
                       )
@@ -714,13 +712,20 @@ export default function Page() {
                 </Fragment>
               ))}
 
-              <tr style={{ background: '#F4F9EE', borderTop: '1px solid #8FBA6A' }}>
+              <tr
+                style={{
+                  background: '#F2F2F2',
+                  borderTop: '2px solid #888888',
+                  borderBottom: '2px solid #888888'
+                }}
+              >
                 <td
                   style={{
                     padding: '7px 10px',
                     fontWeight: 500,
                     fontSize: 12,
-                    color: 'var(--color-text-primary)'
+                    color: '#333333',
+                    borderRight: '0.5px solid #CCCCCC'
                   }}
                 >
                   Total Produto + Projetos
@@ -736,16 +741,22 @@ export default function Page() {
                     totalAtividades > 0
                       ? Math.min(100, Math.round((totalConcluidas / totalAtividades) * 100))
                       : null
-                  const cor = getCorProgresso(pctTotal)
 
                   return (
-                    <td key={casaGroup.nome} style={{ textAlign: 'center', padding: '6px 4px' }}>
+                    <td
+                      key={casaGroup.nome}
+                      style={{
+                        textAlign: 'center',
+                        padding: '6px 4px',
+                        borderRight: '0.5px solid #CCCCCC'
+                      }}
+                    >
                       {pctTotal === null ? (
-                        <span style={{ color: 'var(--color-text-secondary)', fontSize: 11 }}>—</span>
+                        <span style={{ color: '#666666', fontSize: 11 }}>—</span>
                       ) : (
                         <>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: cor.text }}>{pctTotal}%</div>
-                          <div style={{ fontSize: 8, color: 'var(--color-text-secondary)' }}>
+                          <span style={estiloPillTotal(pctTotal)}>{pctTotal}%</span>
+                          <div style={{ fontSize: 11, color: '#666666', marginTop: 2 }}>
                             {totalConcluidas}/{totalAtividades} ativ.
                           </div>
                         </>

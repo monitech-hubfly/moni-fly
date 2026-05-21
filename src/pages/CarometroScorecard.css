@@ -706,3 +706,24 @@
   width: 16px;
   flex-shrink: 0;
 }
+
+/* Engajamento de comportamentos — faixas de % */
+.carometro-eng-vermelho {
+  background: #c0392b;
+  color: #fff;
+}
+
+.carometro-eng-amarelo {
+  background: #f1c40f;
+  color: #333;
+}
+
+.carometro-eng-verde-claro {
+  background: #27ae60;
+  color: #fff;
+}
+
+.carometro-eng-verde-escuro {
+  background: #1a5c38;
+  color: #fff;
+}

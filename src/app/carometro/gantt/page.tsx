@@ -19,7 +19,6 @@ import {
 } from '@/utils/periodos'
 import DefinirMetaDrawer from '@/components/DefinirMetaDrawer'
 import ComentarioModal from '@/components/ComentarioModal'
-import SemanaComentarioPillHost from '@/components/SemanaComentarioPillHost'
 import WorkloadFormDrawer from '@/components/WorkloadFormDrawer'
 import ResponsaveisAreaMultiSelect from '@/components/ResponsaveisAreaMultiSelect'
 import {
@@ -32,6 +31,42 @@ import {
   indicadorInputModeLancamento
 } from '@/utils/semaforoFaixas'
 import { concluirIndicadorAtingivel } from '@/utils/indicadorConquista'
+import { classificarErroSupabase } from '@/utils/supabaseErroPostgres'
+import { usePastelariaGanttBloco } from '@/components/carometro/PastelariaGanttBloco'
+
+/** Label do período (schema DEV: tipo, ano, numero — sem coluna `nome`). */
+function labelPeriodo(p) {
+  if (!p) return ''
+  if (p.tipo === 'mes') {
+    return `Mês ${String(p.numero).padStart(2, '0')}/${p.ano}`
+  }
+  if (p.tipo === 'bimestre') return `Bimestre ${p.numero}/${p.ano}`
+  if (p.tipo === 'trimestre') return `Trimestre ${p.numero}/${p.ano}`
+  if (p.tipo === 'semestre') return `Semestre ${p.numero}/${p.ano}`
+  if (p.tipo === 'ano') return `Ano ${p.ano}`
+  return `${p.tipo} ${p.numero ?? ''}/${p.ano}`
+}
+
+/**
+ * Verifica se um registro de `gantt_planejamento` cruza a semana ISO informada.
+ * Usa `semanas_selecionadas` e/ou intervalo `semana_inicio`–`semana_fim` (não existe coluna `semana`).
+ */
+function planejamentoCaiNaSemanaIso(gp, semanaISO, semanasGrid) {
+  const sn = Number(semanaISO)
+  if (!gp || !Number.isFinite(sn)) return false
+  const gridSet = new Set((semanasGrid || []).map(Number).filter(Number.isFinite))
+  if (gridSet.size > 0 && !gridSet.has(sn)) return false
+  const ss = normalizarSemanasSelecionadasGantt(gp.semanas_selecionadas)
+  if (ss.some(w => Number(w) === sn)) return true
+  if (gp.semana_inicio != null && gp.semana_fim != null) {
+    const si = Number(gp.semana_inicio)
+    const sf = Number(gp.semana_fim)
+    if (Number.isFinite(si) && Number.isFinite(sf) && si <= sf) {
+      return sn >= si && sn <= sf
+    }
+  }
+  return false
+}
 
 /** Datas curtas segunda–domingo para o cabeçalho da grade (alinha ao período quando possível). */
 function getDatasSemanaCurtaFallbackSimples(semanaISO, ano) {
@@ -150,10 +185,84 @@ ALTER TABLE gantt_planejamento
 ALTER TABLE gantt_planejamento
   ADD COLUMN IF NOT EXISTS adm_cnpj_id uuid REFERENCES adm_cnpjs(id);
 
+CREATE TABLE IF NOT EXISTS controladoria_cnpjs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  cnpj text NOT NULL,
+  descritivo text NOT NULL,
+  criado_em timestamptz DEFAULT now()
+);
+
+ALTER TABLE gantt_planejamento
+  ADD COLUMN IF NOT EXISTS controladoria_cnpj_id uuid REFERENCES controladoria_cnpjs(id);
+
+CREATE TABLE IF NOT EXISTS juridico_identificacoes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome text NOT NULL,
+  tipo text NOT NULL CHECK (tipo IN ('franqueado', 'candidato', 'inc_nuvem', 'interno')),
+  oculto boolean NOT NULL DEFAULT false,
+  criado_em timestamptz DEFAULT now()
+);
+
+ALTER TABLE gantt_planejamento
+  ADD COLUMN IF NOT EXISTS juridico_identificacao_id uuid REFERENCES juridico_identificacoes(id),
+  ADD COLUMN IF NOT EXISTS juridico_tipo text CHECK (
+    juridico_tipo IS NULL OR
+    juridico_tipo IN ('franqueado', 'candidato', 'inc_nuvem', 'interno')
+  );
+
 ALTER TABLE gantt_planejamento DROP CONSTRAINT IF EXISTS gantt_planejamento_trimestre_id_acao_id_key;
 `
 
 const SQL_PGRST_RELOAD_SCHEMA = `NOTIFY pgrst, 'reload schema';`
+
+const SQL_GRANT_INDICADOR_CONQUISTAS = `GRANT SELECT, INSERT, UPDATE, DELETE
+  ON TABLE indicador_conquistas
+  TO anon, authenticated;
+NOTIFY pgrst, 'reload schema';`
+
+const TOAST_ERRO_PERMISSAO_INDICADOR_CONQUISTAS =
+  'Erro de permissão na tabela indicador_conquistas. Execute no Supabase: GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE indicador_conquistas TO anon, authenticated;'
+
+/** Erro de GRANT/RLS em `indicador_conquistas` (não confundir com schema cache / coluna ausente). */
+function erroIndicaPermissaoIndicadorConquistas(msg) {
+  return classificarErroSupabase(msg) === 'permission'
+}
+
+/** Tabela `indicador_conquistas` realmente inexistente no banco. */
+function erroIndicaTabelaIndicadorConquistasAusente(msg) {
+  const m = String(msg ?? '').toLowerCase()
+  if (erroIndicaPermissaoIndicadorConquistas(m)) return false
+  return (
+    m.includes('does not exist') ||
+    (m.includes('relation') && m.includes('not found')) ||
+    m.includes('could not find the table')
+  )
+}
+
+/** Banner vermelho do topo: não exibir mensagem genérica de tabela ausente quando for permissão. */
+function deveExibirBannerErroGantt(msg) {
+  const e = String(msg ?? '')
+  if (!e) return false
+  if (erroIndicaPermissaoIndicadorConquistas(e)) return false
+  if (e.includes('Tabela indicador_conquistas ausente')) {
+    return erroIndicaTabelaIndicadorConquistasAusente(e)
+  }
+  return true
+}
+
+function logSqlGrantIndicadorConquistas() {
+  console.log('[Gantt] Execute no Supabase → SQL Editor:\n\n' + SQL_GRANT_INDICADOR_CONQUISTAS)
+}
+
+/** Distingue GRANT ausente de tabela inexistente (mensagem do util pode ser genérica). */
+async function diagnosticarAcessoIndicadorConquistas(supabaseClient) {
+  const { error } = await supabaseClient.from('indicador_conquistas').select('id').limit(0)
+  if (!error) return 'ok'
+  const kind = classificarErroSupabase(error)
+  if (kind === 'missing_table') return 'missing'
+  if (kind === 'permission') return 'permission'
+  return 'other'
+}
 
 /** Em dev: log do valor bruto vindo do PostgREST (antes de qualquer processamento na UI). */
 function logRawFranqueadoNomePlanejamento(planejamentoData) {
@@ -259,6 +368,17 @@ const GANTT_ACAO_BTN_EDITAR = {
   lineHeight: 1,
   padding: 0
 }
+/** Bordas da coluna da semana atual (grade unificada). */
+const GANTT_BORDA_SEMANA_ATUAL_CEL = {
+  borderLeft: '2px dashed #2F4A3A',
+  borderRight: '2px dashed #2F4A3A'
+}
+const GANTT_BORDA_SEMANA_ATUAL_HDR = {
+  borderLeft: '2px dashed rgba(255,255,255,0.4)',
+  borderRight: '2px dashed rgba(255,255,255,0.4)',
+  borderTop: '2px dashed rgba(255,255,255,0.4)'
+}
+
 const GANTT_ACAO_BTN_EXCLUIR = {
   display: 'inline-flex',
   alignItems: 'center',
@@ -292,9 +412,12 @@ function getCorCasa(index) {
   return PALETA_CASAS[index % PALETA_CASAS.length]
 }
 
+const GANTT_PLANEJAMENTO_SELECT_COLS =
+  'id, acao_id, periodo_id, objetivo_id, responsavel, semanas_selecionadas, semana_inicio, semana_fim, casa_id, franqueado_nome, adm_cnpj_id, controladoria_cnpj_id, juridico_identificacao_id, juridico_tipo, comercial_candidato_id, portfolio_franqueado_id'
+
 /** JOIN com `casas` só nas áreas Produto / Projetos - Modelo Virtual — evita erro global se a migration não existir. */
 function selectGanttPlanejamentoRows(comJoinCasas) {
-  return comJoinCasas ? '*, casas(id, nome)' : '*'
+  return GANTT_PLANEJAMENTO_SELECT_COLS
 }
 
 /** Nome de área estável (trim + Unicode NFC) — evita mismatch invisível com o banco. */
@@ -309,6 +432,31 @@ function nomeAreaNorm(nome) {
 function isNomeAreaComCasas(nome) {
   const n = nomeAreaNorm(nome).toLowerCase()
   return ['produto', 'projetos - modelo virtual', 'projetos'].some(ref => n === nomeAreaNorm(ref).toLowerCase())
+}
+
+/** Área Jurídico no planejamento Gantt (tipo de demanda + identificação). */
+function isNomeAreaJuridico(nome) {
+  return nomeAreaNorm(nome).toLowerCase() === 'jurídico'
+}
+
+const JURIDICO_AREA_ID = '62cefce4-ad87-46cf-b96a-2ac7e76ace08'
+
+const JURIDICO_TIPO_OPCOES = [
+  { value: 'franqueado', label: 'Franqueado' },
+  { value: 'candidato', label: 'Candidato' },
+  { value: 'inc_nuvem', label: 'INC Nuvem' },
+  { value: 'interno', label: 'Interno' }
+]
+
+const JURIDICO_TIPO_LABEL = {
+  franqueado: 'Franqueado',
+  candidato: 'Candidato',
+  inc_nuvem: 'INC Nuvem',
+  interno: 'Interno'
+}
+
+function labelJuridicoTipo(tipo) {
+  return JURIDICO_TIPO_LABEL[String(tipo || '').trim()] || ''
 }
 
 /** Chave estável para agrupar linhas da mesma ação com o mesmo planejamento de semanas (multi-casa). */
@@ -330,13 +478,7 @@ function registrosPlanejamentoNaSemanaIso(rowsPlano, sn, semanasGrid) {
   if (!rowsPlano?.length) return []
   const snn = Number(sn)
   const semanasGridNorm = (semanasGrid || []).map(Number).filter(Number.isFinite)
-  const gridSet = new Set(semanasGridNorm)
-  const matched = rowsPlano.filter(reg => {
-    const wk = expandGanttSemanasParaGradeIso(reg, semanasGridNorm)
-    if (wk.some(w => Number(w) === snn)) return true
-    const ss = normalizarSemanasSelecionadasGantt(reg?.semanas_selecionadas)
-    return ss.some(w => Number(w) === snn && gridSet.has(snn))
-  })
+  const matched = rowsPlano.filter(reg => planejamentoCaiNaSemanaIso(reg, snn, semanasGridNorm))
   if (matched.length === 0) return []
   const byId = new Map()
   const semId = []
@@ -419,6 +561,30 @@ function franqueadoNomeParaExibicao(valor) {
 function normalizeFranqueadoNome(v) {
   const exib = franqueadoNomeParaExibicao(v)
   return exib === '' ? null : exib
+}
+
+/** Nome do candidato para exibição no Gantt (Comercial). */
+function nomeCandidatoComercialReg(reg, comercialCandidatosLista) {
+  const idRef = reg?.comercial_candidato_id
+  const porId =
+    idRef != null && String(idRef).trim() !== ''
+      ? (comercialCandidatosLista || []).find(c => String(c.id) === String(idRef))?.nome
+      : null
+  const raw = porId ?? reg?.comercial_candidato_nome
+  if (raw == null || raw === '') return ''
+  return String(raw).trim()
+}
+
+/** Nome do franqueado para exibição no Gantt (Acoplamento): id na lista → texto salvo em franqueado_nome (legado). */
+function nomeFranqueadoAcoplamentoReg(reg, acoplamentoFranqueadosLista) {
+  const idRef = reg?.acoplamento_franqueado_id
+  const porId =
+    idRef != null && String(idRef).trim() !== ''
+      ? (acoplamentoFranqueadosLista || []).find(f => String(f.id) === String(idRef))?.nome
+      : null
+  const raw = porId ?? reg?.franqueado_nome
+  if (raw == null || raw === '') return ''
+  return typeof raw === 'string' ? raw.trim() : franqueadoNomeParaExibicao(raw)
 }
 
 /** Tag discreta abaixo do quadradinho (Acoplamento). Largura segue a coluna (densidade); trunca com ellipsis. */
@@ -513,6 +679,11 @@ function semanaDbParaIsoNaGrade(row, semanasOrderedAsc, semanasSet) {
     if (Number.isFinite(w) && semanasSet.has(w)) return w
     return null
   }
+  // Fallback direto: se semana_ano é null mas semana existe e está no grid, usar semana como ISO
+  if ((row.semana_ano == null || row.semana_ano === '') && row.semana != null) {
+    const s = Number(row.semana)
+    if (Number.isFinite(s) && semanasSet.has(s)) return s
+  }
   const emb = periodoEmbutidoDeLancamentoIndicador(row)
   const dataIni = emb?.data_inicio ?? row?._periodo_inicio
   if (dataIni) {
@@ -524,6 +695,24 @@ function semanaDbParaIsoNaGrade(row, semanasOrderedAsc, semanasSet) {
   if (!Number.isFinite(s)) return null
   if (semanasSet.has(s)) return s
   return null
+}
+
+function getStatusCelula(mapaStatus, baseKey, semana) {
+  // Apenas chave exata — sem fallback entre planejamentos
+  return mapaStatus[baseKey]?.[semana]
+}
+
+function cronogramaStatusEhConcluido(st) {
+  return String(st ?? '').trim().toLowerCase() === 'concluido'
+}
+
+/** Chave alinhada ao mapaStatus/mapaHoras (`a_{acaoId}__p_{planejamentoId}`). */
+function rowKeyMapaCronogramaReg(reg, l, acaoIdFallback) {
+  const aid = reg?.acao_id ?? l?.acaoId ?? acaoIdFallback
+  if (aid == null || aid === '') return null
+  const base = `a_${aid}`
+  const pid = reg?.id ?? reg?.planejamento_id
+  return pid != null && String(pid).trim() !== '' ? `${base}__p_${String(pid)}` : base
 }
 
 /**
@@ -688,6 +877,44 @@ function focusAdjacentTabbable(fromEl, backwards) {
   if (i < 0) return
   const next = nodes[backwards ? i - 1 : i + 1]
   next?.focus()
+}
+
+/** Tooltip Moní ao hover nas células de semana com comentário (apenas apresentação). */
+function GanttCelulaComentarioWrap({ semana, textoComentario, children, variant = 'cell' }) {
+  const tip = textoComentario != null ? String(textoComentario).trim() : ''
+  if (!tip) return children
+  const snLabel = semana != null && String(semana) !== '' ? String(semana) : '?'
+  const isPill = variant === 'pill'
+  return (
+    <div
+      className={isPill ? 'gantt-dots-tooltip-wrap gantt-dots-tooltip-wrap--pill' : 'gantt-dots-tooltip-wrap gantt-dots-tooltip-wrap--cell'}
+      style={
+        isPill
+          ? { position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }
+          : { position: 'relative', display: 'inline-block', width: '100%', height: '100%' }
+      }
+    >
+      {children}
+      <span className="gantt-comentario-dots" aria-hidden>
+        ···
+      </span>
+      <div className="gantt-dots-tooltip" role="tooltip">
+        <div className="gantt-dots-tooltip-header">S{snLabel}</div>
+        <div className="gantt-dots-tooltip-body">{tip}</div>
+      </div>
+    </div>
+  )
+}
+
+/** Envolve pill de atividade com indicador + tooltip (somente apresentação). */
+function envolverPillComentarioAcao(pillEl, semanaNum, textoComentario) {
+  const tip = textoComentario != null ? String(textoComentario).trim() : ''
+  if (!tip) return pillEl
+  return (
+    <GanttCelulaComentarioWrap semana={semanaNum} textoComentario={tip} variant="pill">
+      {pillEl}
+    </GanttCelulaComentarioWrap>
+  )
 }
 
 function IndicadorSemanaInput({ indicador, semana, semanaAtual, valueEntry, onCommit, comentarioTooltip }) {
@@ -877,20 +1104,12 @@ function IndicadorSemanaInput({ indicador, semana, semanaAtual, valueEntry, onCo
     )
     const wrapSel = (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: 32 }}>
-        <span style={{ position: 'relative', display: 'inline-block' }}>
-          {selEl}
-          {comentTip ? (
-            <span
-              className={`gantt-comentario-dots${comentDotsPlan ? ' gantt-comentario-dots--plan' : ''}`}
-              aria-hidden
-            >
-              ···
-            </span>
-          ) : null}
-        </span>
+        <GanttCelulaComentarioWrap semana={semana} textoComentario={comentTip}>
+          <span style={{ position: 'relative', display: 'inline-block', width: '100%' }}>{selEl}</span>
+        </GanttCelulaComentarioWrap>
       </div>
     )
-    return comentTip ? <SemanaComentarioPillHost tooltipText={comentTip}>{wrapSel}</SemanaComentarioPillHost> : wrapSel
+    return wrapSel
   }
 
   const dashOrInput = showDash ? (
@@ -916,16 +1135,10 @@ function IndicadorSemanaInput({ indicador, semana, semanaAtual, valueEntry, onCo
         justifyContent: 'center',
         padding: 0,
         fontFamily: 'inherit',
-        lineHeight: 1,
-        position: comentTip ? 'relative' : undefined
+        lineHeight: 1
       }}
     >
       —
-      {comentTip ? (
-        <span className={`gantt-comentario-dots${comentDotsPlan ? ' gantt-comentario-dots--plan' : ''}`} aria-hidden>
-          ···
-        </span>
-      ) : null}
     </button>
   ) : (
     <span style={{ position: 'relative', display: 'inline-block' }}>
@@ -961,15 +1174,9 @@ function IndicadorSemanaInput({ indicador, semana, semanaAtual, valueEntry, onCo
           padding: '0 2px',
           fontFamily: 'inherit',
           overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          position: comentTip ? 'relative' : undefined
+          textOverflow: 'ellipsis'
         }}
       />
-      {comentTip ? (
-        <span className={`gantt-comentario-dots${comentDotsPlan ? ' gantt-comentario-dots--plan' : ''}`} aria-hidden>
-          ···
-        </span>
-      ) : null}
     </span>
   )
 
@@ -978,11 +1185,13 @@ function IndicadorSemanaInput({ indicador, semana, semanaAtual, valueEntry, onCo
       className={entradaNumerica ? 'gantt-indicador-cell gantt-indicador-cell--numeric' : 'gantt-indicador-cell'}
       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: 32 }}
     >
-      {dashOrInput}
+      <GanttCelulaComentarioWrap semana={semana} textoComentario={comentTip}>
+        {dashOrInput}
+      </GanttCelulaComentarioWrap>
     </div>
   )
 
-  return comentTip ? <SemanaComentarioPillHost tooltipText={comentTip}>{coreCell}</SemanaComentarioPillHost> : coreCell
+  return coreCell
 }
 
 const HORAS_MAX_SEMANA = 40
@@ -997,6 +1206,39 @@ function hojeDentroDoPeriodo(dataInicio, dataFim) {
   fim.setHours(0, 0, 0, 0)
   if (Number.isNaN(inicio.getTime()) || Number.isNaN(fim.getTime())) return false
   return hoje >= inicio && hoje <= fim
+}
+
+/** Remove comportamentos (e seções projeto vazias) sem nenhuma linha `acao` filha antes do próximo comportamento. */
+function pruneComportamentosSemAcaoNoBloco(block) {
+  if (!block?.length) return []
+  const out = []
+  let i = 0
+  while (i < block.length) {
+    const r = block[i]
+    if (r?.tipo === 'comportamento') {
+      const start = i
+      i++
+      while (i < block.length && block[i]?.tipo !== 'comportamento') i++
+      const slice = block.slice(start, i)
+      if (slice.some(x => x?.tipo === 'acao')) out.push(...slice)
+    } else if (r?.tipo === 'secao_tipo_atividade' || r?.tipo === 'secao_spacer') {
+      const start = i
+      i++
+      while (
+        i < block.length &&
+        block[i]?.tipo !== 'comportamento' &&
+        block[i]?.tipo !== 'secao_tipo_atividade'
+      ) {
+        i++
+      }
+      const slice = block.slice(start, i)
+      if (slice.some(x => x?.tipo === 'acao')) out.push(...slice)
+    } else {
+      out.push(r)
+      i++
+    }
+  }
+  return out
 }
 
 /**
@@ -1017,9 +1259,10 @@ function filtrarLinhasGradeSohComPlanoNoPeriodo(rows) {
         block.push(rows[i])
         i++
       }
-      if (block.some(x => x?.tipo === 'acao')) {
+      const pruned = pruneComportamentosSemAcaoNoBloco(block)
+      if (pruned.some(x => x?.tipo === 'acao')) {
         res.push(header)
-        res.push(...block)
+        res.push(...pruned)
       }
     } else {
       const block = []
@@ -1027,9 +1270,8 @@ function filtrarLinhasGradeSohComPlanoNoPeriodo(rows) {
         block.push(rows[i])
         i++
       }
-      if (block.some(x => x?.tipo === 'acao')) {
-        res.push(...block)
-      }
+      const pruned = pruneComportamentosSemAcaoNoBloco(block)
+      if (pruned.some(x => x?.tipo === 'acao')) res.push(...pruned)
     }
   }
   return res
@@ -1073,11 +1315,29 @@ function semanaAtualChipConclusaoMeta(meta, semanaAtualIso) {
   return { atualLabel, noPrazo }
 }
 
+/** Valor, hora, semana ou conclusão em registro de cronograma. */
+function registroCronogramaTemHistorico(c) {
+  if (c.valor != null && String(c.valor).trim() !== '') return true
+  const h = Number(c.horas_previstas)
+  if (Number.isFinite(h) && h > 0) return true
+  if (String(c.status || '').toLowerCase() === 'concluido') return true
+  const sem = c.semana ?? c.semana_ano
+  if (sem != null && String(sem).trim() !== '' && Number.isFinite(Number(sem)) && Number(sem) > 0) {
+    return true
+  }
+  return false
+}
+
 /**
  * True se há registro em `cronograma` com horas ou conclusão, para os planejamentos da linha
  * (ou legado sem `planejamento_id` para a mesma ação).
  */
 function linhaTemPreenchimentoCronograma(l, cronogramaRows) {
+  return linhaTemHistoricoPreenchido(l, cronogramaRows)
+}
+
+/** Histórico preenchido: valor, hora, semana ou status concluído no cronograma da linha. */
+function linhaTemHistoricoPreenchido(l, cronogramaRows) {
   const acaoId = l?.acaoId
   if (!acaoId) return false
   const idsPlano = (l.planejamentoIds?.length ? l.planejamentoIds : [l.planejamentoId])
@@ -1085,19 +1345,18 @@ function linhaTemPreenchimentoCronograma(l, cronogramaRows) {
     .map(x => String(x))
   if (idsPlano.length === 0) return false
   const rows = Array.isArray(cronogramaRows) ? cronogramaRows : []
-  const temDadoSignificativo = c => {
-    const h = Number(c.horas_previstas)
-    if (Number.isFinite(h) && h > 0) return true
-    return String(c.status || '') === 'concluido'
-  }
   return rows.some(c => {
     if (String(c.acao_id ?? '') !== String(acaoId)) return false
-    if (!temDadoSignificativo(c)) return false
+    if (!registroCronogramaTemHistorico(c)) return false
     const pidRaw = c.planejamento_id ?? c.gantt_planejamento_id
     const pid = pidRaw != null && String(pidRaw).trim() !== '' ? String(pidRaw) : ''
     if (pid) return idsPlano.includes(pid)
     return true
   })
+}
+
+function podeExibirExcluirComHistorico(isAdmin, temHistorico) {
+  return isAdmin || !temHistorico
 }
 
 /** Meta marcada como realizada no cronograma (status concluído) — usuário comum não pode excluir. */
@@ -1152,14 +1411,24 @@ export default function Page() {
   const [addSemanasSelecionadas, setAddSemanasSelecionadas] = useState([])
   /** Edição de uma linha específica de `gantt_planejamento` (Acoplamento: várias por atividade). */
   const [addPlanejamentoEdicaoId, setAddPlanejamentoEdicaoId] = useState(null)
-  const [franqueadoNome, setFranqueadoNome] = useState('')
-  /** Sempre o último valor digitado — usado no save para evitar closure desatualizada com o texto do franqueado. */
-  const franqueadoNomeRef = useRef('')
-  const syncFranqueadoNome = useCallback((v) => {
-    const s = v == null ? '' : typeof v === 'string' ? v : String(v)
-    franqueadoNomeRef.current = s
-    setFranqueadoNome(s)
-  }, [])
+  const [acoplamentoFranqueados, setAcoplamentoFranqueados] = useState([])
+  const [executivosLocaisFranqueados, setExecutivosLocaisFranqueados] = useState([])
+  const [wayzerNathFranqueados, setWayzerNathFranqueados] = useState([])
+  const [wayzerRafaFranqueados, setWayzerRafaFranqueados] = useState([])
+  const [acoplamentoFranqueadoId, setAcoplamentoFranqueadoId] = useState(null)
+  const [acoplamentoDropdownAberto, setAcoplamentoDropdownAberto] = useState(true)
+  const [acoplamentoOcultosAbertos, setAcoplamentoOcultosAbertos] = useState(false)
+  const [novoFranqueadoNome, setNovoFranqueadoNome] = useState('')
+  const [portfolioFranqueados, setPortfolioFranqueados] = useState([])
+  const [portfolioFranqueadoId, setPortfolioFranqueadoId] = useState(null)
+  const [portfolioDropdownAberto, setPortfolioDropdownAberto] = useState(true)
+  const [portfolioOcultosAbertos, setPortfolioOcultosAbertos] = useState(false)
+  const [novoPortfolioFranqueado, setNovoPortfolioFranqueado] = useState('')
+  const [comercialCandidatos, setComercialCandidatos] = useState([])
+  const [comercialCandidatoId, setComercialCandidatoId] = useState(null)
+  const [comercialDropdownAberto, setComercialDropdownAberto] = useState(true)
+  const [comercialOcultosAbertos, setComercialOcultosAbertos] = useState(false)
+  const [novoCandidatoNome, setNovoCandidatoNome] = useState('')
   const [casaSelecionada, setCasaSelecionada] = useState(null)
   const [casasSelecionadas, setCasasSelecionadas] = useState([])
   const [casas, setCasas] = useState([])
@@ -1167,7 +1436,21 @@ export default function Page() {
   const [admCnpjSelecionado, setAdmCnpjSelecionado] = useState(null)
   const [novoCnpj, setNovoCnpj] = useState('')
   const [novoDescritivo, setNovoDescritivo] = useState('')
-  const [criandoAdmCnpj, setCriandoAdmCnpj] = useState(false)
+  const [cnpjDropdownAberto, setCnpjDropdownAberto] = useState(true)
+  const [criandoCnpj, setCriandoCnpj] = useState(false)
+  const [controladoriaCnpjs, setControladoriaCnpjs] = useState([])
+  const [controladoriaCnpjSelecionado, setControladoriaCnpjSelecionado] = useState(null)
+  const [controladoriaCnpjDropdownAberto, setControladoriaCnpjDropdownAberto] = useState(true)
+  const [controladoriaCriandoCnpj, setControladoriaCriandoCnpj] = useState(false)
+  const [controladoriaNovoCnpj, setControladoriaNovoCnpj] = useState('')
+  const [controladoriaNovoDescritivo, setControladoriaNovoDescritivo] = useState('')
+  const [juridicoIdentificacoes, setJuridicoIdentificacoes] = useState([])
+  const [juridicoTipo, setJuridicoTipo] = useState('franqueado')
+  const [juridicoIdentificacaoId, setJuridicoIdentificacaoId] = useState(null)
+  const [novaIdentificacaoNome, setNovaIdentificacaoNome] = useState('')
+  const [listaAberta, setListaAberta] = useState(false)
+  const [idDropdownAberto, setIdDropdownAberto] = useState(true)
+  const [ocultosAbertos, setOcultosAbertos] = useState(false)
   const [dropdownCasaAberto, setDropdownCasaAberto] = useState(false)
   const [novaCasaNome, setNovaCasaNome] = useState('')
   const [criandoCasa, setCriandoCasa] = useState(false)
@@ -1184,17 +1467,20 @@ export default function Page() {
   const [tempoModalEstimado, setTempoModalEstimado] = useState(null)
   const [tempoModalValor, setTempoModalValor] = useState('')
   const [tempoModalUnidade, setTempoModalUnidade] = useState('horas')
+  const [tempoModalValorErro, setTempoModalValorErro] = useState('')
 
   const fecharTempoModal = useCallback(() => {
     setTempoModalAberto(false)
     setTempoModalPlanejamentoId(null)
+    setTempoModalValorErro('')
   }, [])
 
   /** Gaveta de meta (mesmo fluxo em toda a aplicação) */
   const [metaModalAberto, setMetaModalAberto] = useState(false)
   const [metaParaEditar, setMetaParaEditar] = useState(null)
   const [metaExcluindoId, setMetaExcluindoId] = useState(null)
-  /** Gaveta de confirmação de exclusão (substitui window.confirm). */
+  /** Modal de exclusão de planejamento (substitui window.confirm / alert nativos). */
+  const [modalExclusao, setModalExclusao] = useState(null)
   const [excluirMetaDrawerAberto, setExcluirMetaDrawerAberto] = useState(false)
   const [metaParaExcluir, setMetaParaExcluir] = useState(null)
   const [concluirMetaModalAberto, setConcluirMetaModalAberto] = useState(false)
@@ -1219,6 +1505,13 @@ export default function Page() {
     const id = requestAnimationFrame(() => concluirMetaComentarioRef.current?.focus())
     return () => cancelAnimationFrame(id)
   }, [concluirMetaModalAberto, metaParaConcluir, indicadorParaConcluir])
+
+  useEffect(() => {
+    if (!isAdmin && metaModalAberto) {
+      setMetaModalAberto(false)
+      setMetaParaEditar(null)
+    }
+  }, [isAdmin, metaModalAberto])
 
   const [metasObjetivos, setMetasObjetivos] = useState([])
   const [metasObjetivosLoading, setMetasObjetivosLoading] = useState(false)
@@ -1270,7 +1563,11 @@ export default function Page() {
       setPeriodo(null)
       return
     }
-    const { data, error: e } = await supabase.from('periodos').select('*').eq('id', periodoId).single()
+    const { data, error: e } = await supabase
+      .from('periodos')
+      .select('id, tipo, ano, numero, data_inicio, data_fim, ativo')
+      .eq('id', periodoId)
+      .single()
     if (e) setPeriodo(null)
     else {
       setPeriodo(data)
@@ -1385,21 +1682,15 @@ export default function Page() {
     if (!areaId) return setCronograma([])
     const semanasFiltro = (semanas || []).map(Number).filter(Number.isFinite)
     if (semanasFiltro.length === 0) return setCronograma([])
-
     const acaoIds = []
     ;(tarefas || []).forEach(t => (t.acoes || []).forEach(a => { if (a?.id) acaoIds.push(a.id) }))
     if (acaoIds.length === 0) return setCronograma([])
-
     const acaoIdsSet = [...new Set(acaoIds)]
-
-    // Busca por acao_id + semana — periodo_id é só visualização, não filtra dados
-    let q = supabase
+    const { data, error: e } = await supabase
       .from('cronograma')
       .select('id, acao_id, tarefa_id, semana, semana_ano, status, horas_previstas, planejamento_id')
       .in('acao_id', acaoIdsSet)
       .in('semana', semanasFiltro)
-
-    const { data, error: e } = await q
     if (e) setCronograma([])
     else setCronograma(data || [])
   }
@@ -1435,7 +1726,7 @@ export default function Page() {
       } else if (comJoinCasas) {
         const res2 = await supabase
           .from('gantt_planejamento')
-          .select('*')
+          .select(selPlanejamento)
           .in('periodo_id', periodoIdsValidos)
           .in('acao_id', acaoIdsList)
         data = res2.data || []
@@ -1657,6 +1948,7 @@ export default function Page() {
       const sn = Number(s)
       if (Number.isFinite(sn)) m[sn] = anoIsoParaSemanaNoIntervalo(sn, periodo.data_inicio, periodo.data_fim)
     }
+    console.log('[pill] anoIsoPorSemanaColuna:', m, 'periodo:', periodo?.data_inicio, '→', periodo?.data_fim)
     return m
   }, [semanas, periodo?.data_inicio, periodo?.data_fim])
 
@@ -1705,6 +1997,9 @@ export default function Page() {
             .order('created_at', { ascending: true })
         : Promise.resolve({ data: [], error: null })
     ])
+    console.log('[comentarios] acaoIdsCom:', acaoIdsCom?.length,
+      'isoList:', isoList, 'anosFilt:', anosFilt,
+      'resultado atividades:', ra.data?.length, ra.error)
     if (!ra.error) setComentariosAtividadeRows(ra.data || [])
     else setComentariosAtividadeRows([])
     if (!ri.error) setComentariosIndicadorRows(ri.data || [])
@@ -1731,11 +2026,97 @@ export default function Page() {
   /** Produto, Projetos - Modelo Virtual ou alias Projetos: campo Casa e legenda no Gantt. */
   const isAreaCasa = useMemo(() => isNomeAreaComCasas(areaSelecionadaNome), [areaSelecionadaNome])
   const isAreaAdm = useMemo(() => String(areaSelecionadaNome ?? '').trim().toLowerCase() === 'adm', [areaSelecionadaNome])
-  /** Área Acoplamento: nome (case-insensitive) ou id fixo no banco. */
-  const isAreaAcoplamento = useMemo(() => {
-    const n = nomeAreaNorm(areaAtual?.nome).toLowerCase()
-    return ['acoplamento', 'projetos - executivos locais', 'wayzer - nath', 'wayzer - rafa'].some(ref => n === nomeAreaNorm(ref).toLowerCase())
-  }, [areaAtual])
+  const isAreaControladoria = useMemo(
+    () => String(areaSelecionadaNome ?? '').trim().toLowerCase() === 'controladoria',
+    [areaSelecionadaNome]
+  )
+  const isAreaComercial = useMemo(
+    () => String(areaSelecionadaNome ?? '').trim().toLowerCase() === 'comercial',
+    [areaSelecionadaNome]
+  )
+  const isAreaJuridico = useMemo(
+    () => areaId === JURIDICO_AREA_ID || isNomeAreaJuridico(areaSelecionadaNome),
+    [areaId, areaSelecionadaNome]
+  )
+  const juridicoIdentMap = useMemo(
+    () => new Map((juridicoIdentificacoes || []).map(j => [String(j.id), j])),
+    [juridicoIdentificacoes]
+  )
+  const nomeAreaLower = useMemo(
+    () => nomeAreaNorm(areaSelecionadaNome).toLowerCase(),
+    [areaSelecionadaNome]
+  )
+  const isAreaAcoplamento = useMemo(
+    () => nomeAreaLower === nomeAreaNorm('acoplamento').toLowerCase(),
+    [nomeAreaLower]
+  )
+  const isAreaExecutivosLocais = useMemo(
+    () => nomeAreaLower === nomeAreaNorm('projetos - executivos locais').toLowerCase(),
+    [nomeAreaLower]
+  )
+  const isAreaWayzerNath = useMemo(
+    () => nomeAreaLower === nomeAreaNorm('wayzer - nath').toLowerCase(),
+    [nomeAreaLower]
+  )
+  const isAreaWayzerRafa = useMemo(
+    () => nomeAreaLower === nomeAreaNorm('wayzer - rafa').toLowerCase(),
+    [nomeAreaLower]
+  )
+  const isAreaFranqueado =
+    isAreaAcoplamento || isAreaExecutivosLocais || isAreaWayzerNath || isAreaWayzerRafa
+  const isAreaPortfolio = useMemo(
+    () =>
+      nomeAreaLower === nomeAreaNorm('portfólio').toLowerCase() ||
+      nomeAreaLower === nomeAreaNorm('portfolio').toLowerCase(),
+    [nomeAreaLower]
+  )
+
+  const franqueadosAtivos = useMemo(
+    () =>
+      isAreaAcoplamento
+        ? acoplamentoFranqueados
+        : isAreaExecutivosLocais
+          ? executivosLocaisFranqueados
+          : isAreaWayzerNath
+            ? wayzerNathFranqueados
+            : isAreaWayzerRafa
+              ? wayzerRafaFranqueados
+              : [],
+    [
+      isAreaAcoplamento,
+      isAreaExecutivosLocais,
+      isAreaWayzerNath,
+      isAreaWayzerRafa,
+      acoplamentoFranqueados,
+      executivosLocaisFranqueados,
+      wayzerNathFranqueados,
+      wayzerRafaFranqueados
+    ]
+  )
+
+  const tabelaFranqueadosAtiva = useMemo(
+    () =>
+      isAreaAcoplamento
+        ? 'acoplamento_franqueados'
+        : isAreaExecutivosLocais
+          ? 'executivos_locais_franqueados'
+          : isAreaWayzerNath
+            ? 'wayzer_nath_franqueados'
+            : isAreaWayzerRafa
+              ? 'wayzer_rafa_franqueados'
+              : null,
+    [isAreaAcoplamento, isAreaExecutivosLocais, isAreaWayzerNath, isAreaWayzerRafa]
+  )
+
+  const setFranqueadosAtivos = useCallback(
+    valueOrFn => {
+      if (isAreaAcoplamento) setAcoplamentoFranqueados(valueOrFn)
+      else if (isAreaExecutivosLocais) setExecutivosLocaisFranqueados(valueOrFn)
+      else if (isAreaWayzerNath) setWayzerNathFranqueados(valueOrFn)
+      else if (isAreaWayzerRafa) setWayzerRafaFranqueados(valueOrFn)
+    },
+    [isAreaAcoplamento, isAreaExecutivosLocais, isAreaWayzerNath, isAreaWayzerRafa]
+  )
 
   /** `areas.nome` exato — agrupamento Modelagem/Documentação no Gantt e no drawer. */
   const isAreaTipoAtividadeProjeto = useMemo(() => {
@@ -1749,13 +2130,15 @@ export default function Page() {
       setCasas([])
       return
     }
+    console.log('[casas] areaId:', areaId, 'nomeArea:', nomeArea, 'isAreaComCasas:', isNomeAreaComCasas(nomeArea))
     let cancel = false
     supabase
       .from('casas')
       .select('id, nome')
       .eq('area_id', areaId)
-      .order('criado_em', { ascending: true })
+      .order('nome')
       .then(({ data, error }) => {
+        console.log('[casas] resultado:', data, error)
         if (cancel || error) return
         const ordenadas = (data || []).slice().sort((a, b) =>
           String(a?.nome || '').localeCompare(String(b?.nome || ''), 'pt-BR', { sensitivity: 'base' })
@@ -1776,6 +2159,140 @@ export default function Page() {
       .order('criado_em', { ascending: true })
       .then(({ data }) => setAdmCnpjs(data || []))
   }, [isAreaAdm])
+
+  useEffect(() => {
+    if (!isAreaControladoria) {
+      setControladoriaCnpjs([])
+      return
+    }
+    supabase
+      .from('controladoria_cnpjs')
+      .select('id, cnpj, descritivo')
+      .order('criado_em', { ascending: true })
+      .then(({ data }) => setControladoriaCnpjs(data || []))
+  }, [isAreaControladoria])
+
+  const carregarJuridicoIdentificacoes = useCallback(async () => {
+    const { data } = await supabase
+      .from('juridico_identificacoes')
+      .select('*')
+      .order('nome', { ascending: true })
+    setJuridicoIdentificacoes(data ?? [])
+  }, [])
+
+  useEffect(() => {
+    if (!isAreaJuridico) {
+      setJuridicoIdentificacoes([])
+      return
+    }
+    let cancel = false
+    carregarJuridicoIdentificacoes().then(() => {
+      if (cancel) return
+    })
+    return () => { cancel = true }
+  }, [isAreaJuridico, carregarJuridicoIdentificacoes])
+
+  const carregarFranqueadosAtivos = useCallback(async () => {
+    const tabela =
+      isAreaAcoplamento
+        ? 'acoplamento_franqueados'
+        : isAreaExecutivosLocais
+          ? 'executivos_locais_franqueados'
+          : isAreaWayzerNath
+            ? 'wayzer_nath_franqueados'
+            : isAreaWayzerRafa
+              ? 'wayzer_rafa_franqueados'
+              : null
+    if (!tabela) return
+    const { data } = await supabase.from(tabela).select('*').order('nome', { ascending: true })
+    if (isAreaAcoplamento) setAcoplamentoFranqueados(data ?? [])
+    if (isAreaExecutivosLocais) setExecutivosLocaisFranqueados(data ?? [])
+    if (isAreaWayzerNath) setWayzerNathFranqueados(data ?? [])
+    if (isAreaWayzerRafa) setWayzerRafaFranqueados(data ?? [])
+  }, [isAreaAcoplamento, isAreaExecutivosLocais, isAreaWayzerNath, isAreaWayzerRafa])
+
+  useEffect(() => {
+    if (!isAreaFranqueado) {
+      setAcoplamentoFranqueados([])
+      setExecutivosLocaisFranqueados([])
+      setWayzerNathFranqueados([])
+      setWayzerRafaFranqueados([])
+      return
+    }
+    setAcoplamentoFranqueadoId(null)
+    setAcoplamentoDropdownAberto(true)
+    let cancel = false
+    carregarFranqueadosAtivos().then(() => {
+      if (cancel) return
+    })
+    return () => { cancel = true }
+  }, [isAreaFranqueado, tabelaFranqueadosAtiva, carregarFranqueadosAtivos])
+
+  useEffect(() => {
+    if (!isAreaPortfolio) {
+      setPortfolioFranqueados([])
+      return
+    }
+    setPortfolioFranqueadoId(null)
+    setPortfolioDropdownAberto(true)
+    let cancel = false
+    supabase
+      .from('portfolio_franqueados')
+      .select('*')
+      .order('nome', { ascending: true })
+      .then(({ data }) => {
+        if (cancel) return
+        setPortfolioFranqueados(data ?? [])
+      })
+    return () => { cancel = true }
+  }, [isAreaPortfolio])
+
+  useEffect(() => {
+    if (!isAreaComercial) {
+      setComercialCandidatos([])
+      return
+    }
+    let cancel = false
+    supabase
+      .from('comercial_candidatos')
+      .select('*')
+      .order('nome', { ascending: true })
+      .then(({ data }) => {
+        if (cancel) return
+        setComercialCandidatos(data ?? [])
+      })
+    return () => { cancel = true }
+  }, [isAreaComercial])
+
+  const resetAcoplamentoModalAux = useCallback(() => {
+    setAcoplamentoFranqueadoId(null)
+    setAcoplamentoDropdownAberto(true)
+    setAcoplamentoOcultosAbertos(false)
+    setNovoFranqueadoNome('')
+  }, [])
+
+  const resetPortfolioModalAux = useCallback(() => {
+    setPortfolioFranqueadoId(null)
+    setPortfolioDropdownAberto(true)
+    setPortfolioOcultosAbertos(false)
+    setNovoPortfolioFranqueado('')
+  }, [])
+
+  const resetComercialModalAux = useCallback(() => {
+    setComercialCandidatoId(null)
+    setComercialDropdownAberto(true)
+    setComercialOcultosAbertos(false)
+    setNovoCandidatoNome('')
+  }, [])
+
+  const resetJuridicoModalAux = useCallback(() => {
+    setJuridicoTipo('franqueado')
+    setJuridicoIdentificacaoId(null)
+    setNovaIdentificacaoNome('')
+    setListaAberta(false)
+    setIdDropdownAberto(true)
+    setOcultosAbertos(false)
+  }, [])
 
   useEffect(() => {
     if (!dropdownCasaAberto) return
@@ -1810,46 +2327,34 @@ export default function Page() {
     return 'gantt-cronograma-density--52'
   }, [semanas.length])
 
-  /** Chave da célula = ISO na grade atual. */
   const mapaCronograma = useMemo(() => {
     const m = {}
-    const semanasSet = new Set((semanas || []).map(Number).filter(Number.isFinite))
-    cronograma.forEach(c => {
-      if (c.acao_id == null) return
-      const sem = Number(c.semana)
-      if (!Number.isFinite(sem) || !semanasSet.has(sem)) return
-      const key = `a_${c.acao_id}_${sem}`
-      m[key] = c
+    ;(cronograma || []).forEach(c => {
+      if (!c.planejamento_id) {
+        const k = `a_${c.acao_id}_${Number(c.semana)}`
+        m[k] = c
+      }
     })
     return m
-  }, [cronograma, semanas])
+  }, [cronograma])
 
-  /** Quando há várias linhas de `gantt_planejamento` para a mesma ação (Casas / Acoplamento), o cronograma precisa distinguir por `planejamento_id`. */
   const mapaCronogramaPorPlanejamento = useMemo(() => {
     const m = new Map()
-    const semanasSet = new Set((semanas || []).map(Number).filter(Number.isFinite))
-    cronograma.forEach(c => {
-      if (c.acao_id == null) return
-      const sem = Number(c.semana)
-      if (!Number.isFinite(sem) || !semanasSet.has(sem)) return
+    ;(cronograma || []).forEach(c => {
       const pid = c.planejamento_id ?? c.gantt_planejamento_id
-      if (!pid) return
-      m.set(`${pid}|${sem}`, c)
+      if (pid) m.set(`${pid}|${Number(c.semana)}`, c)
     })
     return m
-  }, [cronograma, semanas])
+  }, [cronograma])
 
   async function salvarCelula(acaoId, semanaAno, horas, concluido, opts = {}) {
     if (!periodoId) return
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[salvarCelula] chamada com:', { acaoId, semanaAno, horas, concluido, opts })
-    }
     setSalvando(true)
     setError(null)
     const semana = Number(semanaAno)
     const key = `a_${acaoId}_${semana}`
-    const planejamentoId = opts?.planejamentoId != null && String(opts.planejamentoId).trim() !== '' ? String(opts.planejamentoId).trim() : null
-    /** Com `planejamentoId`, nunca usar `mapaCronograma[key]` — senão atualiza a linha “genérica” e todas as casas parecem mudar juntas. */
+    const planejamentoId = opts?.planejamentoId != null && String(opts.planejamentoId).trim() !== ''
+      ? String(opts.planejamentoId).trim() : null
     const existente = planejamentoId
       ? mapaCronogramaPorPlanejamento.get(`${planejamentoId}|${semana}`)
       : mapaCronograma[key]
@@ -1862,58 +2367,30 @@ export default function Page() {
       status: concluido ? 'concluido' : 'pendente',
       ...(planejamentoId ? { planejamento_id: planejamentoId } : {})
     }
+    const { data: { user } } = await supabase.auth.getUser()
+    const usuarioEmail = user?.email ?? null
     if (existente?.id) {
-      let { error: err } = await supabase.from('cronograma').update({
+      const { error: err } = await supabase.from('cronograma').update({
         horas_previstas: payload.horas_previstas,
         status: payload.status,
         semana,
         periodo_id: periodoId,
+        usuario: usuarioEmail,
         ...(planejamentoId ? { planejamento_id: planejamentoId } : {})
       }).eq('id', existente.id)
       if (err) { setError(err.message); setSalvando(false); return }
-      void registrarLog({
-        modulo: 'Carômetro',
-        area: areas.find((a) => a.id === areaId)?.nome ?? null,
-        entidade: 'cronograma',
-        entidade_id: existente.id,
-        operacao: 'UPDATE',
-        valor_novo: {
-          horas_previstas: payload.horas_previstas,
-          status: payload.status,
-          semana,
-          periodo_id: periodoId
-        },
-        descricao: `Atualizou cronograma (ação ${acaoId}, semana ${semana})`
-      })
     } else {
-      let { error: err } = await supabase.from('cronograma').insert({
+      const { error: err } = await supabase.from('cronograma').insert({
         periodo_id: periodoId,
         acao_id: acaoId,
         tarefa_id: null,
         semana,
         horas_previstas: payload.horas_previstas,
         status: payload.status,
+        usuario: usuarioEmail,
         ...(planejamentoId ? { planejamento_id: planejamentoId } : {})
       })
-      if (process.env.NODE_ENV === 'development' || err) {
-        console.log('[salvarCelula] insert result:', { payload, err })
-      }
       if (err) { setError(err.message); setSalvando(false); return }
-      void registrarLog({
-        modulo: 'Carômetro',
-        area: areas.find((a) => a.id === areaId)?.nome ?? null,
-        entidade: 'cronograma',
-        entidade_id: null,
-        operacao: 'INSERT',
-        valor_novo: {
-          acao_id: acaoId,
-          semana,
-          horas_previstas: payload.horas_previstas,
-          status: payload.status,
-          periodo_id: periodoId
-        },
-        descricao: `Inseriu cronograma (ação ${acaoId}, semana ${semana})`
-      })
     }
     setSalvando(false)
     await carregarCronograma()
@@ -1970,20 +2447,35 @@ export default function Page() {
         .filter(Boolean)
     )
 
+    const semanasDoPeriodo = semanas
+    const temPlanejamentoAcaoNoPeriodo = (acaoId) => {
+      const k = String(acaoId ?? '')
+      if (!k) return false
+      if (acaoIdsNoCronograma.has(k)) return true
+      if (!semanasDoPeriodo?.length) return false
+      return planejamentoNaArea.some(p => {
+        if (String(p.acao_id ?? '') !== k) return false
+        return expandGanttSemanasParaGradeIso(p, semanasDoPeriodo).length > 0
+      })
+    }
+    const temPlanejamentoComportamentoNoPeriodo = (tarefa) => {
+      const ids = new Set((tarefa.acoes || []).map(a => String(a?.id ?? '')).filter(Boolean))
+      if (ids.size === 0) return false
+      return [...ids].some(id => temPlanejamentoAcaoNoPeriodo(id))
+    }
+
     tarefas.forEach(t => {
       /** Evita perder/partir casas por depender de `acaoPorId[p.acao_id]?.tarefa?.id` (join/legado pode divergir). */
       const acaoIdsDaTarefa = new Set((t.acoes || []).map(a => String(a?.id ?? '')).filter(Boolean))
       const acoesNoPlano = planejamentoNaArea.filter(p => {
         if (!acaoIdsDaTarefa.has(String(p.acao_id ?? ''))) return false
         // Só considerar planejamento com ao menos 1 semana no período visualizado
-        if (!semanas?.length) return false
-        const wk = expandGanttSemanasParaGradeIso(p, semanas)
+        if (!semanasDoPeriodo?.length) return false
+        const wk = expandGanttSemanasParaGradeIso(p, semanasDoPeriodo)
         return wk.length > 0
       })
       const temNoCronograma = [...acaoIdsDaTarefa].some(id => acaoIdsNoCronograma.has(id))
-      const temAcoes = acaoIdsDaTarefa.size > 0
-      // Para áreas não-projeto: mostrar sempre se tem ações (cronograma pode chegar depois)
-      if (acoesNoPlano.length === 0 && !temNoCronograma && (isAreaTipoAtividadeProjeto || !temAcoes)) return
+      if (!temPlanejamentoComportamentoNoPeriodo(t)) return
       // Agrupar apenas pelas metas que têm registros de planejamento
       const objetivosDoPlano = [...new Set(
         acoesNoPlano.map(p => p.objetivo_id).filter(Boolean)
@@ -2015,9 +2507,10 @@ export default function Page() {
 
     for (const oid of orderedKeys) {
       const items = grupos.get(oid) ?? []
+      const chunkObjetivo = []
       if (oid !== '_sem') {
         const meta = metasObjetivos.find(m => m.id === oid)
-        out.push({
+        chunkObjetivo.push({
           id: `o_${oid}`,
           tipo: 'objetivo',
           objetivoId: oid,
@@ -2026,6 +2519,7 @@ export default function Page() {
         })
       }
       for (const { t, acoesNoPlano } of items) {
+        const chunkTarefa = []
         const pushLinhaAcao = (a, rowsMesmaAcao, tipoAtividadeBar, rowOpts = {}) => {
           if (process.env.NODE_ENV === 'development' && isAreaTipoAtividadeProjeto) {
             console.log('[pushLinhaAcao] acao:', a.nome, 'tipo:', tipoAtividadeBar, 'rows:', rowsMesmaAcao.length, 'casas:', rowsMesmaAcao.map(r => r.casa_id))
@@ -2036,8 +2530,14 @@ export default function Page() {
           })
           const semSel = Array.from(mergedSet).sort((x, y) => x - y)
           const horasEst = a.tempo_estimado_minutos != null ? Math.round((a.tempo_estimado_minutos / 60) * 10) / 10 : null
-          const resp = rowsMesmaAcao.map(r => r.responsavel).find(x => x && String(x).trim() !== '') || '—'
-          out.push({
+          const responsaveis = [...new Set(
+            (rowsMesmaAcao || [])
+              .map(r => r?.responsavel)
+              .filter(r => r && r !== '—' && String(r).trim() !== '')
+              .map(r => String(r).trim())
+          )]
+          const resp = responsaveis.length > 0 ? responsaveis.join(', ') : '—'
+          chunkTarefa.push({
             id: `a_${a.id}_${oid}`,
             tipo: 'acao',
             nome: a.nome,
@@ -2057,7 +2557,6 @@ export default function Page() {
         }
 
         if (!isAreaTipoAtividadeProjeto) {
-          out.push({ id: `t_${t.id}_${oid}`, tipo: 'comportamento', nome: t.nome, comportamentoId: t.id, objetivoId: oid })
           const acoesJaListadasLegacy = new Set()
           if (acoesNoPlano.length > 0) {
             // Novo: gantt_planejamento
@@ -2065,6 +2564,7 @@ export default function Page() {
               const a = acaoPorId[p.acao_id]
               const k = String(p.acao_id || '')
               if (!a || !k || acoesJaListadasLegacy.has(k)) return
+              if (!temPlanejamentoAcaoNoPeriodo(k)) return
               acoesJaListadasLegacy.add(k)
               const rowsMesmaAcao = acoesNoPlano.filter(x => String(x.acao_id || '') === k)
               pushLinhaAcao(a, rowsMesmaAcao, null)
@@ -2074,7 +2574,7 @@ export default function Page() {
             ;(t.acoes || []).forEach(a => {
               const k = String(a.id || '')
               if (!a || !k || acoesJaListadasLegacy.has(k)) return
-              if (!acaoIdsNoCronograma.has(k)) return
+              if (!temPlanejamentoAcaoNoPeriodo(k)) return
               acoesJaListadasLegacy.add(k)
               // Converter registros do cronograma para formato gantt_planejamento
               const rowsCrono = cronogramaList
@@ -2091,6 +2591,16 @@ export default function Page() {
                 }))
               pushLinhaAcao(a, rowsCrono, null, { origemCronogramaLegado: true })
             })
+          }
+          if (chunkTarefa.some(l => l.tipo === 'acao')) {
+            chunkTarefa.unshift({
+              id: `t_${t.id}_${oid}`,
+              tipo: 'comportamento',
+              nome: t.nome,
+              comportamentoId: t.id,
+              objetivoId: oid
+            })
+            chunkObjetivo.push(...chunkTarefa)
           }
           continue
         }
@@ -2109,6 +2619,7 @@ export default function Page() {
           const a = acaoPorId[p.acao_id]
           const k = String(p.acao_id || '')
           if (!a || !k || acoesJaListadas.has(k)) return
+          if (!temPlanejamentoAcaoNoPeriodo(k)) return
           acoesJaListadas.add(k)
           const rowsMesmaAcao = acoesNoPlano.filter(x => String(x.acao_id || '') === k)
           const tipoDb = a.tipo_atividade
@@ -2120,19 +2631,27 @@ export default function Page() {
         const docLinhas = ordemDescoberta.filter(x => x.tipo === 'documentacao')
         const temAlgumTipado = modLinhas.length > 0 || docLinhas.length > 0
 
-        out.push({ id: `t_${t.id}_${oid}`, tipo: 'comportamento', nome: t.nome, comportamentoId: t.id, objetivoId: oid })
-        nullLinhas.forEach(({ a, rowsMesmaAcao }) => pushLinhaAcao(a, rowsMesmaAcao, null))
+        if (nullLinhas.length > 0) {
+          chunkTarefa.push({
+            id: `t_${t.id}_${oid}`,
+            tipo: 'comportamento',
+            nome: t.nome,
+            comportamentoId: t.id,
+            objetivoId: oid
+          })
+          nullLinhas.forEach(({ a, rowsMesmaAcao }) => pushLinhaAcao(a, rowsMesmaAcao, null))
+        }
 
         if (temAlgumTipado) {
           if (modLinhas.length > 0) {
-            out.push({
+            chunkTarefa.push({
               id: `sec_m_${t.id}_${oid}`,
               tipo: 'secao_tipo_atividade',
               secaoTipo: 'modelagem',
               nome: 'Modelagem',
               objetivoId: oid
             })
-            out.push({
+            chunkTarefa.push({
               id: `t_${t.id}__m_${oid}`,
               tipo: 'comportamento',
               nome: t.nome,
@@ -2144,17 +2663,17 @@ export default function Page() {
             modLinhas.forEach(({ a, rowsMesmaAcao }) => pushLinhaAcao(a, rowsMesmaAcao, 'modelagem'))
           }
           if (modLinhas.length > 0 && docLinhas.length > 0) {
-            out.push({ id: `sp_${t.id}_${oid}`, tipo: 'secao_spacer', objetivoId: oid })
+            chunkTarefa.push({ id: `sp_${t.id}_${oid}`, tipo: 'secao_spacer', objetivoId: oid })
           }
           if (docLinhas.length > 0) {
-            out.push({
+            chunkTarefa.push({
               id: `sec_d_${t.id}_${oid}`,
               tipo: 'secao_tipo_atividade',
               secaoTipo: 'documentacao',
               nome: 'Documentação',
               objetivoId: oid
             })
-            out.push({
+            chunkTarefa.push({
               id: `t_${t.id}__d_${oid}`,
               tipo: 'comportamento',
               nome: t.nome,
@@ -2166,7 +2685,9 @@ export default function Page() {
             docLinhas.forEach(({ a, rowsMesmaAcao }) => pushLinhaAcao(a, rowsMesmaAcao, 'documentacao'))
           }
         }
+        if (chunkTarefa.some(l => l.tipo === 'acao')) chunkObjetivo.push(...chunkTarefa)
       }
+      if (chunkObjetivo.some(l => l.tipo === 'acao')) out.push(...chunkObjetivo)
     }
     return filtrarLinhasGradeSohComPlanoNoPeriodo(out)
   }, [tarefas, planejamentoNaArea, cronograma, acaoPorId, metasObjetivos, semanas, indicadoresPorObjetivo, periodo, isAreaTipoAtividadeProjeto])
@@ -2288,24 +2809,11 @@ export default function Page() {
       .map(pid => areaPessoasLista.find(p => p.id === pid)?.nome)
       .filter(Boolean)
     const responsavelStr = nomesResp.length ? nomesResp.join(', ') : null
-    const textoFranqueadoBruto =
-      typeof franqueadoNomeRef.current === 'string'
-        ? franqueadoNomeRef.current
-        : String(franqueadoNomeRef.current ?? '')
-    const fnAlvo = isAreaAcoplamento ? normalizeFranqueadoNome(textoFranqueadoBruto) : null
-    if (process.env.NODE_ENV === 'development' && isAreaAcoplamento) {
-      const refVal = franqueadoNomeRef.current
-      console.log('[DEBUG SAVE] franqueado_nome que será salvo:', {
-        valorRef: refVal,
-        valorState: franqueadoNome,
-        tipo: typeof refVal,
-        length: typeof refVal === 'string' ? refVal.length : null,
-        charAt0: typeof refVal === 'string' ? refVal.charAt(0) : null,
-        json: JSON.stringify(refVal),
-        fnAlvo,
-        fnAlvoJson: JSON.stringify(fnAlvo)
-      })
-    }
+    const fnAlvo = isAreaFranqueado
+      ? normalizeFranqueadoNome(
+          franqueadosAtivos.find(f => String(f.id) === String(acoplamentoFranqueadoId || ''))?.nome
+        )
+      : null
     const casaIdParaSalvar =
       isAreaCasa && casaSelecionada && String(casaSelecionada).trim()
         ? String(casaSelecionada).trim()
@@ -2318,6 +2826,19 @@ export default function Page() {
       setError('Selecione ao menos uma casa.')
       return
     }
+    if (isAreaJuridico && !juridicoIdentificacaoId) {
+      setError('Selecione uma identificação.')
+      return
+    }
+    if (isAreaAdm && !admCnpjSelecionado) {
+      setError('Selecione um CNPJ / empresa.')
+      return
+    }
+
+    const payloadJuridico = isAreaJuridico
+      ? { juridico_identificacao_id: juridicoIdentificacaoId, juridico_tipo: juridicoTipo }
+      : {}
+    const comercialCandidatoIdSalvar = isAreaComercial ? (comercialCandidatoId ?? null) : null
 
     if (addDrawerEditando && addPlanejamentoEdicaoId) {
       if (idsValidos.length !== 1) {
@@ -2342,7 +2863,16 @@ export default function Page() {
         if (existente?.id) {
           const resUp = await supabase
             .from('gantt_planejamento')
-            .update({ responsavel: responsavelStr, semanas_selecionadas: semanas, semana_inicio: null, semana_fim: null, casa_id: casaId, periodo_id: periodoId, adm_cnpj_id: isAreaAdm ? admCnpjSelecionado : null })
+            .update({
+              responsavel: responsavelStr,
+              semanas_selecionadas: semanas,
+              semana_inicio: null,
+              semana_fim: null,
+              casa_id: casaId,
+              periodo_id: periodoId,
+              adm_cnpj_id: isAreaAdm ? admCnpjSelecionado : null,
+              controladoria_cnpj_id: isAreaControladoria ? (controladoriaCnpjSelecionado ?? null) : null
+            })
             .eq('id', existente.id)
           return resUp.error || null
         }
@@ -2355,7 +2885,8 @@ export default function Page() {
           semana_fim: null,
           casa_id: casaId,
           periodo_id: periodoId,
-          adm_cnpj_id: isAreaAdm ? admCnpjSelecionado : null
+          adm_cnpj_id: isAreaAdm ? admCnpjSelecionado : null,
+          controladoria_cnpj_id: isAreaControladoria ? (controladoriaCnpjSelecionado ?? null) : null
         }
         const ins = await supabase.from('gantt_planejamento').insert(payloadInsert)
         if (!ins.error) return null
@@ -2373,7 +2904,8 @@ export default function Page() {
           semana_fim: semanaFim,
           casa_id: casaId,
           periodo_id: periodoId,
-          adm_cnpj_id: isAreaAdm ? admCnpjSelecionado : null
+          adm_cnpj_id: isAreaAdm ? admCnpjSelecionado : null,
+          controladoria_cnpj_id: isAreaControladoria ? (controladoriaCnpjSelecionado ?? null) : null
         })
         return insLegado.error || null
       }
@@ -2414,9 +2946,13 @@ export default function Page() {
             semanas_selecionadas: semanas,
             semana_inicio: null,
             semana_fim: null,
-            franqueado_nome: isAreaAcoplamento ? fnAlvo : null,
+            franqueado_nome: isAreaFranqueado ? fnAlvo : null,
             adm_cnpj_id: isAreaAdm ? admCnpjSelecionado : null,
-            ...(isAreaCasa ? { casa_id: casaIdParaSalvar } : {})
+            controladoria_cnpj_id: isAreaControladoria ? (controladoriaCnpjSelecionado ?? null) : null,
+            comercial_candidato_id: comercialCandidatoIdSalvar,
+            portfolio_franqueado_id: isAreaPortfolio ? (portfolioFranqueadoId ?? null) : null,
+            ...(isAreaCasa ? { casa_id: casaIdParaSalvar } : {}),
+            ...payloadJuridico
           })
           .eq('id', addPlanejamentoEdicaoId)
         if (errEd) {
@@ -2433,9 +2969,13 @@ export default function Page() {
           valor_novo: {
             responsavel: responsavelStr,
             semanas_selecionadas: semanas,
-            franqueado_nome: isAreaAcoplamento ? fnAlvo : null,
+            franqueado_nome: isAreaFranqueado ? fnAlvo : null,
             adm_cnpj_id: isAreaAdm ? admCnpjSelecionado : null,
-            casa_id: isAreaCasa ? casaIdParaSalvar : null
+            controladoria_cnpj_id: isAreaControladoria ? (controladoriaCnpjSelecionado ?? null) : null,
+            comercial_candidato_id: comercialCandidatoIdSalvar,
+            portfolio_franqueado_id: isAreaPortfolio ? (portfolioFranqueadoId ?? null) : null,
+            casa_id: isAreaCasa ? casaIdParaSalvar : null,
+            ...payloadJuridico
           },
           descricao: 'Atualizou planejamento no Gantt'
         })
@@ -2478,14 +3018,15 @@ export default function Page() {
       setShowAddAtividade(false)
       setAddDrawerEditando(false)
       setAddPlanejamentoEdicaoId(null)
-      syncFranqueadoNome('')
-      setAdmCnpjSelecionado(null)
-      setNovoCnpj('')
-      setNovoDescritivo('')
-      setCriandoAdmCnpj(false)
+      resetAcoplamentoModalAux()
+      resetPortfolioModalAux()
+      resetComercialModalAux()
+      resetAdmCnpjModalAux()
+      resetControladoriaCnpjModalAux()
       setCasaSelecionada(null)
       setCasasSelecionadas([])
       resetModalCasaAux()
+      resetJuridicoModalAux()
       setSalvandoAdd(false)
       await carregarTarefas()
       await Promise.all([carregarPlanejamento(), carregarCronograma()])
@@ -2497,9 +3038,40 @@ export default function Page() {
 
     for (const addAcaoId of idsValidos) {
       let existenteNoPeriodo
-      if (isAreaAcoplamento) {
+      if (isAreaFranqueado) {
         existenteNoPeriodo = planejamentoNaArea.find(
           p => p.acao_id === addAcaoId && normalizeFranqueadoNome(p.franqueado_nome) === fnAlvo
+        )
+      } else if (isAreaComercial) {
+        existenteNoPeriodo = planejamentoNaArea.find(
+          p =>
+            p.acao_id === addAcaoId &&
+            String(p.comercial_candidato_id ?? '') === String(comercialCandidatoId ?? '')
+        )
+      } else if (isAreaJuridico) {
+        existenteNoPeriodo = planejamentoNaArea.find(
+          p =>
+            p.acao_id === addAcaoId &&
+            String(p.juridico_identificacao_id || '') === String(juridicoIdentificacaoId || '')
+        )
+      } else if (isAreaAdm) {
+        /** Mesma ação + CNPJ = um registro; CNPJ diferente → insert (empilhamento na grade). */
+        existenteNoPeriodo = planejamentoNaArea.find(
+          p =>
+            p.acao_id === addAcaoId &&
+            String(p.adm_cnpj_id || '') === String(admCnpjSelecionado || '')
+        )
+      } else if (isAreaControladoria) {
+        existenteNoPeriodo = planejamentoNaArea.find(
+          p =>
+            p.acao_id === addAcaoId &&
+            String(p.controladoria_cnpj_id ?? '') === String(controladoriaCnpjSelecionado ?? '')
+        )
+      } else if (isAreaPortfolio) {
+        existenteNoPeriodo = planejamentoNaArea.find(
+          p =>
+            p.acao_id === addAcaoId &&
+            String(p.portfolio_franqueado_id ?? '') === String(portfolioFranqueadoId ?? '')
         )
       } else {
         existenteNoPeriodo = planejamentoNaArea.find(p =>
@@ -2520,11 +3092,32 @@ export default function Page() {
           if (existente?.id) {
             const resUp = await supabase
               .from('gantt_planejamento')
-              .update({ responsavel: responsavelStr, semanas_selecionadas: semanas, semana_inicio: null, semana_fim: null, casa_id: casaId, objetivo_id: addObjetivoId, periodo_id: periodoId, adm_cnpj_id: isAreaAdm ? admCnpjSelecionado : null })
+              .update({
+                responsavel: responsavelStr,
+                semanas_selecionadas: semanas,
+                semana_inicio: null,
+                semana_fim: null,
+                casa_id: casaId,
+                objetivo_id: addObjetivoId,
+                periodo_id: periodoId,
+                adm_cnpj_id: isAreaAdm ? admCnpjSelecionado : null,
+                controladoria_cnpj_id: isAreaControladoria ? (controladoriaCnpjSelecionado ?? null) : null
+              })
               .eq('id', existente.id)
             err = resUp.error
           } else {
-            const payload = { acao_id: addAcaoId, responsavel: responsavelStr, semanas_selecionadas: semanas, semana_inicio: null, semana_fim: null, casa_id: casaId, objetivo_id: addObjetivoId, periodo_id: periodoId, adm_cnpj_id: isAreaAdm ? admCnpjSelecionado : null }
+            const payload = {
+              acao_id: addAcaoId,
+              responsavel: responsavelStr,
+              semanas_selecionadas: semanas,
+              semana_inicio: null,
+              semana_fim: null,
+              casa_id: casaId,
+              objetivo_id: addObjetivoId,
+              periodo_id: periodoId,
+              adm_cnpj_id: isAreaAdm ? admCnpjSelecionado : null,
+              controladoria_cnpj_id: isAreaControladoria ? (controladoriaCnpjSelecionado ?? null) : null
+            }
             const ins = await supabase.from('gantt_planejamento').insert(payload)
             err = ins.error
             if (err) {
@@ -2540,13 +3133,112 @@ export default function Page() {
                   semana_fim: semanaFim,
                   casa_id: casaId,
                   periodo_id: periodoId,
-                  adm_cnpj_id: isAreaAdm ? admCnpjSelecionado : null
+                  adm_cnpj_id: isAreaAdm ? admCnpjSelecionado : null,
+                  controladoria_cnpj_id: isAreaControladoria ? (controladoriaCnpjSelecionado ?? null) : null
                 })
                 err = insLegado.error || null
               }
             }
           }
           if (err) break
+        }
+      } else if (isAreaPortfolio) {
+        /** Mesma ação + mesmo franqueado (ou ambos sem id) → update; id diferente → insert (empilhamento na grade). */
+        const existentePort = planejamentoNaArea.find(
+          p =>
+            p.acao_id === addAcaoId &&
+            String(p.portfolio_franqueado_id ?? '') === String(portfolioFranqueadoId ?? '')
+        )
+        const payloadPort = {
+          acao_id: addAcaoId,
+          responsavel: responsavelStr,
+          semanas_selecionadas: semanas,
+          semana_inicio: null,
+          semana_fim: null,
+          franqueado_nome: null,
+          adm_cnpj_id: null,
+          controladoria_cnpj_id: null,
+          comercial_candidato_id: null,
+          portfolio_franqueado_id: portfolioFranqueadoId ?? null,
+          objetivo_id: addObjetivoId,
+          casa_id: null,
+          periodo_id: periodoId
+        }
+        if (existentePort?.id) {
+          const resUp = await supabase
+            .from('gantt_planejamento')
+            .update(payloadPort)
+            .eq('id', existentePort.id)
+          err = resUp.error
+        } else {
+          const ins = await supabase.from('gantt_planejamento').insert(payloadPort)
+          err = ins.error
+          if (err) {
+            const msgIns = String(err.message || '').toLowerCase()
+            const needsSemanasFallback = msgIns.includes('semanas_selecionadas') || msgIns.includes('column')
+            if (needsSemanasFallback) {
+              const semanaInicio = semanas[0]
+              const semanaFim = semanas[semanas.length - 1]
+              const insLegado = await supabase.from('gantt_planejamento').insert({
+                acao_id: addAcaoId,
+                responsavel: responsavelStr,
+                semana_inicio: semanaInicio,
+                semana_fim: semanaFim,
+                portfolio_franqueado_id: portfolioFranqueadoId ?? null,
+                objetivo_id: addObjetivoId,
+                periodo_id: periodoId
+              })
+              err = insLegado.error || null
+            }
+          }
+        }
+      } else if (isAreaControladoria) {
+        /** Mesma ação + mesmo CNPJ (ou ambos sem CNPJ) → update; CNPJ diferente → insert (empilhamento na grade). */
+        const existenteCtrl = planejamentoNaArea.find(
+          p =>
+            p.acao_id === addAcaoId &&
+            String(p.controladoria_cnpj_id ?? '') === String(controladoriaCnpjSelecionado ?? '')
+        )
+        const payloadCtrl = {
+          acao_id: addAcaoId,
+          responsavel: responsavelStr,
+          semanas_selecionadas: semanas,
+          semana_inicio: null,
+          semana_fim: null,
+          franqueado_nome: null,
+          adm_cnpj_id: null,
+          controladoria_cnpj_id: controladoriaCnpjSelecionado ?? null,
+          objetivo_id: addObjetivoId,
+          casa_id: null,
+          periodo_id: periodoId
+        }
+        if (existenteCtrl?.id) {
+          const resUp = await supabase
+            .from('gantt_planejamento')
+            .update(payloadCtrl)
+            .eq('id', existenteCtrl.id)
+          err = resUp.error
+        } else {
+          const ins = await supabase.from('gantt_planejamento').insert(payloadCtrl)
+          err = ins.error
+          if (err) {
+            const msgIns = String(err.message || '').toLowerCase()
+            const needsSemanasFallback = msgIns.includes('semanas_selecionadas') || msgIns.includes('column')
+            if (needsSemanasFallback) {
+              const semanaInicio = semanas[0]
+              const semanaFim = semanas[semanas.length - 1]
+              const insLegado = await supabase.from('gantt_planejamento').insert({
+                acao_id: addAcaoId,
+                responsavel: responsavelStr,
+                semana_inicio: semanaInicio,
+                semana_fim: semanaFim,
+                controladoria_cnpj_id: controladoriaCnpjSelecionado ?? null,
+                objetivo_id: addObjetivoId,
+                periodo_id: periodoId
+              })
+              err = insLegado.error || null
+            }
+          }
         }
       } else if (existenteNoPeriodo?.id) {
         const resUp = await supabase
@@ -2556,10 +3248,14 @@ export default function Page() {
             semanas_selecionadas: semanas,
             semana_inicio: null,
             semana_fim: null,
-            franqueado_nome: isAreaAcoplamento ? fnAlvo : null,
+            franqueado_nome: isAreaFranqueado ? fnAlvo : null,
             adm_cnpj_id: isAreaAdm ? admCnpjSelecionado : null,
+            controladoria_cnpj_id: null,
+            comercial_candidato_id: comercialCandidatoIdSalvar,
+            portfolio_franqueado_id: isAreaPortfolio ? (portfolioFranqueadoId ?? null) : null,
             objetivo_id: addObjetivoId,
-            ...(isAreaCasa ? { casa_id: casaIdParaSalvar } : {})
+            ...(isAreaCasa ? { casa_id: casaIdParaSalvar } : {}),
+            ...payloadJuridico
           })
           .eq('id', existenteNoPeriodo.id)
         err = resUp.error
@@ -2570,11 +3266,15 @@ export default function Page() {
           semanas_selecionadas: semanas,
           semana_inicio: null,
           semana_fim: null,
-          franqueado_nome: isAreaAcoplamento ? fnAlvo : null,
+          franqueado_nome: isAreaFranqueado ? fnAlvo : null,
           adm_cnpj_id: isAreaAdm ? admCnpjSelecionado : null,
+          controladoria_cnpj_id: null,
+          comercial_candidato_id: comercialCandidatoIdSalvar,
+          portfolio_franqueado_id: isAreaPortfolio ? (portfolioFranqueadoId ?? null) : null,
           objetivo_id: addObjetivoId,
           casa_id: isAreaCasa ? casaIdParaSalvar : null,
-          periodo_id: periodoId
+          periodo_id: periodoId,
+          ...payloadJuridico
         }
         const ins = await supabase.from('gantt_planejamento').insert(payload)
         err = ins.error
@@ -2582,7 +3282,21 @@ export default function Page() {
 
       const msg = (err?.message || '').toLowerCase()
       const needsSemanasFallback = msg.includes('semanas_selecionadas')
-      if (err && needsSemanasFallback && !existenteNoPeriodo?.id) {
+      const tinhaExistente =
+        existenteNoPeriodo?.id ||
+        (isAreaControladoria &&
+          planejamentoNaArea.some(
+            p =>
+              p.acao_id === addAcaoId &&
+              String(p.controladoria_cnpj_id ?? '') === String(controladoriaCnpjSelecionado ?? '')
+          )) ||
+        (isAreaPortfolio &&
+          planejamentoNaArea.some(
+            p =>
+              p.acao_id === addAcaoId &&
+              String(p.portfolio_franqueado_id ?? '') === String(portfolioFranqueadoId ?? '')
+          ))
+      if (err && needsSemanasFallback && !tinhaExistente) {
         setError('Seu banco está sem a coluna `semanas_selecionadas` em gantt_planejamento. Execute o SQL de migração exibido no erro e recarregue.')
         setSalvandoAdd(false)
         return
@@ -2608,8 +3322,12 @@ export default function Page() {
           acao_id: addAcaoId,
           responsavel: responsavelStr,
           semanas_selecionadas: semanas,
-          franqueado_nome: isAreaAcoplamento ? fnAlvo : null,
-          casa_id: isAreaCasa ? casaIdParaSalvar : null
+          franqueado_nome: isAreaFranqueado ? fnAlvo : null,
+          comercial_candidato_id: comercialCandidatoIdSalvar,
+          casa_id: isAreaCasa ? casaIdParaSalvar : null,
+          adm_cnpj_id: isAreaAdm ? admCnpjSelecionado : null,
+          controladoria_cnpj_id: isAreaControladoria ? (controladoriaCnpjSelecionado ?? null) : null,
+          portfolio_franqueado_id: isAreaPortfolio ? (portfolioFranqueadoId ?? null) : null
         },
         descricao: `Salvou planejamento Gantt (ação ${addAcaoId})`
       })
@@ -2655,9 +3373,14 @@ export default function Page() {
     setShowAddAtividade(false)
     setAddDrawerEditando(false)
     setAddPlanejamentoEdicaoId(null)
-    syncFranqueadoNome('')
+    resetAcoplamentoModalAux()
+    resetPortfolioModalAux()
+    resetComercialModalAux()
     setCasaSelecionada(null)
     resetModalCasaAux()
+    resetJuridicoModalAux()
+    resetAdmCnpjModalAux()
+    resetControladoriaCnpjModalAux()
     setSalvandoAdd(false)
     await carregarTarefas()
     await Promise.all([carregarPlanejamento(), carregarCronograma()])
@@ -2818,16 +3541,256 @@ export default function Page() {
     }
   }
 
+  async function handleAdicionarIdentificacao() {
+    const nome = novaIdentificacaoNome.trim()
+    if (!nome) return
+    const { data, error } = await supabase
+      .from('juridico_identificacoes')
+      .insert({ nome, tipo: juridicoTipo, oculto: false })
+      .select()
+      .single()
+    if (error) {
+      setError(error.message)
+      return
+    }
+    if (data) {
+      setJuridicoIdentificacoes(prev =>
+        [...prev, data].sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'))
+      )
+      setNovaIdentificacaoNome('')
+    }
+  }
+
+  async function handleOcultarIdentificacao(id) {
+    const { error } = await supabase.from('juridico_identificacoes').update({ oculto: true }).eq('id', id)
+    if (error) {
+      setError(error.message)
+      return
+    }
+    setJuridicoIdentificacoes(prev => prev.map(i => (String(i.id) === String(id) ? { ...i, oculto: true } : i)))
+    if (String(juridicoIdentificacaoId) === String(id)) {
+      setJuridicoIdentificacaoId(null)
+      setIdDropdownAberto(true)
+    }
+  }
+
+  async function handleMostrarIdentificacao(id) {
+    const { error } = await supabase.from('juridico_identificacoes').update({ oculto: false }).eq('id', id)
+    if (error) {
+      setError(error.message)
+      return
+    }
+    setJuridicoIdentificacoes(prev => prev.map(i => (String(i.id) === String(id) ? { ...i, oculto: false } : i)))
+  }
+
+  async function handleAdicionarFranqueado() {
+    const nome = String(novoFranqueadoNome || '').trim()
+    if (!nome || !tabelaFranqueadosAtiva) return
+    const jaExiste = franqueadosAtivos.some(
+      f => String(f.nome || '').trim().toLowerCase() === nome.toLowerCase()
+    )
+    if (jaExiste) return
+    const { data, error } = await supabase
+      .from(tabelaFranqueadosAtiva)
+      .insert({ nome, oculto: false })
+      .select()
+      .single()
+    if (error) {
+      setError(error.message)
+      return
+    }
+    if (data) {
+      setFranqueadosAtivos(prev =>
+        [...prev, data].sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'))
+      )
+      setNovoFranqueadoNome('')
+    }
+  }
+
+  async function handleOcultarFranqueado(id) {
+    if (!tabelaFranqueadosAtiva) return
+    const { error } = await supabase.from(tabelaFranqueadosAtiva).update({ oculto: true }).eq('id', id)
+    if (error) {
+      setError(error.message)
+      return
+    }
+    setFranqueadosAtivos(prev => prev.map(f => (String(f.id) === String(id) ? { ...f, oculto: true } : f)))
+    if (String(acoplamentoFranqueadoId) === String(id)) {
+      setAcoplamentoFranqueadoId(null)
+      setAcoplamentoDropdownAberto(true)
+    }
+  }
+
+  async function handleMostrarFranqueado(id) {
+    if (!tabelaFranqueadosAtiva) return
+    const { error } = await supabase.from(tabelaFranqueadosAtiva).update({ oculto: false }).eq('id', id)
+    if (error) {
+      setError(error.message)
+      return
+    }
+    setFranqueadosAtivos(prev => prev.map(f => (String(f.id) === String(id) ? { ...f, oculto: false } : f)))
+  }
+
+  async function handleAdicionarPortfolioFranqueado() {
+    const nome = String(novoPortfolioFranqueado || '').trim()
+    if (!nome) return
+    const jaExiste = portfolioFranqueados.some(
+      f => String(f.nome || '').trim().toLowerCase() === nome.toLowerCase()
+    )
+    if (jaExiste) return
+    const { data, error } = await supabase
+      .from('portfolio_franqueados')
+      .insert({ nome, oculto: false })
+      .select()
+      .single()
+    if (error) {
+      setError(error.message)
+      return
+    }
+    if (data) {
+      setPortfolioFranqueados(prev =>
+        [...prev, data].sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'))
+      )
+      setNovoPortfolioFranqueado('')
+    }
+  }
+
+  async function handleOcultarPortfolioFranqueado(id) {
+    const { error } = await supabase.from('portfolio_franqueados').update({ oculto: true }).eq('id', id)
+    if (error) {
+      setError(error.message)
+      return
+    }
+    setPortfolioFranqueados(prev => prev.map(f => (String(f.id) === String(id) ? { ...f, oculto: true } : f)))
+    if (String(portfolioFranqueadoId) === String(id)) {
+      setPortfolioFranqueadoId(null)
+      setPortfolioDropdownAberto(true)
+    }
+  }
+
+  async function handleMostrarPortfolioFranqueado(id) {
+    const { error } = await supabase.from('portfolio_franqueados').update({ oculto: false }).eq('id', id)
+    if (error) {
+      setError(error.message)
+      return
+    }
+    setPortfolioFranqueados(prev => prev.map(f => (String(f.id) === String(id) ? { ...f, oculto: false } : f)))
+  }
+
+  async function handleAdicionarCandidato() {
+    const nome = novoCandidatoNome.trim()
+    if (!nome) return
+    const jaExiste = comercialCandidatos.some(
+      c => String(c.nome || '').trim().toLowerCase() === nome.toLowerCase()
+    )
+    if (jaExiste) return
+    const { data, error } = await supabase
+      .from('comercial_candidatos')
+      .insert({ nome, oculto: false })
+      .select()
+      .single()
+    if (error) {
+      setError(error.message)
+      return
+    }
+    if (data) {
+      setComercialCandidatos(prev =>
+        [...prev, data].sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'))
+      )
+      setNovoCandidatoNome('')
+    }
+  }
+
+  async function handleOcultarCandidato(id) {
+    const { error } = await supabase.from('comercial_candidatos').update({ oculto: true }).eq('id', id)
+    if (error) {
+      setError(error.message)
+      return
+    }
+    setComercialCandidatos(prev => prev.map(c => (String(c.id) === String(id) ? { ...c, oculto: true } : c)))
+    if (String(comercialCandidatoId) === String(id)) {
+      setComercialCandidatoId(null)
+      setComercialDropdownAberto(true)
+    }
+  }
+
+  async function handleMostrarCandidato(id) {
+    const { error } = await supabase.from('comercial_candidatos').update({ oculto: false }).eq('id', id)
+    if (error) {
+      setError(error.message)
+      return
+    }
+    setComercialCandidatos(prev => prev.map(c => (String(c.id) === String(id) ? { ...c, oculto: false } : c)))
+  }
+
+  const resetAdmCnpjModalAux = useCallback(() => {
+    setAdmCnpjSelecionado(null)
+    setCnpjDropdownAberto(true)
+    setCriandoCnpj(false)
+    setNovoCnpj('')
+    setNovoDescritivo('')
+  }, [])
+
+  const resetControladoriaCnpjModalAux = useCallback(() => {
+    setControladoriaCnpjSelecionado(null)
+    setControladoriaCnpjDropdownAberto(true)
+    setControladoriaCriandoCnpj(false)
+    setControladoriaNovoCnpj('')
+    setControladoriaNovoDescritivo('')
+  }, [])
+
+  async function handleSalvarCnpj() {
+    if (!novoCnpj.trim() || !novoDescritivo.trim()) return
+    const { data, error } = await supabase
+      .from('adm_cnpjs')
+      .insert({ cnpj: novoCnpj.trim(), descritivo: novoDescritivo.trim() })
+      .select('id, cnpj, descritivo')
+      .single()
+    if (error) {
+      setError(error.message)
+      return
+    }
+    if (data) {
+      setAdmCnpjs(prev => [...prev, data])
+      setAdmCnpjSelecionado(data.id)
+      setCnpjDropdownAberto(false)
+      setCriandoCnpj(false)
+      setNovoCnpj('')
+      setNovoDescritivo('')
+    }
+  }
+
+  async function handleSalvarControladoriaCnpj() {
+    if (!controladoriaNovoCnpj.trim() || !controladoriaNovoDescritivo.trim()) return
+    const { data, error } = await supabase
+      .from('controladoria_cnpjs')
+      .insert({ cnpj: controladoriaNovoCnpj.trim(), descritivo: controladoriaNovoDescritivo.trim() })
+      .select('id, cnpj, descritivo')
+      .single()
+    if (error) {
+      setError(error.message)
+      return
+    }
+    if (data) {
+      setControladoriaCnpjs(prev => [...prev, data])
+      setControladoriaCnpjSelecionado(data.id)
+      setControladoriaCnpjDropdownAberto(false)
+      setControladoriaCriandoCnpj(false)
+      setControladoriaNovoCnpj('')
+      setControladoriaNovoDescritivo('')
+    }
+  }
+
   function abrirAddDrawer() {
+    if (!isAdmin) return
     setAddDrawerEditando(false)
     setShowAddAtividade(true)
     setError(null)
     setAddPlanejamentoEdicaoId(null)
-    syncFranqueadoNome('')
-    setAdmCnpjSelecionado(null)
-    setNovoCnpj('')
-    setNovoDescritivo('')
-    setCriandoAdmCnpj(false)
+    resetAcoplamentoModalAux()
+    resetComercialModalAux()
+    resetAdmCnpjModalAux()
+    resetControladoriaCnpjModalAux()
     const firstMeta = metasObjetivos[0]?.id || ''
     if (!addObjetivoId && firstMeta) setAddObjetivoId(firstMeta)
     setAddAcaoIds([])
@@ -2839,6 +3802,7 @@ export default function Page() {
     setCasaSelecionada(null)
     setCasasSelecionadas([])
     resetModalCasaAux()
+    resetJuridicoModalAux()
   }
 
   /** Abre o mesmo drawer de planejamento com meta, comportamento, semanas e responsáveis da linha. */
@@ -2869,11 +3833,59 @@ export default function Page() {
       ? regAlvo.responsavel
       : l.responsavel
     setAddResponsavelPessoaIds(responsavelStrParaIds(respStr, areaPessoasLista))
-    syncFranqueadoNome(franqueadoNomeParaExibicao(regAlvo?.franqueado_nome))
-    setAdmCnpjSelecionado(regAlvo?.adm_cnpj_id != null && regAlvo?.adm_cnpj_id !== '' ? String(regAlvo.adm_cnpj_id) : null)
+    if (isAreaFranqueado) {
+      const nomeSalvo = normalizeFranqueadoNome(regAlvo?.franqueado_nome)
+      const found = (franqueadosAtivos || []).find(
+        f => normalizeFranqueadoNome(f.nome) === nomeSalvo
+      )
+      const idSel = found?.id != null ? String(found.id) : null
+      setAcoplamentoFranqueadoId(idSel)
+      setAcoplamentoDropdownAberto(!idSel)
+      setAcoplamentoOcultosAbertos(false)
+      setNovoFranqueadoNome('')
+    } else {
+      resetAcoplamentoModalAux()
+    }
+    if (isAreaPortfolio) {
+      const idSel =
+        regAlvo?.portfolio_franqueado_id != null && regAlvo?.portfolio_franqueado_id !== ''
+          ? String(regAlvo.portfolio_franqueado_id)
+          : null
+      setPortfolioFranqueadoId(idSel)
+      setPortfolioDropdownAberto(!idSel)
+      setPortfolioOcultosAbertos(false)
+      setNovoPortfolioFranqueado('')
+    } else {
+      resetPortfolioModalAux()
+    }
+    if (isAreaComercial) {
+      const idSel =
+        regAlvo?.comercial_candidato_id != null && regAlvo?.comercial_candidato_id !== ''
+          ? String(regAlvo.comercial_candidato_id)
+          : null
+      setComercialCandidatoId(idSel)
+      setComercialDropdownAberto(!idSel)
+      setComercialOcultosAbertos(false)
+      setNovoCandidatoNome('')
+    } else {
+      resetComercialModalAux()
+    }
+    const admIdSel =
+      regAlvo?.adm_cnpj_id != null && regAlvo?.adm_cnpj_id !== '' ? String(regAlvo.adm_cnpj_id) : null
+    setAdmCnpjSelecionado(admIdSel)
+    setCnpjDropdownAberto(!admIdSel)
+    setCriandoCnpj(false)
     setNovoCnpj('')
     setNovoDescritivo('')
-    setCriandoAdmCnpj(false)
+    const controladoriaIdSel =
+      regAlvo?.controladoria_cnpj_id != null && regAlvo?.controladoria_cnpj_id !== ''
+        ? String(regAlvo.controladoria_cnpj_id)
+        : null
+    setControladoriaCnpjSelecionado(controladoriaIdSel)
+    setControladoriaCnpjDropdownAberto(!controladoriaIdSel)
+    setControladoriaCriandoCnpj(false)
+    setControladoriaNovoCnpj('')
+    setControladoriaNovoDescritivo('')
     setCasaSelecionada(regAlvo?.casa_id != null && regAlvo?.casa_id !== '' ? String(regAlvo.casa_id) : null)
     if (isAreaCasa && periodoId && l?.acaoId) {
       const acaoId = l.acaoId
@@ -2886,8 +3898,37 @@ export default function Page() {
     } else {
       setCasasSelecionadas([])
     }
+    if (isAreaJuridico && regAlvo) {
+      setJuridicoTipo(regAlvo.juridico_tipo || 'franqueado')
+      const idSel =
+        regAlvo.juridico_identificacao_id != null && regAlvo.juridico_identificacao_id !== ''
+          ? String(regAlvo.juridico_identificacao_id)
+          : null
+      setJuridicoIdentificacaoId(idSel)
+      setIdDropdownAberto(!idSel)
+    } else {
+      resetJuridicoModalAux()
+    }
     resetModalCasaAux()
-  }, [metasObjetivos, areaPessoasLista, semanasModalAdicionar, periodo, syncFranqueadoNome, isAreaCasa, planejamento, periodoId])
+  }, [
+    metasObjetivos,
+    areaPessoasLista,
+    semanasModalAdicionar,
+    periodo,
+    isAreaFranqueado,
+    franqueadosAtivos,
+    isAreaPortfolio,
+    portfolioFranqueados,
+    isAreaComercial,
+    isAreaCasa,
+    isAreaJuridico,
+    planejamento,
+    periodoId,
+    resetJuridicoModalAux,
+    resetAcoplamentoModalAux,
+    resetPortfolioModalAux,
+    resetComercialModalAux
+  ])
 
   function fecharAddDrawer() {
     if (salvandoAdd) return
@@ -2899,15 +3940,16 @@ export default function Page() {
     setAddTarefaId('')
     setAddSemanasSelecionadas([])
     setAddPlanejamentoEdicaoId(null)
-    syncFranqueadoNome('')
-    setAdmCnpjSelecionado(null)
-    setNovoCnpj('')
-    setNovoDescritivo('')
-    setCriandoAdmCnpj(false)
+    resetAcoplamentoModalAux()
+    resetPortfolioModalAux()
+    resetComercialModalAux()
+    resetAdmCnpjModalAux()
+    resetControladoriaCnpjModalAux()
     setCasaSelecionada(null)
     setCasasSelecionadas([])
     setDropdownCasaAberto(false)
     resetModalCasaAux()
+    resetJuridicoModalAux()
   }
 
   function adicionarCasa(id) {
@@ -2985,13 +4027,15 @@ export default function Page() {
       const lista = (Array.isArray(ids) ? ids : [ids]).filter(Boolean).map(x => String(x))
       if (lista.length === 0) return
       const nome = String(l.nome || '').trim() || 'esta atividade'
-      const temRealizado = linhaTemRealizadoCronograma(l, cronograma)
-      const temPreenchimentoCronograma = linhaTemPreenchimentoCronograma(l, cronograma)
+      const temHistorico = linhaTemHistoricoPreenchido(l, cronograma)
+      const temPreenchimentoCronograma = temHistorico
 
-      if (!isAdmin && temRealizado) {
-        window.alert(
-          'Não é possível excluir esta atividade porque há realizações registradas no cronograma. Entre em contato com um administrador.'
-        )
+      if (!isAdmin && temHistorico) {
+        setModalExclusao({
+          tipo: 'bloqueado',
+          mensagem:
+            'Não é possível excluir esta atividade porque há histórico registrado (valores, horas ou semanas). Entre em contato com um administrador.'
+        })
         return
       }
 
@@ -3001,20 +4045,29 @@ export default function Page() {
         const blocoDados = temDadosNoBanco
           ? 'Há dados gravados no banco (lançamentos no cronograma: horas e/ou status). Essas informações serão perdidas.'
           : 'Não há lançamentos no cronograma para esta linha; será removido apenas o registro de planejamento (semanas / vínculo ao período).'
-        const msg =
+        const mensagemAdmin =
           `${blocoDados}\n\n` +
           `Ao confirmar, a atividade "${nome}" deixa de constar neste planejamento e as alterações são irreversíveis.\n\n` +
           'Deseja continuar?'
-        if (!window.confirm(msg)) return
-      } else if (
-        !window.confirm(`Excluir "${nome}" do planejamento deste período? Esta ação não pode ser desfeita.`)
-      ) {
+        setModalExclusao({
+          tipo: 'confirmar',
+          planejamentoIds: lista,
+          nomeAtividade: nome,
+          origemCronogramaLegado: Boolean(l.origemCronogramaLegado),
+          mensagemAdmin
+        })
         return
       }
 
-      void removerAtividade(lista, { origemCronogramaLegado: Boolean(l.origemCronogramaLegado) })
+      setModalExclusao({
+        tipo: 'confirmar',
+        planejamentoIds: lista,
+        nomeAtividade: nome,
+        origemCronogramaLegado: Boolean(l.origemCronogramaLegado)
+      })
+      return
     },
-    [cronograma, isAdmin, removerAtividade]
+    [cronograma, isAdmin, removerAtividade],
   )
 
   async function salvarLancamento(indicadorId, semanaIso, valorRaw) {
@@ -3163,6 +4216,7 @@ export default function Page() {
 
   function abrirExcluirMetaDrawer(meta) {
     if (!meta?.id) return
+    if (!isAdmin && metaTemAtividadesNoPlano[meta.id]) return
     setMetaModalAberto(false)
     setMetaParaEditar(null)
     setMetaParaExcluir(meta)
@@ -3176,6 +4230,7 @@ export default function Page() {
   }
 
   function abrirMetaModalGantt() {
+    if (!isAdmin) return
     if (!areaId) {
       setError('Selecione uma área antes de definir metas.')
       return
@@ -3186,7 +4241,7 @@ export default function Page() {
   }
 
   function abrirMetaModalEditar(meta) {
-    if (!meta?.id) return
+    if (!isAdmin || !meta?.id) return
     setMetaParaEditar(meta)
     setMetaModalAberto(true)
   }
@@ -3228,7 +4283,21 @@ export default function Page() {
       })
       if (!resInd.ok) {
         setConcluindoMetaId(null)
-        setError(resInd.message)
+        const msgInd = String(resInd.message || '')
+        const kind = resInd.errorKind || classificarErroSupabase(resInd.raw || msgInd)
+
+        if (kind === 'permission') {
+          const diag = await diagnosticarAcessoIndicadorConquistas(supabase)
+          if (diag === 'permission') {
+            logSqlGrantIndicadorConquistas()
+            setIndicadorFeedback({ type: 'error', message: TOAST_ERRO_PERMISSAO_INDICADOR_CONQUISTAS })
+          } else {
+            setIndicadorFeedback({ type: 'error', message: msgInd })
+          }
+          return
+        }
+
+        setError(msgInd)
         return
       }
       void registrarLog({
@@ -3356,10 +4425,16 @@ export default function Page() {
       if (!t) continue
       merged.set(k, merged.has(k) ? `${merged.get(k)} — ${t}` : t)
     }
+    if (merged.size > 0) {
+      console.log('[pill] chaves merged (acao_id|semana_iso|semana_ano):', [...merged.keys()])
+    }
     return (acaoId, sn) => {
       const ano = anoIsoPorSemanaColuna[sn]
       if (ano == null || !acaoId) return null
-      return merged.get(`${acaoId}|${sn}|${ano}`) || null
+      const lookupKey = `${acaoId}|${sn}|${ano}`
+      const result = merged.get(lookupKey) || null
+      if (result) console.log('[pill] encontrou comentário:', acaoId, sn, result)
+      return result
     }
   }, [comentariosAtividadeRows, anoIsoPorSemanaColuna])
 
@@ -3403,6 +4478,8 @@ export default function Page() {
     [indicadoresPorObjetivo]
   )
 
+  const pastelariaGantt = usePastelariaGanttBloco(areaId, semanas, semanaAtual)
+
   const ganttPlanejamentoTable = useMemo(() => {
     // Não usar `loading` aqui: ao trocar período (ex.: semestre) `carregarPlanejamento` dispara
     // e `setLoading(true)` esvaziava a grade inteira,
@@ -3413,7 +4490,7 @@ export default function Page() {
     if (linhas.length === 0 && !temAlgumIndicadorNaGrade) {
       return { tableRows: null }
     }
-    const tableRows = []
+    const tableRows = [...pastelariaGantt.rows]
     const nColunas = 2 + semanas.length + 1
     const pushLinhaIndicador = ind => {
       const indConcluido = String(ind?.status || '').toLowerCase() === 'concluido' || ind?.concluido === true
@@ -3450,11 +4527,19 @@ export default function Page() {
           >
             {ind.unidade || '—'}
           </td>
-          {semanas.map(s => (
+          {semanas.map(s => {
+            const isColSemanaAtual = semanaAtual != null && Number(s) === Number(semanaAtual)
+            return (
             <td
               key={`${ind.id}-${s}`}
-              className={`gantt-td-week gantt-bar-week-slot gantt-td-ind-week ${ganttCronogramaDensityClass}`}
-              style={{ verticalAlign: 'middle', textAlign: 'center', background: '#E8F2FB', borderBottom: '0.5px solid #9EC5E8' }}
+              className={`gantt-td-week gantt-bar-week-slot gantt-td-ind-week ${ganttCronogramaDensityClass}${isColSemanaAtual ? ' gantt-col-semana-atual' : ''}`}
+              style={{
+                verticalAlign: 'middle',
+                textAlign: 'center',
+                background: '#E8F2FB',
+                borderBottom: '0.5px solid #9EC5E8',
+                ...(isColSemanaAtual ? GANTT_BORDA_SEMANA_ATUAL_CEL : null)
+              }}
             >
               <IndicadorSemanaInput
                 key={`gantt-ind-inp-${ind.id}-w-${s}`}
@@ -3466,7 +4551,8 @@ export default function Page() {
                 comentarioTooltip={textoComentarioIndicadorCell(ind.id, Number(s))}
               />
             </td>
-          ))}
+            )
+          })}
           <td
             className="gantt-td-acoes"
             style={{
@@ -3517,8 +4603,9 @@ export default function Page() {
               <button
                 type="button"
                 className={`gantt-btn-dots${indicadorIdsComComentario.has(ind.id) ? ' gantt-btn-dots--ativo' : ''}`}
-                title="Comentários"
-                onClick={() => setComentarioModal({ tipo: 'indicador', referenciaId: ind.id, nome: ind.nome || '—' })}
+                onClick={() =>
+                  setComentarioModal({ tipo: 'indicador', referenciaId: ind.id, nome: ind.nome || '—' })
+                }
               >
                 ···
               </button>
@@ -3573,8 +4660,13 @@ export default function Page() {
           {semanas.map(s => (
             <td
               key={s}
-              className={`gantt-th gantt-th-week gantt-td-subhdr ${s === semanaAtual ? 'gantt-th-week--atual' : ''}`}
+              className={`gantt-th gantt-th-week gantt-td-subhdr${semanaAtual != null && Number(s) === Number(semanaAtual) ? ' gantt-th-week--atual gantt-col-semana-atual' : ''}`}
               title={`Semana ${s}`}
+              style={
+                semanaAtual != null && Number(s) === Number(semanaAtual)
+                  ? GANTT_BORDA_SEMANA_ATUAL_HDR
+                  : undefined
+              }
             >
               {s}
             </td>
@@ -3708,7 +4800,7 @@ export default function Page() {
       const cronClass =
         l.tipo === 'comportamento'
           ? `gantt-shell-row gantt-shell-row--cronograma gantt-shell-row--cronograma-grupo${l.estiloGrupoProjeto ? ' gantt-shell-row--cronograma-grupo-projeto' : ''}`
-          : `gantt-shell-row gantt-shell-row--cronograma${isAcaoAlt ? ' gantt-shell-row--acao-alt' : ''}${isAreaAcoplamento ? ' gantt-shell-row--acoplamento' : ''}${cronTipoBarSuf}`
+          : `gantt-shell-row gantt-shell-row--cronograma${isAcaoAlt ? ' gantt-shell-row--acao-alt' : ''}${isAreaFranqueado || isAreaPortfolio ? ' gantt-shell-row--acoplamento' : ''}${isAreaJuridico ? ' gantt-shell-row--juridico' : ''}${cronTipoBarSuf}`
       const isAcaoAltR = isAcaoAlt
       const acoesClass =
         l.tipo === 'comportamento'
@@ -3775,14 +4867,16 @@ export default function Page() {
                       ? `t_${l.comportamentoId}`
                       : l.id
                   const pidUnico =
-                    (isAreaCasa || isAreaAcoplamento || isAreaAdm) && registrosDaCelula?.length === 1 && registrosDaCelula[0]?.id
+                    (isAreaCasa || isAreaFranqueado || isAreaPortfolio || isAreaComercial || isAreaAdm || isAreaControladoria || isAreaJuridico) &&
+                    registrosDaCelula?.length === 1 &&
+                    registrosDaCelula[0]?.id
                       ? String(registrosDaCelula[0].id)
                       : null
                   const rowKey = pidUnico ? `${rowKeyBase}__p_${pidUnico}` : rowKeyBase
                   const h = mapaHoras[rowKey]?.[sn] ?? mapaHoras[rowKey]?.[s] ?? mapaHoras[rowKeyBase]?.[sn] ?? mapaHoras[rowKeyBase]?.[s]
                   const num = h != null && Number(h) > 0 ? Number(h) : 0
-                  const st = mapaStatus[rowKey]?.[sn] ?? mapaStatus[rowKey]?.[s] ?? mapaStatus[rowKeyBase]?.[sn] ?? mapaStatus[rowKeyBase]?.[s]
-                  const concluido = st === 'concluido'
+                  const st = getStatusCelula(mapaStatus, rowKey, sn) ?? getStatusCelula(mapaStatus, rowKey, s) ?? getStatusCelula(mapaStatus, rowKeyBase, sn) ?? getStatusCelula(mapaStatus, rowKeyBase, s)
+                  const concluido = cronogramaStatusEhConcluido(st)
                   const isAtual = semanaAtual != null && Number(semanaAtual) === sn
                   const noIntervaloPrevisto =
                     Array.isArray(l.semanasSelecionadas) &&
@@ -3796,35 +4890,58 @@ export default function Page() {
                     else statusClass = 'gantt-bar-planejado'
                   }
                   const atualPlanejado = isAtual && statusClass === 'gantt-bar-planejado'
-                  /** Vários planos na mesma semana: empilhar no mesmo slot (nunca criar linha extra fora do map). */
-                  const empilharRegistrosAcoplamento = isAreaAcoplamento && registrosDaCelula.length > 1
+                  /** Acoplamento: um ou mais planos na mesma semana — pill + tag do franqueado (legado: franqueado_nome). */
+                  const layoutAcoplamentoMultilinha = isAreaFranqueado && registrosDaCelula.length >= 1
+                  /** Comercial: um ou mais planos na mesma semana — pill + tag do candidato. */
+                  const layoutComercialMultilinha = isAreaComercial && registrosDaCelula.length >= 1
                   /** Uma ou mais casas na mesma semana: sempre layout empilhado (pill + tag), não só quando length > 1. */
                   const layoutCasaMultilinha = isAreaCasa && registrosDaCelula.length >= 1
                   const layoutAdmMultilinha = isAreaAdm && registrosDaCelula.length >= 1
+                  let registrosDaCelulaCtrl = []
+                  if (isAreaControladoria) {
+                    const snnCtrl = Number(sn)
+                    const semanasGridNormCtrl = (semanas || []).map(Number).filter(Number.isFinite)
+                    const gridSetCtrl = new Set(semanasGridNormCtrl)
+                    const matchedCtrl = (rowsPlano || []).filter(reg => {
+                      if (planejamentoCaiNaSemanaIso(reg, snnCtrl, semanasGridNormCtrl)) return true
+                      const wk = expandGanttSemanasParaGradeIso(reg, semanasGridNormCtrl)
+                      if (wk.some(w => Number(w) === snnCtrl)) return true
+                      const ss = normalizarSemanasSelecionadasGantt(reg?.semanas_selecionadas)
+                      return ss.some(w => Number(w) === snnCtrl && gridSetCtrl.has(snnCtrl))
+                    })
+                    const byIdCtrl = new Map()
+                    const semIdCtrl = []
+                    for (const r of matchedCtrl) {
+                      if (r?.id != null && r.id !== '') byIdCtrl.set(String(r.id), r)
+                      else semIdCtrl.push(r)
+                    }
+                    registrosDaCelulaCtrl = [...Array.from(byIdCtrl.values()), ...semIdCtrl]
+                  }
+                  const layoutControladoriaMultilinha = isAreaControladoria && registrosDaCelulaCtrl.length >= 1
+                  const layoutJuridicoMultilinha = isAreaJuridico && registrosDaCelula.length >= 1
                   const registroUnico = registrosDaCelula[0]
                   const tipAcaoSemana = acaoId ? textoComentarioAcaoCell(acaoId, sn) : null
                   const dotsPlanAcao = statusClass === 'gantt-bar-planejado' || atualPlanejado
 
-                  if (empilharRegistrosAcoplamento) {
+                  if (layoutAcoplamentoMultilinha) {
                     const registrosDaCelulaOrdenados = [...registrosDaCelula].sort((a, b) => {
-                      const nomeA = String(a?.franqueado_nome || '').toLowerCase()
-                      const nomeB = String(b?.franqueado_nome || '').toLowerCase()
+                      const nomeA = nomeFranqueadoAcoplamentoReg(a, franqueadosAtivos).toLowerCase()
+                      const nomeB = nomeFranqueadoAcoplamentoReg(b, franqueadosAtivos).toLowerCase()
                       return nomeA.localeCompare(nomeB, 'pt-BR')
                     })
                     const clicavelCel = registrosDaCelula.some(reg => {
-                      const rk = reg?.id ? `${l.id}__p_${String(reg.id)}` : null
+                      const rk = rowKeyMapaCronogramaReg(reg, l, acaoId)
                       const hh = rk ? (mapaHoras[rk]?.[sn] ?? mapaHoras[rk]?.[s] ?? null) : null
-                      const ss = rk ? (mapaStatus[rk]?.[sn] ?? mapaStatus[rk]?.[s] ?? null) : null
-                      const concl = ss === 'concluido'
+                      const ss = rk ? (getStatusCelula(mapaStatus, rk, sn) ?? getStatusCelula(mapaStatus, rk, s) ?? null) : null
+                      const concl = cronogramaStatusEhConcluido(ss)
                       const noPlano =
-                        expandGanttSemanasParaGradeIso(reg, semanas).some(w => Number(w) === sn) ||
-                        normalizarSemanasSelecionadasGantt(reg?.semanas_selecionadas).some(w => Number(w) === sn)
+                        planejamentoCaiNaSemanaIso(reg, sn, semanas)
                       return noPlano || (hh != null && Number(hh) > 0) || concl
                     })
                     return (
                       <td
                         key={s}
-                        className={`gantt-td-week gantt-bar-week-slot ${ganttCronogramaDensityClass} ${!clicavelCel ? 'gantt-bar-no-click' : ''}`}
+                        className={`gantt-td-week gantt-bar-week-slot ${ganttCronogramaDensityClass}${isAtual ? ' gantt-col-semana-atual' : ''} ${!clicavelCel ? 'gantt-bar-no-click' : ''}`}
                         title={`Semana ${s}`}
                         style={{
                           minHeight: 44,
@@ -3834,7 +4951,7 @@ export default function Page() {
                           boxSizing: 'border-box',
                           verticalAlign: 'middle',
                           textAlign: 'center',
-                          borderRight: '0.5px solid rgba(0,0,0,0.06)'
+                          ...(isAtual ? GANTT_BORDA_SEMANA_ATUAL_CEL : { borderRight: '0.5px solid rgba(0,0,0,0.06)' })
                         }}
                       >
                         <div
@@ -3848,15 +4965,14 @@ export default function Page() {
                           }}
                         >
                           {registrosDaCelulaOrdenados.map((reg, idx) => {
-                            const rowKeyReg = reg?.id ? `${l.id}__p_${String(reg.id)}` : null
+                            const rowKeyReg = rowKeyMapaCronogramaReg(reg, l, acaoId)
                             const hReg = rowKeyReg ? (mapaHoras[rowKeyReg]?.[sn] ?? mapaHoras[rowKeyReg]?.[s] ?? null) : null
                             const numReg = hReg != null && Number(hReg) > 0 ? Number(hReg) : 0
-                            const stReg = rowKeyReg ? (mapaStatus[rowKeyReg]?.[sn] ?? mapaStatus[rowKeyReg]?.[s] ?? null) : null
+                            const stReg = rowKeyReg ? (getStatusCelula(mapaStatus, rowKeyReg, sn) ?? getStatusCelula(mapaStatus, rowKeyReg, s) ?? null) : null
                             const statusReg = stReg || 'pendente'
-                            const concluidoReg = statusReg === 'concluido'
+                            const concluidoReg = cronogramaStatusEhConcluido(statusReg)
                             const noIntervaloPrevistoReg =
-                              expandGanttSemanasParaGradeIso(reg, semanas).some(w => Number(w) === sn) ||
-                              normalizarSemanasSelecionadasGantt(reg?.semanas_selecionadas).some(w => Number(w) === sn)
+                              planejamentoCaiNaSemanaIso(reg, sn, semanas)
                             const clicavelReg = noIntervaloPrevistoReg || numReg > 0 || concluidoReg
                             let statusClassReg = 'gantt-bar-vazio'
                             if (concluidoReg) {
@@ -3906,23 +5022,297 @@ export default function Page() {
                               {(() => {
                                 const pillEl = (
                                   <div
-                                    className={`gantt-bar-pill ${statusClassReg}${atualPlanejadoReg ? ' gantt-bar-pill--semana-atual-planejada' : ''}`}
+                                    className={`gantt-bar-pill ${statusClassReg}${atualPlanejadoReg ? ' gantt-bar-pill--semana-atual-planejada' : ''}${tipAcaoSemana ? ' gantt-bar-pill--com-comentario' : ''}`}
                                     style={{
                                       width: 38,
                                       height: 20,
                                       borderRadius: 3,
                                       cursor: clicavelReg ? 'pointer' : 'default',
-                                      pointerEvents: 'none'
+                                      pointerEvents: 'none',
+                                      ...(tipAcaoSemana ? { position: 'relative', overflow: 'visible' } : null)
                                     }}
                                   >
                                     {concluidoReg ? <span className="gantt-bar-check">✓</span> : null}
                                   </div>
                                 )
-                                return pillEl
+                                return envolverPillComentarioAcao(pillEl, sn, tipAcaoSemana)
                               })()}
                               {(() => {
-                                const raw = reg?.franqueado_nome
-                                const txt = typeof raw === 'string' ? raw.trim() : franqueadoNomeParaExibicao(raw)
+                                const txt = nomeFranqueadoAcoplamentoReg(reg, franqueadosAtivos)
+                                if (!txt) return null
+                                return (
+                                  <span title={txt} style={TAG_FRANQUEADO_STYLE}>
+                                    {txt}
+                                  </span>
+                                )
+                              })()}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </td>
+                    )
+                  }
+
+                  const layoutPortfolioMultilinha = isAreaPortfolio && registrosDaCelula.length >= 1
+                  if (layoutPortfolioMultilinha) {
+                    const registrosDaCelulaOrdenados = [...registrosDaCelula].sort((a, b) => {
+                      const nomeA = String(
+                        portfolioFranqueados.find(f => String(f.id) === String(a?.portfolio_franqueado_id || ''))?.nome
+                          ?? a?.portfolio_franqueado_nome
+                          ?? ''
+                      ).toLowerCase()
+                      const nomeB = String(
+                        portfolioFranqueados.find(f => String(f.id) === String(b?.portfolio_franqueado_id || ''))?.nome
+                          ?? b?.portfolio_franqueado_nome
+                          ?? ''
+                      ).toLowerCase()
+                      return nomeA.localeCompare(nomeB, 'pt-BR')
+                    })
+                    const clicavelCel = registrosDaCelula.some(reg => {
+                      const rk = rowKeyMapaCronogramaReg(reg, l, acaoId)
+                      const hh = rk ? (mapaHoras[rk]?.[sn] ?? mapaHoras[rk]?.[s] ?? null) : null
+                      const ss = rk ? (getStatusCelula(mapaStatus, rk, sn) ?? getStatusCelula(mapaStatus, rk, s) ?? null) : null
+                      const concl = cronogramaStatusEhConcluido(ss)
+                      const noPlano =
+                        planejamentoCaiNaSemanaIso(reg, sn, semanas)
+                      return noPlano || (hh != null && Number(hh) > 0) || concl
+                    })
+                    return (
+                      <td
+                        key={s}
+                        className={`gantt-td-week gantt-bar-week-slot ${ganttCronogramaDensityClass}${isAtual ? ' gantt-col-semana-atual' : ''} ${!clicavelCel ? 'gantt-bar-no-click' : ''}`}
+                        title={`Semana ${s}`}
+                        style={{
+                          minHeight: 44,
+                          height: 'auto',
+                          overflow: 'visible',
+                          padding: '4px',
+                          boxSizing: 'border-box',
+                          verticalAlign: 'middle',
+                          textAlign: 'center',
+                          ...(isAtual ? GANTT_BORDA_SEMANA_ATUAL_CEL : { borderRight: '0.5px solid rgba(0,0,0,0.06)' })
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 4,
+                            width: '100%',
+                            minWidth: 0
+                          }}
+                        >
+                          {registrosDaCelulaOrdenados.map((reg, idx) => {
+                            const rowKeyReg = rowKeyMapaCronogramaReg(reg, l, acaoId)
+                            const hReg = rowKeyReg ? (mapaHoras[rowKeyReg]?.[sn] ?? mapaHoras[rowKeyReg]?.[s] ?? null) : null
+                            const numReg = hReg != null && Number(hReg) > 0 ? Number(hReg) : 0
+                            const stReg = rowKeyReg ? (getStatusCelula(mapaStatus, rowKeyReg, sn) ?? getStatusCelula(mapaStatus, rowKeyReg, s) ?? null) : null
+                            const statusReg = stReg || 'pendente'
+                            const concluidoReg = cronogramaStatusEhConcluido(statusReg)
+                            const noIntervaloPrevistoReg =
+                              planejamentoCaiNaSemanaIso(reg, sn, semanas)
+                            const clicavelReg = noIntervaloPrevistoReg || numReg > 0 || concluidoReg
+                            let statusClassReg = 'gantt-bar-vazio'
+                            if (concluidoReg) {
+                              statusClassReg = 'gantt-bar-realizado'
+                            } else if (numReg > 0 || noIntervaloPrevistoReg) {
+                              if (semanaCorteAtrasado != null && sn < Number(semanaCorteAtrasado)) statusClassReg = 'gantt-bar-atrasado'
+                              else statusClassReg = 'gantt-bar-planejado'
+                            }
+                            const atualPlanejadoReg = isAtual && statusClassReg === 'gantt-bar-planejado'
+                            return (
+                              <div
+                                key={reg.id ?? `reg-${idx}`}
+                                style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'center',
+                                  gap: 1,
+                                  cursor: clicavelReg ? 'pointer' : 'default',
+                                  width: '100%'
+                                }}
+                                onClick={clicavelReg ? e => {
+                                  e.stopPropagation()
+                                  const novoConcluido = !concluidoReg
+                                  if (novoConcluido) {
+                                    setTempoModalAberto(true)
+                                    setTempoModalSemana(sn)
+                                    setTempoModalAcaoId(reg.acao_id || acaoId)
+                                    setTempoModalPlanejamentoId(reg.id || null)
+                                    setTempoModalEstimado(l.tempoHoras ?? null)
+                                    setTempoModalValor('')
+                                    setTempoModalUnidade('horas')
+                                  } else {
+                                    salvarCelula(reg.acao_id || acaoId, sn, 0, false, { planejamentoId: reg.id })
+                                  }
+                                } : undefined}
+                              >
+                              {idx > 0 && (
+                                <div
+                                  style={{
+                                    width: 38,
+                                    height: '0.5px',
+                                    background: 'var(--color-border-tertiary)',
+                                    margin: '2px 0'
+                                  }}
+                                />
+                              )}
+                              {(() => {
+                                const pillEl = (
+                                  <div
+                                    className={`gantt-bar-pill ${statusClassReg}${atualPlanejadoReg ? ' gantt-bar-pill--semana-atual-planejada' : ''}${tipAcaoSemana ? ' gantt-bar-pill--com-comentario' : ''}`}
+                                    style={{
+                                      width: 38,
+                                      height: 20,
+                                      borderRadius: 3,
+                                      cursor: clicavelReg ? 'pointer' : 'default',
+                                      pointerEvents: 'none',
+                                      ...(tipAcaoSemana ? { position: 'relative', overflow: 'visible' } : null)
+                                    }}
+                                  >
+                                    {concluidoReg ? <span className="gantt-bar-check">✓</span> : null}
+                                  </div>
+                                )
+                                return envolverPillComentarioAcao(pillEl, sn, tipAcaoSemana)
+                              })()}
+                              {(() => {
+                                const txt =
+                                  portfolioFranqueados.find(f => String(f.id) === String(reg?.portfolio_franqueado_id || ''))?.nome
+                                  ?? reg?.portfolio_franqueado_nome
+                                  ?? null
+                                if (!txt) return null
+                                return (
+                                  <span title={txt} style={TAG_FRANQUEADO_STYLE}>
+                                    {txt}
+                                  </span>
+                                )
+                              })()}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </td>
+                    )
+                  }
+
+                  if (layoutComercialMultilinha) {
+                    const registrosDaCelulaOrdenados = [...registrosDaCelula].sort((a, b) => {
+                      const nomeA = nomeCandidatoComercialReg(a, comercialCandidatos).toLowerCase()
+                      const nomeB = nomeCandidatoComercialReg(b, comercialCandidatos).toLowerCase()
+                      return nomeA.localeCompare(nomeB, 'pt-BR')
+                    })
+                    const clicavelCel = registrosDaCelula.some(reg => {
+                      const rk = rowKeyMapaCronogramaReg(reg, l, acaoId)
+                      const hh = rk ? (mapaHoras[rk]?.[sn] ?? mapaHoras[rk]?.[s] ?? null) : null
+                      const ss = rk ? (getStatusCelula(mapaStatus, rk, sn) ?? getStatusCelula(mapaStatus, rk, s) ?? null) : null
+                      const concl = cronogramaStatusEhConcluido(ss)
+                      const noPlano =
+                        planejamentoCaiNaSemanaIso(reg, sn, semanas)
+                      return noPlano || (hh != null && Number(hh) > 0) || concl
+                    })
+                    return (
+                      <td
+                        key={s}
+                        className={`gantt-td-week gantt-bar-week-slot ${ganttCronogramaDensityClass}${isAtual ? ' gantt-col-semana-atual' : ''} ${!clicavelCel ? 'gantt-bar-no-click' : ''}`}
+                        title={`Semana ${s}`}
+                        style={{
+                          minHeight: 44,
+                          height: 'auto',
+                          overflow: 'visible',
+                          padding: '4px',
+                          boxSizing: 'border-box',
+                          verticalAlign: 'middle',
+                          textAlign: 'center',
+                          ...(isAtual ? GANTT_BORDA_SEMANA_ATUAL_CEL : { borderRight: '0.5px solid rgba(0,0,0,0.06)' })
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 4,
+                            width: '100%',
+                            minWidth: 0
+                          }}
+                        >
+                          {registrosDaCelulaOrdenados.map((reg, idx) => {
+                            const rowKeyReg = rowKeyMapaCronogramaReg(reg, l, acaoId)
+                            const hReg = rowKeyReg ? (mapaHoras[rowKeyReg]?.[sn] ?? mapaHoras[rowKeyReg]?.[s] ?? null) : null
+                            const numReg = hReg != null && Number(hReg) > 0 ? Number(hReg) : 0
+                            const stReg = rowKeyReg ? (getStatusCelula(mapaStatus, rowKeyReg, sn) ?? getStatusCelula(mapaStatus, rowKeyReg, s) ?? null) : null
+                            const statusReg = stReg || 'pendente'
+                            const concluidoReg = cronogramaStatusEhConcluido(statusReg)
+                            const noIntervaloPrevistoReg =
+                              planejamentoCaiNaSemanaIso(reg, sn, semanas)
+                            const clicavelReg = noIntervaloPrevistoReg || numReg > 0 || concluidoReg
+                            let statusClassReg = 'gantt-bar-vazio'
+                            if (concluidoReg) {
+                              statusClassReg = 'gantt-bar-realizado'
+                            } else if (numReg > 0 || noIntervaloPrevistoReg) {
+                              if (semanaCorteAtrasado != null && sn < Number(semanaCorteAtrasado)) statusClassReg = 'gantt-bar-atrasado'
+                              else statusClassReg = 'gantt-bar-planejado'
+                            }
+                            const atualPlanejadoReg = isAtual && statusClassReg === 'gantt-bar-planejado'
+                            return (
+                              <div
+                                key={reg.id ?? `reg-${idx}`}
+                                style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'center',
+                                  gap: 1,
+                                  cursor: clicavelReg ? 'pointer' : 'default',
+                                  width: '100%'
+                                }}
+                                onClick={clicavelReg ? e => {
+                                  e.stopPropagation()
+                                  const novoConcluido = !concluidoReg
+                                  if (novoConcluido) {
+                                    setTempoModalAberto(true)
+                                    setTempoModalSemana(sn)
+                                    setTempoModalAcaoId(reg.acao_id || acaoId)
+                                    setTempoModalPlanejamentoId(reg.id || null)
+                                    setTempoModalEstimado(l.tempoHoras ?? null)
+                                    setTempoModalValor('')
+                                    setTempoModalUnidade('horas')
+                                  } else {
+                                    salvarCelula(reg.acao_id || acaoId, sn, 0, false, { planejamentoId: reg.id })
+                                  }
+                                } : undefined}
+                              >
+                              {idx > 0 && (
+                                <div
+                                  style={{
+                                    width: 38,
+                                    height: '0.5px',
+                                    background: 'var(--color-border-tertiary)',
+                                    margin: '2px 0'
+                                  }}
+                                />
+                              )}
+                              {(() => {
+                                const pillEl = (
+                                  <div
+                                    className={`gantt-bar-pill ${statusClassReg}${atualPlanejadoReg ? ' gantt-bar-pill--semana-atual-planejada' : ''}${tipAcaoSemana ? ' gantt-bar-pill--com-comentario' : ''}`}
+                                    style={{
+                                      width: 38,
+                                      height: 20,
+                                      borderRadius: 3,
+                                      cursor: clicavelReg ? 'pointer' : 'default',
+                                      pointerEvents: 'none',
+                                      ...(tipAcaoSemana ? { position: 'relative', overflow: 'visible' } : null)
+                                    }}
+                                  >
+                                    {concluidoReg ? <span className="gantt-bar-check">✓</span> : null}
+                                  </div>
+                                )
+                                return envolverPillComentarioAcao(pillEl, sn, tipAcaoSemana)
+                              })()}
+                              {(() => {
+                                const txt = nomeCandidatoComercialReg(reg, comercialCandidatos)
                                 if (!txt) return null
                                 return (
                                   <span title={txt} style={TAG_FRANQUEADO_STYLE}>
@@ -3949,19 +5339,18 @@ export default function Page() {
                       return nomeA.localeCompare(nomeB, 'pt-BR')
                     })
                     const clicavelCel = registrosDaCelula.some(reg => {
-                      const rk = reg?.id ? `${l.id}__p_${String(reg.id)}` : null
+                      const rk = rowKeyMapaCronogramaReg(reg, l, acaoId)
                       const hh = rk ? (mapaHoras[rk]?.[sn] ?? mapaHoras[rk]?.[s] ?? null) : null
-                      const ss = rk ? (mapaStatus[rk]?.[sn] ?? mapaStatus[rk]?.[s] ?? null) : null
-                      const concl = ss === 'concluido'
+                      const ss = rk ? (getStatusCelula(mapaStatus, rk, sn) ?? getStatusCelula(mapaStatus, rk, s) ?? null) : null
+                      const concl = cronogramaStatusEhConcluido(ss)
                       const noPlano =
-                        expandGanttSemanasParaGradeIso(reg, semanas).some(w => Number(w) === sn) ||
-                        normalizarSemanasSelecionadasGantt(reg?.semanas_selecionadas).some(w => Number(w) === sn)
+                        planejamentoCaiNaSemanaIso(reg, sn, semanas)
                       return noPlano || (hh != null && Number(hh) > 0) || concl
                     })
                     return (
                       <td
                         key={s}
-                        className={`gantt-td-week gantt-bar-week-slot ${ganttCronogramaDensityClass} ${!clicavelCel ? 'gantt-bar-no-click' : ''}`}
+                        className={`gantt-td-week gantt-bar-week-slot ${ganttCronogramaDensityClass}${isAtual ? ' gantt-col-semana-atual' : ''} ${!clicavelCel ? 'gantt-bar-no-click' : ''}`}
                         title={`Semana ${s}`}
                         style={{
                           minHeight: 44,
@@ -3971,7 +5360,7 @@ export default function Page() {
                           boxSizing: 'border-box',
                           verticalAlign: 'middle',
                           textAlign: 'center',
-                          borderRight: '0.5px solid rgba(0,0,0,0.06)'
+                          ...(isAtual ? GANTT_BORDA_SEMANA_ATUAL_CEL : { borderRight: '0.5px solid rgba(0,0,0,0.06)' })
                         }}
                       >
                         <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
@@ -3986,15 +5375,14 @@ export default function Page() {
                             const nomeCasaFinal = nomeCasa || (reg?.casa_id ? String(reg.casa_id).slice(0, 6) + '…' : '?')
                             const casaIndex = reg?.casa_id ? casas.findIndex(c => String(c.id) === String(reg.casa_id)) : -1
                             const cor = getCorCasa(casaIndex >= 0 ? casaIndex : idx)
-                            const rowKeyReg = reg?.id ? `${l.id}__p_${String(reg.id)}` : null
+                            const rowKeyReg = rowKeyMapaCronogramaReg(reg, l, acaoId)
                             const hReg = rowKeyReg ? (mapaHoras[rowKeyReg]?.[sn] ?? mapaHoras[rowKeyReg]?.[s] ?? null) : null
                             const numReg = hReg != null && Number(hReg) > 0 ? Number(hReg) : 0
-                            const stReg = rowKeyReg ? (mapaStatus[rowKeyReg]?.[sn] ?? mapaStatus[rowKeyReg]?.[s] ?? null) : null
+                            const stReg = rowKeyReg ? (getStatusCelula(mapaStatus, rowKeyReg, sn) ?? getStatusCelula(mapaStatus, rowKeyReg, s) ?? null) : null
                             const statusReg = stReg || 'pendente'
-                            const concluidoReg = statusReg === 'concluido'
+                            const concluidoReg = cronogramaStatusEhConcluido(statusReg)
                             const noIntervaloPrevistoReg =
-                              expandGanttSemanasParaGradeIso(reg, semanas).some(w => Number(w) === sn) ||
-                              normalizarSemanasSelecionadasGantt(reg?.semanas_selecionadas).some(w => Number(w) === sn)
+                              planejamentoCaiNaSemanaIso(reg, sn, semanas)
                             const clicavelReg = noIntervaloPrevistoReg || numReg > 0 || concluidoReg
                             let statusClassReg = 'gantt-bar-vazio'
                             if (concluidoReg) {
@@ -4050,7 +5438,7 @@ export default function Page() {
                                         {concluidoReg ? <span className="gantt-bar-check">✓</span> : null}
                                       </div>
                                     )
-                                    return pillEl
+                                    return envolverPillComentarioAcao(pillEl, sn, tipAcaoSemana)
                                   })()}
                                   {nomeCasaFinal && (
                                     <span
@@ -4082,35 +5470,27 @@ export default function Page() {
                   }
 
                   if (layoutAdmMultilinha) {
-                    const byCnpj = new Map()
-                    registrosDaCelula.forEach(reg => {
-                      const k = reg?.adm_cnpj_id != null && String(reg.adm_cnpj_id).trim() !== '' ? String(reg.adm_cnpj_id) : '_sem'
-                      if (!byCnpj.has(k)) byCnpj.set(k, reg)
+                    const registrosDaCelulaOrdenados = [...registrosDaCelula].sort((a, b) => {
+                      const metaA = admCnpjs.find(c => String(c.id) === String(a?.adm_cnpj_id || ''))
+                      const metaB = admCnpjs.find(c => String(c.id) === String(b?.adm_cnpj_id || ''))
+                      const da = String(metaA?.descritivo || metaA?.cnpj || '').toLowerCase()
+                      const db = String(metaB?.descritivo || metaB?.cnpj || '').toLowerCase()
+                      return da.localeCompare(db, 'pt-BR')
                     })
-                    const admMap = new Map((admCnpjs || []).map(x => [String(x.id), x]))
-                    const regsOrdenados = Array.from(byCnpj.entries())
-                      .map(([k, reg]) => ({ k, reg, meta: k !== '_sem' ? admMap.get(String(k)) : null }))
-                      .sort((a, b) => {
-                        const da = String(a.meta?.descritivo || '').toLowerCase()
-                        const db = String(b.meta?.descritivo || '').toLowerCase()
-                        return da.localeCompare(db, 'pt-BR')
-                      })
 
-                    const clicavelCel = regsOrdenados.some(({ reg }) => {
-                      const rk = reg?.id ? `${l.id}__p_${String(reg.id)}` : null
+                    const clicavelCel = registrosDaCelulaOrdenados.some(reg => {
+                      const rk = rowKeyMapaCronogramaReg(reg, l, acaoId)
                       const hh = rk ? (mapaHoras[rk]?.[sn] ?? mapaHoras[rk]?.[s] ?? null) : null
-                      const ss = rk ? (mapaStatus[rk]?.[sn] ?? mapaStatus[rk]?.[s] ?? null) : null
-                      const concl = ss === 'concluido'
-                      const noPlano =
-                        expandGanttSemanasParaGradeIso(reg, semanas).some(w => Number(w) === sn) ||
-                        normalizarSemanasSelecionadasGantt(reg?.semanas_selecionadas).some(w => Number(w) === sn)
+                      const ss = rk ? (getStatusCelula(mapaStatus, rk, sn) ?? getStatusCelula(mapaStatus, rk, s) ?? null) : null
+                      const concl = cronogramaStatusEhConcluido(ss)
+                      const noPlano = planejamentoCaiNaSemanaIso(reg, sn, semanas)
                       return noPlano || (hh != null && Number(hh) > 0) || concl
                     })
 
                     return (
                       <td
                         key={s}
-                        className={`gantt-td-week gantt-bar-week-slot ${ganttCronogramaDensityClass} ${!clicavelCel ? 'gantt-bar-no-click' : ''}`}
+                        className={`gantt-td-week gantt-bar-week-slot ${ganttCronogramaDensityClass}${isAtual ? ' gantt-col-semana-atual' : ''} ${!clicavelCel ? 'gantt-bar-no-click' : ''}`}
                         title={`Semana ${s}`}
                         style={{
                           minHeight: 44,
@@ -4120,20 +5500,19 @@ export default function Page() {
                           boxSizing: 'border-box',
                           verticalAlign: 'middle',
                           textAlign: 'center',
-                          borderRight: '0.5px solid rgba(0,0,0,0.06)'
+                          ...(isAtual ? GANTT_BORDA_SEMANA_ATUAL_CEL : { borderRight: '0.5px solid rgba(0,0,0,0.06)' })
                         }}
                       >
                         <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                          {regsOrdenados.map(({ k, reg, meta }, idx) => {
-                            const rowKeyReg = reg?.id ? `${l.id}__p_${String(reg.id)}` : null
+                          {registrosDaCelulaOrdenados.map((reg, idx) => {
+                            const meta = admCnpjs.find(c => String(c.id) === String(reg?.adm_cnpj_id || ''))
+                            const rowKeyReg = rowKeyMapaCronogramaReg(reg, l, acaoId)
                             const hReg = rowKeyReg ? (mapaHoras[rowKeyReg]?.[sn] ?? mapaHoras[rowKeyReg]?.[s] ?? null) : null
                             const numReg = hReg != null && Number(hReg) > 0 ? Number(hReg) : 0
-                            const stReg = rowKeyReg ? (mapaStatus[rowKeyReg]?.[sn] ?? mapaStatus[rowKeyReg]?.[s] ?? null) : null
+                            const stReg = rowKeyReg ? (getStatusCelula(mapaStatus, rowKeyReg, sn) ?? getStatusCelula(mapaStatus, rowKeyReg, s) ?? null) : null
                             const statusReg = stReg || 'pendente'
-                            const concluidoReg = statusReg === 'concluido'
-                            const noIntervaloPrevistoReg =
-                              expandGanttSemanasParaGradeIso(reg, semanas).some(w => Number(w) === sn) ||
-                              normalizarSemanasSelecionadasGantt(reg?.semanas_selecionadas).some(w => Number(w) === sn)
+                            const concluidoReg = cronogramaStatusEhConcluido(statusReg)
+                            const noIntervaloPrevistoReg = planejamentoCaiNaSemanaIso(reg, sn, semanas)
                             const clicavelReg = noIntervaloPrevistoReg || numReg > 0 || concluidoReg
                             let statusClassReg = 'gantt-bar-vazio'
                             if (concluidoReg) {
@@ -4143,12 +5522,14 @@ export default function Page() {
                               else statusClassReg = 'gantt-bar-planejado'
                             }
                             const atualPlanejadoReg = isAtual && statusClassReg === 'gantt-bar-planejado'
-                            const cnpjTxt = meta?.cnpj ? String(meta.cnpj) : (k !== '_sem' ? String(k) : '')
-                            const descTxt = meta?.descritivo ? String(meta.descritivo) : ''
-                            const label = cnpjTxt || descTxt ? `${(cnpjTxt || '').slice(0, 6)}… ${descTxt}`.trim() : '?'
+                            const cnpjRaw = meta?.cnpj ? String(meta.cnpj).trim() : ''
+                            const cnpjAbrev =
+                              cnpjRaw.length > 3 ? `${cnpjRaw.slice(0, 3)}…` : cnpjRaw || '?'
+                            const descTxt = meta?.descritivo ? String(meta.descritivo).trim() : ''
+                            const titleCnpj = cnpjRaw && descTxt ? `${cnpjRaw} — ${descTxt}` : cnpjRaw || descTxt || '—'
                             return (
                               <div
-                                key={reg.id ?? `${k}-${idx}`}
+                                key={reg.id ?? `adm-${idx}`}
                                 style={{ cursor: clicavelReg ? 'pointer' : 'default', width: '100%' }}
                                 onClick={clicavelReg ? e => {
                                   e.stopPropagation()
@@ -4176,22 +5557,348 @@ export default function Page() {
                                     }}
                                   />
                                 )}
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                                  {envolverPillComentarioAcao(
+                                    <div
+                                      className={`gantt-bar-pill ${statusClassReg}${atualPlanejadoReg ? ' gantt-bar-pill--semana-atual-planejada' : ''}${tipAcaoSemana ? ' gantt-bar-pill--com-comentario' : ''}`}
+                                      style={{
+                                        width: 38,
+                                        height: 20,
+                                        borderRadius: 3,
+                                        cursor: clicavelReg ? 'pointer' : 'default',
+                                        pointerEvents: 'none',
+                                        ...(tipAcaoSemana ? { position: 'relative', overflow: 'visible' } : null)
+                                      }}
+                                    >
+                                      {concluidoReg ? <span className="gantt-bar-check">✓</span> : null}
+                                    </div>,
+                                    sn,
+                                    tipAcaoSemana
+                                  )}
+                                  {cnpjAbrev ? (
+                                    <span
+                                      title={titleCnpj}
+                                      style={{
+                                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                        fontSize: 8,
+                                        fontWeight: 600,
+                                        lineHeight: 1.1,
+                                        color: '#374151',
+                                        maxWidth: 90,
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                        textAlign: 'center'
+                                      }}
+                                    >
+                                      {cnpjAbrev}
+                                    </span>
+                                  ) : null}
+                                  {descTxt ? (
+                                    <span
+                                      title={titleCnpj}
+                                      style={{
+                                        fontSize: 7,
+                                        fontWeight: 500,
+                                        fontStyle: 'italic',
+                                        color: '#5F5E5A',
+                                        lineHeight: 1.1,
+                                        maxWidth: 90,
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                        textAlign: 'center'
+                                      }}
+                                    >
+                                      {descTxt}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </td>
+                    )
+                  }
+
+                  if (layoutControladoriaMultilinha) {
+                    const registrosDaCelulaOrdenados = [...registrosDaCelulaCtrl].sort((a, b) => {
+                      const metaA = controladoriaCnpjs.find(c => String(c.id) === String(a?.controladoria_cnpj_id || ''))
+                      const metaB = controladoriaCnpjs.find(c => String(c.id) === String(b?.controladoria_cnpj_id || ''))
+                      const da = String(metaA?.descritivo || metaA?.cnpj || '').toLowerCase()
+                      const db = String(metaB?.descritivo || metaB?.cnpj || '').toLowerCase()
+                      return da.localeCompare(db, 'pt-BR')
+                    })
+
+                    const clicavelCel = registrosDaCelulaOrdenados.some(reg => {
+                      const rk = rowKeyMapaCronogramaReg(reg, l, acaoId)
+                      const hh = rk ? (mapaHoras[rk]?.[sn] ?? mapaHoras[rk]?.[s] ?? null) : null
+                      const ss = rk ? (getStatusCelula(mapaStatus, rk, sn) ?? getStatusCelula(mapaStatus, rk, s) ?? null) : null
+                      const concl = cronogramaStatusEhConcluido(ss)
+                      const noPlano = planejamentoCaiNaSemanaIso(reg, sn, semanas)
+                      return noPlano || (hh != null && Number(hh) > 0) || concl
+                    })
+
+                    return (
+                      <td
+                        key={s}
+                        className={`gantt-td-week gantt-bar-week-slot ${ganttCronogramaDensityClass}${isAtual ? ' gantt-col-semana-atual' : ''} ${!clicavelCel ? 'gantt-bar-no-click' : ''}`}
+                        title={`Semana ${s}`}
+                        style={{
+                          minHeight: 44,
+                          height: 'auto',
+                          overflow: 'visible',
+                          padding: '4px 2px',
+                          boxSizing: 'border-box',
+                          verticalAlign: 'middle',
+                          textAlign: 'center',
+                          ...(isAtual ? GANTT_BORDA_SEMANA_ATUAL_CEL : { borderRight: '0.5px solid rgba(0,0,0,0.06)' })
+                        }}
+                      >
+                        <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                          {registrosDaCelulaOrdenados.map((reg, idx) => {
+                            const meta = controladoriaCnpjs.find(c => String(c.id) === String(reg?.controladoria_cnpj_id || ''))
+                            const rowKeyReg = rowKeyMapaCronogramaReg(reg, l, acaoId)
+                            const hReg = rowKeyReg ? (mapaHoras[rowKeyReg]?.[sn] ?? mapaHoras[rowKeyReg]?.[s] ?? null) : null
+                            const numReg = hReg != null && Number(hReg) > 0 ? Number(hReg) : 0
+                            const stReg = rowKeyReg ? (getStatusCelula(mapaStatus, rowKeyReg, sn) ?? getStatusCelula(mapaStatus, rowKeyReg, s) ?? null) : null
+                            const statusReg = stReg || 'pendente'
+                            const concluidoReg = cronogramaStatusEhConcluido(statusReg)
+                            const noIntervaloPrevistoReg = planejamentoCaiNaSemanaIso(reg, sn, semanas)
+                            const clicavelReg = noIntervaloPrevistoReg || numReg > 0 || concluidoReg
+                            let statusClassReg = 'gantt-bar-vazio'
+                            if (concluidoReg) {
+                              statusClassReg = 'gantt-bar-realizado'
+                            } else if (numReg > 0 || noIntervaloPrevistoReg) {
+                              if (semanaCorteAtrasado != null && sn < Number(semanaCorteAtrasado)) statusClassReg = 'gantt-bar-atrasado'
+                              else statusClassReg = 'gantt-bar-planejado'
+                            }
+                            const atualPlanejadoReg = isAtual && statusClassReg === 'gantt-bar-planejado'
+                            const cnpjRaw = meta?.cnpj ? String(meta.cnpj).trim() : ''
+                            const cnpjAbrev = cnpjRaw.length > 3 ? `${cnpjRaw.slice(0, 3)}…` : cnpjRaw
+                            const descTxt = meta?.descritivo ? String(meta.descritivo).trim() : ''
+                            const titleCnpj = cnpjRaw && descTxt ? `${cnpjRaw} — ${descTxt}` : cnpjRaw || descTxt || ''
+                            return (
+                              <div
+                                key={reg.id ?? `ctrl-${idx}`}
+                                style={{ cursor: clicavelReg ? 'pointer' : 'default', width: '100%' }}
+                                onClick={clicavelReg ? e => {
+                                  e.stopPropagation()
+                                  const novoConcluido = !concluidoReg
+                                  if (novoConcluido) {
+                                    setTempoModalAberto(true)
+                                    setTempoModalSemana(sn)
+                                    setTempoModalAcaoId(reg.acao_id || acaoId)
+                                    setTempoModalPlanejamentoId(reg.id || null)
+                                    setTempoModalEstimado(l.tempoHoras ?? null)
+                                    setTempoModalValor('')
+                                    setTempoModalUnidade('horas')
+                                  } else {
+                                    salvarCelula(reg.acao_id || acaoId, sn, 0, false, { planejamentoId: reg.id })
+                                  }
+                                } : undefined}
+                              >
+                                {idx > 0 && (
                                   <div
-                                    className={`gantt-bar-pill ${statusClassReg}${atualPlanejadoReg ? ' gantt-bar-pill--semana-atual-planejada' : ''}`}
                                     style={{
                                       width: 38,
-                                      height: 20,
-                                      borderRadius: 3,
-                                      cursor: clicavelReg ? 'pointer' : 'default',
-                                      pointerEvents: 'none'
+                                      height: '0.5px',
+                                      background: 'var(--color-border-tertiary)',
+                                      margin: '1px 0'
                                     }}
-                                  >
-                                    {concluidoReg ? <span className="gantt-bar-check">✓</span> : null}
-                                  </div>
-                                  <span style={{ fontSize: 8, fontStyle: 'italic', fontWeight: 500, whiteSpace: 'nowrap', maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center' }} title={label}>
-                                    {label}
-                                  </span>
+                                  />
+                                )}
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                                  {envolverPillComentarioAcao(
+                                    <div
+                                      className={`gantt-bar-pill ${statusClassReg}${atualPlanejadoReg ? ' gantt-bar-pill--semana-atual-planejada' : ''}${tipAcaoSemana ? ' gantt-bar-pill--com-comentario' : ''}`}
+                                      style={{
+                                        width: 38,
+                                        height: 20,
+                                        borderRadius: 3,
+                                        cursor: clicavelReg ? 'pointer' : 'default',
+                                        pointerEvents: 'none',
+                                        ...(tipAcaoSemana ? { position: 'relative', overflow: 'visible' } : null)
+                                      }}
+                                    >
+                                      {concluidoReg ? <span className="gantt-bar-check">✓</span> : null}
+                                    </div>,
+                                    sn,
+                                    tipAcaoSemana
+                                  )}
+                                  {cnpjAbrev ? (
+                                    <span
+                                      title={titleCnpj}
+                                      style={{
+                                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                        fontSize: 8,
+                                        fontWeight: 600,
+                                        lineHeight: 1.1,
+                                        color: '#374151',
+                                        maxWidth: 90,
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                        textAlign: 'center'
+                                      }}
+                                    >
+                                      {cnpjAbrev}
+                                    </span>
+                                  ) : null}
+                                  {descTxt ? (
+                                    <span
+                                      title={titleCnpj}
+                                      style={{
+                                        fontSize: 7,
+                                        fontWeight: 500,
+                                        fontStyle: 'italic',
+                                        color: '#5F5E5A',
+                                        lineHeight: 1.1,
+                                        maxWidth: 90,
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                        textAlign: 'center'
+                                      }}
+                                    >
+                                      {descTxt}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </td>
+                    )
+                  }
+
+                  if (layoutJuridicoMultilinha) {
+                    const registrosDaCelulaOrdenados = [...registrosDaCelula].sort((a, b) => {
+                      const nomeA = String(
+                        juridicoIdentMap.get(String(a?.juridico_identificacao_id || ''))?.nome || ''
+                      ).toLowerCase()
+                      const nomeB = String(
+                        juridicoIdentMap.get(String(b?.juridico_identificacao_id || ''))?.nome || ''
+                      ).toLowerCase()
+                      return nomeA.localeCompare(nomeB, 'pt-BR')
+                    })
+                    const clicavelCel = registrosDaCelula.some(reg => {
+                      const rk = rowKeyMapaCronogramaReg(reg, l, acaoId)
+                      const hh = rk ? (mapaHoras[rk]?.[sn] ?? mapaHoras[rk]?.[s] ?? null) : null
+                      const ss = rk ? (getStatusCelula(mapaStatus, rk, sn) ?? getStatusCelula(mapaStatus, rk, s) ?? null) : null
+                      const concl = cronogramaStatusEhConcluido(ss)
+                      const noPlano = planejamentoCaiNaSemanaIso(reg, sn, semanas)
+                      return noPlano || (hh != null && Number(hh) > 0) || concl
+                    })
+                    return (
+                      <td
+                        key={s}
+                        className={`gantt-td-week gantt-bar-week-slot ${ganttCronogramaDensityClass}${isAtual ? ' gantt-col-semana-atual' : ''} ${!clicavelCel ? 'gantt-bar-no-click' : ''}`}
+                        title={`Semana ${s}`}
+                        style={{
+                          minHeight: 44,
+                          height: 'auto',
+                          overflow: 'visible',
+                          padding: '4px 2px',
+                          boxSizing: 'border-box',
+                          verticalAlign: 'middle',
+                          textAlign: 'center',
+                          ...(isAtual ? GANTT_BORDA_SEMANA_ATUAL_CEL : { borderRight: '0.5px solid rgba(0,0,0,0.06)' })
+                        }}
+                      >
+                        <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                          {registrosDaCelulaOrdenados.map((reg, idx) => {
+                            const ident = juridicoIdentMap.get(String(reg?.juridico_identificacao_id || ''))
+                            const nomeIdent = ident?.nome ? String(ident.nome).trim() : ''
+                            const tipoTxt = labelJuridicoTipo(reg?.juridico_tipo || ident?.tipo)
+                            const rowKeyReg = rowKeyMapaCronogramaReg(reg, l, acaoId)
+                            const hReg = rowKeyReg ? (mapaHoras[rowKeyReg]?.[sn] ?? mapaHoras[rowKeyReg]?.[s] ?? null) : null
+                            const numReg = hReg != null && Number(hReg) > 0 ? Number(hReg) : 0
+                            const stReg = rowKeyReg ? (getStatusCelula(mapaStatus, rowKeyReg, sn) ?? getStatusCelula(mapaStatus, rowKeyReg, s) ?? null) : null
+                            const statusReg = stReg || 'pendente'
+                            const concluidoReg = cronogramaStatusEhConcluido(statusReg)
+                            const noIntervaloPrevistoReg = planejamentoCaiNaSemanaIso(reg, sn, semanas)
+                            const clicavelReg = noIntervaloPrevistoReg || numReg > 0 || concluidoReg
+                            let statusClassReg = 'gantt-bar-vazio'
+                            if (concluidoReg) {
+                              statusClassReg = 'gantt-bar-realizado'
+                            } else if (numReg > 0 || noIntervaloPrevistoReg) {
+                              if (semanaCorteAtrasado != null && sn < Number(semanaCorteAtrasado)) statusClassReg = 'gantt-bar-atrasado'
+                              else statusClassReg = 'gantt-bar-planejado'
+                            }
+                            const atualPlanejadoReg = isAtual && statusClassReg === 'gantt-bar-planejado'
+                            return (
+                              <div
+                                key={reg.id ?? `jur-${idx}`}
+                                style={{ cursor: clicavelReg ? 'pointer' : 'default', width: '100%' }}
+                                onClick={clicavelReg ? e => {
+                                  e.stopPropagation()
+                                  const novoConcluido = !concluidoReg
+                                  if (novoConcluido) {
+                                    setTempoModalAberto(true)
+                                    setTempoModalSemana(sn)
+                                    setTempoModalAcaoId(reg.acao_id || acaoId)
+                                    setTempoModalPlanejamentoId(reg.id || null)
+                                    setTempoModalEstimado(l.tempoHoras ?? null)
+                                    setTempoModalValor('')
+                                    setTempoModalUnidade('horas')
+                                  } else {
+                                    salvarCelula(reg.acao_id || acaoId, sn, 0, false, { planejamentoId: reg.id })
+                                  }
+                                } : undefined}
+                              >
+                                {idx > 0 && (
+                                  <div
+                                    style={{
+                                      width: 38,
+                                      height: '0.5px',
+                                      background: 'var(--color-border-tertiary)',
+                                      margin: '1px 0'
+                                    }}
+                                  />
+                                )}
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                                  {envolverPillComentarioAcao(
+                                    <div
+                                      className={`gantt-bar-pill ${statusClassReg}${atualPlanejadoReg ? ' gantt-bar-pill--semana-atual-planejada' : ''}${tipAcaoSemana ? ' gantt-bar-pill--com-comentario' : ''}`}
+                                      style={{
+                                        width: 38,
+                                        height: 20,
+                                        borderRadius: 3,
+                                        cursor: clicavelReg ? 'pointer' : 'default',
+                                        pointerEvents: 'none',
+                                        ...(tipAcaoSemana ? { position: 'relative', overflow: 'visible' } : null)
+                                      }}
+                                    >
+                                      {concluidoReg ? <span className="gantt-bar-check">✓</span> : null}
+                                    </div>,
+                                    sn,
+                                    tipAcaoSemana
+                                  )}
+                                  {nomeIdent ? (
+                                    <span title={nomeIdent} style={TAG_FRANQUEADO_STYLE}>
+                                      {nomeIdent}
+                                    </span>
+                                  ) : null}
+                                  {tipoTxt ? (
+                                    <span
+                                      style={{
+                                        fontSize: 7,
+                                        fontWeight: 500,
+                                        color: '#5F5E5A',
+                                        lineHeight: 1.1,
+                                        textAlign: 'center',
+                                        maxWidth: 80,
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                    >
+                                      {tipoTxt}
+                                    </span>
+                                  ) : null}
                                 </div>
                               </div>
                             )
@@ -4204,10 +5911,10 @@ export default function Page() {
                   return (
                     <td
                       key={s}
-                      className={`gantt-td-week gantt-bar-week-slot ${ganttCronogramaDensityClass} ${!clicavel ? 'gantt-bar-no-click' : ''}`}
+                      className={`gantt-td-week gantt-bar-week-slot ${ganttCronogramaDensityClass}${isAtual ? ' gantt-col-semana-atual' : ''} ${!clicavel ? 'gantt-bar-no-click' : ''}`}
                       title={clicavel ? (concluido ? `Realizado (clique para desmarcar)` : `Clique para marcar como realizado`) : `Semana ${s}`}
                       style={
-                        isAreaAcoplamento
+                        isAreaFranqueado || isAreaPortfolio
                           ? {
                               minHeight: 44,
                               height: 'auto',
@@ -4216,10 +5923,16 @@ export default function Page() {
                               boxSizing: 'border-box',
                               verticalAlign: 'middle',
                               textAlign: 'center',
-                              borderRight: '0.5px solid rgba(0,0,0,0.06)',
+                              ...(isAtual ? GANTT_BORDA_SEMANA_ATUAL_CEL : { borderRight: '0.5px solid rgba(0,0,0,0.06)' }),
                               cursor: clicavel ? 'pointer' : undefined
                             }
-                          : { verticalAlign: 'middle', textAlign: 'center', borderRight: '0.5px solid rgba(0,0,0,0.06)', cursor: clicavel ? 'pointer' : undefined }
+                          : {
+                              verticalAlign: 'middle',
+                              textAlign: 'center',
+                              ...(isAtual ? GANTT_BORDA_SEMANA_ATUAL_CEL : { borderRight: '0.5px solid rgba(0,0,0,0.06)' }),
+                              cursor: clicavel ? 'pointer' : undefined,
+                              ...(tipAcaoSemana ? { overflow: 'visible' } : null)
+                            }
                       }
                       onClick={clicavel ? () => {
                         const novoConcluido = !concluido
@@ -4240,37 +5953,14 @@ export default function Page() {
                         {(() => {
                           const pillEl = (
                             <div
-                              className={`gantt-bar-pill ${statusClass}${atualPlanejado ? ' gantt-bar-pill--semana-atual-planejada' : ''}`}
-                              style={tipAcaoSemana ? { position: 'relative' } : undefined}
+                              className={`gantt-bar-pill ${statusClass}${atualPlanejado ? ' gantt-bar-pill--semana-atual-planejada' : ''}${tipAcaoSemana ? ' gantt-bar-pill--com-comentario' : ''}`}
+                              style={tipAcaoSemana ? { position: 'relative', overflow: 'visible' } : undefined}
                             >
                               {concluido ? <span className="gantt-bar-check">✓</span> : null}
-                              {tipAcaoSemana ? (
-                                <span
-                                  className={`gantt-comentario-dots${dotsPlanAcao ? ' gantt-comentario-dots--plan' : ''}`}
-                                  aria-hidden
-                                >
-                                  ···
-                                </span>
-                              ) : null}
                             </div>
                           )
-                          return tipAcaoSemana ? (
-                            <SemanaComentarioPillHost tooltipText={tipAcaoSemana}>{pillEl}</SemanaComentarioPillHost>
-                          ) : (
-                            pillEl
-                          )
+                          return envolverPillComentarioAcao(pillEl, sn, tipAcaoSemana)
                         })()}
-                        {isAreaAcoplamento &&
-                          (() => {
-                            const raw = registroUnico?.franqueado_nome
-                            const txt = typeof raw === 'string' ? raw.trim() : franqueadoNomeParaExibicao(raw)
-                            if (!txt) return null
-                            return (
-                              <span title={txt} style={TAG_FRANQUEADO_STYLE}>
-                                {txt}
-                              </span>
-                            )
-                          })()}
                         {isAreaCasa &&
                           (() => {
                             const nomeCasaUnico =
@@ -4303,6 +5993,39 @@ export default function Page() {
                               </span>
                             )
                           })()}
+                        {isAreaJuridico &&
+                          (() => {
+                            const ident = juridicoIdentMap.get(String(registroUnico?.juridico_identificacao_id || ''))
+                            const nomeIdent = ident?.nome ? String(ident.nome).trim() : ''
+                            const tipoTxt = labelJuridicoTipo(registroUnico?.juridico_tipo || ident?.tipo)
+                            if (!nomeIdent && !tipoTxt) return null
+                            return (
+                              <>
+                                {nomeIdent ? (
+                                  <span title={nomeIdent} style={TAG_FRANQUEADO_STYLE}>
+                                    {nomeIdent}
+                                  </span>
+                                ) : null}
+                                {tipoTxt ? (
+                                  <span
+                                    style={{
+                                      fontSize: 7,
+                                      fontWeight: 500,
+                                      color: '#5F5E5A',
+                                      lineHeight: 1.1,
+                                      textAlign: 'center',
+                                      maxWidth: 80,
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                  >
+                                    {tipoTxt}
+                                  </span>
+                                ) : null}
+                              </>
+                            )
+                          })()}
                       </div>
                     </td>
                   )
@@ -4321,7 +6044,6 @@ export default function Page() {
                 <button
                   type="button"
                   className={`gantt-btn-dots${acaoIdsComComentario.has(acaoId) ? ' gantt-btn-dots--ativo' : ''}`}
-                  title="Comentários"
                   onClick={() =>
                     setComentarioModal({ tipo: 'atividade', referenciaId: acaoId, nome: l.nome || '—' })
                   }
@@ -4339,6 +6061,7 @@ export default function Page() {
                   >
                     ✎
                   </button>
+                  {podeExibirExcluirComHistorico(isAdmin, linhaTemHistoricoPreenchido(l, cronograma)) ? (
                   <button
                     type="button"
                     disabled={(l.planejamentoIds || [l.planejamentoId]).some(id => id === removendoId)}
@@ -4352,6 +6075,7 @@ export default function Page() {
                   >
                     {(l.planejamentoIds || [l.planejamentoId]).some(id => id === removendoId) ? '…' : '×'}
                   </button>
+                  ) : null}
                 </>
               ) : null}
             </div>
@@ -4364,6 +6088,7 @@ export default function Page() {
     return { tableRows }
   }, [
     areaId,
+    pastelariaGantt.rows,
     linhas,
     temAlgumIndicadorNaGrade,
     indicadoresPorObjetivo,
@@ -4381,8 +6106,21 @@ export default function Page() {
     removerAtividade,
     abrirDrawerEditarPlanejamento,
     solicitarRemocaoAtividade,
-    isAreaAcoplamento,
+    isAdmin,
+    cronograma,
+    isAreaFranqueado,
+    franqueadosAtivos,
+    isAreaPortfolio,
+    portfolioFranqueados,
+    isAreaComercial,
+    comercialCandidatos,
     isAreaCasa,
+    isAreaAdm,
+    admCnpjs,
+    isAreaControladoria,
+    controladoriaCnpjs,
+    isAreaJuridico,
+    juridicoIdentMap,
     casas,
     periodo,
     textoComentarioAcaoCell,
@@ -4395,7 +6133,178 @@ export default function Page() {
   ])
 
   return (
-    <>
+    <div className="gantt-page-moni">
+      <style>{`
+        .gantt-page-moni {
+          box-sizing: border-box;
+        }
+        .gantt-page-moni .gantt-page-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 12px;
+          margin-bottom: 18px;
+        }
+        .gantt-page-moni .gantt-page-header__left {
+          min-width: 0;
+          flex: 1 1 240px;
+        }
+        .gantt-page-moni .gantt-page-header__right {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 10px;
+          flex-shrink: 0;
+        }
+        .gantt-page-moni .gantt-page-header__area-wrap {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding-left: 10px;
+          border-left: 1px solid #e0d9ce;
+        }
+        .gantt-page-moni .gantt-page-header .workload-add-comp-btn {
+          background: #2F4A3A;
+          color: #D4EDAA;
+          font-size: 13px;
+          font-weight: 500;
+          padding: 8px 16px;
+          border-radius: 6px;
+          border: none;
+          height: auto;
+          min-height: 0;
+          white-space: nowrap;
+        }
+        .gantt-page-moni .gantt-page-header .workload-add-comp-btn:hover {
+          background: #1D2F25;
+          color: #D4EDAA;
+        }
+        .gantt-page-moni .gantt-page-header__area-label {
+          font-size: 13px;
+          font-weight: 400;
+          color: #888780;
+          margin: 0;
+          white-space: nowrap;
+        }
+        .gantt-page-moni .gantt-page-header__area-select {
+          font-size: 13px;
+          border: 0.5px solid #e0d9ce;
+          border-radius: 6px;
+          padding: 6px 10px;
+          height: auto;
+          min-height: 0;
+          min-width: 160px;
+          box-sizing: border-box;
+          background: #ffffff;
+          color: #1D2F25;
+        }
+        .gantt-page-moni .gantt-metas-grid {
+          gap: 10px;
+        }
+        .gantt-page-moni .gantt-meta-card:not(.gantt-meta-card--concluida) {
+          padding: 12px 14px;
+          background: #2F4A3A;
+        }
+        .gantt-page-moni .gantt-meta-card-nome {
+          font-size: 13px;
+          font-weight: 600;
+        }
+        .gantt-page-moni .gantt-meta-card-prazo {
+          font-size: 11px;
+        }
+        .gantt-page-moni .gantt-toolbar.gantt-controls-row,
+        .gantt-page-moni .gantt-toolbar-left.gantt-controls-row-left,
+        .gantt-page-moni .gantt-toolbar-right.gantt-controls-row-right {
+          align-items: center;
+          gap: 12px;
+        }
+        .gantt-page-moni .gantt-toolbar-periodos .periodo-select-root {
+          display: flex;
+          gap: 12px;
+          align-items: flex-end;
+          flex-wrap: wrap;
+        }
+        .gantt-page-moni .gantt-toolbar-periodos .periodo-select-root .form-group {
+          display: flex;
+          flex-direction: column;
+          margin: 0;
+          min-width: 0;
+        }
+        .gantt-page-moni .gantt-toolbar-periodos .periodo-select-root .form-group label {
+          font-size: 12px;
+          color: #888780;
+          margin-bottom: 4px;
+        }
+        .gantt-page-moni .gantt-toolbar-periodos .periodo-select-root select {
+          font-size: 13px;
+          border: 0.5px solid #e0d9ce;
+          border-radius: 6px;
+          padding: 6px 10px;
+          height: auto;
+          min-height: 0;
+          box-sizing: border-box;
+          background: #ffffff;
+        }
+        .gantt-page-moni .gantt-legend.gantt-legend--toolbar {
+          font-size: 11px;
+          gap: 10px;
+        }
+        .gantt-page-moni .gantt-toolbar-add-btn {
+          background: #2F4A3A;
+          color: #D4EDAA;
+          font-size: 13px;
+          font-weight: 500;
+          padding: 8px 16px;
+          border-radius: 6px;
+          border: none;
+          height: auto;
+          min-height: 0;
+        }
+        .gantt-page-moni .gantt-toolbar-add-btn:hover:not(:disabled) {
+          background: #1D2F25;
+        }
+        .gantt-page-moni .gantt-planejamento-table thead tr:first-child th {
+          font-size: 11px !important;
+          font-weight: 600 !important;
+          padding: 7px 8px !important;
+        }
+        .gantt-page-moni .gantt-planejamento-table thead tr:first-child th:first-child,
+        .gantt-page-moni .gantt-planejamento-table thead tr:first-child th:nth-child(2),
+        .gantt-page-moni .gantt-planejamento-table thead tr:first-child th:last-child {
+          font-size: 10px !important;
+        }
+        .gantt-page-moni .gantt-planejamento-table thead th span {
+          font-size: 9px !important;
+          font-weight: 400 !important;
+        }
+        .gantt-page-moni .gantt-shell-row--acao .gantt-shell-cell--atividade,
+        .gantt-page-moni .gantt-shell-row--acao .gantt-shell-cell--atividade .gantt-nome-acao {
+          font-size: 13px;
+        }
+        .gantt-page-moni .gantt-shell-row--acao .gantt-shell-cell--responsavel {
+          font-size: 12px;
+          color: #888780;
+        }
+        .gantt-page-moni .gantt-tr--meta .gantt-shell-cell--atividade,
+        .gantt-page-moni .gantt-tr--meta .gantt-shell-cell--responsavel {
+          padding: 7px 10px;
+        }
+        .gantt-page-moni .gantt-tr--meta .gantt-meta-nome,
+        .gantt-page-moni .gantt-tr--meta .gantt-meta-prazo {
+          font-size: 12px;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+        }
+        .gantt-page-moni .gantt-shell-row--grupo .gantt-nome-comportamento {
+          font-size: 13px;
+          color: #1D2F25;
+        }
+        .gantt-page-moni .gantt-shell-row--acao .gantt-nome-acao {
+          font-size: 12px;
+          color: #5f5e5a;
+        }
+      `}</style>
       {indicadorFeedback?.type === 'error' && (
         <div
           role="alert"
@@ -4448,12 +6357,13 @@ export default function Page() {
       )}
       <header className="gantt-page-header">
         <div className="gantt-page-header__left">
-          <h1 className="gantt-page-header__title">Planejamento (Gantt)</h1>
-          <p className="gantt-page-header__subtitle">
+          <h1 className="carometro-page-title">Planejamento (Gantt)</h1>
+          <p className="carometro-page-subtitle">
             De acordo com as metas estabelecidas faça monte o seu plano tático, preencha o andamento e os indicadores.
           </p>
         </div>
         <div className="gantt-page-header__right">
+          {isAdmin && (
           <button
             type="button"
             className="workload-add-comp-btn"
@@ -4461,19 +6371,22 @@ export default function Page() {
           >
             Definir metas
           </button>
-          <label className="gantt-page-header__area-label" htmlFor="gantt-headline-area-select">Área</label>
-          <select
-            id="gantt-headline-area-select"
-            className="gantt-page-header__area-select"
-            value={areaId}
-            onChange={e => { setError(null); setAreaId(e.target.value) }}
-            aria-label="Área"
-          >
-            <option value="">Selecione</option>
-            {areas.map(a => (
-              <option key={a.id} value={a.id}>{a.nome}</option>
-            ))}
-          </select>
+          )}
+          <div className="gantt-page-header__area-wrap">
+            <label className="gantt-page-header__area-label" htmlFor="gantt-headline-area-select">Área</label>
+            <select
+              id="gantt-headline-area-select"
+              className="gantt-page-header__area-select"
+              value={areaId}
+              onChange={e => { setError(null); setAreaId(e.target.value) }}
+              aria-label="Área"
+            >
+              <option value="">Selecione</option>
+              {areas.map(a => (
+                <option key={a.id} value={a.id}>{a.nome}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </header>
       {areaPessoasTabelaAusente && (
@@ -4573,13 +6486,18 @@ export default function Page() {
                       onClick={() => abrirModalConclusao(m)}
                       title="Concluir meta"
                       style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minWidth: 24,
+                        height: 24,
                         background: 'transparent',
                         border: 'none',
                         cursor: 'pointer',
-                        color: concluida ? '#1f2937' : 'inherit',
+                        color: '#C8E6A0',
                         fontSize: '14px',
-                        padding: '0 4px',
-                        opacity: 0.85
+                        padding: 0,
+                        lineHeight: 1
                       }}
                       disabled={metaExcluindoId === m.id || concluindoMetaId === m.id}
                     >
@@ -4587,6 +6505,7 @@ export default function Page() {
                     </button>
                     {!concluida && (
                       <>
+                        {isAdmin && (
                         <button
                           type="button"
                           className="btn-icon"
@@ -4596,6 +6515,8 @@ export default function Page() {
                         >
                           ✎
                         </button>
+                        )}
+                        {podeExibirExcluirComHistorico(isAdmin, Boolean(metaTemAtividadesNoPlano[m.id])) ? (
                         <button
                           type="button"
                           className="btn-icon btn-danger"
@@ -4605,6 +6526,7 @@ export default function Page() {
                         >
                           {metaExcluindoId === m.id ? '…' : '✕'}
                         </button>
+                        ) : null}
                       </>
                     )}
                   </div>
@@ -4616,7 +6538,7 @@ export default function Page() {
           </div>
         )}
       </section>
-      {error && (
+      {error && deveExibirBannerErroGantt(error) && (
         <div className="alert alert-error">
           {error}
           {(String(error).toLowerCase().includes('planejamento_id') && String(error).includes('cronograma')) && (
@@ -4871,7 +6793,7 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
       )}
       <div className="gantt-toolbar gantt-controls-row">
         <div className="gantt-toolbar-left gantt-controls-row-left">
-          {areaId && periodoId && (
+          {areaId && periodoId && isAdmin && (
             <div className="gantt-add-atividade gantt-add-atividade--toolbar card" style={{ marginBottom: 0 }}>
               <button
                 type="button"
@@ -4947,48 +6869,73 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
       )}
       {tempoModalAberto && (
         <div
-          className="modal-overlay"
           onClick={(e) => {
             if (e.target === e.currentTarget) fecharTempoModal()
           }}
+          style={{
+            background: 'rgba(29, 47, 37, 0.45)',
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
         >
           <div
-            className="modal-card"
             role="dialog"
             aria-modal="true"
             aria-labelledby="tempo-modal-title"
+            className="gantt-tempo-modal"
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#ffffff',
+              borderRadius: 10,
+              border: '0.5px solid #D3D1C7',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.14)',
+              width: 'min(420px, calc(100% - 32px))',
+              overflow: 'hidden'
+            }}
           >
-            <header className="modal-header">
+            <header className="gantt-tempo-modal-header">
               <div>
                 <h2 id="tempo-modal-title">Registrar tempo da atividade</h2>
-                <p className="modal-subtitle">
+                <p className="gantt-tempo-modal-subtitle">
                   Semana {tempoModalSemana}: informe quanto tempo foi gasto para concluir a atividade.
                 </p>
               </div>
               <button
                 type="button"
-                className="modal-close-btn"
+                className="gantt-tempo-modal-close"
                 onClick={() => fecharTempoModal()}
                 aria-label="Fechar"
               >
                 ×
               </button>
             </header>
-            <div className="modal-body">
-              <div className="modal-field-row">
-                <div className="modal-field">
+            <div className="gantt-tempo-modal-body">
+              <div className="gantt-tempo-modal-field-row">
+                <div className="gantt-tempo-modal-field">
                   <label htmlFor="tempo-modal-valor">Quanto tempo levou?</label>
                   <input
                     id="tempo-modal-valor"
                     type="number"
-                    min="0"
-                    step="0.25"
+                    min="1"
+                    step="1"
                     value={tempoModalValor}
-                    onChange={e => setTempoModalValor(e.target.value)}
+                    onChange={e => {
+                      setTempoModalValor(e.target.value)
+                      if (tempoModalValorErro) setTempoModalValorErro('')
+                    }}
                     placeholder="Ex.: 1"
                   />
+                  {tempoModalValorErro ? (
+                    <p style={{ fontSize: 12, color: '#A32D2D', marginTop: 4, marginBottom: 0 }}>
+                      {tempoModalValorErro}
+                    </p>
+                  ) : null}
                 </div>
-                <div className="modal-field modal-field-unidade">
+                <div className="gantt-tempo-modal-field gantt-tempo-modal-field--unidade">
                   <label htmlFor="tempo-modal-unidade">Unidade</label>
                   <select
                     id="tempo-modal-unidade"
@@ -5001,28 +6948,30 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                 </div>
               </div>
             </div>
-            <footer className="modal-footer">
+            <footer className="gantt-tempo-modal-footer">
               <button
                 type="button"
-                className="btn modal-btn-cancel"
+                className="gantt-tempo-modal-btn-cancel"
                 onClick={() => fecharTempoModal()}
               >
                 Cancelar
               </button>
               <button
                 type="button"
-                className="btn btn-primary modal-btn-confirm"
+                className="gantt-tempo-modal-btn-register"
                 onClick={() => {
                   if (!tempoModalAcaoId || tempoModalSemana == null) {
                     fecharTempoModal()
                     return
                   }
                   const raw = (tempoModalValor || '').trim().replace(',', '.')
-                  const num = raw === '' ? NaN : Number(raw)
-                  let horas = tempoModalEstimado ?? 1
-                  if (!Number.isNaN(num) && num >= 0) {
-                    horas = tempoModalUnidade === 'minutos' ? num / 60 : num
+                  const valor = Number(raw)
+                  if (!Number.isFinite(valor) || valor <= 0 || !Number.isInteger(valor)) {
+                    setTempoModalValorErro('Informe um número inteiro maior que zero.')
+                    return
                   }
+                  setTempoModalValorErro('')
+                  const horas = tempoModalUnidade === 'minutos' ? valor / 60 : valor
                   salvarCelula(
                     tempoModalAcaoId,
                     tempoModalSemana,
@@ -5040,6 +6989,7 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
         </div>
       )}
 
+      {isAdmin ? (
       <DefinirMetaDrawer
         open={metaModalAberto}
         onClose={fecharMetaDrawer}
@@ -5048,6 +6998,7 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
         metaParaEditar={metaParaEditar}
         onSucesso={carregarMetasObjetivos}
       />
+      ) : null}
 
       <WorkloadFormDrawer
         open={showAddAtividade}
@@ -5070,7 +7021,13 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
             <button
               type="button"
               className="workload-form-drawer-footer-btn workload-form-drawer-footer-btn--save"
-              disabled={addAcaoIds.length === 0 || salvandoAdd || addSemanasSelecionadas.length === 0 || !addObjetivoId}
+              disabled={
+                addAcaoIds.length === 0 ||
+                salvandoAdd ||
+                addSemanasSelecionadas.length === 0 ||
+                !addObjetivoId ||
+                (isAreaJuridico && !juridicoIdentificacaoId)
+              }
               onClick={adicionarAtividade}
               title={addAcaoIds.length === 0 ? 'Selecione ao menos uma atividade' : (addSemanasSelecionadas.length === 0 ? 'Selecione ao menos uma semana' : undefined)}
             >
@@ -5136,120 +7093,1399 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                 </select>
               </div>
 
+              {isAreaComercial && (() => {
+                const visiveis = comercialCandidatos.filter(c => !c.oculto)
+                const ocultos = comercialCandidatos.filter(c => c.oculto)
+                return (
+                  <div style={{ marginBottom: '1.25rem' }}>
+                    <label
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: 'var(--color-text-secondary)',
+                        display: 'block',
+                        marginBottom: 6
+                      }}
+                    >
+                      Candidato
+                    </label>
+
+                    <div
+                      style={{
+                        border: '0.5px solid var(--color-border-tertiary)',
+                        borderRadius: 'var(--border-radius-md)',
+                        overflow: 'hidden'
+                      }}
+                    >
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setComercialDropdownAberto(prev => !prev)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            setComercialDropdownAberto(prev => !prev)
+                          }
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '9px 12px',
+                          cursor: 'pointer',
+                          borderLeft: comercialCandidatoId ? '3px solid #1a2e1a' : '3px solid transparent',
+                          background: comercialCandidatoId ? '#f0f6f0' : 'var(--color-background-primary)',
+                          transition: 'background .15s'
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: '50%',
+                            flexShrink: 0,
+                            border: `1.5px solid ${comercialCandidatoId ? '#1a2e1a' : 'var(--color-border-secondary)'}`,
+                            background: comercialCandidatoId ? '#1a2e1a' : 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          {comercialCandidatoId ? (
+                            <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />
+                          ) : null}
+                        </div>
+                        <span
+                          style={{
+                            flex: 1,
+                            fontSize: 13,
+                            color: comercialCandidatoId ? '#1a2e1a' : 'var(--color-text-tertiary)',
+                            fontWeight: comercialCandidatoId ? 500 : 400
+                          }}
+                        >
+                          {comercialCandidatoId
+                            ? comercialCandidatos.find(c => String(c.id) === String(comercialCandidatoId))?.nome ?? '...'
+                            : 'Selecione ou cadastre...'}
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            fontSize: 13,
+                            color: 'var(--color-text-tertiary)',
+                            transition: 'transform .2s',
+                            transform: comercialDropdownAberto ? 'rotate(180deg)' : 'rotate(0deg)',
+                            lineHeight: 1
+                          }}
+                        >
+                          ▾
+                        </span>
+                      </div>
+
+                      {comercialDropdownAberto ? (
+                        <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+                          <div style={{ display: 'flex', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
+                            <input
+                              type="text"
+                              value={novoCandidatoNome}
+                              onChange={e => setNovoCandidatoNome(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  void handleAdicionarCandidato()
+                                }
+                              }}
+                              placeholder="Ex: João Silva"
+                              disabled={salvandoAdd}
+                              style={{
+                                flex: 1,
+                                padding: '8px 10px',
+                                border: 'none',
+                                fontSize: 13,
+                                background: 'var(--color-background-secondary)',
+                                outline: 'none',
+                                color: 'var(--color-text-primary)'
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void handleAdicionarCandidato()}
+                              disabled={salvandoAdd}
+                              style={{
+                                padding: '8px 13px',
+                                background: '#1a2e1a',
+                                color: '#fff',
+                                border: 'none',
+                                fontSize: 15,
+                                cursor: 'pointer',
+                                fontWeight: 500
+                              }}
+                            >
+                              +
+                            </button>
+                          </div>
+
+                          {visiveis.map(item => {
+                            const selecionado = String(comercialCandidatoId) === String(item.id)
+                            const selecionar = () => {
+                              setComercialCandidatoId(item.id)
+                              setComercialDropdownAberto(false)
+                            }
+                            return (
+                              <div
+                                key={item.id}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  borderBottom: '0.5px solid var(--color-border-tertiary)',
+                                  cursor: 'pointer',
+                                  borderLeft: selecionado ? '3px solid #1a2e1a' : '3px solid transparent',
+                                  background: selecionado ? '#f0f6f0' : 'var(--color-background-primary)',
+                                  transition: 'background .1s'
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: 36,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0
+                                  }}
+                                  onClick={selecionar}
+                                >
+                                  <div
+                                    style={{
+                                      width: 14,
+                                      height: 14,
+                                      borderRadius: '50%',
+                                      border: `1.5px solid ${selecionado ? '#1a2e1a' : 'var(--color-border-secondary)'}`,
+                                      background: selecionado ? '#1a2e1a' : 'transparent',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center'
+                                    }}
+                                  >
+                                    {selecionado ? (
+                                      <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />
+                                    ) : null}
+                                  </div>
+                                </div>
+                                <span
+                                  onClick={selecionar}
+                                  style={{
+                                    flex: 1,
+                                    padding: '9px 0',
+                                    fontSize: 13,
+                                    color: selecionado ? '#1a2e1a' : 'var(--color-text-primary)',
+                                    fontWeight: selecionado ? 500 : 400
+                                  }}
+                                >
+                                  {item.nome}
+                                </span>
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={e => {
+                                    e.stopPropagation()
+                                    void handleOcultarCandidato(item.id)
+                                  }}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      void handleOcultarCandidato(item.id)
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '9px 12px',
+                                    fontSize: 11,
+                                    color: 'var(--color-text-tertiary)',
+                                    borderLeft: '0.5px solid var(--color-border-tertiary)',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  Ocultar
+                                </span>
+                              </div>
+                            )
+                          })}
+
+                          {visiveis.length === 0 ? (
+                            <div
+                              style={{
+                                padding: 12,
+                                fontSize: 13,
+                                color: 'var(--color-text-tertiary)',
+                                textAlign: 'center'
+                              }}
+                            >
+                              Nenhum candidato cadastrado.
+                            </div>
+                          ) : null}
+
+                          {ocultos.length > 0 ? (
+                            <>
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => setComercialOcultosAbertos(prev => !prev)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault()
+                                    setComercialOcultosAbertos(prev => !prev)
+                                  }
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  padding: '7px 12px',
+                                  background: 'var(--color-background-secondary)',
+                                  cursor: 'pointer',
+                                  borderTop: '0.5px solid var(--color-border-tertiary)'
+                                }}
+                              >
+                                <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>Ocultos</span>
+                                <span style={{ flex: 1 }} />
+                                <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{ocultos.length}</span>
+                                <span
+                                  aria-hidden="true"
+                                  style={{
+                                    fontSize: 12,
+                                    color: 'var(--color-text-tertiary)',
+                                    transition: 'transform .2s',
+                                    transform: comercialOcultosAbertos ? 'rotate(180deg)' : 'rotate(0deg)',
+                                    lineHeight: 1
+                                  }}
+                                >
+                                  ▾
+                                </span>
+                              </div>
+                              {comercialOcultosAbertos
+                                ? ocultos.map(item => (
+                                    <div
+                                      key={item.id}
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        padding: '7px 12px',
+                                        borderTop: '0.5px solid var(--color-border-tertiary)',
+                                        opacity: 0.55,
+                                        background: 'var(--color-background-secondary)'
+                                      }}
+                                    >
+                                      <span
+                                        style={{
+                                          flex: 1,
+                                          fontSize: 12,
+                                          color: 'var(--color-text-secondary)',
+                                          paddingLeft: 36
+                                        }}
+                                      >
+                                        {item.nome}
+                                      </span>
+                                      <span
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => void handleMostrarCandidato(item.id)}
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault()
+                                            void handleMostrarCandidato(item.id)
+                                          }
+                                        }}
+                                        style={{
+                                          fontSize: 11,
+                                          color: '#2e7d32',
+                                          padding: '2px 8px',
+                                          border: '0.5px solid #b8c8b8',
+                                          borderRadius: 4,
+                                          background: '#f4f8f4',
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        Mostrar
+                                      </span>
+                                    </div>
+                                  ))
+                                : null}
+                            </>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      {!comercialDropdownAberto && comercialCandidatoId ? (
+                        <div
+                          style={{
+                            padding: '5px 12px',
+                            fontSize: 11,
+                            color: 'var(--color-text-tertiary)',
+                            borderTop: '0.5px solid var(--color-border-tertiary)',
+                            background: 'var(--color-background-secondary)'
+                          }}
+                        >
+                          Clique para trocar o candidato
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                )
+              })()}
+
+
+
+              {isAreaJuridico && (() => {
+                const doTipo = (juridicoIdentificacoes || []).filter(j => j.tipo === juridicoTipo)
+                const visiveis = doTipo
+                  .filter(j => !j.oculto)
+                  .slice()
+                  .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'))
+                const ocultos = doTipo
+                  .filter(j => j.oculto)
+                  .slice()
+                  .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'))
+                return (
+                  <div style={{ marginBottom: '1.25rem' }}>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: 13,
+                        fontWeight: 500,
+                        color: 'var(--color-text-primary)',
+                        marginBottom: 6
+                      }}
+                    >
+                      Tipo de demanda
+                    </label>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                      {JURIDICO_TIPO_OPCOES.map(opt => (
+                        <label
+                          key={opt.value}
+                          style={{
+                            flex: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '7px 10px',
+                            border: `0.5px solid ${juridicoTipo === opt.value ? '#1a2e1a' : 'var(--moni-borda, #d1d5db)'}`,
+                            borderRadius: 'var(--border-radius-md)',
+                            cursor: 'pointer',
+                            justifyContent: 'center',
+                            background: juridicoTipo === opt.value ? '#f4f8f4' : 'var(--color-background-primary)'
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 14,
+                              height: 14,
+                              borderRadius: '50%',
+                              flexShrink: 0,
+                              border: `2px solid ${juridicoTipo === opt.value ? '#1a2e1a' : 'var(--color-border-secondary)'}`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            {juridicoTipo === opt.value ? (
+                              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#1a2e1a' }} />
+                            ) : null}
+                          </div>
+                          <input
+                            type="radio"
+                            value={opt.value}
+                            checked={juridicoTipo === opt.value}
+                            onChange={() => {
+                              setJuridicoTipo(opt.value)
+                              setJuridicoIdentificacaoId(null)
+                              setIdDropdownAberto(true)
+                            }}
+                            style={{ display: 'none' }}
+                          />
+                          <span style={{ fontSize: 11, fontWeight: juridicoTipo === opt.value ? 500 : 400 }}>
+                            {opt.label}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: 13,
+                        fontWeight: 500,
+                        color: 'var(--color-text-primary)',
+                        marginBottom: 6,
+                        marginTop: 10
+                      }}
+                    >
+                      Identificação
+                    </label>
+                    <div
+                      style={{
+                        border: '0.5px solid var(--color-border-tertiary)',
+                        borderRadius: 'var(--border-radius-md)',
+                        overflow: 'hidden'
+                      }}
+                    >
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setIdDropdownAberto(prev => !prev)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            setIdDropdownAberto(prev => !prev)
+                          }
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '9px 12px',
+                          cursor: 'pointer',
+                          borderLeft: juridicoIdentificacaoId ? '3px solid #1a2e1a' : '3px solid transparent',
+                          background: juridicoIdentificacaoId ? '#f0f6f0' : 'var(--color-background-primary)',
+                          transition: 'background .15s'
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: '50%',
+                            border: `1.5px solid ${juridicoIdentificacaoId ? '#1a2e1a' : 'var(--color-border-secondary)'}`,
+                            flexShrink: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: juridicoIdentificacaoId ? '#1a2e1a' : 'transparent'
+                          }}
+                        >
+                          {juridicoIdentificacaoId ? (
+                            <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />
+                          ) : null}
+                        </div>
+                        <span
+                          style={{
+                            flex: 1,
+                            fontSize: 13,
+                            color: juridicoIdentificacaoId ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
+                            fontWeight: juridicoIdentificacaoId ? 500 : 400
+                          }}
+                        >
+                          {juridicoIdentificacaoId
+                            ? juridicoIdentificacoes.find(i => String(i.id) === String(juridicoIdentificacaoId))?.nome ?? '...'
+                            : 'Selecione uma identificação...'}
+                        </span>
+                        {juridicoIdentificacaoId ? (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              background: '#f0f6f0',
+                              color: '#1a2e1a',
+                              border: '0.5px solid #c8dfc8',
+                              borderRadius: 4,
+                              padding: '2px 8px',
+                              fontWeight: 500,
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {JURIDICO_TIPO_LABEL[juridicoTipo] || juridicoTipo}
+                          </span>
+                        ) : null}
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            fontSize: 13,
+                            color: 'var(--color-text-tertiary)',
+                            transition: 'transform .2s',
+                            transform: idDropdownAberto ? 'rotate(180deg)' : 'rotate(0deg)',
+                            lineHeight: 1
+                          }}
+                        >
+                          ▾
+                        </span>
+                      </div>
+
+                      {idDropdownAberto ? (
+                        <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+                          <div style={{ display: 'flex', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
+                            <input
+                              type="text"
+                              value={novaIdentificacaoNome}
+                              onChange={e => setNovaIdentificacaoNome(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  void handleAdicionarIdentificacao()
+                                }
+                              }}
+                              placeholder="Nova identificação..."
+                              disabled={salvandoAdd}
+                              style={{
+                                flex: 1,
+                                padding: '8px 10px',
+                                border: 'none',
+                                fontSize: 13,
+                                background: 'var(--color-background-secondary)',
+                                outline: 'none',
+                                color: 'var(--color-text-primary)'
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void handleAdicionarIdentificacao()}
+                              disabled={salvandoAdd || !novaIdentificacaoNome.trim()}
+                              style={{
+                                padding: '8px 13px',
+                                background: '#1a2e1a',
+                                color: '#fff',
+                                border: 'none',
+                                fontSize: 15,
+                                cursor: 'pointer',
+                                fontWeight: 500
+                              }}
+                            >
+                              +
+                            </button>
+                          </div>
+
+                          {visiveis.map(item => {
+                            const selecionado = String(juridicoIdentificacaoId) === String(item.id)
+                            const selecionar = () => {
+                              setJuridicoIdentificacaoId(String(item.id))
+                              setIdDropdownAberto(false)
+                            }
+                            return (
+                              <div
+                                key={item.id}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  borderBottom: '0.5px solid var(--color-border-tertiary)',
+                                  cursor: 'pointer',
+                                  borderLeft: selecionado ? '3px solid #1a2e1a' : '3px solid transparent',
+                                  background: selecionado ? '#f0f6f0' : 'var(--color-background-primary)',
+                                  transition: 'background .1s'
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: 36,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0
+                                  }}
+                                  onClick={selecionar}
+                                >
+                                  <div
+                                    style={{
+                                      width: 14,
+                                      height: 14,
+                                      borderRadius: '50%',
+                                      border: `1.5px solid ${selecionado ? '#1a2e1a' : 'var(--color-border-secondary)'}`,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      background: selecionado ? '#1a2e1a' : 'transparent'
+                                    }}
+                                  >
+                                    {selecionado ? (
+                                      <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />
+                                    ) : null}
+                                  </div>
+                                </div>
+                                <span
+                                  onClick={selecionar}
+                                  style={{
+                                    flex: 1,
+                                    padding: '9px 0',
+                                    fontSize: 13,
+                                    color: selecionado ? '#1a2e1a' : 'var(--color-text-primary)',
+                                    fontWeight: selecionado ? 500 : 400
+                                  }}
+                                >
+                                  {item.nome}
+                                </span>
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={e => {
+                                    e.stopPropagation()
+                                    void handleOcultarIdentificacao(item.id)
+                                  }}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      void handleOcultarIdentificacao(item.id)
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '9px 12px',
+                                    fontSize: 11,
+                                    color: 'var(--color-text-tertiary)',
+                                    borderLeft: '0.5px solid var(--color-border-tertiary)',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  Ocultar
+                                </span>
+                              </div>
+                            )
+                          })}
+
+                          {visiveis.length === 0 ? (
+                            <div
+                              style={{
+                                padding: '12px',
+                                fontSize: 13,
+                                color: 'var(--color-text-tertiary)',
+                                textAlign: 'center'
+                              }}
+                            >
+                              Nenhuma identificação para este tipo.
+                            </div>
+                          ) : null}
+
+                          {ocultos.length > 0 ? (
+                            <>
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => setOcultosAbertos(prev => !prev)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault()
+                                    setOcultosAbertos(prev => !prev)
+                                  }
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  padding: '7px 12px',
+                                  background: 'var(--color-background-secondary)',
+                                  cursor: 'pointer',
+                                  borderTop: '0.5px solid var(--color-border-tertiary)'
+                                }}
+                              >
+                                <span style={{ fontSize: 13, color: 'var(--color-text-tertiary)' }} aria-hidden="true">
+                                  ⊘
+                                </span>
+                                <span style={{ flex: 1, fontSize: 12, color: 'var(--color-text-tertiary)' }}>Ocultos</span>
+                                <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{ocultos.length}</span>
+                                <span
+                                  aria-hidden="true"
+                                  style={{
+                                    fontSize: 12,
+                                    color: 'var(--color-text-tertiary)',
+                                    transition: 'transform .2s',
+                                    transform: ocultosAbertos ? 'rotate(180deg)' : 'rotate(0deg)'
+                                  }}
+                                >
+                                  ▾
+                                </span>
+                              </div>
+                              {ocultosAbertos
+                                ? ocultos.map(item => (
+                                    <div
+                                      key={item.id}
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        padding: '7px 12px',
+                                        borderTop: '0.5px solid var(--color-border-tertiary)',
+                                        opacity: 0.55,
+                                        background: 'var(--color-background-secondary)'
+                                      }}
+                                    >
+                                      <span
+                                        style={{
+                                          flex: 1,
+                                          fontSize: 12,
+                                          color: 'var(--color-text-secondary)',
+                                          paddingLeft: 36
+                                        }}
+                                      >
+                                        {item.nome}
+                                      </span>
+                                      <span
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => void handleMostrarIdentificacao(item.id)}
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault()
+                                            void handleMostrarIdentificacao(item.id)
+                                          }
+                                        }}
+                                        style={{
+                                          fontSize: 11,
+                                          color: '#2e7d32',
+                                          padding: '2px 8px',
+                                          border: '0.5px solid #b8c8b8',
+                                          borderRadius: 4,
+                                          background: '#f4f8f4',
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        Mostrar
+                                      </span>
+                                    </div>
+                                  ))
+                                : null}
+                            </>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      {!idDropdownAberto && juridicoIdentificacaoId ? (
+                        <div
+                          style={{
+                            padding: '5px 12px',
+                            fontSize: 11,
+                            color: 'var(--color-text-tertiary)',
+                            borderTop: '0.5px solid var(--color-border-tertiary)',
+                            background: 'var(--color-background-secondary)'
+                          }}
+                        >
+                          Clique para trocar a identificação
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                )
+              })()}
+
               {isAreaAdm && (
                 <div style={{ marginBottom: '1.25rem' }}>
-                  <label style={{
-                    display: 'block', fontSize: 13, fontWeight: 500,
-                    color: 'var(--color-text-primary)', marginBottom: 6
-                  }}>
+                  <label
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: 'var(--color-text-secondary)',
+                      display: 'block',
+                      marginBottom: 6
+                    }}
+                  >
                     CNPJ / Empresa
                   </label>
 
-                  <div style={{
-                    border: '0.5px solid var(--color-border-secondary)',
-                    borderRadius: 'var(--border-radius-md)',
-                    overflow: 'hidden', marginBottom: 8
-                  }}>
-                    {admCnpjs.map(item => (
-                      <div
-                        key={item.id}
-                        onClick={() => setAdmCnpjSelecionado(item.id === admCnpjSelecionado ? null : item.id)}
-                        style={{
-                          padding: '7px 10px', fontSize: 13,
-                          display: 'flex', alignItems: 'center', gap: 8,
-                          cursor: 'pointer',
-                          background: admCnpjSelecionado === item.id
-                            ? 'var(--color-background-success)'
-                            : 'var(--color-background-primary)',
-                          borderBottom: '0.5px solid var(--color-border-tertiary)',
-                          color: 'var(--color-text-primary)'
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          readOnly
-                          checked={admCnpjSelecionado === item.id}
-                          style={{ accentColor: '#2C5A0E', width: 13, height: 13 }}
-                        />
-                        {item.cnpj} — {item.descritivo}
-                      </div>
-                    ))}
-                  </div>
-
-                  {!criandoAdmCnpj ? (
-                    <button
-                      type="button"
-                      onClick={() => setCriandoAdmCnpj(true)}
-                      style={{
-                        fontSize: 12, color: 'var(--color-text-secondary)',
-                        background: 'none', border: 'none', cursor: 'pointer', padding: 0
-                      }}
-                    >
-                      + Adicionar novo CNPJ
-                    </button>
-                  ) : (
-                    <div style={{
+                  <div
+                    style={{
                       border: '0.5px solid var(--color-border-tertiary)',
                       borderRadius: 'var(--border-radius-md)',
-                      padding: '10px 12px',
-                      background: 'var(--color-background-secondary)',
-                      display: 'flex', flexDirection: 'column', gap: 6
-                    }}>
-                      <input
-                        type="text"
-                        placeholder="00.000.000/0001-00"
-                        value={novoCnpj}
-                        onChange={e => setNovoCnpj(e.target.value)}
+                      overflow: 'hidden'
+                    }}
+                  >
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setCnpjDropdownAberto(prev => !prev)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          setCnpjDropdownAberto(prev => !prev)
+                        }
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '9px 12px',
+                        cursor: 'pointer',
+                        borderLeft: admCnpjSelecionado ? '3px solid #1a2e1a' : '3px solid transparent',
+                        background: admCnpjSelecionado ? '#f0f6f0' : 'var(--color-background-primary)',
+                        transition: 'background .15s'
+                      }}
+                    >
+                      <div
                         style={{
-                          fontSize: 13, padding: '6px 10px',
-                          border: '0.5px solid var(--color-border-secondary)',
-                          borderRadius: 'var(--border-radius-md)',
-                          background: 'var(--color-background-primary)',
-                          color: 'var(--color-text-primary)', width: '100%'
+                          width: 14,
+                          height: 14,
+                          borderRadius: '50%',
+                          flexShrink: 0,
+                          border: `1.5px solid ${admCnpjSelecionado ? '#1a2e1a' : 'var(--color-border-secondary)'}`,
+                          background: admCnpjSelecionado ? '#1a2e1a' : 'transparent',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
                         }}
-                      />
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <input
-                          type="text"
-                          placeholder="Nome / descritivo da empresa..."
-                          value={novoDescritivo}
-                          onChange={e => setNovoDescritivo(e.target.value)}
-                          style={{
-                            flex: 1, fontSize: 13, padding: '6px 10px',
-                            border: '0.5px solid var(--color-border-secondary)',
-                            borderRadius: 'var(--border-radius-md)',
-                            background: 'var(--color-background-primary)',
-                            color: 'var(--color-text-primary)'
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (!novoCnpj.trim() || !novoDescritivo.trim()) return
-                            const { data } = await supabase
-                              .from('adm_cnpjs')
-                              .insert({ cnpj: novoCnpj.trim(), descritivo: novoDescritivo.trim() })
-                              .select('id, cnpj, descritivo')
-                              .single()
-                            if (data) {
-                              setAdmCnpjs(prev => [...prev, data])
-                              setAdmCnpjSelecionado(data.id)
-                              setNovoCnpj('')
-                              setNovoDescritivo('')
-                              setCriandoAdmCnpj(false)
-                            }
-                          }}
-                          style={{
-                            fontSize: 12, padding: '6px 12px',
-                            background: '#2C5A0E', color: '#D4EDAA',
-                            border: 'none', borderRadius: 'var(--border-radius-md)', cursor: 'pointer'
-                          }}
-                        >
-                          Salvar
-                        </button>
+                      >
+                        {admCnpjSelecionado ? (
+                          <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />
+                        ) : null}
                       </div>
+                      {admCnpjSelecionado ? (() => {
+                        const item = admCnpjs.find(c => String(c.id) === String(admCnpjSelecionado))
+                        return (
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', fontFamily: 'monospace' }}>
+                              {item?.cnpj}
+                            </span>
+                            <span style={{ fontSize: 13, fontWeight: 500, color: '#1a2e1a' }}>{item?.descritivo}</span>
+                          </div>
+                        )
+                      })() : (
+                        <span style={{ flex: 1, fontSize: 13, color: 'var(--color-text-tertiary)' }}>
+                          Selecione uma empresa...
+                        </span>
+                      )}
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          fontSize: 13,
+                          color: 'var(--color-text-tertiary)',
+                          transition: 'transform .2s',
+                          transform: cnpjDropdownAberto ? 'rotate(180deg)' : 'rotate(0deg)',
+                          lineHeight: 1
+                        }}
+                      >
+                        ▾
+                      </span>
                     </div>
-                  )}
+
+                    {cnpjDropdownAberto ? (
+                      <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+                        {admCnpjs.map(item => {
+                          const selecionado = String(admCnpjSelecionado) === String(item.id)
+                          const selecionar = () => {
+                            setAdmCnpjSelecionado(item.id)
+                            setCnpjDropdownAberto(false)
+                            setCriandoCnpj(false)
+                          }
+                          return (
+                            <div
+                              key={item.id}
+                              role="button"
+                              tabIndex={0}
+                              onClick={selecionar}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault()
+                                  selecionar()
+                                }
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                borderBottom: '0.5px solid var(--color-border-tertiary)',
+                                cursor: 'pointer',
+                                borderLeft: selecionado ? '3px solid #1a2e1a' : '3px solid transparent',
+                                background: selecionado ? '#f0f6f0' : 'var(--color-background-primary)',
+                                transition: 'background .1s'
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: 36,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexShrink: 0
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: 14,
+                                    height: 14,
+                                    borderRadius: '50%',
+                                    border: `1.5px solid ${selecionado ? '#1a2e1a' : 'var(--color-border-secondary)'}`,
+                                    background: selecionado ? '#1a2e1a' : 'transparent',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  {selecionado ? (
+                                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />
+                                  ) : null}
+                                </div>
+                              </div>
+                              <div style={{ flex: 1, padding: '8px 0', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', fontFamily: 'monospace' }}>
+                                  {item.cnpj}
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: 13,
+                                    color: selecionado ? '#1a2e1a' : 'var(--color-text-primary)',
+                                    fontWeight: selecionado ? 500 : 400
+                                  }}
+                                >
+                                  {item.descritivo}
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        })}
+
+                        {admCnpjs.length === 0 && !criandoCnpj ? (
+                          <div
+                            style={{
+                              padding: 12,
+                              fontSize: 13,
+                              color: 'var(--color-text-tertiary)',
+                              textAlign: 'center'
+                            }}
+                          >
+                            Nenhuma empresa cadastrada.
+                          </div>
+                        ) : null}
+
+                        {criandoCnpj ? (
+                          <div
+                            style={{
+                              padding: '10px 12px',
+                              background: 'var(--color-background-secondary)',
+                              borderTop: '0.5px solid var(--color-border-tertiary)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 6
+                            }}
+                          >
+                            <input
+                              type="text"
+                              value={novoCnpj}
+                              onChange={e => setNovoCnpj(e.target.value)}
+                              placeholder="00.000.000/0001-00"
+                              disabled={salvandoAdd}
+                              style={{
+                                padding: '7px 10px',
+                                border: '0.5px solid var(--color-border-tertiary)',
+                                borderRadius: 'var(--border-radius-md)',
+                                fontSize: 12,
+                                fontFamily: 'monospace',
+                                background: 'var(--color-background-primary)',
+                                color: 'var(--color-text-primary)',
+                                width: '100%',
+                                outline: 'none'
+                              }}
+                            />
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <input
+                                type="text"
+                                value={novoDescritivo}
+                                onChange={e => setNovoDescritivo(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    void handleSalvarCnpj()
+                                  }
+                                }}
+                                placeholder="Nome / descritivo da empresa..."
+                                disabled={salvandoAdd}
+                                style={{
+                                  flex: 1,
+                                  padding: '7px 10px',
+                                  border: '0.5px solid var(--color-border-tertiary)',
+                                  borderRadius: 'var(--border-radius-md)',
+                                  fontSize: 13,
+                                  background: 'var(--color-background-primary)',
+                                  color: 'var(--color-text-primary)',
+                                  outline: 'none'
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCriandoCnpj(false)
+                                  setNovoCnpj('')
+                                  setNovoDescritivo('')
+                                }}
+                                disabled={salvandoAdd}
+                                style={{
+                                  padding: '6px 12px',
+                                  border: '0.5px solid var(--color-border-secondary)',
+                                  borderRadius: 'var(--border-radius-md)',
+                                  background: 'var(--color-background-primary)',
+                                  fontSize: 12,
+                                  cursor: 'pointer',
+                                  color: 'var(--color-text-secondary)'
+                                }}
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleSalvarCnpj()}
+                                disabled={salvandoAdd}
+                                style={{
+                                  padding: '6px 14px',
+                                  background: '#1a2e1a',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: 'var(--border-radius-md)',
+                                  fontSize: 12,
+                                  cursor: 'pointer',
+                                  fontWeight: 500
+                                }}
+                              >
+                                Salvar
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setCriandoCnpj(true)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                setCriandoCnpj(true)
+                              }
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '8px 12px',
+                              fontSize: 12,
+                              color: 'var(--color-text-secondary)',
+                              cursor: 'pointer',
+                              background: 'var(--color-background-secondary)',
+                              borderTop: '0.5px solid var(--color-border-tertiary)'
+                            }}
+                          >
+                            <span aria-hidden="true" style={{ fontSize: 13 }}>+</span>
+                            Adicionar novo CNPJ
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+
+                    {!cnpjDropdownAberto && admCnpjSelecionado ? (
+                      <div
+                        style={{
+                          padding: '5px 12px',
+                          fontSize: 11,
+                          color: 'var(--color-text-tertiary)',
+                          borderTop: '0.5px solid var(--color-border-tertiary)',
+                          background: 'var(--color-background-secondary)'
+                        }}
+                      >
+                        Clique para trocar a empresa
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+
+              {isAreaControladoria && (
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: 'var(--color-text-secondary)',
+                      display: 'block',
+                      marginBottom: 6
+                    }}
+                  >
+                    CNPJ / Empresa (opcional)
+                  </label>
+
+                  <div
+                    style={{
+                      border: '0.5px solid var(--color-border-tertiary)',
+                      borderRadius: 'var(--border-radius-md)',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setControladoriaCnpjDropdownAberto(prev => !prev)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          setControladoriaCnpjDropdownAberto(prev => !prev)
+                        }
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '9px 12px',
+                        cursor: 'pointer',
+                        borderLeft: controladoriaCnpjSelecionado ? '3px solid #1a2e1a' : '3px solid transparent',
+                        background: controladoriaCnpjSelecionado ? '#f0f6f0' : 'var(--color-background-primary)',
+                        transition: 'background .15s'
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 14,
+                          height: 14,
+                          borderRadius: '50%',
+                          flexShrink: 0,
+                          border: `1.5px solid ${controladoriaCnpjSelecionado ? '#1a2e1a' : 'var(--color-border-secondary)'}`,
+                          background: controladoriaCnpjSelecionado ? '#1a2e1a' : 'transparent',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        {controladoriaCnpjSelecionado ? (
+                          <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />
+                        ) : null}
+                      </div>
+                      {controladoriaCnpjSelecionado ? (() => {
+                        const item = controladoriaCnpjs.find(c => String(c.id) === String(controladoriaCnpjSelecionado))
+                        return (
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', fontFamily: 'monospace' }}>
+                              {item?.cnpj}
+                            </span>
+                            <span style={{ fontSize: 13, fontWeight: 500, color: '#1a2e1a' }}>{item?.descritivo}</span>
+                          </div>
+                        )
+                      })() : (
+                        <span style={{ flex: 1, fontSize: 13, color: 'var(--color-text-tertiary)' }}>
+                          Selecione uma empresa (opcional)...
+                        </span>
+                      )}
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          fontSize: 13,
+                          color: 'var(--color-text-tertiary)',
+                          transition: 'transform .2s',
+                          transform: controladoriaCnpjDropdownAberto ? 'rotate(180deg)' : 'rotate(0deg)',
+                          lineHeight: 1
+                        }}
+                      >
+                        ▾
+                      </span>
+                    </div>
+
+                    {controladoriaCnpjDropdownAberto ? (
+                      <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+                        {controladoriaCnpjs.map(item => {
+                          const selecionado = String(controladoriaCnpjSelecionado) === String(item.id)
+                          const selecionar = () => {
+                            setControladoriaCnpjSelecionado(item.id)
+                            setControladoriaCnpjDropdownAberto(false)
+                            setControladoriaCriandoCnpj(false)
+                          }
+                          return (
+                            <div
+                              key={item.id}
+                              role="button"
+                              tabIndex={0}
+                              onClick={selecionar}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault()
+                                  selecionar()
+                                }
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                borderBottom: '0.5px solid var(--color-border-tertiary)',
+                                cursor: 'pointer',
+                                borderLeft: selecionado ? '3px solid #1a2e1a' : '3px solid transparent',
+                                background: selecionado ? '#f0f6f0' : 'var(--color-background-primary)',
+                                transition: 'background .1s'
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: 36,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexShrink: 0
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: 14,
+                                    height: 14,
+                                    borderRadius: '50%',
+                                    border: `1.5px solid ${selecionado ? '#1a2e1a' : 'var(--color-border-secondary)'}`,
+                                    background: selecionado ? '#1a2e1a' : 'transparent',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  {selecionado ? (
+                                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />
+                                  ) : null}
+                                </div>
+                              </div>
+                              <div style={{ flex: 1, padding: '8px 0', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', fontFamily: 'monospace' }}>
+                                  {item.cnpj}
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: 13,
+                                    color: selecionado ? '#1a2e1a' : 'var(--color-text-primary)',
+                                    fontWeight: selecionado ? 500 : 400
+                                  }}
+                                >
+                                  {item.descritivo}
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        })}
+
+                        {controladoriaCnpjs.length === 0 && !controladoriaCriandoCnpj ? (
+                          <div
+                            style={{
+                              padding: 12,
+                              fontSize: 13,
+                              color: 'var(--color-text-tertiary)',
+                              textAlign: 'center'
+                            }}
+                          >
+                            Nenhuma empresa cadastrada.
+                          </div>
+                        ) : null}
+
+                        {controladoriaCriandoCnpj ? (
+                          <div
+                            style={{
+                              padding: '10px 12px',
+                              background: 'var(--color-background-secondary)',
+                              borderTop: '0.5px solid var(--color-border-tertiary)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 6
+                            }}
+                          >
+                            <input
+                              type="text"
+                              value={controladoriaNovoCnpj}
+                              onChange={e => setControladoriaNovoCnpj(e.target.value)}
+                              placeholder="00.000.000/0001-00"
+                              disabled={salvandoAdd}
+                              style={{
+                                padding: '7px 10px',
+                                border: '0.5px solid var(--color-border-tertiary)',
+                                borderRadius: 'var(--border-radius-md)',
+                                fontSize: 12,
+                                fontFamily: 'monospace',
+                                background: 'var(--color-background-primary)',
+                                color: 'var(--color-text-primary)',
+                                width: '100%',
+                                outline: 'none'
+                              }}
+                            />
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <input
+                                type="text"
+                                value={controladoriaNovoDescritivo}
+                                onChange={e => setControladoriaNovoDescritivo(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    void handleSalvarControladoriaCnpj()
+                                  }
+                                }}
+                                placeholder="Nome / descritivo da empresa..."
+                                disabled={salvandoAdd}
+                                style={{
+                                  flex: 1,
+                                  padding: '7px 10px',
+                                  border: '0.5px solid var(--color-border-tertiary)',
+                                  borderRadius: 'var(--border-radius-md)',
+                                  fontSize: 13,
+                                  background: 'var(--color-background-primary)',
+                                  color: 'var(--color-text-primary)',
+                                  outline: 'none'
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setControladoriaCriandoCnpj(false)
+                                  setControladoriaNovoCnpj('')
+                                  setControladoriaNovoDescritivo('')
+                                }}
+                                disabled={salvandoAdd}
+                                style={{
+                                  padding: '6px 12px',
+                                  border: '0.5px solid var(--color-border-secondary)',
+                                  borderRadius: 'var(--border-radius-md)',
+                                  background: 'var(--color-background-primary)',
+                                  fontSize: 12,
+                                  cursor: 'pointer',
+                                  color: 'var(--color-text-secondary)'
+                                }}
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleSalvarControladoriaCnpj()}
+                                disabled={salvandoAdd}
+                                style={{
+                                  padding: '6px 14px',
+                                  background: '#1a2e1a',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: 'var(--border-radius-md)',
+                                  fontSize: 12,
+                                  cursor: 'pointer',
+                                  fontWeight: 500
+                                }}
+                              >
+                                Salvar
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setControladoriaCriandoCnpj(true)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                setControladoriaCriandoCnpj(true)
+                              }
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '8px 12px',
+                              fontSize: 12,
+                              color: 'var(--color-text-secondary)',
+                              cursor: 'pointer',
+                              background: 'var(--color-background-secondary)',
+                              borderTop: '0.5px solid var(--color-border-tertiary)'
+                            }}
+                          >
+                            <span aria-hidden="true" style={{ fontSize: 13 }}>+</span>
+                            Adicionar novo CNPJ
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+
+                    {!controladoriaCnpjDropdownAberto && controladoriaCnpjSelecionado ? (
+                      <div
+                        style={{
+                          padding: '5px 12px',
+                          fontSize: 11,
+                          color: 'var(--color-text-tertiary)',
+                          borderTop: '0.5px solid var(--color-border-tertiary)',
+                          background: 'var(--color-background-secondary)'
+                        }}
+                      >
+                        Clique para trocar a empresa
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               )}
 
@@ -5317,6 +8553,7 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                     <div data-dropdown-casa style={{ position: 'relative' }}>
                       <button
                         type="button"
+                        onMouseDown={e => e.stopPropagation()}
                         onClick={() => setDropdownCasaAberto(v => !v)}
                         disabled={salvandoAdd}
                         style={{
@@ -5356,6 +8593,11 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                             overflowY: 'auto'
                           }}
                         >
+                          {(casas || []).length === 0 && !isAdmin && (
+                            <div style={{ padding: '8px 10px', fontSize: 12, color: '#5c5c5c' }}>
+                              Nenhuma casa cadastrada.
+                            </div>
+                          )}
                           {(casas || []).map(casa => {
                             const selecionada = casasSelecionadas.includes(String(casa.id))
                             return (
@@ -5409,7 +8651,7 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                                           type="button"
                                           onClick={e => { e.stopPropagation(); iniciarEdicaoCasaInline(casa) }}
                                           title="Editar"
-                                          style={btnIcon}
+                                          style={{ ...GANTT_ACAO_BTN_EDITAR, flexShrink: 0 }}
                                         >
                                           ✎
                                         </button>
@@ -5417,7 +8659,7 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                                           type="button"
                                           onClick={e => { e.stopPropagation(); removerCasaGlobalInline(casa) }}
                                           title="Remover"
-                                          style={btnIcon}
+                                          style={{ ...GANTT_ACAO_BTN_EXCLUIR, flexShrink: 0 }}
                                         >
                                           ×
                                         </button>
@@ -5492,37 +8734,683 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                 </div>
               )}
 
-              {isAreaAcoplamento && (
-                <div style={{ marginBottom: '1.25rem' }}>
-                  <label
-                    style={{
-                      display: 'block',
-                      fontSize: 13,
-                      fontWeight: 500,
-                      color: 'var(--color-text-primary)',
-                      marginBottom: 6
-                    }}
-                  >
-                    Franqueado - Condomínio e Lote
-                  </label>
-                  <input
-                    type="text"
-                    value={franqueadoNome}
-                    onChange={e => syncFranqueadoNome(e.target.value)}
-                    placeholder="Digite o nome do franqueado, condomínio ou lote..."
-                    disabled={salvandoAdd}
-                    style={{
-                      width: '100%',
-                      fontSize: 13,
-                      padding: '8px 10px',
-                      border: '0.5px solid var(--color-border-secondary)',
-                      borderRadius: 'var(--border-radius-md)',
-                      background: 'var(--color-background-primary)',
-                      color: 'var(--color-text-primary)'
-                    }}
-                  />
-                </div>
-              )}
+              {isAreaFranqueado && (() => {
+                const visiveis = franqueadosAtivos.filter(f => !f.oculto)
+                const ocultos = franqueadosAtivos.filter(f => f.oculto)
+                return (
+                  <div style={{ marginBottom: '1.25rem' }}>
+                    <label
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: 'var(--color-text-secondary)',
+                        display: 'block',
+                        marginBottom: 6
+                      }}
+                    >
+                      Franqueado — Condomínio e Lote
+                    </label>
+
+                    <div
+                      style={{
+                        border: '0.5px solid var(--color-border-tertiary)',
+                        borderRadius: 'var(--border-radius-md)',
+                        overflow: 'hidden'
+                      }}
+                    >
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setAcoplamentoDropdownAberto(prev => !prev)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            setAcoplamentoDropdownAberto(prev => !prev)
+                          }
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '9px 12px',
+                          cursor: 'pointer',
+                          borderLeft: acoplamentoFranqueadoId ? '3px solid #1a2e1a' : '3px solid transparent',
+                          background: acoplamentoFranqueadoId ? '#f0f6f0' : 'var(--color-background-primary)',
+                          transition: 'background .15s'
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: '50%',
+                            flexShrink: 0,
+                            border: `1.5px solid ${acoplamentoFranqueadoId ? '#1a2e1a' : 'var(--color-border-secondary)'}`,
+                            background: acoplamentoFranqueadoId ? '#1a2e1a' : 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          {acoplamentoFranqueadoId ? (
+                            <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />
+                          ) : null}
+                        </div>
+                        <span
+                          style={{
+                            flex: 1,
+                            fontSize: 13,
+                            color: acoplamentoFranqueadoId ? '#1a2e1a' : 'var(--color-text-tertiary)',
+                            fontWeight: acoplamentoFranqueadoId ? 500 : 400
+                          }}
+                        >
+                          {acoplamentoFranqueadoId
+                            ? franqueadosAtivos.find(f => String(f.id) === String(acoplamentoFranqueadoId))?.nome ?? '...'
+                            : 'Selecione ou cadastre...'}
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            fontSize: 13,
+                            color: 'var(--color-text-tertiary)',
+                            transition: 'transform .2s',
+                            transform: acoplamentoDropdownAberto ? 'rotate(180deg)' : 'rotate(0deg)',
+                            lineHeight: 1
+                          }}
+                        >
+                          ▾
+                        </span>
+                      </div>
+
+                      {acoplamentoDropdownAberto ? (
+                        <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+                          <div style={{ display: 'flex', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
+                            <input
+                              type="text"
+                              value={novoFranqueadoNome}
+                              onChange={e => setNovoFranqueadoNome(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  void handleAdicionarFranqueado()
+                                }
+                              }}
+                              placeholder="Ex: João Silva — Cond. Horizonte"
+                              disabled={salvandoAdd}
+                              style={{
+                                flex: 1,
+                                padding: '8px 10px',
+                                border: 'none',
+                                fontSize: 13,
+                                background: 'var(--color-background-secondary)',
+                                outline: 'none',
+                                color: 'var(--color-text-primary)'
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void handleAdicionarFranqueado()}
+                              disabled={salvandoAdd}
+                              style={{
+                                padding: '8px 13px',
+                                background: '#1a2e1a',
+                                color: '#fff',
+                                border: 'none',
+                                fontSize: 15,
+                                cursor: 'pointer',
+                                fontWeight: 500
+                              }}
+                            >
+                              +
+                            </button>
+                          </div>
+
+                          {visiveis.map(item => {
+                            const selecionado = String(acoplamentoFranqueadoId) === String(item.id)
+                            const selecionar = () => {
+                              setAcoplamentoFranqueadoId(item.id)
+                              setAcoplamentoDropdownAberto(false)
+                            }
+                            return (
+                              <div
+                                key={item.id}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  borderBottom: '0.5px solid var(--color-border-tertiary)',
+                                  cursor: 'pointer',
+                                  borderLeft: selecionado ? '3px solid #1a2e1a' : '3px solid transparent',
+                                  background: selecionado ? '#f0f6f0' : 'var(--color-background-primary)',
+                                  transition: 'background .1s'
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: 36,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0
+                                  }}
+                                  onClick={selecionar}
+                                >
+                                  <div
+                                    style={{
+                                      width: 14,
+                                      height: 14,
+                                      borderRadius: '50%',
+                                      border: `1.5px solid ${selecionado ? '#1a2e1a' : 'var(--color-border-secondary)'}`,
+                                      background: selecionado ? '#1a2e1a' : 'transparent',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center'
+                                    }}
+                                  >
+                                    {selecionado ? (
+                                      <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />
+                                    ) : null}
+                                  </div>
+                                </div>
+                                <span
+                                  onClick={selecionar}
+                                  style={{
+                                    flex: 1,
+                                    padding: '9px 0',
+                                    fontSize: 13,
+                                    color: selecionado ? '#1a2e1a' : 'var(--color-text-primary)',
+                                    fontWeight: selecionado ? 500 : 400
+                                  }}
+                                >
+                                  {item.nome}
+                                </span>
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={e => {
+                                    e.stopPropagation()
+                                    void handleOcultarFranqueado(item.id)
+                                  }}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      void handleOcultarFranqueado(item.id)
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '9px 12px',
+                                    fontSize: 11,
+                                    color: 'var(--color-text-tertiary)',
+                                    borderLeft: '0.5px solid var(--color-border-tertiary)',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  Ocultar
+                                </span>
+                              </div>
+                            )
+                          })}
+
+                          {visiveis.length === 0 ? (
+                            <div
+                              style={{
+                                padding: 12,
+                                fontSize: 13,
+                                color: 'var(--color-text-tertiary)',
+                                textAlign: 'center'
+                              }}
+                            >
+                              Nenhum franqueado cadastrado.
+                            </div>
+                          ) : null}
+
+                          {ocultos.length > 0 ? (
+                            <>
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => setAcoplamentoOcultosAbertos(prev => !prev)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault()
+                                    setAcoplamentoOcultosAbertos(prev => !prev)
+                                  }
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  padding: '7px 12px',
+                                  background: 'var(--color-background-secondary)',
+                                  cursor: 'pointer',
+                                  borderTop: '0.5px solid var(--color-border-tertiary)'
+                                }}
+                              >
+                                <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>Ocultos</span>
+                                <span style={{ flex: 1 }} />
+                                <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{ocultos.length}</span>
+                                <span
+                                  aria-hidden="true"
+                                  style={{
+                                    fontSize: 12,
+                                    color: 'var(--color-text-tertiary)',
+                                    transition: 'transform .2s',
+                                    transform: acoplamentoOcultosAbertos ? 'rotate(180deg)' : 'rotate(0deg)',
+                                    lineHeight: 1
+                                  }}
+                                >
+                                  ▾
+                                </span>
+                              </div>
+                              {acoplamentoOcultosAbertos
+                                ? ocultos.map(item => (
+                                    <div
+                                      key={item.id}
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        padding: '7px 12px',
+                                        borderTop: '0.5px solid var(--color-border-tertiary)',
+                                        opacity: 0.55,
+                                        background: 'var(--color-background-secondary)'
+                                      }}
+                                    >
+                                      <span
+                                        style={{
+                                          flex: 1,
+                                          fontSize: 12,
+                                          color: 'var(--color-text-secondary)',
+                                          paddingLeft: 36
+                                        }}
+                                      >
+                                        {item.nome}
+                                      </span>
+                                      <span
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => void handleMostrarFranqueado(item.id)}
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault()
+                                            void handleMostrarFranqueado(item.id)
+                                          }
+                                        }}
+                                        style={{
+                                          fontSize: 11,
+                                          color: '#2e7d32',
+                                          padding: '2px 8px',
+                                          border: '0.5px solid #b8c8b8',
+                                          borderRadius: 4,
+                                          background: '#f4f8f4',
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        Mostrar
+                                      </span>
+                                    </div>
+                                  ))
+                                : null}
+                            </>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      {!acoplamentoDropdownAberto && acoplamentoFranqueadoId ? (
+                        <div
+                          style={{
+                            padding: '5px 12px',
+                            fontSize: 11,
+                            color: 'var(--color-text-tertiary)',
+                            borderTop: '0.5px solid var(--color-border-tertiary)',
+                            background: 'var(--color-background-secondary)'
+                          }}
+                        >
+                          Clique para trocar o franqueado
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                )
+              })()}
+
+{isAreaPortfolio && (() => {
+                const visiveis = portfolioFranqueados.filter(f => !f.oculto)
+                const ocultos = portfolioFranqueados.filter(f => f.oculto)
+                return (
+                  <div style={{ marginBottom: '1.25rem' }}>
+                    <label
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: 'var(--color-text-secondary)',
+                        display: 'block',
+                        marginBottom: 6
+                      }}
+                    >
+                      Franqueado — Condomínio e Lote
+                    </label>
+
+                    <div
+                      style={{
+                        border: '0.5px solid var(--color-border-tertiary)',
+                        borderRadius: 'var(--border-radius-md)',
+                        overflow: 'hidden'
+                      }}
+                    >
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setPortfolioDropdownAberto(prev => !prev)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            setPortfolioDropdownAberto(prev => !prev)
+                          }
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '9px 12px',
+                          cursor: 'pointer',
+                          borderLeft: portfolioFranqueadoId ? '3px solid #1a2e1a' : '3px solid transparent',
+                          background: portfolioFranqueadoId ? '#f0f6f0' : 'var(--color-background-primary)',
+                          transition: 'background .15s'
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: '50%',
+                            flexShrink: 0,
+                            border: `1.5px solid ${portfolioFranqueadoId ? '#1a2e1a' : 'var(--color-border-secondary)'}`,
+                            background: portfolioFranqueadoId ? '#1a2e1a' : 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          {portfolioFranqueadoId ? (
+                            <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />
+                          ) : null}
+                        </div>
+                        <span
+                          style={{
+                            flex: 1,
+                            fontSize: 13,
+                            color: portfolioFranqueadoId ? '#1a2e1a' : 'var(--color-text-tertiary)',
+                            fontWeight: portfolioFranqueadoId ? 500 : 400
+                          }}
+                        >
+                          {portfolioFranqueadoId
+                            ? portfolioFranqueados.find(f => String(f.id) === String(portfolioFranqueadoId))?.nome ?? '...'
+                            : 'Selecione ou cadastre...'}
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            fontSize: 13,
+                            color: 'var(--color-text-tertiary)',
+                            transition: 'transform .2s',
+                            transform: portfolioDropdownAberto ? 'rotate(180deg)' : 'rotate(0deg)',
+                            lineHeight: 1
+                          }}
+                        >
+                          ▾
+                        </span>
+                      </div>
+
+                      {portfolioDropdownAberto ? (
+                        <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+                          <div style={{ display: 'flex', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
+                            <input
+                              type="text"
+                              value={novoPortfolioFranqueado}
+                              onChange={e => setNovoPortfolioFranqueado(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  void handleAdicionarPortfolioFranqueado()
+                                }
+                              }}
+                              placeholder="Ex: João Silva — Cond. Horizonte"
+                              disabled={salvandoAdd}
+                              style={{
+                                flex: 1,
+                                padding: '8px 10px',
+                                border: 'none',
+                                fontSize: 13,
+                                background: 'var(--color-background-secondary)',
+                                outline: 'none',
+                                color: 'var(--color-text-primary)'
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void handleAdicionarPortfolioFranqueado()}
+                              disabled={salvandoAdd}
+                              style={{
+                                padding: '8px 13px',
+                                background: '#1a2e1a',
+                                color: '#fff',
+                                border: 'none',
+                                fontSize: 15,
+                                cursor: 'pointer',
+                                fontWeight: 500
+                              }}
+                            >
+                              +
+                            </button>
+                          </div>
+
+                          {visiveis.map(item => {
+                            const selecionado = String(portfolioFranqueadoId) === String(item.id)
+                            const selecionar = () => {
+                              setPortfolioFranqueadoId(item.id)
+                              setPortfolioDropdownAberto(false)
+                            }
+                            return (
+                              <div
+                                key={item.id}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  borderBottom: '0.5px solid var(--color-border-tertiary)',
+                                  cursor: 'pointer',
+                                  borderLeft: selecionado ? '3px solid #1a2e1a' : '3px solid transparent',
+                                  background: selecionado ? '#f0f6f0' : 'var(--color-background-primary)',
+                                  transition: 'background .1s'
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: 36,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0
+                                  }}
+                                  onClick={selecionar}
+                                >
+                                  <div
+                                    style={{
+                                      width: 14,
+                                      height: 14,
+                                      borderRadius: '50%',
+                                      border: `1.5px solid ${selecionado ? '#1a2e1a' : 'var(--color-border-secondary)'}`,
+                                      background: selecionado ? '#1a2e1a' : 'transparent',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center'
+                                    }}
+                                  >
+                                    {selecionado ? (
+                                      <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />
+                                    ) : null}
+                                  </div>
+                                </div>
+                                <span
+                                  onClick={selecionar}
+                                  style={{
+                                    flex: 1,
+                                    padding: '9px 0',
+                                    fontSize: 13,
+                                    color: selecionado ? '#1a2e1a' : 'var(--color-text-primary)',
+                                    fontWeight: selecionado ? 500 : 400
+                                  }}
+                                >
+                                  {item.nome}
+                                </span>
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={e => {
+                                    e.stopPropagation()
+                                    void handleOcultarPortfolioFranqueado(item.id)
+                                  }}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      void handleOcultarPortfolioFranqueado(item.id)
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '9px 12px',
+                                    fontSize: 11,
+                                    color: 'var(--color-text-tertiary)',
+                                    borderLeft: '0.5px solid var(--color-border-tertiary)',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  Ocultar
+                                </span>
+                              </div>
+                            )
+                          })}
+
+                          {visiveis.length === 0 ? (
+                            <div
+                              style={{
+                                padding: 12,
+                                fontSize: 13,
+                                color: 'var(--color-text-tertiary)',
+                                textAlign: 'center'
+                              }}
+                            >
+                              Nenhum franqueado cadastrado.
+                            </div>
+                          ) : null}
+
+                          {ocultos.length > 0 ? (
+                            <>
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => setPortfolioOcultosAbertos(prev => !prev)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault()
+                                    setPortfolioOcultosAbertos(prev => !prev)
+                                  }
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  padding: '7px 12px',
+                                  background: 'var(--color-background-secondary)',
+                                  cursor: 'pointer',
+                                  borderTop: '0.5px solid var(--color-border-tertiary)'
+                                }}
+                              >
+                                <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>Ocultos</span>
+                                <span style={{ flex: 1 }} />
+                                <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{ocultos.length}</span>
+                                <span
+                                  aria-hidden="true"
+                                  style={{
+                                    fontSize: 12,
+                                    color: 'var(--color-text-tertiary)',
+                                    transition: 'transform .2s',
+                                    transform: portfolioOcultosAbertos ? 'rotate(180deg)' : 'rotate(0deg)',
+                                    lineHeight: 1
+                                  }}
+                                >
+                                  ▾
+                                </span>
+                              </div>
+                              {portfolioOcultosAbertos
+                                ? ocultos.map(item => (
+                                    <div
+                                      key={item.id}
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        padding: '7px 12px',
+                                        borderTop: '0.5px solid var(--color-border-tertiary)',
+                                        opacity: 0.55,
+                                        background: 'var(--color-background-secondary)'
+                                      }}
+                                    >
+                                      <span
+                                        style={{
+                                          flex: 1,
+                                          fontSize: 12,
+                                          color: 'var(--color-text-secondary)',
+                                          paddingLeft: 36
+                                        }}
+                                      >
+                                        {item.nome}
+                                      </span>
+                                      <span
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => void handleMostrarPortfolioFranqueado(item.id)}
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault()
+                                            void handleMostrarPortfolioFranqueado(item.id)
+                                          }
+                                        }}
+                                        style={{
+                                          fontSize: 11,
+                                          color: '#2e7d32',
+                                          padding: '2px 8px',
+                                          border: '0.5px solid #b8c8b8',
+                                          borderRadius: 4,
+                                          background: '#f4f8f4',
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        Mostrar
+                                      </span>
+                                    </div>
+                                  ))
+                                : null}
+                            </>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      {!portfolioDropdownAberto && portfolioFranqueadoId ? (
+                        <div
+                          style={{
+                            padding: '5px 12px',
+                            fontSize: 11,
+                            color: 'var(--color-text-tertiary)',
+                            borderTop: '0.5px solid var(--color-border-tertiary)',
+                            background: 'var(--color-background-secondary)'
+                          }}
+                        >
+                          Clique para trocar o franqueado
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                )
+              })()}
 
               <div className="gantt-add-drawer-atividades-block">
                 <div className="gantt-add-drawer-col-title gantt-add-drawer-col-title--row">
@@ -5636,6 +9524,22 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
             </div>
 
             <div className="workload-drawer-form-inner gantt-add-drawer-bottom">
+              <style>{`
+                .gantt-add-drawer-bottom .responsaveis-multi-trigger,
+                .gantt-add-drawer-bottom .responsaveis-multi-panel {
+                  background: var(--color-background-primary, #ffffff) !important;
+                }
+                .gantt-add-drawer-bottom .responsaveis-multi-novo-row .btn {
+                  padding: 7px 16px !important;
+                  border: 0.5px solid var(--color-border-secondary) !important;
+                  border-radius: var(--border-radius-md) !important;
+                  background: var(--color-background-primary) !important;
+                  color: var(--color-text-primary) !important;
+                  font-size: 13px !important;
+                  cursor: pointer !important;
+                  box-shadow: none !important;
+                }
+              `}</style>
               <div className="form-group gantt-add-drawer-field">
                 <label id="gantt-add-resp-label" htmlFor="gantt-add-resp">Responsável</label>
                 <ResponsaveisAreaMultiSelect
@@ -6075,7 +9979,14 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                       ))}
                       <col style={{ width: 96 }} />
                     </colgroup>
-                    <thead>
+                    <thead
+                      style={{
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10,
+                        backgroundColor: 'var(--color-background-primary)'
+                      }}
+                    >
                       <tr>
                         <th
                           scope="col"
@@ -6115,17 +10026,18 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                             <th
                               key={s}
                               scope="col"
+                              className={atual ? 'gantt-col-semana-atual' : undefined}
                               title={`Semana ${s}`}
                               style={{
                                 textAlign: 'center',
                                 padding: '5px 6px',
-                                color: 'var(--hdr-text)',
+                                color: atual ? '#ffffff' : 'var(--hdr-text)',
                                 fontSize: 10,
                                 fontWeight: 600,
                                 textTransform: 'uppercase',
                                 letterSpacing: '0.04em',
                                 background: atual ? '#3A5528' : 'var(--comp-mid)',
-                                borderRight: '0.5px solid rgba(255,255,255,0.08)'
+                                ...(atual ? GANTT_BORDA_SEMANA_ATUAL_HDR : { borderRight: '0.5px solid rgba(255,255,255,0.08)' })
                               }}
                             >
                               {s}
@@ -6133,8 +10045,8 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                               <span
                                 style={{
                                   fontSize: 9,
-                                  fontWeight: 400,
-                                  color: 'var(--hdr-sub)',
+                                  fontWeight: 600,
+                                  color: atual ? '#ffffff' : 'var(--hdr-sub)',
                                   display: 'block',
                                   marginTop: 1,
                                   textTransform: 'none',
@@ -6187,6 +10099,115 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
           </>
         )}
       </div>
-    </>
+
+      {modalExclusao && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(29,47,37,0.25)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 50
+          }}
+          onMouseDown={e => {
+            if (e.target === e.currentTarget) setModalExclusao(null)
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--color-background-primary)',
+              borderRadius: 'var(--border-radius-lg)',
+              border: '0.5px solid var(--color-border-tertiary)',
+              width: 400,
+              maxWidth: '90vw',
+              overflow: 'hidden'
+            }}
+            onMouseDown={e => e.stopPropagation()}
+          >
+            <div style={{ padding: '14px 20px', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
+              <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                {modalExclusao.tipo === 'confirmar' ? 'Excluir planejamento' : 'Ação não permitida'}
+              </span>
+            </div>
+
+            <div
+              style={{
+                padding: '16px 20px',
+                fontSize: 13,
+                color: 'var(--color-text-secondary)',
+                lineHeight: 1.5
+              }}
+            >
+              {modalExclusao.tipo === 'confirmar' ? (
+                modalExclusao.mensagemAdmin ? (
+                  <span style={{ whiteSpace: 'pre-line' }}>{modalExclusao.mensagemAdmin}</span>
+                ) : (
+                  <>
+                    Deseja excluir o planejamento de{' '}
+                    <strong style={{ color: 'var(--color-text-primary)' }}>{modalExclusao.nomeAtividade}</strong>
+                    ? Esta ação não pode ser desfeita.
+                  </>
+                )
+              ) : (
+                modalExclusao.mensagem
+              )}
+            </div>
+
+            <div
+              style={{
+                padding: '14px 20px',
+                borderTop: '0.5px solid var(--color-border-tertiary)',
+                background: 'var(--color-background-secondary)',
+                display: 'flex',
+                gap: 8,
+                justifyContent: 'flex-end'
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setModalExclusao(null)}
+                style={{
+                  padding: '7px 16px',
+                  border: '0.5px solid var(--color-border-secondary)',
+                  borderRadius: 'var(--border-radius-md)',
+                  background: 'var(--color-background-primary)',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  color: 'var(--color-text-secondary)'
+                }}
+              >
+                {modalExclusao.tipo === 'confirmar' ? 'Cancelar' : 'Fechar'}
+              </button>
+              {modalExclusao.tipo === 'confirmar' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const { planejamentoIds, origemCronogramaLegado } = modalExclusao
+                    setModalExclusao(null)
+                    void removerAtividade(planejamentoIds, { origemCronogramaLegado })
+                  }}
+                  style={{
+                    padding: '7px 16px',
+                    border: 'none',
+                    borderRadius: 'var(--border-radius-md)',
+                    background: '#A32D2D',
+                    color: '#fff',
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    fontWeight: 500
+                  }}
+                >
+                  Excluir
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }

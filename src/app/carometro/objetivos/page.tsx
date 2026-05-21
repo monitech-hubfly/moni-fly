@@ -152,8 +152,8 @@ export default function Page() {
 
   return (
     <>
-      <h1>Objetivos / Metas</h1>
-      <p>Os objetivos são definidos em reunião com a área, e a própria área pode cadastrá-los aqui. Metas numéricas são opcionais.</p>
+      <h1 className="carometro-page-title">Objetivos / Metas</h1>
+      <p className="carometro-page-subtitle">Os objetivos são definidos em reunião com a área, e a própria área pode cadastrá-los aqui. Metas numéricas são opcionais.</p>
       {error && <div className="alert alert-error">{error}</div>}
       <div className="page-actions" style={{ alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
         <div className="form-group" style={{ marginBottom: 0 }}>

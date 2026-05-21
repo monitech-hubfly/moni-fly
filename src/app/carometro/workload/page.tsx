@@ -468,8 +468,8 @@ export default function Page() {
     <div className="wl-workload-page workload-novo wl-novo-dois-paineis">
       <header className="workload-header wl-header wl-novo-header">
         <div>
-          <h1 className="workload-title">Workload</h1>
-          <p className="workload-subtitle wl-subtitle">
+          <h1 className="carometro-page-title">Workload</h1>
+          <p className="carometro-page-subtitle">
             Planejamento real versus simulação de capacidade (40 h/semana por recurso, semanas ISO).
           </p>
         </div>

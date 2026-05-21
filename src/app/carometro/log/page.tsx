@@ -118,10 +118,10 @@ export default function Page() {
   })
 
   return (
-    <div style={{ padding: '24px', maxWidth: 1400, margin: '0 auto' }}>
+    <div style={{ maxWidth: 1400, margin: '0 auto' }}>
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 600, color: '#1a2e1a', margin: 0 }}>Log de Auditoria</h1>
-        <p style={{ color: '#6b7280', fontSize: 13, margin: '4px 0 0' }}>
+        <h1 className="carometro-page-title">Log de Auditoria</h1>
+        <p className="carometro-page-subtitle">
           Rastreio completo de inserções, edições e exclusões realizadas na plataforma
         </p>
       </div>

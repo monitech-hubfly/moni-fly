@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { registrarLog } from '@/hooks/useAuditLog'
@@ -10,7 +11,7 @@ import { useAdmin } from '@/context/AdminContext'
 import WorkloadFormDrawer from '@/components/WorkloadFormDrawer'
 import DefinirMetaDrawer from '@/components/DefinirMetaDrawer'
 import MetaCicloTipoFields from '@/components/MetaCicloTipoFields'
-import CalendarioComSemanas from '@/components/CalendarioComSemanas'
+import IndicadorPrazoAtingivelField from '@/components/IndicadorPrazoAtingivelField'
 import { normalizarSemaforo, faixaTextoResumo, ESCALA_OPCOES, escalaTipoDoIndicador } from '@/utils/semaforoFaixas'
 import { parseSemanaMetaTexto } from '@/utils/metaCiclo'
 import { concluirIndicadorAtingivel } from '@/utils/indicadorConquista'
@@ -40,6 +41,10 @@ const OPERADORES = [
 ]
 
 const OPERADORES_SO_IGUAL = [{ label: '=', value: 'eq' }]
+
+/** Colunas reais da tabela `indicadores` (nome — não descricao). */
+const INDICADORES_SELECT_COLUNAS =
+  'id, area_id, tarefa_id, nome, unidade, meta_valor, meta_tipo, ordem, ativo, status, tipo, semaforo_faixas, objetivo_id, meta_ciclo_tipo, meta_unidade, indicador_chave, regra_verde_escuro, regra_verde_claro, regra_amarelo, regra_verde_escuro_op, regra_verde_claro_op, regra_amarelo_op, criado_em'
 
 function faixasDefault() {
   return [
@@ -158,6 +163,210 @@ function indicadorModalPrazoValido(ano, semana) {
   )
 }
 
+function limiteFaixaPreenchido(limite) {
+  return limite !== '' && limite != null && String(limite).trim() !== ''
+}
+
+/** Valida as 4 faixas do semáforo (todas montadas no DOM; independente do scroll). */
+function validarFaixasIndicadorModal(modalFaixas, modalEscala, defEscalaModal) {
+  for (let i = 0; i < 4; i++) {
+    const titulo = FAIXA_LABELS[i]?.titulo || `Faixa ${i + 1}`
+    const limite = modalFaixas[i]?.limite
+    if (!limiteFaixaPreenchido(limite)) {
+      return { ok: false, motivo: `Preencha o limite ou valor da ${titulo}.` }
+    }
+    if (modalEscala === 'percentual' || defEscalaModal?.modo === 'percentual') {
+      const n = Number(String(limite).replace(',', '.'))
+      if (!Number.isFinite(n) || n < 0 || n > 100) {
+        return { ok: false, motivo: `${titulo}: informe um percentual entre 0 e 100.` }
+      }
+    } else if (modalEscala === 'numero' || defEscalaModal?.modo === 'numero') {
+      const n = Number(String(limite).replace(',', '.'))
+      if (!Number.isFinite(n)) {
+        return { ok: false, motivo: `${titulo}: informe um limite numérico válido.` }
+      }
+    }
+  }
+  return { ok: true, motivo: '' }
+}
+
+function validarIndicadorModalForm({
+  isAdmin,
+  areaId,
+  modalDescricao,
+  modalModo,
+  metasArea,
+  modalObjetivoId,
+  modalMetaCicloTipo,
+  modalIndPrazoAno,
+  modalIndPrazoSemana,
+  modalEscala,
+  modalFaixas,
+  defEscalaModal
+}) {
+  if (!isAdmin) {
+    return { ok: false, motivo: 'Somente usuários com papel admin podem criar ou editar indicadores.' }
+  }
+  if (!areaId) {
+    return { ok: false, motivo: 'Selecione uma área na barra superior da página.' }
+  }
+  if (!String(modalDescricao || '').trim()) {
+    return { ok: false, motivo: 'Informe a descrição do indicador.' }
+  }
+  if (modalModo === 'criar' && metasArea.length === 0) {
+    return {
+      ok: false,
+      motivo: 'Não há metas cadastradas para esta área. Use «Definir metas» ou o Planejamento (Gantt) antes de criar indicadores.'
+    }
+  }
+  if (metasArea.length > 0 && !modalObjetivoId) {
+    return { ok: false, motivo: 'Selecione a meta à qual este indicador pertence.' }
+  }
+  const cicloTipo = modalMetaCicloTipo === 'atingivel' ? 'atingivel' : 'recorrente'
+  if (cicloTipo === 'atingivel' && !indicadorModalPrazoValido(modalIndPrazoAno, modalIndPrazoSemana)) {
+    return { ok: false, motivo: 'Selecione o prazo (ano e semana) para indicador atingível.' }
+  }
+  if (typeof modalEscala === 'string' && modalEscala.startsWith('custom:')) {
+    const def = getEscalaCustom(modalEscala.slice(7))
+    if (!def) {
+      return {
+        ok: false,
+        motivo: 'A escala personalizada não foi encontrada neste navegador. Crie-a de novo ou escolha outro tipo.'
+      }
+    }
+  }
+  return validarFaixasIndicadorModal(modalFaixas, modalEscala, defEscalaModal)
+}
+
+function erroProvavelColunaStatus(msg) {
+  const m = String(msg || '').toLowerCase()
+  return m.includes('status') && (m.includes('column') || m.includes('could not find') || m.includes('schema cache'))
+}
+
+function erroSchemaColunaOuOrdem(msg, col) {
+  const m = String(msg || '').toLowerCase()
+  const c = String(col || '').toLowerCase()
+  return (
+    (c && m.includes(c)) ||
+    m.includes('schema cache') ||
+    m.includes('could not find') ||
+    m.includes('does not exist') ||
+    m.includes('pgrst')
+  )
+}
+
+function filtrarIndicadoresNaoConcluidos(lista) {
+  return (lista || []).filter(i => String(i?.status || '').toLowerCase() !== 'concluido')
+}
+
+async function buscarTarefasPorArea(supabase, areaId) {
+  let r = await supabase
+    .from('tarefas')
+    .select('id, nome, ordem, area_id')
+    .eq('area_id', areaId)
+    .order('ordem')
+    .order('criado_em')
+  if (!r.error) return r
+  if (erroSchemaColunaOuOrdem(r.error.message, 'criado_em')) {
+    r = await supabase
+      .from('tarefas')
+      .select('id, nome, ordem, area_id')
+      .eq('area_id', areaId)
+      .order('ordem')
+    if (!r.error) return r
+  }
+  if (erroSchemaColunaOuOrdem(r.error.message, 'ordem')) {
+    r = await supabase
+      .from('tarefas')
+      .select('id, nome, area_id')
+      .eq('area_id', areaId)
+  }
+  return r
+}
+
+async function buscarIndicadoresPorArea(supabase, areaId) {
+  let migracaoArea = false
+  const tentar = async (comStatusAtivo) => {
+    let q = supabase.from('indicadores').select(INDICADORES_SELECT_COLUNAS).eq('area_id', areaId)
+    if (comStatusAtivo) q = q.eq('status', 'ativo')
+    let r = await q.order('ordem').order('criado_em')
+    if (!r.error) return r
+    if (erroSchemaColunaOuOrdem(r.error.message, 'criado_em')) {
+      q = supabase.from('indicadores').select(INDICADORES_SELECT_COLUNAS).eq('area_id', areaId)
+      if (comStatusAtivo) q = q.eq('status', 'ativo')
+      r = await q.order('ordem')
+      if (!r.error) return r
+    }
+    if (erroSchemaColunaOuOrdem(r.error.message, 'ordem')) {
+      q = supabase.from('indicadores').select(INDICADORES_SELECT_COLUNAS).eq('area_id', areaId)
+      if (comStatusAtivo) q = q.eq('status', 'ativo')
+      r = await q
+    }
+    return r
+  }
+
+  let r = await tentar(true)
+  console.log('[ind:query]', { data: r.data, error: r.error, areaId })
+  if (r.error) {
+    if (String(r.error.message || '').includes('area_id')) {
+      return { data: [], error: null, migracaoArea: true }
+    }
+    if (erroProvavelColunaStatus(r.error.message)) {
+      r = await tentar(false)
+      if (!r.error) {
+        return { data: filtrarIndicadoresNaoConcluidos(r.data), error: null, migracaoArea: false }
+      }
+    }
+    return { data: [], error: r.error, migracaoArea: false }
+  }
+
+  let lista = r.data || []
+  if (lista.length === 0) {
+    const r2 = await tentar(false)
+    if (!r2.error && (r2.data || []).length > 0) {
+      lista = filtrarIndicadoresNaoConcluidos(r2.data)
+    }
+  }
+
+  return { data: lista, error: null, migracaoArea }
+}
+
+async function buscarIndicadoresPorTarefas(supabase, tarefaIds) {
+  const tentar = async (comStatusAtivo) => {
+    let q = supabase.from('indicadores').select(INDICADORES_SELECT_COLUNAS).in('tarefa_id', tarefaIds)
+    if (comStatusAtivo) q = q.eq('status', 'ativo')
+    let r = await q.order('ordem').order('criado_em')
+    if (!r.error) return r
+    if (erroSchemaColunaOuOrdem(r.error.message, 'criado_em')) {
+      q = supabase.from('indicadores').select(INDICADORES_SELECT_COLUNAS).in('tarefa_id', tarefaIds)
+      if (comStatusAtivo) q = q.eq('status', 'ativo')
+      r = await q.order('ordem')
+      if (!r.error) return r
+    }
+    if (erroSchemaColunaOuOrdem(r.error.message, 'ordem')) {
+      q = supabase.from('indicadores').select(INDICADORES_SELECT_COLUNAS).in('tarefa_id', tarefaIds)
+      if (comStatusAtivo) q = q.eq('status', 'ativo')
+      r = await q
+    }
+    return r
+  }
+
+  let r = await tentar(true)
+  if (r.error && erroProvavelColunaStatus(r.error.message)) {
+    r = await tentar(false)
+    if (!r.error) return { data: filtrarIndicadoresNaoConcluidos(r.data), error: null }
+  }
+  if (r.error) return { data: [], error: r.error }
+  let lista = r.data || []
+  if (lista.length === 0) {
+    const r2 = await tentar(false)
+    if (!r2.error && (r2.data || []).length > 0) {
+      lista = filtrarIndicadoresNaoConcluidos(r2.data)
+    }
+  }
+  return { data: lista, error: null }
+}
+
 export default function Page() {
   const { isAdmin } = useAdmin()
   const supabase = createClient()
@@ -194,6 +403,7 @@ export default function Page() {
   const [escalasCustom, setEscalasCustom] = useState(() => listarEscalasCustom())
   const [metaDrawerAberto, setMetaDrawerAberto] = useState(false)
   const [concluindoIndicadorId, setConcluindoIndicadorId] = useState(null)
+  const [confirmarConclusaoIndicador, setConfirmarConclusaoIndicador] = useState(null)
   const [modalNovaEscalaAberto, setModalNovaEscalaAberto] = useState(false)
   const [novaEscalaNome, setNovaEscalaNome] = useState('')
   /** @type {'lista'|'percentual'|'numero'} */
@@ -201,6 +411,8 @@ export default function Page() {
   const [novaEscalaValores, setNovaEscalaValores] = useState(['', ''])
   const [salvandoNovaEscala, setSalvandoNovaEscala] = useState(false)
   const [erroNovaEscala, setErroNovaEscala] = useState('')
+  const [modalDrawerErro, setModalDrawerErro] = useState(null)
+  const [portalMontado, setPortalMontado] = useState(false)
   const modalTituloId = 'indicadores-modal-title'
   const metaSelectRef = useRef(null)
   const descInputRef = useRef(null)
@@ -240,6 +452,52 @@ export default function Page() {
     return null
   }, [modalEscala])
 
+  const validacaoModalIndicador = useMemo(
+    () =>
+      validarIndicadorModalForm({
+        isAdmin,
+        areaId,
+        modalDescricao,
+        modalModo,
+        metasArea,
+        modalObjetivoId,
+        modalMetaCicloTipo,
+        modalIndPrazoAno,
+        modalIndPrazoSemana,
+        modalEscala,
+        modalFaixas,
+        defEscalaModal
+      }),
+    [
+      isAdmin,
+      areaId,
+      modalDescricao,
+      modalModo,
+      metasArea,
+      modalObjetivoId,
+      modalMetaCicloTipo,
+      modalIndPrazoAno,
+      modalIndPrazoSemana,
+      modalEscala,
+      modalFaixas,
+      defEscalaModal
+    ]
+  )
+
+  useEffect(() => {
+    if (!modalAberto) return
+    setModalDrawerErro(null)
+  }, [
+    modalAberto,
+    modalDescricao,
+    modalObjetivoId,
+    modalMetaCicloTipo,
+    modalIndPrazoAno,
+    modalIndPrazoSemana,
+    modalEscala,
+    modalFaixas
+  ])
+
   useEffect(() => {
     const fn = () => setEscalasCustom(listarEscalasCustom())
     window.addEventListener('carometro-escalas-custom-changed', fn)
@@ -251,18 +509,23 @@ export default function Page() {
   }, [])
 
   useEffect(() => {
+    setPortalMontado(true)
+  }, [])
+
+  useEffect(() => {
     listarAreas(supabase, 'id, nome').then(({ data }) => {
       const list = data || []
       setAreas(list)
       if (list.length && !areaFromUrl && !areaId) setAreaId(list[0].id)
-      if (list.length && areaFromUrl) setAreaId(areaFromUrl)
+      if (areaFromUrl) setAreaId(areaFromUrl)
     })
-  }, [])
+  }, [areaFromUrl])
   useEffect(() => {
     if (areaFromUrl && areaFromUrl !== areaId) setAreaId(areaFromUrl)
-  }, [areaFromUrl])
+  }, [areaFromUrl, areaId])
 
   const carregar = useCallback(async () => {
+    console.log('[indicadores:debug] areaId:', areaId)
     if (!areaId) {
       setTarefas([])
       setIndicadoresByTarefa({})
@@ -273,15 +536,16 @@ export default function Page() {
     setLoading(true)
     setError(null)
     try {
-      const { data: tfs, error: e } = await supabase
-        .from('tarefas')
-        .select('id, nome, ordem, area_id')
-        .eq('area_id', areaId)
-        .order('ordem')
-        .order('criado_em')
-      if (e) throw e
-      const listaT = tfs || []
-      setTarefas(listaT)
+      const { data: tfs, error: e } = await buscarTarefasPorArea(supabase, areaId)
+      let listaT = []
+      if (e) {
+        console.warn('[indicadores:debug] tarefas erro:', e.message)
+        setTarefas([])
+      } else {
+        listaT = tfs || []
+        console.log('[indicadores:debug] tarefas:', listaT.length)
+        setTarefas(listaT)
+      }
       let mesas = []
       try {
         let { data: om, error: em } = await supabase
@@ -290,7 +554,7 @@ export default function Page() {
           .eq('area_id', areaId)
           .eq('status', 'ativo')
           .order('ordem', { ascending: true })
-        if (em && String(em.message || '').toLowerCase().includes('status')) {
+        if (em && erroProvavelColunaStatus(em.message)) {
           const r0 = await supabase
             .from('objetivos')
             .select('id, descricao, ordem, meta_unidade')
@@ -300,80 +564,44 @@ export default function Page() {
           em = r0.error
         }
         if (!em) mesas = om || []
-      } catch {
+      } catch (errObj) {
+        console.warn('[indicadores:debug] objetivos fallback:', errObj?.message || errObj)
         mesas = []
       }
       setMetasArea(mesas)
       const tarefaIds = listaT.map(t => t.id)
-      // Indicadores da área (novo modelo)
-      let areaInds = []
-      try {
-        let { data: indsArea, error: errArea } = await supabase
-          .from('indicadores')
-          .select('*')
-          .eq('area_id', areaId)
-          .eq('status', 'ativo')
-          .order('ordem')
-          .order('criado_em')
-        if (errArea && String(errArea.message || '').toLowerCase().includes('status')) {
-          const r1 = await supabase
-            .from('indicadores')
-            .select('*')
-            .eq('area_id', areaId)
-            .order('ordem')
-            .order('criado_em')
-          indsArea = r1.data
-          errArea = r1.error
-          if (!errArea && Array.isArray(indsArea)) {
-            indsArea = indsArea.filter(i => String(i?.status || '').toLowerCase() !== 'concluido')
-          }
-        }
-        if (errArea) throw errArea
-        areaInds = indsArea || []
-        setMigracaoIndicadoresArea(false)
-      } catch (errArea) {
-        if (String(errArea?.message || errArea).includes('area_id')) {
-          setMigracaoIndicadoresArea(true)
-          areaInds = []
-        } else {
-          throw errArea
-        }
-      }
-      setIndicadoresArea(areaInds)
 
-      // Indicadores por comportamento (modelo legado)
+      const resArea = await buscarIndicadoresPorArea(supabase, areaId)
+      if (resArea.error) {
+        console.warn('[indicadores:debug] indicadores area erro:', resArea.error.message)
+        setError(resArea.error.message)
+        setIndicadoresArea([])
+        setMigracaoIndicadoresArea(false)
+      } else {
+        console.log('[indicadores:debug] indicadores area:', (resArea.data || []).length)
+        setIndicadoresArea(resArea.data || [])
+        setMigracaoIndicadoresArea(Boolean(resArea.migracaoArea))
+      }
+
       if (tarefaIds.length === 0) {
         setIndicadoresByTarefa({})
         return
       }
-      let { data: inds, error: errInd } = await supabase
-        .from('indicadores')
-        .select('*')
-        .in('tarefa_id', tarefaIds)
-        .eq('status', 'ativo')
-        .order('ordem')
-        .order('criado_em')
-      if (errInd && String(errInd.message || '').toLowerCase().includes('status')) {
-        const r2 = await supabase
-          .from('indicadores')
-          .select('*')
-          .in('tarefa_id', tarefaIds)
-          .order('ordem')
-          .order('criado_em')
-        inds = r2.data
-        errInd = r2.error
-        if (!errInd && Array.isArray(inds)) {
-          inds = inds.filter(i => String(i?.status || '').toLowerCase() !== 'concluido')
-        }
+      const resLegado = await buscarIndicadoresPorTarefas(supabase, tarefaIds)
+      if (resLegado.error) {
+        console.warn('[indicadores:debug] indicadores tarefa erro:', resLegado.error.message)
+        setIndicadoresByTarefa({})
+      } else {
+        console.log('[indicadores:debug] indicadores por tarefa:', (resLegado.data || []).length)
+        const byTarefa = {}
+        ;(resLegado.data || []).forEach(i => {
+          if (!byTarefa[i.tarefa_id]) byTarefa[i.tarefa_id] = []
+          byTarefa[i.tarefa_id].push(i)
+        })
+        setIndicadoresByTarefa(byTarefa)
       }
-      if (errInd) throw errInd
-      const byTarefa = {}
-      ;(inds || []).forEach(i => {
-        if (!byTarefa[i.tarefa_id]) byTarefa[i.tarefa_id] = []
-        byTarefa[i.tarefa_id].push(i)
-      })
-      setIndicadoresByTarefa(byTarefa)
     } catch (err) {
+      console.error('[indicadores:debug] carregar falhou:', err)
       setError(err?.message || String(err))
       setIndicadoresByTarefa({})
       setIndicadoresArea([])
@@ -384,6 +612,17 @@ export default function Page() {
 
   useEffect(() => { carregar() }, [carregar])
 
+  function solicitarConclusaoIndicador(ind) {
+    if (!ind?.id) return
+    const aid = ind.area_id || areaId
+    if (!aid) {
+      setError('Área não identificada para concluir este indicador.')
+      return
+    }
+    if (String(ind.status || '').toLowerCase() === 'concluido') return
+    setConfirmarConclusaoIndicador({ indicador: ind })
+  }
+
   async function handleConcluirIndicador(ind) {
     if (!ind?.id) return
     const aid = ind.area_id || areaId
@@ -392,8 +631,6 @@ export default function Page() {
       return
     }
     if (String(ind.status || '').toLowerCase() === 'concluido') return
-    const nome = String(ind.nome || '').trim() || '—'
-    if (!window.confirm(`Concluir o indicador atingível "${nome}"? O registro irá para Conquistas e ele sairá da lista ativa.`)) return
     setConcluindoIndicadorId(ind.id)
     setError(null)
     const r = await concluirIndicadorAtingivel(supabase, ind, aid)
@@ -423,8 +660,15 @@ export default function Page() {
     return () => clearTimeout(t)
   }, [modalAberto, metasArea.length])
 
+  useEffect(() => {
+    if (!isAdmin && modalAberto) setModalAberto(false)
+    if (!isAdmin && modalNovaEscalaAberto) fecharModalNovaEscala()
+  }, [isAdmin, modalAberto, modalNovaEscalaAberto])
+
   function abrirModalCriar() {
+    if (!isAdmin) return
     setError(null)
+    setModalDrawerErro(null)
     setModalModo('criar')
     setModalEditId(null)
     setModalDescricao('')
@@ -437,8 +681,9 @@ export default function Page() {
   }
 
   function abrirModalEditar(ind) {
-    if (!ind) return
+    if (!isAdmin || !ind) return
     setError(null)
+    setModalDrawerErro(null)
     setModalModo('editar')
     setModalEditId(ind.id)
     setModalDescricao(ind.nome || '')
@@ -460,6 +705,7 @@ export default function Page() {
   }
 
   async function confirmarNovaEscala() {
+    if (!isAdmin) return
     setErroNovaEscala('')
     setSalvandoNovaEscala(true)
     const res = salvarNovaEscalaCustom({
@@ -527,29 +773,34 @@ export default function Page() {
   }
 
   async function salvarIndicadorModal() {
-    if (!isAdmin) return
-    if (!areaId || !modalDescricao.trim()) {
-      setError('Informe a descrição do indicador.')
+    const validacao = validarIndicadorModalForm({
+      isAdmin,
+      areaId,
+      modalDescricao,
+      modalModo,
+      metasArea,
+      modalObjetivoId,
+      modalMetaCicloTipo,
+      modalIndPrazoAno,
+      modalIndPrazoSemana,
+      modalEscala,
+      modalFaixas,
+      defEscalaModal
+    })
+    if (!validacao.ok) {
+      setModalDrawerErro(validacao.motivo)
+      setError(validacao.motivo)
       return
     }
-    if (modalModo === 'criar' && metasArea.length === 0) {
-      setError('Não há metas cadastradas para esta área. Use «Definir metas» ou o Planejamento (Gantt) para cadastrar metas antes de criar indicadores.')
-      return
-    }
-    if (metasArea.length > 0 && !modalObjetivoId) {
-      setError('Selecione a meta à qual este indicador pertence.')
-      return
-    }
+    setModalDrawerErro(null)
+    setError(null)
+
     const cicloTipo = modalMetaCicloTipo === 'atingivel' ? 'atingivel' : 'recorrente'
     const exigePrazoInd = cicloTipo === 'atingivel'
     const semanaNumSalvarInd =
       exigePrazoInd && indicadorModalPrazoValido(modalIndPrazoAno, modalIndPrazoSemana)
         ? Number(String(modalIndPrazoSemana).trim())
         : null
-    if (exigePrazoInd && semanaNumSalvarInd == null) {
-      setError('Selecione o prazo (ano e semana) para indicador atingível.')
-      return
-    }
     const metaUnidadeInd =
       exigePrazoInd && semanaNumSalvarInd != null ? `S${semanaNumSalvarInd}` : null
 
@@ -562,7 +813,9 @@ export default function Page() {
       const cid = modalEscala.slice(7)
       const def = getEscalaCustom(cid)
       if (!def) {
-        setError('A escala personalizada não foi encontrada neste navegador. Crie-a de novo ou escolha outro tipo.')
+        const msg = 'A escala personalizada não foi encontrada neste navegador. Crie-a de novo ou escolha outro tipo.'
+        setModalDrawerErro(msg)
+        setError(msg)
         return
       }
       tipoDb = def.modo === 'percentual' ? 'percentual' : def.modo === 'numero' ? 'quantidade' : 'outro'
@@ -620,6 +873,7 @@ export default function Page() {
     }
 
     let res = await aplicarSalvar(working)
+    console.log('[salvar:result]', { data: res.data, error: res.error, modalModo, payload: working })
     err = res.error
     if (err?.message?.includes('objetivo_id')) {
       setMigracaoObjetivoIndicador(true)
@@ -659,12 +913,15 @@ export default function Page() {
     }
     if (err && (err.message?.includes('area_id') || err.message?.includes('tarefa_id') || err.message?.includes('null value'))) {
       setMigracaoIndicadoresArea(true)
-      setError('Seu banco ainda está no modelo antigo (indicador por comportamento). Clique para copiar o SQL de migração.')
+      const msg = 'Seu banco ainda está no modelo antigo (indicador por comportamento). Clique para copiar o SQL de migração.'
+      setModalDrawerErro(msg)
+      setError(msg)
       setSalvandoModal(false)
       return
     }
     setSalvandoModal(false)
     if (err) {
+      setModalDrawerErro(err.message)
       setError(err.message)
       return
     }
@@ -700,6 +957,7 @@ export default function Page() {
   }
 
   async function removerIndicador(id) {
+    if (!isAdmin) return
     if (!window.confirm('Remover este indicador?')) return
     const prev =
       (indicadoresArea || []).find((i) => i.id === id) ||
@@ -802,21 +1060,6 @@ export default function Page() {
             ))}
           </div>
         </td>
-        <td className="indicadores-mega-td indicadores-mega-td--conquista" data-label="Conquista">
-          {ciclo === 'atingivel' && String(ind.status || '').toLowerCase() !== 'concluido' ? (
-            <button
-              type="button"
-              className="indicadores-mega-conquista-btn"
-              title="Concluir indicador atingível"
-              disabled={Boolean(concluindoIndicadorId) || (!(ind.area_id || areaId))}
-              onClick={() => handleConcluirIndicador(ind)}
-            >
-              {concluindoIndicadorId === ind.id ? '…' : '✓'}
-            </button>
-          ) : (
-            <span className="indicadores-mega-conquista-dash">—</span>
-          )}
-        </td>
         {isAdmin && (
           <td data-label="Ações" className="indicadores-mega-td indicadores-mega-td--acoes">
             <div className="indicadores-mega-acoes">
@@ -843,15 +1086,15 @@ export default function Page() {
     )
   }
 
-  const indicadoresMegaColSpan = isAdmin ? 6 : 5
+  const indicadoresMegaColSpan = isAdmin ? 5 : 4
 
   return (
     <>
       <div className="indicadores-page-shell">
         <header className="indicadores-topbar">
           <div className="indicadores-topbar-titles">
-            <h1 className="indicadores-topbar-h1">Indicadores</h1>
-            <p className="indicadores-topbar-sub workload-subtitle">
+            <h1 className="carometro-page-title">Indicadores</h1>
+            <p className="carometro-page-subtitle">
               Indicadores dos comportamentos cadastrados em Comportamentos e Atividades, por área.
             </p>
           </div>
@@ -892,7 +1135,7 @@ export default function Page() {
                 disabled={metasArea.length === 0}
                 title={metasArea.length === 0 ? 'Cadastre metas para esta área no Planejamento (Gantt) antes de criar indicadores.' : undefined}
               >
-                + Criar Indicador
+                + Novo Indicador
               </button>
             )}
           </div>
@@ -957,7 +1200,8 @@ export default function Page() {
         <div className="indicadores-workload-root">
           {!temAlgumIndicador ? (
             <p className="indicadores-workload-empty">
-              Nenhum indicador cadastrado. Use &quot;+ Criar Indicador&quot; para adicionar.
+              Nenhum indicador cadastrado.
+              {isAdmin ? ' Use "+ Novo Indicador" para adicionar.' : null}
             </p>
           ) : (
             <div className="indicadores-table-card">
@@ -967,7 +1211,6 @@ export default function Page() {
                   <col className="indicadores-mega-col-tipo" />
                   <col className="indicadores-mega-col-unidade" />
                   <col className="indicadores-mega-col-semaforo" />
-                  <col className="indicadores-mega-col-conquista" />
                   {isAdmin ? <col className="indicadores-mega-col-acoes" /> : null}
                 </colgroup>
                 <tbody>
@@ -1011,7 +1254,6 @@ export default function Page() {
                         <th scope="col" className="indicadores-mega-th">Tipo</th>
                         <th scope="col" className="indicadores-mega-th">Unidade</th>
                         <th scope="col" className="indicadores-mega-th indicadores-mega-th--semaforo">Semáforo</th>
-                        <th scope="col" className="indicadores-mega-th">Conquista</th>
                         {isAdmin ? <th scope="col" className="indicadores-mega-th indicadores-mega-th--acoes">Ações</th> : null}
                       </tr>
                       {sec.indicadores.map((ind, idx, arr) =>
@@ -1055,7 +1297,6 @@ export default function Page() {
                               <th scope="col" className="indicadores-mega-th">Tipo</th>
                               <th scope="col" className="indicadores-mega-th">Unidade</th>
                               <th scope="col" className="indicadores-mega-th indicadores-mega-th--semaforo">Semáforo</th>
-                              <th scope="col" className="indicadores-mega-th">Conquista</th>
                               {isAdmin ? <th scope="col" className="indicadores-mega-th indicadores-mega-th--acoes">Ações</th> : null}
                             </tr>
                             {inds.map((ind, idx, arr) => renderLinhaIndicador(ind, idx === arr.length - 1))}
@@ -1073,6 +1314,7 @@ export default function Page() {
         </div>
       </div>
 
+      {isAdmin ? (
       <WorkloadFormDrawer
         open={modalAberto}
         title={modalModo === 'editar' ? 'Editar indicador' : 'Criar indicador'}
@@ -1081,38 +1323,10 @@ export default function Page() {
         closeDisabled={salvandoModal}
         ariaDescribedBy="indicadores-modal-desc"
         onClose={fecharIndicadorDrawer}
-        footer={(
-          <>
-            <button type="button" className="workload-form-drawer-footer-btn workload-form-drawer-footer-btn--cancel" onClick={fecharIndicadorDrawer} disabled={salvandoModal}>
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              form="indicadores-drawer-form"
-              className="workload-form-drawer-footer-btn workload-form-drawer-footer-btn--save"
-              disabled={
-                salvandoModal
-                || !isAdmin
-                || (metasArea.length > 0 && !modalObjetivoId)
-                || (modalModo === 'criar' && metasArea.length === 0)
-                || (
-                  modalMetaCicloTipo === 'atingivel'
-                  && !indicadorModalPrazoValido(modalIndPrazoAno, modalIndPrazoSemana)
-                )
-              }
-            >
-              {salvandoModal ? 'Salvando…' : (modalModo === 'editar' ? 'Salvar alterações' : 'Salvar indicador')}
-            </button>
-          </>
-        )}
       >
         <form
           id="indicadores-drawer-form"
           className="workload-drawer-form-inner indicadores-drawer-form"
-          onSubmit={(e) => {
-            e.preventDefault()
-            salvarIndicadorModal()
-          }}
         >
           <p id="indicadores-modal-desc" className="modal-subtitle indicadores-drawer-subtitle">
             {modalModo === 'editar'
@@ -1172,41 +1386,19 @@ export default function Page() {
                 />
               </div>
               {modalMetaCicloTipo === 'atingivel' && (
-                <div className="modal-field">
-                  <label htmlFor="ind-modal-prazo-ano">Prazo para conclusão</label>
-                  <select
-                    id="ind-modal-prazo-ano"
-                    value={modalIndPrazoAno}
-                    onChange={(e) => {
-                      setModalIndPrazoAno(e.target.value)
-                      setModalIndPrazoSemana('')
-                    }}
-                  >
-                    {(anosPrazoModalIndicador || []).map(a => (
-                      <option key={a} value={String(a)}>{a}</option>
-                    ))}
-                  </select>
-                  <CalendarioComSemanas
-                    ano={modalIndPrazoAno ? Number(modalIndPrazoAno) : new Date().getFullYear()}
-                    mesInicial={
-                      modalIndPrazoMes
-                        ? Math.max(0, Math.min(11, Number(modalIndPrazoMes) - 1))
-                        : new Date().getMonth()
-                    }
-                    selectedSemanaNum={modalIndPrazoSemana ? Number(modalIndPrazoSemana) : null}
-                    onSelectSemanaNumero={(semanaNumero) => {
-                      if (semanaNumero == null || !Number.isFinite(Number(semanaNumero))) return
-                      const n = Math.trunc(Number(semanaNumero))
-                      if (n < 1 || n > 53) return
-                      setModalIndPrazoSemana(String(n))
-                      setError(null)
-                    }}
+                <div className="modal-field indicadores-prazo-atingivel-field-wrap">
+                  <span className="indicadores-prazo-atingivel-label" id="ind-modal-prazo-label">
+                    Prazo para conclusão
+                  </span>
+                  <IndicadorPrazoAtingivelField
+                    idPrefix="ind-modal-prazo"
+                    ano={modalIndPrazoAno}
+                    semana={modalIndPrazoSemana}
+                    anos={anosPrazoModalIndicador}
+                    onAnoChange={setModalIndPrazoAno}
+                    onSemanaChange={setModalIndPrazoSemana}
+                    onSemanaSelecionada={() => setError(null)}
                   />
-                  <div className="modal-hint" style={{ textAlign: 'center' }}>
-                    {modalIndPrazoSemana
-                      ? `Prazo selecionado: S${modalIndPrazoSemana}`
-                      : 'Selecione a semana no calendário.'}
-                  </div>
                 </div>
               )}
               <fieldset className="indicadores-modal-faixas">
@@ -1382,10 +1574,36 @@ export default function Page() {
                   )
                 })}
               </fieldset>
+              {(modalDrawerErro || !validacaoModalIndicador.ok) && (
+                <div
+                  className={`alert ${modalDrawerErro ? 'alert-error' : 'alert-warning'} indicadores-drawer-form-feedback`}
+                  role="alert"
+                >
+                  {modalDrawerErro || validacaoModalIndicador.motivo}
+                </div>
+              )}
+              <div className="workload-form-drawer-footer indicadores-drawer-form-footer">
+                <button type="button" className="workload-form-drawer-footer-btn workload-form-drawer-footer-btn--cancel" onClick={fecharIndicadorDrawer} disabled={salvandoModal}>
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="indicadores-btn-primary"
+                  disabled={salvandoModal || !validacaoModalIndicador.ok}
+                  title={!validacaoModalIndicador.ok ? validacaoModalIndicador.motivo : undefined}
+                  onClick={() => void salvarIndicadorModal()}
+                >
+                  {salvandoModal ? 'Salvando…' : (modalModo === 'editar' ? 'Salvar alterações' : 'Salvar indicador')}
+                </button>
+              </div>
         </form>
       </WorkloadFormDrawer>
+      ) : null}
 
-      {modalNovaEscalaAberto && (
+      {portalMontado &&
+        isAdmin &&
+        modalNovaEscalaAberto &&
+        createPortal(
         <div
           className="modal-overlay indicadores-modal-nova-overlay"
           onMouseDown={(e) => { if (e.target === e.currentTarget) fecharModalNovaEscala() }}
@@ -1488,6 +1706,135 @@ export default function Page() {
                 {salvandoNovaEscala ? 'Salvando…' : 'Criar escala e usar'}
               </button>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {confirmarConclusaoIndicador && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="indicadores-confirmar-conclusao-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setConfirmarConclusaoIndicador(null)
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            background: 'rgba(29, 47, 37, 0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#ffffff',
+              borderRadius: 10,
+              border: '0.5px solid #D3D1C7',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.14)',
+              width: 'min(440px, calc(100% - 32px))',
+              overflow: 'hidden',
+              boxSizing: 'border-box'
+            }}
+          >
+            <header
+              style={{
+                background: '#1D2F25',
+                padding: '14px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12
+              }}
+            >
+              <h2
+                id="indicadores-confirmar-conclusao-title"
+                style={{ margin: 0, fontSize: 15, fontWeight: 500, color: '#C8E6A0' }}
+              >
+                Concluir indicador
+              </h2>
+              <button
+                type="button"
+                aria-label="Fechar"
+                onClick={() => setConfirmarConclusaoIndicador(null)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'rgba(200,230,160,0.6)',
+                  fontSize: 20,
+                  lineHeight: 1,
+                  cursor: 'pointer',
+                  padding: 0
+                }}
+              >
+                ×
+              </button>
+            </header>
+            <p
+              style={{
+                background: '#ffffff',
+                padding: '20px 18px',
+                fontSize: 14,
+                color: '#1D2F25',
+                lineHeight: 1.5,
+                margin: 0
+              }}
+            >
+              {`Concluir o indicador atingível '${String(confirmarConclusaoIndicador.indicador?.nome || '').trim() || '—'}'? O registro irá para Conquistas e ele sairá da lista ativa.`}
+            </p>
+            <footer
+              style={{
+                padding: '14px 18px',
+                borderTop: '0.5px solid #e0d9ce',
+                background: '#fafaf7',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 8
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setConfirmarConclusaoIndicador(null)}
+                disabled={Boolean(concluindoIndicadorId)}
+                style={{
+                  border: '0.5px solid #D3D1C7',
+                  background: '#fff',
+                  color: '#5f5e5a',
+                  padding: '7px 16px',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={Boolean(concluindoIndicadorId)}
+                onClick={() => {
+                  const ind = confirmarConclusaoIndicador.indicador
+                  setConfirmarConclusaoIndicador(null)
+                  void handleConcluirIndicador(ind)
+                }}
+                style={{
+                  background: '#2F4A3A',
+                  color: '#D4EDAA',
+                  border: 'none',
+                  padding: '7px 20px',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: concluindoIndicadorId ? 'not-allowed' : 'pointer',
+                  opacity: concluindoIndicadorId ? 0.55 : 1
+                }}
+              >
+                {concluindoIndicadorId ? 'Concluindo…' : 'Concluir'}
+              </button>
+            </footer>
           </div>
         </div>
       )}

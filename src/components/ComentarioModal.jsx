@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { supabase } from '../services/supabase'
-import { anoIsoParaSemanaNoIntervalo, isoWeek } from '../utils/periodos'
-import { registrarLog } from '../hooks/useAuditLog'
+import { createClient } from '@/lib/supabase/client'
+import { anoIsoParaSemanaNoIntervalo, isoWeek } from '@/utils/periodos'
+import { registrarLog } from '@/hooks/useAuditLog'
 
 function fmtDataHora(iso) {
   if (!iso) return '—'
@@ -34,6 +34,7 @@ export default function ComentarioModal({
   onClose,
   onSaved
 }) {
+  const supabase = createClient()
   const tabela = tipo === 'atividade' ? 'comentarios_atividade' : 'comentarios_indicador'
   const colRef = tipo === 'atividade' ? 'acao_id' : 'indicador_id'
   const arquivoSql =
@@ -232,54 +233,64 @@ export default function ComentarioModal({
 
   return (
     <div
-      className="modal-overlay"
       role="presentation"
+      style={{
+        position: "fixed", inset: 0, zIndex: 1000,
+        background: "rgba(29, 47, 37, 0.45)",
+        display: "flex", alignItems: "center", justifyContent: "center"
+      }}
       onClick={e => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
       <div
         ref={cardRef}
-        className="modal-card"
         role="dialog"
         aria-modal="true"
         aria-labelledby="comentario-modal-titulo"
+        style={{
+          background: "#ffffff",
+          borderRadius: 10,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+          width: "min(520px, calc(100% - 32px))",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          maxHeight: "90vh",
+          overflowY: "auto"
+        }}
         onClick={e => e.stopPropagation()}
       >
-        <div className="modal-header">
+        <header style={{
+          background: "#1D2F25",
+          padding: "14px 18px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexShrink: 0
+        }}>
           <div>
-            <h2 id="comentario-modal-titulo">Comentários</h2>
-            <p className="modal-subtitle">{nome || '—'}</p>
+            <h2 id="comentario-modal-titulo" style={{ margin: 0, fontSize: 15, fontWeight: 500, color: "#C8E6A0" }}>Comentários</h2>
+            <p style={{ margin: 0, fontSize: 12, color: 'rgba(200,230,160,0.7)', marginTop: 2 }}>{nome || '—'}</p>
           </div>
-          <button type="button" className="modal-close-btn" aria-label="Fechar" onClick={onClose}>
+          <button type="button" aria-label="Fechar" onClick={onClose} style={{ background: "transparent", border: "none", color: "rgba(200,230,160,0.7)", fontSize: 22, cursor: "pointer", lineHeight: 1, padding: 0, flexShrink: 0 }}>
             ×
           </button>
-        </div>
-        <div className="modal-body">
+        </header>
+        <div style={{ padding: "20px 18px", display: "flex", flexDirection: "column", gap: 14, background: "#ffffff" }}>
           {erro && (
             <div className="alert alert-warning" style={{ marginBottom: 0 }}>
               <strong>Atenção:</strong> {erro}
             </div>
           )}
-          <div className="modal-field">
-            <label htmlFor="comentario-semana" style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>
-              Semana
-            </label>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label htmlFor="comentario-semana" style={{ fontSize: 12, fontWeight: 500, color: "#1D2F25" }}>Semana</label>
             <select
               ref={selectRef}
               id="comentario-semana"
+              style={{ fontSize: 13, border: "0.5px solid #e0d9ce", borderRadius: 6, padding: "8px 10px", background: "#fafaf7", width: "100%" }}
               value={semanaIsoSel}
               onChange={e => setSemanaIsoSel(e.target.value)}
-              style={{
-                height: 40,
-                padding: '0 12px',
-                border: '1px solid #D1D5DB',
-                borderRadius: 8,
-                fontSize: 14,
-                width: '100%',
-                fontFamily: 'inherit',
-                boxSizing: 'border-box'
-              }}
             >
               {opcoesSemana.map(o => (
                 <option key={`${o.anoIso}-${o.iso}`} value={String(o.iso)}>
@@ -288,87 +299,49 @@ export default function ComentarioModal({
               ))}
             </select>
           </div>
-          <div className="modal-field">
-            <label htmlFor="comentario-texto" style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>
-              Texto
-            </label>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label htmlFor="comentario-texto" style={{ fontSize: 12, fontWeight: 500, color: "#1D2F25" }}>Texto</label>
             <textarea
               id="comentario-texto"
+              style={{ fontSize: 13, border: "0.5px solid #e0d9ce", borderRadius: 6, padding: "10px 12px", background: "#fafaf7", width: "100%", resize: "vertical", minHeight: 80, boxSizing: "border-box" }}
               value={texto}
               onChange={e => setTexto(e.target.value)}
               placeholder="Andamento, bloqueios ou observações desta semana..."
               rows={3}
-              style={{
-                minHeight: 72,
-                padding: '8px 12px',
-                border: '1px solid #D1D5DB',
-                borderRadius: 8,
-                fontSize: 14,
-                width: '100%',
-                fontFamily: 'inherit',
-                resize: 'vertical',
-                boxSizing: 'border-box'
-              }}
             />
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button type="button" className="btn btn-primary comentario-modal-salvar" disabled={saving || loading} onClick={() => void salvar()}>
-              Salvar comentário
-            </button>
-          </div>
-          <hr style={{ border: 0, borderTop: '1px solid var(--moni-borda)', margin: '12px 0' }} />
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--moni-verde-escuro)' }}>
-              Comentários salvos
-            </div>
+          <button
+            type="button"
+            style={{ background: "#2F4A3A", color: "#D4EDAA", border: "none", padding: "9px 20px", borderRadius: 6, fontSize: 13, fontWeight: 500, cursor: "pointer", alignSelf: "flex-end" }}
+            disabled={saving || loading}
+            onClick={() => void salvar()}
+          >
+            Salvar comentário
+          </button>
+          <div style={{ borderTop: "0.5px solid #e0d9ce", paddingTop: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 500, color: "#888780", marginBottom: 8 }}>Comentários salvos</div>
             {loading ? (
               <p className="modal-hint">Carregando…</p>
             ) : grupos.length === 0 ? (
               <p className="modal-hint">Nenhum comentário ainda.</p>
             ) : (
-              <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <ul className="gantt-comentario-modal-lista">
                 {grupos.map(g => (
                   <li key={g.key}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--moni-texto-suave)', marginBottom: 6 }}>
-                      S{g.semana_iso}
-                    </div>
-                    <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "#888780", marginBottom: 4, marginTop: 8 }}>S{g.semana_iso}</div>
+                    <ul className="gantt-comentario-modal-lista gantt-comentario-modal-lista--itens">
                       {g.rows.map(r => (
-                        <li
-                          key={r.id}
-                          style={{
-                            display: 'flex',
-                            gap: 8,
-                            alignItems: 'flex-start',
-                            padding: '8px 10px',
-                            background: 'var(--color-background-secondary, #f7f7f5)',
-                            borderRadius: 8,
-                            border: '1px solid var(--moni-borda)'
-                          }}
-                        >
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 11, color: 'var(--moni-texto-suave)', marginBottom: 4 }}>
-                              {fmtDataHora(r.created_at)}
-                            </div>
-                            <div style={{ fontSize: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{r.texto}</div>
+                        <li key={r.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "#fafaf7", border: "0.5px solid #e0d9ce", borderRadius: 6, padding: "10px 12px", marginBottom: 6, listStyle: "none" }}>
+                          <div className="gantt-comentario-modal-item-conteudo">
+                            <div style={{ fontSize: 11, color: "#888780", marginBottom: 3 }}>{fmtDataHora(r.created_at)}</div>
+                            <div style={{ fontSize: 13, color: "#1D2F25", lineHeight: 1.4 }}>{r.texto}</div>
                           </div>
                           <button
                             type="button"
+                            style={{ background: "transparent", border: "none", color: "#888780", fontSize: 16, cursor: "pointer", padding: 0, flexShrink: 0 }}
                             title="Excluir"
                             disabled={saving}
                             onClick={() => void excluir(r.id)}
-                            style={{
-                              width: 28,
-                              height: 28,
-                              flexShrink: 0,
-                              border: '1px solid #B4B2A9',
-                              borderRadius: 5,
-                              background: '#fff',
-                              cursor: saving ? 'not-allowed' : 'pointer',
-                              fontSize: 16,
-                              lineHeight: 1,
-                              color: '#5F5E5A'
-                            }}
                           >
                             ×
                           </button>
@@ -429,3 +402,5 @@ function getDatasSemanaCurtaModal(semanaISO, periodoRow, anoFallback) {
   }
   return `${segunda.getUTCDate()}–${fmt(domingo)}`
 }
+
+

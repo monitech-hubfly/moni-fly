@@ -215,19 +215,23 @@ export default function Page() {
 
   return (
     <>
-      <h1>TO DO — Entregas da semana</h1>
+      <div style={{ marginBottom: 18 }}>
+        <h1 className="carometro-page-title">TO DO — Entregas da semana</h1>
+        <p className="carometro-page-subtitle">
+          Atividades pendentes ordenadas por urgência e semana.
+        </p>
+      </div>
 
       {error && <div className="alert alert-error">{error}</div>}
 
-      {/* Filtros */}
-      <div className="page-actions" style={{ flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label htmlFor="todo-filtro-area">Área</label>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <label style={{ fontSize: 13, color: '#888780', margin: 0, whiteSpace: 'nowrap' }}>Área</label>
           <select
             id="todo-filtro-area"
             value={filtroArea}
             onChange={e => setFiltroArea(e.target.value)}
-            style={{ minWidth: '160px' }}
+            style={{ fontSize: 13, border: '0.5px solid #e0d9ce', borderRadius: 6, padding: '6px 10px', minWidth: 160, background: '#fff', color: '#1D2F25' }}
           >
             <option value="">Todas as áreas</option>
             {areas.map(a => (
@@ -235,13 +239,13 @@ export default function Page() {
             ))}
           </select>
         </div>
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label htmlFor="todo-filtro-resp">Responsável</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 10, borderLeft: '1px solid #e0d9ce' }}>
+          <label style={{ fontSize: 13, color: '#888780', margin: 0, whiteSpace: 'nowrap' }}>Responsável</label>
           <select
             id="todo-filtro-resp"
             value={filtroResponsavel}
             onChange={e => setFiltroResponsavel(e.target.value)}
-            style={{ minWidth: '160px' }}
+            style={{ fontSize: 13, border: '0.5px solid #e0d9ce', borderRadius: 6, padding: '6px 10px', minWidth: 160, background: '#fff', color: '#1D2F25' }}
           >
             <option value="">Todos</option>
             {responsaveis.map(r => (

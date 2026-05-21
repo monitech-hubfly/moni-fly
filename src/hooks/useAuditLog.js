@@ -1,4 +1,5 @@
-import { supabase } from '../services/supabase'
+import { createClient } from '@/lib/supabase/client'
+import { isAdminRole } from '@/lib/authz'
 
 function trimStr(v) {
   if (v == null) return ''
@@ -8,16 +9,18 @@ function trimStr(v) {
 
 /**
  * Identificação para a coluna `usuario` (NOT NULL).
- * No app, só `carometro_admin` é gravado hoje; `carometro_usuario` / `carometro_area` são opcionais.
+ * `is_admin` no log reflete `profiles.role` (papel admin no sistema).
  * O nome da área do próprio evento (`area`) evita insert inválido quando o storage está vazio.
  */
-function resolverUsuario(areaDoEvento) {
-  return (
-    trimStr(typeof localStorage !== 'undefined' ? localStorage.getItem('carometro_usuario') : '') ||
-    trimStr(typeof localStorage !== 'undefined' ? localStorage.getItem('carometro_area') : '') ||
-    trimStr(areaDoEvento) ||
-    'Desconhecido'
-  )
+async function resolverUsuario(areaDoEvento) {
+  try {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user?.email) return user.email
+    if (user?.user_metadata?.name) return user.user_metadata.name
+  } catch {}
+  const localUsuario = trimStr(typeof localStorage !== 'undefined' ? localStorage.getItem('carometro_usuario') : '')
+  return localUsuario || trimStr(areaDoEvento) || 'Desconhecido'
 }
 
 /**
@@ -35,24 +38,26 @@ export async function registrarLog({
   valor_novo,
   descricao
 }) {
-  const isAdmin =
-    typeof localStorage !== 'undefined' && localStorage.getItem('carometro_admin') === 'true'
-  const usuario = resolverUsuario(area)
-
-  console.log('[AuditLog] Tentando registrar:', { usuario, isAdmin, modulo, operacao, entidade })
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  let isAdmin = false
+  if (user?.id) {
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    isAdmin = isAdminRole(profile?.role)
+  }
 
   const { error } = await supabase.from('audit_log').insert({
-    usuario,
+    usuario: user?.email ?? null,
     is_admin: isAdmin,
     modulo,
-    area: area || null,
+    area: area ?? null,
     entidade,
     entidade_id: entidade_id ? String(entidade_id) : null,
     operacao,
-    campo: campo || null,
-    valor_anterior: valor_anterior !== undefined ? valor_anterior : null,
-    valor_novo: valor_novo !== undefined ? valor_novo : null,
-    descricao: descricao || null
+    campo: campo ?? null,
+    valor_anterior: valor_anterior ?? null,
+    valor_novo: valor_novo ?? null,
+    descricao: descricao ?? null
   })
 
   if (error) {

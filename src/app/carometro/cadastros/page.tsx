@@ -2,7 +2,6 @@
 'use client';
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { registrarLog } from '@/hooks/useAuditLog'
 import { listarAreas } from '@/utils/areasOrder'
@@ -20,6 +19,17 @@ function formatarData(d) {
   }
   const x = new Date(d)
   return x.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+const AREAS_PADRAO = [
+  'Marketing', 'Comercial', 'Portfólio', 'Acoplamento', 'Produto', 'Projetos',
+  'Homologações', 'Wayzer - Nath', 'Wayzer - Rafa', 'Frank Moní', 'Processos',
+  'Ferramentas', 'Crédito', 'Moní Capital', 'Controladoria', 'Adm', 'Jurídico'
+]
+
+function proximaOrdemSugerida(lista) {
+  const nums = (lista || []).map(a => Number(a.ordem) || 0)
+  return (nums.length ? Math.max(...nums) : 0) + 10
 }
 
 const TIPOS_PERIODO = [
@@ -89,12 +99,243 @@ export default function Page() {
   const [editMultId, setEditMultId] = useState(null)
   const [editMultDescricao, setEditMultDescricao] = useState('')
   const [excluindoMultId, setExcluindoMultId] = useState(null)
+  const [excluirConfirm, setExcluirConfirm] = useState(null)
+  const [excluirConfirmando, setExcluirConfirmando] = useState(false)
+  const [areaFormModo, setAreaFormModo] = useState(null)
+  const [areaEditandoId, setAreaEditandoId] = useState(null)
+  const [nomeAreaEdit, setNomeAreaEdit] = useState('')
+  const [ativoAreaEdit, setAtivoAreaEdit] = useState(true)
+  const [salvandoArea, setSalvandoArea] = useState(false)
+  const [seedandoAreas, setSeedandoAreas] = useState(false)
+  const [reordenandoAreaId, setReordenandoAreaId] = useState(null)
+  const [dragAreaId, setDragAreaId] = useState(null)
 
   async function carregarAreas() {
     setLoadingAreas(true)
     const { data } = await listarAreas(supabase, 'id, nome, ativo, ordem')
     setAreas(data || [])
     setLoadingAreas(false)
+  }
+
+  function abrirNovaArea() {
+    setAreaEditandoId(null)
+    setAreaFormModo('novo')
+    setNomeAreaEdit('')
+    setAtivoAreaEdit(true)
+    setError(null)
+  }
+
+  function iniciarEdicaoArea(area) {
+    setAreaFormModo(null)
+    setAreaEditandoId(area.id)
+    setNomeAreaEdit(area.nome || '')
+    setAtivoAreaEdit(area.ativo ?? true)
+    setError(null)
+  }
+
+  function cancelarEdicaoArea() {
+    setAreaFormModo(null)
+    setAreaEditandoId(null)
+    setNomeAreaEdit('')
+    setAtivoAreaEdit(true)
+  }
+
+  async function salvarEdicaoArea(id) {
+    if (!id || salvandoArea) return
+    const nome = nomeAreaEdit.trim()
+    if (!nome) return
+    setError(null)
+    setSalvandoArea(true)
+    try {
+      const prev = areas.find((a) => a.id === id)
+      const ordemNum = Math.max(0, Math.floor(Number(prev?.ordem) || 0))
+      const ativo = Boolean(ativoAreaEdit)
+      let { error: e2 } = await supabase.from('areas').update({ nome, ativo, ordem: ordemNum }).eq('id', id)
+      if (e2 && String(e2.message || '').toLowerCase().includes('ordem')) {
+        ({ error: e2 } = await supabase.from('areas').update({ nome, ativo }).eq('id', id))
+      }
+      if (e2) {
+        setError(e2.message)
+        return
+      }
+      void registrarLog({
+        modulo: 'Cadastros',
+        area: nome,
+        entidade: 'areas',
+        entidade_id: id,
+        operacao: 'UPDATE',
+        valor_anterior: prev ? { nome: prev.nome, ativo: prev.ativo, ordem: prev.ordem } : null,
+        valor_novo: { nome, ativo, ordem: ordemNum },
+        descricao: `Alterou área "${nome}"`
+      })
+      cancelarEdicaoArea()
+      await carregarAreas()
+    } finally {
+      setSalvandoArea(false)
+    }
+  }
+
+  async function salvarArea() {
+    if (areaFormModo !== 'novo' || salvandoArea) return
+    const nome = nomeAreaEdit.trim()
+    if (!nome) return
+    setError(null)
+    setSalvandoArea(true)
+    try {
+      const ordemNum = proximaOrdemSugerida(areas)
+      let { error: e2 } = await supabase.from('areas').insert({ nome, ativo: true, ordem: ordemNum })
+      if (e2 && String(e2.message || '').toLowerCase().includes('ordem')) {
+        ({ error: e2 } = await supabase.from('areas').insert({ nome, ativo: true }))
+      }
+      if (e2) {
+        setError(e2.message)
+        return
+      }
+      void registrarLog({
+        modulo: 'Cadastros',
+        area: nome,
+        entidade: 'areas',
+        entidade_id: null,
+        operacao: 'INSERT',
+        valor_novo: { nome, ativo: true, ordem: ordemNum },
+        descricao: `Criou área "${nome}"`
+      })
+      cancelarEdicaoArea()
+      await carregarAreas()
+    } finally {
+      setSalvandoArea(false)
+    }
+  }
+
+  function solicitarExclusaoArea(id) {
+    if (!id) return
+    const prev = areas.find((a) => a.id === id)
+    setExcluirConfirm({
+      tipo: 'area',
+      id,
+      titulo: 'Excluir área',
+      mensagem: prev
+        ? `Excluir a área "${prev.nome}"? Registros vinculados podem ser afetados.`
+        : 'Excluir esta área? Registros vinculados podem ser afetados.'
+    })
+  }
+
+  async function executarExclusaoArea(id) {
+    if (!id) return
+    setError(null)
+    const prev = areas.find((a) => a.id === id)
+    const { error: e } = await supabase.from('areas').delete().eq('id', id)
+    if (e) setError(e.message)
+    else {
+      void registrarLog({
+        modulo: 'Cadastros',
+        area: prev?.nome || null,
+        entidade: 'areas',
+        entidade_id: id,
+        operacao: 'DELETE',
+        valor_anterior: prev || null,
+        descricao: prev ? `Excluiu área "${prev.nome}"` : 'Excluiu área'
+      })
+      if (areaEditandoId === id || areaFormModo === id) cancelarEdicaoArea()
+      await carregarAreas()
+    }
+  }
+
+  async function moverArea(id, direction) {
+    if (reordenandoAreaId) return
+    const idx = areas.findIndex((a) => a.id === id)
+    if (idx < 0) return
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= areas.length) return
+    const atual = areas[idx]
+    const vizinho = areas[swapIdx]
+    const ordemAtual = Number(atual.ordem) || 0
+    const ordemVizinho = Number(vizinho.ordem) || 0
+    setReordenandoAreaId(id)
+    setError(null)
+    try {
+      let { error: e1 } = await supabase.from('areas').update({ ordem: ordemVizinho }).eq('id', atual.id)
+      if (e1 && String(e1.message || '').toLowerCase().includes('ordem')) {
+        setError(e1.message)
+        return
+      }
+      let { error: e2 } = await supabase.from('areas').update({ ordem: ordemAtual }).eq('id', vizinho.id)
+      if (e2 && String(e2.message || '').toLowerCase().includes('ordem')) {
+        setError(e2.message)
+        return
+      }
+      if (e1 || e2) {
+        setError(e1?.message || e2?.message)
+        return
+      }
+      await carregarAreas()
+    } finally {
+      setReordenandoAreaId(null)
+    }
+  }
+
+  async function handleSeedAreas() {
+    setSeedandoAreas(true)
+    setError(null)
+    for (let i = 0; i < AREAS_PADRAO.length; i++) {
+      const n = AREAS_PADRAO[i]
+      let { error: e } = await supabase.from('areas').insert({
+        nome: n,
+        ativo: true,
+        ordem: (i + 1) * 10
+      })
+      if (e && String(e.message || '').toLowerCase().includes('ordem')) {
+        ({ error: e } = await supabase.from('areas').insert({ nome: n, ativo: true }))
+      }
+      if (e) {
+        setError(e.message)
+        break
+      }
+      void registrarLog({
+        modulo: 'Cadastros',
+        area: null,
+        entidade: 'areas',
+        entidade_id: null,
+        operacao: 'INSERT',
+        valor_novo: { nome: n, ativo: true, ordem: (i + 1) * 10 },
+        descricao: `Criou área (padrão) "${n}"`
+      })
+    }
+    setSeedandoAreas(false)
+    await carregarAreas()
+  }
+
+  function solicitarExclusaoPeriodo(id) {
+    setExcluirConfirm({
+      tipo: 'periodo',
+      id,
+      titulo: 'Excluir período',
+      mensagem: 'Excluir este período? Registros vinculados podem ser afetados.'
+    })
+  }
+
+  function solicitarExclusaoRecorrenciaMeta(id) {
+    setExcluirConfirm({
+      tipo: 'recMeta',
+      id,
+      titulo: 'Excluir recorrência',
+      mensagem: 'Excluir esta recorrência? Registros vinculados podem ser afetados.'
+    })
+  }
+
+  async function confirmarExclusaoModal() {
+    if (!excluirConfirm || excluirConfirmando) return
+    setExcluirConfirmando(true)
+    try {
+      const { tipo, id } = excluirConfirm
+      if (tipo === 'periodo') await executarExclusaoPeriodo(id)
+      else if (tipo === 'recMeta') await executarExclusaoRecorrenciaMeta(id)
+      else if (tipo === 'area') await executarExclusaoArea(id)
+      else if (tipo === 'mult') await executarExclusaoMultiplicador(id)
+      setExcluirConfirm(null)
+    } finally {
+      setExcluirConfirmando(false)
+    }
   }
 
   async function carregarRecorrencias() {
@@ -109,7 +350,7 @@ export default function Page() {
     setDetalheErroRecorrenciasMetas('')
     try {
       const { data, error } = await supabase
-        .from('recorrencias_metas')
+        .from('recorrencias_atividade')
         .select('*')
         .order('ordem')
         .order('descricao')
@@ -139,7 +380,7 @@ export default function Page() {
     if (!descricao) return
     setError(null)
     const prev = recorrenciasMetas.find((x) => x.id === id)
-    const { error } = await supabase.from('recorrencias_metas').update({ descricao }).eq('id', id)
+    const { error } = await supabase.from('recorrencias_atividade').update({ descricao }).eq('id', id)
     if (error) setError(error.message)
     else {
       void registrarLog({
@@ -162,7 +403,7 @@ export default function Page() {
     if (!id) return
     setError(null)
     const prev = recorrenciasMetas.find((x) => x.id === id)
-    const { error } = await supabase.from('recorrencias_metas').update({ ativo: !ativoAtual }).eq('id', id)
+    const { error } = await supabase.from('recorrencias_atividade').update({ ativo: !ativoAtual }).eq('id', id)
     if (error) setError(error.message)
     else {
       void registrarLog({
@@ -229,7 +470,7 @@ export default function Page() {
     setSalvandoNovaRecMeta(true)
     try {
       const maxOrdem = recorrenciasMetas.reduce((mx, x) => Math.max(mx, Number(x.ordem ?? 0)), 0)
-      const { error } = await supabase.from('recorrencias_metas').insert({
+      const { error } = await supabase.from('recorrencias_atividade').insert({
         codigo,
         descricao,
         ativo,
@@ -255,16 +496,15 @@ export default function Page() {
     }
   }
 
-  async function excluirRecorrenciaMeta(id) {
+  async function executarExclusaoRecorrenciaMeta(id) {
     if (!id) return
-    if (!window.confirm('Excluir esta recorrência?')) return
     setError(null)
     setDetalheErroRecorrenciasMetas('')
 
     setExcluindoRecMetaId(id)
     try {
       const prev = recorrenciasMetas.find((x) => x.id === id)
-      const { error } = await supabase.from('recorrencias_metas').delete().eq('id', id)
+      const { error } = await supabase.from('recorrencias_atividade').delete().eq('id', id)
       if (error) {
         setError(error.message)
         return
@@ -423,8 +663,7 @@ export default function Page() {
     }
   }
 
-  async function excluirPeriodo(id) {
-    if (!window.confirm('Excluir este período? Registros vinculados podem ser afetados.')) return
+  async function executarExclusaoPeriodo(id) {
     setError(null)
     setExcluindoPeriodoId(id)
     const prev = periodos.find((p) => p.id === id)
@@ -581,7 +820,16 @@ export default function Page() {
   }
 
   async function excluirMultiplicadorTipo(id) {
-    if (!window.confirm('Excluir este tipo de multiplicador? Atividades que usam este tipo podem ficar sem label.')) return
+    if (!id) return
+    setExcluirConfirm({
+      tipo: 'mult',
+      id,
+      titulo: 'Excluir multiplicador',
+      mensagem: 'Excluir este tipo de multiplicador? Atividades que usam este tipo podem ficar sem label.'
+    })
+  }
+
+  async function executarExclusaoMultiplicador(id) {
     setError(null)
     setExcluindoMultId(id)
     const prev = multiplicadorTipos.find((m) => m.id === id)
@@ -604,9 +852,9 @@ export default function Page() {
   }
 
   return (
-    <>
-      <h1>Cadastros</h1>
-      <p>Gerencie áreas, usuários e o calendário de períodos com data início e fim.</p>
+    <div className="cadastros-page">
+      <h1 className="carometro-page-title">Cadastros</h1>
+      <p className="carometro-page-subtitle">Gerencie áreas, usuários e o calendário de períodos com data início e fim.</p>
       {error && (
         <div
           className={`alert ${migracaoPeriodos ? 'alert-warning' : 'alert-error'}`}
@@ -629,54 +877,516 @@ export default function Page() {
         </div>
       )}
 
-      <div className="cadastros-grid">
-        <section className="card cadastro-card">
-          <h2 className="cadastro-card-title">Áreas</h2>
-          <p className="cadastro-card-desc">Unidades ou setores que possuem comportamentos e tarefas na Workload.</p>
-          {loadingAreas ? (
-            <p>Carregando…</p>
-          ) : areas.length === 0 ? (
-            <p className="empty-state">Nenhuma área cadastrada.</p>
-          ) : (
-            <ul className="cadastro-list">
-              {areas.map(a => (
-                <li key={a.id} className={a.ativo !== false ? '' : 'inativo'}>
-                  <span style={{ opacity: 0.75, marginRight: '0.35rem' }}>{Number(a.ordem) || 0}.</span>
-                  {a.nome}
-                </li>
-              ))}
-            </ul>
+      <div className="cadastros-top-grid">
+        <section className="cadastro-card">
+          <div className="cadastro-section-header">
+            <div className="cadastro-section-header-text">
+              <h2>Áreas</h2>
+              <p>Unidades ou setores com comportamentos e tarefas na Workload.</p>
+            </div>
+            <button
+              type="button"
+              className="cadastro-header-btn"
+              onClick={abrirNovaArea}
+              disabled={areaFormModo === 'novo' || Boolean(areaEditandoId)}
+            >
+              + Nova área
+            </button>
+          </div>
+          <div className="cadastro-section-body cadastro-section-body--flush">
+            {loadingAreas ? (
+              <p style={{ padding: '0 1.25rem' }}>Carregando…</p>
+            ) : areas.length === 0 && areaFormModo !== 'novo' ? (
+              <div style={{ padding: '0 1.25rem 1rem' }}>
+                <p className="empty-state">Nenhuma área cadastrada.</p>
+                <button
+                  type="button"
+                  className="cadastro-header-btn"
+                  style={{ marginTop: '0.75rem' }}
+                  onClick={handleSeedAreas}
+                  disabled={seedandoAreas}
+                >
+                  {seedandoAreas ? 'Cadastrando…' : 'Cadastrar áreas padrão (17 áreas)'}
+                </button>
+              </div>
+            ) : (
+              <div style={{ padding: 0 }}>
+                {areaFormModo === 'novo' && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '8px 16px',
+                      borderBottom: '0.5px solid #e0d9ce',
+                      background: '#f7fbf5'
+                    }}
+                  >
+                    <span style={{ fontSize: 14, color: '#ccc9be', flexShrink: 0 }}>⠿</span>
+                    <span style={{ fontSize: 11, color: '#aaa89e', minWidth: 18, textAlign: 'right', flexShrink: 0 }}>—</span>
+                    <input
+                      value={nomeAreaEdit}
+                      onChange={e => setNomeAreaEdit(e.target.value)}
+                      placeholder="Nome da área"
+                      style={{ flex: 1, padding: '5px 8px', borderRadius: 5, border: '0.5px solid #D3D1C7', fontSize: 13 }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') { e.preventDefault(); salvarArea() }
+                        if (e.key === 'Escape') cancelarEdicaoArea()
+                      }}
+                      autoFocus
+                    />
+                    <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={salvarArea}
+                        disabled={salvandoArea}
+                        style={{
+                          padding: '4px 12px',
+                          borderRadius: 5,
+                          fontSize: 11,
+                          fontWeight: 500,
+                          background: '#2F4A3A',
+                          color: '#fff',
+                          border: 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {salvandoArea ? '…' : 'Salvar'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelarEdicaoArea}
+                        disabled={salvandoArea}
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: 5,
+                          fontSize: 11,
+                          fontWeight: 500,
+                          background: '#fff',
+                          color: '#5f5e5a',
+                          border: '0.5px solid #D3D1C7',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {areas.map((area, index) => (
+                  <div
+                    key={area.id}
+                    draggable={!areaFormModo && !areaEditandoId && !reordenandoAreaId}
+                    onDragStart={() => setDragAreaId(area.id)}
+                    onDragEnd={() => setDragAreaId(null)}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={async () => {
+                      if (!dragAreaId || dragAreaId === area.id) return
+                      const fromIdx = areas.findIndex(a => a.id === dragAreaId)
+                      const toIdx = index
+                      if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return
+                      const fromArea = areas[fromIdx]
+                      const toArea = areas[toIdx]
+                      setReordenandoAreaId(dragAreaId)
+                      setDragAreaId(null)
+                      try {
+                        const fromOrdem = Number(fromArea.ordem) || 0
+                        const toOrdem = Number(toArea.ordem) || 0
+                        await supabase.from('areas').update({ ordem: toOrdem }).eq('id', fromArea.id)
+                        await supabase.from('areas').update({ ordem: fromOrdem }).eq('id', toArea.id)
+                        await carregarAreas()
+                      } finally {
+                        setReordenandoAreaId(null)
+                      }
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '8px 16px',
+                      borderBottom: '0.5px solid #f5f2ec',
+                      background: dragAreaId === area.id ? '#f0f7eb' : areaEditandoId === area.id ? '#f7fbf5' : '#fff',
+                      transition: 'background 0.1s',
+                      opacity: dragAreaId === area.id ? 0.5 : 1
+                    }}
+                    onMouseEnter={e => {
+                      if (areaEditandoId !== area.id && dragAreaId !== area.id) e.currentTarget.style.background = '#faf9f6'
+                    }}
+                    onMouseLeave={e => {
+                      if (areaEditandoId !== area.id && dragAreaId !== area.id) e.currentTarget.style.background = '#fff'
+                    }}
+                  >
+                    <span
+                      style={{ fontSize: 14, color: '#ccc9be', cursor: (!areaFormModo && !areaEditandoId) ? 'grab' : 'default', flexShrink: 0 }}
+                      title="Arrastar para reordenar"
+                    >⠿</span>
+                    <span style={{ fontSize: 11, color: '#aaa89e', minWidth: 18, textAlign: 'right', flexShrink: 0 }}>
+                      {index + 1}
+                    </span>
+                    {areaEditandoId === area.id ? (
+                      <>
+                        <input
+                          value={nomeAreaEdit}
+                          onChange={e => setNomeAreaEdit(e.target.value)}
+                          style={{ flex: 1, padding: '5px 8px', borderRadius: 5, border: '0.5px solid #D3D1C7', fontSize: 13 }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') { e.preventDefault(); salvarEdicaoArea(area.id) }
+                            if (e.key === 'Escape') cancelarEdicaoArea()
+                          }}
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setAtivoAreaEdit(v => !v)}
+                          title={ativoAreaEdit ? 'Ativo — clique para desativar' : 'Inativo — clique para ativar'}
+                          style={{
+                            position: 'relative',
+                            display: 'inline-block',
+                            width: 40,
+                            height: 22,
+                            borderRadius: 11,
+                            border: 'none',
+                            cursor: 'pointer',
+                            background: ativoAreaEdit ? '#2F4A3A' : '#ccc9be',
+                            transition: 'background 0.2s',
+                            flexShrink: 0,
+                            padding: 0
+                          }}
+                        >
+                          <span style={{
+                            position: 'absolute',
+                            top: 3,
+                            left: ativoAreaEdit ? 21 : 3,
+                            width: 16,
+                            height: 16,
+                            borderRadius: '50%',
+                            background: '#fff',
+                            transition: 'left 0.2s',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.18)'
+                          }} />
+                        </button>
+                      </>
+                    ) : (
+                      <span style={{ fontSize: 13, color: '#1D2F25', flex: 1 }}>{area.nome}</span>
+                    )}
+                    {areaEditandoId !== area.id && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const novoAtivo = !(area.ativo !== false)
+                          const prev = area
+                          const { error: e } = await supabase.from('areas').update({ ativo: novoAtivo }).eq('id', area.id)
+                          if (!e) {
+                            void registrarLog({
+                              modulo: 'Cadastros',
+                              area: area.nome,
+                              entidade: 'areas',
+                              entidade_id: area.id,
+                              operacao: 'UPDATE',
+                              valor_anterior: { ativo: prev.ativo },
+                              valor_novo: { ativo: novoAtivo },
+                              descricao: `Alterou ativo da área "${area.nome}"`
+                            })
+                            await carregarAreas()
+                          }
+                        }}
+                        disabled={Boolean(areaFormModo) || Boolean(areaEditandoId)}
+                        title={area.ativo !== false ? 'Clique para desativar' : 'Clique para ativar'}
+                        style={{
+                          position: 'relative',
+                          display: 'inline-block',
+                          width: 40,
+                          height: 22,
+                          borderRadius: 11,
+                          border: 'none',
+                          cursor: Boolean(areaFormModo) || Boolean(areaEditandoId) ? 'not-allowed' : 'pointer',
+                          background: area.ativo !== false ? '#2F4A3A' : '#ccc9be',
+                          transition: 'background 0.2s',
+                          flexShrink: 0,
+                          padding: 0
+                        }}
+                      >
+                        <span style={{
+                          position: 'absolute',
+                          top: 3,
+                          left: area.ativo !== false ? 21 : 3,
+                          width: 16,
+                          height: 16,
+                          borderRadius: '50%',
+                          background: '#fff',
+                          transition: 'left 0.2s',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.18)'
+                        }} />
+                      </button>
+                    )}
+                    {areaEditandoId === area.id ? (
+                      <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={() => salvarEdicaoArea(area.id)}
+                          disabled={salvandoArea}
+                          style={{
+                            padding: '4px 12px',
+                            borderRadius: 5,
+                            fontSize: 11,
+                            fontWeight: 500,
+                            background: '#2F4A3A',
+                            color: '#fff',
+                            border: 'none',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {salvandoArea ? '…' : 'Salvar'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelarEdicaoArea}
+                          disabled={salvandoArea}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: 5,
+                            fontSize: 11,
+                            fontWeight: 500,
+                            background: '#fff',
+                            color: '#5f5e5a',
+                            border: '0.5px solid #D3D1C7',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={() => iniciarEdicaoArea(area)}
+                          disabled={Boolean(areaFormModo) || Boolean(areaEditandoId)}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: 5,
+                            fontSize: 11,
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            background: '#fff',
+                            color: '#2F4A3A',
+                            border: '0.5px solid #2F4A3A'
+                          }}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => solicitarExclusaoArea(area.id)}
+                          disabled={Boolean(areaFormModo) || Boolean(areaEditandoId)}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: 5,
+                            fontSize: 11,
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            background: '#fff',
+                            color: '#A32D2D',
+                            border: '0.5px solid #f09595'
+                          }}
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="cadastro-card">
+          <div className="cadastro-section-header">
+            <div className="cadastro-section-header-text">
+              <h2>Classificacoes de Metas</h2>
+              <p>
+                Lista editavel de recorrência que pode ser usada quando uma META tiver classificações.
+                (Prazo para conclusao da meta sera definido na tela de METAS por semana.)
+              </p>
+            </div>
+            <button
+              type="button"
+              className="cadastro-header-btn"
+              onClick={abrirFormNovaRecMeta}
+            >
+              + Nova recorrência
+            </button>
+          </div>
+          <div className="cadastro-section-body cadastro-section-body--flush">
+          {detalheErroRecorrenciasMetas && (
+            <div className="alert alert-warning" style={{ marginBottom: '1rem' }}>
+              Nao foi possivel carregar `recorrencias_metas`. Detalhe:
+              <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', color: '#7a5a00' }}>
+                {detalheErroRecorrenciasMetas}
+              </div>
+            </div>
           )}
-          <Link href="/carometro/areas" className="btn btn-primary cadastro-link">Gerenciar Áreas</Link>
+
+          {showFormNovaRecMeta && (
+            <form onSubmit={salvarNovaRecorrenciaMeta} className="card" style={{ marginBottom: '1rem', padding: '1rem' }}>
+              <h3 style={{ marginTop: 0 }}>Nova recorrência</h3>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Descrição</label>
+                  <input
+                    value={formNovaRecMetaDescricao}
+                    onChange={e => setFormNovaRecMetaDescricao(e.target.value)}
+                    placeholder="Ex.: Semanal"
+                    className="cadastro-edit-input"
+                    style={{ width: 320 }}
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input
+                      type="checkbox"
+                      checked={formNovaRecMetaAtivo}
+                      onChange={e => setFormNovaRecMetaAtivo(e.target.checked)}
+                    />
+                    Ativa
+                  </label>
+                </div>
+                <button type="submit" className="btn-cadastro-primary" disabled={salvandoNovaRecMeta}>
+                  {salvandoNovaRecMeta ? 'Salvando…' : 'Salvar'}
+                </button>
+                <button type="button" className="btn-cadastro-secondary" disabled={salvandoNovaRecMeta} onClick={cancelarFormNovaRecMeta}>
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          )}
+
+          {loadingRecorrenciasMetas ? (
+            <p>Carregando…</p>
+          ) : (
+            <div className="table-wrap">
+              <table className="cadastro-table cadastro-table--metas">
+                <thead>
+                  <tr>
+                    <th>Recorrencia</th>
+                    <th className="cadastro-th-center">Ativo</th>
+                    <th className="cadastro-th-center">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recorrenciasMetas.map(r => (
+                    <tr key={r.id || r.codigo}>
+                      <td>
+                        {editRecMetaId === r.id ? (
+                          <input
+                            className="cadastro-edit-input"
+                            value={editRecMetaDescricao}
+                            onChange={e => setEditRecMetaDescricao(e.target.value)}
+                            placeholder="Descrição"
+                          />
+                        ) : (
+                          r.descricao
+                        )}
+                      </td>
+                      <td className="cadastro-td-center">
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={r.ativo}
+                          className={`cadastro-toggle ${r.ativo ? 'cadastro-toggle--on' : ''}`}
+                          onClick={() => alternarRecorrenciaMetaAtiva(r.id, Boolean(r.ativo))}
+                          disabled={!r.id}
+                          title={r.id ? '' : 'Use Pré-cadastrar para persistir'}
+                        >
+                          <span className="cadastro-sr-only">{r.ativo ? 'Ativo' : 'Inativo'}</span>
+                        </button>
+                      </td>
+                      <td className="cadastro-td-center">
+                        {editRecMetaId === r.id ? (
+                          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                            <button
+                              type="button"
+                              className="cadastro-btn-table cadastro-btn-table--edit"
+                              onClick={() => salvarRecorrenciaMetaDescricao(r.id)}
+                            >
+                              Salvar
+                            </button>
+                            <button
+                              type="button"
+                              className="cadastro-btn-table cadastro-btn-table--cancel"
+                              onClick={() => { setEditRecMetaId(null); setEditRecMetaDescricao('') }}
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                            <button
+                              type="button"
+                              className="btn-edit"
+                              disabled={!r.id}
+                              onClick={() => { setEditRecMetaId(r.id); setEditRecMetaDescricao(r.descricao) }}
+                              title={r.id ? '' : 'Use Pré-cadastrar para persistir'}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-del"
+                              disabled={!r.id || excluindoRecMetaId === r.id}
+                              onClick={() => solicitarExclusaoRecorrenciaMeta(r.id)}
+                              title="Excluir"
+                            >
+                              {excluindoRecMetaId === r.id ? '…' : 'Excluir'}
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          </div>
         </section>
 
-        <section className="card cadastro-card">
-          <h2 className="cadastro-card-title">Usuários</h2>
-          <p className="cadastro-card-desc">Contas de acesso ao sistema (em implementação).</p>
-          <p className="empty-state">Em breve.</p>
-        </section>
+      </div>
 
-        <section className="card cadastro-card cadastro-card-wide">
-          <h2 className="cadastro-card-title">Calendário (Períodos)</h2>
-          <p className="cadastro-card-desc">
-            Cadastre períodos flexíveis com data início e fim. Você pode criar períodos do tipo Semana, Mês, Bimestre, Trimestre, Semestre ou Ano. Esses períodos serão usados para filtrar as outras abas.
-          </p>
+      <section className="cadastro-card cadastro-card--full">
+          <div className="cadastro-section-header">
+            <div className="cadastro-section-header-text">
+              <h2>Calendário (Períodos)</h2>
+              <p>
+                Cadastre períodos flexíveis com data início e fim. Você pode criar períodos do tipo Semana, Mês, Bimestre, Trimestre, Semestre ou Ano. Esses períodos serão usados para filtrar as outras abas.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="cadastro-header-btn"
+              onClick={() => setShowFormPeriodo(!showFormPeriodo)}
+            >
+              {showFormPeriodo ? 'Cancelar' : '+ Novo período'}
+            </button>
+          </div>
+          <div className="cadastro-section-body">
           <div className="cadastro-calendario-visual">
-            <h3 style={{ marginTop: 0, marginBottom: '0.5rem' }}>Calendário com número da semana</h3>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-              <label>Ano:</label>
-              <select value={anoCalendario} onChange={e => setAnoCalendario(Number(e.target.value))} style={{ width: 90 }}>
+            <div className="cadastro-calendario-toolbar">
+              <label className="cadastro-calendario-ano-label" htmlFor="cadastro-ano-select">Ano:</label>
+              <select
+                id="cadastro-ano-select"
+                className="cadastro-calendario-ano-select"
+                value={anoCalendario}
+                onChange={e => setAnoCalendario(Number(e.target.value))}
+              >
                 {[2024, 2025, 2026, 2027, 2028].map(y => (
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>
             </div>
-            <CalendarioComSemanas ano={anoCalendario} />
-          </div>
-          <div className="cadastro-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
-            <button type="button" className="btn btn-primary" onClick={() => setShowFormPeriodo(!showFormPeriodo)}>
-              {showFormPeriodo ? 'Cancelar' : '+ Novo período'}
-            </button>
+            <CalendarioComSemanas ano={anoCalendario} className="cadastros-calendario" />
           </div>
           {showFormPeriodo && (
             <form onSubmit={salvarPeriodo} className="card" style={{ marginBottom: '1rem', padding: '1rem' }}>
@@ -722,7 +1432,7 @@ export default function Page() {
                   <label>Data fim</label>
                   <input type="date" value={formPeriodoFim} onChange={e => setFormPeriodoFim(e.target.value)} required />
                 </div>
-                <button type="submit" className="btn btn-primary" disabled={salvandoPeriodo}>
+                <button type="submit" className="btn-cadastro-primary" disabled={salvandoPeriodo}>
                   {salvandoPeriodo ? 'Salvando…' : 'Salvar'}
                 </button>
               </div>
@@ -749,15 +1459,15 @@ export default function Page() {
                   {periodos.map(p => (
                     <tr key={p.id}>
                       <td>{labelPeriodo(p)}</td>
-                      <td>{p.tipo}</td>
+                      <td><span className={`cadastro-tag-periodo cadastro-tag-periodo--${p.tipo || 'ano'}`}>{p.tipo}</span></td>
                       <td>{p.ano}</td>
                       {editPeriodoId === p.id ? (
                         <>
                           <td><input type="date" value={editPeriodoInicio} onChange={e => setEditPeriodoInicio(e.target.value)} className="cadastro-edit-input" /></td>
                           <td><input type="date" value={editPeriodoFim} onChange={e => setEditPeriodoFim(e.target.value)} className="cadastro-edit-input" /></td>
                           <td>
-                            <button type="button" className="btn btn-primary" style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem', marginRight: '0.25rem' }} onClick={() => salvarEdicaoPeriodo(p.id)}>Salvar</button>
-                            <button type="button" className="btn" style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem' }} onClick={cancelarEdicaoPeriodo}>Cancelar</button>
+                            <button type="button" className="btn-cadastro-primary" style={{ marginRight: '0.25rem' }} onClick={() => salvarEdicaoPeriodo(p.id)}>Salvar</button>
+                            <button type="button" className="cadastro-btn-table cadastro-btn-table--cancel" onClick={cancelarEdicaoPeriodo}>Cancelar</button>
                           </td>
                         </>
                       ) : (
@@ -765,8 +1475,8 @@ export default function Page() {
                           <td>{formatarData(p.data_inicio)}</td>
                           <td>{formatarData(p.data_fim)}</td>
                           <td>
-                            <button type="button" className="btn btn-primary" style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem', marginRight: '0.25rem' }} onClick={() => abrirEdicaoPeriodo(p)}>Editar</button>
-                            <button type="button" className="btn danger" style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem' }} disabled={excluindoPeriodoId === p.id} onClick={() => excluirPeriodo(p.id)}>
+                            <button type="button" className="btn-edit" onClick={() => abrirEdicaoPeriodo(p)}>Editar</button>
+                            <button type="button" className="btn-del" disabled={excluindoPeriodoId === p.id} onClick={() => solicitarExclusaoPeriodo(p.id)}>
                               {excluindoPeriodoId === p.id ? '…' : 'Excluir'}
                             </button>
                           </td>
@@ -778,163 +1488,67 @@ export default function Page() {
               </table>
             </div>
           )}
-        </section>
-
-        <section className="card cadastro-card cadastro-card-wide">
-          <h2 className="cadastro-card-title">Classificacoes de Metas</h2>
-          <p className="cadastro-card-desc">
-            Lista editavel de recorrência que pode ser usada quando uma META tiver classificações.
-            (Prazo para conclusao da meta sera definido na tela de METAS por semana.)
-          </p>
-
-          {detalheErroRecorrenciasMetas && (
-            <div className="alert alert-warning" style={{ marginBottom: '1rem' }}>
-              Nao foi possivel carregar `recorrencias_metas`. Detalhe:
-              <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', color: '#7a5a00' }}>
-                {detalheErroRecorrenciasMetas}
-              </div>
-            </div>
-          )}
-
-          <div className="cadastro-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
-            <button
-              type="button"
-              className="btn"
-              onClick={abrirFormNovaRecMeta}
-            >
-              + Nova recorrência
-            </button>
           </div>
-
-          {showFormNovaRecMeta && (
-            <form onSubmit={salvarNovaRecorrenciaMeta} className="card" style={{ marginBottom: '1rem', padding: '1rem' }}>
-              <h3 style={{ marginTop: 0 }}>Nova recorrência</h3>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label>Descrição</label>
-                  <input
-                    value={formNovaRecMetaDescricao}
-                    onChange={e => setFormNovaRecMetaDescricao(e.target.value)}
-                    placeholder="Ex.: Semanal"
-                    className="cadastro-edit-input"
-                    style={{ width: 320 }}
-                    required
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <input
-                      type="checkbox"
-                      checked={formNovaRecMetaAtivo}
-                      onChange={e => setFormNovaRecMetaAtivo(e.target.checked)}
-                    />
-                    Ativa
-                  </label>
-                </div>
-                <button type="submit" className="btn btn-primary" disabled={salvandoNovaRecMeta}>
-                  {salvandoNovaRecMeta ? 'Salvando…' : 'Salvar'}
-                </button>
-                <button type="button" className="btn" disabled={salvandoNovaRecMeta} onClick={cancelarFormNovaRecMeta}>
-                  Cancelar
-                </button>
-              </div>
-            </form>
-          )}
-
-          {loadingRecorrenciasMetas ? (
-            <p>Carregando…</p>
-          ) : (
-            <div className="table-wrap">
-              <table className="cadastro-table">
-                <thead>
-                  <tr>
-                    <th>Recorrencia</th>
-                    <th style={{ width: 180 }}>Ativo</th>
-                    <th style={{ width: 160 }}>Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recorrenciasMetas.map(r => (
-                    <tr key={r.id || r.codigo}>
-                      <td>
-                        {editRecMetaId === r.id ? (
-                          <input
-                            className="cadastro-edit-input"
-                            value={editRecMetaDescricao}
-                            onChange={e => setEditRecMetaDescricao(e.target.value)}
-                            placeholder="Descrição"
-                          />
-                        ) : (
-                          r.descricao
-                        )}
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className={`btn ${r.ativo ? 'btn-primary' : ''}`}
-                          style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem' }}
-                          onClick={() => alternarRecorrenciaMetaAtiva(r.id, Boolean(r.ativo))}
-                          disabled={!r.id}
-                          title={r.id ? '' : 'Use Pré-cadastrar para persistir'}
-                        >
-                          {r.ativo ? 'Sim' : 'Não'}
-                        </button>
-                      </td>
-                      <td>
-                        {editRecMetaId === r.id ? (
-                          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                            <button
-                              type="button"
-                              className="btn btn-primary"
-                              style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem' }}
-                              onClick={() => salvarRecorrenciaMetaDescricao(r.id)}
-                            >
-                              Salvar
-                            </button>
-                            <button
-                              type="button"
-                              className="btn"
-                              style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem' }}
-                              onClick={() => { setEditRecMetaId(null); setEditRecMetaDescricao('') }}
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-                        ) : (
-                          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                            <button
-                              type="button"
-                              className="btn btn-primary"
-                              style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem' }}
-                              disabled={!r.id}
-                              onClick={() => { setEditRecMetaId(r.id); setEditRecMetaDescricao(r.descricao) }}
-                              title={r.id ? '' : 'Use Pré-cadastrar para persistir'}
-                            >
-                              Editar
-                            </button>
-                            <button
-                              type="button"
-                              className={`btn ${excluindoRecMetaId === r.id ? '' : 'btn-danger'}`}
-                              style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem' }}
-                              disabled={!r.id || excluindoRecMetaId === r.id}
-                              onClick={() => excluirRecorrenciaMeta(r.id)}
-                              title="Excluir"
-                            >
-                              {excluindoRecMetaId === r.id ? '…' : 'Excluir'}
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
         </section>
+
+
 
         {/* Seções abaixo do calendário removidas a pedido */}
-      </div>
-    </>
+
+      {excluirConfirm && (
+        <div
+          className="workload-remove-modal-overlay"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !excluirConfirmando) setExcluirConfirm(null)
+          }}
+        >
+          <div
+            className="workload-remove-modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cadastros-excluir-title"
+            aria-describedby="cadastros-excluir-desc"
+          >
+            <div className="workload-remove-modal-header">
+              <div>
+                <h2 id="cadastros-excluir-title" className="workload-remove-modal-title">
+                  {excluirConfirm.titulo}
+                </h2>
+              </div>
+              <button
+                type="button"
+                className="workload-remove-modal-close"
+                onClick={() => !excluirConfirmando && setExcluirConfirm(null)}
+                disabled={excluirConfirmando}
+                aria-label="Fechar"
+              >
+                ×
+              </button>
+            </div>
+            <div className="workload-remove-modal-body">
+              <p id="cadastros-excluir-desc">{excluirConfirm.mensagem}</p>
+            </div>
+            <div className="workload-remove-modal-footer">
+              <button
+                type="button"
+                className="workload-remove-modal-btn workload-remove-modal-btn--cancel"
+                onClick={() => setExcluirConfirm(null)}
+                disabled={excluirConfirmando}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="workload-remove-modal-btn workload-remove-modal-btn--danger"
+                onClick={confirmarExclusaoModal}
+                disabled={excluirConfirmando}
+              >
+                {excluirConfirmando ? 'Excluindo…' : 'Excluir'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }

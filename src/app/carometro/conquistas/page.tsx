@@ -89,6 +89,28 @@ function normalizarMetas(rows) {
   })
 }
 
+function IconeMedalhaConquista({ atrasado }) {
+  return (
+    <div className={`conquistas-medalha${atrasado ? ' conquistas-medalha--late' : ''}`} aria-hidden>
+      <div className="conquistas-medalha__circulo">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path
+            d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"
+            stroke="#D4EDAA"
+            strokeWidth="1.8"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </div>
+      <div className="conquistas-medalha__fitas">
+        <span className="conquistas-medalha__fita" />
+        <span className="conquistas-medalha__fita" />
+      </div>
+    </div>
+  )
+}
+
+
 export default function Page() {
   const supabase = createClient()
   const [areas, setAreas] = useState([])
@@ -292,9 +314,7 @@ export default function Page() {
     const tipoTxt = isMetaRecorrente(m.raw) ? 'Recorrente' : 'Atingível'
     return (
       <li key={m.id} className="conquistas-card">
-        <div className={`conquistas-card__icon conquistas-card__icon--meta${noPrazoItem ? '' : ' conquistas-card__icon--late'}`} aria-hidden>
-          ✓
-        </div>
+        <IconeMedalhaConquista atrasado={!noPrazoItem} />
         <div className="conquistas-card__body">
           <div className="conquistas-card__nome">{m.nome}</div>
           <div className="conquistas-card__sub">
@@ -344,9 +364,7 @@ export default function Page() {
     const ultimo = String(r.ultimo_valor || '').trim()
     return (
       <li key={row.id} className="conquistas-card">
-        <div className={`conquistas-card__icon conquistas-card__icon--ind${noPrazoItem ? '' : ' conquistas-card__icon--late'}`} aria-hidden>
-          ✓
-        </div>
+        <IconeMedalhaConquista atrasado={!noPrazoItem} />
         <div className="conquistas-card__body">
           <div className="conquistas-card__nome">{row.nome}</div>
           <div className="conquistas-card__sub">
@@ -381,11 +399,11 @@ export default function Page() {
   }
 
   return (
-    <>
+    <div className="conquistas-page">
       <header className="gantt-page-header conquistas-header">
         <div className="gantt-page-header__left">
           <h1 className="gantt-page-header__title">Conquistas</h1>
-          <p className="gantt-page-header__subtitle" style={{ margin: 0 }}>
+          <p className="gantt-page-header__subtitle">
             Metas e indicadores atingíveis concluídos, com visão por área e período.
           </p>
         </div>
@@ -528,6 +546,6 @@ export default function Page() {
           </section>
         </>
       )}
-    </>
+    </div>
   )
 }
