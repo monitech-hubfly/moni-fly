@@ -2548,16 +2548,17 @@ export function KanbanCardModal({
     label: string,
     field: ProcessoNegocioAnexoCampo,
     path: string | null | undefined,
-    inputRef: React.RefObject<HTMLInputElement>,
+    inputRef: React.Ref<HTMLInputElement>,
   ) {
     if (!proc?.id) return null;
     const uploading = uploadingNegocioAnexo === field;
     const canAnexar = modalSessao.ehAdminOuTeam;
+    const fileInputRef = inputRef as React.RefObject<HTMLInputElement | null>;
     return (
       <div>
         <p className="text-[11px] font-medium text-stone-500">{label}</p>
         <input
-          ref={inputRef}
+          ref={inputRef as React.Ref<HTMLInputElement>}
           type="file"
           className="hidden"
           onChange={(e) => void handleNegocioAnexoFile(e, field)}
@@ -2576,7 +2577,7 @@ export function KanbanCardModal({
               {canAnexar ? (
                 <button
                   type="button"
-                  onClick={() => inputRef.current?.click()}
+                  onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
                   className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -2587,7 +2588,7 @@ export function KanbanCardModal({
           ) : canAnexar ? (
             <button
               type="button"
-              onClick={() => inputRef.current?.click()}
+              onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
               className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
