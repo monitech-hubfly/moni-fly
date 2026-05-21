@@ -2548,7 +2548,7 @@ export function KanbanCardModal({
     label: string,
     field: ProcessoNegocioAnexoCampo,
     path: string | null | undefined,
-    inputRef: React.RefObject<HTMLInputElement | null>,
+    inputRef: React.RefObject<HTMLInputElement>,
   ) {
     if (!proc?.id) return null;
     const uploading = uploadingNegocioAnexo === field;
@@ -2710,6 +2710,14 @@ export function KanbanCardModal({
         vgv_pretendido: '',
         produto_modelo_casa: '',
         link_pasta_drive: '',
+        link_bca: '',
+        link_mapa_competidores: '',
+        link_acoplamento: '',
+        link_apresentacao_comite: '',
+        link_moni_capital_seguro_garantia: '',
+        comentario_moni_capital_seguro_garantia: '',
+        link_moni_capital_gastos_aporte_inicial: '',
+        comentario_moni_capital_gastos_aporte_inicial: '',
         nome_condominio: card.nome_condominio ?? '',
         quadra: card.quadra ?? '',
         lote: card.lote ?? '',
