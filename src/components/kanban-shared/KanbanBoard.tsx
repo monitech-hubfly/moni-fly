@@ -7,6 +7,7 @@ import { KanbanBoardFiltrosPanel } from './KanbanBoardFiltrosPanel';
 import { KanbanColumn } from './KanbanColumn';
 import {
   cardPassaFiltrosBoard,
+  cardTituloMatchBuscaPalavra,
   countKanbanBoardFiltrosAtivos,
   KANBAN_BOARD_FILTROS_DEFAULT,
   poolCardsPorStatus,
@@ -43,6 +44,7 @@ export function KanbanBoard({
   const { pode } = usePermissoes();
   const [filtros, setFiltros] = useState<KanbanBoardFiltros>(KANBAN_BOARD_FILTROS_DEFAULT);
   const [filtrosDraft, setFiltrosDraft] = useState<KanbanBoardFiltros>(KANBAN_BOARD_FILTROS_DEFAULT);
+  const [buscaTitulo, setBuscaTitulo] = useState('');
   const [filtrosOpen, setFiltrosOpen] = useState(false);
   const filtrosPopoverRef = useRef<HTMLDivElement>(null);
   const filtrosBtnRef = useRef<HTMLButtonElement>(null);
@@ -112,12 +114,17 @@ export function KanbanBoard({
     return m;
   }, [fases, poolStatus]);
 
-  const cardsFiltrados = useMemo(
-    () => poolStatus.filter((c) => cardPassaFiltrosBoard(c, filtros, faseMap, currentUserId)),
-    [poolStatus, filtros, faseMap, currentUserId],
-  );
+  const cardsFiltrados = useMemo(() => {
+    const busca = buscaTitulo.trim();
+    return poolStatus.filter((c) => {
+      if (!cardPassaFiltrosBoard(c, filtros, faseMap, currentUserId)) return false;
+      if (busca && !cardTituloMatchBuscaPalavra(c.titulo, busca)) return false;
+      return true;
+    });
+  }, [poolStatus, filtros, faseMap, currentUserId, buscaTitulo]);
 
-  const clientFiltersActive = countKanbanBoardFiltrosAtivos(filtros) > 0;
+  const clientFiltersActive =
+    countKanbanBoardFiltrosAtivos(filtros) > 0 || buscaTitulo.trim().length > 0;
 
   const cardsByFase = useMemo(() => {
     const m: Record<string, KanbanCardBrief[]> = {};
@@ -169,6 +176,19 @@ export function KanbanBoard({
         >
           Filtros ({nAtivos})
         </button>
+        <input
+          type="search"
+          value={buscaTitulo}
+          onChange={(e) => setBuscaTitulo(e.target.value)}
+          placeholder="Buscar no título do card…"
+          aria-label="Buscar cards pelo título"
+          className="ml-auto min-w-[12rem] max-w-md flex-1 rounded-lg px-3 py-2 text-sm placeholder:text-stone-400 focus:outline-none focus:ring-1"
+          style={{
+            border: '0.5px solid var(--moni-border-default)',
+            background: 'var(--moni-surface-0)',
+            color: 'var(--moni-text-primary)',
+          }}
+        />
         {filtrosOpen ? (
           <div
             ref={filtrosPopoverRef}

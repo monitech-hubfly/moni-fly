@@ -166,27 +166,6 @@ export function KanbanBoardFiltrosPanel({
       }}
     >
       <div className="max-h-[min(70vh,32rem)] space-y-1.5 overflow-y-auto pr-0.5 text-xs">
-        <label className="block text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
-          <span
-            className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide"
-            style={{ color: 'var(--moni-text-tertiary)' }}
-          >
-            Buscar
-          </span>
-          <input
-            type="search"
-            value={draft.busca}
-            onChange={(e) => setDraft((d) => ({ ...d, busca: e.target.value }))}
-            placeholder="Buscar card…"
-            className="mt-0.5 w-full rounded-lg px-2 py-1 text-xs placeholder:text-stone-400 focus:outline-none focus:ring-1"
-            style={{
-              border: '0.5px solid var(--moni-border-default)',
-              background: 'var(--moni-surface-50)',
-              color: 'var(--moni-text-primary)',
-            }}
-          />
-        </label>
-
         <SecaoColapsavel
           titulo="Fase"
           expandido={expanded.fase}

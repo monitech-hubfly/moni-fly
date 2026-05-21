@@ -5,7 +5,6 @@ export type KanbanBoardFiltrosStatus = 'ativos' | 'arquivados' | 'concluidos';
 export type KanbanBoardFiltrosSla = 'todos' | 'atrasados' | 'vence_hoje' | 'dentro_prazo';
 
 export type KanbanBoardFiltros = {
-  busca: string;
   /** `todas` ou id da fase */
   fase: 'todas' | string;
   responsavel: 'todos' | 'eu' | string;
@@ -14,7 +13,6 @@ export type KanbanBoardFiltros = {
 };
 
 export const KANBAN_BOARD_FILTROS_DEFAULT: KanbanBoardFiltros = {
-  busca: '',
   fase: 'todas',
   responsavel: 'todos',
   sla: 'todos',
@@ -24,7 +22,6 @@ export const KANBAN_BOARD_FILTROS_DEFAULT: KanbanBoardFiltros = {
 export function countKanbanBoardFiltrosAtivos(f: KanbanBoardFiltros): number {
   const d = KANBAN_BOARD_FILTROS_DEFAULT;
   let n = 0;
-  if (f.busca.trim() !== '') n++;
   if (f.fase !== d.fase) n++;
   if (f.responsavel !== d.responsavel) n++;
   if (f.sla !== d.sla) n++;
@@ -68,19 +65,33 @@ function slaCategoria(
   return 'ok';
 }
 
+export function normalizeBuscaKanbanTexto(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .trim();
+}
+
+/** Qualquer palavra digitada que apareça no título do card (sem acento, case-insensitive). */
+export function cardTituloMatchBuscaPalavra(titulo: string, query: string): boolean {
+  const q = normalizeBuscaKanbanTexto(query);
+  if (!q) return true;
+  const tokens = q.split(/\s+/).filter(Boolean);
+  const tituloNorm = normalizeBuscaKanbanTexto(titulo ?? '');
+  const palavrasTitulo = tituloNorm.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  return tokens.some(
+    (token) =>
+      tituloNorm.includes(token) || palavrasTitulo.some((palavra) => palavra.includes(token)),
+  );
+}
+
 export function cardPassaFiltrosBoard(
   card: KanbanCardBrief,
   f: KanbanBoardFiltros,
   faseMap: Map<string, KanbanFase>,
   currentUserId: string | null | undefined,
 ): boolean {
-  const q = f.busca.trim().toLowerCase();
-  if (q) {
-    const titulo = (card.titulo ?? '').toLowerCase();
-    const nome = (card.profiles?.full_name ?? '').toLowerCase();
-    if (!titulo.includes(q) && !nome.includes(q)) return false;
-  }
-
   if (f.fase !== 'todas' && card.fase_id !== f.fase) return false;
 
   if (f.responsavel === 'eu') {
