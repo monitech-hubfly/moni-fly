@@ -134,7 +134,7 @@ export function useStatusPreenchimentoData() {
         }
       }
 
-      const areasMontadas: AreaComResponsaveis[] = areasAtivas.map((a) => ({
+      const areasMontadas: AreaComResponsaveis[] = areasAtivas.map((a: { id: string; nome: string; ativo: boolean | null }) => ({
         id: a.id,
         nome: a.nome,
         responsaveis: Array.from(responsaveisPorArea.get(a.id)?.values() ?? []).sort((x, y) =>
