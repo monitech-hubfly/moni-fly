@@ -105,7 +105,7 @@ export function useStatusPreenchimentoData() {
       const { data: ganttData, error: errGantt } = await supabase.from('gantt_planejamento').select(GANTT_SEL);
       if (errGantt) throw errGantt;
       const gantt = ganttData || [];
-      setGanttRows(gantt);
+      setGanttRows(gantt as Parameters<typeof setGanttRows>[0]);
 
       const responsaveisPorArea = new Map<string, Map<string, ResponsavelArea>>();
 
