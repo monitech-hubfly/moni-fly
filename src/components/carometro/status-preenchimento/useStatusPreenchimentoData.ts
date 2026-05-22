@@ -86,7 +86,7 @@ export function useStatusPreenchimentoData() {
     try {
       const { data: areasData, error: errAreas } = await listarAreas(supabase, 'id, nome, ativo');
       if (errAreas) throw errAreas;
-      const areasAtivas = (areasData || []).filter((a) => a.ativo !== false);
+      const areasAtivas = (areasData || []).filter((a: { id: string; nome: string; ativo: boolean | null }) => a.ativo !== false);
 
       const { data: profiles } = await supabase
         .from('profiles')
