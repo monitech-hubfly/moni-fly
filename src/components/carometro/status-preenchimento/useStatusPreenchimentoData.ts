@@ -164,7 +164,7 @@ export function useStatusPreenchimentoData() {
         setRegistros((regData || []) as RegistroStatusPreenchimento[]);
       }
 
-      const areaIds = areasAtivas.map((a) => a.id);
+      const areaIds = areasAtivas.map((a: { id: string; nome: string; ativo: boolean | null }) => a.id);
       const { data: inds } = await supabase.from('indicadores').select('id, area_id').in('area_id', areaIds);
       const porArea: Record<string, string[]> = {};
       for (const ind of inds || []) {
@@ -274,3 +274,4 @@ export function useStatusPreenchimentoData() {
     recarregar: carregar,
   };
 }
+
