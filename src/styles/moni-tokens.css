@@ -240,6 +240,15 @@
   --moni-card-width-min:      240px;
   --moni-card-modal-max:      1100px;  /* largura máx do modal de detalhe */
   --moni-column-width:        300px;   /* largura da coluna no board */
+
+  /* Carômetro — layout de página e headlines */
+  --carometro-page-bg: #f4f5f0;
+  --carometro-page-padding: 28px;
+  --carometro-headline-size: 22px;
+  --carometro-headline-weight: 600;
+  --carometro-headline-lh: 1.3;
+  --carometro-subtitle-size: 13px;
+  --carometro-subtitle-color: var(--moni-text-tertiary);
 }
 
 /* --------------------------------------------------
