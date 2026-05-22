@@ -21,13 +21,12 @@ export type SemanaColuna = {
   offset: number;
 };
 
-const WEEK_OPTS = { weekStartsOn: 1 as const };
 
 export function semanaIsoComOffset(offset: number, refDate = new Date()): SemanaColuna {
   const semana = isoWeek(refDate);
   const ano = isoWeekYear(refDate);
   const ref = dataReferenciaSemanaIso(ano, semana);
-  const monday = ref ? startOfISOWeek(ref, WEEK_OPTS) : new Date();
+  const monday = ref ? startOfISOWeek(ref) : new Date();
   const target = addWeeks(monday, offset);
   return {
     semanaIso: isoWeek(target),
@@ -70,8 +69,8 @@ export function registroDentroDoPrazoSemana(
 export function labelIntervaloSemana(semanaIso: number, ano: number): string {
   const ref = dataReferenciaSemanaIso(ano, semanaIso);
   if (!ref) return `S${semanaIso}`;
-  const start = startOfISOWeek(ref, WEEK_OPTS);
-  const end = endOfISOWeek(ref, WEEK_OPTS);
+  const start = startOfISOWeek(ref);
+  const end = endOfISOWeek(ref);
   const fri = new Date(start);
   fri.setDate(start.getDate() + 4);
   const ini = format(start, 'MMM d', { locale: ptBR }).replace('.', '');
@@ -82,7 +81,7 @@ export function labelIntervaloSemana(semanaIso: number, ano: number): string {
 export function labelPrazoSexta(semanaIso: number, ano: number): string {
   const ref = dataReferenciaSemanaIso(ano, semanaIso);
   if (!ref) return `sex —`;
-  const start = startOfISOWeek(ref, WEEK_OPTS);
+  const start = startOfISOWeek(ref);
   const fri = new Date(start);
   fri.setDate(start.getDate() + 4);
   return `sex ${format(fri, 'dd/MM', { locale: ptBR })}`;
@@ -189,3 +188,5 @@ export function parseResponsaveisGantt(str: string | null | undefined): string[]
     .map((s) => s.trim())
     .filter(Boolean);
 }
+
+
