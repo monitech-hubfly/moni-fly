@@ -111,7 +111,7 @@ export function useStatusPreenchimentoData() {
 
       for (const row of gantt) {
         const acoes = row.acoes;
-        const tarefa = Array.isArray(acoes?.tarefas) ? acoes.tarefas[0] : acoes?.tarefas;
+        const tarefasRaw = (acoes as { tarefas?: { area_id?: string } | { area_id?: string }[] } | null)?.tarefas; const tarefa = Array.isArray(tarefasRaw) ? tarefasRaw[0] : tarefasRaw;
         const areaId = tarefa?.area_id;
         if (!areaId) continue;
         const nomes = parseResponsaveisGantt(row.responsavel);
@@ -213,7 +213,7 @@ export function useStatusPreenchimentoData() {
     (areaId: string, col: SemanaColuna, usuarioId?: string) => {
       const rowsArea = ganttRows.filter((g) => {
         const acoes = g.acoes;
-        const tarefa = Array.isArray(acoes?.tarefas) ? acoes.tarefas[0] : acoes?.tarefas;
+        const tarefasRaw = (acoes as { tarefas?: { area_id?: string } | { area_id?: string }[] } | null)?.tarefas; const tarefa = Array.isArray(tarefasRaw) ? tarefasRaw[0] : tarefasRaw;
         return tarefa?.area_id === areaId;
       });
       for (const g of rowsArea) {
