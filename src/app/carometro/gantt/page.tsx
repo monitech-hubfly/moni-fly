@@ -3782,7 +3782,6 @@ export default function Page() {
   }
 
   function abrirAddDrawer() {
-    if (!isAdmin) return
     setAddDrawerEditando(false)
     setShowAddAtividade(true)
     setError(null)
@@ -6516,7 +6515,7 @@ export default function Page() {
                           ✎
                         </button>
                         )}
-                        {podeExibirExcluirComHistorico(isAdmin, Boolean(metaTemAtividadesNoPlano[m.id])) ? (
+                        {isAdmin && podeExibirExcluirComHistorico(isAdmin, Boolean(metaTemAtividadesNoPlano[m.id])) ? (
                         <button
                           type="button"
                           className="btn-icon btn-danger"
@@ -6793,7 +6792,7 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
       )}
       <div className="gantt-toolbar gantt-controls-row">
         <div className="gantt-toolbar-left gantt-controls-row-left">
-          {areaId && periodoId && isAdmin && (
+          {areaId && periodoId && (
             <div className="gantt-add-atividade gantt-add-atividade--toolbar card" style={{ marginBottom: 0 }}>
               <button
                 type="button"
