@@ -20,6 +20,7 @@ export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/sirene',
   '/universidade',
   '/admin/universidade',
+  '/carometro',
 ] as const;
 
 export function isTeamAllowedPath(pathname: string): boolean {
