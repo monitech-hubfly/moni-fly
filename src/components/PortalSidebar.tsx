@@ -48,7 +48,7 @@ const PAINEL_NOVOS_NEGOCIOS_SUBITENS_HEAD: NavItem[] = [
   { href: '/dashboard-novos-negocios', label: 'Dashboard Novos Negócios' },
   { href: '/funil-stepone', label: 'Funil Step One' },
   { href: '/portfolio', label: 'Funil Portfolio' },
-  { href: '/funil-moni-inc', label: 'Funil Loteadores' },
+  { href: '/funil-moni-inc', label: 'Funil Moní INC' },
   { href: '/funil-acoplamento', label: 'Funil Acoplamento' },
 ];
 /** Só admin / visitante público: aparecem antes de Funil Operações. */
@@ -84,6 +84,7 @@ const CAROMETRO_SUBITENS_TEAM: NavItem[] = [
   { href: '/carometro/pastelaria', label: 'Pastelaria' },
   { href: '/carometro', label: 'Carômetro' },
   { href: '/carometro/dashboard-produtos', label: 'Dashboard Casas Moní' },
+  { href: '/carometro/todo', label: 'TO DO' },
 ];
 
 const REDE_HREFS_DEV_ONLY = new Set(['/comunidade', '/rede']);
