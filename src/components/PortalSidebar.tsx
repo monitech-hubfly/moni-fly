@@ -76,6 +76,17 @@ const CAROMETRO_SUBITENS: NavItem[] = [
   { href: '/carometro/log', label: 'Log' },
 ];
 
+const CAROMETRO_SUBITENS_TEAM: NavItem[] = [
+  { href: '/carometro/comportamentos-e-atividades', label: 'Comportamentos e Atividades' },
+  { href: '/carometro/gantt', label: 'Planejamento (Gantt)' },
+  { href: '/carometro/status-preenchimento', label: 'Status de Preenchimento' },
+  { href: '/carometro/conquistas', label: 'Conquistas' },
+  { href: '/carometro/pastelaria', label: 'Pastelaria' },
+  { href: '/carometro', label: 'Carômetro' },
+  { href: '/carometro/dashboard-produtos', label: 'Dashboard Casas Moní' },
+  { href: '/carometro/todo', label: 'TO DO' },
+];
+
 const REDE_HREFS_DEV_ONLY = new Set(['/comunidade', '/rede']);
 
 function filterRedeFranqueadosSubitensParaProd(items: NavItem[], showDevNav: boolean): NavItem[] {
@@ -311,7 +322,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
             isCarometroNavActive(pathname ?? ''),
             carometroOpen,
             setCarometroOpen,
-            CAROMETRO_SUBITENS,
+            isAdmin ? CAROMETRO_SUBITENS : CAROMETRO_SUBITENS_TEAM,
             (href) => Boolean(pathname === href || pathname?.startsWith(`${href}/`)),
           )}
 
