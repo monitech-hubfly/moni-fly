@@ -73,17 +73,70 @@ export function normalizeBuscaKanbanTexto(value: string): string {
     .trim();
 }
 
-/** Qualquer palavra digitada que apareça no título do card (sem acento, case-insensitive). */
-export function cardTituloMatchBuscaPalavra(titulo: string, query: string): boolean {
+/** Qualquer token da busca que apareça no texto (sem acento, case-insensitive). */
+export function textoMatchBuscaKanbanPalavras(texto: string, query: string): boolean {
   const q = normalizeBuscaKanbanTexto(query);
   if (!q) return true;
   const tokens = q.split(/\s+/).filter(Boolean);
-  const tituloNorm = normalizeBuscaKanbanTexto(titulo ?? '');
-  const palavrasTitulo = tituloNorm.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const textoNorm = normalizeBuscaKanbanTexto(texto ?? '');
+  const palavras = textoNorm.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   return tokens.some(
-    (token) =>
-      tituloNorm.includes(token) || palavrasTitulo.some((palavra) => palavra.includes(token)),
+    (token) => textoNorm.includes(token) || palavras.some((palavra) => palavra.includes(token)),
   );
+}
+
+function labelDataCardKanbanBusca(dataIso: string): string {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const data = new Date(`${dataIso}T00:00:00`);
+  const diffDias = Math.floor((data.getTime() - hoje.getTime()) / 86400000);
+  if (diffDias < 0) return `Atrasado ${Math.abs(diffDias)}d`;
+  if (diffDias === 0) return 'Hoje';
+  if (diffDias === 1) return 'Amanhã';
+  return `Em ${diffDias}d`;
+}
+
+/** Texto agregado com tudo que o card fechado exibe no board (para busca). */
+export function textoVisivelCardKanbanFechado(
+  card: KanbanCardBrief,
+  fase?: KanbanFase | null,
+): string {
+  const partes: string[] = [card.titulo, card.status, card.motivo_arquivamento ?? '', card.profiles?.full_name ?? ''];
+
+  if (card.origem !== 'legado' && card.arquivado) partes.push('ARQUIVADO');
+  if (card.origem !== 'legado' && card.concluido) partes.push('CONCLUÍDO');
+
+  if (card.data_reuniao) {
+    partes.push('Reunião', labelDataCardKanbanBusca(card.data_reuniao), card.data_reuniao);
+  }
+  if (card.data_followup) {
+    partes.push('Follow-up', 'Follow up', labelDataCardKanbanBusca(card.data_followup), card.data_followup);
+  }
+
+  for (const t of card.tagsCard ?? []) {
+    partes.push(t.nome);
+  }
+
+  const created = new Date(card.created_at);
+  if (!Number.isNaN(created.getTime())) {
+    partes.push('Criado', created.toLocaleDateString('pt-BR'), created.toISOString().slice(0, 10));
+    const slaDias = fase?.sla_dias ?? 999;
+    const sla = calcularStatusSLA(created, slaDias);
+    if (sla.label) partes.push(sla.label);
+    partes.push(sla.status);
+  }
+
+  return partes.filter(Boolean).join(' ');
+}
+
+/** Busca em qualquer informação visível no card fechado do Kanban. */
+export function cardKanbanMatchBuscaVisivel(
+  card: KanbanCardBrief,
+  query: string,
+  faseMap: Map<string, KanbanFase>,
+): boolean {
+  const fase = faseMap.get(card.fase_id);
+  return textoMatchBuscaKanbanPalavras(textoVisivelCardKanbanFechado(card, fase), query);
 }
 
 export function cardPassaFiltrosBoard(

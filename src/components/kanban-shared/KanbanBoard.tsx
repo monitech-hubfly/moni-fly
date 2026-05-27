@@ -7,7 +7,7 @@ import { KanbanBoardFiltrosPanel } from './KanbanBoardFiltrosPanel';
 import { KanbanColumn } from './KanbanColumn';
 import {
   cardPassaFiltrosBoard,
-  cardTituloMatchBuscaPalavra,
+  cardKanbanMatchBuscaVisivel,
   countKanbanBoardFiltrosAtivos,
   KANBAN_BOARD_FILTROS_DEFAULT,
   poolCardsPorStatus,
@@ -44,7 +44,7 @@ export function KanbanBoard({
   const { pode } = usePermissoes();
   const [filtros, setFiltros] = useState<KanbanBoardFiltros>(KANBAN_BOARD_FILTROS_DEFAULT);
   const [filtrosDraft, setFiltrosDraft] = useState<KanbanBoardFiltros>(KANBAN_BOARD_FILTROS_DEFAULT);
-  const [buscaTitulo, setBuscaTitulo] = useState('');
+  const [buscaCard, setBuscaCard] = useState('');
   const [filtrosOpen, setFiltrosOpen] = useState(false);
   const filtrosPopoverRef = useRef<HTMLDivElement>(null);
   const filtrosBtnRef = useRef<HTMLButtonElement>(null);
@@ -115,16 +115,16 @@ export function KanbanBoard({
   }, [fases, poolStatus]);
 
   const cardsFiltrados = useMemo(() => {
-    const busca = buscaTitulo.trim();
+    const busca = buscaCard.trim();
     return poolStatus.filter((c) => {
       if (!cardPassaFiltrosBoard(c, filtros, faseMap, currentUserId)) return false;
-      if (busca && !cardTituloMatchBuscaPalavra(c.titulo, busca)) return false;
+      if (busca && !cardKanbanMatchBuscaVisivel(c, busca, faseMap)) return false;
       return true;
     });
-  }, [poolStatus, filtros, faseMap, currentUserId, buscaTitulo]);
+  }, [poolStatus, filtros, faseMap, currentUserId, buscaCard]);
 
   const clientFiltersActive =
-    countKanbanBoardFiltrosAtivos(filtros) > 0 || buscaTitulo.trim().length > 0;
+    countKanbanBoardFiltrosAtivos(filtros) > 0 || buscaCard.trim().length > 0;
 
   const cardsByFase = useMemo(() => {
     const m: Record<string, KanbanCardBrief[]> = {};
@@ -178,10 +178,10 @@ export function KanbanBoard({
         </button>
         <input
           type="search"
-          value={buscaTitulo}
-          onChange={(e) => setBuscaTitulo(e.target.value)}
-          placeholder="Buscar no título do card…"
-          aria-label="Buscar cards pelo título"
+          value={buscaCard}
+          onChange={(e) => setBuscaCard(e.target.value)}
+          placeholder="Buscar no card (título, franqueado, datas, SLA…)…"
+          aria-label="Buscar cards por qualquer informação visível no card"
           className="w-64 max-w-full rounded-lg px-3 py-2 text-sm placeholder:text-stone-400 focus:outline-none focus:ring-1"
           style={{
             border: '0.5px solid var(--moni-border-default)',
