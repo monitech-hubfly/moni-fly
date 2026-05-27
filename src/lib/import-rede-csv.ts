@@ -48,7 +48,7 @@ export function parseCSV(text: string, delimiter: ',' | ';' | '\t' = ','): strin
 }
 
 export function normalizeNFranquiaCsv(val: string | null | undefined): string | null {
-  if (!val) return val;
+  if (val === null || val === undefined) return null;
   const v = String(val).trim();
   if (!v) return null;
   const m = v.match(/fk\s*0*(\d+)/i);

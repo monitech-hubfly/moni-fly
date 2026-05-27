@@ -7,10 +7,25 @@ import { createClient } from '@/lib/supabase/server';
 import { normalizeNFranquiaCsv } from '@/lib/import-rede-csv';
 import { normalizarParaBusca } from '@/lib/painel-tarefas-filtros';
 
-/** Ordenação numérica do Nº de Franquia (FK0000, FK0001, …); sem número vai para o final. */
-function indiceOrdenacaoNFranquia(n_franquia: string | null | undefined): number {
-  const norm = normalizeNFranquiaCsv(n_franquia);
-  if (!norm) return Number.MAX_SAFE_INTEGER;
+/** Extrai o índice numérico do Nº de Franquia (FK0009 → 9). Aceita string ou número no banco. */
+export function indiceOrdenacaoNFranquia(n_franquia: string | number | null | undefined): number {
+  if (n_franquia === null || n_franquia === undefined) return Number.MAX_SAFE_INTEGER;
+  const bruto = String(n_franquia).trim();
+  if (!bruto) return Number.MAX_SAFE_INTEGER;
+
+  const fk = bruto.match(/fk\s*0*(\d+)/i);
+  if (fk) {
+    const n = parseInt(fk[1] ?? '', 10);
+    return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER - 1;
+  }
+
+  if (/^\d+$/.test(bruto)) {
+    const n = parseInt(bruto, 10);
+    return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER - 1;
+  }
+
+  const norm = normalizeNFranquiaCsv(bruto);
+  if (!norm) return Number.MAX_SAFE_INTEGER - 1;
   const m = norm.match(/(\d+)$/);
   return m ? parseInt(m[1] ?? '', 10) : Number.MAX_SAFE_INTEGER - 1;
 }

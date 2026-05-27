@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Check, FileText, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
 import type { RedeFranqueadoDbKey, RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
-import { COLUNAS_REDE_FRANQUEADOS, REDE_FRANQUEADOS_DB_KEYS } from '@/lib/rede-franqueados';
+import { COLUNAS_REDE_FRANQUEADOS, ordenarRedePorNFranquia, REDE_FRANQUEADOS_DB_KEYS } from '@/lib/rede-franqueados';
 import { atualizarRedeFranqueado, excluirRedeFranqueado } from '@/app/rede-franqueados/actions';
 import { UFS_BRASIL } from '@/lib/uf';
 import { RedeFranqueadoCellClamp } from '@/components/RedeFranqueadoCellClamp';
@@ -159,7 +159,6 @@ export function TabelaRedeFranqueadosEditavel({
 }: Props) {
   const router = useRouter();
   const [page, setPage] = useState(1);
-  const totalGeral = totalSemBusca ?? rows.length;
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<Record<RedeFranqueadoDbKey, string>>>({});
   const [saving, setSaving] = useState(false);
@@ -172,14 +171,20 @@ export function TabelaRedeFranqueadosEditavel({
   const [cidadesAtuacao, setCidadesAtuacao] = useState<CidadeIBGE[]>([]);
   const [loadingCidadesAtuacao, setLoadingCidadesAtuacao] = useState(false);
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / PER_PAGE));
+  const rowsOrdenadas = useMemo(() => ordenarRedePorNFranquia(rows), [rows]);
+  const totalGeral = totalSemBusca ?? rows.length;
+
+  const totalPages = Math.max(1, Math.ceil(rowsOrdenadas.length / PER_PAGE));
   const safePage = Math.min(Math.max(1, page), totalPages);
   const start = (safePage - 1) * PER_PAGE;
-  const pageRows = useMemo(() => rows.slice(start, start + PER_PAGE), [rows, start]);
+  const pageRows = useMemo(
+    () => rowsOrdenadas.slice(start, start + PER_PAGE),
+    [rowsOrdenadas, start],
+  );
 
   useEffect(() => {
     setPage(1);
-  }, [rows]);
+  }, [rowsOrdenadas]);
 
   useEffect(() => {
     if (!canEditRows && editingId) {
@@ -283,7 +288,7 @@ export function TabelaRedeFranqueadosEditavel({
     }
   };
 
-  if (rows.length === 0) {
+  if (rowsOrdenadas.length === 0) {
     return (
       <div className="rounded-xl border border-stone-200 bg-stone-50 p-6 text-center text-sm text-stone-600">
         <p className="font-medium">
@@ -499,9 +504,9 @@ export function TabelaRedeFranqueadosEditavel({
       </div>
 
       <p className="border-t border-stone-200 pt-3 text-sm text-stone-600">
-        Mostrando {start + 1}–{Math.min(start + PER_PAGE, rows.length)} de {rows.length} franqueado
-        {rows.length === 1 ? '' : 's'}
-        {buscaAtiva && totalGeral > rows.length ? (
+        Mostrando {start + 1}–{Math.min(start + PER_PAGE, rowsOrdenadas.length)} de {rowsOrdenadas.length}{' '}
+        franqueado{rowsOrdenadas.length === 1 ? '' : 's'}
+        {buscaAtiva && totalGeral > rowsOrdenadas.length ? (
           <span className="text-stone-500"> (filtrado de {totalGeral})</span>
         ) : null}
       </p>
