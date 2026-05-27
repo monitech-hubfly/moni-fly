@@ -117,6 +117,10 @@ type Props = {
   rows: RedeFranqueadoRowDb[];
   /** Apenas administradores (e perfis equivalentes no authz) podem editar/excluir linhas. */
   canEditRows?: boolean;
+  /** Total de linhas antes do filtro de busca (para mensagens de contagem). */
+  totalSemBusca?: number;
+  /** Indica que há texto na busca (distinto de tabela vazia). */
+  buscaAtiva?: boolean;
 };
 
 function toInputDate(val: string | null | undefined): string {
@@ -147,9 +151,15 @@ function normalizeFKDisplay(val: string | null | undefined): string {
   return `FK${String(n).padStart(4, '0')}`;
 }
 
-export function TabelaRedeFranqueadosEditavel({ rows, canEditRows = true }: Props) {
+export function TabelaRedeFranqueadosEditavel({
+  rows,
+  canEditRows = true,
+  totalSemBusca,
+  buscaAtiva = false,
+}: Props) {
   const router = useRouter();
   const [page, setPage] = useState(1);
+  const totalGeral = totalSemBusca ?? rows.length;
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<Record<RedeFranqueadoDbKey, string>>>({});
   const [saving, setSaving] = useState(false);
@@ -166,6 +176,10 @@ export function TabelaRedeFranqueadosEditavel({ rows, canEditRows = true }: Prop
   const safePage = Math.min(Math.max(1, page), totalPages);
   const start = (safePage - 1) * PER_PAGE;
   const pageRows = useMemo(() => rows.slice(start, start + PER_PAGE), [rows, start]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [rows]);
 
   useEffect(() => {
     if (!canEditRows && editingId) {
@@ -272,7 +286,14 @@ export function TabelaRedeFranqueadosEditavel({ rows, canEditRows = true }: Prop
   if (rows.length === 0) {
     return (
       <div className="rounded-xl border border-stone-200 bg-stone-50 p-6 text-center text-sm text-stone-600">
-        <p className="font-medium">Nenhum franqueado cadastrado na rede.</p>
+        <p className="font-medium">
+          {buscaAtiva && totalGeral > 0
+            ? 'Nenhum franqueado encontrado para esta pesquisa.'
+            : 'Nenhum franqueado cadastrado na rede.'}
+        </p>
+        {buscaAtiva && totalGeral > 0 ? (
+          <p className="mt-1 text-stone-500">Tente outro termo ou limpe o campo de pesquisa.</p>
+        ) : null}
       </div>
     );
   }
@@ -478,7 +499,11 @@ export function TabelaRedeFranqueadosEditavel({ rows, canEditRows = true }: Prop
       </div>
 
       <p className="border-t border-stone-200 pt-3 text-sm text-stone-600">
-        Mostrando {start + 1}–{Math.min(start + PER_PAGE, rows.length)} de {rows.length} franqueados
+        Mostrando {start + 1}–{Math.min(start + PER_PAGE, rows.length)} de {rows.length} franqueado
+        {rows.length === 1 ? '' : 's'}
+        {buscaAtiva && totalGeral > rows.length ? (
+          <span className="text-stone-500"> (filtrado de {totalGeral})</span>
+        ) : null}
       </p>
 
       {totalPages > 1 && (

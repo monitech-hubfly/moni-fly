@@ -4,6 +4,7 @@
  */
 
 import { createClient } from '@/lib/supabase/server';
+import { normalizarParaBusca } from '@/lib/painel-tarefas-filtros';
 
 export const COLUNAS_REDE_FRANQUEADOS = [
   'N de Franquia',
@@ -235,4 +236,46 @@ export async function fetchRedeFranqueadosRowsPortalFrank(
     .order('ordem', { ascending: true });
   if (error) return null;
   return (data ?? []) as unknown as RedeFranqueadoRowPortalFrank[];
+}
+
+const REDE_BUSCA_DATE_KEYS = new Set<RedeFranqueadoDbKey>([
+  'data_ass_cof',
+  'data_ass_contrato',
+  'data_expiracao_franquia',
+  'data_nasc_frank',
+  'data_recebimento_kit_boas_vindas',
+]);
+
+function variantesTextoBuscaRede(k: RedeFranqueadoDbKey, raw: string | null | undefined): string[] {
+  if (raw == null || raw === '') return [];
+  const s = String(raw);
+  if (k === 'n_franquia') {
+    const variants = [s];
+    const m = s.match(/fk\s*0*(\d+)/i);
+    if (m) {
+      const n = parseInt(m[1] ?? '', 10);
+      if (Number.isFinite(n) && n >= 0) variants.push(`FK${String(n).padStart(4, '0')}`);
+    }
+    return variants;
+  }
+  if (REDE_BUSCA_DATE_KEYS.has(k)) {
+    const variants = [s];
+    if (s.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(s)) variants.push(s.slice(0, 10));
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) variants.push(d.toLocaleDateString('pt-BR'));
+    return variants;
+  }
+  return [s];
+}
+
+/** Busca case-insensitive em qualquer coluna exibida na planilha da rede. */
+export function redeFranqueadoRowMatchesBusca(row: RedeFranqueadoRowDb, busca: string): boolean {
+  const q = normalizarParaBusca(busca);
+  if (!q) return true;
+  for (const k of REDE_FRANQUEADOS_DB_KEYS) {
+    for (const v of variantesTextoBuscaRede(k, row[k])) {
+      if (normalizarParaBusca(v).includes(q)) return true;
+    }
+  }
+  return false;
 }

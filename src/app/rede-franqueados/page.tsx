@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { isAdminRole } from '@/lib/authz';
 import { isAppFullyPublic, isPublicRedeNovosNegociosEnabled } from '@/lib/public-rede-novos';
 import { fetchRedeFranqueadosRows } from '@/lib/rede-franqueados';
-import { TabelaRedeFranqueadosEditavel } from '@/components/TabelaRedeFranqueadosEditavel';
+import { RedeFranqueadosTabelaComBusca } from './RedeFranqueadosTabelaComBusca';
 import { contarLinhasSemCard } from './actions';
 import { CriarCardsDesdeRedeButton } from './CriarCardsDesdeRedeButton';
 import { ImportarRedeCSVButton } from './ImportarRedeCSVButton';
@@ -77,13 +77,10 @@ export default async function RedeFranqueadosPage() {
 
         <section className="mt-10 space-y-3">
           {rows ? (
-            <div className="flex flex-wrap items-center justify-end gap-3">
+            <RedeFranqueadosTabelaComBusca rows={rows} canEditRows={canManage}>
               {canManage ? <NovoFranqueadoModal /> : null}
               <ExportarRedeCSVButton rows={rows} />
-            </div>
-          ) : null}
-          {rows ? (
-            <TabelaRedeFranqueadosEditavel rows={rows} canEditRows={canManage} />
+            </RedeFranqueadosTabelaComBusca>
           ) : (
             <p className="text-sm text-red-600">Erro ao carregar a tabela.</p>
           )}
