@@ -601,12 +601,14 @@ export async function importarRedeFranqueadosCSV(csvText: string): Promise<Impor
 
 const MAX_REDE_DOC_BYTES = 10 * 1024 * 1024;
 
+/** Chaves do bucket Supabase só aceitam caracteres seguros no path do objeto. */
 function sanitizeRedeNomeArquivo(nome: string): string {
-  return String(nome ?? '')
+  const safe = String(nome ?? 'arquivo')
     .replace(/[/\\]/g, '_')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 180);
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
+  return (safe || 'arquivo').slice(0, 180);
 }
 
 async function perfilPodeGerirDocsRede(
