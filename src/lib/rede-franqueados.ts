@@ -7,45 +7,73 @@ import { createClient } from '@/lib/supabase/server';
 import { normalizeNFranquiaCsv } from '@/lib/import-rede-csv';
 import { normalizarParaBusca } from '@/lib/painel-tarefas-filtros';
 
-/** Extrai o índice numérico do Nº de Franquia (FK0009 → 9). Aceita string ou número no banco. */
-export function indiceOrdenacaoNFranquia(n_franquia: string | number | null | undefined): number {
-  if (n_franquia === null || n_franquia === undefined) return Number.MAX_SAFE_INTEGER;
-  const bruto = String(n_franquia).trim();
-  if (!bruto) return Number.MAX_SAFE_INTEGER;
+const ORDEM_FALLBACK_FK_MAX = 9999;
 
+function extrairNumeroFranquiaDeTexto(bruto: string): number | null {
   const fk = bruto.match(/fk\s*0*(\d+)/i);
   if (fk) {
     const n = parseInt(fk[1] ?? '', 10);
-    return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER - 1;
+    if (Number.isFinite(n) && n >= 0) return n;
   }
-
   if (/^\d+$/.test(bruto)) {
     const n = parseInt(bruto, 10);
-    return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER - 1;
+    if (Number.isFinite(n) && n >= 0) return n;
   }
-
   const norm = normalizeNFranquiaCsv(bruto);
-  if (!norm) return Number.MAX_SAFE_INTEGER - 1;
-  const m = norm.match(/(\d+)$/);
-  return m ? parseInt(m[1] ?? '', 10) : Number.MAX_SAFE_INTEGER - 1;
+  if (norm) {
+    const m = norm.match(/(\d+)$/);
+    if (m) {
+      const n = parseInt(m[1] ?? '', 10);
+      if (Number.isFinite(n) && n >= 0) return n;
+    }
+  }
+  return null;
+}
+
+/** Chave canônica FK0000… para ordenação e exibição (mesma regra nos dois lugares). */
+export function canonicalNFranquiaRede(
+  n_franquia: string | number | null | undefined,
+  ordem?: number | null,
+): string {
+  if (n_franquia !== null && n_franquia !== undefined) {
+    const bruto = String(n_franquia).trim();
+    if (bruto) {
+      const n = extrairNumeroFranquiaDeTexto(bruto);
+      if (n !== null) return `FK${String(n).padStart(4, '0')}`;
+    }
+  }
+  if (
+    typeof ordem === 'number' &&
+    Number.isFinite(ordem) &&
+    ordem >= 0 &&
+    ordem <= ORDEM_FALLBACK_FK_MAX
+  ) {
+    return `FK${String(ordem).padStart(4, '0')}`;
+  }
+  return '';
+}
+
+export function formatNFranquiaRedeExibicao(
+  n_franquia: string | number | null | undefined,
+  ordem?: number | null,
+): string {
+  return canonicalNFranquiaRede(n_franquia, ordem);
 }
 
 export function compareRedePorNFranquia(
-  a: { n_franquia?: string | null; ordem?: number },
-  b: { n_franquia?: string | null; ordem?: number },
+  a: { n_franquia?: string | null; ordem?: number | null; id?: string },
+  b: { n_franquia?: string | null; ordem?: number | null; id?: string },
 ): number {
-  const d = indiceOrdenacaoNFranquia(a.n_franquia) - indiceOrdenacaoNFranquia(b.n_franquia);
+  const ka = canonicalNFranquiaRede(a.n_franquia, a.ordem) || 'ZZZZZZ';
+  const kb = canonicalNFranquiaRede(b.n_franquia, b.ordem) || 'ZZZZZZ';
+  const d = ka.localeCompare(kb, 'pt-BR', { sensitivity: 'base' });
   if (d !== 0) return d;
-  const na = normalizeNFranquiaCsv(a.n_franquia) ?? '';
-  const nb = normalizeNFranquiaCsv(b.n_franquia) ?? '';
-  const ds = na.localeCompare(nb, 'pt-BR');
-  if (ds !== 0) return ds;
-  return (a.ordem ?? 0) - (b.ordem ?? 0);
+  return String(a.id ?? '').localeCompare(String(b.id ?? ''));
 }
 
-export function ordenarRedePorNFranquia<T extends { n_franquia?: string | null; ordem?: number }>(
-  rows: T[],
-): T[] {
+export function ordenarRedePorNFranquia<
+  T extends { n_franquia?: string | null; ordem?: number | null; id?: string },
+>(rows: T[]): T[] {
   return [...rows].sort(compareRedePorNFranquia);
 }
 

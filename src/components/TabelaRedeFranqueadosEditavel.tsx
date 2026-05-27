@@ -5,7 +5,12 @@ import { useRouter } from 'next/navigation';
 import { Check, FileText, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
 import type { RedeFranqueadoDbKey, RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
-import { COLUNAS_REDE_FRANQUEADOS, ordenarRedePorNFranquia, REDE_FRANQUEADOS_DB_KEYS } from '@/lib/rede-franqueados';
+import {
+  COLUNAS_REDE_FRANQUEADOS,
+  formatNFranquiaRedeExibicao,
+  ordenarRedePorNFranquia,
+  REDE_FRANQUEADOS_DB_KEYS,
+} from '@/lib/rede-franqueados';
 import { atualizarRedeFranqueado, excluirRedeFranqueado } from '@/app/rede-franqueados/actions';
 import { UFS_BRASIL } from '@/lib/uf';
 import { RedeFranqueadoCellClamp } from '@/components/RedeFranqueadoCellClamp';
@@ -141,16 +146,6 @@ function isDateKey(k: RedeFranqueadoDbKey): boolean {
   );
 }
 
-function normalizeFKDisplay(val: string | null | undefined): string {
-  const v = (val ?? '').toString().trim();
-  if (!v) return '';
-  const m = v.match(/fk\s*0*(\d+)/i);
-  if (!m) return v;
-  const n = parseInt(m[1] ?? '', 10);
-  if (!Number.isFinite(n) || n < 0) return v;
-  return `FK${String(n).padStart(4, '0')}`;
-}
-
 export function TabelaRedeFranqueadosEditavel({
   rows,
   canEditRows = true,
@@ -231,7 +226,7 @@ export function TabelaRedeFranqueadosEditavel({
     for (const k of keys) {
       const v = (r[k] ?? '') as string;
       const raw = isDateKey(k) ? toInputDate(v) : v;
-      d[k] = k === 'n_franquia' ? normalizeFKDisplay(raw) : raw;
+      d[k] = k === 'n_franquia' ? formatNFranquiaRedeExibicao(raw, r.ordem) : raw;
     }
     setDraft(d);
     setAreaAtuacaoItens(parseAreaAtuacao(d.area_atuacao));
@@ -338,7 +333,8 @@ export function TabelaRedeFranqueadosEditavel({
                   {keys.map((k) => {
                     const current = (r[k] ?? '') as string;
                     const value = (draft[k] ?? '') as string;
-                    const shown = k === 'n_franquia' ? normalizeFKDisplay(current) : current;
+                    const shown =
+                      k === 'n_franquia' ? formatNFranquiaRedeExibicao(current, r.ordem) : current;
                     const isAreaAtuacao = k === 'area_atuacao';
                     return (
                       <td key={k} className="min-w-0 max-w-[14rem] overflow-hidden px-3 py-2 align-top text-stone-700">

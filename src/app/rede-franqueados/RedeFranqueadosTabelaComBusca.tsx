@@ -2,7 +2,11 @@
 
 import { useMemo, useState, type ReactNode } from 'react';
 import { Search } from 'lucide-react';
-import { redeFranqueadoRowMatchesBusca, type RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
+import {
+  ordenarRedePorNFranquia,
+  redeFranqueadoRowMatchesBusca,
+  type RedeFranqueadoRowDb,
+} from '@/lib/rede-franqueados';
 import { TabelaRedeFranqueadosEditavel } from '@/components/TabelaRedeFranqueadosEditavel';
 
 type Props = {
@@ -16,8 +20,8 @@ export function RedeFranqueadosTabelaComBusca({ rows, canEditRows, children }: P
 
   const rowsFiltradas = useMemo(() => {
     const q = busca.trim();
-    if (!q) return rows;
-    return rows.filter((r) => redeFranqueadoRowMatchesBusca(r, q));
+    const base = q ? rows.filter((r) => redeFranqueadoRowMatchesBusca(r, q)) : rows;
+    return ordenarRedePorNFranquia(base);
   }, [rows, busca]);
 
   return (

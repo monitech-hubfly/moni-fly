@@ -13,6 +13,8 @@ import { AdicionarRedeECardButton } from './AdicionarRedeECardButton';
 import { RedeDashboard } from './RedeDashboard';
 import { createAdminClient } from '@/lib/supabase/admin';
 
+export const dynamic = 'force-dynamic';
+
 export default async function RedeFranqueadosPage() {
   const supabase = await createClient();
   const {
