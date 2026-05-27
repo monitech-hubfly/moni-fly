@@ -3,7 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
-import { parseAndMapRedeCSV, type RedeFranqueadoRow } from '@/lib/import-rede-csv';
+import { normalizeNFranquiaCsv, parseAndMapRedeCSV, type RedeFranqueadoRow } from '@/lib/import-rede-csv';
 import { REDE_FRANQUEADOS_DB_KEYS, type RedeFranqueadoDbKey } from '@/lib/rede-franqueados';
 import { fixRedeCsvSociosHeadersTextFromSheets, normalizeRedeCsvHeadersFromSheets } from '@/lib/fix-rede-csv-socios-headers';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -395,19 +395,30 @@ export type ImportarRedeCSVResult =
   | { ok: true; inseridos: number; mensagem: string }
   | { ok: false; error: string };
 
-/**
- * Importa linhas a partir de um CSV (ex.: exportado do Google Sheets) para a tabela rede_franqueados. Apenas admin.
- */
-export async function importarRedeFranqueadosCSV(csvText: string): Promise<ImportarRedeCSVResult> {
-  const gate = await requireRedeAdminOrPublicLink();
-  if (!gate.ok) return { ok: false, error: gate.error };
-  const { supabase, userId } = gate;
+export type AtualizarRedeCSVResult =
+  | { ok: true; atualizados: number; ignorados: number; mensagem: string }
+  | { ok: false; error: string };
 
-  // (BUG 1) Normaliza cabeçalhos exportados pelo Sheets (trim + canonicalização)
+function redePatchFromCsvRecord(r: RedeFranqueadoRow): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  for (const col of REDE_INSERT_COLUMNS) {
+    const v = r[col];
+    if (v !== undefined && v !== null && v !== '') row[col] = v;
+  }
+  return row;
+}
+
+function chaveNFranquia(val: string | null | undefined): string | null {
+  const n = normalizeNFranquiaCsv(val);
+  return n ? n.toLowerCase() : null;
+}
+
+async function prepararRegistrosCsvRede(
+  csvText: string,
+): Promise<{ ok: true; records: RedeFranqueadoRow[] } | { ok: false; error: string }> {
   const normalizedHeaders = normalizeRedeCsvHeadersFromSheets(csvText);
   if (!normalizedHeaders.ok) return { ok: false, error: normalizedHeaders.error };
 
-  // Mantém também a correção específica das colunas 23..28 ("Sócios")
   const fixed = fixRedeCsvSociosHeadersTextFromSheets(normalizedHeaders.csvText);
   if (!fixed.ok) return { ok: false, error: fixed.error };
 
@@ -430,8 +441,6 @@ export async function importarRedeFranqueadosCSV(csvText: string): Promise<Impor
     };
   }
 
-  // Se o delimitador do CSV vier como ";" (comum em pt-BR), o parser antigo separava errado.
-  // Agora o parser autodetecta, mas deixamos uma mensagem amigável caso o cabeçalho venha com 1 coluna só.
   if (parsed.meta.headerLen <= 2) {
     return {
       ok: false,
@@ -441,16 +450,121 @@ export async function importarRedeFranqueadosCSV(csvText: string): Promise<Impor
     };
   }
 
+  return { ok: true, records: parsed.records };
+}
+
+/**
+ * Atualiza linhas existentes pelo Nº de Franquia (coluna "N de Franquia").
+ * Campos vazios no CSV não apagam dados já salvos.
+ */
+export async function atualizarRedeFranqueadosCSV(csvText: string): Promise<AtualizarRedeCSVResult> {
+  const gate = await requireRedeAdminOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  const prep = await prepararRegistrosCsvRede(csvText);
+  if (!prep.ok) return { ok: false, error: prep.error };
+
+  const { data: existentes, error: errList } = await supabase
+    .from('rede_franqueados')
+    .select('id, n_franquia');
+  if (errList) return { ok: false, error: `Erro ao ler rede: ${errList.message}` };
+
+  const porFranquia = new Map<string, string>();
+  for (const row of existentes ?? []) {
+    const chave = chaveNFranquia((row as { n_franquia?: string | null }).n_franquia);
+    if (!chave) continue;
+    const id = String((row as { id?: string }).id ?? '');
+    if (!id) continue;
+    if (porFranquia.has(chave)) {
+      const display = normalizeNFranquiaCsv((row as { n_franquia?: string | null }).n_franquia) ?? chave.toUpperCase();
+      return {
+        ok: false,
+        error: `Há mais de um franqueado com o número ${display}. Corrija duplicatas na rede antes de atualizar em lote.`,
+      };
+    }
+    porFranquia.set(chave, id);
+  }
+
+  let atualizados = 0;
+  let ignorados = 0;
+  const semFranquia: string[] = [];
+  const naoEncontrados: string[] = [];
+
+  for (const record of prep.records) {
+    const chave = chaveNFranquia(record.n_franquia as string | null);
+    const patch = redePatchFromCsvRecord(record);
+    if (Object.keys(patch).length === 0) {
+      ignorados += 1;
+      continue;
+    }
+
+    if (!chave) {
+      ignorados += 1;
+      const nome = String(record.nome_completo ?? '').trim();
+      if (nome) semFranquia.push(nome);
+      continue;
+    }
+
+    const id = porFranquia.get(chave);
+    if (!id) {
+      ignorados += 1;
+      naoEncontrados.push(String(record.n_franquia ?? '').trim() || chave.toUpperCase());
+      continue;
+    }
+
+    const { error } = await supabase
+      .from('rede_franqueados')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) return { ok: false, error: `Erro ao atualizar ${record.n_franquia}: ${error.message}` };
+    atualizados += 1;
+  }
+
+  revalidatePath('/rede-franqueados');
+  revalidatePath('/comunidade');
+
+  const partes: string[] = [];
+  if (atualizados === 1) partes.push('1 linha atualizada');
+  else if (atualizados > 0) partes.push(`${atualizados} linhas atualizadas`);
+  else partes.push('Nenhuma linha atualizada');
+
+  if (ignorados > 0) {
+    partes.push(`${ignorados} ignorada(s)`);
+    if (naoEncontrados.length > 0) {
+      const amostra = naoEncontrados.slice(0, 5).join(', ');
+      partes.push(`não encontradas na rede: ${amostra}${naoEncontrados.length > 5 ? '…' : ''}`);
+    }
+    if (semFranquia.length > 0) {
+      partes.push('algumas sem Nº de Franquia no CSV');
+    }
+  }
+
+  return {
+    ok: true,
+    atualizados,
+    ignorados,
+    mensagem: partes.join('. ') + '.',
+  };
+}
+
+/**
+ * Importa linhas a partir de um CSV (ex.: exportado do Google Sheets) para a tabela rede_franqueados. Apenas admin.
+ */
+export async function importarRedeFranqueadosCSV(csvText: string): Promise<ImportarRedeCSVResult> {
+  const gate = await requireRedeAdminOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase, userId } = gate;
+
+  const prep = await prepararRegistrosCsvRede(csvText);
+  if (!prep.ok) return { ok: false, error: prep.error };
+
   const BATCH = 50;
   let inseridos = 0;
   const insertedIds: string[] = [];
-  for (let i = 0; i < parsed.records.length; i += BATCH) {
-    const batch = parsed.records.slice(i, i + BATCH).map((r) => {
-      const row: Record<string, unknown> = {};
-      for (const col of REDE_INSERT_COLUMNS) {
-        const v = r[col];
-        if (v !== undefined && v !== null && v !== '') row[col] = v;
-      }
+  for (let i = 0; i < prep.records.length; i += BATCH) {
+    const batch = prep.records.slice(i, i + BATCH).map((r) => {
+      const row = redePatchFromCsvRecord(r);
       if (typeof row.ordem !== 'number') row.ordem = 0;
       return row;
     });
@@ -641,7 +755,13 @@ export async function getSignedUrlRedeAnexo(
   return { ok: true, url: data.signedUrl };
 }
 
-/** Upload COF ou contrato assinado no bucket `rede-attachments`. */
+const REDE_ANEXO_COLUNA: Record<'cof' | 'contrato' | 'numero_franquia', string> = {
+  cof: 'anexo_cof_path',
+  contrato: 'anexo_contrato_path',
+  numero_franquia: 'anexo_numero_franquia_path',
+};
+
+/** Upload COF, contrato ou documento do número de franquia no bucket `rede-attachments`. */
 export async function uploadRedeFranqueadoAssinado(
   formData: FormData,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -649,7 +769,9 @@ export async function uploadRedeFranqueadoAssinado(
   const redeId = String(formData.get('redeId') ?? '').trim();
   const file = formData.get('file');
   if (!redeId) return { ok: false, error: 'Registro inválido.' };
-  if (tipo !== 'cof' && tipo !== 'contrato') return { ok: false, error: 'Tipo inválido.' };
+  if (tipo !== 'cof' && tipo !== 'contrato' && tipo !== 'numero_franquia') {
+    return { ok: false, error: 'Tipo inválido.' };
+  }
   if (!(file instanceof File)) return { ok: false, error: 'Arquivo inválido.' };
   if (file.size > MAX_REDE_DOC_BYTES) return { ok: false, error: 'Arquivo acima de 10 MB.' };
 
@@ -662,7 +784,7 @@ export async function uploadRedeFranqueadoAssinado(
     return { ok: false, error: 'Apenas administradores ou time podem enviar estes documentos.' };
   }
 
-  const col = tipo === 'cof' ? 'anexo_cof_path' : 'anexo_contrato_path';
+  const col = REDE_ANEXO_COLUNA[tipo];
   const { data: atual, error: leErr } = await supabase
     .from('rede_franqueados')
     .select(`id, ${col}`)

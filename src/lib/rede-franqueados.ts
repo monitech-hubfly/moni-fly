@@ -76,6 +76,7 @@ export type RedeFranqueadoRowDb = Record<RedeFranqueadoDbKey, string | null> & {
   updated_at?: string | null;
   anexo_cof_path?: string | null;
   anexo_contrato_path?: string | null;
+  anexo_numero_franquia_path?: string | null;
 };
 
 type RowDb = Record<RedeFranqueadoDbKey, string | null>;

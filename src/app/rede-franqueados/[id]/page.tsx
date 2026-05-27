@@ -32,7 +32,7 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
 
   const { data: row, error } = await supabase
     .from('rede_franqueados')
-    .select('id, nome_completo, n_franquia, anexo_cof_path, anexo_contrato_path')
+    .select('id, nome_completo, n_franquia, anexo_cof_path, anexo_contrato_path, anexo_numero_franquia_path')
     .eq('id', id)
     .maybeSingle();
 
@@ -42,15 +42,18 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
   const nfr = String((row as { n_franquia?: string | null }).n_franquia ?? '').trim();
   const pathCof = (row as { anexo_cof_path?: string | null }).anexo_cof_path ?? null;
   const pathContrato = (row as { anexo_contrato_path?: string | null }).anexo_contrato_path ?? null;
+  const pathNumeroFranquia =
+    (row as { anexo_numero_franquia_path?: string | null }).anexo_numero_franquia_path ?? null;
   const hasCof = Boolean(pathCof && String(pathCof).trim());
   const hasContrato = Boolean(pathContrato && String(pathContrato).trim());
+  const hasNumeroFranquia = Boolean(pathNumeroFranquia && String(pathNumeroFranquia).trim());
 
   const voltarHref = staff ? '/rede-franqueados' : '/portal-frank/rede';
   const voltarLabel = staff ? 'Voltar à rede' : 'Voltar à rede (portal)';
 
   return (
     <div className="min-h-screen bg-stone-50">
-      <main className="mx-auto max-w-3xl px-4 py-8">
+      <main className="mx-auto max-w-5xl px-4 py-8">
         <Link href={voltarHref} className="mb-4 inline-block text-sm text-moni-primary hover:underline">
           ← {voltarLabel}
         </Link>
@@ -59,7 +62,12 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
 
         <div className="mt-8">
           {staff ? (
-            <RedeFranqueadoDetalheDocs redeId={id} pathCof={pathCof} pathContrato={pathContrato} />
+            <RedeFranqueadoDetalheDocs
+              redeId={id}
+              pathCof={pathCof}
+              pathContrato={pathContrato}
+              pathNumeroFranquia={pathNumeroFranquia}
+            />
           ) : (
             <div className="space-y-6 rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
               <p className="text-sm text-stone-600">
@@ -74,6 +82,12 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
                 <h2 className="text-sm font-semibold text-stone-800">Contrato assinado</h2>
                 <p className="mt-1 text-sm text-stone-700">
                   {hasContrato ? 'Arquivo cadastrado.' : 'Nenhum arquivo cadastrado.'}
+                </p>
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-stone-800">Documento de número de franquia</h2>
+                <p className="mt-1 text-sm text-stone-700">
+                  {hasNumeroFranquia ? 'Arquivo cadastrado.' : 'Nenhum arquivo cadastrado.'}
                 </p>
               </div>
             </div>
