@@ -60,8 +60,7 @@ export function agruparDuplicatasRede(linhas: RedeLinhaParaDuplicata[]): GrupoDu
     const manterId = escolherIdParaManter(items);
     const rotulo =
       normalizeNFranquiaCsv(items[0]?.n_franquia) ??
-      (items[0]?.nome_completo ?? '').trim() ||
-      chave;
+      ((items[0]?.nome_completo ?? '').trim() || chave);
     grupos.push({
       chave,
       rotulo,

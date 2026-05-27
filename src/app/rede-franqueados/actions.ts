@@ -894,23 +894,26 @@ export async function getSignedUrlRedeAnexo(
   return { ok: true, url: data.signedUrl };
 }
 
-const REDE_ANEXO_COLUNA: Record<'cof' | 'contrato' | 'numero_franquia', string> = {
+const REDE_ANEXO_COLUNA = {
   cof: 'anexo_cof_path',
   contrato: 'anexo_contrato_path',
   numero_franquia: 'anexo_numero_franquia_path',
-};
+} as const;
+
+type RedeAnexoTipo = keyof typeof REDE_ANEXO_COLUNA;
 
 /** Upload COF, contrato ou documento do número de franquia no bucket `rede-attachments`. */
 export async function uploadRedeFranqueadoAssinado(
   formData: FormData,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const tipo = String(formData.get('tipo') ?? '').trim();
+  const tipoRaw = String(formData.get('tipo') ?? '').trim();
   const redeId = String(formData.get('redeId') ?? '').trim();
   const file = formData.get('file');
   if (!redeId) return { ok: false, error: 'Registro inválido.' };
-  if (tipo !== 'cof' && tipo !== 'contrato' && tipo !== 'numero_franquia') {
+  if (tipoRaw !== 'cof' && tipoRaw !== 'contrato' && tipoRaw !== 'numero_franquia') {
     return { ok: false, error: 'Tipo inválido.' };
   }
+  const tipo: RedeAnexoTipo = tipoRaw;
   if (!(file instanceof File)) return { ok: false, error: 'Arquivo inválido.' };
   if (file.size > MAX_REDE_DOC_BYTES) return { ok: false, error: 'Arquivo acima de 10 MB.' };
 
@@ -926,7 +929,7 @@ export async function uploadRedeFranqueadoAssinado(
   const col = REDE_ANEXO_COLUNA[tipo];
   const { data: atual, error: leErr } = await supabase
     .from('rede_franqueados')
-    .select(`id, ${col}`)
+    .select('id, anexo_cof_path, anexo_contrato_path, anexo_numero_franquia_path')
     .eq('id', redeId)
     .maybeSingle();
   if (leErr || !atual) return { ok: false, error: 'Linha da rede não encontrada.' };
@@ -940,7 +943,7 @@ export async function uploadRedeFranqueadoAssinado(
   });
   if (upErr) return { ok: false, error: upErr.message };
 
-  const oldPath = String((atual as Record<string, unknown>)[col] ?? '').trim() || null;
+  const oldPath = String(atual[col] ?? '').trim() || null;
 
   const { error: upRow } = await supabase
     .from('rede_franqueados')
