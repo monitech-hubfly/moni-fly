@@ -4,6 +4,11 @@ import { randomUUID } from 'node:crypto';
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { normalizeNFranquiaCsv, parseAndMapRedeCSV, type RedeFranqueadoRow } from '@/lib/import-rede-csv';
+import {
+  agruparDuplicatasRede,
+  type GrupoDuplicataRede,
+  type RedeLinhaParaDuplicata,
+} from '@/lib/rede-franqueados-duplicatas';
 import { REDE_FRANQUEADOS_DB_KEYS, type RedeFranqueadoDbKey } from '@/lib/rede-franqueados';
 import { fixRedeCsvSociosHeadersTextFromSheets, normalizeRedeCsvHeadersFromSheets } from '@/lib/fix-rede-csv-socios-headers';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -336,6 +341,143 @@ export type ExcluirRedeFranqueadoResult =
   | { ok: true; mensagem: string }
   | { ok: false; error: string };
 
+/** Transfere vínculos da linha removida para a que permanece (card, perfil, processo). */
+async function mesclarReferenciasRedeAntesExcluir(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  fromId: string,
+  toId: string,
+): Promise<void> {
+  if (fromId === toId) return;
+
+  const [{ data: from }, { data: to }] = await Promise.all([
+    supabase.from('rede_franqueados').select('id, processo_id').eq('id', fromId).maybeSingle(),
+    supabase.from('rede_franqueados').select('id, processo_id').eq('id', toId).maybeSingle(),
+  ]);
+
+  const fromProc = (from as { processo_id?: string | null } | null)?.processo_id ?? null;
+  const toProc = (to as { processo_id?: string | null } | null)?.processo_id ?? null;
+
+  if (fromProc && !toProc) {
+    await supabase.from('rede_franqueados').update({ processo_id: fromProc }).eq('id', toId);
+    await supabase.from('processo_step_one').update({ origem_rede_franqueados_id: toId }).eq('id', fromProc);
+  } else if (fromProc && toProc && fromProc !== toProc) {
+    await supabase
+      .from('processo_step_one')
+      .update({ origem_rede_franqueados_id: toId })
+      .eq('origem_rede_franqueados_id', fromId);
+  }
+
+  await supabase
+    .from('processo_step_one')
+    .update({ origem_rede_franqueados_id: toId })
+    .eq('origem_rede_franqueados_id', fromId);
+  await supabase.from('kanban_cards').update({ rede_franqueado_id: toId }).eq('rede_franqueado_id', fromId);
+  await supabase.from('profiles').update({ rede_franqueado_id: toId }).eq('rede_franqueado_id', fromId);
+  await supabase.from('community_posts').update({ franqueado_id: toId }).eq('franqueado_id', fromId);
+}
+
+async function excluirRedeFranqueadoInterno(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  id: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await supabase.from('processo_step_one').update({ origem_rede_franqueados_id: null }).eq('origem_rede_franqueados_id', id);
+  await supabase.from('kanban_cards').update({ rede_franqueado_id: null }).eq('rede_franqueado_id', id);
+  await supabase.from('profiles').update({ rede_franqueado_id: null }).eq('rede_franqueado_id', id);
+
+  const { error } = await supabase.from('rede_franqueados').delete().eq('id', id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+function contarCamposPreenchidosRede(row: Record<string, unknown>): number {
+  let n = 0;
+  for (const k of REDE_FRANQUEADOS_DB_KEYS) {
+    const v = row[k];
+    if (v !== null && v !== undefined && String(v).trim() !== '') n += 1;
+  }
+  return n;
+}
+
+function rowParaDuplicata(row: Record<string, unknown>): RedeLinhaParaDuplicata {
+  return {
+    id: String(row.id ?? ''),
+    n_franquia: (row.n_franquia as string | null) ?? null,
+    nome_completo: (row.nome_completo as string | null) ?? null,
+    processo_id: (row.processo_id as string | null) ?? null,
+    created_at: (row.created_at as string | null) ?? null,
+    preenchidos: contarCamposPreenchidosRede(row),
+  };
+}
+
+export type PreviewDuplicatasRedeResult =
+  | {
+      ok: true;
+      grupos: GrupoDuplicataRede[];
+      totalRemover: number;
+      totalGrupos: number;
+    }
+  | { ok: false; error: string };
+
+export async function previewDuplicatasRedeFranqueados(): Promise<PreviewDuplicatasRedeResult> {
+  const gate = await requireRedeAdminOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  const { data, error } = await supabase.from('rede_franqueados').select('*');
+  if (error) return { ok: false, error: error.message };
+
+  const linhas = (data ?? []).map((r) => rowParaDuplicata(r as Record<string, unknown>));
+  const grupos = agruparDuplicatasRede(linhas);
+  const totalRemover = grupos.reduce((s, g) => s + g.removerIds.length, 0);
+
+  return { ok: true, grupos, totalRemover, totalGrupos: grupos.length };
+}
+
+export type RemoverDuplicatasRedeResult =
+  | { ok: true; removidos: number; grupos: number; mensagem: string }
+  | { ok: false; error: string };
+
+export async function removerDuplicatasRedeFranqueados(): Promise<RemoverDuplicatasRedeResult> {
+  const gate = await requireRedeAdminOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  const preview = await previewDuplicatasRedeFranqueados();
+  if (!preview.ok) return { ok: false, error: preview.error };
+  if (preview.totalRemover === 0) {
+    return { ok: true, removidos: 0, grupos: 0, mensagem: 'Nenhuma duplicata encontrada (mesmo Nº de Franquia ou mesmo nome).' };
+  }
+
+  let removidos = 0;
+  for (const grupo of preview.grupos) {
+    for (const dupId of grupo.removerIds) {
+      await mesclarReferenciasRedeAntesExcluir(supabase, dupId, grupo.manterId);
+      const del = await excluirRedeFranqueadoInterno(supabase, dupId);
+      if (!del.ok) {
+        return {
+          ok: false,
+          error: `Erro ao remover duplicata de ${grupo.rotulo}: ${del.error}`,
+        };
+      }
+      removidos += 1;
+    }
+  }
+
+  revalidatePath('/rede-franqueados');
+  revalidatePath('/painel-novos-negocios');
+  revalidatePath('/comunidade');
+
+  return {
+    ok: true,
+    removidos,
+    grupos: preview.totalGrupos,
+    mensagem:
+      removidos === 1
+        ? `1 linha duplicada removida em ${preview.totalGrupos} grupo(s). A linha mais completa de cada Nº de Franquia foi mantida.`
+        : `${removidos} linhas duplicadas removidas em ${preview.totalGrupos} grupo(s). Em cada grupo foi mantida a linha mais completa (com card, se houver).`,
+  };
+}
+
 export async function excluirRedeFranqueado(id: string): Promise<ExcluirRedeFranqueadoResult> {
   const gate = await requireRedeAdminOrPublicLink();
   if (!gate.ok) return { ok: false, error: gate.error };
@@ -343,11 +485,8 @@ export async function excluirRedeFranqueado(id: string): Promise<ExcluirRedeFran
 
   if (!id) return { ok: false, error: 'ID inválido.' };
 
-  // Evita falha por FK: desvincula origem no processo_step_one antes de apagar.
-  await supabase.from('processo_step_one').update({ origem_rede_franqueados_id: null }).eq('origem_rede_franqueados_id', id);
-
-  const { error } = await supabase.from('rede_franqueados').delete().eq('id', id);
-  if (error) return { ok: false, error: error.message };
+  const del = await excluirRedeFranqueadoInterno(supabase, id);
+  if (!del.ok) return { ok: false, error: del.error };
 
   revalidatePath('/rede-franqueados');
   revalidatePath('/painel-novos-negocios');

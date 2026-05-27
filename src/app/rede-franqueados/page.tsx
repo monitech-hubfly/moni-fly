@@ -6,6 +6,7 @@ import { RedeFranqueadosTabelaComBusca } from './RedeFranqueadosTabelaComBusca';
 import { contarLinhasSemCard } from './actions';
 import { CriarCardsDesdeRedeButton } from './CriarCardsDesdeRedeButton';
 import { ImportarRedeCSVButton } from './ImportarRedeCSVButton';
+import { RemoverDuplicatasRedeButton } from './RemoverDuplicatasRedeButton';
 import { ExportarRedeCSVButton } from './ExportarRedeCSVButton';
 import { NovoFranqueadoModal } from './NovoFranqueadoModal';
 import { AdicionarRedeECardButton } from './AdicionarRedeECardButton';
@@ -71,6 +72,7 @@ export default async function RedeFranqueadosPage() {
               <AdicionarRedeECardButton />
             </div>
             <ImportarRedeCSVButton />
+            <RemoverDuplicatasRedeButton />
             <CriarCardsDesdeRedeButton linhasSemCard={linhasSemCard} />
           </div>
         ) : null}
