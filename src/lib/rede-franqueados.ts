@@ -4,7 +4,35 @@
  */
 
 import { createClient } from '@/lib/supabase/server';
+import { normalizeNFranquiaCsv } from '@/lib/import-rede-csv';
 import { normalizarParaBusca } from '@/lib/painel-tarefas-filtros';
+
+/** Ordenação numérica do Nº de Franquia (FK0000, FK0001, …); sem número vai para o final. */
+function indiceOrdenacaoNFranquia(n_franquia: string | null | undefined): number {
+  const norm = normalizeNFranquiaCsv(n_franquia);
+  if (!norm) return Number.MAX_SAFE_INTEGER;
+  const m = norm.match(/(\d+)$/);
+  return m ? parseInt(m[1] ?? '', 10) : Number.MAX_SAFE_INTEGER - 1;
+}
+
+export function compareRedePorNFranquia(
+  a: { n_franquia?: string | null; ordem?: number },
+  b: { n_franquia?: string | null; ordem?: number },
+): number {
+  const d = indiceOrdenacaoNFranquia(a.n_franquia) - indiceOrdenacaoNFranquia(b.n_franquia);
+  if (d !== 0) return d;
+  const na = normalizeNFranquiaCsv(a.n_franquia) ?? '';
+  const nb = normalizeNFranquiaCsv(b.n_franquia) ?? '';
+  const ds = na.localeCompare(nb, 'pt-BR');
+  if (ds !== 0) return ds;
+  return (a.ordem ?? 0) - (b.ordem ?? 0);
+}
+
+export function ordenarRedePorNFranquia<T extends { n_franquia?: string | null; ordem?: number }>(
+  rows: T[],
+): T[] {
+  return [...rows].sort(compareRedePorNFranquia);
+}
 
 export const COLUNAS_REDE_FRANQUEADOS = [
   'N de Franquia',
@@ -132,13 +160,10 @@ function rowToArray(r: RowAny): string[] {
 export async function fetchRedeFranqueados(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<RedeFranqueadosData> {
-  const { data, error } = await supabase
-    .from('rede_franqueados')
-    .select('*')
-    .order('ordem', { ascending: true });
+  const { data, error } = await supabase.from('rede_franqueados').select('*');
 
   if (error) return null;
-  const list = data || [];
+  const list = ordenarRedePorNFranquia(data || []);
   const rows = list.map((r) => rowToArray(r as RowAny));
   const activeCount = list.filter((r) => {
     const s = String((r as { status_franquia?: string | null })?.status_franquia ?? '').toLowerCase();
@@ -158,12 +183,9 @@ export async function fetchRedeFranqueados(
 export async function fetchRedeFranqueadosRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<RedeFranqueadoRowDb[] | null> {
-  const { data, error } = await supabase
-    .from('rede_franqueados')
-    .select('*')
-    .order('ordem', { ascending: true });
+  const { data, error } = await supabase.from('rede_franqueados').select('*');
   if (error) return null;
-  return (data ?? []) as RedeFranqueadoRowDb[];
+  return ordenarRedePorNFranquia((data ?? []) as RedeFranqueadoRowDb[]);
 }
 
 /** Colunas permitidas no portal Frank (tabela + agregados dos gráficos). Não inclui dados sensíveis. */
@@ -231,12 +253,9 @@ export function redePortalFrankRowParaDashboardRow(frank: RedeFranqueadoRowPorta
 export async function fetchRedeFranqueadosRowsPortalFrank(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<RedeFranqueadoRowPortalFrank[] | null> {
-  const { data, error } = await supabase
-    .from('rede_franqueados')
-    .select(REDE_PORTAL_FRANK_SELECT)
-    .order('ordem', { ascending: true });
+  const { data, error } = await supabase.from('rede_franqueados').select(REDE_PORTAL_FRANK_SELECT);
   if (error) return null;
-  return (data ?? []) as unknown as RedeFranqueadoRowPortalFrank[];
+  return ordenarRedePorNFranquia((data ?? []) as unknown as RedeFranqueadoRowPortalFrank[]);
 }
 
 const REDE_BUSCA_DATE_KEYS = new Set<RedeFranqueadoDbKey>([
