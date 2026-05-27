@@ -1,21 +1,13 @@
 import { NextResponse } from 'next/server';
-import { resolveSupabaseServiceRoleKey } from '@/lib/supabase/admin';
+import { fetchZapLotesGluePage } from '@/lib/zap-glue-server-fetch';
+import {
+  applyZapLotesSave,
+  verifyProcessoLotesAccess,
+  type ZapLoteItem,
+} from '@/lib/zap-save-lotes';
 
 const PAGE_SIZE = 24;
 const MAX_FROM = 500;
-
-export type ZapLoteItem = {
-  condominio?: string;
-  area_lote_m2?: number;
-  preco?: number;
-  preco_m2?: number;
-  link?: string;
-  valor_condominio?: number;
-  iptu?: number;
-  caracteristicas_condominio?: string;
-  /** Características do condomínio a partir de listing.amenities (glue-api) */
-  caracteristicas?: string | null;
-};
 
 function parseMoney(value: string | number | undefined): number | undefined {
   if (value == null) return undefined;
@@ -54,8 +46,8 @@ function mapGlueListingToLoteItem(raw: Record<string, unknown>): ZapLoteItem {
 
 /**
  * POST /api/apify-zap-lotes
- * Body: { cidade: string, estado: string, condominio?: string }
- * Chama a Edge Function zap-search-lotes (terrenos/lotes), pagina e retorna o array de itens.
+ * Body: { cidade, estado, condominio?, processoId? }
+ * Com processoId: busca + grava e devolve só inserted.
  */
 export async function POST(request: Request) {
   try {
@@ -64,6 +56,8 @@ export async function POST(request: Request) {
     const estado = typeof body?.estado === 'string' ? body.estado.trim() : '';
     const condominio =
       typeof body?.condominio === 'string' ? body.condominio.trim() || undefined : undefined;
+    const processoId =
+      typeof body?.processoId === 'string' ? body.processoId.trim() || undefined : undefined;
 
     if (!cidade || !estado) {
       return NextResponse.json(
@@ -72,85 +66,25 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    let serviceRoleKey: string;
-    try {
-      serviceRoleKey = resolveSupabaseServiceRoleKey();
-    } catch {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            'Configuração Supabase ausente (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_DEV_SERVICE_ROLE_KEY ou SUPABASE_SERVICE_ROLE_KEY válida).',
-        },
-        { status: 500 },
-      );
-    }
-    if (!supabaseUrl) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: 'Configuração Supabase ausente (NEXT_PUBLIC_SUPABASE_URL).',
-        },
-        { status: 500 },
-      );
-    }
-
-    const projectRef = new URL(supabaseUrl).hostname.split('.')[0];
-    const edgeUrl = `https://${projectRef}.supabase.co/functions/v1/zap-search-lotes`;
     const cookieHeader = request.headers.get('cookie') ?? undefined;
-
     const allItems: ZapLoteItem[] = [];
     let from = 0;
     let hasMore = true;
 
     while (hasMore) {
-      const res = await fetch(edgeUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${serviceRoleKey}`,
-        },
-        body: JSON.stringify({
+      let listingsArray: Record<string, unknown>[];
+      try {
+        listingsArray = await fetchZapLotesGluePage(
           cidade,
           estado,
           condominio,
           from,
-          ...(cookieHeader ? { cookie: cookieHeader } : {}),
-        }),
-      });
-
-      if (!res.ok) {
-        const errBody = await res.text();
-        let errMsg: string;
-        try {
-          const j = JSON.parse(errBody);
-          errMsg = j.error ?? j.detail ?? errBody.slice(0, 300);
-        } catch {
-          errMsg = errBody.slice(0, 300) || `Edge Function ${res.status}`;
-        }
-        return NextResponse.json({ ok: false, error: errMsg }, { status: 200 });
-      }
-
-      const data = (await res.json()) as Record<string, unknown>;
-      const result = (data.search as Record<string, unknown> | undefined)?.result as
-        | Record<string, unknown>
-        | undefined;
-      const rawListings = result?.listings;
-      const listingsArray = Array.isArray(rawListings)
-        ? (rawListings as Array<{ listing?: Record<string, unknown> }>)
-            .map((item) => item.listing)
-            .filter((l): l is Record<string, unknown> => l != null)
-        : [];
-
-      if (!Array.isArray(rawListings)) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: 'Resposta da glue-api sem array de listings (search.result.listings).',
-          },
-          { status: 200 },
+          PAGE_SIZE,
+          cookieHeader,
         );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return NextResponse.json({ ok: false, error: message }, { status: 200 });
       }
 
       allItems.push(...listingsArray.map((listing) => mapGlueListingToLoteItem(listing)));
@@ -159,6 +93,21 @@ export async function POST(request: Request) {
         hasMore = false;
       } else {
         from += PAGE_SIZE;
+      }
+    }
+
+    if (processoId) {
+      const access = await verifyProcessoLotesAccess(processoId);
+      if (!access.ok) {
+        return NextResponse.json({ ok: false, error: access.error }, { status: 200 });
+      }
+
+      try {
+        const { inserted } = await applyZapLotesSave(access.supabase, processoId, allItems);
+        return NextResponse.json({ ok: true, saved: true, inserted });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return NextResponse.json({ ok: false, error: message }, { status: 200 });
       }
     }
 

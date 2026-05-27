@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { runZapScraper } from '@/lib/apify-zap';
-import { applyZapCasasUpdate } from '@/app/step-one/[id]/etapa/actions';
+import { applyZapCasasUpdate } from '@/lib/zap-save-casas';
 import type { createClient } from '@/lib/supabase/server';
 
 /**
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     const estado = (p.estado ?? '').trim().slice(0, 2).toUpperCase();
     if (!cidade || !estado) continue;
 
-    const result = await runZapScraper(cidade, estado, undefined, 300, 120_000);
+    const result = await runZapScraper(cidade, estado, undefined, 300, 240_000);
     if (!result.ok || !result.items?.length) continue;
 
     const counts = await applyZapCasasUpdate(

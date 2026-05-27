@@ -1,6 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    serverActions: {
+      /** Etapas ZAP / uploads podem enviar payloads maiores que 1 MB (default). */
+      bodySizeLimit: '10mb',
+    },
+  },
   /**
    * Carômetro (Vite) usa VITE_SUPABASE_*; o moni-fly usa NEXT_PUBLIC_*.
    * Se só existirem as variáveis Vite no .env.local, o Next reutiliza-as no cliente.

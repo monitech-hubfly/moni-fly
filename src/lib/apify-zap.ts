@@ -145,7 +145,7 @@ export async function runZapScraper(
   estado: string,
   condominio?: string,
   limit = 300,
-  timeoutMs = 120_000,
+  timeoutMs = 240_000,
 ): Promise<RunZapResult> {
   const token = process.env.VITE_APIFY_TOKEN || process.env.APIFY_API_TOKEN;
   const tokenPresent = !!token;
@@ -184,7 +184,7 @@ export async function runZapScraper(
 export async function runZapScraperWithUrl(
   startUrl: string,
   limit = 300,
-  timeoutMs = 120_000,
+  timeoutMs = 240_000,
 ): Promise<RunZapResult> {
   const token = process.env.VITE_APIFY_TOKEN || process.env.APIFY_API_TOKEN;
   const baseDebug: ZapRunDebug = {

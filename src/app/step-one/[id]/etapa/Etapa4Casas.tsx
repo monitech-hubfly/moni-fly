@@ -5,7 +5,6 @@ import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import {
   addCasaListing,
-  saveZapItemsEtapa4,
   updateCasaStatus,
   validarStatusCasasManuais,
   saveCasasEscolhidasEtapa5,
@@ -574,6 +573,7 @@ export function Etapa4Casas(props: {
           cidade: city,
           estado: state,
           condominio: condominio.trim() || undefined,
+          processoId,
         }),
       });
       const data = await res.json();
@@ -584,18 +584,15 @@ export function Etapa4Casas(props: {
         return;
       }
 
-      const items = Array.isArray(data.items) ? data.items : [];
-      const saveResult = await saveZapItemsEtapa4(processoId, items, city, state);
-
-      if (saveResult.ok) {
+      if (data.saved) {
         setZapResult({
-          inserted: saveResult.inserted,
-          updated: saveResult.updated,
-          despublicados: saveResult.despublicados,
+          inserted: data.inserted ?? 0,
+          updated: data.updated ?? 0,
+          despublicados: data.despublicados ?? 0,
         });
         router.refresh();
       } else {
-        setZapError(saveResult.error);
+        setZapError('Resposta inesperada da API (dados não salvos).');
       }
     } catch (err) {
       setZapError(err instanceof Error ? err.message : 'Falha ao chamar a API.');
@@ -871,8 +868,7 @@ export function Etapa4Casas(props: {
           </div>
           {zapLoading ? (
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-              Chamando Apify (actor fatihtahta/zap-imoveis-scraper)… aguardando resultado (polling a
-              cada 3 s). Não feche a página.
+              Buscando imóveis no ZAP via Apify… pode levar até 4 minutos. Não feche a página.
             </p>
           ) : null}
           {zapError ? (

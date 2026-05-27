@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/server';
 import { buscarMunicipioIbge } from '@/lib/ibge';
 import type { MunicipioIbge } from '@/lib/ibge';
 import { mapZapItemToCasa, type ZapListingItem } from '@/lib/apify-zap';
+import { applyZapCasasUpdate, verifyProcessoCasasAccess } from '@/lib/zap-save-casas';
+import { applyZapLotesSave, verifyProcessoLotesAccess, type ZapLoteItem } from '@/lib/zap-save-lotes';
 import type { BcaInputs } from '@/lib/bca-calc';
 
 export type SaveEtapa1Result = { ok: true } | { ok: false; error: string };
@@ -480,89 +482,6 @@ export type RunZapEtapa4Result =
   | { ok: false; error: string };
 
 /**
- * Aplica atualização ZAP na listagem de casas (upsert por link + marcar como despublicado os que não vêm na resposta).
- * Usada pelo front (saveZapItemsEtapa4) e pelo cron de atualização mensal. Não altera registros manuais.
- */
-export async function applyZapCasasUpdate(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  processoId: string,
-  items: ZapListingItem[],
-  cidade: string,
-  estado: string,
-): Promise<{ inserted: number; updated: number; despublicados: number }> {
-  const cidadeNorm = cidade.trim();
-  const estadoNorm = estado.trim().slice(0, 2).toUpperCase();
-  const rows = (items ?? [])
-    .filter((i) => i?.url)
-    .map((i) => mapZapItemToCasa(i as ZapListingItem, cidadeNorm, estadoNorm))
-    .filter((r) => r.link);
-
-  const linksFromZap = new Set(rows.map((r) => r.link as string));
-
-  const { data: existing } = await supabase
-    .from('listings_casas')
-    .select('id, link, manual')
-    .eq('processo_id', processoId);
-
-  let despublicados = 0;
-  const now = new Date().toISOString().slice(0, 10);
-  for (const row of existing ?? []) {
-    if (row.manual) continue;
-    const link = row.link as string | null;
-    if (!link || linksFromZap.has(link)) continue;
-    const { error: upErr } = await supabase
-      .from('listings_casas')
-      .update({ status: 'despublicado', data_despublicado: now })
-      .eq('id', row.id);
-    if (!upErr) despublicados++;
-  }
-
-  const existingByLink = new Map<string | null, { id: string }>();
-  for (const row of existing ?? []) {
-    if (row.manual) continue;
-    if (row.link) existingByLink.set(row.link, { id: row.id });
-  }
-
-  let inserted = 0;
-  let updated = 0;
-  for (const r of rows) {
-    const payload = {
-      processo_id: processoId,
-      manual: false,
-      cidade: r.cidade,
-      estado: r.estado,
-      status: 'a_venda' as const,
-      condominio: r.condominio,
-      localizacao_condominio: r.localizacao_condominio,
-      quartos: r.quartos,
-      banheiros: r.banheiros,
-      vagas: r.vagas,
-      piscina: r.piscina,
-      marcenaria: r.marcenaria,
-      preco: r.preco,
-      area_casa_m2: r.area_casa_m2,
-      preco_m2: r.preco_m2,
-      link: r.link,
-      foto_url: r.foto_url,
-      data_publicacao: r.data_publicacao,
-    };
-    const existingRow = r.link ? existingByLink.get(r.link) : null;
-    if (existingRow) {
-      const { error: upErr } = await supabase
-        .from('listings_casas')
-        .update({ ...payload, data_despublicado: null })
-        .eq('id', existingRow.id);
-      if (!upErr) updated++;
-    } else {
-      const { error: insErr } = await supabase.from('listings_casas').insert(payload);
-      if (!insErr) inserted++;
-    }
-  }
-
-  return { inserted, updated, despublicados };
-}
-
-/**
  * Persiste os itens retornados pela API /api/apify-zap.
  * - Itens já existentes (por link) são atualizados; novos são inseridos. Registros manuais não são alterados.
  * - Itens que estavam no processo e não vêm mais na ZAP são marcados como despublicado (não removidos).
@@ -573,22 +492,11 @@ export async function saveZapItemsEtapa4(
   cidade: string,
   estado: string,
 ): Promise<RunZapEtapa4Result> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
-
-  const { data: processo } = await supabase
-    .from('processo_step_one')
-    .select('id')
-    .eq('id', processoId)
-    .eq('user_id', user.id)
-    .single();
-  if (!processo) return { ok: false, error: 'Processo não encontrado.' };
+  const access = await verifyProcessoCasasAccess(processoId);
+  if (!access.ok) return { ok: false, error: access.error };
 
   const { inserted, updated, despublicados } = await applyZapCasasUpdate(
-    supabase,
+    access.supabase,
     processoId,
     items,
     cidade,
@@ -653,18 +561,6 @@ export async function validarStatusCasasManuais(processoId: string): Promise<Act
   return { ok: true };
 }
 
-export type ZapLoteItem = {
-  condominio?: string;
-  area_lote_m2?: number;
-  preco?: number;
-  preco_m2?: number;
-  link?: string;
-  valor_condominio?: number;
-  iptu?: number;
-  caracteristicas_condominio?: string;
-  caracteristicas?: string | null;
-};
-
 export type RunZapEtapa5Result = { ok: true; inserted: number } | { ok: false; error: string };
 
 /**
@@ -674,50 +570,16 @@ export async function saveZapItemsEtapa5(
   processoId: string,
   items: ZapLoteItem[],
 ): Promise<RunZapEtapa5Result> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const access = await verifyProcessoLotesAccess(processoId);
+  if (!access.ok) return { ok: false, error: access.error };
 
-  const { data: processo } = await supabase
-    .from('processo_step_one')
-    .select('id')
-    .eq('id', processoId)
-    .eq('user_id', user.id)
-    .single();
-  if (!processo) return { ok: false, error: 'Processo não encontrado.' };
-
-  const { error: deleteError } = await supabase
-    .from('listings_lotes')
-    .delete()
-    .eq('processo_id', processoId);
-
-  if (deleteError) return { ok: false, error: deleteError.message };
-
-  if (items.length === 0) {
-    return { ok: true, inserted: 0 };
+  try {
+    const { inserted } = await applyZapLotesSave(access.supabase, processoId, items);
+    return { ok: true, inserted };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
   }
-
-  const payloads = items.map((i) => ({
-    processo_id: processoId,
-    condominio: i.condominio ?? null,
-    area_lote_m2: i.area_lote_m2 ?? null,
-    preco: i.preco ?? null,
-    preco_m2: i.preco_m2 ?? null,
-    link: i.link ?? null,
-    valor_condominio: i.valor_condominio ?? null,
-    iptu: i.iptu ?? null,
-    caracteristicas_condominio: i.caracteristicas_condominio ?? null,
-    caracteristicas: i.caracteristicas ?? null,
-    manual: false,
-  }));
-
-  const { error: insertError } = await supabase.from('listings_lotes').insert(payloads);
-
-  if (insertError) return { ok: false, error: insertError.message };
-
-  return { ok: true, inserted: payloads.length };
 }
 
 export async function addLoteListing(
