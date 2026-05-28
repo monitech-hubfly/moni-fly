@@ -44,6 +44,8 @@ import {
   salvarInstrucoesFase,
   solicitarAprovacaoFase,
   uploadContratoFranquia,
+  uploadProcessoNegocioAnexo,
+  type ProcessoNegocioAnexoCampo,
   vincularTagCard,
   verificarChecklistParaFase,
   gerarFormTokenCandidato,
@@ -73,10 +75,12 @@ import {
   fetchKanbanCardModalDetalhes,
   fmtMoedaKanban,
   preObraDraftFromProcesso,
+  updateProcessoNegocioCampos,
   type KanbanCardModalDetalhes,
   type PreObraDraftKanban,
 } from '@/lib/kanban/kanban-card-modal-detalhes';
 import { SlaTituloBolinha } from '@/components/SlaTituloBolinha';
+import { MultiSelectCheckbox } from '@/components/MultiSelectCheckbox';
 import { AtividadeVinculadaCard } from '@/components/AtividadeVinculadaCard';
 import { AtividadeVinculadaIcon } from '@/components/AtividadeVinculadaIcon';
 import { AtividadeVinculadaStatusPill } from '@/components/AtividadeVinculadaStatusPill';
@@ -314,6 +318,14 @@ export function KanbanCardModal({
     vgv_pretendido: '',
     produto_modelo_casa: '',
     link_pasta_drive: '',
+    link_bca: '',
+    link_mapa_competidores: '',
+    link_acoplamento: '',
+    link_apresentacao_comite: '',
+    link_moni_capital_seguro_garantia: '',
+    comentario_moni_capital_seguro_garantia: '',
+    link_moni_capital_gastos_aporte_inicial: '',
+    comentario_moni_capital_gastos_aporte_inicial: '',
     nome_condominio: '',
     quadra: '',
     lote: '',
@@ -424,6 +436,12 @@ export function KanbanCardModal({
   const [preObraDraft, setPreObraDraft] = useState<PreObraDraftKanban>(() => preObraDraftFromProcesso(null));
   const [salvandoPreObra, setSalvandoPreObra] = useState(false);
   const [uploadingContrato, setUploadingContrato] = useState(false);
+  const [uploadingNegocioAnexo, setUploadingNegocioAnexo] = useState<ProcessoNegocioAnexoCampo | null>(
+    null,
+  );
+  const negocioOpcaoPermutaRef = useRef<HTMLInputElement>(null);
+  const negocioContratoPermutaRef = useRef<HTMLInputElement>(null);
+  const negocioSeguroGarantiaRef = useRef<HTMLInputElement>(null);
   const contratoFileRef = useRef<HTMLInputElement>(null);
   const comentarioEditorRef = useRef<HTMLDivElement>(null);
   const comentarioEdicaoRef = useRef<HTMLDivElement>(null);
@@ -526,6 +544,14 @@ export function KanbanCardModal({
       vgv_pretendido: '',
       produto_modelo_casa: '',
       link_pasta_drive: '',
+      link_bca: '',
+      link_mapa_competidores: '',
+      link_acoplamento: '',
+      link_apresentacao_comite: '',
+      link_moni_capital_seguro_garantia: '',
+      comentario_moni_capital_seguro_garantia: '',
+      link_moni_capital_gastos_aporte_inicial: '',
+      comentario_moni_capital_gastos_aporte_inicial: '',
       nome_condominio: '',
       quadra: '',
       lote: '',
@@ -1938,20 +1964,28 @@ export function KanbanCardModal({
     try {
       const supabase = createClient();
       if (pid) {
-        const { error } = await supabase
-          .from('processo_step_one')
-          .update({
-            tipo_aquisicao_terreno: negocioDraft.tipo_aquisicao_terreno || null,
-            valor_terreno: negocioDraft.valor_terreno || null,
-            vgv_pretendido: negocioDraft.vgv_pretendido || null,
-            produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
-            link_pasta_drive: negocioDraft.link_pasta_drive || null,
-            nome_condominio: negocioDraft.nome_condominio || null,
-            quadra: negocioDraft.quadra || null,
-            lote: negocioDraft.lote || null,
-          })
-          .eq('id', pid);
-        if (error) throw error;
+        const upd = await updateProcessoNegocioCampos(supabase, pid, {
+          tipo_aquisicao_terreno: negocioDraft.tipo_aquisicao_terreno || null,
+          valor_terreno: negocioDraft.valor_terreno || null,
+          vgv_pretendido: negocioDraft.vgv_pretendido || null,
+          produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
+          link_pasta_drive: negocioDraft.link_pasta_drive || null,
+          link_bca: negocioDraft.link_bca?.trim() || null,
+          link_mapa_competidores: negocioDraft.link_mapa_competidores?.trim() || null,
+          link_acoplamento: negocioDraft.link_acoplamento?.trim() || null,
+          link_apresentacao_comite: negocioDraft.link_apresentacao_comite?.trim() || null,
+          link_moni_capital_seguro_garantia: negocioDraft.link_moni_capital_seguro_garantia?.trim() || null,
+          comentario_moni_capital_seguro_garantia:
+            negocioDraft.comentario_moni_capital_seguro_garantia?.trim() || null,
+          link_moni_capital_gastos_aporte_inicial:
+            negocioDraft.link_moni_capital_gastos_aporte_inicial?.trim() || null,
+          comentario_moni_capital_gastos_aporte_inicial:
+            negocioDraft.comentario_moni_capital_gastos_aporte_inicial?.trim() || null,
+          nome_condominio: negocioDraft.nome_condominio || null,
+          quadra: negocioDraft.quadra || null,
+          lote: negocioDraft.lote || null,
+        });
+        if (!upd.ok) throw new Error(upd.error);
       } else if (origem === 'nativo' && card) {
         const { error } = await supabase
           .from('kanban_cards')
@@ -2124,6 +2158,46 @@ export function KanbanCardModal({
     if (!path?.trim()) return;
     const supabase = createClient();
     const { data, error } = await supabase.storage.from('contratos-franquia').createSignedUrl(path.trim(), 3600);
+    if (error || !data?.signedUrl) {
+      alert(error?.message ?? 'Não foi possível gerar o link.');
+      return;
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  async function handleNegocioAnexoFile(
+    e: ChangeEvent<HTMLInputElement>,
+    field: ProcessoNegocioAnexoCampo,
+  ) {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    const pid = modalDetalhes.processo?.id;
+    if (!f || !pid) return;
+    setUploadingNegocioAnexo(field);
+    try {
+      const fd = new FormData();
+      fd.append('file', f);
+      fd.append('processoId', pid);
+      fd.append('field', field);
+      fd.append('basePath', basePath);
+      const r = await uploadProcessoNegocioAnexo(fd);
+      if (!r.ok) {
+        alert(r.error);
+        return;
+      }
+      await loadCard();
+      router.refresh();
+    } catch {
+      alert('Erro ao enviar anexo.');
+    } finally {
+      setUploadingNegocioAnexo(null);
+    }
+  }
+
+  async function handleBaixarNegocioAnexo(path: string) {
+    if (!path.trim()) return;
+    const supabase = createClient();
+    const { data, error } = await supabase.storage.from('processo-docs').createSignedUrl(path.trim(), 3600);
     if (error || !data?.signedUrl) {
       alert(error?.message ?? 'Não foi possível gerar o link.');
       return;
@@ -2486,6 +2560,279 @@ export function KanbanCardModal({
     return `https://${raw}`;
   })();
 
+  const linkHrefFromText = (raw: string | null | undefined) => {
+    const t = String(raw ?? '').trim();
+    if (!t) return null;
+    if (/^https?:\/\//i.test(t)) return t;
+    return `https://${t}`;
+  };
+
+  function renderNegocioLinkCampo(
+    label: string,
+    raw: string | null | undefined,
+    edit?: { value: string; onChange: (v: string) => void },
+  ) {
+    const href = linkHrefFromText(edit ? edit.value : raw);
+    if (edit) {
+      return (
+        <label className="block">
+          <span className="text-[11px] font-medium text-stone-500">{label}</span>
+          <input
+            type="text"
+            value={edit.value}
+            onChange={(e) => edit.onChange(e.target.value)}
+            placeholder="https://…"
+            className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+          />
+        </label>
+      );
+    }
+    return (
+      <div>
+        <div className="text-[11px] font-medium text-stone-500">{label}</div>
+        <div className="text-xs">
+          {href ? (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="break-all text-moni-primary underline"
+            >
+              {String(raw ?? '').trim()}
+            </a>
+          ) : (
+            '—'
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function renderNegocioLinkComComentarios(
+    label: string,
+    linkRaw: string | null | undefined,
+    comentarioRaw: string | null | undefined,
+    edit?: {
+      linkValue: string;
+      comentarioValue: string;
+      onLinkChange: (v: string) => void;
+      onComentarioChange: (v: string) => void;
+    },
+  ) {
+    const href = linkHrefFromText(edit ? edit.linkValue : linkRaw);
+    const comentario = String(edit ? edit.comentarioValue : comentarioRaw ?? '').trim();
+    if (edit) {
+      return (
+        <div className="space-y-1.5">
+          <label className="block">
+            <span className="text-[11px] font-medium text-stone-500">{label}</span>
+            <input
+              type="text"
+              value={edit.linkValue}
+              onChange={(e) => edit.onLinkChange(e.target.value)}
+              placeholder="https://…"
+              className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[11px] font-medium text-stone-500">Comentários</span>
+            <textarea
+              value={edit.comentarioValue}
+              onChange={(e) => edit.onComentarioChange(e.target.value)}
+              rows={2}
+              placeholder="Observações sobre este item…"
+              className="mt-0.5 w-full resize-y rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+            />
+          </label>
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-1">
+        <div>
+          <div className="text-[11px] font-medium text-stone-500">{label}</div>
+          <div className="text-xs">
+            {href ? (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="break-all text-moni-primary underline"
+              >
+                {String(linkRaw ?? '').trim()}
+              </a>
+            ) : (
+              '—'
+            )}
+          </div>
+        </div>
+        <div>
+          <div className="text-[11px] font-medium text-stone-500">Comentários</div>
+          <div className="whitespace-pre-wrap text-xs text-stone-800">{comentario || '—'}</div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderNegocioAnexoCampo(
+    label: string,
+    field: ProcessoNegocioAnexoCampo,
+    path: string | null | undefined,
+    inputRef: React.Ref<HTMLInputElement>,
+  ) {
+    if (!proc?.id) return null;
+    const uploading = uploadingNegocioAnexo === field;
+    const canAnexar = modalSessao.ehAdminOuTeam;
+    const fileInputRef = inputRef as React.RefObject<HTMLInputElement | null>;
+    return (
+      <div>
+        <p className="text-[11px] font-medium text-stone-500">{label}</p>
+        <input
+          ref={inputRef as React.Ref<HTMLInputElement>}
+          type="file"
+          className="hidden"
+          onChange={(e) => void handleNegocioAnexoFile(e, field)}
+          accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf"
+        />
+        <div className="mt-0.5 flex flex-wrap items-center gap-2">
+          {path?.trim() ? (
+            <>
+              <button
+                type="button"
+                onClick={() => void handleBaixarNegocioAnexo(path)}
+                className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50"
+              >
+                Baixar
+              </button>
+              {canAnexar ? (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {uploading ? 'Enviando…' : 'Substituir'}
+                </button>
+              ) : null}
+            </>
+          ) : canAnexar ? (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {uploading ? 'Enviando…' : 'Anexar'}
+            </button>
+          ) : (
+            <span className="text-[11px] text-stone-500">—</span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const dadosNegocioLinksEAnexosView = proc ? (
+    <div className="space-y-2 border-t border-stone-100 pt-2">
+      {renderNegocioAnexoCampo(
+        'Opção de Permuta',
+        'opcao_permuta',
+        proc.anexo_opcao_permuta_path,
+        negocioOpcaoPermutaRef,
+      )}
+      {renderNegocioLinkCampo('BCA', proc.link_bca)}
+      {renderNegocioLinkCampo('Mapa de Competidores', proc.link_mapa_competidores)}
+      {renderNegocioLinkCampo('Acoplamento', proc.link_acoplamento)}
+      {renderNegocioLinkCampo('Apresentação do Comitê', proc.link_apresentacao_comite)}
+      {renderNegocioAnexoCampo(
+        'Contrato de Permuta',
+        'contrato_permuta',
+        proc.anexo_contrato_permuta_path,
+        negocioContratoPermutaRef,
+      )}
+      {renderNegocioAnexoCampo(
+        'Seguro garantia',
+        'seguro_garantia',
+        proc.anexo_seguro_garantia_path,
+        negocioSeguroGarantiaRef,
+      )}
+      {renderNegocioLinkComComentarios(
+        'Moní Capital — seguro garantia',
+        proc.link_moni_capital_seguro_garantia,
+        proc.comentario_moni_capital_seguro_garantia,
+      )}
+      {renderNegocioLinkComComentarios(
+        'Moní Capital — gastos de Aporte Inicial',
+        proc.link_moni_capital_gastos_aporte_inicial,
+        proc.comentario_moni_capital_gastos_aporte_inicial,
+      )}
+    </div>
+  ) : null;
+
+  const dadosNegocioLinksEAnexosEdit = proc ? (
+    <div className="space-y-2 border-t border-stone-100 pt-2">
+      {renderNegocioAnexoCampo(
+        'Opção de Permuta',
+        'opcao_permuta',
+        proc.anexo_opcao_permuta_path,
+        negocioOpcaoPermutaRef,
+      )}
+      {renderNegocioLinkCampo('BCA', proc.link_bca, {
+        value: negocioDraft.link_bca,
+        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_bca: v })),
+      })}
+      {renderNegocioLinkCampo('Mapa de Competidores', proc.link_mapa_competidores, {
+        value: negocioDraft.link_mapa_competidores,
+        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_mapa_competidores: v })),
+      })}
+      {renderNegocioLinkCampo('Acoplamento', proc.link_acoplamento, {
+        value: negocioDraft.link_acoplamento,
+        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_acoplamento: v })),
+      })}
+      {renderNegocioLinkCampo('Apresentação do Comitê', proc.link_apresentacao_comite, {
+        value: negocioDraft.link_apresentacao_comite,
+        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_apresentacao_comite: v })),
+      })}
+      {renderNegocioAnexoCampo(
+        'Contrato de Permuta',
+        'contrato_permuta',
+        proc.anexo_contrato_permuta_path,
+        negocioContratoPermutaRef,
+      )}
+      {renderNegocioAnexoCampo(
+        'Seguro garantia',
+        'seguro_garantia',
+        proc.anexo_seguro_garantia_path,
+        negocioSeguroGarantiaRef,
+      )}
+      {renderNegocioLinkComComentarios(
+        'Moní Capital — seguro garantia',
+        proc.link_moni_capital_seguro_garantia,
+        proc.comentario_moni_capital_seguro_garantia,
+        {
+          linkValue: negocioDraft.link_moni_capital_seguro_garantia,
+          comentarioValue: negocioDraft.comentario_moni_capital_seguro_garantia,
+          onLinkChange: (v) => setNegocioDraft((d) => ({ ...d, link_moni_capital_seguro_garantia: v })),
+          onComentarioChange: (v) =>
+            setNegocioDraft((d) => ({ ...d, comentario_moni_capital_seguro_garantia: v })),
+        },
+      )}
+      {renderNegocioLinkComComentarios(
+        'Moní Capital — gastos de Aporte Inicial',
+        proc.link_moni_capital_gastos_aporte_inicial,
+        proc.comentario_moni_capital_gastos_aporte_inicial,
+        {
+          linkValue: negocioDraft.link_moni_capital_gastos_aporte_inicial,
+          comentarioValue: negocioDraft.comentario_moni_capital_gastos_aporte_inicial,
+          onLinkChange: (v) =>
+            setNegocioDraft((d) => ({ ...d, link_moni_capital_gastos_aporte_inicial: v })),
+          onComentarioChange: (v) =>
+            setNegocioDraft((d) => ({ ...d, comentario_moni_capital_gastos_aporte_inicial: v })),
+        },
+      )}
+    </div>
+  ) : null;
+
   function abrirEdicaoNegocio() {
     if (!proc && origem === 'nativo' && card) {
       setNegocioDraft({
@@ -2494,6 +2841,14 @@ export function KanbanCardModal({
         vgv_pretendido: '',
         produto_modelo_casa: '',
         link_pasta_drive: '',
+        link_bca: '',
+        link_mapa_competidores: '',
+        link_acoplamento: '',
+        link_apresentacao_comite: '',
+        link_moni_capital_seguro_garantia: '',
+        comentario_moni_capital_seguro_garantia: '',
+        link_moni_capital_gastos_aporte_inicial: '',
+        comentario_moni_capital_gastos_aporte_inicial: '',
         nome_condominio: card.nome_condominio ?? '',
         quadra: card.quadra ?? '',
         lote: card.lote ?? '',
@@ -2508,6 +2863,15 @@ export function KanbanCardModal({
         vgv_pretendido: proc.vgv_pretendido != null ? String(proc.vgv_pretendido) : '',
         produto_modelo_casa: proc.produto_modelo_casa ?? '',
         link_pasta_drive: proc.link_pasta_drive ?? '',
+        link_bca: proc.link_bca ?? '',
+        link_mapa_competidores: proc.link_mapa_competidores ?? '',
+        link_acoplamento: proc.link_acoplamento ?? '',
+        link_apresentacao_comite: proc.link_apresentacao_comite ?? '',
+        link_moni_capital_seguro_garantia: proc.link_moni_capital_seguro_garantia ?? '',
+        comentario_moni_capital_seguro_garantia: proc.comentario_moni_capital_seguro_garantia ?? '',
+        link_moni_capital_gastos_aporte_inicial: proc.link_moni_capital_gastos_aporte_inicial ?? '',
+        comentario_moni_capital_gastos_aporte_inicial:
+          proc.comentario_moni_capital_gastos_aporte_inicial ?? '',
         nome_condominio: proc.nome_condominio ?? '',
         quadra: proc.quadra ?? '',
         lote: proc.lote ?? '',
@@ -2543,26 +2907,6 @@ export function KanbanCardModal({
       ) : null}
     </div>
   );
-
-  function calcularCorData(dataIso: string): string {
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const data = new Date(`${dataIso}T00:00:00`);
-    const diffDias = Math.floor((data.getTime() - hoje.getTime()) / 86400000);
-    if (diffDias < 0) return 'text-red-600';
-    if (diffDias <= 1) return 'text-yellow-600';
-    return 'text-stone-500';
-  }
-  function labelData(dataIso: string): string {
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const data = new Date(`${dataIso}T00:00:00`);
-    const diffDias = Math.floor((data.getTime() - hoje.getTime()) / 86400000);
-    if (diffDias < 0) return `Atrasado ${Math.abs(diffDias)}d`;
-    if (diffDias === 0) return 'Hoje';
-    if (diffDias === 1) return 'Amanhã';
-    return `Em ${diffDias}d`;
-  }
 
   return (
     <>
@@ -4102,54 +4446,42 @@ export function KanbanCardModal({
                   </p>
                   <div>
                     <label className="mb-1 block text-[10px] font-medium text-stone-500">Times</label>
-                    <div className="flex flex-wrap gap-1">
-                      {timesNovaFiltrados.map((t) => {
-                        const on = novaInteracao.timesIds.includes(t.id);
-                        return (
-                          <button
-                            key={t.id}
-                            type="button"
-                            onClick={() =>
-                              setNovaInteracao((n) => ({
-                                ...n,
-                                timesIds: on ? n.timesIds.filter((x) => x !== t.id) : [...n.timesIds, t.id],
-                              }))
-                            }
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${on ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600'}`}
-                          >
-                            {t.nome}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <MultiSelectCheckbox
+                      variant="times"
+                      placeholder="Selecione os times..."
+                      searchPlaceholder="Pesquisar time…"
+                      options={timesNovaFiltrados.map((t) => ({ id: t.id, label: t.nome }))}
+                      selectedIds={novaInteracao.timesIds}
+                      onToggle={(id) =>
+                        setNovaInteracao((n) => ({
+                          ...n,
+                          timesIds: n.timesIds.includes(id)
+                            ? n.timesIds.filter((x) => x !== id)
+                            : [...n.timesIds, id],
+                        }))
+                      }
+                    />
                   </div>
                   {!portalFrank && (
                     <div>
                       <label className="mb-1 block text-[10px] font-medium text-stone-500">
                         Responsáveis (opcional)
                       </label>
-                      <div className="flex flex-wrap gap-1">
-                        {responsaveisOpcoesNovaHdm.map((p) => {
-                          const on = novaInteracao.responsaveisIds.includes(p.id);
-                          return (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onClick={() =>
-                                setNovaInteracao((n) => ({
-                                  ...n,
-                                  responsaveisIds: on
-                                    ? n.responsaveisIds.filter((x) => x !== p.id)
-                                    : [...n.responsaveisIds, p.id],
-                                }))
-                              }
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${on ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600'}`}
-                            >
-                              {p.nome}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <MultiSelectCheckbox
+                        variant="responsaveis"
+                        placeholder="Selecione os responsáveis..."
+                        searchPlaceholder="Pesquisar responsável…"
+                        options={responsaveisOpcoesNovaHdm.map((p) => ({ id: p.id, label: p.nome }))}
+                        selectedIds={novaInteracao.responsaveisIds}
+                        onToggle={(id) =>
+                          setNovaInteracao((n) => ({
+                            ...n,
+                            responsaveisIds: n.responsaveisIds.includes(id)
+                              ? n.responsaveisIds.filter((x) => x !== id)
+                              : [...n.responsaveisIds, id],
+                          }))
+                        }
+                      />
                     </div>
                   )}
                   <label className="flex cursor-pointer items-center gap-2 text-xs text-stone-700">
@@ -5222,6 +5554,7 @@ export function KanbanCardModal({
                         />
                       </label>
                     </div>
+                    {dadosNegocioLinksEAnexosEdit}
                     <div className="flex gap-2 pt-1">
                       <button
                         onClick={() => void handleSalvarNegocio()}
@@ -5292,6 +5625,7 @@ export function KanbanCardModal({
                       <div className="text-[11px] font-medium text-stone-500">Lote</div>
                       <div className="text-xs text-stone-800">{displayOrDash(proc.lote)}</div>
                     </div>
+                    {dadosNegocioLinksEAnexosView}
                     {modalSessao.ehAdminOuTeam && (
                       <button
                         type="button"
