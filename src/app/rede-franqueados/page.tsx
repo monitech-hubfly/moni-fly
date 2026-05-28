@@ -53,9 +53,6 @@ export default async function RedeFranqueadosPage() {
           <h1 className="text-3xl font-semibold tracking-tight" style={{ color: 'var(--color-text-primary, #0c2633)' }}>
             Rede de Franqueados
           </h1>
-          <p className="max-w-3xl text-sm text-stone-600">
-            Tabela de franqueados gerenciada dentro da ferramenta (fonte: banco de dados).
-          </p>
         </header>
 
         {rows && rows.length > 0 ? (
