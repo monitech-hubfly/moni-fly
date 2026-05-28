@@ -14,6 +14,13 @@ import { REDE_FRANQUEADOS_DB_KEYS, type RedeFranqueadoDbKey } from '@/lib/rede-f
 import { fixRedeCsvSociosHeadersTextFromSheets, normalizeRedeCsvHeadersFromSheets } from '@/lib/fix-rede-csv-socios-headers';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { ensureRedeAnexoNumeroFranquiaColumn, isRedeAnexoNumeroFranquiaSchemaError } from '@/lib/rede-ensure-anexo-column';
+import { extractText } from '@/lib/document-diff';
+import {
+  extrairDadosFranqueadoDeTexto,
+  isRedeLinhaFranqueado,
+  patchFranqueadoCamposVazios,
+  type RedeCampoFranqueado,
+} from '@/lib/rede-extrair-dados-franqueado';
 import { getNextFKFromRedeFranqueados } from '@/lib/next-fk-franquia';
 import { gerarRegistroFranquiaPdf } from '@/lib/registro-franquia-pdf';
 import { getRegistroFranquiaRecipients, sendRegistroFranquiaEmail } from '@/lib/email';
@@ -1091,4 +1098,111 @@ export async function salvarJustificativaRedeAnexo(
   revalidatePath('/rede-franqueados');
   revalidatePath(`/rede-franqueados/${redeId}`);
   return { ok: true };
+}
+
+export type CompletarRedeDeDocumentosResult =
+  | {
+      ok: true;
+      atualizados: number;
+      ignorados: number;
+      semAnexo: number;
+      detalhes: { n_franquia: string; campos: RedeCampoFranqueado[] }[];
+      mensagem: string;
+    }
+  | { ok: false; error: string };
+
+const REDE_ANEXO_PATH_COLS = ['anexo_contrato_path', 'anexo_cof_path', 'anexo_numero_franquia_path'] as const;
+
+/**
+ * Lê COF/contrato/doc. de nº de franquia e preenche só campos vazios do franqueado (não corporação).
+ */
+export async function completarRedeFranqueadosDeDocumentos(): Promise<CompletarRedeDeDocumentosResult> {
+  const gate = await requireRedeAdminOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return { ok: false, error: 'Serviço de arquivos indisponível (service role).' };
+  }
+
+  const { data: linhas, error: errList } = await admin.from('rede_franqueados').select('*');
+  if (errList) return { ok: false, error: errList.message };
+
+  let atualizados = 0;
+  let ignorados = 0;
+  let semAnexo = 0;
+  const detalhes: { n_franquia: string; campos: RedeCampoFranqueado[] }[] = [];
+
+  for (const raw of linhas ?? []) {
+    const row = raw as Record<string, unknown>;
+    if (!isRedeLinhaFranqueado(row as Parameters<typeof isRedeLinhaFranqueado>[0])) {
+      ignorados += 1;
+      continue;
+    }
+
+    const paths = REDE_ANEXO_PATH_COLS.map((col) => String(row[col] ?? '').trim()).filter(Boolean);
+    if (!paths.length) {
+      semAnexo += 1;
+      continue;
+    }
+
+    let merged: Partial<Record<RedeCampoFranqueado, string | null>> = {};
+    for (const storagePath of paths) {
+      const p = normalizeRedeAnexoStoragePath(storagePath);
+      if (!p) continue;
+      const { data: blob, error: dlErr } = await admin.storage.from('rede-attachments').download(p);
+      if (dlErr || !blob) continue;
+      const buffer = Buffer.from(await blob.arrayBuffer());
+      const texto = await extractText(buffer, 'application/octet-stream', p);
+      const extraido = extrairDadosFranqueadoDeTexto(texto, row as Parameters<typeof extrairDadosFranqueadoDeTexto>[1]);
+      merged = { ...merged, ...extraido };
+    }
+
+    const patch = patchFranqueadoCamposVazios(row as Parameters<typeof patchFranqueadoCamposVazios>[0], merged);
+    const keys = Object.keys(patch) as RedeCampoFranqueado[];
+    if (!keys.length) {
+      ignorados += 1;
+      continue;
+    }
+
+    const id = String(row.id ?? '');
+    if (!id) {
+      ignorados += 1;
+      continue;
+    }
+
+    const { error: upErr } = await admin
+      .from('rede_franqueados')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (upErr) {
+      return { ok: false, error: `Erro ao atualizar ${row.n_franquia}: ${upErr.message}` };
+    }
+
+    atualizados += 1;
+    detalhes.push({
+      n_franquia: String(row.n_franquia ?? ''),
+      campos: keys,
+    });
+  }
+
+  revalidatePath('/rede-franqueados');
+  revalidatePath('/comunidade');
+
+  const partes = [
+    atualizados === 1 ? '1 franqueado atualizado' : `${atualizados} franqueados atualizados`,
+    `${ignorados} ignorado(s)`,
+    `${semAnexo} sem documento para leitura`,
+  ];
+
+  return {
+    ok: true,
+    atualizados,
+    ignorados,
+    semAnexo,
+    detalhes,
+    mensagem: partes.join(' · ') + '.',
+  };
 }
