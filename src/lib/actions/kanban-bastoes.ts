@@ -6,6 +6,11 @@ import { isFrankOrFranqueadoRole } from '@/lib/authz';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { MSG_CHAMADO_JURIDICO_JA_EXISTE } from '@/lib/constants/kanban-ids';
+import {
+  DESTINOS_ESTEIRA_MANUAL,
+  destinosEsteiraManualParaKanban,
+  type DestinoEsteiraManualKey,
+} from '@/lib/kanban/esteira-manual-destinos';
 
 /** Verifica se já existe card filho no Funil Jurídico para o card pai. */
 export async function existeChamadoJuridicoParaCard(cardPaiId: string): Promise<boolean> {
@@ -566,5 +571,122 @@ export async function executarBastaoDeVolta(cardId: string, novaFaseSlug: string
 
   if (errHist) {
     console.error('[executarBastaoDeVolta] historico:', errHist.message);
+  }
+}
+
+export type DispararEsteiraManualResult =
+  | { ok: true; cardFilhoId: string; kanbanNome: string; jaExistia: boolean }
+  | { ok: false; error: string };
+
+/** Dispara card filho manualmente (mesma lógica do bastão automático). */
+export async function dispararEsteiraManualDoCard(
+  cardPaiId: string,
+  destinoKey: string,
+  basePath?: string,
+): Promise<DispararEsteiraManualResult> {
+  const paiId = String(cardPaiId ?? '').trim();
+  const key = String(destinoKey ?? '').trim() as DestinoEsteiraManualKey;
+
+  const destino = DESTINOS_ESTEIRA_MANUAL[key];
+  if (!destino) return { ok: false, error: 'Destino inválido.' };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+  const role = String((prof as { role?: string | null } | null)?.role ?? '').toLowerCase();
+  if (role !== 'admin' && role !== 'team') {
+    return { ok: false, error: 'Sem permissão para disparar esteira.' };
+  }
+
+  let db: ReturnType<typeof createAdminClient>;
+  try {
+    db = createAdminClient();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: `Serviço indisponível: ${msg}` };
+  }
+
+  const { data: paiRow, error: errPai } = await db
+    .from('kanban_cards')
+    .select('id, titulo, kanban_id, projeto_id, rede_franqueado_id, fase_id')
+    .eq('id', paiId)
+    .maybeSingle();
+
+  if (errPai) return { ok: false, error: errPai.message };
+  if (!paiRow?.id) return { ok: false, error: 'Card não encontrado.' };
+
+  const pai = paiRow as {
+    id: string;
+    titulo?: string | null;
+    kanban_id?: string | null;
+    projeto_id?: string | null;
+    rede_franqueado_id?: string | null;
+    fase_id?: string | null;
+  };
+
+  const kanbanId = String(pai.kanban_id ?? '').trim();
+  const permitidos = destinosEsteiraManualParaKanban(kanbanId);
+  if (!permitidos.includes(key)) {
+    return { ok: false, error: 'Este funil não permite disparar este destino.' };
+  }
+
+  let faseOrigemSlug = 'desconhecida';
+  const faseId = String(pai.fase_id ?? '').trim();
+  if (faseId) {
+    const { data: faseRow } = await db.from('kanban_fases').select('slug').eq('id', faseId).maybeSingle();
+    faseOrigemSlug = String((faseRow as { slug?: string | null } | null)?.slug ?? '').trim() || faseOrigemSlug;
+  }
+
+  const { data: existente } = await db
+    .from('kanban_cards')
+    .select('id')
+    .eq('origem_card_id', paiId)
+    .eq('kanban_id', destino.kanbanDestinoId)
+    .limit(1)
+    .maybeSingle();
+
+  if (existente?.id) {
+    const { data: kb } = await db.from('kanbans').select('nome').eq('id', destino.kanbanDestinoId).maybeSingle();
+    return {
+      ok: true,
+      cardFilhoId: String(existente.id),
+      kanbanNome: String((kb as { nome?: string | null } | null)?.nome ?? destino.label),
+      jaExistia: true,
+    };
+  }
+
+  try {
+    const filho = await criarCardFilho({
+      cardPaiId: paiId,
+      kanbanDestinoId: destino.kanbanDestinoId,
+      faseDestinoSlug: destino.faseDestinoSlug,
+      titulo: String(pai.titulo ?? '').trim() || 'Card',
+      projetoId: pai.projeto_id ?? null,
+      redeFranqueadoId: pai.rede_franqueado_id ?? null,
+      kanbanOrigemSlug: kanbanOrigemSlugPorId(kanbanId),
+      faseOrigemSlug,
+    });
+
+    if (!filho?.id) {
+      return { ok: false, error: 'Não foi possível criar o card filho (pode já existir).' };
+    }
+
+    const { data: kb } = await db.from('kanbans').select('nome').eq('id', destino.kanbanDestinoId).maybeSingle();
+    revalidatePath(basePath?.trim() || '/');
+    revalidatePath('/');
+
+    return {
+      ok: true,
+      cardFilhoId: String(filho.id),
+      kanbanNome: String((kb as { nome?: string | null } | null)?.nome ?? destino.label),
+      jaExistia: false,
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
   }
 }

@@ -1,38 +1,30 @@
--- 210: flags de retorno de bastões no card pai + histórico bastao_retorno
+-- Migration 210: colunas de bastão de retorno em kanban_cards
+-- Todas as colunas já existem no PROD — IF NOT EXISTS garante idempotência
 
-ALTER TABLE public.kanban_cards
-  ADD COLUMN IF NOT EXISTS origem_card_id UUID REFERENCES public.kanban_cards(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS acoplamento_concluido BOOLEAN NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS credito_terreno_ok BOOLEAN NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS credito_obra_ok BOOLEAN NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS contabilidade_ok BOOLEAN NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS juridico_ok BOOLEAN NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS capital_ok BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE kanban_cards
+  ADD COLUMN IF NOT EXISTS origem_card_id uuid REFERENCES kanban_cards(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS acoplamento_concluido boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS credito_terreno_ok boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS credito_obra_ok boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS contabilidade_ok boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS juridico_ok boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS capital_ok boolean NOT NULL DEFAULT false;
 
+-- Tipo de vínculo em kanban_card_vinculos
+ALTER TABLE kanban_card_vinculos
+  ADD COLUMN IF NOT EXISTS tipo_vinculo text NOT NULL DEFAULT 'relacionado'
+    CHECK (tipo_vinculo IN ('relacionado','originou','depende_de','bloqueia','retornou')),
+  ADD COLUMN IF NOT EXISTS kanban_origem_slug text,
+  ADD COLUMN IF NOT EXISTS kanban_destino_slug text,
+  ADD COLUMN IF NOT EXISTS fase_origem_slug text,
+  ADD COLUMN IF NOT EXISTS fase_destino_slug text;
+
+-- Índices de performance
 CREATE INDEX IF NOT EXISTS idx_kanban_cards_origem_card_id
-  ON public.kanban_cards (origem_card_id)
-  WHERE origem_card_id IS NOT NULL;
+  ON kanban_cards(origem_card_id) WHERE origem_card_id IS NOT NULL;
 
-COMMENT ON COLUMN public.kanban_cards.origem_card_id IS 'Card pai quando criado por bastão automático entre esteiras.';
-COMMENT ON COLUMN public.kanban_cards.acoplamento_concluido IS 'Esteira Acoplamento concluiu (aprovado ou reprovado).';
-COMMENT ON COLUMN public.kanban_cards.credito_terreno_ok IS 'Esteira Crédito Terreno concluiu.';
-COMMENT ON COLUMN public.kanban_cards.credito_obra_ok IS 'Esteira Crédito Obra concluiu.';
-COMMENT ON COLUMN public.kanban_cards.contabilidade_ok IS 'Esteira Contabilidade concluiu.';
-COMMENT ON COLUMN public.kanban_cards.juridico_ok IS 'Esteira Jurídico concluiu.';
-COMMENT ON COLUMN public.kanban_cards.capital_ok IS 'Esteira Moní Capital concluiu (elegível ou não elegível).';
+CREATE INDEX IF NOT EXISTS idx_kanban_cards_projeto_id
+  ON kanban_cards(projeto_id) WHERE projeto_id IS NOT NULL;
 
-ALTER TABLE public.kanban_historico
-  DROP CONSTRAINT IF EXISTS kanban_historico_acao_check;
-
-ALTER TABLE public.kanban_historico
-  ADD CONSTRAINT kanban_historico_acao_check
-  CHECK (acao IN (
-    'card_criado',
-    'fase_avancada',
-    'fase_retrocedida',
-    'interacao_criada',
-    'interacao_editada',
-    'campo_alterado',
-    'card_arquivado',
-    'bastao_retorno'
-  ));
+CREATE INDEX IF NOT EXISTS idx_kanban_card_vinculos_tipo
+  ON kanban_card_vinculos(tipo_vinculo);

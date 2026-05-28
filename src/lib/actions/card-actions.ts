@@ -1146,6 +1146,23 @@ export type KanbanCardVinculoListItem = {
   outro_card: { id: string; titulo: string; kanban_nome: string };
 };
 
+export type TipoRelacionamentoDisplay =
+  | 'originou'
+  | 'relacionado'
+  | 'depende_de'
+  | 'bloqueia'
+  | 'retornou';
+
+export type RelacionamentoCardRow = {
+  key: string;
+  card_id: string;
+  titulo: string;
+  kanban_nome: string;
+  fase_nome: string;
+  tipo: TipoRelacionamentoDisplay;
+  vinculo_id: string | null;
+};
+
 async function perfilEhAdminOuConsultor(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
@@ -1239,6 +1256,120 @@ export async function listarVinculosCard(
   return { ok: true, items };
 }
 
+function faseNomeDeJoin(row: { kanban_fases?: unknown }): string {
+  const f = row.kanban_fases;
+  if (Array.isArray(f)) return String((f[0] as { nome?: string } | undefined)?.nome ?? '').trim() || '—';
+  if (f && typeof f === 'object') return String((f as { nome?: string }).nome ?? '').trim() || '—';
+  return '—';
+}
+
+function normalizarTipoRelacionamento(raw: string | null | undefined): TipoRelacionamentoDisplay {
+  const t = String(raw ?? '').trim().toLowerCase();
+  if (t === 'originou') return 'originou';
+  if (t === 'depende_de') return 'depende_de';
+  if (t === 'bloqueia') return 'bloqueia';
+  if (t === 'retornou') return 'retornou';
+  return 'relacionado';
+}
+
+/** Filhos (`origem_card_id`) + vínculos em `kanban_card_vinculos` para a seção Relacionamentos. */
+export async function listarRelacionamentosCard(
+  cardId: string,
+): Promise<{ ok: true; items: RelacionamentoCardRow[] } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return { ok: false, error: 'Card inválido.' };
+
+  const items: RelacionamentoCardRow[] = [];
+  const cardIdsFilhos = new Set<string>();
+
+  const { data: filhos, error: errFilhos } = await supabase
+    .from('kanban_cards')
+    .select('id, titulo, kanban_fases ( nome ), kanbans ( nome )')
+    .eq('origem_card_id', cid)
+    .order('created_at', { ascending: true });
+
+  if (errFilhos) return { ok: false, error: errFilhos.message };
+
+  for (const row of filhos ?? []) {
+    const r = row as { id: string; titulo: string | null; kanban_fases?: unknown; kanbans?: unknown };
+    const id = String(r.id);
+    cardIdsFilhos.add(id);
+    items.push({
+      key: `filho-${id}`,
+      card_id: id,
+      titulo: (r.titulo ?? '').trim() || '(sem título)',
+      kanban_nome: kanbanNomeDeJoin(r) || 'Kanban',
+      fase_nome: faseNomeDeJoin(r),
+      tipo: 'originou',
+      vinculo_id: null,
+    });
+  }
+
+  const { data: vins, error: errVins } = await supabase
+    .from('kanban_card_vinculos')
+    .select('id, tipo_vinculo, card_origem_id, card_destino_id')
+    .or(`card_origem_id.eq.${cid},card_destino_id.eq.${cid}`);
+
+  if (errVins) return { ok: false, error: errVins.message };
+
+  const vincRows = (vins ?? []) as {
+    id: string;
+    tipo_vinculo: string;
+    card_origem_id: string;
+    card_destino_id: string;
+  }[];
+
+  if (vincRows.length > 0) {
+    const idSet = new Set<string>();
+    for (const v of vincRows) {
+      idSet.add(String(v.card_origem_id));
+      idSet.add(String(v.card_destino_id));
+    }
+    const { data: cards, error: cErr } = await supabase
+      .from('kanban_cards')
+      .select('id, titulo, kanban_fases ( nome ), kanbans ( nome )')
+      .in('id', [...idSet]);
+    if (cErr) return { ok: false, error: cErr.message };
+
+    const mapInfo = new Map<
+      string,
+      { titulo: string; kanban_nome: string; fase_nome: string }
+    >();
+    for (const c of cards ?? []) {
+      const row = c as { id: string; titulo: string | null; kanban_fases?: unknown; kanbans?: unknown };
+      mapInfo.set(String(row.id), {
+        titulo: (row.titulo ?? '').trim() || '(sem título)',
+        kanban_nome: kanbanNomeDeJoin(row) || 'Kanban',
+        fase_nome: faseNomeDeJoin(row),
+      });
+    }
+
+    for (const v of vincRows) {
+      const outroId = v.card_origem_id === cid ? v.card_destino_id : v.card_origem_id;
+      const tipo = normalizarTipoRelacionamento(v.tipo_vinculo);
+      if (cardIdsFilhos.has(outroId) && tipo === 'originou') continue;
+      const info = mapInfo.get(outroId) ?? { titulo: '—', kanban_nome: '—', fase_nome: '—' };
+      items.push({
+        key: `vinculo-${v.id}`,
+        card_id: outroId,
+        titulo: info.titulo,
+        kanban_nome: info.kanban_nome,
+        fase_nome: info.fase_nome,
+        tipo,
+        vinculo_id: v.id,
+      });
+    }
+  }
+
+  return { ok: true, items };
+}
+
 export type BuscaCardVinculoRow = { id: string; titulo: string; kanban_nome: string };
 
 /** Busca cards por título (admin/consultor) para vincular. */
@@ -1252,7 +1383,7 @@ export async function buscarCardsParaVinculo(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
 
-  const pode = await perfilEhAdminOuConsultor(supabase, user.id);
+  const pode = await perfilEhAdminOuTeam(supabase, user.id);
   if (!pode) return { ok: false, error: 'Sem permissão para buscar cards.' };
 
   const t = String(termo ?? '').trim().replace(/%/g, '').replace(/_/g, ' ').slice(0, 120);
@@ -1301,7 +1432,7 @@ export async function criarVinculoCard(input: {
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
 
-  const pode = await perfilEhAdminOuConsultor(supabase, user.id);
+  const pode = await perfilEhAdminOuTeam(supabase, user.id);
   if (!pode) return { ok: false, error: 'Sem permissão para criar vínculo.' };
 
   const orig = String(input.cardOrigemId ?? '').trim();

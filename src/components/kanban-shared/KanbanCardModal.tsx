@@ -29,11 +29,9 @@ import {
   arquivarSubInteracao,
   atualizarStatusInteracao,
   atualizarStatusSubInteracao,
-  buscarCardsParaVinculo,
   criarTagKanban,
   criarInteracao,
   criarSubInteracao,
-  criarVinculoCard,
   desvincularTagCard,
   editarInteracao,
   editarSubInteracao,
@@ -42,8 +40,6 @@ import {
   verificarGatePortfolioStep5,
   listarTagsCard,
   listarTagsKanban,
-  listarVinculosCard,
-  removerVinculoCard,
   salvarDadosPreObra,
   salvarInstrucoesFase,
   solicitarAprovacaoFase,
@@ -52,10 +48,7 @@ import {
   verificarChecklistParaFase,
   gerarFormTokenCandidato,
   enviarEmailCard,
-  type BuscaCardVinculoRow,
-  type KanbanCardVinculoListItem,
   type SubInteracaoStatusDb,
-  type TipoVinculoKanbanCard,
 } from '@/lib/actions/card-actions';
 import { enviarHipoteseAoPortfolio } from '@/lib/actions/card-actions';
 import { deletarChamado } from '@/app/sirene/actions';
@@ -103,6 +96,7 @@ import type {
 import { usePermissoes } from '@/lib/hooks/usePermissoes';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { KanbanCardModalProjetoTab } from './KanbanCardModalProjetoTab';
+import { KanbanCardModalRelacionamentos } from './KanbanCardModalRelacionamentos';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 import {
   countKanbanModalInteracoesFiltrosAtivos,
@@ -289,7 +283,7 @@ export function KanbanCardModal({
     novoNegocio: false,
     preObra: false,
     obra: false,
-    relacionamentos: false,
+    relacionamentos: true,
     historico: false,
   });
   const [legadoCronologiaMoves, setLegadoCronologiaMoves] = useState<ProcessoCardMoveEvt[]>([]);
@@ -431,11 +425,7 @@ export function KanbanCardModal({
   const [draftInstrucoesFase, setDraftInstrucoesFase] = useState('');
   const [draftMateriaisFase, setDraftMateriaisFase] = useState<KanbanFaseMaterial[]>([]);
   const [salvandoInstrucoesFase, setSalvandoInstrucoesFase] = useState(false);
-  const [vinculosCard, setVinculosCard] = useState<KanbanCardVinculoListItem[]>([]);
-  const [vincularAberto, setVincularAberto] = useState(false);
-  const [buscaVinculo, setBuscaVinculo] = useState('');
-  const [tipoNovoVinculo, setTipoNovoVinculo] = useState<TipoVinculoKanbanCard>('relacionado');
-  const [resultadosBuscaVinculo, setResultadosBuscaVinculo] = useState<BuscaCardVinculoRow[]>([]);
+  const [relacionamentosTick, setRelacionamentosTick] = useState(0);
   const [gateStep5Toast, setGateStep5Toast] = useState<string | null>(null);
   const [userRoleRaw, setUserRoleRaw] = useState('');
   const [chamadoJuridicoToast, setChamadoJuridicoToast] = useState<{
@@ -480,11 +470,7 @@ export function KanbanCardModal({
     setEditandoInstrucoesFase(false);
     setDraftInstrucoesFase('');
     setDraftMateriaisFase([]);
-    setVinculosCard([]);
-    setVincularAberto(false);
-    setBuscaVinculo('');
-    setTipoNovoVinculo('relacionado');
-    setResultadosBuscaVinculo([]);
+    setRelacionamentosTick((t) => t + 1);
     setModalSessao({ userId: null, uploaderNome: '—', ehAdminOuTeam: false, roleNorm: '', cargoNorm: '' });
     setModalExcluirInteracaoId(null);
     setSalvandoExcluirInteracao(false);
@@ -562,31 +548,6 @@ export function KanbanCardModal({
     setEmailAssunto(assuntoPadrao);
     // card: assunto deriva de titulo; id+cardId já filtram card errado, mas o linter exige card completo.
   }, [card, cardId]);
-
-  useEffect(() => {
-    if (!vincularAberto || !pode('vincular_cards') || !card || origem === 'legado') {
-      setResultadosBuscaVinculo([]);
-      return;
-    }
-    const t = buscaVinculo.trim();
-    if (t.length < 2) {
-      setResultadosBuscaVinculo([]);
-      return;
-    }
-    let cancel = false;
-    const h = setTimeout(() => {
-      void (async () => {
-        const r = await buscarCardsParaVinculo(t, card.id);
-        if (cancel) return;
-        if (r.ok) setResultadosBuscaVinculo(r.items);
-        else setResultadosBuscaVinculo([]);
-      })();
-    }, 320);
-    return () => {
-      cancel = true;
-      clearTimeout(h);
-    };
-  }, [buscaVinculo, vincularAberto, pode, card, origem]);
 
   useEffect(() => {
     if (!card?.fase_id) return;
@@ -1293,17 +1254,6 @@ export function KanbanCardModal({
       } catch {
         setInteracoes(interacoesDemonstracao());
         setSubInteracoesPorPai({});
-      }
-
-      if (origem !== 'legado' && loaded) {
-        try {
-          const vr = await listarVinculosCard(loaded.id);
-          setVinculosCard(vr.ok ? vr.items : []);
-        } catch {
-          setVinculosCard([]);
-        }
-      } else {
-        setVinculosCard([]);
       }
     } catch {
       // noop
@@ -2397,8 +2347,7 @@ export function KanbanCardModal({
         return;
       }
       setHipotesePortfolioOk('Hipótese enviada ao Portfolio');
-      const vr = await listarVinculosCard(card.id);
-      setVinculosCard(vr.ok ? vr.items : []);
+      setRelacionamentosTick((t) => t + 1);
       router.refresh();
     } finally {
       setEnviandoHipotesePortfolio(false);
@@ -2429,52 +2378,6 @@ export function KanbanCardModal({
       alert('Erro ao salvar instruções.');
     } finally {
       setSalvandoInstrucoesFase(false);
-    }
-  }
-
-  function labelTipoVinculo(t: TipoVinculoKanbanCard): string {
-    if (t === 'depende_de') return 'Depende de';
-    if (t === 'bloqueia') return 'Bloqueia';
-    return 'Relacionado';
-  }
-
-  async function handleRemoverVinculo(vinculoId: string) {
-    const res = await removerVinculoCard(vinculoId, basePath);
-    if (!res.ok) {
-      alert(res.error);
-      return;
-    }
-    if (card && origem !== 'legado') {
-      const vr = await listarVinculosCard(card.id);
-      setVinculosCard(vr.ok ? vr.items : []);
-    }
-    router.refresh();
-  }
-
-  async function handleVincularCardDestino(destinoId: string) {
-    if (!card || origem === 'legado') return;
-    setLoading(true);
-    try {
-      const res = await criarVinculoCard({
-        cardOrigemId: card.id,
-        cardDestinoId: destinoId,
-        tipo: tipoNovoVinculo,
-        basePath,
-      });
-      if (!res.ok) {
-        alert(res.error);
-        return;
-      }
-      setVincularAberto(false);
-      setBuscaVinculo('');
-      setResultadosBuscaVinculo([]);
-      const vr = await listarVinculosCard(card.id);
-      setVinculosCard(vr.ok ? vr.items : []);
-      router.refresh();
-    } catch {
-      alert('Erro ao criar vínculo.');
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -2549,6 +2452,8 @@ export function KanbanCardModal({
   const mostrarColunaAcoesLateral =
     !ocultarGestaoCard &&
     (pode('mover_fase') || pode('finalizar_cards') || podeArquivarCardPerm || mostrarBotaoJuridico);
+  const podeGerenciarRelacionamentos =
+    !isLegado && !ocultarGestaoCard && modalSessao.ehAdminOuTeam;
   const cardTitulo = card.titulo;
   const checklistExtra = card.fase_id && camposPorFase?.[card.fase_id];
   const faseChecklistFaseId = card.fase_id ?? '';
@@ -5585,124 +5490,19 @@ export function KanbanCardModal({
             )}
             {!isLegado ? (
               <>
-                {secaoHead('obra', 'Dados Obra', <p className="text-xs italic text-stone-500">Placeholder.</p>)}
                 {secaoHead(
                   'relacionamentos',
                   'Relacionamentos',
-                  <div className="space-y-2">
-                    {vinculosCard.length === 0 ? (
-                      <p className="text-xs text-stone-500">Nenhum vínculo cadastrado.</p>
-                    ) : (
-                      <ul className="list-none space-y-2">
-                        {vinculosCard.map((v) => {
-                          const href = hrefAbrirCardKanban(v.outro_card.kanban_nome, v.outro_card.id);
-                          return (
-                            <li
-                              key={v.id}
-                              className="flex items-start justify-between gap-2 rounded border border-stone-100 bg-stone-50/80 px-2 py-1.5"
-                            >
-                              <div className="min-w-0 flex-1">
-                                <a
-                                  href={href}
-                                  className="block text-[11px] font-medium text-moni-primary hover:underline"
-                                >
-                                  {v.outro_card.titulo}
-                                </a>
-                                <div className="mt-0.5 text-[10px] text-stone-500">
-                                  {v.outro_card.kanban_nome}
-                                  <span className="text-stone-400"> · </span>
-                                  {labelTipoVinculo(v.tipo_vinculo)}
-                                  <span className="text-stone-400"> · </span>
-                                  {v.papel === 'origem' ? 'Saída' : 'Entrada'}
-                                </div>
-                              </div>
-                              {pode('vincular_cards') ? (
-                                <button
-                                  type="button"
-                                  onClick={() => void handleRemoverVinculo(v.id)}
-                                  className="shrink-0 rounded p-0.5 text-stone-400 transition hover:bg-stone-200 hover:text-red-600"
-                                  aria-label="Remover vínculo"
-                                >
-                                  <X className="h-3.5 w-3.5" />
-                                </button>
-                              ) : null}
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                    {pode('vincular_cards') ? (
-                      <div className="border-t border-stone-100 pt-2">
-                        {!vincularAberto ? (
-                          <button
-                            type="button"
-                            onClick={() => setVincularAberto(true)}
-                            className="text-[11px] font-medium text-moni-primary hover:underline"
-                          >
-                            + Vincular card
-                          </button>
-                        ) : (
-                          <div className="space-y-2">
-                            <label className="block text-[10px] font-medium text-stone-600">
-                              Buscar por título
-                              <input
-                                type="search"
-                                value={buscaVinculo}
-                                onChange={(e) => setBuscaVinculo(e.target.value)}
-                                placeholder="Mín. 2 caracteres…"
-                                className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-[11px] text-stone-800"
-                              />
-                            </label>
-                            <label className="block text-[10px] font-medium text-stone-600">
-                              Tipo de vínculo (este card → outro)
-                              <select
-                                value={tipoNovoVinculo}
-                                onChange={(e) =>
-                                  setTipoNovoVinculo(e.target.value as TipoVinculoKanbanCard)
-                                }
-                                className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-[11px] text-stone-800"
-                              >
-                                <option value="relacionado">Relacionado</option>
-                                <option value="depende_de">Depende de</option>
-                                <option value="bloqueia">Bloqueia</option>
-                              </select>
-                            </label>
-                            {resultadosBuscaVinculo.length > 0 ? (
-                              <ul className="max-h-40 list-none space-y-1 overflow-y-auto rounded border border-stone-100 bg-white p-1">
-                                {resultadosBuscaVinculo.map((row) => (
-                                  <li key={row.id}>
-                                    <button
-                                      type="button"
-                                      onClick={() => void handleVincularCardDestino(row.id)}
-                                      disabled={loading}
-                                      className="w-full rounded px-2 py-1.5 text-left text-[11px] transition hover:bg-stone-50 disabled:opacity-50"
-                                    >
-                                      <span className="font-medium text-stone-800">{row.titulo}</span>
-                                      <span className="mt-0.5 block text-[10px] text-stone-500">{row.kanban_nome}</span>
-                                    </button>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : buscaVinculo.trim().length >= 2 ? (
-                              <p className="text-[10px] text-stone-500">Nenhum card encontrado.</p>
-                            ) : null}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setVincularAberto(false);
-                                setBuscaVinculo('');
-                                setResultadosBuscaVinculo([]);
-                              }}
-                              className="text-[10px] text-stone-500 hover:underline"
-                            >
-                              Fechar
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ) : null}
-                  </div>,
+                  <KanbanCardModalRelacionamentos
+                    key={`${card.id}-${relacionamentosTick}`}
+                    cardId={card.id}
+                    cardTitulo={cardTitulo}
+                    kanbanId={card.kanban_id}
+                    basePath={basePath}
+                    podeGerenciar={podeGerenciarRelacionamentos}
+                  />,
                 )}
+                {secaoHead('obra', 'Dados Obra', <p className="text-xs italic text-stone-500">Placeholder.</p>)}
               </>
             ) : null}
             {card && (
