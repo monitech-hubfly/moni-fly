@@ -953,7 +953,7 @@ export async function uploadRedeFranqueadoAssinado(
   const col = REDE_ANEXO_COLUNA[tipo];
   const { data: atual, error: leErr } = await supabase
     .from('rede_franqueados')
-    .select('id, anexo_cof_path, anexo_contrato_path, anexo_numero_franquia_path')
+    .select('*')
     .eq('id', redeId)
     .maybeSingle();
   if (leErr || !atual) return { ok: false, error: 'Linha da rede não encontrada.' };
@@ -967,7 +967,7 @@ export async function uploadRedeFranqueadoAssinado(
   });
   if (upErr) return { ok: false, error: upErr.message };
 
-  const oldPath = String(atual[col] ?? '').trim() || null;
+  const oldPath = String((atual as Record<string, unknown>)[col] ?? '').trim() || null;
 
   const { error: upRow } = await supabase
     .from('rede_franqueados')

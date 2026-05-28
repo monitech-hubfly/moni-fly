@@ -4,8 +4,10 @@
  */
 
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { normalizeNFranquiaCsv } from '@/lib/import-rede-csv';
 import { normalizarParaBusca } from '@/lib/painel-tarefas-filtros';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 const ORDEM_FALLBACK_FK_MAX = 9999;
 
@@ -229,6 +231,80 @@ export async function fetchRedeFranqueadosRows(
   const { data, error } = await supabase.from('rede_franqueados').select('*');
   if (error) return null;
   return ordenarRedePorNFranquia((data ?? []) as RedeFranqueadoRowDb[]);
+}
+
+export type RedeFranqueadoDetalheRow = {
+  id: string;
+  nome_completo: string | null;
+  n_franquia: string | null;
+  anexo_cof_path: string | null;
+  anexo_contrato_path: string | null;
+  anexo_numero_franquia_path: string | null;
+};
+
+async function queryRedeFranqueadoDetalhe(
+  client: SupabaseClient,
+  id: string,
+): Promise<{ row: RedeFranqueadoDetalheRow | null; error: string | null }> {
+  const full = await client.from('rede_franqueados').select('*').eq('id', id).maybeSingle();
+  if (!full.error && full.data) {
+    const r = full.data as Record<string, unknown>;
+    return {
+      row: {
+        id: String(r.id),
+        nome_completo: (r.nome_completo as string | null) ?? null,
+        n_franquia: (r.n_franquia as string | null) ?? null,
+        anexo_cof_path: (r.anexo_cof_path as string | null) ?? null,
+        anexo_contrato_path: (r.anexo_contrato_path as string | null) ?? null,
+        anexo_numero_franquia_path: (r.anexo_numero_franquia_path as string | null) ?? null,
+      },
+      error: null,
+    };
+  }
+
+  const minimal = await client
+    .from('rede_franqueados')
+    .select('id, nome_completo, n_franquia, anexo_cof_path, anexo_contrato_path')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (minimal.error) return { row: null, error: minimal.error.message };
+  if (!minimal.data) return { row: null, error: null };
+
+  const m = minimal.data as Record<string, unknown>;
+  return {
+    row: {
+      id: String(m.id),
+      nome_completo: (m.nome_completo as string | null) ?? null,
+      n_franquia: (m.n_franquia as string | null) ?? null,
+      anexo_cof_path: (m.anexo_cof_path as string | null) ?? null,
+      anexo_contrato_path: (m.anexo_contrato_path as string | null) ?? null,
+      anexo_numero_franquia_path: null,
+    },
+    error: null,
+  };
+}
+
+/** Carrega linha para /rede-franqueados/[id] com fallback se coluna de anexo ainda não existir no banco. */
+export async function fetchRedeFranqueadoDetalheForPage(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  id: string,
+  opts?: { staffUseAdminFallback?: boolean },
+): Promise<{ row: RedeFranqueadoDetalheRow | null; error: string | null }> {
+  let result = await queryRedeFranqueadoDetalhe(supabase, id);
+
+  if ((!result.row || result.error) && opts?.staffUseAdminFallback) {
+    try {
+      const admin = createAdminClient();
+      const viaAdmin = await queryRedeFranqueadoDetalhe(admin, id);
+      if (viaAdmin.row) result = viaAdmin;
+      else if (!result.error && viaAdmin.error) result = viaAdmin;
+    } catch {
+      /* service role indisponível */
+    }
+  }
+
+  return result;
 }
 
 /** Colunas permitidas no portal Frank (tabela + agregados dos gráficos). Não inclui dados sensíveis. */

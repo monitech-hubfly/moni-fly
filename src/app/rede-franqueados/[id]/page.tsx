@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { normalizeAccessRole } from '@/lib/authz';
+import { fetchRedeFranqueadoDetalheForPage } from '@/lib/rede-franqueados';
 import { RedeFranqueadoDetalheDocs } from './RedeFranqueadoDetalheDocs';
 
 export const dynamic = 'force-dynamic';
@@ -18,9 +20,9 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
     .select('role, rede_franqueado_id')
     .eq('id', user.id)
     .maybeSingle();
-  const role = String((prof as { role?: string | null } | null)?.role ?? '').toLowerCase();
-  const staff = role === 'admin' || role === 'team' || role === 'consultor';
-  const frank = role === 'frank' || role === 'franqueado';
+  const access = normalizeAccessRole((prof as { role?: string | null } | null)?.role);
+  const staff = access === 'admin' || access === 'team';
+  const frank = access === 'frank';
 
   if (!staff && !frank) redirect('/');
 
@@ -30,20 +32,32 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
     if (!own) redirect('/portal-frank/rede');
   }
 
-  const { data: row, error } = await supabase
-    .from('rede_franqueados')
-    .select('id, nome_completo, n_franquia, anexo_cof_path, anexo_contrato_path, anexo_numero_franquia_path')
-    .eq('id', id)
-    .maybeSingle();
+  const { row, error: loadError } = await fetchRedeFranqueadoDetalheForPage(supabase, id, {
+    staffUseAdminFallback: staff,
+  });
 
-  if (error || !row) notFound();
+  if (loadError && !row) {
+    return (
+      <div className="min-h-screen bg-[var(--moni-surface-50)]">
+        <main className="mx-auto max-w-5xl px-6 py-8">
+          <Link href="/rede-franqueados" className="mb-4 inline-block text-sm text-[#0c2633] hover:underline">
+            ← Voltar à rede
+          </Link>
+          <div className="rounded-lg border border-red-200/80 border-l-4 border-l-red-600 bg-red-50/90 px-4 py-3 text-sm text-red-900">
+            Não foi possível carregar este franqueado: {loadError}
+          </div>
+        </main>
+      </div>
+    );
+  }
 
-  const nome = String((row as { nome_completo?: string | null }).nome_completo ?? '').trim() || 'Franqueado';
-  const nfr = String((row as { n_franquia?: string | null }).n_franquia ?? '').trim();
-  const pathCof = (row as { anexo_cof_path?: string | null }).anexo_cof_path ?? null;
-  const pathContrato = (row as { anexo_contrato_path?: string | null }).anexo_contrato_path ?? null;
-  const pathNumeroFranquia =
-    (row as { anexo_numero_franquia_path?: string | null }).anexo_numero_franquia_path ?? null;
+  if (!row) notFound();
+
+  const nome = String(row.nome_completo ?? '').trim() || 'Franqueado';
+  const nfr = String(row.n_franquia ?? '').trim();
+  const pathCof = row.anexo_cof_path ?? null;
+  const pathContrato = row.anexo_contrato_path ?? null;
+  const pathNumeroFranquia = row.anexo_numero_franquia_path ?? null;
   const hasCof = Boolean(pathCof && String(pathCof).trim());
   const hasContrato = Boolean(pathContrato && String(pathContrato).trim());
   const hasNumeroFranquia = Boolean(pathNumeroFranquia && String(pathNumeroFranquia).trim());
@@ -52,9 +66,9 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
   const voltarLabel = staff ? 'Voltar à rede' : 'Voltar à rede (portal)';
 
   return (
-    <div className="min-h-screen bg-stone-50">
-      <main className="mx-auto max-w-5xl px-4 py-8">
-        <Link href={voltarHref} className="mb-4 inline-block text-sm text-moni-primary hover:underline">
+    <div className="min-h-screen bg-[var(--moni-surface-50)]">
+      <main className="mx-auto max-w-5xl px-6 py-8">
+        <Link href={voltarHref} className="mb-4 inline-block text-sm text-[#0c2633] hover:underline">
           ← {voltarLabel}
         </Link>
         <h1 className="text-xl font-bold text-moni-dark">{nome}</h1>
