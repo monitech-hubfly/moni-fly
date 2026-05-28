@@ -2,6 +2,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@/lib/supabase/server';
+import { normalizeAccessRole } from '@/lib/authz';
 import { revalidatePath } from 'next/cache';
 import { normalizeNFranquiaCsv, parseAndMapRedeCSV, type RedeFranqueadoRow } from '@/lib/import-rede-csv';
 import {
@@ -869,15 +870,25 @@ async function perfilPodeGerirDocsRede(
   userId: string,
 ): Promise<boolean> {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
-  const role = String((profile as { role?: string } | null)?.role ?? '').toLowerCase();
-  return role === 'admin' || role === 'team' || role === 'consultor';
+  const access = normalizeAccessRole((profile as { role?: string } | null)?.role);
+  return access === 'admin' || access === 'team';
 }
 
-/** Link assinado (1h) — só equipe interna (admin / team / consultor). */
+/** Caminho relativo no bucket `rede-attachments` (aceita legado com barra ou prefixo do bucket). */
+function normalizeRedeAnexoStoragePath(storagePath: string): string {
+  let p = String(storagePath ?? '').trim();
+  if (!p) return '';
+  const fromUrl = p.match(/rede-attachments\/(.+)$/i);
+  if (fromUrl) p = fromUrl[1]!;
+  if (p.startsWith('rede-attachments/')) p = p.slice('rede-attachments/'.length);
+  return p.replace(/^\/+/, '');
+}
+
+/** Link assinado (1h) — só equipe interna (admin / team / consultor legado). */
 export async function getSignedUrlRedeAnexo(
   storagePath: string,
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
-  const p = String(storagePath ?? '').trim();
+  const p = normalizeRedeAnexoStoragePath(storagePath);
   if (!p) return { ok: false, error: 'Caminho inválido.' };
 
   const supabase = await createClient();
@@ -889,8 +900,21 @@ export async function getSignedUrlRedeAnexo(
     return { ok: false, error: 'Sem permissão para baixar este documento.' };
   }
 
-  const { data, error } = await supabase.storage.from('rede-attachments').createSignedUrl(p, 3600);
-  if (error || !data?.signedUrl) return { ok: false, error: error?.message ?? 'Não foi possível gerar o link.' };
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return { ok: false, error: 'Serviço de arquivos indisponível no servidor.' };
+  }
+
+  const { data, error } = await admin.storage.from('rede-attachments').createSignedUrl(p, 3600);
+  if (error || !data?.signedUrl) {
+    const msg = error?.message ?? '';
+    if (/not found|object not found|404/i.test(msg)) {
+      return { ok: false, error: 'Arquivo não encontrado no storage. Envie o documento novamente.' };
+    }
+    return { ok: false, error: msg || 'Não foi possível gerar o link.' };
+  }
   return { ok: true, url: data.signedUrl };
 }
 

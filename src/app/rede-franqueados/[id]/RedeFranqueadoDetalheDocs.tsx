@@ -101,7 +101,13 @@ export function RedeFranqueadoDetalheDocs({
       setMsg({ tipo: 'erro', texto: r.error });
       return;
     }
-    window.open(r.url, '_blank', 'noopener,noreferrer');
+    const a = document.createElement('a');
+    a.href = r.url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   }
 
   async function onFile(tipo: AnexoTipo, e: React.ChangeEvent<HTMLInputElement>) {
