@@ -20,3 +20,15 @@ export type PortfolioSaudeRow = {
   data_step5_comite: string | null;
   data_step7_contrato: string | null;
 };
+
+export type PortfolioSaudeFranqueadoBase = {
+  rede_franqueado_id: string;
+  franqueado_nome: string | null;
+  n_franquia: string | null;
+  ordem: number;
+};
+
+/** Bloco por unidade de franquia: cabeçalho do franqueado + cards ativos no Portfolio (pode ser vazio). */
+export type PortfolioSaudeBlocoFranqueado = PortfolioSaudeFranqueadoBase & {
+  cards: PortfolioSaudeRow[];
+};

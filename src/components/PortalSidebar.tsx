@@ -62,7 +62,8 @@ const CREDITO_JURIDICO_SUBITENS: NavItem[] = [
 ];
 const PRE_OBRA_SUBITENS: NavItem[] = [
   { href: '/operacoes', label: 'Funil Operações' },
-  { href: '/funil-projeto-legal', label: 'Funil de Projeto Legal' },
+  { href: '/funil-projeto-legal', label: 'Projeto Legal' },
+  { href: '/funil-projetos-locais', label: 'Projetos Locais' },
 ];
 const HDM_SUBITENS: NavItem[] = [
   { href: '/funil-produto', label: 'Produto' },
@@ -154,7 +155,11 @@ function isCreditoJuridicoActive(pathname: string) {
 }
 
 function isPreObraActive(pathname: string) {
-  return pathname.startsWith('/operacoes') || pathname.startsWith('/funil-projeto-legal');
+  return (
+    pathname.startsWith('/operacoes') ||
+    pathname.startsWith('/funil-projeto-legal') ||
+    pathname.startsWith('/funil-projetos-locais')
+  );
 }
 
 function isHdmActive(pathname: string) {

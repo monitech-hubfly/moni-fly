@@ -22,6 +22,8 @@ const PREFIX_TITLE: { prefix: string; title: string }[] = [
   { prefix: '/funil-produto', title: 'Funil Produto' },
   { prefix: '/funil-modelo-virtual', title: 'Funil Modelo Virtual' },
   { prefix: '/funil-homologacoes', title: 'Funil Homologações' },
+  { prefix: '/funil-projeto-legal', title: 'Funil Projeto Legal' },
+  { prefix: '/funil-projetos-locais', title: 'Funil Projetos Locais' },
   { prefix: '/dashboard', title: 'Dashboard' },
   { prefix: '/sirene', title: 'Sirene' },
   { prefix: '/alertas', title: 'Alertas' },

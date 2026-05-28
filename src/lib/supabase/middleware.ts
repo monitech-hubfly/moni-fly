@@ -70,6 +70,8 @@ export async function updateSession(request: NextRequest) {
     '/funil-produto',
     '/funil-modelo-virtual',
     '/funil-homologacoes',
+    '/funil-projeto-legal',
+    '/funil-projetos-locais',
     '/funil-contratacoes',
     '/dashboard',
     '/operacoes',
@@ -140,6 +142,8 @@ export async function updateSession(request: NextRequest) {
     '/funil-produto',
     '/funil-modelo-virtual',
     '/funil-homologacoes',
+    '/funil-projeto-legal',
+    '/funil-projetos-locais',
   ] as const;
   if (
     funisInternosNegocioPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`)) &&

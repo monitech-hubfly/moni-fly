@@ -2,9 +2,13 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { guardLoginRequired } from '@/lib/auth-guard';
 import { isRedeStaffRole, normalizeAccessRole } from '@/lib/authz';
+import { montarBlocosPortfolioSaude } from '@/lib/kanban/portfolio-saude-blocos';
+import type {
+  PortfolioSaudeFranqueadoBase,
+  PortfolioSaudeRow,
+} from '@/lib/kanban/portfolio-saude-types';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import type { PortfolioSaudeRow } from '@/lib/kanban/portfolio-saude-types';
 import { PortfolioSaudeClient } from './PortfolioSaudeClient';
 
 export const dynamic = 'force-dynamic';
@@ -34,6 +38,15 @@ function mapRow(raw: Record<string, unknown>): PortfolioSaudeRow {
   };
 }
 
+function mapFranqueado(raw: Record<string, unknown>): PortfolioSaudeFranqueadoBase {
+  return {
+    rede_franqueado_id: String(raw.id ?? ''),
+    franqueado_nome: raw.nome_completo != null ? String(raw.nome_completo) : null,
+    n_franquia: raw.n_franquia != null ? String(raw.n_franquia) : null,
+    ordem: Number(raw.ordem ?? 0),
+  };
+}
+
 export default async function PortfolioSaudePage() {
   const supabase = await createClient();
   const {
@@ -46,20 +59,26 @@ export default async function PortfolioSaudePage() {
 
   if (!isRedeStaffRole(role)) redirect('/portfolio');
 
-  let rows: PortfolioSaudeRow[] = [];
+  let blocos = montarBlocosPortfolioSaude([], []);
   let erro: string | null = null;
 
   try {
     const admin = createAdminClient();
-    const { data, error } = await admin
-      .from('v_portfolio_saude')
-      .select('*')
-      .order('fase_ordem', { ascending: false });
+    const [frRes, cardRes] = await Promise.all([
+      admin.from('rede_franqueados').select('id, n_franquia, nome_completo, ordem').order('ordem'),
+      admin.from('v_portfolio_saude').select('*').order('fase_ordem', { ascending: false }),
+    ]);
 
-    if (error) {
-      erro = error.message;
+    if (frRes.error) {
+      erro = frRes.error.message;
+    } else if (cardRes.error) {
+      erro = cardRes.error.message;
     } else {
-      rows = (data ?? []).map((r) => mapRow(r as Record<string, unknown>));
+      const franqueados = (frRes.data ?? [])
+        .map((r) => mapFranqueado(r as Record<string, unknown>))
+        .filter((f) => f.rede_franqueado_id);
+      const cards = (cardRes.data ?? []).map((r) => mapRow(r as Record<string, unknown>));
+      blocos = montarBlocosPortfolioSaude(franqueados, cards);
     }
   } catch (e) {
     erro = e instanceof Error ? e.message : 'Serviço indisponível (service role).';
@@ -79,8 +98,8 @@ export default async function PortfolioSaudePage() {
 
       <main className="mx-auto max-w-[1600px] px-6 py-8">
         <p className="mb-6 text-sm text-stone-600">
-          Status das esteiras paralelas e marcos de fase dos cards ativos no Funil Portfólio. Ordenado da fase mais
-          avançada para a menos avançada.
+          Status das esteiras paralelas por unidade de franquia. Cada bloco agrupa os empreendimentos ativos do
+          franqueado no Funil Portfólio; unidades sem card em andamento aparecem em branco.
         </p>
 
         {erro ? (
@@ -89,7 +108,7 @@ export default async function PortfolioSaudePage() {
             <code className="rounded bg-red-100 px-1">211_v_portfolio_saude</code> foi aplicada em PROD.
           </p>
         ) : (
-          <PortfolioSaudeClient rows={rows} />
+          <PortfolioSaudeClient blocos={blocos} />
         )}
       </main>
     </div>

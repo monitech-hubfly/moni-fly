@@ -13,6 +13,8 @@ export const KANBAN_IDS = {
   HDM_PRODUTO:         'a9e61d76-0461-4644-80c7-3ca50cbe4e9f',
   HDM_MODELO_VIRTUAL:  '92d0033b-fd8c-432d-a089-e78c41a7cf48',
   HDM_HOMOLOGACOES:    '69bf5668-7749-476a-a834-962a0bb0eef7',
+  PROJETO_LEGAL:   '39de341d-aebf-481c-9118-ce6fc6574187',
+  PROJETOS_LOCAIS: 'c2ab09bd-4bd6-491e-8734-281d7678a6ad',
 } as const
 
 export const FASE_IDS = {
@@ -87,6 +89,8 @@ export const KANBANS_INTERNOS = [
   KANBAN_IDS.HDM_PRODUTO,
   KANBAN_IDS.HDM_MODELO_VIRTUAL,
   KANBAN_IDS.HDM_HOMOLOGACOES,
+  KANBAN_IDS.PROJETO_LEGAL,
+  KANBAN_IDS.PROJETOS_LOCAIS,
 ] as const;
 
 /** Nomes em `kanbans.nome` alinhados a `KANBANS_INTERNOS`. */
@@ -97,6 +101,8 @@ export const KANBANS_INTERNOS_NOMES = [
   'Funil Produto',
   'Funil Modelo Virtual',
   'Funil Homologações',
+  'Funil Projeto Legal',
+  'Funil Projetos Locais',
 ] as const;
 
 export const MSG_CHAMADO_JURIDICO_JA_EXISTE =
