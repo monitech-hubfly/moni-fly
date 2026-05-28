@@ -55,6 +55,7 @@ import {
   type SubInteracaoStatusDb,
   type TipoVinculoKanbanCard,
 } from '@/lib/actions/card-actions';
+import { enviarHipoteseAoPortfolio } from '@/lib/actions/card-actions';
 import { deletarChamado } from '@/app/sirene/actions';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import {
@@ -225,6 +226,9 @@ export type KanbanCardModalProps = {
   portalFrank?: boolean;
 };
 
+/** PROD: stepone_hipoteses; DEV: hipoteses */
+const HIPOTESES_SLUGS = ['hipoteses', 'stepone_hipoteses'] as const;
+
 export function KanbanCardModal({
   cardId,
   kanbanNome,
@@ -295,6 +299,9 @@ export function KanbanCardModal({
   const [emailMensagem, setEmailMensagem] = useState('');
   const [enviandoEmail, setEnviandoEmail] = useState(false);
   const [erroEmail, setErroEmail] = useState<string | null>(null);
+  const [hipotesePortfolioErro, setHipotesePortfolioErro] = useState<string | null>(null);
+  const [hipotesePortfolioOk, setHipotesePortfolioOk] = useState<string | null>(null);
+  const [enviandoHipotesePortfolio, setEnviandoHipotesePortfolio] = useState(false);
   const [dataReuniao, setDataReuniao] = useState('');
   const [dataFollowup, setDataFollowup] = useState('');
   const [salvandoDatas, setSalvandoDatas] = useState(false);
@@ -445,6 +452,9 @@ export function KanbanCardModal({
     setEditingComentarioId(null);
     setEditComentarioDraft('');
     setSalvandoEdicaoComentario(false);
+    setHipotesePortfolioErro(null);
+    setHipotesePortfolioOk(null);
+    setEnviandoHipotesePortfolio(false);
     setTagsKanban([]);
     setTagsCard([]);
     setTagsOpen(false);
@@ -2203,6 +2213,26 @@ export function KanbanCardModal({
     setEditandoInstrucoesFase(true);
   };
 
+  async function handleEnviarHipotesePortfolio() {
+    if (!card || card.concluido || card.arquivado) return;
+    setHipotesePortfolioErro(null);
+    setHipotesePortfolioOk(null);
+    setEnviandoHipotesePortfolio(true);
+    try {
+      const res = await enviarHipoteseAoPortfolio(card.id);
+      if (!res.ok) {
+        setHipotesePortfolioErro(res.error);
+        return;
+      }
+      setHipotesePortfolioOk('Hipótese enviada ao Portfolio');
+      const vr = await listarVinculosCard(card.id);
+      setVinculosCard(vr.ok ? vr.items : []);
+      router.refresh();
+    } finally {
+      setEnviandoHipotesePortfolio(false);
+    }
+  }
+
   async function handleSalvarInstrucoesFase() {
     if (!faseAtual || !pode('editar_instrucoes')) return;
     setSalvandoInstrucoesFase(true);
@@ -2337,6 +2367,13 @@ export function KanbanCardModal({
   const cardTitulo = card.titulo;
   const checklistExtra = card.fase_id && camposPorFase?.[card.fase_id];
   const faseChecklistFaseId = card.fase_id ?? '';
+
+  const faseSlugHipoteses = faseAtual?.slug?.trim() ?? '';
+  const isFaseHipoteses = (HIPOTESES_SLUGS as readonly string[]).includes(faseSlugHipoteses);
+  const exibirEnviarHipotesePortfolio =
+    !isLegado && kanbanNome === 'Funil Step One' && isFaseHipoteses;
+
+  const hipotesePortfolioEnviada = Boolean(hipotesePortfolioOk);
 
   const rede = modalDetalhes.rede;
   const proc = modalDetalhes.processo;
@@ -2804,6 +2841,56 @@ export function KanbanCardModal({
                   />
                 )}
               </div>
+              {exibirEnviarHipotesePortfolio ? (
+                <div className="mt-4 space-y-2">
+                  <button
+                    type="button"
+                    disabled={
+                      enviandoHipotesePortfolio ||
+                      hipotesePortfolioEnviada ||
+                      Boolean(card.concluido) ||
+                      Boolean(card.arquivado)
+                    }
+                    onClick={() => void handleEnviarHipotesePortfolio()}
+                    className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+                    style={{ background: 'var(--moni-navy-800)' }}
+                  >
+                    {enviandoHipotesePortfolio ? (
+                      <span className="inline-flex items-center justify-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                        Enviando…
+                      </span>
+                    ) : (
+                      'Enviar hipótese ao Portfolio'
+                    )}
+                  </button>
+                  {hipotesePortfolioErro ? (
+                    <p
+                      className="rounded-lg border px-3 py-2 text-sm"
+                      role="alert"
+                      style={{
+                        borderColor: 'var(--moni-status-error-border, #fecaca)',
+                        background: 'var(--moni-status-error-bg, #fef2f2)',
+                        color: 'var(--moni-status-error-text, #991b1b)',
+                      }}
+                    >
+                      {hipotesePortfolioErro}
+                    </p>
+                  ) : null}
+                  {hipotesePortfolioOk && !hipotesePortfolioErro ? (
+                    <p
+                      className="rounded-lg border px-3 py-2 text-sm"
+                      style={{
+                        borderColor: 'var(--moni-status-success-border, #bbf7d0)',
+                        background: 'var(--moni-status-success-bg, #f0fdf4)',
+                        color: 'var(--moni-status-success-text, #166534)',
+                      }}
+                    >
+                      {hipotesePortfolioOk}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               {!portalFrank && card.fase_id && (
                 <div className="mt-3">
                   {linkCandidato ? (

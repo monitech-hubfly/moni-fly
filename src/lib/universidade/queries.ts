@@ -175,6 +175,51 @@ export async function verificarDesbloqueioDb(
   return obrIds.every((id) => done.has(id));
 }
 
+/** Casas 0, 1 e 2: 100% dos módulos obrigatórios com status `concluido` em uni_progresso. */
+export async function usuarioConcluiuCasasUniversidade012(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<boolean> {
+  const uid = String(userId ?? '').trim();
+  if (!uid) return false;
+
+  for (const numero of [0, 1, 2] as const) {
+    const { data: casa, error: errCasa } = await supabase
+      .from('uni_casas')
+      .select('id')
+      .eq('ativa', true)
+      .eq('numero', numero)
+      .maybeSingle();
+
+    if (errCasa) throw errCasa;
+    if (!casa?.id) return false;
+
+    const casaId = String(casa.id);
+    const { data: mods, error: errMods } = await supabase
+      .from('uni_modulos')
+      .select('id')
+      .eq('casa_id', casaId)
+      .eq('obrigatorio', true);
+
+    if (errMods) throw errMods;
+    const obrIds = (mods ?? []).map((m) => String(m.id));
+    if (obrIds.length === 0) continue;
+
+    const { data: prog, error: errProg } = await supabase
+      .from('uni_progresso')
+      .select('modulo_id')
+      .eq('user_id', uid)
+      .in('modulo_id', obrIds)
+      .eq('status', 'concluido');
+
+    if (errProg) throw errProg;
+    const done = new Set((prog ?? []).map((p) => String(p.modulo_id)));
+    if (!obrIds.every((id) => done.has(id))) return false;
+  }
+
+  return true;
+}
+
 function casaStatus(
   bloqueada: boolean,
   totalObr: number,

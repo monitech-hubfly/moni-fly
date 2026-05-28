@@ -7,9 +7,11 @@ import { KANBAN_APP_BASE_PATHS } from '@/lib/kanban/kanban-card-href';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 import { criarChamado } from '@/app/sirene/actions';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
+import { normalizeAccessRole } from '@/lib/authz';
 import { carregarPermissoesMap } from '@/lib/permissoes-load';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { usuarioConcluiuCasasUniversidade012 } from '@/lib/universidade/queries';
 import type { FaseChecklistItem } from './candidato-actions';
 import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-notify';
 
@@ -1320,6 +1322,196 @@ export async function removerVinculoCard(
   revalidatePath(basePath?.trim() || '/');
   revalidatePath('/');
   return { ok: true };
+}
+
+const FUNIL_PORTFOLIO_NOME = 'Funil Portfólio';
+const PORTFOLIO_FASE_STEP2_SLUG = 'step_2';
+/** PROD: stepone_hipoteses; DEV: hipoteses (migration 157 / sync_dev_with_prod). */
+const HIPOTESES_SLUGS = ['hipoteses', 'stepone_hipoteses'] as const;
+
+const ERRO_UNIVERSIDADE_HIPOTESE =
+  'Conclua as Casas 0, 1 e 2 da Universidade Moní para enviar hipóteses ao Portfolio.';
+
+const ERRO_HIPOTESE_ATIVA_PORTFOLIO =
+  'Já existe uma hipótese ativa no Portfolio para este franqueado.';
+
+export type EnviarHipoteseAoPortfolioResult =
+  | { ok: true; cardPortfolioId: string }
+  | { ok: false; error: string };
+
+async function existeHipoteseAtivaNoPortfolio(
+  db: ReturnType<typeof createAdminClient>,
+  portfolioKanbanId: string,
+  redeFranqueadoId: string,
+  ordemMinimaStep2: number,
+): Promise<boolean> {
+  const { data: fases, error: errFases } = await db
+    .from('kanban_fases')
+    .select('id')
+    .eq('kanban_id', portfolioKanbanId)
+    .gte('ordem', ordemMinimaStep2)
+    .eq('ativo', true);
+
+  if (errFases) throw new Error(errFases.message);
+  const faseIds = (fases ?? []).map((f) => String((f as { id: string }).id));
+  if (faseIds.length === 0) return false;
+
+  const { data: cards, error: errCards } = await db
+    .from('kanban_cards')
+    .select('id')
+    .eq('kanban_id', portfolioKanbanId)
+    .eq('rede_franqueado_id', redeFranqueadoId)
+    .in('fase_id', faseIds)
+    .eq('concluido', false)
+    .eq('arquivado', false)
+    .limit(1);
+
+  if (errCards) throw new Error(errCards.message);
+  return (cards?.length ?? 0) > 0;
+}
+
+/** Gate Universidade (casas 0–2) + handoff Step One → Portfolio (fase step_2). */
+export async function enviarHipoteseAoPortfolio(
+  cardId: string,
+): Promise<EnviarHipoteseAoPortfolioResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para enviar a hipótese.' };
+
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return { ok: false, error: 'Card inválido.' };
+
+  const { data: cardRow, error: errCard } = await supabase
+    .from('kanban_cards')
+    .select('id, titulo, franqueado_id, rede_franqueado_id, kanban_fases(slug)')
+    .eq('id', cid)
+    .maybeSingle();
+
+  if (errCard) return { ok: false, error: errCard.message };
+  if (!cardRow) return { ok: false, error: 'Card não encontrado.' };
+
+  const faseSlug = String(
+    (cardRow as { kanban_fases?: { slug?: string } | null }).kanban_fases?.slug ?? '',
+  ).trim();
+  if (!(HIPOTESES_SLUGS as readonly string[]).includes(faseSlug)) {
+    return { ok: false, error: 'Card não está na fase de Hipóteses.' };
+  }
+
+  const franqueadoId = String((cardRow as { franqueado_id?: string }).franqueado_id ?? '').trim();
+  if (!franqueadoId) return { ok: false, error: 'Card sem franqueado responsável.' };
+
+  const redeFranqueadoId = String(
+    (cardRow as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '',
+  ).trim();
+  if (!redeFranqueadoId) {
+    return { ok: false, error: 'Card sem vínculo com a rede de franqueados.' };
+  }
+
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: `Serviço indisponível: ${msg}` };
+  }
+
+  let universidadeOk: boolean;
+  try {
+    universidadeOk = await usuarioConcluiuCasasUniversidade012(admin, franqueadoId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+  if (!universidadeOk) {
+    return { ok: false, error: ERRO_UNIVERSIDADE_HIPOTESE };
+  }
+
+  const { data: kanbanPortfolio, error: errKb } = await admin
+    .from('kanbans')
+    .select('id')
+    .eq('nome', FUNIL_PORTFOLIO_NOME)
+    .eq('ativo', true)
+    .limit(1)
+    .maybeSingle();
+
+  if (errKb) return { ok: false, error: errKb.message };
+  if (!kanbanPortfolio?.id) {
+    return { ok: false, error: `Kanban "${FUNIL_PORTFOLIO_NOME}" não encontrado.` };
+  }
+
+  const portfolioKanbanId = String(kanbanPortfolio.id);
+
+  const { data: faseStep2, error: errFase } = await admin
+    .from('kanban_fases')
+    .select('id, ordem')
+    .eq('kanban_id', portfolioKanbanId)
+    .eq('slug', PORTFOLIO_FASE_STEP2_SLUG)
+    .eq('ativo', true)
+    .order('ordem', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (errFase) return { ok: false, error: errFase.message };
+  if (!faseStep2?.id) {
+    return { ok: false, error: `Fase "${PORTFOLIO_FASE_STEP2_SLUG}" não encontrada no Portfolio.` };
+  }
+
+  const step2Ordem = Number((faseStep2 as { ordem?: number }).ordem ?? 0);
+
+  try {
+    const jaAtiva = await existeHipoteseAtivaNoPortfolio(
+      admin,
+      portfolioKanbanId,
+      redeFranqueadoId,
+      step2Ordem,
+    );
+    if (jaAtiva) {
+      return { ok: false, error: ERRO_HIPOTESE_ATIVA_PORTFOLIO };
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+
+  const titulo = String((cardRow as { titulo?: string }).titulo ?? '').trim() || 'Hipótese';
+
+  const { data: portfolioCard, error: errInsert } = await admin
+    .from('kanban_cards')
+    .insert({
+      kanban_id: portfolioKanbanId,
+      fase_id: String(faseStep2.id),
+      titulo,
+      franqueado_id: franqueadoId,
+      rede_franqueado_id: redeFranqueadoId,
+      status: 'ativo',
+    })
+    .select('id')
+    .single();
+
+  if (errInsert) return { ok: false, error: errInsert.message };
+  if (!portfolioCard?.id) {
+    return { ok: false, error: 'Não foi possível criar o card no Portfolio.' };
+  }
+
+  const cardPortfolioId = String(portfolioCard.id);
+
+  const { error: errVinc } = await admin.from('kanban_card_vinculos').insert({
+    card_origem_id: cid,
+    card_destino_id: cardPortfolioId,
+    tipo_vinculo: 'relacionado',
+    criado_por: user.id,
+  });
+
+  if (errVinc) {
+    return { ok: false, error: errVinc.message };
+  }
+
+  revalidatePath('/funil-stepone');
+  revalidatePath('/portfolio');
+
+  return { ok: true, cardPortfolioId };
 }
 
 const MAX_ANEXO_BYTES = 10 * 1024 * 1024;
