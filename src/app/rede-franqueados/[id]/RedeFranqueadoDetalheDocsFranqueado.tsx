@@ -5,6 +5,7 @@ import {
   REDE_SECAO_DOCS_FRANQUEADO,
   REDE_SECAO_DOCS_FRANQUIA,
 } from '@/lib/rede-documentos-franquia';
+import { RedeDocsSecaoColapsavel } from './rede-docs-secao-colapsavel';
 
 type Props = {
   pathCof: string | null;
@@ -14,27 +15,6 @@ type Props = {
   justificativaContrato: string | null;
   justificativaNumeroFranquia: string | null;
 };
-
-function DocsSecao({
-  titulo,
-  children,
-  vazio,
-}: {
-  titulo: string;
-  children?: React.ReactNode;
-  vazio?: boolean;
-}) {
-  return (
-    <section className="space-y-4 rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
-      <h2 className="border-b border-stone-100 pb-2 text-base font-semibold text-stone-900">{titulo}</h2>
-      {vazio ? (
-        <p className="text-sm text-stone-500">Nenhum documento padrão cadastrado nesta seção ainda.</p>
-      ) : (
-        children
-      )}
-    </section>
-  );
-}
 
 function DocStatus({
   titulo,
@@ -85,17 +65,25 @@ export function RedeFranqueadoDetalheDocsFranqueado({
         registrada; o download fica restrito ao time interno.
       </p>
 
-      <DocsSecao titulo={REDE_SECAO_DOCS_FRANQUEADO.titulo} vazio />
+      <RedeDocsSecaoColapsavel
+        titulo={REDE_SECAO_DOCS_FRANQUEADO.titulo}
+        sectionId={REDE_SECAO_DOCS_FRANQUEADO.id}
+        vazio
+      />
 
-      <DocsSecao titulo={REDE_SECAO_DOCS_FRANQUIA.titulo}>
+      <RedeDocsSecaoColapsavel titulo={REDE_SECAO_DOCS_FRANQUIA.titulo} sectionId={REDE_SECAO_DOCS_FRANQUIA.id}>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {slots.map(({ slot, path, justificativa }) => (
             <DocStatus key={slot.tipo} titulo={slot.titulo} path={path} justificativa={justificativa} />
           ))}
         </div>
-      </DocsSecao>
+      </RedeDocsSecaoColapsavel>
 
-      <DocsSecao titulo={REDE_SECAO_DOCS_EMPRESAS.titulo} vazio />
+      <RedeDocsSecaoColapsavel
+        titulo={REDE_SECAO_DOCS_EMPRESAS.titulo}
+        sectionId={REDE_SECAO_DOCS_EMPRESAS.id}
+        vazio
+      />
     </div>
   );
 }
