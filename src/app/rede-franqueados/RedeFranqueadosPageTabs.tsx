@@ -56,6 +56,7 @@ export function RedeFranqueadosPageTabs({
     ...(showDashboard ? [TAB_VISAO] : []),
     TAB_FRANQ,
     ...(showStaffTabs ? [TAB_LOTE, TAB_EMP] : []),
+    ...(showCondominiosTab ? [TAB_COND] : []),
   ];
 
   const defaultTab: TabId = showDashboard ? 'visao' : 'franqueados';
