@@ -45,20 +45,42 @@ export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
   }
 }
 
+/** Mantém quebras de linha (melhor para contratos/COF com blocos de qualificação). */
+function normalizeTextPreserveBreaks(s: string): string {
+  return s
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
 /** Extrai texto conforme o tipo do arquivo. */
 export async function extractText(
   buffer: Buffer,
   mimeType: string,
   filename?: string,
+  opts?: { preserveLineBreaks?: boolean },
 ): Promise<string> {
   const ext = filename?.split('.').pop()?.toLowerCase();
+  let raw = '';
   if (mimeType === MIME_DOCX || ext === 'docx' || ext === 'doc') {
-    return extractTextFromDocx(buffer);
+    raw = await extractTextFromDocx(buffer);
+  } else if (mimeType === MIME_PDF || ext === 'pdf') {
+    try {
+      const mod = await import('pdf-parse');
+      const pdfParse =
+        (mod as { default?: (b: Buffer) => Promise<unknown> }).default ??
+        (mod as unknown as (b: Buffer) => Promise<unknown>);
+      const data = await pdfParse(buffer);
+      raw = String((data as { text?: string }).text ?? '');
+    } catch {
+      raw = '';
+    }
   }
-  if (mimeType === MIME_PDF || ext === 'pdf') {
-    return extractTextFromPdf(buffer);
-  }
-  return '';
+  if (!raw) return '';
+  return opts?.preserveLineBreaks ? normalizeTextPreserveBreaks(raw) : normalizeText(raw);
 }
 
 /**

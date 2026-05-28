@@ -50,11 +50,64 @@ function formatCep(digits: string): string | null {
   return `${d.slice(0, 5)}-${d.slice(5)}`;
 }
 
+const MESES_PT: Record<string, string> = {
+  janeiro: '01',
+  fevereiro: '02',
+  marco: '03',
+  março: '03',
+  abril: '04',
+  maio: '05',
+  junho: '06',
+  julho: '07',
+  agosto: '08',
+  setembro: '09',
+  outubro: '10',
+  novembro: '11',
+  dezembro: '12',
+};
+
 function toISODateBr(val: string): string | null {
   const m = val.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
   if (!m) return null;
   const [, d, month, y] = m;
   return `${y}-${month!.padStart(2, '0')}-${d!.padStart(2, '0')}`;
+}
+
+function parseDataFlexivel(raw: string): string | null {
+  const val = norm(raw);
+  if (!val) return null;
+  const iso = val.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const br = toISODateBr(val);
+  if (br) return br;
+  const ext = val.match(/(\d{1,2})\s+de\s+([a-záàâãéêíóôõúç]+)\s+de\s+(\d{4})/i);
+  if (ext) {
+    const mes = MESES_PT[stripAccents(ext[2]!.toLowerCase())] ?? MESES_PT[ext[2]!.toLowerCase()];
+    if (mes) {
+      return `${ext[3]}-${mes}-${ext[1]!.padStart(2, '0')}`;
+    }
+  }
+  return null;
+}
+
+const NOMES_BLOQUEADOS =
+  /\b(moni|franqueador|franqueadora|hubfly|casa moni|sociedade|empresa|ltda|s\.?a\.?|eireli|me\b|cpf|cnpj)\b/i;
+
+function isNomePlausivel(nome: string): boolean {
+  const n = norm(nome);
+  if (n.length < 5 || n.length > 80) return false;
+  if (NOMES_BLOQUEADOS.test(n)) return false;
+  if (!/[A-Za-zÀ-ú]/.test(n)) return false;
+  const partes = n.split(/\s+/).filter(Boolean);
+  if (partes.length < 2) return false;
+  return true;
+}
+
+function titleCaseNome(nome: string): string {
+  return nome
+    .split(/\s+/)
+    .map((p) => (p.length <= 2 ? p.toLowerCase() : p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()))
+    .join(' ');
 }
 
 function stripAccents(s: string): string {
@@ -165,28 +218,85 @@ function pickUf(text: string): string | null {
   return null;
 }
 
+const RE_DATA_NUM = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}|\d{4}-\d{2}-\d{2}|\d{1,2}\s+de\s+[a-záàâãéêíóôõúç]+\s+de\s+\d{4})/gi;
+
 function pickDateNear(text: string, keyword: RegExp): string | null {
   const idx = text.search(keyword);
   if (idx < 0) return null;
-  const slice = text.slice(idx, idx + 120);
-  const m = slice.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/);
-  return m ? toISODateBr(m[1] ?? '') : null;
+  const slice = text.slice(idx, idx + 220);
+  const m = slice.match(RE_DATA_NUM);
+  if (!m?.[0]) return null;
+  return parseDataFlexivel(m[0]);
+}
+
+function pickDataAssinaturaContrato(text: string): string | null {
+  const assinatura = pickDateNear(text, /assinatura|assinado\s+em|foro\s+de|nesta\s+data/i);
+  if (assinatura) return assinatura;
+  const cidadeData = text.match(
+    /(?:São Paulo|Rio de Janeiro|Belo Horizonte|Curitiba|Bras[ií]lia)[,\s]+(\d{1,2}\s+de\s+[a-záàâãéêíóôõúç]+\s+de\s+\d{4})/i,
+  );
+  if (cidadeData?.[1]) return parseDataFlexivel(cidadeData[1]);
+  const datas: string[] = [];
+  let m: RegExpExecArray | null;
+  const re = new RegExp(RE_DATA_NUM.source, 'gi');
+  while ((m = re.exec(text)) !== null) {
+    const iso = parseDataFlexivel(m[1] ?? '');
+    if (iso) datas.push(iso);
+  }
+  return datas.length ? datas[datas.length - 1]! : null;
+}
+
+function pickCpfFranqueado(text: string, cpfExistente: string | null | undefined): string | null {
+  const idx = text.search(/franquead|qualifica[çc][ãa]o/i);
+  const slice = idx >= 0 ? text.slice(Math.max(0, idx - 80), idx + 900) : text;
+  const cpfLabel = slice.match(/cpf\s*(?:n[ºo°.]?)?\s*(?:sob\s+o\s+n[ºo°.]?\s*)?(\d{3}\.?\d{3}\.?\d{3}-?\d{2})/i);
+  if (cpfLabel) {
+    const f = formatCpf(cpfLabel[1] ?? '');
+    if (f) return f;
+  }
+  return pickCpf(slice, cpfExistente) ?? pickCpf(text, cpfExistente);
 }
 
 function pickNomeFranqueado(text: string, nomeExistente: string | null | undefined): string | null {
+  const candidatos: string[] = [];
+
   const labels = [
-    /franqueado\s*[:\-]\s*([A-Za-zÀ-ú][A-Za-zÀ-ú\s.'-]{4,80})/i,
-    /nome\s+(?:do\s+)?franqueado\s*[:\-]\s*([A-Za-zÀ-ú][A-Za-zÀ-ú\s.'-]{4,80})/i,
-    /qualifica[çc][ãa]o\s+do\s+franqueado\s*[:\-]?\s*([A-Za-zÀ-ú][A-Za-zÀ-ú\s.'-]{4,80})/i,
+    /franquead[oa]\s*[:\-]\s*([A-Za-zÀ-ú0-9][A-Za-zÀ-ú0-9\s.'-]{4,80})/i,
+    /nome\s+(?:do\s+)?franquead[oa]\s*[:\-]\s*([A-Za-zÀ-ú][A-Za-zÀ-ú\s.'-]{4,80})/i,
+    /qualifica[çc][ãa]o\s+do\s+franquead[oa]\s*[:\-]?\s*([A-Za-zÀ-ú][A-Za-zÀ-ú\s.'-]{4,80})/i,
+    /\b([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][A-ZÁÀÂÃÉÊÍÓÔÕÚÇ\s.'-]{4,70}),\s*brasileir[oa]/,
+    /\b([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][A-ZÁÀÂÃÉÊÍÓÔÕÚÇ\s.'-]{4,70}),\s*(?:solteir|casad|divorciad|viúv)/i,
+    /(?:denominad[oa]|qualificad[oa])\s+(?:abaixo\s+como\s+)?["']?FRANQUEAD[OA]["']?,?\s*([A-Za-zÀ-ú][A-Za-zÀ-ú\s.'-]{4,80})/i,
   ];
   for (const re of labels) {
     const m = text.match(re);
-    const nome = norm(m?.[1]);
-    if (nome && nome.length > 4) {
-      if (!nomeExistente || nomesFranqueadoCompativeis(nomeExistente, nome)) return nome;
-    }
+    const nome = norm(m?.[1]).replace(/\s{2,}/g, ' ');
+    if (isNomePlausivel(nome)) candidatos.push(titleCaseNome(nome));
   }
-  return null;
+
+  for (const c of candidatos) {
+    if (!nomeExistente || nomesFranqueadoCompativeis(nomeExistente, c)) return c;
+  }
+  return candidatos[0] ?? null;
+}
+
+/** Fallback: "2025 05 29 Franquia - Thiago Tonaco.pdf" */
+export function extrairDadosDoNomeArquivo(filename: string): Partial<Record<RedeCampoFranqueado, string | null>> {
+  const out: Partial<Record<RedeCampoFranqueado, string | null>> = {};
+  const base = norm(filename.replace(/\.pdf$/i, ''));
+
+  const ymd = base.match(/\b(20\d{2})[\s._-](\d{1,2})[\s._-](\d{1,2})\b/);
+  if (ymd) {
+    out.data_ass_contrato = `${ymd[1]}-${ymd[2]!.padStart(2, '0')}-${ymd[3]!.padStart(2, '0')}`;
+  }
+
+  const depoisFranquia = base.match(/franquia\s*[-–—]\s*(.+)$/i);
+  if (depoisFranquia?.[1]) {
+    const nome = titleCaseNome(depoisFranquia[1].replace(/[-_]/g, ' ').trim());
+    if (isNomePlausivel(nome)) out.nome_completo = nome;
+  }
+
+  return out;
 }
 
 function pickEndereco(text: string): Partial<Record<'endereco_casa_frank' | 'cep_casa_frank' | 'cidade_casa_frank' | 'estado_casa_frank', string>> {
@@ -207,19 +317,37 @@ function pickEndereco(text: string): Partial<Record<'endereco_casa_frank' | 'cep
   return out;
 }
 
+function mesclarExtracao(
+  base: Partial<Record<RedeCampoFranqueado, string | null>>,
+  extra: Partial<Record<RedeCampoFranqueado, string | null>>,
+): Partial<Record<RedeCampoFranqueado, string | null>> {
+  const out = { ...base };
+  for (const key of REDE_CAMPOS_DADOS_FRANQUEADO) {
+    if (norm(out[key])) continue;
+    const v = extra[key];
+    if (norm(v)) out[key] = norm(v);
+  }
+  return out;
+}
+
 /** Extrai apenas campos atribuíveis ao franqueado (não equipe Moni / corporação). */
 export function extrairDadosFranqueadoDeTexto(
   text: string,
   contexto: RedeLinhaFranqueado,
+  opts?: { filename?: string },
 ): Partial<Record<RedeCampoFranqueado, string | null>> {
-  if (!text.trim()) return {};
+  let out: Partial<Record<RedeCampoFranqueado, string | null>> = {};
 
-  const out: Partial<Record<RedeCampoFranqueado, string | null>> = {};
+  if (opts?.filename) {
+    out = mesclarExtracao(out, extrairDadosDoNomeArquivo(opts.filename));
+  }
 
-  const nome = pickNomeFranqueado(text, contexto.nome_completo);
+  if (!text.trim()) return out;
+
+  const nome = pickNomeFranqueado(text, contexto.nome_completo ?? out.nome_completo);
   if (nome) out.nome_completo = nome;
 
-  const cpf = pickCpf(text, contexto.cpf_frank);
+  const cpf = pickCpfFranqueado(text, contexto.cpf_frank);
   if (cpf) out.cpf_frank = cpf;
 
   const email = pickEmail(text, contexto.email_frank);
@@ -231,16 +359,16 @@ export function extrairDadosFranqueadoDeTexto(
   const nasc = pickDateNear(text, /nascimento|nasc\.|data de nasc/i);
   if (nasc) out.data_nasc_frank = nasc;
 
-  const cof = pickDateNear(text, /\bcof\b|contrato de franquia/i);
+  const cof = pickDateNear(text, /\bcof\b|carta de oferta/i);
   if (cof) out.data_ass_cof = cof;
 
-  const contrato = pickDateNear(text, /assinatura\s+do\s+contrato|contrato de franquia|data de assinatura/i);
+  const contrato = pickDataAssinaturaContrato(text);
   if (contrato) out.data_ass_contrato = contrato;
 
-  const exp = pickDateNear(text, /expira|vig[eê]ncia|prazo da franquia/i);
+  const exp = pickDateNear(text, /expira|vig[eê]ncia|prazo da franquia|t[eé]rmino/i);
   if (exp) out.data_expiracao_franquia = exp;
 
-  Object.assign(out, pickEndereco(text));
+  out = mesclarExtracao(out, pickEndereco(text));
 
   return out;
 }

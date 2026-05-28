@@ -1166,7 +1166,7 @@ export async function completarRedeFranqueadosDeDocumentos(): Promise<CompletarR
       const { data: blob, error: dlErr } = await admin.storage.from('rede-attachments').download(p);
       if (dlErr || !blob) continue;
       const buffer = Buffer.from(await blob.arrayBuffer());
-      const texto = await extractText(buffer, 'application/octet-stream', p);
+      const texto = await extractText(buffer, 'application/octet-stream', p, { preserveLineBreaks: true });
       const extraido = extrairDadosFranqueadoDeTexto(texto, row as Parameters<typeof extrairDadosFranqueadoDeTexto>[1]);
       merged = { ...merged, ...extraido };
     }
@@ -1219,7 +1219,12 @@ export async function completarRedeFranqueadosDeDocumentos(): Promise<CompletarR
 }
 
 export type ExtrairDadosFranqueadoPdfResult =
-  | { ok: true; dados: Partial<Record<RedeCampoFranqueado, string | null>> }
+  | {
+      ok: true;
+      dados: Partial<Record<RedeCampoFranqueado, string | null>>;
+      aviso?: string;
+      textoExtraidoChars: number;
+    }
   | { ok: false; error: string };
 
 /** Lê COF e/ou contrato enviados no formulário e devolve campos do franqueado para preenchimento automático. */
@@ -1241,6 +1246,7 @@ export async function extrairDadosFranqueadoDePdfUpload(
 
   let merged: Partial<Record<RedeCampoFranqueado, string | null>> = {};
   let leuAlgum = false;
+  let textoExtraidoChars = 0;
 
   for (const [, file] of pares) {
     if (!file || file.size === 0) continue;
@@ -1249,13 +1255,20 @@ export async function extrairDadosFranqueadoDePdfUpload(
     }
     leuAlgum = true;
     const buffer = Buffer.from(await file.arrayBuffer());
-    const texto = await extractText(buffer, file.type || 'application/octet-stream', file.name);
-    const extraido = extrairDadosFranqueadoDeTexto(texto, {
-      ...contexto,
-      nome_completo: contexto.nome_completo ?? merged.nome_completo ?? null,
-      cpf_frank: merged.cpf_frank ?? null,
-      email_frank: merged.email_frank ?? null,
+    const texto = await extractText(buffer, file.type || 'application/octet-stream', file.name, {
+      preserveLineBreaks: true,
     });
+    textoExtraidoChars += texto.length;
+    const extraido = extrairDadosFranqueadoDeTexto(
+      texto,
+      {
+        ...contexto,
+        nome_completo: contexto.nome_completo ?? merged.nome_completo ?? null,
+        cpf_frank: merged.cpf_frank ?? null,
+        email_frank: merged.email_frank ?? null,
+      },
+      { filename: file.name },
+    );
     merged = { ...merged, ...extraido };
     if (merged.nome_completo && !contexto.nome_completo) {
       contexto.nome_completo = merged.nome_completo;
@@ -1264,5 +1277,11 @@ export async function extrairDadosFranqueadoDePdfUpload(
 
   if (!leuAlgum) return { ok: false, error: 'Envie ao menos um PDF (COF ou contrato).' };
 
-  return { ok: true, dados: merged };
+  let aviso: string | undefined;
+  if (textoExtraidoChars < 40) {
+    aviso =
+      'O PDF não tem texto selecionável (pode ser só imagem/escaneado). Usamos o nome do arquivo quando possível; confira os campos ou envie um PDF digital.';
+  }
+
+  return { ok: true, dados: merged, aviso, textoExtraidoChars };
 }

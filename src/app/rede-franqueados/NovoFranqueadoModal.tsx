@@ -131,12 +131,26 @@ export function NovoFranqueadoModal() {
           setError(r.error);
           return;
         }
-        const campos = Object.keys(r.dados).filter((k) => r.dados[k as keyof typeof r.dados]);
+        const campos = Object.keys(r.dados).filter((k) => {
+          const v = r.dados[k as keyof typeof r.dados];
+          return v != null && String(v).trim() !== '';
+        });
         setForm((f) => mesclarExtracaoFormFranqueado(f, r.dados));
         if (campos.length) {
-          setInfoExtracao(`Dados preenchidos a partir do documento: ${campos.join(', ')}.`);
+          const labels = campos
+            .map((k) => k.replace(/_/g, ' '))
+            .join(', ');
+          setInfoExtracao(
+            r.aviso
+              ? `${r.aviso} Campos preenchidos: ${labels}.`
+              : `Dados preenchidos a partir do documento: ${labels}.`,
+          );
+        } else if (r.aviso) {
+          setInfoExtracao(r.aviso);
         } else {
-          setInfoExtracao('Nenhum campo novo identificado no documento.');
+          setInfoExtracao(
+            'Nenhum campo identificado. Verifique se o PDF tem texto selecionável ou renomeie o arquivo como "AAAA MM DD Franquia - Nome Completo.pdf".',
+          );
         }
       } finally {
         if (seq === extracaoSeq.current) setExtraindo(false);
