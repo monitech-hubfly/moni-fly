@@ -141,6 +141,27 @@ export const REDE_FRANQUEADOS_DB_KEYS = [
 ] as const;
 
 export type RedeFranqueadoDbKey = (typeof REDE_FRANQUEADOS_DB_KEYS)[number];
+
+/** Dados pessoais/endereço do Frank — visíveis só para role `admin` na tabela. */
+export const REDE_COLUNAS_DADOS_SENSIVEIS: readonly RedeFranqueadoDbKey[] = [
+  'cpf_frank',
+  'data_nasc_frank',
+  'endereco_casa_frank',
+  'endereco_casa_frank_numero',
+  'endereco_casa_frank_complemento',
+  'cep_casa_frank',
+  'estado_casa_frank',
+  'cidade_casa_frank',
+  'tamanho_camisa_frank',
+  'socios',
+  'data_recebimento_kit_boas_vindas',
+] as const;
+
+const REDE_COLUNAS_SENSIVEIS_SET = new Set<RedeFranqueadoDbKey>(REDE_COLUNAS_DADOS_SENSIVEIS);
+
+export function isRedeColunaDadoSensivel(key: RedeFranqueadoDbKey): boolean {
+  return REDE_COLUNAS_SENSIVEIS_SET.has(key);
+}
 export type RedeFranqueadoRowDb = Record<RedeFranqueadoDbKey, string | null> & {
   id: string;
   ordem: number;

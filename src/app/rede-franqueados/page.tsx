@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { isAdminRole } from '@/lib/authz';
+import { isAdminRole, isStrictAdminRole } from '@/lib/authz';
 import { isAppFullyPublic, isPublicRedeNovosNegociosEnabled } from '@/lib/public-rede-novos';
 import { fetchRedeFranqueadosRows } from '@/lib/rede-franqueados';
 import { RedeFranqueadosTabelaComBusca } from './RedeFranqueadosTabelaComBusca';
@@ -35,6 +35,7 @@ export default async function RedeFranqueadosPage() {
   const role = (profile?.role as string) ?? 'frank';
   const canManage =
     (Boolean(user) && isAdminRole(role)) || publicAccess || isAppFullyPublic();
+  const maskSensitiveColumns = !isStrictAdminRole(role);
 
   const [rows, countResult] = await Promise.all([
     fetchRedeFranqueadosRows(db),
@@ -75,9 +76,13 @@ export default async function RedeFranqueadosPage() {
             </div>
           ) : null}
           {rows ? (
-            <RedeFranqueadosTabelaComBusca rows={rows} canEditRows={canManage}>
+            <RedeFranqueadosTabelaComBusca
+              rows={rows}
+              canEditRows={canManage}
+              maskSensitiveColumns={maskSensitiveColumns}
+            >
               {canManage ? <NovoFranqueadoModal /> : null}
-              <ExportarRedeCSVButton rows={rows} />
+              <ExportarRedeCSVButton rows={rows} maskSensitiveColumns={maskSensitiveColumns} />
             </RedeFranqueadosTabelaComBusca>
           ) : (
             <p className="text-sm text-red-600">Erro ao carregar a tabela.</p>

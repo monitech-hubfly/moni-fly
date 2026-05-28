@@ -5,6 +5,7 @@ import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
 import { parseAreaAtuacao } from '@/lib/rede-area-atuacao';
 import { ocultarRegionalEAtuacaoNaVisaoFranqueado } from '@/lib/rede-visibilidade-franqueado';
 import { MapBrazilCidadesAtuacao } from './MapBrazilCidadesAtuacao';
+import { RedeVisaoRegionalClassificacao } from './rede-visao-regional-class';
 
 type FiltroStatus = 'todos' | 'encerrados' | 'em_operacao';
 
@@ -60,6 +61,65 @@ function pct(n: number, total: number): string {
 function barWidth(n: number, max: number): string {
   if (!max) return '0%';
   return `${Math.round((n / max) * 100)}%`;
+}
+
+function growthBarFill(n: number, max: number): string {
+  if (!max || n <= 0) return 'var(--moni-rede-map-tier-0)';
+  const r = n / max;
+  if (r >= 0.85) return 'var(--moni-rede-map-tier-3)';
+  if (r >= 0.45) return 'var(--moni-rede-map-tier-2)';
+  return 'var(--moni-rede-map-tier-1)';
+}
+
+type FiltroAno = 'tudo' | '2025' | '2026';
+
+const chartCardStyle: React.CSSProperties = {
+  borderColor: 'var(--moni-rede-chart-border)',
+  backgroundColor: 'var(--moni-surface-0)',
+};
+
+function FilterPill({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-full px-4 py-1.5 text-xs font-medium transition hover:opacity-90"
+      style={
+        active
+          ? {
+              backgroundColor: 'var(--moni-green-800)',
+              color: 'var(--moni-text-inverse)',
+              border: '1px solid transparent',
+            }
+          : {
+              backgroundColor: 'transparent',
+              color: 'var(--moni-text-tertiary)',
+              border: '1px solid var(--moni-border-default)',
+            }
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
+function dedupeRowsById(list: RedeFranqueadoRowDb[]): RedeFranqueadoRowDb[] {
+  const seen = new Set<string>();
+  const out: RedeFranqueadoRowDb[] = [];
+  for (const r of list) {
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    out.push(r);
+  }
+  return out;
 }
 
 function missingFields(row: RedeFranqueadoRowDb): string[] {
@@ -131,6 +191,7 @@ export function RedeDashboard({
   const [filtro, setFiltro] = useState<FiltroStatus>('todos');
   const [listaModal, setListaModal] = useState<{ titulo: string; rows: RedeFranqueadoRowDb[] } | null>(null);
   const [filtroEstadoCidadeAtuacao, setFiltroEstadoCidadeAtuacao] = useState<string>('');
+  const [filtroAno, setFiltroAno] = useState<FiltroAno>('tudo');
 
   const filteredRows = useMemo(() => {
     if (visaoFranqueado) {
@@ -157,7 +218,11 @@ export function RedeDashboard({
     .filter((x) => x.missing.length > 0);
 
   const pagantes = filteredRows.filter((r) => /pagante/i.test(norm(r.classificacao_franqueado))).length;
-  const beta = filteredRows.filter((r) => /beta/i.test(norm(r.classificacao_franqueado))).length;
+  const beta = filteredRows.filter(
+    (r) => /beta/i.test(norm(r.classificacao_franqueado)) && !/corpora/i.test(norm(r.classificacao_franqueado)),
+  ).length;
+  const corporacao = filteredRows.filter((r) => /corpora/i.test(norm(r.classificacao_franqueado))).length;
+  const maxClassificacao = Math.max(pagantes, beta, corporacao, 1);
 
   const statusByClass = {
     pagante: {
@@ -256,7 +321,23 @@ export function RedeDashboard({
   const rowsEmOperacao = useMemo(() => filteredRows.filter((r) => isEmOperacao(norm(r.status_franquia))), [filteredRows]);
   const rowsEncerradas = useMemo(() => filteredRows.filter((r) => isOperacaoEncerrada(norm(r.status_franquia))), [filteredRows]);
   const rowsPagante = useMemo(() => filteredRows.filter((r) => /pagante/i.test(norm(r.classificacao_franqueado))), [filteredRows]);
-  const rowsBeta = useMemo(() => filteredRows.filter((r) => /beta/i.test(norm(r.classificacao_franqueado))), [filteredRows]);
+  const rowsBeta = useMemo(
+    () =>
+      filteredRows.filter(
+        (r) => /beta/i.test(norm(r.classificacao_franqueado)) && !/corpora/i.test(norm(r.classificacao_franqueado)),
+      ),
+    [filteredRows],
+  );
+  const rowsCorporacao = useMemo(
+    () => filteredRows.filter((r) => /corpora/i.test(norm(r.classificacao_franqueado))),
+    [filteredRows],
+  );
+
+  const mesArrExibicao = useMemo(() => {
+    if (filtroAno === 'tudo') return mesArr;
+    return mesArr.filter(([k]) => k.startsWith(filtroAno));
+  }, [mesArr, filtroAno]);
+  const maxMesExibicao = Math.max(0, ...mesArrExibicao.map(([, v]) => v));
 
   const totalGeral = rows.length;
   const operacaoGeral = rows.filter((r) => isEmOperacao(norm(r.status_franquia))).length;
@@ -267,70 +348,16 @@ export function RedeDashboard({
   return (
     <section className="space-y-4">
       {!visaoFranqueado ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm" style={{ color: 'var(--moni-text-tertiary)' }}>
-            Filtro:
-          </span>
-          <button
-            type="button"
-            onClick={() => setFiltro('todos')}
-            className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
-              filtro === 'todos'
-                ? 'border-moni-primary bg-moni-primary text-white'
-                : 'hover:bg-[var(--moni-surface-100)]'
-            }`}
-            style={
-              filtro !== 'todos'
-                ? {
-                    borderColor: 'var(--moni-border-default)',
-                    backgroundColor: 'var(--moni-surface-0)',
-                    color: 'var(--moni-text-secondary)',
-                  }
-                : undefined
-            }
-          >
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <FilterPill active={filtro === 'todos'} onClick={() => setFiltro('todos')}>
             Todos ({totalGeral})
-          </button>
-          <button
-            type="button"
-            onClick={() => setFiltro('em_operacao')}
-            className="rounded-lg border px-3 py-1.5 text-sm font-medium transition hover:bg-[var(--moni-surface-100)]"
-            style={
-              filtro === 'em_operacao'
-                ? {
-                    borderColor: 'var(--moni-green-800)',
-                    backgroundColor: 'var(--moni-rede-filter-em-operacao-bg)',
-                    color: 'var(--moni-text-inverse)',
-                  }
-                : {
-                    borderColor: 'var(--moni-border-default)',
-                    backgroundColor: 'var(--moni-surface-0)',
-                    color: 'var(--moni-text-secondary)',
-                  }
-            }
-          >
+          </FilterPill>
+          <FilterPill active={filtro === 'em_operacao'} onClick={() => setFiltro('em_operacao')}>
             Em operação ({operacaoGeral})
-          </button>
-          <button
-            type="button"
-            onClick={() => setFiltro('encerrados')}
-            className="rounded-lg border px-3 py-1.5 text-sm font-medium transition hover:bg-[var(--moni-surface-100)]"
-            style={
-              filtro === 'encerrados'
-                ? {
-                    borderColor: 'var(--moni-status-overdue-border)',
-                    backgroundColor: 'var(--moni-rede-filter-encerradas-bg)',
-                    color: 'var(--moni-text-inverse)',
-                  }
-                : {
-                    borderColor: 'var(--moni-border-default)',
-                    backgroundColor: 'var(--moni-surface-0)',
-                    color: 'var(--moni-text-secondary)',
-                  }
-            }
-          >
+          </FilterPill>
+          <FilterPill active={filtro === 'encerrados'} onClick={() => setFiltro('encerrados')}>
             Encerradas ({encerradasGeral})
-          </button>
+          </FilterPill>
         </div>
       ) : null}
 
@@ -388,38 +415,34 @@ export function RedeDashboard({
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="grid grid-cols-3 gap-2.5">
             <KpiShell
               modoAggregado={modoAggregado}
               onOpen={() => setListaModal({ titulo: `Total de franquias (${total})`, rows: filteredRows })}
             >
-              <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+              <p className="mb-1.5 text-[11px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
                 Total de franquias
               </p>
-              <p className="mt-1 text-3xl font-bold" style={{ color: 'var(--moni-text-primary)' }}>
+              <p className="mb-1 text-3xl font-medium leading-none" style={{ color: 'var(--moni-text-primary)' }}>
                 {total}
               </p>
-              {!modoAggregado ? (
-                <p className="mt-1 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
-                  Clique para ver a lista
-                </p>
-              ) : null}
+              <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                Rede ativa
+              </p>
             </KpiShell>
             <KpiShell
               modoAggregado={modoAggregado}
               onOpen={() => setListaModal({ titulo: `Encerradas (${encerradas})`, rows: rowsEncerradas })}
             >
-              <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+              <p className="mb-1.5 text-[11px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
                 Encerradas
               </p>
-              <p className="mt-1 text-3xl font-bold" style={{ color: 'var(--moni-status-overdue-text)' }}>
+              <p className="mb-1 text-3xl font-medium leading-none" style={{ color: 'var(--moni-status-overdue-text)' }}>
                 {encerradas}
               </p>
-              {!modoAggregado ? (
-                <p className="mt-1 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
-                  Clique para ver a lista
-                </p>
-              ) : null}
+              <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                {pct(encerradas, totalGeral)} da rede
+              </p>
             </KpiShell>
             <KpiShell
               modoAggregado={modoAggregado}
@@ -427,245 +450,67 @@ export function RedeDashboard({
                 setListaModal({ titulo: `Cadastros incompletos (${incompletos.length})`, rows: incompletos.map((x) => x.r) })
               }
             >
-              <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+              <p className="mb-1.5 text-[11px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
                 Cadastros incompletos
               </p>
-              <p className="mt-1 text-3xl font-bold" style={{ color: 'var(--moni-status-attention-text)' }}>
+              <p className="mb-1 text-3xl font-medium leading-none" style={{ color: 'var(--moni-gold-600)' }}>
                 {incompletos.length}
               </p>
-              {!modoAggregado ? (
-                <p className="mt-1 text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
-                  {incompletos.slice(0, 5).map(({ r }) => norm(r.n_franquia)).filter(Boolean).join(', ') || '—'}
-                </p>
-              ) : (
-                <p className="mt-1 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
-                  Somente totais agregados (sem lista de unidades).
-                </p>
-              )}
-              {!modoAggregado ? (
-                <p className="mt-1 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
-                  Clique para ver a lista
-                </p>
-              ) : null}
+              <p className="line-clamp-2 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                {incompletos
+                  .map(({ r }) => norm(r.n_franquia))
+                  .filter(Boolean)
+                  .join(', ') || '—'}
+              </p>
             </KpiShell>
           </div>
 
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
-            <div className="w-full shrink-0 lg:w-44 lg:min-w-[11rem] lg:max-w-[14rem]">
-              <KpiShell
-                modoAggregado={modoAggregado}
-                onOpen={() =>
-                  setListaModal({
-                    titulo: `Em operação (${operacao})`,
-                    rows: rowsEmOperacao,
-                  })
-                }
-              >
-                <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
-                  Em operação
-                </p>
-                <p className="mt-1 text-3xl font-bold" style={{ color: 'var(--moni-rede-kpi-em-operacao)' }}>
-                  {operacao}
-                </p>
-                <p className="mt-1 text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
-                  {`${pct(operacao, total)} da rede`}
-                </p>
-                {!modoAggregado ? (
-                  <p className="mt-1 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
-                    Clique para ver a lista
-                  </p>
-                ) : null}
-              </KpiShell>
-            </div>
-            <div className="min-w-0 flex-1 rounded-xl border p-4" style={redeKpiCardStyle}>
-              <p className="text-sm font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-                Franquias por regional
-              </p>
-              <p className="mt-1 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
-                {modoAggregado
-                  ? 'Totais por regional (sem lista de unidades).'
-                  : 'Clique na linha para ver a lista.'}
-              </p>
-              <div className="mt-3 space-y-2">
-                {regionalArr.slice(0, 8).map(([k, v]) =>
-                  modoAggregado ? (
-                    <div key={k} className="flex w-full items-center gap-3 rounded py-1 text-left">
-                      <div className="w-32 shrink-0 text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
-                        {k}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="h-2 rounded" style={{ backgroundColor: 'var(--moni-rede-chart-track)' }}>
-                          <div
-                            className="h-2 rounded"
-                            style={{
-                              width: barWidth(v, maxRegional),
-                              backgroundColor: 'var(--moni-rede-chart-fill)',
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <div className="w-8 shrink-0 text-right text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
-                        {v}
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => setListaModal({ titulo: `Regional: ${k} (${v})`, rows: rowsPorRegional.get(k) ?? [] })}
-                      className="flex w-full items-center gap-3 rounded py-1 text-left hover:bg-[var(--moni-rede-hover-row)] focus:outline-none focus:ring-2 focus:ring-moni-primary focus:ring-offset-2"
-                    >
-                      <div className="w-32 shrink-0 text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
-                        {k}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="h-2 rounded" style={{ backgroundColor: 'var(--moni-rede-chart-track)' }}>
-                          <div
-                            className="h-2 rounded"
-                            style={{
-                              width: barWidth(v, maxRegional),
-                              backgroundColor: 'var(--moni-rede-chart-fill)',
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <div className="w-8 shrink-0 text-right text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
-                        {v}
-                      </div>
-                    </button>
-                  ),
-                )}
-              </div>
-            </div>
-          </div>
-
-          {!modoAggregado ? (
-            <div className="rounded-xl border p-4" style={redeKpiCardStyle}>
-              <p className="text-sm font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-                Classificação dos franqueados
-              </p>
-              <p className="mt-1 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
-                Clique na barra para ver a lista.
-              </p>
-              <div className="mt-3 flex items-center gap-4">
-                <div className="flex-1">
-                  <button
-                    type="button"
-                    onClick={() => setListaModal({ titulo: `Pagante (${pagantes})`, rows: rowsPagante })}
-                    className="w-full cursor-pointer rounded text-left hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-moni-primary focus:ring-offset-2"
-                  >
-                    <div className="flex items-center justify-between text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
-                      <span>Pagante</span>
-                      <span>
-                        {pct(pagantes, total)} — {pagantes}
-                      </span>
-                    </div>
-                    <div className="mt-1 h-2 rounded" style={{ backgroundColor: 'var(--moni-rede-chart-track)' }}>
-                      <div
-                        className="h-2 rounded"
-                        style={{
-                          width: barWidth(pagantes, total),
-                          backgroundColor: 'var(--moni-rede-chart-fill)',
-                        }}
-                      />
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setListaModal({ titulo: `Beta (${beta})`, rows: rowsBeta })}
-                    className="mt-3 w-full cursor-pointer rounded text-left hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-moni-primary focus:ring-offset-2"
-                  >
-                    <div className="flex items-center justify-between text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
-                      <span>Beta</span>
-                      <span>
-                        {pct(beta, total)} — {beta}
-                      </span>
-                    </div>
-                    <div className="mt-1 h-2 rounded" style={{ backgroundColor: 'var(--moni-rede-chart-track)' }}>
-                      <div
-                        className="h-2 rounded"
-                        style={{
-                          width: barWidth(beta, total),
-                          backgroundColor: 'var(--moni-rede-chart-fill-secondary)',
-                        }}
-                      />
-                    </div>
-                  </button>
-                </div>
-                <div className="text-right text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
-                  <p>
-                    Pagante:{' '}
-                    <span style={{ color: 'var(--moni-text-primary)' }}>{pagantes}</span>
-                  </p>
-                  <p>
-                    Beta: <span style={{ color: 'var(--moni-text-primary)' }}>{beta}</span>
-                  </p>
-                  <p className="mt-2">
-                    Encerradas pagantes:{' '}
-                    <span style={{ color: 'var(--moni-text-primary)' }}>{statusByClass.pagante.encerrada}</span>
-                  </p>
-                  <p>
-                    Encerradas beta:{' '}
-                    <span style={{ color: 'var(--moni-text-primary)' }}>{statusByClass.beta.encerrada}</span>
-                  </p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div
-              className="rounded-xl border p-4 text-sm"
-              style={{
-                borderColor: 'var(--moni-border-default)',
-                backgroundColor: 'var(--moni-surface-100)',
-                color: 'var(--moni-text-secondary)',
-              }}
-            >
-              <p className="font-medium" style={{ color: 'var(--moni-text-primary)' }}>
-                Classificação (Pagante / Beta)
-              </p>
-              <p className="mt-2">
-                No portal do franqueado esta visão usa apenas dados não sensíveis; percentuais por classificação não são
-                exibidos aqui.
-              </p>
-            </div>
-          )}
+          <RedeVisaoRegionalClassificacao
+            regionalArr={regionalArr}
+            maxRegional={maxRegional}
+            operacao={operacao}
+            total={total}
+            modoAggregado={modoAggregado}
+            rowsPorRegional={rowsPorRegional}
+            rowsEmOperacao={rowsEmOperacao}
+            pagantes={pagantes}
+            beta={beta}
+            corporacao={corporacao}
+            maxClassificacao={maxClassificacao}
+            totalClass={total}
+            rowsPagante={rowsPagante}
+            rowsBeta={rowsBeta}
+            rowsCorporacao={rowsCorporacao}
+            statusByClass={statusByClass}
+            onOpenLista={(titulo, listaRows) => setListaModal({ titulo, rows: listaRows })}
+          />
         </>
       )}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border p-4" style={redeKpiCardStyle}>
-          <p className="text-sm font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+      <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-2">
+        <div className="rounded-xl border p-4" style={chartCardStyle}>
+          <p className="text-[13px] font-medium" style={{ color: 'var(--moni-text-primary)' }}>
             Franquias por cidade de atuação
           </p>
-          <p className="mt-1 text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
-            Área de atuação (UF - Cidade).
-            {visaoFranqueado
-              ? ' Somente leitura; totais apenas de unidades em operação.'
-              : modoAggregado
-                ? ' Totais agregados (sem lista).'
-                : ' Clique na linha para ver a lista.'}
+          <p className="mb-2 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Área de atuação (UF – Cidade).
           </p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <label className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Filtro por estado:
-            </label>
-            <select
-              value={filtroEstadoCidadeAtuacao}
-              onChange={(e) => setFiltroEstadoCidadeAtuacao(e.target.value)}
-              className="rounded-lg px-3 py-1.5 text-sm"
-              style={{
-                borderWidth: 1,
-                borderStyle: 'solid',
-                borderColor: 'var(--moni-border-default)',
-                backgroundColor: 'var(--moni-surface-0)',
-                color: 'var(--moni-text-secondary)',
-              }}
-            >
-              <option value="">Todos</option>
-              {estadoAtuacaoArr.map(([uf]) => (
-                <option key={uf} value={uf}>{uf}</option>
-              ))}
-            </select>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+              Estado:
+            </span>
+            <FilterPill active={!filtroEstadoCidadeAtuacao} onClick={() => setFiltroEstadoCidadeAtuacao('')}>
+              Todos
+            </FilterPill>
+            {estadoAtuacaoArr.map(([uf]) => (
+              <FilterPill
+                key={uf}
+                active={filtroEstadoCidadeAtuacao === uf}
+                onClick={() => setFiltroEstadoCidadeAtuacao(uf)}
+              >
+                {uf}
+              </FilterPill>
+            ))}
           </div>
           <div className="mt-3 max-h-64 space-y-2 overflow-y-auto">
             {cidadeAtuacaoArr.length === 0 ? (
@@ -673,109 +518,148 @@ export function RedeDashboard({
                 {filtroEstadoCidadeAtuacao ? `Nenhuma cidade no estado ${filtroEstadoCidadeAtuacao}.` : 'Nenhum dado de área de atuação.'}
               </p>
             ) : (
-              cidadeAtuacaoArr.slice(0, 20).map(([k, v]) =>
+              cidadeAtuacaoArr.slice(0, 20).map(([k, v], idx) =>
                 modoAggregado ? (
-                  <div key={k} className="flex w-full items-center gap-3 rounded py-1 text-left">
+                  <div key={k} className="flex w-full items-center gap-2 rounded py-1 text-left">
+                    <span className="w-4 shrink-0 text-[10px] tabular-nums" style={{ color: 'var(--moni-text-tertiary)' }}>
+                      {idx + 1}
+                    </span>
                     <div
-                      className="min-w-0 flex-1 truncate text-left text-xs"
+                      className="w-28 shrink-0 truncate text-[11.5px]"
                       title={k}
-                      style={{ color: 'var(--moni-text-secondary)' }}
+                      style={{ color: 'var(--moni-text-tertiary)' }}
                     >
                       {k}
                     </div>
-                    <div className="h-4 w-40 shrink-0 rounded" style={{ backgroundColor: 'var(--moni-rede-chart-track)' }}>
-                      <div
-                        className="h-4 rounded"
-                        style={{
-                          width: barWidth(v, maxCidadeAtuacao),
-                          backgroundColor: 'var(--moni-rede-chart-fill-secondary)',
-                        }}
-                      />
+                    <div className="min-w-0 flex-1">
+                      <div className="h-1.5 rounded-sm" style={{ backgroundColor: 'var(--moni-rede-city-track)' }}>
+                        <div
+                          className="h-1.5 rounded-sm"
+                          style={{
+                            width: barWidth(v, maxCidadeAtuacao),
+                            backgroundColor: 'var(--moni-rede-city-fill)',
+                          }}
+                        />
+                      </div>
                     </div>
-                    <div
-                      className="w-8 shrink-0 text-right text-xs font-medium"
-                      style={{ color: 'var(--moni-text-secondary)' }}
-                    >
-                      {v}
-                    </div>
+                    <span className="w-6 shrink-0 text-right text-xs font-medium tabular-nums">{v}</span>
                   </div>
                 ) : (
                   <button
                     key={k}
                     type="button"
                     onClick={() =>
-                      setListaModal({ titulo: `Cidade de atuação: ${k} (${v})`, rows: rowsPorCidadeAtuacao.get(k) ?? [] })
+                      setListaModal({
+                        titulo: `Cidade de atuação: ${k} (${v})`,
+                        rows: dedupeRowsById(rowsPorCidadeAtuacao.get(k) ?? []),
+                      })
                     }
-                    className="flex w-full items-center gap-3 rounded py-1 text-left hover:bg-[var(--moni-rede-hover-row)] focus:outline-none focus:ring-2 focus:ring-moni-primary focus:ring-offset-2"
+                    className="flex w-full items-center gap-2 rounded py-1 text-left hover:bg-[var(--moni-surface-100)]"
                   >
-                    <div
-                      className="min-w-0 flex-1 truncate text-left text-xs"
-                      title={k}
-                      style={{ color: 'var(--moni-text-secondary)' }}
-                    >
+                    <span className="w-4 shrink-0 text-[10px] tabular-nums" style={{ color: 'var(--moni-text-tertiary)' }}>
+                      {idx + 1}
+                    </span>
+                    <div className="w-28 shrink-0 truncate text-[11.5px]" title={k} style={{ color: 'var(--moni-text-tertiary)' }}>
                       {k}
                     </div>
-                    <div className="h-4 w-40 shrink-0 rounded" style={{ backgroundColor: 'var(--moni-rede-chart-track)' }}>
-                      <div
-                        className="h-4 rounded"
-                        style={{
-                          width: barWidth(v, maxCidadeAtuacao),
-                          backgroundColor: 'var(--moni-rede-chart-fill-secondary)',
-                        }}
-                      />
+                    <div className="min-w-0 flex-1">
+                      <div className="h-1.5 rounded-sm" style={{ backgroundColor: 'var(--moni-rede-city-track)' }}>
+                        <div
+                          className="h-1.5 rounded-sm"
+                          style={{
+                            width: barWidth(v, maxCidadeAtuacao),
+                            backgroundColor: 'var(--moni-rede-city-fill)',
+                          }}
+                        />
+                      </div>
                     </div>
-                    <div
-                      className="w-8 shrink-0 text-right text-xs font-medium"
-                      style={{ color: 'var(--moni-text-secondary)' }}
-                    >
-                      {v}
-                    </div>
+                    <span className="w-6 shrink-0 text-right text-xs font-medium tabular-nums">{v}</span>
                   </button>
                 ),
               )
             )}
           </div>
         </div>
-        <MapBrazilCidadesAtuacao rows={linhasRegionalAtuacaoCharts} filtroEstado={filtroEstadoCidadeAtuacao} />
+        <MapBrazilCidadesAtuacao
+          rows={linhasRegionalAtuacaoCharts}
+          filtroEstado={filtroEstadoCidadeAtuacao}
+          onUfClick={
+            modoAggregado
+              ? undefined
+              : (uf, list) =>
+                  setListaModal({
+                    titulo: `${uf} — área de atuação (${list.length})`,
+                    rows: dedupeRowsById(list),
+                  })
+          }
+        />
       </div>
 
       {!modoAggregado ? (
-        <div className="rounded-xl border p-4" style={redeKpiCardStyle}>
-          <p className="text-sm font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-            Crescimento mensal — novas franquias assinadas
-          </p>
-          <p className="mt-1 text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
-            Contratos assinados por mês (Data de Ass. Contrato). Clique na barra para ver a lista.
-          </p>
-          <div className="mt-4 flex items-end gap-2 overflow-x-auto pb-2">
-            {mesArr.length === 0 ? (
+        <div className="rounded-xl border p-4" style={chartCardStyle}>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-[13px] font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                Crescimento mensal — novas franquias assinadas
+              </p>
+              <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                Contratos assinados por mês (Data de Ass. Contrato).
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <FilterPill active={filtroAno === 'tudo'} onClick={() => setFiltroAno('tudo')}>
+                Tudo
+              </FilterPill>
+              <FilterPill active={filtroAno === '2025'} onClick={() => setFiltroAno('2025')}>
+                2025
+              </FilterPill>
+              <FilterPill active={filtroAno === '2026'} onClick={() => setFiltroAno('2026')}>
+                2026
+              </FilterPill>
+            </div>
+          </div>
+          <div
+            className="relative mt-4 flex min-h-[140px] items-end gap-1 overflow-x-auto pb-8 pt-2"
+            style={{
+              backgroundImage:
+                'repeating-linear-gradient(to top, rgba(136,135,128,0.12) 0, rgba(136,135,128,0.12) 1px, transparent 1px, transparent 28px)',
+            }}
+          >
+            {mesArrExibicao.length === 0 ? (
               <p className="text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
-                Sem datas de contrato suficientes.
+                Sem datas de contrato no período selecionado.
               </p>
             ) : (
-              mesArr.map(([k, v]) => {
+              mesArrExibicao.map(([k, v]) => {
                 const list = rowsPorMes.get(k) ?? [];
-                const h = Math.max(8, Math.round((v / (maxMes || 1)) * 120));
+                const h = Math.max(8, Math.round((v / (maxMesExibicao || 1)) * 120));
                 return (
                   <button
                     key={k}
                     type="button"
                     onClick={() => setListaModal({ titulo: `${monthLabel(k)} — ${v} franquia(s)`, rows: list })}
-                    className="flex w-12 shrink-0 flex-col items-center gap-1 rounded transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-moni-primary"
+                    className="flex w-10 shrink-0 flex-col items-center gap-1 rounded transition hover:opacity-90"
+                    title={`${monthLabel(k)}: ${v}`}
                   >
-                    <span className="text-xs font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                    <span className="text-xs font-medium tabular-nums" style={{ color: 'var(--moni-text-primary)' }}>
                       {v}
                     </span>
-                    <div className="w-full rounded" style={{ backgroundColor: 'var(--moni-rede-chart-track)' }}>
-                      <div
-                        className="w-full rounded"
-                        style={{
-                          height: `${h}px`,
-                          backgroundColor: 'var(--moni-rede-chart-fill)',
-                        }}
-                      />
-                    </div>
-                    <div className="text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                    <div
+                      className="w-full rounded-sm"
+                      style={{
+                        height: `${h}px`,
+                        backgroundColor: growthBarFill(v, maxMesExibicao),
+                      }}
+                    />
+                    <div
+                      className="max-w-[3rem] truncate text-[10px] leading-tight"
+                      style={{
+                        color: 'var(--moni-text-tertiary)',
+                        transform: 'rotate(-45deg)',
+                        transformOrigin: 'top left',
+                        marginTop: 4,
+                      }}
+                    >
                       {monthLabel(k)}
                     </div>
                   </button>

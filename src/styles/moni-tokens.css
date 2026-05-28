@@ -211,6 +211,13 @@
   --moni-rede-map-pin-outer:   var(--moni-green-800);
   --moni-rede-map-pin-inner:   var(--moni-green-400);
   --moni-rede-map-callout:     var(--moni-navy-400);
+  --moni-rede-map-tier-0:      #eaf3de;
+  --moni-rede-map-tier-1:      #97c459;
+  --moni-rede-map-tier-2:      #3b6d11;
+  --moni-rede-map-tier-3:      #2d4a3e;
+  --moni-rede-city-track:      #faeeda;
+  --moni-rede-city-fill:       var(--moni-gold-600);
+  --moni-rede-class-beta:      var(--moni-gold-600);
 
   /* --------------------------------------------------
      TRANSIÇÕES

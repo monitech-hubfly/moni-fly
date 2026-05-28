@@ -8,9 +8,11 @@ import type { RedeFranqueadoDbKey, RedeFranqueadoRowDb } from '@/lib/rede-franqu
 import {
   COLUNAS_REDE_FRANQUEADOS,
   formatNFranquiaRedeExibicao,
+  isRedeColunaDadoSensivel,
   ordenarRedePorNFranquia,
   REDE_FRANQUEADOS_DB_KEYS,
 } from '@/lib/rede-franqueados';
+import { RedeFranqueadoSensitiveBlur } from '@/components/RedeFranqueadoSensitiveBlur';
 import { atualizarRedeFranqueado, excluirRedeFranqueado } from '@/app/rede-franqueados/actions';
 import { UFS_BRASIL } from '@/lib/uf';
 import { RedeFranqueadoCellValue } from '@/components/RedeFranqueadoCellValue';
@@ -123,6 +125,8 @@ type Props = {
   rows: RedeFranqueadoRowDb[];
   /** Apenas administradores (e perfis equivalentes no authz) podem editar/excluir linhas. */
   canEditRows?: boolean;
+  /** Oculta CPF, endereço, sócios etc. (usuários que não são role `admin`). */
+  maskSensitiveColumns?: boolean;
   /** Total de linhas antes do filtro de busca (para mensagens de contagem). */
   totalSemBusca?: number;
   /** Indica que há texto na busca (distinto de tabela vazia). */
@@ -150,6 +154,7 @@ function isDateKey(k: RedeFranqueadoDbKey): boolean {
 export function TabelaRedeFranqueadosEditavel({
   rows,
   canEditRows = true,
+  maskSensitiveColumns = false,
   totalSemBusca,
   buscaAtiva = false,
 }: Props) {
@@ -337,10 +342,15 @@ export function TabelaRedeFranqueadosEditavel({
                     const shown =
                       k === 'n_franquia' ? formatNFranquiaRedeExibicao(current, r.ordem) : current;
                     const isAreaAtuacao = k === 'area_atuacao';
+                    const maskCell = maskSensitiveColumns && isRedeColunaDadoSensivel(k);
                     return (
                       <td key={k} className="min-w-0 max-w-[14rem] overflow-hidden px-3 py-2.5 align-top text-stone-700">
                         {!isEditing ? (
-                          <RedeFranqueadoCellValue field={k} text={shown} titleText={current} />
+                          maskCell ? (
+                            <RedeFranqueadoSensitiveBlur />
+                          ) : (
+                            <RedeFranqueadoCellValue field={k} text={shown} titleText={current} />
+                          )
                         ) : isAreaAtuacao ? (
                           <div className="min-w-[280px] space-y-2">
                             {areaAtuacaoItens.length > 0 && (

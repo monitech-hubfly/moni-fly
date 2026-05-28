@@ -280,9 +280,20 @@ function buildBrazilPathsFromBundles(): { outlinePath: string | null; statePaths
 
 const REDE_MAP_STATIC = buildBrazilPathsFromBundles();
 
-type Props = { rows: RedeFranqueadoRowDb[]; filtroEstado?: string };
+function tierFillForCount(n: number): string {
+  if (n <= 0) return 'var(--moni-rede-map-tier-0)';
+  if (n <= 2) return 'var(--moni-rede-map-tier-1)';
+  if (n <= 5) return 'var(--moni-rede-map-tier-2)';
+  return 'var(--moni-rede-map-tier-3)';
+}
 
-export function MapBrazilCidadesAtuacao({ rows, filtroEstado = '' }: Props) {
+type Props = {
+  rows: RedeFranqueadoRowDb[];
+  filtroEstado?: string;
+  onUfClick?: (uf: string, franchiseRows: RedeFranqueadoRowDb[]) => void;
+};
+
+export function MapBrazilCidadesAtuacao({ rows, filtroEstado = '', onUfClick }: Props) {
   const [coords, setCoords] = useState<Record<string, { lat: number; lng: number }>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -290,20 +301,36 @@ export function MapBrazilCidadesAtuacao({ rows, filtroEstado = '' }: Props) {
   const brazilPath = REDE_MAP_STATIC.outlinePath;
   const statePaths = REDE_MAP_STATIC.statePaths;
 
-  const { cidadesKeys, countByCity } = useMemo(() => {
+  const { cidadesKeys, countByCity, countByUf, rowsByUf, hasAtuacao } = useMemo(() => {
     const byKey = new Map<string, number>();
+    const byUf = new Map<string, number>();
+    const byUfRows = new Map<string, RedeFranqueadoRowDb[]>();
     const ufFilter = filtroEstado?.trim().toUpperCase();
     for (const r of rows) {
       const areas = parseAreaAtuacao(r.area_atuacao);
+      const ufsInRow = new Set<string>();
       for (const { uf, cidade } of areas) {
-        if (ufFilter && uf?.toUpperCase() !== ufFilter) continue;
+        if (!uf) continue;
+        const u = uf.toUpperCase();
+        if (!ufsInRow.has(u)) {
+          ufsInRow.add(u);
+          byUf.set(u, (byUf.get(u) ?? 0) + 1);
+          const listUf = byUfRows.get(u) ?? [];
+          listUf.push(r);
+          byUfRows.set(u, listUf);
+        }
+        if (ufFilter && u !== ufFilter) continue;
         const key = `${uf} - ${cidade}`;
         if (key) byKey.set(key, (byKey.get(key) ?? 0) + 1);
       }
     }
-    const cidadesKeys = [...byKey.keys()];
-    const countByCity = Object.fromEntries(byKey);
-    return { cidadesKeys, countByCity };
+    return {
+      cidadesKeys: [...byKey.keys()],
+      countByCity: Object.fromEntries(byKey),
+      countByUf: byUf,
+      rowsByUf: byUfRows,
+      hasAtuacao: byUf.size > 0,
+    };
   }, [rows, filtroEstado]);
 
   useEffect(() => {
@@ -432,19 +459,20 @@ export function MapBrazilCidadesAtuacao({ rows, filtroEstado = '' }: Props) {
     color: 'var(--moni-text-primary)',
   };
 
-  if (cidadesKeys.length === 0) {
+  if (!hasAtuacao) {
     return (
       <div className="rounded-xl border p-6 text-center text-sm" style={redeMapCardStyle}>
-        <p style={{ color: 'var(--moni-text-secondary)' }}>
-          {filtroEstado
-            ? `Nenhuma cidade de atuação no estado ${filtroEstado}.`
-            : 'Nenhuma cidade de atuação cadastrada para exibir no mapa.'}
+        <p className="text-[13px] font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+          Distribuição geográfica
+        </p>
+        <p className="mt-2 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+          Nenhuma área de atuação cadastrada para o filtro atual.
         </p>
       </div>
     );
   }
 
-  if (error) {
+  if (error && filtroEstado) {
     return (
       <div
         className="rounded-xl border p-4 text-sm"
@@ -460,71 +488,72 @@ export function MapBrazilCidadesAtuacao({ rows, filtroEstado = '' }: Props) {
   }
 
   const hasCoords = pins.length > 0;
+  const showPinOverlay = Boolean(filtroEstado?.trim()) && hasCoords;
 
   return (
     <div className="rounded-xl border p-4" style={redeMapCardStyle}>
-      {loading ? (
-        <div
-          className="flex h-[420px] items-center justify-center rounded-lg text-sm"
-          style={{
-            backgroundColor: 'var(--moni-surface-100)',
-            color: 'var(--moni-text-secondary)',
-          }}
-        >
-          Carregando mapa…
-        </div>
-      ) : !hasCoords ? (
-        <div
-          className="flex h-[420px] items-center justify-center rounded-lg text-sm"
-          style={{
-            backgroundColor: 'var(--moni-surface-100)',
-            color: 'var(--moni-text-tertiary)',
-          }}
-        >
-          {filtroEstado
-            ? `Nenhuma cidade no estado ${filtroEstado}.`
-            : 'Não foi possível obter coordenadas para as cidades cadastradas.'}
-        </div>
-      ) : (
-        <div className="relative w-full overflow-hidden" style={{ backgroundColor: 'var(--moni-rede-map-bg)' }}>
-          <svg
-            viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
-            className="h-auto w-full"
-            style={{ maxHeight: 420, backgroundColor: 'var(--moni-rede-map-bg)' }}
-            preserveAspectRatio="xMidYMid meet"
+      <p className="text-[13px] font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+        Distribuição geográfica
+      </p>
+      <p className="mb-3 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+        Presença por estado — intensidade proporcional. Clique no estado para ver a lista.
+      </p>
+      <div className="relative w-full overflow-hidden rounded-lg" style={{ backgroundColor: 'var(--moni-rede-map-bg)' }}>
+        {loading && showPinOverlay ? (
+          <div
+            className="absolute inset-0 z-10 flex items-center justify-center text-sm"
+            style={{ backgroundColor: 'rgba(249, 247, 244, 0.75)', color: 'var(--moni-text-secondary)' }}
           >
-            {brazilPath ? (
-              <path
-                d={brazilPath}
-                fill="var(--moni-rede-map-land)"
-                stroke="var(--moni-rede-map-stroke)"
-                strokeWidth={0.8}
-              />
-            ) : null}
-            {statePaths.map((s, i) => (
+            Carregando cidades…
+          </div>
+        ) : null}
+        <svg
+          viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
+          className="h-auto w-full"
+          style={{ maxHeight: 420, backgroundColor: 'var(--moni-rede-map-bg)' }}
+          preserveAspectRatio="xMidYMid meet"
+        >
+          {brazilPath ? (
+            <path
+              d={brazilPath}
+              fill="var(--moni-rede-map-tier-0)"
+              stroke="var(--moni-rede-map-stroke)"
+              strokeWidth={0.8}
+            />
+          ) : null}
+          {statePaths.map((s, i) => {
+            const uf = (s.label ?? '').toUpperCase();
+            const n = countByUf.get(uf) ?? 0;
+            const list = rowsByUf.get(uf) ?? [];
+            return (
               <path
                 key={i}
                 d={s.path}
-                fill="var(--moni-rede-map-land)"
+                fill={tierFillForCount(n)}
                 stroke="var(--moni-rede-map-stroke)"
                 strokeWidth={0.6}
-              />
-            ))}
-            {statePaths.map((s, i) => (
-              <text
-                key={`label-${i}`}
-                x={s.x}
-                y={s.y}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                className="select-none pointer-events-none"
-                fill="var(--moni-rede-map-label)"
-                style={{ fontSize: 8, fontWeight: 600 }}
+                className={onUfClick ? 'cursor-pointer hover:opacity-90' : undefined}
+                onClick={() => onUfClick?.(uf, list)}
               >
-                {s.label}
-              </text>
-            ))}
-            {callouts.length > 0 && (
+                <title>{`${uf}: ${n} franquia(s) na área de atuação`}</title>
+              </path>
+            );
+          })}
+          {statePaths.map((s, i) => (
+            <text
+              key={`label-${i}`}
+              x={s.x}
+              y={s.y}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              className="pointer-events-none select-none"
+              fill="var(--moni-rede-map-label)"
+              style={{ fontSize: 8, fontWeight: 600 }}
+            >
+              {s.label}
+            </text>
+          ))}
+          {showPinOverlay && callouts.length > 0 && (
               <g>
                 {callouts.map((c) => (
                   <g key={`callout-${c.key}`}>
@@ -551,16 +580,34 @@ export function MapBrazilCidadesAtuacao({ rows, filtroEstado = '' }: Props) {
                 ))}
               </g>
             )}
-            {pins.map((p) => (
+          {showPinOverlay &&
+            pins.map((p) => (
               <g key={p.key}>
                 <title>{p.label} — {p.count} franquia(s)</title>
                 <circle cx={p.x} cy={p.y} r={6} fill="var(--moni-rede-map-pin-outer)" />
                 <circle cx={p.x} cy={p.y} r={2.5} fill="var(--moni-rede-map-pin-inner)" />
               </g>
             ))}
-          </svg>
-        </div>
-      )}
+        </svg>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-3 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--moni-rede-map-tier-0)' }} />
+          Sem presença
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--moni-rede-map-tier-1)' }} />
+          1–2
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--moni-rede-map-tier-2)' }} />
+          3–5
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--moni-rede-map-tier-3)' }} />
+          6+
+        </span>
+      </div>
     </div>
   );
 }

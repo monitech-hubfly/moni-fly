@@ -1,7 +1,7 @@
 'use client';
 
 import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
-import { REDE_FRANQUEADOS_DB_KEYS } from '@/lib/rede-franqueados';
+import { isRedeColunaDadoSensivel, REDE_FRANQUEADOS_DB_KEYS } from '@/lib/rede-franqueados';
 import { Download } from 'lucide-react';
 import { redeBtnGhost } from './rede-ui';
 
@@ -13,11 +13,20 @@ function escapeCsvCell(val: string | null | undefined): string {
   return s;
 }
 
-export function ExportarRedeCSVButton({ rows }: { rows: RedeFranqueadoRowDb[] }) {
+export function ExportarRedeCSVButton({
+  rows,
+  maskSensitiveColumns = false,
+}: {
+  rows: RedeFranqueadoRowDb[];
+  maskSensitiveColumns?: boolean;
+}) {
   const exportar = () => {
     const header = REDE_FRANQUEADOS_DB_KEYS.join(',');
     const lines = rows.map((r) =>
-      REDE_FRANQUEADOS_DB_KEYS.map((k) => escapeCsvCell(r[k] ?? '')).join(','),
+      REDE_FRANQUEADOS_DB_KEYS.map((k) => {
+        if (maskSensitiveColumns && isRedeColunaDadoSensivel(k)) return '';
+        return escapeCsvCell(r[k] ?? '');
+      }).join(','),
     );
     const csv = [header, ...lines].join('\r\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });

@@ -18,3 +18,8 @@ export function isAdminRole(role: string | null | undefined): boolean {
   return normalizeAccessRole(role) === 'admin';
 }
 
+/** Papel `admin` no banco (não inclui team, consultor legado, etc.). */
+export function isStrictAdminRole(role: string | null | undefined): boolean {
+  return String(role ?? '').trim().toLowerCase() === 'admin';
+}
+

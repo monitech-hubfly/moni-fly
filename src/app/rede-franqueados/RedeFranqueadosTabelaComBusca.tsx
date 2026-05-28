@@ -12,10 +12,16 @@ import { TabelaRedeFranqueadosEditavel } from '@/components/TabelaRedeFranqueado
 type Props = {
   rows: RedeFranqueadoRowDb[];
   canEditRows?: boolean;
+  maskSensitiveColumns?: boolean;
   children?: ReactNode;
 };
 
-export function RedeFranqueadosTabelaComBusca({ rows, canEditRows, children }: Props) {
+export function RedeFranqueadosTabelaComBusca({
+  rows,
+  canEditRows,
+  maskSensitiveColumns,
+  children,
+}: Props) {
   const [busca, setBusca] = useState('');
 
   const rowsFiltradas = useMemo(() => {
@@ -46,6 +52,7 @@ export function RedeFranqueadosTabelaComBusca({ rows, canEditRows, children }: P
       <TabelaRedeFranqueadosEditavel
         rows={rowsFiltradas}
         canEditRows={canEditRows}
+        maskSensitiveColumns={maskSensitiveColumns}
         totalSemBusca={rows.length}
         buscaAtiva={busca.trim().length > 0}
       />
