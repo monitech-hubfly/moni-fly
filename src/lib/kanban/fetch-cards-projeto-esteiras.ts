@@ -64,8 +64,8 @@ export async function fetchCardsProjetoEsteiras(
       arquivado,
       created_at,
       origem_card_id,
-      kanban_fases ( nome, slug, sla_dias ),
-      kanbans ( id, nome )
+      kanban_fases!fase_id ( nome, slug, sla_dias ),
+      kanbans!kanban_id ( nome, id )
     `,
     )
     .eq('projeto_id', pid)
