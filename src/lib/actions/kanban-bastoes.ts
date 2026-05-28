@@ -416,10 +416,16 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
   const titulo = String(pai.titulo ?? '').trim() || 'Card';
 
   const bastoesPorSlug: Partial<Record<string, BastaoDestino[]>> = {
+    [FASE_SLUGS.STEP_3]: [
+      { kanbanDestinoId: KANBAN_IDS.JURIDICO, faseDestinoSlug: 'juridico_recebimento' },
+    ],
     [FASE_SLUGS.STEP_4]: [
       { kanbanDestinoId: KANBAN_IDS.ACOPLAMENTO, faseDestinoSlug: 'modelagem_terreno' },
       { kanbanDestinoId: KANBAN_IDS.CREDITO, faseDestinoSlug: 'credito_terreno' },
       { kanbanDestinoId: KANBAN_IDS.CONTABILIDADE, faseDestinoSlug: 'contabilidade_incorporadora' },
+    ],
+    [FASE_SLUGS.STEP_7]: [
+      { kanbanDestinoId: KANBAN_IDS.CONTABILIDADE, faseDestinoSlug: 'contabilidade_spe' },
     ],
     [FASE_SLUGS.CAPTACAO_CAPITAL]: [
       { kanbanDestinoId: KANBAN_IDS.MONI_CAPITAL, faseDestinoSlug: 'capital_recebimento' },

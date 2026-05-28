@@ -14,7 +14,9 @@ export const KANBAN_IDS = {
 
 export const FASE_IDS = {
   // Portfolio — gatilhos de bastão de IDA
+  PORTFOLIO_STEP_3:          '6d019704-95f7-42ee-8a85-973ffafc236b',
   PORTFOLIO_STEP_4:          'fd05dc4a-b44a-470e-993f-5df79c223488',
+  PORTFOLIO_STEP_7:          'd78771cb-f79d-4650-a056-f3e2dbc3f3a6',
   PORTFOLIO_CAPTACAO_CAPITAL: 'd7e79cd4-a8ba-4239-b7b4-b82ad07acb11',
   PORTFOLIO_PASSAGEM_WAYSER: '5f48a367-699b-4dc4-a310-377fc7d0ff88',
   PORTFOLIO_STEP_5:          '9e1c76ba-ce84-4dbd-ae40-e434dc068a81', // gate
@@ -26,7 +28,8 @@ export const FASE_IDS = {
   CREDITO_TERRENO_REPROVADO: '92bc0cab-e8b6-4199-9066-7fbea8d600a2',
   CREDITO_OBRA_APROVADO:     'da6b7ed6-3137-42aa-9cc7-0d3aec4e6cfd',
   CREDITO_OBRA_REPROVADO:    'aadb078e-d11a-48d1-9a4e-ee10b9fe7df5',
-  // Contabilidade — bastão de volta
+  // Contabilidade
+  CONTABILIDADE_SPE:         'a5facdfc-b6f2-41cb-aea2-63614712910b',
   CONTABILIDADE_CONCLUIDO:   'abb24459-c105-4aeb-8743-a681851dcb53',
   // Jurídico
   JURIDICO_RECEBIMENTO:      '3e1d4e8c-3bf8-419d-8cf8-a9cdfd5a89ab',
@@ -44,7 +47,9 @@ export const FASE_IDS = {
 
 export const FASE_SLUGS = {
   // Gatilhos de IDA
+  STEP_3:             'step_3',
   STEP_4:             'step_4',
+  STEP_7:             'step_7',
   CAPTACAO_CAPITAL:   'captacao_moni_capital',
   PASSAGEM_WAYSER:    'passagem_wayser',
   AGUARDANDO_CREDITO: 'aguardando_credito',
