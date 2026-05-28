@@ -382,6 +382,26 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
           },
         )}
 
+        {!publicVisitor && !limitedRelease && (isAdmin || resolvedRole === 'team') &&
+          renderMacro(
+            'carometro',
+            'Carômetro',
+            isCarometroNavActive(pathname ?? ''),
+            carometroOpen,
+            setCarometroOpen,
+            isAdmin ? CAROMETRO_SUBITENS : CAROMETRO_SUBITENS_TEAM,
+            (href) => Boolean(pathname === href || pathname?.startsWith(`${href}/`)),
+          )}
+
+        {!publicVisitor && !limitedRelease && (
+          <SidebarUniversidadeLinks
+            userId={user?.id}
+            resolvedRole={resolvedRole}
+            linkClassPrincipal={linkClassPrincipal}
+            linkClassSub={linkClassSub}
+          />
+        )}
+
         {showNovosNegociosNav &&
           renderMacro(
             'novosNegocios',
@@ -437,17 +457,6 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
             (href) => pathname === href || (pathname?.startsWith(`${href}/`) ?? false),
           )}
 
-        {!publicVisitor && !limitedRelease && (isAdmin || resolvedRole === 'team') &&
-          renderMacro(
-            'carometro',
-            'Carômetro',
-            isCarometroNavActive(pathname ?? ''),
-            carometroOpen,
-            setCarometroOpen,
-            isAdmin ? CAROMETRO_SUBITENS : CAROMETRO_SUBITENS_TEAM,
-            (href) => Boolean(pathname === href || pathname?.startsWith(`${href}/`)),
-          )}
-
         {!publicVisitor && !limitedRelease && (isAdmin || resolvedRole === 'team') && (
           <Link
             href="/repositorio"
@@ -477,15 +486,6 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
             <Building2 className="h-4 w-4 shrink-0" aria-hidden />
             Minhas Empresas
           </Link>
-        )}
-
-        {!publicVisitor && !limitedRelease && (
-          <SidebarUniversidadeLinks
-            userId={user?.id}
-            resolvedRole={resolvedRole}
-            linkClassPrincipal={linkClassPrincipal}
-            linkClassSub={linkClassSub}
-          />
         )}
 
         {!publicVisitor && !limitedRelease && showDevNav && isAdmin &&
