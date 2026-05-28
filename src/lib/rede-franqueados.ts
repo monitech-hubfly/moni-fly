@@ -91,7 +91,6 @@ export const COLUNAS_REDE_FRANQUEADOS = [
   'Regional',
   'Área de Atuação da Franquia',
   'E-mail do Frank',
-  'Responsável Comercial',
   'Telefone do Frank',
   'CPF do Frank',
   'Data de Nasc. Frank',
@@ -141,6 +140,16 @@ export const REDE_FRANQUEADOS_DB_KEYS = [
 ] as const;
 
 export type RedeFranqueadoDbKey = (typeof REDE_FRANQUEADOS_DB_KEYS)[number];
+
+/** Colunas mantidas no banco/CSV mas ocultas na planilha `/rede-franqueados`. */
+export const REDE_COLUNAS_OCULTAS_TABELA: readonly RedeFranqueadoDbKey[] = ['responsavel_comercial'] as const;
+
+const REDE_COLUNAS_OCULTAS_TABELA_SET = new Set<RedeFranqueadoDbKey>(REDE_COLUNAS_OCULTAS_TABELA);
+
+/** Chaves exibidas na tabela editável (alinhadas a `COLUNAS_REDE_FRANQUEADOS`). */
+export const REDE_FRANQUEADOS_TABLE_KEYS = REDE_FRANQUEADOS_DB_KEYS.filter(
+  (k) => !REDE_COLUNAS_OCULTAS_TABELA_SET.has(k),
+);
 
 /** Dados pessoais/endereço do Frank — visíveis só para role `admin` na tabela. */
 export const REDE_COLUNAS_DADOS_SENSIVEIS: readonly RedeFranqueadoDbKey[] = [
@@ -351,7 +360,6 @@ export const REDE_PORTAL_FRANK_SELECT = [
   'area_atuacao',
   'email_frank',
   'telefone_frank',
-  'responsavel_comercial',
   'regional',
   'estado_casa_frank',
 ].join(', ');
@@ -367,7 +375,6 @@ export type RedeFranqueadoRowPortalFrank = Pick<
   | 'area_atuacao'
   | 'email_frank'
   | 'telefone_frank'
-  | 'responsavel_comercial'
   | 'regional'
   | 'estado_casa_frank'
 >;
@@ -396,7 +403,6 @@ export function redePortalFrankRowParaDashboardRow(frank: RedeFranqueadoRowPorta
     area_atuacao: frank.area_atuacao,
     email_frank: frank.email_frank,
     telefone_frank: frank.telefone_frank,
-    responsavel_comercial: frank.responsavel_comercial,
     regional: frank.regional,
     estado_casa_frank: frank.estado_casa_frank,
   };

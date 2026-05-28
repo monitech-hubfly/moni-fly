@@ -1,7 +1,7 @@
 'use client';
 
 import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
-import { isRedeColunaDadoSensivel, REDE_FRANQUEADOS_DB_KEYS } from '@/lib/rede-franqueados';
+import { isRedeColunaDadoSensivel, REDE_FRANQUEADOS_TABLE_KEYS } from '@/lib/rede-franqueados';
 import { Download } from 'lucide-react';
 import { redeBtnGhost } from './rede-ui';
 
@@ -21,9 +21,9 @@ export function ExportarRedeCSVButton({
   maskSensitiveColumns?: boolean;
 }) {
   const exportar = () => {
-    const header = REDE_FRANQUEADOS_DB_KEYS.join(',');
+    const header = REDE_FRANQUEADOS_TABLE_KEYS.join(',');
     const lines = rows.map((r) =>
-      REDE_FRANQUEADOS_DB_KEYS.map((k) => {
+      REDE_FRANQUEADOS_TABLE_KEYS.map((k) => {
         if (maskSensitiveColumns && isRedeColunaDadoSensivel(k)) return '';
         return escapeCsvCell(r[k] ?? '');
       }).join(','),

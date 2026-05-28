@@ -26,6 +26,7 @@ import { gerarRegistroFranquiaPdf } from '@/lib/registro-franquia-pdf';
 import { getRegistroFranquiaRecipients, sendRegistroFranquiaEmail } from '@/lib/email';
 import { allocNextOrdemColunaPainel } from '@/lib/painel-coluna-ordem';
 import { getPainelDbForPublicEdit } from '@/lib/painel-public-edit';
+import { ensureFunilStepOneCardFromRede } from '@/lib/kanban/ensure-funil-stepone-card-from-rede';
 
 async function requireRedeAdminOrPublicLink(): Promise<
   | { ok: true; supabase: Awaited<ReturnType<typeof createClient>>; userId: string }
@@ -142,7 +143,6 @@ export async function criarLinhaRedeECard(
   if (clean.classificacao_franqueado) payload.classificacao_franqueado = clean.classificacao_franqueado;
   if (clean.area_atuacao) payload.area_atuacao_franquia = clean.area_atuacao;
   if (clean.email_frank) payload.email_franqueado = clean.email_frank;
-  if (clean.responsavel_comercial) payload.responsavel_comercial = clean.responsavel_comercial;
   if (clean.telefone_frank) payload.telefone_frank = clean.telefone_frank;
   if (clean.cpf_frank) payload.cpf_frank = clean.cpf_frank;
   if (clean.data_nasc_frank) payload.data_nasc_frank = clean.data_nasc_frank;
@@ -181,8 +181,22 @@ export async function criarLinhaRedeECard(
     .eq('id', rede.id);
   if (errLink) return { ok: false, error: `Erro ao vincular processo à rede: ${errLink.message}` };
 
+  const tituloFunil =
+    String(clean.nome_completo ?? '').trim() ||
+    String(clean.n_franquia ?? '').trim() ||
+    'Franqueado';
+  const funilRes = await ensureFunilStepOneCardFromRede(supabase, {
+    redeFranqueadoId: rede.id,
+    franqueadoUserId: userId,
+    titulo: tituloFunil,
+  });
+  if (!funilRes.ok) {
+    console.error('[criarLinhaRedeECard] Funil Step One nativo:', funilRes.error);
+  }
+
   revalidatePath('/rede-franqueados');
   revalidatePath('/painel-novos-negocios');
+  revalidatePath('/funil-stepone');
   return { ok: true, redeId: rede.id, processoId: processo.id, mensagem: 'Linha criada e card gerado no Step 1.' };
 }
 
@@ -213,7 +227,7 @@ export async function criarCardsDesdeRedeFranqueados(): Promise<CriarCardsDesdeR
   const { data: rows, error: errSelect } = await supabase
     .from('rede_franqueados')
     .select(
-      'id, n_franquia, modalidade, nome_completo, status_franquia, classificacao_franqueado, area_atuacao, email_frank, responsavel_comercial, tamanho_camisa_frank, socios, cidade_casa_frank, estado_casa_frank, telefone_frank, cpf_frank, data_nasc_frank, data_ass_cof, data_ass_contrato, data_expiracao_franquia, endereco_casa_frank, endereco_casa_frank_numero, endereco_casa_frank_complemento, cep_casa_frank',
+      'id, n_franquia, modalidade, nome_completo, status_franquia, classificacao_franqueado, area_atuacao, email_frank, tamanho_camisa_frank, socios, cidade_casa_frank, estado_casa_frank, telefone_frank, cpf_frank, data_nasc_frank, data_ass_cof, data_ass_contrato, data_expiracao_franquia, endereco_casa_frank, endereco_casa_frank_numero, endereco_casa_frank_complemento, cep_casa_frank',
     )
     .is('processo_id', null)
     .limit(MAX_POR_VEZ);
@@ -255,8 +269,6 @@ export async function criarCardsDesdeRedeFranqueados(): Promise<CriarCardsDesdeR
       payload.area_atuacao_franquia = String(row.area_atuacao).trim();
     if (row.email_frank != null && String(row.email_frank).trim() !== '')
       payload.email_franqueado = String(row.email_frank).trim();
-    if (row.responsavel_comercial != null && String(row.responsavel_comercial).trim() !== '')
-      payload.responsavel_comercial = String(row.responsavel_comercial).trim();
     if (row.telefone_frank != null && String(row.telefone_frank).trim() !== '')
       payload.telefone_frank = String(row.telefone_frank).trim();
     if (row.cpf_frank != null && String(row.cpf_frank).trim() !== '')
@@ -766,7 +778,7 @@ export async function importarRedeFranqueadosCSV(csvText: string): Promise<Impor
     const { data: rows, error: errSelect } = await supabase
       .from('rede_franqueados')
       .select(
-        'id, n_franquia, modalidade, nome_completo, status_franquia, classificacao_franqueado, area_atuacao, email_frank, responsavel_comercial, tamanho_camisa_frank, socios, cidade_casa_frank, estado_casa_frank, telefone_frank, cpf_frank, data_nasc_frank, data_ass_cof, data_ass_contrato, data_expiracao_franquia, endereco_casa_frank, endereco_casa_frank_numero, endereco_casa_frank_complemento, cep_casa_frank',
+        'id, n_franquia, modalidade, nome_completo, status_franquia, classificacao_franqueado, area_atuacao, email_frank, tamanho_camisa_frank, socios, cidade_casa_frank, estado_casa_frank, telefone_frank, cpf_frank, data_nasc_frank, data_ass_cof, data_ass_contrato, data_expiracao_franquia, endereco_casa_frank, endereco_casa_frank_numero, endereco_casa_frank_complemento, cep_casa_frank',
       )
       .in('id', insertedIds);
     if (errSelect) return { ok: false, error: `Erro ao ler linhas importadas: ${errSelect.message}` };
@@ -800,7 +812,6 @@ export async function importarRedeFranqueadosCSV(csvText: string): Promise<Impor
       if (row.classificacao_franqueado != null && String(row.classificacao_franqueado).trim() !== '') payload.classificacao_franqueado = String(row.classificacao_franqueado).trim();
       if (row.area_atuacao != null && String(row.area_atuacao).trim() !== '') payload.area_atuacao_franquia = String(row.area_atuacao).trim();
       if (row.email_frank != null && String(row.email_frank).trim() !== '') payload.email_franqueado = String(row.email_frank).trim();
-      if (row.responsavel_comercial != null && String(row.responsavel_comercial).trim() !== '') payload.responsavel_comercial = String(row.responsavel_comercial).trim();
       if (row.telefone_frank != null && String(row.telefone_frank).trim() !== '') payload.telefone_frank = String(row.telefone_frank).trim();
       if (row.cpf_frank != null && String(row.cpf_frank).trim() !== '') payload.cpf_frank = String(row.cpf_frank).trim();
       if (row.data_nasc_frank != null && String(row.data_nasc_frank).trim() !== '') payload.data_nasc_frank = String(row.data_nasc_frank).trim();
@@ -1205,4 +1216,53 @@ export async function completarRedeFranqueadosDeDocumentos(): Promise<CompletarR
     detalhes,
     mensagem: partes.join(' · ') + '.',
   };
+}
+
+export type ExtrairDadosFranqueadoPdfResult =
+  | { ok: true; dados: Partial<Record<RedeCampoFranqueado, string | null>> }
+  | { ok: false; error: string };
+
+/** Lê COF e/ou contrato enviados no formulário e devolve campos do franqueado para preenchimento automático. */
+export async function extrairDadosFranqueadoDePdfUpload(
+  formData: FormData,
+): Promise<ExtrairDadosFranqueadoPdfResult> {
+  const gate = await requireRedeAdminOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+
+  const contexto: Parameters<typeof extrairDadosFranqueadoDeTexto>[1] = {
+    nome_completo: String(formData.get('nome_completo') ?? '').trim() || null,
+    modalidade: String(formData.get('modalidade') ?? 'Franquia').trim() || 'Franquia',
+  };
+
+  const pares: [string, File | null][] = [
+    ['cof', formData.get('cof') instanceof File ? (formData.get('cof') as File) : null],
+    ['contrato', formData.get('contrato') instanceof File ? (formData.get('contrato') as File) : null],
+  ];
+
+  let merged: Partial<Record<RedeCampoFranqueado, string | null>> = {};
+  let leuAlgum = false;
+
+  for (const [, file] of pares) {
+    if (!file || file.size === 0) continue;
+    if (file.size > MAX_REDE_DOC_BYTES) {
+      return { ok: false, error: 'Arquivo acima de 10 MB.' };
+    }
+    leuAlgum = true;
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const texto = await extractText(buffer, file.type || 'application/octet-stream', file.name);
+    const extraido = extrairDadosFranqueadoDeTexto(texto, {
+      ...contexto,
+      nome_completo: contexto.nome_completo ?? merged.nome_completo ?? null,
+      cpf_frank: merged.cpf_frank ?? null,
+      email_frank: merged.email_frank ?? null,
+    });
+    merged = { ...merged, ...extraido };
+    if (merged.nome_completo && !contexto.nome_completo) {
+      contexto.nome_completo = merged.nome_completo;
+    }
+  }
+
+  if (!leuAlgum) return { ok: false, error: 'Envie ao menos um PDF (COF ou contrato).' };
+
+  return { ok: true, dados: merged };
 }

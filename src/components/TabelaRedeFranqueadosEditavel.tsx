@@ -10,7 +10,7 @@ import {
   formatNFranquiaRedeExibicao,
   isRedeColunaDadoSensivel,
   ordenarRedePorNFranquia,
-  REDE_FRANQUEADOS_DB_KEYS,
+  REDE_FRANQUEADOS_TABLE_KEYS,
 } from '@/lib/rede-franqueados';
 import { RedeFranqueadoSensitiveBlur } from '@/components/RedeFranqueadoSensitiveBlur';
 import { atualizarRedeFranqueado, excluirRedeFranqueado } from '@/app/rede-franqueados/actions';
@@ -263,7 +263,7 @@ export function TabelaRedeFranqueadosEditavel({
   }, [editingId, estadoAtuacao]);
 
   const headers = useMemo(() => [...COLUNAS_REDE_FRANQUEADOS], []);
-  const keys = useMemo(() => [...REDE_FRANQUEADOS_DB_KEYS], []);
+  const keys = useMemo(() => [...REDE_FRANQUEADOS_TABLE_KEYS], []);
 
   const beginEdit = (r: RedeFranqueadoRowDb) => {
     if (!canEditRows) return;

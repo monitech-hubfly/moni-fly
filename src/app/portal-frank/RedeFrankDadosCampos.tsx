@@ -58,10 +58,6 @@ export function RedeFrankDadosCampos({ franquiaSomenteLeitura, value, onChange }
             <span className="block text-sm font-medium text-stone-700">Área de atuação da franquia</span>
             <p className={`${readRowCls} whitespace-pre-wrap`}>{roText(ro.area_atuacao)}</p>
           </div>
-          <div>
-            <span className="block text-sm font-medium text-stone-700">Responsável comercial</span>
-            <p className={readRowCls}>{roText(ro.responsavel_comercial)}</p>
-          </div>
         </div>
       </section>
 

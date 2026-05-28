@@ -1,57 +1,98 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, UserPlus, X } from 'lucide-react';
-import { criarLinhaRedeECard, getProximoNFranquia } from './actions';
-
-const STATUS_OPTIONS = [
-  { value: 'Ativo', label: 'Ativo' },
-  { value: 'Inativo', label: 'Inativo' },
-  { value: 'Em processo', label: 'Em processo' },
-] as const;
+import { FileUp, Loader2, UserPlus, X } from 'lucide-react';
+import {
+  criarLinhaRedeECard,
+  extrairDadosFranqueadoDePdfUpload,
+  getProximoNFranquia,
+  uploadRedeFranqueadoAssinado,
+} from './actions';
+import {
+  REDE_OPCOES_CLASSIFICACAO_FRANQUEADO,
+  REDE_OPCOES_MODALIDADE,
+  REDE_OPCOES_REGIONAL,
+  REDE_OPCOES_STATUS_FRANQUIA,
+} from '@/lib/rede-franqueado-form-options';
+import { mesclarExtracaoFormFranqueado } from '@/lib/rede-extrair-dados-franqueado';
+import { UFS_BRASIL } from '@/lib/uf';
 
 type FormState = {
   n_franquia: string;
+  modalidade: string;
   nome_completo: string;
   status_franquia: string;
   classificacao_franqueado: string;
   data_ass_cof: string;
   data_ass_contrato: string;
+  data_expiracao_franquia: string;
   regional: string;
   area_atuacao: string;
   email_frank: string;
-  responsavel_comercial: string;
   telefone_frank: string;
   cpf_frank: string;
-  modalidade: string;
+  data_nasc_frank: string;
+  endereco_casa_frank: string;
+  endereco_casa_frank_numero: string;
+  endereco_casa_frank_complemento: string;
+  cep_casa_frank: string;
+  estado_casa_frank: string;
+  cidade_casa_frank: string;
   socios: string;
 };
 
 const emptyForm = (): FormState => ({
   n_franquia: '',
+  modalidade: 'Franquia',
   nome_completo: '',
   status_franquia: 'Em processo',
   classificacao_franqueado: '',
   data_ass_cof: '',
   data_ass_contrato: '',
+  data_expiracao_franquia: '',
   regional: '',
   area_atuacao: '',
   email_frank: '',
-  responsavel_comercial: '',
   telefone_frank: '',
   cpf_frank: '',
-  modalidade: '',
+  data_nasc_frank: '',
+  endereco_casa_frank: '',
+  endereco_casa_frank_numero: '',
+  endereco_casa_frank_complemento: '',
+  cep_casa_frank: '',
+  estado_casa_frank: '',
+  cidade_casa_frank: '',
   socios: '',
 });
+
+async function enviarAnexo(redeId: string, tipo: 'cof' | 'contrato', file: File): Promise<string | null> {
+  const fd = new FormData();
+  fd.append('tipo', tipo);
+  fd.append('redeId', redeId);
+  fd.append('file', file);
+  const r = await uploadRedeFranqueadoAssinado(fd);
+  return r.ok ? null : r.error;
+}
 
 export function NovoFranqueadoModal() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [cofFile, setCofFile] = useState<File | null>(null);
+  const [contratoFile, setContratoFile] = useState<File | null>(null);
   const [loadingFk, setLoadingFk] = useState(false);
+  const [extraindo, setExtraindo] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [infoExtracao, setInfoExtracao] = useState<string | null>(null);
+  const extracaoSeq = useRef(0);
+  const formRef = useRef(form);
+  formRef.current = form;
+  const cofFileRef = useRef(cofFile);
+  cofFileRef.current = cofFile;
+  const contratoFileRef = useRef(contratoFile);
+  contratoFileRef.current = contratoFile;
 
   const loadProximoFk = useCallback(async () => {
     setLoadingFk(true);
@@ -71,10 +112,47 @@ export function NovoFranqueadoModal() {
     void loadProximoFk();
   }, [open, loadProximoFk]);
 
+  const extrairDeAnexos = useCallback(
+    async (cof: File | null, contrato: File | null, base: FormState) => {
+      if (!cof && !contrato) return;
+      const seq = ++extracaoSeq.current;
+      setExtraindo(true);
+      setInfoExtracao(null);
+      setError(null);
+      try {
+        const fd = new FormData();
+        if (cof) fd.append('cof', cof);
+        if (contrato) fd.append('contrato', contrato);
+        if (base.nome_completo.trim()) fd.append('nome_completo', base.nome_completo.trim());
+        if (base.modalidade.trim()) fd.append('modalidade', base.modalidade.trim());
+        const r = await extrairDadosFranqueadoDePdfUpload(fd);
+        if (seq !== extracaoSeq.current) return;
+        if (!r.ok) {
+          setError(r.error);
+          return;
+        }
+        const campos = Object.keys(r.dados).filter((k) => r.dados[k as keyof typeof r.dados]);
+        setForm((f) => mesclarExtracaoFormFranqueado(f, r.dados));
+        if (campos.length) {
+          setInfoExtracao(`Dados preenchidos a partir do documento: ${campos.join(', ')}.`);
+        } else {
+          setInfoExtracao('Nenhum campo novo identificado no documento.');
+        }
+      } finally {
+        if (seq === extracaoSeq.current) setExtraindo(false);
+      }
+    },
+    [],
+  );
+
   function close() {
+    extracaoSeq.current += 1;
     setOpen(false);
     setForm(emptyForm());
+    setCofFile(null);
+    setContratoFile(null);
     setError(null);
+    setInfoExtracao(null);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -89,24 +167,47 @@ export function NovoFranqueadoModal() {
     try {
       const res = await criarLinhaRedeECard({
         n_franquia: form.n_franquia.trim() || undefined,
+        modalidade: form.modalidade.trim() || undefined,
         nome_completo: nome,
         status_franquia: form.status_franquia.trim() || undefined,
         classificacao_franqueado: form.classificacao_franqueado.trim() || undefined,
         data_ass_cof: form.data_ass_cof.trim() || undefined,
         data_ass_contrato: form.data_ass_contrato.trim() || undefined,
+        data_expiracao_franquia: form.data_expiracao_franquia.trim() || undefined,
         regional: form.regional.trim() || undefined,
         area_atuacao: form.area_atuacao.trim() || undefined,
         email_frank: form.email_frank.trim() || undefined,
-        responsavel_comercial: form.responsavel_comercial.trim() || undefined,
         telefone_frank: form.telefone_frank.trim() || undefined,
         cpf_frank: form.cpf_frank.trim() || undefined,
-        modalidade: form.modalidade.trim() || undefined,
+        data_nasc_frank: form.data_nasc_frank.trim() || undefined,
+        endereco_casa_frank: form.endereco_casa_frank.trim() || undefined,
+        endereco_casa_frank_numero: form.endereco_casa_frank_numero.trim() || undefined,
+        endereco_casa_frank_complemento: form.endereco_casa_frank_complemento.trim() || undefined,
+        cep_casa_frank: form.cep_casa_frank.trim() || undefined,
+        estado_casa_frank: form.estado_casa_frank.trim() || undefined,
+        cidade_casa_frank: form.cidade_casa_frank.trim() || undefined,
         socios: form.socios.trim() || undefined,
       });
       if (!res.ok) {
         setError(res.error);
         return;
       }
+
+      const errosAnexo: string[] = [];
+      if (cofFile) {
+        const err = await enviarAnexo(res.redeId, 'cof', cofFile);
+        if (err) errosAnexo.push(`COF: ${err}`);
+      }
+      if (contratoFile) {
+        const err = await enviarAnexo(res.redeId, 'contrato', contratoFile);
+        if (err) errosAnexo.push(`Contrato: ${err}`);
+      }
+      if (errosAnexo.length) {
+        setError(`Franqueado criado, mas falha ao enviar anexo(s): ${errosAnexo.join(' · ')}`);
+        router.refresh();
+        return;
+      }
+
       close();
       router.refresh();
     } finally {
@@ -116,6 +217,8 @@ export function NovoFranqueadoModal() {
 
   const inputClass =
     'mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-moni-primary focus:ring-1 focus:ring-moni-primary/30';
+
+  const selectClass = inputClass;
 
   return (
     <>
@@ -135,7 +238,7 @@ export function NovoFranqueadoModal() {
           aria-modal="true"
           aria-labelledby="novo-franqueado-titulo"
         >
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-stone-200 bg-white shadow-xl">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-stone-200 bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
               <h2 id="novo-franqueado-titulo" className="text-lg font-semibold text-stone-900">
                 Novo Franqueado
@@ -150,22 +253,94 @@ export function NovoFranqueadoModal() {
               </button>
             </div>
 
-            <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3 px-5 py-4">
+            <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4 px-5 py-4">
               {error ? (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div>
               ) : null}
+              {infoExtracao ? (
+                <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800" role="status">
+                  {infoExtracao}
+                </div>
+              ) : null}
 
-              <label className="block text-xs font-medium text-stone-600">
-                N de Franquia
-                <input
-                  type="text"
-                  value={form.n_franquia}
-                  onChange={(e) => setForm((f) => ({ ...f, n_franquia: e.target.value }))}
-                  disabled={loadingFk}
-                  className={inputClass}
-                  placeholder={loadingFk ? 'Carregando…' : 'FK0000'}
-                />
-              </label>
+              <fieldset className="space-y-3 rounded-xl border border-stone-200 bg-stone-50/50 p-4">
+                <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-stone-600">
+                  Documentos da franquia
+                </legend>
+                <p className="text-xs text-stone-500">
+                  Anexe COF e/ou contrato para preencher automaticamente os dados do franqueado (somente campos vazios).
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="block text-xs font-medium text-stone-600">
+                    COF (PDF)
+                    <input
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      disabled={extraindo || submitting}
+                      className="mt-1 block w-full text-sm text-stone-700 file:mr-2 file:rounded-md file:border-0 file:bg-stone-200 file:px-3 file:py-1.5 file:text-xs file:font-medium"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null;
+                        setCofFile(file);
+                        void extrairDeAnexos(file, contratoFileRef.current, formRef.current);
+                      }}
+                    />
+                  </label>
+                  <label className="block text-xs font-medium text-stone-600">
+                    Contrato (PDF)
+                    <input
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      disabled={extraindo || submitting}
+                      className="mt-1 block w-full text-sm text-stone-700 file:mr-2 file:rounded-md file:border-0 file:bg-stone-200 file:px-3 file:py-1.5 file:text-xs file:font-medium"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null;
+                        setContratoFile(file);
+                        void extrairDeAnexos(cofFileRef.current, file, formRef.current);
+                      }}
+                    />
+                  </label>
+                </div>
+                {extraindo ? (
+                  <p className="inline-flex items-center gap-2 text-xs text-stone-600">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Lendo documento…
+                  </p>
+                ) : cofFile || contratoFile ? (
+                  <p className="inline-flex items-center gap-1.5 text-xs text-stone-600">
+                    <FileUp className="h-3.5 w-3.5" />
+                    {[cofFile?.name, contratoFile?.name].filter(Boolean).join(' · ')}
+                  </p>
+                ) : null}
+              </fieldset>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="block text-xs font-medium text-stone-600 sm:col-span-1">
+                  N de Franquia
+                  <input
+                    type="text"
+                    value={form.n_franquia}
+                    onChange={(e) => setForm((f) => ({ ...f, n_franquia: e.target.value }))}
+                    disabled={loadingFk}
+                    className={inputClass}
+                    placeholder={loadingFk ? 'Carregando…' : 'FK0000'}
+                  />
+                </label>
+                <label className="block text-xs font-medium text-stone-600">
+                  Modalidade
+                  <select
+                    value={form.modalidade}
+                    onChange={(e) => setForm((f) => ({ ...f, modalidade: e.target.value }))}
+                    className={selectClass}
+                  >
+                    <option value="">—</option>
+                    {REDE_OPCOES_MODALIDADE.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
 
               <label className="block text-xs font-medium text-stone-600">
                 Nome completo <span className="text-red-500">*</span>
@@ -178,32 +353,39 @@ export function NovoFranqueadoModal() {
                 />
               </label>
 
-              <label className="block text-xs font-medium text-stone-600">
-                Status da franquia
-                <select
-                  value={form.status_franquia}
-                  onChange={(e) => setForm((f) => ({ ...f, status_franquia: e.target.value }))}
-                  className={inputClass}
-                >
-                  {STATUS_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block text-xs font-medium text-stone-600">
-                Classificação do franqueado
-                <input
-                  type="text"
-                  value={form.classificacao_franqueado}
-                  onChange={(e) => setForm((f) => ({ ...f, classificacao_franqueado: e.target.value }))}
-                  className={inputClass}
-                />
-              </label>
-
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="block text-xs font-medium text-stone-600">
+                  Status da franquia
+                  <select
+                    value={form.status_franquia}
+                    onChange={(e) => setForm((f) => ({ ...f, status_franquia: e.target.value }))}
+                    className={selectClass}
+                  >
+                    {REDE_OPCOES_STATUS_FRANQUIA.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-xs font-medium text-stone-600">
+                  Classificação do franqueado
+                  <select
+                    value={form.classificacao_franqueado}
+                    onChange={(e) => setForm((f) => ({ ...f, classificacao_franqueado: e.target.value }))}
+                    className={selectClass}
+                  >
+                    <option value="">—</option>
+                    {REDE_OPCOES_CLASSIFICACAO_FRANQUEADO.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <label className="block text-xs font-medium text-stone-600">
                   Data assinatura COF
                   <input
@@ -222,77 +404,157 @@ export function NovoFranqueadoModal() {
                     className={inputClass}
                   />
                 </label>
+                <label className="block text-xs font-medium text-stone-600">
+                  Data expiração franquia
+                  <input
+                    type="date"
+                    value={form.data_expiracao_franquia}
+                    onChange={(e) => setForm((f) => ({ ...f, data_expiracao_franquia: e.target.value }))}
+                    className={inputClass}
+                  />
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="block text-xs font-medium text-stone-600">
+                  Regional
+                  <select
+                    value={form.regional}
+                    onChange={(e) => setForm((f) => ({ ...f, regional: e.target.value }))}
+                    className={selectClass}
+                  >
+                    <option value="">—</option>
+                    {REDE_OPCOES_REGIONAL.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-xs font-medium text-stone-600">
+                  Área de atuação
+                  <input
+                    type="text"
+                    value={form.area_atuacao}
+                    onChange={(e) => setForm((f) => ({ ...f, area_atuacao: e.target.value }))}
+                    className={inputClass}
+                    placeholder="UF - Cidade; UF - Cidade"
+                  />
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="block text-xs font-medium text-stone-600">
+                  E-mail do Frank
+                  <input
+                    type="email"
+                    value={form.email_frank}
+                    onChange={(e) => setForm((f) => ({ ...f, email_frank: e.target.value }))}
+                    className={inputClass}
+                  />
+                </label>
+                <label className="block text-xs font-medium text-stone-600">
+                  Telefone do Frank
+                  <input
+                    type="tel"
+                    value={form.telefone_frank}
+                    onChange={(e) => setForm((f) => ({ ...f, telefone_frank: e.target.value }))}
+                    className={inputClass}
+                  />
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="block text-xs font-medium text-stone-600">
+                  CPF do Frank
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={form.cpf_frank}
+                    onChange={(e) => setForm((f) => ({ ...f, cpf_frank: e.target.value }))}
+                    className={inputClass}
+                    placeholder="000.000.000-00"
+                  />
+                </label>
+                <label className="block text-xs font-medium text-stone-600">
+                  Data de nascimento
+                  <input
+                    type="date"
+                    value={form.data_nasc_frank}
+                    onChange={(e) => setForm((f) => ({ ...f, data_nasc_frank: e.target.value }))}
+                    className={inputClass}
+                  />
+                </label>
               </div>
 
               <label className="block text-xs font-medium text-stone-600">
-                Regional
+                Endereço (rua)
                 <input
                   type="text"
-                  value={form.regional}
-                  onChange={(e) => setForm((f) => ({ ...f, regional: e.target.value }))}
+                  value={form.endereco_casa_frank}
+                  onChange={(e) => setForm((f) => ({ ...f, endereco_casa_frank: e.target.value }))}
                   className={inputClass}
                 />
               </label>
 
-              <label className="block text-xs font-medium text-stone-600">
-                Área de atuação
-                <input
-                  type="text"
-                  value={form.area_atuacao}
-                  onChange={(e) => setForm((f) => ({ ...f, area_atuacao: e.target.value }))}
-                  className={inputClass}
-                />
-              </label>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <label className="block text-xs font-medium text-stone-600">
+                  Número
+                  <input
+                    type="text"
+                    value={form.endereco_casa_frank_numero}
+                    onChange={(e) => setForm((f) => ({ ...f, endereco_casa_frank_numero: e.target.value }))}
+                    className={inputClass}
+                  />
+                </label>
+                <label className="block text-xs font-medium text-stone-600 sm:col-span-2">
+                  Complemento
+                  <input
+                    type="text"
+                    value={form.endereco_casa_frank_complemento}
+                    onChange={(e) => setForm((f) => ({ ...f, endereco_casa_frank_complemento: e.target.value }))}
+                    className={inputClass}
+                  />
+                </label>
+              </div>
 
-              <label className="block text-xs font-medium text-stone-600">
-                E-mail
-                <input
-                  type="email"
-                  value={form.email_frank}
-                  onChange={(e) => setForm((f) => ({ ...f, email_frank: e.target.value }))}
-                  className={inputClass}
-                />
-              </label>
-
-              <label className="block text-xs font-medium text-stone-600">
-                Responsável comercial
-                <input
-                  type="text"
-                  value={form.responsavel_comercial}
-                  onChange={(e) => setForm((f) => ({ ...f, responsavel_comercial: e.target.value }))}
-                  className={inputClass}
-                />
-              </label>
-
-              <label className="block text-xs font-medium text-stone-600">
-                Telefone
-                <input
-                  type="tel"
-                  value={form.telefone_frank}
-                  onChange={(e) => setForm((f) => ({ ...f, telefone_frank: e.target.value }))}
-                  className={inputClass}
-                />
-              </label>
-
-              <label className="block text-xs font-medium text-stone-600">
-                CPF
-                <input
-                  type="text"
-                  value={form.cpf_frank}
-                  onChange={(e) => setForm((f) => ({ ...f, cpf_frank: e.target.value }))}
-                  className={inputClass}
-                />
-              </label>
-
-              <label className="block text-xs font-medium text-stone-600">
-                Modalidade
-                <input
-                  type="text"
-                  value={form.modalidade}
-                  onChange={(e) => setForm((f) => ({ ...f, modalidade: e.target.value }))}
-                  className={inputClass}
-                />
-              </label>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <label className="block text-xs font-medium text-stone-600">
+                  CEP
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={form.cep_casa_frank}
+                    onChange={(e) => setForm((f) => ({ ...f, cep_casa_frank: e.target.value }))}
+                    className={inputClass}
+                    placeholder="00000-000"
+                  />
+                </label>
+                <label className="block text-xs font-medium text-stone-600">
+                  Estado
+                  <select
+                    value={form.estado_casa_frank}
+                    onChange={(e) => setForm((f) => ({ ...f, estado_casa_frank: e.target.value }))}
+                    className={selectClass}
+                  >
+                    <option value="">—</option>
+                    {UFS_BRASIL.map((uf) => (
+                      <option key={uf.sigla} value={uf.sigla}>
+                        {uf.sigla}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-xs font-medium text-stone-600">
+                  Cidade
+                  <input
+                    type="text"
+                    value={form.cidade_casa_frank}
+                    onChange={(e) => setForm((f) => ({ ...f, cidade_casa_frank: e.target.value }))}
+                    className={inputClass}
+                  />
+                </label>
+              </div>
 
               <label className="block text-xs font-medium text-stone-600">
                 Sócios
@@ -314,7 +576,7 @@ export function NovoFranqueadoModal() {
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || extraindo}
                   className="inline-flex items-center gap-2 rounded-lg bg-[#0c2633] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#163d4d] disabled:opacity-60"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

@@ -267,6 +267,22 @@ export function patchFranqueadoCamposVazios(
   return patch;
 }
 
+/** Preenche só campos vazios do formulário com dados extraídos dos PDFs. */
+export function mesclarExtracaoFormFranqueado<T extends Record<string, string>>(
+  form: T,
+  extraido: Partial<Record<RedeCampoFranqueado, string | null>>,
+): T {
+  const next = { ...form };
+  for (const key of REDE_CAMPOS_DADOS_FRANQUEADO) {
+    const atual = norm((next as Record<string, string>)[key]);
+    if (atual) continue;
+    const v = extraido[key];
+    if (!norm(v)) continue;
+    (next as Record<string, string>)[key] = norm(v);
+  }
+  return next;
+}
+
 export function normalizeRedeAnexoStoragePath(storagePath: string): string {
   let p = norm(storagePath);
   if (!p) return '';

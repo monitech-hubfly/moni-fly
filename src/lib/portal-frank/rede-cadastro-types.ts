@@ -21,7 +21,6 @@ export type RedeFrankFranquiaSomenteLeitura = {
   status_franquia: string | null;
   regional: string | null;
   area_atuacao: string | null;
-  responsavel_comercial: string | null;
 };
 
 /** Pré-preenchimento vindo do banco (convite / validação). */
@@ -36,7 +35,6 @@ export const EMPTY_FRANQUIA_SOMENTE_LEITURA: RedeFrankFranquiaSomenteLeitura = {
   status_franquia: null,
   regional: null,
   area_atuacao: null,
-  responsavel_comercial: null,
 };
 
 export const EMPTY_REDE_FRANK_CADASTRO: RedeFrankCadastroPayload = {
@@ -88,13 +86,11 @@ export function redePrefillParaFranquiaSomenteLeitura(
     status_franquia: pref.status_franquia != null ? String(pref.status_franquia) : null,
     regional: pref.regional != null ? String(pref.regional) : null,
     area_atuacao: pref.area_atuacao != null ? String(pref.area_atuacao) : null,
-    responsavel_comercial:
-      pref.responsavel_comercial != null ? String(pref.responsavel_comercial) : null,
   };
 }
 
 export const REDE_SELECT_FIELDS =
-  'n_franquia, modalidade, nome_completo, status_franquia, regional, area_atuacao, responsavel_comercial, email_frank, telefone_frank, data_nasc_frank, endereco_casa_frank, endereco_casa_frank_numero, endereco_casa_frank_complemento, cep_casa_frank, tamanho_camisa_frank, cpf_frank' as const;
+  'n_franquia, modalidade, nome_completo, status_franquia, regional, area_atuacao, email_frank, telefone_frank, data_nasc_frank, endereco_casa_frank, endereco_casa_frank_numero, endereco_casa_frank_complemento, cep_casa_frank, tamanho_camisa_frank, cpf_frank' as const;
 
 /** Linha `rede_franqueados` (subset do select) → pré-preenchimento de formulários Frank. */
 export function redeSqlRowParaPrefill(rr: Record<string, unknown> | null | undefined): RedeFrankPrefill | null {
@@ -106,7 +102,6 @@ export function redeSqlRowParaPrefill(rr: Record<string, unknown> | null | undef
     status_franquia: rr.status_franquia != null ? String(rr.status_franquia) : null,
     regional: rr.regional != null ? String(rr.regional) : null,
     area_atuacao: rr.area_atuacao != null ? String(rr.area_atuacao) : null,
-    responsavel_comercial: rr.responsavel_comercial != null ? String(rr.responsavel_comercial) : null,
     email_frank: rr.email_frank != null ? String(rr.email_frank) : undefined,
     telefone_frank: rr.telefone_frank != null ? String(rr.telefone_frank) : '',
     data_nasc_frank: rr.data_nasc_frank != null ? String(rr.data_nasc_frank).slice(0, 10) : null,
