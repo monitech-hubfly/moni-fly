@@ -21,7 +21,7 @@ import {
   salvarJustificativaRedeAnexo,
   uploadRedeFranqueadoAssinado,
 } from '../actions';
-import { RedeDocsSecaoColapsavel } from './rede-docs-secao-colapsavel';
+import { RedeDocsSecaoColapsavel, RedeDocsSubsecaoColapsavel } from './rede-docs-secao-colapsavel';
 
 function nomeDoPath(path: string) {
   const parts = path.split('/').filter(Boolean);
@@ -303,16 +303,15 @@ export function RedeFranqueadoDetalheDocs({
       </RedeDocsSecaoColapsavel>
 
       <RedeDocsSecaoColapsavel titulo={REDE_SECAO_DOCS_EMPRESAS.titulo} sectionId={REDE_SECAO_DOCS_EMPRESAS.id}>
-        <div className="space-y-8">
+        <div className="space-y-4">
           {REDE_EMPRESAS_SUBSECOES.map((sub) => (
-            <div key={sub.id}>
-              <h3 className="text-sm font-semibold text-stone-800">{sub.titulo}</h3>
-              <div className="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <RedeDocsSubsecaoColapsavel key={sub.id} titulo={sub.titulo} sectionId={`empresas-${sub.id}`}>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {empresaCards(sub.id).map((config) => (
                   <DocUploadCard key={config.tipo} config={config} {...cardProps} />
                 ))}
               </div>
-            </div>
+            </RedeDocsSubsecaoColapsavel>
           ))}
         </div>
       </RedeDocsSecaoColapsavel>
