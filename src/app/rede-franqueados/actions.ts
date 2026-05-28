@@ -926,6 +926,68 @@ const REDE_ANEXO_COLUNA = {
 
 type RedeAnexoTipo = keyof typeof REDE_ANEXO_COLUNA;
 
+const REDE_ANEXO_NUMERO_FRANQUIA_SQL_HINT =
+  'A coluna de anexo do número de franquia ainda não existe no banco. No Supabase → SQL Editor, execute o arquivo scripts/rede-anexo-numero-franquia.sql (ou a migration 199) e em Settings → API use Reload schema.';
+
+function isRedeAnexoColumnSchemaError(message: string, column: string): boolean {
+  const m = message.toLowerCase();
+  const col = column.toLowerCase();
+  return (m.includes('schema cache') || m.includes('could not find')) && m.includes(col);
+}
+
+/** Cria coluna ausente e recarrega cache PostgREST (service role). */
+async function ensureRedeAnexoNumeroFranquiaColumn(): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const admin = createAdminClient();
+    const { error } = await admin.rpc('ensure_rede_anexo_numero_franquia_column');
+    if (error) {
+      if (/function.*does not exist|could not find.*function/i.test(error.message ?? '')) {
+        return { ok: false, error: REDE_ANEXO_NUMERO_FRANQUIA_SQL_HINT };
+      }
+      return { ok: false, error: error.message || REDE_ANEXO_NUMERO_FRANQUIA_SQL_HINT };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: REDE_ANEXO_NUMERO_FRANQUIA_SQL_HINT };
+  }
+}
+
+async function updateRedeAnexoPath(
+  redeId: string,
+  column: string,
+  storagePath: string,
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.from('rede_franqueados').update({ [column]: storagePath } as never).eq('id', redeId);
+  if (!error) return { ok: true };
+
+  if (column !== 'anexo_numero_franquia_path' || !isRedeAnexoColumnSchemaError(error.message ?? '', column)) {
+    return { ok: false, error: error.message };
+  }
+
+  const ensured = await ensureRedeAnexoNumeroFranquiaColumn();
+  if (!ensured.ok) return ensured;
+
+  try {
+    const admin = createAdminClient();
+    const { error: retryErr } = await admin
+      .from('rede_franqueados')
+      .update({ [column]: storagePath } as never)
+      .eq('id', redeId);
+    if (retryErr) {
+      return {
+        ok: false,
+        error: isRedeAnexoColumnSchemaError(retryErr.message ?? '', column)
+          ? REDE_ANEXO_NUMERO_FRANQUIA_SQL_HINT
+          : retryErr.message,
+      };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: REDE_ANEXO_NUMERO_FRANQUIA_SQL_HINT };
+  }
+}
+
 /** Upload COF, contrato ou documento do número de franquia no bucket `rede-attachments`. */
 export async function uploadRedeFranqueadoAssinado(
   formData: FormData,
@@ -969,13 +1031,10 @@ export async function uploadRedeFranqueadoAssinado(
 
   const oldPath = String((atual as Record<string, unknown>)[col] ?? '').trim() || null;
 
-  const { error: upRow } = await supabase
-    .from('rede_franqueados')
-    .update({ [col]: storagePath } as never)
-    .eq('id', redeId);
-  if (upRow) {
+  const upRow = await updateRedeAnexoPath(redeId, col, storagePath, supabase);
+  if (!upRow.ok) {
     await supabase.storage.from('rede-attachments').remove([storagePath]);
-    return { ok: false, error: upRow.message };
+    return { ok: false, error: upRow.error };
   }
   if (oldPath) await supabase.storage.from('rede-attachments').remove([oldPath]);
 
