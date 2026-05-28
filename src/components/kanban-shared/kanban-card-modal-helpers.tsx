@@ -40,6 +40,8 @@ export type InteracaoModal = {
   responsaveis_resolvidos?: { id: string; nome: string }[];
   /** Quando true, linha oculta no modal (filtrada após carregar). */
   arquivado?: boolean;
+  /** Chamado Sirene espelhado (origem sirene). */
+  sirene_chamado_id?: number | null;
 };
 
 export type SubInteracaoModal = {
@@ -226,6 +228,7 @@ export type SecaoEsquerdaId =
   | 'preObra'
   | 'obra'
   | 'relacionamentos'
+  | 'atasReuniao'
   | 'historico';
 
 export function isoDateOffsetDays(days: number): string {

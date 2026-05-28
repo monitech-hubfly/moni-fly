@@ -17,6 +17,9 @@ import { rankChamadoPainelUnificado } from '@/lib/sirene-painel-chamados-rank';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import { podeExcluirChamadoSirene } from '@/lib/sirene-utils';
 import { notificarMencoesSirene, resolverMencoesSirene } from '@/lib/actions/sirene-mencoes';
+import { criarPastelariaInboxParaChamadoSirene } from '@/lib/pastelaria/sirene-pastel-abertura';
+import { labelPastelariaColuna } from '@/lib/pastelaria/coluna-labels';
+import { syncPastelariaColunaFromSireneStatus } from '@/lib/pastelaria/sirene-status-sync';
 
 export type SireneActionResult = { ok: true } | { ok: false; error: string };
 
@@ -483,8 +486,13 @@ export async function salvarResolucaoComTopicos(
     .eq('id', chamadoId);
   if (updErr) return { ok: false, error: updErr.message };
 
+  const adminSync = createAdminClient();
+  const syncPastel = await syncPastelariaColunaFromSireneStatus(adminSync, chamadoId, 'em_andamento');
+  if (!syncPastel.ok) console.error('[salvarResolucaoComTopicos] sync pastelaria', syncPastel.error);
+
   revalidatePath('/sirene');
   revalidatePath(`/sirene/${chamadoId}`);
+  revalidatePath('/carometro/pastelaria');
   return { ok: true };
 }
 
@@ -751,6 +759,9 @@ export async function criarChamado(
 
   if (!incendio) return { ok: false, error: 'Informe o incêndio (resumo).' };
   if (!tema) return { ok: false, error: 'Selecione o tema do chamado.' };
+  if (!timeAbertura || !aberturaResponsavelNome) {
+    return { ok: false, error: 'Informe o time e o responsável antes de abrir o chamado.' };
+  }
 
   const admin = createAdminClient();
   const nomesPorTimesIds: string[] = [];
@@ -854,6 +865,17 @@ export async function criarChamado(
     return { ok: false, error: kaErr.message };
   }
 
+  const pastelResult = await criarPastelariaInboxParaChamadoSirene(admin, {
+    chamadoId: chamadoRow.id,
+    incendio,
+    timeAbertura,
+    aberturaResponsavelNome,
+    criadoPorUserId: me.userId,
+  });
+  if (!pastelResult.ok && 'error' in pastelResult && pastelResult.error) {
+    console.error('[criarChamado] pastelaria:', pastelResult.error);
+  }
+
   const numero = chamadoRow.numero ?? chamadoRow.id;
   const userIds =
     tipo === 'hdm' && hdmResponsavel
@@ -877,6 +899,7 @@ export async function criarChamado(
 
   revalidatePath('/sirene');
   revalidatePath('/sirene/chamados');
+  revalidatePath('/carometro/pastelaria');
   return { ok: true, chamadoId: chamado.id };
 }
 
@@ -1617,6 +1640,14 @@ export async function fecharChamado(
 
   if (error) return { ok: false, error: error.message };
 
+  const adminSync = createAdminClient();
+  const syncPastel = await syncPastelariaColunaFromSireneStatus(
+    adminSync,
+    chamadoId,
+    'aguardando_aprovacao_criador',
+  );
+  if (!syncPastel.ok) console.error('[fecharChamado] sync pastelaria', syncPastel.error);
+
   const numero = (chamado as { numero?: number })?.numero ?? chamadoId;
   if ((chamado as { aberto_por?: string }).aberto_por) {
     await inserirNotificacao(
@@ -1629,6 +1660,7 @@ export async function fecharChamado(
   }
   revalidatePath('/sirene');
   revalidatePath(`/sirene/${chamadoId}`);
+  revalidatePath('/carometro/pastelaria');
   return { ok: true };
 }
 
@@ -1713,8 +1745,14 @@ export async function concluirChamadoCriador(
     }
   }
 
+  const adminSync = createAdminClient();
+  const statusSync = suficiente ? 'concluido' : 'em_andamento';
+  const syncPastel = await syncPastelariaColunaFromSireneStatus(adminSync, chamadoId, statusSync);
+  if (!syncPastel.ok) console.error('[concluirChamadoCriador] sync pastelaria', syncPastel.error);
+
   revalidatePath('/sirene');
   revalidatePath(`/sirene/${chamadoId}`);
+  revalidatePath('/carometro/pastelaria');
   return { ok: true };
 }
 
@@ -2511,6 +2549,87 @@ export async function listMensagensChamado(chamadoId: number): Promise<
     .order('created_at', { ascending: true });
   if (error) return { ok: false, error: error.message };
   return { ok: true, mensagens: data ?? [] };
+}
+
+export type AtividadePastelariaMensagem = {
+  id: number;
+  autor_nome: string | null;
+  autor_time: string | null;
+  texto: string;
+  created_at: string;
+};
+
+export type GetAtividadePastelariaResult =
+  | { ok: true; hasVinculo: false }
+  | {
+      ok: true;
+      hasVinculo: true;
+      pastelCardId: string;
+      coluna: string;
+      colunaLabel: string;
+      responsavelNome: string | null;
+      mensagens: AtividadePastelariaMensagem[];
+    }
+  | { ok: false; error: string };
+
+/** Feed somente leitura: pastel vinculado ao chamado + comentários Sirene (para card kanban de origem). */
+export async function getAtividadePastelaria(
+  sireneChamadoId: number,
+): Promise<GetAtividadePastelariaResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  if (!Number.isFinite(sireneChamadoId)) {
+    return { ok: false, error: 'Chamado inválido.' };
+  }
+
+  const admin = createAdminClient();
+
+  const { data: vinculo, error: vincErr } = await admin
+    .from('sirene_pastelaria_vinculos')
+    .select('pastelaria_card_id')
+    .eq('sirene_chamado_id', sireneChamadoId)
+    .maybeSingle();
+
+  if (vincErr) return { ok: false, error: vincErr.message };
+  const pastelCardId = (vinculo as { pastelaria_card_id?: string } | null)?.pastelaria_card_id;
+  if (!pastelCardId) return { ok: true, hasVinculo: false };
+
+  const { data: card, error: cardErr } = await admin
+    .from('pastelaria_cards')
+    .select('coluna, responsavel_nome, responsavel_id, area_pessoas!responsavel_id(nome)')
+    .eq('id', pastelCardId)
+    .maybeSingle();
+
+  if (cardErr) return { ok: false, error: cardErr.message };
+  if (!card) return { ok: true, hasVinculo: false };
+
+  const row = card as {
+    coluna: string;
+    responsavel_nome: string | null;
+    area_pessoas?: { nome: string } | { nome: string }[] | null;
+  };
+  const pessoaJoin = row.area_pessoas;
+  const pessoaNome = Array.isArray(pessoaJoin)
+    ? pessoaJoin[0]?.nome?.trim()
+    : pessoaJoin?.nome?.trim();
+  const responsavelNome = pessoaNome || row.responsavel_nome?.trim() || null;
+
+  const msgs = await listMensagensChamado(sireneChamadoId);
+  if (!msgs.ok) return { ok: false, error: msgs.error };
+
+  return {
+    ok: true,
+    hasVinculo: true,
+    pastelCardId,
+    coluna: row.coluna,
+    colunaLabel: labelPastelariaColuna(row.coluna),
+    responsavelNome,
+    mensagens: msgs.mensagens,
+  };
 }
 
 /** Participantes do chamado (para autocomplete @pessoa): criador, bombeiros, times dos tópicos. */

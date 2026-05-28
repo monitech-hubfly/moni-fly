@@ -31,6 +31,7 @@ export interface PastelariaCardRow {
   reclassificado_justificativa: string | null;
   responsavel_id: string | null;
   responsavel_nome: string | null;
+  sirene_chamado_id?: number | null;
   created_by: string | null;
   created_at: string | null;
   updated_at: string | null;

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { fetchAreaNome, registrarLogPastelaria } from '@/lib/pastelaria/audit';
+import { syncSireneStatusFromPastelariaColuna } from '@/lib/pastelaria/sirene-status-sync';
 import { getPastelariaAuthUser, isAuthResponse } from '@/lib/pastelaria/auth';
 import { registrarPastelariaLog } from '@/lib/pastelaria/log';
 import {
@@ -175,6 +177,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         valor_novo: { coluna: patch.coluna },
         descricao: `Moveu pastel "${nomeCard}" de ${prev.coluna} para ${patch.coluna}`,
       });
+
+      const sireneChamadoId = (prev as PastelariaCardRow & { sirene_chamado_id?: number | null })
+        .sirene_chamado_id;
+      if (sireneChamadoId != null && Number.isFinite(Number(sireneChamadoId))) {
+        const admin = createAdminClient();
+        const sync = await syncSireneStatusFromPastelariaColuna(admin, {
+          sireneChamadoId: Number(sireneChamadoId),
+          coluna: patch.coluna as PastelariaColuna,
+        });
+        if (!sync.ok) {
+          console.error('[pastelaria/cards/[id]] PATCH sync sirene', sync.error);
+        }
+      }
     }
 
     const responsavelAlterado =

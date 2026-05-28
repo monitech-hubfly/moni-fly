@@ -264,7 +264,13 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
 
   useEffect(() => {
     const p = pathname ?? '';
-    if (p === '/perfil' || p.startsWith('/admin/usuarios')) setPerfilOpen(true);
+    if (
+      p === '/perfil' ||
+      p.startsWith('/admin/usuarios') ||
+      p.startsWith('/admin/pastelaria')
+    ) {
+      setPerfilOpen(true);
+    }
     if (isNovosNegociosActive(p)) setNovosNegociosOpen(true);
     if (isCreditoJuridicoActive(p)) setCreditoJuridicoOpen(true);
     if (isPreObraActive(p)) setPreObraOpen(true);
@@ -563,12 +569,20 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
               <div className="mt-1 space-y-0.5 pl-6 text-[11px]">
                 <div className="text-stone-500">Papel: {resolvedRole || 'franqueado'}</div>
                 {isAdmin && (
-                  <Link
-                    href="/admin/usuarios"
-                    className="mt-1 block text-left font-semibold text-moni-primary hover:text-moni-secondary"
-                  >
-                    Gerenciar Usuários
-                  </Link>
+                  <>
+                    <Link
+                      href="/admin/usuarios"
+                      className="mt-1 block text-left font-semibold text-moni-primary hover:text-moni-secondary"
+                    >
+                      Gerenciar Usuários
+                    </Link>
+                    <Link
+                      href="/admin/pastelaria/mapeamento"
+                      className="mt-1 block text-left font-semibold text-moni-primary hover:text-moni-secondary"
+                    >
+                      Mapeamento Pastelaria
+                    </Link>
+                  </>
                 )}
                 <Link
                   href="/perfil"

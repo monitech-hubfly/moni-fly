@@ -38,6 +38,7 @@ const PREFIX_TITLE: { prefix: string; title: string }[] = [
   { prefix: '/treinamento-bca', title: 'Treinamento BCA' },
   { prefix: '/universidade', title: 'Universidade' },
   { prefix: '/admin/universidade', title: 'Universidade — Gestão' },
+  { prefix: '/admin/pastelaria/mapeamento', title: 'Mapeamento Pastelaria' },
   { prefix: '/admin/sla', title: 'SLA das fases' },
   { prefix: '/admin', title: 'Admin' },
   { prefix: '/acoplamento-pl', title: 'Acoplamento PL' },

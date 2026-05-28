@@ -54,6 +54,19 @@ export default async function AdminHomePage() {
               SLA das fases
             </Link>
           </li>
+          <li>
+            <Link
+              href="/admin/pastelaria/mapeamento"
+              className="block rounded-xl border px-4 py-4 text-sm font-medium transition hover:opacity-95"
+              style={{
+                borderColor: 'var(--moni-border-default)',
+                background: 'var(--moni-surface-0)',
+                color: 'var(--moni-navy-800)',
+              }}
+            >
+              Mapeamento Pastelaria
+            </Link>
+          </li>
         </ul>
       </main>
     </div>

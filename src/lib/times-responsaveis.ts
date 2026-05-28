@@ -85,7 +85,7 @@ const HDM_RESPONSAVEIS_EMAIL_SET = new Set(
 /** Emails únicos do catálogo HDM (para `profiles.select(...).in('email', …)`). */
 export const HDM_RESPONSAVEIS_TODOS_EMAILS: readonly string[] = [...HDM_RESPONSAVEIS_EMAIL_SET];
 
-function normMoniNome(s: string): string {
+export function normMoniNome(s: string): string {
   return s
     .normalize('NFD')
     .replace(/\p{M}/gu, '')

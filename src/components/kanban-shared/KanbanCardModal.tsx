@@ -97,6 +97,8 @@ import { usePermissoes } from '@/lib/hooks/usePermissoes';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { KanbanCardModalProjetoTab } from './KanbanCardModalProjetoTab';
 import { KanbanCardModalRelacionamentos } from './KanbanCardModalRelacionamentos';
+import { KanbanCardModalAtasReuniao } from './KanbanCardModalAtasReuniao';
+import { KanbanCardDatasFields } from './KanbanCardDatasFields';
 import { MencaoContentEditable } from './MencaoContentEditable';
 import { fetchKanbanFasesAtivas, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
 import { publicarComentarioKanbanCard } from '@/lib/actions/kanban-comentarios';
@@ -127,6 +129,7 @@ import {
   type SubInteracaoModal,
 } from './kanban-card-modal-helpers';
 import { SubInteracaoLista, mapRawTopicoToListaItem } from '@/components/kanban-shared/SubInteracaoLista';
+import { KanbanPastelariaAtividadeSection } from '@/components/kanban-shared/KanbanPastelariaAtividadeSection';
 import {
   enrichResponsaveisIdsComLegadoMoni,
   filtrarOpcoesResponsaveisPorModoHdm,
@@ -287,6 +290,7 @@ export function KanbanCardModal({
     preObra: false,
     obra: false,
     relacionamentos: true,
+    atasReuniao: false,
     historico: false,
   });
   const [legadoCronologiaMoves, setLegadoCronologiaMoves] = useState<ProcessoCardMoveEvt[]>([]);
@@ -335,7 +339,6 @@ export function KanbanCardModal({
   const [enviandoHipotesePortfolio, setEnviandoHipotesePortfolio] = useState(false);
   const [dataReuniao, setDataReuniao] = useState('');
   const [dataFollowup, setDataFollowup] = useState('');
-  const [salvandoDatas, setSalvandoDatas] = useState(false);
   const [interacoes, setInteracoes] = useState<InteracaoModal[]>([]);
   const [modalSessao, setModalSessao] = useState<{
     userId: string | null;
@@ -429,6 +432,7 @@ export function KanbanCardModal({
   const [draftMateriaisFase, setDraftMateriaisFase] = useState<KanbanFaseMaterial[]>([]);
   const [salvandoInstrucoesFase, setSalvandoInstrucoesFase] = useState(false);
   const [relacionamentosTick, setRelacionamentosTick] = useState(0);
+  const [atasReuniaoTick, setAtasReuniaoTick] = useState(0);
   const [gateStep5Toast, setGateStep5Toast] = useState<string | null>(null);
   const [userRoleRaw, setUserRoleRaw] = useState('');
   const [chamadoJuridicoToast, setChamadoJuridicoToast] = useState<{
@@ -642,27 +646,6 @@ export function KanbanCardModal({
       cancel = true;
     };
   }, []);
-
-  async function salvarDatasCard(campo: 'data_reuniao' | 'data_followup', valor: string) {
-    if (!card) return;
-    setSalvandoDatas(true);
-    try {
-      const supabase = createClient();
-      const dataValor = valor.trim() || null;
-      const q =
-        origem === 'nativo'
-          ? supabase.from('kanban_cards').update({ [campo]: dataValor }).eq('id', card.id)
-          : supabase.from('processo_step_one').update({ [campo]: dataValor }).eq('id', card.id);
-      const { error } = await q;
-      if (error) throw error;
-      if (campo === 'data_reuniao') setDataReuniao(valor.trim() ? valor.trim().slice(0, 10) : '');
-      else setDataFollowup(valor.trim() ? valor.trim().slice(0, 10) : '');
-    } catch {
-      alert('Erro ao salvar data.');
-    } finally {
-      setSalvandoDatas(false);
-    }
-  }
 
   async function loadCard() {
     console.log('[DEBUG loadCard] cardId:', cardId, 'origem:', origem);
@@ -1100,7 +1083,7 @@ export function KanbanCardModal({
         const { data: interacoesData, error: interacoesError } = await supabase
           .from('kanban_atividades')
           .select(
-            'id, titulo, descricao, tipo, times_ids, responsaveis_ids, trava, status, prioridade, data_vencimento, responsavel_id, responsavel_nome_texto, time, created_at, concluida_em, origem, criado_por, arquivado',
+            'id, titulo, descricao, tipo, times_ids, responsaveis_ids, trava, status, prioridade, data_vencimento, responsavel_id, responsavel_nome_texto, time, created_at, concluida_em, origem, criado_por, arquivado, sirene_chamado_id',
           )
           .eq('card_id', cardId)
           .eq('origem', origemAtividade)
@@ -1172,6 +1155,12 @@ export function KanbanCardModal({
               times_resolvidos,
               responsaveis_resolvidos,
               arquivado: Boolean((a as { arquivado?: boolean | null }).arquivado),
+              sirene_chamado_id: (() => {
+                const sid = (a as { sirene_chamado_id?: number | string | null }).sirene_chamado_id;
+                if (sid == null || sid === '') return null;
+                const n = Number(sid);
+                return Number.isFinite(n) ? n : null;
+              })(),
             };
           })
             .filter((a) => !a.arquivado);
@@ -2257,6 +2246,14 @@ export function KanbanCardModal({
     });
   }, [interacoes, filtros, kanbanTimes, subInteracoesPorPai]);
 
+  const sireneChamadoIdPastel = useMemo(() => {
+    for (const it of interacoes) {
+      const sid = it.sirene_chamado_id;
+      if (sid != null && Number.isFinite(sid)) return sid;
+    }
+    return null;
+  }, [interacoes]);
+
   const faseNomePorId = useMemo(() => new Map(fases.map((f) => [f.id, f.nome])), [fases]);
 
   const linhasCronologiaFases = useMemo(() => {
@@ -2710,60 +2707,16 @@ export function KanbanCardModal({
               />
             ) : (
             <>
-            <div className="mb-4 flex flex-wrap gap-3">
-              <div className="flex items-center gap-1.5">
-                <div className="relative group">
-                  <span className="text-sm cursor-default">📅</span>
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block whitespace-nowrap rounded bg-stone-800 px-2 py-0.5 text-[10px] text-white z-10">
-                    Data de Reunião
-                  </div>
-                </div>
-                <input
-                  type="date"
-                  value={dataReuniao}
-                  onChange={(e) => setDataReuniao(e.target.value)}
-                  onBlur={(e) => void salvarDatasCard('data_reuniao', e.target.value)}
-                  disabled={salvandoDatas}
-                  className="rounded px-2 py-1 text-xs"
-                  style={{
-                    background: 'var(--moni-surface-50)',
-                    border: '0.5px solid var(--moni-border-default)',
-                    borderRadius: 'var(--moni-radius-md)',
-                  }}
-                />
-                {dataReuniao && (
-                  <span className={`text-[10px] font-semibold ${calcularCorData(dataReuniao)}`}>
-                    {labelData(dataReuniao)}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="relative group">
-                  <span className="text-sm cursor-default">🔄</span>
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block whitespace-nowrap rounded bg-stone-800 px-2 py-0.5 text-[10px] text-white z-10">
-                    Data de Follow-up
-                  </div>
-                </div>
-                <input
-                  type="date"
-                  value={dataFollowup}
-                  onChange={(e) => setDataFollowup(e.target.value)}
-                  onBlur={(e) => void salvarDatasCard('data_followup', e.target.value)}
-                  disabled={salvandoDatas}
-                  className="rounded px-2 py-1 text-xs"
-                  style={{
-                    background: 'var(--moni-surface-50)',
-                    border: '0.5px solid var(--moni-border-default)',
-                    borderRadius: 'var(--moni-radius-md)',
-                  }}
-                />
-                {dataFollowup && (
-                  <span className={`text-[10px] font-semibold ${calcularCorData(dataFollowup)}`}>
-                    {labelData(dataFollowup)}
-                  </span>
-                )}
-              </div>
-            </div>
+            <KanbanCardDatasFields
+              cardId={card.id}
+              origem={origem}
+              basePath={basePath}
+              dataReuniao={dataReuniao}
+              dataFollowup={dataFollowup}
+              onDataReuniaoChange={setDataReuniao}
+              onDataFollowupChange={setDataFollowup}
+              onAtaSalva={() => setAtasReuniaoTick((t) => t + 1)}
+            />
 
             <div className="mb-6">
               <h4
@@ -4067,6 +4020,10 @@ export function KanbanCardModal({
               ) : (
                 <p className="mb-4 text-sm text-stone-500">Nenhum chamado para os filtros.</p>
               )}
+
+              {sireneChamadoIdPastel != null ? (
+                <KanbanPastelariaAtividadeSection sireneChamadoId={sireneChamadoIdPastel} />
+              ) : null}
 
               {pode('criar_chamados') ? (
               <div
@@ -5477,6 +5434,16 @@ export function KanbanCardModal({
                     kanbanId={card.kanban_id}
                     basePath={basePath}
                     podeGerenciar={podeGerenciarRelacionamentos}
+                  />,
+                )}
+                {secaoHead(
+                  'atasReuniao',
+                  'Atas de reunião',
+                  <KanbanCardModalAtasReuniao
+                    key={`${card.id}-atas-${atasReuniaoTick}`}
+                    cardId={card.id}
+                    origem={origem}
+                    refreshKey={atasReuniaoTick}
                   />,
                 )}
                 {secaoHead('obra', 'Dados Obra', <p className="text-xs italic text-stone-500">Placeholder.</p>)}
