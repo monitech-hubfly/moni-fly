@@ -2538,6 +2538,7 @@ export function KanbanCardModal({
     !cardLegadoArquivado;
   const roleNormUsuario = normalizeAccessRole(userRoleRaw);
   const userRoleLc = (userRoleRaw || '').trim().toLowerCase();
+  const usuarioFrank = portalFrank || isFrankOrFranqueadoRole(userRoleRaw);
   const mostrarBotaoJuridico =
     !isLegado &&
     !ocultarGestaoCard &&
