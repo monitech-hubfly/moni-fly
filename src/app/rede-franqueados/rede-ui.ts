@@ -13,10 +13,10 @@ export const redePanel =
   'rounded-lg border border-stone-200/90 bg-white/80 px-4 py-3 shadow-sm';
 
 export const redeBtnPrimary =
-  'inline-flex items-center gap-2 rounded-lg bg-[#0c2633] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#163d4d] disabled:opacity-50';
+  'inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-[#0c2633] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#163d4d] disabled:opacity-50';
 
 export const redeBtnGhost =
-  'inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-transparent px-4 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-100/80 disabled:opacity-50';
+  'inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border border-stone-200 bg-transparent px-4 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-100/80 disabled:opacity-50';
 
 export const redeBtnDestructive =
   'inline-flex items-center gap-2 rounded-lg bg-[#9b4438] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[#843a30] disabled:opacity-50';

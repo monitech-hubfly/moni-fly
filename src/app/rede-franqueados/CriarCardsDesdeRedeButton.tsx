@@ -56,7 +56,7 @@ export function CriarCardsDesdeRedeButton({ linhasSemCard }: Props) {
       </button>
       {mensagem ? (
         <div
-          className={`w-full basis-full ${mensagem.tipo === 'sucesso' ? redeAlertSuccess : redeAlertError}`}
+          className={`absolute right-0 top-full z-20 mt-2 min-w-[16rem] max-w-lg shadow-md ${mensagem.tipo === 'sucesso' ? redeAlertSuccess : redeAlertError}`}
           role="status"
         >
           {mensagem.texto}

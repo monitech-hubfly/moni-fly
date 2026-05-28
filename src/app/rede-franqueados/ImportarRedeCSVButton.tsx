@@ -43,7 +43,7 @@ export function ImportarRedeCSVButton() {
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         <a href="/templates/rede-franqueados-template.csv" download className={redeBtnGhost}>
           <Download className="h-4 w-4" />
           Template CSV
@@ -102,7 +102,7 @@ export function ImportarRedeCSVButton() {
 
       {mensagem ? (
         <div
-          className={`w-full basis-full ${mensagem.tipo === 'sucesso' ? redeAlertSuccess : redeAlertError}`}
+          className={`absolute right-0 top-full z-20 mt-2 min-w-[16rem] max-w-lg shadow-md ${mensagem.tipo === 'sucesso' ? redeAlertSuccess : redeAlertError}`}
           role="status"
         >
           {mensagem.texto}

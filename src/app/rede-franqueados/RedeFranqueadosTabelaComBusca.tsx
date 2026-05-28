@@ -32,8 +32,8 @@ export function RedeFranqueadosTabelaComBusca({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="relative min-w-[200px] flex-1 max-w-md">
+      <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-0.5">
+        <div className="relative min-w-[12rem] max-w-md shrink-0 sm:min-w-[200px] sm:flex-1">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400"
             aria-hidden
@@ -48,7 +48,9 @@ export function RedeFranqueadosTabelaComBusca({
           />
         </div>
         {children ? (
-          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 sm:flex-[2]">{children}</div>
+          <div className="relative ml-auto flex shrink-0 flex-nowrap items-center justify-end gap-2">
+            {children}
+          </div>
         ) : null}
       </div>
       <TabelaRedeFranqueadosEditavel
