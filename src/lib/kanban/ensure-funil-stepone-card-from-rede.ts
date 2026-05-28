@@ -2,8 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const FUNIL_STEP_ONE_NOME = 'Funil Step One';
-/** Slug canônico no DEV (migration 148); não usar fallback por nome. */
-const FASE_CANDIDATO_SLUG = 'stepone_dados_candidato';
+/** PROD: dados_candidato; DEV: stepone_dados_candidato (migration 148). */
+const FASE_CANDIDATO_SLUGS = ['dados_candidato', 'stepone_dados_candidato'] as const;
 
 export type EnsureFunilStepOneCardFromRedeResult =
   | { ok: true; created: boolean; cardId: string | null; repaired?: boolean }
@@ -52,20 +52,21 @@ export async function ensureFunilStepOneCardFromRede(
 
   const kanbanId = String(kanban.id);
 
-  const { data: fase, error: errFase } = await db
+  const { data: fases, error: errFase } = await db
     .from('kanban_fases')
     .select('id, slug')
     .eq('kanban_id', kanbanId)
-    .eq('slug', FASE_CANDIDATO_SLUG)
+    .in('slug', [...FASE_CANDIDATO_SLUGS])
     .eq('ativo', true)
-    .limit(1)
-    .maybeSingle();
+    .order('ordem', { ascending: true })
+    .limit(1);
 
   if (errFase) return { ok: false, error: errFase.message };
+  const fase = fases?.[0] ?? null;
   if (!fase?.id) {
     return {
       ok: false,
-      error: `Fase com slug "${FASE_CANDIDATO_SLUG}" não encontrada no Funil Step One.`,
+      error: `Fase candidato (${FASE_CANDIDATO_SLUGS.join(' ou ')}) não encontrada no Funil Step One.`,
     };
   }
 
