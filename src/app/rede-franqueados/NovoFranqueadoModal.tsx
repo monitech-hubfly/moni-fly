@@ -122,7 +122,7 @@ export function NovoFranqueadoModal() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-moni-primary shadow-sm hover:bg-stone-50"
+        className="inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-transparent px-4 py-2 text-sm font-semibold text-stone-800 transition hover:bg-stone-100/80"
       >
         <UserPlus className="h-4 w-4" />
         Novo Franqueado
@@ -315,7 +315,7 @@ export function NovoFranqueadoModal() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="inline-flex items-center gap-2 rounded-lg bg-moni-primary px-4 py-2 text-sm font-semibold text-white hover:bg-moni-secondary disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#0c2633] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#163d4d] disabled:opacity-60"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   Criar

@@ -4,6 +4,13 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Copy, Loader2, Trash2 } from 'lucide-react';
 import { previewDuplicatasRedeFranqueados, removerDuplicatasRedeFranqueados } from './actions';
+import {
+  redeAlertError,
+  redeAlertSuccess,
+  redeAlertWarning,
+  redeBtnDestructive,
+  redeBtnDestructiveOutline,
+} from './rede-ui';
 
 export function RemoverDuplicatasRedeButton() {
   const router = useRouter();
@@ -67,23 +74,22 @@ export function RemoverDuplicatasRedeButton() {
   };
 
   return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 shadow-sm">
+    <div className={redeAlertWarning}>
       <div className="flex items-start gap-2">
         <Copy className="mt-0.5 h-4 w-4 shrink-0 text-amber-800" aria-hidden />
         <div className="min-w-0 flex-1 space-y-2">
-          <p className="text-sm font-medium text-amber-950">Linhas duplicadas na rede</p>
-          <p className="text-xs text-amber-900/90">
-            Agrupa por <strong>Nº de Franquia</strong> (ex.: FK0016) ou, se estiver vazio, pelo{' '}
-            <strong>nome completo</strong>. Mantém a linha mais completa e remove as outras, transferindo
-            cards e vínculos antes de excluir.
+          <p className="text-sm font-medium text-amber-950">Linhas duplicadas</p>
+          <p className="text-xs leading-relaxed text-amber-900/90">
+            Agrupa por <strong>Nº de Franquia</strong> ou pelo <strong>nome</strong>. Mantém a linha mais
+            completa e remove as outras, transferindo vínculos antes de excluir.
           </p>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 border-t border-amber-200/60 pt-2">
             <button
               type="button"
               disabled={loading !== null}
               onClick={() => void carregarPreview()}
-              className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-950 hover:bg-amber-50 disabled:opacity-50"
+              className={redeBtnDestructiveOutline}
             >
               {loading === 'preview' ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -96,7 +102,7 @@ export function RemoverDuplicatasRedeButton() {
               type="button"
               disabled={loading !== null || (preview !== null && preview.totalRemover === 0)}
               onClick={() => void remover()}
-              className="inline-flex items-center gap-2 rounded-lg bg-amber-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-900 disabled:opacity-50"
+              className={redeBtnDestructive}
             >
               {loading === 'remove' ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -108,7 +114,7 @@ export function RemoverDuplicatasRedeButton() {
           </div>
 
           {preview && preview.totalRemover > 0 ? (
-            <div className="rounded-lg border border-amber-200 bg-white/80 px-3 py-2 text-xs text-amber-950">
+            <div className="rounded-md border border-amber-200/80 bg-white/90 px-3 py-2 text-xs text-amber-950">
               <p>
                 <strong>{preview.totalRemover}</strong> linha(s) a remover em{' '}
                 <strong>{preview.totalGrupos}</strong> grupo(s).
@@ -125,7 +131,12 @@ export function RemoverDuplicatasRedeButton() {
           ) : null}
 
           {msg ? (
-            <p className={`text-xs ${msg.tipo === 'ok' ? 'text-green-800' : 'text-red-700'}`}>{msg.texto}</p>
+            <div
+              className={msg.tipo === 'ok' ? redeAlertSuccess : redeAlertError}
+              role="status"
+            >
+              {msg.texto}
+            </div>
           ) : null}
         </div>
       </div>

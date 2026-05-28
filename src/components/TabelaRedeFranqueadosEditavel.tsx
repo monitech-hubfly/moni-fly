@@ -13,7 +13,8 @@ import {
 } from '@/lib/rede-franqueados';
 import { atualizarRedeFranqueado, excluirRedeFranqueado } from '@/app/rede-franqueados/actions';
 import { UFS_BRASIL } from '@/lib/uf';
-import { RedeFranqueadoCellClamp } from '@/components/RedeFranqueadoCellClamp';
+import { RedeFranqueadoCellValue } from '@/components/RedeFranqueadoCellValue';
+import { redeAlertError, redeAlertSuccess, redeTh } from '@/app/rede-franqueados/rede-ui';
 
 type AreaAtuacaoItem = { estado: string; cidade: string };
 type CidadeIBGE = { id: number; nome: string };
@@ -301,17 +302,17 @@ export function TabelaRedeFranqueadosEditavel({
   return (
     <div className="space-y-4">
       {msg && (
-        <div className={`rounded-xl border p-3 text-sm ${msg.tipo === 'ok' ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
+        <div className={msg.tipo === 'ok' ? redeAlertSuccess : redeAlertError} role="status">
           {msg.texto}
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white">
+      <div className="overflow-x-auto rounded-xl border border-stone-200/90 bg-white shadow-sm">
         <table className="w-full min-w-[1700px] border-collapse text-left text-sm">
           <thead>
-            <tr className="border-b border-stone-200 bg-stone-50">
+            <tr className="border-b border-stone-200 bg-stone-50/95">
               {headers.map((h, i) => (
-                <th key={i} className="whitespace-nowrap px-3 py-2 font-semibold text-stone-700">
+                <th key={i} className={redeTh}>
                   {h}
                 </th>
               ))}
@@ -329,7 +330,7 @@ export function TabelaRedeFranqueadosEditavel({
             {pageRows.map((r) => {
               const isEditing = editingId === r.id;
               return (
-                <tr key={r.id} className="group border-b border-stone-100 align-top hover:bg-stone-50/80">
+                <tr key={r.id} className="group border-b border-stone-100 align-top transition-colors hover:bg-stone-50/70">
                   {keys.map((k) => {
                     const current = (r[k] ?? '') as string;
                     const value = (draft[k] ?? '') as string;
@@ -337,9 +338,9 @@ export function TabelaRedeFranqueadosEditavel({
                       k === 'n_franquia' ? formatNFranquiaRedeExibicao(current, r.ordem) : current;
                     const isAreaAtuacao = k === 'area_atuacao';
                     return (
-                      <td key={k} className="min-w-0 max-w-[14rem] overflow-hidden px-3 py-2 align-top text-stone-700">
+                      <td key={k} className="min-w-0 max-w-[14rem] overflow-hidden px-3 py-2.5 align-top text-stone-700">
                         {!isEditing ? (
-                          <RedeFranqueadoCellClamp text={shown} titleText={current} />
+                          <RedeFranqueadoCellValue field={k} text={shown} titleText={current} />
                         ) : isAreaAtuacao ? (
                           <div className="min-w-[280px] space-y-2">
                             {areaAtuacaoItens.length > 0 && (

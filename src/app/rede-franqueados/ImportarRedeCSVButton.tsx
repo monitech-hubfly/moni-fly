@@ -4,6 +4,13 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Download, FileSpreadsheet, Loader2, ExternalLink, Upload, RefreshCw } from 'lucide-react';
 import { atualizarRedeFranqueadosCSV, importarRedeFranqueadosCSV } from './actions';
+import {
+  redeAlertError,
+  redeAlertSuccess,
+  redeBtnGhost,
+  redeBtnPrimary,
+  redePanel,
+} from './rede-ui';
 
 const PLANILHA_URL =
   'https://docs.google.com/spreadsheets/d/1ksBuiPbUm_OWh-S6w4j1kWxaI7SG2Q0YlsV3zHxCkuQ/edit?gid=1330850735#gid=1330850735';
@@ -44,55 +51,42 @@ export function ImportarRedeCSVButton() {
   };
 
   return (
-    <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm font-medium text-stone-700">
-          <FileSpreadsheet className="h-4 w-4" />
-          Importar CSV da planilha
+    <div className={redePanel}>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-medium text-stone-800">
+          <FileSpreadsheet className="h-4 w-4 text-stone-500" aria-hidden />
+          Importar CSV
         </div>
         <a
           href={PLANILHA_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-xs text-moni-primary hover:underline"
+          className="inline-flex items-center gap-1 text-xs text-stone-600 hover:text-[#0c2633] hover:underline"
         >
           Abrir planilha
           <ExternalLink className="h-3 w-3" />
         </a>
       </div>
 
-      <p className="mb-3 text-xs text-stone-600">
-        Exporte no Google Sheets (Arquivo → Fazer download → Valores separados por vírgula .csv). Use os mesmos
-        cabeçalhos da tabela (ou o{' '}
-        <a className="text-moni-primary hover:underline" href="/templates/rede-franqueados-template.csv">
-          template CSV
+      <p className="mb-2 text-xs leading-relaxed text-stone-600">
+        Exporte no Google Sheets (CSV). Use os cabeçalhos da tabela ou o{' '}
+        <a className="text-[#0c2633] hover:underline" href="/templates/rede-franqueados-template.csv">
+          template
         </a>
-        ).
+        . <strong>Importar</strong> cria linhas e cards; <strong>Atualizar</strong> localiza pelo Nº de Franquia
+        (células vazias não apagam dados).
       </p>
-      <ul className="mb-3 list-inside list-disc space-y-1 text-xs text-stone-600">
-        <li>
-          <strong>Importar (novas linhas)</strong> — adiciona franqueados e pode criar cards no Step 1.
-        </li>
-        <li>
-          <strong>Atualizar existentes</strong> — localiza cada linha pelo <strong>Nº de Franquia</strong> e preenche
-          só os campos com valor no CSV (células vazias não apagam o que já está salvo).
-        </li>
-      </ul>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <a
-          href="/templates/rede-franqueados-template.csv"
-          download
-          className="inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
-        >
+      <div className="flex flex-wrap items-center gap-2">
+        <a href="/templates/rede-franqueados-template.csv" download className={redeBtnGhost}>
           <Download className="h-4 w-4" />
-          Baixar template
+          Template
         </a>
         <button
           type="button"
           onClick={() => abrirArquivo('inserir')}
           disabled={loadingModo !== null}
-          className="inline-flex items-center gap-2 rounded-lg bg-moni-primary px-4 py-2 text-sm font-medium text-white hover:bg-moni-secondary disabled:opacity-50"
+          className={redeBtnPrimary}
         >
           {loadingModo === 'inserir' ? (
             <>
@@ -102,7 +96,7 @@ export function ImportarRedeCSVButton() {
           ) : (
             <>
               <Upload className="h-4 w-4" />
-              Importar (novas linhas + cards)
+              Importar (novas + cards)
             </>
           )}
         </button>
@@ -110,7 +104,7 @@ export function ImportarRedeCSVButton() {
           type="button"
           onClick={() => abrirArquivo('atualizar')}
           disabled={loadingModo !== null}
-          className="inline-flex items-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-800 hover:bg-stone-50 disabled:opacity-50"
+          className={redeBtnGhost}
         >
           {loadingModo === 'atualizar' ? (
             <>
@@ -120,7 +114,7 @@ export function ImportarRedeCSVButton() {
           ) : (
             <>
               <RefreshCw className="h-4 w-4" />
-              Atualizar linhas existentes
+              Atualizar existentes
             </>
           )}
         </button>
@@ -139,9 +133,9 @@ export function ImportarRedeCSVButton() {
       </div>
 
       {mensagem ? (
-        <p className={`mt-3 text-sm ${mensagem.tipo === 'sucesso' ? 'text-green-700' : 'text-red-600'}`}>
+        <div className={`mt-3 ${mensagem.tipo === 'sucesso' ? redeAlertSuccess : redeAlertError}`} role="status">
           {mensagem.texto}
-        </p>
+        </div>
       ) : null}
     </div>
   );

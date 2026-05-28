@@ -69,17 +69,23 @@ export default async function RedeFranqueadosPage() {
         ) : null}
 
         {canManage ? (
-          <div className="mt-10 space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+          <section className="mt-10 space-y-4 rounded-xl border border-stone-200/90 bg-white/60 p-4 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-500">
+                Ferramentas da planilha
+              </h3>
               <AdicionarRedeECardButton />
             </div>
             <ImportarRedeCSVButton />
-            <RemoverDuplicatasRedeButton />
-            <CriarCardsDesdeRedeButton linhasSemCard={linhasSemCard} />
-          </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <RemoverDuplicatasRedeButton />
+              <CriarCardsDesdeRedeButton linhasSemCard={linhasSemCard} />
+            </div>
+          </section>
         ) : null}
 
-        <section className="mt-10 space-y-3">
+        <section className="mt-10 space-y-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-500">Planilha</h3>
           {rows ? (
             <RedeFranqueadosTabelaComBusca rows={rows} canEditRows={canManage}>
               {canManage ? <NovoFranqueadoModal /> : null}

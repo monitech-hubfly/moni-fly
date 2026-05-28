@@ -25,7 +25,7 @@ export function RedeFranqueadosTabelaComBusca({ rows, canEditRows, children }: P
   }, [rows, busca]);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative min-w-[200px] flex-1 max-w-md">
           <Search
@@ -37,7 +37,7 @@ export function RedeFranqueadosTabelaComBusca({ rows, canEditRows, children }: P
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Pesquisar em qualquer coluna da planilha…"
-            className="w-full rounded-lg border border-stone-300 bg-white py-2 pl-9 pr-3 text-sm text-stone-800 placeholder:text-stone-400 focus:border-moni-primary focus:outline-none focus:ring-1 focus:ring-moni-primary"
+            className="w-full rounded-lg border border-stone-200 bg-white py-2 pl-9 pr-3 text-sm text-stone-800 shadow-sm placeholder:text-stone-400 focus:border-[#0c2633] focus:outline-none focus:ring-1 focus:ring-[#0c2633]/30"
             aria-label="Pesquisar franqueados na tabela"
           />
         </div>

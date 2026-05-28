@@ -334,7 +334,7 @@ export function AdicionarRedeECardButton() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-lg bg-moni-primary px-4 py-2 text-sm font-medium text-white hover:bg-moni-secondary"
+        className="inline-flex items-center gap-2 rounded-lg bg-[#0c2633] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#163d4d]"
       >
         <Plus className="h-4 w-4" />
         Adicionar franqueado (gera card Step 1)
