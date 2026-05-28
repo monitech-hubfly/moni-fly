@@ -121,6 +121,47 @@ function CidadeCombobox({
 
 const PER_PAGE = 15;
 
+/** Primeiras colunas fixas ao rolar horizontalmente (até Status da Franquia). */
+const REDE_STICKY_COLUMN_COUNT = 4;
+const REDE_STICKY_COLUMN_WIDTHS_REM = [5.5, 7, 13, 10] as const;
+
+function stickyLeftRem(index: number): number {
+  let left = 0;
+  for (let i = 0; i < index; i++) left += REDE_STICKY_COLUMN_WIDTHS_REM[i] ?? 0;
+  return left;
+}
+
+function stickyCellProps(
+  index: number,
+  variant: 'head' | 'body',
+): { className: string; style?: React.CSSProperties } {
+  if (index >= REDE_STICKY_COLUMN_COUNT) {
+    return {
+      className:
+        variant === 'head'
+          ? redeTh
+          : 'min-w-0 max-w-[14rem] overflow-hidden px-3 py-2.5 align-top text-stone-700',
+    };
+  }
+  const widthRem = REDE_STICKY_COLUMN_WIDTHS_REM[index];
+  const isLastSticky = index === REDE_STICKY_COLUMN_COUNT - 1;
+  return {
+    className: [
+      variant === 'head' ? redeTh : 'overflow-hidden px-3 py-2.5 align-top text-stone-700',
+      'sticky border-r',
+      isLastSticky ? 'border-stone-200 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)]' : 'border-stone-100/90',
+      variant === 'head' ? 'bg-stone-50/95' : 'bg-white group-hover:bg-stone-50/90',
+    ].join(' '),
+    style: {
+      left: `${stickyLeftRem(index)}rem`,
+      minWidth: `${widthRem}rem`,
+      width: `${widthRem}rem`,
+      maxWidth: `${widthRem}rem`,
+      zIndex: variant === 'head' ? 32 + index : 14 + index,
+    },
+  };
+}
+
 type Props = {
   rows: RedeFranqueadoRowDb[];
   /** Apenas administradores (e perfis equivalentes no authz) podem editar/excluir linhas. */
@@ -316,11 +357,14 @@ export function TabelaRedeFranqueadosEditavel({
         <table className="w-full min-w-[1700px] border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-stone-200 bg-stone-50/95">
-              {headers.map((h, i) => (
-                <th key={i} className={redeTh}>
-                  {h}
-                </th>
-              ))}
+              {headers.map((h, i) => {
+                const sticky = stickyCellProps(i, 'head');
+                return (
+                  <th key={i} className={sticky.className} style={sticky.style} scope="col">
+                    {h}
+                  </th>
+                );
+              })}
               {canEditRows ? (
                 <th
                   className="sticky right-0 z-20 w-14 min-w-[3.5rem] border-l border-stone-200 bg-stone-50 px-1 py-2 text-center shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)]"
@@ -336,15 +380,16 @@ export function TabelaRedeFranqueadosEditavel({
               const isEditing = editingId === r.id;
               return (
                 <tr key={r.id} className="group border-b border-stone-100 align-top transition-colors hover:bg-stone-50/70">
-                  {keys.map((k) => {
+                  {keys.map((k, colIndex) => {
                     const current = (r[k] ?? '') as string;
                     const value = (draft[k] ?? '') as string;
                     const shown =
                       k === 'n_franquia' ? formatNFranquiaRedeExibicao(current, r.ordem) : current;
                     const isAreaAtuacao = k === 'area_atuacao';
                     const maskCell = maskSensitiveColumns && isRedeColunaDadoSensivel(k);
+                    const sticky = stickyCellProps(colIndex, 'body');
                     return (
-                      <td key={k} className="min-w-0 max-w-[14rem] overflow-hidden px-3 py-2.5 align-top text-stone-700">
+                      <td key={k} className={sticky.className} style={sticky.style}>
                         {!isEditing ? (
                           maskCell ? (
                             <RedeFranqueadoSensitiveBlur />
