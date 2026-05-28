@@ -11,6 +11,7 @@ import { pendenciasDocsFranquiaRede } from '@/lib/rede-documentos-franquia';
 import { ocultarRegionalEAtuacaoNaVisaoFranqueado } from '@/lib/rede-visibilidade-franqueado';
 import { MapBrazilCidadesAtuacao } from './MapBrazilCidadesAtuacao';
 import { RedeCidadeBarRow } from './rede-cidade-bar-row';
+import { RedeCrescimentoMensalChart } from './rede-crescimento-mensal-chart';
 import { RedeFiltroUfSelect } from './rede-filtro-uf-select';
 import { RedeVisaoRegionalClassificacao } from './rede-visao-regional-class';
 
@@ -53,13 +54,6 @@ function monthKey(dateStr: string): string | null {
   return `${y}-${m}`;
 }
 
-function monthLabel(key: string): string {
-  const [y, m] = key.split('-');
-  const month = Number(m);
-  const names = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-  return `${names[Math.max(1, Math.min(12, month)) - 1]}/${String(y).slice(-2)}`;
-}
-
 function pct(n: number, total: number): string {
   if (!total) return '0%';
   return `${((n / total) * 100).toFixed(1).replace('.', ',')}%`;
@@ -68,14 +62,6 @@ function pct(n: number, total: number): string {
 function barWidth(n: number, max: number): string {
   if (!max) return '0%';
   return `${Math.round((n / max) * 100)}%`;
-}
-
-function growthBarFill(n: number, max: number): string {
-  if (!max || n <= 0) return 'var(--moni-rede-map-tier-0)';
-  const r = n / max;
-  if (r >= 0.85) return 'var(--moni-rede-map-tier-3)';
-  if (r >= 0.45) return 'var(--moni-rede-map-tier-2)';
-  return 'var(--moni-rede-map-tier-1)';
 }
 
 type FiltroAno = 'tudo' | '2025' | '2026';
@@ -299,7 +285,6 @@ export function RedeDashboard({
     rowsPorMes.set(k, list);
   }
   const mesArr = [...porMes.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  const maxMes = Math.max(0, ...mesArr.map(([, v]) => v));
 
   const rowsPorRegional = new Map<string, RedeFranqueadoRowDb[]>();
   for (const r of linhasRegionalAtuacaoCharts) {
@@ -344,11 +329,22 @@ export function RedeDashboard({
     [filteredRows],
   );
 
-  const mesArrExibicao = useMemo(() => {
-    if (filtroAno === 'tudo') return mesArr;
-    return mesArr.filter(([k]) => k.startsWith(filtroAno));
-  }, [mesArr, filtroAno]);
-  const maxMesExibicao = Math.max(0, ...mesArrExibicao.map(([, v]) => v));
+  const mesStatsExibicao = useMemo(() => {
+    const filtrado = filtroAno === 'tudo' ? mesArr : mesArr.filter(([k]) => k.startsWith(filtroAno));
+    return filtrado.map(([key, total]) => {
+      const list = rowsPorMes.get(key) ?? [];
+      const pagante = list.filter((r) => isRedeClassificacaoPagante(r.classificacao_franqueado)).length;
+      const beta = list.filter((r) => isRedeClassificacaoBeta(r.classificacao_franqueado)).length;
+      return {
+        key,
+        total,
+        pagante,
+        beta,
+        outros: Math.max(0, total - pagante - beta),
+        rows: list,
+      };
+    });
+  }, [mesArr, filtroAno, rowsPorMes]);
 
   const totalGeral = rows.length;
   const operacaoGeral = rows.filter((r) => isEmOperacao(norm(r.status_franquia))).length;
@@ -560,78 +556,12 @@ export function RedeDashboard({
       </div>
 
       {!modoAggregado ? (
-        <div className="rounded-xl border p-4" style={chartCardStyle}>
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <p className="text-[13px] font-medium" style={{ color: 'var(--moni-text-primary)' }}>
-                Crescimento mensal — novas franquias assinadas
-              </p>
-              <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                Contratos assinados por mês (Data de Ass. Contrato).
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <FilterPill active={filtroAno === 'tudo'} onClick={() => setFiltroAno('tudo')}>
-                Tudo
-              </FilterPill>
-              <FilterPill active={filtroAno === '2025'} onClick={() => setFiltroAno('2025')}>
-                2025
-              </FilterPill>
-              <FilterPill active={filtroAno === '2026'} onClick={() => setFiltroAno('2026')}>
-                2026
-              </FilterPill>
-            </div>
-          </div>
-          <div className="mt-4 overflow-x-auto">
-            {mesArrExibicao.length === 0 ? (
-              <p className="py-6 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
-                Sem datas de contrato no período selecionado.
-              </p>
-            ) : (
-              <div
-                className="flex min-w-min items-end gap-2 px-1 pb-1 pt-2"
-                role="img"
-                aria-label="Gráfico de barras — contratos por mês"
-              >
-                {mesArrExibicao.map(([k, v]) => {
-                  const list = rowsPorMes.get(k) ?? [];
-                  const h = Math.max(10, Math.round((v / (maxMesExibicao || 1)) * 112));
-                  return (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => setListaModal({ titulo: `${monthLabel(k)} — ${v} franquia(s)`, rows: list })}
-                      className="group flex w-11 shrink-0 flex-col items-center gap-1.5 rounded-md px-0.5 py-1 transition hover:bg-[var(--moni-surface-100)]"
-                      title={`${monthLabel(k)}: ${v} franquia(s)`}
-                    >
-                      <span
-                        className="text-xs font-semibold tabular-nums leading-none"
-                        style={{ color: 'var(--moni-text-primary)' }}
-                      >
-                        {v}
-                      </span>
-                      <div className="flex h-[112px] w-full items-end justify-center">
-                        <div
-                          className="w-7 rounded-sm transition group-hover:opacity-90"
-                          style={{
-                            height: `${h}px`,
-                            backgroundColor: growthBarFill(v, maxMesExibicao),
-                          }}
-                        />
-                      </div>
-                      <span
-                        className="whitespace-nowrap text-center text-[10px] font-medium leading-tight tracking-tight"
-                        style={{ color: 'var(--moni-text-tertiary)' }}
-                      >
-                        {monthLabel(k)}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
+        <RedeCrescimentoMensalChart
+          months={mesStatsExibicao}
+          filtroAno={filtroAno}
+          onFiltroAno={setFiltroAno}
+          onOpenLista={(titulo, listaRows) => setListaModal({ titulo, rows: listaRows })}
+        />
       ) : null}
 
       {!modoAggregado && listaModal && (
