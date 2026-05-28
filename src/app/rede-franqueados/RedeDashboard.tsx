@@ -97,7 +97,7 @@ function FilterPill({
     <button
       type="button"
       onClick={onClick}
-      className="rounded-full px-4 py-1.5 text-xs font-medium transition hover:opacity-90"
+      className="inline-flex h-8 shrink-0 items-center justify-center rounded-full px-4 text-xs font-medium transition hover:opacity-90"
       style={
         active
           ? {
@@ -354,12 +354,15 @@ export function RedeDashboard({
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+      <div className="flex min-h-8 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <h3
+          className="m-0 flex h-8 shrink-0 items-center text-sm font-semibold leading-none"
+          style={{ color: 'var(--moni-text-primary)' }}
+        >
           Visão geral
         </h3>
         {!visaoFranqueado ? (
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center gap-2 sm:ml-auto sm:justify-end">
             <FilterPill active={filtro === 'todos'} onClick={() => setFiltro('todos')}>
               Todos ({totalGeral})
             </FilterPill>
