@@ -28,6 +28,7 @@ export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/funil-moni-inc',
   '/dashboard-novos-negocios',
   '/perfil',
+  '/alertas',
   '/sirene',
   '/universidade',
   '/admin/universidade',
@@ -60,6 +61,7 @@ export const FRANK_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/casa0',
   '/casa1',
   '/minhas-empresas',
+  '/alertas',
 ] as const;
 
 /**
@@ -72,7 +74,6 @@ export const FRANK_FORBIDDEN_PATH_PREFIXES: readonly string[] = [
   '/saude-unidade',
   '/unidade-franquia',
   '/catalogo-produtos-moni',
-  '/alertas',
   '/obra-ways',
   '/funil-juridico',
   '/funil-moni-capital',

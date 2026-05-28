@@ -97,7 +97,9 @@ import { usePermissoes } from '@/lib/hooks/usePermissoes';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { KanbanCardModalProjetoTab } from './KanbanCardModalProjetoTab';
 import { KanbanCardModalRelacionamentos } from './KanbanCardModalRelacionamentos';
+import { MencaoContentEditable } from './MencaoContentEditable';
 import { fetchKanbanFasesAtivas, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
+import { publicarComentarioKanbanCard } from '@/lib/actions/kanban-comentarios';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 import {
   countKanbanModalInteracoesFiltrosAtivos,
@@ -1750,23 +1752,15 @@ export function KanbanCardModal({
     if (!card || !novoComentarioCard.trim()) return;
     setSalvandoComentario(true);
     try {
-      const supabase = createClient();
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError) {
-        alert(`Erro de autenticação: ${authError.message}`);
-        return;
-      }
-      if (!user) {
-        alert('Usuário não encontrado. Faça login novamente.');
-        return;
-      }
-      const { error } = await supabase.from('kanban_card_comentarios').insert({
-        card_id: card.id,
-        autor_id: user.id,
-        conteudo: novoComentarioCard.trim(),
+      const conteudo = (comentarioEditorRef.current?.innerHTML ?? novoComentarioCard).trim();
+      const result = await publicarComentarioKanbanCard({
+        cardId: card.id,
+        conteudo,
+        faseId: faseAtual?.id ?? null,
+        basePath,
       });
-      if (error) {
-        alert(`Erro do banco: ${error.message}\nCódigo: ${error.code}\nDetalhes: ${error.details ?? '—'}\nHint: ${error.hint ?? '—'}`);
+      if (!result.ok) {
+        alert(result.error);
         return;
       }
       setNovoComentarioCard('');
@@ -4374,14 +4368,11 @@ export function KanbanCardModal({
                           title="Itálico"
                         >I</button>
                       </div>
-                      <div
-                        ref={comentarioEditorRef}
-                        contentEditable
-                        suppressContentEditableWarning
-                        onInput={(e) => setNovoComentarioCard((e.currentTarget as HTMLDivElement).innerHTML)}
-                        className="min-h-[80px] w-full p-3 text-sm focus:outline-none empty:before:text-stone-400 empty:before:content-[attr(data-placeholder)]"
-                        style={{ background: 'var(--moni-surface-0)' }}
-                        data-placeholder="Escreva um comentário…"
+                      <MencaoContentEditable
+                        editorRef={comentarioEditorRef}
+                        onInput={(html) => setNovoComentarioCard(html)}
+                        className="min-h-[80px] w-full bg-[var(--moni-surface-0)] p-3 text-sm focus:outline-none empty:before:text-stone-400 empty:before:content-[attr(data-placeholder)]"
+                        placeholder="Escreva um comentário… Use @ para mencionar alguém"
                       />
                     </div>
                     <button

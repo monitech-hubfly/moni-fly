@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { Bell, Building2, ChevronDown, ChevronRight, User } from 'lucide-react';
+import { Building2, ChevronDown, ChevronRight, User } from 'lucide-react';
+import { AlertasBellLink } from '@/components/AlertasBellLink';
 import { createClient } from '@/lib/supabase/client';
 import { canAccessFunilContratacoes, isAdminRole, isRedeStaffRole, normalizeAccessRole } from '@/lib/authz';
 import { isLiveLimitedRelease, showDevOnlySidebarNav } from '@/lib/release-scope';
@@ -358,14 +359,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
         <Link href="/" className="text-lg font-semibold tracking-tight text-moni-primary hover:text-moni-secondary">
           Moní
         </Link>
-        <Link
-          href={isAdmin ? '/alertas' : showDevNav ? '/comunidade' : '/rede-franqueados'}
-          className="flex items-center justify-center rounded-full p-1.5 text-amber-500 hover:bg-amber-50 hover:text-amber-600"
-          title={isAdmin ? 'Alertas' : showDevNav ? 'Comunidade' : 'Rede de Franqueados'}
-          aria-label="Notificações"
-        >
-          <Bell className="h-5 w-5" />
-        </Link>
+        <AlertasBellLink userId={user?.id} />
       </div>
 
       {/* Navegação principal com macro-itens e subitens */}
