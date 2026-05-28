@@ -67,6 +67,9 @@ export async function updateSession(request: NextRequest) {
     '/funil-acoplamento',
     '/funil-juridico',
     '/funil-moni-capital',
+    '/funil-produto',
+    '/funil-modelo-virtual',
+    '/funil-homologacoes',
     '/funil-contratacoes',
     '/dashboard',
     '/operacoes',
@@ -131,7 +134,13 @@ export async function updateSession(request: NextRequest) {
     return response;
   }
 
-  const funisInternosNegocioPaths = ['/funil-juridico', '/funil-moni-capital'] as const;
+  const funisInternosNegocioPaths = [
+    '/funil-juridico',
+    '/funil-moni-capital',
+    '/funil-produto',
+    '/funil-modelo-virtual',
+    '/funil-homologacoes',
+  ] as const;
   if (
     funisInternosNegocioPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`)) &&
     !pathname.startsWith('/api')

@@ -64,6 +64,11 @@ const PRE_OBRA_SUBITENS: NavItem[] = [
   { href: '/operacoes', label: 'Funil Operações' },
   { href: '/funil-projeto-legal', label: 'Funil de Projeto Legal' },
 ];
+const HDM_SUBITENS: NavItem[] = [
+  { href: '/funil-produto', label: 'Produto' },
+  { href: '/funil-modelo-virtual', label: 'Modelo Virtual' },
+  { href: '/funil-homologacoes', label: 'Homologações' },
+];
 const INTERNO_SUBITENS: NavItem[] = [{ href: '/funil-contratacoes', label: 'Contratações' }];
 const SIRENE_SUBITENS: NavItem[] = [{ href: '/sirene/chamados', label: 'Chamados' }];
 const CAROMETRO_SUBITENS: NavItem[] = [
@@ -157,6 +162,14 @@ function isPreObraActive(pathname: string) {
   return pathname.startsWith('/operacoes') || pathname.startsWith('/funil-projeto-legal');
 }
 
+function isHdmActive(pathname: string) {
+  return (
+    pathname.startsWith('/funil-produto') ||
+    pathname.startsWith('/funil-modelo-virtual') ||
+    pathname.startsWith('/funil-homologacoes')
+  );
+}
+
 function isInternoNavActive(pathname: string) {
   return pathname.startsWith('/funil-contratacoes');
 }
@@ -196,6 +209,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
   const showNovosNegociosNav = publicVisitor || isStaff || isFrank;
   const showCreditoJuridicoNav = publicVisitor || isStaff;
   const showPreObraNav = publicVisitor || isStaff;
+  const showHdmNav = publicVisitor || isStaff;
 
   const novosNegociosSubitens = useMemo(
     () => buildNovosNegociosSubitens(resolvedRole, publicVisitor),
@@ -232,6 +246,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
     isCreditoJuridicoActive(pathname ?? ''),
   );
   const [preObraOpen, setPreObraOpen] = useState(() => isPreObraActive(pathname ?? ''));
+  const [hdmOpen, setHdmOpen] = useState(() => isHdmActive(pathname ?? ''));
   const [internoOpen, setInternoOpen] = useState(() => isInternoNavActive(pathname ?? ''));
   const [sireneOpen, setSireneOpen] = useState(() => isSireneNavActive(pathname ?? ''));
   const [carometroOpen, setCarometroOpen] = useState(() => isCarometroNavActive(pathname ?? ''));
@@ -250,6 +265,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
     if (isNovosNegociosActive(p)) setNovosNegociosOpen(true);
     if (isCreditoJuridicoActive(p)) setCreditoJuridicoOpen(true);
     if (isPreObraActive(p)) setPreObraOpen(true);
+    if (isHdmActive(p)) setHdmOpen(true);
     if (isInternoNavActive(p)) setInternoOpen(true);
     if (isSireneNavActive(p)) setSireneOpen(true);
     if (isCarometroNavActive(p)) setCarometroOpen(true);
@@ -285,6 +301,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
       | 'novosNegocios'
       | 'creditoJuridico'
       | 'preObra'
+      | 'hdm'
       | 'interno'
       | 'sirene'
       | 'carometro',
@@ -399,6 +416,17 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
             preObraOpen,
             setPreObraOpen,
             PRE_OBRA_SUBITENS,
+            (href) => pathname === href || (pathname?.startsWith(href + '/') ?? false),
+          )}
+
+        {showHdmNav &&
+          renderMacro(
+            'hdm',
+            'HDM',
+            isHdmActive(pathname ?? ''),
+            hdmOpen,
+            setHdmOpen,
+            HDM_SUBITENS,
             (href) => pathname === href || (pathname?.startsWith(href + '/') ?? false),
           )}
 

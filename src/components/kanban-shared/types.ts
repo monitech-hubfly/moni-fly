@@ -9,6 +9,9 @@ export type KanbanNomeDisplay =
   | 'Funil Jurídico'
   | 'Funil Moní Capital'
   | 'Funil Contratações'
+  | 'Funil Produto'
+  | 'Funil Modelo Virtual'
+  | 'Funil Homologações'
   | 'Funil Operações'
   | 'Funil Contabilidade'
   | 'Funil Crédito';

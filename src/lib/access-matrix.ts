@@ -15,6 +15,9 @@ export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/funil-acoplamento',
   '/funil-juridico',
   '/funil-moni-capital',
+  '/funil-produto',
+  '/funil-modelo-virtual',
+  '/funil-homologacoes',
   '/operacoes',
   '/funil-stepone',
   '/loteadores',
@@ -68,6 +71,9 @@ export const FRANK_FORBIDDEN_PATH_PREFIXES: readonly string[] = [
   '/obra-ways',
   '/funil-juridico',
   '/funil-moni-capital',
+  '/funil-produto',
+  '/funil-modelo-virtual',
+  '/funil-homologacoes',
   '/funil-contratacoes',
 ] as const;
 

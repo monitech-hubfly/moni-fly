@@ -16,7 +16,7 @@ async function loadProfileRoleCargo(userId: string) {
   return profile as { role?: string | null; cargo?: string | null } | null;
 }
 
-/** Bloqueia frank/franqueado em `/funil-juridico` e `/funil-moni-capital`. */
+/** Bloqueia frank/franqueado nos funis internos de negócio (Jurídico, Capital, HDM). */
 export async function requireFunisInternosNegocioAccess(): Promise<void> {
   const supabase = await createClient();
   const {
