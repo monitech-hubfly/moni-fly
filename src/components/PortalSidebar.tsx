@@ -122,12 +122,7 @@ function buildNovosNegociosSubitens(role: string, publicVisitor: boolean): NavIt
 
   if (publicVisitor || !isRedeStaffRole(role)) return base;
 
-  const items = [...base];
-  const portIdx = items.findIndex((i) => i.href === '/portfolio');
-  if (portIdx >= 0) {
-    items.splice(portIdx + 1, 0, { href: '/portfolio/saude', label: 'Saúde' });
-  }
-  return items;
+  return [{ href: '/portfolio/saude', label: 'Saúde' }, ...base];
 }
 
 function isNovosNegociosSubitemActive(pathname: string, href: string): boolean {
