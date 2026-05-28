@@ -47,7 +47,9 @@ export function RedeFranqueadosTabelaComBusca({
             aria-label="Pesquisar franqueados na tabela"
           />
         </div>
-        {children ? <div className="flex flex-wrap items-center justify-end gap-3">{children}</div> : null}
+        {children ? (
+          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 sm:flex-[2]">{children}</div>
+        ) : null}
       </div>
       <TabelaRedeFranqueadosEditavel
         rows={rowsFiltradas}

@@ -69,19 +69,19 @@ export default async function RedeFranqueadosPage() {
 
         <section className="mt-10 space-y-4">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-500">Planilha</h3>
-          {canManage ? (
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
-              <ImportarRedeCSVButton />
-              <CriarCardsDesdeRedeButton linhasSemCard={linhasSemCard} />
-            </div>
-          ) : null}
           {rows ? (
             <RedeFranqueadosTabelaComBusca
               rows={rows}
               canEditRows={canManage}
               maskSensitiveColumns={maskSensitiveColumns}
             >
-              {canManage ? <NovoFranqueadoModal /> : null}
+              {canManage ? (
+                <>
+                  <ImportarRedeCSVButton />
+                  <CriarCardsDesdeRedeButton linhasSemCard={linhasSemCard} />
+                  <NovoFranqueadoModal />
+                </>
+              ) : null}
               <ExportarRedeCSVButton rows={rows} maskSensitiveColumns={maskSensitiveColumns} />
             </RedeFranqueadosTabelaComBusca>
           ) : (
