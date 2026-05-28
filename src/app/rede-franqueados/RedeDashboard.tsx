@@ -3,6 +3,10 @@
 import { useMemo, useState } from 'react';
 import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
 import { parseAreaAtuacao } from '@/lib/rede-area-atuacao';
+import {
+  isRedeClassificacaoBeta,
+  isRedeClassificacaoPagante,
+} from '@/lib/rede-classificacao-chart';
 import { ocultarRegionalEAtuacaoNaVisaoFranqueado } from '@/lib/rede-visibilidade-franqueado';
 import { MapBrazilCidadesAtuacao } from './MapBrazilCidadesAtuacao';
 import { RedeVisaoRegionalClassificacao } from './rede-visao-regional-class';
@@ -217,18 +221,26 @@ export function RedeDashboard({
     .map((r) => ({ r, missing: modoAggregado ? missingFieldsFrank(r) : missingFields(r) }))
     .filter((x) => x.missing.length > 0);
 
-  const pagantes = filteredRows.filter((r) => /pagante/i.test(norm(r.classificacao_franqueado))).length;
-  const beta = filteredRows.filter((r) => /beta/i.test(norm(r.classificacao_franqueado))).length;
+  const pagantes = filteredRows.filter((r) => isRedeClassificacaoPagante(r.classificacao_franqueado)).length;
+  const beta = filteredRows.filter((r) => isRedeClassificacaoBeta(r.classificacao_franqueado)).length;
   const maxClassificacao = Math.max(pagantes, beta, 1);
 
   const statusByClass = {
     pagante: {
-      emOperacao: filteredRows.filter((r) => /pagante/i.test(norm(r.classificacao_franqueado)) && isEmOperacao(norm(r.status_franquia))).length,
-      encerrada: filteredRows.filter((r) => /pagante/i.test(norm(r.classificacao_franqueado)) && isOperacaoEncerrada(norm(r.status_franquia))).length,
+      emOperacao: filteredRows.filter(
+        (r) => isRedeClassificacaoPagante(r.classificacao_franqueado) && isEmOperacao(norm(r.status_franquia)),
+      ).length,
+      encerrada: filteredRows.filter(
+        (r) => isRedeClassificacaoPagante(r.classificacao_franqueado) && isOperacaoEncerrada(norm(r.status_franquia)),
+      ).length,
     },
     beta: {
-      emOperacao: filteredRows.filter((r) => /beta/i.test(norm(r.classificacao_franqueado)) && isEmOperacao(norm(r.status_franquia))).length,
-      encerrada: filteredRows.filter((r) => /beta/i.test(norm(r.classificacao_franqueado)) && isOperacaoEncerrada(norm(r.status_franquia))).length,
+      emOperacao: filteredRows.filter(
+        (r) => isRedeClassificacaoBeta(r.classificacao_franqueado) && isEmOperacao(norm(r.status_franquia)),
+      ).length,
+      encerrada: filteredRows.filter(
+        (r) => isRedeClassificacaoBeta(r.classificacao_franqueado) && isOperacaoEncerrada(norm(r.status_franquia)),
+      ).length,
     },
   };
 
@@ -317,9 +329,12 @@ export function RedeDashboard({
   }
   const rowsEmOperacao = useMemo(() => filteredRows.filter((r) => isEmOperacao(norm(r.status_franquia))), [filteredRows]);
   const rowsEncerradas = useMemo(() => filteredRows.filter((r) => isOperacaoEncerrada(norm(r.status_franquia))), [filteredRows]);
-  const rowsPagante = useMemo(() => filteredRows.filter((r) => /pagante/i.test(norm(r.classificacao_franqueado))), [filteredRows]);
+  const rowsPagante = useMemo(
+    () => filteredRows.filter((r) => isRedeClassificacaoPagante(r.classificacao_franqueado)),
+    [filteredRows],
+  );
   const rowsBeta = useMemo(
-    () => filteredRows.filter((r) => /beta/i.test(norm(r.classificacao_franqueado))),
+    () => filteredRows.filter((r) => isRedeClassificacaoBeta(r.classificacao_franqueado)),
     [filteredRows],
   );
 

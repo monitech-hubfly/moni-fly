@@ -55,6 +55,7 @@ export function RedeVisaoRegionalClassificacao({
   statusByClass,
   onOpenLista,
 }: Props) {
+  /** Visão geral: apenas Pagante e Beta (Corporação não entra no gráfico). */
   const classItems = [
     { key: 'pagante', label: 'Pagante', n: pagantes, rows: rowsPagante, fill: 'var(--moni-green-800)' },
     { key: 'beta', label: 'Beta', n: beta, rows: rowsBeta, fill: 'var(--moni-gold-600)' },
