@@ -23,6 +23,10 @@ import { allocNextOrdemColunaPainel } from '@/lib/painel-coluna-ordem';
 import { getPainelDbForPublicEdit } from '@/lib/painel-public-edit';
 import { ensureFunilStepOneCardFromRede } from '@/lib/kanban/ensure-funil-stepone-card-from-rede';
 import { isRedeStatusEmProcesso } from '@/lib/rede-franqueado-form-options';
+import {
+  REDE_EMPRESA_ANEXO_JUSTIFICATIVA_COLUNA,
+  REDE_EMPRESA_ANEXO_PATH_COLUNA,
+} from '@/lib/rede-documentos-empresas';
 
 async function requireRedeAdminOrPublicLink(): Promise<
   | { ok: true; supabase: Awaited<ReturnType<typeof createClient>>; userId: string }
@@ -933,19 +937,34 @@ export async function getSignedUrlRedeAnexo(
   return { ok: true, url: data.signedUrl };
 }
 
-const REDE_ANEXO_COLUNA = {
+const REDE_FRANQUIA_ANEXO_COLUNA = {
   cof: 'anexo_cof_path',
   contrato: 'anexo_contrato_path',
   numero_franquia: 'anexo_numero_franquia_path',
 } as const;
 
-const REDE_ANEXO_JUSTIFICATIVA_COLUNA = {
+const REDE_FRANQUIA_ANEXO_JUSTIFICATIVA_COLUNA = {
   cof: 'anexo_cof_justificativa',
   contrato: 'anexo_contrato_justificativa',
   numero_franquia: 'anexo_numero_franquia_justificativa',
 } as const;
 
+const REDE_ANEXO_COLUNA = {
+  ...REDE_FRANQUIA_ANEXO_COLUNA,
+  ...REDE_EMPRESA_ANEXO_PATH_COLUNA,
+} as const;
+
+const REDE_ANEXO_JUSTIFICATIVA_COLUNA = {
+  ...REDE_FRANQUIA_ANEXO_JUSTIFICATIVA_COLUNA,
+  ...REDE_EMPRESA_ANEXO_JUSTIFICATIVA_COLUNA,
+} as const;
+
 type RedeAnexoTipo = keyof typeof REDE_ANEXO_COLUNA;
+
+function parseRedeAnexoTipo(tipoRaw: string): RedeAnexoTipo | null {
+  if (tipoRaw in REDE_ANEXO_COLUNA) return tipoRaw as RedeAnexoTipo;
+  return null;
+}
 
 async function updateRedeAnexoPath(
   redeId: string,
@@ -995,10 +1014,8 @@ export async function uploadRedeFranqueadoAssinado(
   const redeId = String(formData.get('redeId') ?? '').trim();
   const file = formData.get('file');
   if (!redeId) return { ok: false, error: 'Registro inválido.' };
-  if (tipoRaw !== 'cof' && tipoRaw !== 'contrato' && tipoRaw !== 'numero_franquia') {
-    return { ok: false, error: 'Tipo inválido.' };
-  }
-  const tipo: RedeAnexoTipo = tipoRaw;
+  const tipo = parseRedeAnexoTipo(tipoRaw);
+  if (!tipo) return { ok: false, error: 'Tipo inválido.' };
   if (!(file instanceof File)) return { ok: false, error: 'Arquivo inválido.' };
   if (file.size > MAX_REDE_DOC_BYTES) return { ok: false, error: 'Arquivo acima de 10 MB.' };
 
@@ -1037,8 +1054,10 @@ export async function uploadRedeFranqueadoAssinado(
   }
   if (oldPath) await supabase.storage.from('rede-attachments').remove([oldPath]);
 
-  const justCol = REDE_ANEXO_JUSTIFICATIVA_COLUNA[tipo];
-  await supabase.from('rede_franqueados').update({ [justCol]: null } as never).eq('id', redeId);
+  const justCol = REDE_ANEXO_JUSTIFICATIVA_COLUNA[tipo as keyof typeof REDE_ANEXO_JUSTIFICATIVA_COLUNA];
+  if (justCol) {
+    await supabase.from('rede_franqueados').update({ [justCol]: null } as never).eq('id', redeId);
+  }
 
   revalidatePath('/rede-franqueados');
   revalidatePath(`/rede-franqueados/${redeId}`);
@@ -1053,10 +1072,15 @@ export async function salvarJustificativaRedeAnexo(
   const redeId = String(formData.get('redeId') ?? '').trim();
   const justificativa = String(formData.get('justificativa') ?? '').trim();
   if (!redeId) return { ok: false, error: 'Registro inválido.' };
-  if (tipoRaw !== 'cof' && tipoRaw !== 'contrato' && tipoRaw !== 'numero_franquia') {
-    return { ok: false, error: 'Tipo inválido.' };
+  const tipo = parseRedeAnexoTipo(tipoRaw);
+  if (!tipo) return { ok: false, error: 'Tipo inválido.' };
+  const justCol = REDE_ANEXO_JUSTIFICATIVA_COLUNA[tipo as keyof typeof REDE_ANEXO_JUSTIFICATIVA_COLUNA];
+  if (!justCol) {
+    return {
+      ok: false,
+      error: 'Este documento não aceita justificativa (Inscrição Estadual é opcional; envie o anexo se houver).',
+    };
   }
-  const tipo: RedeAnexoTipo = tipoRaw;
   if (!justificativa) {
     return { ok: false, error: 'Informe a justificativa para documento sem anexo.' };
   }
@@ -1074,7 +1098,6 @@ export async function salvarJustificativaRedeAnexo(
   }
 
   const pathCol = REDE_ANEXO_COLUNA[tipo];
-  const justCol = REDE_ANEXO_JUSTIFICATIVA_COLUNA[tipo];
   const { data: atual, error: leErr } = await supabase
     .from('rede_franqueados')
     .select('*')

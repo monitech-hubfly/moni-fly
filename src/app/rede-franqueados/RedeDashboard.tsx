@@ -7,6 +7,7 @@ import {
   isRedeClassificacaoBeta,
   isRedeClassificacaoPagante,
 } from '@/lib/rede-classificacao-chart';
+import { pendenciasDocsEmpresasRede } from '@/lib/rede-documentos-empresas';
 import { pendenciasDocsFranquiaRede } from '@/lib/rede-documentos-franquia';
 import { ocultarRegionalEAtuacaoNaVisaoFranqueado } from '@/lib/rede-visibilidade-franqueado';
 import { MapBrazilCidadesAtuacao } from './MapBrazilCidadesAtuacao';
@@ -122,6 +123,9 @@ function missingFields(row: RedeFranqueadoRowDb): string[] {
   if (!norm(row.data_ass_contrato)) missing.push('Data Contrato');
   for (const doc of pendenciasDocsFranquiaRede(row)) {
     missing.push(`Doc. franquia: ${doc}`);
+  }
+  for (const doc of pendenciasDocsEmpresasRede(row)) {
+    missing.push(`Doc. empresa: ${doc}`);
   }
   return missing;
 }

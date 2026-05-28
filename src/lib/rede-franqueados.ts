@@ -5,6 +5,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { pickRedeEmpresaDocsFromRow, type RedeEmpresaDocsRow } from '@/lib/rede-documentos-empresas';
 import { normalizeNFranquiaCsv } from '@/lib/import-rede-csv';
 import { normalizarParaBusca } from '@/lib/painel-tarefas-filtros';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -183,7 +184,7 @@ export type RedeFranqueadoRowDb = Record<RedeFranqueadoDbKey, string | null> & {
   anexo_cof_justificativa?: string | null;
   anexo_contrato_justificativa?: string | null;
   anexo_numero_franquia_justificativa?: string | null;
-};
+} & RedeEmpresaDocsRow;
 
 type RowDb = Record<RedeFranqueadoDbKey, string | null>;
 type OldRow = {
@@ -276,7 +277,7 @@ export type RedeFranqueadoDetalheRow = {
   anexo_cof_justificativa: string | null;
   anexo_contrato_justificativa: string | null;
   anexo_numero_franquia_justificativa: string | null;
-};
+} & RedeEmpresaDocsRow;
 
 async function queryRedeFranqueadoDetalhe(
   client: SupabaseClient,
@@ -296,6 +297,7 @@ async function queryRedeFranqueadoDetalhe(
         anexo_cof_justificativa: (r.anexo_cof_justificativa as string | null) ?? null,
         anexo_contrato_justificativa: (r.anexo_contrato_justificativa as string | null) ?? null,
         anexo_numero_franquia_justificativa: (r.anexo_numero_franquia_justificativa as string | null) ?? null,
+        ...pickRedeEmpresaDocsFromRow(r),
       },
       error: null,
     };
@@ -322,6 +324,7 @@ async function queryRedeFranqueadoDetalhe(
       anexo_cof_justificativa: null,
       anexo_contrato_justificativa: null,
       anexo_numero_franquia_justificativa: null,
+      ...pickRedeEmpresaDocsFromRow({}),
     },
     error: null,
   };

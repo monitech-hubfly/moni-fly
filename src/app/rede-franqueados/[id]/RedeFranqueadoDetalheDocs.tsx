@@ -3,12 +3,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  getRedeEmpresaDocSlotValues,
+  getRedeEmpresaDocSlots,
+  REDE_EMPRESAS_SUBSECOES,
+  type RedeEmpresaDocsRow,
+} from '@/lib/rede-documentos-empresas';
+import {
   isRedeDocSlotCompleto,
   REDE_DOCS_FRANQUIA_SLOTS,
   REDE_SECAO_DOCS_EMPRESAS,
   REDE_SECAO_DOCS_FRANQUEADO,
   REDE_SECAO_DOCS_FRANQUIA,
-  type RedeAnexoDocTipo,
 } from '@/lib/rede-documentos-franquia';
 import {
   getSignedUrlRedeAnexo,
@@ -24,10 +29,12 @@ function nomeDoPath(path: string) {
 }
 
 type DocCardConfig = {
-  tipo: RedeAnexoDocTipo;
+  tipo: string;
   titulo: string;
   path: string | null;
   justificativa: string | null;
+  permiteJustificativa: boolean;
+  contaPendencia: boolean;
 };
 
 type Props = {
@@ -38,6 +45,7 @@ type Props = {
   justificativaCof: string | null;
   justificativaContrato: string | null;
   justificativaNumeroFranquia: string | null;
+  empresaDocs: RedeEmpresaDocsRow;
 };
 
 function DocUploadCard({
@@ -50,17 +58,18 @@ function DocUploadCard({
 }: {
   config: DocCardConfig;
   redeId: string;
-  uploading: RedeAnexoDocTipo | null;
-  onUpload: (tipo: RedeAnexoDocTipo, e: React.ChangeEvent<HTMLInputElement>) => void;
+  uploading: string | null;
+  onUpload: (tipo: string, e: React.ChangeEvent<HTMLInputElement>) => void;
   onDownload: (path: string) => void;
   onJustificativaSaved: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const { tipo, titulo, path, justificativa } = config;
+  const { tipo, titulo, path, justificativa, permiteJustificativa, contaPendencia } = config;
   const [saving, setSaving] = useState(false);
   const busy = uploading !== null || saving;
   const sending = uploading === tipo;
-  const completo = isRedeDocSlotCompleto(path, justificativa);
+  const completo =
+    !contaPendencia || isRedeDocSlotCompleto(path, permiteJustificativa ? justificativa : null);
   const [textoJustificativa, setTextoJustificativa] = useState(justificativa ?? '');
   const [erroLocal, setErroLocal] = useState<string | null>(null);
 
@@ -84,17 +93,18 @@ function DocUploadCard({
     onJustificativaSaved();
   }
 
+  const borderClass = completo ? 'border-stone-200 bg-white' : 'border-amber-200 bg-amber-50/40';
+
   return (
-    <div
-      className={`rounded-xl border p-4 shadow-sm ${
-        completo ? 'border-stone-200 bg-white' : 'border-amber-200 bg-amber-50/40'
-      }`}
-    >
+    <div className={`rounded-xl border p-4 shadow-sm ${borderClass}`}>
       <h3 className="text-sm font-semibold text-stone-800">{titulo}</h3>
-      {!completo ? (
+      {contaPendencia && !completo ? (
         <p className="mt-1 text-[11px] text-amber-800">
           Pendente: envie o arquivo ou registre uma justificativa (conta como cadastro incompleto no dashboard).
         </p>
+      ) : null}
+      {!contaPendencia ? (
+        <p className="mt-1 text-[11px] text-stone-500">Opcional — envie o anexo se aplicável à atividade.</p>
       ) : null}
       {path ? (
         <p className="mt-2 truncate text-xs text-stone-600" title={path}>
@@ -137,7 +147,7 @@ function DocUploadCard({
       </div>
       <p className="mt-1 text-[10px] text-stone-400">Até 10 MB · qualquer tipo</p>
 
-      {!path ? (
+      {permiteJustificativa && !path ? (
         <div className="mt-4 border-t border-stone-200/80 pt-3">
           <label className="block text-[11px] font-medium text-stone-600" htmlFor={`just-${tipo}`}>
             Justificativa (sem anexo)
@@ -174,16 +184,17 @@ export function RedeFranqueadoDetalheDocs({
   justificativaCof,
   justificativaContrato,
   justificativaNumeroFranquia,
+  empresaDocs,
 }: Props) {
   const router = useRouter();
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
-  const [up, setUp] = useState<RedeAnexoDocTipo | null>(null);
+  const [up, setUp] = useState<string | null>(null);
 
   useEffect(() => {
     void prepararSchemaAnexoNumeroFranquia();
   }, []);
 
-  const cards: DocCardConfig[] = REDE_DOCS_FRANQUIA_SLOTS.map((slot) => {
+  const cardsFranquia: DocCardConfig[] = REDE_DOCS_FRANQUIA_SLOTS.map((slot) => {
     const paths = {
       cof: pathCof,
       contrato: pathContrato,
@@ -199,8 +210,24 @@ export function RedeFranqueadoDetalheDocs({
       titulo: slot.titulo,
       path: paths[slot.tipo],
       justificativa: justs[slot.tipo],
+      permiteJustificativa: true,
+      contaPendencia: true,
     };
   });
+
+  function empresaCards(subsecao: (typeof REDE_EMPRESAS_SUBSECOES)[number]['id']): DocCardConfig[] {
+    return getRedeEmpresaDocSlots(subsecao).map((slot) => {
+      const { path, justificativa } = getRedeEmpresaDocSlotValues(empresaDocs, slot);
+      return {
+        tipo: slot.tipo,
+        titulo: slot.titulo,
+        path,
+        justificativa,
+        permiteJustificativa: slot.justificativaKey !== null,
+        contaPendencia: slot.obrigatorioParaCadastroCompleto,
+      };
+    });
+  }
 
   async function download(path: string) {
     setMsg(null);
@@ -218,7 +245,7 @@ export function RedeFranqueadoDetalheDocs({
     a.remove();
   }
 
-  async function onFile(tipo: RedeAnexoDocTipo, e: React.ChangeEvent<HTMLInputElement>) {
+  async function onFile(tipo: string, e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
@@ -237,6 +264,17 @@ export function RedeFranqueadoDetalheDocs({
     setMsg({ tipo: 'ok', texto: 'Arquivo enviado com sucesso.' });
     router.refresh();
   }
+
+  const cardProps = {
+    redeId,
+    uploading: up,
+    onUpload: onFile,
+    onDownload: download,
+    onJustificativaSaved: () => {
+      setMsg({ tipo: 'ok', texto: 'Justificativa registrada.' });
+      router.refresh();
+    },
+  };
 
   return (
     <div className="space-y-6">
@@ -258,28 +296,26 @@ export function RedeFranqueadoDetalheDocs({
 
       <RedeDocsSecaoColapsavel titulo={REDE_SECAO_DOCS_FRANQUIA.titulo} sectionId={REDE_SECAO_DOCS_FRANQUIA.id}>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {cards.map((config) => (
-            <DocUploadCard
-              key={config.tipo}
-              config={config}
-              redeId={redeId}
-              uploading={up}
-              onUpload={onFile}
-              onDownload={download}
-              onJustificativaSaved={() => {
-                setMsg({ tipo: 'ok', texto: 'Justificativa registrada.' });
-                router.refresh();
-              }}
-            />
+          {cardsFranquia.map((config) => (
+            <DocUploadCard key={config.tipo} config={config} {...cardProps} />
           ))}
         </div>
       </RedeDocsSecaoColapsavel>
 
-      <RedeDocsSecaoColapsavel
-        titulo={REDE_SECAO_DOCS_EMPRESAS.titulo}
-        sectionId={REDE_SECAO_DOCS_EMPRESAS.id}
-        vazio
-      />
+      <RedeDocsSecaoColapsavel titulo={REDE_SECAO_DOCS_EMPRESAS.titulo} sectionId={REDE_SECAO_DOCS_EMPRESAS.id}>
+        <div className="space-y-8">
+          {REDE_EMPRESAS_SUBSECOES.map((sub) => (
+            <div key={sub.id}>
+              <h3 className="text-sm font-semibold text-stone-800">{sub.titulo}</h3>
+              <div className="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {empresaCards(sub.id).map((config) => (
+                  <DocUploadCard key={config.tipo} config={config} {...cardProps} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </RedeDocsSecaoColapsavel>
     </div>
   );
 }
