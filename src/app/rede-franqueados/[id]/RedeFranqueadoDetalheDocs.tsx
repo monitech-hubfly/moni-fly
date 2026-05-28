@@ -189,9 +189,20 @@ export function RedeFranqueadoDetalheDocs({
   const router = useRouter();
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [up, setUp] = useState<string | null>(null);
+  const [abrirSecaoEmpresas, setAbrirSecaoEmpresas] = useState(false);
 
   useEffect(() => {
     void prepararSchemaAnexoNumeroFranquia();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.location.hash !== '#empresas') return;
+    setAbrirSecaoEmpresas(true);
+    const t = window.setTimeout(() => {
+      document.getElementById('empresas')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 150);
+    return () => window.clearTimeout(t);
   }, []);
 
   const cardsFranquia: DocCardConfig[] = REDE_DOCS_FRANQUIA_SLOTS.map((slot) => {
@@ -302,7 +313,12 @@ export function RedeFranqueadoDetalheDocs({
         </div>
       </RedeDocsSecaoColapsavel>
 
-      <RedeDocsSecaoColapsavel titulo={REDE_SECAO_DOCS_EMPRESAS.titulo} sectionId={REDE_SECAO_DOCS_EMPRESAS.id}>
+      <div id="empresas" className="scroll-mt-24">
+        <RedeDocsSecaoColapsavel
+          titulo={REDE_SECAO_DOCS_EMPRESAS.titulo}
+          sectionId={REDE_SECAO_DOCS_EMPRESAS.id}
+          defaultOpen={abrirSecaoEmpresas}
+        >
         <div className="space-y-4">
           {REDE_EMPRESAS_SUBSECOES.map((sub) => (
             <RedeDocsSubsecaoColapsavel key={sub.id} titulo={sub.titulo} sectionId={`empresas-${sub.id}`}>
@@ -314,7 +330,8 @@ export function RedeFranqueadoDetalheDocs({
             </RedeDocsSubsecaoColapsavel>
           ))}
         </div>
-      </RedeDocsSecaoColapsavel>
+        </RedeDocsSecaoColapsavel>
+      </div>
     </div>
   );
 }

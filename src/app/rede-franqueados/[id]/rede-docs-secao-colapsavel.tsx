@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
 type Props = {
@@ -21,6 +21,10 @@ export function RedeDocsSecaoColapsavel({
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
   const panelId = `rede-docs-panel-${sectionId}`;
+
+  useEffect(() => {
+    if (defaultOpen) setOpen(true);
+  }, [defaultOpen]);
 
   return (
     <section className="rounded-xl border border-stone-200 bg-white shadow-sm">

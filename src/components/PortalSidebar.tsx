@@ -48,7 +48,7 @@ const PAINEL_NOVOS_NEGOCIOS_SUBITENS_HEAD: NavItem[] = [
   { href: '/dashboard-novos-negocios', label: 'Dashboard Novos Negócios' },
   { href: '/funil-stepone', label: 'Funil Step One' },
   { href: '/portfolio', label: 'Funil Portfolio' },
-  { href: '/funil-moni-inc', label: 'Funil Moní INC' },
+  { href: '/loteadores', label: 'Funil Loteadores' },
   { href: '/funil-acoplamento', label: 'Funil Acoplamento' },
 ];
 /** Só admin / visitante público: aparecem antes de Funil Operações. */
@@ -114,6 +114,7 @@ function isPainelNovosNegociosActive(pathname: string) {
     pathname.startsWith('/painel-credito') ||
     pathname.startsWith('/dashboard-novos-negocios') ||
     pathname.startsWith('/funil-stepone') ||
+    pathname.startsWith('/loteadores') ||
     pathname.startsWith('/funil-moni-inc')
   );
 }

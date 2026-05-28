@@ -1,91 +1,82 @@
-import { createClient } from '@/lib/supabase/server';
-import { isAdminRole, isStrictAdminRole } from '@/lib/authz';
-import { isAppFullyPublic, isPublicRedeNovosNegociosEnabled } from '@/lib/public-rede-novos';
-import { fetchRedeFranqueadosRows } from '@/lib/rede-franqueados';
-import { RedeFranqueadosTabelaComBusca } from './RedeFranqueadosTabelaComBusca';
-import { contarLinhasSemCard, normalizarStatusEmProcessoRede } from './actions';
-import { CriarCardsDesdeRedeButton } from './CriarCardsDesdeRedeButton';
-import { ImportarRedeCSVButton } from './ImportarRedeCSVButton';
-import { ExportarRedeCSVButton } from './ExportarRedeCSVButton';
-import { NovoFranqueadoModal } from './NovoFranqueadoModal';
-import { RedeDashboard } from './RedeDashboard';
-import { createAdminClient } from '@/lib/supabase/admin';
-
-export const dynamic = 'force-dynamic';
-
-export default async function RedeFranqueadosPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const publicAccess = isPublicRedeNovosNegociosEnabled();
-
-  let db = supabase;
-  if (!user && (publicAccess || isAppFullyPublic())) {
-    try {
-      db = createAdminClient();
-    } catch {
-      /* sem service role: RLS pode ocultar linhas */
-    }
-  }
-
-  const { data: profile } = user
-    ? await supabase.from('profiles').select('role').eq('id', user.id).single()
-    : { data: null };
-  const role = (profile?.role as string) ?? 'frank';
-  const canManage =
-    (Boolean(user) && isAdminRole(role)) || publicAccess || isAppFullyPublic();
-  const maskSensitiveColumns = !isStrictAdminRole(role);
-
-  if (canManage) {
-    await normalizarStatusEmProcessoRede();
-  }
-
-  const [rows, countResult] = await Promise.all([
-    fetchRedeFranqueadosRows(db),
-    canManage ? contarLinhasSemCard() : Promise.resolve({ ok: true as const, total: 0 }),
-  ]);
-  const linhasSemCard = countResult.ok ? countResult.total : 0;
-
-  return (
-    <div className="min-h-screen bg-[var(--moni-surface-50)]">
-      <main className="mx-auto max-w-[1600px] px-6 py-8">
-        <header
-          className="flex flex-col gap-4 pb-6"
-          style={{ borderBottom: '0.5px solid var(--moni-border-default, #e8e2da)' }}
-        >
-          <h1 className="text-3xl font-semibold tracking-tight" style={{ color: 'var(--color-text-primary, #0c2633)' }}>
-            Rede de Franqueados
-          </h1>
-        </header>
-
-        {rows && rows.length > 0 ? (
-          <section className="mt-10">
-            <RedeDashboard rows={rows} />
-          </section>
-        ) : null}
-
-        <section className="mt-10 space-y-4">
-          {rows ? (
-            <RedeFranqueadosTabelaComBusca
-              rows={rows}
-              canEditRows={canManage}
-              maskSensitiveColumns={maskSensitiveColumns}
-            >
-              {canManage ? (
-                <>
-                  <ImportarRedeCSVButton />
-                  <CriarCardsDesdeRedeButton linhasSemCard={linhasSemCard} />
-                  <NovoFranqueadoModal />
-                </>
-              ) : null}
-              <ExportarRedeCSVButton rows={rows} maskSensitiveColumns={maskSensitiveColumns} />
-            </RedeFranqueadosTabelaComBusca>
-          ) : (
-            <p className="text-sm text-red-600">Erro ao carregar a tabela.</p>
-          )}
-        </section>
-      </main>
-    </div>
-  );
-}
+import { createClient } from '@/lib/supabase/server';
+import { isAdminRole, isRedeStaffRole, isStrictAdminRole } from '@/lib/authz';
+import { isAppFullyPublic, isPublicRedeNovosNegociosEnabled } from '@/lib/public-rede-novos';
+import { fetchFranqueadoEmpresasRows } from '@/lib/franqueado-empresas';
+import { fetchRedeFranqueadosRows } from '@/lib/rede-franqueados';
+import { fetchRedeLoteadoresRows } from '@/lib/rede-loteadores';
+import { contarLinhasSemCard, normalizarStatusEmProcessoRede } from './actions';
+import { RedeFranqueadosPageTabs } from './RedeFranqueadosPageTabs';
+import { createAdminClient } from '@/lib/supabase/admin';
+
+export const dynamic = 'force-dynamic';
+
+export default async function RedeFranqueadosPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const publicAccess = isPublicRedeNovosNegociosEnabled();
+
+  let db = supabase;
+  if (!user && (publicAccess || isAppFullyPublic())) {
+    try {
+      db = createAdminClient();
+    } catch {
+      /* sem service role: RLS pode ocultar linhas */
+    }
+  }
+
+  const { data: profile } = user
+    ? await supabase.from('profiles').select('role').eq('id', user.id).single()
+    : { data: null };
+  const role = (profile?.role as string) ?? 'frank';
+  const canManage =
+    (Boolean(user) && isAdminRole(role)) || publicAccess || isAppFullyPublic();
+  const maskSensitiveColumns = !isStrictAdminRole(role);
+  const showStaffTabs = isRedeStaffRole(role);
+
+  if (canManage) {
+    await normalizarStatusEmProcessoRede();
+  }
+
+  const [rows, countResult, loteadoresRows, empresasResult] = await Promise.all([
+    fetchRedeFranqueadosRows(db),
+    canManage ? contarLinhasSemCard() : Promise.resolve({ ok: true as const, total: 0 }),
+    showStaffTabs ? fetchRedeLoteadoresRows(db) : Promise.resolve(null),
+    showStaffTabs ? fetchFranqueadoEmpresasRows(db) : Promise.resolve(null),
+  ]);
+  const linhasSemCard = countResult.ok ? countResult.total : 0;
+  const empresasLoadError = showStaffTabs && empresasResult === null;
+
+  return (
+    <div className="min-h-screen bg-[var(--moni-surface-50)]">
+      <main className="mx-auto max-w-[1600px] px-6 py-8">
+        <header
+          className="flex flex-col gap-4 pb-6"
+          style={{ borderBottom: '0.5px solid var(--moni-border-default, #e8e2da)' }}
+        >
+          <h1 className="text-3xl font-semibold tracking-tight" style={{ color: 'var(--color-text-primary, #0c2633)' }}>
+            Rede de Franqueados
+          </h1>
+        </header>
+
+        {rows ? (
+          <RedeFranqueadosPageTabs
+            rows={rows}
+            loteadoresRows={loteadoresRows}
+            showStaffTabs={showStaffTabs}
+            empresasRows={empresasResult}
+            empresasLoadError={empresasLoadError}
+            canManageFranqueados={canManage}
+            maskSensitiveColumns={maskSensitiveColumns}
+            linhasSemCard={linhasSemCard}
+            showDashboard={rows.length > 0}
+          />
+        ) : (
+          <p className="mt-10 text-sm text-red-600">Erro ao carregar a tabela.</p>
+        )}
+      </main>
+    </div>
+  );
+}
+

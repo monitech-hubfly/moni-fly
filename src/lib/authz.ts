@@ -23,3 +23,9 @@ export function isStrictAdminRole(role: string | null | undefined): boolean {
   return String(role ?? '').trim().toLowerCase() === 'admin';
 }
 
+/** Equipe interna (admin ou team) — ex.: aba Rede de Loteadores. */
+export function isRedeStaffRole(role: string | null | undefined): boolean {
+  const access = normalizeAccessRole(role);
+  return access === 'admin' || access === 'team';
+}
+
