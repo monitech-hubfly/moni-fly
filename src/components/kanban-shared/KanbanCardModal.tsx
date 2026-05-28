@@ -1756,7 +1756,6 @@ export function KanbanCardModal({
       const result = await publicarComentarioKanbanCard({
         cardId: card.id,
         conteudo,
-        faseId: faseAtual?.id ?? null,
         basePath,
       });
       if (!result.ok) {

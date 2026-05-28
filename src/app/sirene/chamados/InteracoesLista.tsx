@@ -927,7 +927,7 @@ export function InteracoesLista({
     setSalvandoComentario((s) => ({ ...s, [cardId]: true }));
     setMsgErro(null);
     try {
-      const res = await publicarComentarioCardSirene(cardId, texto, null);
+      const res = await publicarComentarioCardSirene(cardId, texto);
       if (!res.ok) {
         setMsgErro(res.error);
         return;

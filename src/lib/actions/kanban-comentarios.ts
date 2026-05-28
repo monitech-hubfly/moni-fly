@@ -116,7 +116,6 @@ async function resolverCardParaNotificacao(
 export async function publicarComentarioKanbanCard(input: {
   cardId: string;
   conteudo: string;
-  faseId?: string | null;
   basePath?: string;
 }): Promise<KanbanComentarioActionResult> {
   const supabase = await createClient();
@@ -141,7 +140,6 @@ export async function publicarComentarioKanbanCard(input: {
     .from('kanban_card_comentarios')
     .insert({
       card_id: cardId,
-      fase_id: input.faseId?.trim() || null,
       autor_id: user.id,
       conteudo,
     })

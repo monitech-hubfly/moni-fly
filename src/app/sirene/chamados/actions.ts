@@ -273,7 +273,6 @@ export async function listarComentariosCardSirene(
 export async function publicarComentarioCardSirene(
   cardId: string,
   texto: string,
-  faseId?: string | null,
 ): Promise<AtualizarStatusInteracaoResult> {
   const supabase = await createClient();
   const {
@@ -288,7 +287,6 @@ export async function publicarComentarioCardSirene(
 
   const { error } = await supabase.from('kanban_card_comentarios').insert({
     card_id: cid,
-    fase_id: faseId?.trim() || null,
     autor_id: user.id,
     texto: t,
   });
