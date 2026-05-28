@@ -94,7 +94,8 @@ export default async function FunilStepOnePage({
       arquivado,
       motivo_arquivamento,
       concluido,
-      concluido_em
+      concluido_em,
+      ordem_coluna
     `;
 
   let cardsQuery = supabase
@@ -104,6 +105,7 @@ export default async function FunilStepOnePage({
     .eq('status', 'ativo')
     .eq('arquivado', false)
     .eq('concluido', false)
+    .order('ordem_coluna', { ascending: true })
     .order('created_at', { ascending: false });
 
   let concluidosQuery = supabase
@@ -113,6 +115,7 @@ export default async function FunilStepOnePage({
     .eq('status', 'ativo')
     .eq('arquivado', false)
     .eq('concluido', true)
+    .order('ordem_coluna', { ascending: true })
     .order('created_at', { ascending: false });
 
   const visaoAmplaCards =

@@ -14,6 +14,7 @@ import {
   type KanbanBoardFiltros,
 } from './kanbanBoardFiltros';
 import { hipotesesOrdemMinima } from '@/lib/kanban/kanban-paralelas-chips';
+import { sortKanbanCardsPorOrdemColuna } from '@/lib/kanban/kanban-coluna-ordem';
 import type { KanbanNomeDisplay } from './types';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
@@ -143,8 +144,13 @@ export function KanbanBoard({
       if (!m[c.fase_id]) m[c.fase_id] = [];
       m[c.fase_id].push(c);
     }
+    for (const f of fases) {
+      m[f.id] = sortKanbanCardsPorOrdemColuna(m[f.id] ?? []);
+    }
     return m;
   }, [fases, cardsFiltrados]);
+
+  const podeMoverCards = pode('mover_fase');
 
   const nAtivos = countKanbanBoardFiltrosAtivos(filtros);
   const podeCriarCards = pode('criar_cards');
@@ -250,7 +256,9 @@ export function KanbanBoard({
                   userRole={userRole}
                   columnAccent={columnAccent}
                   kanbanId={kanbanId}
+                  kanbanNome={kanbanNome}
                   hipotesesOrdemMin={hipotesesOrdemMin}
+                  dragEnabled={podeMoverCards}
                 />
               );
             })}

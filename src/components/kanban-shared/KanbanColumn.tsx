@@ -1,11 +1,15 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useMemo } from 'react';
+import { useMemo, useRef, useState, useTransition, type DragEvent } from 'react';
 import { calcularStatusSLA } from '@/lib/dias-uteis';
 import {
+  moverCardKanbanDrag,
+  reordenarCardKanbanDrag,
+  type KanbanDnDCardOrigem,
+} from '@/lib/actions/kanban-board-dnd';
+import {
   flagsParalelasFromCard,
-  hipotesesOrdemMinima,
   montarChipsParalelas,
 } from '@/lib/kanban/kanban-paralelas-chips';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
@@ -24,8 +28,18 @@ export type KanbanColumnProps = {
   /** Cor da faixa superior da coluna (CSS). */
   columnAccent?: string;
   kanbanId: string;
+  kanbanNome?: string;
   /** Ordem mínima da fase Hipóteses (Step One). */
   hipotesesOrdemMin?: number | null;
+  /** Habilita arrastar cards entre fases e reordenar na coluna. */
+  dragEnabled?: boolean;
+};
+
+type DragPayload = {
+  cardId: string;
+  fromFaseId: string;
+  fromFaseSlug: string;
+  origem: KanbanDnDCardOrigem;
 };
 
 function hrefAbrirCard(
@@ -55,6 +69,10 @@ function cardConcluidoVisual(card: KanbanCardBrief): boolean {
   return card.origem !== 'legado' && Boolean(card.concluido);
 }
 
+function cardDraggable(card: KanbanCardBrief): boolean {
+  return !cardArquivadoVisual(card) && !cardConcluidoVisual(card);
+}
+
 function calcularCorData(dataIso: string): string {
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
@@ -76,6 +94,24 @@ function labelData(dataIso: string): string {
   return `Em ${diffDias}d`;
 }
 
+function parseDragPayload(raw: string): DragPayload | null {
+  if (!raw) return null;
+  try {
+    const data = JSON.parse(raw) as Partial<DragPayload>;
+    const cardId = String(data.cardId ?? '').trim();
+    const fromFaseId = String(data.fromFaseId ?? '').trim();
+    if (!cardId || !fromFaseId) return null;
+    return {
+      cardId,
+      fromFaseId,
+      fromFaseSlug: String(data.fromFaseSlug ?? '').trim(),
+      origem: data.origem === 'legado' ? 'legado' : 'nativo',
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function KanbanColumn({
   fase,
   cards,
@@ -85,17 +121,111 @@ export function KanbanColumn({
   userRole,
   columnAccent = 'var(--moni-kanban-stepone)',
   kanbanId,
+  kanbanNome,
   hipotesesOrdemMin = null,
+  dragEnabled = false,
 }: KanbanColumnProps) {
   const faseSlug = fase.slug?.trim() ?? '';
   const router = useRouter();
-  const isAdmin =
-    userRole === 'admin' ||
-    userRole === 'consultor' ||
-    userRole === 'supervisor' ||
-    userRole === 'team';
+  const [pending, startTransition] = useTransition();
+  const suppressClickRef = useRef(false);
+  const [dragOverCardId, setDragOverCardId] = useState<string | null>(null);
+  const [dragInsertBefore, setDragInsertBefore] = useState(true);
+  const [columnDragOver, setColumnDragOver] = useState(false);
 
   const accent = useMemo(() => columnAccent, [columnAccent]);
+  const dndAtivo = dragEnabled && !pending;
+
+  const handleDragOverColumn = (e: DragEvent<HTMLDivElement>) => {
+    if (!dndAtivo) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setColumnDragOver(true);
+  };
+
+  const handleDragLeaveColumn = (e: DragEvent<HTMLDivElement>) => {
+    const related = e.relatedTarget as Node | null;
+    if (related && e.currentTarget.contains(related)) return;
+    setColumnDragOver(false);
+    setDragOverCardId(null);
+  };
+
+  const handleCardDragOver = (e: DragEvent<HTMLButtonElement>, cardId: string) => {
+    if (!dndAtivo) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setDragOverCardId(cardId);
+    setDragInsertBefore(e.clientY < rect.top + rect.height / 2);
+    setColumnDragOver(true);
+  };
+
+  const executarDrop = (payload: DragPayload, beforeCardId: string | null) => {
+    startTransition(() => {
+      void (async () => {
+        const origem = payload.origem;
+        const mesmaFase = payload.fromFaseId === fase.id;
+
+        if (mesmaFase) {
+          if (beforeCardId === payload.cardId) return;
+          const res = await reordenarCardKanbanDrag({
+            cardId: payload.cardId,
+            faseId: fase.id,
+            faseSlug: faseSlug || null,
+            beforeCardId,
+            origem,
+            basePath,
+          });
+          if (!res.ok) {
+            alert(res.error ?? 'Não foi possível reordenar o card.');
+            return;
+          }
+        } else {
+          const resMove = await moverCardKanbanDrag({
+            cardId: payload.cardId,
+            toFaseId: fase.id,
+            toFaseSlug: faseSlug || null,
+            fromFaseSlug: payload.fromFaseSlug || null,
+            origem,
+            basePath,
+            kanbanNome: typeof kanbanNome === 'string' ? kanbanNome : undefined,
+          });
+          if (!resMove.ok) {
+            alert(resMove.error ?? 'Não foi possível mover o card.');
+            return;
+          }
+          if (beforeCardId && beforeCardId !== payload.cardId) {
+            const resOrd = await reordenarCardKanbanDrag({
+              cardId: payload.cardId,
+              faseId: fase.id,
+              faseSlug: faseSlug || null,
+              beforeCardId,
+              origem,
+              basePath,
+            });
+            if (!resOrd.ok) {
+              alert(resOrd.error ?? 'Card movido, mas não foi possível definir a posição.');
+              router.refresh();
+              return;
+            }
+          }
+        }
+        router.refresh();
+      })();
+    });
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>, beforeCardId: string | null) => {
+    if (!dndAtivo) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setColumnDragOver(false);
+    setDragOverCardId(null);
+
+    const payload = parseDragPayload(e.dataTransfer.getData('application/json'));
+    if (!payload) return;
+    executarDrop(payload, beforeCardId);
+  };
 
   return (
     <div
@@ -103,6 +233,8 @@ export function KanbanColumn({
       style={{
         border: '0.5px solid var(--moni-border-default)',
         borderTop: `3px solid ${accent}`,
+        outline: columnDragOver && dndAtivo ? '2px solid var(--moni-navy-300)' : undefined,
+        outlineOffset: columnDragOver && dndAtivo ? '-2px' : undefined,
       }}
     >
       <div
@@ -134,7 +266,12 @@ export function KanbanColumn({
         </div>
       </div>
 
-      <div className="max-h-[70vh] space-y-2 overflow-y-auto p-3">
+      <div
+        className="max-h-[70vh] space-y-2 overflow-y-auto p-3"
+        onDragOver={handleDragOverColumn}
+        onDragLeave={handleDragLeaveColumn}
+        onDrop={(e) => handleDrop(e, null)}
+      >
         {cards.map((card) => {
           const createdDate = new Date(card.created_at);
           const slaDiasUteis = fase.sla_dias ?? 999;
@@ -144,6 +281,9 @@ export function KanbanColumn({
           const motivo = (card.motivo_arquivamento ?? '').trim();
           const opacidadeCard = arquivado || concluido ? 'opacity-60' : '';
           const paddingTitulo = arquivado || concluido ? 'pr-20' : '';
+          const podeArrastar = dndAtivo && cardDraggable(card);
+          const insertBeforeThis =
+            dragOverCardId === card.id && dragInsertBefore && dndAtivo;
 
           const chipsParalelas = montarChipsParalelas(
             {
@@ -160,80 +300,132 @@ export function KanbanColumn({
           );
 
           return (
-            <button
-              key={card.id}
-              type="button"
-              onClick={() => {
-                router.push(hrefAbrirCard(basePath, card.id, cardQueryParam, card.origem));
-              }}
-              className={`relative block w-full p-3 text-left shadow-sm transition hover:shadow-md ${opacidadeCard}`}
-              style={{
-                border: arquivado
-                  ? '1px dashed var(--moni-status-archived-border)'
-                  : concluido
-                    ? '1px dashed var(--moni-green-400)'
-                    : '0.5px solid var(--moni-border-default)',
-                borderRadius: 'var(--moni-radius-lg)',
-                background: 'var(--moni-surface-0)',
-              }}
-            >
-              {arquivado ? (
-                <span
-                  className="absolute right-2 top-2 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-                  style={{
-                    background: 'var(--moni-status-archived-bg)',
-                    color: 'var(--moni-status-archived-text)',
-                    border: '0.5px solid var(--moni-status-archived-border)',
-                  }}
-                >
-                  ARQUIVADO
-                </span>
-              ) : concluido ? (
-                <span
-                  className="absolute right-2 top-2 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-                  style={{
-                    background: 'var(--moni-green-50)',
-                    color: 'var(--moni-green-800)',
-                    border: '0.5px solid var(--moni-green-400)',
-                  }}
-                >
-                  CONCLUÍDO
-                </span>
+            <div key={card.id} className="relative">
+              {insertBeforeThis ? (
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute -top-1 left-0 right-0 z-10 h-0.5 rounded-full"
+                  style={{ background: 'var(--moni-navy-500)' }}
+                />
               ) : null}
-              <p className={`line-clamp-2 text-sm font-medium text-stone-800 ${paddingTitulo}`}>{card.titulo}</p>
-              {arquivado && motivo ? (
-                <p className="mt-1 line-clamp-2 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
-                  {motivo}
-                </p>
-              ) : null}
-              {card.profiles?.full_name ? (
-                <p className="mt-1 line-clamp-1 text-xs text-stone-500">{card.profiles.full_name}</p>
-              ) : null}
-              <KanbanParalelasChips chips={chipsParalelas} compact />
-              {card.data_reuniao || card.data_followup ? (
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {card.data_reuniao ? (
-                    <span
-                      className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${calcularCorData(card.data_reuniao)}`}
-                      style={{ background: 'var(--moni-surface-50)', border: '0.5px solid var(--moni-border-subtle)' }}
-                    >
-                      Reunião: {labelData(card.data_reuniao)}
-                    </span>
-                  ) : null}
-                  {card.data_followup ? (
-                    <span
-                      className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${calcularCorData(card.data_followup)}`}
-                      style={{ background: 'var(--moni-surface-50)', border: '0.5px solid var(--moni-border-subtle)' }}
-                    >
-                      Follow-up: {labelData(card.data_followup)}
-                    </span>
-                  ) : null}
-                </div>
-              ) : null}
-              {!arquivado && !concluido && sla.label && sla.status !== 'ok' ? (
-                <p className={`mt-1 text-xs ${sla.classe}`}>{sla.label}</p>
-              ) : null}
-            </button>
+              <button
+                type="button"
+                draggable={podeArrastar}
+                onDragStart={(e) => {
+                  if (!podeArrastar) {
+                    e.preventDefault();
+                    return;
+                  }
+                  suppressClickRef.current = true;
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData(
+                    'application/json',
+                    JSON.stringify({
+                      cardId: card.id,
+                      fromFaseId: fase.id,
+                      fromFaseSlug: faseSlug,
+                      origem: card.origem === 'legado' ? 'legado' : 'nativo',
+                    } satisfies DragPayload),
+                  );
+                }}
+                onDragEnd={() => {
+                  setColumnDragOver(false);
+                  setDragOverCardId(null);
+                  window.setTimeout(() => {
+                    suppressClickRef.current = false;
+                  }, 0);
+                }}
+                onDragOver={(e) => handleCardDragOver(e, card.id)}
+                onDrop={(e) => {
+                  if (!dndAtivo) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setColumnDragOver(false);
+                  setDragOverCardId(null);
+                  const payload = parseDragPayload(e.dataTransfer.getData('application/json'));
+                  if (!payload) return;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const before = e.clientY < rect.top + rect.height / 2;
+                  const beforeCardId = before ? card.id : cards[cards.indexOf(card) + 1]?.id ?? null;
+                  executarDrop(payload, beforeCardId);
+                }}
+                onClick={() => {
+                  if (suppressClickRef.current) return;
+                  router.push(hrefAbrirCard(basePath, card.id, cardQueryParam, card.origem));
+                }}
+                className={`relative block w-full p-3 text-left shadow-sm transition hover:shadow-md ${opacidadeCard} ${
+                  pending ? 'pointer-events-none opacity-70' : ''
+                } ${podeArrastar ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                style={{
+                  border: arquivado
+                    ? '1px dashed var(--moni-status-archived-border)'
+                    : concluido
+                      ? '1px dashed var(--moni-green-400)'
+                      : dragOverCardId === card.id && !dragInsertBefore && dndAtivo
+                        ? '2px solid var(--moni-navy-300)'
+                        : '0.5px solid var(--moni-border-default)',
+                  borderRadius: 'var(--moni-radius-lg)',
+                  background: 'var(--moni-surface-0)',
+                }}
+              >
+                {arquivado ? (
+                  <span
+                    className="absolute right-2 top-2 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                    style={{
+                      background: 'var(--moni-status-archived-bg)',
+                      color: 'var(--moni-status-archived-text)',
+                      border: '0.5px solid var(--moni-status-archived-border)',
+                    }}
+                  >
+                    ARQUIVADO
+                  </span>
+                ) : concluido ? (
+                  <span
+                    className="absolute right-2 top-2 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                    style={{
+                      background: 'var(--moni-green-50)',
+                      color: 'var(--moni-green-800)',
+                      border: '0.5px solid var(--moni-green-400)',
+                    }}
+                  >
+                    CONCLUÍDO
+                  </span>
+                ) : null}
+                <p className={`line-clamp-2 text-sm font-medium text-stone-800 ${paddingTitulo}`}>{card.titulo}</p>
+                {arquivado && motivo ? (
+                  <p className="mt-1 line-clamp-2 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+                    {motivo}
+                  </p>
+                ) : null}
+                {card.profiles?.full_name ? (
+                  <p className="mt-1 line-clamp-1 text-xs text-stone-500">{card.profiles.full_name}</p>
+                ) : null}
+                <KanbanParalelasChips chips={chipsParalelas} compact />
+                {card.data_reuniao || card.data_followup ? (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {card.data_reuniao ? (
+                      <span
+                        className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${calcularCorData(card.data_reuniao)}`}
+                        style={{ background: 'var(--moni-surface-50)', border: '0.5px solid var(--moni-border-subtle)' }}
+                      >
+                        Reunião: {labelData(card.data_reuniao)}
+                      </span>
+                    ) : null}
+                    {card.data_followup ? (
+                      <span
+                        className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${calcularCorData(card.data_followup)}`}
+                        style={{ background: 'var(--moni-surface-50)', border: '0.5px solid var(--moni-border-subtle)' }}
+                      >
+                        Follow-up: {labelData(card.data_followup)}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
+                {!arquivado && !concluido && sla.label && sla.status !== 'ok' ? (
+                  <p className={`mt-1 text-xs ${sla.classe}`}>{sla.label}</p>
+                ) : null}
+              </button>
+            </div>
           );
         })}
         {cards.length === 0 ? (

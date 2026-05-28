@@ -3,6 +3,7 @@ import { normalizeAccessRole } from '@/lib/authz';
 import { KANBAN_ID_BY_NOME } from '@/lib/constants/kanban-ids';
 import { fetchKanbanFasesAtivas } from '@/lib/kanban/fetch-kanban-fases';
 import { enrichCardsParalelasContext } from '@/lib/kanban/kanban-paralelas-chips';
+import { sortKanbanCardsPorOrdemColuna } from '@/lib/kanban/kanban-coluna-ordem';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
 export type KanbanBoardSnapshot = {
@@ -155,11 +156,16 @@ export async function fetchKanbanBoardSnapshot(
 
   const processoIds = rows.map((r) => String(r.id)).filter(Boolean);
   const franqueadoNomeMap = new Map<string, string>();
+  const legadoOrdemMap = new Map<string, number>();
   if (processoIds.length > 0) {
     const { data: processos } = await supabase
       .from('processo_step_one')
-      .select('id, numero_franquia')
+      .select('id, numero_franquia, ordem_coluna_painel')
       .in('id', processoIds);
+    (processos ?? []).forEach((p) => {
+      const pid = String(p.id);
+      legadoOrdemMap.set(pid, Number((p as { ordem_coluna_painel?: number | null }).ordem_coluna_painel ?? 0));
+    });
     const numeros = [...new Set((processos ?? []).map((p) => p.numero_franquia).filter(Boolean))] as string[];
     if (numeros.length > 0) {
       const { data: redes } = await supabase
@@ -177,13 +183,15 @@ export async function fetchKanbanBoardSnapshot(
 
   const cardsLegado: KanbanCardBrief[] = rows.map((r) => {
     const fid = r.responsavel_id ? String(r.responsavel_id) : null;
+    const cardId = String(r.id);
     return {
-      id: String(r.id),
+      id: cardId,
       titulo: String(r.titulo ?? ''),
       status: String(r.status ?? ''),
       created_at: String(r.criado_em ?? ''),
       fase_id: String(r.fase_id ?? ''),
       franqueado_id: fid ?? '',
+      ordem_coluna: legadoOrdemMap.get(cardId) ?? 0,
       arquivado: false,
       motivo_arquivamento: null,
       concluido: false,
@@ -221,7 +229,8 @@ export async function fetchKanbanBoardSnapshot(
       capital_ok,
       juridico_ok,
       credito_obra_ok,
-      projeto_id
+      projeto_id,
+      ordem_coluna
     `;
 
   let cardsRaw: unknown[] = [];
@@ -234,6 +243,7 @@ export async function fetchKanbanBoardSnapshot(
       .eq('status', 'ativo')
       .eq('arquivado', false)
       .eq('concluido', false)
+      .order('ordem_coluna', { ascending: true })
       .order('created_at', { ascending: false });
 
     let concluidosQuery = supabase
@@ -243,6 +253,7 @@ export async function fetchKanbanBoardSnapshot(
       .eq('status', 'ativo')
       .eq('arquivado', false)
       .eq('concluido', true)
+      .order('ordem_coluna', { ascending: true })
       .order('created_at', { ascending: false });
 
     if (userId && !isAdmin) {
@@ -303,6 +314,7 @@ export async function fetchKanbanBoardSnapshot(
       status: String(c.status ?? ''),
       created_at: String(c.created_at ?? ''),
       fase_id: String(c.fase_id ?? ''),
+      ordem_coluna: Number((c as { ordem_coluna?: number | null }).ordem_coluna ?? 0),
       kanban_id: kanbanIdStr,
       projeto_id: (c as { projeto_id?: string | null }).projeto_id ?? null,
       franqueado_id: fid,
