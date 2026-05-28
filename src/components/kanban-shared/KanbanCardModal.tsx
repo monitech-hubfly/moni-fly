@@ -97,6 +97,7 @@ import { usePermissoes } from '@/lib/hooks/usePermissoes';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { KanbanCardModalProjetoTab } from './KanbanCardModalProjetoTab';
 import { KanbanCardModalRelacionamentos } from './KanbanCardModalRelacionamentos';
+import { fetchKanbanFasesAtivas, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 import {
   countKanbanModalInteracoesFiltrosAtivos,
@@ -964,24 +965,10 @@ export function KanbanCardModal({
         setPreObraDraft(preObraDraftFromProcesso(null));
       }
 
-      const mapFaseRow = (row: Record<string, unknown>): KanbanFase => ({
-        id: String(row.id),
-        nome: String(row.nome ?? ''),
-        ordem: Number(row.ordem ?? 0),
-        sla_dias: row.sla_dias != null && row.sla_dias !== '' ? Number(row.sla_dias) : null,
-        slug: row.slug != null ? String(row.slug) : null,
-        instrucoes: row.instrucoes != null ? String(row.instrucoes) : null,
-        materiais: parseKanbanFaseMateriais(row.materiais),
-      });
+      const mapFaseRow = mapKanbanFaseRow;
 
       if (!fasesProp?.length) {
-        const { data: fasesData } = await supabase
-          .from('kanban_fases')
-          .select('id, nome, ordem, sla_dias, slug, instrucoes, materiais')
-          .eq('kanban_id', loaded.kanban_id)
-          .eq('ativo', true)
-          .order('ordem');
-        const mapped = (fasesData ?? []).map((r) => mapFaseRow(r as unknown as Record<string, unknown>));
+        const mapped = await fetchKanbanFasesAtivas(supabase, loaded.kanban_id);
         setFases(mapped);
         setFaseAtual(mapped.find((f) => f.id === loaded.fase_id) ?? null);
       } else {

@@ -55,28 +55,31 @@ export function KanbanBoard({
   const [filtrosOpen, setFiltrosOpen] = useState(false);
   const filtrosPopoverRef = useRef<HTMLDivElement>(null);
   const filtrosBtnRef = useRef<HTMLButtonElement>(null);
+  const boardScrollRef = useRef<HTMLDivElement>(null);
+  const [scrollHintLeft, setScrollHintLeft] = useState(false);
+  const [scrollHintRight, setScrollHintRight] = useState(false);
 
-  /** DEBUG PROD: comparar id completo vs URL (?card=) — remover após diagnóstico */
+  const syncBoardScrollHints = () => {
+    const el = boardScrollRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    const overflow = scrollWidth - clientWidth > 8;
+    setScrollHintLeft(overflow && scrollLeft > 8);
+    setScrollHintRight(overflow && scrollLeft + clientWidth < scrollWidth - 8);
+  };
+
   useEffect(() => {
-    for (const c of cards) {
-      console.log(
-        '[DEBUG] KanbanBoard card.id (ativos):',
-        JSON.stringify(c.id),
-        'len=',
-        c.id?.length,
-        c,
-      );
-    }
-    for (const c of cardsConcluidos) {
-      console.log(
-        '[DEBUG] KanbanBoard card.id (concluidos):',
-        JSON.stringify(c.id),
-        'len=',
-        c.id?.length,
-        c,
-      );
-    }
-  }, [cards, cardsConcluidos]);
+    syncBoardScrollHints();
+    const el = boardScrollRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', syncBoardScrollHints, { passive: true });
+    const ro = new ResizeObserver(syncBoardScrollHints);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', syncBoardScrollHints);
+      ro.disconnect();
+    };
+  }, [fases.length]);
 
   useEffect(() => {
     if (!filtrosOpen) return;
@@ -147,7 +150,7 @@ export function KanbanBoard({
   const podeCriarCards = pode('criar_cards');
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       <div className="relative flex flex-wrap items-center gap-3">
         {mostrarLinkNovoCard && podeCriarCards ? (
           <Link
@@ -217,26 +220,42 @@ export function KanbanBoard({
         ) : null}
       </div>
 
-      <div className="moni-kanban-board flex min-w-max gap-4">
-        {fases.map((fase) => {
-          const raw = rawByFase[fase.id] ?? [];
-          const vis = cardsByFase[fase.id] ?? [];
-          const listaVaziaPorFiltro = clientFiltersActive && raw.length > 0 && vis.length === 0;
-          return (
-            <KanbanColumn
-              key={fase.id}
-              fase={fase}
-              cards={vis}
-              listaVaziaPorFiltro={listaVaziaPorFiltro}
-              basePath={basePath}
-              cardQueryParam={cardQueryParam}
-              userRole={userRole}
-              columnAccent={columnAccent}
-              kanbanId={kanbanId}
-              hipotesesOrdemMin={hipotesesOrdemMin}
-            />
-          );
-        })}
+      <div className="relative min-w-0 w-full">
+        {scrollHintLeft ? (
+          <div
+            aria-hidden
+            className="moni-kanban-board-scroll-hint pointer-events-none absolute inset-y-0 left-0 z-10 w-10"
+          />
+        ) : null}
+        {scrollHintRight ? (
+          <div
+            aria-hidden
+            className="moni-kanban-board-scroll-hint moni-kanban-board-scroll-hint--right pointer-events-none absolute inset-y-0 right-0 z-10 w-12"
+          />
+        ) : null}
+        <div ref={boardScrollRef} className="moni-kanban-board-scroll w-full min-w-0 overflow-x-auto pb-2">
+          <div className="moni-kanban-board flex min-w-max gap-4">
+            {fases.map((fase) => {
+              const raw = rawByFase[fase.id] ?? [];
+              const vis = cardsByFase[fase.id] ?? [];
+              const listaVaziaPorFiltro = clientFiltersActive && raw.length > 0 && vis.length === 0;
+              return (
+                <KanbanColumn
+                  key={fase.id}
+                  fase={fase}
+                  cards={vis}
+                  listaVaziaPorFiltro={listaVaziaPorFiltro}
+                  basePath={basePath}
+                  cardQueryParam={cardQueryParam}
+                  userRole={userRole}
+                  columnAccent={columnAccent}
+                  kanbanId={kanbanId}
+                  hipotesesOrdemMin={hipotesesOrdemMin}
+                />
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );

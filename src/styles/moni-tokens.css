@@ -355,6 +355,43 @@
 .moni-kanban-id--contab    { background: var(--moni-kanban-contab-light);    color: var(--moni-kanban-contab);    border-color: var(--moni-kanban-contab-accent); }
 .moni-kanban-id--credito   { background: var(--moni-kanban-credito-light);   color: var(--moni-kanban-credito);   border-color: var(--moni-kanban-credito-accent); }
 
+/* Kanban board — scroll horizontal com colunas largas */
+.moni-kanban-board-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+
+.moni-kanban-board-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.moni-kanban-board-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.moni-kanban-board-scroll::-webkit-scrollbar-thumb {
+  background: var(--moni-navy-200, #cbd5e1);
+  border-radius: 999px;
+}
+
+.moni-kanban-board-scroll-hint {
+  background: linear-gradient(
+    to right,
+    var(--moni-surface-50, #fafaf9) 0%,
+    transparent 100%
+  );
+}
+
+.moni-kanban-board-scroll-hint--right {
+  background: linear-gradient(
+    to left,
+    var(--moni-surface-50, #fafaf9) 0%,
+    transparent 100%
+  );
+}
+
 /* Tipografia editorial (H1, H2 Vogue-style) */
 .moni-heading-display {
   font-family: var(--moni-font-display);
@@ -387,6 +424,14 @@
   }
 
   /* Kanban board: scroll horizontal → lista empilhada */
+  .moni-kanban-board-scroll {
+    overflow-x: visible !important;
+  }
+
+  .moni-kanban-board-scroll-hint {
+    display: none !important;
+  }
+
   .moni-kanban-board {
     flex-direction: column !important;
     overflow-x: visible !important;

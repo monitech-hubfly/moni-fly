@@ -82,13 +82,13 @@ export async function renderKanbanDatabasePage(
       camposPorFase={config.camposPorFase}
       enableNovoCardModal={exibirNovoCard}
     >
-      <div className="min-h-screen bg-[var(--moni-surface-50)]">
+      <div className="min-h-screen min-w-0 bg-[var(--moni-surface-50)]">
         <Suspense fallback={null}>
           <KanbanPainelTabsShell basePath={config.basePath} variant={config.tabsVariant} />
         </Suspense>
 
         {activeTab === 'kanban' ? (
-          <main className="mx-auto max-w-[1600px] overflow-x-auto px-6 py-8">
+          <main className="mx-auto w-full min-w-0 max-w-[1600px] px-6 py-8">
             <KanbanBoard
               fases={fases ?? []}
               cards={cards}

@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeAccessRole } from '@/lib/authz';
+import { KANBAN_ID_BY_NOME } from '@/lib/constants/kanban-ids';
+import { fetchKanbanFasesAtivas } from '@/lib/kanban/fetch-kanban-fases';
 import { enrichCardsParalelasContext } from '@/lib/kanban/kanban-paralelas-chips';
-import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
 export type KanbanBoardSnapshot = {
@@ -35,6 +36,33 @@ function dataIsoParaInput(v: unknown): string | null {
   return s.length >= 10 ? s.slice(0, 10) : s;
 }
 
+/** Resolve kanban ativo pelo UUID canônico (PROD) ou fallback em `kanbans.nome`. */
+async function resolveKanbanAtivo(
+  supabase: SupabaseClient,
+  kanbanNomeDb: string,
+): Promise<{ id: string } | null> {
+  const canonicalId = KANBAN_ID_BY_NOME[kanbanNomeDb];
+  if (canonicalId) {
+    const { data } = await supabase
+      .from('kanbans')
+      .select('id')
+      .eq('id', canonicalId)
+      .eq('ativo', true)
+      .maybeSingle();
+    if (data?.id) return { id: String(data.id) };
+  }
+
+  const { data: kanbans } = await supabase
+    .from('kanbans')
+    .select('id')
+    .eq('nome', kanbanNomeDb)
+    .eq('ativo', true)
+    .limit(1);
+
+  const row = kanbans?.[0];
+  return row?.id ? { id: String(row.id) } : null;
+}
+
 /**
  * Carrega fases e cards do kanban pelo nome (`kanbans.nome`).
  * Cards nativos ativos: `arquivado = false` e `concluido = false`; concluídos vêm em `cardsConcluidos`.
@@ -61,39 +89,14 @@ export async function fetchKanbanBoardSnapshot(
     isAdmin = true;
   }
 
-  const { data: kanbans } = await supabase
-    .from('kanbans')
-    .select('id')
-    .eq('nome', kanbanNomeDb)
-    .eq('ativo', true)
-    .limit(1);
-
-  const kanban = kanbans?.[0] ?? null;
+  const kanban = await resolveKanbanAtivo(supabase, kanbanNomeDb);
   if (!kanban) {
     return { kanban: null, fases: [], cards: [], cardsConcluidos: [], role, isAdmin };
   }
 
   const kanbanIdStr = String(kanban.id);
 
-  const { data: fasesRows } = await supabase
-    .from('kanban_fases')
-    .select('id, nome, ordem, sla_dias, slug, instrucoes, materiais')
-    .eq('kanban_id', kanban.id)
-    .eq('ativo', true)
-    .order('ordem');
-
-  const fases: KanbanFase[] = (fasesRows ?? []).map((row) => {
-    const r = row as Record<string, unknown>;
-    return {
-      id: String(r.id),
-      nome: String(r.nome ?? ''),
-      ordem: Number(r.ordem ?? 0),
-      sla_dias: r.sla_dias != null && r.sla_dias !== '' ? Number(r.sla_dias) : null,
-      slug: r.slug != null ? String(r.slug) : null,
-      instrucoes: r.instrucoes != null ? String(r.instrucoes) : null,
-      materiais: parseKanbanFaseMateriais(r.materiais),
-    };
-  });
+  const fases = await fetchKanbanFasesAtivas(supabase, kanbanIdStr);
 
   const { count: nativeCount } = await supabase
     .from('kanban_cards')
