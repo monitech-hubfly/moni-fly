@@ -13,6 +13,8 @@ import {
   poolCardsPorStatus,
   type KanbanBoardFiltros,
 } from './kanbanBoardFiltros';
+import { hipotesesOrdemMinima } from '@/lib/kanban/kanban-paralelas-chips';
+import type { KanbanNomeDisplay } from './types';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
 export type KanbanBoardProps = {
@@ -28,6 +30,8 @@ export type KanbanBoardProps = {
   currentUserId?: string | null;
   /** Exibe o atalho “+ Novo card” (`?novo=true`) quando `pode('criar_cards')`. */
   mostrarLinkNovoCard?: boolean;
+  kanbanNome?: KanbanNomeDisplay | string;
+  kanbanId: string;
 };
 
 export function KanbanBoard({
@@ -40,7 +44,10 @@ export function KanbanBoard({
   cardQueryParam,
   currentUserId = null,
   mostrarLinkNovoCard = false,
+  kanbanNome,
+  kanbanId,
 }: KanbanBoardProps) {
+  const hipotesesOrdemMin = useMemo(() => hipotesesOrdemMinima(fases), [fases]);
   const { pode } = usePermissoes();
   const [filtros, setFiltros] = useState<KanbanBoardFiltros>(KANBAN_BOARD_FILTROS_DEFAULT);
   const [filtrosDraft, setFiltrosDraft] = useState<KanbanBoardFiltros>(KANBAN_BOARD_FILTROS_DEFAULT);
@@ -225,6 +232,8 @@ export function KanbanBoard({
               cardQueryParam={cardQueryParam}
               userRole={userRole}
               columnAccent={columnAccent}
+              kanbanId={kanbanId}
+              hipotesesOrdemMin={hipotesesOrdemMin}
             />
           );
         })}

@@ -5,6 +5,9 @@ const KANBAN_NOME_DB_PARA_APP: Record<string, { basePath: string; cardQueryParam
   'Funil Portfólio': { basePath: '/portfolio', cardQueryParam: 'card' },
   'Funil Operações': { basePath: '/operacoes', cardQueryParam: 'card' },
   'Funil Acoplamento': { basePath: '/funil-acoplamento', cardQueryParam: 'card' },
+  'Funil Jurídico': { basePath: '/funil-juridico', cardQueryParam: 'card' },
+  'Funil Moní Capital': { basePath: '/funil-moni-capital', cardQueryParam: 'card' },
+  'Funil Contratações': { basePath: '/funil-contratacoes', cardQueryParam: 'card' },
   'Funil Contabilidade': { basePath: '/painel-contabilidade', cardQueryParam: 'kanbanCard' },
   'Funil Crédito': { basePath: '/painel-credito', cardQueryParam: 'kanbanCard' },
 };

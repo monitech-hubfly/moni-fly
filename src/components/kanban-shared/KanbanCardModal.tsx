@@ -38,6 +38,8 @@ import {
   editarInteracao,
   editarSubInteracao,
   finalizarCard,
+  moverCardParaFase,
+  verificarGatePortfolioStep5,
   listarTagsCard,
   listarTagsKanban,
   listarVinculosCard,
@@ -57,6 +59,22 @@ import {
 } from '@/lib/actions/card-actions';
 import { enviarHipoteseAoPortfolio } from '@/lib/actions/card-actions';
 import { deletarChamado } from '@/app/sirene/actions';
+import {
+  abrirChamadoJuridicoDoCard,
+  existeChamadoJuridicoParaCard,
+  MSG_CHAMADO_JURIDICO_JA_EXISTE,
+} from '@/lib/actions/kanban-bastoes';
+import { KANBANS_COM_CHAMADO_JURIDICO } from '@/lib/constants/kanban-ids';
+import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
+import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
+import { isPortfolioKanbanRef } from '@/lib/kanban/portfolio-paralelas';
+import {
+  enrichCardsParalelasContext,
+  flagsParalelasFromCard,
+  hipotesesOrdemMinima,
+  montarChipsParalelas,
+} from '@/lib/kanban/kanban-paralelas-chips';
+import { KanbanParalelasChips } from './KanbanParalelasChips';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import {
   displayOrDash,
@@ -76,9 +94,16 @@ import {
   resolveKanbanChamadoIconKind,
   resolveKanbanChamadoSurfaceKind,
 } from '@/lib/atividade-vinculada-visual';
-import type { CamposPorFaseMap, KanbanFase, KanbanFaseMaterial, KanbanNomeDisplay } from './types';
+import type {
+  CamposPorFaseMap,
+  KanbanCardBrief,
+  KanbanFase,
+  KanbanFaseMaterial,
+  KanbanNomeDisplay,
+} from './types';
 import { usePermissoes } from '@/lib/hooks/usePermissoes';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
+import { KanbanCardModalProjetoTab } from './KanbanCardModalProjetoTab';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 import {
   countKanbanModalInteracoesFiltrosAtivos,
@@ -127,7 +152,6 @@ import {
   buildNativeFaseTimeline,
   type ProcessoCardMoveEvt,
 } from '@/lib/kanban/kanban-card-timeline';
-import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-notify';
 
 type Card = {
   id: string;
@@ -148,6 +172,16 @@ type Card = {
   concluido?: boolean;
   concluido_em?: string | null;
   arquivado?: boolean;
+  /** FK em `projeto_negocio` — esteiras paralelas do mesmo negócio. */
+  projeto_id?: string | null;
+  acoplamento_concluido?: boolean;
+  credito_terreno_ok?: boolean;
+  contabilidade_ok?: boolean;
+  capital_ok?: boolean;
+  juridico_ok?: boolean;
+  credito_obra_ok?: boolean;
+  portfolio_vinculo_rotulo?: string | null;
+  tem_filho_juridico?: boolean;
   /** Legado: status e updated_at do processo (conclusão aproximada quando status = concluido). */
   processo_meta?: { status: string; updated_at: string } | null;
   profiles?: {
@@ -292,6 +326,7 @@ export function KanbanCardModal({
   const [novoFranqueadoId, setNovoFranqueadoId] = useState('');
   const [salvandoFranqueado, setSalvandoFranqueado] = useState(false);
   const [abaComentarios, setAbaComentarios] = useState<'comentarios' | 'email'>('comentarios');
+  const [abaCentro, setAbaCentro] = useState<'detalhes' | 'projeto'>('detalhes');
   const [emailPara, setEmailPara] = useState('');
   const [emailCc, setEmailCc] = useState('');
   const [emailBcc, setEmailBcc] = useState('');
@@ -402,6 +437,13 @@ export function KanbanCardModal({
   const [buscaVinculo, setBuscaVinculo] = useState('');
   const [tipoNovoVinculo, setTipoNovoVinculo] = useState<TipoVinculoKanbanCard>('relacionado');
   const [resultadosBuscaVinculo, setResultadosBuscaVinculo] = useState<BuscaCardVinculoRow[]>([]);
+  const [gateStep5Toast, setGateStep5Toast] = useState<string | null>(null);
+  const [userRoleRaw, setUserRoleRaw] = useState('');
+  const [chamadoJuridicoToast, setChamadoJuridicoToast] = useState<{
+    tipo: 'ok' | 'erro';
+    msg: string;
+  } | null>(null);
+  const [abrindoChamadoJuridico, setAbrindoChamadoJuridico] = useState(false);
   const [modalAprovacaoFase, setModalAprovacaoFase] = useState<{
     fase: KanbanFase;
     direcao: 'avancar' | 'retroceder';
@@ -455,6 +497,8 @@ export function KanbanCardModal({
     setHipotesePortfolioErro(null);
     setHipotesePortfolioOk(null);
     setEnviandoHipotesePortfolio(false);
+    setChamadoJuridicoToast(null);
+    setAbrindoChamadoJuridico(false);
     setTagsKanban([]);
     setTagsCard([]);
     setTagsOpen(false);
@@ -616,6 +660,26 @@ export function KanbanCardModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardId, origem]);
 
+  useEffect(() => {
+    if (!card?.projeto_id) setAbaCentro('detalhes');
+  }, [card?.projeto_id]);
+
+  useEffect(() => {
+    let cancel = false;
+    void (async () => {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || cancel) return;
+      const { data } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+      if (!cancel) setUserRoleRaw(String((data as { role?: string | null } | null)?.role ?? ''));
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, []);
+
   async function salvarDatasCard(campo: 'data_reuniao' | 'data_followup', valor: string) {
     if (!card) return;
     setSalvandoDatas(true);
@@ -697,6 +761,13 @@ export function KanbanCardModal({
         processo_meta?: Card['processo_meta'];
         data_reuniao?: string | null;
         data_followup?: string | null;
+        projeto_id?: string | null;
+        acoplamento_concluido?: boolean;
+        credito_terreno_ok?: boolean;
+        contabilidade_ok?: boolean;
+        capital_ok?: boolean;
+        juridico_ok?: boolean;
+        credito_obra_ok?: boolean;
       };
 
       let loaded: LoadedShape | null = null;
@@ -719,15 +790,19 @@ export function KanbanCardModal({
 
         const legadoId = String(vRow.id);
         let arquivadoShadow = false;
+        let projetoIdLegado: string | null = null;
         try {
           const { data: shadowRow } = await supabase
             .from('kanban_cards')
-            .select('arquivado')
+            .select('arquivado, projeto_id')
             .eq('id', legadoId)
             .maybeSingle();
           arquivadoShadow = Boolean((shadowRow as { arquivado?: boolean | null } | null)?.arquivado);
+          const pid = (shadowRow as { projeto_id?: string | null } | null)?.projeto_id;
+          projetoIdLegado = pid != null && String(pid).trim() !== '' ? String(pid) : null;
         } catch {
           arquivadoShadow = false;
+          projetoIdLegado = null;
         }
 
         loaded = {
@@ -745,6 +820,7 @@ export function KanbanCardModal({
           data_reuniao: (vRow as { data_reuniao?: string | null }).data_reuniao ?? null,
           data_followup: (vRow as { data_followup?: string | null }).data_followup ?? null,
           arquivado: arquivadoShadow,
+          projeto_id: projetoIdLegado,
         };
 
         try {
@@ -782,7 +858,7 @@ export function KanbanCardModal({
         const { data: cardData, error: cardError } = await supabase
           .from('kanban_cards')
           .select(
-            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, quadra, lote, data_reuniao, data_followup',
+            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, quadra, lote, data_reuniao, data_followup, projeto_id, acoplamento_concluido, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok',
           )
           .eq('id', cardId)
           .single();
@@ -813,9 +889,29 @@ export function KanbanCardModal({
             (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? null,
           data_reuniao: (cardData as { data_reuniao?: string | null }).data_reuniao ?? null,
           data_followup: (cardData as { data_followup?: string | null }).data_followup ?? null,
+          projeto_id: (() => {
+            const pid = (cardData as { projeto_id?: string | null }).projeto_id;
+            return pid != null && String(pid).trim() !== '' ? String(pid) : null;
+          })(),
+          acoplamento_concluido: Boolean(
+            (cardData as { acoplamento_concluido?: boolean | null }).acoplamento_concluido,
+          ),
+          credito_terreno_ok: Boolean(
+            (cardData as { credito_terreno_ok?: boolean | null }).credito_terreno_ok,
+          ),
+          contabilidade_ok: Boolean((cardData as { contabilidade_ok?: boolean | null }).contabilidade_ok),
+          capital_ok: Boolean((cardData as { capital_ok?: boolean | null }).capital_ok),
+          juridico_ok: Boolean((cardData as { juridico_ok?: boolean | null }).juridico_ok),
+          credito_obra_ok: Boolean((cardData as { credito_obra_ok?: boolean | null }).credito_obra_ok),
         };
         nativeRedeFranqueadoId =
           (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? null;
+      }
+
+      if (!loaded) {
+        alert('Card não encontrado');
+        onClose();
+        return;
       }
 
       let profiles: Card['profiles'] = null;
@@ -828,7 +924,7 @@ export function KanbanCardModal({
         profiles = profileData ?? null;
       }
 
-      setCard({
+      let cardParaEstado: Card = {
         id: loaded.id,
         titulo: loaded.titulo,
         status: loaded.status,
@@ -844,9 +940,46 @@ export function KanbanCardModal({
         concluido: loaded.concluido ?? false,
         concluido_em: loaded.concluido_em ?? null,
         arquivado: loaded.arquivado ?? false,
+        projeto_id: loaded.projeto_id ?? null,
+        acoplamento_concluido: loaded.acoplamento_concluido,
+        credito_terreno_ok: loaded.credito_terreno_ok,
+        contabilidade_ok: loaded.contabilidade_ok,
+        capital_ok: loaded.capital_ok,
+        juridico_ok: loaded.juridico_ok,
+        credito_obra_ok: loaded.credito_obra_ok,
         processo_meta: loaded.processo_meta ?? null,
         profiles,
-      });
+      };
+
+      if (origem !== 'legado' && cardParaEstado.kanban_id) {
+        const brief: KanbanCardBrief = {
+          id: cardParaEstado.id,
+          titulo: cardParaEstado.titulo,
+          status: cardParaEstado.status,
+          created_at: cardParaEstado.created_at,
+          fase_id: cardParaEstado.fase_id,
+          franqueado_id: cardParaEstado.franqueado_id,
+          kanban_id: cardParaEstado.kanban_id,
+          projeto_id: cardParaEstado.projeto_id,
+          acoplamento_concluido: cardParaEstado.acoplamento_concluido,
+          credito_terreno_ok: cardParaEstado.credito_terreno_ok,
+          contabilidade_ok: cardParaEstado.contabilidade_ok,
+          capital_ok: cardParaEstado.capital_ok,
+          juridico_ok: cardParaEstado.juridico_ok,
+          credito_obra_ok: cardParaEstado.credito_obra_ok,
+        };
+        const enrichedList = await enrichCardsParalelasContext(supabase, cardParaEstado.kanban_id, [brief]);
+        const enrichedRow = enrichedList[0];
+        if (enrichedRow) {
+          cardParaEstado = {
+            ...cardParaEstado,
+            portfolio_vinculo_rotulo: enrichedRow.portfolio_vinculo_rotulo,
+            tem_filho_juridico: enrichedRow.tem_filho_juridico,
+          };
+        }
+      }
+
+      setCard(cardParaEstado);
       setDataReuniao(loaded.data_reuniao ? String(loaded.data_reuniao).slice(0, 10) : '');
       setDataFollowup(loaded.data_followup ? String(loaded.data_followup).slice(0, 10) : '');
 
@@ -1560,17 +1693,21 @@ export function KanbanCardModal({
         if (error) throw error;
         if (fromSlug) await registrarMovimentoLegadoKanban(fromSlug, slug);
       } else {
-        const { error } = await supabase.from('kanban_cards').update({ fase_id: proximaFase.id }).eq('id', card.id);
-        if (error) {
-          console.error('Erro ao avançar fase:', error);
-          alert(`Erro ao avançar fase: ${error.message} (código: ${error.code})`);
+        const res = await moverCardParaFase({
+          cardId: card.id,
+          novaFaseId: proximaFase.id,
+          basePath,
+          kanbanNome: typeof kanbanNome === 'string' ? kanbanNome : String(kanbanNome),
+        });
+        if (!res.ok) {
+          const msg = res.error ?? 'Erro ao avançar fase.';
+          const destinoStep5 =
+            String(proximaFase.slug ?? '').trim() === FASE_SLUGS.STEP_5 &&
+            isPortfolioKanbanRef(null, typeof kanbanNome === 'string' ? kanbanNome : String(kanbanNome));
+          if (destinoStep5) setGateStep5Toast(msg);
+          else alert(msg);
           return;
         }
-        void notificarUniversidadeSeAvancoStep2({
-          cardId: card.id,
-          newFaseId: proximaFase.id,
-          kanbanNombre: typeof kanbanNome === 'string' ? kanbanNome : String(kanbanNome),
-        });
       }
       await loadCard();
       router.refresh();
@@ -1592,6 +1729,15 @@ export function KanbanCardModal({
       alert('Esta é a última fase do funil.');
       return;
     }
+    if (isPortfolioKanbanRef(null, String(kanbanNome)) && origem !== 'legado') {
+      const gate = await verificarGatePortfolioStep5(card.id, proximaFase.id);
+      if (!gate.ok) {
+        setGateStep5Toast(gate.error ?? 'Não é possível avançar para o Comitê.');
+        return;
+      }
+      setGateStep5Toast(null);
+    }
+
     if (!confirm(`Avançar para a fase "${proximaFase.nome}"?`)) return;
 
     const checklist = await verificarChecklistParaFase(card.id);
@@ -2213,6 +2359,33 @@ export function KanbanCardModal({
     setEditandoInstrucoesFase(true);
   };
 
+  async function handleAbrirChamadoJuridico() {
+    if (!card || origem === 'legado') return;
+
+    setAbrindoChamadoJuridico(true);
+    setChamadoJuridicoToast(null);
+    try {
+      const jaExiste = await existeChamadoJuridicoParaCard(card.id);
+      if (jaExiste) {
+        setChamadoJuridicoToast({ tipo: 'erro', msg: MSG_CHAMADO_JURIDICO_JA_EXISTE });
+        return;
+      }
+      if (!confirm('Criar chamado jurídico para este card?')) return;
+
+      const res = await abrirChamadoJuridicoDoCard(card.id, basePath);
+      if (!res.ok) {
+        setChamadoJuridicoToast({ tipo: 'erro', msg: res.error });
+        return;
+      }
+      setChamadoJuridicoToast({ tipo: 'ok', msg: 'Chamado jurídico criado' });
+      router.refresh();
+    } catch {
+      setChamadoJuridicoToast({ tipo: 'erro', msg: 'Erro ao criar chamado jurídico.' });
+    } finally {
+      setAbrindoChamadoJuridico(false);
+    }
+  }
+
   async function handleEnviarHipotesePortfolio() {
     if (!card || card.concluido || card.arquivado) return;
     setHipotesePortfolioErro(null);
@@ -2317,6 +2490,8 @@ export function KanbanCardModal({
   if (!card) return null;
 
   const isLegado = origem === 'legado';
+  const showProjetoTab =
+    card.projeto_id != null && String(card.projeto_id).trim() !== '';
 
   const fmtDataHoraOuDash = (iso: string | null | undefined) => {
     const s = String(iso ?? '').trim();
@@ -2361,12 +2536,39 @@ export function KanbanCardModal({
     !cardLegadoConcluido &&
     !cardNativoArquivado &&
     !cardLegadoArquivado;
+  const roleNormUsuario = normalizeAccessRole(userRoleRaw);
+  const userRoleLc = (userRoleRaw || '').trim().toLowerCase();
+  const mostrarBotaoJuridico =
+    !isLegado &&
+    !ocultarGestaoCard &&
+    Boolean(card.kanban_id) &&
+    (KANBANS_COM_CHAMADO_JURIDICO as readonly string[]).includes(card.kanban_id) &&
+    !['frank', 'franqueado'].includes(userRoleLc) &&
+    !portalFrank;
+
   const mostrarColunaAcoesLateral =
     !ocultarGestaoCard &&
-    (pode('mover_fase') || pode('finalizar_cards') || podeArquivarCardPerm);
+    (pode('mover_fase') || pode('finalizar_cards') || podeArquivarCardPerm || mostrarBotaoJuridico);
   const cardTitulo = card.titulo;
   const checklistExtra = card.fase_id && camposPorFase?.[card.fase_id];
   const faseChecklistFaseId = card.fase_id ?? '';
+
+  const chipsParalelasModal =
+    !isLegado && faseAtual
+      ? montarChipsParalelas(
+          {
+            kanbanId: card.kanban_id,
+            faseSlug: faseAtual.slug ?? '',
+            faseOrdem: faseAtual.ordem,
+            hipotesesOrdemMin: hipotesesOrdemMinima(fases),
+            origem: 'nativo',
+            flags: flagsParalelasFromCard(card),
+            portfolioVinculoRotulo: card.portfolio_vinculo_rotulo,
+            temFilhoJuridico: card.tem_filho_juridico,
+          },
+          { labelsCompletos: true },
+        )
+      : [];
 
   const faseSlugHipoteses = faseAtual?.slug?.trim() ?? '';
   const isFaseHipoteses = (HIPOTESES_SLUGS as readonly string[]).includes(faseSlugHipoteses);
@@ -2583,6 +2785,46 @@ export function KanbanCardModal({
               ) : null}
             </div>
 
+            {chipsParalelasModal.length > 0 ? (
+              <div className="mb-4">
+                <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-stone-500">
+                  Esteiras paralelas
+                </p>
+                <KanbanParalelasChips chips={chipsParalelasModal} compact={false} />
+              </div>
+            ) : null}
+
+            {showProjetoTab ? (
+              <div className="mb-4 flex gap-1">
+                {(['detalhes', 'projeto'] as const).map((aba) => {
+                  const ativo = abaCentro === aba;
+                  return (
+                    <button
+                      key={aba}
+                      type="button"
+                      onClick={() => setAbaCentro(aba)}
+                      className="rounded-md px-3 py-1 text-xs font-medium transition"
+                      style={{
+                        background: ativo ? 'var(--moni-primary-600)' : 'transparent',
+                        color: ativo ? '#fff' : 'var(--moni-text-secondary)',
+                        border: ativo ? 'none' : '0.5px solid var(--moni-border-default)',
+                      }}
+                    >
+                      {aba === 'detalhes' ? 'Detalhes' : 'Projeto'}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {showProjetoTab && abaCentro === 'projeto' ? (
+              <KanbanCardModalProjetoTab
+                projetoId={card.projeto_id}
+                cardIdAtual={card.id}
+                ocultarKanbansInternos={usuarioFrank}
+              />
+            ) : (
+            <>
             <div className="mb-4 flex flex-wrap gap-3">
               <div className="flex items-center gap-1.5">
                 <div className="relative group">
@@ -4366,6 +4608,8 @@ export function KanbanCardModal({
                 )}
               </div>
             </div>
+            </>
+            )}
           </div>
 
           {/* Direita — ações de movimento do card (mobile: após o centro) */}
@@ -4547,6 +4791,19 @@ export function KanbanCardModal({
 
             {pode('mover_fase') ? (
               <>
+                {gateStep5Toast ? (
+                  <p
+                    className="mb-2 rounded-md px-2 py-1.5 text-center text-[10px] font-medium leading-snug"
+                    role="alert"
+                    style={{
+                      background: '#FAEEDA',
+                      color: '#92400e',
+                      border: '0.5px solid #D4AD68',
+                    }}
+                  >
+                    {gateStep5Toast}
+                  </p>
+                ) : null}
                 {!modalAprovacaoFase ? (
                   <>
                     <button
@@ -4666,6 +4923,51 @@ export function KanbanCardModal({
                     </button>
                   </div>
                 )}
+              </div>
+            ) : null}
+
+            {mostrarBotaoJuridico ? (
+              <div
+                className="mt-auto border-t pt-2"
+                style={{ borderColor: 'var(--moni-border-default)' }}
+              >
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                  Ações
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void handleAbrirChamadoJuridico()}
+                  disabled={abrindoChamadoJuridico || Boolean(card.arquivado) || Boolean(card.concluido)}
+                  className="w-full px-2 py-1.5 text-[11px] font-semibold leading-tight transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{
+                    background: 'var(--moni-navy-800)',
+                    color: '#fff',
+                    borderRadius: 'var(--moni-radius-md)',
+                  }}
+                >
+                  {abrindoChamadoJuridico ? 'Abrindo…' : 'Abrir Chamado Jurídico'}
+                </button>
+                {chamadoJuridicoToast ? (
+                  <p
+                    className="mt-1.5 rounded-md px-2 py-1 text-[10px] font-medium leading-snug"
+                    role="status"
+                    style={
+                      chamadoJuridicoToast.tipo === 'ok'
+                        ? {
+                            background: 'var(--moni-green-50)',
+                            color: 'var(--moni-green-800)',
+                            border: '0.5px solid var(--moni-green-400)',
+                          }
+                        : {
+                            background: 'var(--moni-status-archived-bg)',
+                            color: 'var(--moni-status-archived-text)',
+                            border: '0.5px solid var(--moni-status-archived-border)',
+                          }
+                    }
+                  >
+                    {chamadoJuridicoToast.msg}
+                  </p>
+                ) : null}
               </div>
             ) : null}
           </aside>

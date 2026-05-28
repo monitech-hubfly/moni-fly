@@ -20,6 +20,8 @@ export type KanbanDatabasePageConfig = {
   columnAccent: string;
   /** Checklist / conteúdo por `fase_id` no `KanbanCardModal` (opcional por kanban). */
   camposPorFase?: CamposPorFaseMap;
+  /** Quando true, oculta "+ Novo card" e `?novo=true` para frank/franqueado (só admin/team). */
+  novoCardApenasStaff?: boolean;
 };
 
 function primeiroQuery(v: string | string[] | undefined): string | undefined {
@@ -50,6 +52,8 @@ export async function renderKanbanDatabasePage(
     user.id,
   );
 
+  const exibirNovoCard = config.novoCardApenasStaff ? isAdmin : true;
+
   if (!kanban) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--moni-surface-50)]">
@@ -76,7 +80,7 @@ export async function renderKanbanDatabasePage(
       kanbanNome={config.kanbanNomeDisplay}
       fases={fases ?? []}
       camposPorFase={config.camposPorFase}
-      enableNovoCardModal
+      enableNovoCardModal={exibirNovoCard}
     >
       <div className="min-h-screen bg-[var(--moni-surface-50)]">
         <Suspense fallback={null}>
@@ -93,7 +97,9 @@ export async function renderKanbanDatabasePage(
               userRole={role}
               columnAccent={config.columnAccent}
               currentUserId={user.id}
-              mostrarLinkNovoCard
+              mostrarLinkNovoCard={exibirNovoCard}
+              kanbanNome={config.kanbanNomeDisplay}
+              kanbanId={kanban.id}
             />
           </main>
         ) : (

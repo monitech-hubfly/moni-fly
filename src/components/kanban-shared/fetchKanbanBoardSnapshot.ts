@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeAccessRole } from '@/lib/authz';
+import { enrichCardsParalelasContext } from '@/lib/kanban/kanban-paralelas-chips';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
@@ -210,7 +211,14 @@ export async function fetchKanbanBoardSnapshot(
       concluido_em,
       rede_franqueado_id,
       data_reuniao,
-      data_followup
+      data_followup,
+      acoplamento_concluido,
+      credito_terreno_ok,
+      contabilidade_ok,
+      capital_ok,
+      juridico_ok,
+      credito_obra_ok,
+      projeto_id
     `;
 
   let cardsRaw: unknown[] = [];
@@ -292,6 +300,8 @@ export async function fetchKanbanBoardSnapshot(
       status: String(c.status ?? ''),
       created_at: String(c.created_at ?? ''),
       fase_id: String(c.fase_id ?? ''),
+      kanban_id: kanbanIdStr,
+      projeto_id: (c as { projeto_id?: string | null }).projeto_id ?? null,
       franqueado_id: fid,
       arquivado: Boolean((c as { arquivado?: boolean | null }).arquivado),
       motivo_arquivamento: (c as { motivo_arquivamento?: string | null }).motivo_arquivamento ?? null,
@@ -303,6 +313,12 @@ export async function fetchKanbanBoardSnapshot(
       origem: 'nativo',
       data_reuniao: dataIsoParaInput(c.data_reuniao),
       data_followup: dataIsoParaInput(c.data_followup),
+      acoplamento_concluido: Boolean((c as { acoplamento_concluido?: boolean | null }).acoplamento_concluido),
+      credito_terreno_ok: Boolean((c as { credito_terreno_ok?: boolean | null }).credito_terreno_ok),
+      contabilidade_ok: Boolean((c as { contabilidade_ok?: boolean | null }).contabilidade_ok),
+      capital_ok: Boolean((c as { capital_ok?: boolean | null }).capital_ok),
+      juridico_ok: Boolean((c as { juridico_ok?: boolean | null }).juridico_ok),
+      credito_obra_ok: Boolean((c as { credito_obra_ok?: boolean | null }).credito_obra_ok),
       profiles: redeNomeDiretoMap.has(redeId)
         ? { full_name: redeNomeDiretoMap.get(redeId) ?? null }
         : redeNomeMapNativo.has(fid)
@@ -311,8 +327,11 @@ export async function fetchKanbanBoardSnapshot(
     };
   };
 
-  const cardsNativo = (cardsRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
-  const cardsConcluidos = (conclRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
+  let cardsNativo = (cardsRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
+  let cardsConcluidos = (conclRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
+
+  cardsNativo = await enrichCardsParalelasContext(supabase, kanbanIdStr, cardsNativo);
+  cardsConcluidos = await enrichCardsParalelasContext(supabase, kanbanIdStr, cardsConcluidos);
 
   // Combina nativo + legado (nativo primeiro) e remove duplicatas por id
   const seen = new Set<string>();

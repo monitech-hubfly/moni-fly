@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Bell, ChevronDown, ChevronRight, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { isAdminRole, normalizeAccessRole } from '@/lib/authz';
+import { canAccessFunilContratacoes, isAdminRole, normalizeAccessRole } from '@/lib/authz';
 import { isLiveLimitedRelease, showDevOnlySidebarNav } from '@/lib/release-scope';
 import { SidebarUniversidadeLinks } from '@/components/universidade/SidebarUniversidadeLinks';
 type PortalSidebarProps = {
@@ -45,7 +45,6 @@ const STEPS_SUBITENS: NavItem[] = [
   { href: '/step-7', label: 'Step 7: Contrato' },
 ];
 const PAINEL_NOVOS_NEGOCIOS_SUBITENS_HEAD: NavItem[] = [
-  { href: '/dashboard-novos-negocios', label: 'Dashboard Novos Negócios' },
   { href: '/funil-stepone', label: 'Funil Step One' },
   { href: '/portfolio', label: 'Funil Portfolio' },
   { href: '/loteadores', label: 'Funil Loteadores' },
@@ -58,8 +57,8 @@ const PAINEL_NOVOS_NEGOCIOS_ADMIN_SUBITENS: NavItem[] = [
 ];
 const PAINEL_NOVOS_NEGOCIOS_SUBITENS_TAIL: NavItem[] = [
   { href: '/operacoes', label: 'Funil Operações' },
-  { href: '/painel-novos-negocios', label: 'Portfolio + Operações (legado)' },
 ];
+const INTERNO_SUBITENS: NavItem[] = [{ href: '/funil-contratacoes', label: 'Contratações' }];
 const SIRENE_SUBITENS: NavItem[] = [{ href: '/sirene/chamados', label: 'Chamados' }];
 const CAROMETRO_SUBITENS: NavItem[] = [
   { href: '/carometro/comportamentos-e-atividades', label: 'Comportamentos e Atividades' },
@@ -104,10 +103,37 @@ function isRedeFranqueadosActive(pathname: string) {
   }
   return pathname === '/rede' || (pathname.startsWith('/rede') && !pathname.startsWith('/rede-franqueados'));
 }
+function buildPainelNovosNegociosSubitens(role: string, showFullNav: boolean, publicVisitor: boolean): NavItem[] {
+  const roleNorm = normalizeAccessRole(role);
+  const head: NavItem[] = [...PAINEL_NOVOS_NEGOCIOS_SUBITENS_HEAD];
+  if (!publicVisitor && roleNorm !== 'frank') {
+    const loteIdx = head.findIndex((i) => i.href === '/loteadores');
+    const insertAt = loteIdx >= 0 ? loteIdx + 1 : head.length;
+    head.splice(insertAt, 0, { href: '/funil-juridico', label: 'Funil Jurídico' });
+  }
+  if (!publicVisitor && roleNorm !== 'frank') {
+    const juridicoIdx = head.findIndex((i) => i.href === '/funil-juridico');
+    const insertAt =
+      juridicoIdx >= 0
+        ? juridicoIdx + 1
+        : (() => {
+            const loteIdx = head.findIndex((i) => i.href === '/loteadores');
+            return loteIdx >= 0 ? loteIdx + 1 : head.length;
+          })();
+    head.splice(insertAt, 0, { href: '/funil-moni-capital', label: 'Moní Capital' });
+  }
+  if (showFullNav) {
+    return [...head, ...PAINEL_NOVOS_NEGOCIOS_ADMIN_SUBITENS, ...PAINEL_NOVOS_NEGOCIOS_SUBITENS_TAIL];
+  }
+  return [...head, ...PAINEL_NOVOS_NEGOCIOS_SUBITENS_TAIL];
+}
+
 function isPainelNovosNegociosActive(pathname: string) {
   return (
     pathname.startsWith('/painel-novos-negocios') ||
     pathname.startsWith('/portfolio') ||
+    pathname.startsWith('/funil-juridico') ||
+    pathname.startsWith('/funil-moni-capital') ||
     pathname.startsWith('/funil-acoplamento') ||
     pathname.startsWith('/operacoes') ||
     pathname.startsWith('/painel-contabilidade') ||
@@ -117,6 +143,10 @@ function isPainelNovosNegociosActive(pathname: string) {
     pathname.startsWith('/loteadores') ||
     pathname.startsWith('/funil-moni-inc')
   );
+}
+
+function isInternoNavActive(pathname: string) {
+  return pathname.startsWith('/funil-contratacoes');
 }
 
 function isSireneNavActive(pathname: string) {
@@ -143,10 +173,17 @@ function isStepsActive(pathname: string) {
 export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalSidebarProps) {
   const pathname = usePathname();
   const [resolvedRole, setResolvedRole] = useState(userRole);
+  const [resolvedCargo, setResolvedCargo] = useState<string | null>(null);
   const isAdmin = isAdminRole(resolvedRole);
+  const showInternoNav = canAccessFunilContratacoes(resolvedRole, resolvedCargo);
   const limitedRelease = isLiveLimitedRelease();
   const showDevNav = showDevOnlySidebarNav();
   const showFullNovosNegociosNav = publicVisitor || isAdmin;
+
+  const painelNovosNegociosSubitens = useMemo(
+    () => buildPainelNovosNegociosSubitens(resolvedRole, showFullNovosNegociosNav, publicVisitor),
+    [resolvedRole, showFullNovosNegociosNav, publicVisitor],
+  );
 
   useEffect(() => {
     setResolvedRole(userRole);
@@ -157,12 +194,15 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
     const supabase = createClient();
     void supabase
       .from('profiles')
-      .select('role')
+      .select('role, cargo')
       .eq('id', user.id)
       .maybeSingle()
       .then(({ data }) => {
         if (data?.role != null) {
           setResolvedRole(normalizeAccessRole(String(data.role)));
+        }
+        if (data?.cargo != null) {
+          setResolvedCargo(String(data.cargo));
         }
       });
   }, [user?.id, publicVisitor]);
@@ -173,6 +213,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
   const [painelNovosNegociosOpen, setPainelNovosNegociosOpen] = useState(() =>
     isPainelNovosNegociosActive(pathname ?? ''),
   );
+  const [internoOpen, setInternoOpen] = useState(() => isInternoNavActive(pathname ?? ''));
   const [sireneOpen, setSireneOpen] = useState(() => isSireneNavActive(pathname ?? ''));
   const [carometroOpen, setCarometroOpen] = useState(() => isCarometroNavActive(pathname ?? ''));
   /** Franqueado não acessa `/rede-franqueados` (middleware); visão consolidada em `/portal-frank/rede`. */
@@ -188,6 +229,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
     const p = pathname ?? '';
     if (p === '/perfil' || p.startsWith('/admin/usuarios')) setPerfilOpen(true);
     if (isPainelNovosNegociosActive(p)) setPainelNovosNegociosOpen(true);
+    if (isInternoNavActive(p)) setInternoOpen(true);
     if (isSireneNavActive(p)) setSireneOpen(true);
     if (isCarometroNavActive(p)) setCarometroOpen(true);
     if (isRedeFranqueadosActive(p)) setRedeFranqueadosOpen(true);
@@ -221,6 +263,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
       | 'catalogo'
       | 'steps'
       | 'painelNovosNegocios'
+      | 'interno'
       | 'sirene'
       | 'carometro',
     label: string,
@@ -310,11 +353,20 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
           isPainelNovosNegociosActive(pathname ?? ''),
           painelNovosNegociosOpen,
           setPainelNovosNegociosOpen,
-          showFullNovosNegociosNav
-            ? [...PAINEL_NOVOS_NEGOCIOS_SUBITENS_HEAD, ...PAINEL_NOVOS_NEGOCIOS_ADMIN_SUBITENS, ...PAINEL_NOVOS_NEGOCIOS_SUBITENS_TAIL]
-            : [...PAINEL_NOVOS_NEGOCIOS_SUBITENS_HEAD, ...PAINEL_NOVOS_NEGOCIOS_SUBITENS_TAIL],
+          painelNovosNegociosSubitens,
           (href) => pathname === href || (pathname?.startsWith(href + '/') ?? false),
         )}
+
+        {!publicVisitor && !limitedRelease && showInternoNav &&
+          renderMacro(
+            'interno',
+            'Interno',
+            isInternoNavActive(pathname ?? ''),
+            internoOpen,
+            setInternoOpen,
+            INTERNO_SUBITENS,
+            (href) => pathname === href || (pathname?.startsWith(`${href}/`) ?? false),
+          )}
 
         {!publicVisitor && !limitedRelease && (isAdmin || resolvedRole === 'team') &&
           renderMacro(

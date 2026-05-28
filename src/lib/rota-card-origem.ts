@@ -20,6 +20,12 @@ export function rotaCardOrigem(kanbanNome: string, cardId: string | null | undef
       return `/portfolio?card=${q}&origem=legado`;
     case 'Funil Acoplamento':
       return `/funil-acoplamento?card=${q}`;
+    case 'Funil Jurídico':
+      return `/funil-juridico?card=${q}`;
+    case 'Funil Moní Capital':
+      return `/funil-moni-capital?card=${q}`;
+    case 'Funil Contratações':
+      return `/funil-contratacoes?card=${q}`;
     case 'Funil Operações':
       return `/operacoes?card=${q}&origem=legado`;
     case 'Funil Contabilidade':

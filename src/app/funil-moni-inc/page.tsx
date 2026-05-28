@@ -195,6 +195,7 @@ export default async function FunilMoniIncPage({
               columnAccent="var(--moni-kanban-stepone)"
               currentUserId={user.id}
               mostrarLinkNovoCard={Boolean(primeiraFaseContatoId)}
+              kanbanId={kanban.id}
             />
           </main>
         )}

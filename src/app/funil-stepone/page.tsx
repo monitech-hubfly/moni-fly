@@ -197,6 +197,7 @@ export default async function FunilStepOnePage({
               columnAccent="var(--moni-kanban-stepone)"
               currentUserId={user.id}
               mostrarLinkNovoCard
+              kanbanId={kanban.id}
             />
           </main>
         )}

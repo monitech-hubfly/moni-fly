@@ -1,6 +1,11 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { normalizeAccessRole } from '@/lib/authz';
+import {
+  canAccessFunilContratacoes,
+  canAccessFunisInternosNegocio,
+  FUNIL_CONTRATACOES_PATH,
+  normalizeAccessRole,
+} from '@/lib/authz';
 import { isAdminOnlyPath, isFrankAllowedPath, isTeamAllowedPath } from '@/lib/access-matrix';
 import { allowPublicAccessRedeNovos, isAppFullyPublic } from '@/lib/public-rede-novos';
 
@@ -60,6 +65,10 @@ export async function updateSession(request: NextRequest) {
     '/painel-novos-negocios',
     '/portfolio',
     '/funil-acoplamento',
+    '/funil-juridico',
+    '/funil-moni-capital',
+    '/funil-contratacoes',
+    '/dashboard',
     '/operacoes',
     '/funil-stepone',
     '/loteadores',
@@ -105,13 +114,33 @@ export async function updateSession(request: NextRequest) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, cargo')
     .eq('id', user.id)
     .maybeSingle();
-  const rawProfileRole = String((profile as { role?: string | null } | null)?.role ?? '')
-    .trim()
-    .toLowerCase();
-  const accessRole = normalizeAccessRole((profile as { role?: string | null } | null)?.role);
+  const profileRow = profile as { role?: string | null; cargo?: string | null } | null;
+  const rawProfileRole = String(profileRow?.role ?? '').trim().toLowerCase();
+  const accessRole = normalizeAccessRole(profileRow?.role);
+
+  if (
+    (pathname === FUNIL_CONTRATACOES_PATH || pathname.startsWith(`${FUNIL_CONTRATACOES_PATH}/`)) &&
+    !pathname.startsWith('/api')
+  ) {
+    if (!canAccessFunilContratacoes(profileRow?.role, profileRow?.cargo)) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+    return response;
+  }
+
+  const funisInternosNegocioPaths = ['/funil-juridico', '/funil-moni-capital'] as const;
+  if (
+    funisInternosNegocioPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`)) &&
+    !pathname.startsWith('/api')
+  ) {
+    if (!canAccessFunisInternosNegocio(profileRow?.role)) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+    return response;
+  }
 
   const sirenePath = pathname === '/sirene' || pathname.startsWith('/sirene/');
   if (sirenePath && !pathname.startsWith('/api')) {

@@ -1,3 +1,6 @@
+import { KANBANS_INTERNOS_NOMES } from '@/lib/constants/kanban-ids';
+import { isFrankOrFranqueadoRole } from '@/lib/authz';
+
 /** Valores de `profiles.role` escolhíveis no convite admin. */
 export type InviteGrupoRole = 'admin' | 'team' | 'frank' | 'parceiro' | 'fornecedor' | 'cliente';
 
@@ -10,6 +13,8 @@ export const FUNIS_KANBAN_NOMES = [
   'Funil Portfólio',
   'Funil Operações',
   'Funil Acoplamento',
+  'Funil Jurídico',
+  'Funil Moní Capital',
   'Funil Contabilidade',
   'Funil Crédito',
 ] as const;
@@ -49,4 +54,11 @@ export function labelCargo(cargo: string | null | undefined): string {
 
 export function exibirFunisNoConvite(grupo: InviteGrupoRole, cargo: InviteCargo): boolean {
   return grupo === 'team' && cargo === 'estagiario';
+}
+
+/** Funis exibidos em seletores de convite / permissão — sem internos para frank. */
+export function funisKanbanParaRole(role: string | null | undefined): FunilKanbanNome[] {
+  if (!isFrankOrFranqueadoRole(role)) return [...FUNIS_KANBAN_NOMES];
+  const internos = new Set<string>(KANBANS_INTERNOS_NOMES as readonly string[]);
+  return FUNIS_KANBAN_NOMES.filter((n) => !internos.has(n));
 }

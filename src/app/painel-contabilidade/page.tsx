@@ -81,6 +81,7 @@ export default async function PainelContabilidadePage({
                 cardQueryParam="kanbanCard"
                 currentUserId={user?.id ?? null}
                 mostrarLinkNovoCard
+                kanbanId={snapshot.kanban!.id}
               />
             </main>
           ) : (

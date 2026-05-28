@@ -5,6 +5,7 @@ import { normalizeAccessRole, type AccessRole } from '@/lib/authz';
  * Demais seções (Steps, Catálogo, Crédito interno, etc.) ficam só para `admin`.
  */
 export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
+  '/dashboard',
   '/rede-franqueados',
   '/comunidade',
   '/treinamento-bca',
@@ -12,6 +13,8 @@ export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/painel-novos-negocios',
   '/portfolio',
   '/funil-acoplamento',
+  '/funil-juridico',
+  '/funil-moni-capital',
   '/operacoes',
   '/funil-stepone',
   '/loteadores',
@@ -34,6 +37,7 @@ export function isTeamAllowedPath(pathname: string): boolean {
  * Fora daqui: Rede/Comunidade/Sirene matriz, Contabilidade/Crédito e demais `ADMIN_ONLY_PATH_PREFIXES`.
  */
 export const FRANK_ALLOWED_PATH_PREFIXES: readonly string[] = [
+  '/dashboard',
   '/portal-frank',
   '/treinamento-bca',
   '/painel-novos-negocios',
@@ -62,6 +66,9 @@ export const FRANK_FORBIDDEN_PATH_PREFIXES: readonly string[] = [
   '/catalogo-produtos-moni',
   '/alertas',
   '/obra-ways',
+  '/funil-juridico',
+  '/funil-moni-capital',
+  '/funil-contratacoes',
 ] as const;
 
 /** Detalhe de uma linha da rede (`/rede-franqueados/:id`): a página restringe à própria franquia. */

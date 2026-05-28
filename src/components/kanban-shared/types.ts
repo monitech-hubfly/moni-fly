@@ -6,6 +6,9 @@ export type KanbanNomeDisplay =
   | 'Funil Loteadores'
   | 'Funil Portfólio'
   | 'Funil Acoplamento'
+  | 'Funil Jurídico'
+  | 'Funil Moní Capital'
+  | 'Funil Contratações'
   | 'Funil Operações'
   | 'Funil Contabilidade'
   | 'Funil Crédito';
@@ -38,6 +41,8 @@ export type KanbanCardBrief = {
   created_at: string;
   fase_id: string;
   franqueado_id: string;
+  kanban_id?: string;
+  projeto_id?: string | null;
   tagsCard?: { tag_id: string; nome: string; cor: string }[];
   /** Cards nativos arquivados (`kanban_cards.arquivado`). Legado: ausente / false. */
   arquivado?: boolean;
@@ -53,6 +58,17 @@ export type KanbanCardBrief = {
   /** ISO date `YYYY-MM-DD` ou null (nativo e legado). */
   data_reuniao?: string | null;
   data_followup?: string | null;
+  /** Retorno de bastões paralelos (migration 208). */
+  acoplamento_concluido?: boolean;
+  credito_terreno_ok?: boolean;
+  contabilidade_ok?: boolean;
+  capital_ok?: boolean;
+  juridico_ok?: boolean;
+  credito_obra_ok?: boolean;
+  /** Step One: fase atual do card Portfolio com mesmo `projeto_id`. */
+  portfolio_vinculo_rotulo?: string | null;
+  /** Portfolio: existe card filho no Funil Jurídico (`origem_card_id`). */
+  tem_filho_juridico?: boolean;
 };
 
 /** Conteúdo extra do checklist por `fase_id` (sobrescreve placeholder). */

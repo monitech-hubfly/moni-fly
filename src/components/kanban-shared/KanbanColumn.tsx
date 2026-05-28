@@ -3,6 +3,12 @@
 import { useRouter } from 'next/navigation';
 import { useMemo } from 'react';
 import { calcularStatusSLA } from '@/lib/dias-uteis';
+import {
+  flagsParalelasFromCard,
+  hipotesesOrdemMinima,
+  montarChipsParalelas,
+} from '@/lib/kanban/kanban-paralelas-chips';
+import { KanbanParalelasChips } from './KanbanParalelasChips';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
 export type KanbanColumnProps = {
@@ -17,6 +23,9 @@ export type KanbanColumnProps = {
   userRole: string;
   /** Cor da faixa superior da coluna (CSS). */
   columnAccent?: string;
+  kanbanId: string;
+  /** Ordem mínima da fase Hipóteses (Step One). */
+  hipotesesOrdemMin?: number | null;
 };
 
 function hrefAbrirCard(
@@ -27,7 +36,6 @@ function hrefAbrirCard(
 ) {
   const [path, qs] = basePath.split('?');
   const sp = new URLSearchParams(qs ?? '');
-  /** Sem isso, `?tab=painel` pode persistir (ex. histórico) e o RSC não renderiza o board — modal some ou falha o load. */
   sp.delete('tab');
   sp.set(param, cardId);
   if (origem === 'legado') {
@@ -47,7 +55,6 @@ function cardConcluidoVisual(card: KanbanCardBrief): boolean {
   return card.origem !== 'legado' && Boolean(card.concluido);
 }
 
-/** Mesma lógica de alerta do modal (reunião / follow-up). */
 function calcularCorData(dataIso: string): string {
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
@@ -77,7 +84,10 @@ export function KanbanColumn({
   cardQueryParam = 'card',
   userRole,
   columnAccent = 'var(--moni-kanban-stepone)',
+  kanbanId,
+  hipotesesOrdemMin = null,
 }: KanbanColumnProps) {
+  const faseSlug = fase.slug?.trim() ?? '';
   const router = useRouter();
   const isAdmin =
     userRole === 'admin' ||
@@ -135,12 +145,25 @@ export function KanbanColumn({
           const opacidadeCard = arquivado || concluido ? 'opacity-60' : '';
           const paddingTitulo = arquivado || concluido ? 'pr-20' : '';
 
+          const chipsParalelas = montarChipsParalelas(
+            {
+              kanbanId,
+              faseSlug,
+              faseOrdem: fase.ordem,
+              hipotesesOrdemMin,
+              origem: card.origem,
+              flags: flagsParalelasFromCard(card),
+              portfolioVinculoRotulo: card.portfolio_vinculo_rotulo,
+              temFilhoJuridico: card.tem_filho_juridico,
+            },
+            { labelsCompletos: false },
+          );
+
           return (
             <button
               key={card.id}
               type="button"
               onClick={() => {
-                console.log('[DEBUG] card clicado:', card.id, card);
                 router.push(hrefAbrirCard(basePath, card.id, cardQueryParam, card.origem));
               }}
               className={`relative block w-full p-3 text-left shadow-sm transition hover:shadow-md ${opacidadeCard}`}
@@ -186,6 +209,7 @@ export function KanbanColumn({
               {card.profiles?.full_name ? (
                 <p className="mt-1 line-clamp-1 text-xs text-stone-500">{card.profiles.full_name}</p>
               ) : null}
+              <KanbanParalelasChips chips={chipsParalelas} compact />
               {card.data_reuniao || card.data_followup ? (
                 <div className="mt-1 flex flex-wrap gap-1">
                   {card.data_reuniao ? (
@@ -206,39 +230,16 @@ export function KanbanColumn({
                   ) : null}
                 </div>
               ) : null}
-              {card.tagsCard && card.tagsCard.length > 0 ? (
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {card.tagsCard.slice(0, 6).map((t) => (
-                    <span
-                      key={t.tag_id}
-                      className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
-                      style={{ background: t.cor + '22', color: t.cor, border: `1px solid ${t.cor}55` }}
-                    >
-                      {t.nome}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              <p className="mt-1 text-xs text-stone-400">Criado: {createdDate.toLocaleDateString('pt-BR')}</p>
-              {sla.label && sla.status !== 'ok' ? (
-                <div className="mt-2">
-                  <span className={sla.classe}>{sla.label}</span>
-                </div>
+              {!arquivado && !concluido && sla.label && sla.status !== 'ok' ? (
+                <p className={`mt-1 text-xs ${sla.classe}`}>{sla.label}</p>
               ) : null}
             </button>
           );
         })}
-
         {cards.length === 0 ? (
-          <div
-            className="p-6 text-center text-sm text-stone-400"
-            style={{
-              border: '0.5px dashed var(--moni-border-default)',
-              borderRadius: 'var(--moni-radius-lg)',
-            }}
-          >
-            {listaVaziaPorFiltro ? 'Nenhum card com estes filtros' : 'Nenhum card nesta fase'}
-          </div>
+          <p className="py-6 text-center text-xs text-stone-400">
+            {listaVaziaPorFiltro ? 'Nenhum card com os filtros atuais' : 'Nenhum card'}
+          </p>
         ) : null}
       </div>
     </div>
