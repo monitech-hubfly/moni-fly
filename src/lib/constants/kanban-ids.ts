@@ -94,6 +94,8 @@ export const FASE_SLUGS = {
   JURIDICO_CONCLUIDO:        'juridico_concluido',
   CAPITAL_CONCLUIDO:         'capital_concluido',
   CAPITAL_NAO_ELEGIVEL:      'capital_nao_elegivel',
+  PROJETOS_LOCAIS_CONCLUIDO: 'projetos_locais_concluido',
+  PROJETOS_LEGAIS_CONCLUIDO: 'projetos_legais_concluido',
   // Gates
   STEP_5:             'step_5',
 } as const

@@ -167,6 +167,20 @@ export default async function PainelNovosNegociosPage({
 
   return (
     <div className="min-h-screen bg-stone-50">
+      <div
+        className="border-b border-amber-200 bg-amber-50 px-6 py-3 text-center text-sm text-amber-950"
+        role="status"
+      >
+        Esta visão está sendo descontinuada. Use{' '}
+        <Link href="/portfolio" className="font-semibold underline hover:text-amber-900">
+          /portfolio
+        </Link>{' '}
+        e{' '}
+        <Link href="/operacoes" className="font-semibold underline hover:text-amber-900">
+          /operacoes
+        </Link>
+        .
+      </div>
       <Suspense fallback={null}>
         <PainelKanbanTabs basePath="/painel-novos-negocios" variant="portfolio" />
       </Suspense>

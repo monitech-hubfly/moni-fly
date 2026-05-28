@@ -13,6 +13,7 @@ import { carregarPermissoesMap } from '@/lib/permissoes-load';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import {
   deveValidarGatePortfolioStep5,
+  deveVerificarCapital,
   gatePortfolioStep5Liberado,
   listarEsteirasParalelasPendentes,
   mensagemGatePortfolioStep5,
@@ -2124,7 +2125,9 @@ async function obterGatePortfolioStep5(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { data: cardRow, error } = await supabase
     .from('kanban_cards')
-    .select('kanban_id, acoplamento_concluido, credito_terreno_ok, contabilidade_ok, kanbans ( nome )')
+    .select(
+      'kanban_id, acoplamento_concluido, credito_terreno_ok, contabilidade_ok, juridico_ok, capital_ok, kanbans ( nome )',
+    )
     .eq('id', cardId)
     .maybeSingle();
 
@@ -2136,6 +2139,8 @@ async function obterGatePortfolioStep5(
     acoplamento_concluido?: boolean | null;
     credito_terreno_ok?: boolean | null;
     contabilidade_ok?: boolean | null;
+    juridico_ok?: boolean | null;
+    capital_ok?: boolean | null;
     kanbans?: { nome?: string } | { nome?: string }[] | null;
   };
 
@@ -2151,11 +2156,19 @@ async function obterGatePortfolioStep5(
     acoplamento_concluido: row.acoplamento_concluido,
     credito_terreno_ok: row.credito_terreno_ok,
     contabilidade_ok: row.contabilidade_ok,
+    juridico_ok: row.juridico_ok,
+    capital_ok: row.capital_ok,
   };
 
-  if (gatePortfolioStep5Liberado(flags)) return { ok: true };
+  const exigirCapital = await deveVerificarCapital(supabase, cardId);
+  const gateOpts = { exigirCapital };
 
-  return { ok: false, error: mensagemGatePortfolioStep5(listarEsteirasParalelasPendentes(flags)) };
+  if (gatePortfolioStep5Liberado(flags, gateOpts)) return { ok: true };
+
+  return {
+    ok: false,
+    error: mensagemGatePortfolioStep5(listarEsteirasParalelasPendentes(flags, gateOpts)),
+  };
 }
 
 /** Valida gate Comitê (Portfolio → step_5) antes de avançar fase no cliente. */

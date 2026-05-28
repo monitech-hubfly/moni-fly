@@ -64,7 +64,12 @@ function KanbanWrapperInner({
         />
       ) : null}
       {enableNovoCardModal && novoAberto ? (
-        <NovoCardModal kanbanId={kanbanId} onClose={fecharParaBase} isAdmin={isAdmin} />
+        <NovoCardModal
+          kanbanId={kanbanId}
+          onClose={fecharParaBase}
+          isAdmin={isAdmin}
+          showTipoOrigem={kanbanNome === 'Funil Portfólio'}
+        />
       ) : null}
     </>
   );

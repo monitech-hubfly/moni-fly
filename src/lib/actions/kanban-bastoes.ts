@@ -483,7 +483,9 @@ type BastaoRetornoFlagCol =
   | 'credito_obra_ok'
   | 'contabilidade_ok'
   | 'juridico_ok'
-  | 'capital_ok';
+  | 'capital_ok'
+  | 'projetos_locais_ok'
+  | 'projetos_legais_ok';
 
 const DESFECHO_FLAG_POR_FASE: Partial<Record<string, BastaoRetornoFlagCol>> = {
   [FASE_SLUGS.ACOPLAMENTO_APROVADO]: 'acoplamento_concluido',
@@ -496,6 +498,8 @@ const DESFECHO_FLAG_POR_FASE: Partial<Record<string, BastaoRetornoFlagCol>> = {
   [FASE_SLUGS.JURIDICO_CONCLUIDO]: 'juridico_ok',
   [FASE_SLUGS.CAPITAL_CONCLUIDO]: 'capital_ok',
   [FASE_SLUGS.CAPITAL_NAO_ELEGIVEL]: 'capital_ok',
+  [FASE_SLUGS.PROJETOS_LOCAIS_CONCLUIDO]: 'projetos_locais_ok',
+  [FASE_SLUGS.PROJETOS_LEGAIS_CONCLUIDO]: 'projetos_legais_ok',
 };
 
 const DESFECHO_ESTEIRA_LABEL: Record<string, string> = {
@@ -509,6 +513,8 @@ const DESFECHO_ESTEIRA_LABEL: Record<string, string> = {
   [FASE_SLUGS.JURIDICO_CONCLUIDO]: 'Jurídico',
   [FASE_SLUGS.CAPITAL_CONCLUIDO]: 'Moní Capital (concluído)',
   [FASE_SLUGS.CAPITAL_NAO_ELEGIVEL]: 'Moní Capital (não elegível)',
+  [FASE_SLUGS.PROJETOS_LOCAIS_CONCLUIDO]: 'Projetos Locais',
+  [FASE_SLUGS.PROJETOS_LEGAIS_CONCLUIDO]: 'Projetos Legais',
 };
 
 /**
