@@ -68,7 +68,6 @@ export default async function RedeFranqueadosPage() {
         ) : null}
 
         <section className="mt-10 space-y-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-500">Planilha</h3>
           {rows ? (
             <RedeFranqueadosTabelaComBusca
               rows={rows}
