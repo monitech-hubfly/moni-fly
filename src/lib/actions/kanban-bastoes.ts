@@ -310,6 +310,12 @@ const KANBAN_ID_TO_ORIGEM_SLUG: Record<string, string> = {
   [KANBAN_IDS.JURIDICO]: 'juridico',
   [KANBAN_IDS.MONI_CAPITAL]: 'moni-capital',
   [KANBAN_IDS.CONTRATACOES]: 'contratacoes',
+  [KANBAN_IDS.HDM_PRODUTO]: 'hdm-produto',
+  [KANBAN_IDS.HDM_MODELO_VIRTUAL]: 'hdm-modelo-virtual',
+  [KANBAN_IDS.HDM_HOMOLOGACOES]: 'hdm-homologacoes',
+  [KANBAN_IDS.PROJETO_LEGAL]: 'projeto-legal',
+  [KANBAN_IDS.PROJETOS_LOCAIS]: 'projetos-locais',
+  [KANBAN_IDS.PROJETOS_LEGAIS]: 'projetos-legais',
 };
 
 type BastaoDestino = {
@@ -440,6 +446,16 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     ],
     [FASE_SLUGS.AGUARDANDO_CREDITO]: [
       { kanbanDestinoId: KANBAN_IDS.CREDITO, faseDestinoSlug: 'credito_obra' },
+    ],
+    [FASE_SLUGS.PROD_PUBLICADO]: [
+      { kanbanDestinoId: KANBAN_IDS.HDM_MODELO_VIRTUAL, faseDestinoSlug: 'mv_recebimento' },
+    ],
+    [FASE_SLUGS.APROVACAO_CONDOMINIO]: [
+      { kanbanDestinoId: KANBAN_IDS.PROJETOS_LOCAIS, faseDestinoSlug: 'projloc_briefing' },
+    ],
+    [FASE_SLUGS.PROJETO_LEGAL]: [
+      { kanbanDestinoId: KANBAN_IDS.PROJETOS_LOCAIS, faseDestinoSlug: 'projetos_locais_briefing' },
+      { kanbanDestinoId: KANBAN_IDS.PROJETOS_LEGAIS, faseDestinoSlug: 'projetos_legais_protocolo' },
     ],
     [FASE_SLUGS.LOTEADOR_JURIDICO]: [
       { kanbanDestinoId: KANBAN_IDS.JURIDICO, faseDestinoSlug: 'juridico_recebimento' },

@@ -12,7 +12,8 @@ const KANBAN_NOME_DB_PARA_APP: Record<string, { basePath: string; cardQueryParam
   'Funil Modelo Virtual': { basePath: '/funil-modelo-virtual', cardQueryParam: 'card' },
   'Funil Homologações': { basePath: '/funil-homologacoes', cardQueryParam: 'card' },
   'Funil Projeto Legal': { basePath: '/funil-projeto-legal', cardQueryParam: 'card' },
-  'Funil Projetos Locais': { basePath: '/funil-projetos-locais', cardQueryParam: 'card' },
+  'Funil Projetos Locais': { basePath: '/projetos-locais', cardQueryParam: 'card' },
+  'Funil Projetos Legais': { basePath: '/projetos-legais', cardQueryParam: 'card' },
   'Funil Contabilidade': { basePath: '/painel-contabilidade', cardQueryParam: 'kanbanCard' },
   'Funil Crédito': { basePath: '/painel-credito', cardQueryParam: 'kanbanCard' },
 };

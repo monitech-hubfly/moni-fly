@@ -37,6 +37,8 @@ export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/funil-modelo-virtual',
   '/funil-homologacoes',
   '/funil-projeto-legal',
+  '/projetos-locais',
+  '/projetos-legais',
   '/funil-projetos-locais',
   '/funil-contratacoes',
   '/dashboard',

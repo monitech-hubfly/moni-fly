@@ -71,6 +71,8 @@ export async function updateSession(request: NextRequest) {
     '/funil-modelo-virtual',
     '/funil-homologacoes',
     '/funil-projeto-legal',
+    '/projetos-locais',
+    '/projetos-legais',
     '/funil-projetos-locais',
     '/funil-contratacoes',
     '/dashboard',
@@ -143,6 +145,8 @@ export async function updateSession(request: NextRequest) {
     '/funil-modelo-virtual',
     '/funil-homologacoes',
     '/funil-projeto-legal',
+    '/projetos-locais',
+    '/projetos-legais',
     '/funil-projetos-locais',
   ] as const;
   if (

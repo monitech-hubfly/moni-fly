@@ -15,6 +15,7 @@ export const KANBAN_IDS = {
   HDM_HOMOLOGACOES:    '69bf5668-7749-476a-a834-962a0bb0eef7',
   PROJETO_LEGAL:   '39de341d-aebf-481c-9118-ce6fc6574187',
   PROJETOS_LOCAIS: 'c2ab09bd-4bd6-491e-8734-281d7678a6ad',
+  PROJETOS_LEGAIS: '23ad5ce1-59f8-4e74-acb8-69aa61228cd8',
 } as const
 
 export const FASE_IDS = {
@@ -58,6 +59,9 @@ export const FASE_SLUGS = {
   CAPTACAO_CAPITAL:   'captacao_moni_capital',
   PASSAGEM_WAYSER:    'passagem_wayser',
   AGUARDANDO_CREDITO: 'aguardando_credito',
+  PROD_PUBLICADO: 'prod_publicado',
+  APROVACAO_CONDOMINIO: 'aprovacao_condominio',
+  PROJETO_LEGAL:      'projeto_legal',
   LOTEADOR_JURIDICO:  'loteador_juridico',
   // Gatilhos de VOLTA
   ACOPLAMENTO_APROVADO:      'acoplamento_aprovado',
@@ -91,6 +95,7 @@ export const KANBANS_INTERNOS = [
   KANBAN_IDS.HDM_HOMOLOGACOES,
   KANBAN_IDS.PROJETO_LEGAL,
   KANBAN_IDS.PROJETOS_LOCAIS,
+  KANBAN_IDS.PROJETOS_LEGAIS,
 ] as const;
 
 /** Nomes em `kanbans.nome` alinhados a `KANBANS_INTERNOS`. */
@@ -103,6 +108,7 @@ export const KANBANS_INTERNOS_NOMES = [
   'Funil Homologações',
   'Funil Projeto Legal',
   'Funil Projetos Locais',
+  'Funil Projetos Legais',
 ] as const;
 
 export const MSG_CHAMADO_JURIDICO_JA_EXISTE =

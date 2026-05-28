@@ -1,26 +1,18 @@
-/**
- * Kanban **Funil Projetos Locais** (`kanbans.nome`): nativo (`kanban_cards`), mesmos componentes que Funil Acoplamento.
- * Cards manuais: admin/team.
- */
-import { renderKanbanDatabasePage } from '@/components/kanban-shared/renderKanbanDatabasePage';
-import { requireFunisInternosNegocioAccess } from '@/lib/guards/kanban-funil-access';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
-export default async function FunilProjetosLocaisPage({
+/** Legado: redireciona para `/projetos-locais`. */
+export default function FunilProjetosLocaisRedirectPage({
   searchParams,
 }: {
   searchParams: { [key: string]: string | string[] | undefined };
 }) {
-  await requireFunisInternosNegocioAccess();
-
-  return renderKanbanDatabasePage(searchParams, {
-    kanbanNomeDb: 'Funil Projetos Locais',
-    kanbanNomeDisplay: 'Funil Projetos Locais',
-    basePath: '/funil-projetos-locais',
-    pageTitle: 'Kanban Funil Projetos Locais',
-    tabsVariant: 'acoplamento',
-    columnAccent: 'var(--moni-navy-700)',
-    novoCardApenasStaff: true,
-  });
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(searchParams)) {
+    const val = Array.isArray(v) ? v[0] : v;
+    if (val != null && String(val).trim() !== '') p.set(k, String(val));
+  }
+  const qs = p.toString();
+  redirect(qs ? `/projetos-locais?${qs}` : '/projetos-locais');
 }
