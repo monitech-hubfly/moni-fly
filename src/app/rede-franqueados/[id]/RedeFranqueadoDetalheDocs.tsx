@@ -1,8 +1,8 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getSignedUrlRedeAnexo, uploadRedeFranqueadoAssinado } from '../actions';
+import { getSignedUrlRedeAnexo, prepararSchemaAnexoNumeroFranquia, uploadRedeFranqueadoAssinado } from '../actions';
 
 function nomeDoPath(path: string) {
   const parts = path.split('/').filter(Boolean);
@@ -87,6 +87,10 @@ export function RedeFranqueadoDetalheDocs({
   const router = useRouter();
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [up, setUp] = useState<AnexoTipo | null>(null);
+
+  useEffect(() => {
+    void prepararSchemaAnexoNumeroFranquia();
+  }, []);
 
   const cards: DocCardConfig[] = [
     { tipo: 'cof', titulo: 'COF assinado', path: pathCof },

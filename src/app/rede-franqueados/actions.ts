@@ -13,6 +13,7 @@ import {
 import { REDE_FRANQUEADOS_DB_KEYS, type RedeFranqueadoDbKey } from '@/lib/rede-franqueados';
 import { fixRedeCsvSociosHeadersTextFromSheets, normalizeRedeCsvHeadersFromSheets } from '@/lib/fix-rede-csv-socios-headers';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { ensureRedeAnexoNumeroFranquiaColumn, isRedeAnexoNumeroFranquiaSchemaError } from '@/lib/rede-ensure-anexo-column';
 import { getNextFKFromRedeFranqueados } from '@/lib/next-fk-franquia';
 import { gerarRegistroFranquiaPdf } from '@/lib/registro-franquia-pdf';
 import { getRegistroFranquiaRecipients, sendRegistroFranquiaEmail } from '@/lib/email';
@@ -926,32 +927,6 @@ const REDE_ANEXO_COLUNA = {
 
 type RedeAnexoTipo = keyof typeof REDE_ANEXO_COLUNA;
 
-const REDE_ANEXO_NUMERO_FRANQUIA_SQL_HINT =
-  'A coluna de anexo do número de franquia ainda não existe no banco. No Supabase → SQL Editor, execute o arquivo scripts/rede-anexo-numero-franquia.sql (ou a migration 199) e em Settings → API use Reload schema.';
-
-function isRedeAnexoColumnSchemaError(message: string, column: string): boolean {
-  const m = message.toLowerCase();
-  const col = column.toLowerCase();
-  return (m.includes('schema cache') || m.includes('could not find')) && m.includes(col);
-}
-
-/** Cria coluna ausente e recarrega cache PostgREST (service role). */
-async function ensureRedeAnexoNumeroFranquiaColumn(): Promise<{ ok: true } | { ok: false; error: string }> {
-  try {
-    const admin = createAdminClient();
-    const { error } = await admin.rpc('ensure_rede_anexo_numero_franquia_column');
-    if (error) {
-      if (/function.*does not exist|could not find.*function/i.test(error.message ?? '')) {
-        return { ok: false, error: REDE_ANEXO_NUMERO_FRANQUIA_SQL_HINT };
-      }
-      return { ok: false, error: error.message || REDE_ANEXO_NUMERO_FRANQUIA_SQL_HINT };
-    }
-    return { ok: true };
-  } catch {
-    return { ok: false, error: REDE_ANEXO_NUMERO_FRANQUIA_SQL_HINT };
-  }
-}
-
 async function updateRedeAnexoPath(
   redeId: string,
   column: string,
@@ -961,31 +936,35 @@ async function updateRedeAnexoPath(
   const { error } = await supabase.from('rede_franqueados').update({ [column]: storagePath } as never).eq('id', redeId);
   if (!error) return { ok: true };
 
-  if (column !== 'anexo_numero_franquia_path' || !isRedeAnexoColumnSchemaError(error.message ?? '', column)) {
+  if (column !== 'anexo_numero_franquia_path' || !isRedeAnexoNumeroFranquiaSchemaError(error.message ?? '', column)) {
     return { ok: false, error: error.message };
   }
 
   const ensured = await ensureRedeAnexoNumeroFranquiaColumn();
   if (!ensured.ok) return ensured;
 
-  try {
-    const admin = createAdminClient();
-    const { error: retryErr } = await admin
-      .from('rede_franqueados')
-      .update({ [column]: storagePath } as never)
-      .eq('id', redeId);
-    if (retryErr) {
-      return {
-        ok: false,
-        error: isRedeAnexoColumnSchemaError(retryErr.message ?? '', column)
-          ? REDE_ANEXO_NUMERO_FRANQUIA_SQL_HINT
-          : retryErr.message,
-      };
-    }
-    return { ok: true };
-  } catch {
-    return { ok: false, error: REDE_ANEXO_NUMERO_FRANQUIA_SQL_HINT };
+  const admin = createAdminClient();
+  const { error: retryErr } = await admin
+    .from('rede_franqueados')
+    .update({ [column]: storagePath } as never)
+    .eq('id', redeId);
+  if (retryErr) {
+    return { ok: false, error: retryErr.message };
   }
+  return { ok: true };
+}
+
+/** Garante coluna/RPC do doc de número de franquia (idempotente; usa PROD_DB_URL no servidor se existir). */
+export async function prepararSchemaAnexoNumeroFranquia(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+  if (!(await perfilPodeGerirDocsRede(supabase, user.id))) {
+    return { ok: false, error: 'Sem permissão.' };
+  }
+  return ensureRedeAnexoNumeroFranquiaColumn();
 }
 
 /** Upload COF, contrato ou documento do número de franquia no bucket `rede-attachments`. */
