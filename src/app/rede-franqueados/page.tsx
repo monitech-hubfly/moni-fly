@@ -6,10 +6,8 @@ import { RedeFranqueadosTabelaComBusca } from './RedeFranqueadosTabelaComBusca';
 import { contarLinhasSemCard } from './actions';
 import { CriarCardsDesdeRedeButton } from './CriarCardsDesdeRedeButton';
 import { ImportarRedeCSVButton } from './ImportarRedeCSVButton';
-import { RemoverDuplicatasRedeButton } from './RemoverDuplicatasRedeButton';
 import { ExportarRedeCSVButton } from './ExportarRedeCSVButton';
 import { NovoFranqueadoModal } from './NovoFranqueadoModal';
-import { AdicionarRedeECardButton } from './AdicionarRedeECardButton';
 import { RedeDashboard } from './RedeDashboard';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -68,24 +66,14 @@ export default async function RedeFranqueadosPage() {
           </section>
         ) : null}
 
-        {canManage ? (
-          <section className="mt-10 space-y-4 rounded-xl border border-stone-200/90 bg-white/60 p-4 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-500">
-                Ferramentas da planilha
-              </h3>
-              <AdicionarRedeECardButton />
-            </div>
-            <ImportarRedeCSVButton />
-            <div className="grid gap-4 lg:grid-cols-2">
-              <RemoverDuplicatasRedeButton />
-              <CriarCardsDesdeRedeButton linhasSemCard={linhasSemCard} />
-            </div>
-          </section>
-        ) : null}
-
         <section className="mt-10 space-y-4">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-500">Planilha</h3>
+          {canManage ? (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
+              <ImportarRedeCSVButton />
+              <CriarCardsDesdeRedeButton linhasSemCard={linhasSemCard} />
+            </div>
+          ) : null}
           {rows ? (
             <RedeFranqueadosTabelaComBusca rows={rows} canEditRows={canManage}>
               {canManage ? <NovoFranqueadoModal /> : null}
