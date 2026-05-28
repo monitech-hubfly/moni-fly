@@ -10,3 +10,6 @@ supabase/.temp/
 
 # Artefacto incremental do TypeScript
 *.tsbuildinfo
+
+# Duplicata local do utilitário TypeScript (usar scripts/test-bastoes-prod.ts)
+scripts/test-bastoes-prod.mjs
