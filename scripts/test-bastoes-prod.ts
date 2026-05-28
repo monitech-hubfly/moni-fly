@@ -65,14 +65,9 @@ const BASTOES_ESPERADOS: Record<
   ],
   projeto_legal: [
     {
-      kanbanId: KANBAN_IDS.PROJETOS_LOCAIS,
-      faseSlug: 'projetos_locais_briefing',
-      kanbanNome: 'Funil Projetos Locais',
-    },
-    {
-      kanbanId: KANBAN_IDS.PROJETOS_LEGAIS,
-      faseSlug: 'projetos_legais_protocolo',
-      kanbanNome: 'Funil Projetos Legais',
+      kanbanId: KANBAN_IDS.PROJETO_LEGAL,
+      faseSlug: 'projleg_levantamento',
+      kanbanNome: 'Funil Projeto Legal',
     },
   ],
 };
@@ -105,7 +100,7 @@ const TESTS = [
   },
   {
     id: 4,
-    label: 'projeto_legal → Projetos Locais + Projetos Legais',
+    label: 'projeto_legal → Projeto Legal / projleg_levantamento',
     kanbanId: KANBAN_IDS.OPERACOES,
     kanbanNome: 'Funil Operações',
     faseAnteriorSlug: 'sondagem',

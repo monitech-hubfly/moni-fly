@@ -321,6 +321,7 @@ const KANBAN_ID_TO_ORIGEM_SLUG: Record<string, string> = {
 type BastaoDestino = {
   kanbanDestinoId: string;
   faseDestinoSlug: string;
+  flag?: null;
 };
 
 type CardPaiBastao = {
@@ -532,7 +533,7 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
   const pai = paiRow as CardPaiBastao;
   const titulo = String(pai.titulo ?? '').trim() || 'Card';
 
-  const bastoesPorSlug: Partial<Record<string, BastaoDestino[]>> = {
+  const BASTOES_DE_IDA: Partial<Record<string, BastaoDestino[]>> = {
     [FASE_SLUGS.STEP_3]: [
       { kanbanDestinoId: KANBAN_IDS.JURIDICO, faseDestinoSlug: 'juridico_recebimento' },
     ],
@@ -557,11 +558,18 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
       { kanbanDestinoId: KANBAN_IDS.HDM_MODELO_VIRTUAL, faseDestinoSlug: 'mv_recebimento' },
     ],
     [FASE_SLUGS.APROVACAO_CONDOMINIO]: [
-      { kanbanDestinoId: KANBAN_IDS.PROJETOS_LOCAIS, faseDestinoSlug: 'projetos_locais_briefing' },
+      {
+        kanbanDestinoId: KANBAN_IDS.PROJETOS_LOCAIS,
+        faseDestinoSlug: 'projetos_locais_briefing',
+        flag: null,
+      },
     ],
     [FASE_SLUGS.PROJETO_LEGAL]: [
-      { kanbanDestinoId: KANBAN_IDS.PROJETOS_LOCAIS, faseDestinoSlug: 'projetos_locais_briefing' },
-      { kanbanDestinoId: KANBAN_IDS.PROJETOS_LEGAIS, faseDestinoSlug: 'projetos_legais_protocolo' },
+      {
+        kanbanDestinoId: KANBAN_IDS.PROJETO_LEGAL,
+        faseDestinoSlug: 'projleg_levantamento',
+        flag: null,
+      },
     ],
     [FASE_SLUGS.LOTEADOR_JURIDICO]: [
       { kanbanDestinoId: KANBAN_IDS.JURIDICO, faseDestinoSlug: 'juridico_recebimento' },
@@ -573,7 +581,7 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     return;
   }
 
-  const destinos = bastoesPorSlug[slug];
+  const destinos = BASTOES_DE_IDA[slug];
   if (!destinos?.length) return;
 
   if (slug === FASE_SLUGS.PASSAGEM_WAYSER) {
