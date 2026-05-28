@@ -17,6 +17,59 @@ function pct(n: number, total: number): string {
   return `${((n / total) * 100).toFixed(1).replace('.', ',')}%`;
 }
 
+function RegionalBarRow({
+  regional,
+  count,
+  maxRegional,
+  onClick,
+}: {
+  regional: string;
+  count: number;
+  maxRegional: number;
+  onClick?: () => void;
+}) {
+  const row = (
+    <div className="flex w-full items-center gap-2 py-0.5">
+      <div
+        className="w-16 shrink-0 truncate text-right text-[11.5px]"
+        title={regional}
+        style={{ color: 'var(--moni-text-tertiary)' }}
+      >
+        {regional}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="h-1.5 rounded-sm" style={{ backgroundColor: 'var(--moni-rede-map-tier-0)' }}>
+          <div
+            className="h-1.5 rounded-sm"
+            style={{
+              width: barWidth(count, maxRegional),
+              backgroundColor: 'var(--moni-green-800)',
+            }}
+          />
+        </div>
+      </div>
+      <span
+        className="w-6 shrink-0 text-right text-xs font-medium tabular-nums"
+        style={{ color: 'var(--moni-text-primary)' }}
+      >
+        {count}
+      </span>
+    </div>
+  );
+
+  if (!onClick) return row;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full rounded text-left hover:bg-[var(--moni-surface-100)]"
+    >
+      {row}
+    </button>
+  );
+}
+
 type Props = {
   regionalArr: [string, number][];
   maxRegional: number;
@@ -71,54 +124,20 @@ export function RedeVisaoRegionalClassificacao({
           <p className="mb-3 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
             Distribuição da rede filtrada.
           </p>
-          <div className="space-y-2">
-            {regionalArr.slice(0, 8).map(([k, v]) => {
-              const inner = (
-                <>
-                  <div
-                    className="w-16 shrink-0 truncate text-right text-[11.5px]"
-                    title={k}
-                    style={{ color: 'var(--moni-text-tertiary)' }}
-                  >
-                    {k}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="h-1.5 rounded-sm" style={{ backgroundColor: 'var(--moni-rede-map-tier-0)' }}>
-                      <div
-                        className="h-1.5 rounded-sm"
-                        style={{
-                          width: barWidth(v, maxRegional),
-                          backgroundColor: 'var(--moni-green-800)',
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <span
-                    className="w-6 shrink-0 text-right text-xs font-medium tabular-nums"
-                    style={{ color: 'var(--moni-text-primary)' }}
-                  >
-                    {v}
-                  </span>
-                </>
-              );
-              if (modoAggregado) {
-                return (
-                  <div key={k} className="flex w-full items-center gap-2 py-0.5">
-                    {inner}
-                  </div>
-                );
-              }
-              return (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => onOpenLista(`Regional: ${k} (${v})`, rowsPorRegional.get(k) ?? [])}
-                  className="flex w-full items-center gap-2 rounded py-0.5 text-left hover:bg-[var(--moni-surface-100)]"
-                >
-                  {inner}
-                </button>
-              );
-            })}
+          <div className="list-none space-y-2">
+            {regionalArr.slice(0, 8).map(([regional, count]) => (
+              <RegionalBarRow
+                key={regional}
+                regional={regional}
+                count={count}
+                maxRegional={maxRegional}
+                onClick={
+                  modoAggregado
+                    ? undefined
+                    : () => onOpenLista(`Regional: ${regional} (${count})`, rowsPorRegional.get(regional) ?? [])
+                }
+              />
+            ))}
           </div>
         </div>
         <div className="ml-4 shrink-0 border-l pl-4" style={{ borderColor: 'var(--moni-border-subtle)' }}>
