@@ -27,12 +27,10 @@ type Props = {
   rowsEmOperacao: RedeFranqueadoRowDb[];
   pagantes: number;
   beta: number;
-  corporacao: number;
   maxClassificacao: number;
   totalClass: number;
   rowsPagante: RedeFranqueadoRowDb[];
   rowsBeta: RedeFranqueadoRowDb[];
-  rowsCorporacao: RedeFranqueadoRowDb[];
   statusByClass: {
     pagante: { encerrada: number };
     beta: { encerrada: number };
@@ -50,19 +48,16 @@ export function RedeVisaoRegionalClassificacao({
   rowsEmOperacao,
   pagantes,
   beta,
-  corporacao,
   maxClassificacao,
   totalClass,
   rowsPagante,
   rowsBeta,
-  rowsCorporacao,
   statusByClass,
   onOpenLista,
 }: Props) {
   const classItems = [
     { key: 'pagante', label: 'Pagante', n: pagantes, rows: rowsPagante, fill: 'var(--moni-green-800)' },
     { key: 'beta', label: 'Beta', n: beta, rows: rowsBeta, fill: 'var(--moni-gold-600)' },
-    { key: 'corporacao', label: 'Corporação', n: corporacao, rows: rowsCorporacao, fill: 'var(--moni-earth-400)' },
   ] as const;
 
   return (
@@ -76,15 +71,9 @@ export function RedeVisaoRegionalClassificacao({
             Distribuição da rede filtrada.
           </p>
           <div className="space-y-2">
-            {regionalArr.slice(0, 8).map(([k, v], idx) => {
+            {regionalArr.slice(0, 8).map(([k, v]) => {
               const inner = (
                 <>
-                  <span
-                    className="w-4 shrink-0 text-[10px] tabular-nums"
-                    style={{ color: 'var(--moni-text-tertiary)' }}
-                  >
-                    {idx + 1}
-                  </span>
                   <div
                     className="w-16 shrink-0 truncate text-right text-[11.5px]"
                     title={k}

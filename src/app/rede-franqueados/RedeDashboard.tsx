@@ -218,11 +218,8 @@ export function RedeDashboard({
     .filter((x) => x.missing.length > 0);
 
   const pagantes = filteredRows.filter((r) => /pagante/i.test(norm(r.classificacao_franqueado))).length;
-  const beta = filteredRows.filter(
-    (r) => /beta/i.test(norm(r.classificacao_franqueado)) && !/corpora/i.test(norm(r.classificacao_franqueado)),
-  ).length;
-  const corporacao = filteredRows.filter((r) => /corpora/i.test(norm(r.classificacao_franqueado))).length;
-  const maxClassificacao = Math.max(pagantes, beta, corporacao, 1);
+  const beta = filteredRows.filter((r) => /beta/i.test(norm(r.classificacao_franqueado))).length;
+  const maxClassificacao = Math.max(pagantes, beta, 1);
 
   const statusByClass = {
     pagante: {
@@ -322,14 +319,7 @@ export function RedeDashboard({
   const rowsEncerradas = useMemo(() => filteredRows.filter((r) => isOperacaoEncerrada(norm(r.status_franquia))), [filteredRows]);
   const rowsPagante = useMemo(() => filteredRows.filter((r) => /pagante/i.test(norm(r.classificacao_franqueado))), [filteredRows]);
   const rowsBeta = useMemo(
-    () =>
-      filteredRows.filter(
-        (r) => /beta/i.test(norm(r.classificacao_franqueado)) && !/corpora/i.test(norm(r.classificacao_franqueado)),
-      ),
-    [filteredRows],
-  );
-  const rowsCorporacao = useMemo(
-    () => filteredRows.filter((r) => /corpora/i.test(norm(r.classificacao_franqueado))),
+    () => filteredRows.filter((r) => /beta/i.test(norm(r.classificacao_franqueado))),
     [filteredRows],
   );
 
@@ -347,19 +337,24 @@ export function RedeDashboard({
 
   return (
     <section className="space-y-4">
-      {!visaoFranqueado ? (
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <FilterPill active={filtro === 'todos'} onClick={() => setFiltro('todos')}>
-            Todos ({totalGeral})
-          </FilterPill>
-          <FilterPill active={filtro === 'em_operacao'} onClick={() => setFiltro('em_operacao')}>
-            Em operação ({operacaoGeral})
-          </FilterPill>
-          <FilterPill active={filtro === 'encerrados'} onClick={() => setFiltro('encerrados')}>
-            Encerradas ({encerradasGeral})
-          </FilterPill>
-        </div>
-      ) : null}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+          Visão geral
+        </h3>
+        {!visaoFranqueado ? (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <FilterPill active={filtro === 'todos'} onClick={() => setFiltro('todos')}>
+              Todos ({totalGeral})
+            </FilterPill>
+            <FilterPill active={filtro === 'em_operacao'} onClick={() => setFiltro('em_operacao')}>
+              Em operação ({operacaoGeral})
+            </FilterPill>
+            <FilterPill active={filtro === 'encerrados'} onClick={() => setFiltro('encerrados')}>
+              Encerradas ({encerradasGeral})
+            </FilterPill>
+          </div>
+        ) : null}
+      </div>
 
       {visaoFranqueado ? (
         <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
@@ -475,12 +470,10 @@ export function RedeDashboard({
             rowsEmOperacao={rowsEmOperacao}
             pagantes={pagantes}
             beta={beta}
-            corporacao={corporacao}
             maxClassificacao={maxClassificacao}
             totalClass={total}
             rowsPagante={rowsPagante}
             rowsBeta={rowsBeta}
-            rowsCorporacao={rowsCorporacao}
             statusByClass={statusByClass}
             onOpenLista={(titulo, listaRows) => setListaModal({ titulo, rows: listaRows })}
           />
@@ -496,21 +489,31 @@ export function RedeDashboard({
             Área de atuação (UF – Cidade).
           </p>
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <span className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+            <label
+              htmlFor="rede-filtro-uf-cidade"
+              className="shrink-0 text-[11px]"
+              style={{ color: 'var(--moni-text-tertiary)' }}
+            >
               Estado:
-            </span>
-            <FilterPill active={!filtroEstadoCidadeAtuacao} onClick={() => setFiltroEstadoCidadeAtuacao('')}>
-              Todos
-            </FilterPill>
-            {estadoAtuacaoArr.map(([uf]) => (
-              <FilterPill
-                key={uf}
-                active={filtroEstadoCidadeAtuacao === uf}
-                onClick={() => setFiltroEstadoCidadeAtuacao(uf)}
-              >
-                {uf}
-              </FilterPill>
-            ))}
+            </label>
+            <select
+              id="rede-filtro-uf-cidade"
+              value={filtroEstadoCidadeAtuacao}
+              onChange={(e) => setFiltroEstadoCidadeAtuacao(e.target.value)}
+              className="min-w-[10rem] max-w-full rounded-lg border px-3 py-1.5 text-sm"
+              style={{
+                borderColor: 'var(--moni-border-default)',
+                backgroundColor: 'var(--moni-surface-0)',
+                color: 'var(--moni-text-secondary)',
+              }}
+            >
+              <option value="">Todos os estados</option>
+              {estadoAtuacaoArr.map(([uf]) => (
+                <option key={uf} value={uf}>
+                  {uf}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="mt-3 max-h-64 space-y-2 overflow-y-auto">
             {cidadeAtuacaoArr.length === 0 ? (
@@ -518,12 +521,9 @@ export function RedeDashboard({
                 {filtroEstadoCidadeAtuacao ? `Nenhuma cidade no estado ${filtroEstadoCidadeAtuacao}.` : 'Nenhum dado de área de atuação.'}
               </p>
             ) : (
-              cidadeAtuacaoArr.slice(0, 20).map(([k, v], idx) =>
+              cidadeAtuacaoArr.slice(0, 20).map(([k, v]) =>
                 modoAggregado ? (
                   <div key={k} className="flex w-full items-center gap-2 rounded py-1 text-left">
-                    <span className="w-4 shrink-0 text-[10px] tabular-nums" style={{ color: 'var(--moni-text-tertiary)' }}>
-                      {idx + 1}
-                    </span>
                     <div
                       className="w-28 shrink-0 truncate text-[11.5px]"
                       title={k}
@@ -556,9 +556,6 @@ export function RedeDashboard({
                     }
                     className="flex w-full items-center gap-2 rounded py-1 text-left hover:bg-[var(--moni-surface-100)]"
                   >
-                    <span className="w-4 shrink-0 text-[10px] tabular-nums" style={{ color: 'var(--moni-text-tertiary)' }}>
-                      {idx + 1}
-                    </span>
                     <div className="w-28 shrink-0 truncate text-[11.5px]" title={k} style={{ color: 'var(--moni-text-tertiary)' }}>
                       {k}
                     </div>
@@ -618,53 +615,53 @@ export function RedeDashboard({
               </FilterPill>
             </div>
           </div>
-          <div
-            className="relative mt-4 flex min-h-[140px] items-end gap-1 overflow-x-auto pb-8 pt-2"
-            style={{
-              backgroundImage:
-                'repeating-linear-gradient(to top, rgba(136,135,128,0.12) 0, rgba(136,135,128,0.12) 1px, transparent 1px, transparent 28px)',
-            }}
-          >
+          <div className="mt-4 overflow-x-auto">
             {mesArrExibicao.length === 0 ? (
-              <p className="text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+              <p className="py-6 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
                 Sem datas de contrato no período selecionado.
               </p>
             ) : (
-              mesArrExibicao.map(([k, v]) => {
-                const list = rowsPorMes.get(k) ?? [];
-                const h = Math.max(8, Math.round((v / (maxMesExibicao || 1)) * 120));
-                return (
-                  <button
-                    key={k}
-                    type="button"
-                    onClick={() => setListaModal({ titulo: `${monthLabel(k)} — ${v} franquia(s)`, rows: list })}
-                    className="flex w-10 shrink-0 flex-col items-center gap-1 rounded transition hover:opacity-90"
-                    title={`${monthLabel(k)}: ${v}`}
-                  >
-                    <span className="text-xs font-medium tabular-nums" style={{ color: 'var(--moni-text-primary)' }}>
-                      {v}
-                    </span>
-                    <div
-                      className="w-full rounded-sm"
-                      style={{
-                        height: `${h}px`,
-                        backgroundColor: growthBarFill(v, maxMesExibicao),
-                      }}
-                    />
-                    <div
-                      className="max-w-[3rem] truncate text-[10px] leading-tight"
-                      style={{
-                        color: 'var(--moni-text-tertiary)',
-                        transform: 'rotate(-45deg)',
-                        transformOrigin: 'top left',
-                        marginTop: 4,
-                      }}
+              <div
+                className="flex min-w-min items-end gap-2 px-1 pb-1 pt-2"
+                role="img"
+                aria-label="Gráfico de barras — contratos por mês"
+              >
+                {mesArrExibicao.map(([k, v]) => {
+                  const list = rowsPorMes.get(k) ?? [];
+                  const h = Math.max(10, Math.round((v / (maxMesExibicao || 1)) * 112));
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setListaModal({ titulo: `${monthLabel(k)} — ${v} franquia(s)`, rows: list })}
+                      className="group flex w-11 shrink-0 flex-col items-center gap-1.5 rounded-md px-0.5 py-1 transition hover:bg-[var(--moni-surface-100)]"
+                      title={`${monthLabel(k)}: ${v} franquia(s)`}
                     >
-                      {monthLabel(k)}
-                    </div>
-                  </button>
-                );
-              })
+                      <span
+                        className="text-xs font-semibold tabular-nums leading-none"
+                        style={{ color: 'var(--moni-text-primary)' }}
+                      >
+                        {v}
+                      </span>
+                      <div className="flex h-[112px] w-full items-end justify-center">
+                        <div
+                          className="w-7 rounded-sm transition group-hover:opacity-90"
+                          style={{
+                            height: `${h}px`,
+                            backgroundColor: growthBarFill(v, maxMesExibicao),
+                          }}
+                        />
+                      </div>
+                      <span
+                        className="whitespace-nowrap text-center text-[10px] font-medium leading-tight tracking-tight"
+                        style={{ color: 'var(--moni-text-tertiary)' }}
+                      >
+                        {monthLabel(k)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>

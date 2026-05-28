@@ -59,10 +59,7 @@ export default async function RedeFranqueadosPage() {
         </header>
 
         {rows && rows.length > 0 ? (
-          <section className="mt-10 space-y-3">
-            <h3 className="text-sm font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              Visão geral
-            </h3>
+          <section className="mt-10">
             <RedeDashboard rows={rows} />
           </section>
         ) : null}
