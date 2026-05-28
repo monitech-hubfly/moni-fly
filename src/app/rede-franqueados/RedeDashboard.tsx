@@ -9,6 +9,8 @@ import {
 } from '@/lib/rede-classificacao-chart';
 import { ocultarRegionalEAtuacaoNaVisaoFranqueado } from '@/lib/rede-visibilidade-franqueado';
 import { MapBrazilCidadesAtuacao } from './MapBrazilCidadesAtuacao';
+import { RedeCidadeBarRow } from './rede-cidade-bar-row';
+import { RedeFiltroUfSelect } from './rede-filtro-uf-select';
 import { RedeVisaoRegionalClassificacao } from './rede-visao-regional-class';
 
 type FiltroStatus = 'todos' | 'encerrados' | 'em_operacao';
@@ -503,92 +505,35 @@ export function RedeDashboard({
           <p className="mb-2 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
             Área de atuação (UF – Cidade).
           </p>
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <label
-              htmlFor="rede-filtro-uf-cidade"
-              className="shrink-0 text-[11px]"
-              style={{ color: 'var(--moni-text-tertiary)' }}
-            >
-              Estado:
-            </label>
-            <select
-              id="rede-filtro-uf-cidade"
-              value={filtroEstadoCidadeAtuacao}
-              onChange={(e) => setFiltroEstadoCidadeAtuacao(e.target.value)}
-              className="min-w-[10rem] max-w-full rounded-lg border px-3 py-1.5 text-sm"
-              style={{
-                borderColor: 'var(--moni-border-default)',
-                backgroundColor: 'var(--moni-surface-0)',
-                color: 'var(--moni-text-secondary)',
-              }}
-            >
-              <option value="">Todos os estados</option>
-              {estadoAtuacaoArr.map(([uf]) => (
-                <option key={uf} value={uf}>
-                  {uf}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="mt-3 max-h-64 space-y-2 overflow-y-auto">
+          <RedeFiltroUfSelect
+            id="rede-filtro-uf-cidade"
+            value={filtroEstadoCidadeAtuacao}
+            ufs={estadoAtuacaoArr.map(([uf]) => uf)}
+            onChange={setFiltroEstadoCidadeAtuacao}
+          />
+          <div className="list-none mt-3 max-h-64 space-y-2 overflow-y-auto">
             {cidadeAtuacaoArr.length === 0 ? (
               <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
                 {filtroEstadoCidadeAtuacao ? `Nenhuma cidade no estado ${filtroEstadoCidadeAtuacao}.` : 'Nenhum dado de área de atuação.'}
               </p>
             ) : (
-              cidadeAtuacaoArr.slice(0, 20).map(([k, v]) =>
-                modoAggregado ? (
-                  <div key={k} className="flex w-full items-center gap-2 rounded py-1 text-left">
-                    <div
-                      className="w-28 shrink-0 truncate text-[11.5px]"
-                      title={k}
-                      style={{ color: 'var(--moni-text-tertiary)' }}
-                    >
-                      {k}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="h-1.5 rounded-sm" style={{ backgroundColor: 'var(--moni-rede-city-track)' }}>
-                        <div
-                          className="h-1.5 rounded-sm"
-                          style={{
-                            width: barWidth(v, maxCidadeAtuacao),
-                            backgroundColor: 'var(--moni-rede-city-fill)',
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <span className="w-6 shrink-0 text-right text-xs font-medium tabular-nums">{v}</span>
-                  </div>
-                ) : (
-                  <button
-                    key={k}
-                    type="button"
-                    onClick={() =>
-                      setListaModal({
-                        titulo: `Cidade de atuação: ${k} (${v})`,
-                        rows: dedupeRowsById(rowsPorCidadeAtuacao.get(k) ?? []),
-                      })
-                    }
-                    className="flex w-full items-center gap-2 rounded py-1 text-left hover:bg-[var(--moni-surface-100)]"
-                  >
-                    <div className="w-28 shrink-0 truncate text-[11.5px]" title={k} style={{ color: 'var(--moni-text-tertiary)' }}>
-                      {k}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="h-1.5 rounded-sm" style={{ backgroundColor: 'var(--moni-rede-city-track)' }}>
-                        <div
-                          className="h-1.5 rounded-sm"
-                          style={{
-                            width: barWidth(v, maxCidadeAtuacao),
-                            backgroundColor: 'var(--moni-rede-city-fill)',
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <span className="w-6 shrink-0 text-right text-xs font-medium tabular-nums">{v}</span>
-                  </button>
-                ),
-              )
+              cidadeAtuacaoArr.slice(0, 20).map(([label, count]) => (
+                <RedeCidadeBarRow
+                  key={label}
+                  label={label}
+                  count={count}
+                  maxCount={maxCidadeAtuacao}
+                  onClick={
+                    modoAggregado
+                      ? undefined
+                      : () =>
+                          setListaModal({
+                            titulo: `Cidade de atuação: ${label} (${count})`,
+                            rows: dedupeRowsById(rowsPorCidadeAtuacao.get(label) ?? []),
+                          })
+                  }
+                />
+              ))
             )}
           </div>
         </div>
