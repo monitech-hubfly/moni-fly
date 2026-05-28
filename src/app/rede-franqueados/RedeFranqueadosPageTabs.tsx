@@ -7,18 +7,21 @@ import { RedeDashboard } from './RedeDashboard';
 import { RedeFranqueadosTabelaComBusca } from './RedeFranqueadosTabelaComBusca';
 import { RedeLoteadoresTabelaComBusca } from './RedeLoteadoresTabelaComBusca';
 import { CadastrosEmpresasTabelaComBusca } from './CadastrosEmpresasTabelaComBusca';
+import { CondominiosTabelaComBusca } from './CondominiosTabelaComBusca';
 import type { FranqueadoEmpresaRow } from '@/lib/franqueado-empresas';
+import type { CondominioRow } from '@/lib/condominios';
 import { CriarCardsDesdeRedeButton } from './CriarCardsDesdeRedeButton';
 import { ImportarRedeCSVButton } from './ImportarRedeCSVButton';
 import { ExportarRedeCSVButton } from './ExportarRedeCSVButton';
 import { NovoFranqueadoModal } from './NovoFranqueadoModal';
 
-type TabId = 'visao' | 'franqueados' | 'loteadores' | 'empresas';
+type TabId = 'visao' | 'franqueados' | 'loteadores' | 'empresas' | 'condominios';
 
 const TAB_VISAO: { id: TabId; label: string } = { id: 'visao', label: 'Visão geral' };
 const TAB_FRANQ: { id: TabId; label: string } = { id: 'franqueados', label: 'Rede de Franqueados' };
 const TAB_LOTE: { id: TabId; label: string } = { id: 'loteadores', label: 'Rede de Loteadores' };
 const TAB_EMP: { id: TabId; label: string } = { id: 'empresas', label: 'Cadastros de Empresas' };
+const TAB_COND: { id: TabId; label: string } = { id: 'condominios', label: 'Condomínios' };
 
 type Props = {
   rows: RedeFranqueadoRowDb[];
@@ -26,6 +29,9 @@ type Props = {
   showStaffTabs: boolean;
   empresasRows: FranqueadoEmpresaRow[] | null;
   empresasLoadError: boolean;
+  condominiosRows: CondominioRow[] | null;
+  showCondominiosTab: boolean;
+  canManageCondominios: boolean;
   canManageFranqueados: boolean;
   maskSensitiveColumns: boolean;
   linhasSemCard: number;
@@ -38,6 +44,9 @@ export function RedeFranqueadosPageTabs({
   showStaffTabs,
   empresasRows,
   empresasLoadError,
+  condominiosRows,
+  showCondominiosTab,
+  canManageCondominios,
   canManageFranqueados,
   maskSensitiveColumns,
   linhasSemCard,
@@ -131,6 +140,18 @@ export function RedeFranqueadosPageTabs({
               empresasRows={empresasRows ?? []}
               empresasLoadError={empresasLoadError}
             />
+          </section>
+        ) : null}
+
+        {resolvedTab === 'condominios' && showCondominiosTab ? (
+          <section className="space-y-4">
+            {condominiosRows === null ? (
+              <p className="text-sm text-red-600">
+                Erro ao carregar condomínios. Confira se a migration 208 foi aplicada no Supabase.
+              </p>
+            ) : (
+              <CondominiosTabelaComBusca rows={condominiosRows} canEdit={canManageCondominios} />
+            )}
           </section>
         ) : null}
       </div>
