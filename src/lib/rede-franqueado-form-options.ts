@@ -3,7 +3,6 @@
 export const REDE_OPCOES_STATUS_FRANQUIA = [
   { value: 'Em Operação', label: 'Em Operação' },
   { value: 'Operação Encerrada', label: 'Operação Encerrada' },
-  { value: 'Em processo', label: 'Em processo' },
 ] as const;
 
 export const REDE_OPCOES_CLASSIFICACAO_FRANQUEADO = [

@@ -7,7 +7,6 @@ import { contarLinhasSemCard } from './actions';
 import { CriarCardsDesdeRedeButton } from './CriarCardsDesdeRedeButton';
 import { ImportarRedeCSVButton } from './ImportarRedeCSVButton';
 import { ExportarRedeCSVButton } from './ExportarRedeCSVButton';
-import { CompletarCamposDocumentosButton } from './CompletarCamposDocumentosButton';
 import { NovoFranqueadoModal } from './NovoFranqueadoModal';
 import { RedeDashboard } from './RedeDashboard';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -72,7 +71,6 @@ export default async function RedeFranqueadosPage() {
               {canManage ? (
                 <>
                   <ImportarRedeCSVButton />
-                  <CompletarCamposDocumentosButton />
                   <CriarCardsDesdeRedeButton linhasSemCard={linhasSemCard} />
                   <NovoFranqueadoModal />
                 </>

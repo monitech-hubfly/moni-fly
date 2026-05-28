@@ -46,7 +46,7 @@ const emptyForm = (): FormState => ({
   n_franquia: '',
   modalidade: 'Franquia',
   nome_completo: '',
-  status_franquia: 'Em processo',
+  status_franquia: 'Em Operação',
   classificacao_franqueado: '',
   data_ass_cof: '',
   data_ass_contrato: '',
