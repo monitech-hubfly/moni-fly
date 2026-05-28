@@ -18,6 +18,26 @@ export const KANBAN_IDS = {
   PROJETOS_LEGAIS: '23ad5ce1-59f8-4e74-acb8-69aa61228cd8',
 } as const
 
+/** `kanbans.nome` → UUID canônico (PROD). Preferir na resolução do board. */
+export const KANBAN_ID_BY_NOME: Record<string, string> = {
+  'Funil Step One': KANBAN_IDS.STEP_ONE,
+  'Funil Portfólio': KANBAN_IDS.PORTFOLIO,
+  'Funil Acoplamento': KANBAN_IDS.ACOPLAMENTO,
+  'Funil Contabilidade': KANBAN_IDS.CONTABILIDADE,
+  'Funil Crédito': KANBAN_IDS.CREDITO,
+  'Funil Loteadores': KANBAN_IDS.LOTEADORES,
+  'Funil Operações': KANBAN_IDS.OPERACOES,
+  'Funil Jurídico': KANBAN_IDS.JURIDICO,
+  'Funil Moní Capital': KANBAN_IDS.MONI_CAPITAL,
+  'Funil Contratações': KANBAN_IDS.CONTRATACOES,
+  'Funil Produto': KANBAN_IDS.HDM_PRODUTO,
+  'Funil Modelo Virtual': KANBAN_IDS.HDM_MODELO_VIRTUAL,
+  'Funil Homologações': KANBAN_IDS.HDM_HOMOLOGACOES,
+  'Funil Projeto Legal': KANBAN_IDS.PROJETO_LEGAL,
+  'Funil Projetos Locais': KANBAN_IDS.PROJETOS_LOCAIS,
+  'Funil Projetos Legais': KANBAN_IDS.PROJETOS_LEGAIS,
+};
+
 export const FASE_IDS = {
   // Portfolio — gatilhos de bastão de IDA
   PORTFOLIO_STEP_3:          '6d019704-95f7-42ee-8a85-973ffafc236b',

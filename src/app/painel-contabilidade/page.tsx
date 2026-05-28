@@ -70,7 +70,7 @@ export default async function PainelContabilidadePage({
           </Suspense>
 
           {activeTab === 'kanban' ? (
-            <main className="mx-auto max-w-[1600px] overflow-x-auto px-6 py-8">
+            <main className="mx-auto w-full min-w-0 max-w-[1600px] px-6 py-8">
               <KanbanBoard
                 fases={snapshot.fases}
                 cards={snapshot.cards}
@@ -207,7 +207,7 @@ export default async function PainelContabilidadePage({
       </Suspense>
 
       {activeTab === 'kanban' ? (
-        <main className="mx-auto max-w-[1600px] overflow-x-auto px-6 py-8">
+        <main className="mx-auto w-full min-w-0 max-w-[1600px] px-6 py-8">
           <Suspense fallback={null}>
             <PainelCardQueryModalWrapper basePath="/painel-contabilidade" board="contabilidade">
               <PainelContabilidadeClient byEtapa={byEtapa} initialOpenProcessId={initialOpenProcessId} />
