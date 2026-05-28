@@ -4353,7 +4353,7 @@ export function KanbanCardModal({
                     ) : (
                       <p className="mb-4 text-xs text-stone-500">Nenhum comentário ainda.</p>
                     )}
-                    <div className="overflow-hidden rounded-lg" style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-0)' }}>
+                    <div className="overflow-visible rounded-lg" style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-0)' }}>
                       <div className="flex gap-1 border-b px-2 py-1" style={{ borderColor: 'var(--moni-border-default)' }}>
                         <button
                           type="button"

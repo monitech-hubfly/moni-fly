@@ -11,7 +11,16 @@ import { createClient } from '@/lib/supabase/server';
 
 export type KanbanComentarioActionResult = { ok: true } | { ok: false; error: string };
 
-/** Autocomplete @ — qualquer usuário com perfil na ferramenta. */
+async function dbParaMencoes(supabase: Awaited<ReturnType<typeof createClient>>) {
+  try {
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    return createAdminClient();
+  } catch {
+    return supabase;
+  }
+}
+
+/** Autocomplete @ — qualquer usuário com perfil na ferramenta (service role para contornar RLS de leitura). */
 export async function buscarUsuariosParaMencao(
   query: string,
 ): Promise<{ id: string; nome: string }[]> {
@@ -22,21 +31,24 @@ export async function buscarUsuariosParaMencao(
   if (!user) return [];
 
   const q = query.trim();
-  if (q.length < 1) return [];
+  const db = await dbParaMencoes(supabase);
 
-  const { data } = await supabase
-    .from('profiles')
-    .select('id, full_name')
-    .ilike('full_name', `%${q}%`)
-    .order('full_name', { ascending: true })
-    .limit(10);
+  let request = db.from('profiles').select('id, full_name').order('full_name', { ascending: true }).limit(10);
+
+  if (q.length >= 1) {
+    request = request.ilike('full_name', `%${q}%`);
+  } else {
+    request = request.not('full_name', 'is', null).neq('full_name', '');
+  }
+
+  const { data } = await request;
 
   return (data ?? [])
     .map((p) => ({
       id: String(p.id),
-      nome: String((p as { full_name?: string | null }).full_name ?? '').trim() || 'Sem nome',
+      nome: String((p as { full_name?: string | null }).full_name ?? '').trim(),
     }))
-    .filter((p) => p.nome !== 'Sem nome' || q.length >= 2);
+    .filter((p) => p.nome.length > 0);
 }
 
 async function buscarPerfisPorNomesMencionados(
@@ -45,9 +57,10 @@ async function buscarPerfisPorNomesMencionados(
 ): Promise<PerfilMencao[]> {
   if (nomes.length === 0) return [];
 
+  const db = await dbParaMencoes(supabase);
   const perfis = new Map<string, PerfilMencao>();
   for (const nome of nomes) {
-    const { data: exatos } = await supabase
+    const { data: exatos } = await db
       .from('profiles')
       .select('id, full_name')
       .ilike('full_name', nome)

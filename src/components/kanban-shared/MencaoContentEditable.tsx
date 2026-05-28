@@ -1,9 +1,21 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type LegacyRef, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type LegacyRef,
+  type RefObject,
+} from 'react';
+import { createPortal } from 'react-dom';
 import { buscarUsuariosParaMencao } from '@/lib/actions/kanban-comentarios';
 
 type Sugestao = { id: string; nome: string };
+
+type AnchorRect = { top: number; left: number; width: number };
 
 type Props = {
   editorRef: RefObject<HTMLDivElement | null>;
@@ -17,10 +29,20 @@ function textoAntesDoCursor(el: HTMLElement): string {
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) return '';
   const range = sel.getRangeAt(0);
+  if (!el.contains(range.startContainer)) return '';
   const pre = range.cloneRange();
   pre.selectNodeContents(el);
   pre.setEnd(range.endContainer, range.endOffset);
   return pre.toString();
+}
+
+function atualizarAnchor(el: HTMLElement): AnchorRect {
+  const rect = el.getBoundingClientRect();
+  return {
+    top: rect.bottom + 4,
+    left: rect.left,
+    width: Math.max(rect.width, 256),
+  };
 }
 
 export function MencaoContentEditable({
@@ -33,17 +55,26 @@ export function MencaoContentEditable({
   const [sugestoes, setSugestoes] = useState<Sugestao[]>([]);
   const [posicaoAt, setPosicaoAt] = useState<number | null>(null);
   const [indiceSelecionado, setIndiceSelecionado] = useState(0);
+  const [anchor, setAnchor] = useState<AnchorRect | null>(null);
+  const [portalReady, setPortalReady] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queryRef = useRef('');
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   const fecharDropdown = useCallback(() => {
     setSugestoes([]);
     setPosicaoAt(null);
+    setAnchor(null);
+    queryRef.current = '';
   }, []);
 
   const detectarMencao = useCallback(
     (el: HTMLElement) => {
       const antes = textoAntesDoCursor(el);
-      const match = antes.match(/@(\p{L}+)$/u);
+      const match = antes.match(/@([\p{L}]*)$/u);
       if (!match) {
         fecharDropdown();
         return;
@@ -52,10 +83,17 @@ export function MencaoContentEditable({
       const query = match[1];
       setPosicaoAt(inicio);
       setIndiceSelecionado(0);
+      setAnchor(atualizarAnchor(el));
+      queryRef.current = query;
+
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
-        void buscarUsuariosParaMencao(query).then(setSugestoes);
-      }, 200);
+        void buscarUsuariosParaMencao(query).then((res) => {
+          if (queryRef.current !== query) return;
+          setSugestoes(res);
+          setAnchor(atualizarAnchor(el));
+        });
+      }, 150);
     },
     [fecharDropdown],
   );
@@ -66,7 +104,7 @@ export function MencaoContentEditable({
       if (!el || posicaoAt === null) return;
 
       const antes = textoAntesDoCursor(el);
-      const match = antes.match(/@(\p{L}+)$/u);
+      const match = antes.match(/@([\p{L}]*)$/u);
       if (!match) return;
 
       const prefixo = antes.slice(0, posicaoAt);
@@ -103,13 +141,22 @@ export function MencaoContentEditable({
     [editorRef, fecharDropdown, onInput, posicaoAt],
   );
 
-  const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
+  const handleInput = (e: FormEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     onInput(el.innerHTML);
     if (!disabled) detectarMencao(el);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+  const handleKeyUp = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (disabled) return;
+    if (e.key === 'Escape') {
+      fecharDropdown();
+      return;
+    }
+    detectarMencao(e.currentTarget);
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (sugestoes.length === 0) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -129,44 +176,71 @@ export function MencaoContentEditable({
   };
 
   useEffect(() => {
+    if (!sugestoes.length) return;
+    const el = editorRef.current;
+    if (!el) return;
+
+    const sync = () => setAnchor(atualizarAnchor(el));
+    sync();
+    window.addEventListener('scroll', sync, true);
+    window.addEventListener('resize', sync);
+    return () => {
+      window.removeEventListener('scroll', sync, true);
+      window.removeEventListener('resize', sync);
+    };
+  }, [editorRef, sugestoes.length]);
+
+  useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, []);
 
+  const dropdown =
+    portalReady && sugestoes.length > 0 && anchor ? (
+      <ul
+        role="listbox"
+        aria-label="Mencionar usuário"
+        className="fixed z-[9999] max-h-52 overflow-y-auto rounded-lg border border-stone-300 bg-white py-1 shadow-xl"
+        style={{ top: anchor.top, left: anchor.left, width: anchor.width }}
+      >
+        {sugestoes.map((s, i) => (
+          <li key={s.id} role="option" aria-selected={i === indiceSelecionado}>
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                selecionarSugestao(s);
+              }}
+              className={`w-full px-3 py-2 text-left text-sm transition-colors ${
+                i === indiceSelecionado
+                  ? 'bg-stone-100 text-stone-900'
+                  : 'text-stone-700 hover:bg-stone-50'
+              }`}
+            >
+              {s.nome}
+            </button>
+          </li>
+        ))}
+      </ul>
+    ) : null;
+
   return (
-    <div className="relative">
-      {sugestoes.length > 0 ? (
-        <ul className="absolute bottom-full left-0 z-[60] mb-1 max-h-48 w-64 overflow-y-auto rounded-lg border border-stone-300 bg-white py-1 shadow-lg">
-          {sugestoes.map((s, i) => (
-            <li key={s.id}>
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  selecionarSugestao(s);
-                }}
-                className={`w-full px-3 py-1.5 text-left text-sm transition-colors ${
-                  i === indiceSelecionado
-                    ? 'bg-stone-100 text-stone-900'
-                    : 'text-stone-700 hover:bg-stone-50'
-                }`}
-              >
-                {s.nome}
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+    <>
       <div
         ref={editorRef as LegacyRef<HTMLDivElement>}
         contentEditable={!disabled}
         suppressContentEditableWarning
         onInput={handleInput}
+        onKeyUp={handleKeyUp}
         onKeyDown={handleKeyDown}
+        onBlur={() => {
+          window.setTimeout(fecharDropdown, 150);
+        }}
         className={className}
         data-placeholder={placeholder}
       />
-    </div>
+      {dropdown && createPortal(dropdown, document.body)}
+    </>
   );
 }
