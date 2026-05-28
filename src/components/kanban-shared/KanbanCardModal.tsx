@@ -62,9 +62,8 @@ import { deletarChamado } from '@/app/sirene/actions';
 import {
   abrirChamadoJuridicoDoCard,
   existeChamadoJuridicoParaCard,
-  MSG_CHAMADO_JURIDICO_JA_EXISTE,
 } from '@/lib/actions/kanban-bastoes';
-import { KANBANS_COM_CHAMADO_JURIDICO } from '@/lib/constants/kanban-ids';
+import { KANBANS_COM_CHAMADO_JURIDICO, MSG_CHAMADO_JURIDICO_JA_EXISTE } from '@/lib/constants/kanban-ids';
 import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import { isPortfolioKanbanRef } from '@/lib/kanban/portfolio-paralelas';

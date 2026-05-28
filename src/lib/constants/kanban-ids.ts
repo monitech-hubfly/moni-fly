@@ -84,3 +84,6 @@ export const KANBANS_INTERNOS_NOMES = [
   'Funil Moní Capital',
   'Funil Contratações',
 ] as const;
+
+export const MSG_CHAMADO_JURIDICO_JA_EXISTE =
+  'Já existe um chamado jurídico aberto para este card';

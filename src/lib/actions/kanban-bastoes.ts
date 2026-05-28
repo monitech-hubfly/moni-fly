@@ -5,9 +5,7 @@ import { KANBANS_COM_CHAMADO_JURIDICO, FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '
 import { isFrankOrFranqueadoRole } from '@/lib/authz';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-
-export const MSG_CHAMADO_JURIDICO_JA_EXISTE =
-  'Já existe um chamado jurídico aberto para este card';
+import { MSG_CHAMADO_JURIDICO_JA_EXISTE } from '@/lib/constants/kanban-ids';
 
 /** Verifica se já existe card filho no Funil Jurídico para o card pai. */
 export async function existeChamadoJuridicoParaCard(cardPaiId: string): Promise<boolean> {
