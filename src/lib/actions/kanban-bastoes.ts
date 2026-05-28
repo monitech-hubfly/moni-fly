@@ -557,7 +557,7 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
       { kanbanDestinoId: KANBAN_IDS.HDM_MODELO_VIRTUAL, faseDestinoSlug: 'mv_recebimento' },
     ],
     [FASE_SLUGS.APROVACAO_CONDOMINIO]: [
-      { kanbanDestinoId: KANBAN_IDS.PROJETOS_LOCAIS, faseDestinoSlug: 'projloc_briefing' },
+      { kanbanDestinoId: KANBAN_IDS.PROJETOS_LOCAIS, faseDestinoSlug: 'projetos_locais_briefing' },
     ],
     [FASE_SLUGS.PROJETO_LEGAL]: [
       { kanbanDestinoId: KANBAN_IDS.PROJETOS_LOCAIS, faseDestinoSlug: 'projetos_locais_briefing' },
