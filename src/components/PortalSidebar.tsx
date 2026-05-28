@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { Bell, ChevronDown, ChevronRight, User } from 'lucide-react';
+import { Bell, Building2, ChevronDown, ChevronRight, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { canAccessFunilContratacoes, isAdminRole, isRedeStaffRole, normalizeAccessRole } from '@/lib/authz';
 import { isLiveLimitedRelease, showDevOnlySidebarNav } from '@/lib/release-scope';
@@ -474,6 +474,16 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
             SIRENE_SUBITENS,
             (href) => Boolean(pathname === href || pathname?.startsWith(`${href}/`)),
           )}
+
+        {!publicVisitor && isFrank && (
+          <Link
+            href="/minhas-empresas"
+            className={`${linkClassPrincipal(Boolean(pathname?.startsWith('/minhas-empresas')))} flex items-center gap-2`}
+          >
+            <Building2 className="h-4 w-4 shrink-0" aria-hidden />
+            Minhas Empresas
+          </Link>
+        )}
 
         {!publicVisitor && !limitedRelease && (
           <SidebarUniversidadeLinks

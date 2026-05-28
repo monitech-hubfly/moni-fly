@@ -369,6 +369,112 @@ async function checklistFaseObrigatoriaCompleto(cardId: string, faseId: string):
   return itemIds.every((id) => comValor.has(id));
 }
 
+/** Ritual de encerramento: card Portfolio pai concluído após Operações entregue + checklist 100%. */
+async function finalizarCardPortfolioRitualEncerramento(cardPaiId: string): Promise<void> {
+  const paiId = String(cardPaiId ?? '').trim();
+  if (!paiId) return;
+
+  let db: ReturnType<typeof createAdminClient>;
+  try {
+    db = createAdminClient();
+  } catch (e) {
+    console.error('[ritualEncerramento] admin client:', e);
+    return;
+  }
+
+  const { data: paiRow, error: errPai } = await db
+    .from('kanban_cards')
+    .select('id, kanban_id, concluido, arquivado, titulo')
+    .eq('id', paiId)
+    .maybeSingle();
+
+  if (errPai || !paiRow?.id) {
+    if (errPai) console.error('[ritualEncerramento] card pai:', errPai.message);
+    return;
+  }
+
+  const row = paiRow as {
+    id: string;
+    kanban_id?: string;
+    concluido?: boolean | null;
+    arquivado?: boolean | null;
+    titulo?: string | null;
+  };
+
+  if (String(row.kanban_id ?? '') !== KANBAN_IDS.PORTFOLIO) return;
+  if (Boolean(row.concluido) || Boolean(row.arquivado)) return;
+
+  const now = new Date().toISOString();
+  const { error: errUpd } = await db
+    .from('kanban_cards')
+    .update({
+      concluido: true,
+      concluido_em: now,
+      concluido_por: null,
+    } as never)
+    .eq('id', paiId);
+
+  if (errUpd) {
+    console.error('[ritualEncerramento] update pai:', errUpd.message);
+    return;
+  }
+
+  const titulo = String(row.titulo ?? '').trim() || 'Card';
+  const { error: errHist } = await db.from('kanban_historico').insert({
+    card_id: paiId,
+    usuario_id: null,
+    usuario_nome: 'Sistema',
+    acao: 'card_finalizado',
+    detalhe: {
+      tipo: 'ritual_encerramento_operacoes',
+      descricao: `Ritual de encerramento: Operações entregue com checklist completo — Portfolio "${titulo}" finalizado.`,
+    },
+  } as never);
+
+  if (errHist) {
+    console.error('[ritualEncerramento] historico:', errHist.message);
+  }
+
+  revalidatePath('/portfolio');
+  revalidatePath('/operacoes');
+  revalidatePath('/');
+}
+
+async function executarRitualEncerramentoOperacoes(cardOperacoesId: string): Promise<void> {
+  const cid = String(cardOperacoesId ?? '').trim();
+  if (!cid) return;
+
+  const completo = await checklistFaseObrigatoriaCompleto(cid, FASE_IDS.OPERACOES_ENTREGUE);
+  if (!completo) return;
+
+  let db: ReturnType<typeof createAdminClient>;
+  try {
+    db = createAdminClient();
+  } catch (e) {
+    console.error('[ritualEncerramento] admin client:', e);
+    return;
+  }
+
+  const { data: filhoRow, error: errFilho } = await db
+    .from('kanban_cards')
+    .select('origem_card_id, kanban_id')
+    .eq('id', cid)
+    .maybeSingle();
+
+  if (errFilho) {
+    console.error('[ritualEncerramento] card operações:', errFilho.message);
+    return;
+  }
+
+  const filho = filhoRow as { origem_card_id?: string | null; kanban_id?: string } | null;
+  if (String(filho?.kanban_id ?? '') !== KANBAN_IDS.OPERACOES) return;
+
+  const origemCardId = String(filho?.origem_card_id ?? '').trim();
+  if (!origemCardId) return;
+
+  await finalizarCardPortfolioRitualEncerramento(origemCardId);
+}
+
 async function dispararBastao(
   pai: CardPaiBastao,
   faseOrigemSlug: string,
@@ -461,6 +567,11 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
       { kanbanDestinoId: KANBAN_IDS.JURIDICO, faseDestinoSlug: 'juridico_recebimento' },
     ],
   };
+
+  if (slug === FASE_SLUGS.OPERACOES_ENTREGUE) {
+    await executarRitualEncerramentoOperacoes(cardPaiId);
+    return;
+  }
 
   const destinos = bastoesPorSlug[slug];
   if (!destinos?.length) return;

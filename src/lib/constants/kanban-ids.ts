@@ -67,6 +67,7 @@ export const FASE_IDS = {
   // Operações
   OPERACOES_PLANIALTIMETRICO: 'c3bea524-aeae-4b87-ba1f-5c83943d4770',
   OPERACOES_AGUARDANDO_CREDITO: '8b83e671-ef0c-4028-8b52-8f56579e8df0',
+  OPERACOES_ENTREGUE:        '5b85ac83-a546-4c1d-9bf0-e5e40cf3d937',
   // Loteadores
   LOTEADORES_JURIDICO:       'b505fee6-67aa-4925-b464-b80ceaa04567',
 } as const
@@ -96,6 +97,7 @@ export const FASE_SLUGS = {
   CAPITAL_NAO_ELEGIVEL:      'capital_nao_elegivel',
   PROJETOS_LOCAIS_CONCLUIDO: 'projetos_locais_concluido',
   PROJETOS_LEGAIS_CONCLUIDO: 'projetos_legais_concluido',
+  OPERACOES_ENTREGUE:        'operacoes_entregue',
   // Gates
   STEP_5:             'step_5',
 } as const

@@ -10,6 +10,10 @@
     {
       "path": "/api/cron/cobrar-candidatos",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/sla-alertas",
+      "schedule": "0 8 * * *"
     }
   ]
 }
