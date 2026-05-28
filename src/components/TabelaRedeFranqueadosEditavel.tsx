@@ -555,18 +555,17 @@ export function TabelaRedeFranqueadosEditavel({
         </table>
       </div>
 
-      <p className="border-t border-stone-200 pt-3 text-sm text-stone-600">
-        Mostrando {start + 1}–{Math.min(start + PER_PAGE, rowsOrdenadas.length)} de {rowsOrdenadas.length}{' '}
-        franqueado{rowsOrdenadas.length === 1 ? '' : 's'}
-        {buscaAtiva && totalGeral > rowsOrdenadas.length ? (
-          <span className="text-stone-500"> (filtrado de {totalGeral})</span>
-        ) : null}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-3">
+        <p className="text-sm text-stone-600">
+          Mostrando {start + 1}–{Math.min(start + PER_PAGE, rowsOrdenadas.length)} de {rowsOrdenadas.length}{' '}
+          franqueado{rowsOrdenadas.length === 1 ? '' : 's'}
+          {buscaAtiva && totalGeral > rowsOrdenadas.length ? (
+            <span className="text-stone-500"> (filtrado de {totalGeral})</span>
+          ) : null}
+        </p>
 
-      {totalPages > 1 && (
-        <nav className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-sm text-stone-500" aria-hidden="true" />
-          <div className="flex items-center gap-1">
+        {totalPages > 1 ? (
+          <nav className="flex flex-wrap items-center gap-1" aria-label="Paginação da tabela">
             <button
               type="button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -597,9 +596,9 @@ export function TabelaRedeFranqueadosEditavel({
             >
               Próxima
             </button>
-          </div>
-        </nav>
-      )}
+          </nav>
+        ) : null}
+      </div>
     </div>
   );
 }
