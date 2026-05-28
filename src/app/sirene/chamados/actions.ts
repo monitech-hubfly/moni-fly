@@ -241,7 +241,7 @@ export async function listarComentariosCardSirene(
 
   const { data: rows, error } = await supabase
     .from('kanban_card_comentarios')
-    .select('id, texto, created_at, autor_id')
+    .select('id, conteudo, created_at, autor_id')
     .eq('card_id', cid)
     .order('created_at', { ascending: true })
     .limit(100);
@@ -262,7 +262,7 @@ export async function listarComentariosCardSirene(
 
   const items: ComentarioCardSireneRow[] = (rows ?? []).map((r) => ({
     id: String((r as { id: string }).id),
-    texto: String((r as { texto?: string }).texto ?? ''),
+    texto: String((r as { conteudo?: string }).conteudo ?? ''),
     created_at: String((r as { created_at?: string }).created_at ?? ''),
     autor_nome: r.autor_id ? nomes.get(String(r.autor_id)) ?? null : null,
   }));
@@ -288,7 +288,7 @@ export async function publicarComentarioCardSirene(
   const { error } = await supabase.from('kanban_card_comentarios').insert({
     card_id: cid,
     autor_id: user.id,
-    texto: t,
+    conteudo: t,
   });
 
   if (error) return { ok: false, error: error.message };
