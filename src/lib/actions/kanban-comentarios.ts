@@ -172,6 +172,19 @@ export async function publicarComentarioKanbanCard(input: {
     });
   }
 
+  if (mencoesIds.length > 0) {
+    const { enviarEmailsMencaoUsuarios } = await import('@/lib/mencoes/enviar-email-mencao');
+    const linkPath = `${basePath}?card=${encodeURIComponent(cardId)}`;
+    void enviarEmailsMencaoUsuarios({
+      userIds: mencoesIds,
+      autorId: user.id,
+      cardTitulo,
+      autorNome,
+      comentarioPreview: preview,
+      linkPath,
+    }).catch((err) => console.error('[kanban-comentarios] email menção', err));
+  }
+
   void comentario;
   revalidatePath(basePath);
   revalidatePath('/alertas');

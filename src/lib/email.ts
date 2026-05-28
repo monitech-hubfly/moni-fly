@@ -149,6 +149,40 @@ export async function sendJuridicoStatusEmail(
   });
 }
 
+/** E-mail quando alguém é mencionado com @ em comentário de kanban ou Sirene. */
+export async function sendMencaoEmail(input: {
+  to: string;
+  cardTitulo: string;
+  autorNome: string;
+  comentarioPreview: string;
+  linkUrl: string;
+}): Promise<SendEmailResult> {
+  const titulo = String(input.cardTitulo ?? '').trim() || 'Card';
+  const autor = String(input.autorNome ?? '').trim() || 'Alguém';
+  const preview = String(input.comentarioPreview ?? '').trim();
+  const link = String(input.linkUrl ?? '').trim();
+  const safeLink = link.replace(/"/g, '%22');
+
+  const text =
+    `${autor} mencionou você em "${titulo}".\n\n` +
+    (preview ? `"${preview}"\n\n` : '') +
+    (link ? `Abrir: ${link}\n` : 'Acesse o portal para ver o comentário.\n');
+
+  const html =
+    `<p><strong>${escapeHtml(autor)}</strong> mencionou você em <strong>${escapeHtml(titulo)}</strong>.</p>` +
+    (preview ? `<blockquote style="margin:12px 0;padding:8px 12px;border-left:3px solid #d6d3d1;color:#57534e">${escapeHtml(preview)}</blockquote>` : '') +
+    (link
+      ? `<p><a href="${safeLink}">Abrir no portal</a></p>`
+      : '<p>Acesse o portal para ver o comentário.</p>');
+
+  return await sendEmailViaResend({
+    to: input.to,
+    subject: `Você foi mencionado em ${titulo}`,
+    text,
+    html,
+  });
+}
+
 export async function sendRegistroFranquiaEmail(input: {
   to: string | string[];
   nomeFranqueado: string;

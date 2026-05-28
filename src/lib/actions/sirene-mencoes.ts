@@ -97,5 +97,17 @@ export async function notificarMencoesSirene(input: {
     });
   }
 
+  if (input.mencoesIds.length > 0) {
+    const { enviarEmailsMencaoUsuarios } = await import('@/lib/mencoes/enviar-email-mencao');
+    void enviarEmailsMencaoUsuarios({
+      userIds: input.mencoesIds,
+      autorId: input.autorId,
+      cardTitulo: titulo,
+      autorNome,
+      comentarioPreview: preview,
+      linkPath: referenciaPath,
+    }).catch((err) => console.error('[sirene-mencoes] email menção', err));
+  }
+
   revalidatePath('/alertas');
 }
