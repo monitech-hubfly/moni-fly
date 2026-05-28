@@ -22,6 +22,7 @@ import { getRegistroFranquiaRecipients, sendRegistroFranquiaEmail } from '@/lib/
 import { allocNextOrdemColunaPainel } from '@/lib/painel-coluna-ordem';
 import { getPainelDbForPublicEdit } from '@/lib/painel-public-edit';
 import { ensureFunilStepOneCardFromRede } from '@/lib/kanban/ensure-funil-stepone-card-from-rede';
+import { isRedeStatusEmProcesso } from '@/lib/rede-franqueado-form-options';
 
 async function requireRedeAdminOrPublicLink(): Promise<
   | { ok: true; supabase: Awaited<ReturnType<typeof createClient>>; userId: string }
@@ -1104,6 +1105,67 @@ export async function salvarJustificativaRedeAnexo(
   revalidatePath('/rede-franqueados');
   revalidatePath(`/rede-franqueados/${redeId}`);
   return { ok: true };
+}
+
+export type NormalizarStatusEmProcessoResult =
+  | { ok: true; rede: number; step: number }
+  | { ok: false; error: string };
+
+/** Atualiza em lote status legado "Em processo" → "Em Operação" (idempotente). */
+export async function normalizarStatusEmProcessoRede(): Promise<NormalizarStatusEmProcessoResult> {
+  const gate = await requireRedeAdminOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return { ok: false, error: 'Serviço indisponível (service role).' };
+  }
+
+  const agora = new Date().toISOString();
+
+  const { data: linhasRede, error: errRede } = await admin.from('rede_franqueados').select('id, status_franquia');
+  if (errRede) return { ok: false, error: errRede.message };
+
+  const idsRede = (linhasRede ?? [])
+    .filter((r) => isRedeStatusEmProcesso((r as { status_franquia?: string | null }).status_franquia))
+    .map((r) => String((r as { id: string }).id));
+
+  let rede = 0;
+  if (idsRede.length) {
+    const { error: upRede } = await admin
+      .from('rede_franqueados')
+      .update({ status_franquia: 'Em Operação', updated_at: agora })
+      .in('id', idsRede);
+    if (upRede) return { ok: false, error: upRede.message };
+    rede = idsRede.length;
+  }
+
+  const { data: linhasStep, error: errStep } = await admin.from('processo_step_one').select('id, status_franquia');
+  if (errStep) return { ok: false, error: errStep.message };
+
+  const idsStep = (linhasStep ?? [])
+    .filter((r) => isRedeStatusEmProcesso((r as { status_franquia?: string | null }).status_franquia))
+    .map((r) => String((r as { id: string }).id));
+
+  let step = 0;
+  if (idsStep.length) {
+    const { error: upStep } = await admin
+      .from('processo_step_one')
+      .update({ status_franquia: 'Em Operação' })
+      .in('id', idsStep);
+    if (upStep) return { ok: false, error: upStep.message };
+    step = idsStep.length;
+  }
+
+  if (rede > 0 || step > 0) {
+    revalidatePath('/rede-franqueados');
+    revalidatePath('/painel-novos-negocios');
+    revalidatePath('/funil-stepone');
+  }
+
+  return { ok: true, rede, step };
 }
 
 export type ExtrairDadosFranqueadoPdfResult =

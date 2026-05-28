@@ -3,7 +3,7 @@ import { isAdminRole, isStrictAdminRole } from '@/lib/authz';
 import { isAppFullyPublic, isPublicRedeNovosNegociosEnabled } from '@/lib/public-rede-novos';
 import { fetchRedeFranqueadosRows } from '@/lib/rede-franqueados';
 import { RedeFranqueadosTabelaComBusca } from './RedeFranqueadosTabelaComBusca';
-import { contarLinhasSemCard } from './actions';
+import { contarLinhasSemCard, normalizarStatusEmProcessoRede } from './actions';
 import { CriarCardsDesdeRedeButton } from './CriarCardsDesdeRedeButton';
 import { ImportarRedeCSVButton } from './ImportarRedeCSVButton';
 import { ExportarRedeCSVButton } from './ExportarRedeCSVButton';
@@ -36,6 +36,10 @@ export default async function RedeFranqueadosPage() {
   const canManage =
     (Boolean(user) && isAdminRole(role)) || publicAccess || isAppFullyPublic();
   const maskSensitiveColumns = !isStrictAdminRole(role);
+
+  if (canManage) {
+    await normalizarStatusEmProcessoRede();
+  }
 
   const [rows, countResult] = await Promise.all([
     fetchRedeFranqueadosRows(db),

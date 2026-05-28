@@ -5,6 +5,13 @@ export const REDE_OPCOES_STATUS_FRANQUIA = [
   { value: 'Operação Encerrada', label: 'Operação Encerrada' },
 ] as const;
 
+/** Status legado removido do formulário — usado na migração automática. */
+export function isRedeStatusEmProcesso(status: string | null | undefined): boolean {
+  if (!status?.trim()) return false;
+  const n = status.trim().toLowerCase().replace(/\s+/g, ' ');
+  return n === 'em processo' || n === 'em processo.';
+}
+
 export const REDE_OPCOES_CLASSIFICACAO_FRANQUEADO = [
   { value: 'Beta', label: 'Beta' },
   { value: 'Pagante', label: 'Pagante' },
