@@ -57,3 +57,10 @@ export function extrairNomesMencionados(textoPlano: string): string[] {
   }
   return [...nomes];
 }
+
+/** Prefer HTML do editor; senão texto plano. */
+export function conteudoPersistivelComentario(conteudo: string, plain: string): string {
+  const raw = String(conteudo ?? '').trim();
+  if (raw.includes('<')) return raw;
+  return plain;
+}

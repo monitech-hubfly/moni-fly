@@ -1,6 +1,14 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import {
+  conteudoPersistivelComentario,
+  htmlComentarioParaTextoPlano,
+} from '@/lib/kanban/mencao-comentario';
+import {
+  notificarMencoesSirene,
+  resolverMencoesSirene,
+} from '@/lib/actions/sirene-mencoes';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -262,7 +270,7 @@ export async function listarComentariosCardSirene(
 
   const items: ComentarioCardSireneRow[] = (rows ?? []).map((r) => ({
     id: String((r as { id: string }).id),
-    texto: String((r as { conteudo?: string }).conteudo ?? ''),
+    texto: htmlComentarioParaTextoPlano(String((r as { conteudo?: string }).conteudo ?? '')),
     created_at: String((r as { created_at?: string }).created_at ?? ''),
     autor_nome: r.autor_id ? nomes.get(String(r.autor_id)) ?? null : null,
   }));
@@ -272,7 +280,11 @@ export async function listarComentariosCardSirene(
 
 export async function publicarComentarioCardSirene(
   cardId: string,
-  texto: string,
+  conteudo: string,
+  opcoes?: {
+    referenciaPath?: string;
+    contextoTitulo?: string;
+  },
 ): Promise<AtualizarStatusInteracaoResult> {
   const supabase = await createClient();
   const {
@@ -281,17 +293,28 @@ export async function publicarComentarioCardSirene(
   if (!user) return { ok: false, error: 'Faça login.' };
 
   const cid = String(cardId ?? '').trim();
-  const t = String(texto ?? '').trim();
+  const raw = String(conteudo ?? '').trim();
   if (!cid) return { ok: false, error: 'Card inválido.' };
-  if (!t) return { ok: false, error: 'Digite o comentário.' };
+  if (!raw) return { ok: false, error: 'Digite o comentário.' };
+
+  const { plain, mencoesIds } = await resolverMencoesSirene(raw);
+  if (!plain) return { ok: false, error: 'Digite o comentário.' };
 
   const { error } = await supabase.from('kanban_card_comentarios').insert({
     card_id: cid,
     autor_id: user.id,
-    conteudo: t,
+    conteudo: conteudoPersistivelComentario(raw, plain),
   });
 
   if (error) return { ok: false, error: error.message };
+
+  await notificarMencoesSirene({
+    mencoesIds,
+    plain,
+    referenciaPath: opcoes?.referenciaPath?.trim() || '/sirene/chamados',
+    contextoTitulo: opcoes?.contextoTitulo?.trim() || 'Comentário no card',
+    autorId: user.id,
+  });
 
   revalidatePath('/sirene/chamados');
   revalidatePath('/');

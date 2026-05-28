@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Trash2 } from 'lucide-react';
-import { MencaoTextarea } from './MencaoTextarea';
+import { MencaoContentEditable } from '@/components/kanban-shared/MencaoContentEditable';
 import { ModalRedirecionarHDM } from './ModalRedirecionarHDM';
 import type { Chamado } from '@/types/sirene';
 import type { SireneUserContext } from '@/lib/sirene';
@@ -226,6 +226,7 @@ export function DetalheChamadoConteudo({
     created_at: string;
   }>>([]);
   const [novoComentario, setNovoComentario] = useState('');
+  const comentarioEditorRef = useRef<HTMLDivElement>(null);
   const [participantes, setParticipantes] = useState<Array<{ id: string; nome: string }>>([]);
   const [comentarioPending, setComentarioPending] = useState(false);
 
@@ -285,12 +286,14 @@ export function DetalheChamadoConteudo({
   }, [chamado.id]);
 
   const handleEnviarComentario = () => {
-    if (!novoComentario.trim()) return;
+    const html = (comentarioEditorRef.current?.innerHTML ?? novoComentario).trim();
+    if (!html) return;
     setComentarioPending(true);
-    enviarMensagemChamado(chamado.id, novoComentario).then((r) => {
+    enviarMensagemChamado(chamado.id, html).then((r) => {
       setComentarioPending(false);
       if (r.ok) {
         setNovoComentario('');
+        if (comentarioEditorRef.current) comentarioEditorRef.current.innerHTML = '';
         carregarMensagens();
       } else setErro(r.error);
     });
@@ -1156,30 +1159,34 @@ export function DetalheChamadoConteudo({
               ))
             )}
           </ul>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <MencaoTextarea
-              value={novoComentario}
-              onChange={setNovoComentario}
-              placeholder={isFrank ? 'Escreva um comentário…' : 'Escreva um comentário… Use @nome para mencionar.'}
-              rows={2}
-              className="w-full rounded-md border border-stone-600 bg-stone-800 px-2 py-1.5 text-sm text-stone-100"
-              disabled={comentarioPending}
-              desabilitarMencoes={isFrank}
-            />
+          <div className="mt-3 flex flex-col gap-2">
+            <div className="overflow-visible rounded-md border border-stone-600 bg-stone-800">
+              <MencaoContentEditable
+                editorRef={comentarioEditorRef}
+                onInput={(html) => setNovoComentario(html)}
+                className="min-h-[64px] w-full px-2 py-1.5 text-sm text-stone-100 focus:outline-none empty:before:text-stone-500 empty:before:content-[attr(data-placeholder)]"
+                placeholder={
+                  isFrank
+                    ? 'Escreva um comentário…'
+                    : 'Escreva um comentário… Use @ para mencionar alguém'
+                }
+                disabled={comentarioPending}
+              />
+            </div>
             <button
               type="button"
               onClick={handleEnviarComentario}
               disabled={comentarioPending || !novoComentario.trim()}
-              className="rounded-md bg-stone-600 px-4 py-2 text-sm font-medium text-stone-200 hover:bg-stone-500 disabled:opacity-50"
+              className="self-start rounded-md bg-stone-600 px-4 py-2 text-sm font-medium text-stone-200 hover:bg-stone-500 disabled:opacity-50"
             >
               {comentarioPending ? 'Enviando…' : 'Enviar'}
             </button>
           </div>
-          {participantes.length > 0 && (
+          {participantes.length > 0 && !isFrank ? (
             <p className="mt-1 text-xs text-stone-500">
-              Pode mencionar: {participantes.map((p) => p.nome).join(', ')}
+              Pode mencionar qualquer usuário com @ — sugestões vêm de todos os perfis da ferramenta.
             </p>
-          )}
+          ) : null}
         </section>
 
         {(mensagem || erro) && (

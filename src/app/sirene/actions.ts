@@ -16,6 +16,7 @@ import {
 import { rankChamadoPainelUnificado } from '@/lib/sirene-painel-chamados-rank';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import { podeExcluirChamadoSirene } from '@/lib/sirene-utils';
+import { notificarMencoesSirene, resolverMencoesSirene } from '@/lib/actions/sirene-mencoes';
 
 export type SireneActionResult = { ok: true } | { ok: false; error: string };
 
@@ -1256,7 +1257,8 @@ export async function adicionarTopicoChamadoPainel(
   const me = await getSireneUserContext(supabase);
   if (!me) return { ok: false, error: 'Faça login.' };
 
-  const desc = payload.descricao?.trim() ?? '';
+  const { plain, mencoesIds } = await resolverMencoesSirene(payload.descricao ?? '');
+  const desc = plain.trim();
   if (!desc) return { ok: false, error: 'Informe a descrição do sub-chamado.' };
 
   const tipo =
@@ -1308,6 +1310,19 @@ export async function adicionarTopicoChamadoPainel(
     tema: payload.tema,
   });
   if (insErr) return { ok: false, error: insErr.message };
+
+  const numero = (chamadoFull as { numero?: number | null }).numero ?? chamadoId;
+  const temaCh = String((chamadoFull as { tema?: string | null }).tema ?? '').trim();
+  const incendioCh = String((chamadoFull as { incendio?: string | null }).incendio ?? '').trim();
+  const contextoTitulo = temaCh || incendioCh || `Chamado #${numero}`;
+
+  await notificarMencoesSirene({
+    mencoesIds,
+    plain: desc,
+    referenciaPath: `/sirene/${chamadoId}`,
+    contextoTitulo,
+    autorId: me.userId,
+  });
 
   revalidatePath('/sirene/chamados');
   revalidatePath(`/sirene/${chamadoId}`);
@@ -2558,19 +2573,8 @@ export async function enviarMensagemChamado(
   const textoTrim = texto?.trim();
   if (!textoTrim) return { ok: false, error: 'Digite um comentário.' };
 
-  const participantesResult = await getParticipantesChamado(chamadoId);
-  if (!participantesResult.ok) return participantesResult;
-  const participantes = participantesResult.participantes;
-  const mencoesIds: string[] = [];
-  const regex = /@(\p{L}[\p{L}\s]*)/gu;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(textoTrim)) !== null) {
-    const nomeBusca = match[1].trim().toLowerCase();
-    const found = participantes.find(
-      (p) => p.nome.toLowerCase().includes(nomeBusca) || nomeBusca.includes(p.nome.toLowerCase()),
-    );
-    if (found && !mencoesIds.includes(found.id)) mencoesIds.push(found.id);
-  }
+  const { plain, mencoesIds } = await resolverMencoesSirene(textoTrim);
+  if (!plain) return { ok: false, error: 'Digite um comentário.' };
 
   const { data: msgData, error: msgErr } = await supabase
     .from('sirene_mensagens')
@@ -2579,7 +2583,7 @@ export async function enviarMensagemChamado(
       autor_id: me.userId,
       autor_nome: me.userName,
       autor_time: me.ctx.time ?? undefined,
-      texto: textoTrim,
+      texto: plain,
       mencoes: mencoesIds.length > 0 ? mencoesIds : null,
     })
     .select('id')
@@ -2609,6 +2613,13 @@ export async function enviarMensagemChamado(
       referencia_id: chamadoId,
     });
   }
+  await notificarMencoesSirene({
+    mencoesIds,
+    plain,
+    referenciaPath: `/sirene/${chamadoId}`,
+    contextoTitulo: tituloChamadoNotif,
+    autorId: me.userId,
+  });
   revalidatePath(`/sirene/${chamadoId}`);
   return { ok: true };
 }

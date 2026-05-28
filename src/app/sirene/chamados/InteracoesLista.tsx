@@ -42,6 +42,7 @@ import {
 } from '@/lib/actions/card-actions';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import { SubInteracaoLista, mapRawTopicoToListaItem } from '@/components/kanban-shared/SubInteracaoLista';
+import { MencaoContentEditable } from '@/components/kanban-shared/MencaoContentEditable';
 import { ModalNovoChamado } from '../ModalNovoChamado';
 
 export type InteracaoSireneRow = {
@@ -398,6 +399,10 @@ export function InteracoesLista({
   const [commentsLoading, setCommentsLoading] = useState<Record<string, boolean>>({});
   const [novoComentarioPorCard, setNovoComentarioPorCard] = useState<Record<string, string>>({});
   const [salvandoComentario, setSalvandoComentario] = useState<Record<string, boolean>>({});
+  const comentarioEditorRef = useRef<HTMLDivElement>(null);
+  const comentarioAtivoCardIdRef = useRef<string | null>(null);
+  const subDescricaoEditorRef = useRef<HTMLDivElement>(null);
+  const subDescricaoAlvoKeyRef = useRef<string | null>(null);
   const [countPatch, setCountPatch] = useState<Record<string, number>>({});
   const [modalArquivar, setModalArquivar] = useState<{ cid: number | null; interacaoId: string } | null>(null);
   const [motivoArquivamento, setMotivoArquivamento] = useState('');
@@ -728,7 +733,10 @@ export function InteracoesLista({
     const cur = subsOpenByRow[row.id] !== undefined ? subsOpenByRow[row.id]! : n > 0;
     const will = !cur;
     setSubsOpenByRow((p) => ({ ...p, [row.id]: will }));
-    if (will) void carregarTopicosSeNecessario(row, true);
+    if (will) {
+      subDescricaoAlvoKeyRef.current = key;
+      void carregarTopicosSeNecessario(row, true);
+    }
   }
 
   async function salvarEdicao(atividadeId: string) {
@@ -835,8 +843,11 @@ export function InteracoesLista({
   async function handleAdicionarTopico(row: InteracaoSireneRow) {
     const alvoKey = topicosAlvoKey(row);
     const d = subDraft(alvoKey);
-    const desc = d.descricao.trim();
-    if (!desc) {
+    const descHtml =
+      subDescricaoAlvoKeyRef.current === alvoKey && subDescricaoEditorRef.current
+        ? subDescricaoEditorRef.current.innerHTML.trim()
+        : d.descricao.trim();
+    if (!descHtml) {
       setMsgErro('Informe a descrição do sub-chamado.');
       return;
     }
@@ -852,7 +863,7 @@ export function InteracoesLista({
     const res =
       row.sirene_chamado_id != null
         ? await adicionarTopicoChamadoPainel(row.sirene_chamado_id, {
-            descricao: desc,
+            descricao: descHtml,
             tipo: d.tipo,
             times_ids: d.timesIds,
             responsaveis_ids: d.responsaveisIds,
@@ -862,7 +873,7 @@ export function InteracoesLista({
           })
         : await criarSubInteracao({
             interacao_id: row.id,
-            descricao: desc,
+            descricao: descHtml,
             tipo: d.tipo,
             times_ids: d.timesIds,
             responsaveis_ids: d.responsaveisIds,
@@ -877,6 +888,7 @@ export function InteracoesLista({
       return;
     }
     setNovoSubPorAlvo((m) => ({ ...m, [alvoKey]: emptyNovoSubDraft() }));
+    if (subDescricaoEditorRef.current) subDescricaoEditorRef.current.innerHTML = '';
     void carregarTopicosSeNecessario(row, true);
   }
 
@@ -910,6 +922,9 @@ export function InteracoesLista({
     if (!cid) return;
     const willOpen = !commentsOpenByRow[row.id];
     setCommentsOpenByRow((p) => ({ ...p, [row.id]: willOpen }));
+    if (willOpen) {
+      comentarioAtivoCardIdRef.current = cid;
+    }
     if (willOpen && !commentsFetchedByCard[cid]) {
       setCommentsFetchedByCard((f) => ({ ...f, [cid]: true }));
       setCommentsLoading((l) => ({ ...l, [cid]: true }));
@@ -921,18 +936,29 @@ export function InteracoesLista({
     }
   }
 
-  async function publicarComentario(cardId: string) {
-    const texto = (novoComentarioPorCard[cardId] ?? '').trim();
-    if (!texto) return;
+  async function publicarComentario(cardId: string, row: InteracaoSireneRow) {
+    const html =
+      comentarioAtivoCardIdRef.current === cardId && comentarioEditorRef.current
+        ? comentarioEditorRef.current.innerHTML.trim()
+        : (novoComentarioPorCard[cardId] ?? '').trim();
+    if (!html) return;
     setSalvandoComentario((s) => ({ ...s, [cardId]: true }));
     setMsgErro(null);
     try {
-      const res = await publicarComentarioCardSirene(cardId, texto);
+      const referenciaPath =
+        row.sirene_chamado_id != null
+          ? `/sirene/${row.sirene_chamado_id}`
+          : '/sirene/chamados';
+      const res = await publicarComentarioCardSirene(cardId, html, {
+        referenciaPath,
+        contextoTitulo: row.titulo || row.card_titulo || 'Chamado',
+      });
       if (!res.ok) {
         setMsgErro(res.error);
         return;
       }
       setNovoComentarioPorCard((m) => ({ ...m, [cardId]: '' }));
+      if (comentarioEditorRef.current) comentarioEditorRef.current.innerHTML = '';
       setCountPatch((c) => ({ ...c, [cardId]: (c[cardId] ?? comentariosCountByCardId[cardId] ?? 0) + 1 }));
       const list = await listarComentariosCardSirene(cardId);
       if (list.ok) setCommentsByCardId((c) => ({ ...c, [cardId]: list.items }));
@@ -1748,21 +1774,27 @@ export function InteracoesLista({
                                 ))}
                             </ul>
                           )}
-                          <div className="flex flex-col gap-2 sm:flex-row">
-                            <input
-                              type="text"
-                              value={novoComentarioPorCard[ccid] ?? ''}
-                              onChange={(e) =>
-                                setNovoComentarioPorCard((m) => ({ ...m, [ccid]: e.target.value }))
-                              }
-                              placeholder="Escreva um comentário…"
-                              className="min-w-0 flex-1 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)] placeholder:text-[color:var(--moni-text-tertiary)]"
-                            />
+                          <div className="flex flex-col gap-2">
+                            <div
+                              className="overflow-visible rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)]"
+                              onFocus={() => {
+                                comentarioAtivoCardIdRef.current = ccid;
+                              }}
+                            >
+                              <MencaoContentEditable
+                                editorRef={comentarioEditorRef}
+                                onInput={(html) =>
+                                  setNovoComentarioPorCard((m) => ({ ...m, [ccid]: html }))
+                                }
+                                className="min-h-[72px] w-full p-2 text-sm text-[color:var(--moni-text-primary)] focus:outline-none empty:before:text-[color:var(--moni-text-tertiary)] empty:before:content-[attr(data-placeholder)]"
+                                placeholder="Escreva um comentário… Use @ para mencionar"
+                              />
+                            </div>
                             <button
                               type="button"
                               disabled={Boolean(salvandoComentario[ccid])}
-                              onClick={() => void publicarComentario(ccid)}
-                              className="shrink-0 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
+                              onClick={() => void publicarComentario(ccid, row)}
+                              className="self-end shrink-0 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
                             >
                               {salvandoComentario[ccid] ? '…' : 'Publicar'}
                             </button>
@@ -1857,13 +1889,19 @@ export function InteracoesLista({
                                     <option value="chamado">Chamado</option>
                                   </SelectMoni>
                                 </div>
-                                <input
-                                  type="text"
-                                  value={d.descricao}
-                                  onChange={(e) => setSubDraft(alvoK, { descricao: e.target.value })}
-                                  placeholder="Descrição (obrigatório)"
-                                  className="w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)]"
-                                />
+                                <div
+                                  className="overflow-visible rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)]"
+                                  onFocus={() => {
+                                    subDescricaoAlvoKeyRef.current = alvoK;
+                                  }}
+                                >
+                                  <MencaoContentEditable
+                                    editorRef={subDescricaoEditorRef}
+                                    onInput={(html) => setSubDraft(alvoK, { descricao: html })}
+                                    className="min-h-[56px] w-full px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)] focus:outline-none empty:before:text-[color:var(--moni-text-tertiary)] empty:before:content-[attr(data-placeholder)]"
+                                    placeholder="Descrição (obrigatório). Use @ para mencionar"
+                                  />
+                                </div>
                                 <input
                                   type="date"
                                   value={d.data}

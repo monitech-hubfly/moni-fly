@@ -6,6 +6,7 @@ import type { KanbanFaseMaterial } from '@/components/kanban-shared/types';
 import { KANBAN_APP_BASE_PATHS } from '@/lib/kanban/kanban-card-href';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 import { criarChamado } from '@/app/sirene/actions';
+import { notificarMencoesSirene, resolverMencoesSirene } from '@/lib/actions/sirene-mencoes';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
 import { isKanbanIdInterno } from '@/lib/kanban/filtrar-kanbans-internos';
@@ -371,8 +372,24 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login para criar um sub-chamado.' };
 
-  const desc = (input.descricao ?? '').trim();
+  const { plain, mencoesIds } = await resolverMencoesSirene(input.descricao ?? '');
+  const desc = plain.trim();
   if (!desc) return { ok: false, error: 'Informe o título do sub-chamado.' };
+
+  const { data: interacaoRow } = await supabase
+    .from('kanban_atividades')
+    .select('titulo, sirene_chamado_id')
+    .eq('id', input.interacao_id)
+    .maybeSingle();
+  const sireneChamadoId = (interacaoRow as { sirene_chamado_id?: number | null } | null)
+    ?.sirene_chamado_id;
+  const contextoTitulo =
+    String((interacaoRow as { titulo?: string | null } | null)?.titulo ?? '').trim() ||
+    'Interação';
+  const referenciaPath =
+    sireneChamadoId != null && Number.isFinite(Number(sireneChamadoId))
+      ? `/sirene/${sireneChamadoId}`
+      : '/sirene/chamados';
 
   const timesIds = uniqUuids(input.times_ids);
   const respIds = uniqUuids(input.responsaveis_ids);
@@ -409,6 +426,14 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
 
   const { error } = await supabase.from('sirene_topicos').insert(row as never);
   if (error) return { ok: false, error: error.message };
+
+  await notificarMencoesSirene({
+    mencoesIds,
+    plain: desc,
+    referenciaPath,
+    contextoTitulo,
+    autorId: user.id,
+  });
 
   revalidatePath(input.basePath?.trim() || '/');
   revalidatePath('/');

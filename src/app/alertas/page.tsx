@@ -5,6 +5,7 @@ import { MarcarLidoButton } from './MarcarLidoButton';
 
 function rotuloTipo(tipo: string): string {
   if (tipo === 'mencao_kanban_card') return 'Menção em card';
+  if (tipo === 'mencao_sirene') return 'Menção no Sirene';
   if (tipo === 'mencao_card') return 'Menção em processo';
   return tipo;
 }
@@ -49,10 +50,14 @@ export default async function AlertasPage() {
               {alertas.map((a) => {
                 const cardId = (a as { referencia_card_id?: string | null }).referencia_card_id;
                 const basePath = (a as { referencia_path?: string | null }).referencia_path;
+                const tipo = String(a.tipo ?? '');
+                const hrefSirene =
+                  tipo === 'mencao_sirene' && basePath ? basePath : null;
                 const hrefCard =
-                  cardId && basePath
+                  cardId && basePath && tipo !== 'mencao_sirene'
                     ? `${basePath}?card=${encodeURIComponent(cardId)}`
                     : null;
+                const hrefAlerta = hrefSirene || hrefCard;
                 return (
                   <li
                     key={a.id}
@@ -61,12 +66,12 @@ export default async function AlertasPage() {
                     <div className="min-w-0 flex-1">
                       <span className="font-medium text-stone-700">{rotuloTipo(String(a.tipo))}</span>
                       {a.mensagem && <p className="mt-0.5 text-stone-600">{a.mensagem}</p>}
-                      {hrefCard ? (
+                      {hrefAlerta ? (
                         <Link
-                          href={hrefCard}
+                          href={hrefAlerta}
                           className="mt-1 inline-block text-xs font-medium text-moni-primary hover:underline"
                         >
-                          Abrir card →
+                          {tipo === 'mencao_sirene' ? 'Abrir chamado →' : 'Abrir card →'}
                         </Link>
                       ) : null}
                       <p className="mt-1 text-xs text-stone-400">
