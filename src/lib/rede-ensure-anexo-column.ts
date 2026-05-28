@@ -1,3 +1,4 @@
+import type { ClientConfig } from 'pg';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const SQL_HINT =
@@ -37,7 +38,7 @@ function pgEnvRaw(): string | null {
   return null;
 }
 
-function pgClientConfig(raw: string): ConstructorParameters<Awaited<ReturnType<typeof import('pg')>>['Client']>[0] {
+function pgClientConfig(raw: string): ClientConfig {
   const ssl = { rejectUnauthorized: false } as const;
   const pgUrlMatch = raw.match(/^postgres(?:ql)?:\/\/([^:]+):(.+)@([^:/?#]+)(?::(\d+))?\/([^?#]+)/i);
   if (pgUrlMatch) {
