@@ -117,18 +117,9 @@ function DocUploadCard({
         </p>
       ) : null}
       {path ? (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span className="truncate text-xs text-stone-600" title={path}>
-            {nomeDoPath(path)}
-          </span>
-          <button
-            type="button"
-            onClick={() => void onDownload(path)}
-            className="rounded-lg border border-stone-300 bg-stone-50 px-3 py-1.5 text-xs font-medium text-stone-800 hover:bg-stone-100"
-          >
-            Baixar
-          </button>
-        </div>
+        <p className="mt-2 truncate text-xs text-stone-600" title={path}>
+          {nomeDoPath(path)}
+        </p>
       ) : justificativa ? (
         <div className="mt-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
           <p className="text-[10px] font-medium uppercase tracking-wide text-stone-500">Justificativa registrada</p>
@@ -143,14 +134,27 @@ function DocUploadCard({
         className="hidden"
         onChange={(ev) => void onUpload(tipo, ev)}
       />
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => inputRef.current?.click()}
-        className="mt-3 rounded-lg bg-moni-primary px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
-      >
-        {sending ? 'Enviando…' : path ? 'Substituir arquivo' : 'Enviar arquivo'}
-      </button>
+      <div className="mt-3 flex items-stretch gap-2">
+        {path ? (
+          <button
+            type="button"
+            onClick={() => void onDownload(path)}
+            className="inline-flex min-h-[2.25rem] shrink-0 items-center justify-center rounded-lg border border-stone-300 bg-stone-50 px-4 py-1.5 text-xs font-medium text-stone-800 hover:bg-stone-100"
+          >
+            Baixar
+          </button>
+        ) : null}
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => inputRef.current?.click()}
+          className={`inline-flex min-h-[2.25rem] items-center justify-center rounded-lg bg-moni-primary px-4 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50 ${
+            path ? 'min-w-0 flex-1' : 'w-full'
+          }`}
+        >
+          {sending ? 'Enviando…' : path ? 'Substituir arquivo' : 'Enviar arquivo'}
+        </button>
+      </div>
       <p className="mt-1 text-[10px] text-stone-400">Até 10 MB · qualquer tipo</p>
 
       {!path ? (
