@@ -11,14 +11,19 @@ type Fase = {
   ordem: number;
 };
 
+export type TipoOrigemNovoCard = 'via_step_one' | 'hipotese_direta';
+
 export function NovoCardModal({
   kanbanId,
   onClose,
   isAdmin,
+  showTipoOrigem = false,
 }: {
   kanbanId: string;
   onClose: () => void;
   isAdmin: boolean;
+  /** Portfolio: campo informativo de origem (hipótese direta só admin/team). */
+  showTipoOrigem?: boolean;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -33,6 +38,7 @@ export function NovoCardModal({
   const [quadra, setQuadra] = useState('');
   const [lote, setLote] = useState('');
   const [tituloPreview, setTituloPreview] = useState('');
+  const [tipoOrigem, setTipoOrigem] = useState<TipoOrigemNovoCard>('via_step_one');
 
   useEffect(() => {
     loadData();
@@ -95,14 +101,19 @@ export function NovoCardModal({
       const partes = [nFranquiaSelected, nomeCondominio.trim(), quadra.trim(), lote.trim()].filter(Boolean);
       const tituloAuto = partes.join(' - ');
 
-      const { error } = await supabase.from('kanban_cards').insert({
+      const insertPayload: Record<string, unknown> = {
         kanban_id: kanbanId,
         fase_id: faseId,
         franqueado_id: user.id,
         rede_franqueado_id: franqueadoRedeId || null,
         titulo: tituloAuto,
         status: 'ativo',
-      });
+      };
+      if (showTipoOrigem && isAdmin && tipoOrigem === 'hipotese_direta') {
+        insertPayload.origem_tipo = 'hipotese_direta';
+      }
+
+      const { error } = await supabase.from('kanban_cards').insert(insertPayload);
 
       if (error) throw error;
 
@@ -241,6 +252,26 @@ export function NovoCardModal({
                 />
               </div>
             </div>
+
+            {showTipoOrigem && isAdmin ? (
+              <div>
+                <label className="block text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                  Origem do card
+                </label>
+                <select
+                  value={tipoOrigem}
+                  onChange={(e) => setTipoOrigem(e.target.value as TipoOrigemNovoCard)}
+                  disabled={loading}
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                >
+                  <option value="via_step_one">Via Step One</option>
+                  <option value="hipotese_direta">Hipótese direta</option>
+                </select>
+                <p className="mt-1 text-xs text-stone-500">
+                  Informativo para o time. &ldquo;Via Step One&rdquo; é o fluxo padrão.
+                </p>
+              </div>
+            ) : null}
 
             {/* Campo Fase Inicial */}
             <div>

@@ -125,24 +125,24 @@ export default async function HomePage() {
                 <p className="mt-1 text-sm text-stone-600">Indicadores do pipeline.</p>
               </Link>
               <Link
-                href="/painel-novos-negocios"
+                href="/portfolio"
                 className="step-card block rounded-2xl border border-stone-200/80 bg-white p-5 shadow-sm"
               >
                 <span className="text-xs font-semibold uppercase tracking-wider text-moni-accent">
                   Kanban
                 </span>
-                <h3 className="mt-2 font-semibold text-stone-900">Portfolio + Operações</h3>
-                <p className="mt-1 text-sm text-stone-600">Cards e etapas do processo.</p>
+                <h3 className="mt-2 font-semibold text-stone-900">Portfolio</h3>
+                <p className="mt-1 text-sm text-stone-600">Funil Portfólio e etapas do processo.</p>
               </Link>
               <Link
-                href="/painel-novos-negocios?tab=painel"
+                href="/operacoes"
                 className="step-card block rounded-2xl border border-stone-200/80 bg-white p-5 shadow-sm"
               >
                 <span className="text-xs font-semibold uppercase tracking-wider text-moni-accent">
-                  Novos Negócios
+                  Kanban
                 </span>
-                <h3 className="mt-2 font-semibold text-stone-900">Painel de Chamados</h3>
-                <p className="mt-1 text-sm text-stone-600">Chamados dos kanbans em um só lugar.</p>
+                <h3 className="mt-2 font-semibold text-stone-900">Operações</h3>
+                <p className="mt-1 text-sm text-stone-600">Funil Operações e execução.</p>
               </Link>
               <Link
                 href="/painel-contabilidade"
