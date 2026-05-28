@@ -171,6 +171,9 @@ export type RedeFranqueadoRowDb = Record<RedeFranqueadoDbKey, string | null> & {
   anexo_cof_path?: string | null;
   anexo_contrato_path?: string | null;
   anexo_numero_franquia_path?: string | null;
+  anexo_cof_justificativa?: string | null;
+  anexo_contrato_justificativa?: string | null;
+  anexo_numero_franquia_justificativa?: string | null;
 };
 
 type RowDb = Record<RedeFranqueadoDbKey, string | null>;
@@ -261,6 +264,9 @@ export type RedeFranqueadoDetalheRow = {
   anexo_cof_path: string | null;
   anexo_contrato_path: string | null;
   anexo_numero_franquia_path: string | null;
+  anexo_cof_justificativa: string | null;
+  anexo_contrato_justificativa: string | null;
+  anexo_numero_franquia_justificativa: string | null;
 };
 
 async function queryRedeFranqueadoDetalhe(
@@ -278,6 +284,9 @@ async function queryRedeFranqueadoDetalhe(
         anexo_cof_path: (r.anexo_cof_path as string | null) ?? null,
         anexo_contrato_path: (r.anexo_contrato_path as string | null) ?? null,
         anexo_numero_franquia_path: (r.anexo_numero_franquia_path as string | null) ?? null,
+        anexo_cof_justificativa: (r.anexo_cof_justificativa as string | null) ?? null,
+        anexo_contrato_justificativa: (r.anexo_contrato_justificativa as string | null) ?? null,
+        anexo_numero_franquia_justificativa: (r.anexo_numero_franquia_justificativa as string | null) ?? null,
       },
       error: null,
     };
@@ -301,6 +310,9 @@ async function queryRedeFranqueadoDetalhe(
       anexo_cof_path: (m.anexo_cof_path as string | null) ?? null,
       anexo_contrato_path: (m.anexo_contrato_path as string | null) ?? null,
       anexo_numero_franquia_path: null,
+      anexo_cof_justificativa: null,
+      anexo_contrato_justificativa: null,
+      anexo_numero_franquia_justificativa: null,
     },
     error: null,
   };

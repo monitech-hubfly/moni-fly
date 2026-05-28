@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { normalizeAccessRole } from '@/lib/authz';
 import { fetchRedeFranqueadoDetalheForPage } from '@/lib/rede-franqueados';
 import { RedeFranqueadoDetalheDocs } from './RedeFranqueadoDetalheDocs';
+import { RedeFranqueadoDetalheDocsFranqueado } from './RedeFranqueadoDetalheDocsFranqueado';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,9 +59,9 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
   const pathCof = row.anexo_cof_path ?? null;
   const pathContrato = row.anexo_contrato_path ?? null;
   const pathNumeroFranquia = row.anexo_numero_franquia_path ?? null;
-  const hasCof = Boolean(pathCof && String(pathCof).trim());
-  const hasContrato = Boolean(pathContrato && String(pathContrato).trim());
-  const hasNumeroFranquia = Boolean(pathNumeroFranquia && String(pathNumeroFranquia).trim());
+  const justificativaCof = row.anexo_cof_justificativa ?? null;
+  const justificativaContrato = row.anexo_contrato_justificativa ?? null;
+  const justificativaNumeroFranquia = row.anexo_numero_franquia_justificativa ?? null;
 
   const voltarHref = staff ? '/rede-franqueados' : '/portal-frank/rede';
   const voltarLabel = staff ? 'Voltar à rede' : 'Voltar à rede (portal)';
@@ -81,30 +82,19 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
               pathCof={pathCof}
               pathContrato={pathContrato}
               pathNumeroFranquia={pathNumeroFranquia}
+              justificativaCof={justificativaCof}
+              justificativaContrato={justificativaContrato}
+              justificativaNumeroFranquia={justificativaNumeroFranquia}
             />
           ) : (
-            <div className="space-y-6 rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
-              <p className="text-sm text-stone-600">
-                Os documentos assinados ficam armazenados pela equipe Moni. Você vê apenas se já há arquivo
-                cadastrado; o download fica restrito ao time interno.
-              </p>
-              <div>
-                <h2 className="text-sm font-semibold text-stone-800">COF assinado</h2>
-                <p className="mt-1 text-sm text-stone-700">{hasCof ? 'Arquivo cadastrado.' : 'Nenhum arquivo cadastrado.'}</p>
-              </div>
-              <div>
-                <h2 className="text-sm font-semibold text-stone-800">Contrato assinado</h2>
-                <p className="mt-1 text-sm text-stone-700">
-                  {hasContrato ? 'Arquivo cadastrado.' : 'Nenhum arquivo cadastrado.'}
-                </p>
-              </div>
-              <div>
-                <h2 className="text-sm font-semibold text-stone-800">Documento de número de franquia</h2>
-                <p className="mt-1 text-sm text-stone-700">
-                  {hasNumeroFranquia ? 'Arquivo cadastrado.' : 'Nenhum arquivo cadastrado.'}
-                </p>
-              </div>
-            </div>
+            <RedeFranqueadoDetalheDocsFranqueado
+              pathCof={pathCof}
+              pathContrato={pathContrato}
+              pathNumeroFranquia={pathNumeroFranquia}
+              justificativaCof={justificativaCof}
+              justificativaContrato={justificativaContrato}
+              justificativaNumeroFranquia={justificativaNumeroFranquia}
+            />
           )}
         </div>
       </main>

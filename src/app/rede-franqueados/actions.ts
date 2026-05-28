@@ -925,6 +925,12 @@ const REDE_ANEXO_COLUNA = {
   numero_franquia: 'anexo_numero_franquia_path',
 } as const;
 
+const REDE_ANEXO_JUSTIFICATIVA_COLUNA = {
+  cof: 'anexo_cof_justificativa',
+  contrato: 'anexo_contrato_justificativa',
+  numero_franquia: 'anexo_numero_franquia_justificativa',
+} as const;
+
 type RedeAnexoTipo = keyof typeof REDE_ANEXO_COLUNA;
 
 async function updateRedeAnexoPath(
@@ -1016,6 +1022,71 @@ export async function uploadRedeFranqueadoAssinado(
     return { ok: false, error: upRow.error };
   }
   if (oldPath) await supabase.storage.from('rede-attachments').remove([oldPath]);
+
+  const justCol = REDE_ANEXO_JUSTIFICATIVA_COLUNA[tipo];
+  await supabase.from('rede_franqueados').update({ [justCol]: null } as never).eq('id', redeId);
+
+  revalidatePath('/rede-franqueados');
+  revalidatePath(`/rede-franqueados/${redeId}`);
+  return { ok: true };
+}
+
+/** Justificativa de ausência de documento (quando não há anexo). */
+export async function salvarJustificativaRedeAnexo(
+  formData: FormData,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const tipoRaw = String(formData.get('tipo') ?? '').trim();
+  const redeId = String(formData.get('redeId') ?? '').trim();
+  const justificativa = String(formData.get('justificativa') ?? '').trim();
+  if (!redeId) return { ok: false, error: 'Registro inválido.' };
+  if (tipoRaw !== 'cof' && tipoRaw !== 'contrato' && tipoRaw !== 'numero_franquia') {
+    return { ok: false, error: 'Tipo inválido.' };
+  }
+  const tipo: RedeAnexoTipo = tipoRaw;
+  if (!justificativa) {
+    return { ok: false, error: 'Informe a justificativa para documento sem anexo.' };
+  }
+  if (justificativa.length > 2000) {
+    return { ok: false, error: 'Justificativa muito longa (máx. 2000 caracteres).' };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+  if (!(await perfilPodeGerirDocsRede(supabase, user.id))) {
+    return { ok: false, error: 'Apenas administradores ou time podem registrar justificativas.' };
+  }
+
+  const pathCol = REDE_ANEXO_COLUNA[tipo];
+  const justCol = REDE_ANEXO_JUSTIFICATIVA_COLUNA[tipo];
+  const { data: atual, error: leErr } = await supabase
+    .from('rede_franqueados')
+    .select('*')
+    .eq('id', redeId)
+    .maybeSingle();
+  if (leErr || !atual) return { ok: false, error: 'Linha da rede não encontrada.' };
+
+  const pathAtual = String((atual as Record<string, unknown>)[pathCol] ?? '').trim();
+  if (pathAtual) {
+    return { ok: false, error: 'Já existe arquivo anexado; remova ou substitua o anexo antes de usar justificativa.' };
+  }
+
+  const { error } = await supabase
+    .from('rede_franqueados')
+    .update({ [justCol]: justificativa } as never)
+    .eq('id', redeId);
+  if (error) {
+    if (/justificativa|schema cache|column/i.test(error.message ?? '')) {
+      return {
+        ok: false,
+        error:
+          'Colunas de justificativa ainda não existem no banco. Execute scripts/rede-docs-justificativas.sql no Supabase e recarregue o schema.',
+      };
+    }
+    return { ok: false, error: error.message };
+  }
 
   revalidatePath('/rede-franqueados');
   revalidatePath(`/rede-franqueados/${redeId}`);
