@@ -66,6 +66,7 @@ import {
   hipotesesOrdemMinima,
   montarChipsParalelas,
 } from '@/lib/kanban/kanban-paralelas-chips';
+import { KanbanParalelasChips } from './KanbanParalelasChips';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import {
   displayOrDash,
@@ -3083,6 +3084,12 @@ export function KanbanCardModal({
             </div>
             ) : null}
 
+            {abaCentro !== 'chamados' && chipsParalelasModal.length > 0 ? (
+              <div className="mb-4">
+                <KanbanParalelasChips chips={chipsParalelasModal} compact={false} />
+              </div>
+            ) : null}
+
             {abaCentro === 'chamados' ? (
             <>
             <button
@@ -5784,7 +5791,6 @@ export function KanbanCardModal({
                     kanbanId={card.kanban_id}
                     basePath={basePath}
                     podeGerenciar={podeGerenciarRelacionamentos}
-                    chipsParalelas={chipsParalelasModal}
                     projetoId={card.projeto_id}
                     ocultarKanbansInternos={usuarioFrank}
                     mostrarBotaoJuridico={mostrarBotaoJuridico}

@@ -26,9 +26,7 @@ import {
 } from '@/lib/kanban/esteira-manual-destinos';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { MSG_CHAMADO_JURIDICO_JA_EXISTE } from '@/lib/constants/kanban-ids';
-import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardModalProjetoTab } from './KanbanCardModalProjetoTab';
-import type { ParalelaChip } from '@/lib/kanban/kanban-paralelas-chips';
 
 function iconeTipoRelacionamento(tipo: TipoRelacionamentoDisplay): string {
   if (tipo === 'originou') return '🔗';
@@ -53,7 +51,6 @@ type Props = {
   basePath: string;
   podeGerenciar: boolean;
   disabled?: boolean;
-  chipsParalelas?: ParalelaChip[];
   projetoId?: string | null;
   ocultarKanbansInternos?: boolean;
   mostrarBotaoJuridico?: boolean;
@@ -67,7 +64,6 @@ export function KanbanCardModalRelacionamentos({
   basePath,
   podeGerenciar,
   disabled = false,
-  chipsParalelas = [],
   projetoId = null,
   ocultarKanbansInternos = false,
   mostrarBotaoJuridico = false,
@@ -234,15 +230,6 @@ export function KanbanCardModalRelacionamentos({
 
   return (
     <div className="space-y-3">
-      {chipsParalelas.length > 0 ? (
-        <div>
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-500">
-            Status das esteiras
-          </p>
-          <KanbanParalelasChips chips={chipsParalelas} compact />
-        </div>
-      ) : null}
-
       {projetoId != null && String(projetoId).trim() !== '' ? (
         <div className="border-b border-stone-100 pb-3">
           <KanbanCardModalProjetoTab
@@ -254,7 +241,7 @@ export function KanbanCardModalRelacionamentos({
         </div>
       ) : null}
 
-      {chipsParalelas.length > 0 || (projetoId != null && String(projetoId).trim() !== '') ? (
+      {projetoId != null && String(projetoId).trim() !== '' ? (
         <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Vínculos manuais</p>
       ) : null}
 
