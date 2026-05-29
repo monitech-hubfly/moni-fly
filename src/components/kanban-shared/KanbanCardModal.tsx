@@ -46,7 +46,6 @@ import {
   salvarDadosPreObra,
   salvarInstrucoesFase,
   solicitarAprovacaoFase,
-  uploadContratoFranquia,
   uploadProcessoNegocioAnexo,
   type ProcessoNegocioAnexoCampo,
   vincularTagCard,
@@ -57,11 +56,7 @@ import {
 } from '@/lib/actions/card-actions';
 import { enviarHipoteseAoPortfolio } from '@/lib/actions/card-actions';
 import { deletarChamado } from '@/app/sirene/actions';
-import {
-  abrirChamadoJuridicoDoCard,
-  existeChamadoJuridicoParaCard,
-} from '@/lib/actions/kanban-bastoes';
-import { KANBANS_COM_CHAMADO_JURIDICO, MSG_CHAMADO_JURIDICO_JA_EXISTE } from '@/lib/constants/kanban-ids';
+import { KANBANS_COM_CHAMADO_JURIDICO } from '@/lib/constants/kanban-ids';
 import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import { isPortfolioKanbanRef } from '@/lib/kanban/portfolio-paralelas';
@@ -71,7 +66,6 @@ import {
   hipotesesOrdemMinima,
   montarChipsParalelas,
 } from '@/lib/kanban/kanban-paralelas-chips';
-import { KanbanParalelasChips } from './KanbanParalelasChips';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import {
   displayOrDash,
@@ -102,7 +96,6 @@ import type {
 } from './types';
 import { usePermissoes } from '@/lib/hooks/usePermissoes';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
-import { KanbanCardModalProjetoTab } from './KanbanCardModalProjetoTab';
 import { KanbanCardModalRelacionamentos } from './KanbanCardModalRelacionamentos';
 import { KanbanCardModalAtasReuniao } from './KanbanCardModalAtasReuniao';
 import { KanbanCardDatasFields } from './KanbanCardDatasFields';
@@ -369,7 +362,7 @@ export function KanbanCardModal({
   const [novoFranqueadoId, setNovoFranqueadoId] = useState('');
   const [salvandoFranqueado, setSalvandoFranqueado] = useState(false);
   const [abaComentarios, setAbaComentarios] = useState<'comentarios' | 'email'>('comentarios');
-  const [abaCentro, setAbaCentro] = useState<'detalhes' | 'projeto' | 'chamados'>('detalhes');
+  const [abaCentro, setAbaCentro] = useState<'detalhes' | 'chamados'>('detalhes');
   const [emailPara, setEmailPara] = useState('');
   const [emailCc, setEmailCc] = useState('');
   const [emailBcc, setEmailBcc] = useState('');
@@ -467,14 +460,12 @@ export function KanbanCardModal({
   });
   const [preObraDraft, setPreObraDraft] = useState<PreObraDraftKanban>(() => preObraDraftFromProcesso(null));
   const [salvandoPreObra, setSalvandoPreObra] = useState(false);
-  const [uploadingContrato, setUploadingContrato] = useState(false);
   const [uploadingNegocioAnexo, setUploadingNegocioAnexo] = useState<ProcessoNegocioAnexoCampo | null>(
     null,
   );
   const negocioOpcaoPermutaRef = useRef<HTMLInputElement>(null);
   const negocioContratoPermutaRef = useRef<HTMLInputElement>(null);
   const negocioSeguroGarantiaRef = useRef<HTMLInputElement>(null);
-  const contratoFileRef = useRef<HTMLInputElement>(null);
   const comentarioEditorRef = useRef<HTMLDivElement>(null);
   const comentarioEdicaoRef = useRef<HTMLDivElement>(null);
   const [editandoInstrucoesFase, setEditandoInstrucoesFase] = useState(false);
@@ -485,11 +476,6 @@ export function KanbanCardModal({
   const [atasReuniaoTick, setAtasReuniaoTick] = useState(0);
   const [gateStep5Toast, setGateStep5Toast] = useState<string | null>(null);
   const [userRoleRaw, setUserRoleRaw] = useState('');
-  const [chamadoJuridicoToast, setChamadoJuridicoToast] = useState<{
-    tipo: 'ok' | 'erro';
-    msg: string;
-  } | null>(null);
-  const [abrindoChamadoJuridico, setAbrindoChamadoJuridico] = useState(false);
   const [modalAprovacaoFase, setModalAprovacaoFase] = useState<{
     fase: KanbanFase;
     direcao: 'avancar' | 'retroceder';
@@ -539,8 +525,6 @@ export function KanbanCardModal({
     setHipotesePortfolioErro(null);
     setHipotesePortfolioOk(null);
     setEnviandoHipotesePortfolio(false);
-    setChamadoJuridicoToast(null);
-    setAbrindoChamadoJuridico(false);
     setTagsKanban([]);
     setTagsCard([]);
     setTagsOpen(false);
@@ -688,10 +672,6 @@ export function KanbanCardModal({
   useEffect(() => {
     setAbaCentro('detalhes');
   }, [cardId, origem]);
-
-  useEffect(() => {
-    if (!card?.projeto_id && abaCentro === 'projeto') setAbaCentro('detalhes');
-  }, [card?.projeto_id, abaCentro]);
 
   useEffect(() => {
     let cancel = false;
@@ -2234,41 +2214,34 @@ export function KanbanCardModal({
     }
   }
 
-  async function handleContratoFranquiaFile(e: ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    e.target.value = '';
-    const rid = modalDetalhes.redeIdContrato;
-    if (!f || !rid) return;
-    setUploadingContrato(true);
-    try {
-      const fd = new FormData();
-      fd.append('file', f);
-      fd.append('franqueadoId', rid);
-      fd.append('basePath', basePath);
-      const r = await uploadContratoFranquia(fd);
-      if (!r.ok) {
-        alert(r.error);
-        return;
-      }
-      await loadCard();
-      router.refresh();
-    } catch {
-      alert('Erro ao enviar contrato.');
-    } finally {
-      setUploadingContrato(false);
+  async function urlContratoFranquiaAssinada(): Promise<{ url: string; fileName: string } | null> {
+    const path = modalDetalhes.rede?.contrato_franquia_path?.trim();
+    if (!path) return null;
+    const supabase = createClient();
+    const { data, error } = await supabase.storage.from('contratos-franquia').createSignedUrl(path, 3600);
+    if (error || !data?.signedUrl) {
+      alert(error?.message ?? 'Não foi possível gerar o link do documento.');
+      return null;
     }
+    const fileName = path.split('/').filter(Boolean).pop() ?? 'contrato-franquia';
+    return { url: data.signedUrl, fileName };
+  }
+
+  async function handleVisualizarContratoFranquia() {
+    const signed = await urlContratoFranquiaAssinada();
+    if (signed) window.open(signed.url, '_blank', 'noopener,noreferrer');
   }
 
   async function handleBaixarContratoFranquia() {
-    const path = modalDetalhes.rede?.contrato_franquia_path;
-    if (!path?.trim()) return;
-    const supabase = createClient();
-    const { data, error } = await supabase.storage.from('contratos-franquia').createSignedUrl(path.trim(), 3600);
-    if (error || !data?.signedUrl) {
-      alert(error?.message ?? 'Não foi possível gerar o link.');
-      return;
-    }
-    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+    const signed = await urlContratoFranquiaAssinada();
+    if (!signed) return;
+    const a = document.createElement('a');
+    a.href = signed.url;
+    a.download = signed.fileName;
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   }
 
   async function handleNegocioAnexoFile(
@@ -2485,33 +2458,6 @@ export function KanbanCardModal({
     setEditandoInstrucoesFase(true);
   };
 
-  async function handleAbrirChamadoJuridico() {
-    if (!card || origem === 'legado') return;
-
-    setAbrindoChamadoJuridico(true);
-    setChamadoJuridicoToast(null);
-    try {
-      const jaExiste = await existeChamadoJuridicoParaCard(card.id);
-      if (jaExiste) {
-        setChamadoJuridicoToast({ tipo: 'erro', msg: MSG_CHAMADO_JURIDICO_JA_EXISTE });
-        return;
-      }
-      if (!confirm('Criar chamado jurídico para este card?')) return;
-
-      const res = await abrirChamadoJuridicoDoCard(card.id, basePath);
-      if (!res.ok) {
-        setChamadoJuridicoToast({ tipo: 'erro', msg: res.error });
-        return;
-      }
-      setChamadoJuridicoToast({ tipo: 'ok', msg: 'Chamado jurídico criado' });
-      router.refresh();
-    } catch {
-      setChamadoJuridicoToast({ tipo: 'erro', msg: 'Erro ao criar chamado jurídico.' });
-    } finally {
-      setAbrindoChamadoJuridico(false);
-    }
-  }
-
   async function handleEnviarHipotesePortfolio() {
     if (!card || card.concluido || card.arquivado) return;
     setHipotesePortfolioErro(null);
@@ -2569,8 +2515,6 @@ export function KanbanCardModal({
   if (!card) return null;
 
   const isLegado = origem === 'legado';
-  const showProjetoTab =
-    card.projeto_id != null && String(card.projeto_id).trim() !== '';
 
   const fmtDataHoraOuDash = (iso: string | null | undefined) => {
     const s = String(iso ?? '').trim();
@@ -2628,7 +2572,7 @@ export function KanbanCardModal({
 
   const mostrarColunaAcoesLateral =
     !ocultarGestaoCard &&
-    (pode('mover_fase') || pode('finalizar_cards') || podeArquivarCardPerm || mostrarBotaoJuridico);
+    (pode('mover_fase') || pode('finalizar_cards') || podeArquivarCardPerm);
   const podeGerenciarRelacionamentos =
     !isLegado && !ocultarGestaoCard && modalSessao.ehAdminOuTeam;
   const cardTitulo = card.titulo;
@@ -3139,45 +3083,7 @@ export function KanbanCardModal({
             </div>
             ) : null}
 
-            {abaCentro !== 'chamados' && chipsParalelasModal.length > 0 ? (
-              <div className="mb-4">
-                <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-stone-500">
-                  Esteiras paralelas
-                </p>
-                <KanbanParalelasChips chips={chipsParalelasModal} compact={false} />
-              </div>
-            ) : null}
-
-            {showProjetoTab && abaCentro !== 'chamados' ? (
-              <div className="mb-4 flex gap-1">
-                {(['detalhes', 'projeto'] as const).map((aba) => {
-                  const ativo = abaCentro === aba;
-                  return (
-                    <button
-                      key={aba}
-                      type="button"
-                      onClick={() => setAbaCentro(aba)}
-                      className="rounded-md px-3 py-1 text-xs font-medium transition"
-                      style={{
-                        background: ativo ? 'var(--moni-primary-600)' : 'transparent',
-                        color: ativo ? '#fff' : 'var(--moni-text-secondary)',
-                        border: ativo ? 'none' : '0.5px solid var(--moni-border-default)',
-                      }}
-                    >
-                      {aba === 'detalhes' ? 'Detalhes' : 'Projeto'}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            {showProjetoTab && abaCentro === 'projeto' ? (
-              <KanbanCardModalProjetoTab
-                projetoId={card.projeto_id}
-                cardIdAtual={card.id}
-                ocultarKanbansInternos={usuarioFrank}
-              />
-            ) : abaCentro === 'chamados' ? (
+            {abaCentro === 'chamados' ? (
             <>
             <button
               type="button"
@@ -5264,43 +5170,6 @@ export function KanbanCardModal({
                 )}
               </PainelLateralSecao>
             ) : null}
-
-            {mostrarBotaoJuridico ? (
-              <PainelLateralSecao titulo="Ações" className="mt-auto">
-                <button
-                  type="button"
-                  onClick={() => void handleAbrirChamadoJuridico()}
-                  disabled={abrindoChamadoJuridico || Boolean(card.arquivado) || Boolean(card.concluido)}
-                  className="w-full rounded-lg px-3 py-2.5 text-xs font-semibold leading-snug text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
-                  style={{
-                    background: 'var(--moni-navy-800)',
-                  }}
-                >
-                  {abrindoChamadoJuridico ? 'Abrindo…' : 'Abrir chamado jurídico'}
-                </button>
-                {chamadoJuridicoToast ? (
-                  <p
-                    className="mt-2 rounded-lg px-2.5 py-2 text-[11px] font-medium leading-snug"
-                    role="status"
-                    style={
-                      chamadoJuridicoToast.tipo === 'ok'
-                        ? {
-                            background: 'var(--moni-green-50)',
-                            color: 'var(--moni-green-800)',
-                            border: '0.5px solid var(--moni-green-400)',
-                          }
-                        : {
-                            background: 'var(--moni-status-archived-bg)',
-                            color: 'var(--moni-status-archived-text)',
-                            border: '0.5px solid var(--moni-status-archived-border)',
-                          }
-                    }
-                  >
-                    {chamadoJuridicoToast.msg}
-                  </p>
-                ) : null}
-              </PainelLateralSecao>
-            ) : null}
           </aside>
           ) : null}
 
@@ -5501,45 +5370,32 @@ export function KanbanCardModal({
                 )}
                 <div className="mt-2 border-t border-stone-100 pt-2">
                   <p className="text-[11px] font-semibold text-stone-600">Anexo: Contrato de Franquia</p>
-                  <input
-                    ref={contratoFileRef}
-                    type="file"
-                    className="hidden"
-                    onChange={(e) => void handleContratoFranquiaFile(e)}
-                    accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,application/pdf"
-                  />
-                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <p className="mt-0.5 text-[10px] text-stone-500">
+                    Documento do cadastro em Rede de Franqueados (somente consulta no card).
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
                     {rede?.contrato_franquia_path?.trim() ? (
                       <>
+                        <button
+                          type="button"
+                          onClick={() => void handleVisualizarContratoFranquia()}
+                          className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50"
+                        >
+                          Visualizar
+                        </button>
                         <button
                           type="button"
                           onClick={() => void handleBaixarContratoFranquia()}
                           className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50"
                         >
-                          Baixar contrato
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => contratoFileRef.current?.click()}
-                          disabled={uploadingContrato || !modalDetalhes.redeIdContrato}
-                          className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {uploadingContrato ? 'Enviando…' : 'Substituir'}
+                          Baixar
                         </button>
                       </>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => contratoFileRef.current?.click()}
-                        disabled={uploadingContrato || !modalDetalhes.redeIdContrato}
-                        className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {uploadingContrato ? 'Enviando…' : 'Anexar contrato'}
-                      </button>
+                      <span className="text-[11px] text-stone-500">
+                        Nenhum contrato anexado no cadastro do franqueado.
+                      </span>
                     )}
-                    {!modalDetalhes.redeIdContrato ? (
-                      <span className="text-[11px] text-stone-500">Sem rede vinculada para anexar.</span>
-                    ) : null}
                   </div>
                 </div>
               </div>,
@@ -5920,7 +5776,7 @@ export function KanbanCardModal({
               <>
                 {secaoHead(
                   'relacionamentos',
-                  'Relacionamentos',
+                  'Vínculos',
                   <KanbanCardModalRelacionamentos
                     key={`${card.id}-${relacionamentosTick}`}
                     cardId={card.id}
@@ -5928,6 +5784,11 @@ export function KanbanCardModal({
                     kanbanId={card.kanban_id}
                     basePath={basePath}
                     podeGerenciar={podeGerenciarRelacionamentos}
+                    chipsParalelas={chipsParalelasModal}
+                    projetoId={card.projeto_id}
+                    ocultarKanbansInternos={usuarioFrank}
+                    mostrarBotaoJuridico={mostrarBotaoJuridico}
+                    cardDesabilitado={Boolean(card.arquivado) || Boolean(card.concluido)}
                   />,
                 )}
                 {secaoHead(
