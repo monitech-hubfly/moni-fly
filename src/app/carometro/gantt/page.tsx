@@ -1701,17 +1701,8 @@ export default function Page() {
     const nomeAreaPlanej = String((areas || []).find(a => a.id === areaId)?.nome ?? '').trim()
     const comJoinCasas = isNomeAreaComCasas(nomeAreaPlanej)
     const selPlanejamento = selectGanttPlanejamentoRows(comJoinCasas)
-    // Buscar períodos com datas sobrepostas ao período visualizado (mês dentro de trimestre, etc.)
-    const { data: periodosOv } = await supabase
-      .from('periodos')
-      .select('id')
-      .lte('data_inicio', periodo?.data_fim)
-      .gte('data_fim', periodo?.data_inicio)
-    const periodoIdsValidos = [
-      periodoId,
-      ...((periodosOv || []).map(p => p?.id).filter(id => id && id !== periodoId))
-    ]
-    // Busca por acao_id — periodo é só visualização, a grade filtra por semanas_selecionadas
+    // periodo_id é metadado de gravação; a grade usa semanas ISO do período visualizado.
+    // Não filtrar por periodo_id — planejamento salvo em outro mês/trimestre some da grade.
     const acaoIdsList = (tarefas || []).flatMap(t => (t.acoes || []).map(a => a.id)).filter(Boolean)
     let data = []
     let e = null
@@ -1719,7 +1710,6 @@ export default function Page() {
       const res1 = await supabase
         .from('gantt_planejamento')
         .select(selPlanejamento)
-        .in('periodo_id', periodoIdsValidos)
         .in('acao_id', acaoIdsList)
       if (!res1.error) {
         data = res1.data || []
@@ -1727,7 +1717,6 @@ export default function Page() {
         const res2 = await supabase
           .from('gantt_planejamento')
           .select(selPlanejamento)
-          .in('periodo_id', periodoIdsValidos)
           .in('acao_id', acaoIdsList)
         data = res2.data || []
         e = res2.error
@@ -1899,7 +1888,12 @@ export default function Page() {
     }
   }, [areas, searchParams])
   useEffect(() => { carregarPeriodo() }, [periodoId])
-  useEffect(() => { carregarTarefas() }, [areaId])
+  useEffect(() => {
+    setTarefas([])
+    setPlanejamento([])
+    setCronograma([])
+    carregarTarefas()
+  }, [areaId])
   useEffect(() => { carregarMetasObjetivos() }, [areaId])
   useEffect(() => { carregarAreaPessoas() }, [areaId])
   useEffect(() => { setAddResponsavelPessoaIds([]) }, [areaId])
@@ -2476,14 +2470,21 @@ export default function Page() {
       })
       const temNoCronograma = [...acaoIdsDaTarefa].some(id => acaoIdsNoCronograma.has(id))
       if (!temPlanejamentoComportamentoNoPeriodo(t)) return
-      // Agrupar apenas pelas metas que têm registros de planejamento
+      // Agrupar pelas metas do plano e/ou meta vinculada ao comportamento (tarefas.objetivo_id)
       const objetivosDoPlano = [...new Set(
-        acoesNoPlano.map(p => p.objetivo_id).filter(Boolean)
+        [
+          ...acoesNoPlano.map(p => p.objetivo_id).filter(Boolean),
+          ...(t.objetivo_id ? [t.objetivo_id] : [])
+        ].map(oid => metaIdCanonica(metasObjetivos, oid)).filter(Boolean)
       )]
 
       if (objetivosDoPlano.length > 0) {
         objetivosDoPlano.forEach(oid => {
-          const filtrado = acoesNoPlano.filter(p => idObjetivoIgual(p.objetivo_id, oid))
+          const filtrado = acoesNoPlano.filter(p => {
+            if (idObjetivoIgual(p.objetivo_id, oid)) return true
+            const semMeta = p.objetivo_id == null || String(p.objetivo_id).trim() === ''
+            return semMeta && idObjetivoIgual(t.objetivo_id, oid)
+          })
           if (filtrado.length === 0 && !temNoCronograma) return
           if (!grupos.has(oid)) grupos.set(oid, [])
           grupos.get(oid).push({ t, acoesNoPlano: filtrado })

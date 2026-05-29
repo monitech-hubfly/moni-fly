@@ -3559,45 +3559,45 @@ ALTER TABLE indicadores
                           </select>
                         </div>
                       </div>
-                      <div className="workload-drawer-grid2">
-                        <div className="workload-drawer-field">
-                          <label className="workload-drawer-label" htmlFor="workload-wd-ac-rec">Recorrência</label>
-                          <select
-                            id="workload-wd-ac-rec"
+                      <div className="workload-drawer-field">
+                        <label className="workload-drawer-label" htmlFor="workload-wd-ac-rec">Recorrência</label>
+                        <select
+                          id="workload-wd-ac-rec"
+                          className="workload-drawer-control"
+                          value={valorEditRecorrencia}
+                          onChange={e => setValorEditRecorrencia(e.target.value)}
+                        >
+                          {recorrenciasAtividade.map(r => (
+                            <option key={r.codigo} value={r.codigo}>{r.descricao}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="workload-drawer-field">
+                        <span className="workload-drawer-label" id="workload-wd-ac-mult-label">Multiplicador</span>
+                        <div className="workload-drawer-mult-row" role="group" aria-labelledby="workload-wd-ac-mult-label">
+                          <input
+                            type="number"
                             className="workload-drawer-control"
-                            value={valorEditRecorrencia}
-                            onChange={e => setValorEditRecorrencia(e.target.value)}
+                            min={0}
+                            step="any"
+                            placeholder="Valor"
+                            aria-label="Valor do multiplicador"
+                            value={valorEditMultiplicadorValor}
+                            onChange={e => setValorEditMultiplicadorValor(e.target.value)}
+                          />
+                          <select
+                            className="workload-drawer-control workload-drawer-mult-tipo"
+                            key={`mult-tipos-${multiplicadorTipos.map(m => m.value).sort().join('|')}`}
+                            value={multSelectValorTipo}
+                            onChange={e => onMultTipoSelectChange(e, workloadDrawerMode === 'nova-atividade' ? 'add' : multTipoCtxId)}
+                            aria-label="Tipo de multiplicador"
                           >
-                            {recorrenciasAtividade.map(r => (
-                              <option key={r.codigo} value={r.codigo}>{r.descricao}</option>
+                            <option value="">—</option>
+                            {multiplicadorTipos.map(m => (
+                              <option key={m.value} value={m.value}>{m.label}</option>
                             ))}
+                            {isAdmin && !migracaoMultiplicadorTipos && <option value="__novo__">+ Novo tipo…</option>}
                           </select>
-                        </div>
-                        <div className="workload-drawer-field">
-                          <span className="workload-drawer-label" id="workload-wd-ac-mult-label">Multiplicador</span>
-                          <div className="workload-drawer-mult-row" role="group" aria-labelledby="workload-wd-ac-mult-label">
-                            <input
-                              type="number"
-                              className="workload-drawer-control"
-                              min={0}
-                              step="any"
-                              value={valorEditMultiplicadorValor}
-                              onChange={e => setValorEditMultiplicadorValor(e.target.value)}
-                            />
-                            <select
-                              className="workload-drawer-control"
-                              key={`mult-tipos-${multiplicadorTipos.map(m => m.value).sort().join('|')}`}
-                              value={multSelectValorTipo}
-                              onChange={e => onMultTipoSelectChange(e, workloadDrawerMode === 'nova-atividade' ? 'add' : multTipoCtxId)}
-                              aria-label="Tipo de multiplicador"
-                            >
-                              <option value="">—</option>
-                              {multiplicadorTipos.map(m => (
-                                <option key={m.value} value={m.value}>{m.label}</option>
-                              ))}
-                              {isAdmin && !migracaoMultiplicadorTipos && <option value="__novo__">+ Novo tipo…</option>}
-                            </select>
-                          </div>
                         </div>
                       </div>
                     </>
@@ -3682,43 +3682,43 @@ ALTER TABLE indicadores
                           </div>
                         </div>
                       </div>
-                      <div className="workload-drawer-grid2">
-                        <div className="workload-drawer-field">
-                          <label className="workload-drawer-label" htmlFor="workload-wd-est-caneta">Caneta verde</label>
-                          <select
-                            id="workload-wd-est-caneta"
+                      <div className="workload-drawer-field">
+                        <label className="workload-drawer-label" htmlFor="workload-wd-est-caneta">Caneta verde</label>
+                        <select
+                          id="workload-wd-est-caneta"
+                          className="workload-drawer-control"
+                          value={valorEditCaneta}
+                          onChange={e => setValorEditCaneta(e.target.value)}
+                        >
+                          {CANETA_OPCOES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                      </div>
+                      <div className="workload-drawer-field">
+                        <span className="workload-drawer-label" id="workload-wd-est-mult-label">Multiplicador</span>
+                        <div className="workload-drawer-mult-row" role="group" aria-labelledby="workload-wd-est-mult-label">
+                          <input
+                            type="number"
                             className="workload-drawer-control"
-                            value={valorEditCaneta}
-                            onChange={e => setValorEditCaneta(e.target.value)}
+                            min={0}
+                            step="any"
+                            placeholder="Valor"
+                            aria-label="Valor do multiplicador"
+                            value={valorEditMultiplicadorValor}
+                            onChange={e => setValorEditMultiplicadorValor(e.target.value)}
+                          />
+                          <select
+                            className="workload-drawer-control workload-drawer-mult-tipo"
+                            key={`mult-tipos-est-${multiplicadorTipos.map(m => m.value).sort().join('|')}`}
+                            value={multSelectValorTipo}
+                            onChange={e => onMultTipoSelectChange(e, workloadDrawerMode === 'nova-atividade' ? 'add' : multTipoCtxId)}
+                            aria-label="Tipo de multiplicador"
                           >
-                            {CANETA_OPCOES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            <option value="">—</option>
+                            {multiplicadorTipos.map(m => (
+                              <option key={m.value} value={m.value}>{m.label}</option>
+                            ))}
+                            {isAdmin && !migracaoMultiplicadorTipos && <option value="__novo__">+ Novo tipo…</option>}
                           </select>
-                        </div>
-                        <div className="workload-drawer-field">
-                          <span className="workload-drawer-label" id="workload-wd-est-mult-label">Multiplicador</span>
-                          <div className="workload-drawer-mult-row" role="group" aria-labelledby="workload-wd-est-mult-label">
-                            <input
-                              type="number"
-                              className="workload-drawer-control"
-                              min={0}
-                              step="any"
-                              value={valorEditMultiplicadorValor}
-                              onChange={e => setValorEditMultiplicadorValor(e.target.value)}
-                            />
-                            <select
-                              className="workload-drawer-control"
-                              key={`mult-tipos-est-${multiplicadorTipos.map(m => m.value).sort().join('|')}`}
-                              value={multSelectValorTipo}
-                              onChange={e => onMultTipoSelectChange(e, workloadDrawerMode === 'nova-atividade' ? 'add' : multTipoCtxId)}
-                              aria-label="Tipo de multiplicador"
-                            >
-                              <option value="">—</option>
-                              {multiplicadorTipos.map(m => (
-                                <option key={m.value} value={m.value}>{m.label}</option>
-                              ))}
-                              {isAdmin && !migracaoMultiplicadorTipos && <option value="__novo__">+ Novo tipo…</option>}
-                            </select>
-                          </div>
                         </div>
                       </div>
                     </>
