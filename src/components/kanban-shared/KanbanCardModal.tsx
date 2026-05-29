@@ -4099,7 +4099,7 @@ export function KanbanCardModal({
                       style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
                     />
                   )}
-                  <div className={`grid grid-cols-1 gap-2 ${portalFrank ? '' : 'sm:grid-cols-2'}`}>
+                  <div className={portalFrank ? 'grid grid-cols-1 gap-2' : 'grid grid-cols-2 gap-2'}>
                     <div>
                       <label className="mb-0.5 block text-[10px] font-medium text-stone-500">Times</label>
                       <MultiSelectCheckbox
@@ -4123,7 +4123,7 @@ export function KanbanCardModal({
                     {!portalFrank ? (
                       <div>
                         <label className="mb-0.5 block text-[10px] font-medium text-stone-500">
-                          Responsáveis (opcional)
+                          Responsáveis
                         </label>
                         <MultiSelectCheckbox
                           variant="responsaveis"
