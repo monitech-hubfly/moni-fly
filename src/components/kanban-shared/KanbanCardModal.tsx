@@ -7,6 +7,7 @@ import {
   X,
   ChevronDown,
   ChevronRight,
+  ArrowLeft,
   CheckCircle2,
   Pencil,
   Archive,
@@ -290,11 +291,13 @@ export function KanbanCardModal({
   const [secaoAberta, setSecaoAberta] = useState<Record<SecaoEsquerdaId, boolean>>({
     cronologia: false,
     franqueado: false,
+    condominio: false,
     novoNegocio: false,
     preObra: false,
     obra: false,
     relacionamentos: true,
     atasReuniao: false,
+    chamados: false,
     historico: false,
   });
   const [legadoCronologiaMoves, setLegadoCronologiaMoves] = useState<ProcessoCardMoveEvt[]>([]);
@@ -338,7 +341,7 @@ export function KanbanCardModal({
   const [novoFranqueadoId, setNovoFranqueadoId] = useState('');
   const [salvandoFranqueado, setSalvandoFranqueado] = useState(false);
   const [abaComentarios, setAbaComentarios] = useState<'comentarios' | 'email'>('comentarios');
-  const [abaCentro, setAbaCentro] = useState<'detalhes' | 'projeto'>('detalhes');
+  const [abaCentro, setAbaCentro] = useState<'detalhes' | 'projeto' | 'chamados'>('detalhes');
   const [emailPara, setEmailPara] = useState('');
   const [emailCc, setEmailCc] = useState('');
   const [emailBcc, setEmailBcc] = useState('');
@@ -654,8 +657,12 @@ export function KanbanCardModal({
   }, [cardId, origem]);
 
   useEffect(() => {
-    if (!card?.projeto_id) setAbaCentro('detalhes');
-  }, [card?.projeto_id]);
+    setAbaCentro('detalhes');
+  }, [cardId, origem]);
+
+  useEffect(() => {
+    if (!card?.projeto_id && abaCentro === 'projeto') setAbaCentro('detalhes');
+  }, [card?.projeto_id, abaCentro]);
 
   useEffect(() => {
     let cancel = false;
@@ -1924,6 +1931,44 @@ export function KanbanCardModal({
     setSecaoAberta((prev) => ({ ...prev, [id]: !prev[id] }));
   }
 
+  function abrirPainelChamados() {
+    setAbaCentro('chamados');
+    setSecaoAberta((prev) => ({ ...prev, chamados: true }));
+  }
+
+  const secaoHeadPainelCentro = (label: string) => {
+    const ativo = abaCentro === 'chamados';
+    return (
+      <div
+        className="mb-2 overflow-hidden rounded-lg bg-white text-xs"
+        style={{
+          border: '0.5px solid var(--moni-border-default)',
+          boxShadow: 'var(--moni-shadow-sm)',
+        }}
+      >
+        <button
+          type="button"
+          onClick={abrirPainelChamados}
+          className={`flex w-full items-center gap-2 p-2 text-left text-xs transition hover:bg-stone-50 ${
+            ativo ? 'bg-violet-50 ring-1 ring-inset ring-violet-200' : ''
+          }`}
+        >
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-stone-500" aria-hidden />
+          <span className="text-xs font-semibold text-stone-800">{label}</span>
+        </button>
+        {ativo ? (
+          <p
+            className="border-t px-2 pb-2 pt-1.5 text-[10px] text-stone-500"
+            style={{ borderColor: 'var(--moni-border-subtle)' }}
+          >
+            Painel de chamados aberto — use <strong className="font-medium text-stone-700">Voltar</strong> no
+            centro do card.
+          </p>
+        ) : null}
+      </div>
+    );
+  };
+
   async function handleSalvarPreObraKanban() {
     const pid = modalDetalhes.processo?.id;
     if (!pid) {
@@ -2991,6 +3036,7 @@ export function KanbanCardModal({
             className="moni-card-modal-center order-1 flex h-full min-h-0 flex-1 flex-col overflow-y-auto p-6 sm:order-2 sm:min-w-0"
             style={{ background: 'var(--moni-surface-0)' }}
           >
+            {abaCentro !== 'chamados' ? (
             <div className="mb-6 flex flex-wrap items-center gap-1.5">
               {faseAtual ? (
                 <span
@@ -3010,8 +3056,9 @@ export function KanbanCardModal({
                 <span className={`text-xs leading-none ${slaCard.classe}`}>{slaCard.label}</span>
               ) : null}
             </div>
+            ) : null}
 
-            {chipsParalelasModal.length > 0 ? (
+            {abaCentro !== 'chamados' && chipsParalelasModal.length > 0 ? (
               <div className="mb-4">
                 <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-stone-500">
                   Esteiras paralelas
@@ -3020,7 +3067,7 @@ export function KanbanCardModal({
               </div>
             ) : null}
 
-            {showProjetoTab ? (
+            {showProjetoTab && abaCentro !== 'chamados' ? (
               <div className="mb-4 flex gap-1">
                 {(['detalhes', 'projeto'] as const).map((aba) => {
                   const ativo = abaCentro === aba;
@@ -3049,342 +3096,20 @@ export function KanbanCardModal({
                 cardIdAtual={card.id}
                 ocultarKanbansInternos={usuarioFrank}
               />
-            ) : (
+            ) : abaCentro === 'chamados' ? (
             <>
-            <KanbanCardDatasFields
-              cardId={card.id}
-              origem={origem}
-              basePath={basePath}
-              dataReuniao={dataReuniao}
-              dataFollowup={dataFollowup}
-              onDataReuniaoChange={setDataReuniao}
-              onDataFollowupChange={setDataFollowup}
-              onAtaSalva={() => setAtasReuniaoTick((t) => t + 1)}
-            />
-
-            <div className="mb-6">
-              <h4
-                className="mb-3 flex items-center gap-2 text-sm font-semibold"
-                style={{ color: 'var(--moni-text-secondary)' }}
-              >
-                <BookOpen className="h-4 w-4 shrink-0 text-stone-500" aria-hidden />
-                Instruções da fase
-              </h4>
-              <div
-                className="rounded-lg p-4"
-                style={{
-                  background: 'var(--moni-surface-50)',
-                  border: '0.5px solid var(--moni-border-default)',
-                }}
-              >
-                {!faseAtual ? (
-                  <p className="text-sm italic text-stone-400">Carregando fase…</p>
-                ) : editandoInstrucoesFase && pode('editar_instrucoes') ? (
-                  <div className="space-y-3">
-                    <label className="block text-xs font-medium text-stone-600">
-                      Texto (quebras de linha preservadas)
-                      <textarea
-                        value={draftInstrucoesFase}
-                        onChange={(e) => setDraftInstrucoesFase(e.target.value)}
-                        rows={8}
-                        className="mt-1 w-full rounded-md border border-stone-300 px-2 py-2 text-sm text-stone-800 focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400"
-                        placeholder="Orientações para quem trabalha nesta fase…"
-                      />
-                    </label>
-                    <div>
-                      <p className="text-xs font-medium text-stone-600">Materiais (título, URL, tipo)</p>
-                      <ul className="mt-2 space-y-2">
-                        {draftMateriaisFase.map((m, idx) => (
-                          <li
-                            key={idx}
-                            className="flex flex-wrap items-end gap-2 rounded-md border border-stone-200 bg-white p-2"
-                          >
-                            <input
-                              type="text"
-                              value={m.titulo}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                setDraftMateriaisFase((rows) =>
-                                  rows.map((r, i) => (i === idx ? { ...r, titulo: v } : r)),
-                                );
-                              }}
-                              placeholder="Título"
-                              className="min-w-[6rem] flex-1 rounded border border-stone-300 px-2 py-1 text-xs"
-                            />
-                            <input
-                              type="url"
-                              value={m.url}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                setDraftMateriaisFase((rows) =>
-                                  rows.map((r, i) => (i === idx ? { ...r, url: v } : r)),
-                                );
-                              }}
-                              placeholder="https://…"
-                              className="min-w-[8rem] flex-[2] rounded border border-stone-300 px-2 py-1 text-xs"
-                            />
-                            <select
-                              value={m.tipo}
-                              onChange={(e) => {
-                                const v = e.target.value as KanbanFaseMaterial['tipo'];
-                                setDraftMateriaisFase((rows) =>
-                                  rows.map((r, i) => (i === idx ? { ...r, tipo: v } : r)),
-                                );
-                              }}
-                              className="rounded border border-stone-300 px-2 py-1 text-xs"
-                            >
-                              <option value="link">link</option>
-                              <option value="documento">documento</option>
-                              <option value="video">video</option>
-                            </select>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setDraftMateriaisFase((rows) => rows.filter((_, i) => i !== idx))
-                              }
-                              className="rounded p-1 text-stone-500 hover:bg-stone-100 hover:text-red-600"
-                              aria-label="Remover material"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setDraftMateriaisFase((rows) => [
-                            ...rows,
-                            { titulo: '', url: '', tipo: 'link' as const },
-                          ])
-                        }
-                        className="mt-2 inline-flex items-center gap-1 rounded-md border border-dashed border-stone-300 px-2 py-1 text-xs font-medium text-stone-600 hover:bg-stone-50"
-                      >
-                        <Plus className="h-3.5 w-3.5" aria-hidden />
-                        Adicionar material
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void handleSalvarInstrucoesFase()}
-                        disabled={salvandoInstrucoesFase}
-                        className="rounded-lg px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-                        style={{ background: 'var(--moni-navy-800)' }}
-                      >
-                        {salvandoInstrucoesFase ? 'Salvando…' : 'Salvar'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditandoInstrucoesFase(false);
-                          setDraftInstrucoesFase('');
-                          setDraftMateriaisFase([]);
-                        }}
-                        disabled={salvandoInstrucoesFase}
-                        className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 disabled:opacity-50"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    {(() => {
-                      const txt = (faseAtual.instrucoes ?? '').trim();
-                      const mats = faseAtual.materiais ?? [];
-                      const tem = txt.length > 0 || mats.length > 0;
-                      if (!tem) {
-                        return (
-                          <p className="text-sm italic text-stone-400">
-                            Nenhuma instrução definida para esta fase
-                          </p>
-                        );
-                      }
-                      return (
-                        <div className="space-y-3">
-                          {txt ? (
-                            <div
-                              className="whitespace-pre-wrap text-sm leading-relaxed text-stone-800"
-                              style={{ color: 'var(--moni-text-primary)' }}
-                            >
-                              {txt}
-                            </div>
-                          ) : null}
-                          {mats.length > 0 ? (
-                            <ul className="space-y-1.5">
-                              {mats.map((m, i) => (
-                                <li key={`${m.url}-${i}`}>
-                                  <a
-                                    href={m.url || '#'}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex max-w-full items-center gap-2 text-sm font-medium text-moni-primary hover:underline"
-                                  >
-                                    <IconeMaterialTipo tipo={m.tipo} />
-                                    <span className="truncate">{m.titulo || m.url || 'Link'}</span>
-                                  </a>
-                                </li>
-                              ))}
-                            </ul>
-                          ) : null}
-                        </div>
-                      );
-                    })()}
-                    {pode('editar_instrucoes') ? (
-                      <button
-                        type="button"
-                        onClick={abrirEdicaoInstrucoesFase}
-                        className="mt-3 text-xs font-medium text-moni-primary hover:underline"
-                      >
-                        Editar instruções
-                      </button>
-                    ) : null}
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="mb-6">
+            <button
+              type="button"
+              onClick={() => setAbaCentro('detalhes')}
+              className="mb-4 inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-stone-700 shadow-sm transition hover:bg-stone-50"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+              Voltar
+            </button>
+            <div className="flex min-h-0 flex-1 flex-col">
+<div className="mb-6 flex-1">
               <h4 className="mb-3 text-sm font-semibold" style={{ color: 'var(--moni-text-secondary)' }}>
-                Checklist / itens estruturais da fase
-              </h4>
-              <div
-                className="rounded-lg p-4"
-                style={{
-                  background: 'var(--moni-surface-50)',
-                  border: '0.5px solid var(--moni-border-default)',
-                }}
-              >
-                {checklistExtra ?? (
-                  <FaseChecklistCard
-                    faseId={faseChecklistFaseId}
-                    cardId={card.id}
-                    isFrank={portalFrank}
-                    isAdmin={isAdmin}
-                  />
-                )}
-              </div>
-              {exibirEnviarHipotesePortfolio ? (
-                <div className="mt-4 space-y-2">
-                  <button
-                    type="button"
-                    disabled={
-                      enviandoHipotesePortfolio ||
-                      hipotesePortfolioEnviada ||
-                      Boolean(card.concluido) ||
-                      Boolean(card.arquivado)
-                    }
-                    onClick={() => void handleEnviarHipotesePortfolio()}
-                    className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
-                    style={{ background: 'var(--moni-navy-800)' }}
-                  >
-                    {enviandoHipotesePortfolio ? (
-                      <span className="inline-flex items-center justify-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                        Enviando…
-                      </span>
-                    ) : (
-                      'Enviar hipótese ao Portfolio'
-                    )}
-                  </button>
-                  {hipotesePortfolioErro ? (
-                    <p
-                      className="rounded-lg border px-3 py-2 text-sm"
-                      role="alert"
-                      style={{
-                        borderColor: 'var(--moni-status-error-border, #fecaca)',
-                        background: 'var(--moni-status-error-bg, #fef2f2)',
-                        color: 'var(--moni-status-error-text, #991b1b)',
-                      }}
-                    >
-                      {hipotesePortfolioErro}
-                    </p>
-                  ) : null}
-                  {hipotesePortfolioOk && !hipotesePortfolioErro ? (
-                    <p
-                      className="rounded-lg border px-3 py-2 text-sm"
-                      style={{
-                        borderColor: 'var(--moni-status-success-border, #bbf7d0)',
-                        background: 'var(--moni-status-success-bg, #f0fdf4)',
-                        color: 'var(--moni-status-success-text, #166534)',
-                      }}
-                    >
-                      {hipotesePortfolioOk}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-              {!portalFrank && card.fase_id && (
-                <div className="mt-3">
-                  {linkCandidato ? (
-                    <div className="flex items-center gap-2">
-                      <input
-                        readOnly
-                        value={linkCandidato}
-                        className="flex-1 rounded-md border px-3 py-1.5 text-xs"
-                        style={{
-                          borderColor: 'var(--moni-border-default)',
-                          background: 'var(--moni-surface-50)',
-                          color: 'var(--moni-text-primary)',
-                        }}
-                        onFocus={(e) => e.target.select()}
-                      />
-                      <button
-                        type="button"
-                        title="Copiar link"
-                        onClick={() => {
-                          void navigator.clipboard.writeText(linkCandidato).then(() => {
-                            setLinkCopiado(true);
-                            setTimeout(() => setLinkCopiado(false), 2000);
-                          });
-                        }}
-                        className="flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs"
-                        style={{
-                          borderColor: 'var(--moni-border-default)',
-                          background: 'var(--moni-surface-100)',
-                          color: linkCopiado ? 'var(--moni-status-success-text)' : 'var(--moni-text-secondary)',
-                        }}
-                      >
-                        {linkCopiado ? <Check size={12} /> : <Copy size={12} />}
-                        {linkCopiado ? 'Copiado!' : 'Copiar'}
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={gerandoLink}
-                      onClick={async () => {
-                        setGerandoLink(true);
-                        try {
-                          const res = await gerarFormTokenCandidato(card.id, card.fase_id!);
-                          if (res.ok) setLinkCandidato(res.url);
-                        } finally {
-                          setGerandoLink(false);
-                        }
-                      }}
-                      className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs"
-                      style={{
-                        borderColor: 'var(--moni-border-default)',
-                        background: 'var(--moni-surface-100)',
-                        color: 'var(--moni-text-secondary)',
-                      }}
-                    >
-                      {gerandoLink ? (
-                        <Loader2 size={12} className="animate-spin" />
-                      ) : (
-                        <Link2 size={12} />
-                      )}
-                      {gerandoLink ? 'Gerando...' : 'Gerar link'}
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="mb-6 flex-1">
-              <h4 className="mb-3 text-sm font-semibold" style={{ color: 'var(--moni-text-secondary)' }}>
-                Chamados vinculados
+                Chamados
               </h4>
               {interacoes.some((a) => isInteracaoDemonstracao(a.id)) ? (
                 <p
@@ -4509,7 +4234,343 @@ export function KanbanCardModal({
               )}
             </div>
 
-            <div className="mt-auto border-t pt-4" style={{ borderColor: 'var(--moni-border-default)' }}>
+
+            </div>
+            </>
+            ) : (
+            <>
+            <KanbanCardDatasFields
+              cardId={card.id}
+              origem={origem}
+              basePath={basePath}
+              dataReuniao={dataReuniao}
+              dataFollowup={dataFollowup}
+              onDataReuniaoChange={setDataReuniao}
+              onDataFollowupChange={setDataFollowup}
+              onAtaSalva={() => setAtasReuniaoTick((t) => t + 1)}
+            />
+
+            <div className="mb-6">
+              <h4
+                className="mb-3 flex items-center gap-2 text-sm font-semibold"
+                style={{ color: 'var(--moni-text-secondary)' }}
+              >
+                <BookOpen className="h-4 w-4 shrink-0 text-stone-500" aria-hidden />
+                Instruções da fase
+              </h4>
+              <div
+                className="rounded-lg p-4"
+                style={{
+                  background: 'var(--moni-surface-50)',
+                  border: '0.5px solid var(--moni-border-default)',
+                }}
+              >
+                {!faseAtual ? (
+                  <p className="text-sm italic text-stone-400">Carregando fase…</p>
+                ) : editandoInstrucoesFase && pode('editar_instrucoes') ? (
+                  <div className="space-y-3">
+                    <label className="block text-xs font-medium text-stone-600">
+                      Texto (quebras de linha preservadas)
+                      <textarea
+                        value={draftInstrucoesFase}
+                        onChange={(e) => setDraftInstrucoesFase(e.target.value)}
+                        rows={8}
+                        className="mt-1 w-full rounded-md border border-stone-300 px-2 py-2 text-sm text-stone-800 focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400"
+                        placeholder="Orientações para quem trabalha nesta fase…"
+                      />
+                    </label>
+                    <div>
+                      <p className="text-xs font-medium text-stone-600">Materiais (título, URL, tipo)</p>
+                      <ul className="mt-2 space-y-2">
+                        {draftMateriaisFase.map((m, idx) => (
+                          <li
+                            key={idx}
+                            className="flex flex-wrap items-end gap-2 rounded-md border border-stone-200 bg-white p-2"
+                          >
+                            <input
+                              type="text"
+                              value={m.titulo}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setDraftMateriaisFase((rows) =>
+                                  rows.map((r, i) => (i === idx ? { ...r, titulo: v } : r)),
+                                );
+                              }}
+                              placeholder="Título"
+                              className="min-w-[6rem] flex-1 rounded border border-stone-300 px-2 py-1 text-xs"
+                            />
+                            <input
+                              type="url"
+                              value={m.url}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setDraftMateriaisFase((rows) =>
+                                  rows.map((r, i) => (i === idx ? { ...r, url: v } : r)),
+                                );
+                              }}
+                              placeholder="https://…"
+                              className="min-w-[8rem] flex-[2] rounded border border-stone-300 px-2 py-1 text-xs"
+                            />
+                            <select
+                              value={m.tipo}
+                              onChange={(e) => {
+                                const v = e.target.value as KanbanFaseMaterial['tipo'];
+                                setDraftMateriaisFase((rows) =>
+                                  rows.map((r, i) => (i === idx ? { ...r, tipo: v } : r)),
+                                );
+                              }}
+                              className="rounded border border-stone-300 px-2 py-1 text-xs"
+                            >
+                              <option value="link">link</option>
+                              <option value="documento">documento</option>
+                              <option value="video">video</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDraftMateriaisFase((rows) => rows.filter((_, i) => i !== idx))
+                              }
+                              className="rounded p-1 text-stone-500 hover:bg-stone-100 hover:text-red-600"
+                              aria-label="Remover material"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDraftMateriaisFase((rows) => [
+                            ...rows,
+                            { titulo: '', url: '', tipo: 'link' as const },
+                          ])
+                        }
+                        className="mt-2 inline-flex items-center gap-1 rounded-md border border-dashed border-stone-300 px-2 py-1 text-xs font-medium text-stone-600 hover:bg-stone-50"
+                      >
+                        <Plus className="h-3.5 w-3.5" aria-hidden />
+                        Adicionar material
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleSalvarInstrucoesFase()}
+                        disabled={salvandoInstrucoesFase}
+                        className="rounded-lg px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                        style={{ background: 'var(--moni-navy-800)' }}
+                      >
+                        {salvandoInstrucoesFase ? 'Salvando…' : 'Salvar'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditandoInstrucoesFase(false);
+                          setDraftInstrucoesFase('');
+                          setDraftMateriaisFase([]);
+                        }}
+                        disabled={salvandoInstrucoesFase}
+                        className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 disabled:opacity-50"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {(() => {
+                      const txt = (faseAtual.instrucoes ?? '').trim();
+                      const mats = faseAtual.materiais ?? [];
+                      const tem = txt.length > 0 || mats.length > 0;
+                      if (!tem) {
+                        return (
+                          <p className="text-sm italic text-stone-400">
+                            Nenhuma instrução definida para esta fase
+                          </p>
+                        );
+                      }
+                      return (
+                        <div className="space-y-3">
+                          {txt ? (
+                            <div
+                              className="whitespace-pre-wrap text-sm leading-relaxed text-stone-800"
+                              style={{ color: 'var(--moni-text-primary)' }}
+                            >
+                              {txt}
+                            </div>
+                          ) : null}
+                          {mats.length > 0 ? (
+                            <ul className="space-y-1.5">
+                              {mats.map((m, i) => (
+                                <li key={`${m.url}-${i}`}>
+                                  <a
+                                    href={m.url || '#'}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex max-w-full items-center gap-2 text-sm font-medium text-moni-primary hover:underline"
+                                  >
+                                    <IconeMaterialTipo tipo={m.tipo} />
+                                    <span className="truncate">{m.titulo || m.url || 'Link'}</span>
+                                  </a>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </div>
+                      );
+                    })()}
+                    {pode('editar_instrucoes') ? (
+                      <button
+                        type="button"
+                        onClick={abrirEdicaoInstrucoesFase}
+                        className="mt-3 text-xs font-medium text-moni-primary hover:underline"
+                      >
+                        Editar instruções
+                      </button>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <h4 className="mb-3 text-sm font-semibold" style={{ color: 'var(--moni-text-secondary)' }}>
+                Checklist / itens estruturais da fase
+              </h4>
+              <div
+                className="rounded-lg p-4"
+                style={{
+                  background: 'var(--moni-surface-50)',
+                  border: '0.5px solid var(--moni-border-default)',
+                }}
+              >
+                {checklistExtra ?? (
+                  <FaseChecklistCard
+                    faseId={faseChecklistFaseId}
+                    cardId={card.id}
+                    isFrank={portalFrank}
+                    isAdmin={isAdmin}
+                  />
+                )}
+              </div>
+              {exibirEnviarHipotesePortfolio ? (
+                <div className="mt-4 space-y-2">
+                  <button
+                    type="button"
+                    disabled={
+                      enviandoHipotesePortfolio ||
+                      hipotesePortfolioEnviada ||
+                      Boolean(card.concluido) ||
+                      Boolean(card.arquivado)
+                    }
+                    onClick={() => void handleEnviarHipotesePortfolio()}
+                    className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+                    style={{ background: 'var(--moni-navy-800)' }}
+                  >
+                    {enviandoHipotesePortfolio ? (
+                      <span className="inline-flex items-center justify-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                        Enviando…
+                      </span>
+                    ) : (
+                      'Enviar hipótese ao Portfolio'
+                    )}
+                  </button>
+                  {hipotesePortfolioErro ? (
+                    <p
+                      className="rounded-lg border px-3 py-2 text-sm"
+                      role="alert"
+                      style={{
+                        borderColor: 'var(--moni-status-error-border, #fecaca)',
+                        background: 'var(--moni-status-error-bg, #fef2f2)',
+                        color: 'var(--moni-status-error-text, #991b1b)',
+                      }}
+                    >
+                      {hipotesePortfolioErro}
+                    </p>
+                  ) : null}
+                  {hipotesePortfolioOk && !hipotesePortfolioErro ? (
+                    <p
+                      className="rounded-lg border px-3 py-2 text-sm"
+                      style={{
+                        borderColor: 'var(--moni-status-success-border, #bbf7d0)',
+                        background: 'var(--moni-status-success-bg, #f0fdf4)',
+                        color: 'var(--moni-status-success-text, #166534)',
+                      }}
+                    >
+                      {hipotesePortfolioOk}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+              {!portalFrank && card.fase_id && (
+                <div className="mt-3">
+                  {linkCandidato ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        readOnly
+                        value={linkCandidato}
+                        className="flex-1 rounded-md border px-3 py-1.5 text-xs"
+                        style={{
+                          borderColor: 'var(--moni-border-default)',
+                          background: 'var(--moni-surface-50)',
+                          color: 'var(--moni-text-primary)',
+                        }}
+                        onFocus={(e) => e.target.select()}
+                      />
+                      <button
+                        type="button"
+                        title="Copiar link"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(linkCandidato).then(() => {
+                            setLinkCopiado(true);
+                            setTimeout(() => setLinkCopiado(false), 2000);
+                          });
+                        }}
+                        className="flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs"
+                        style={{
+                          borderColor: 'var(--moni-border-default)',
+                          background: 'var(--moni-surface-100)',
+                          color: linkCopiado ? 'var(--moni-status-success-text)' : 'var(--moni-text-secondary)',
+                        }}
+                      >
+                        {linkCopiado ? <Check size={12} /> : <Copy size={12} />}
+                        {linkCopiado ? 'Copiado!' : 'Copiar'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={gerandoLink}
+                      onClick={async () => {
+                        setGerandoLink(true);
+                        try {
+                          const res = await gerarFormTokenCandidato(card.id, card.fase_id!);
+                          if (res.ok) setLinkCandidato(res.url);
+                        } finally {
+                          setGerandoLink(false);
+                        }
+                      }}
+                      className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs"
+                      style={{
+                        borderColor: 'var(--moni-border-default)',
+                        background: 'var(--moni-surface-100)',
+                        color: 'var(--moni-text-secondary)',
+                      }}
+                    >
+                      {gerandoLink ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <Link2 size={12} />
+                      )}
+                      {gerandoLink ? 'Gerando...' : 'Gerar link'}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+                        <div className="mt-auto border-t pt-4" style={{ borderColor: 'var(--moni-border-default)' }}>
               {/* Abas comentários / e-mail */}
               <div className="mb-3 flex gap-1">
                 {(['comentarios', 'email'] as const).map((aba) => {
@@ -5783,6 +5844,7 @@ export function KanbanCardModal({
                 {secaoHead('obra', 'Dados Obra', <p className="text-xs italic text-stone-500">Placeholder.</p>)}
               </>
             ) : null}
+            {secaoHeadPainelCentro('Chamados')}
             {card && (
               <ChecklistCard
                 cardId={card.id}

@@ -49,6 +49,7 @@ export type ProcessoModalNegocioPreObra = {
   link_moni_capital_gastos_aporte_inicial: string | null;
   comentario_moni_capital_gastos_aporte_inicial: string | null;
   nome_condominio: string | null;
+  condominio_id: string | null;
   quadra_lote: string | null;
   quadra: string | null;
   lote: string | null;
@@ -102,6 +103,7 @@ const PROCESSO_SELECT_LEGACY = [
   'produto_modelo_casa',
   'link_pasta_drive',
   'nome_condominio',
+  'condominio_id',
   'quadra_lote',
   'quadra',
   'lote',
@@ -275,6 +277,7 @@ function mapProcesso(r: Record<string, unknown> | null): ProcessoModalNegocioPre
     link_moni_capital_gastos_aporte_inicial: g('link_moni_capital_gastos_aporte_inicial'),
     comentario_moni_capital_gastos_aporte_inicial: g('comentario_moni_capital_gastos_aporte_inicial'),
     nome_condominio: g('nome_condominio'),
+    condominio_id: g('condominio_id'),
     quadra_lote: g('quadra_lote'),
     quadra: g('quadra'),
     lote: g('lote'),

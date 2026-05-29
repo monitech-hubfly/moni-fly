@@ -224,11 +224,13 @@ export type ComentarioCardRow = {
 export type SecaoEsquerdaId =
   | 'cronologia'
   | 'franqueado'
+  | 'condominio'
   | 'novoNegocio'
   | 'preObra'
   | 'obra'
   | 'relacionamentos'
   | 'atasReuniao'
+  | 'chamados'
   | 'historico';
 
 export function isoDateOffsetDays(days: number): string {
