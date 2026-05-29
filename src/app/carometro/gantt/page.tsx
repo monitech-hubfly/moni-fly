@@ -244,6 +244,7 @@ function deveExibirBannerErroGantt(msg) {
   const e = String(msg ?? '')
   if (!e) return false
   if (erroIndicaPermissaoIndicadorConquistas(e)) return false
+  if (erroIndicaTabelaAdmCnpjsAusente(e)) return false
   if (e.includes('Tabela indicador_conquistas ausente')) {
     return erroIndicaTabelaIndicadorConquistasAusente(e)
   }
@@ -287,6 +288,38 @@ function erroIndicaTabelaAreaPessoasAusente(err) {
   const m = String(err?.message ?? err ?? '')
   return /area_pessoas/i.test(m) && (/schema cache|does not exist|Could not find|PGRST205/i.test(m))
 }
+
+function erroIndicaTabelaAdmCnpjsAusente(err) {
+  const m = String(err?.message ?? err ?? '')
+  return /adm_cnpjs/i.test(m) && (/schema cache|does not exist|Could not find|PGRST205/i.test(m))
+}
+
+const SQL_ADM_CNPJS = `CREATE TABLE IF NOT EXISTS adm_cnpjs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  cnpj text NOT NULL,
+  descritivo text NOT NULL,
+  criado_em timestamptz DEFAULT now()
+);
+
+ALTER TABLE gantt_planejamento
+  ADD COLUMN IF NOT EXISTS adm_cnpj_id uuid;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'gantt_planejamento_adm_cnpj_id_fkey'
+  ) THEN
+    ALTER TABLE gantt_planejamento
+      ADD CONSTRAINT gantt_planejamento_adm_cnpj_id_fkey
+      FOREIGN KEY (adm_cnpj_id) REFERENCES adm_cnpjs(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
+GRANT ALL ON TABLE adm_cnpjs TO anon, authenticated;
+ALTER TABLE adm_cnpjs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "allow_all_adm_cnpjs" ON adm_cnpjs;
+CREATE POLICY "allow_all_adm_cnpjs" ON adm_cnpjs FOR ALL USING (true) WITH CHECK (true);
+NOTIFY pgrst, 'reload schema';`
 
 /** `indicador_lancamentos.periodo_id` ausente no PostgREST (schema cache / Could not find column). */
 function erroIndicaColunaPeriodoIdLancamentos(err) {
@@ -1433,6 +1466,8 @@ export default function Page() {
   const [casasSelecionadas, setCasasSelecionadas] = useState([])
   const [casas, setCasas] = useState([])
   const [admCnpjs, setAdmCnpjs] = useState([])
+  /** Tabela `adm_cnpjs` ausente no PostgREST — cadastro de CNPJ no drawer ADM não funciona até rodar o SQL. */
+  const [admCnpjsTabelaAusente, setAdmCnpjsTabelaAusente] = useState(false)
   const [admCnpjSelecionado, setAdmCnpjSelecionado] = useState(null)
   const [novoCnpj, setNovoCnpj] = useState('')
   const [novoDescritivo, setNovoDescritivo] = useState('')
@@ -2145,13 +2180,22 @@ export default function Page() {
   useEffect(() => {
     if (!isAreaAdm) {
       setAdmCnpjs([])
+      setAdmCnpjsTabelaAusente(false)
       return
     }
     supabase
       .from('adm_cnpjs')
       .select('id, cnpj, descritivo')
       .order('criado_em', { ascending: true })
-      .then(({ data }) => setAdmCnpjs(data || []))
+      .then(({ data, error }) => {
+        if (error) {
+          setAdmCnpjs([])
+          if (erroIndicaTabelaAdmCnpjsAusente(error)) setAdmCnpjsTabelaAusente(true)
+          return
+        }
+        setAdmCnpjsTabelaAusente(false)
+        setAdmCnpjs(data || [])
+      })
   }, [isAreaAdm])
 
   useEffect(() => {
@@ -2832,6 +2876,14 @@ export default function Page() {
       return
     }
     if (isAreaAdm && !admCnpjSelecionado) {
+      if (admCnpjsTabelaAusente) {
+        setError('A tabela adm_cnpjs não existe no banco. Execute o SQL do aviso amarelo acima e recarregue a página (F5).')
+        return
+      }
+      if (criandoCnpj && novoCnpj.trim() && novoDescritivo.trim()) {
+        setError('Salve o CNPJ / empresa (botão Salvar no campo abaixo) antes de adicionar ao plano.')
+        return
+      }
       setError('Selecione um CNPJ / empresa.')
       return
     }
@@ -3742,13 +3794,22 @@ export default function Page() {
 
   async function handleSalvarCnpj() {
     if (!novoCnpj.trim() || !novoDescritivo.trim()) return
+    if (admCnpjsTabelaAusente) {
+      setError('A tabela adm_cnpjs não existe no banco. Execute o SQL do aviso amarelo acima e recarregue a página (F5).')
+      return
+    }
     const { data, error } = await supabase
       .from('adm_cnpjs')
       .insert({ cnpj: novoCnpj.trim(), descritivo: novoDescritivo.trim() })
       .select('id, cnpj, descritivo')
       .single()
     if (error) {
-      setError(error.message)
+      if (erroIndicaTabelaAdmCnpjsAusente(error)) {
+        setAdmCnpjsTabelaAusente(true)
+        setError('A tabela adm_cnpjs não existe no banco. Copie o SQL do aviso amarelo acima, execute no Supabase (SQL Editor) e recarregue a página (F5).')
+      } else {
+        setError(error.message)
+      }
       return
     }
     if (data) {
@@ -6389,6 +6450,31 @@ export default function Page() {
           </div>
         </div>
       </header>
+      {isAreaAdm && admCnpjsTabelaAusente && (
+        <div className="alert alert-warning gantt-adm-cnpjs-sql-banner" role="status" style={{ margin: '0 0 1rem' }}>
+          <p style={{ margin: '0 0 0.75rem' }}>
+            <strong>Tabela <code>adm_cnpjs</code> não encontrada no Supabase.</strong>{' '}
+            Sem ela, não é possível cadastrar CNPJ/empresa no planejamento ADM. No painel do projeto:{' '}
+            <strong>SQL Editor</strong> → cole o script abaixo (ou o arquivo{' '}
+            <code>supabase/migrations/221_adm_cnpjs.sql</code>) → <strong>Run</strong> → recarregue esta página (F5).
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => {
+                navigator.clipboard.writeText(SQL_ADM_CNPJS).then(() => {
+                  window.alert('SQL copiado. Cole no Supabase → SQL Editor, execute (Run) e recarregue a página (F5).')
+                }).catch(() => {
+                  window.alert('Não foi possível copiar. Abra supabase/migrations/221_adm_cnpjs.sql e cole manualmente no SQL Editor.')
+                })
+              }}
+            >
+              Copiar SQL (adm_cnpjs + FK)
+            </button>
+          </div>
+        </div>
+      )}
       {areaPessoasTabelaAusente && (
         <div className="alert alert-warning gantt-area-pessoas-sql-banner" role="status" style={{ margin: '0 0 1rem' }}>
           <p style={{ margin: '0 0 0.75rem' }}>
@@ -8031,7 +8117,9 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                               textAlign: 'center'
                             }}
                           >
-                            Nenhuma empresa cadastrada.
+                            {admCnpjsTabelaAusente
+                              ? 'Configure a tabela adm_cnpjs no Supabase (aviso amarelo acima).'
+                              : 'Nenhuma empresa cadastrada.'}
                           </div>
                         ) : null}
 
@@ -8127,7 +8215,7 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                               </button>
                             </div>
                           </div>
-                        ) : (
+                        ) : !admCnpjsTabelaAusente ? (
                           <div
                             role="button"
                             tabIndex={0}
@@ -8153,7 +8241,7 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                             <span aria-hidden="true" style={{ fontSize: 13 }}>+</span>
                             Adicionar novo CNPJ
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     ) : null}
 
