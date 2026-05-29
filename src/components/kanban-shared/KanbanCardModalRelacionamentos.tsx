@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, Plus, X } from 'lucide-react';
 import {
@@ -12,7 +13,11 @@ import {
   type RelacionamentoCardRow,
   type TipoRelacionamentoDisplay,
 } from '@/lib/actions/card-actions';
-import { dispararEsteiraManualDoCard } from '@/lib/actions/kanban-bastoes';
+import {
+  abrirChamadoJuridicoDoCard,
+  dispararEsteiraManualDoCard,
+  existeChamadoJuridicoParaCard,
+} from '@/lib/actions/kanban-bastoes';
 import {
   DESTINOS_ESTEIRA_MANUAL,
   destinosEsteiraManualParaKanban,
@@ -20,6 +25,10 @@ import {
   type DestinoEsteiraManualKey,
 } from '@/lib/kanban/esteira-manual-destinos';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
+import { MSG_CHAMADO_JURIDICO_JA_EXISTE } from '@/lib/constants/kanban-ids';
+import { KanbanParalelasChips } from './KanbanParalelasChips';
+import { KanbanCardModalProjetoTab } from './KanbanCardModalProjetoTab';
+import type { ParalelaChip } from '@/lib/kanban/kanban-paralelas-chips';
 
 function iconeTipoRelacionamento(tipo: TipoRelacionamentoDisplay): string {
   if (tipo === 'originou') return '🔗';
@@ -44,6 +53,11 @@ type Props = {
   basePath: string;
   podeGerenciar: boolean;
   disabled?: boolean;
+  chipsParalelas?: ParalelaChip[];
+  projetoId?: string | null;
+  ocultarKanbansInternos?: boolean;
+  mostrarBotaoJuridico?: boolean;
+  cardDesabilitado?: boolean;
 };
 
 export function KanbanCardModalRelacionamentos({
@@ -53,7 +67,13 @@ export function KanbanCardModalRelacionamentos({
   basePath,
   podeGerenciar,
   disabled = false,
+  chipsParalelas = [],
+  projetoId = null,
+  ocultarKanbansInternos = false,
+  mostrarBotaoJuridico = false,
+  cardDesabilitado = false,
 }: Props) {
+  const router = useRouter();
   const [rows, setRows] = useState<RelacionamentoCardRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
@@ -65,6 +85,7 @@ export function KanbanCardModalRelacionamentos({
   const [toast, setToast] = useState<{ tipo: 'ok' | 'erro'; msg: string; href?: string } | null>(
     null,
   );
+  const [abrindoChamadoJuridico, setAbrindoChamadoJuridico] = useState(false);
 
   const tituloAtualLc = (cardTitulo || '').trim().toLowerCase();
   const destinosDisponiveis = useMemo(
@@ -176,6 +197,32 @@ export function KanbanCardModalRelacionamentos({
     }
   }
 
+  async function handleAbrirChamadoJuridico() {
+    setAbrindoChamadoJuridico(true);
+    setToast(null);
+    try {
+      const jaExiste = await existeChamadoJuridicoParaCard(cardId);
+      if (jaExiste) {
+        setToast({ tipo: 'erro', msg: MSG_CHAMADO_JURIDICO_JA_EXISTE });
+        return;
+      }
+      if (!confirm('Criar chamado jurídico para este card?')) return;
+
+      const res = await abrirChamadoJuridicoDoCard(cardId, basePath);
+      if (!res.ok) {
+        setToast({ tipo: 'erro', msg: res.error });
+        return;
+      }
+      setToast({ tipo: 'ok', msg: 'Chamado jurídico criado.' });
+      await recarregar();
+      router.refresh();
+    } catch {
+      setToast({ tipo: 'erro', msg: 'Erro ao criar chamado jurídico.' });
+    } finally {
+      setAbrindoChamadoJuridico(false);
+    }
+  }
+
   async function handleRemover(vinculoId: string) {
     const res = await removerVinculoCard(vinculoId, basePath);
     if (!res.ok) {
@@ -186,7 +233,31 @@ export function KanbanCardModalRelacionamentos({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
+      {chipsParalelas.length > 0 ? (
+        <div>
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+            Status das esteiras
+          </p>
+          <KanbanParalelasChips chips={chipsParalelas} compact />
+        </div>
+      ) : null}
+
+      {projetoId != null && String(projetoId).trim() !== '' ? (
+        <div className="border-b border-stone-100 pb-3">
+          <KanbanCardModalProjetoTab
+            projetoId={projetoId}
+            cardIdAtual={cardId}
+            ocultarKanbansInternos={ocultarKanbansInternos}
+            variant="sidebar"
+          />
+        </div>
+      ) : null}
+
+      {chipsParalelas.length > 0 || (projetoId != null && String(projetoId).trim() !== '') ? (
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Vínculos manuais</p>
+      ) : null}
+
       {loading ? (
         <div className="flex items-center gap-2 text-xs text-stone-500">
           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -270,6 +341,20 @@ export function KanbanCardModalRelacionamentos({
             </Link>
           ) : null}
         </p>
+      ) : null}
+
+      {mostrarBotaoJuridico ? (
+        <div className="border-t border-stone-100 pt-2">
+          <button
+            type="button"
+            onClick={() => void handleAbrirChamadoJuridico()}
+            disabled={abrindoChamadoJuridico || cardDesabilitado}
+            className="w-full rounded-md px-2.5 py-2 text-left text-[11px] font-semibold leading-snug text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ background: 'var(--moni-navy-800)' }}
+          >
+            {abrindoChamadoJuridico ? 'Abrindo…' : 'Abrir chamado jurídico'}
+          </button>
+        </div>
       ) : null}
 
       {podeGerenciar && !disabled ? (
