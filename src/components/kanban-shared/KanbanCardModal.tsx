@@ -239,13 +239,13 @@ function PainelLateralSecao({
 }) {
   return (
     <section
-      className={`rounded-lg bg-white p-3 ${className}`.trim()}
+      className={`rounded-md bg-white p-2 ${className}`.trim()}
       style={{
         border: '0.5px solid var(--moni-border-default)',
         boxShadow: 'var(--moni-shadow-sm)',
       }}
     >
-      <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-stone-500">{titulo}</h3>
+      <h3 className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-stone-500">{titulo}</h3>
       {children}
     </section>
   );
@@ -571,9 +571,6 @@ export function KanbanCardModal({
       comentario_moni_capital_seguro_garantia: '',
       link_moni_capital_gastos_aporte_inicial: '',
       comentario_moni_capital_gastos_aporte_inicial: '',
-      nome_condominio: '',
-      quadra: '',
-      lote: '',
     });
     setEditandoNegocio(false);
     setEditandoFranqueado(false);
@@ -4810,7 +4807,7 @@ export function KanbanCardModal({
           {/* Direita — ações de movimento do card (mobile: após o centro) */}
           {mostrarColunaAcoesLateral ? (
           <aside
-            className="moni-card-modal-acoes order-2 flex w-full shrink-0 flex-col gap-3 overflow-y-auto border-t p-3 text-xs sm:order-3 sm:h-full sm:min-w-0 sm:max-w-[var(--moni-card-modal-acoes-width)] sm:w-[var(--moni-card-modal-acoes-width)] sm:flex-none sm:border-l sm:border-t-0 sm:p-4"
+            className="moni-card-modal-acoes order-2 flex w-full shrink-0 flex-col gap-1.5 overflow-y-auto border-t p-2 text-xs sm:order-3 sm:h-full sm:min-w-0 sm:max-w-[var(--moni-card-modal-acoes-width)] sm:w-[var(--moni-card-modal-acoes-width)] sm:flex-none sm:border-l sm:border-t-0 sm:p-2.5"
             style={{
               borderColor: 'var(--moni-border-default)',
               background: 'var(--moni-surface-50)',
@@ -4818,11 +4815,11 @@ export function KanbanCardModal({
             aria-label="Ações do card"
           >
             <PainelLateralSecao titulo="Tags">
-              <div className="mb-2.5 flex flex-wrap gap-1.5">
+              <div className="mb-1.5 flex flex-wrap gap-1">
                 {tagsCard.map((t) => (
                   <span
                     key={t.id}
-                    className="inline-flex max-w-full items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold leading-tight"
+                    className="inline-flex max-w-full items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-semibold leading-tight"
                     style={{ background: t.cor + '22', color: t.cor, border: `1px solid ${t.cor}55` }}
                   >
                     <span className="truncate">{t.nome}</span>
@@ -4843,23 +4840,23 @@ export function KanbanCardModal({
                   </span>
                 ))}
                 {tagsCard.length === 0 ? (
-                  <p className="text-xs text-stone-400">Nenhuma tag neste card</p>
+                  <p className="text-[10px] text-stone-400">Nenhuma tag</p>
                 ) : null}
               </div>
               {!ocultarGestaoCard && card ? (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <button
                     type="button"
                     onClick={() => setTagsOpen((v) => !v)}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-stone-300 bg-stone-50/80 px-3 py-2 text-xs font-medium text-stone-700 transition hover:border-stone-400 hover:bg-white"
+                    className="flex w-full items-center justify-center gap-1 rounded border border-dashed border-stone-300 bg-stone-50/80 px-2 py-1 text-[10px] font-medium text-stone-700 transition hover:border-stone-400 hover:bg-white"
                   >
-                    <Tag className="h-3.5 w-3.5 shrink-0 text-stone-500" aria-hidden />
-                    {tagsOpen ? 'Fechar lista' : 'Adicionar tag'}
+                    <Tag className="h-3 w-3 shrink-0 text-stone-500" aria-hidden />
+                    {tagsOpen ? 'Fechar' : 'Adicionar tag'}
                   </button>
                   {tagsOpen ? (
-                    <div className="space-y-2.5 rounded-lg border border-stone-200 bg-stone-50/50 p-2.5">
+                    <div className="space-y-1.5 rounded border border-stone-200 bg-stone-50/50 p-1.5">
                       {tagsKanban.filter((t) => !tagsCard.some((tc) => tc.tag_id === t.id)).length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="flex flex-wrap gap-1">
                           {tagsKanban
                             .filter((t) => !tagsCard.some((tc) => tc.tag_id === t.id))
                             .map((t) => (
@@ -4876,7 +4873,7 @@ export function KanbanCardModal({
                                   setTagsCard(tc);
                                   setTagsOpen(false);
                                 }}
-                                className="rounded-full px-2.5 py-1 text-[11px] font-semibold transition hover:opacity-90"
+                                className="rounded-full px-1.5 py-px text-[10px] font-semibold transition hover:opacity-90"
                                 style={{ background: t.cor + '22', color: t.cor, border: `1px solid ${t.cor}55` }}
                               >
                                 {t.nome}
@@ -4887,16 +4884,16 @@ export function KanbanCardModal({
                         <p className="text-[11px] text-stone-500">Todas as tags do funil já estão no card.</p>
                       )}
                       {pode('criar_chamados') ? (
-                        <div className="space-y-2 border-t border-stone-200 pt-2.5">
-                          <p className="text-[11px] font-medium text-stone-600">Nova tag no funil</p>
+                        <div className="space-y-1.5 border-t border-stone-200 pt-1.5">
+                          <p className="text-[10px] font-medium text-stone-600">Nova tag no funil</p>
                           <input
                             type="text"
                             value={novatagsNome}
                             onChange={(e) => setNovaTagNome(e.target.value)}
                             placeholder="Nome da tag"
-                            className="w-full rounded-lg border border-stone-300 bg-white px-2.5 py-2 text-xs focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400"
+                            className="w-full rounded border border-stone-300 bg-white px-2 py-1 text-[10px] focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400"
                           />
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <label className="sr-only" htmlFor="kanban-modal-nova-tag-cor">
                               Cor da tag
                             </label>
@@ -4905,7 +4902,7 @@ export function KanbanCardModal({
                               type="color"
                               value={novaTagCor}
                               onChange={(e) => setNovaTagCor(e.target.value)}
-                              className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-stone-200 bg-white p-0.5"
+                              className="h-7 w-7 shrink-0 cursor-pointer rounded border border-stone-200 bg-white p-0.5"
                             />
                             <button
                               type="button"
@@ -4928,7 +4925,7 @@ export function KanbanCardModal({
                                   setCriandoTag(false);
                                 })()
                               }
-                              className="min-w-0 flex-1 rounded-lg px-3 py-2 text-xs font-semibold text-white transition disabled:opacity-50"
+                              className="min-w-0 flex-1 rounded px-2 py-1 text-[10px] font-semibold text-white transition disabled:opacity-50"
                               style={{ background: 'var(--moni-text-primary)' }}
                             >
                               {criandoTag ? 'Criando…' : 'Criar tag'}
@@ -4949,7 +4946,7 @@ export function KanbanCardModal({
                     type="button"
                     onClick={() => setArquivamentoAberto(true)}
                     disabled={loading}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold transition disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-1.5 rounded px-2 py-1.5 text-[10px] font-semibold transition disabled:opacity-50"
                     style={{
                       background: 'var(--moni-status-overdue-bg)',
                       color: 'var(--moni-status-overdue-text)',
@@ -4960,20 +4957,20 @@ export function KanbanCardModal({
                     Arquivar card
                   </button>
                 ) : (
-                  <div className="space-y-2">
-                    <label className="block text-xs font-medium text-stone-600">Motivo do arquivamento</label>
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-medium text-stone-600">Motivo</label>
                     <textarea
                       value={motivoArquivamento}
                       onChange={(e) => setMotivoArquivamento(e.target.value)}
-                      rows={3}
+                      rows={2}
                       placeholder="Descreva o motivo…"
-                      className="w-full min-w-0 resize-none rounded-lg border border-stone-300 bg-white px-2.5 py-2 text-xs focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400"
+                      className="w-full min-w-0 resize-none rounded border border-stone-300 bg-white px-2 py-1 text-[10px] focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400"
                     />
                     <button
                       type="button"
                       onClick={() => void handleConfirmarArquivar()}
                       disabled={loading || !motivoArquivamento.trim()}
-                      className="w-full rounded-lg px-3 py-2 text-xs font-semibold text-white transition disabled:opacity-50"
+                      className="w-full rounded px-2 py-1.5 text-[10px] font-semibold text-white transition disabled:opacity-50"
                       style={{ background: 'var(--moni-status-overdue-border)' }}
                     >
                       {loading ? 'Arquivando…' : 'Confirmar arquivamento'}
@@ -4985,7 +4982,7 @@ export function KanbanCardModal({
                         setMotivoArquivamento('');
                       }}
                       disabled={loading}
-                      className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-medium text-stone-700 transition hover:bg-stone-50 disabled:opacity-50"
+                      className="w-full rounded border border-stone-300 bg-white px-2 py-1 text-[10px] font-medium text-stone-700 transition hover:bg-stone-50 disabled:opacity-50"
                     >
                       Cancelar
                     </button>
@@ -4998,7 +4995,7 @@ export function KanbanCardModal({
               <PainelLateralSecao titulo="Movimentação">
                 {gateStep5Toast ? (
                   <p
-                    className="mb-2.5 rounded-lg px-2.5 py-2 text-[11px] font-medium leading-snug"
+                    className="mb-1.5 rounded px-2 py-1 text-[10px] font-medium leading-snug"
                     role="alert"
                     style={{
                       background: '#FAEEDA',
@@ -5010,34 +5007,34 @@ export function KanbanCardModal({
                   </p>
                 ) : null}
                 {!modalAprovacaoFase ? (
-                  <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-2 gap-1.5">
                     <button
                       type="button"
                       onClick={() => void handleRetrocederFase()}
                       disabled={loading || !podeRetrocederFase}
-                      className="flex w-full items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-xs font-semibold text-stone-800 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex items-center justify-center gap-0.5 rounded border border-stone-300 bg-white px-1.5 py-1.5 text-[10px] font-semibold leading-tight text-stone-800 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden />
-                      {loading ? '…' : 'Fase anterior'}
+                      <ChevronLeft className="h-3 w-3 shrink-0" aria-hidden />
+                      {loading ? '…' : 'Anterior'}
                     </button>
                     <button
                       type="button"
                       onClick={() => void handleAvancarFase()}
                       disabled={loading || !podeAvancarFase}
-                      className="flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-semibold transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex items-center justify-center gap-0.5 rounded border px-1.5 py-1.5 text-[10px] font-semibold leading-tight transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
                       style={{
                         background: 'var(--moni-green-50)',
                         color: 'var(--moni-green-800)',
                         borderColor: 'var(--moni-green-400)',
                       }}
                     >
-                      {loading ? '…' : 'Próxima fase'}
-                      <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+                      {loading ? '…' : 'Próxima'}
+                      <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
                     </button>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    <p className="text-xs leading-relaxed text-stone-700">
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] leading-snug text-stone-700">
                       Este card tem {modalAprovacaoFase.itensPendentes}{' '}
                       {modalAprovacaoFase.itensPendentes === 1 ? 'item' : 'itens'} de checklist
                       pendente{modalAprovacaoFase.itensPendentes === 1 ? '' : 's'}. Deseja solicitar aprovação para
@@ -5047,7 +5044,7 @@ export function KanbanCardModal({
                       type="button"
                       onClick={() => void handleSolicitarAprovacaoFase()}
                       disabled={solicitandoAprovacaoFase}
-                      className="w-full rounded-lg px-3 py-2.5 text-xs font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="w-full rounded px-2 py-1.5 text-[10px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                       style={{ background: 'var(--moni-green-600)' }}
                     >
                       {solicitandoAprovacaoFase ? 'Enviando…' : 'Solicitar aprovação'}
@@ -5056,7 +5053,7 @@ export function KanbanCardModal({
                       type="button"
                       onClick={() => setModalAprovacaoFase(null)}
                       disabled={solicitandoAprovacaoFase}
-                      className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-medium text-stone-700 transition hover:bg-stone-50 disabled:opacity-50"
+                      className="w-full rounded border border-stone-300 bg-white px-2 py-1 text-[10px] font-medium text-stone-700 transition hover:bg-stone-50 disabled:opacity-50"
                     >
                       Cancelar
                     </button>
@@ -5072,24 +5069,24 @@ export function KanbanCardModal({
                     type="button"
                     onClick={() => setConfirmandoFinalizar(true)}
                     disabled={loading}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-semibold transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-1 rounded border px-2 py-1.5 text-[10px] font-semibold transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
                     style={{
                       background: 'var(--moni-green-50)',
                       color: 'var(--moni-green-800)',
                       borderColor: 'var(--moni-green-400)',
                     }}
                   >
-                    <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
                     Finalizar card
                   </button>
                 ) : (
-                  <div className="space-y-2">
-                    <p className="text-xs leading-relaxed text-stone-700">Confirmar conclusão deste card?</p>
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] leading-snug text-stone-700">Confirmar conclusão deste card?</p>
                     <button
                       type="button"
                       onClick={() => void handleConfirmarFinalizarCard()}
                       disabled={loading}
-                      className="w-full rounded-lg px-3 py-2.5 text-xs font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="w-full rounded px-2 py-1.5 text-[10px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                       style={{ background: 'var(--moni-green-600)' }}
                     >
                       {loading ? 'Finalizando…' : 'Confirmar'}
@@ -5098,7 +5095,7 @@ export function KanbanCardModal({
                       type="button"
                       onClick={() => setConfirmandoFinalizar(false)}
                       disabled={loading}
-                      className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-medium text-stone-700 transition hover:bg-stone-50 disabled:opacity-50"
+                      className="w-full rounded border border-stone-300 bg-white px-2 py-1 text-[10px] font-medium text-stone-700 transition hover:bg-stone-50 disabled:opacity-50"
                     >
                       Cancelar
                     </button>
@@ -5607,6 +5604,7 @@ export function KanbanCardModal({
                 </div>
               ),
             )}
+            {secaoHead('obra', 'Dados Obra', <p className="text-xs italic text-stone-500">Placeholder.</p>)}
             {!isLegado ? (
               secaoHead(
                 'atasReuniao',
@@ -5621,25 +5619,22 @@ export function KanbanCardModal({
             ) : null}
             {secaoHeadPainelCentro('Chamados')}
             {!isLegado ? (
-              <>
-                {secaoHead(
-                  'relacionamentos',
-                  'Vínculos',
-                  <KanbanCardModalRelacionamentos
-                    key={`${card.id}-${relacionamentosTick}`}
-                    cardId={card.id}
-                    cardTitulo={cardTitulo}
-                    kanbanId={card.kanban_id}
-                    basePath={basePath}
-                    podeGerenciar={podeGerenciarRelacionamentos}
-                    projetoId={card.projeto_id}
-                    ocultarKanbansInternos={usuarioFrank}
-                    mostrarBotaoJuridico={mostrarBotaoJuridico}
-                    cardDesabilitado={Boolean(card.arquivado) || Boolean(card.concluido)}
-                  />,
-                )}
-                {secaoHead('obra', 'Dados Obra', <p className="text-xs italic text-stone-500">Placeholder.</p>)}
-              </>
+              secaoHead(
+                'relacionamentos',
+                'Vínculos',
+                <KanbanCardModalRelacionamentos
+                  key={`${card.id}-${relacionamentosTick}`}
+                  cardId={card.id}
+                  cardTitulo={cardTitulo}
+                  kanbanId={card.kanban_id}
+                  basePath={basePath}
+                  podeGerenciar={podeGerenciarRelacionamentos}
+                  projetoId={card.projeto_id}
+                  ocultarKanbansInternos={usuarioFrank}
+                  mostrarBotaoJuridico={mostrarBotaoJuridico}
+                  cardDesabilitado={Boolean(card.arquivado) || Boolean(card.concluido)}
+                />,
+              )
             ) : null}
             {card && (
               <ChecklistCard
