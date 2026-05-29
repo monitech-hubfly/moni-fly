@@ -128,13 +128,14 @@ export default async function SireneChamadosPage({
         abertura_responsavel_nome: string | null;
         hdm_responsavel: string | null;
         arquivado: boolean;
+        te_trata: boolean | null;
       }
     >();
     if (sireneIds.length > 0) {
       const { data: scRows } = await admin
         .from('sirene_chamados')
         .select(
-          'id, frank_id, frank_nome, numero, tipo, time_abertura, abertura_responsavel_nome, hdm_responsavel, arquivado',
+          'id, frank_id, frank_nome, numero, tipo, time_abertura, abertura_responsavel_nome, hdm_responsavel, arquivado, te_trata',
         )
         .in('id', sireneIds);
       for (const s of scRows ?? []) {
@@ -150,6 +151,7 @@ export default async function SireneChamadosPage({
             (s as { abertura_responsavel_nome?: string | null }).abertura_responsavel_nome ?? null,
           hdm_responsavel: (s as { hdm_responsavel?: string | null }).hdm_responsavel ?? null,
           arquivado: Boolean((s as { arquivado?: boolean | null }).arquivado),
+          te_trata: (s as { te_trata?: boolean | null }).te_trata ?? null,
         });
       }
     }
@@ -235,6 +237,7 @@ export default async function SireneChamadosPage({
             ka?.origem === 'sirene' && scMeta ? scMeta.abertura_responsavel_nome : null,
           sirene_hdm_responsavel: ka?.origem === 'sirene' && scMeta ? scMeta.hdm_responsavel : null,
           frank_id,
+          te_trata: ka?.origem === 'sirene' && scMeta ? scMeta.te_trata : null,
           sirene_arquivado: ka?.origem === 'sirene' && scMeta ? scMeta.arquivado : false,
         };
       });

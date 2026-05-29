@@ -1298,7 +1298,7 @@ function normalizarTipoRelacionamento(raw: string | null | undefined): TipoRelac
   return 'relacionado';
 }
 
-/** Filhos (`origem_card_id`) + vínculos em `kanban_card_vinculos` para a seção Relacionamentos. */
+/** Filhos (`origem_card_id`) + vínculos em `kanban_card_vinculos` para a seção Vínculos. */
 export async function listarRelacionamentosCard(
   cardId: string,
 ): Promise<{ ok: true; items: RelacionamentoCardRow[] } | { ok: false; error: string }> {

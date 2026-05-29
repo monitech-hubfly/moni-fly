@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { normalizeAccessRole } from '@/lib/authz';
 import type { CondominioPatch } from '@/lib/condominios';
+import { condominioNomeJaExiste } from '@/lib/condominios';
 
 type Ok = { ok: true; mensagem: string; id?: string };
 type Err = { ok: false; error: string };
@@ -54,6 +55,10 @@ export async function criarCondominio(patch: CondominioPatch): Promise<Ok | Err>
   if (!gate.ok) return gate;
   const nome = String(patch.nome ?? '').trim();
   if (!nome) return { ok: false, error: 'Informe o nome do condomínio.' };
+
+  if (await condominioNomeJaExiste(gate.supabase, nome)) {
+    return { ok: false, error: 'Já existe um condomínio cadastrado com este nome.' };
+  }
 
   const row = cleanPatch({ ...patch, nome });
 

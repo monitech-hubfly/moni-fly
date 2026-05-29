@@ -7,7 +7,9 @@ import {
   X,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   ArrowLeft,
+  Tag,
   CheckCircle2,
   Pencil,
   Archive,
@@ -108,6 +110,7 @@ import { MencaoContentEditable } from './MencaoContentEditable';
 import { fetchKanbanFasesAtivas, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
 import { publicarComentarioKanbanCard } from '@/lib/actions/kanban-comentarios';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
+import { compareChamadosPainelRank } from '@/lib/sirene-painel-chamados-rank';
 import {
   countKanbanModalInteracoesFiltrosAtivos,
   KanbanInteracoesFiltrosPanel,
@@ -120,7 +123,7 @@ import {
   iconeHistoricoAcao,
   interacaoPassaFiltroResponsavel,
   interacaoPassaFiltroTime,
-  interacoesDemonstracao,
+  countChamadosAbertosNoCard,
   isInteracaoDemonstracao,
   prazoEfetivoParaChamado,
   slaInteracaoBadge,
@@ -225,6 +228,29 @@ function richTextPlainTrimmed(html: string): string {
 
 function inicioDiaLocal(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function PainelLateralSecao({
+  titulo,
+  children,
+  className = '',
+}: {
+  titulo: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      className={`rounded-lg bg-white p-3 ${className}`.trim()}
+      style={{
+        border: '0.5px solid var(--moni-border-default)',
+        boxShadow: 'var(--moni-shadow-sm)',
+      }}
+    >
+      <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-stone-500">{titulo}</h3>
+      {children}
+    </section>
+  );
 }
 
 /** Fundo da linha do chamado (listagem) conforme SLA do prazo efetivo. */
@@ -355,6 +381,7 @@ export function KanbanCardModal({
   const [dataReuniao, setDataReuniao] = useState('');
   const [dataFollowup, setDataFollowup] = useState('');
   const [interacoes, setInteracoes] = useState<InteracaoModal[]>([]);
+  const [erroCarregarChamados, setErroCarregarChamados] = useState<string | null>(null);
   const [modalSessao, setModalSessao] = useState<{
     userId: string | null;
     uploaderNome: string;
@@ -1112,23 +1139,40 @@ export function KanbanCardModal({
       }
 
       try {
-        const origemAtividade = origem === 'legado' ? 'legado' : 'nativo';
-        const { data: interacoesData, error: interacoesError } = await supabase
-          .from('kanban_atividades')
-          .select(
-            'id, titulo, descricao, tipo, times_ids, responsaveis_ids, trava, status, prioridade, data_vencimento, responsavel_id, responsavel_nome_texto, time, created_at, concluida_em, origem, criado_por, arquivado, sirene_chamado_id',
-          )
-          .eq('card_id', cardId)
-          .eq('origem', origemAtividade)
-          .order('ordem', { ascending: true });
+        const interacoesSelect =
+          'id, titulo, descricao, tipo, times_ids, responsaveis_ids, trava, status, prioridade, data_vencimento, responsavel_id, responsavel_nome_texto, time, created_at, concluida_em, origem, criado_por, arquivado, sirene_chamado_id';
+        let interacoesData: Record<string, unknown>[] | null = null;
+        let interacoesError: { message: string } | null = null;
+        {
+          const first = await supabase
+            .from('kanban_atividades')
+            .select(interacoesSelect)
+            .eq('card_id', cardId)
+            .order('ordem', { ascending: true });
+          interacoesData = (first.data ?? null) as Record<string, unknown>[] | null;
+          interacoesError = first.error;
+          if (interacoesError && /ordem/i.test(interacoesError.message)) {
+            const fallback = await supabase
+              .from('kanban_atividades')
+              .select(interacoesSelect)
+              .eq('card_id', cardId)
+              .order('created_at', { ascending: true });
+            interacoesData = (fallback.data ?? null) as Record<string, unknown>[] | null;
+            interacoesError = fallback.error;
+          }
+        }
 
         if (interacoesError) {
-          setInteracoes(interacoesDemonstracao());
+          console.error('[KanbanCardModal] falha ao carregar kanban_atividades', interacoesError);
+          setErroCarregarChamados(interacoesError.message);
+          setInteracoes([]);
           setSubInteracoesPorPai({});
         } else if (!interacoesData?.length) {
+          setErroCarregarChamados(null);
           setInteracoes([]);
           setSubInteracoesPorPai({});
         } else {
+          setErroCarregarChamados(null);
           const rawRespArrays = interacoesData.map((a) => (a as { responsaveis_ids?: unknown }).responsaveis_ids);
           const respFromArrays = rawRespArrays.flatMap((arr) =>
             Array.isArray(arr) ? arr.map((x) => String(x)) : [],
@@ -1262,8 +1306,10 @@ export function KanbanCardModal({
           }
           setSubInteracoesPorPai(porPai);
         }
-      } catch {
-        setInteracoes(interacoesDemonstracao());
+      } catch (e) {
+        console.error('[KanbanCardModal] exceção ao carregar chamados', e);
+        setErroCarregarChamados('Erro inesperado ao carregar chamados.');
+        setInteracoes([]);
         setSubInteracoesPorPai({});
       }
     } catch {
@@ -1955,6 +2001,18 @@ export function KanbanCardModal({
         >
           <ChevronRight className="h-3.5 w-3.5 shrink-0 text-stone-500" aria-hidden />
           <span className="text-xs font-semibold text-stone-800">{label}</span>
+          {chamadosAbertosCount > 0 ? (
+            <span
+              className="ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums"
+              style={{
+                background: 'var(--moni-violet-100, #ede9fe)',
+                color: 'var(--moni-violet-800, #5b21b6)',
+              }}
+              title={`${chamadosAbertosCount} chamado(s) em aberto`}
+            >
+              {chamadosAbertosCount}
+            </span>
+          ) : null}
         </button>
         {ativo ? (
           <p
@@ -1963,6 +2021,13 @@ export function KanbanCardModal({
           >
             Painel de chamados aberto — use <strong className="font-medium text-stone-700">Voltar</strong> no
             centro do card.
+          </p>
+        ) : chamadosAbertosCount > 0 ? (
+          <p
+            className="border-t px-2 pb-2 pt-1.5 text-[10px] text-stone-500"
+            style={{ borderColor: 'var(--moni-border-subtle)' }}
+          >
+            {chamadosAbertosCount} em aberto no banco — clique para ver todos.
           </p>
         ) : null}
       </div>
@@ -2323,6 +2388,14 @@ export function KanbanCardModal({
     [responsaveisOpcoes, inferidoHdmSubEdicao],
   );
 
+  const cardFrankParaRank = useMemo(() => {
+    const fid = card?.franqueado_id?.trim();
+    if (fid) return fid;
+    const rede = card?.rede_franqueado_id?.trim();
+    if (rede) return rede;
+    return modalDetalhes.rede?.id?.trim() ?? null;
+  }, [card?.franqueado_id, card?.rede_franqueado_id, modalDetalhes.rede?.id]);
+
   const interacoesFiltradas = useMemo(() => {
     const situacaoEfetiva =
       filtros.lista === 'concluidas' ? ('qualquer' as const) : filtros.situacao;
@@ -2332,6 +2405,13 @@ export function KanbanCardModal({
       const t = new Date(a.created_at).getTime();
       return Number.isFinite(t) ? t : 0;
     };
+    const rankInput = (it: InteracaoModal) => ({
+      frank_id: cardFrankParaRank,
+      trava: it.trava,
+      data_vencimento: it.data_vencimento ?? prazoEfetivoParaChamado(it, subInteracoesPorPai[it.id] ?? []),
+      atividade_status: it.status,
+      criado_em: it.created_at,
+    });
     const buscaNorm = filtros.busca.trim().toLowerCase();
     const filtered = interacoes.filter((it) => {
       const concl = it.status === 'concluida';
@@ -2357,13 +2437,16 @@ export function KanbanCardModal({
         const bc = b.status === 'concluida';
         if (ac !== bc) return ac ? 1 : -1;
       }
+      if (filtros.ordenacao === 'prioridade_sirene') {
+        return compareChamadosPainelRank(rankInput(a), rankInput(b));
+      }
       if (filtros.ordenacao === 'prazo_asc') return prazoOrdKey(a).localeCompare(prazoOrdKey(b));
       if (filtros.ordenacao === 'prazo_desc') return prazoOrdKey(b).localeCompare(prazoOrdKey(a));
       if (filtros.ordenacao === 'criado_asc') return criadoTs(a) - criadoTs(b);
       if (filtros.ordenacao === 'criado_desc') return criadoTs(b) - criadoTs(a);
-      return 0;
+      return compareChamadosPainelRank(rankInput(a), rankInput(b));
     });
-  }, [interacoes, filtros, kanbanTimes, subInteracoesPorPai]);
+  }, [interacoes, filtros, kanbanTimes, subInteracoesPorPai, cardFrankParaRank]);
 
   const sireneChamadoIdPastel = useMemo(() => {
     for (const it of interacoes) {
@@ -2372,6 +2455,8 @@ export function KanbanCardModal({
     }
     return null;
   }, [interacoes]);
+
+  const chamadosAbertosCount = useMemo(() => countChamadosAbertosNoCard(interacoes), [interacoes]);
 
   const faseNomePorId = useMemo(() => new Map(fases.map((f) => [f.id, f.nome])), [fases]);
 
@@ -3110,19 +3195,35 @@ export function KanbanCardModal({
 <div className="mb-6 flex-1">
               <h4 className="mb-3 text-sm font-semibold" style={{ color: 'var(--moni-text-secondary)' }}>
                 Chamados
+                {interacoes.length > 0 ? (
+                  <span className="ml-2 text-xs font-normal text-stone-500">
+                    ({interacoes.length} no card
+                    {chamadosAbertosCount > 0 ? ` · ${chamadosAbertosCount} em aberto` : ''})
+                  </span>
+                ) : null}
               </h4>
-              {interacoes.some((a) => isInteracaoDemonstracao(a.id)) ? (
-                <p
-                  className="mb-3 rounded-lg border px-3 py-2 text-xs"
+              {erroCarregarChamados ? (
+                <div
+                  className="mb-3 rounded-lg border px-3 py-2.5 text-xs"
                   style={{
-                    borderColor: 'var(--moni-status-attention-border)',
-                    background: 'var(--moni-status-attention-bg)',
-                    color: 'var(--moni-status-attention-text)',
+                    borderColor: 'var(--moni-status-overdue-border)',
+                    background: 'var(--moni-status-overdue-bg)',
+                    color: 'var(--moni-status-overdue-text)',
                   }}
+                  role="alert"
                 >
-                  <strong>Exemplos:</strong> não há linhas em <code className="rounded bg-white/50 px-1">kanban_atividades</code> para este
-                  card. Ao gravar um chamado real, os exemplos somem após recarregar.
-                </p>
+                  <p className="font-medium">Não foi possível carregar os chamados deste card.</p>
+                  <p className="mt-1 opacity-90">
+                    Nada foi apagado no banco — abra de novo ou tente recarregar. {erroCarregarChamados}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void loadCard()}
+                    className="mt-2 rounded-md border border-current/30 bg-white/60 px-2.5 py-1 text-[11px] font-semibold hover:bg-white"
+                  >
+                    Tentar novamente
+                  </button>
+                </div>
               ) : null}
 
               <div className="relative mb-4">
@@ -4087,7 +4188,11 @@ export function KanbanCardModal({
                   })}
                 </div>
               ) : (
-                <p className="mb-4 text-sm text-stone-500">Nenhum chamado para os filtros.</p>
+                <p className="mb-4 text-sm text-stone-500">
+                  {interacoes.length === 0
+                    ? 'Nenhum chamado vinculado a este card no banco.'
+                    : 'Nenhum chamado corresponde aos filtros atuais — limpe os filtros para ver todos.'}
+                </p>
               )}
 
               {sireneChamadoIdPastel != null ? (
@@ -4239,6 +4344,26 @@ export function KanbanCardModal({
             </>
             ) : (
             <>
+            {chamadosAbertosCount > 0 ? (
+              <button
+                type="button"
+                onClick={abrirPainelChamados}
+                className="mb-4 flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left text-xs transition hover:opacity-95"
+                style={{
+                  borderColor: 'var(--moni-violet-200, #ddd6fe)',
+                  background: 'var(--moni-violet-50, #f5f3ff)',
+                  color: 'var(--moni-violet-900, #4c1d95)',
+                }}
+              >
+                <span>
+                  <strong className="font-semibold">
+                    {chamadosAbertosCount} chamado{chamadosAbertosCount === 1 ? '' : 's'} em aberto
+                  </strong>
+                  <span className="mt-0.5 block font-normal opacity-90">Ver painel de Chamados (dados do banco)</span>
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+              </button>
+            ) : null}
             <KanbanCardDatasFields
               cardId={card.id}
               origem={origem}
@@ -4847,24 +4972,23 @@ export function KanbanCardModal({
           {/* Direita — ações de movimento do card (mobile: após o centro) */}
           {mostrarColunaAcoesLateral ? (
           <aside
-            className="moni-card-modal-acoes order-2 flex w-full shrink-0 flex-col gap-1.5 border-t p-2 text-xs sm:order-3 sm:h-full sm:min-w-0 sm:w-[120px] sm:max-w-[120px] sm:flex-none sm:border-l sm:border-t-0 sm:p-2"
+            className="moni-card-modal-acoes order-2 flex w-full shrink-0 flex-col gap-3 overflow-y-auto border-t p-3 text-xs sm:order-3 sm:h-full sm:min-w-0 sm:max-w-[var(--moni-card-modal-acoes-width)] sm:w-[var(--moni-card-modal-acoes-width)] sm:flex-none sm:border-l sm:border-t-0 sm:p-4"
             style={{
               borderColor: 'var(--moni-border-default)',
               background: 'var(--moni-surface-50)',
             }}
             aria-label="Ações do card"
           >
-            <div className="mb-2 border-b pb-2" style={{ borderColor: 'var(--moni-border-default)' }}>
-              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-stone-500">Tags</p>
-              <div className="mb-1.5 flex flex-wrap gap-1">
+            <PainelLateralSecao titulo="Tags">
+              <div className="mb-2.5 flex flex-wrap gap-1.5">
                 {tagsCard.map((t) => (
                   <span
                     key={t.id}
-                    className="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                    className="inline-flex max-w-full items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold leading-tight"
                     style={{ background: t.cor + '22', color: t.cor, border: `1px solid ${t.cor}55` }}
                   >
-                    {t.nome}
-                    {!ocultarGestaoCard && (
+                    <span className="truncate">{t.nome}</span>
+                    {!ocultarGestaoCard ? (
                       <button
                         type="button"
                         onClick={() =>
@@ -4872,133 +4996,149 @@ export function KanbanCardModal({
                             setTagsCard((prev) => prev.filter((x) => x.id !== t.id)),
                           )
                         }
-                        className="ml-0.5 text-current opacity-60 hover:opacity-100"
+                        className="shrink-0 rounded-full p-0.5 text-current opacity-60 transition hover:bg-black/5 hover:opacity-100"
+                        aria-label={`Remover tag ${t.nome}`}
                       >
-                        ×
+                        <X className="h-3 w-3" aria-hidden />
                       </button>
-                    )}
+                    ) : null}
                   </span>
                 ))}
-                {tagsCard.length === 0 && <p className="text-[10px] text-stone-400">Nenhuma tag</p>}
+                {tagsCard.length === 0 ? (
+                  <p className="text-xs text-stone-400">Nenhuma tag neste card</p>
+                ) : null}
               </div>
               {!ocultarGestaoCard && card ? (
-                <div>
+                <div className="space-y-2">
                   <button
                     type="button"
                     onClick={() => setTagsOpen((v) => !v)}
-                    className="text-[10px] font-medium text-moni-primary hover:underline"
+                    className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-stone-300 bg-stone-50/80 px-3 py-2 text-xs font-medium text-stone-700 transition hover:border-stone-400 hover:bg-white"
                   >
-                    + Adicionar tag
+                    <Tag className="h-3.5 w-3.5 shrink-0 text-stone-500" aria-hidden />
+                    {tagsOpen ? 'Fechar lista' : 'Adicionar tag'}
                   </button>
-                  {tagsOpen && (
-                    <div className="mt-1.5 space-y-1.5">
-                      <div className="flex flex-wrap gap-1">
-                        {tagsKanban
-                          .filter((t) => !tagsCard.some((tc) => tc.tag_id === t.id))
-                          .map((t) => (
-                            <button
-                              key={t.id}
-                              type="button"
-                              onClick={async () => {
-                                const res = await vincularTagCard(card.id, t.id, basePath);
-                                if (!res.ok) {
-                                  alert('Erro ao vincular tag: ' + res.error);
-                                  return;
-                                }
-                                const tc = await listarTagsCard(card.id);
-                                setTagsCard(tc);
-                                setTagsOpen(false);
-                              }}
-                              className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                              style={{ background: t.cor + '22', color: t.cor, border: `1px solid ${t.cor}55` }}
-                            >
-                              {t.nome}
-                            </button>
-                          ))}
-                      </div>
-                      {pode('criar_chamados') && (
-                        <div className="flex items-center gap-1">
+                  {tagsOpen ? (
+                    <div className="space-y-2.5 rounded-lg border border-stone-200 bg-stone-50/50 p-2.5">
+                      {tagsKanban.filter((t) => !tagsCard.some((tc) => tc.tag_id === t.id)).length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {tagsKanban
+                            .filter((t) => !tagsCard.some((tc) => tc.tag_id === t.id))
+                            .map((t) => (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onClick={async () => {
+                                  const res = await vincularTagCard(card.id, t.id, basePath);
+                                  if (!res.ok) {
+                                    alert('Erro ao vincular tag: ' + res.error);
+                                    return;
+                                  }
+                                  const tc = await listarTagsCard(card.id);
+                                  setTagsCard(tc);
+                                  setTagsOpen(false);
+                                }}
+                                className="rounded-full px-2.5 py-1 text-[11px] font-semibold transition hover:opacity-90"
+                                style={{ background: t.cor + '22', color: t.cor, border: `1px solid ${t.cor}55` }}
+                              >
+                                {t.nome}
+                              </button>
+                            ))}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-stone-500">Todas as tags do funil já estão no card.</p>
+                      )}
+                      {pode('criar_chamados') ? (
+                        <div className="space-y-2 border-t border-stone-200 pt-2.5">
+                          <p className="text-[11px] font-medium text-stone-600">Nova tag no funil</p>
                           <input
                             type="text"
                             value={novatagsNome}
                             onChange={(e) => setNovaTagNome(e.target.value)}
-                            placeholder="Nova tag..."
-                            className="flex-1 rounded border border-stone-300 px-1.5 py-0.5 text-[10px]"
+                            placeholder="Nome da tag"
+                            className="w-full rounded-lg border border-stone-300 bg-white px-2.5 py-2 text-xs focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400"
                           />
-                          <input
-                            type="color"
-                            value={novaTagCor}
-                            onChange={(e) => setNovaTagCor(e.target.value)}
-                            className="h-5 w-5 cursor-pointer rounded border-0"
-                          />
-                          <button
-                            type="button"
-                            disabled={criandoTag || !novatagsNome.trim()}
-                            onClick={() =>
-                              void (async () => {
-                                if (!card?.kanban_id) return;
-                                setCriandoTag(true);
-                                const res = await criarTagKanban(card.kanban_id, novatagsNome.trim(), novaTagCor, basePath);
-                                if (res.ok) {
-                                  const tk = await listarTagsKanban(card.kanban_id);
-                                  setTagsKanban(tk);
-                                  setNovaTagNome('');
-                                }
-                                setCriandoTag(false);
-                              })()
-                            }
-                            className="rounded px-1.5 py-0.5 text-[10px] font-medium text-white disabled:opacity-50"
-                            style={{ background: 'var(--moni-text-primary)' }}
-                          >
-                            {criandoTag ? '…' : 'Criar'}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <label className="sr-only" htmlFor="kanban-modal-nova-tag-cor">
+                              Cor da tag
+                            </label>
+                            <input
+                              id="kanban-modal-nova-tag-cor"
+                              type="color"
+                              value={novaTagCor}
+                              onChange={(e) => setNovaTagCor(e.target.value)}
+                              className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-stone-200 bg-white p-0.5"
+                            />
+                            <button
+                              type="button"
+                              disabled={criandoTag || !novatagsNome.trim()}
+                              onClick={() =>
+                                void (async () => {
+                                  if (!card?.kanban_id) return;
+                                  setCriandoTag(true);
+                                  const res = await criarTagKanban(
+                                    card.kanban_id,
+                                    novatagsNome.trim(),
+                                    novaTagCor,
+                                    basePath,
+                                  );
+                                  if (res.ok) {
+                                    const tk = await listarTagsKanban(card.kanban_id);
+                                    setTagsKanban(tk);
+                                    setNovaTagNome('');
+                                  }
+                                  setCriandoTag(false);
+                                })()
+                              }
+                              className="min-w-0 flex-1 rounded-lg px-3 py-2 text-xs font-semibold text-white transition disabled:opacity-50"
+                              style={{ background: 'var(--moni-text-primary)' }}
+                            >
+                              {criandoTag ? 'Criando…' : 'Criar tag'}
+                            </button>
+                          </div>
                         </div>
-                      )}
+                      ) : null}
                     </div>
-                  )}
+                  ) : null}
                 </div>
               ) : null}
-            </div>
+            </PainelLateralSecao>
 
             {exibirBlocoArquivar ? (
-              <div className="mb-2 border-b pb-2" style={{ borderColor: 'var(--moni-border-default)' }}>
-                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-stone-500">
-                  Arquivar
-                </p>
+              <PainelLateralSecao titulo="Arquivar">
                 {!arquivamentoAberto ? (
                   <button
                     type="button"
                     onClick={() => setArquivamentoAberto(true)}
                     disabled={loading}
-                    className="w-full px-2 py-1 text-[11px] font-medium leading-tight disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold transition disabled:opacity-50"
                     style={{
-                      background: 'transparent',
+                      background: 'var(--moni-status-overdue-bg)',
                       color: 'var(--moni-status-overdue-text)',
                       border: '0.5px solid var(--moni-status-overdue-border)',
-                      borderRadius: 'var(--moni-radius-md)',
                     }}
                   >
+                    <Archive className="h-4 w-4 shrink-0" aria-hidden />
                     Arquivar card
                   </button>
                 ) : (
-                  <div className="space-y-1.5">
-                    <label className="block text-[10px] font-medium text-stone-600">Motivo</label>
+                  <div className="space-y-2">
+                    <label className="block text-xs font-medium text-stone-600">Motivo do arquivamento</label>
                     <textarea
                       value={motivoArquivamento}
                       onChange={(e) => setMotivoArquivamento(e.target.value)}
                       rows={3}
-                      placeholder="Motivo…"
-                      className="w-full min-w-0 resize-none rounded p-1.5 text-[11px] focus:outline-none"
-                      style={{ border: '0.5px solid var(--moni-border-default)', background: 'var(--moni-surface-0)' }}
+                      placeholder="Descreva o motivo…"
+                      className="w-full min-w-0 resize-none rounded-lg border border-stone-300 bg-white px-2.5 py-2 text-xs focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400"
                     />
                     <button
                       type="button"
                       onClick={() => void handleConfirmarArquivar()}
                       disabled={loading || !motivoArquivamento.trim()}
-                      className="w-full px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-50"
-                      style={{ background: 'var(--moni-status-overdue-border)', borderRadius: 'var(--moni-radius-md)' }}
+                      className="w-full rounded-lg px-3 py-2 text-xs font-semibold text-white transition disabled:opacity-50"
+                      style={{ background: 'var(--moni-status-overdue-border)' }}
                     >
-                      {loading ? '…' : 'Confirmar'}
+                      {loading ? 'Arquivando…' : 'Confirmar arquivamento'}
                     </button>
                     <button
                       type="button"
@@ -5007,25 +5147,20 @@ export function KanbanCardModal({
                         setMotivoArquivamento('');
                       }}
                       disabled={loading}
-                      className="w-full px-2 py-1 text-[11px] font-medium text-stone-700 disabled:opacity-50"
-                      style={{
-                        background: 'var(--moni-surface-0)',
-                        border: '0.5px solid var(--moni-border-default)',
-                        borderRadius: 'var(--moni-radius-md)',
-                      }}
+                      className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-medium text-stone-700 transition hover:bg-stone-50 disabled:opacity-50"
                     >
                       Cancelar
                     </button>
                   </div>
                 )}
-              </div>
+              </PainelLateralSecao>
             ) : null}
 
             {pode('mover_fase') ? (
-              <>
+              <PainelLateralSecao titulo="Movimentação">
                 {gateStep5Toast ? (
                   <p
-                    className="mb-2 rounded-md px-2 py-1.5 text-center text-[10px] font-medium leading-snug"
+                    className="mb-2.5 rounded-lg px-2.5 py-2 text-[11px] font-medium leading-snug"
                     role="alert"
                     style={{
                       background: '#FAEEDA',
@@ -5037,151 +5172,119 @@ export function KanbanCardModal({
                   </p>
                 ) : null}
                 {!modalAprovacaoFase ? (
-                  <>
+                  <div className="flex flex-col gap-2">
                     <button
                       type="button"
                       onClick={() => void handleRetrocederFase()}
                       disabled={loading || !podeRetrocederFase}
-                      className="w-full px-2 py-1 text-xs font-medium leading-tight transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
-                      style={{
-                        background: 'var(--moni-surface-0)',
-                        color: 'var(--moni-text-primary)',
-                        border: '0.5px solid var(--moni-border-default)',
-                        borderRadius: 'var(--moni-radius-md)',
-                      }}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-xs font-semibold text-stone-800 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {loading ? '…' : 'Fase Anterior'}
+                      <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden />
+                      {loading ? '…' : 'Fase anterior'}
                     </button>
                     <button
                       type="button"
                       onClick={() => void handleAvancarFase()}
                       disabled={loading || !podeAvancarFase}
-                      className="w-full px-2 py-1 text-xs font-medium leading-tight transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-semibold transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
                       style={{
-                        background: 'var(--moni-surface-0)',
+                        background: 'var(--moni-green-50)',
                         color: 'var(--moni-green-800)',
-                        border: '0.5px solid var(--moni-green-400)',
-                        borderRadius: 'var(--moni-radius-md)',
+                        borderColor: 'var(--moni-green-400)',
                       }}
                     >
-                      {loading ? '…' : 'Próxima Fase'}
+                      {loading ? '…' : 'Próxima fase'}
+                      <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
                     </button>
-                  </>
+                  </div>
                 ) : (
-                  <div className="space-y-1.5">
-                    <p className="text-center text-[10px] font-medium leading-snug text-stone-700">
+                  <div className="space-y-2">
+                    <p className="text-xs leading-relaxed text-stone-700">
                       Este card tem {modalAprovacaoFase.itensPendentes}{' '}
                       {modalAprovacaoFase.itensPendentes === 1 ? 'item' : 'itens'} de checklist
-                      pendente{modalAprovacaoFase.itensPendentes === 1 ? '' : 's'}. Deseja solicitar
-                      aprovação para avançar de fase?
+                      pendente{modalAprovacaoFase.itensPendentes === 1 ? '' : 's'}. Deseja solicitar aprovação para
+                      avançar de fase?
                     </p>
                     <button
                       type="button"
                       onClick={() => void handleSolicitarAprovacaoFase()}
                       disabled={solicitandoAprovacaoFase}
-                      className="w-full px-2 py-1 text-xs font-semibold leading-tight text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                      style={{
-                        background: 'var(--moni-green-600)',
-                        borderRadius: 'var(--moni-radius-md)',
-                      }}
+                      className="w-full rounded-lg px-3 py-2.5 text-xs font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                      style={{ background: 'var(--moni-green-600)' }}
                     >
-                      {solicitandoAprovacaoFase ? '…' : 'Solicitar aprovação'}
+                      {solicitandoAprovacaoFase ? 'Enviando…' : 'Solicitar aprovação'}
                     </button>
                     <button
                       type="button"
                       onClick={() => setModalAprovacaoFase(null)}
                       disabled={solicitandoAprovacaoFase}
-                      className="w-full px-2 py-1 text-xs font-medium leading-tight transition hover:bg-stone-100 disabled:opacity-50"
-                      style={{
-                        background: 'var(--moni-surface-0)',
-                        color: 'var(--moni-text-primary)',
-                        border: '0.5px solid var(--moni-border-default)',
-                        borderRadius: 'var(--moni-radius-md)',
-                      }}
+                      className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-medium text-stone-700 transition hover:bg-stone-50 disabled:opacity-50"
                     >
                       Cancelar
                     </button>
                   </div>
                 )}
-              </>
+              </PainelLateralSecao>
             ) : null}
+
             {pode('finalizar_cards') && (exibirBotaoFinalizar || confirmandoFinalizar) ? (
-              <div className="mt-1 border-t border-stone-200 pt-1.5">
+              <PainelLateralSecao titulo="Conclusão">
                 {!confirmandoFinalizar ? (
                   <button
                     type="button"
                     onClick={() => setConfirmandoFinalizar(true)}
                     disabled={loading}
-                    className="w-full px-2 py-1 text-xs font-semibold leading-tight transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-semibold transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
                     style={{
                       background: 'var(--moni-green-50)',
                       color: 'var(--moni-green-800)',
-                      border: '0.5px solid var(--moni-green-400)',
-                      borderRadius: 'var(--moni-radius-md)',
+                      borderColor: 'var(--moni-green-400)',
                     }}
                   >
+                    <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
                     Finalizar card
                   </button>
                 ) : (
-                  <div className="space-y-1.5">
-                    <p className="text-center text-[10px] font-medium leading-snug text-stone-700">
-                      Confirmar conclusão deste card?
-                    </p>
+                  <div className="space-y-2">
+                    <p className="text-xs leading-relaxed text-stone-700">Confirmar conclusão deste card?</p>
                     <button
                       type="button"
                       onClick={() => void handleConfirmarFinalizarCard()}
                       disabled={loading}
-                      className="w-full px-2 py-1 text-xs font-semibold leading-tight text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                      style={{
-                        background: 'var(--moni-green-600)',
-                        borderRadius: 'var(--moni-radius-md)',
-                      }}
+                      className="w-full rounded-lg px-3 py-2.5 text-xs font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                      style={{ background: 'var(--moni-green-600)' }}
                     >
-                      {loading ? '…' : 'Confirmar'}
+                      {loading ? 'Finalizando…' : 'Confirmar'}
                     </button>
                     <button
                       type="button"
                       onClick={() => setConfirmandoFinalizar(false)}
                       disabled={loading}
-                      className="w-full px-2 py-1 text-xs font-medium leading-tight transition hover:bg-stone-100 disabled:opacity-50"
-                      style={{
-                        background: 'var(--moni-surface-0)',
-                        color: 'var(--moni-text-primary)',
-                        border: '0.5px solid var(--moni-border-default)',
-                        borderRadius: 'var(--moni-radius-md)',
-                      }}
+                      className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-medium text-stone-700 transition hover:bg-stone-50 disabled:opacity-50"
                     >
                       Cancelar
                     </button>
                   </div>
                 )}
-              </div>
+              </PainelLateralSecao>
             ) : null}
 
             {mostrarBotaoJuridico ? (
-              <div
-                className="mt-auto border-t pt-2"
-                style={{ borderColor: 'var(--moni-border-default)' }}
-              >
-                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-stone-500">
-                  Ações
-                </p>
+              <PainelLateralSecao titulo="Ações" className="mt-auto">
                 <button
                   type="button"
                   onClick={() => void handleAbrirChamadoJuridico()}
                   disabled={abrindoChamadoJuridico || Boolean(card.arquivado) || Boolean(card.concluido)}
-                  className="w-full px-2 py-1.5 text-[11px] font-semibold leading-tight transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full rounded-lg px-3 py-2.5 text-xs font-semibold leading-snug text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
                   style={{
                     background: 'var(--moni-navy-800)',
-                    color: '#fff',
-                    borderRadius: 'var(--moni-radius-md)',
                   }}
                 >
-                  {abrindoChamadoJuridico ? 'Abrindo…' : 'Abrir Chamado Jurídico'}
+                  {abrindoChamadoJuridico ? 'Abrindo…' : 'Abrir chamado jurídico'}
                 </button>
                 {chamadoJuridicoToast ? (
                   <p
-                    className="mt-1.5 rounded-md px-2 py-1 text-[10px] font-medium leading-snug"
+                    className="mt-2 rounded-lg px-2.5 py-2 text-[11px] font-medium leading-snug"
                     role="status"
                     style={
                       chamadoJuridicoToast.tipo === 'ok'
@@ -5200,7 +5303,7 @@ export function KanbanCardModal({
                     {chamadoJuridicoToast.msg}
                   </p>
                 ) : null}
-              </div>
+              </PainelLateralSecao>
             ) : null}
           </aside>
           ) : null}

@@ -58,7 +58,7 @@ type Props = {
 };
 
 /**
- * Quatro blocos obrigatórios do lado esquerdo do card (Franqueado, Novo Negócio, Pré Obra, Relacionamentos).
+ * Quatro blocos obrigatórios do lado esquerdo do card (Franqueado, Novo Negócio, Pré Obra, Vínculos).
  * Campos vazios aparecem como "—".
  */
 export function ProcessoQuatroSecoesDados({
@@ -393,7 +393,7 @@ export function ProcessoQuatroSecoesDados({
       </div>
 
       <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
-        <p className="text-xs font-semibold text-stone-700">Relacionamentos</p>
+        <p className="text-xs font-semibold text-stone-700">Vínculos</p>
         <div className="mt-2 space-y-3 text-sm">
           {relacionados.pai ? (
             <div className="rounded border border-stone-200 bg-white p-2">

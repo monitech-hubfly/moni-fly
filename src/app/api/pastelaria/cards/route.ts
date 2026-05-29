@@ -4,6 +4,10 @@ import { fetchAreaNome, registrarLogPastelaria } from '@/lib/pastelaria/audit';
 import { getPastelariaAuthUser, isAuthResponse } from '@/lib/pastelaria/auth';
 import { registrarPastelariaLog } from '@/lib/pastelaria/log';
 
+import {
+  fetchPastelariaCardsRankMeta,
+  sortPastelariaCardsByPrioridade,
+} from '@/lib/pastelaria/pastelaria-card-rank';
 import { mapPastelariaCardWithArea, PASTELARIA_CARD_SELECT, type PastelariaCardDbRow } from '@/lib/pastelaria/select';
 
 import type { CreatePastelariaCardBody } from '@/lib/pastelaria/types';
@@ -100,9 +104,10 @@ export async function GET(req: Request) {
 
     const cards = (data ?? []).map((row) => mapPastelariaCardWithArea(row as PastelariaCardDbRow));
 
+    const rankMeta = await fetchPastelariaCardsRankMeta(supabase, cards);
+    const sorted = sortPastelariaCardsByPrioridade(cards, rankMeta);
 
-
-    return NextResponse.json({ cards });
+    return NextResponse.json({ cards: sorted });
 
   } catch (e) {
 

@@ -245,7 +245,8 @@
 
   --moni-card-width-kanban:   280px;   /* largura do card na coluna */
   --moni-card-width-min:      240px;
-  --moni-card-modal-max:      1100px;  /* largura máx do modal de detalhe */
+  --moni-card-modal-max:      1180px;  /* largura máx do modal de detalhe */
+  --moni-card-modal-acoes-width: 15.5rem; /* coluna direita (tags, fase, arquivar) */
   --moni-column-width:        300px;   /* largura da coluna no board */
 
   /* Carômetro — layout de página e headlines */

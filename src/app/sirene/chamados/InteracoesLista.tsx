@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { rotaCardOrigem } from '@/lib/rota-card-origem';
-import { ORDEM_GRUPOS_PAINEL, rankChamadoPainelUnificado } from '@/lib/sirene-painel-chamados-rank';
+import { compareChamadosPainelRank, ORDEM_GRUPOS_PAINEL, rankChamadoPainelUnificado } from '@/lib/sirene-painel-chamados-rank';
 import {
   MONI_RESP_FILTRO_PREFIX,
   MONI_TIME_FILTRO_PREFIX,
@@ -77,6 +77,7 @@ export type InteracaoSireneRow = {
   sirene_abertura_responsavel_nome?: string | null;
   sirene_hdm_responsavel?: string | null;
   frank_id?: string | null;
+  te_trata?: boolean | null;
   /** Chamado Sirene arquivado (admin/team pode exibir com toggle). */
   sirene_arquivado?: boolean;
 };
@@ -616,24 +617,28 @@ export function InteracoesLista({
     for (const g of ORDEM_GRUPOS_PAINEL) {
       const list = m.get(g.key);
       if (!list) continue;
-      list.sort((a, b) => {
-        const ra = rankChamadoPainelUnificado({
-          frank_id: a.frank_id,
-          franqueado_nome: a.franqueado_nome,
-          trava: a.trava,
-          data_vencimento: a.data_vencimento,
-          atividade_status: a.atividade_status,
-        });
-        const rb = rankChamadoPainelUnificado({
-          frank_id: b.frank_id,
-          franqueado_nome: b.franqueado_nome,
-          trava: b.trava,
-          data_vencimento: b.data_vencimento,
-          atividade_status: b.atividade_status,
-        });
-        if (ra.dueMs !== rb.dueMs) return ra.dueMs - rb.dueMs;
-        return String(b.criado_em).localeCompare(String(a.criado_em));
-      });
+      list.sort((a, b) =>
+        compareChamadosPainelRank(
+          {
+            frank_id: a.frank_id,
+            franqueado_nome: a.franqueado_nome,
+            trava: a.trava,
+            te_trata: a.te_trata,
+            data_vencimento: a.data_vencimento,
+            atividade_status: a.atividade_status,
+            criado_em: a.criado_em,
+          },
+          {
+            frank_id: b.frank_id,
+            franqueado_nome: b.franqueado_nome,
+            trava: b.trava,
+            te_trata: b.te_trata,
+            data_vencimento: b.data_vencimento,
+            atividade_status: b.atividade_status,
+            criado_em: b.criado_em,
+          },
+        ),
+      );
     }
     return m;
   }, [filtradas]);

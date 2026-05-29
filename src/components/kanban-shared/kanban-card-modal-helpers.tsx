@@ -257,6 +257,16 @@ export function isInteracaoDemonstracao(id: unknown): boolean {
   return false;
 }
 
+/** Chamado persistido em aberto (exclui demo e status finais). */
+export function interacaoChamadoEmAberto(it: InteracaoModal): boolean {
+  if (isInteracaoDemonstracao(it.id)) return false;
+  return it.status !== 'concluida' && it.status !== 'cancelada';
+}
+
+export function countChamadosAbertosNoCard(interacoes: InteracaoModal[]): number {
+  return interacoes.filter(interacaoChamadoEmAberto).length;
+}
+
 /**
  * Exemplos **somente visuais** para testar layout (prazos, badges, listas) no modal/cartão
  * em modo demonstração. Não há UUIDs reais: `responsavel_id` fica `null`, `responsaveis_ids`

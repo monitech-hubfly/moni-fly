@@ -13,7 +13,7 @@ import {
   validarParTimeResponsavelMoni,
   validarTimeMoniOpcional,
 } from '@/lib/times-responsaveis';
-import { rankChamadoPainelUnificado } from '@/lib/sirene-painel-chamados-rank';
+import { compareChamadosPainelRank } from '@/lib/sirene-painel-chamados-rank';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import { podeExcluirChamadoSirene } from '@/lib/sirene-utils';
 import { notificarMencoesSirene, resolverMencoesSirene } from '@/lib/actions/sirene-mencoes';
@@ -811,6 +811,7 @@ export async function criarChamado(
       frank_id: frankId,
       frank_nome: frankNome,
       te_trata: teTrata,
+      trava: teTrata === true,
       tipo,
       hdm_responsavel: hdmResponsavel,
       visivel_frank: visivelFrank,
@@ -1936,7 +1937,7 @@ export async function listChamados(
   if (!user) return { ok: false, error: 'Faça login.' };
 
   let q = supabase.from('sirene_chamados').select(
-    'id, numero, incendio, status, prioridade, tipo, hdm_responsavel, time_abertura, abertura_responsavel_nome, trava, created_at, frank_id, data_vencimento, arquivado',
+    'id, numero, incendio, status, prioridade, tipo, hdm_responsavel, time_abertura, abertura_responsavel_nome, trava, te_trata, created_at, frank_id, data_vencimento, arquivado',
   );
 
   if (!incluirArquivados) q = q.eq('arquivado', false);
@@ -1984,25 +1985,26 @@ export async function listChamados(
     };
   });
 
-  chamados.sort((a, b) => {
-    const ra = rankChamadoPainelUnificado({
-      frank_id: a.frank_id,
-      franqueado_nome: null,
-      trava: a.trava,
-      data_vencimento: a.data_vencimento,
-      atividade_status: statusSireneParaRankLista(a.status),
-    });
-    const rb = rankChamadoPainelUnificado({
-      frank_id: b.frank_id,
-      franqueado_nome: null,
-      trava: b.trava,
-      data_vencimento: b.data_vencimento,
-      atividade_status: statusSireneParaRankLista(b.status),
-    });
-    if (ra.group !== rb.group) return ra.group - rb.group;
-    if (ra.dueMs !== rb.dueMs) return ra.dueMs - rb.dueMs;
-    return String(b.created_at ?? '').localeCompare(String(a.created_at ?? ''));
-  });
+  chamados.sort((a, b) =>
+    compareChamadosPainelRank(
+      {
+        frank_id: a.frank_id,
+        trava: a.trava,
+        te_trata: (a as { te_trata?: boolean | null }).te_trata,
+        data_vencimento: a.data_vencimento,
+        atividade_status: statusSireneParaRankLista(a.status),
+        criado_em: a.created_at,
+      },
+      {
+        frank_id: b.frank_id,
+        trava: b.trava,
+        te_trata: (b as { te_trata?: boolean | null }).te_trata,
+        data_vencimento: b.data_vencimento,
+        atividade_status: statusSireneParaRankLista(b.status),
+        criado_em: b.created_at,
+      },
+    ),
+  );
 
   return { ok: true, chamados };
 }

@@ -105,6 +105,23 @@ function mapRow(r: Record<string, unknown>): CondominioRow {
   };
 }
 
+export async function condominioNomeJaExiste(
+  supabase: Awaited<ReturnType<typeof import('@/lib/supabase/server').createClient>>,
+  nome: string,
+  ignorarId?: string,
+): Promise<boolean> {
+  const alvo = normalizarParaBuscaCondominio(nome);
+  if (!alvo) return false;
+  const { data } = await supabase.from('condominios').select('id, nome');
+  for (const r of data ?? []) {
+    const id = String((r as { id?: string }).id ?? '');
+    if (ignorarId && id === ignorarId) continue;
+    const n = String((r as { nome?: string }).nome ?? '');
+    if (normalizarParaBuscaCondominio(n) === alvo) return true;
+  }
+  return false;
+}
+
 export async function fetchCondominiosRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<CondominioRow[] | null> {

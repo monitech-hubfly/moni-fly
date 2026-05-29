@@ -23,8 +23,11 @@ export type RankChamadoPainelInput = {
   /** Fallback quando não há frank_id (ex.: só nome na view). */
   franqueado_nome?: string | null;
   trava?: boolean | null;
+  /** Abertura Sirene: "Esse incêndio te trata?" — conta como trava na priorização. */
+  te_trata?: boolean | null;
   data_vencimento?: string | null;
   atividade_status?: string | null;
+  criado_em?: string | null;
 };
 
 export function rankChamadoPainelUnificado(row: RankChamadoPainelInput): { group: number; dueMs: number } {
@@ -41,7 +44,7 @@ export function rankChamadoPainelUnificado(row: RankChamadoPainelInput): { group
   const hasFrankId = row.frank_id != null && String(row.frank_id).trim() !== '';
   const hasFrankNome = (row.franqueado_nome ?? '').trim() !== '';
   const hasFrank = hasFrankId || hasFrankNome;
-  const trava = Boolean(row.trava);
+  const trava = Boolean(row.trava) || row.te_trata === true;
   const due = parseDateOnlyLocal(row.data_vencimento ?? null);
   const today = startOfTodayLocal();
   const overdue = due != null && due < today;
@@ -54,6 +57,22 @@ export function rankChamadoPainelUnificado(row: RankChamadoPainelInput): { group
   if (trava) return { group: 4, dueMs };
   if (hasFrank) return { group: 5, dueMs };
   return { group: 6, dueMs };
+}
+
+/** Comparador compartilhado: grupo → prazo → criação (mais recente primeiro). */
+export function compareChamadosPainelRank(
+  a: RankChamadoPainelInput,
+  b: RankChamadoPainelInput,
+): number {
+  const ra = rankChamadoPainelUnificado(a);
+  const rb = rankChamadoPainelUnificado(b);
+  if (ra.group !== rb.group) return ra.group - rb.group;
+  if (ra.dueMs !== rb.dueMs) return ra.dueMs - rb.dueMs;
+  return String(b.criado_em ?? '').localeCompare(String(a.criado_em ?? ''));
+}
+
+export function sortChamadosPainelRank<T extends RankChamadoPainelInput>(items: readonly T[]): T[] {
+  return [...items].sort(compareChamadosPainelRank);
 }
 
 export const ORDEM_GRUPOS_PAINEL: Array<{ key: number; titulo: string }> = [

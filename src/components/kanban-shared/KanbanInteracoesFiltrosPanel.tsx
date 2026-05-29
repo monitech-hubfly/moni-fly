@@ -7,7 +7,12 @@ import { filtrarLinhasTimeKanbanPorHdm } from '@/lib/times-responsaveis';
 
 export type ListaInteracoesModal = 'abertas' | 'concluidas' | 'todas';
 export type SituacaoFiltroModal = 'qualquer' | InteracaoModal['status'];
-export type OrdenacaoInteracoesModal = 'prazo_asc' | 'prazo_desc' | 'criado_asc' | 'criado_desc';
+export type OrdenacaoInteracoesModal =
+  | 'prioridade_sirene'
+  | 'prazo_asc'
+  | 'prazo_desc'
+  | 'criado_asc'
+  | 'criado_desc';
 
 export type KanbanModalInteracoesFiltros = {
   lista: ListaInteracoesModal;
@@ -26,7 +31,7 @@ export const KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT: KanbanModalInteracoesFiltr
   time: 'todos',
   timeListaSomenteHdm: false,
   responsavel: 'todos',
-  ordenacao: 'prazo_asc',
+  ordenacao: 'prioridade_sirene',
   busca: '',
 };
 
@@ -105,6 +110,7 @@ function badgeResponsavel(
 function badgeOrdenar(f: KanbanModalInteracoesFiltros): string | null {
   if (f.ordenacao === def.ordenacao) return null;
   const map: Record<OrdenacaoInteracoesModal, string> = {
+    prioridade_sirene: 'Prioridade Sirene',
     prazo_asc: 'Prazo ↑',
     prazo_desc: 'Prazo ↓',
     criado_asc: 'Criado ↑',
@@ -415,6 +421,7 @@ export function KanbanInteracoesFiltrosPanel({
           <div className={radioRow} style={{ color: 'var(--moni-text-primary)' }}>
             {(
               [
+                ['prioridade_sirene', 'Prioridade Sirene'],
                 ['prazo_asc', 'Prazo ↑'],
                 ['prazo_desc', 'Prazo ↓'],
                 ['criado_asc', 'Criado ↑'],
