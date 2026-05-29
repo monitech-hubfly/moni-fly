@@ -375,6 +375,7 @@ export function KanbanColumn({
                   </span>
                 ) : null}
                 <p className={`line-clamp-2 text-sm font-medium text-stone-800 ${paddingTitulo}`}>{card.titulo}</p>
+                <KanbanParalelasChips chips={chipsParalelas} compact />
                 {arquivado && motivo ? (
                   <p className="mt-1 line-clamp-2 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
                     {motivo}
@@ -383,7 +384,6 @@ export function KanbanColumn({
                 {card.profiles?.full_name ? (
                   <p className="mt-1 line-clamp-1 text-xs text-stone-500">{card.profiles.full_name}</p>
                 ) : null}
-                <KanbanParalelasChips chips={chipsParalelas} compact />
                 {card.data_reuniao || card.data_followup ? (
                   <div className="mt-1 flex flex-wrap gap-1">
                     {card.data_reuniao ? (

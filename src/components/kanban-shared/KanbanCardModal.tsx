@@ -98,6 +98,7 @@ import type {
 import { usePermissoes } from '@/lib/hooks/usePermissoes';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { KanbanCardModalRelacionamentos } from './KanbanCardModalRelacionamentos';
+import { KanbanCardModalCondominio } from './KanbanCardModalCondominio';
 import { KanbanCardModalAtasReuniao } from './KanbanCardModalAtasReuniao';
 import { KanbanCardDatasFields } from './KanbanCardDatasFields';
 import { MencaoContentEditable } from './MencaoContentEditable';
@@ -167,6 +168,7 @@ type Card = {
   /** Nativo: FK em `rede_franqueados` para dados do franqueado do negócio. */
   rede_franqueado_id?: string | null;
   nome_condominio?: string | null;
+  condominio_id?: string | null;
   quadra?: string | null;
   lote?: string | null;
   /** Preenchido quando o card veio da view `v_processo_como_kanban_cards`. */
@@ -351,9 +353,6 @@ export function KanbanCardModal({
     comentario_moni_capital_seguro_garantia: '',
     link_moni_capital_gastos_aporte_inicial: '',
     comentario_moni_capital_gastos_aporte_inicial: '',
-    nome_condominio: '',
-    quadra: '',
-    lote: '',
   });
   const [salvandoNegocio, setSalvandoNegocio] = useState(false);
   const [editandoFranqueado, setEditandoFranqueado] = useState(false);
@@ -413,6 +412,7 @@ export function KanbanCardModal({
     tema: '',
     temaOutro: '',
   });
+  const [novoChamadoFormAberto, setNovoChamadoFormAberto] = useState(false);
   const [subInteracoesPorPai, setSubInteracoesPorPai] = useState<Record<string, SubInteracaoModal[]>>({});
   const [subExpandida, setSubExpandida] = useState<Record<string, boolean>>({});
   const [subFormInteracaoId, setSubFormInteracaoId] = useState<string | null>(null);
@@ -474,6 +474,7 @@ export function KanbanCardModal({
   const [draftMateriaisFase, setDraftMateriaisFase] = useState<KanbanFaseMaterial[]>([]);
   const [salvandoInstrucoesFase, setSalvandoInstrucoesFase] = useState(false);
   const [relacionamentosTick, setRelacionamentosTick] = useState(0);
+  const [condominioTick, setCondominioTick] = useState(0);
   const [atasReuniaoTick, setAtasReuniaoTick] = useState(0);
   const [gateStep5Toast, setGateStep5Toast] = useState<string | null>(null);
   const [userRoleRaw, setUserRoleRaw] = useState('');
@@ -533,6 +534,7 @@ export function KanbanCardModal({
     setNovaTagCor('#F5A100');
     setCriandoTag(false);
     setEditingId(null);
+    setNovoChamadoFormAberto(false);
     setNovaInteracao({
       titulo: '',
       tipo: 'atividade',
@@ -672,6 +674,7 @@ export function KanbanCardModal({
 
   useEffect(() => {
     setAbaCentro('detalhes');
+    setNovoChamadoFormAberto(false);
   }, [cardId, origem]);
 
   useEffect(() => {
@@ -744,6 +747,7 @@ export function KanbanCardModal({
         concluido_em?: string | null;
         arquivado?: boolean;
         nome_condominio?: string | null;
+        condominio_id?: string | null;
         quadra?: string | null;
         lote?: string | null;
         rede_franqueado_id?: string | null;
@@ -847,7 +851,7 @@ export function KanbanCardModal({
         const { data: cardData, error: cardError } = await supabase
           .from('kanban_cards')
           .select(
-            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, quadra, lote, data_reuniao, data_followup, projeto_id, acoplamento_concluido, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok',
+            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, projeto_id, acoplamento_concluido, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok',
           )
           .eq('id', cardId)
           .single();
@@ -872,6 +876,10 @@ export function KanbanCardModal({
           concluido_em: ccem != null && String(ccem).trim() !== '' ? String(ccem) : null,
           arquivado: Boolean((cardData as { arquivado?: boolean | null }).arquivado),
           nome_condominio: (cardData as { nome_condominio?: string | null }).nome_condominio ?? null,
+          condominio_id: (() => {
+            const cid = (cardData as { condominio_id?: string | null }).condominio_id;
+            return cid != null && String(cid).trim() !== '' ? String(cid) : null;
+          })(),
           quadra: (cardData as { quadra?: string | null }).quadra ?? null,
           lote: (cardData as { lote?: string | null }).lote ?? null,
           rede_franqueado_id:
@@ -922,6 +930,7 @@ export function KanbanCardModal({
         franqueado_id: loaded.franqueado_id,
         kanban_id: loaded.kanban_id,
         nome_condominio: loaded.nome_condominio ?? null,
+        condominio_id: loaded.condominio_id ?? null,
         quadra: loaded.quadra ?? null,
         lote: loaded.lote ?? null,
         rede_franqueado_id: loaded.rede_franqueado_id ?? null,
@@ -1350,6 +1359,7 @@ export function KanbanCardModal({
         tema: '',
         temaOutro: '',
       });
+      setNovoChamadoFormAberto(false);
       await loadCard();
       router.refresh();
     } catch {
@@ -2068,69 +2078,14 @@ export function KanbanCardModal({
             negocioDraft.link_moni_capital_gastos_aporte_inicial?.trim() || null,
           comentario_moni_capital_gastos_aporte_inicial:
             negocioDraft.comentario_moni_capital_gastos_aporte_inicial?.trim() || null,
-          nome_condominio: negocioDraft.nome_condominio || null,
-          quadra: negocioDraft.quadra || null,
-          lote: negocioDraft.lote || null,
         });
         if (!upd.ok) throw new Error(upd.error);
-      } else if (origem === 'nativo' && card) {
-        const { error } = await supabase
-          .from('kanban_cards')
-          .update({
-            nome_condominio: negocioDraft.nome_condominio?.trim() || null,
-            quadra: negocioDraft.quadra?.trim() || null,
-            lote: negocioDraft.lote?.trim() || null,
-          })
-          .eq('id', card.id);
-        if (error) throw error;
       } else {
         alert('Sem processo vinculado para salvar dados do negócio.');
         return;
       }
 
-      if (origem === 'nativo' && card) {
-        const { data: cardData } = await supabase
-          .from('kanban_cards')
-          .select('rede_franqueado_id')
-          .eq('id', card.id)
-          .maybeSingle();
-        if (cardData) {
-          const redeFk = (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id;
-          if (redeFk) {
-            const { data: redeData } = await supabase
-              .from('rede_franqueados')
-              .select('n_franquia')
-              .eq('id', redeFk)
-              .maybeSingle();
-            if (redeData) {
-              const nFq = String((redeData as { n_franquia?: string | null }).n_franquia ?? '');
-              const partes = [
-                nFq,
-                negocioDraft.nome_condominio?.trim() ?? '',
-                negocioDraft.quadra?.trim() ?? '',
-                negocioDraft.lote?.trim() ?? '',
-              ].filter(Boolean);
-              const novoTitulo = partes.join(' - ');
-              if (novoTitulo) {
-                const { error: tituloErr } = await supabase
-                  .from('kanban_cards')
-                  .update({ titulo: novoTitulo })
-                  .eq('id', card.id);
-                if (tituloErr) throw tituloErr;
-                setCard((prev) => (prev ? { ...prev, titulo: novoTitulo } : prev));
-              }
-            }
-          }
-        }
-      }
-
       setEditandoNegocio(false);
-      console.log(
-        '[DEBUG handleSalvarNegocio] card.id:',
-        card?.id,
-        'negocioDraft.nome_condominio:',
-        negocioDraft.nome_condominio,
-      );
       await loadCard();
     } catch {
       alert('Erro ao salvar dados do negócio.');
@@ -2905,30 +2860,8 @@ export function KanbanCardModal({
   ) : null;
 
   function abrirEdicaoNegocio() {
-    if (!proc && origem === 'nativo' && card) {
-      setNegocioDraft({
-        tipo_aquisicao_terreno: '',
-        valor_terreno: '',
-        vgv_pretendido: '',
-        produto_modelo_casa: '',
-        link_pasta_drive: '',
-        link_bca: '',
-        link_mapa_competidores: '',
-        link_acoplamento: '',
-        link_apresentacao_comite: '',
-        link_moni_capital_seguro_garantia: '',
-        comentario_moni_capital_seguro_garantia: '',
-        link_moni_capital_gastos_aporte_inicial: '',
-        comentario_moni_capital_gastos_aporte_inicial: '',
-        nome_condominio: card.nome_condominio ?? '',
-        quadra: card.quadra ?? '',
-        lote: card.lote ?? '',
-      });
-      setEditandoNegocio(true);
-      return;
-    }
-    if (proc) {
-      setNegocioDraft({
+    if (!proc) return;
+    setNegocioDraft({
         tipo_aquisicao_terreno: proc.tipo_aquisicao_terreno ?? '',
         valor_terreno: proc.valor_terreno != null ? String(proc.valor_terreno) : '',
         vgv_pretendido: proc.vgv_pretendido != null ? String(proc.vgv_pretendido) : '',
@@ -2943,12 +2876,8 @@ export function KanbanCardModal({
         link_moni_capital_gastos_aporte_inicial: proc.link_moni_capital_gastos_aporte_inicial ?? '',
         comentario_moni_capital_gastos_aporte_inicial:
           proc.comentario_moni_capital_gastos_aporte_inicial ?? '',
-        nome_condominio: proc.nome_condominio ?? '',
-        quadra: proc.quadra ?? '',
-        lote: proc.lote ?? '',
       });
-      setEditandoNegocio(true);
-    }
+    setEditandoNegocio(true);
   }
 
   const secaoHead = (id: SecaoEsquerdaId, label: string, body: ReactNode) => (
@@ -5408,92 +5337,32 @@ export function KanbanCardModal({
               </div>,
             )}
             {secaoHead(
+              'condominio',
+              'Dados do Condomínio',
+              <KanbanCardModalCondominio
+                key={`${card.id}-cond-${condominioTick}`}
+                cardId={card.id}
+                origem={origem}
+                basePath={basePath}
+                condominioIdInicial={card.condominio_id ?? proc?.condominio_id ?? null}
+                quadraInicial={card.quadra ?? proc?.quadra ?? null}
+                loteInicial={card.lote ?? proc?.lote ?? null}
+                nomeCondominioLegado={card.nome_condominio ?? proc?.nome_condominio ?? null}
+                podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                podeCadastrarNovo={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                onSalvo={() => {
+                  setCondominioTick((t) => t + 1);
+                  void loadCard();
+                  router.refresh();
+                }}
+              />,
+            )}
+            {secaoHead(
               'novoNegocio',
               'Dados do Negócio',
               <div className="space-y-2">
                 {!proc ? (
-                  origem === 'nativo' && card ? (
-                    editandoNegocio ? (
-                      <div className="space-y-2">
-                        <p className="text-[11px] text-stone-500">
-                          Card sem processo vinculado — edite condomínio, quadra e lote no próprio card.
-                        </p>
-                        <label className="block">
-                          <span className="text-[11px] font-medium text-stone-500">Nome do Condomínio</span>
-                          <input
-                            type="text"
-                            value={negocioDraft.nome_condominio}
-                            onChange={(e) => setNegocioDraft((d) => ({ ...d, nome_condominio: e.target.value }))}
-                            className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                          />
-                        </label>
-                        <div className="grid grid-cols-2 gap-x-2">
-                          <label className="block">
-                            <span className="text-[11px] font-medium text-stone-500">Quadra</span>
-                            <input
-                              type="text"
-                              value={negocioDraft.quadra}
-                              onChange={(e) => setNegocioDraft((d) => ({ ...d, quadra: e.target.value }))}
-                              className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                            />
-                          </label>
-                          <label className="block">
-                            <span className="text-[11px] font-medium text-stone-500">Lote</span>
-                            <input
-                              type="text"
-                              value={negocioDraft.lote}
-                              onChange={(e) => setNegocioDraft((d) => ({ ...d, lote: e.target.value }))}
-                              className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                            />
-                          </label>
-                        </div>
-                        <div className="flex gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => void handleSalvarNegocio()}
-                            disabled={salvandoNegocio}
-                            className="rounded bg-moni-primary px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
-                          >
-                            {salvandoNegocio ? 'Salvando…' : 'Salvar'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEditandoNegocio(false)}
-                            disabled={salvandoNegocio}
-                            className="rounded border border-stone-200 px-3 py-1 text-xs text-stone-600 disabled:opacity-50"
-                          >
-                            Cancelar
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div>
-                          <div className="text-[11px] font-medium text-stone-500">Nome do Condomínio</div>
-                          <div className="text-xs text-stone-800">{displayOrDash(card.nome_condominio)}</div>
-                        </div>
-                        <div>
-                          <div className="text-[11px] font-medium text-stone-500">Quadra</div>
-                          <div className="text-xs text-stone-800">{displayOrDash(card.quadra)}</div>
-                        </div>
-                        <div>
-                          <div className="text-[11px] font-medium text-stone-500">Lote</div>
-                          <div className="text-xs text-stone-800">{displayOrDash(card.lote)}</div>
-                        </div>
-                        {modalSessao.ehAdminOuTeam ? (
-                          <button
-                            type="button"
-                            onClick={() => abrirEdicaoNegocio()}
-                            className="mt-1 rounded border border-stone-200 px-3 py-1 text-xs text-stone-600 hover:bg-stone-50"
-                          >
-                            Editar dados do negócio
-                          </button>
-                        ) : null}
-                      </>
-                    )
-                  ) : (
-                    <p className="text-xs text-stone-500">Sem processo vinculado — dados de negócio indisponíveis.</p>
-                  )
+                  <p className="text-xs text-stone-500">Sem processo vinculado — dados de negócio indisponíveis.</p>
                 ) : editandoNegocio ? (
                   <div className="space-y-2">
                     <div className="grid grid-cols-2 gap-x-2 gap-y-2">
@@ -5548,35 +5417,6 @@ export function KanbanCardModal({
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                       />
                     </label>
-                    <label className="block">
-                      <span className="text-[11px] font-medium text-stone-500">Nome do Condomínio</span>
-                      <input
-                        type="text"
-                        value={negocioDraft.nome_condominio}
-                        onChange={(e) => setNegocioDraft((d) => ({ ...d, nome_condominio: e.target.value }))}
-                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                      />
-                    </label>
-                    <div className="grid grid-cols-2 gap-x-2">
-                      <label className="block">
-                        <span className="text-[11px] font-medium text-stone-500">Quadra</span>
-                        <input
-                          type="text"
-                          value={negocioDraft.quadra}
-                          onChange={(e) => setNegocioDraft((d) => ({ ...d, quadra: e.target.value }))}
-                          className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="text-[11px] font-medium text-stone-500">Lote</span>
-                        <input
-                          type="text"
-                          value={negocioDraft.lote}
-                          onChange={(e) => setNegocioDraft((d) => ({ ...d, lote: e.target.value }))}
-                          className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                        />
-                      </label>
-                    </div>
                     {dadosNegocioLinksEAnexosEdit}
                     <div className="flex gap-2 pt-1">
                       <button
@@ -5635,18 +5475,6 @@ export function KanbanCardModal({
                         <div className="text-[11px] font-medium text-stone-500">—</div>
                         <div className="text-xs text-stone-800">—</div>
                       </div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] font-medium text-stone-500">Nome do Condomínio</div>
-                      <div className="text-xs text-stone-800">{displayOrDash(proc.nome_condominio)}</div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] font-medium text-stone-500">Quadra</div>
-                      <div className="text-xs text-stone-800">{displayOrDash(proc.quadra)}</div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] font-medium text-stone-500">Lote</div>
-                      <div className="text-xs text-stone-800">{displayOrDash(proc.lote)}</div>
                     </div>
                     {dadosNegocioLinksEAnexosView}
                     {modalSessao.ehAdminOuTeam && (
@@ -5780,6 +5608,19 @@ export function KanbanCardModal({
               ),
             )}
             {!isLegado ? (
+              secaoHead(
+                'atasReuniao',
+                'Atas de reunião',
+                <KanbanCardModalAtasReuniao
+                  key={`${card.id}-atas-${atasReuniaoTick}`}
+                  cardId={card.id}
+                  origem={origem}
+                  refreshKey={atasReuniaoTick}
+                />,
+              )
+            ) : null}
+            {secaoHeadPainelCentro('Chamados')}
+            {!isLegado ? (
               <>
                 {secaoHead(
                   'relacionamentos',
@@ -5797,20 +5638,9 @@ export function KanbanCardModal({
                     cardDesabilitado={Boolean(card.arquivado) || Boolean(card.concluido)}
                   />,
                 )}
-                {secaoHead(
-                  'atasReuniao',
-                  'Atas de reunião',
-                  <KanbanCardModalAtasReuniao
-                    key={`${card.id}-atas-${atasReuniaoTick}`}
-                    cardId={card.id}
-                    origem={origem}
-                    refreshKey={atasReuniaoTick}
-                  />,
-                )}
                 {secaoHead('obra', 'Dados Obra', <p className="text-xs italic text-stone-500">Placeholder.</p>)}
               </>
             ) : null}
-            {secaoHeadPainelCentro('Chamados')}
             {card && (
               <ChecklistCard
                 cardId={card.id}

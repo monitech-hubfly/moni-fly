@@ -31,6 +31,8 @@ type Props = {
   listClassName?: string;
   /** Placeholder do campo de busca; padrão: "Pesquisar…" */
   searchPlaceholder?: string;
+  /** Lista oculta até focar na busca (formulários compactos). */
+  expandOnFocus?: boolean;
 };
 
 export function MultiSelectCheckbox({
@@ -41,12 +43,15 @@ export function MultiSelectCheckbox({
   variant,
   listClassName = 'max-h-24',
   searchPlaceholder = 'Pesquisar…',
+  expandOnFocus = false,
 }: Props) {
   const styles = VARIANT_STYLES[variant];
   const selectedSet = new Set(selectedIds);
   const selectedPills = options.filter((o) => selectedSet.has(o.id));
   const [searchQuery, setSearchQuery] = useState('');
+  const [listExpanded, setListExpanded] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const filteredOptions = useMemo(() => {
     const q = normalizeSearchText(searchQuery);
@@ -60,8 +65,11 @@ export function MultiSelectCheckbox({
     requestAnimationFrame(() => searchInputRef.current?.focus());
   }
 
+  const showList = !expandOnFocus || listExpanded;
+
   return (
     <div
+      ref={containerRef}
       className="overflow-hidden rounded-md"
       style={{ border: '0.5px solid var(--moni-border-default)' }}
     >
@@ -100,12 +108,21 @@ export function MultiSelectCheckbox({
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
+          onFocus={() => setListExpanded(true)}
+          onBlur={() => {
+            window.setTimeout(() => {
+              if (!containerRef.current?.contains(document.activeElement)) {
+                setListExpanded(false);
+              }
+            }, 120);
+          }}
           placeholder={searchPlaceholder}
           className="w-full border-0 bg-transparent p-0 text-[10px] leading-snug text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-0"
           aria-label={searchPlaceholder}
           autoComplete="off"
         />
       </div>
+      {showList ? (
       <ul
         className={`overflow-y-auto border-t border-[color:var(--moni-border-default)] ${listClassName}`}
         role="listbox"
@@ -123,6 +140,9 @@ export function MultiSelectCheckbox({
                   role="option"
                   aria-selected={checked}
                   onClick={() => handleToggle(o.id)}
+                  onMouseDown={(e) => {
+                    if (expandOnFocus) e.preventDefault();
+                  }}
                   className="flex w-full items-center gap-1.5 px-2 py-1 text-left text-[10px] leading-snug text-stone-800 hover:bg-stone-50"
                 >
                   <span
@@ -152,6 +172,7 @@ export function MultiSelectCheckbox({
           })
         )}
       </ul>
+      ) : null}
     </div>
   );
 }

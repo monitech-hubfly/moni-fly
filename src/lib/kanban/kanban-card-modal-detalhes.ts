@@ -161,9 +161,10 @@ export type ProcessoNegocioUpdatePayload = {
   comentario_moni_capital_seguro_garantia: string | null;
   link_moni_capital_gastos_aporte_inicial: string | null;
   comentario_moni_capital_gastos_aporte_inicial: string | null;
-  nome_condominio: string | null;
-  quadra: string | null;
-  lote: string | null;
+  /** Gerenciados pela seção Dados do Condomínio — omitir ao salvar negócio. */
+  nome_condominio?: string | null;
+  quadra?: string | null;
+  lote?: string | null;
 };
 
 const PROCESSO_UPDATE_LEGACY_KEYS = [
@@ -172,9 +173,6 @@ const PROCESSO_UPDATE_LEGACY_KEYS = [
   'vgv_pretendido',
   'produto_modelo_casa',
   'link_pasta_drive',
-  'nome_condominio',
-  'quadra',
-  'lote',
 ] as const;
 
 const PROCESSO_UPDATE_EXTENDED_KEYS = [
@@ -194,7 +192,8 @@ function pickPayload(
 ): Record<string, string | null> {
   const out: Record<string, string | null> = {};
   for (const k of keys) {
-    out[k] = payload[k as keyof ProcessoNegocioUpdatePayload];
+    const v = payload[k as keyof ProcessoNegocioUpdatePayload];
+    if (v !== undefined) out[k] = v;
   }
   return out;
 }
