@@ -403,7 +403,6 @@ export function KanbanCardModal({
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
   const [novaInteracao, setNovaInteracao] = useState({
     titulo: '',
-    tipo: 'atividade' as 'atividade' | 'duvida' | 'proposicoes',
     data: '',
     timesIds: [] as string[],
     responsaveisIds: [] as string[],
@@ -538,7 +537,6 @@ export function KanbanCardModal({
     setNovoChamadoFormAberto(false);
     setNovaInteracao({
       titulo: '',
-      tipo: 'atividade',
       data: '',
       timesIds: [],
       responsaveisIds: [],
@@ -1329,7 +1327,7 @@ export function KanbanCardModal({
       const res = await criarInteracao({
         card_id: card.id,
         titulo: novaInteracao.titulo.trim(),
-        tipo: novaInteracao.tipo,
+        tipo: 'atividade',
         times_ids: resolved.times_ids,
         data_vencimento: novaInteracao.data || null,
         responsaveis_ids: resolved.responsaveis_ids,
@@ -1348,7 +1346,6 @@ export function KanbanCardModal({
       }
       setNovaInteracao({
         titulo: '',
-        tipo: 'atividade',
         data: '',
         timesIds: [],
         responsaveisIds: [],
@@ -4055,16 +4052,13 @@ export function KanbanCardModal({
                   />
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <select
-                      value={novaInteracao.tipo}
-                      onChange={(e) =>
-                        setNovaInteracao({ ...novaInteracao, tipo: e.target.value as 'atividade' | 'duvida' | 'proposicoes' })
-                      }
-                      className="px-3 py-2 text-xs"
+                      value="chamado"
+                      disabled
+                      aria-label="Tipo do chamado"
+                      className="px-3 py-2 text-xs text-stone-700"
                       style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
                     >
-                      <option value="atividade">Atividade</option>
-                      <option value="duvida">Dúvida</option>
-                      <option value="proposicoes">Proposições</option>
+                      <option value="chamado">Chamado</option>
                     </select>
                     {!portalFrank && (
                     <input
