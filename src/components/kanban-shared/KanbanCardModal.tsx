@@ -4156,7 +4156,7 @@ export function KanbanCardModal({
                         checked={novaInteracao.trava}
                         onChange={(e) => setNovaInteracao({ ...novaInteracao, trava: e.target.checked })}
                       />
-                      Trava — bloqueado até conclusão
+                      Trata - não consigo avançar sem
                     </label>
                     <button
                       type="button"
