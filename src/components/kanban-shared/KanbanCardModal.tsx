@@ -4034,51 +4034,49 @@ export function KanbanCardModal({
 
               {pode('criar_chamados') ? (
               <div
-                className="rounded-lg p-4"
+                className="rounded-md p-2.5"
                 style={{
                   background: 'var(--moni-surface-50)',
                   border: '0.5px solid var(--moni-border-default)',
                 }}
               >
-                <p className="mb-2 text-xs font-semibold text-stone-600">Novo Chamado</p>
-                <div className="flex flex-col gap-3">
+                <p className="mb-1.5 text-[11px] font-semibold text-stone-600">Novo Chamado</p>
+                <div className="flex flex-col gap-2">
                   <input
                     type="text"
                     value={novaInteracao.titulo}
                     onChange={(e) => setNovaInteracao({ ...novaInteracao, titulo: e.target.value })}
                     placeholder="Título / assunto"
-                    className="w-full px-3 py-2 text-xs"
+                    className="w-full px-2 py-1.5 text-xs"
                     style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
                   />
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     <select
                       value="chamado"
                       disabled
                       aria-label="Tipo do chamado"
-                      className="px-3 py-2 text-xs text-stone-700"
+                      className="px-2 py-1.5 text-xs text-stone-700"
                       style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
                     >
                       <option value="chamado">Chamado</option>
                     </select>
-                    {!portalFrank && (
+                    {!portalFrank ? (
                     <input
                       type="date"
                       value={novaInteracao.data}
                       onChange={(e) => setNovaInteracao({ ...novaInteracao, data: e.target.value })}
-                      className="px-3 py-2 text-xs"
+                      className="px-2 py-1.5 text-xs"
                       style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
                     />
-                    )}
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[10px] font-medium text-stone-500">Tema (obrigatório)</label>
+                    ) : null}
                     <select
                       value={novaInteracao.tema}
                       onChange={(e) => setNovaInteracao((n) => ({ ...n, tema: e.target.value, temaOutro: '' }))}
-                      className="w-full px-3 py-2 text-xs"
+                      className={`px-2 py-1.5 text-xs ${portalFrank ? 'sm:col-span-2' : ''}`}
                       style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
+                      aria-label="Tema do chamado"
                     >
-                      <option value="">Selecione</option>
+                      <option value="">Tema (obrigatório)</option>
                       <option value="Acoplamento">Acoplamento</option>
                       <option value="Adicionais">Adicionais</option>
                       <option value="BCA + Batalha">BCA + Batalha</option>
@@ -4090,78 +4088,86 @@ export function KanbanCardModal({
                       <option value="Negociação com Terrenista">Negociação com Terrenista</option>
                       <option value="Outro">Outro</option>
                     </select>
-                    {novaInteracao.tema === 'Outro' && (
-                      <input
-                        type="text"
-                        value={novaInteracao.temaOutro}
-                        onChange={(e) => setNovaInteracao((n) => ({ ...n, temaOutro: e.target.value }))}
-                        placeholder="Detalhe o tema (obrigatório)"
-                        className="mt-2 w-full px-3 py-2 text-xs"
-                        style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
-                      />
-                    )}
                   </div>
-                  <p className="text-[10px] leading-snug text-stone-500">
-                    HDM é inferido quando algum time for Produto, Homologações, Executivo Local ou Modelo Virtual.
-                  </p>
-                  <div>
-                    <label className="mb-1 block text-[10px] font-medium text-stone-500">Times</label>
-                    <MultiSelectCheckbox
-                      variant="times"
-                      placeholder="Selecione os times..."
-                      searchPlaceholder="Pesquisar time…"
-                      options={timesNovaFiltrados.map((t) => ({ id: t.id, label: t.nome }))}
-                      selectedIds={novaInteracao.timesIds}
-                      onToggle={(id) =>
-                        setNovaInteracao((n) => ({
-                          ...n,
-                          timesIds: n.timesIds.includes(id)
-                            ? n.timesIds.filter((x) => x !== id)
-                            : [...n.timesIds, id],
-                        }))
-                      }
+                  {novaInteracao.tema === 'Outro' && (
+                    <input
+                      type="text"
+                      value={novaInteracao.temaOutro}
+                      onChange={(e) => setNovaInteracao((n) => ({ ...n, temaOutro: e.target.value }))}
+                      placeholder="Detalhe o tema (obrigatório)"
+                      className="w-full px-2 py-1.5 text-xs"
+                      style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
                     />
-                  </div>
-                  {!portalFrank && (
+                  )}
+                  <div className={`grid grid-cols-1 gap-2 ${portalFrank ? '' : 'sm:grid-cols-2'}`}>
                     <div>
-                      <label className="mb-1 block text-[10px] font-medium text-stone-500">
-                        Responsáveis (opcional)
-                      </label>
+                      <label className="mb-0.5 block text-[10px] font-medium text-stone-500">Times</label>
                       <MultiSelectCheckbox
-                        variant="responsaveis"
-                        placeholder="Selecione os responsáveis..."
-                        searchPlaceholder="Pesquisar responsável…"
-                        options={responsaveisOpcoesNovaHdm.map((p) => ({ id: p.id, label: p.nome }))}
-                        selectedIds={novaInteracao.responsaveisIds}
+                        variant="times"
+                        expandOnFocus
+                        placeholder="Selecione os times..."
+                        searchPlaceholder="Pesquisar time…"
+                        listClassName="max-h-28"
+                        options={timesNovaFiltrados.map((t) => ({ id: t.id, label: t.nome }))}
+                        selectedIds={novaInteracao.timesIds}
                         onToggle={(id) =>
                           setNovaInteracao((n) => ({
                             ...n,
-                            responsaveisIds: n.responsaveisIds.includes(id)
-                              ? n.responsaveisIds.filter((x) => x !== id)
-                              : [...n.responsaveisIds, id],
+                            timesIds: n.timesIds.includes(id)
+                              ? n.timesIds.filter((x) => x !== id)
+                              : [...n.timesIds, id],
                           }))
                         }
                       />
                     </div>
-                  )}
-                  <label className="flex cursor-pointer items-center gap-2 text-xs text-stone-700">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-stone-400"
-                      checked={novaInteracao.trava}
-                      onChange={(e) => setNovaInteracao({ ...novaInteracao, trava: e.target.checked })}
-                    />
-                    Trava — estou bloqueado até este chamado ser concluído
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => void handleAdicionarInteracao()}
-                    disabled={loading || !novaInteracao.titulo.trim() || !novaInteracao.tema || (novaInteracao.tema === 'Outro' && !novaInteracao.temaOutro.trim())}
-                    className="w-full px-4 py-2 text-xs font-medium text-white disabled:opacity-50 sm:w-auto"
-                    style={{ background: 'var(--moni-text-primary)', borderRadius: 'var(--moni-radius-md)' }}
-                  >
-                    Novo Chamado
-                  </button>
+                    {!portalFrank ? (
+                      <div>
+                        <label className="mb-0.5 block text-[10px] font-medium text-stone-500">
+                          Responsáveis (opcional)
+                        </label>
+                        <MultiSelectCheckbox
+                          variant="responsaveis"
+                          expandOnFocus
+                          placeholder="Selecione os responsáveis..."
+                          searchPlaceholder="Pesquisar responsável…"
+                          listClassName="max-h-28"
+                          options={responsaveisOpcoesNovaHdm.map((p) => ({ id: p.id, label: p.nome }))}
+                          selectedIds={novaInteracao.responsaveisIds}
+                          onToggle={(id) =>
+                            setNovaInteracao((n) => ({
+                              ...n,
+                              responsaveisIds: n.responsaveisIds.includes(id)
+                                ? n.responsaveisIds.filter((x) => x !== id)
+                                : [...n.responsaveisIds, id],
+                            }))
+                          }
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                  <p className="text-[9px] leading-snug text-stone-400">
+                    HDM inferido para times Produto, Homologações, Executivo Local ou Modelo Virtual.
+                  </p>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <label className="flex cursor-pointer items-start gap-1.5 text-[10px] leading-snug text-stone-600">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-stone-400"
+                        checked={novaInteracao.trava}
+                        onChange={(e) => setNovaInteracao({ ...novaInteracao, trava: e.target.checked })}
+                      />
+                      Trava — bloqueado até conclusão
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => void handleAdicionarInteracao()}
+                      disabled={loading || !novaInteracao.titulo.trim() || !novaInteracao.tema || (novaInteracao.tema === 'Outro' && !novaInteracao.temaOutro.trim())}
+                      className="shrink-0 px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50 sm:w-auto"
+                      style={{ background: 'var(--moni-text-primary)', borderRadius: 'var(--moni-radius-md)' }}
+                    >
+                      Novo Chamado
+                    </button>
+                  </div>
                 </div>
               </div>
               ) : (
