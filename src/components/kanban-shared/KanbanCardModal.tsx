@@ -108,6 +108,7 @@ import { KanbanCardModalAtasReuniao } from './KanbanCardModalAtasReuniao';
 import { KanbanCardDatasFields } from './KanbanCardDatasFields';
 import { MencaoContentEditable } from './MencaoContentEditable';
 import { fetchKanbanFasesAtivas, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
+import { loadHistoricoCardModal } from '@/lib/kanban/kanban-card-historico';
 import { publicarComentarioKanbanCard } from '@/lib/actions/kanban-comentarios';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 import { compareChamadosPainelRank } from '@/lib/sirene-painel-chamados-rank';
@@ -121,6 +122,7 @@ import {
   derivarChamadoKanbanComSubs,
   formatDataHoraHistorico,
   iconeHistoricoAcao,
+  rotuloUsuarioHistorico,
   interacaoPassaFiltroResponsavel,
   interacaoPassaFiltroTime,
   countChamadosAbertosNoCard,
@@ -1012,8 +1014,10 @@ export function KanbanCardModal({
 
       const mapFaseRow = mapKanbanFaseRow;
 
+      let fasesParaHistorico: KanbanFase[] = [];
       if (!fasesProp?.length) {
         const mapped = await fetchKanbanFasesAtivas(supabase, loaded.kanban_id);
+        fasesParaHistorico = mapped;
         setFases(mapped);
         setFaseAtual(mapped.find((f) => f.id === loaded.fase_id) ?? null);
       } else {
@@ -1028,6 +1032,7 @@ export function KanbanCardModal({
             materiais: f.materiais as unknown,
           }),
         );
+        fasesParaHistorico = normalizedFromProp;
         setFases(normalizedFromProp);
         setFaseAtual(normalizedFromProp.find((f) => f.id === loaded.fase_id) ?? null);
       }
@@ -1073,23 +1078,14 @@ export function KanbanCardModal({
       }
 
       try {
-        const { data: histRows, error: histErr } = await supabase
-          .from('kanban_historico')
-          .select('id, acao, usuario_nome, detalhe, criado_em')
-          .eq('card_id', cardId)
-          .order('criado_em', { ascending: false });
-        if (histErr) setHistorico([]);
-        else {
-          setHistorico(
-            (histRows ?? []).map((h) => ({
-              id: String(h.id),
-              acao: String(h.acao),
-              usuario_nome: (h.usuario_nome as string | null) ?? null,
-              detalhe: (h.detalhe as Record<string, unknown> | null) ?? null,
-              criado_em: String(h.criado_em),
-            })),
-          );
-        }
+        const hist = await loadHistoricoCardModal(
+          supabase,
+          cardId,
+          origem === 'legado' ? 'legado' : 'nativo',
+          fasesParaHistorico,
+          loaded.kanban_id,
+        );
+        setHistorico(hist);
       } catch {
         setHistorico([]);
       }
@@ -5981,15 +5977,21 @@ export function KanbanCardModal({
                   {historico.length === 0 ? (
                     <p className="text-xs text-stone-500">Nenhum evento ainda.</p>
                   ) : (
-                    <ul className="max-h-64 list-none space-y-0 overflow-y-auto">
+                    <ul className="max-h-72 list-none space-y-0 overflow-y-auto">
                       {historico.map((h) => (
-                        <li key={h.id} className="flex gap-2 border-b border-stone-100 py-2 text-xs last:border-0">
+                        <li key={h.id} className="flex gap-2.5 border-b border-stone-100 py-2.5 text-xs last:border-0">
                           <span className="mt-0.5 shrink-0">{iconeHistoricoAcao(h.acao)}</span>
-                          <div className="min-w-0 flex-1 leading-snug text-stone-800">
-                            <span>{textoResumidoAcaoHistorico(h.acao, h.detalhe)}</span>
-                            <span className="text-stone-600"> — </span>
-                            <span className="font-medium text-stone-700">{h.usuario_nome?.trim() || '—'}</span>
-                            <span className="text-stone-500"> · {formatDataHoraHistorico(h.criado_em)}</span>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium leading-snug text-stone-800">
+                              {textoResumidoAcaoHistorico(h.acao, h.detalhe)}
+                            </p>
+                            <p className="mt-0.5 text-[11px] leading-snug text-stone-500">
+                              <span className="font-medium text-stone-600">
+                                {rotuloUsuarioHistorico(h.usuario_nome)}
+                              </span>
+                              <span aria-hidden> · </span>
+                              <time dateTime={h.criado_em}>{formatDataHoraHistorico(h.criado_em)}</time>
+                            </p>
                           </div>
                         </li>
                       ))}

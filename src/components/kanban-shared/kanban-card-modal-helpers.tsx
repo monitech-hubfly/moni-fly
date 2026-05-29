@@ -4,11 +4,14 @@ import { MONI_RESP_FILTRO_PREFIX, MONI_TIME_FILTRO_PREFIX } from '@/lib/times-re
 import {
   ArrowLeft,
   ArrowRight,
+  Archive,
+  CheckCircle2,
   FileEdit,
   History,
   ListPlus,
   Pencil,
   PlusCircle,
+  Tag,
 } from 'lucide-react';
 import type { SubInteracaoStatusDb } from '@/lib/actions/card-actions';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
@@ -374,6 +377,12 @@ export function formatDataHoraHistorico(iso: string): string {
   return `${day}/${month} às ${h}h${min}`;
 }
 
+export function rotuloUsuarioHistorico(nome: string | null | undefined): string {
+  const n = nome?.trim();
+  if (n) return n;
+  return 'Sistema';
+}
+
 export function textoResumidoAcaoHistorico(acao: string, detalhe: Record<string, unknown> | null): string {
   const d = detalhe ?? {};
   switch (acao) {
@@ -383,17 +392,39 @@ export function textoResumidoAcaoHistorico(acao: string, detalhe: Record<string,
       return `Fase retrocedida para ${String(d.fase_nova_nome ?? '—')}`;
     case 'card_criado':
       return 'Card criado';
+    case 'card_arquivado':
+      return 'Card arquivado';
+    case 'card_concluido':
+      return 'Card finalizado';
     case 'interacao_criada':
       return `Novo chamado: ${String(d.titulo ?? '').trim() || '—'}`;
+    case 'interacao_arquivada':
+      return `Chamado arquivado: ${String(d.titulo ?? '').trim() || '—'}`;
     case 'interacao_editada': {
       if (d.status_novo != null) return `Chamado atualizado (status: ${String(d.status_novo)})`;
       if (d.titulo_novo != null) return `Chamado renomeado para "${String(d.titulo_novo)}"`;
       if (d.descricao_alterada) return 'Descrição do chamado alterada';
       if (d.data_vencimento_nova != null) return 'Prazo do chamado alterado';
-      return 'Chamado editado';
+      return 'Chamado atualizado';
     }
-    case 'campo_alterado':
+    case 'comentario_criado':
+      return 'Comentário publicado no card';
+    case 'tag_vinculada':
+      return `Tag adicionada: ${String(d.tag_nome ?? '').trim() || '—'}`;
+    case 'tag_removida':
+      return `Tag removida: ${String(d.tag_nome ?? '').trim() || '—'}`;
+    case 'campo_alterado': {
+      const desc = String(d.descricao ?? '').trim();
+      if (desc) return desc;
+      const campos = d.campos;
+      if (Array.isArray(campos) && campos.length > 0) {
+        const nomes = campos
+          .map((c) => (c && typeof c === 'object' ? String((c as { campo?: string }).campo ?? '') : ''))
+          .filter(Boolean);
+        if (nomes.length) return `Campos alterados: ${nomes.join(', ')}`;
+      }
       return 'Campo do card alterado';
+    }
     default:
       return acao.replace(/_/g, ' ');
   }
@@ -414,6 +445,17 @@ export function iconeHistoricoAcao(acao: string): ReactNode {
       return <Pencil className={className} aria-hidden />;
     case 'campo_alterado':
       return <FileEdit className={className} aria-hidden />;
+    case 'card_arquivado':
+      return <Archive className={className} aria-hidden />;
+    case 'card_concluido':
+      return <CheckCircle2 className={className} aria-hidden />;
+    case 'comentario_criado':
+      return <FileEdit className={className} aria-hidden />;
+    case 'tag_vinculada':
+    case 'tag_removida':
+      return <Tag className={className} aria-hidden />;
+    case 'interacao_arquivada':
+      return <Archive className={className} aria-hidden />;
     default:
       return <History className={className} aria-hidden />;
   }
