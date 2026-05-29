@@ -1,11 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Calendar, FileText, RefreshCw } from 'lucide-react';
+import { Calendar, FileText, Plus, RefreshCw } from 'lucide-react';
 import { salvarDataFollowupCard, salvarDataReuniaoCard } from '@/lib/actions/kanban-ata-reuniao';
 import {
   calcularCorDataBadge,
-  formatDataPtBr,
   labelRelativoData,
 } from '@/lib/kanban/kanban-card-datas';
 import { KanbanAtaReuniaoFormModal } from './KanbanAtaReuniaoFormModal';
@@ -19,6 +18,11 @@ type Props = {
   onDataReuniaoChange: (v: string) => void;
   onDataFollowupChange: (v: string) => void;
   onAtaSalva: () => void;
+};
+
+const cardStyle = {
+  background: 'var(--moni-surface-50)',
+  border: '0.5px solid var(--moni-border-default)',
 };
 
 export function KanbanCardDatasFields({
@@ -75,107 +79,74 @@ export function KanbanCardDatasFields({
     setAtaAberta(true);
   }
 
+  function agendarReuniaoHoje() {
+    const hoje = new Date().toISOString().slice(0, 10);
+    onDataReuniaoChange(hoje);
+    void salvarReuniao(hoje).then(() => setAtaAberta(true));
+  }
+
   return (
     <>
-      <div className="mb-4 grid gap-3 sm:grid-cols-2">
-        <div
-          className="rounded-xl p-3"
-          style={{
-            background: 'var(--moni-surface-50)',
-            border: '0.5px solid var(--moni-border-default)',
-          }}
-        >
-          <div className="mb-2 flex items-center gap-2">
-            <span
-              className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100 text-violet-700"
-              aria-hidden
-            >
-              <Calendar className="h-3.5 w-3.5" />
-            </span>
-            <div>
-              <p className="text-xs font-semibold text-stone-800">Reunião</p>
-              <p className="text-[10px] text-stone-500">Agende e registre a ata ao concluir</p>
-            </div>
-          </div>
+      <div className="mb-3 grid gap-2 sm:grid-cols-2">
+        <div className="flex flex-wrap items-center gap-1.5 rounded-lg px-2 py-1.5" style={cardStyle}>
+          <Calendar className="h-3 w-3 shrink-0 text-violet-600" aria-hidden />
+          <span className="text-[11px] font-semibold text-stone-700">Reunião</span>
           <input
             type="date"
             value={dataReuniao}
             onChange={(e) => onDataReuniaoChange(e.target.value)}
             onBlur={(e) => void salvarReuniao(e.target.value)}
             disabled={salvandoReuniao}
-            className="mb-2 w-full rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-sm"
+            className="min-w-0 flex-1 rounded border border-stone-200 bg-white px-1.5 py-0.5 text-[11px]"
           />
           {dataReuniao ? (
             <>
               <span
-                className={`mb-2 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${calcularCorDataBadge(dataReuniao)}`}
+                className={`shrink-0 rounded-full border px-1.5 py-px text-[9px] font-semibold ${calcularCorDataBadge(dataReuniao)}`}
               >
-                {formatDataPtBr(dataReuniao)} · {labelRelativoData(dataReuniao)}
+                {labelRelativoData(dataReuniao)}
               </span>
               <button
                 type="button"
                 onClick={abrirAta}
-                className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 transition hover:bg-amber-100"
+                title="Preencher ata de reunião"
+                className="inline-flex shrink-0 items-center gap-0.5 rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900 hover:bg-amber-100"
               >
-                <FileText className="h-3.5 w-3.5" />
-                Preencher ata de reunião
+                <FileText className="h-3 w-3" />
+                Ata
               </button>
-              <p className="mt-1.5 text-[10px] text-stone-500">
-                Obrigatório registrar a ata. Após concluir, a data da reunião será limpa.
-              </p>
             </>
           ) : (
             <button
               type="button"
-              onClick={() => {
-                const hoje = new Date().toISOString().slice(0, 10);
-                onDataReuniaoChange(hoje);
-                void salvarReuniao(hoje).then(() => setAtaAberta(true));
-              }}
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-stone-300 px-3 py-2 text-xs font-medium text-stone-600 hover:border-moni-primary hover:text-moni-primary"
+              onClick={agendarReuniaoHoje}
+              title="Agendar reunião"
+              className="inline-flex shrink-0 items-center gap-0.5 rounded border border-dashed border-stone-300 px-1.5 py-0.5 text-[10px] text-stone-600 hover:border-moni-primary hover:text-moni-primary"
             >
-              <PlusIcon />
-              Agendar reunião
+              <Plus className="h-3 w-3" />
+              Agendar
             </button>
           )}
         </div>
 
-        <div
-          className="rounded-xl p-3"
-          style={{
-            background: 'var(--moni-surface-50)',
-            border: '0.5px solid var(--moni-border-default)',
-          }}
-        >
-          <div className="mb-2 flex items-center gap-2">
-            <span
-              className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-100 text-sky-700"
-              aria-hidden
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-            </span>
-            <div>
-              <p className="text-xs font-semibold text-stone-800">Follow-up</p>
-              <p className="text-[10px] text-stone-500">Próximo contato ou retorno</p>
-            </div>
-          </div>
+        <div className="flex flex-wrap items-center gap-1.5 rounded-lg px-2 py-1.5" style={cardStyle}>
+          <RefreshCw className="h-3 w-3 shrink-0 text-sky-600" aria-hidden />
+          <span className="text-[11px] font-semibold text-stone-700">Follow-up</span>
           <input
             type="date"
             value={dataFollowup}
             onChange={(e) => onDataFollowupChange(e.target.value)}
             onBlur={(e) => void salvarFollowup(e.target.value)}
             disabled={salvandoFollowup}
-            className="mb-2 w-full rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-sm"
+            className="min-w-0 flex-1 rounded border border-stone-200 bg-white px-1.5 py-0.5 text-[11px]"
           />
           {dataFollowup ? (
             <span
-              className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${calcularCorDataBadge(dataFollowup)}`}
+              className={`shrink-0 rounded-full border px-1.5 py-px text-[9px] font-semibold ${calcularCorDataBadge(dataFollowup)}`}
             >
-              {formatDataPtBr(dataFollowup)} · {labelRelativoData(dataFollowup)}
+              {labelRelativoData(dataFollowup)}
             </span>
-          ) : (
-            <p className="text-[10px] text-stone-400">Nenhum follow-up agendado</p>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -193,13 +164,5 @@ export function KanbanCardDatasFields({
         />
       ) : null}
     </>
-  );
-}
-
-function PlusIcon() {
-  return (
-    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
   );
 }
