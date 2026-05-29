@@ -755,10 +755,9 @@ export async function criarChamado(
   const teTrataRaw = formData.get('te_trata');
   const teTrata =
     teTrataRaw === 'sim' ? true : teTrataRaw === 'nao' ? false : null;
-  const tema = (formData.get('tema') as string)?.trim() || '';
+  const tema = (formData.get('tema') as string)?.trim() || null;
 
   if (!incendio) return { ok: false, error: 'Informe o incêndio (resumo).' };
-  if (!tema) return { ok: false, error: 'Selecione o tema do chamado.' };
   if (!timeAbertura || !aberturaResponsavelNome) {
     return { ok: false, error: 'Informe o time e o responsável antes de abrir o chamado.' };
   }
@@ -1257,7 +1256,7 @@ export type AdicionarTopicoChamadoPainelInput = {
   responsaveis_ids: string[];
   data_fim: string | null;
   trava: boolean;
-  tema: string;
+  tema?: string | null;
 };
 
 function uniqUuidStrings(ids: string[] | undefined | null): string[] {
@@ -1331,7 +1330,7 @@ export async function adicionarTopicoChamadoPainel(
     trava: Boolean(payload.trava),
     data_fim: dataFim,
     tipo,
-    tema: payload.tema,
+    tema: payload.tema?.trim() || null,
   });
   if (insErr) return { ok: false, error: insErr.message };
 

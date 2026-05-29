@@ -77,6 +77,7 @@ import {
   type KanbanCardModalDetalhes,
   type PreObraDraftKanban,
 } from '@/lib/kanban/kanban-card-modal-detalhes';
+import { resolveTemaChamadoForm } from '@/lib/kanban/resolve-tema-chamado';
 import { SlaTituloBolinha } from '@/components/SlaTituloBolinha';
 import { MultiSelectCheckbox } from '@/components/MultiSelectCheckbox';
 import { AtividadeVinculadaCard } from '@/components/AtividadeVinculadaCard';
@@ -1309,8 +1310,6 @@ export function KanbanCardModal({
 
   async function handleAdicionarInteracao() {
     if (!card || !novaInteracao.titulo.trim()) return;
-    if (!novaInteracao.tema) { alert('Selecione o tema do chamado.'); return; }
-    if (novaInteracao.tema === 'Outro' && !novaInteracao.temaOutro.trim()) { alert('Detalhe o tema.'); return; }
     if (!pode('criar_chamados')) {
       alert('Sem permissão para criar chamados.');
       return;
@@ -1338,7 +1337,7 @@ export function KanbanCardModal({
         ordem: ordemReal,
         basePath,
         origem,
-        tema: novaInteracao.tema === 'Outro' ? novaInteracao.temaOutro.trim() : novaInteracao.tema,
+        tema: resolveTemaChamadoForm(novaInteracao.tema, novaInteracao.temaOutro),
       });
       if (!res.ok) {
         alert(res.error);
@@ -1503,8 +1502,6 @@ export function KanbanCardModal({
 
   async function handleCriarSubInteracao(interacaoId: string) {
     if (!subNovaDraft.titulo.trim()) return;
-    if (!subNovaDraft.tema) { alert('Selecione o tema do sub-chamado.'); return; }
-    if (subNovaDraft.tema === 'Outro' && !subNovaDraft.temaOutro.trim()) { alert('Detalhe o tema.'); return; }
     if (subNovaDraft.timesIds.length === 0) {
       alert('Selecione ao menos um time.');
       return;
@@ -1524,7 +1521,7 @@ export function KanbanCardModal({
         data_fim: subNovaDraft.data.trim() || null,
         trava: subNovaDraft.trava,
         basePath,
-        tema: subNovaDraft.tema === 'Outro' ? subNovaDraft.temaOutro.trim() : subNovaDraft.tema,
+        tema: resolveTemaChamadoForm(subNovaDraft.tema, subNovaDraft.temaOutro),
       });
       if (!res.ok) {
         alert(res.error);
@@ -1552,8 +1549,6 @@ export function KanbanCardModal({
 
   async function handleEditarSubInteracao(subId: string) {
     if (!editSubDraft.descricao.trim()) { alert('Informe a descrição.'); return; }
-    if (!editSubDraft.tema) { alert('Selecione o tema.'); return; }
-    if (editSubDraft.tema === 'Outro' && !editSubDraft.temaOutro.trim()) { alert('Detalhe o tema.'); return; }
     if (editSubDraft.timesIds.length === 0) { alert('Selecione ao menos um time.'); return; }
     setSalvandoEditSub(true);
     try {
@@ -1566,7 +1561,7 @@ export function KanbanCardModal({
           responsaveis_ids: editSubDraft.responsaveisIds,
           data_fim: editSubDraft.data_fim.trim() || null,
           trava: editSubDraft.trava,
-          tema: editSubDraft.tema === 'Outro' ? editSubDraft.temaOutro.trim() : editSubDraft.tema,
+          tema: resolveTemaChamadoForm(editSubDraft.tema, editSubDraft.temaOutro),
         },
         basePath,
       );
@@ -3578,7 +3573,7 @@ export function KanbanCardModal({
                                               className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
                                             />
                                             <div>
-                                              <span className="mb-1 block text-[10px] font-medium text-stone-600">Tema (obrigatório)</span>
+                                              <span className="mb-1 block text-[10px] font-medium text-stone-600">Tema</span>
                                               <select
                                                 value={editSubDraft.tema}
                                                 onChange={(e) => setEditSubDraft((s) => ({ ...s, tema: e.target.value, temaOutro: '' }))}
@@ -3601,7 +3596,7 @@ export function KanbanCardModal({
                                                   type="text"
                                                   value={editSubDraft.temaOutro}
                                                   onChange={(e) => setEditSubDraft((s) => ({ ...s, temaOutro: e.target.value }))}
-                                                  placeholder="Detalhe o tema (obrigatório)"
+                                                  placeholder="Detalhe o tema"
                                                   className="mt-1 w-full rounded border border-stone-300 px-2 py-1 text-xs"
                                                 />
                                               )}
@@ -3675,9 +3670,7 @@ export function KanbanCardModal({
                                                 disabled={
                                                   salvandoEditSub ||
                                                   !editSubDraft.descricao.trim() ||
-                                                  editSubDraft.timesIds.length === 0 ||
-                                                  !editSubDraft.tema ||
-                                                  (editSubDraft.tema === 'Outro' && !editSubDraft.temaOutro.trim())
+                                                  editSubDraft.timesIds.length === 0
                                                 }
                                                 onClick={() => void handleEditarSubInteracao(sub.id)}
                                                 className="rounded px-3 py-1.5 text-[11px] font-medium text-white disabled:opacity-50"
@@ -3863,7 +3856,7 @@ export function KanbanCardModal({
                                       className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
                                     />
                                     <div>
-                                      <span className="mb-1 block text-[10px] font-medium text-stone-600">Tema (obrigatório)</span>
+                                      <span className="mb-1 block text-[10px] font-medium text-stone-600">Tema</span>
                                       <select
                                         value={subNovaDraft.tema}
                                         onChange={(e) => setSubNovaDraft((s) => ({ ...s, tema: e.target.value, temaOutro: '' }))}
@@ -3886,7 +3879,7 @@ export function KanbanCardModal({
                                           type="text"
                                           value={subNovaDraft.temaOutro}
                                           onChange={(e) => setSubNovaDraft((s) => ({ ...s, temaOutro: e.target.value }))}
-                                          placeholder="Detalhe o tema (obrigatório)"
+                                          placeholder="Detalhe o tema"
                                           className="mt-1 w-full rounded border border-stone-300 px-2 py-1 text-xs"
                                         />
                                       )}
@@ -3956,9 +3949,7 @@ export function KanbanCardModal({
                                         disabled={
                                           salvandoSub ||
                                           !subNovaDraft.titulo.trim() ||
-                                          subNovaDraft.timesIds.length === 0 ||
-                                          !subNovaDraft.tema ||
-                                          (subNovaDraft.tema === 'Outro' && !subNovaDraft.temaOutro.trim())
+                                          subNovaDraft.timesIds.length === 0
                                         }
                                         onClick={() => void handleCriarSubInteracao(it.id)}
                                         className="rounded px-3 py-1.5 text-[11px] font-medium text-white disabled:opacity-50"
@@ -4076,7 +4067,7 @@ export function KanbanCardModal({
                       style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
                       aria-label="Tema do chamado"
                     >
-                      <option value="">Tema (obrigatório)</option>
+                      <option value="">Tema</option>
                       <option value="Acoplamento">Acoplamento</option>
                       <option value="Adicionais">Adicionais</option>
                       <option value="BCA + Batalha">BCA + Batalha</option>
@@ -4094,7 +4085,7 @@ export function KanbanCardModal({
                       type="text"
                       value={novaInteracao.temaOutro}
                       onChange={(e) => setNovaInteracao((n) => ({ ...n, temaOutro: e.target.value }))}
-                      placeholder="Detalhe o tema (obrigatório)"
+                      placeholder="Detalhe o tema"
                       className="w-full px-2 py-1.5 text-xs"
                       style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
                     />
@@ -4161,7 +4152,7 @@ export function KanbanCardModal({
                     <button
                       type="button"
                       onClick={() => void handleAdicionarInteracao()}
-                      disabled={loading || !novaInteracao.titulo.trim() || !novaInteracao.tema || (novaInteracao.tema === 'Outro' && !novaInteracao.temaOutro.trim())}
+                      disabled={loading || !novaInteracao.titulo.trim()}
                       className="shrink-0 px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50 sm:w-auto"
                       style={{ background: 'var(--moni-text-primary)', borderRadius: 'var(--moni-radius-md)' }}
                     >

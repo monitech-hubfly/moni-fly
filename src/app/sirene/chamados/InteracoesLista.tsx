@@ -44,6 +44,7 @@ import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import { SubInteracaoLista, mapRawTopicoToListaItem } from '@/components/kanban-shared/SubInteracaoLista';
 import { MencaoContentEditable } from '@/components/kanban-shared/MencaoContentEditable';
 import { ModalNovoChamado } from '../ModalNovoChamado';
+import { resolveTemaChamadoForm } from '@/lib/kanban/resolve-tema-chamado';
 
 export type InteracaoSireneRow = {
   id: string;
@@ -856,15 +857,13 @@ export function InteracoesLista({
       setMsgErro('Informe a descrição do sub-chamado.');
       return;
     }
-    if (!d.tema) { setMsgErro('Selecione o tema do sub-chamado.'); return; }
-    if (d.tema === 'Outro' && !d.temaOutro.trim()) { setMsgErro('Detalhe o tema.'); return; }
     if (d.timesIds.length === 0) {
       setMsgErro('Selecione ao menos um time.');
       return;
     }
     setSalvandoTopico((s) => ({ ...s, [alvoKey]: true }));
     setMsgErro(null);
-    const temaFinal = d.tema === 'Outro' ? d.temaOutro.trim() : d.tema;
+    const temaFinal = resolveTemaChamadoForm(d.tema, d.temaOutro);
     const res =
       row.sirene_chamado_id != null
         ? await adicionarTopicoChamadoPainel(row.sirene_chamado_id, {
@@ -1914,7 +1913,7 @@ export function InteracoesLista({
                                   className="w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)]"
                                 />
                                 <div>
-                                  <span className="mb-1 block text-[10px] font-medium text-[color:var(--moni-text-tertiary)]">Tema (obrigatório)</span>
+                                  <span className="mb-1 block text-[10px] font-medium text-[color:var(--moni-text-tertiary)]">Tema</span>
                                   <SelectMoni
                                     value={d.tema}
                                     onChange={(e) => setSubDraft(alvoK, { tema: e.target.value, temaOutro: '' })}
@@ -1937,7 +1936,7 @@ export function InteracoesLista({
                                       type="text"
                                       value={d.temaOutro}
                                       onChange={(e) => setSubDraft(alvoK, { temaOutro: e.target.value })}
-                                      placeholder="Detalhe o tema (obrigatório)"
+                                      placeholder="Detalhe o tema"
                                       className="mt-1 w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)]"
                                     />
                                   )}
@@ -2015,9 +2014,7 @@ export function InteracoesLista({
                                   disabled={
                                     Boolean(salvandoTopico[alvoK]) ||
                                     !d.descricao.trim() ||
-                                    d.timesIds.length === 0 ||
-                                    !d.tema ||
-                                    (d.tema === 'Outro' && !d.temaOutro.trim())
+                                    d.timesIds.length === 0
                                   }
                                   onClick={() => void handleAdicionarTopico(row)}
                                   className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-500 disabled:opacity-50"

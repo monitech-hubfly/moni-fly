@@ -15,6 +15,7 @@ import {
 } from '@/lib/times-responsaveis';
 import { createClient } from '@/lib/supabase/client';
 import { MultiSelectCheckbox } from '@/components/MultiSelectCheckbox';
+import { resolveTemaChamadoForm } from '@/lib/kanban/resolve-tema-chamado';
 
 type FranqueadoItem = { id: string; n_franquia: string | null; nome_completo: string | null };
 
@@ -154,7 +155,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     const formData = new FormData();
     const incendioBase = incendio.trim();
     const temaOutroTrim = temaOutro.trim();
-    const temaFinal = tema === 'Outro' ? 'Outro' : tema;
+    const temaResolvido = resolveTemaChamadoForm(tema, temaOutroTrim);
     const incendioFinal =
       tema === 'Outro' && temaOutroTrim ? `${incendioBase} — Tema: ${temaOutroTrim}` : incendioBase;
 
@@ -170,7 +171,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     if (teTrata === 'sim' || teTrata === 'nao') formData.set('te_trata', teTrata);
     formData.set('tipo', inferidoHdm ? 'hdm' : 'padrao');
     if (inferidoHdm) formData.set('hdm_responsavel', inferidoHdm);
-    formData.set('tema', temaFinal);
+    formData.set('tema', temaResolvido ?? '');
     if (cardVinculo) {
       formData.set('card_id', cardVinculo.card_id);
       formData.set('card_kanban_nome', cardVinculo.kanban_nome);
@@ -315,7 +316,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
 
           <div>
             <label className="mb-1 block text-sm font-medium text-stone-700">
-              Tema *
+              Tema
             </label>
             <select
               value={tema}
@@ -324,7 +325,6 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                 setTemaOutro('');
               }}
               className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
-              required
             >
               <option value="">Selecione</option>
               <option value="Acoplamento">Acoplamento</option>
@@ -343,9 +343,8 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                 type="text"
                 value={temaOutro}
                 onChange={(e) => setTemaOutro(e.target.value)}
-                placeholder="Detalhe o tema (obrigatório)"
+                placeholder="Detalhe o tema"
                 className="mt-2 w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
-                required
               />
             )}
           </div>
@@ -455,7 +454,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
             </button>
             <button
               type="submit"
-              disabled={loading || !incendio.trim() || teTrata === '' || !tema || (tema === 'Outro' && !temaOutro.trim()) || (!isFrank && timesIds.length === 0)}
+              disabled={loading || !incendio.trim() || teTrata === '' || (!isFrank && timesIds.length === 0)}
               className="rounded-lg bg-moni-primary px-4 py-2 text-sm font-medium text-white hover:bg-moni-secondary disabled:opacity-50"
             >
               {loading ? 'Abrindo…' : 'Abrir chamado'}

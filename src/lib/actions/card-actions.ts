@@ -24,6 +24,7 @@ import {
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { usuarioConcluiuCasasUniversidade012 } from '@/lib/universidade/queries';
+import { normalizeTemaChamado } from '@/lib/kanban/resolve-tema-chamado';
 import type { FaseChecklistItem } from './candidato-actions';
 import { executarBastaoDeVolta, executarBastoes } from '@/lib/actions/kanban-bastoes';
 import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-notify';
@@ -62,7 +63,7 @@ export type CriarInteracaoInput = {
   basePath?: string;
   /** `legado` quando `card_id` é `processo_step_one.id` (migration 116). */
   origem?: 'nativo' | 'legado';
-  tema: string;
+  tema?: string | null;
 };
 
 export type EditarInteracaoInput = {
@@ -175,7 +176,7 @@ export type CriarSubInteracaoInput = {
   data_fim?: string | null;
   trava: boolean;
   basePath?: string;
-  tema: string;
+  tema?: string | null;
 };
 
 export type SubInteracaoStatusDb = 'nao_iniciado' | 'em_andamento' | 'concluido' | 'aprovado';
@@ -294,7 +295,7 @@ export async function criarInteracao(input: CriarInteracaoInput): Promise<Action
     criado_por: user.id,
     time: timeCol,
     origem: input.origem === 'legado' ? 'legado' : 'nativo',
-    tema: input.tema,
+    tema: normalizeTemaChamado(input.tema),
   };
 
   const { error } = await supabase.from('kanban_atividades').insert(row as never);
@@ -421,7 +422,7 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
     data_inicio: null,
     status: 'nao_iniciado' as const,
     tipo: tipoSub,
-    tema: input.tema,
+    tema: normalizeTemaChamado(input.tema),
   };
 
   const { error } = await supabase.from('sirene_topicos').insert(row as never);
@@ -449,7 +450,7 @@ export async function editarSubInteracao(
     responsaveis_ids: string[];
     data_fim: string | null;
     trava: boolean;
-    tema: string;
+    tema?: string | null;
   },
   basePath?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -464,7 +465,7 @@ export async function editarSubInteracao(
         responsaveis_ids: payload.responsaveis_ids,
         data_fim: payload.data_fim?.trim() || null,
         trava: payload.trava,
-        tema: payload.tema,
+        tema: normalizeTemaChamado(payload.tema),
       })
       .eq('id', topicoId);
     if (error) return { ok: false, error: error.message };
