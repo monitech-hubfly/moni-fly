@@ -319,7 +319,7 @@ export function KanbanCardModal({
     novoNegocio: false,
     preObra: false,
     obra: false,
-    relacionamentos: true,
+    relacionamentos: false,
     atasReuniao: false,
     chamados: false,
     historico: false,
@@ -506,6 +506,7 @@ export function KanbanCardModal({
     setArquivamentoAberto(false);
     setMotivoArquivamento('');
     setConfirmandoFinalizar(false);
+    setSecaoAberta((prev) => ({ ...prev, relacionamentos: false }));
     setFiltros(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT);
     setFiltrosDraft(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT);
     setFiltrosOpen(false);
