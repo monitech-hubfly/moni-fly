@@ -90,7 +90,16 @@ export default function Page() {
     setPeriodo(p)
 
     const { data: areasData } = await listarAreas(supabase, 'id, nome')
-    setAreas(areasData || [])
+    const list = areasData || []
+    setAreas(list)
+    if (list.length && !filtroArea) {
+      const ids = new Set(list.map((a) => String(a?.id ?? '')).filter(Boolean))
+      const fromStorage = localStorage.getItem('carometro_ultima_area')
+      if (fromStorage && ids.has(fromStorage)) {
+        setFiltroArea(fromStorage)
+        localStorage.setItem('carometro_ultima_area', fromStorage)
+      }
+    }
 
     let gantt = []
     const { data: ganttData, error: errGantt } = await supabase
@@ -230,7 +239,11 @@ export default function Page() {
           <select
             id="todo-filtro-area"
             value={filtroArea}
-            onChange={e => setFiltroArea(e.target.value)}
+            onChange={e => {
+              const v = e.target.value
+              setFiltroArea(v)
+              if (v) localStorage.setItem('carometro_ultima_area', v)
+            }}
             style={{ fontSize: 13, border: '0.5px solid #e0d9ce', borderRadius: 6, padding: '6px 10px', minWidth: 160, background: '#fff', color: '#1D2F25' }}
           >
             <option value="">Todas as áreas</option>

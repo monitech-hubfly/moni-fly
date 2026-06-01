@@ -800,7 +800,7 @@ function ordenarLancamentosIndicadorParaGrade(rows, periodoIdAtual, schemaTemPer
 }
 
 /** Bolinhas da escala (legenda) + nome + tooltip com faixas (portal no body). */
-function SemaforoIndicadorIcone({ indicador }) {
+function SemaforoIndicadorIcone({ indicador, concluido }) {
   const wrapRef = useRef(null)
   const [tip, setTip] = useState(null)
   const norm = normalizarSemaforo(indicador)
@@ -837,7 +837,17 @@ function SemaforoIndicadorIcone({ indicador }) {
           ))}
         </div>
         <span
-          style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
+          style={{
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            minWidth: 0,
+            ...(concluido ? {
+              textDecoration: 'line-through',
+              color: '#888780',
+              opacity: 0.8
+            } : {})
+          }}
           title={nomeTxt !== '—' ? nomeTxt : undefined}
         >
           {nomeTxt}
@@ -1438,6 +1448,7 @@ export default function Page() {
   /** Ids em `area_pessoas` da área atual; o texto salvo em `gantt_planejamento.responsavel` é a junção dos nomes. */
   const [addResponsavelPessoaIds, setAddResponsavelPessoaIds] = useState([])
   const [areaPessoasLista, setAreaPessoasLista] = useState([])
+  const [filtroResponsavelId, setFiltroResponsavelId] = useState('')
   /** Tabela `area_pessoas` ausente no PostgREST — lista/cadastro de responsáveis não funciona até rodar o SQL. */
   const [areaPessoasTabelaAusente, setAreaPessoasTabelaAusente] = useState(false)
   const [salvandoPessoaGantt, setSalvandoPessoaGantt] = useState(false)
@@ -1524,6 +1535,8 @@ export default function Page() {
   const [indicadorParaConcluir, setIndicadorParaConcluir] = useState(null)
   const [comentarioConclusaoMeta, setComentarioConclusaoMeta] = useState('')
   const [concluindoMetaId, setConcluindoMetaId] = useState(null)
+  /** Modal em duas etapas para reverter conclusão de meta (admin). */
+  const [modalReverter, setModalReverter] = useState(null)
   const concluirMetaComentarioRef = useRef(null)
 
   useEffect(() => {
@@ -1915,12 +1928,16 @@ export default function Page() {
   useEffect(() => { carregarAreas() }, [])
   useEffect(() => {
     if (!areas.length) return
+    const ids = new Set(areas.map((a) => String(a?.id ?? '')).filter(Boolean))
     const fromUrl = searchParams.get('area')
-    if (fromUrl && areas.some(a => a.id === fromUrl)) {
-      setAreaId(fromUrl)
-    } else if (!areaId) {
-      setAreaId(areas[0].id)
-    }
+    const fromUrlValid = fromUrl && ids.has(String(fromUrl)) ? String(fromUrl) : null
+    const current = areaId && ids.has(String(areaId)) ? String(areaId) : null
+    const fromStorage = localStorage.getItem('carometro_ultima_area')
+    const next = fromUrlValid || current
+      || (fromStorage && ids.has(fromStorage) ? fromStorage : null)
+      || String(areas[0].id)
+    if (next !== areaId) setAreaId(next)
+    localStorage.setItem('carometro_ultima_area', next)
   }, [areas, searchParams])
   useEffect(() => { carregarPeriodo() }, [periodoId])
   useEffect(() => {
@@ -1931,6 +1948,7 @@ export default function Page() {
   }, [areaId])
   useEffect(() => { carregarMetasObjetivos() }, [areaId])
   useEffect(() => { carregarAreaPessoas() }, [areaId])
+  useEffect(() => { setFiltroResponsavelId('') }, [areaId])
   useEffect(() => { setAddResponsavelPessoaIds([]) }, [areaId])
 
   /** Abre a gaveta de meta com ?openMeta=1 (remove o parâmetro da URL). */
@@ -2736,6 +2754,14 @@ export default function Page() {
     }
     return filtrarLinhasGradeSohComPlanoNoPeriodo(out)
   }, [tarefas, planejamentoNaArea, cronograma, acaoPorId, metasObjetivos, semanas, indicadoresPorObjetivo, periodo, isAreaTipoAtividadeProjeto])
+
+  const linhasFiltradas = useMemo(() => {
+    if (!filtroResponsavelId) return linhas
+    return linhas.filter(l => {
+      const ids = responsavelStrParaIds(l.responsavel, areaPessoasLista)
+      return ids.includes(filtroResponsavelId)
+    })
+  }, [linhas, filtroResponsavelId, areaPessoasLista])
 
   /** Metas com pelo menos uma linha de comportamento ou ação no plano (para rótulo «Atividades»). */
   const metaTemAtividadesNoPlano = useMemo(() => {
@@ -4433,6 +4459,44 @@ export default function Page() {
     setIndicadorFeedback({ type: 'success', message: 'Meta concluída e movida para Conquistas' })
   }
 
+  function handleReverterConclusao(meta) {
+    setModalReverter({ meta, etapa: 1 })
+  }
+
+  async function confirmarReverter() {
+    if (!modalReverter) return
+    if (modalReverter.etapa === 1) {
+      setModalReverter({ ...modalReverter, etapa: 2 })
+      return
+    }
+    const meta = modalReverter.meta
+    setModalReverter(null)
+    setConcluindoMetaId(meta.id)
+    setError(null)
+    try {
+      const { error: errObj } = await supabase
+        .from('objetivos')
+        .update({
+          status: 'aberto',
+          concluido: false,
+          concluido_em: null,
+          comentario_conclusao: null
+        })
+        .eq('id', meta.id)
+      if (errObj) throw errObj
+
+      await supabase.from('conquistas').delete().eq('objetivo_id', meta.id)
+      await supabase.from('indicador_conquistas').delete().eq('objetivo_id', meta.id)
+
+      await carregarMetasObjetivos()
+    } catch (err) {
+      console.error('Erro ao reverter:', err)
+      alert('Erro ao reverter: ' + (err?.message || err))
+    } finally {
+      setConcluindoMetaId(null)
+    }
+  }
+
   async function executarExclusaoMetaConfirmada(objetivoId) {
     if (!objetivoId) return
     setError(null)
@@ -4548,7 +4612,7 @@ export default function Page() {
     if (!areaId) {
       return { tableRows: null }
     }
-    if (linhas.length === 0 && !temAlgumIndicadorNaGrade) {
+    if (linhasFiltradas.length === 0 && !temAlgumIndicadorNaGrade) {
       return { tableRows: null }
     }
     const tableRows = [...pastelariaGantt.rows]
@@ -4572,7 +4636,7 @@ export default function Page() {
               verticalAlign: 'middle'
             }}
           >
-            <SemaforoIndicadorIcone indicador={ind} />
+            <SemaforoIndicadorIcone indicador={ind} concluido={indConcluido} />
           </td>
           <td
             className="gantt-shell-cell gantt-shell-cell--responsavel gantt-td-ind"
@@ -4739,7 +4803,7 @@ export default function Page() {
     }
     const metaById = new Map((metasObjetivos || []).filter(m => m?.id).map(m => [String(m.id), m]))
     let acaoBefore = 0
-    linhas.forEach(l => {
+    linhasFiltradas.forEach(l => {
       if (l.tipo === 'objetivo') {
         const concluida = metaConcluida(l.meta)
         const semanaConc = semanaConclusaoLabel(l.meta)
@@ -4759,7 +4823,11 @@ export default function Page() {
             }
           >
             <td className="gantt-shell-cell gantt-shell-cell--atividade" style={concluida ? { background: '#e8ecef' } : undefined}>
-              <span className="gantt-meta-nome" title={l.nome?.trim() || undefined}>
+              <span
+                className="gantt-meta-nome"
+                title={l.nome?.trim() || undefined}
+                style={concluida ? { textDecoration: 'line-through', color: '#888780' } : undefined}
+              >
                 {concluida && (
                   <span
                     style={{
@@ -4771,16 +4839,15 @@ export default function Page() {
                       padding: '1px 8px',
                       fontSize: 10,
                       marginRight: 6,
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      textDecoration: 'none',
                     }}
                     title="Meta concluída"
                   >
                     ✓ Concluído{semanaConc ? ` · ${semanaConc}` : ''}
                   </span>
                 )}
-                <span style={concluida ? { color: '#1f2937', textDecoration: 'line-through', opacity: 0.9 } : undefined}>
-                  {l.nome}
-                </span>
+                <span>{l.nome}</span>
               </span>
             </td>
             <td className="gantt-shell-cell gantt-shell-cell--responsavel" style={concluida ? { background: '#e8ecef' } : undefined}>
@@ -4886,7 +4953,7 @@ export default function Page() {
             <td className="gantt-shell-cell gantt-shell-cell--atividade">
               <span
                 className="gantt-nome-comportamento"
-                style={metaFechada ? { color: '#374151', textDecoration: 'line-through', opacity: 0.85 } : undefined}
+                style={metaFechada ? { color: '#888780', textDecoration: 'line-through', opacity: 0.85 } : undefined}
               >
                 {l.nome}
               </span>
@@ -4911,7 +4978,7 @@ export default function Page() {
           <td className="gantt-shell-cell gantt-shell-cell--atividade">
             <span
               className="gantt-nome-acao"
-              style={metaFechada ? { color: '#374151', textDecoration: 'line-through', opacity: 0.85 } : undefined}
+              style={metaFechada ? { color: '#888780', textDecoration: 'line-through', opacity: 0.85 } : undefined}
             >
               ↳ {l.nome}
             </span>
@@ -6150,7 +6217,9 @@ export default function Page() {
   }, [
     areaId,
     pastelariaGantt.rows,
-    linhas,
+    linhasFiltradas,
+    filtroResponsavelId,
+    areaPessoasLista,
     temAlgumIndicadorNaGrade,
     indicadoresPorObjetivo,
     lancamentosPorIndicador,
@@ -6195,7 +6264,7 @@ export default function Page() {
 
   return (
     <div className="gantt-page-moni">
-      <style>{`
+      <style suppressHydrationWarning>{`
         .gantt-page-moni {
           box-sizing: border-box;
         }
@@ -6280,6 +6349,12 @@ export default function Page() {
           align-items: center;
           gap: 12px;
         }
+        .gantt-page-moni .gantt-toolbar-periodos {
+          display: flex;
+          gap: 12px;
+          align-items: flex-end;
+          flex-wrap: wrap;
+        }
         .gantt-page-moni .gantt-toolbar-periodos .periodo-select-root {
           display: flex;
           gap: 12px;
@@ -6298,6 +6373,27 @@ export default function Page() {
           margin-bottom: 4px;
         }
         .gantt-page-moni .gantt-toolbar-periodos .periodo-select-root select {
+          font-size: 13px;
+          border: 0.5px solid #e0d9ce;
+          border-radius: 6px;
+          padding: 6px 10px;
+          height: auto;
+          min-height: 0;
+          box-sizing: border-box;
+          background: #ffffff;
+        }
+        .gantt-page-moni .gantt-toolbar-periodos > .form-group {
+          display: flex;
+          flex-direction: column;
+          margin: 0;
+          min-width: 0;
+        }
+        .gantt-page-moni .gantt-toolbar-periodos > .form-group label {
+          font-size: 12px;
+          color: #888780;
+          margin-bottom: 4px;
+        }
+        .gantt-page-moni .gantt-toolbar-periodos > .form-group select {
           font-size: 13px;
           border: 0.5px solid #e0d9ce;
           border-radius: 6px;
@@ -6439,7 +6535,7 @@ export default function Page() {
               id="gantt-headline-area-select"
               className="gantt-page-header__area-select"
               value={areaId}
-              onChange={e => { setError(null); setAreaId(e.target.value) }}
+              onChange={e => { setError(null); setAreaId(e.target.value); localStorage.setItem('carometro_ultima_area', e.target.value) }}
               aria-label="Área"
             >
               <option value="">Selecione</option>
@@ -6539,7 +6635,7 @@ export default function Page() {
                 <span
                   className="gantt-meta-card-nome"
                   title={(m.descricao || '—').trim() || undefined}
-                  style={concluida ? { color: '#1f2937' } : undefined}
+                  style={concluida ? { color: '#888780', textDecoration: 'line-through' } : undefined}
                 >
                   {m.descricao || '—'}
                 </span>
@@ -6567,6 +6663,26 @@ export default function Page() {
                     {formatoPrazoMeta(m)}
                   </span>
                   <div className="gantt-meta-card-actions">
+                    {isAdmin && metaConcluida(m) && (
+                      <button
+                        type="button"
+                        onClick={() => void handleReverterConclusao(m)}
+                        title="Reverter conclusão (admin)"
+                        disabled={concluindoMetaId === m.id}
+                        style={{
+                          background: 'transparent',
+                          border: '0.5px solid #F09595',
+                          borderRadius: 4,
+                          color: '#A32D2D',
+                          fontSize: 11,
+                          padding: '2px 8px',
+                          cursor: 'pointer',
+                          marginLeft: 8
+                        }}
+                      >
+                        Reverter
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => abrirModalConclusao(m)}
@@ -6904,6 +7020,18 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                 setPeriodoId(next)
               }}
             />
+            <div className="form-group">
+              <label>Responsável</label>
+              <select
+                value={filtroResponsavelId}
+                onChange={e => setFiltroResponsavelId(e.target.value)}
+              >
+                <option value="">Todos</option>
+                {areaPessoasLista.map(p => (
+                  <option key={p.id} value={p.id}>{p.nome}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
         <div className="gantt-toolbar-right gantt-controls-row-right">
@@ -9612,7 +9740,7 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
             </div>
 
             <div className="workload-drawer-form-inner gantt-add-drawer-bottom">
-              <style>{`
+              <style suppressHydrationWarning>{`
                 .gantt-add-drawer-bottom .responsaveis-multi-trigger,
                 .gantt-add-drawer-bottom .responsaveis-multi-panel {
                   background: var(--color-background-primary, #ffffff) !important;
@@ -10168,7 +10296,7 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                   </table>
                 </div>
               ) : null}
-              {!(areaId && (linhas.length > 0 || temAlgumIndicadorNaGrade)) && (
+              {!(areaId && (linhasFiltradas.length > 0 || temAlgumIndicadorNaGrade)) && (
                 <div className="gantt-table-message-banner" role="status">
                   {!areaId ? (
                     <p className="gantt-table-message-text">
@@ -10292,6 +10420,96 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                   Excluir
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalReverter && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.45)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div style={{
+            background: 'var(--color-background-primary)',
+            borderRadius: 12,
+            border: '0.5px solid var(--color-border-tertiary)',
+            padding: '28px 32px',
+            maxWidth: 420,
+            width: '90%',
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              marginBottom: 16
+            }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: '50%',
+                background: 'var(--color-background-danger)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <span style={{ color: 'var(--color-text-danger)', fontSize: 18 }}>!</span>
+              </div>
+              <p style={{
+                fontSize: 15, fontWeight: 500,
+                color: 'var(--color-text-primary)', margin: 0
+              }}>
+                {modalReverter.etapa === 1
+                  ? 'Reverter conclusão da meta?'
+                  : 'Confirmação final'}
+              </p>
+            </div>
+
+            <p style={{
+              fontSize: 13, color: 'var(--color-text-secondary)',
+              marginBottom: 8, lineHeight: 1.6
+            }}>
+              {modalReverter.etapa === 1 ? (
+                <>
+                  A meta <strong style={{ color: 'var(--color-text-primary)' }}>
+                    &quot;{modalReverter.meta.descricao}&quot;
+                  </strong> será reaberta e o registro em Conquistas será excluído.
+                </>
+              ) : (
+                <>
+                  Tem certeza? <strong style={{ color: 'var(--color-text-danger)' }}>
+                    Essa operação não pode ser desfeita.
+                  </strong>
+                </>
+              )}
+            </p>
+
+            <div style={{
+              display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 24
+            }}>
+              <button
+                type="button"
+                onClick={() => setModalReverter(null)}
+                style={{
+                  background: 'transparent',
+                  border: '0.5px solid var(--color-border-secondary)',
+                  borderRadius: 6, padding: '7px 16px',
+                  fontSize: 13, cursor: 'pointer',
+                  color: 'var(--color-text-secondary)'
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmarReverter()}
+                style={{
+                  background: 'var(--color-background-danger)',
+                  border: '0.5px solid var(--color-border-danger)',
+                  borderRadius: 6, padding: '7px 16px',
+                  fontSize: 13, cursor: 'pointer',
+                  color: 'var(--color-text-danger)',
+                  fontWeight: 500
+                }}
+              >
+                {modalReverter.etapa === 1 ? 'Continuar' : 'Sim, reverter'}
+              </button>
             </div>
           </div>
         </div>

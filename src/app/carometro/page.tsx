@@ -2030,6 +2030,22 @@ export default function Carometro() {
     }
   }, [carregarDados, selecao, periodoDb, semanasMemo])
 
+  useEffect(() => {
+    if (!areas.length) return
+    const isDefaultGeral =
+      areaSelecionada === 'geral' &&
+      areasMultiplas.length === 1 &&
+      areasMultiplas[0] === 'geral'
+    if (!isDefaultGeral) return
+    const ids = new Set(areas.map((a) => String(a?.id ?? '')).filter(Boolean))
+    const fromStorage = localStorage.getItem('carometro_ultima_area')
+    if (fromStorage && ids.has(fromStorage)) {
+      setAreaSelecionada(fromStorage)
+      setAreasMultiplas([fromStorage])
+      localStorage.setItem('carometro_ultima_area', fromStorage)
+    }
+  }, [areas, areaSelecionada, areasMultiplas])
+
   async function toggleComportamentoChave(tarefaId, valorAtual) {
     if (!isAdmin) return
     const novoValor = valorAtual ? 'nao' : 'sim'
@@ -2896,6 +2912,9 @@ export default function Carometro() {
                     const areasFinal = nextAreas.length ? (nextAreas.includes('geral') ? ['geral'] : nextAreas) : ['geral']
                     setAreasMultiplas(areasFinal)
                     setAreaSelecionada(areasFinal.includes('geral') ? 'geral' : (areasFinal[0] || 'geral'))
+                    if (!areasFinal.includes('geral') && areasFinal.length === 1) {
+                      localStorage.setItem('carometro_ultima_area', String(areasFinal[0]))
+                    }
                     setVisualizacao(draftVisualizacao === 'chave' ? 'chave' : 'geral')
                     setFiltrosOpen(false)
                   }}

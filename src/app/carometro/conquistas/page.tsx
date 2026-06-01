@@ -183,7 +183,17 @@ export default function Page() {
   }, [areaId, intervalo])
 
   useEffect(() => {
-    listarAreas(supabase, 'id, nome').then(({ data }) => setAreas(data || []))
+    listarAreas(supabase, 'id, nome').then(({ data }) => {
+      const list = data || []
+      setAreas(list)
+      if (!list.length) return
+      const ids = new Set(list.map((a) => String(a?.id ?? '')).filter(Boolean))
+      const current = areaId && ids.has(String(areaId)) ? String(areaId) : null
+      const fromStorage = localStorage.getItem('carometro_ultima_area')
+      const next = current || (fromStorage && ids.has(fromStorage) ? fromStorage : null)
+      if (next && next !== areaId) setAreaId(next)
+      if (next) localStorage.setItem('carometro_ultima_area', next)
+    })
   }, [])
 
   useEffect(() => {
@@ -413,7 +423,11 @@ export default function Page() {
             id="conquistas-area"
             className="conquistas-filtro-select"
             value={areaId}
-            onChange={e => setAreaId(e.target.value)}
+            onChange={e => {
+              const v = e.target.value
+              setAreaId(v)
+              if (v) localStorage.setItem('carometro_ultima_area', v)
+            }}
             aria-label="Filtrar por área"
           >
             <option value="">Todas as áreas</option>
