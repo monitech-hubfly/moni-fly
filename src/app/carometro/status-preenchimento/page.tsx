@@ -44,11 +44,25 @@ export default function StatusPreenchimentoPage() {
     });
   }, [supabase]);
 
+  useEffect(() => {
+    if (!areas.length) return;
+    const ids = new Set(areas.map((a) => String(a.id)));
+    const fromStorage = localStorage.getItem('carometro_ultima_area');
+    const next =
+      (fromStorage && ids.has(fromStorage) ? fromStorage : null) ||
+      (areas[0]?.id ? String(areas[0].id) : null);
+    if (next) {
+      setModalAreaId(next);
+      localStorage.setItem('carometro_ultima_area', next);
+    }
+  }, [areas]);
+
   const semanaAtual = useMemo(() => semanaIsoComOffset(0), []);
   const primeiraArea = areas[0]?.id ?? null;
 
   function abrirModal(areaId: string | null, respId: string | null, semana: SemanaColuna) {
     setModalAreaId(areaId);
+    if (areaId) localStorage.setItem('carometro_ultima_area', areaId);
     setModalRespId(respId);
     setModalSemana(semana);
     setModalOpen(true);

@@ -157,6 +157,15 @@ export default function Page() {
         if (cancel) return
         setAreasAlvo(areasData || [])
 
+        const ids = new Set((areasData || []).map((a) => String(a?.id ?? '')).filter(Boolean))
+        const fromStorage = localStorage.getItem('carometro_ultima_area')
+        if (fromStorage && ids.has(fromStorage)) {
+          const match = (areasData || []).find((a) => String(a.id) === fromStorage)
+          if (match?.nome === 'Produto') setFiltroArea('produto')
+          else if (match?.nome === 'Projetos - Modelo Virtual') setFiltroArea('projetos')
+          localStorage.setItem('carometro_ultima_area', fromStorage)
+        }
+
         const areaIds = (areasData || []).map(a => a.id).filter(Boolean)
         if (areaIds.length === 0) return
 
@@ -527,7 +536,15 @@ export default function Page() {
           <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Área</span>
           <select
             value={filtroArea}
-            onChange={e => setFiltroArea(e.target.value)}
+            onChange={e => {
+              const v = e.target.value
+              setFiltroArea(v)
+              const nome = v === 'produto' ? 'Produto' : v === 'projetos' ? 'Projetos - Modelo Virtual' : null
+              if (nome) {
+                const ar = areasAlvo.find(a => a.nome === nome)
+                if (ar?.id) localStorage.setItem('carometro_ultima_area', String(ar.id))
+              }
+            }}
             style={{
               fontSize: 13,
               padding: '4px 8px',

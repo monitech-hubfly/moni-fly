@@ -11,6 +11,20 @@ import { labelPeriodo } from '@/utils/periodos'
 import CalendarioComSemanas from '@/components/CalendarioComSemanas'
 import MetaCicloTipoFields from '@/components/MetaCicloTipoFields'
 import WorkloadFormDrawer from '@/components/WorkloadFormDrawer'
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 function valorParaMinutos(valor, unidade) {
   if (valor === '' || valor == null) return null
@@ -298,6 +312,62 @@ function particionarAcoesProjetoEsteiraSeguro(acoes) {
   }
 }
 
+function WorkloadDragHandle({ attributes, listeners, isDragging, disabled }) {
+  if (disabled) return null
+  return (
+    <span
+      {...attributes}
+      {...listeners}
+      style={{
+        cursor: isDragging ? 'grabbing' : 'grab',
+        color: '#888780',
+        fontSize: 14,
+        marginRight: 6,
+        userSelect: 'none',
+        touchAction: 'none',
+        lineHeight: 1,
+      }}
+      aria-label="Arrastar para reordenar"
+    >
+      ⠿
+    </span>
+  )
+}
+
+function SortableTarefaItem({ id, disabled, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+    disabled: Boolean(disabled),
+  })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+  return (
+    <li ref={setNodeRef} style={style} className="workload-card" data-workload-comp-id={id}>
+      {children({ attributes, listeners, isDragging, disabled: Boolean(disabled) })}
+    </li>
+  )
+}
+
+function SortableAcaoRow({ id, disabled, className, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+    disabled: Boolean(disabled),
+  })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+  return (
+    <tr ref={setNodeRef} style={style} className={className}>
+      {children({ attributes, listeners, isDragging, disabled: Boolean(disabled) })}
+    </tr>
+  )
+}
+
 export default function Page() {
   const { isAdmin } = useAdmin()
   const supabase = createClient()
@@ -413,6 +483,7 @@ export default function Page() {
   const [atividadeExcluirIds, setAtividadeExcluirIds] = useState(null)
   const [atividadeExcluindo, setAtividadeExcluindo] = useState(false)
   const atividadeExcluirConfirmRef = useRef(null)
+  const [colapsados, setColapsados] = useState(new Set())
 
   const anosPrazoRender = [String(ano)]
 
@@ -448,8 +519,12 @@ export default function Page() {
       const ids = new Set(list.map((a) => String(a?.id ?? '')).filter(Boolean))
       const fromUrl = areaFromUrl && ids.has(String(areaFromUrl)) ? String(areaFromUrl) : null
       const current = areaId && ids.has(String(areaId)) ? String(areaId) : null
-      const next = fromUrl || current || String(list[0].id)
+      const fromStorage = localStorage.getItem('carometro_ultima_area')
+      const next = fromUrl || current
+        || (fromStorage && ids.has(fromStorage) ? fromStorage : null)
+        || String(list[0].id)
       if (next !== areaId) setAreaId(next)
+      localStorage.setItem('carometro_ultima_area', next)
 
       // Mantém a URL coerente com a lista (evita ficar preso em ?area inválida e carregar vazio).
       if (next && next !== areaFromUrl) {
@@ -2694,6 +2769,81 @@ ALTER TABLE indicadores
 
   /** Lista única para exibição: sem agrupamento visual por meta nesta página */
   const comportamentosOrdenados = metaSections.flatMap((s) => s.comps)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+  )
+
+  async function aplicarOrdemAcoesNoEstado(tarefaId, ordemPorId) {
+    setTarefas(prev => prev.map(t => {
+      if (t.id !== tarefaId) return t
+      const acoesUpd = (t.acoes || []).map(a =>
+        ordemPorId.has(a.id) ? { ...a, ordem: ordemPorId.get(a.id) } : a
+      )
+      return { ...t, acoes: ordenarAcoesLista(acoesUpd) }
+    }))
+    const results = await Promise.all(
+      [...ordemPorId.entries()].map(([id, ordem]) =>
+        supabase.from('acoes').update({ ordem }).eq('id', id)
+      )
+    )
+    const err = results.find(r => r.error)
+    if (err?.error) setError(err.error.message)
+  }
+
+  async function handleDragEndTarefa(event) {
+    if (!isAdmin) return
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const lista = comportamentosOrdenados
+    const oldIndex = lista.findIndex(t => t.id === active.id)
+    const newIndex = lista.findIndex(t => t.id === over.id)
+    if (oldIndex < 0 || newIndex < 0) return
+    const reordered = arrayMove(lista, oldIndex, newIndex)
+    setTarefas(prev => {
+      const ordemById = new Map(reordered.map((t, i) => [t.id, i]))
+      const next = prev.map(t => (ordemById.has(t.id) ? { ...t, ordem: ordemById.get(t.id) } : t))
+      return next.sort(
+        (a, b) =>
+          (a.ordem ?? 0) - (b.ordem ?? 0) ||
+          new Date(a.criado_em || 0) - new Date(b.criado_em || 0)
+      )
+    })
+    const results = await Promise.all(
+      reordered.map((t, i) => supabase.from('tarefas').update({ ordem: i }).eq('id', t.id))
+    )
+    const err = results.find(r => r.error)
+    if (err?.error) setError(err.error.message)
+  }
+
+  async function handleDragEndAcao(tarefaId, acoesLista, event, ordemBase = 0) {
+    if (!isAdmin) return
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = acoesLista.findIndex(a => a.id === active.id)
+    const newIndex = acoesLista.findIndex(a => a.id === over.id)
+    if (oldIndex < 0 || newIndex < 0) return
+    const novaLista = arrayMove(acoesLista, oldIndex, newIndex)
+    const ordemPorId = new Map(novaLista.map((a, i) => [a.id, ordemBase + i]))
+    await aplicarOrdemAcoesNoEstado(tarefaId, ordemPorId)
+  }
+
+  async function handleDragEndEsteira(tarefaId, esteiras, event) {
+    if (!isAdmin) return
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = esteiras.findIndex(p => p.mod.id === active.id)
+    const newIndex = esteiras.findIndex(p => p.mod.id === over.id)
+    if (oldIndex < 0 || newIndex < 0) return
+    const novaEsteiras = arrayMove(esteiras, oldIndex, newIndex)
+    const ordemPorId = new Map()
+    novaEsteiras.forEach((par, i) => {
+      ordemPorId.set(par.mod.id, i * 2)
+      ordemPorId.set(par.doc.id, i * 2 + 1)
+    })
+    await aplicarOrdemAcoesNoEstado(tarefaId, ordemPorId)
+  }
+
   const defaultMetaParaNovoComportamento = objetivos[0]?.id || '_sem'
   const nomeComportamentoExcluir = comportamentoExcluirId
     ? (tarefas.find(t => t.id === comportamentoExcluirId)?.nome || '')
@@ -2845,6 +2995,7 @@ ALTER TABLE indicadores
                   const v = e.target.value
                   setAreaId(v)
                   if (v) mergeSetAreaUrl(router, pathname, searchParams, v)
+                  localStorage.setItem('carometro_ultima_area', v)
                 }}
                 aria-label="Área"
               >
@@ -2917,6 +3068,15 @@ ALTER TABLE indicadores
         <p>Carregando…</p>
       ) : (
         <div className="workload-hierarquia">
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEndTarefa}
+          >
+            <SortableContext
+              items={comportamentosOrdenados.map(t => t.id)}
+              strategy={verticalListSortingStrategy}
+            >
           <ul className="workload-cards" aria-label="Comportamentos">
             {comportamentosOrdenados.map((comp) => {
               const acoes = comp.acoes || []
@@ -2927,12 +3087,40 @@ ALTER TABLE indicadores
                 Boolean(isAreaTipoAtividadeProjeto && partPl && partPl.esteiras.length > 0 && partPl.comuns.length > 0)
               const totalMin = tempoTotalMinutos(comp)
               const atividadesAbertas = estaExpandido('ativ', comp.id)
+              const acoesComunsOrdenadas = ordenarAcoesLista(acoesTabelaComuns)
               return (
-                <li key={comp.id} className="workload-card" data-workload-comp-id={comp.id}>
+                <SortableTarefaItem key={comp.id} id={comp.id} disabled={!isAdmin}>
+                  {({ attributes, listeners, isDragging, disabled: dragDisabled }) => (
+                    <>
                   <header className="workload-card-header">
                     <div className="workload-card-header-left">
+                      <WorkloadDragHandle
+                        attributes={attributes}
+                        listeners={listeners}
+                        isDragging={isDragging}
+                        disabled={dragDisabled}
+                      />
                       <span className="workload-card-emoji" aria-hidden>{emojiParaComportamento(comp.nome)}</span>
                       <span className="workload-card-title">{comp.nome}</span>
+                      <button
+                        type="button"
+                        onClick={() => setColapsados(prev => {
+                          const next = new Set(prev)
+                          next.has(comp.id) ? next.delete(comp.id) : next.add(comp.id)
+                          return next
+                        })}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: 11,
+                          color: '#888780',
+                          padding: '2px 8px',
+                          marginLeft: 8,
+                        }}
+                      >
+                        {colapsados.has(comp.id) ? 'Mostrar' : 'Ocultar'}
+                      </button>
                     </div>
                     {editando !== `comp-${comp.id}` && (
                       <div className="workload-card-header-actions">
@@ -2942,6 +3130,7 @@ ALTER TABLE indicadores
                     )}
                   </header>
 
+                        {!colapsados.has(comp.id) && (
                         <div className="workload-card-body">
                           <section className="workload-card-section">
                             <div className="workload-atividades-wrap">
@@ -2999,10 +3188,32 @@ ALTER TABLE indicadores
                                       </tr>
                                     </thead>
                                     {atividadesAbertas ? (
+                                      <DndContext
+                                        sensors={sensors}
+                                        collisionDetection={closestCenter}
+                                        onDragEnd={(e) => void handleDragEndEsteira(comp.id, partPl.esteiras, e)}
+                                      >
+                                        <SortableContext
+                                          items={partPl.esteiras.map(p => p.mod.id)}
+                                          strategy={verticalListSortingStrategy}
+                                        >
                                       <tbody className="workload-atividades-tbody">
                                         {partPl.esteiras.map((par) => (
-                                          <tr key={par.mod.id} className="workload-atividade-row">
+                                          <SortableAcaoRow
+                                            key={par.mod.id}
+                                            id={par.mod.id}
+                                            className="workload-atividade-row"
+                                            disabled={!isAdmin}
+                                          >
+                                            {({ attributes, listeners, isDragging, disabled: dragDisabled }) => (
+                                          <>
                                             <td data-label="Atividade">
+                                              <WorkloadDragHandle
+                                                attributes={attributes}
+                                                listeners={listeners}
+                                                isDragging={isDragging}
+                                                disabled={dragDisabled}
+                                              />
                                               <span className="workload-atividade-nome">{nomeBaseAtividadeEsteira(par.mod.nome || '')}</span>
                                             </td>
                                             <td data-label="Tempo mod.">
@@ -3095,7 +3306,9 @@ ALTER TABLE indicadores
                                                 </button>
                                               </div>
                                             </td>
-                                          </tr>
+                                          </>
+                                            )}
+                                          </SortableAcaoRow>
                                         ))}
                                         {(!adicionando || adicionando.tarefaId !== comp.id) && partPl.comuns.length === 0 ? (
                                           <tr className="workload-atividade-add-link-row">
@@ -3123,6 +3336,8 @@ ALTER TABLE indicadores
                                           </tr>
                                         ) : null}
                                       </tbody>
+                                        </SortableContext>
+                                      </DndContext>
                                     ) : null}
                                   </table>
                                 </>
@@ -3195,10 +3410,37 @@ ALTER TABLE indicadores
                                     )}
                                   </thead>
                                   {atividadesAbertas && (
+                                  <DndContext
+                                    sensors={sensors}
+                                    collisionDetection={closestCenter}
+                                    onDragEnd={(e) => void handleDragEndAcao(
+                                      comp.id,
+                                      acoesComunsOrdenadas,
+                                      e,
+                                      partPl?.esteiras?.length ? partPl.esteiras.length * 2 : 0
+                                    )}
+                                  >
+                                    <SortableContext
+                                      items={acoesComunsOrdenadas.map(a => a.id)}
+                                      strategy={verticalListSortingStrategy}
+                                    >
                                   <tbody className="workload-atividades-tbody">
-                              {acoesTabelaComuns.map((acao) => (
-                                <tr key={acao.id} className="workload-atividade-row">
+                              {acoesComunsOrdenadas.map((acao) => (
+                                <SortableAcaoRow
+                                  key={acao.id}
+                                  id={acao.id}
+                                  className="workload-atividade-row"
+                                  disabled={!isAdmin}
+                                >
+                                  {({ attributes, listeners, isDragging, disabled: dragDisabled }) => (
+                                <>
                                       <td data-label="Atividade">
+                                        <WorkloadDragHandle
+                                          attributes={attributes}
+                                          listeners={listeners}
+                                          isDragging={isDragging}
+                                          disabled={dragDisabled}
+                                        />
                                         <span className="workload-atividade-nome">{acao.nome}</span>
                                       </td>
                                       {isAreaTipoAtividadeProjeto ? (
@@ -3330,7 +3572,9 @@ ALTER TABLE indicadores
                                           </button>
                                         </div>
                                       </td>
-                                </tr>
+                                </>
+                                  )}
+                                </SortableAcaoRow>
                               ))}
                               {(!adicionando || adicionando.tarefaId !== comp.id) && (
                                 <tr className="workload-atividade-add-link-row">
@@ -3358,16 +3602,23 @@ ALTER TABLE indicadores
                                 </tr>
                               )}
                             </tbody>
+                                    </SortableContext>
+                                  </DndContext>
                                   )}
                                 </table>
                               ) : null}
                               </div>
                           </section>
                         </div>
-                </li>
+                        )}
+                    </>
+                  )}
+                </SortableTarefaItem>
               )
             })}
           </ul>
+            </SortableContext>
+          </DndContext>
 
           {areaId && comportamentosOrdenados.length === 0 && !adicionando && (
             <p style={{ textAlign: 'center', color: 'var(--moni-texto-suave)', marginTop: '2rem' }}>

@@ -109,10 +109,22 @@ export default function Page() {
     listarAreas(supabase, 'id, nome').then(({ data }) => {
       const list = data || []
       setAreas(list)
-      if (list.length && !areaId) {
-        setAreaId(list[0].id)
-        router.replace(`${pathname}?${new URLSearchParams({ area: String(list[0].id) }).toString()}`)
+      if (!list.length) return
+      const ids = new Set(list.map((a) => String(a?.id ?? '')).filter(Boolean))
+      const fromUrl = searchParams.get('area')
+      const fromUrlValid = fromUrl && ids.has(String(fromUrl)) ? String(fromUrl) : null
+      const current = areaId && ids.has(String(areaId)) ? String(areaId) : null
+      const fromStorage = localStorage.getItem('carometro_ultima_area')
+      const next = fromUrlValid || current
+        || (fromStorage && ids.has(fromStorage) ? fromStorage : null)
+        || String(list[0].id)
+      if (next !== areaId) {
+        setAreaId(next)
+        if (!fromUrlValid && !current) {
+          router.replace(`${pathname}?${new URLSearchParams({ area: next }).toString()}`)
+        }
       }
+      localStorage.setItem('carometro_ultima_area', next)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount
   }, [])
@@ -492,6 +504,7 @@ export default function Page() {
                       const v = e.target.value
                       setAreaId(v)
                       router.replace(`${pathname}?${new URLSearchParams({ area: v }).toString()}`)
+                      localStorage.setItem('carometro_ultima_area', v)
                     }}
                   >
                     {areas.map(a => (
@@ -531,6 +544,7 @@ export default function Page() {
                       const v = e.target.value
                       setAreaId(v)
                       router.replace(`${pathname}?${new URLSearchParams({ area: v }).toString()}`)
+                      localStorage.setItem('carometro_ultima_area', v)
                     }}
                   >
                     {areas.map(a => (

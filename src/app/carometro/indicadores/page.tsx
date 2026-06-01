@@ -516,8 +516,16 @@ export default function Page() {
     listarAreas(supabase, 'id, nome').then(({ data }) => {
       const list = data || []
       setAreas(list)
-      if (list.length && !areaFromUrl && !areaId) setAreaId(list[0].id)
-      if (areaFromUrl) setAreaId(areaFromUrl)
+      if (!list.length) return
+      const ids = new Set(list.map((a) => String(a?.id ?? '')).filter(Boolean))
+      const fromUrl = areaFromUrl && ids.has(String(areaFromUrl)) ? String(areaFromUrl) : null
+      const current = areaId && ids.has(String(areaId)) ? String(areaId) : null
+      const fromStorage = localStorage.getItem('carometro_ultima_area')
+      const next = fromUrl || current
+        || (fromStorage && ids.has(fromStorage) ? fromStorage : null)
+        || String(list[0].id)
+      if (next !== areaId) setAreaId(next)
+      localStorage.setItem('carometro_ultima_area', next)
     })
   }, [areaFromUrl])
   useEffect(() => {
@@ -1117,6 +1125,7 @@ export default function Page() {
                       next.set('area', v)
                       router.replace(`${pathname}?${next.toString()}`)
                     }
+                    localStorage.setItem('carometro_ultima_area', v)
                   }}
                   aria-label="Área"
                 >

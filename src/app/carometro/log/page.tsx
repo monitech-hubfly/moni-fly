@@ -3,6 +3,7 @@
 
 import { useEffect, useState, useCallback, Fragment, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { listarAreas } from '@/utils/areasOrder'
 
 const OPERACAO_CONFIG = {
   INSERT: { label: 'Inserção', cor: '#22c55e', bg: '#dcfce7' },
@@ -34,6 +35,7 @@ export default function Page() {
   const [filtroDataFim, setFiltroDataFim] = useState('')
   const [filtroBusca, setFiltroBusca] = useState('')
   const [erroFetch, setErroFetch] = useState(null)
+  const [areasLog, setAreasLog] = useState([])
 
   const buscarLogs = useCallback(async () => {
     setLoading(true)
@@ -83,6 +85,21 @@ export default function Page() {
   useEffect(() => {
     buscarLogs()
   }, [buscarLogs])
+
+  useEffect(() => {
+    listarAreas(supabase, 'id, nome').then(({ data }) => {
+      const list = data || []
+      setAreasLog(list)
+      const fromStorage = localStorage.getItem('carometro_ultima_area')
+      if (fromStorage) {
+        const match = list.find((a) => String(a.id) === fromStorage)
+        if (match?.nome) {
+          setFiltroArea(match.nome)
+          localStorage.setItem('carometro_ultima_area', fromStorage)
+        }
+      }
+    })
+  }, [supabase])
 
   const limparFiltros = () => {
     setFiltroModulo('')
@@ -186,8 +203,11 @@ export default function Page() {
           placeholder="Área..."
           value={filtroArea}
           onChange={(e) => {
-            setFiltroArea(e.target.value)
+            const v = e.target.value
+            setFiltroArea(v)
             setPagina(0)
+            const match = areasLog.find((a) => a.nome === v)
+            if (match?.id) localStorage.setItem('carometro_ultima_area', String(match.id))
           }}
           style={inp({ width: 140 })}
         />

@@ -28,7 +28,15 @@ export default function Page() {
 
   async function carregarAreas() {
     const { data } = await listarAreas(supabase, 'id, nome')
-    setAreas(data || [])
+    const list = data || []
+    setAreas(list)
+    if (!list.length) return
+    const ids = new Set(list.map((a) => String(a?.id ?? '')).filter(Boolean))
+    const current = filtroArea && ids.has(String(filtroArea)) ? String(filtroArea) : null
+    const fromStorage = localStorage.getItem('carometro_ultima_area')
+    const next = current || (fromStorage && ids.has(fromStorage) ? fromStorage : null)
+    if (next && next !== filtroArea) setFiltroArea(next)
+    if (next) localStorage.setItem('carometro_ultima_area', next)
   }
 
   async function carregarObjetivos() {
@@ -158,7 +166,11 @@ export default function Page() {
       <div className="page-actions" style={{ alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
         <div className="form-group" style={{ marginBottom: 0 }}>
           <label>Filtrar por área</label>
-          <select value={filtroArea} onChange={e => setFiltroArea(e.target.value)} style={{ minWidth: '180px' }}>
+          <select value={filtroArea} onChange={e => {
+            const v = e.target.value
+            setFiltroArea(v)
+            if (v) localStorage.setItem('carometro_ultima_area', v)
+          }} style={{ minWidth: '180px' }}>
             <option value="">Todas</option>
             {areas.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
           </select>
