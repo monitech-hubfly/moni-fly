@@ -11,7 +11,11 @@ COMMENT ON COLUMN public.kanban_atividades.time_abertura_nome IS
 UPDATE public.kanban_atividades ka
 SET time_abertura_nome = COALESCE(
   NULLIF(TRIM(ka.time_abertura_nome), ''),
-  NULLIF(TRIM(sc.time_abertura), ''),
+  NULLIF(TRIM((
+    SELECT sc.time_abertura
+    FROM public.sirene_chamados sc
+    WHERE sc.id = ka.sirene_chamado_id
+  )), ''),
   (
     SELECT kt.nome
     FROM public.sirene_topicos st

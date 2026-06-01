@@ -1,5 +1,9 @@
 -- 226: Número único global por chamado (kanban_atividades.numero)
 
+-- Garante colunas da migration 225 (caso 225 tenha falhado antes do commit)
+ALTER TABLE public.kanban_atividades
+  ADD COLUMN IF NOT EXISTS time_abertura_nome TEXT;
+
 ALTER TABLE public.kanban_atividades
   ADD COLUMN IF NOT EXISTS numero INTEGER;
 
