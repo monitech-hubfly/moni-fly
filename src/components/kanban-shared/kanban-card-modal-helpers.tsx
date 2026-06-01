@@ -44,6 +44,8 @@ export type InteracaoModal = {
   responsaveis_resolvidos?: { id: string; nome: string }[];
   /** Quando true, linha oculta no modal (filtrada após carregar). */
   arquivado?: boolean;
+  /** Número sequencial global (#0001). */
+  numero?: number | null;
   /** Chamado Sirene espelhado (origem sirene). */
   sirene_chamado_id?: number | null;
 };

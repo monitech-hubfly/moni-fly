@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ChevronDown, ChevronRight, Search } from 'lucide-react';
 import { getAtividadesChecklistPainel, updateKanbanAtividadePainelStatus } from '../card-actions';
 import { SlaTituloBolinha } from '@/components/SlaTituloBolinha';
+import { formatChamadoNumero } from '@/lib/kanban/chamado-numero';
 import {
   aplicarFiltrosTarefasPainel,
   defaultPainelTarefasFiltros,
@@ -42,6 +43,8 @@ type InteracaoPainel = {
   numero_franquia?: string | null;
   nome_franqueado?: string | null;
   nome_condominio?: string | null;
+  /** Número global do chamado (#0001). */
+  numero?: number | null;
 };
 
 type TarefasPainelConteudoProps = { basePath?: string };
@@ -288,6 +291,18 @@ export function TarefasPainelConteudo({ basePath: _ = '/painel-novos-negocios' }
         </td>
         <td className={`${tdClass} max-w-[220px]`}>
           <div className="flex items-start gap-2">
+            {t.numero != null ? (
+              <span
+                className="mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums"
+                style={{
+                  background: 'var(--moni-surface-100)',
+                  color: 'var(--moni-text-secondary)',
+                  border: '1px solid var(--moni-border-subtle)',
+                }}
+              >
+                {formatChamadoNumero(t.numero)}
+              </span>
+            ) : null}
             <span className="min-w-0 flex-1 line-clamp-2 font-medium">{textoInteracao(t)}</span>
             <SlaTituloBolinha prazoIso={t.prazo_iso} statusPainel={t.status} className="mt-1" />
           </div>
@@ -373,6 +388,18 @@ export function TarefasPainelConteudo({ basePath: _ = '/painel-novos-negocios' }
           />
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex items-start gap-2">
+              {t.numero != null ? (
+                <span
+                  className="mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums"
+                  style={{
+                    background: 'var(--moni-surface-100)',
+                    color: 'var(--moni-text-secondary)',
+                    border: '1px solid var(--moni-border-subtle)',
+                  }}
+                >
+                  {formatChamadoNumero(t.numero)}
+                </span>
+              ) : null}
               <p className="min-w-0 flex-1 text-sm font-semibold text-[var(--moni-text-primary)]">
                 {textoInteracao(t)}
               </p>

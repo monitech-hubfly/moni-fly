@@ -76,6 +76,9 @@ export default async function SireneChamadosPage({
         times_ids: string[];
         responsavel_nome_texto: string | null;
         sirene_chamado_id: number | null;
+        categoria: 'chamado' | 'melhoria';
+        time_abertura_nome: string | null;
+        numero: number | null;
       }
     >();
     if (ids.length > 0) {
@@ -85,7 +88,7 @@ export default async function SireneChamadosPage({
         const { data: kaRows } = await admin
           .from('kanban_atividades')
           .select(
-            'id, trava, origem, responsaveis_ids, times_ids, responsavel_nome_texto, sirene_chamado_id',
+            'id, trava, origem, responsaveis_ids, times_ids, responsavel_nome_texto, sirene_chamado_id, categoria, time_abertura_nome, numero',
           )
           .in('id', slice);
         for (const r of kaRows ?? []) {
@@ -105,6 +108,12 @@ export default async function SireneChamadosPage({
             times_ids: tids,
             responsavel_nome_texto,
             sirene_chamado_id: sid != null && Number.isFinite(Number(sid)) ? Number(sid) : null,
+            categoria: (r as { categoria?: string }).categoria === 'melhoria' ? 'melhoria' : 'chamado',
+            time_abertura_nome: (r as { time_abertura_nome?: string | null }).time_abertura_nome ?? null,
+            numero: (() => {
+              const n = Number((r as { numero?: number | null }).numero);
+              return Number.isFinite(n) ? n : null;
+            })(),
           });
         }
       }
@@ -230,9 +239,14 @@ export default async function SireneChamadosPage({
           times_ids: ka?.times_ids ?? [],
           responsavel_nome_texto: ka?.responsavel_nome_texto ?? null,
           sirene_chamado_id: sid,
-          sirene_numero: scMeta?.numero ?? null,
+          numero: ka?.numero ?? scMeta?.numero ?? null,
+          sirene_numero: ka?.numero ?? scMeta?.numero ?? null,
           sirene_chamado_tipo: ka?.origem === 'sirene' && scMeta ? scMeta.tipo : null,
-          sirene_time_abertura: ka?.origem === 'sirene' && scMeta ? scMeta.time_abertura : null,
+          sirene_time_abertura:
+            ka?.time_abertura_nome?.trim() ||
+            (ka?.origem === 'sirene' && scMeta ? scMeta.time_abertura : null),
+          categoria: ka?.categoria ?? 'chamado',
+          time_abertura_nome: ka?.time_abertura_nome ?? null,
           sirene_abertura_responsavel_nome:
             ka?.origem === 'sirene' && scMeta ? scMeta.abertura_responsavel_nome : null,
           sirene_hdm_responsavel: ka?.origem === 'sirene' && scMeta ? scMeta.hdm_responsavel : null,

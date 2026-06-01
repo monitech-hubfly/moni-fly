@@ -1,48 +1,37 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { Trash2 } from 'lucide-react';
+import { buscarCardsParaNovoChamadoSirene, type SireneVinculoCardBuscaItem } from './actions';
+import { criarChamadoSireneComAtividade } from '@/lib/actions/card-actions';
+import { createClient } from '@/lib/supabase/client';
 import {
-  buscarCardsParaNovoChamadoSirene,
-  criarChamado,
-  getDadosNovoChamado,
-  type SireneVinculoCardBuscaItem,
-} from './actions';
-import {
-  HDM_RESPONSAVEIS_TODOS_EMAILS,
-  filtrarOpcoesResponsaveisPorModoHdm,
-  inferirHdmResponsavelPorNomesTimes,
+  MONI_TODOS_EMAILS,
+  responsaveisFiltradosPorTimesIds,
   timesOpcoesReceberChamado,
 } from '@/lib/times-responsaveis';
-import { createClient } from '@/lib/supabase/client';
-import { MultiSelectCheckbox } from '@/components/MultiSelectCheckbox';
-import { resolveTemaChamadoForm } from '@/lib/kanban/resolve-tema-chamado';
-
-type FranqueadoItem = { id: string; n_franquia: string | null; nome_completo: string | null };
+import {
+  ATIVIDADE_FORM_DRAFT_VAZIO,
+  KanbanAtividadeFormFields,
+  type AtividadeFormDraft,
+} from '@/components/kanban-shared/KanbanAtividadeFormFields';
+import { ChamadoAtividadeCollapsibleSection } from '@/components/kanban-shared/ChamadoAtividadeCollapsibleSection';
+import { uploadAnexosAtividadePendentes } from '@/lib/kanban/upload-anexos-atividade';
 
 type Props = { onClose: () => void; onSuccess?: () => void };
 
 export function ModalNovoChamado({ onClose, onSuccess }: Props) {
-  const [dados, setDados] = useState<{
-    isFrank: boolean;
-    franqueados: FranqueadoItem[];
-  } | null>(null);
-  const [incendio, setIncendio] = useState('');
-  const [timesIds, setTimesIds] = useState<string[]>([]);
-  const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
+  const [titulo, setTitulo] = useState('');
+  const [descricao, setDescricao] = useState('');
+  const [categoria, setCategoria] = useState<'chamado' | 'melhoria'>('chamado');
+  const [atividade, setAtividade] = useState<AtividadeFormDraft>({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
+  const [atividadeAberta, setAtividadeAberta] = useState(false);
   const [kanbanTimes, setKanbanTimes] = useState<{ id: string; nome: string }[]>([]);
-  const [responsaveisOpcoes, setResponsaveisOpcoes] = useState<
-    { id: string; nome: string; email?: string | null }[]
-  >([]);
-  const [frankId, setFrankId] = useState('');
-  const [frankNome, setFrankNome] = useState('');
-  const [buscaFrank, setBuscaFrank] = useState('');
-  const [abertoBuscaFrank, setAbertoBuscaFrank] = useState(false);
-  const [teTrata, setTeTrata] = useState<'sim' | 'nao' | ''>('');
-  const [tema, setTema] = useState('');
-  const [temaOutro, setTemaOutro] = useState('');
+  const [responsaveisOpcoes, setResponsaveisOpcoes] = useState<{ id: string; nome: string }[]>([]);
+  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+  const [uploaderNome, setUploaderNome] = useState('Usuário');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const buscaFrankRef = useRef<HTMLDivElement>(null);
   const [buscaCard, setBuscaCard] = useState('');
   const [cardOpcoes, setCardOpcoes] = useState<SireneVinculoCardBuscaItem[]>([]);
   const [cardVinculo, setCardVinculo] = useState<SireneVinculoCardBuscaItem | null>(null);
@@ -50,86 +39,38 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
   const [buscandoCards, setBuscandoCards] = useState(false);
 
   useEffect(() => {
-    getDadosNovoChamado().then((r) => {
-      if (r.ok) setDados({ isFrank: r.isFrank, franqueados: r.franqueados });
-    });
-  }, []);
-
-  useEffect(() => {
     void (async () => {
       const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setSessionUserId(user?.id ?? null);
+      if (user) {
+        const { data: perf } = await supabase.from('profiles').select('full_name, email').eq('id', user.id).maybeSingle();
+        setUploaderNome(String((perf as { full_name?: string } | null)?.full_name ?? (perf as { email?: string } | null)?.email ?? 'Usuário').trim());
+      }
       const { data: kt } = await supabase.from('kanban_times').select('id, nome').order('nome');
       setKanbanTimes((kt ?? []).map((r) => ({ id: String(r.id), nome: String(r.nome) })));
-      const emailsHdm = [...HDM_RESPONSAVEIS_TODOS_EMAILS];
-      const [hdmRes, bulkRes] = await Promise.all([
-        supabase.from('profiles').select('id, full_name, email').in('email', emailsHdm),
-        supabase
-          .from('profiles')
-          .select('id, full_name, email')
-          .order('full_name', { ascending: true, nullsFirst: false })
-          .limit(500),
-      ]);
-      const byId = new Map<string, { id: string; nome: string; email: string | null }>();
-      const ingest = (rows: { id: string; full_name?: string | null; email?: string | null }[] | null) => {
-        for (const p of rows ?? []) {
-          const id = String(p.id);
-          const em = String(p.email ?? '')
-            .trim()
-            .toLowerCase();
-          const fn = String(p.full_name ?? '').trim();
-          byId.set(id, { id, nome: fn || em || id.slice(0, 8), email: em || null });
-        }
-      };
-      ingest((hdmRes.data ?? []) as { id: string; full_name?: string | null; email?: string | null }[]);
-      ingest((bulkRes.data ?? []) as { id: string; full_name?: string | null; email?: string | null }[]);
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('email', [...MONI_TODOS_EMAILS]);
       setResponsaveisOpcoes(
-        [...byId.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+        (profs ?? [])
+          .map((p) => ({
+            id: String(p.id),
+            nome: String(p.full_name ?? p.email ?? p.id).trim(),
+          }))
+          .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
       );
     })();
   }, []);
 
-  const frankFiltrados = useMemo(() => {
-    if (!dados?.franqueados.length) return [];
-    const q = buscaFrank.trim().toLowerCase();
-    if (!q) return dados.franqueados.slice(0, 15);
-    return dados.franqueados
-      .filter(
-        (f) =>
-          (f.nome_completo?.toLowerCase().includes(q) ?? false) ||
-          (f.n_franquia?.toLowerCase().includes(q) ?? false),
-      )
-      .slice(0, 15);
-  }, [dados?.franqueados, buscaFrank]);
-
-  const nomesTimesSelecionados = useMemo(() => {
-    const out: string[] = [];
-    for (const id of timesIds) {
-      const n = kanbanTimes.find((t) => t.id === id)?.nome?.trim();
-      if (n) out.push(n);
-    }
-    return out;
-  }, [timesIds, kanbanTimes]);
-
-  const inferidoHdm = useMemo(
-    () => inferirHdmResponsavelPorNomesTimes(nomesTimesSelecionados),
-    [nomesTimesSelecionados],
+  const timesChips = useMemo(() => timesOpcoesReceberChamado(kanbanTimes), [kanbanTimes]);
+  const responsaveisFiltrados = useMemo(
+    () => responsaveisFiltradosPorTimesIds(atividade.timesIds, kanbanTimes, responsaveisOpcoes),
+    [atividade.timesIds, kanbanTimes, responsaveisOpcoes],
   );
-
-  const responsaveisOpcoesVisiveis = useMemo(
-    () => filtrarOpcoesResponsaveisPorModoHdm(responsaveisOpcoes, inferidoHdm != null),
-    [responsaveisOpcoes, inferidoHdm],
-  );
-
-  const timesChipsCatalogoOrdenados = useMemo(() => timesOpcoesReceberChamado(kanbanTimes), [kanbanTimes]);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (buscaFrankRef.current && !buscaFrankRef.current.contains(e.target as Node))
-        setAbertoBuscaFrank(false);
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   useEffect(() => {
     const q = buscaCard.trim();
@@ -148,107 +89,138 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     return () => window.clearTimeout(t);
   }, [buscaCard]);
 
+  function limparRascunho() {
+    setTitulo('');
+    setDescricao('');
+    setCategoria('chamado');
+    setAtividade({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
+    setAtividadeAberta(false);
+    setCardVinculo(null);
+    setBuscaCard('');
+    setError(null);
+  }
+
+  function fecharAtividade() {
+    setAtividade({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
+    setAtividadeAberta(false);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setLoading(true);
-    const formData = new FormData();
-    const incendioBase = incendio.trim();
-    const temaOutroTrim = temaOutro.trim();
-    const temaResolvido = resolveTemaChamadoForm(tema, temaOutroTrim);
-    const incendioFinal =
-      tema === 'Outro' && temaOutroTrim ? `${incendioBase} — Tema: ${temaOutroTrim}` : incendioBase;
-
-    formData.set('incendio', incendioFinal);
-    const timeNome = timesChipsCatalogoOrdenados.find((t) => timesIds[0] === t.id)?.nome ?? '';
-    const respNome = responsaveisOpcoes.find((p) => responsaveisIds[0] === p.id)?.nome ?? '';
-    formData.set('time_abertura', timeNome);
-    if (respNome) formData.set('abertura_responsavel_nome', respNome);
-    formData.set('times_ids', JSON.stringify(timesIds));
-    formData.set('responsaveis_ids', JSON.stringify(responsaveisIds));
-    formData.set('frank_id', frankId.trim());
-    formData.set('frank_nome', frankNome.trim());
-    if (teTrata === 'sim' || teTrata === 'nao') formData.set('te_trata', teTrata);
-    formData.set('tipo', inferidoHdm ? 'hdm' : 'padrao');
-    if (inferidoHdm) formData.set('hdm_responsavel', inferidoHdm);
-    formData.set('tema', temaResolvido ?? '');
-    if (cardVinculo) {
-      formData.set('card_id', cardVinculo.card_id);
-      formData.set('card_kanban_nome', cardVinculo.kanban_nome);
-      formData.set('card_titulo', cardVinculo.titulo);
+    if (!titulo.trim()) {
+      setError('Informe o título do chamado.');
+      return;
     }
-
-    const result = await criarChamado(formData);
-    setLoading(false);
+    if (!descricao.trim()) {
+      setError('Informe a descrição do chamado.');
+      return;
+    }
+    if (!atividadeAberta || !atividade.nome.trim()) {
+      setError('Abra "+ Atividade" e preencha a primeira atividade.');
+      setAtividadeAberta(true);
+      return;
+    }
+    if (atividade.timesIds.length === 0) {
+      setError('Selecione ao menos um time na atividade.');
+      return;
+    }
+    if (atividade.responsaveisIds.length === 0) {
+      setError('Selecione ao menos um responsável na atividade.');
+      return;
+    }
+    setLoading(true);
+    const pendingAnexos = atividade.pendingAnexos ?? [];
+    const result = await criarChamadoSireneComAtividade({
+      titulo: titulo.trim(),
+      descricao: descricao.trim(),
+      categoria,
+      status: 'pendente',
+      atividade: {
+        nome: atividade.nome.trim(),
+        descricao_detalhe: atividade.descricaoDetalhe.trim() || null,
+        times_ids: atividade.timesIds,
+        responsaveis_ids: atividade.responsaveisIds,
+        data_fim: atividade.data.trim() || null,
+        trava: atividade.trava,
+        status: atividade.status,
+        pastel: atividade.pastel,
+      },
+      card_id: cardVinculo?.card_id ?? null,
+      card_kanban_nome: cardVinculo?.kanban_nome ?? null,
+      card_titulo: cardVinculo?.titulo ?? null,
+    });
     if (!result.ok) {
+      setLoading(false);
       setError(result.error);
       return;
     }
+    if (result.interacaoId && pendingAnexos.length > 0) {
+      const supabase = createClient();
+      const { data: topico } = await supabase
+        .from('sirene_topicos')
+        .select('id')
+        .eq('interacao_id', result.interacaoId)
+        .order('ordem', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (topico) {
+        await uploadAnexosAtividadePendentes(
+          String((topico as { id: number }).id),
+          pendingAnexos,
+          uploaderNome,
+          '/sirene/chamados',
+        );
+      }
+    }
+    setLoading(false);
     onSuccess?.();
     onClose();
   }
 
-  const isFrank = dados?.isFrank ?? false;
+  const temRascunho =
+    titulo.trim() ||
+    descricao.trim() ||
+    cardVinculo ||
+    atividadeAberta ||
+    atividade.nome.trim() ||
+    (atividade.pendingAnexos?.length ?? 0) > 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
-        <div className="border-b border-stone-200 px-4 py-3">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white shadow-xl">
+        <div className="sticky top-0 flex items-center justify-between gap-2 border-b border-stone-200 bg-white px-4 py-3">
           <h2 className="text-lg font-semibold text-stone-800">Novo Chamado</h2>
+          {temRascunho ? (
+            <button
+              type="button"
+              onClick={limparRascunho}
+              className="rounded p-1 text-stone-400 hover:bg-red-50 hover:text-red-600"
+              title="Limpar formulário"
+              aria-label="Limpar formulário"
+            >
+              <Trash2 className="h-4 w-4" aria-hidden />
+            </button>
+          ) : null}
         </div>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-4">
-          {error && (
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3 p-4">
+          {error ? (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-          )}
+          ) : null}
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-stone-700">
-              Esse incêndio te trava? *
-            </label>
-            <div className="flex gap-4">
-              <label className="flex cursor-pointer items-center gap-2">
-                <input
-                  type="radio"
-                  name="te_trata"
-                  checked={teTrata === 'sim'}
-                  onChange={() => setTeTrata('sim')}
-                  className="h-4 w-4 border-stone-300 text-moni-primary"
-                />
-                <span className="text-sm text-stone-700">Sim</span>
-              </label>
-              <label className="flex cursor-pointer items-center gap-2">
-                <input
-                  type="radio"
-                  name="te_trata"
-                  checked={teTrata === 'nao'}
-                  onChange={() => setTeTrata('nao')}
-                  className="h-4 w-4 border-stone-300 text-moni-primary"
-                />
-                <span className="text-sm text-stone-700">Não</span>
-              </label>
-            </div>
-            <p className="mt-0.5 text-xs text-stone-500">
-              Os chamados são priorizados por essa resposta.
-            </p>
-          </div>
-
-          <div className="relative">
-            <label className="mb-1 block text-sm font-medium text-stone-700">
-              Vincular a um card (opcional)
-            </label>
+            <label className="mb-1 block text-sm font-medium text-stone-700">Vincular a um card (opcional)</label>
             {cardVinculo ? (
-              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-sm text-stone-800">
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-sm">
                 <span className="min-w-0 flex-1 truncate">
                   {cardVinculo.titulo} — {cardVinculo.kanban_nome}
-                  <span className="ml-1 text-stone-500">({cardVinculo.origem})</span>
                 </span>
                 <button
                   type="button"
-                  className="shrink-0 text-xs text-red-600 hover:underline"
+                  className="text-xs text-red-600 hover:underline"
                   onClick={() => {
                     setCardVinculo(null);
                     setBuscaCard('');
-                    setCardOpcoes([]);
                   }}
                 >
                   Remover
@@ -263,201 +235,100 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                     setBuscaCard(e.target.value);
                     setAbertoBuscaCard(true);
                   }}
-                  onFocus={() => setAbertoBuscaCard(true)}
-                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
-                  placeholder="Buscar por título do card (nativo ou legado)…"
+                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                  placeholder="Buscar card aberto por título…"
                 />
-                {abertoBuscaCard && (buscaCard.trim().length >= 2 || buscandoCards) && (
-                  <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-stone-200 bg-white py-1 shadow-lg">
-                    {buscandoCards && cardOpcoes.length === 0 ? (
+                {abertoBuscaCard && buscaCard.trim().length >= 2 ? (
+                  <ul className="mt-1 max-h-40 overflow-auto rounded-lg border border-stone-200 bg-white py-1 shadow">
+                    {buscandoCards ? (
                       <li className="px-3 py-2 text-sm text-stone-500">Buscando…</li>
-                    ) : null}
-                    {cardOpcoes.map((c) => (
-                      <li key={`${c.origem}-${c.card_id}`}>
-                        <button
-                          type="button"
-                          className="w-full px-3 py-2 text-left text-sm text-stone-800 hover:bg-stone-100"
-                          onClick={() => {
-                            setCardVinculo(c);
-                            setBuscaCard('');
-                            setCardOpcoes([]);
-                            setAbertoBuscaCard(false);
-                          }}
-                        >
-                          <span className="font-medium">{c.titulo}</span>
-                          <span className="block text-xs text-stone-500">
-                            {c.kanban_nome} · {c.origem}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                    {!buscandoCards && buscaCard.trim().length >= 2 && cardOpcoes.length === 0 ? (
-                      <li className="px-3 py-2 text-sm text-stone-500">Nenhum card encontrado.</li>
-                    ) : null}
+                    ) : (
+                      cardOpcoes.map((c) => (
+                        <li key={`${c.origem}-${c.card_id}`}>
+                          <button
+                            type="button"
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-stone-100"
+                            onClick={() => {
+                              setCardVinculo(c);
+                              setBuscaCard('');
+                              setAbertoBuscaCard(false);
+                            }}
+                          >
+                            {c.titulo}
+                            <span className="block text-xs text-stone-500">{c.kanban_nome}</span>
+                          </button>
+                        </li>
+                      ))
+                    )}
                   </ul>
-                )}
+                ) : null}
               </>
             )}
+            {cardVinculo ? (
+              <p className="mt-1 text-xs text-amber-700">
+                Com card vinculado, o chamado só poderá ser alterado no card do funil.
+              </p>
+            ) : null}
           </div>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-stone-700">
-              Incêndio (descrição do chamado) *
-            </label>
-            <input
-              type="text"
-              value={incendio}
-              onChange={(e) => setIncendio(e.target.value)}
-              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
-              required
-              placeholder="Breve descrição do problema"
+          <input
+            type="text"
+            value={titulo}
+            onChange={(e) => setTitulo(e.target.value)}
+            placeholder="Título / assunto *"
+            className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+            required
+          />
+          <textarea
+            value={descricao}
+            onChange={(e) => setDescricao(e.target.value)}
+            placeholder="Descrição *"
+            rows={3}
+            className="w-full resize-y rounded-lg border border-stone-300 px-3 py-2 text-sm"
+            required
+          />
+          <select
+            value={categoria}
+            onChange={(e) => setCategoria(e.target.value as 'chamado' | 'melhoria')}
+            className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+          >
+            <option value="chamado">Chamado</option>
+            <option value="melhoria">Melhoria</option>
+          </select>
+
+          <ChamadoAtividadeCollapsibleSection
+            aberto={atividadeAberta}
+            onAbrir={() => setAtividadeAberta(true)}
+            onFechar={fecharAtividade}
+            obrigatorio
+          >
+            <KanbanAtividadeFormFields
+              draft={atividade}
+              setDraft={setAtividade}
+              kanbanTimes={timesChips}
+              responsaveisOpcoes={responsaveisFiltrados}
+              sessionUserId={sessionUserId}
+              showPastel={false}
+              idPrefix="sirene-nova"
+              onDelete={fecharAtividade}
+              deleteTitle="Limpar atividade"
             />
-          </div>
+          </ChamadoAtividadeCollapsibleSection>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-stone-700">
-              Tema
-            </label>
-            <select
-              value={tema}
-              onChange={(e) => {
-                setTema(e.target.value);
-                setTemaOutro('');
-              }}
-              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
-            >
-              <option value="">Selecione</option>
-              <option value="Acoplamento">Acoplamento</option>
-              <option value="Adicionais">Adicionais</option>
-              <option value="BCA + Batalha">BCA + Batalha</option>
-              <option value="Catálogo de Casas">Catálogo de Casas</option>
-              <option value="Crédito p/ Obra">Crédito p/ Obra</option>
-              <option value="Crédito p/ Terreno">Crédito p/ Terreno</option>
-              <option value="Diligência Terreno">Diligência Terreno</option>
-              <option value="Gadgets">Gadgets</option>
-              <option value="Negociação com Terrenista">Negociação com Terrenista</option>
-              <option value="Outro">Outro</option>
-            </select>
-            {tema === 'Outro' && (
-              <input
-                type="text"
-                value={temaOutro}
-                onChange={(e) => setTemaOutro(e.target.value)}
-                placeholder="Detalhe o tema"
-                className="mt-2 w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
-              />
-            )}
-          </div>
-
-          {!isFrank && dados && (
-            <>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-stone-700">
-                  Time que receberá o chamado
-                </label>
-                <p className="mb-1 text-xs text-stone-500">
-                  Se entre os times estiver <strong>Produto</strong>, <strong>Homologações</strong>,{' '}
-                  <strong>Executivo Local</strong> ou <strong>Modelo Virtual</strong>, o chamado é classificado
-                  automaticamente como <strong>HDM</strong>.
-                </p>
-                <MultiSelectCheckbox
-                  variant="times"
-                  placeholder="Selecione os times..."
-                  searchPlaceholder="Pesquisar time…"
-                  options={timesChipsCatalogoOrdenados.map((t) => ({ id: t.id, label: t.nome }))}
-                  selectedIds={timesIds}
-                  onToggle={(id) =>
-                    setTimesIds((prev) =>
-                      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-                    )
-                  }
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-stone-700">
-                  Responsável pelo atendimento (opcional)
-                </label>
-                <MultiSelectCheckbox
-                  variant="responsaveis"
-                  placeholder="Selecione os responsáveis..."
-                  searchPlaceholder="Pesquisar responsável…"
-                  options={responsaveisOpcoesVisiveis.map((p) => ({ id: p.id, label: p.nome }))}
-                  selectedIds={responsaveisIds}
-                  onToggle={(id) =>
-                    setResponsaveisIds((prev) =>
-                      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-                    )
-                  }
-                />
-              </div>
-
-              <div ref={buscaFrankRef} className="relative">
-                <label className="mb-1 block text-sm font-medium text-stone-700">
-                  Franqueado conectado ao ticket (opcional)
-                </label>
-                <input
-                  type="text"
-                  value={abertoBuscaFrank ? buscaFrank : frankNome}
-                  onChange={(e) => {
-                    setBuscaFrank(e.target.value);
-                    setAbertoBuscaFrank(true);
-                    if (!abertoBuscaFrank) setFrankNome('');
-                  }}
-                  onFocus={() => setAbertoBuscaFrank(true)}
-                  className="w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
-                  placeholder="Pesquise pelo nome ou Nº da franquia"
-                />
-                {abertoBuscaFrank && frankFiltrados.length > 0 && (
-                  <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-stone-200 bg-white py-1 shadow-lg">
-                    {frankFiltrados.map((f) => (
-                      <li key={f.id}>
-                        <button
-                          type="button"
-                          className="w-full px-3 py-2 text-left text-sm text-stone-800 hover:bg-stone-100"
-                          onClick={() => {
-                            setFrankId(f.id);
-                            setFrankNome(f.nome_completo ?? f.n_franquia ?? '');
-                            setBuscaFrank('');
-                            setAbertoBuscaFrank(false);
-                          }}
-                        >
-                          {f.nome_completo ?? f.n_franquia ?? f.id}
-                          {f.n_franquia && f.nome_completo && (
-                            <span className="ml-1 text-stone-500">({f.n_franquia})</span>
-                          )}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {abertoBuscaFrank && buscaFrank.trim() && frankFiltrados.length === 0 && (
-                  <p className="absolute z-10 mt-1 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-500 shadow-lg">
-                    Nenhum franqueado encontrado.
-                  </p>
-                )}
-              </div>
-            </>
-          )}
-
-          <p className="text-xs text-stone-500">
-            Aberto por: preenchido automaticamente com seu login.
-          </p>
-
-          <div className="flex justify-end gap-2 border-t border-stone-200 pt-4">
+          <div className="flex justify-end gap-2 border-t border-stone-100 pt-3">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
+              className="rounded-lg border border-stone-300 px-4 py-2 text-sm text-stone-700"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              disabled={loading || !incendio.trim() || teTrata === '' || (!isFrank && timesIds.length === 0)}
-              className="rounded-lg bg-moni-primary px-4 py-2 text-sm font-medium text-white hover:bg-moni-secondary disabled:opacity-50"
+              disabled={loading || !titulo.trim() || !descricao.trim()}
+              className="rounded-lg bg-moni-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
-              {loading ? 'Abrindo…' : 'Abrir chamado'}
+              {loading ? 'Salvando…' : 'Criar chamado'}
             </button>
           </div>
         </form>

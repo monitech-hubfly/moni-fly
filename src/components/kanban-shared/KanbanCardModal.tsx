@@ -38,6 +38,7 @@ import {
   desvincularTagCard,
   editarInteracao,
   editarSubInteracao,
+  excluirSubInteracao,
   finalizarCard,
   moverCardParaFase,
   verificarGatePortfolioStep5,
@@ -83,6 +84,9 @@ import {
   KanbanAtividadeFormFields,
   type AtividadeFormDraft,
 } from './KanbanAtividadeFormFields';
+import { ChamadoAtividadeCollapsibleSection } from './ChamadoAtividadeCollapsibleSection';
+import { uploadAnexosAtividadePendentes } from '@/lib/kanban/upload-anexos-atividade';
+import { formatChamadoNumero } from '@/lib/kanban/chamado-numero';
 import { SlaTituloBolinha } from '@/components/SlaTituloBolinha';
 import { MultiSelectCheckbox } from '@/components/MultiSelectCheckbox';
 import { AtividadeVinculadaCard } from '@/components/AtividadeVinculadaCard';
@@ -413,8 +417,10 @@ export function KanbanCardModal({
     atividade: { ...ATIVIDADE_FORM_DRAFT_VAZIO },
   });
   const [novoChamadoFormAberto, setNovoChamadoFormAberto] = useState(false);
+  const [novaAtividadeAberta, setNovaAtividadeAberta] = useState(false);
   const [subInteracoesPorPai, setSubInteracoesPorPai] = useState<Record<string, SubInteracaoModal[]>>({});
   const [subExpandida, setSubExpandida] = useState<Record<string, boolean>>({});
+  const [subAtividadeExpandida, setSubAtividadeExpandida] = useState<Record<string, boolean>>({});
   const [subFormInteracaoId, setSubFormInteracaoId] = useState<string | null>(null);
   const [subNovaDraft, setSubNovaDraft] = useState<AtividadeFormDraft>({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
   const [salvandoSub, setSalvandoSub] = useState(false);
@@ -514,6 +520,7 @@ export function KanbanCardModal({
     setCriandoTag(false);
     setEditingId(null);
     setNovoChamadoFormAberto(false);
+    setNovaAtividadeAberta(false);
     setNovaInteracao({
       titulo: '',
       descricao: '',
@@ -641,6 +648,7 @@ export function KanbanCardModal({
   useEffect(() => {
     setAbaCentro('detalhes');
     setNovoChamadoFormAberto(false);
+    setNovaAtividadeAberta(false);
   }, [cardId, origem]);
 
   useEffect(() => {
@@ -1092,7 +1100,7 @@ export function KanbanCardModal({
 
       try {
         const interacoesSelect =
-          'id, titulo, descricao, categoria, tipo, times_ids, responsaveis_ids, trava, status, prioridade, data_vencimento, responsavel_id, responsavel_nome_texto, time, created_at, concluida_em, origem, criado_por, arquivado, sirene_chamado_id';
+          'id, titulo, descricao, categoria, tipo, times_ids, responsaveis_ids, trava, status, prioridade, data_vencimento, responsavel_id, responsavel_nome_texto, time, created_at, concluida_em, origem, criado_por, arquivado, sirene_chamado_id, numero';
         let interacoesData: Record<string, unknown>[] | null = null;
         let interacoesError: { message: string } | null = null;
         {
@@ -1187,6 +1195,10 @@ export function KanbanCardModal({
               times_resolvidos,
               responsaveis_resolvidos,
               arquivado: Boolean((a as { arquivado?: boolean | null }).arquivado),
+              numero: (() => {
+                const n = Number((a as { numero?: number | null }).numero);
+                return Number.isFinite(n) ? n : null;
+              })(),
               sirene_chamado_id: (() => {
                 const sid = (a as { sirene_chamado_id?: number | string | null }).sirene_chamado_id;
                 if (sid == null || sid === '') return null;
@@ -1293,8 +1305,9 @@ export function KanbanCardModal({
       return;
     }
     const ativ = novaInteracao.atividade;
-    if (!ativ.nome.trim()) {
-      alert('Informe o nome da primeira atividade.');
+    if (!novaAtividadeAberta || !ativ.nome.trim()) {
+      alert('Abra "+ Atividade" e preencha a primeira atividade.');
+      setNovaAtividadeAberta(true);
       return;
     }
     if (ativ.timesIds.length === 0) {
@@ -1312,6 +1325,7 @@ export function KanbanCardModal({
     setLoading(true);
     try {
       const ordemReal = interacoes.filter((a) => !isInteracaoDemonstracao(a.id)).length;
+      const pendingAnexos = ativ.pendingAnexos ?? [];
       const res = await criarChamadoComAtividade({
         card_id: card.id,
         titulo: novaInteracao.titulo.trim(),
@@ -1336,6 +1350,14 @@ export function KanbanCardModal({
         alert(res.error);
         return;
       }
+      if (res.topicoId && pendingAnexos.length > 0) {
+        await uploadAnexosAtividadePendentes(
+          res.topicoId,
+          pendingAnexos,
+          modalSessao.uploaderNome,
+          basePath,
+        );
+      }
       setNovaInteracao({
         titulo: '',
         descricao: '',
@@ -1344,6 +1366,7 @@ export function KanbanCardModal({
         atividade: { ...ATIVIDADE_FORM_DRAFT_VAZIO },
       });
       setNovoChamadoFormAberto(false);
+      setNovaAtividadeAberta(false);
       await loadCard();
       router.refresh();
     } catch {
@@ -1492,6 +1515,7 @@ export function KanbanCardModal({
     }
     setSalvandoSub(true);
     try {
+      const pendingAnexos = subNovaDraft.pendingAnexos ?? [];
       const res = await criarSubInteracao({
         interacao_id: interacaoId,
         nome: subNovaDraft.nome.trim(),
@@ -1509,8 +1533,16 @@ export function KanbanCardModal({
         alert(res.error);
         return;
       }
+      if (res.topicoId && pendingAnexos.length > 0) {
+        await uploadAnexosAtividadePendentes(
+          res.topicoId,
+          pendingAnexos,
+          modalSessao.uploaderNome,
+          basePath,
+        );
+      }
       setSubNovaDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
-      setSubFormInteracaoId(interacaoId);
+      setSubFormInteracaoId(null);
       setSubExpandida((s) => ({ ...s, [interacaoId]: true }));
       await reloadSubsForParent(interacaoId);
       await loadCard();
@@ -1562,6 +1594,18 @@ export function KanbanCardModal({
     } finally {
       setSalvandoEditSub(false);
     }
+  }
+
+  async function handleExcluirSubInteracao(subId: string, interacaoId: string) {
+    if (!window.confirm('Excluir esta atividade? Esta ação não pode ser desfeita.')) return;
+    const res = await excluirSubInteracao(subId, basePath);
+    if (!res.ok) {
+      alert(res.error);
+      return;
+    }
+    await reloadSubsForParent(interacaoId);
+    await loadCard();
+    router.refresh();
   }
 
   async function handleSubStatusChange(
@@ -3078,8 +3122,7 @@ export function KanbanCardModal({
                 <div className="mb-4 space-y-2">
                   {interacoesFiltradas.map((it) => {
                     const subs = subInteracoesPorPai[it.id] ?? [];
-                    const subsDetalheAberto =
-                      subExpandida[it.id] !== undefined ? subExpandida[it.id]! : subs.length > 0;
+                    const subsDetalheAberto = subExpandida[it.id] === true;
                     const deriv = derivarChamadoKanbanComSubs(it.status, subs);
                     const statusVisual = deriv.usarDerivado ? deriv.status : it.status;
                     const prazoEfetivo = prazoEfetivoParaChamado(it, subs);
@@ -3117,9 +3160,7 @@ export function KanbanCardModal({
                               className="mt-0.5 shrink-0 rounded p-0.5 text-stone-500 hover:bg-stone-200"
                               aria-expanded={subsDetalheAberto}
                               onClick={() => {
-                                const cur =
-                                  subExpandida[it.id] !== undefined ? subExpandida[it.id]! : subs.length > 0;
-                                setSubExpandida((s) => ({ ...s, [it.id]: !cur }));
+                                setSubExpandida((s) => ({ ...s, [it.id]: !subsDetalheAberto }));
                               }}
                             >
                               <ChevronRight
@@ -3179,6 +3220,11 @@ export function KanbanCardModal({
                                       demo={demo}
                                     />
                                   ) : null}
+                                  {it.numero != null ? (
+                                    <span className="shrink-0 rounded bg-stone-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-stone-600">
+                                      {formatChamadoNumero(it.numero)}
+                                    </span>
+                                  ) : null}
                                   <h5 className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
                                     {it.titulo}
                                   </h5>
@@ -3234,38 +3280,13 @@ export function KanbanCardModal({
                                 </>
                               )}
                             </div>
-                            {!demo && subs.length > 0 && !subsDetalheAberto ? (
-                              <SubInteracaoLista
-                                variant="kanban"
-                                items={subs.map((s) =>
-                                  mapRawTopicoToListaItem({
-                                    id: s.id,
-                                    tipo: s.tipo,
-                                    descricao: s.descricao,
-                                    status: s.status,
-                                    data_fim: s.data_fim,
-                                    trava: s.trava,
-                                  }),
-                                )}
-                                renderTrailing={
-                                  pode('criar_chamados')
-                                    ? (item) => (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setModalArquivarInteracao({ id: String(item.id), tipo: 'sub' });
-                                            setMotivoArquivarInteracao('');
-                                          }}
-                                          className="rounded p-1 text-stone-400 hover:bg-red-50 hover:text-red-500"
-                                          title="Arquivar sub-chamado"
-                                        >
-                                          <Archive className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                                        </button>
-                                      )
-                                    : undefined
-                                }
-                              />
+                            {!subsDetalheAberto && subs.length > 0 ? (
+                              <p className="mt-1 text-[10px] text-stone-500">
+                                {subs.length} atividade{subs.length === 1 ? '' : 's'} — clique na seta para expandir
+                              </p>
                             ) : null}
+                            {subsDetalheAberto ? (
+                            <>
                             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                               <span
                                 className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase"
@@ -3436,7 +3457,7 @@ export function KanbanCardModal({
                                 </span>
                               </span>
                             </div>
-                            {!demo && subsDetalheAberto ? (
+                            {!demo ? (
                               <div className="mt-3 rounded-lg border border-stone-200 bg-stone-50/80 p-3">
                                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                                   <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">
@@ -3445,7 +3466,9 @@ export function KanbanCardModal({
                                 </div>
                                 {subs.length > 0 ? (
                                   <ul className="mb-3 space-y-2">
-                                    {subs.map((sub) => (
+                                    {subs.map((sub) => {
+                                      const subDetalheAberto = subAtividadeExpandida[sub.id] === true;
+                                      return (
                                       <li
                                         key={sub.id}
                                         className="rounded-md border border-stone-200 bg-white px-2 py-2 text-xs"
@@ -3461,6 +3484,16 @@ export function KanbanCardModal({
                                               sessionUserId={modalSessao.userId}
                                               compact
                                               idPrefix={`edit-${sub.id}`}
+                                              showAnexosDraft={false}
+                                              anexosSubchamado={{
+                                                subchamadoId: sub.id,
+                                                uploader_nome: modalSessao.uploaderNome,
+                                                basePath,
+                                                sessionUserId: modalSessao.userId,
+                                                sessionEhAdminOuTeam: modalSessao.ehAdminOuTeam,
+                                              }}
+                                              onDelete={() => void handleExcluirSubInteracao(sub.id, it.id)}
+                                              deleteTitle="Excluir atividade"
                                             />
                                             <div className="flex flex-wrap gap-2">
                                               <button
@@ -3487,7 +3520,23 @@ export function KanbanCardModal({
                                             </div>
                                           </div>
                                         ) : (
-                                        <div className="flex flex-wrap items-start justify-between gap-2">
+                                        <div className="flex items-start gap-1">
+                                          <button
+                                            type="button"
+                                            className="mt-0.5 shrink-0 rounded p-0.5 text-stone-500 hover:bg-stone-200"
+                                            aria-expanded={subDetalheAberto}
+                                            onClick={() =>
+                                              setSubAtividadeExpandida((s) => ({
+                                                ...s,
+                                                [sub.id]: !subDetalheAberto,
+                                              }))
+                                            }
+                                          >
+                                            <ChevronRight
+                                              className={`h-3.5 w-3.5 transition-transform ${subDetalheAberto ? 'rotate-90' : ''}`}
+                                              aria-hidden
+                                            />
+                                          </button>
                                           <div className="min-w-0 flex-1">
                                             <div className="flex flex-wrap items-center gap-1.5">
                                               {sub.trava ? (
@@ -3502,26 +3551,9 @@ export function KanbanCardModal({
                                                     ? 'Chamado'
                                                     : 'Atividade'}
                                               </span>
-                                              {modalSessao.ehAdminOuTeam ||
-                                              sub.responsaveis_resolvidos.some((r) => r.id === modalSessao.userId) ? (
-                                                <select
-                                                  value={sub.status}
-                                                  onChange={(e) =>
-                                                    void handleSubStatusChange(
-                                                      it.id,
-                                                      sub.id,
-                                                      e.target.value as SubInteracaoStatusDb,
-                                                    )
-                                                  }
-                                                  className="rounded border border-stone-300 px-1.5 py-0.5 text-[9px]"
-                                                >
-                                                  <option value="nao_iniciado">Não iniciado</option>
-                                                  <option value="em_andamento">Em andamento</option>
-                                                  <option value="concluido">Concluído</option>
-                                                  <option value="aprovado">Aprovado</option>
-                                                </select>
-                                              ) : null}
-                                              <span className="font-medium text-stone-800">{sub.nome || sub.descricao}</span>
+                                              <span className="min-w-0 truncate font-medium text-stone-800">
+                                                {sub.nome || sub.descricao}
+                                              </span>
                                               {sub.historico.some((h) => h.tipo === 'Redirecionado') ? (
                                                 <span className="rounded border border-amber-300 bg-amber-50 px-1 py-0.5 text-[9px] font-semibold text-amber-800">
                                                   Redirecionado
@@ -3542,83 +3574,122 @@ export function KanbanCardModal({
                                                       status:
                                                         sub.status === 'aprovado' ? 'concluido' : sub.status,
                                                       pastel: sub.pastel,
+                                                      pendingAnexos: [],
                                                     });
                                                     setEditingSubId(sub.id);
+                                                    setSubAtividadeExpandida((s) => ({ ...s, [sub.id]: true }));
                                                   }}
                                                   className="ml-0.5 rounded p-0.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
                                                 >
                                                   <Pencil className="h-3 w-3" />
                                                 </button>
                                               ) : null}
-                                            </div>
-                                            <div className="mt-1 flex flex-wrap gap-1">
-                                              {sub.times_resolvidos.map((tg) => (
-                                                <span
-                                                  key={`${sub.id}-${tg.id}`}
-                                                  className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] text-stone-600"
+                                              {modalSessao.userId &&
+                                              (modalSessao.roleNorm === 'admin' ||
+                                                modalSessao.cargoNorm === 'adm' ||
+                                                (it.criado_por != null && it.criado_por === modalSessao.userId)) ? (
+                                                <button
+                                                  type="button"
+                                                  title="Excluir atividade"
+                                                  onClick={() => void handleExcluirSubInteracao(sub.id, it.id)}
+                                                  className="rounded p-0.5 text-stone-400 hover:bg-red-50 hover:text-red-600"
                                                 >
-                                                  {tg.nome}
-                                                </span>
-                                              ))}
+                                                  <Trash2 className="h-3 w-3" />
+                                                </button>
+                                              ) : null}
                                             </div>
-                                            <p className="mt-1 text-[10px] text-stone-500">
-                                              Resp.:{' '}
-                                              {sub.responsaveis_resolvidos.length > 0
-                                                ? sub.responsaveis_resolvidos.map((r) => r.nome).join(', ')
-                                                : '—'}
-                                            </p>
-                                            {sub.data_fim ? (
-                                              <p className="text-[10px] text-stone-500">
-                                                Prazo: {formatIsoDateOnlyPtBr(sub.data_fim) ?? sub.data_fim}
-                                              </p>
-                                            ) : (
-                                              <p className="text-[10px] text-stone-400">Sem prazo</p>
-                                            )}
-                                            {sub.responsaveis_resolvidos.some((r) => r.id === modalSessao.userId) &&
-                                            !sub.times_resolvidos.some((t) => t.nome === 'Bombeiro') ? (
-                                              <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[10px] text-stone-600">
-                                                <input
-                                                  type="checkbox"
-                                                  className="h-3 w-3"
-                                                  checked={sub.pastel}
-                                                  onChange={(e) =>
-                                                    void handleTogglePastel(sub.id, e.target.checked)
-                                                  }
+                                            {subDetalheAberto ? (
+                                              <div className="mt-2 space-y-1 border-t border-stone-100 pt-2">
+                                                {modalSessao.ehAdminOuTeam ||
+                                                sub.responsaveis_resolvidos.some((r) => r.id === modalSessao.userId) ? (
+                                                  <select
+                                                    value={sub.status}
+                                                    onChange={(e) =>
+                                                      void handleSubStatusChange(
+                                                        it.id,
+                                                        sub.id,
+                                                        e.target.value as SubInteracaoStatusDb,
+                                                      )
+                                                    }
+                                                    className="mb-1 rounded border border-stone-300 px-1.5 py-0.5 text-[9px]"
+                                                  >
+                                                    <option value="nao_iniciado">Não iniciado</option>
+                                                    <option value="em_andamento">Em andamento</option>
+                                                    <option value="concluido">Concluído</option>
+                                                    <option value="aprovado">Aprovado</option>
+                                                  </select>
+                                                ) : null}
+                                                <div className="flex flex-wrap gap-1">
+                                                  {sub.times_resolvidos.map((tg) => (
+                                                    <span
+                                                      key={`${sub.id}-${tg.id}`}
+                                                      className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] text-stone-600"
+                                                    >
+                                                      {tg.nome}
+                                                    </span>
+                                                  ))}
+                                                </div>
+                                                <p className="text-[10px] text-stone-500">
+                                                  Resp.:{' '}
+                                                  {sub.responsaveis_resolvidos.length > 0
+                                                    ? sub.responsaveis_resolvidos.map((r) => r.nome).join(', ')
+                                                    : '—'}
+                                                </p>
+                                                {sub.data_fim ? (
+                                                  <p className="text-[10px] text-stone-500">
+                                                    Prazo: {formatIsoDateOnlyPtBr(sub.data_fim) ?? sub.data_fim}
+                                                  </p>
+                                                ) : (
+                                                  <p className="text-[10px] text-stone-400">Sem prazo</p>
+                                                )}
+                                                {sub.responsaveis_resolvidos.some((r) => r.id === modalSessao.userId) &&
+                                                !sub.times_resolvidos.some((t) => t.nome === 'Bombeiro') ? (
+                                                  <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[10px] text-stone-600">
+                                                    <input
+                                                      type="checkbox"
+                                                      className="h-3 w-3"
+                                                      checked={sub.pastel}
+                                                      onChange={(e) =>
+                                                        void handleTogglePastel(sub.id, e.target.checked)
+                                                      }
+                                                    />
+                                                    Pastel
+                                                  </label>
+                                                ) : null}
+                                                <AnexosSubchamado
+                                                  subchamadoId={sub.id}
+                                                  uploader_nome={modalSessao.uploaderNome}
+                                                  basePath={basePath}
+                                                  sessionUserId={modalSessao.userId}
+                                                  sessionEhAdminOuTeam={modalSessao.ehAdminOuTeam}
                                                 />
-                                                Pastel
-                                              </label>
+                                                {!modalSessao.ehAdminOuTeam &&
+                                                sub.responsaveis_resolvidos.some((r) => r.id === modalSessao.userId) ? (
+                                                  <select
+                                                    value={sub.status}
+                                                    onChange={(e) =>
+                                                      void handleSubStatusChange(
+                                                        it.id,
+                                                        sub.id,
+                                                        e.target.value as SubInteracaoStatusDb,
+                                                      )
+                                                    }
+                                                    className="rounded border border-stone-300 px-1.5 py-1 text-[10px]"
+                                                  >
+                                                    <option value="nao_iniciado">Não iniciado</option>
+                                                    <option value="em_andamento">Em andamento</option>
+                                                    <option value="concluido">Concluído</option>
+                                                    <option value="aprovado">Aprovado</option>
+                                                  </select>
+                                                ) : null}
+                                              </div>
                                             ) : null}
-                                            <AnexosSubchamado
-                                              subchamadoId={sub.id}
-                                              uploader_nome={modalSessao.uploaderNome}
-                                              basePath={basePath}
-                                              sessionUserId={modalSessao.userId}
-                                              sessionEhAdminOuTeam={modalSessao.ehAdminOuTeam}
-                                            />
                                           </div>
-                                          {!modalSessao.ehAdminOuTeam &&
-                                          sub.responsaveis_resolvidos.some((r) => r.id === modalSessao.userId) ? (
-                                            <select
-                                              value={sub.status}
-                                              onChange={(e) =>
-                                                void handleSubStatusChange(
-                                                  it.id,
-                                                  sub.id,
-                                                  e.target.value as SubInteracaoStatusDb,
-                                                )
-                                              }
-                                              className="rounded border border-stone-300 px-1.5 py-1 text-[10px]"
-                                            >
-                                              <option value="nao_iniciado">Não iniciado</option>
-                                              <option value="em_andamento">Em andamento</option>
-                                              <option value="concluido">Concluído</option>
-                                              <option value="aprovado">Aprovado</option>
-                                            </select>
-                                          ) : null}
                                         </div>
                                         )}
                                       </li>
-                                    ))}
+                                      );
+                                    })}
                                   </ul>
                                 ) : (
                                   <p className="mb-3 text-[11px] text-stone-500">Nenhum sub-chamado.</p>
@@ -3635,6 +3706,11 @@ export function KanbanCardModal({
                                       compact
                                       showPastel={false}
                                       idPrefix={`nova-${it.id}`}
+                                      onDelete={() => {
+                                        setSubFormInteracaoId(null);
+                                        setSubNovaDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
+                                      }}
+                                      deleteTitle="Cancelar nova atividade"
                                     />
                                     <div className="flex flex-wrap gap-2">
                                       <button
@@ -3666,7 +3742,7 @@ export function KanbanCardModal({
                                 ) : null}
                               </div>
                             ) : null}
-                            {!demo && pode('criar_chamados') ? (
+                            {!demo && pode('criar_chamados') && subsDetalheAberto ? (
                               <div className="mt-2">
                                 <button
                                   type="button"
@@ -3680,6 +3756,8 @@ export function KanbanCardModal({
                                   + Atividade
                                 </button>
                               </div>
+                            ) : null}
+                            </>
                             ) : null}
                           </div>
                         </div>
@@ -3707,8 +3785,38 @@ export function KanbanCardModal({
                   border: '0.5px solid var(--moni-border-default)',
                 }}
               >
-                <p className="mb-1.5 text-[11px] font-semibold text-stone-600">Novo Chamado</p>
+                {!novoChamadoFormAberto ? (
+                  <button
+                    type="button"
+                    onClick={() => setNovoChamadoFormAberto(true)}
+                    className="text-left text-[11px] font-medium text-stone-700 underline-offset-2 hover:underline"
+                  >
+                    + Novo Chamado
+                  </button>
+                ) : (
                 <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-semibold text-stone-600">Novo Chamado</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNovoChamadoFormAberto(false);
+                        setNovaAtividadeAberta(false);
+                        setNovaInteracao({
+                          titulo: '',
+                          descricao: '',
+                          categoria: 'chamado',
+                          status: 'pendente',
+                          atividade: { ...ATIVIDADE_FORM_DRAFT_VAZIO },
+                        });
+                      }}
+                      className="rounded p-1 text-stone-400 hover:bg-red-50 hover:text-red-600"
+                      title="Cancelar novo chamado"
+                      aria-label="Cancelar novo chamado"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                    </button>
+                  </div>
                   <input
                     type="text"
                     value={novaInteracao.titulo}
@@ -3756,13 +3864,19 @@ export function KanbanCardModal({
                       <option value="pendente">Pendente</option>
                     </select>
                   </div>
-                  <div
-                    className="rounded-md border border-stone-200 bg-white/80 p-2"
-                    style={{ borderColor: 'var(--moni-border-default)' }}
+                  <ChamadoAtividadeCollapsibleSection
+                    aberto={novaAtividadeAberta}
+                    onAbrir={() => setNovaAtividadeAberta(true)}
+                    onFechar={() => {
+                      setNovaAtividadeAberta(false);
+                      setNovaInteracao((n) => ({
+                        ...n,
+                        atividade: { ...ATIVIDADE_FORM_DRAFT_VAZIO },
+                      }));
+                    }}
+                    obrigatorio
+                    className="text-[11px]"
                   >
-                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-stone-500">
-                      Primeira atividade
-                    </p>
                     <KanbanAtividadeFormFields
                       draft={novaInteracao.atividade}
                       setDraft={(up) =>
@@ -3777,18 +3891,21 @@ export function KanbanCardModal({
                       compact
                       showPastel={false}
                       idPrefix="nova-ativ"
+                      onDelete={() => {
+                        setNovaAtividadeAberta(false);
+                        setNovaInteracao((n) => ({
+                          ...n,
+                          atividade: { ...ATIVIDADE_FORM_DRAFT_VAZIO },
+                        }));
+                      }}
+                      deleteTitle="Limpar atividade"
                     />
-                  </div>
+                  </ChamadoAtividadeCollapsibleSection>
                   <div className="flex justify-end">
                     <button
                       type="button"
                       onClick={() => void handleAdicionarInteracao()}
-                      disabled={
-                        loading ||
-                        !novaInteracao.titulo.trim() ||
-                        !novaInteracao.descricao.trim() ||
-                        !novaInteracao.atividade.nome.trim()
-                      }
+                      disabled={loading || !novaInteracao.titulo.trim() || !novaInteracao.descricao.trim()}
                       className="shrink-0 px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50"
                       style={{ background: 'var(--moni-text-primary)', borderRadius: 'var(--moni-radius-md)' }}
                     >
@@ -3796,6 +3913,7 @@ export function KanbanCardModal({
                     </button>
                   </div>
                 </div>
+                )}
               </div>
               ) : (
                 <p className="mb-4 text-xs text-stone-500">Criar chamados não está disponível para o seu perfil.</p>

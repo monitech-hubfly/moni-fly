@@ -1,8 +1,7 @@
 'use client';
 
 import type React from 'react';
-import { Archive, MessageCircle, Pencil, User } from 'lucide-react';
-import Link from 'next/link';
+import { Archive, ChevronRight, MessageCircle, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -27,11 +26,9 @@ import {
   type StatusInteracaoDb,
 } from './actions';
 import {
-  adicionarTopicoChamadoPainel,
   arquivarChamado,
   arquivarTopico,
   atualizarChamadoPainelUnificado,
-  getTopicosChamado,
   getTopicosPorInteracaoId,
 } from '../actions';
 import {
@@ -41,10 +38,11 @@ import {
   type SubInteracaoStatusDb,
 } from '@/lib/actions/card-actions';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
-import { SubInteracaoLista, mapRawTopicoToListaItem } from '@/components/kanban-shared/SubInteracaoLista';
 import { MencaoContentEditable } from '@/components/kanban-shared/MencaoContentEditable';
 import { ModalNovoChamado } from '../ModalNovoChamado';
-import { resolveTemaChamadoForm } from '@/lib/kanban/resolve-tema-chamado';
+import { SireneChamadoDetalheModal } from './SireneChamadoDetalheModal';
+import { chamadoEditavelNaSirene } from '@/lib/kanban/sirene-chamado-permissoes';
+import { formatChamadoNumero } from '@/lib/kanban/chamado-numero';
 
 export type InteracaoSireneRow = {
   id: string;
@@ -73,16 +71,19 @@ export type InteracaoSireneRow = {
   responsavel_nome_texto: string | null;
   sirene_chamado_id?: number | null;
   sirene_numero?: number | null;
+  /** Número global do chamado (kanban_atividades.numero). */
+  numero?: number | null;
   sirene_chamado_tipo?: string | null;
   sirene_time_abertura?: string | null;
   sirene_abertura_responsavel_nome?: string | null;
   sirene_hdm_responsavel?: string | null;
   frank_id?: string | null;
   te_trata?: boolean | null;
+  categoria?: 'chamado' | 'melhoria';
+  time_abertura_nome?: string | null;
   /** Chamado Sirene arquivado (admin/team pode exibir com toggle). */
   sirene_arquivado?: boolean;
 };
-
 type TimeOpt = { id: string; nome: string };
 type RespOpt = { id: string; nome: string; email?: string | null };
 
@@ -132,9 +133,8 @@ type NovoSubChamadoDraft = {
   temaOutro: string;
 };
 
-/** Chave de cache de tópicos: `c:{sirene_chamado_id}` ou `i:{kanban_atividades.id}`. */
-function topicosAlvoKey(row: { id: string; sirene_chamado_id?: number | null }): string {
-  if (row.sirene_chamado_id != null) return `c:${row.sirene_chamado_id}`;
+/** Chave de cache de tópicos: sempre por interacao_id. */
+function topicosAlvoKey(row: { id: string }): string {
   return `i:${row.id}`;
 }
 
@@ -373,7 +373,7 @@ export function InteracoesLista({
   const [editingSireneCid, setEditingSireneCid] = useState<number | null>(null);
   const [editSireneDraft, setEditSireneDraft] = useState<EditSireneDraft | null>(null);
   const [salvandoSirene, setSalvandoSirene] = useState(false);
-  const [subsOpenByRow, setSubsOpenByRow] = useState<Record<string, boolean>>({});
+  const [detalheRow, setDetalheRow] = useState<InteracaoSireneRow | null>(null);
   const [topicosPorAlvo, setTopicosPorAlvo] = useState<Record<string, TopicoChamadoLinha[]>>({});
   const [topicosLoading, setTopicosLoading] = useState<Record<string, boolean>>({});
   const [novoSubPorAlvo, setNovoSubPorAlvo] = useState<Record<string, NovoSubChamadoDraft>>({});
@@ -454,25 +454,10 @@ export function InteracoesLista({
   }, [interacoes]);
 
   const painelTopicosPrefetch = useMemo(() => {
-    const cids = new Set<number>();
-    const iids = new Set<string>();
-    for (const r of interacoes) {
-      if (r.sirene_chamado_id != null) cids.add(r.sirene_chamado_id);
-      else iids.add(r.id);
-    }
-    return { cids: [...cids], iids: [...iids] };
+    return { iids: interacoes.map((r) => r.id) };
   }, [interacoes]);
 
   useEffect(() => {
-    for (const cid of painelTopicosPrefetch.cids) {
-      const key = `c:${cid}`;
-      void (async () => {
-        setTopicosLoading((l) => ({ ...l, [key]: true }));
-        const res = await getTopicosChamado(cid);
-        setTopicosLoading((l) => ({ ...l, [key]: false }));
-        if (res.ok) setTopicosPorAlvo((m) => ({ ...m, [key]: res.topicos }));
-      })();
-    }
     for (const iid of painelTopicosPrefetch.iids) {
       const key = `i:${iid}`;
       void (async () => {
@@ -644,18 +629,6 @@ export function InteracoesLista({
     return m;
   }, [filtradas]);
 
-  /** Índice global (ordem em `filtradas`) só para linhas sem número Sirene → #K001, #K002… */
-  const indiceKanbanPorRowId = useMemo(() => {
-    let n = 0;
-    const m = new Map<string, number>();
-    for (const row of filtradas) {
-      if (row.sirene_numero == null) {
-        n += 1;
-        m.set(row.id, n);
-      }
-    }
-    return m;
-  }, [filtradas]);
 
   function onStatusChange(id: string, novo: StatusInteracaoDb) {
     setMsgErro(null);
@@ -682,34 +655,20 @@ export function InteracoesLista({
   }
 
   function abrirEdicao(row: InteracaoSireneRow) {
-    if (row.origem === 'sirene' && row.sirene_chamado_id != null) {
-      setEditingId(null);
-      setEditDraft(null);
-      setEditingSireneCid(row.sirene_chamado_id);
-      const tipoSc = (row.sirene_chamado_tipo ?? 'padrao') === 'hdm' ? 'hdm' : 'padrao';
-      setEditSireneDraft({
-        incendio: row.titulo,
-        time_abertura: row.sirene_time_abertura ?? '',
-        abertura_responsavel_nome: row.sirene_abertura_responsavel_nome ?? '',
-        data: row.data_vencimento ?? '',
-        trava: row.trava,
-        tipo: tipoSc,
-        hdm_responsavel: row.sirene_hdm_responsavel ?? '',
-      });
+    if (!chamadoEditavelNaSirene(row)) {
+      setMsgErro('Este chamado só pode ser alterado no card vinculado.');
       return;
     }
     setEditingSireneCid(null);
     setEditSireneDraft(null);
-    const rids = [...(row.responsaveis_ids ?? [])];
-    if (row.responsavel_id && !rids.includes(row.responsavel_id)) rids.unshift(row.responsavel_id);
     setEditingId(row.id);
     setEditDraft({
       titulo: row.titulo,
-      tipo: tipoEdicaoFromRow(row.tipo),
-      data: row.data_vencimento ?? '',
-      timesIds: [...(row.times_ids ?? [])],
-      responsaveisIds: rids,
-      trava: row.trava,
+      tipo: 'atividade',
+      data: '',
+      timesIds: [],
+      responsaveisIds: [],
+      trava: false,
     });
   }
 
@@ -724,25 +683,15 @@ export function InteracoesLista({
     const key = topicosAlvoKey(row);
     if (!force && topicosPorAlvo[key] != null && !topicosLoading[key]) return;
     setTopicosLoading((l) => ({ ...l, [key]: true }));
-    const res =
-      row.sirene_chamado_id != null
-        ? await getTopicosChamado(row.sirene_chamado_id)
-        : await getTopicosPorInteracaoId(row.id);
+    const res = await getTopicosPorInteracaoId(row.id);
     setTopicosLoading((l) => ({ ...l, [key]: false }));
     if (res.ok) setTopicosPorAlvo((m) => ({ ...m, [key]: res.topicos }));
     else setMsgErro(res.error);
   }
 
-  function toggleSubsPainel(row: InteracaoSireneRow) {
-    const key = topicosAlvoKey(row);
-    const n = (topicosPorAlvo[key] ?? []).length;
-    const cur = subsOpenByRow[row.id] !== undefined ? subsOpenByRow[row.id]! : n > 0;
-    const will = !cur;
-    setSubsOpenByRow((p) => ({ ...p, [row.id]: will }));
-    if (will) {
-      subDescricaoAlvoKeyRef.current = key;
-      void carregarTopicosSeNecessario(row, true);
-    }
+  function abrirDetalheChamado(row: InteracaoSireneRow) {
+    setDetalheRow(row);
+    void carregarTopicosSeNecessario(row, true);
   }
 
   async function salvarEdicao(atividadeId: string) {
@@ -847,43 +796,42 @@ export function InteracoesLista({
   }
 
   async function handleAdicionarTopico(row: InteracaoSireneRow) {
+    if (!chamadoEditavelNaSirene(row)) {
+      setMsgErro('Este chamado só pode ser alterado no card vinculado.');
+      return;
+    }
     const alvoKey = topicosAlvoKey(row);
     const d = subDraft(alvoKey);
-    const descHtml =
+    const nome =
       subDescricaoAlvoKeyRef.current === alvoKey && subDescricaoEditorRef.current
-        ? subDescricaoEditorRef.current.innerHTML.trim()
-        : d.descricao.trim();
-    if (!descHtml) {
-      setMsgErro('Informe a descrição do sub-chamado.');
+        ? subDescricaoEditorRef.current.innerHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+        : d.descricao.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!nome) {
+      setMsgErro('Informe o nome da atividade.');
       return;
     }
     if (d.timesIds.length === 0) {
       setMsgErro('Selecione ao menos um time.');
       return;
     }
+    if (d.responsaveisIds.length === 0) {
+      setMsgErro('Selecione ao menos um responsável.');
+      return;
+    }
     setSalvandoTopico((s) => ({ ...s, [alvoKey]: true }));
     setMsgErro(null);
-    const temaFinal = resolveTemaChamadoForm(d.tema, d.temaOutro);
-    const res =
-      row.sirene_chamado_id != null
-        ? await adicionarTopicoChamadoPainel(row.sirene_chamado_id, {
-            descricao: descHtml,
-            tipo: d.tipo,
-            times_ids: d.timesIds,
-            responsaveis_ids: d.responsaveisIds,
-            data_fim: d.data.trim() || null,
-            trava: d.trava,
-            tema: temaFinal,
-          })
-        : await criarSubInteracao({
-            interacao_id: row.id,
-            nome: descHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || descHtml.trim(),
-            times_ids: d.timesIds,
-            responsaveis_ids: d.responsaveisIds,
-            data_fim: d.data.trim() || null,
-            trava: d.trava,
-            basePath: '/sirene/chamados',
-          });
+    const res = await criarSubInteracao({
+      interacao_id: row.id,
+      nome,
+      descricao_detalhe: d.descricao.trim() || null,
+      times_ids: d.timesIds,
+      responsaveis_ids: d.responsaveisIds,
+      data_fim: d.data.trim() || null,
+      trava: d.trava,
+      status: 'nao_iniciado',
+      basePath: '/sirene/chamados',
+      viaSirene: true,
+    });
     setSalvandoTopico((s) => ({ ...s, [alvoKey]: false }));
     if (!res.ok) {
       setMsgErro(res.error);
@@ -900,7 +848,7 @@ export function InteracoesLista({
     status: SubInteracaoStatusDb,
   ) {
     setMsgErro(null);
-    const res = await atualizarStatusSubInteracao(String(topicoId), status, '/sirene/chamados');
+    const res = await atualizarStatusSubInteracao(String(topicoId), status, '/sirene/chamados', true);
     if (!res.ok) {
       setMsgErro(res.error);
       return;
@@ -1310,426 +1258,105 @@ export function InteracoesLista({
                   const alvoK = topicosAlvoKey(row);
                   const subs = topicosPorAlvo[alvoK] ?? [];
                   const temSubAberta = subs.some((s) => s.status !== 'concluido' && s.status !== 'aprovado');
-                  const subsPainelAberto =
-                    subsOpenByRow[row.id] !== undefined ? subsOpenByRow[row.id]! : subs.length > 0;
+                  const qtdAtividades = subs.length;
 
                   return (
-                    <li key={row.id} className="flex flex-col gap-0 border-b border-[color:var(--moni-border-default)] px-3 py-3 last:border-b-0">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:gap-x-3 sm:gap-y-2">
-                        <div className="flex min-w-0 flex-1 flex-col gap-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            {row.trava && (
-                              <span className="rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-800">
-                                Trava
+                    <li key={row.id} className="border-b border-[color:var(--moni-border-default)] last:border-b-0">
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        className="flex cursor-pointer flex-col gap-2 px-3 py-3 transition-colors hover:bg-[var(--moni-surface-50)] sm:flex-row sm:flex-wrap sm:items-start sm:gap-x-3 sm:gap-y-2"
+                        onClick={() => abrirDetalheChamado(row)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            abrirDetalheChamado(row);
+                          }
+                        }}
+                      >
+                        <div className="flex min-w-0 flex-1 items-start gap-2">
+                          <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--moni-text-tertiary)]" aria-hidden />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {row.trava ? (
+                                <span className="rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-800">
+                                  Trava
+                                </span>
+                              ) : null}
+                              {(row.numero ?? row.sirene_numero) != null ? (
+                                <span className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[color:var(--moni-text-secondary)]">
+                                  {formatChamadoNumero(row.numero ?? row.sirene_numero)}
+                                </span>
+                              ) : null}
+                              {row.sirene_arquivado ? (
+                                <span className="rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[color:var(--moni-text-tertiary)]">
+                                  Arquivado
+                                </span>
+                              ) : null}
+                              <span className="font-medium text-[color:var(--moni-text-primary)]">{row.titulo}</span>
+                              <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase ${tipoB.className}`}>
+                                {tipoB.label}
                               </span>
-                            )}
-                            {row.sirene_numero != null ? (
-                              <span className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] font-semibold text-[color:var(--moni-text-secondary)]">
-                                #{row.sirene_numero}
-                              </span>
-                            ) : (
-                              <span className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] font-semibold text-[color:var(--moni-text-secondary)]">
-                                #K{String(indiceKanbanPorRowId.get(row.id) ?? 0).padStart(3, '0')}
-                              </span>
-                            )}
-                            {row.sirene_arquivado ? (
-                              <span className="rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[color:var(--moni-text-tertiary)]">
-                                Arquivado
-                              </span>
-                            ) : null}
-                            <span className="font-medium text-[color:var(--moni-text-primary)]">{row.titulo}</span>
-                            {ccid ? (
-                              <button
-                                type="button"
-                                onClick={() => toggleComentarios(row)}
-                                className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]"
-                                aria-expanded={Boolean(commentsOpenByRow[row.id])}
-                                aria-label={`Comentários do card (${cnt})`}
-                              >
-                                <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                                <span className="min-w-[1.1rem] text-center text-[10px] font-semibold tabular-nums">{cnt}</span>
-                              </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              onClick={() => toggleSubsPainel(row)}
-                              className="rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)] hover:text-[color:var(--moni-text-primary)]"
-                              aria-expanded={subsPainelAberto}
-                            >
-                              Sub-interações
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => abrirEdicao(row)}
-                              className="rounded p-0.5 text-[color:var(--moni-text-tertiary)] hover:bg-[var(--moni-surface-100)] hover:text-[color:var(--moni-text-primary)]"
-                              aria-label="Editar chamado"
-                              title="Editar"
-                            >
-                              <Pencil className="h-3.5 w-3.5" aria-hidden />
-                            </button>
-                            {podeArquivar && !row.sirene_arquivado ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setModalArquivar({
-                                    cid: row.sirene_chamado_id ?? null,
-                                    interacaoId: row.id,
-                                  })
-                                }
-                                className="rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]"
-                              >
-                                Arquivar
-                              </button>
-                            ) : null}
-                            <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase ${tipoB.className}`}>
-                              {tipoB.label}
-                            </span>
-                          </div>
-                          {subsPainelAberto && topicosLoading[alvoK] ? (
-                            <p className="text-[10px] text-[color:var(--moni-text-tertiary)]">Carregando subinterações…</p>
-                          ) : subsPainelAberto && (topicosPorAlvo[alvoK] ?? []).length > 0 ? (
-                            <SubInteracaoLista
-                              variant="sirene"
-                              items={(topicosPorAlvo[alvoK] ?? []).map((t) =>
-                                mapRawTopicoToListaItem({
-                                  id: t.id,
-                                  tipo: t.tipo,
-                                  descricao: t.descricao,
-                                  status: t.status,
-                                  data_fim: t.data_fim,
-                                  trava: t.trava,
-                                }),
-                              )}
-                            />
-                          ) : null}
-                          {(row.franqueado_nome ?? '').trim() ? (
-                            <div className="flex items-center gap-1 text-xs text-[color:var(--moni-text-tertiary)]">
-                              <User className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                              <span>{(row.franqueado_nome ?? '').trim()}</span>
+                              {qtdAtividades > 0 ? (
+                                <span className="text-[10px] text-[color:var(--moni-text-tertiary)]">
+                                  {qtdAtividades} atividade{qtdAtividades === 1 ? '' : 's'}
+                                </span>
+                              ) : null}
                             </div>
-                          ) : null}
-                          <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-[color:var(--moni-text-tertiary)]">
-                            <span className="shrink-0">Resp.:</span>
-                            <span className="font-medium text-[color:var(--moni-text-tertiary)]">
-                              {textoResponsavelPainel(row, nomePorUserId)}
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--moni-text-tertiary)]">
-                            {ccid && hrefCard ? (
-                              <Link
-                                href={hrefCard}
-                                className="rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-0.5 text-[color:var(--moni-text-secondary)] underline-offset-2 hover:text-[color:var(--moni-navy-600)] hover:underline"
-                              >
-                                Card: {row.card_titulo?.trim() || '—'}
-                              </Link>
-                            ) : null}
-                            <span className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)]">
-                              {row.kanban_nome}
-                            </span>
-                            {parseTimesNomes(row.times_nomes).map((tn) => (
-                              <span key={tn} className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)]">
-                                {tn}
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[color:var(--moni-text-tertiary)]">
+                              <span className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)]">
+                                {row.kanban_nome}
                               </span>
-                            ))}
-                            {row.time_nome && parseTimesNomes(row.times_nomes).length === 0 && (
-                              <span className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)]">{row.time_nome}</span>
-                            )}
+                              {ccid && hrefCard ? (
+                                <span className="text-[10px]">Card: {row.card_titulo?.trim() || '—'}</span>
+                              ) : null}
+                            </div>
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                        <div
+                          className="flex flex-wrap items-center gap-2 sm:justify-end"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          {ccid ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleComentarios(row)}
+                              className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]"
+                              aria-expanded={Boolean(commentsOpenByRow[row.id])}
+                              aria-label={`Comentários do card (${cnt})`}
+                            >
+                              <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                              <span className="min-w-[1.1rem] text-center text-[10px] font-semibold tabular-nums">{cnt}</span>
+                            </button>
+                          ) : null}
                           <div className="flex -space-x-1">
-                            {idsResp.slice(0, 6).map((uid) => (
+                            {idsResp.slice(0, 4).map((uid) => (
                               <span
                                 key={uid}
                                 title={nomePorUserId.get(uid) ?? uid}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-100)] text-[10px] font-semibold text-[color:var(--moni-text-primary)]"
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-100)] text-[9px] font-semibold text-[color:var(--moni-text-primary)]"
                               >
                                 {iniciaisNome(nomePorUserId.get(uid) ?? '?')}
                               </span>
                             ))}
                           </div>
-                          <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
-                            {row.data_vencimento ? (
-                              <span className="text-[color:var(--moni-text-tertiary)]">
-                                Prazo {row.data_vencimento.split('-').reverse().join('/')}
-                              </span>
-                            ) : null}
-                            <SelectMoni
-                              value={sel}
-                              disabled={pending}
-                              onChange={(e) => onStatusChange(row.id, e.target.value as StatusInteracaoDb)}
-                              className="min-w-[9.5rem]"
-                              aria-label="Status do chamado"
-                            >
-                              <option value="pendente">A fazer</option>
-                              <option value="em_andamento">Em andamento</option>
-                              <option value="concluida" disabled={temSubAberta}>
-                                Concluída
-                              </option>
-                            </SelectMoni>
-                          </div>
+                          <SelectMoni
+                            value={sel}
+                            disabled={pending}
+                            onChange={(e) => onStatusChange(row.id, e.target.value as StatusInteracaoDb)}
+                            className="min-w-[9.5rem]"
+                            aria-label="Status do chamado"
+                          >
+                            <option value="pendente">A fazer</option>
+                            <option value="em_andamento">Em andamento</option>
+                            <option value="concluida" disabled={temSubAberta}>
+                              Concluída
+                            </option>
+                          </SelectMoni>
                         </div>
                       </div>
-
-                      {editingId === row.id && editDraft ? (
-                        <div className="mt-3 space-y-3 border-t border-[color:var(--moni-border-default)] pt-3">
-                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
-                            Título
-                            <input
-                              type="text"
-                              value={editDraft.titulo}
-                              onChange={(e) => setEditDraft((d) => (d ? { ...d, titulo: e.target.value } : d))}
-                              className="mt-1 w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)]"
-                            />
-                          </label>
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
-                              Tipo
-                              <SelectMoni
-                                value={editDraft.tipo}
-                                onChange={(e) =>
-                                  setEditDraft((d) =>
-                                    d ? { ...d, tipo: e.target.value as 'atividade' | 'duvida' | 'proposicoes' } : d,
-                                  )
-                                }
-                                className="mt-1 w-full"
-                              >
-                                <option value="atividade">Atividade</option>
-                                <option value="duvida">Dúvida</option>
-                                <option value="proposicoes">Proposições</option>
-                              </SelectMoni>
-                            </label>
-                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
-                              Prazo
-                              <input
-                                type="date"
-                                value={editDraft.data}
-                                onChange={(e) => setEditDraft((d) => (d ? { ...d, data: e.target.value } : d))}
-                                className="mt-1 w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)]"
-                              />
-                            </label>
-                          </div>
-                          <div>
-                            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
-                              Times
-                            </span>
-                            <div className="flex max-h-28 flex-wrap gap-1 overflow-y-auto">
-                              {times.map((t) => {
-                                const on = editDraft.timesIds.includes(t.id);
-                                return (
-                                  <button
-                                    key={t.id}
-                                    type="button"
-                                    onClick={() =>
-                                      setEditDraft((d) => {
-                                        if (!d) return d;
-                                        const has = d.timesIds.includes(t.id);
-                                        return {
-                                          ...d,
-                                          timesIds: has ? d.timesIds.filter((x) => x !== t.id) : [...d.timesIds, t.id],
-                                        };
-                                      })
-                                    }
-                                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                                      on ? 'bg-red-600 text-white' : 'bg-[var(--moni-surface-100)] text-[color:var(--moni-text-secondary)]'
-                                    }`}
-                                  >
-                                    {t.nome}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                          <div>
-                            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
-                              Responsáveis
-                            </span>
-                            <div className="flex max-h-32 flex-wrap gap-1 overflow-y-auto">
-                              {responsaveis.map((p) => {
-                                const on = editDraft.responsaveisIds.includes(p.id);
-                                return (
-                                  <button
-                                    key={p.id}
-                                    type="button"
-                                    onClick={() =>
-                                      setEditDraft((d) => {
-                                        if (!d) return d;
-                                        const has = d.responsaveisIds.includes(p.id);
-                                        return {
-                                          ...d,
-                                          responsaveisIds: has
-                                            ? d.responsaveisIds.filter((x) => x !== p.id)
-                                            : [...d.responsaveisIds, p.id],
-                                        };
-                                      })
-                                    }
-                                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                                      on ? 'bg-red-600 text-white' : 'bg-[var(--moni-surface-100)] text-[color:var(--moni-text-secondary)]'
-                                    }`}
-                                  >
-                                    {p.nome}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                          <label className="flex cursor-pointer items-center gap-2 text-sm text-[color:var(--moni-text-secondary)]">
-                            <input
-                              type="checkbox"
-                              className="h-4 w-4 rounded border-[color:var(--moni-border-default)]"
-                              checked={editDraft.trava}
-                              onChange={(e) => setEditDraft((d) => (d ? { ...d, trava: e.target.checked } : d))}
-                            />
-                            Trava — bloqueia o card até concluir
-                          </label>
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              disabled={salvandoEdicao}
-                              onClick={() => void salvarEdicao(row.id)}
-                              className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
-                            >
-                              {salvandoEdicao ? 'Salvando…' : 'Salvar'}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={salvandoEdicao}
-                              onClick={cancelarEdicao}
-                              className="rounded-lg border border-[color:var(--moni-border-default)] px-3 py-1.5 text-sm text-[color:var(--moni-text-secondary)] hover:bg-[var(--moni-surface-100)]"
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {row.sirene_chamado_id != null &&
-                      editingSireneCid === row.sirene_chamado_id &&
-                      editSireneDraft ? (
-                        <div className="mt-3 space-y-3 border-t border-[color:var(--moni-border-default)] pt-3">
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
-                            Chamado Sirene
-                          </p>
-                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
-                            Incêndio (resumo)
-                            <textarea
-                              value={editSireneDraft.incendio}
-                              onChange={(e) =>
-                                setEditSireneDraft((d) => (d ? { ...d, incendio: e.target.value } : d))
-                              }
-                              rows={3}
-                              className="mt-1 w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)]"
-                            />
-                          </label>
-                          <p className="text-[11px] leading-snug text-[color:var(--moni-text-tertiary)]">
-                            O tipo <strong>HDM</strong> é definido automaticamente quando o time de abertura é{' '}
-                            <strong>Produto</strong>, <strong>Homologações</strong>, <strong>Executivo Local</strong> ou{' '}
-                            <strong>Modelo Virtual</strong>.
-                          </p>
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
-                              Time (abertura)
-                              <select
-                                value={editSireneDraft.time_abertura}
-                                onChange={(e) => {
-                                  const v = e.target.value;
-                                  const inf = inferirHdmResponsavelPorNomesTimes(v ? [v] : []);
-                                  setEditSireneDraft((d) =>
-                                    d
-                                      ? {
-                                          ...d,
-                                          time_abertura: v,
-                                          abertura_responsavel_nome: responsaveisDoTimeMoni(v).includes(
-                                            d.abertura_responsavel_nome,
-                                          )
-                                            ? d.abertura_responsavel_nome
-                                            : '',
-                                          tipo: inf ? 'hdm' : 'padrao',
-                                          hdm_responsavel: inf ?? '',
-                                        }
-                                      : d,
-                                  );
-                                }}
-                                className="mt-1 w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)]"
-                              >
-                                <option value="">Selecione</option>
-                                {timesSireneEditOpcoes.map((t) => (
-                                  <option key={t} value={t}>
-                                    {t}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                            <label className="block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
-                              Responsável (abertura)
-                              <select
-                                value={editSireneDraft.abertura_responsavel_nome}
-                                onChange={(e) =>
-                                  setEditSireneDraft((d) =>
-                                    d ? { ...d, abertura_responsavel_nome: e.target.value } : d,
-                                  )
-                                }
-                                disabled={!editSireneDraft.time_abertura}
-                                className="mt-1 w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)] disabled:opacity-50"
-                              >
-                                <option value="">—</option>
-                                {responsaveisDoTimeMoni(editSireneDraft.time_abertura).map((n) => (
-                                  <option key={n} value={n}>
-                                    {n}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                          </div>
-                          <label className="block text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
-                            Prazo
-                            <input
-                              type="date"
-                              value={editSireneDraft.data}
-                              onChange={(e) =>
-                                setEditSireneDraft((d) => (d ? { ...d, data: e.target.value } : d))
-                              }
-                              className="mt-1 w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)]"
-                            />
-                          </label>
-                          {editSireneDraft.tipo === 'hdm' && editSireneDraft.hdm_responsavel ? (
-                            <p className="text-[11px] text-[color:var(--moni-text-secondary)]">
-                              Classificação: <strong>HDM</strong> — time responsável:{' '}
-                              <strong>{editSireneDraft.hdm_responsavel}</strong>
-                            </p>
-                          ) : null}
-                          <label className="flex cursor-pointer items-center gap-2 text-sm text-[color:var(--moni-text-secondary)]">
-                            <input
-                              type="checkbox"
-                              className="h-4 w-4 rounded border-[color:var(--moni-border-default)]"
-                              checked={editSireneDraft.trava}
-                              onChange={(e) =>
-                                setEditSireneDraft((d) => (d ? { ...d, trava: e.target.checked } : d))
-                              }
-                            />
-                            Trava
-                          </label>
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              disabled={salvandoSirene}
-                              onClick={() => void salvarEdicaoSirene(row.id, row.sirene_chamado_id!)}
-                              className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
-                            >
-                              {salvandoSirene ? 'Salvando…' : 'Salvar'}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={salvandoSirene}
-                              onClick={cancelarEdicao}
-                              className="rounded-lg border border-[color:var(--moni-border-default)] px-3 py-1.5 text-sm text-[color:var(--moni-text-secondary)] hover:bg-[var(--moni-surface-100)]"
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
 
                       {commentsOpenByRow[row.id] && ccid ? (
                         <div className="mt-3 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3">
@@ -1804,226 +1431,6 @@ export function InteracoesLista({
                         </div>
                       ) : null}
 
-                      {subsPainelAberto ? (
-                        <div className="mt-3 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3">
-                          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
-                            Gerir subinterações
-                          </p>
-                          {topicosLoading[alvoK] ? (
-                            <p className="text-xs text-[color:var(--moni-text-tertiary)]">Carregando…</p>
-                          ) : (
-                            <ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm text-[color:var(--moni-text-secondary)]">
-                              {(topicosPorAlvo[alvoK] ?? []).map((t) => (
-                                <li
-                                  key={t.id}
-                                  className="rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-2 text-xs"
-                                >
-                                  <div className="flex flex-wrap items-start justify-between gap-2">
-                                    <div className="min-w-0 flex-1">
-                                      <p className="font-medium text-[color:var(--moni-text-primary)]">{t.descricao}</p>
-                                      <p className="mt-1 text-[10px] text-[color:var(--moni-text-tertiary)]">
-                                        Time: {t.time_responsavel}
-                                        {t.data_fim ? ` · Prazo ${t.data_fim.split('-').reverse().join('/')}` : ''}
-                                      </p>
-                                    </div>
-                                    <div className="flex shrink-0 items-center gap-1">
-                                      {podeArquivar ? (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setModalArquivarTopico({
-                                              topicoId: t.id,
-                                              alvoKey: alvoK,
-                                            });
-                                            setMotivoArquivarTopico('');
-                                          }}
-                                          className="rounded p-1 text-[color:var(--moni-text-tertiary)] hover:bg-red-50 hover:text-red-700"
-                                          title="Arquivar sub-chamado"
-                                          aria-label="Arquivar sub-chamado"
-                                        >
-                                          <Archive className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                                        </button>
-                                      ) : null}
-                                      <SelectMoni
-                                        value={t.status}
-                                        onChange={(e) =>
-                                          void handleSubStatusPainel(
-                                            row,
-                                            t.id,
-                                            e.target.value as SubInteracaoStatusDb,
-                                          )
-                                        }
-                                        className="min-w-[7.5rem] text-[10px]"
-                                        aria-label="Status do sub-chamado"
-                                      >
-                                        <option value="nao_iniciado">Não iniciado</option>
-                                        <option value="em_andamento">Em andamento</option>
-                                        <option value="concluido">Concluído</option>
-                                        <option value="aprovado">Aprovado</option>
-                                      </SelectMoni>
-                                    </div>
-                                  </div>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                          {(() => {
-                            const d = subDraft(alvoK);
-                            const timesOpts = filtrarOpcoesTimeIdNomePorHdm(times, false);
-                            return (
-                              <div className="space-y-2 border-t border-[color:var(--moni-border-default)] pt-3">
-                                <p className="text-[10px] font-semibold text-[color:var(--moni-text-tertiary)]">Novo sub-chamado</p>
-                                <div>
-                                  <span className="mb-1 block text-[10px] font-medium text-[color:var(--moni-text-tertiary)]">
-                                    Tipo (obrigatório)
-                                  </span>
-                                  <SelectMoni
-                                    value={d.tipo}
-                                    onChange={(e) => {
-                                      const v = e.target.value as SubInteracaoTipoDb;
-                                      setSubDraft(alvoK, { tipo: v });
-                                    }}
-                                    className="w-full text-xs"
-                                  >
-                                    <option value="atividade">Atividade</option>
-                                    <option value="duvida">Dúvida</option>
-                                    <option value="proposicoes">Proposições</option>
-                                    <option value="chamado">Chamado</option>
-                                  </SelectMoni>
-                                </div>
-                                <div
-                                  className="overflow-visible rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)]"
-                                  onFocus={() => {
-                                    subDescricaoAlvoKeyRef.current = alvoK;
-                                  }}
-                                >
-                                  <MencaoContentEditable
-                                    editorRef={subDescricaoEditorRef}
-                                    onInput={(html) => setSubDraft(alvoK, { descricao: html })}
-                                    className="min-h-[56px] w-full px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)] focus:outline-none empty:before:text-[color:var(--moni-text-tertiary)] empty:before:content-[attr(data-placeholder)]"
-                                    placeholder="Descrição (obrigatório). Use @ para mencionar"
-                                  />
-                                </div>
-                                <input
-                                  type="date"
-                                  value={d.data}
-                                  onChange={(e) => setSubDraft(alvoK, { data: e.target.value })}
-                                  className="w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)]"
-                                />
-                                <div>
-                                  <span className="mb-1 block text-[10px] font-medium text-[color:var(--moni-text-tertiary)]">Tema</span>
-                                  <SelectMoni
-                                    value={d.tema}
-                                    onChange={(e) => setSubDraft(alvoK, { tema: e.target.value, temaOutro: '' })}
-                                    className="w-full text-xs"
-                                  >
-                                    <option value="">Selecione</option>
-                                    <option value="Acoplamento">Acoplamento</option>
-                                    <option value="Adicionais">Adicionais</option>
-                                    <option value="BCA + Batalha">BCA + Batalha</option>
-                                    <option value="Catálogo de Casas">Catálogo de Casas</option>
-                                    <option value="Crédito p/ Obra">Crédito p/ Obra</option>
-                                    <option value="Crédito p/ Terreno">Crédito p/ Terreno</option>
-                                    <option value="Diligência Terreno">Diligência Terreno</option>
-                                    <option value="Gadgets">Gadgets</option>
-                                    <option value="Negociação com Terrenista">Negociação com Terrenista</option>
-                                    <option value="Outro">Outro</option>
-                                  </SelectMoni>
-                                  {d.tema === 'Outro' && (
-                                    <input
-                                      type="text"
-                                      value={d.temaOutro}
-                                      onChange={(e) => setSubDraft(alvoK, { temaOutro: e.target.value })}
-                                      placeholder="Detalhe o tema"
-                                      className="mt-1 w-full rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)]"
-                                    />
-                                  )}
-                                </div>
-                                {d.tipo === 'chamado' ? (
-                                  <p className="text-[10px] leading-snug text-[color:var(--moni-text-tertiary)]">
-                                    Chamados com times <strong>Produto</strong>, <strong>Homologações</strong>,{' '}
-                                    <strong>Executivo Local</strong> ou <strong>Modelo Virtual</strong> seguem o fluxo{' '}
-                                    <strong>HDM</strong> no Hub (inferido automaticamente).
-                                  </p>
-                                ) : null}
-                                <div>
-                                  <span className="mb-1 block text-[10px] text-[color:var(--moni-text-tertiary)]">Times</span>
-                                  <div className="flex flex-wrap gap-1">
-                                    {timesOpts.map((topt) => {
-                                      const on = d.timesIds.includes(topt.id);
-                                      return (
-                                        <button
-                                          key={topt.id}
-                                          type="button"
-                                          onClick={() =>
-                                            setSubDraft(alvoK, {
-                                              timesIds: on
-                                                ? d.timesIds.filter((x) => x !== topt.id)
-                                                : [...d.timesIds, topt.id],
-                                            })
-                                          }
-                                          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                                            on ? 'bg-red-600 text-white' : 'bg-[var(--moni-surface-100)] text-[color:var(--moni-text-secondary)]'
-                                          }`}
-                                        >
-                                          {topt.nome}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                                <div>
-                                  <span className="mb-1 block text-[10px] text-[color:var(--moni-text-tertiary)]">Responsáveis</span>
-                                  <div className="flex flex-wrap gap-1">
-                                    {responsaveis.map((p) => {
-                                      const on = d.responsaveisIds.includes(p.id);
-                                      return (
-                                        <button
-                                          key={p.id}
-                                          type="button"
-                                          onClick={() =>
-                                            setSubDraft(alvoK, {
-                                              responsaveisIds: on
-                                                ? d.responsaveisIds.filter((x) => x !== p.id)
-                                                : [...d.responsaveisIds, p.id],
-                                            })
-                                          }
-                                          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                                            on ? 'bg-red-600 text-white' : 'bg-[var(--moni-surface-100)] text-[color:var(--moni-text-secondary)]'
-                                          }`}
-                                        >
-                                          {p.nome}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                                <label className="flex cursor-pointer items-center gap-2 text-[11px] text-[color:var(--moni-text-secondary)]">
-                                  <input
-                                    type="checkbox"
-                                    className="h-3.5 w-3.5 rounded border-[color:var(--moni-border-default)]"
-                                    checked={d.trava}
-                                    onChange={(e) => setSubDraft(alvoK, { trava: e.target.checked })}
-                                  />
-                                  Trava — estou bloqueado até este sub-chamado ser concluído
-                                </label>
-                                <button
-                                  type="button"
-                                  disabled={
-                                    Boolean(salvandoTopico[alvoK]) ||
-                                    !d.descricao.trim() ||
-                                    d.timesIds.length === 0
-                                  }
-                                  onClick={() => void handleAdicionarTopico(row)}
-                                  className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-500 disabled:opacity-50"
-                                >
-                                  {salvandoTopico[alvoK] ? '…' : '+ Adicionar subinteração'}
-                                </button>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      ) : null}
                     </li>
                   );
                 })}
@@ -2036,6 +1443,38 @@ export function InteracoesLista({
       {filtradas.length === 0 && (
         <p className="mt-8 text-center text-sm text-[color:var(--moni-text-tertiary)]">Nenhum chamado com os filtros atuais.</p>
       )}
+
+      {detalheRow ? (
+        <SireneChamadoDetalheModal
+          row={detalheRow}
+          onClose={() => {
+            setDetalheRow(null);
+            cancelarEdicao();
+          }}
+          topicos={topicosPorAlvo[topicosAlvoKey(detalheRow)] ?? []}
+          topicosLoading={Boolean(topicosLoading[topicosAlvoKey(detalheRow)])}
+          textoResponsavel={textoResponsavelPainel(detalheRow, nomePorUserId)}
+          parseTimesNomes={parseTimesNomes}
+          statusSelect={statusDbParaSelect(detalheRow.atividade_status)}
+          temSubAberta={(topicosPorAlvo[topicosAlvoKey(detalheRow)] ?? []).some(
+            (s) => s.status !== 'concluido' && s.status !== 'aprovado',
+          )}
+          pending={pending}
+          onStatusChange={onStatusChange}
+          onSubStatusChange={(topicoId, status) =>
+            void handleSubStatusPainel(detalheRow, topicoId, status)
+          }
+          onEdit={() => abrirEdicao(detalheRow)}
+          onArquivar={() =>
+            setModalArquivar({
+              cid: detalheRow.sirene_chamado_id ?? null,
+              interacaoId: detalheRow.id,
+            })
+          }
+          podeArquivar={podeArquivar}
+          badgeTipo={badgeTipo(detalheRow.tipo)}
+        />
+      ) : null}
 
       {modalNovoAberto ? (
         <ModalNovoChamado
@@ -2080,10 +1519,7 @@ export function InteracoesLista({
                     const ak = modalArquivarTopico.alvoKey;
                     setModalArquivarTopico(null);
                     setMotivoArquivarTopico('');
-                    if (ak.startsWith('c:')) {
-                      const tr = await getTopicosChamado(Number(ak.slice(2)));
-                      if (tr.ok) setTopicosPorAlvo((m) => ({ ...m, [ak]: tr.topicos }));
-                    } else if (ak.startsWith('i:')) {
+                    if (ak.startsWith('i:')) {
                       const tr = await getTopicosPorInteracaoId(ak.slice(2));
                       if (tr.ok) setTopicosPorAlvo((m) => ({ ...m, [ak]: tr.topicos }));
                     }

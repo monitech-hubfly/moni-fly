@@ -60,7 +60,9 @@ export default async function AlertasPage() {
                   cardId && basePath && tipo !== 'mencao_sirene'
                     ? `${basePath}?card=${encodeURIComponent(cardId)}`
                     : null;
-                const hrefAlerta = hrefSirene || hrefCard;
+                const hrefInteracao =
+                  !cardId && basePath?.includes('interacao=') ? basePath : null;
+                const hrefAlerta = hrefSirene || hrefCard || hrefInteracao;
                 return (
                   <li
                     key={a.id}
@@ -74,7 +76,7 @@ export default async function AlertasPage() {
                           href={hrefAlerta}
                           className="mt-1 inline-block text-xs font-medium text-moni-primary hover:underline"
                         >
-                          {tipo === 'mencao_sirene' ? 'Abrir chamado →' : 'Abrir card →'}
+                          {tipo === 'mencao_sirene' ? 'Abrir chamado →' : hrefInteracao ? 'Abrir chamado →' : 'Abrir card →'}
                         </Link>
                       ) : null}
                       <p className="mt-1 text-xs text-stone-400">

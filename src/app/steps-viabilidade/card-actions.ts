@@ -1234,6 +1234,8 @@ type AtividadesChecklistPainelOk = {
     numero_franquia: string | null;
     nome_franqueado: string | null;
     nome_condominio: string | null;
+    /** Número global do chamado (#0001). */
+    numero: number | null;
   }>;
 };
 
@@ -1277,6 +1279,7 @@ async function montarAtividadesChecklistPainel(supabase: SupabaseClient): Promis
         'franqueado_nome',
         'criado_em',
         'sla_status',
+        'chamado_numero',
       ].join(', '),
     )
     .order('criado_em', { ascending: false });
@@ -1296,6 +1299,8 @@ async function montarAtividadesChecklistPainel(supabase: SupabaseClient): Promis
       const timesMerged = mergeArraysWithLegacy(parseTextArrayColumn(r.times_nomes), timeNome);
       const descricao = (r.descricao as string | null | undefined) ?? null;
       const tituloLinha = String(r.titulo ?? '').trim() || '(sem título)';
+      const rawNumero = Number(r.chamado_numero);
+      const numero = Number.isFinite(rawNumero) ? rawNumero : null;
       return {
         id: String(r.id),
         card_id: String(r.card_id),
@@ -1320,6 +1325,7 @@ async function montarAtividadesChecklistPainel(supabase: SupabaseClient): Promis
         numero_franquia: null as string | null,
         nome_franqueado: (r.franqueado_nome as string | null | undefined) ?? null,
         nome_condominio: null as string | null,
+        numero,
       };
     });
 

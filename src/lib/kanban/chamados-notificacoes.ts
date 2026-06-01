@@ -12,9 +12,9 @@ type NotificarParams = {
   userIds: string[];
   tipo: AlertaKanbanAtividadeTipo;
   mensagem: string;
-  cardId: string;
-  basePath: string;
-  /** Não notificar quem executou a ação. */
+  cardId?: string | null;
+  basePath?: string;
+  interacaoId?: string | null;
   excluirUserId?: string | null;
 };
 
@@ -31,12 +31,21 @@ export async function notificarAlertasKanbanAtividade(params: NotificarParams): 
     return;
   }
 
+  const cardId = (params.cardId ?? '').trim() || null;
+  const interacaoId = (params.interacaoId ?? '').trim() || null;
+  const basePath =
+    (params.basePath ?? '').trim() ||
+    (interacaoId ? `/sirene/chamados?interacao=${encodeURIComponent(interacaoId)}` : '/');
+
   const rows = dest.map((user_id) => ({
     user_id,
     tipo: params.tipo,
     mensagem: params.mensagem,
-    referencia_card_id: params.cardId,
-    referencia_path: params.basePath,
+    referencia_card_id: cardId,
+    referencia_path:
+      interacaoId && !cardId
+        ? `/sirene/chamados?interacao=${encodeURIComponent(interacaoId)}`
+        : basePath,
     lido: false,
   }));
 
@@ -44,6 +53,34 @@ export async function notificarAlertasKanbanAtividade(params: NotificarParams): 
   if (error) console.error('[chamados-notificacoes]', error.message);
 
   revalidatePath('/alertas');
+}
+
+/** Resolve meta para notificação: card funil ou chamado Sirene sem card. */
+export async function buscarMetaNotificacaoChamado(
+  admin: ReturnType<typeof createAdminClient>,
+  interacaoId: string,
+): Promise<{ titulo: string; cardId: string | null; basePath: string; interacaoId: string } | null> {
+  const { data: row } = await admin
+    .from('kanban_atividades')
+    .select('titulo, card_id, origem')
+    .eq('id', interacaoId)
+    .maybeSingle();
+  if (!row) return null;
+  const titulo = String((row as { titulo?: string }).titulo ?? 'Chamado').trim() || 'Chamado';
+  const cardId = String((row as { card_id?: string | null }).card_id ?? '').trim() || null;
+  const origem = (row as { origem?: string }).origem === 'legado' ? 'legado' : 'nativo';
+  if (cardId) {
+    const meta = await buscarMetaCardParaNotificacao(admin, cardId, origem);
+    if (meta) {
+      return { titulo: meta.titulo, cardId, basePath: meta.basePath, interacaoId };
+    }
+  }
+  return {
+    titulo,
+    cardId: null,
+    basePath: `/sirene/chamados?interacao=${encodeURIComponent(interacaoId)}`,
+    interacaoId,
+  };
 }
 
 export async function buscarMetaCardParaNotificacao(

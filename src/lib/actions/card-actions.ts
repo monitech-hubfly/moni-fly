@@ -24,11 +24,20 @@ import {
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { usuarioConcluiuCasasUniversidade012 } from '@/lib/universidade/queries';
-import { normalizeTemaChamado } from '@/lib/kanban/resolve-tema-chamado';
+import { podeExcluirChamadoSirene } from '@/lib/sirene-utils';
 import {
   buscarMetaCardParaNotificacao,
+  buscarMetaNotificacaoChamado,
   notificarAlertasKanbanAtividade,
 } from '@/lib/kanban/chamados-notificacoes';
+import { chamadoEditavelNaSirene } from '@/lib/kanban/sirene-chamado-permissoes';
+import { normalizeTemaChamado } from '@/lib/kanban/resolve-tema-chamado';
+import { criarPastelariaInboxParaChamadoSirene } from '@/lib/pastelaria/sirene-pastel-abertura';
+import {
+  inferirHdmResponsavelPorNomesTimes,
+  TIMES_MONI_HDM,
+} from '@/lib/times-responsaveis';
+import type { HdmTime } from '@/types/sirene';
 import {
   nomesTimesIncluemBombeiro,
   validarCategoriaComTimes,
@@ -192,6 +201,8 @@ export type CriarSubInteracaoInput = {
   pastel?: boolean;
   basePath?: string;
   origem?: 'nativo' | 'legado';
+  /** Quando true, rejeita se chamado não for editável na Sirene. */
+  viaSirene?: boolean;
 };
 
 export type ChamadoCategoriaDb = 'chamado' | 'melhoria';
@@ -217,6 +228,18 @@ export type CriarChamadoComAtividadeInput = {
   ordem: number;
   basePath?: string;
   origem?: 'nativo' | 'legado';
+};
+
+export type CriarChamadoSireneComAtividadeInput = {
+  titulo: string;
+  descricao: string;
+  categoria: ChamadoCategoriaDb;
+  status?: 'pendente' | 'concluida' | 'cancelada';
+  atividade: AtividadeInput;
+  /** Vínculo opcional com card aberto — torna o chamado somente leitura na Sirene. */
+  card_id?: string | null;
+  card_kanban_nome?: string | null;
+  card_titulo?: string | null;
 };
 
 export type SubInteracaoStatusDb = 'nao_iniciado' | 'em_andamento' | 'concluido' | 'aprovado';
@@ -315,6 +338,57 @@ async function todosResponsaveisDoChamado(
   return [...set];
 }
 
+async function assertEditableFromSirene(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  interacaoId: string,
+  viaSirene?: boolean,
+): Promise<ActionErr | null> {
+  if (!viaSirene) return null;
+  const { data } = await supabase
+    .from('kanban_atividades')
+    .select('origem, card_id')
+    .eq('id', interacaoId)
+    .maybeSingle();
+  if (!data) return { ok: false, error: 'Chamado não encontrado.' };
+  if (
+    !chamadoEditavelNaSirene({
+      origem: String((data as { origem?: string }).origem ?? ''),
+      card_id: (data as { card_id?: string | null }).card_id ?? null,
+    })
+  ) {
+    return { ok: false, error: 'Este chamado só pode ser alterado no card vinculado.' };
+  }
+  return null;
+}
+
+async function notificarEventoChamado(
+  interacaoId: string,
+  opts: {
+    userIds: string[];
+    tipo: 'kanban_atividade_criada' | 'kanban_atividade_atualizada' | 'kanban_atividade_redirecionada';
+    mensagem: string;
+    excluirUserId?: string | null;
+    basePath?: string;
+  },
+): Promise<void> {
+  try {
+    const admin = createAdminClient();
+    const meta = await buscarMetaNotificacaoChamado(admin, interacaoId);
+    if (!meta) return;
+    await notificarAlertasKanbanAtividade({
+      userIds: opts.userIds,
+      tipo: opts.tipo,
+      mensagem: opts.mensagem,
+      cardId: meta.cardId,
+      basePath: opts.basePath?.trim() || meta.basePath,
+      interacaoId: meta.cardId ? null : meta.interacaoId,
+      excluirUserId: opts.excluirUserId,
+    });
+  } catch {
+    /* noop */
+  }
+}
+
 function validarAtividadeInput(
   atividade: AtividadeInput,
   categoria: ChamadoCategoriaDb,
@@ -338,7 +412,7 @@ function validarAtividadeInput(
   return { ok: true };
 }
 
-export async function criarChamadoComAtividade(input: CriarChamadoComAtividadeInput): Promise<ActionResult> {
+export async function criarChamadoComAtividade(input: CriarChamadoComAtividadeInput): Promise<ActionResult & { topicoId?: string }> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -384,7 +458,7 @@ export async function criarChamadoComAtividade(input: CriarChamadoComAtividadeIn
   const { data: inserted, error } = await supabase
     .from('kanban_atividades')
     .insert(row as never)
-    .select('id')
+    .select('id, numero')
     .single();
   if (error || !inserted) return { ok: false, error: error?.message ?? 'Erro ao criar chamado.' };
 
@@ -413,7 +487,7 @@ export async function criarChamadoComAtividade(input: CriarChamadoComAtividadeIn
     historico: [] as TopicoHistoricoEvento[],
   };
 
-  const { error: subErr } = await supabase.from('sirene_topicos').insert(topicoRow as never);
+  const { data: topicoInserted, error: subErr } = await supabase.from('sirene_topicos').insert(topicoRow as never).select('id').single();
   if (subErr) {
     await supabase.from('kanban_atividades').delete().eq('id', interacaoId);
     return { ok: false, error: subErr.message };
@@ -444,7 +518,176 @@ export async function criarChamadoComAtividade(input: CriarChamadoComAtividadeIn
 
   revalidatePath(input.basePath?.trim() || '/');
   revalidatePath('/');
-  return { ok: true };
+  const topicoId = String((topicoInserted as { id: number | string }).id);
+  return { ok: true, topicoId };
+}
+
+const UUID_RE_SIRENE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export async function criarChamadoSireneComAtividade(
+  input: CriarChamadoSireneComAtividadeInput,
+): Promise<ActionResult & { interacaoId?: string; sireneChamadoId?: number }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para criar um chamado.' };
+
+  const titulo = (input.titulo ?? '').trim();
+  const descricao = (input.descricao ?? '').trim();
+  if (!titulo) return { ok: false, error: 'Informe o título do chamado.' };
+  if (!descricao) return { ok: false, error: 'Informe a descrição do chamado.' };
+
+  const timesIds = uniqUuids(input.atividade.times_ids);
+  const respIds = uniqUuids(input.atividade.responsaveis_ids);
+  const nomesTimes = await nomesTimesFromIds(supabase, timesIds);
+  const val = validarAtividadeInput(
+    { ...input.atividade, times_ids: timesIds, responsaveis_ids: respIds },
+    input.categoria,
+    nomesTimes,
+  );
+  if (!val.ok) return val;
+
+  const cardIdRaw = (input.card_id ?? '').trim();
+  const cardId = cardIdRaw && UUID_RE_SIRENE.test(cardIdRaw) ? cardIdRaw : null;
+  const inferredHdm = inferirHdmResponsavelPorNomesTimes(nomesTimes);
+  const tipoSc: 'padrao' | 'hdm' = inferredHdm ? 'hdm' : 'padrao';
+  const hdmResponsavel: HdmTime | null = inferredHdm;
+  if (tipoSc === 'hdm' && hdmResponsavel && !TIMES_MONI_HDM.includes(hdmResponsavel as HdmTime)) {
+    return { ok: false, error: 'Time HDM inválido.' };
+  }
+
+  const { data: perf } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+  const userName = String((perf as { full_name?: string } | null)?.full_name ?? '').trim() || 'Usuário';
+
+  const admin = createAdminClient();
+  const timeAberturaNome = nomesTimes[0] ?? null;
+
+  const { data: chamadoSc, error: scErr } = await supabase
+    .from('sirene_chamados')
+    .insert({
+      aberto_por: user.id,
+      aberto_por_nome: userName,
+      incendio: titulo,
+      time_abertura: timeAberturaNome,
+      abertura_responsavel_nome: null,
+      tipo: tipoSc,
+      hdm_responsavel: hdmResponsavel,
+      trava: Boolean(input.atividade.trava),
+      ...(cardId
+        ? {
+            card_id: cardId,
+            card_kanban_nome: input.card_kanban_nome?.trim() || null,
+            card_titulo: input.card_titulo?.trim() || null,
+          }
+        : {}),
+    } as never)
+    .select('id, numero')
+    .single();
+
+  if (scErr || !chamadoSc) return { ok: false, error: scErr?.message ?? 'Erro ao criar chamado Sirene.' };
+
+  const sireneChamadoId = Number((chamadoSc as { id: number }).id);
+  const numeroChamado = Number((chamadoSc as { numero?: number }).numero);
+  const statusChamado = input.status ?? 'pendente';
+  const statusAtiv = input.atividade.status ?? 'nao_iniciado';
+  const pastel = nomesTimesIncluemBombeiro(nomesTimes) ? false : Boolean(input.atividade.pastel);
+  const nomeAtiv = (input.atividade.nome ?? '').trim();
+
+  const { data: inserted, error: kaErr } = await admin
+    .from('kanban_atividades')
+    .insert({
+      card_id: cardId,
+      titulo,
+      descricao,
+      categoria: input.categoria,
+      tipo: 'atividade',
+      times_ids: [] as string[],
+      responsaveis_ids: [] as string[],
+      responsavel_id: null,
+      trava: false,
+      data_vencimento: null,
+      status: statusChamado,
+      prioridade: 'normal',
+      criado_por: user.id,
+      time: null,
+      time_abertura_nome: timeAberturaNome,
+      origem: 'sirene',
+      sirene_chamado_id: sireneChamadoId,
+      numero: Number.isFinite(numeroChamado) ? numeroChamado : undefined,
+    } as never)
+    .select('id, numero')
+    .single();
+
+  if (kaErr || !inserted) {
+    await admin.from('sirene_chamados').delete().eq('id', sireneChamadoId);
+    return { ok: false, error: kaErr?.message ?? 'Erro ao criar interação.' };
+  }
+
+  const interacaoId = String((inserted as { id: string }).id);
+  const timeLabel = nomesTimes[0] ?? '—';
+
+  const { error: subErr } = await admin.from('sirene_topicos').insert({
+    chamado_id: null,
+    interacao_id: interacaoId,
+    ordem: 1,
+    nome: nomeAtiv,
+    descricao: nomeAtiv,
+    descricao_detalhe: (input.atividade.descricao_detalhe ?? '').trim() || null,
+    time_responsavel: timeLabel,
+    responsavel_id: respIds[0] ?? null,
+    responsaveis_ids: respIds,
+    times_ids: timesIds,
+    trava: Boolean(input.atividade.trava),
+    data_fim: dataCampoCalendarioIso(input.atividade.data_fim),
+    status: statusAtiv,
+    tipo: 'atividade',
+    pastel,
+    historico: [],
+  } as never);
+
+  if (subErr) {
+    await admin.from('kanban_atividades').delete().eq('id', interacaoId);
+    await admin.from('sirene_chamados').delete().eq('id', sireneChamadoId);
+    return { ok: false, error: subErr.message };
+  }
+
+  if (statusAtiv === 'em_andamento') {
+    await admin.from('kanban_atividades').update({ status: 'em_andamento' }).eq('id', interacaoId);
+  }
+
+  if (timeAberturaNome && respIds[0]) {
+    const { data: respProf } = await admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', respIds[0]!)
+      .maybeSingle();
+    const respNome = String((respProf as { full_name?: string } | null)?.full_name ?? '').trim();
+    if (respNome) {
+      await criarPastelariaInboxParaChamadoSirene(admin, {
+        chamadoId: sireneChamadoId,
+        incendio: titulo,
+        timeAbertura: timeAberturaNome,
+        aberturaResponsavelNome: respNome,
+        criadoPorUserId: user.id,
+      });
+    }
+  }
+
+  await notificarEventoChamado(interacaoId, {
+    userIds: respIds,
+    tipo: 'kanban_atividade_criada',
+    mensagem: `Nova Atividade Criada — ${titulo}`,
+    excluirUserId: user.id,
+    basePath: cardId ? undefined : `/sirene/chamados?interacao=${encodeURIComponent(interacaoId)}`,
+  });
+
+  revalidatePath('/sirene/chamados');
+  revalidatePath('/sirene');
+  revalidatePath('/alertas');
+  if (cardId) revalidatePath('/');
+
+  return { ok: true, interacaoId, sireneChamadoId };
 }
 
 export async function criarInteracao(input: CriarInteracaoInput): Promise<ActionResult> {
@@ -583,12 +826,15 @@ async function labelTimeResponsavel(
   return n && n.length > 0 ? n : '—';
 }
 
-export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<ActionResult> {
+export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<ActionResult & { topicoId?: string }> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login para criar uma atividade.' };
+
+  const bloqueio = await assertEditableFromSirene(supabase, input.interacao_id, input.viaSirene);
+  if (bloqueio) return bloqueio;
 
   const nome = (input.nome ?? input.descricao ?? '').trim();
   if (!nome) return { ok: false, error: 'Informe o nome da atividade.' };
@@ -655,7 +901,7 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
     historico: [] as TopicoHistoricoEvento[],
   };
 
-  const { error } = await supabase.from('sirene_topicos').insert(row as never);
+  const { data: topicoInserted, error } = await supabase.from('sirene_topicos').insert(row as never).select('id').single();
   if (error) return { ok: false, error: error.message };
 
   if (statusAtiv === 'em_andamento') {
@@ -663,29 +909,22 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
   }
 
   const cardId = String((interacaoRow as { card_id?: string }).card_id ?? '');
-  const origem = (interacaoRow as { origem?: string }).origem === 'legado' ? 'legado' : 'nativo';
-  if (novosResp.length > 0 && cardId) {
-    try {
-      const admin = createAdminClient();
-      const meta = await buscarMetaCardParaNotificacao(admin, cardId, origem);
-      if (meta) {
-        await notificarAlertasKanbanAtividade({
-          userIds: novosResp,
-          tipo: 'kanban_atividade_criada',
-          mensagem: `Nova Atividade Criada — ${meta.titulo}`,
-          cardId,
-          basePath: input.basePath?.trim() || meta.basePath,
-          excluirUserId: user.id,
-        });
-      }
-    } catch {
-      /* noop */
-    }
+  if (novosResp.length > 0) {
+    const tituloChamado = String((interacaoRow as { titulo?: string }).titulo ?? 'Chamado').trim();
+    await notificarEventoChamado(input.interacao_id, {
+      userIds: novosResp,
+      tipo: 'kanban_atividade_criada',
+      mensagem: `Nova Atividade Criada — ${tituloChamado || 'Chamado'}`,
+      excluirUserId: user.id,
+      basePath: input.basePath?.trim() || (cardId ? undefined : `/sirene/chamados?interacao=${encodeURIComponent(input.interacao_id)}`),
+    });
   }
 
   revalidatePath(input.basePath?.trim() || '/');
   revalidatePath('/');
-  return { ok: true };
+  revalidatePath('/sirene/chamados');
+  const topicoId = String((topicoInserted as { id: number | string }).id);
+  return { ok: true, topicoId };
 }
 
 export async function editarSubInteracao(
@@ -700,6 +939,7 @@ export async function editarSubInteracao(
     status?: SubInteracaoStatusDb;
   },
   basePath?: string,
+  viaSirene?: boolean,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const supabase = await createClient();
@@ -719,9 +959,12 @@ export async function editarSubInteracao(
     if (!antes) return { ok: false, error: 'Atividade não encontrada.' };
 
     const interacaoId = String((antes as { interacao_id?: string }).interacao_id ?? '');
+    const bloqueio = await assertEditableFromSirene(supabase, interacaoId, viaSirene);
+    if (bloqueio) return bloqueio;
+
     const { data: interacaoRow } = await supabase
       .from('kanban_atividades')
-      .select('card_id, categoria, origem')
+      .select('card_id, categoria, origem, titulo')
       .eq('id', interacaoId)
       .maybeSingle();
     if (!interacaoRow) return { ok: false, error: 'Chamado não encontrado.' };
@@ -786,40 +1029,31 @@ export async function editarSubInteracao(
     }
 
     const cardId = String((interacaoRow as { card_id?: string }).card_id ?? '');
-    const origem = (interacaoRow as { origem?: string }).origem === 'legado' ? 'legado' : 'nativo';
-    if (cardId) {
-      try {
-        const admin = createAdminClient();
-        const meta = await buscarMetaCardParaNotificacao(admin, cardId, origem);
-        const { data: perf } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
-        const quem = String((perf as { full_name?: string } | null)?.full_name ?? '').trim() || 'Alguém';
-        if (meta && novos.length > 0) {
-          await notificarAlertasKanbanAtividade({
-            userIds: novos,
-            tipo: 'kanban_atividade_redirecionada',
-            mensagem: `Nova Atividade Criada — ${meta.titulo}`,
-            cardId,
-            basePath: basePath?.trim() || meta.basePath,
-            excluirUserId: user.id,
-          });
-        }
-        if (meta && novos.length === 0 && respAntes.some((id) => !respIds.includes(id))) {
-          const todos = await todosResponsaveisDoChamado(supabase, interacaoId);
-          await notificarAlertasKanbanAtividade({
-            userIds: todos,
-            tipo: 'kanban_atividade_atualizada',
-            mensagem: `${quem} redirecionou responsáveis no chamado — ${meta.titulo}`,
-            cardId,
-            basePath: basePath?.trim() || meta.basePath,
-            excluirUserId: user.id,
-          });
-        }
-      } catch {
-        /* noop */
-      }
+    const tituloChamado = String((interacaoRow as { titulo?: string }).titulo ?? 'Chamado').trim();
+    const { data: perf } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+    const quem = String((perf as { full_name?: string } | null)?.full_name ?? '').trim() || 'Alguém';
+    if (novos.length > 0) {
+      await notificarEventoChamado(interacaoId, {
+        userIds: novos,
+        tipo: 'kanban_atividade_redirecionada',
+        mensagem: `Nova Atividade Criada — ${tituloChamado || 'Chamado'}`,
+        excluirUserId: user.id,
+        basePath: basePath?.trim() || (cardId ? undefined : `/sirene/chamados?interacao=${encodeURIComponent(interacaoId)}`),
+      });
+    }
+    if (novos.length === 0 && respAntes.some((id) => !respIds.includes(id))) {
+      const todos = await todosResponsaveisDoChamado(supabase, interacaoId);
+      await notificarEventoChamado(interacaoId, {
+        userIds: todos,
+        tipo: 'kanban_atividade_atualizada',
+        mensagem: `${quem} redirecionou responsáveis no chamado — ${tituloChamado || 'Chamado'}`,
+        excluirUserId: user.id,
+        basePath: basePath?.trim() || (cardId ? undefined : `/sirene/chamados?interacao=${encodeURIComponent(interacaoId)}`),
+      });
     }
 
     revalidatePath(basePath ?? '/');
+    revalidatePath('/sirene/chamados');
     return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e) };
@@ -830,6 +1064,7 @@ export async function atualizarStatusSubInteracao(
   id: number | string,
   status: SubInteracaoStatusDb,
   basePath?: string,
+  viaSirene?: boolean,
 ): Promise<ActionResult> {
   const supabase = await createClient();
   const {
@@ -847,6 +1082,10 @@ export async function atualizarStatusSubInteracao(
     .maybeSingle();
   if (!antes) return { ok: false, error: 'Atividade não encontrada.' };
   const statusAntes = String((antes as { status?: string }).status ?? '');
+  const interacaoId = String((antes as { interacao_id?: string }).interacao_id ?? '');
+
+  const bloqueio = await assertEditableFromSirene(supabase, interacaoId, viaSirene);
+  if (bloqueio) return bloqueio;
 
   const { error } = await supabase
     .from('sirene_topicos')
@@ -854,8 +1093,6 @@ export async function atualizarStatusSubInteracao(
     .eq('id', idNum);
 
   if (error) return { ok: false, error: error.message };
-
-  const interacaoId = String((antes as { interacao_id?: string }).interacao_id ?? '');
 
   if (interacaoId && status === 'em_andamento') {
     const { error: errPai } = await supabase
@@ -871,35 +1108,24 @@ export async function atualizarStatusSubInteracao(
       .select('card_id, origem, titulo')
       .eq('id', interacaoId)
       .maybeSingle();
+    const tituloChamado = String((interacaoRow as { titulo?: string }).titulo ?? 'Chamado').trim();
+    const { data: perf } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+    const quem = String((perf as { full_name?: string } | null)?.full_name ?? '').trim() || 'Alguém';
+    const labelStatus: Record<string, string> = {
+      nao_iniciado: 'Não iniciado',
+      em_andamento: 'Em andamento',
+      concluido: 'Concluído',
+      aprovado: 'Aprovado',
+    };
+    const todos = await todosResponsaveisDoChamado(supabase, interacaoId);
     const cardId = String((interacaoRow as { card_id?: string }).card_id ?? '');
-    const origem = (interacaoRow as { origem?: string }).origem === 'legado' ? 'legado' : 'nativo';
-    if (cardId) {
-      try {
-        const admin = createAdminClient();
-        const meta = await buscarMetaCardParaNotificacao(admin, cardId, origem);
-        const { data: perf } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
-        const quem = String((perf as { full_name?: string } | null)?.full_name ?? '').trim() || 'Alguém';
-        const labelStatus: Record<string, string> = {
-          nao_iniciado: 'Não iniciado',
-          em_andamento: 'Em andamento',
-          concluido: 'Concluído',
-          aprovado: 'Aprovado',
-        };
-        const todos = await todosResponsaveisDoChamado(supabase, interacaoId);
-        if (meta) {
-          await notificarAlertasKanbanAtividade({
-            userIds: todos,
-            tipo: 'kanban_atividade_atualizada',
-            mensagem: `${quem} alterou status para "${labelStatus[status] ?? status}" — ${meta.titulo}`,
-            cardId,
-            basePath: basePath?.trim() || meta.basePath,
-            excluirUserId: user.id,
-          });
-        }
-      } catch {
-        /* noop */
-      }
-    }
+    await notificarEventoChamado(interacaoId, {
+      userIds: todos,
+      tipo: 'kanban_atividade_atualizada',
+      mensagem: `${quem} alterou status para "${labelStatus[status] ?? status}" — ${tituloChamado || 'Chamado'}`,
+      excluirUserId: user.id,
+      basePath: basePath?.trim() || (cardId ? undefined : `/sirene/chamados?interacao=${encodeURIComponent(interacaoId)}`),
+    });
   }
 
   revalidatePath(basePath?.trim() || '/');
@@ -1298,6 +1524,70 @@ export async function arquivarSubInteracao(
       })
       .eq('id', topicoId);
     if (error) return { ok: false, error: error.message };
+    const bp = basePath?.trim() || '/';
+    revalidatePath(bp);
+    revalidatePath('/');
+    revalidatePath('/sirene');
+    revalidatePath('/sirene/chamados');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+export async function excluirSubInteracao(
+  topicoId: string,
+  basePath?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: 'Não autenticado.' };
+
+    const idNum = Number.parseInt(String(topicoId), 10);
+    if (!Number.isFinite(idNum)) return { ok: false, error: 'ID inválido.' };
+
+    const { data: topico, error: topErr } = await supabase
+      .from('sirene_topicos')
+      .select('id, interacao_id')
+      .eq('id', idNum)
+      .maybeSingle();
+    if (topErr || !topico) return { ok: false, error: 'Atividade não encontrada.' };
+
+    const interacaoId = String((topico as { interacao_id?: string }).interacao_id ?? '');
+    if (!interacaoId) return { ok: false, error: 'Chamado vinculado não encontrado.' };
+
+    const { data: interacao, error: intErr } = await supabase
+      .from('kanban_atividades')
+      .select('id, criado_por')
+      .eq('id', interacaoId)
+      .maybeSingle();
+    if (intErr || !interacao) return { ok: false, error: 'Chamado não encontrado.' };
+
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('role, cargo')
+      .eq('id', user.id)
+      .maybeSingle();
+    const role = String((prof as { role?: string | null } | null)?.role ?? '').toLowerCase();
+    const cargo = String((prof as { cargo?: string | null } | null)?.cargo ?? '').toLowerCase();
+    const criadoPor = (interacao as { criado_por?: string | null }).criado_por ?? null;
+    if (
+      !podeExcluirChamadoSirene({
+        role,
+        cargo,
+        userId: user.id,
+        abertoPor: criadoPor,
+      })
+    ) {
+      return { ok: false, error: 'Sem permissão para excluir esta atividade.' };
+    }
+
+    const { error: delErr } = await supabase.from('sirene_topicos').delete().eq('id', idNum);
+    if (delErr) return { ok: false, error: delErr.message };
+
     const bp = basePath?.trim() || '/';
     revalidatePath(bp);
     revalidatePath('/');

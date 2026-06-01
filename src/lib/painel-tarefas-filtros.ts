@@ -1,6 +1,7 @@
 import { ATIVIDADE_TIMES } from '@/lib/atividade-times';
 import { itemMatchesTimeFilter } from '@/lib/checklist-atividade-arrays';
 import { calcularDiasUteis, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
+import { formatChamadoNumero } from '@/lib/kanban/chamado-numero';
 
 function startOfLocalDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -191,6 +192,8 @@ export type TarefaPainelFiltroRow = {
   numero_franquia?: string | null;
   nome_franqueado?: string | null;
   nome_condominio?: string | null;
+  /** Número global do chamado (#0001). */
+  numero?: number | null;
 };
 
 /** Catálogo de times + valores que já apareceram nos dados (mesma ideia do modal + dinâmico). */
@@ -231,6 +234,8 @@ export function aplicarFiltrosTarefasPainel<T extends TarefaPainelFiltroRow>(
     if (!buscaNorm) return true;
     const texto =
       [
+        t.numero != null ? formatChamadoNumero(t.numero) : null,
+        t.numero != null ? String(t.numero) : null,
         t.numero_franquia,
         t.nome_franqueado,
         t.nome_condominio,

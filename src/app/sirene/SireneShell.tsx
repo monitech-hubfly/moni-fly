@@ -27,10 +27,7 @@ export function SireneShell({ userName, isBombeiro, children }: Props) {
     router.push(dest);
     router.refresh();
   }
-  /** Bombeiro: Dashboard | Chamados | Perícias | Monitor */
-  const tabs = isBombeiro
-    ? [...TABS_BASE, { href: '/sirene/monitor', label: 'Monitor dos times' } as const]
-    : [...TABS_BASE];
+  const tabs = [...TABS_BASE];
 
   const tabAtivo =
     pathname === '/sirene'

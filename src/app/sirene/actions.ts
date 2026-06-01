@@ -331,7 +331,9 @@ export async function getTimesParaTopicos(): Promise<
 export type TopicoPainelLinha = {
   id: number;
   ordem: number;
+  nome: string;
   descricao: string;
+  descricao_detalhe: string | null;
   time_responsavel: string;
   tipo: SubInteracaoTipoDb;
   times_ids: string[];
@@ -339,6 +341,8 @@ export type TopicoPainelLinha = {
   data_inicio: string | null;
   data_fim: string | null;
   trava: boolean;
+  pastel: boolean;
+  historico: Array<{ tipo: string; em: string; por?: string | null }>;
   status: string;
   resolucao_time: string | null;
   motivo_reprovacao: string | null;
@@ -347,6 +351,9 @@ export type TopicoPainelLinha = {
 type GetTopicosPainelResult =
   | { ok: true; topicos: TopicoPainelLinha[] }
   | { ok: false; error: string };
+
+const TOPICOS_PAINEL_SELECT =
+  'id, ordem, nome, descricao, descricao_detalhe, time_responsavel, tipo, times_ids, responsaveis_ids, data_inicio, data_fim, status, trava, pastel, historico, resolucao_time, motivo_reprovacao';
 
 function mapRowsToTopicosPainel(rows: Record<string, unknown>[]): TopicoPainelLinha[] {
   return rows.map((r) => {
@@ -361,10 +368,18 @@ function mapRowsToTopicosPainel(rows: Record<string, unknown>[]): TopicoPainelLi
     const df = (r as { data_fim?: unknown }).data_fim;
     const rt = (r as { resolucao_time?: unknown }).resolucao_time;
     const mr = (r as { motivo_reprovacao?: unknown }).motivo_reprovacao;
+    const nomeRaw = String((r as { nome?: string }).nome ?? '').trim();
+    const descRaw = String((r as { descricao?: string }).descricao ?? '').trim();
+    const hist = (r as { historico?: unknown }).historico;
+    const historico = Array.isArray(hist)
+      ? (hist as Array<{ tipo: string; em: string; por?: string | null }>)
+      : [];
     return {
       id: r.id as number,
       ordem: r.ordem as number,
-      descricao: r.descricao as string,
+      nome: nomeRaw || descRaw || 'Atividade',
+      descricao: descRaw || nomeRaw || 'Atividade',
+      descricao_detalhe: (r as { descricao_detalhe?: string | null }).descricao_detalhe ?? null,
       time_responsavel: r.time_responsavel as string,
       tipo,
       times_ids: ti,
@@ -372,6 +387,8 @@ function mapRowsToTopicosPainel(rows: Record<string, unknown>[]): TopicoPainelLi
       data_inicio: di != null && typeof di === 'string' ? di : null,
       data_fim: df != null && typeof df === 'string' ? df : null,
       trava: (r as { trava?: boolean }).trava ?? false,
+      pastel: Boolean((r as { pastel?: boolean }).pastel),
+      historico,
       status: r.status as string,
       resolucao_time: rt != null && typeof rt === 'string' ? rt : null,
       motivo_reprovacao: mr != null && typeof mr === 'string' ? mr : null,
@@ -389,9 +406,7 @@ export async function getTopicosChamado(chamadoId: number): Promise<GetTopicosPa
 
   const { data, error } = await supabase
     .from('sirene_topicos')
-    .select(
-      'id, ordem, descricao, time_responsavel, tipo, times_ids, responsaveis_ids, data_inicio, data_fim, status, trava, resolucao_time, motivo_reprovacao',
-    )
+    .select(TOPICOS_PAINEL_SELECT)
     .eq('chamado_id', chamadoId)
     .eq('arquivado', false)
     .order('ordem', { ascending: true });
@@ -411,9 +426,7 @@ export async function getTopicosPorInteracaoId(interacaoId: string): Promise<Get
 
   const { data, error } = await supabase
     .from('sirene_topicos')
-    .select(
-      'id, ordem, descricao, time_responsavel, tipo, times_ids, responsaveis_ids, data_inicio, data_fim, status, trava, resolucao_time, motivo_reprovacao',
-    )
+    .select(TOPICOS_PAINEL_SELECT)
     .eq('interacao_id', interacaoId)
     .eq('arquivado', false)
     .order('ordem', { ascending: true });
