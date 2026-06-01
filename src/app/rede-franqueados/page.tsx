@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 
-import { canAccessCondominiosTab, isAdminRole, isRedeStaffRole, isStrictAdminRole } from '@/lib/authz';
+import { canAccessCondominiosTab, isRedeStaffRole, isStrictAdminRole } from '@/lib/authz';
 
 import { isAppFullyPublic, isPublicRedeNovosNegociosEnabled } from '@/lib/public-rede-novos';
 
@@ -66,7 +66,7 @@ export default async function RedeFranqueadosPage() {
 
   const canManage =
 
-    (Boolean(user) && isAdminRole(role)) || publicAccess || isAppFullyPublic();
+    (Boolean(user) && isRedeStaffRole(role)) || publicAccess || isAppFullyPublic();
 
   const maskSensitiveColumns = !isStrictAdminRole(role);
 

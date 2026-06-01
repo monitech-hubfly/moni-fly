@@ -28,6 +28,22 @@ import {
   REDE_EMPRESA_ANEXO_PATH_COLUNA,
 } from '@/lib/rede-documentos-empresas';
 
+async function requireRedeStaffOrPublicLink(): Promise<
+  | { ok: true; supabase: Awaited<ReturnType<typeof createClient>>; userId: string }
+  | { ok: false; error: string }
+> {
+  const auth = await getPainelDbForPublicEdit();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const { supabase, userId, isServiceRole } = auth;
+  if (isServiceRole) return { ok: true, supabase, userId };
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+  const access = normalizeAccessRole((profile?.role as string) ?? 'frank');
+  if (access !== 'admin' && access !== 'team') {
+    return { ok: false, error: 'Apenas administradores ou time interno podem realizar esta ação.' };
+  }
+  return { ok: true, supabase, userId };
+}
+
 async function requireRedeAdminOrPublicLink(): Promise<
   | { ok: true; supabase: Awaited<ReturnType<typeof createClient>>; userId: string }
   | { ok: false; error: string }
@@ -37,8 +53,8 @@ async function requireRedeAdminOrPublicLink(): Promise<
   const { supabase, userId, isServiceRole } = auth;
   if (isServiceRole) return { ok: true, supabase, userId };
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
-  const role = (profile?.role as string) ?? 'frank';
-  if (role !== 'admin') return { ok: false, error: 'Apenas administradores.' };
+  const access = normalizeAccessRole((profile?.role as string) ?? 'frank');
+  if (access !== 'admin') return { ok: false, error: 'Apenas administradores.' };
   return { ok: true, supabase, userId };
 }
 
@@ -57,7 +73,7 @@ export async function criarLinhaRedeECard(
   cardCidade?: string | null,
   cardEstado?: string | null,
 ): Promise<CriarLinhaRedeECardResult> {
-  const gate = await requireRedeAdminOrPublicLink();
+  const gate = await requireRedeStaffOrPublicLink();
   if (!gate.ok) return { ok: false, error: gate.error };
   const { supabase, userId } = gate;
 
@@ -220,7 +236,7 @@ export async function getProximoNFranquia(): Promise<{ ok: true; valor: string }
  * que ainda não tem processo_id. Apenas admin.
  */
 export async function criarCardsDesdeRedeFranqueados(): Promise<CriarCardsDesdeRedeResult> {
-  const gate = await requireRedeAdminOrPublicLink();
+  const gate = await requireRedeStaffOrPublicLink();
   if (!gate.ok) return { ok: false, error: gate.error };
   const { supabase, userId } = gate;
 
@@ -341,7 +357,7 @@ export async function criarCardsDesdeRedeFranqueados(): Promise<CriarCardsDesdeR
  * Retorna quantas linhas da Rede ainda não têm card (processo_id nulo).
  */
 export async function contarLinhasSemCard(): Promise<{ ok: true; total: number } | { ok: false; error: string }> {
-  const gate = await requireRedeAdminOrPublicLink();
+  const gate = await requireRedeStaffOrPublicLink();
   if (!gate.ok) return { ok: false, error: gate.error };
   const { supabase } = gate;
 
@@ -518,7 +534,7 @@ export async function atualizarRedeFranqueado(
   id: string,
   patch: Partial<Record<RedeFranqueadoDbKey, string | null>>,
 ): Promise<AtualizarRedeFranqueadoResult> {
-  const gate = await requireRedeAdminOrPublicLink();
+  const gate = await requireRedeStaffOrPublicLink();
   if (!gate.ok) return { ok: false, error: gate.error };
   const { supabase } = gate;
 
@@ -1204,7 +1220,7 @@ export type ExtrairDadosFranqueadoPdfResult =
 export async function extrairDadosFranqueadoDePdfUpload(
   formData: FormData,
 ): Promise<ExtrairDadosFranqueadoPdfResult> {
-  const gate = await requireRedeAdminOrPublicLink();
+  const gate = await requireRedeStaffOrPublicLink();
   if (!gate.ok) return { ok: false, error: gate.error };
 
   const contexto: Parameters<typeof extrairDadosFranqueadoDeTexto>[1] = {
