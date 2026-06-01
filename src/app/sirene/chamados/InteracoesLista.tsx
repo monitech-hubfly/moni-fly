@@ -877,13 +877,11 @@ export function InteracoesLista({
           })
         : await criarSubInteracao({
             interacao_id: row.id,
-            descricao: descHtml,
-            tipo: d.tipo,
+            nome: descHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || descHtml.trim(),
             times_ids: d.timesIds,
             responsaveis_ids: d.responsaveisIds,
             data_fim: d.data.trim() || null,
             trava: d.trava,
-            tema: temaFinal,
             basePath: '/sirene/chamados',
           });
     setSalvandoTopico((s) => ({ ...s, [alvoKey]: false }));

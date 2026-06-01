@@ -225,14 +225,14 @@ export function KanbanInteracoesFiltrosPanel({
 
   return (
     <div
-      className="rounded-xl border p-2 shadow-xl"
+      className="rounded-lg border p-1.5 shadow-lg"
       style={{
         borderColor: 'var(--moni-border-default)',
         background: 'var(--moni-surface-0)',
         boxShadow: 'var(--moni-shadow-sm), 0 12px 40px rgba(12, 38, 51, 0.12)',
       }}
     >
-      <div className="max-h-[min(70vh,32rem)] space-y-1.5 overflow-y-auto pr-0.5 text-xs">
+      <div className="max-h-[min(60vh,24rem)] space-y-1 overflow-y-auto pr-0.5 text-xs">
         <label className="block text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
           <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
             Buscar

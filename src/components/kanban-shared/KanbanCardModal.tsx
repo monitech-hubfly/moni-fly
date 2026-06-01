@@ -33,7 +33,7 @@ import {
   atualizarStatusInteracao,
   atualizarStatusSubInteracao,
   criarTagKanban,
-  criarInteracao,
+  criarChamadoComAtividade,
   criarSubInteracao,
   desvincularTagCard,
   editarInteracao,
@@ -47,6 +47,7 @@ import {
   salvarInstrucoesFase,
   solicitarAprovacaoFase,
   uploadProcessoNegocioAnexo,
+  togglePastelAtividade,
   type ProcessoNegocioAnexoCampo,
   vincularTagCard,
   verificarChecklistParaFase,
@@ -77,7 +78,11 @@ import {
   type KanbanCardModalDetalhes,
   type PreObraDraftKanban,
 } from '@/lib/kanban/kanban-card-modal-detalhes';
-import { resolveTemaChamadoForm } from '@/lib/kanban/resolve-tema-chamado';
+import {
+  ATIVIDADE_FORM_DRAFT_VAZIO,
+  KanbanAtividadeFormFields,
+  type AtividadeFormDraft,
+} from './KanbanAtividadeFormFields';
 import { SlaTituloBolinha } from '@/components/SlaTituloBolinha';
 import { MultiSelectCheckbox } from '@/components/MultiSelectCheckbox';
 import { AtividadeVinculadaCard } from '@/components/AtividadeVinculadaCard';
@@ -119,13 +124,15 @@ import {
   formatDataHoraHistorico,
   iconeHistoricoAcao,
   rotuloUsuarioHistorico,
-  interacaoPassaFiltroResponsavel,
-  interacaoPassaFiltroTime,
+  interacaoPassaFiltroResponsavelComSubs,
+  interacaoPassaFiltroTimeComSubs,
+  travaEfetivaParaChamado,
   countChamadosAbertosNoCard,
   isInteracaoDemonstracao,
   prazoEfetivoParaChamado,
   slaInteracaoBadge,
   tagsTimesParaLinha,
+  tagsTimesDeAtividades,
   textoResumidoAcaoHistorico,
   type ComentarioCardRow,
   type HistoricoItem,
@@ -140,8 +147,10 @@ import {
   enrichResponsaveisIdsComLegadoMoni,
   filtrarOpcoesResponsaveisPorModoHdm,
   HDM_RESPONSAVEIS_TODOS_EMAILS,
+  MONI_TODOS_EMAILS,
   inferirHdmResponsavelPorNomesTimes,
   ordenarLinhasTimeKanbanPorCatalogoMoni,
+  responsaveisFiltradosPorTimesIds,
   responsaveisFiltroOpcoesComCatalogoMoni,
   responsaveisDoTimeMoni,
   timesFiltroOpcoesComCatalogoMoni,
@@ -393,51 +402,24 @@ export function KanbanCardModal({
   const [editDraft, setEditDraft] = useState({
     titulo: '',
     descricao: '',
-    tipo: 'atividade' as 'atividade' | 'duvida' | 'proposicoes',
-    data: '',
-    timesIds: [] as string[],
-    responsaveisIds: [] as string[],
-    trava: false,
-    tema: '',
-    temaOutro: '',
+    categoria: 'chamado' as 'chamado' | 'melhoria',
   });
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
   const [novaInteracao, setNovaInteracao] = useState({
     titulo: '',
-    data: '',
-    timesIds: [] as string[],
-    responsaveisIds: [] as string[],
-    trava: false,
+    descricao: '',
+    categoria: 'chamado' as 'chamado' | 'melhoria',
     status: 'pendente' as const,
-    tema: '',
-    temaOutro: '',
+    atividade: { ...ATIVIDADE_FORM_DRAFT_VAZIO },
   });
   const [novoChamadoFormAberto, setNovoChamadoFormAberto] = useState(false);
   const [subInteracoesPorPai, setSubInteracoesPorPai] = useState<Record<string, SubInteracaoModal[]>>({});
   const [subExpandida, setSubExpandida] = useState<Record<string, boolean>>({});
   const [subFormInteracaoId, setSubFormInteracaoId] = useState<string | null>(null);
-  const [subNovaDraft, setSubNovaDraft] = useState({
-    tipoSub: 'atividade' as SubInteracaoTipoDb,
-    titulo: '',
-    timesIds: [] as string[],
-    responsaveisIds: [] as string[],
-    data: '',
-    trava: false,
-    tema: '',
-    temaOutro: '',
-  });
+  const [subNovaDraft, setSubNovaDraft] = useState<AtividadeFormDraft>({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
   const [salvandoSub, setSalvandoSub] = useState(false);
   const [editingSubId, setEditingSubId] = useState<string | null>(null);
-  const [editSubDraft, setEditSubDraft] = useState({
-    descricao: '',
-    tipo: 'atividade' as SubInteracaoTipoDb,
-    timesIds: [] as string[],
-    responsaveisIds: [] as string[],
-    data_fim: '',
-    trava: false,
-    tema: '',
-    temaOutro: '',
-  });
+  const [editSubDraft, setEditSubDraft] = useState<AtividadeFormDraft>({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
   const [salvandoEditSub, setSalvandoEditSub] = useState(false);
   const [filtros, setFiltros] = useState<KanbanModalInteracoesFiltros>(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT);
   const [filtrosDraft, setFiltrosDraft] = useState<KanbanModalInteracoesFiltros>(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT);
@@ -489,10 +471,6 @@ export function KanbanCardModal({
     () => ordenarLinhasTimeKanbanPorCatalogoMoni(kanbanTimes, false),
     [kanbanTimes],
   );
-  const timesEditFiltrados = useMemo(
-    () => ordenarLinhasTimeKanbanPorCatalogoMoni(kanbanTimes, false),
-    [kanbanTimes],
-  );
   const kanbanTimesSubNovaFiltrados = useMemo(
     () => ordenarLinhasTimeKanbanPorCatalogoMoni(kanbanTimes, false),
     [kanbanTimes],
@@ -538,24 +516,15 @@ export function KanbanCardModal({
     setNovoChamadoFormAberto(false);
     setNovaInteracao({
       titulo: '',
-      data: '',
-      timesIds: [],
-      responsaveisIds: [],
-      trava: false,
+      descricao: '',
+      categoria: 'chamado',
       status: 'pendente',
-      tema: '',
-      temaOutro: '',
+      atividade: { ...ATIVIDADE_FORM_DRAFT_VAZIO },
     });
     setEditDraft({
       titulo: '',
       descricao: '',
-      tipo: 'atividade',
-      data: '',
-      timesIds: [],
-      responsaveisIds: [],
-      trava: false,
-      tema: '',
-      temaOutro: '',
+      categoria: 'chamado',
     });
     setNegocioDraft({
       tipo_aquisicao_terreno: '',
@@ -1035,9 +1004,9 @@ export function KanbanCardModal({
       const nomePorTimeId = new Map(cacheKanbanTimes.map((t) => [t.id, t.nome]));
 
       try {
-        const emailsHdm = [...HDM_RESPONSAVEIS_TODOS_EMAILS];
+        const emailsMoni = [...MONI_TODOS_EMAILS];
         const [hdmProfRes, profOptsRes] = await Promise.all([
-          supabase.from('profiles').select('id, full_name, email').in('email', emailsHdm),
+          supabase.from('profiles').select('id, full_name, email').in('email', emailsMoni),
           supabase
             .from('profiles')
             .select('id, full_name, email')
@@ -1123,15 +1092,15 @@ export function KanbanCardModal({
 
       try {
         const interacoesSelect =
-          'id, titulo, descricao, tipo, times_ids, responsaveis_ids, trava, status, prioridade, data_vencimento, responsavel_id, responsavel_nome_texto, time, created_at, concluida_em, origem, criado_por, arquivado, sirene_chamado_id';
+          'id, titulo, descricao, categoria, tipo, times_ids, responsaveis_ids, trava, status, prioridade, data_vencimento, responsavel_id, responsavel_nome_texto, time, created_at, concluida_em, origem, criado_por, arquivado, sirene_chamado_id';
         let interacoesData: Record<string, unknown>[] | null = null;
         let interacoesError: { message: string } | null = null;
         {
           const first = await supabase
-            .from('kanban_atividades')
+          .from('kanban_atividades')
             .select(interacoesSelect)
-            .eq('card_id', cardId)
-            .order('ordem', { ascending: true });
+          .eq('card_id', cardId)
+          .order('ordem', { ascending: true });
           interacoesData = (first.data ?? null) as Record<string, unknown>[] | null;
           interacoesError = first.error;
           if (interacoesError && /ordem/i.test(interacoesError.message)) {
@@ -1198,6 +1167,9 @@ export function KanbanCardModal({
               id: String(a.id),
               titulo: String(a.titulo ?? ''),
               descricao: (a.descricao as string | null) ?? null,
+              categoria: ((a as { categoria?: string }).categoria === 'melhoria' ? 'melhoria' : 'chamado') as
+                | 'chamado'
+                | 'melhoria',
               tipo,
               times_ids: ids,
               responsaveis_ids: respIds,
@@ -1229,7 +1201,7 @@ export function KanbanCardModal({
           const actIds = mapeadas.map((m) => m.id);
           const { data: topicosRows } = await supabase
             .from('sirene_topicos')
-            .select('id, interacao_id, descricao, tipo, times_ids, responsaveis_ids, data_fim, status, trava, arquivado')
+            .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, status, trava, pastel, historico, arquivado')
             .eq('arquivado', false)
             .in('interacao_id', actIds)
             .order('ordem', { ascending: true });
@@ -1272,7 +1244,9 @@ export function KanbanCardModal({
               id: String((t as { id: number }).id),
               interacao_id: iid,
               tipo: tipoSub,
+              nome: String((t as { nome?: string }).nome ?? (t as { descricao?: string }).descricao ?? ''),
               descricao: String((t as { descricao?: string }).descricao ?? ''),
+              descricao_detalhe: (t as { descricao_detalhe?: string | null }).descricao_detalhe ?? null,
               times_ids: ti,
               responsaveis_ids: ri,
               times_resolvidos: ti.map((id) => ({ id, nome: timeTopMap.get(id) ?? id.slice(0, 8) })),
@@ -1283,6 +1257,10 @@ export function KanbanCardModal({
               data_fim: (t as { data_fim?: string | null }).data_fim != null ? String((t as { data_fim: string }).data_fim).slice(0, 10) : null,
               status: ['nao_iniciado', 'em_andamento', 'concluido', 'aprovado'].includes(st) ? st : 'nao_iniciado',
               trava: Boolean((t as { trava?: boolean }).trava),
+              pastel: Boolean((t as { pastel?: boolean }).pastel),
+              historico: Array.isArray((t as { historico?: unknown }).historico)
+                ? ((t as { historico: Array<{ tipo: string; em: string }> }).historico ?? [])
+                : [],
             };
             if (!porPai[iid]) porPai[iid] = [];
             porPai[iid]!.push(row);
@@ -1310,6 +1288,23 @@ export function KanbanCardModal({
 
   async function handleAdicionarInteracao() {
     if (!card || !novaInteracao.titulo.trim()) return;
+    if (!novaInteracao.descricao.trim()) {
+      alert('Informe a descrição do chamado.');
+      return;
+    }
+    const ativ = novaInteracao.atividade;
+    if (!ativ.nome.trim()) {
+      alert('Informe o nome da primeira atividade.');
+      return;
+    }
+    if (ativ.timesIds.length === 0) {
+      alert('Selecione ao menos um time na atividade.');
+      return;
+    }
+    if (ativ.responsaveisIds.length === 0) {
+      alert('Selecione ao menos um responsável na atividade.');
+      return;
+    }
     if (!pode('criar_chamados')) {
       alert('Sem permissão para criar chamados.');
       return;
@@ -1317,27 +1312,25 @@ export function KanbanCardModal({
     setLoading(true);
     try {
       const ordemReal = interacoes.filter((a) => !isInteracaoDemonstracao(a.id)).length;
-      const resolved = {
-        times_ids: novaInteracao.timesIds,
-        responsaveis_ids: novaInteracao.responsaveisIds,
-        responsavel_nome_texto: null as string | null,
-        time_legado: null as string | null,
-      };
-      const res = await criarInteracao({
+      const res = await criarChamadoComAtividade({
         card_id: card.id,
         titulo: novaInteracao.titulo.trim(),
-        tipo: 'atividade',
-        times_ids: resolved.times_ids,
-        data_vencimento: novaInteracao.data || null,
-        responsaveis_ids: resolved.responsaveis_ids,
-        responsavel_nome_texto: resolved.responsavel_nome_texto,
-        time_legado: resolved.time_legado,
-        trava: novaInteracao.trava,
+        descricao: novaInteracao.descricao.trim(),
+        categoria: novaInteracao.categoria,
         status: novaInteracao.status,
+        atividade: {
+          nome: ativ.nome.trim(),
+          descricao_detalhe: ativ.descricaoDetalhe.trim() || null,
+          times_ids: ativ.timesIds,
+          responsaveis_ids: ativ.responsaveisIds,
+          data_fim: ativ.data.trim() || null,
+          trava: ativ.trava,
+          status: ativ.status,
+          pastel: ativ.pastel,
+        },
         ordem: ordemReal,
         basePath,
         origem,
-        tema: resolveTemaChamadoForm(novaInteracao.tema, novaInteracao.temaOutro),
       });
       if (!res.ok) {
         alert(res.error);
@@ -1345,13 +1338,10 @@ export function KanbanCardModal({
       }
       setNovaInteracao({
         titulo: '',
-        data: '',
-        timesIds: [],
-        responsaveisIds: [],
-        trava: false,
+        descricao: '',
+        categoria: 'chamado',
         status: 'pendente',
-        tema: '',
-        temaOutro: '',
+        atividade: { ...ATIVIDADE_FORM_DRAFT_VAZIO },
       });
       setNovoChamadoFormAberto(false);
       await loadCard();
@@ -1381,28 +1371,10 @@ export function KanbanCardModal({
 
   function abrirEdicaoInteracao(it: InteracaoModal) {
     setEditingId(it.id);
-    let rids = [...(it.responsaveis_ids ?? [])];
-    rids = enrichResponsaveisIdsComLegadoMoni(
-      rids,
-      {
-        responsavel_id: it.responsavel_id,
-        responsaveis_resolvidos: it.responsaveis_resolvidos,
-        responsavel_nome_texto: it.responsavel_nome_texto ?? null,
-        profilesLegacyNome: it.profiles?.full_name ?? null,
-      },
-      responsaveisOpcoes,
-    );
-    const tids = [...(it.times_ids ?? [])];
     setEditDraft({
       titulo: it.titulo ?? '',
       descricao: it.descricao ?? '',
-      tipo: it.tipo,
-      data: it.data_vencimento ? String(it.data_vencimento).slice(0, 10) : '',
-      timesIds: tids,
-      responsaveisIds: rids,
-      trava: it.trava,
-      tema: '',
-      temaOutro: '',
+      categoria: it.categoria ?? 'chamado',
     });
   }
 
@@ -1412,18 +1384,16 @@ export function KanbanCardModal({
       alert('Informe o título do chamado.');
       return;
     }
+    if (!editDraft.descricao.trim()) {
+      alert('Informe a descrição do chamado.');
+      return;
+    }
     setSalvandoEdicao(true);
     try {
       const res = await editarInteracao(editingId, {
         titulo: editDraft.titulo.trim(),
-        descricao: editDraft.descricao.trim() || null,
-        tipo: editDraft.tipo,
-        data_vencimento: editDraft.data.trim() || null,
-        times_ids: editDraft.timesIds,
-        responsaveis_ids: editDraft.responsaveisIds,
-        responsavel_nome_texto: null,
-        time_legado: null,
-        trava: editDraft.trava,
+        descricao: editDraft.descricao.trim(),
+        categoria: editDraft.categoria,
         basePath,
       });
       if (!res.ok) {
@@ -1444,7 +1414,7 @@ export function KanbanCardModal({
     const supabase = createClient();
     const { data: topicosRows } = await supabase
       .from('sirene_topicos')
-      .select('id, interacao_id, descricao, tipo, times_ids, responsaveis_ids, data_fim, status, trava')
+      .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, status, trava, pastel, historico')
       .eq('interacao_id', interacaoId)
       .order('ordem', { ascending: true });
     const topicos = topicosRows ?? [];
@@ -1481,7 +1451,9 @@ export function KanbanCardModal({
         id: String((t as { id: number | string }).id),
         interacao_id: iid,
         tipo: tipoSub,
+        nome: String((t as { nome?: string }).nome ?? (t as { descricao?: string }).descricao ?? ''),
         descricao: String((t as { descricao?: string }).descricao ?? ''),
+        descricao_detalhe: (t as { descricao_detalhe?: string | null }).descricao_detalhe ?? null,
         times_ids: ti,
         responsaveis_ids: ri,
         times_resolvidos: ti.map((id) => ({ id, nome: timeTopMap.get(id) ?? id.slice(0, 8) })),
@@ -1495,15 +1467,23 @@ export function KanbanCardModal({
             : null,
         status: ['nao_iniciado', 'em_andamento', 'concluido', 'aprovado'].includes(st) ? st : 'nao_iniciado',
         trava: Boolean((t as { trava?: boolean }).trava),
+        pastel: Boolean((t as { pastel?: boolean }).pastel),
+        historico: Array.isArray((t as { historico?: unknown }).historico)
+          ? ((t as { historico: Array<{ tipo: string; em: string }> }).historico ?? [])
+          : [],
       };
     });
     setSubInteracoesPorPai((prev) => ({ ...prev, [interacaoId]: mapped }));
   }
 
   async function handleCriarSubInteracao(interacaoId: string) {
-    if (!subNovaDraft.titulo.trim()) return;
+    if (!subNovaDraft.nome.trim()) return;
     if (subNovaDraft.timesIds.length === 0) {
       alert('Selecione ao menos um time.');
+      return;
+    }
+    if (subNovaDraft.responsaveisIds.length === 0) {
+      alert('Selecione ao menos um responsável.');
       return;
     }
     if (!pode('criar_chamados')) {
@@ -1514,63 +1494,71 @@ export function KanbanCardModal({
     try {
       const res = await criarSubInteracao({
         interacao_id: interacaoId,
-        descricao: subNovaDraft.titulo.trim(),
-        tipo: subNovaDraft.tipoSub,
+        nome: subNovaDraft.nome.trim(),
+        descricao_detalhe: subNovaDraft.descricaoDetalhe.trim() || null,
         times_ids: subNovaDraft.timesIds,
         responsaveis_ids: subNovaDraft.responsaveisIds,
         data_fim: subNovaDraft.data.trim() || null,
         trava: subNovaDraft.trava,
+        status: subNovaDraft.status,
+        pastel: subNovaDraft.pastel,
         basePath,
-        tema: resolveTemaChamadoForm(subNovaDraft.tema, subNovaDraft.temaOutro),
+        origem,
       });
       if (!res.ok) {
         alert(res.error);
         return;
       }
-      setSubNovaDraft({
-        tipoSub: 'atividade',
-        titulo: '',
-        timesIds: [],
-        responsaveisIds: [],
-        data: '',
-        trava: false,
-        tema: '',
-        temaOutro: '',
-      });
+      setSubNovaDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
       setSubFormInteracaoId(interacaoId);
       setSubExpandida((s) => ({ ...s, [interacaoId]: true }));
       await reloadSubsForParent(interacaoId);
+      await loadCard();
     } catch {
-      alert('Erro ao criar sub-chamado.');
+      alert('Erro ao criar atividade.');
     } finally {
       setSalvandoSub(false);
     }
   }
 
   async function handleEditarSubInteracao(subId: string) {
-    if (!editSubDraft.descricao.trim()) { alert('Informe a descrição.'); return; }
-    if (editSubDraft.timesIds.length === 0) { alert('Selecione ao menos um time.'); return; }
+    if (!editSubDraft.nome.trim()) {
+      alert('Informe o nome da atividade.');
+      return;
+    }
+    if (editSubDraft.timesIds.length === 0) {
+      alert('Selecione ao menos um time.');
+      return;
+    }
+    if (editSubDraft.responsaveisIds.length === 0) {
+      alert('Selecione ao menos um responsável.');
+      return;
+    }
     setSalvandoEditSub(true);
     try {
       const res = await editarSubInteracao(
         subId,
         {
-          descricao: editSubDraft.descricao.trim(),
-          tipo: editSubDraft.tipo,
+          nome: editSubDraft.nome.trim(),
+          descricao_detalhe: editSubDraft.descricaoDetalhe.trim() || null,
           times_ids: editSubDraft.timesIds,
           responsaveis_ids: editSubDraft.responsaveisIds,
-          data_fim: editSubDraft.data_fim.trim() || null,
+          data_fim: editSubDraft.data.trim() || null,
           trava: editSubDraft.trava,
-          tema: resolveTemaChamadoForm(editSubDraft.tema, editSubDraft.temaOutro),
+          status: editSubDraft.status,
         },
         basePath,
       );
-      if (!res.ok) { alert(res.error); return; }
+      if (!res.ok) {
+        alert(res.error);
+        return;
+      }
       setEditingSubId(null);
       const pai = Object.entries(subInteracoesPorPai).find(([, subs]) => subs.some((s) => s.id === subId));
       if (pai) await reloadSubsForParent(pai[0]);
+      await loadCard();
     } catch {
-      alert('Erro ao salvar sub-chamado.');
+      alert('Erro ao salvar atividade.');
     } finally {
       setSalvandoEditSub(false);
     }
@@ -1586,21 +1574,27 @@ export function KanbanCardModal({
       alert(res.error);
       return;
     }
-    if (status === 'em_andamento') {
-      const resPai = await atualizarStatusInteracao(parentInteracaoId, 'em_andamento', basePath);
-      if (!resPai.ok) {
-        alert(resPai.error);
-        return;
-      }
-    }
     await loadCard();
     router.refresh();
+  }
+
+  async function handleTogglePastel(subId: string, checked: boolean) {
+    const res = await togglePastelAtividade(subId, checked, basePath);
+    if (!res.ok) {
+      alert(res.error);
+      return;
+    }
+    await loadCard();
   }
 
   async function handleInteracaoStatusChange(
     interacaoId: string,
     novo: 'pendente' | 'em_andamento' | 'concluida',
   ) {
+    if (novo === 'em_andamento') {
+      alert('O status em andamento é definido automaticamente pelas atividades.');
+      return;
+    }
     const temSubAberta = (subInteracoesPorPai[interacaoId] ?? []).some(
       (s) => s.status !== 'concluido' && s.status !== 'aprovado',
     );
@@ -2052,11 +2046,11 @@ export function KanbanCardModal({
       const supabase = createClient();
       if (pid) {
         const upd = await updateProcessoNegocioCampos(supabase, pid, {
-          tipo_aquisicao_terreno: negocioDraft.tipo_aquisicao_terreno || null,
-          valor_terreno: negocioDraft.valor_terreno || null,
-          vgv_pretendido: negocioDraft.vgv_pretendido || null,
-          produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
-          link_pasta_drive: negocioDraft.link_pasta_drive || null,
+            tipo_aquisicao_terreno: negocioDraft.tipo_aquisicao_terreno || null,
+            valor_terreno: negocioDraft.valor_terreno || null,
+            vgv_pretendido: negocioDraft.vgv_pretendido || null,
+            produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
+            link_pasta_drive: negocioDraft.link_pasta_drive || null,
           link_bca: negocioDraft.link_bca?.trim() || null,
           link_mapa_competidores: negocioDraft.link_mapa_competidores?.trim() || null,
           link_acoplamento: negocioDraft.link_acoplamento?.trim() || null,
@@ -2239,56 +2233,36 @@ export function KanbanCardModal({
     [responsaveisOpcoes],
   );
 
-  const nomesTimesNovaInteracao = useMemo(() => {
-    const out: string[] = [];
-    for (const id of novaInteracao.timesIds) {
-      const n = kanbanTimes.find((t) => t.id === id)?.nome?.trim();
-      if (n) out.push(n);
-    }
-    return out;
-  }, [novaInteracao.timesIds, kanbanTimes]);
-
-  const inferidoHdmNovaInteracao = useMemo(
-    () => inferirHdmResponsavelPorNomesTimes(nomesTimesNovaInteracao),
-    [nomesTimesNovaInteracao],
+  const timesChamadoOpcoes = useMemo(
+    () => ordenarLinhasTimeKanbanPorCatalogoMoni(timesFiltroOpcoesComCatalogoMoni(kanbanTimes), false),
+    [kanbanTimes],
   );
 
-  const nomesTimesEditDraft = useMemo(() => {
-    const out: string[] = [];
-    for (const id of editDraft.timesIds) {
-      const n = kanbanTimes.find((t) => t.id === id)?.nome?.trim();
-      if (n) out.push(n);
-    }
-    return out;
-  }, [editDraft.timesIds, kanbanTimes]);
+  const responsaveisNovaAtividade = useMemo(
+    () =>
+      responsaveisFiltradosPorTimesIds(novaInteracao.atividade.timesIds, kanbanTimes, responsaveisOpcoes),
+    [novaInteracao.atividade.timesIds, kanbanTimes, responsaveisOpcoes],
+  );
 
-  const inferidoHdmEditDraft = useMemo(
-    () => inferirHdmResponsavelPorNomesTimes(nomesTimesEditDraft),
-    [nomesTimesEditDraft],
+  const responsaveisSubNova = useMemo(
+    () => responsaveisFiltradosPorTimesIds(subNovaDraft.timesIds, kanbanTimes, responsaveisOpcoes),
+    [subNovaDraft.timesIds, kanbanTimes, responsaveisOpcoes],
+  );
+
+  const responsaveisSubEdicao = useMemo(
+    () => responsaveisFiltradosPorTimesIds(editSubDraft.timesIds, kanbanTimes, responsaveisOpcoes),
+    [editSubDraft.timesIds, kanbanTimes, responsaveisOpcoes],
   );
 
   const inferidoHdmSubNova = useMemo(() => {
-    if (subNovaDraft.tipoSub !== 'chamado') return null;
     const nomes: string[] = [];
     for (const id of subNovaDraft.timesIds) {
       const n = kanbanTimes.find((t) => t.id === id)?.nome?.trim();
       if (n) nomes.push(n);
     }
     return inferirHdmResponsavelPorNomesTimes(nomes);
-  }, [subNovaDraft.tipoSub, subNovaDraft.timesIds, kanbanTimes]);
+  }, [subNovaDraft.timesIds, kanbanTimes]);
 
-  const responsaveisOpcoesEditHdm = useMemo(
-    () => filtrarOpcoesResponsaveisPorModoHdm(responsaveisOpcoes, inferidoHdmEditDraft != null),
-    [responsaveisOpcoes, inferidoHdmEditDraft],
-  );
-  const responsaveisOpcoesNovaHdm = useMemo(
-    () => filtrarOpcoesResponsaveisPorModoHdm(responsaveisOpcoes, inferidoHdmNovaInteracao != null),
-    [responsaveisOpcoes, inferidoHdmNovaInteracao],
-  );
-  const responsaveisOpcoesSubNovaHdm = useMemo(
-    () => filtrarOpcoesResponsaveisPorModoHdm(responsaveisOpcoes, inferidoHdmSubNova != null),
-    [responsaveisOpcoes, inferidoHdmSubNova],
-  );
   const inferidoHdmSubEdicao = useMemo(() => {
     const nomes: string[] = [];
     for (const id of editSubDraft.timesIds) {
@@ -2320,15 +2294,19 @@ export function KanbanCardModal({
       const t = new Date(a.created_at).getTime();
       return Number.isFinite(t) ? t : 0;
     };
-    const rankInput = (it: InteracaoModal) => ({
-      frank_id: cardFrankParaRank,
-      trava: it.trava,
-      data_vencimento: it.data_vencimento ?? prazoEfetivoParaChamado(it, subInteracoesPorPai[it.id] ?? []),
-      atividade_status: it.status,
-      criado_em: it.created_at,
-    });
+    const rankInput = (it: InteracaoModal) => {
+      const subs = subInteracoesPorPai[it.id] ?? [];
+      return {
+        frank_id: cardFrankParaRank,
+        trava: travaEfetivaParaChamado(it, subs),
+        data_vencimento: prazoEfetivoParaChamado(it, subs),
+        atividade_status: it.status,
+        criado_em: it.created_at,
+      };
+    };
     const buscaNorm = filtros.busca.trim().toLowerCase();
     const filtered = interacoes.filter((it) => {
+      const subs = subInteracoesPorPai[it.id] ?? [];
       const concl = it.status === 'concluida';
       if (filtros.lista === 'abertas') {
         if (concl) return false;
@@ -2338,10 +2316,10 @@ export function KanbanCardModal({
       } else if (situacaoEfetiva !== 'qualquer' && it.status !== situacaoEfetiva) {
         return false;
       }
-      if (!interacaoPassaFiltroTime(it, filtros.time, kanbanTimes)) return false;
-      if (!interacaoPassaFiltroResponsavel(it, filtros.responsavel)) return false;
+      if (!interacaoPassaFiltroTimeComSubs(it, subs, filtros.time, kanbanTimes)) return false;
+      if (!interacaoPassaFiltroResponsavelComSubs(it, subs, filtros.responsavel)) return false;
       if (buscaNorm) {
-        const blob = `${it.titulo} ${it.descricao ?? ''}`.toLowerCase();
+        const blob = `${it.titulo} ${it.descricao ?? ''} ${subs.map((s) => `${s.nome} ${s.descricao_detalhe ?? ''}`).join(' ')}`.toLowerCase();
         if (!blob.includes(buscaNorm)) return false;
       }
       return true;
@@ -2851,7 +2829,7 @@ export function KanbanCardModal({
 
   function abrirEdicaoNegocio() {
     if (!proc) return;
-    setNegocioDraft({
+      setNegocioDraft({
         tipo_aquisicao_terreno: proc.tipo_aquisicao_terreno ?? '',
         valor_terreno: proc.valor_terreno != null ? String(proc.valor_terreno) : '',
         vgv_pretendido: proc.vgv_pretendido != null ? String(proc.vgv_pretendido) : '',
@@ -2867,7 +2845,7 @@ export function KanbanCardModal({
         comentario_moni_capital_gastos_aporte_inicial:
           proc.comentario_moni_capital_gastos_aporte_inicial ?? '',
       });
-    setEditandoNegocio(true);
+      setEditandoNegocio(true);
   }
 
   const secaoHead = (id: SecaoEsquerdaId, label: string, body: ReactNode) => (
@@ -3006,19 +2984,19 @@ export function KanbanCardModal({
             {abaCentro !== 'chamados' && chipsParalelasModal.length > 0 ? (
               <div className="mb-4">
                 <KanbanParalelasChips chips={chipsParalelasModal} compact={false} />
-              </div>
+                  </div>
             ) : null}
 
             {abaCentro === 'chamados' ? (
             <>
-            <button
-              type="button"
+                      <button
+                        type="button"
               onClick={() => setAbaCentro('detalhes')}
               className="mb-4 inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-stone-700 shadow-sm transition hover:bg-stone-50"
-            >
+                      >
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
               Voltar
-            </button>
+                      </button>
             <div className="flex min-h-0 flex-1 flex-col">
 <div className="mb-6 flex-1">
               <h4 className="mb-3 text-sm font-semibold" style={{ color: 'var(--moni-text-secondary)' }}>
@@ -3031,9 +3009,9 @@ export function KanbanCardModal({
                 ) : null}
               </h4>
               {erroCarregarChamados ? (
-                <div
+              <div
                   className="mb-3 rounded-lg border px-3 py-2.5 text-xs"
-                  style={{
+                style={{
                     borderColor: 'var(--moni-status-overdue-border)',
                     background: 'var(--moni-status-overdue-bg)',
                     color: 'var(--moni-status-overdue-text)',
@@ -3044,14 +3022,14 @@ export function KanbanCardModal({
                   <p className="mt-1 opacity-90">
                     Nada foi apagado no banco — abra de novo ou tente recarregar. {erroCarregarChamados}
                   </p>
-                  <button
-                    type="button"
+                      <button
+                        type="button"
                     onClick={() => void loadCard()}
                     className="mt-2 rounded-md border border-current/30 bg-white/60 px-2.5 py-1 text-[11px] font-semibold hover:bg-white"
                   >
                     Tentar novamente
-                  </button>
-                </div>
+                      </button>
+                    </div>
               ) : null}
 
               <div className="relative mb-4">
@@ -3067,7 +3045,7 @@ export function KanbanCardModal({
                       setFiltrosOpen(true);
                     }
                   }}
-                  className="rounded-lg border px-4 py-2 text-sm font-medium transition hover:opacity-95"
+                  className="rounded-md border px-2.5 py-1 text-[11px] font-medium transition hover:opacity-95"
                   style={{
                     borderColor: 'var(--moni-border-default)',
                     background: 'var(--moni-surface-0)',
@@ -3079,7 +3057,7 @@ export function KanbanCardModal({
                 {filtrosOpen ? (
                   <div
                     ref={filtrosPopoverRef}
-                    className="absolute left-0 top-full z-[60] mt-2 w-[min(100vw-2rem,15rem)]"
+                    className="absolute left-0 top-full z-[60] mt-1 w-[min(100vw-2rem,12rem)]"
                   >
                     <KanbanInteracoesFiltrosPanel
                       draft={filtrosDraft}
@@ -3116,7 +3094,7 @@ export function KanbanCardModal({
                       prazoEfetivo,
                       mapInteracaoStatusParaPainelSla(statusVisual),
                     );
-                    const timeTags = tagsTimesParaLinha(it, kanbanTimes);
+                    const timeTags = tagsTimesDeAtividades(it, subs, kanbanTimes);
                     const demo = isInteracaoDemonstracao(it.id);
                     const statusInteracaoSelect =
                       it.status === 'pendente' || it.status === 'em_andamento' || it.status === 'concluida'
@@ -3292,7 +3270,7 @@ export function KanbanCardModal({
                               <span
                                 className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase"
                                 style={
-                                  it.tipo === 'duvida'
+                                  (it.categoria ?? 'chamado') === 'melhoria'
                                     ? {
                                         background: 'var(--moni-gold-50)',
                                         color: 'var(--moni-gold-800)',
@@ -3305,9 +3283,14 @@ export function KanbanCardModal({
                                       }
                                 }
                               >
-                                {it.tipo === 'duvida' ? 'Dúvida' : 'Atividade'}
+                                {(it.categoria ?? 'chamado') === 'melhoria' ? 'Melhoria' : 'Chamado'}
                               </span>
                               {modalSessao.ehAdminOuTeam && !demo ? (
+                                statusInteracaoSelect === 'em_andamento' ? (
+                                  <span className="rounded border border-stone-300 bg-stone-50 px-1.5 py-0.5 text-[10px]">
+                                    Em andamento
+                                  </span>
+                                ) : (
                                 <select
                                   value={statusInteracaoSelect}
                                   onChange={(e) =>
@@ -3319,13 +3302,13 @@ export function KanbanCardModal({
                                   className="rounded border border-stone-300 px-1.5 py-0.5 text-[10px]"
                                 >
                                   <option value="pendente">A fazer</option>
-                                  <option value="em_andamento">Em andamento</option>
                                   <option value="concluida" disabled={temSubAbertaPai}>
                                     Concluída
                                   </option>
                                 </select>
+                                )
                               ) : null}
-                              {it.trava ? (
+                              {travaEfetivaParaChamado(it, subs) ? (
                                 <span className="rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase text-red-700">
                                   Trava
                                 </span>
@@ -3364,104 +3347,33 @@ export function KanbanCardModal({
                               ) : null}
                             </div>
                             {editingId === it.id ? (
-                              <div className="mt-3 space-y-2 rounded-lg border border-stone-200 p-3 bg-white">
-                                <label className="block text-[10px] font-medium text-stone-500">Descrição</label>
+                              <div className="mt-3 space-y-2 rounded-lg border border-stone-200 bg-white p-3">
                                 <textarea
                                   value={editDraft.descricao}
                                   onChange={(e) => setEditDraft((d) => ({ ...d, descricao: e.target.value }))}
-                                  rows={2}
+                                  rows={3}
+                                  placeholder="Descrição do chamado"
                                   className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
                                 />
-                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                  <select
-                                    value={editDraft.tipo}
-                                    onChange={(e) =>
-                                      setEditDraft((d) => ({ ...d, tipo: e.target.value as 'atividade' | 'duvida' | 'proposicoes' }))
-                                    }
-                                    className="rounded border border-stone-300 px-2 py-1 text-xs"
-                                  >
-                                    <option value="atividade">Atividade</option>
-                                    <option value="duvida">Dúvida</option>
-                                    <option value="proposicoes">Proposições</option>
-                                  </select>
-                                  <input
-                                    type="date"
-                                    value={editDraft.data}
-                                    onChange={(e) => setEditDraft((d) => ({ ...d, data: e.target.value }))}
-                                    className="rounded border border-stone-300 px-2 py-1 text-xs"
-                                  />
-                                </div>
-                                <p className="text-[10px] leading-snug text-stone-500">
-                                  HDM é inferido quando algum time selecionado for Produto, Homologações, Executivo
-                                  Local ou Modelo Virtual.
-                                </p>
-                                <div>
-                                  <label className="mb-1 block text-[10px] font-medium text-stone-500">Times</label>
-                                  <div className="flex flex-wrap gap-1">
-                                    {timesEditFiltrados.map((t) => {
-                                      const on = editDraft.timesIds.includes(t.id);
-                                      return (
-                                        <button
-                                          key={t.id}
-                                          type="button"
-                                          onClick={() =>
-                                            setEditDraft((d) => ({
-                                              ...d,
-                                              timesIds: on
-                                                ? d.timesIds.filter((x) => x !== t.id)
-                                                : [...d.timesIds, t.id],
-                                            }))
-                                          }
-                                          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${on ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600'}`}
-                                        >
-                                          {t.nome}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                                <div>
-                                  <label className="mb-1 block text-[10px] font-medium text-stone-500">
-                                    Responsáveis (opcional)
-                                  </label>
-                                  <div className="flex flex-wrap gap-1">
-                                    {responsaveisOpcoesEditHdm.map((p) => {
-                                      const on = editDraft.responsaveisIds.includes(p.id);
-                                      return (
-                                        <button
-                                          key={p.id}
-                                          type="button"
-                                          onClick={() =>
-                                            setEditDraft((d) => ({
-                                              ...d,
-                                              responsaveisIds: on
-                                                ? d.responsaveisIds.filter((x) => x !== p.id)
-                                                : [...d.responsaveisIds, p.id],
-                                            }))
-                                          }
-                                          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${on ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600'}`}
-                                        >
-                                          {p.nome}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                                <label className="flex cursor-pointer items-center gap-2 text-xs text-stone-700">
-                                  <input
-                                    type="checkbox"
-                                    className="h-4 w-4 rounded border-stone-400"
-                                    checked={editDraft.trava}
-                                    onChange={(e) => setEditDraft((d) => ({ ...d, trava: e.target.checked }))}
-                                  />
-                                  Trava — estou bloqueado até este chamado ser concluído
-                                </label>
+                                <select
+                                  value={editDraft.categoria}
+                                  onChange={(e) =>
+                                    setEditDraft((d) => ({
+                                      ...d,
+                                      categoria: e.target.value as 'chamado' | 'melhoria',
+                                    }))
+                                  }
+                                  className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
+                                >
+                                  <option value="chamado">Chamado</option>
+                                  <option value="melhoria">Melhoria</option>
+                                </select>
                                 <div className="flex gap-2">
                                   <button
                                     type="button"
                                     disabled={salvandoEdicao}
                                     onClick={() => void salvarEdicaoInteracao()}
-                                    className="rounded px-3 py-1.5 text-xs font-medium text-white"
+                                    className="rounded px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
                                     style={{ background: 'var(--moni-text-primary)' }}
                                   >
                                     {salvandoEdicao ? '…' : 'Salvar'}
@@ -3528,7 +3440,7 @@ export function KanbanCardModal({
                               <div className="mt-3 rounded-lg border border-stone-200 bg-stone-50/80 p-3">
                                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                                   <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">
-                                    Sub-chamados ({subs.length})
+                                    Atividades ({subs.length})
                                   </p>
                                 </div>
                                 {subs.length > 0 ? (
@@ -3540,137 +3452,24 @@ export function KanbanCardModal({
                                       >
                                         {editingSubId === sub.id ? (
                                           <div className="space-y-2">
-                                            <p className="text-[10px] font-semibold text-stone-600">Editar sub-chamado</p>
-                                            <div>
-                                              <span className="mb-1 block text-[10px] font-medium text-stone-600">Tipo</span>
-                                              <select
-                                                value={editSubDraft.tipo}
-                                                onChange={(e) => {
-                                                  const v = e.target.value as SubInteracaoTipoDb;
-                                                  const allowed = new Set(
-                                                    ordenarLinhasTimeKanbanPorCatalogoMoni(kanbanTimes, false).map(
-                                                      (t) => t.id,
-                                                    ),
-                                                  );
-                                                  setEditSubDraft((s) => ({
-                                                    ...s,
-                                                    tipo: v,
-                                                    timesIds: s.timesIds.filter((id) => allowed.has(id)),
-                                                  }));
-                                                }}
-                                                className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
-                                              >
-                                                <option value="atividade">Atividade</option>
-                                                <option value="duvida">Dúvida</option>
-                                                <option value="chamado">Chamado</option>
-                                              </select>
-                                            </div>
-                                            <input
-                                              type="text"
-                                              value={editSubDraft.descricao}
-                                              onChange={(e) => setEditSubDraft((s) => ({ ...s, descricao: e.target.value }))}
-                                              placeholder="Descrição (obrigatório)"
-                                              className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
+                                            <p className="text-[10px] font-semibold text-stone-600">Editar atividade</p>
+                                            <KanbanAtividadeFormFields
+                                              draft={editSubDraft}
+                                              setDraft={setEditSubDraft}
+                                              kanbanTimes={timesChamadoOpcoes}
+                                              responsaveisOpcoes={responsaveisSubEdicao}
+                                              sessionUserId={modalSessao.userId}
+                                              compact
+                                              idPrefix={`edit-${sub.id}`}
                                             />
-                                            <div>
-                                              <span className="mb-1 block text-[10px] font-medium text-stone-600">Tema</span>
-                                              <select
-                                                value={editSubDraft.tema}
-                                                onChange={(e) => setEditSubDraft((s) => ({ ...s, tema: e.target.value, temaOutro: '' }))}
-                                                className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
-                                              >
-                                                <option value="">Selecione</option>
-                                                <option value="Acoplamento">Acoplamento</option>
-                                                <option value="Adicionais">Adicionais</option>
-                                                <option value="BCA + Batalha">BCA + Batalha</option>
-                                                <option value="Catálogo de Casas">Catálogo de Casas</option>
-                                                <option value="Crédito p/ Obra">Crédito p/ Obra</option>
-                                                <option value="Crédito p/ Terreno">Crédito p/ Terreno</option>
-                                                <option value="Diligência Terreno">Diligência Terreno</option>
-                                                <option value="Gadgets">Gadgets</option>
-                                                <option value="Negociação com Terrenista">Negociação com Terrenista</option>
-                                                <option value="Outro">Outro</option>
-                                              </select>
-                                              {editSubDraft.tema === 'Outro' && (
-                                                <input
-                                                  type="text"
-                                                  value={editSubDraft.temaOutro}
-                                                  onChange={(e) => setEditSubDraft((s) => ({ ...s, temaOutro: e.target.value }))}
-                                                  placeholder="Detalhe o tema"
-                                                  className="mt-1 w-full rounded border border-stone-300 px-2 py-1 text-xs"
-                                                />
-                                              )}
-                                            </div>
-                                            <input
-                                              type="date"
-                                              value={editSubDraft.data_fim}
-                                              onChange={(e) => setEditSubDraft((s) => ({ ...s, data_fim: e.target.value }))}
-                                              className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
-                                            />
-                                            <div>
-                                              <span className="mb-1 block text-[10px] text-stone-500">Times</span>
-                                              <div className="flex flex-wrap gap-1">
-                                                {kanbanTimesSubEditFiltrados.map((t) => {
-                                                  const on = editSubDraft.timesIds.includes(t.id);
-                                                  return (
-                                                    <button
-                                                      key={t.id}
-                                                      type="button"
-                                                      onClick={() =>
-                                                        setEditSubDraft((s) => ({
-                                                          ...s,
-                                                          timesIds: on ? s.timesIds.filter((id) => id !== t.id) : [...s.timesIds, t.id],
-                                                        }))
-                                                      }
-                                                      className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${on ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600'}`}
-                                                    >
-                                                      {t.nome}
-                                                    </button>
-                                                  );
-                                                })}
-                                              </div>
-                                            </div>
-                                            <div>
-                                              <span className="mb-1 block text-[10px] text-stone-500">Responsáveis</span>
-                                              <div className="flex flex-wrap gap-1">
-                                                {responsaveisOpcoesSubEdicaoHdm.map((p) => {
-                                                  const on = editSubDraft.responsaveisIds.includes(p.id);
-                                                  return (
-                                                    <button
-                                                      key={p.id}
-                                                      type="button"
-                                                      onClick={() =>
-                                                        setEditSubDraft((s) => ({
-                                                          ...s,
-                                                          responsaveisIds: on
-                                                            ? s.responsaveisIds.filter((id) => id !== p.id)
-                                                            : [...s.responsaveisIds, p.id],
-                                                        }))
-                                                      }
-                                                      className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${on ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600'}`}
-                                                    >
-                                                      {p.nome}
-                                                    </button>
-                                                  );
-                                                })}
-                                              </div>
-                                            </div>
-                                            <label className="flex cursor-pointer items-center gap-2 text-[11px] text-stone-700">
-                                              <input
-                                                type="checkbox"
-                                                className="h-3.5 w-3.5"
-                                                checked={editSubDraft.trava}
-                                                onChange={(e) => setEditSubDraft((s) => ({ ...s, trava: e.target.checked }))}
-                                              />
-                                              Trava — estou bloqueado até este chamado ser concluído
-                                            </label>
                                             <div className="flex flex-wrap gap-2">
                                               <button
                                                 type="button"
                                                 disabled={
                                                   salvandoEditSub ||
-                                                  !editSubDraft.descricao.trim() ||
-                                                  editSubDraft.timesIds.length === 0
+                                                  !editSubDraft.nome.trim() ||
+                                                  editSubDraft.timesIds.length === 0 ||
+                                                  editSubDraft.responsaveisIds.length === 0
                                                 }
                                                 onClick={() => void handleEditarSubInteracao(sub.id)}
                                                 className="rounded px-3 py-1.5 text-[11px] font-medium text-white disabled:opacity-50"
@@ -3703,7 +3502,8 @@ export function KanbanCardModal({
                                                     ? 'Chamado'
                                                     : 'Atividade'}
                                               </span>
-                                              {modalSessao.ehAdminOuTeam ? (
+                                              {modalSessao.ehAdminOuTeam ||
+                                              sub.responsaveis_resolvidos.some((r) => r.id === modalSessao.userId) ? (
                                                 <select
                                                   value={sub.status}
                                                   onChange={(e) =>
@@ -3721,41 +3521,28 @@ export function KanbanCardModal({
                                                   <option value="aprovado">Aprovado</option>
                                                 </select>
                                               ) : null}
-                                              <span className="font-medium text-stone-800">{sub.descricao}</span>
+                                              <span className="font-medium text-stone-800">{sub.nome || sub.descricao}</span>
+                                              {sub.historico.some((h) => h.tipo === 'Redirecionado') ? (
+                                                <span className="rounded border border-amber-300 bg-amber-50 px-1 py-0.5 text-[9px] font-semibold text-amber-800">
+                                                  Redirecionado
+                                                </span>
+                                              ) : null}
                                               {pode('criar_chamados') ? (
                                                 <button
                                                   type="button"
-                                                  title="Editar sub-chamado"
+                                                  title="Editar atividade"
                                                   onClick={() => {
                                                     setEditSubDraft({
-                                                      descricao: sub.descricao,
-                                                      tipo: sub.tipo,
+                                                      nome: sub.nome || sub.descricao,
+                                                      descricaoDetalhe: sub.descricao_detalhe ?? '',
+                                                      data: sub.data_fim ?? '',
                                                       timesIds: sub.times_ids,
                                                       responsaveisIds: sub.responsaveis_ids,
-                                                      data_fim: sub.data_fim ?? '',
                                                       trava: sub.trava,
-                                                      tema: '',
-                                                      temaOutro: '',
+                                                      status:
+                                                        sub.status === 'aprovado' ? 'concluido' : sub.status,
+                                                      pastel: sub.pastel,
                                                     });
-                                                    void (async () => {
-                                                      const supabase = createClient();
-                                                      const { data } = await supabase
-                                                        .from('sirene_topicos')
-                                                        .select('tema')
-                                                        .eq('id', sub.id)
-                                                        .maybeSingle();
-                                                      const temaDb = (data as { tema?: string | null } | null)?.tema ?? '';
-                                                      const TEMAS_CONHECIDOS = [
-                                                        'Acoplamento','Adicionais','BCA + Batalha','Catálogo de Casas',
-                                                        'Crédito p/ Obra','Crédito p/ Terreno','Diligência Terreno',
-                                                        'Gadgets','Negociação com Terrenista',
-                                                      ];
-                                                      if (TEMAS_CONHECIDOS.includes(temaDb)) {
-                                                        setEditSubDraft((s) => ({ ...s, tema: temaDb, temaOutro: '' }));
-                                                      } else if (temaDb) {
-                                                        setEditSubDraft((s) => ({ ...s, tema: 'Outro', temaOutro: temaDb }));
-                                                      }
-                                                    })();
                                                     setEditingSubId(sub.id);
                                                   }}
                                                   className="ml-0.5 rounded p-0.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
@@ -3787,6 +3574,20 @@ export function KanbanCardModal({
                                             ) : (
                                               <p className="text-[10px] text-stone-400">Sem prazo</p>
                                             )}
+                                            {sub.responsaveis_resolvidos.some((r) => r.id === modalSessao.userId) &&
+                                            !sub.times_resolvidos.some((t) => t.nome === 'Bombeiro') ? (
+                                              <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[10px] text-stone-600">
+                                                <input
+                                                  type="checkbox"
+                                                  className="h-3 w-3"
+                                                  checked={sub.pastel}
+                                                  onChange={(e) =>
+                                                    void handleTogglePastel(sub.id, e.target.checked)
+                                                  }
+                                                />
+                                                Pastel
+                                              </label>
+                                            ) : null}
                                             <AnexosSubchamado
                                               subchamadoId={sub.id}
                                               uploader_nome={modalSessao.uploaderNome}
@@ -3795,7 +3596,8 @@ export function KanbanCardModal({
                                               sessionEhAdminOuTeam={modalSessao.ehAdminOuTeam}
                                             />
                                           </div>
-                                          {!modalSessao.ehAdminOuTeam ? (
+                                          {!modalSessao.ehAdminOuTeam &&
+                                          sub.responsaveis_resolvidos.some((r) => r.id === modalSessao.userId) ? (
                                             <select
                                               value={sub.status}
                                               onChange={(e) =>
@@ -3823,154 +3625,37 @@ export function KanbanCardModal({
                                 )}
                                 {subFormInteracaoId === it.id ? (
                                   <div className="space-y-2 border-t border-stone-200 pt-3">
-                                    <p className="text-[10px] font-semibold text-stone-600">Novo sub-chamado</p>
-                                    <div>
-                                      <span className="mb-1 block text-[10px] font-medium text-stone-600">
-                                        Tipo (obrigatório)
-                                      </span>
-                                      <select
-                                        value={subNovaDraft.tipoSub}
-                                        onChange={(e) => {
-                                          const v = e.target.value as SubInteracaoTipoDb;
-                                          setSubNovaDraft((s) => ({ ...s, tipoSub: v }));
-                                        }}
-                                        className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
-                                      >
-                                        <option value="atividade">Atividade</option>
-                                        <option value="duvida">Dúvida</option>
-                                        <option value="proposicoes">Proposições</option>
-                                        <option value="chamado">Chamado</option>
-                                      </select>
-                                    </div>
-                                    <input
-                                      type="text"
-                                      value={subNovaDraft.titulo}
-                                      onChange={(e) => setSubNovaDraft((s) => ({ ...s, titulo: e.target.value }))}
-                                      placeholder="Título (obrigatório)"
-                                      className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
+                                    <p className="text-[10px] font-semibold text-stone-600">Nova atividade</p>
+                                    <KanbanAtividadeFormFields
+                                      draft={subNovaDraft}
+                                      setDraft={setSubNovaDraft}
+                                      kanbanTimes={timesChamadoOpcoes}
+                                      responsaveisOpcoes={responsaveisSubNova}
+                                      sessionUserId={modalSessao.userId}
+                                      compact
+                                      showPastel={false}
+                                      idPrefix={`nova-${it.id}`}
                                     />
-                                    <input
-                                      type="date"
-                                      value={subNovaDraft.data}
-                                      onChange={(e) => setSubNovaDraft((s) => ({ ...s, data: e.target.value }))}
-                                      className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
-                                    />
-                                    <div>
-                                      <span className="mb-1 block text-[10px] font-medium text-stone-600">Tema</span>
-                                      <select
-                                        value={subNovaDraft.tema}
-                                        onChange={(e) => setSubNovaDraft((s) => ({ ...s, tema: e.target.value, temaOutro: '' }))}
-                                        className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
-                                      >
-                                        <option value="">Selecione</option>
-                                        <option value="Acoplamento">Acoplamento</option>
-                                        <option value="Adicionais">Adicionais</option>
-                                        <option value="BCA + Batalha">BCA + Batalha</option>
-                                        <option value="Catálogo de Casas">Catálogo de Casas</option>
-                                        <option value="Crédito p/ Obra">Crédito p/ Obra</option>
-                                        <option value="Crédito p/ Terreno">Crédito p/ Terreno</option>
-                                        <option value="Diligência Terreno">Diligência Terreno</option>
-                                        <option value="Gadgets">Gadgets</option>
-                                        <option value="Negociação com Terrenista">Negociação com Terrenista</option>
-                                        <option value="Outro">Outro</option>
-                                      </select>
-                                      {subNovaDraft.tema === 'Outro' && (
-                                        <input
-                                          type="text"
-                                          value={subNovaDraft.temaOutro}
-                                          onChange={(e) => setSubNovaDraft((s) => ({ ...s, temaOutro: e.target.value }))}
-                                          placeholder="Detalhe o tema"
-                                          className="mt-1 w-full rounded border border-stone-300 px-2 py-1 text-xs"
-                                        />
-                                      )}
-                                    </div>
-                                    {subNovaDraft.tipoSub === 'chamado' ? (
-                                      <p className="text-[10px] leading-snug text-stone-500">
-                                        HDM é inferido quando algum time for Produto, Homologações, Executivo Local ou
-                                        Modelo Virtual.
-                                      </p>
-                                    ) : null}
-                                    <div>
-                                      <span className="mb-1 block text-[10px] text-stone-500">Times</span>
-                                      <div className="flex flex-wrap gap-1">
-                                        {kanbanTimesSubNovaFiltrados.map((t) => {
-                                          const on = subNovaDraft.timesIds.includes(t.id);
-                                          return (
-                                            <button
-                                              key={t.id}
-                                              type="button"
-                                              onClick={() => toggleSubNovaTime(t.id)}
-                                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                                                on ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600'
-                                              }`}
-                                            >
-                                              {t.nome}
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <span className="mb-1 block text-[10px] text-stone-500">Responsáveis</span>
-                                      {responsaveisOpcoesSubNovaHdm.length === 0 ? (
-                                        <p className="text-[10px] text-stone-500">Nenhum usuário encontrado</p>
-                                      ) : (
-                                        <div className="flex flex-wrap gap-1">
-                                          {responsaveisOpcoesSubNovaHdm.map((p) => {
-                                            const on = subNovaDraft.responsaveisIds.includes(p.id);
-                                            return (
-                                              <button
-                                                key={p.id}
-                                                type="button"
-                                                onClick={() => toggleSubNovaResponsavel(p.id)}
-                                                className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                                                  on ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600'
-                                                }`}
-                                              >
-                                                {p.nome}
-                                              </button>
-                                            );
-                                          })}
-                                        </div>
-                                      )}
-                                    </div>
-                                    <label className="flex cursor-pointer items-center gap-2 text-[11px] text-stone-700">
-                                      <input
-                                        type="checkbox"
-                                        className="h-3.5 w-3.5"
-                                        checked={subNovaDraft.trava}
-                                        onChange={(e) => setSubNovaDraft((s) => ({ ...s, trava: e.target.checked }))}
-                                      />
-                                      Trava — estou bloqueado até este chamado ser concluído
-                                    </label>
                                     <div className="flex flex-wrap gap-2">
                                       <button
                                         type="button"
                                         disabled={
                                           salvandoSub ||
-                                          !subNovaDraft.titulo.trim() ||
-                                          subNovaDraft.timesIds.length === 0
+                                          !subNovaDraft.nome.trim() ||
+                                          subNovaDraft.timesIds.length === 0 ||
+                                          subNovaDraft.responsaveisIds.length === 0
                                         }
                                         onClick={() => void handleCriarSubInteracao(it.id)}
                                         className="rounded px-3 py-1.5 text-[11px] font-medium text-white disabled:opacity-50"
                                         style={{ background: 'var(--moni-text-primary)' }}
                                       >
-                                        {salvandoSub ? '…' : 'Salvar sub-chamado'}
+                                        {salvandoSub ? '…' : 'Salvar atividade'}
                                       </button>
                                       <button
                                         type="button"
                                         onClick={() => {
                                           setSubFormInteracaoId(null);
-                                          setSubNovaDraft({
-                                            tipoSub: 'atividade',
-                                            titulo: '',
-                                            timesIds: [],
-                                            responsaveisIds: [],
-                                            data: '',
-                                            trava: false,
-                                            tema: '',
-                                            temaOutro: '',
-                                          });
+                                          setSubNovaDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
                                         }}
                                         className="rounded border border-stone-300 px-3 py-1.5 text-[11px]"
                                       >
@@ -3988,20 +3673,11 @@ export function KanbanCardModal({
                                   onClick={() => {
                                     setSubExpandida((s) => ({ ...s, [it.id]: true }));
                                     setSubFormInteracaoId(it.id);
-                                    setSubNovaDraft({
-                                      tipoSub: 'atividade',
-                                      titulo: '',
-                                      timesIds: [],
-                                      responsaveisIds: [],
-                                      data: '',
-                                      trava: false,
-                                      tema: '',
-                                      temaOutro: '',
-                                    });
+                                    setSubNovaDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
                                   }}
                                   className="text-left text-[11px] font-medium text-stone-700 underline-offset-2 hover:underline"
                                 >
-                                  + Sub-interação
+                                  + Atividade
                                 </button>
                               </div>
                             ) : null}
@@ -4036,124 +3712,84 @@ export function KanbanCardModal({
                   <input
                     type="text"
                     value={novaInteracao.titulo}
-                    onChange={(e) => setNovaInteracao({ ...novaInteracao, titulo: e.target.value })}
+                    onChange={(e) => setNovaInteracao((n) => ({ ...n, titulo: e.target.value }))}
                     placeholder="Título / assunto"
                     className="w-full px-2 py-1.5 text-xs"
                     style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
                   />
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <textarea
+                    value={novaInteracao.descricao}
+                    onChange={(e) => setNovaInteracao((n) => ({ ...n, descricao: e.target.value }))}
+                    placeholder="Descrição"
+                    rows={2}
+                    className="w-full resize-y px-2 py-1.5 text-xs"
+                    style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
+                  />
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <select
-                      value="chamado"
-                      disabled
+                      value={novaInteracao.categoria}
+                      onChange={(e) =>
+                        setNovaInteracao((n) => ({
+                          ...n,
+                          categoria: e.target.value as 'chamado' | 'melhoria',
+                        }))
+                      }
                       aria-label="Tipo do chamado"
                       className="px-2 py-1.5 text-xs text-stone-700"
                       style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
                     >
                       <option value="chamado">Chamado</option>
+                      <option value="melhoria">Melhoria</option>
                     </select>
-                    {!portalFrank ? (
-                    <input
-                      type="date"
-                      value={novaInteracao.data}
-                      onChange={(e) => setNovaInteracao({ ...novaInteracao, data: e.target.value })}
-                      className="px-2 py-1.5 text-xs"
-                      style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
-                    />
-                    ) : null}
                     <select
-                      value={novaInteracao.tema}
-                      onChange={(e) => setNovaInteracao((n) => ({ ...n, tema: e.target.value, temaOutro: '' }))}
-                      className={`px-2 py-1.5 text-xs ${portalFrank ? 'sm:col-span-2' : ''}`}
+                      value={novaInteracao.status}
+                      onChange={(e) =>
+                        setNovaInteracao((n) => ({
+                          ...n,
+                          status: e.target.value as 'pendente',
+                        }))
+                      }
+                      aria-label="Status do chamado"
+                      className="px-2 py-1.5 text-xs text-stone-700"
                       style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
-                      aria-label="Tema do chamado"
                     >
-                      <option value="">Tema</option>
-                      <option value="Acoplamento">Acoplamento</option>
-                      <option value="Adicionais">Adicionais</option>
-                      <option value="BCA + Batalha">BCA + Batalha</option>
-                      <option value="Catálogo de Casas">Catálogo de Casas</option>
-                      <option value="Crédito p/ Obra">Crédito p/ Obra</option>
-                      <option value="Crédito p/ Terreno">Crédito p/ Terreno</option>
-                      <option value="Diligência Terreno">Diligência Terreno</option>
-                      <option value="Gadgets">Gadgets</option>
-                      <option value="Negociação com Terrenista">Negociação com Terrenista</option>
-                      <option value="Outro">Outro</option>
+                      <option value="pendente">Pendente</option>
                     </select>
                   </div>
-                  {novaInteracao.tema === 'Outro' && (
-                    <input
-                      type="text"
-                      value={novaInteracao.temaOutro}
-                      onChange={(e) => setNovaInteracao((n) => ({ ...n, temaOutro: e.target.value }))}
-                      placeholder="Detalhe o tema"
-                      className="w-full px-2 py-1.5 text-xs"
-                      style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
+                  <div
+                    className="rounded-md border border-stone-200 bg-white/80 p-2"
+                    style={{ borderColor: 'var(--moni-border-default)' }}
+                  >
+                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                      Primeira atividade
+                    </p>
+                    <KanbanAtividadeFormFields
+                      draft={novaInteracao.atividade}
+                      setDraft={(up) =>
+                        setNovaInteracao((n) => ({
+                          ...n,
+                          atividade: typeof up === 'function' ? up(n.atividade) : up,
+                        }))
+                      }
+                      kanbanTimes={timesChamadoOpcoes}
+                      responsaveisOpcoes={responsaveisNovaAtividade}
+                      sessionUserId={modalSessao.userId}
+                      compact
+                      showPastel={false}
+                      idPrefix="nova-ativ"
                     />
-                  )}
-                  <div className={portalFrank ? 'grid grid-cols-1 gap-2' : 'grid grid-cols-2 gap-2'}>
-                    <div>
-                      <label className="mb-0.5 block text-[10px] font-medium text-stone-500">Times</label>
-                      <MultiSelectCheckbox
-                        variant="times"
-                        expandOnFocus
-                        placeholder="Selecione os times..."
-                        searchPlaceholder="Pesquisar time…"
-                        listClassName="max-h-28"
-                        options={timesNovaFiltrados.map((t) => ({ id: t.id, label: t.nome }))}
-                        selectedIds={novaInteracao.timesIds}
-                        onToggle={(id) =>
-                          setNovaInteracao((n) => ({
-                            ...n,
-                            timesIds: n.timesIds.includes(id)
-                              ? n.timesIds.filter((x) => x !== id)
-                              : [...n.timesIds, id],
-                          }))
-                        }
-                      />
-                    </div>
-                    {!portalFrank ? (
-                      <div>
-                        <label className="mb-0.5 block text-[10px] font-medium text-stone-500">
-                          Responsáveis
-                        </label>
-                        <MultiSelectCheckbox
-                          variant="responsaveis"
-                          expandOnFocus
-                          placeholder="Selecione os responsáveis..."
-                          searchPlaceholder="Pesquisar responsável…"
-                          listClassName="max-h-28"
-                          options={responsaveisOpcoesNovaHdm.map((p) => ({ id: p.id, label: p.nome }))}
-                          selectedIds={novaInteracao.responsaveisIds}
-                          onToggle={(id) =>
-                            setNovaInteracao((n) => ({
-                              ...n,
-                              responsaveisIds: n.responsaveisIds.includes(id)
-                                ? n.responsaveisIds.filter((x) => x !== id)
-                                : [...n.responsaveisIds, id],
-                            }))
-                          }
-                        />
-                      </div>
-                    ) : null}
                   </div>
-                  <p className="text-[9px] leading-snug text-stone-400">
-                    HDM inferido para times Produto, Homologações, Executivo Local ou Modelo Virtual.
-                  </p>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <label className="flex cursor-pointer items-start gap-1.5 text-[10px] leading-snug text-stone-600">
-                      <input
-                        type="checkbox"
-                        className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-stone-400"
-                        checked={novaInteracao.trava}
-                        onChange={(e) => setNovaInteracao({ ...novaInteracao, trava: e.target.checked })}
-                      />
-                      Trata - não consigo avançar sem
-                    </label>
+                  <div className="flex justify-end">
                     <button
                       type="button"
                       onClick={() => void handleAdicionarInteracao()}
-                      disabled={loading || !novaInteracao.titulo.trim()}
-                      className="shrink-0 px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50 sm:w-auto"
+                      disabled={
+                        loading ||
+                        !novaInteracao.titulo.trim() ||
+                        !novaInteracao.descricao.trim() ||
+                        !novaInteracao.atividade.nome.trim()
+                      }
+                      className="shrink-0 px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50"
                       style={{ background: 'var(--moni-text-primary)', borderRadius: 'var(--moni-radius-md)' }}
                     >
                       Novo Chamado
@@ -4522,7 +4158,7 @@ export function KanbanCardModal({
               )}
             </div>
 
-                        <div className="mt-auto border-t pt-4" style={{ borderColor: 'var(--moni-border-default)' }}>
+            <div className="mt-auto border-t pt-4" style={{ borderColor: 'var(--moni-border-default)' }}>
               {/* Abas comentários / e-mail */}
               <div className="mb-3 flex gap-1">
                 {(['comentarios', 'email'] as const).map((aba) => {
@@ -4848,30 +4484,30 @@ export function KanbanCardModal({
                   {tagsOpen ? (
                     <div className="space-y-1.5 rounded border border-stone-200 bg-stone-50/50 p-1.5">
                       {tagsKanban.filter((t) => !tagsCard.some((tc) => tc.tag_id === t.id)).length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {tagsKanban
-                            .filter((t) => !tagsCard.some((tc) => tc.tag_id === t.id))
-                            .map((t) => (
-                              <button
-                                key={t.id}
-                                type="button"
-                                onClick={async () => {
-                                  const res = await vincularTagCard(card.id, t.id, basePath);
-                                  if (!res.ok) {
-                                    alert('Erro ao vincular tag: ' + res.error);
-                                    return;
-                                  }
-                                  const tc = await listarTagsCard(card.id);
-                                  setTagsCard(tc);
-                                  setTagsOpen(false);
-                                }}
+                      <div className="flex flex-wrap gap-1">
+                        {tagsKanban
+                          .filter((t) => !tagsCard.some((tc) => tc.tag_id === t.id))
+                          .map((t) => (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={async () => {
+                                const res = await vincularTagCard(card.id, t.id, basePath);
+                                if (!res.ok) {
+                                  alert('Erro ao vincular tag: ' + res.error);
+                                  return;
+                                }
+                                const tc = await listarTagsCard(card.id);
+                                setTagsCard(tc);
+                                setTagsOpen(false);
+                              }}
                                 className="rounded-full px-1.5 py-px text-[10px] font-semibold transition hover:opacity-90"
-                                style={{ background: t.cor + '22', color: t.cor, border: `1px solid ${t.cor}55` }}
-                              >
-                                {t.nome}
-                              </button>
-                            ))}
-                        </div>
+                              style={{ background: t.cor + '22', color: t.cor, border: `1px solid ${t.cor}55` }}
+                            >
+                              {t.nome}
+                            </button>
+                          ))}
+                      </div>
                       ) : (
                         <p className="text-[11px] text-stone-500">Todas as tags do funil já estão no card.</p>
                       )}
@@ -4889,45 +4525,45 @@ export function KanbanCardModal({
                             <label className="sr-only" htmlFor="kanban-modal-nova-tag-cor">
                               Cor da tag
                             </label>
-                            <input
+                          <input
                               id="kanban-modal-nova-tag-cor"
-                              type="color"
-                              value={novaTagCor}
-                              onChange={(e) => setNovaTagCor(e.target.value)}
+                            type="color"
+                            value={novaTagCor}
+                            onChange={(e) => setNovaTagCor(e.target.value)}
                               className="h-7 w-7 shrink-0 cursor-pointer rounded border border-stone-200 bg-white p-0.5"
-                            />
-                            <button
-                              type="button"
-                              disabled={criandoTag || !novatagsNome.trim()}
-                              onClick={() =>
-                                void (async () => {
-                                  if (!card?.kanban_id) return;
-                                  setCriandoTag(true);
+                          />
+                          <button
+                            type="button"
+                            disabled={criandoTag || !novatagsNome.trim()}
+                            onClick={() =>
+                              void (async () => {
+                                if (!card?.kanban_id) return;
+                                setCriandoTag(true);
                                   const res = await criarTagKanban(
                                     card.kanban_id,
                                     novatagsNome.trim(),
                                     novaTagCor,
                                     basePath,
                                   );
-                                  if (res.ok) {
-                                    const tk = await listarTagsKanban(card.kanban_id);
-                                    setTagsKanban(tk);
-                                    setNovaTagNome('');
-                                  }
-                                  setCriandoTag(false);
-                                })()
-                              }
+                                if (res.ok) {
+                                  const tk = await listarTagsKanban(card.kanban_id);
+                                  setTagsKanban(tk);
+                                  setNovaTagNome('');
+                                }
+                                setCriandoTag(false);
+                              })()
+                            }
                               className="min-w-0 flex-1 rounded px-2 py-1 text-[10px] font-semibold text-white transition disabled:opacity-50"
-                              style={{ background: 'var(--moni-text-primary)' }}
-                            >
+                            style={{ background: 'var(--moni-text-primary)' }}
+                          >
                               {criandoTag ? 'Criando…' : 'Criar tag'}
-                            </button>
-                          </div>
+                          </button>
                         </div>
-                      ) : null}
                     </div>
-                  ) : null}
+                      ) : null}
                 </div>
+              ) : null}
+            </div>
               ) : null}
             </PainelLateralSecao>
 
@@ -5351,7 +4987,7 @@ export function KanbanCardModal({
               'Dados do Negócio',
               <div className="space-y-2">
                 {!proc ? (
-                  <p className="text-xs text-stone-500">Sem processo vinculado — dados de negócio indisponíveis.</p>
+                    <p className="text-xs text-stone-500">Sem processo vinculado — dados de negócio indisponíveis.</p>
                 ) : editandoNegocio ? (
                   <div className="space-y-2">
                     <div className="grid grid-cols-2 gap-x-2 gap-y-2">
@@ -5596,7 +5232,7 @@ export function KanbanCardModal({
                 </div>
               ),
             )}
-            {secaoHead('obra', 'Dados Obra', <p className="text-xs italic text-stone-500">Placeholder.</p>)}
+                {secaoHead('obra', 'Dados Obra', <p className="text-xs italic text-stone-500">Placeholder.</p>)}
             {!isLegado ? (
               secaoHead(
                 'atasReuniao',
@@ -5612,7 +5248,7 @@ export function KanbanCardModal({
             {secaoHeadPainelCentro('Chamados')}
             {!isLegado ? (
               secaoHead(
-                'relacionamentos',
+                  'relacionamentos',
                 'Vínculos',
                 <KanbanCardModalRelacionamentos
                   key={`${card.id}-${relacionamentosTick}`}

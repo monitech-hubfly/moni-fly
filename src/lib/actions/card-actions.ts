@@ -25,6 +25,15 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { usuarioConcluiuCasasUniversidade012 } from '@/lib/universidade/queries';
 import { normalizeTemaChamado } from '@/lib/kanban/resolve-tema-chamado';
+import {
+  buscarMetaCardParaNotificacao,
+  notificarAlertasKanbanAtividade,
+} from '@/lib/kanban/chamados-notificacoes';
+import {
+  nomesTimesIncluemBombeiro,
+  validarCategoriaComTimes,
+  validarPrazoBombeiro,
+} from '@/lib/kanban/chamados-validacao';
 import type { FaseChecklistItem } from './candidato-actions';
 import { executarBastaoDeVolta, executarBastoes } from '@/lib/actions/kanban-bastoes';
 import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-notify';
@@ -69,6 +78,7 @@ export type CriarInteracaoInput = {
 export type EditarInteracaoInput = {
   titulo?: string;
   descricao?: string | null;
+  categoria?: ChamadoCategoriaDb;
   tipo?: 'atividade' | 'duvida' | 'proposicoes';
   data_vencimento?: string | null;
   times_ids?: string[];
@@ -168,15 +178,45 @@ export async function desvincularTagCard(
 
 export type CriarSubInteracaoInput = {
   interacao_id: string;
-  descricao: string;
-  /** Categoria do sub-chamado (`sirene_topicos.tipo`, migration 165). */
+  /** Nome da atividade (obrigatório). */
+  nome: string;
+  descricao_detalhe?: string | null;
+  /** Legado: alias de nome quando nome omitido. */
+  descricao?: string;
   tipo?: SubInteracaoTipoDb;
   times_ids: string[];
   responsaveis_ids: string[];
   data_fim?: string | null;
   trava: boolean;
+  status?: SubInteracaoStatusDb;
+  pastel?: boolean;
   basePath?: string;
-  tema?: string | null;
+  origem?: 'nativo' | 'legado';
+};
+
+export type ChamadoCategoriaDb = 'chamado' | 'melhoria';
+
+export type AtividadeInput = {
+  nome: string;
+  descricao_detalhe?: string | null;
+  times_ids: string[];
+  responsaveis_ids: string[];
+  data_fim: string | null;
+  trava: boolean;
+  status: SubInteracaoStatusDb;
+  pastel?: boolean;
+};
+
+export type CriarChamadoComAtividadeInput = {
+  card_id: string;
+  titulo: string;
+  descricao: string;
+  categoria: ChamadoCategoriaDb;
+  status?: 'pendente' | 'concluida' | 'cancelada';
+  atividade: AtividadeInput;
+  ordem: number;
+  basePath?: string;
+  origem?: 'nativo' | 'legado';
 };
 
 export type SubInteracaoStatusDb = 'nao_iniciado' | 'em_andamento' | 'concluido' | 'aprovado';
@@ -229,6 +269,182 @@ function uniqUuids(ids: string[] | undefined | null): string[] {
     out.push(u);
   }
   return out;
+}
+
+type TopicoHistoricoEvento = {
+  tipo: string;
+  em: string;
+  por?: string | null;
+  de?: string[] | null;
+  para?: string[] | null;
+  detalhe?: string | null;
+};
+
+function appendHistoricoEvento(
+  historico: unknown,
+  evento: TopicoHistoricoEvento,
+): TopicoHistoricoEvento[] {
+  const base = Array.isArray(historico) ? (historico as TopicoHistoricoEvento[]) : [];
+  return [...base, evento];
+}
+
+async function nomesTimesFromIds(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  timesIds: string[],
+): Promise<string[]> {
+  if (!timesIds.length) return [];
+  const { data } = await supabase.from('kanban_times').select('id, nome').in('id', timesIds);
+  return (data ?? []).map((r) => String((r as { nome?: string }).nome ?? '').trim()).filter(Boolean);
+}
+
+async function todosResponsaveisDoChamado(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  interacaoId: string,
+): Promise<string[]> {
+  const { data } = await supabase
+    .from('sirene_topicos')
+    .select('responsaveis_ids')
+    .eq('interacao_id', interacaoId);
+  const set = new Set<string>();
+  for (const row of data ?? []) {
+    for (const id of (row as { responsaveis_ids?: string[] }).responsaveis_ids ?? []) {
+      const u = String(id ?? '').trim();
+      if (u) set.add(u);
+    }
+  }
+  return [...set];
+}
+
+function validarAtividadeInput(
+  atividade: AtividadeInput,
+  categoria: ChamadoCategoriaDb,
+  nomesTimes: string[],
+): { ok: true } | { ok: false; error: string } {
+  const nome = (atividade.nome ?? '').trim();
+  if (!nome) return { ok: false, error: 'Informe o nome da atividade.' };
+  const prazo = dataCampoCalendarioIso(atividade.data_fim);
+  if (!prazo) return { ok: false, error: 'Informe o prazo limite da atividade.' };
+  const timesIds = uniqUuids(atividade.times_ids);
+  if (timesIds.length === 0) return { ok: false, error: 'Selecione ao menos um time.' };
+  const respIds = uniqUuids(atividade.responsaveis_ids);
+  if (respIds.length === 0) return { ok: false, error: 'Selecione ao menos um responsável.' };
+  const catVal = validarCategoriaComTimes(categoria, nomesTimes);
+  if (!catVal.ok) return catVal;
+  if (nomesTimesIncluemBombeiro(nomesTimes)) {
+    const prazoVal = validarPrazoBombeiro(prazo);
+    if (!prazoVal.ok) return prazoVal;
+    if (atividade.pastel) return { ok: false, error: 'Atividades do time Bombeiro não podem usar Pastel.' };
+  }
+  return { ok: true };
+}
+
+export async function criarChamadoComAtividade(input: CriarChamadoComAtividadeInput): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para criar um chamado.' };
+
+  const titulo = (input.titulo ?? '').trim();
+  const descricao = (input.descricao ?? '').trim();
+  if (!titulo) return { ok: false, error: 'Informe o título do chamado.' };
+  if (!descricao) return { ok: false, error: 'Informe a descrição do chamado.' };
+
+  const timesIds = uniqUuids(input.atividade.times_ids);
+  const respIds = uniqUuids(input.atividade.responsaveis_ids);
+  const nomesTimes = await nomesTimesFromIds(supabase, timesIds);
+  const val = validarAtividadeInput(
+    { ...input.atividade, times_ids: timesIds, responsaveis_ids: respIds },
+    input.categoria,
+    nomesTimes,
+  );
+  if (!val.ok) return val;
+
+  const statusChamado = input.status ?? 'pendente';
+
+  const row = {
+    card_id: input.card_id,
+    titulo,
+    descricao,
+    categoria: input.categoria,
+    tipo: 'atividade' as const,
+    times_ids: [] as string[],
+    responsaveis_ids: [] as string[],
+    responsavel_id: null,
+    trava: false,
+    data_vencimento: null,
+    status: statusChamado,
+    prioridade: 'normal',
+    ordem: input.ordem,
+    criado_por: user.id,
+    time: null,
+    origem: input.origem === 'legado' ? 'legado' : 'nativo',
+  };
+
+  const { data: inserted, error } = await supabase
+    .from('kanban_atividades')
+    .insert(row as never)
+    .select('id')
+    .single();
+  if (error || !inserted) return { ok: false, error: error?.message ?? 'Erro ao criar chamado.' };
+
+  const interacaoId = String((inserted as { id: string }).id);
+  const nomeAtiv = (input.atividade.nome ?? '').trim();
+  const timeLabel = nomesTimes[0] ?? '—';
+  const statusAtiv = input.atividade.status ?? 'nao_iniciado';
+  const pastel = nomesTimesIncluemBombeiro(nomesTimes) ? false : Boolean(input.atividade.pastel);
+
+  const topicoRow = {
+    chamado_id: null,
+    interacao_id: interacaoId,
+    ordem: 1,
+    nome: nomeAtiv,
+    descricao: nomeAtiv,
+    descricao_detalhe: (input.atividade.descricao_detalhe ?? '').trim() || null,
+    time_responsavel: timeLabel,
+    responsavel_id: respIds[0] ?? null,
+    responsaveis_ids: respIds,
+    times_ids: timesIds,
+    trava: Boolean(input.atividade.trava),
+    data_fim: dataCampoCalendarioIso(input.atividade.data_fim),
+    status: statusAtiv,
+    tipo: 'atividade' as const,
+    pastel,
+    historico: [] as TopicoHistoricoEvento[],
+  };
+
+  const { error: subErr } = await supabase.from('sirene_topicos').insert(topicoRow as never);
+  if (subErr) {
+    await supabase.from('kanban_atividades').delete().eq('id', interacaoId);
+    return { ok: false, error: subErr.message };
+  }
+
+  if (statusAtiv === 'em_andamento') {
+    await supabase.from('kanban_atividades').update({ status: 'em_andamento' }).eq('id', interacaoId);
+  }
+
+  const origem = input.origem === 'legado' ? 'legado' : 'nativo';
+  let admin;
+  try {
+    admin = createAdminClient();
+    const meta = await buscarMetaCardParaNotificacao(admin, input.card_id, origem);
+    if (meta) {
+      await notificarAlertasKanbanAtividade({
+        userIds: respIds,
+        tipo: 'kanban_atividade_criada',
+        mensagem: `Nova Atividade Criada — ${meta.titulo}`,
+        cardId: input.card_id,
+        basePath: input.basePath?.trim() || meta.basePath,
+        excluirUserId: user.id,
+      });
+    }
+  } catch {
+    /* notificação não bloqueia */
+  }
+
+  revalidatePath(input.basePath?.trim() || '/');
+  revalidatePath('/');
+  return { ok: true };
 }
 
 export async function criarInteracao(input: CriarInteracaoInput): Promise<ActionResult> {
@@ -324,6 +540,7 @@ export async function editarInteracao(id: string, dados: EditarInteracaoInput): 
     update.titulo = t;
   }
   if (dados.descricao !== undefined) update.descricao = dados.descricao;
+  if (dados.categoria !== undefined) update.categoria = dados.categoria;
   if (dados.tipo !== undefined) update.tipo = dados.tipo === 'duvida' ? 'duvida' : dados.tipo === 'proposicoes' ? 'proposicoes' : 'atividade';
   if (dados.data_vencimento !== undefined) {
     update.data_vencimento = dataCampoCalendarioIso(dados.data_vencimento);
@@ -371,30 +588,41 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login para criar um sub-chamado.' };
+  if (!user) return { ok: false, error: 'Faça login para criar uma atividade.' };
 
-  const { plain, mencoesIds } = await resolverMencoesSirene(input.descricao ?? '');
-  const desc = plain.trim();
-  if (!desc) return { ok: false, error: 'Informe o título do sub-chamado.' };
+  const nome = (input.nome ?? input.descricao ?? '').trim();
+  if (!nome) return { ok: false, error: 'Informe o nome da atividade.' };
 
   const { data: interacaoRow } = await supabase
     .from('kanban_atividades')
-    .select('titulo, sirene_chamado_id')
+    .select('titulo, card_id, categoria, origem')
     .eq('id', input.interacao_id)
     .maybeSingle();
-  const sireneChamadoId = (interacaoRow as { sirene_chamado_id?: number | null } | null)
-    ?.sirene_chamado_id;
-  const contextoTitulo =
-    String((interacaoRow as { titulo?: string | null } | null)?.titulo ?? '').trim() ||
-    'Interação';
-  const referenciaPath =
-    sireneChamadoId != null && Number.isFinite(Number(sireneChamadoId))
-      ? `/sirene/${sireneChamadoId}`
-      : '/sirene/chamados';
+  if (!interacaoRow) return { ok: false, error: 'Chamado não encontrado.' };
 
+  const categoria = ((interacaoRow as { categoria?: ChamadoCategoriaDb }).categoria ?? 'chamado') as ChamadoCategoriaDb;
   const timesIds = uniqUuids(input.times_ids);
   const respIds = uniqUuids(input.responsaveis_ids);
-  const timeLabel = await labelTimeResponsavel(supabase, timesIds);
+  const nomesTimes = await nomesTimesFromIds(supabase, timesIds);
+  const val = validarAtividadeInput(
+    {
+      nome,
+      descricao_detalhe: input.descricao_detalhe,
+      times_ids: timesIds,
+      responsaveis_ids: respIds,
+      data_fim: input.data_fim ?? null,
+      trava: input.trava,
+      status: input.status ?? 'nao_iniciado',
+      pastel: input.pastel,
+    },
+    categoria,
+    nomesTimes,
+  );
+  if (!val.ok) return val;
+
+  const timeLabel = nomesTimes[0] ?? '—';
+  const existentes = await todosResponsaveisDoChamado(supabase, input.interacao_id);
+  const novosResp = respIds.filter((id) => !existentes.includes(id));
 
   const { data: maxRow } = await supabase
     .from('sirene_topicos')
@@ -405,36 +633,55 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
     .maybeSingle();
   const proxOrdem = ((maxRow as { ordem?: number } | null)?.ordem ?? 0) + 1;
 
-  const tipoSub: SubInteracaoTipoDb =
-    input.tipo === 'duvida' || input.tipo === 'chamado' || input.tipo === 'proposicoes' ? input.tipo : 'atividade';
+  const statusAtiv = input.status ?? 'nao_iniciado';
+  const pastel = nomesTimesIncluemBombeiro(nomesTimes) ? false : Boolean(input.pastel);
 
   const row = {
     chamado_id: null,
     interacao_id: input.interacao_id,
     ordem: proxOrdem,
-    descricao: desc,
+    nome,
+    descricao: nome,
+    descricao_detalhe: (input.descricao_detalhe ?? '').trim() || null,
     time_responsavel: timeLabel,
-    responsavel_id: respIds.length > 0 ? respIds[0]! : null,
+    responsavel_id: respIds[0] ?? null,
     responsaveis_ids: respIds,
     times_ids: timesIds,
     trava: Boolean(input.trava),
     data_fim: dataCampoCalendarioIso(input.data_fim),
-    data_inicio: null,
-    status: 'nao_iniciado' as const,
-    tipo: tipoSub,
-    tema: normalizeTemaChamado(input.tema),
+    status: statusAtiv,
+    tipo: 'atividade' as const,
+    pastel,
+    historico: [] as TopicoHistoricoEvento[],
   };
 
   const { error } = await supabase.from('sirene_topicos').insert(row as never);
   if (error) return { ok: false, error: error.message };
 
-  await notificarMencoesSirene({
-    mencoesIds,
-    plain: desc,
-    referenciaPath,
-    contextoTitulo,
-    autorId: user.id,
-  });
+  if (statusAtiv === 'em_andamento') {
+    await supabase.from('kanban_atividades').update({ status: 'em_andamento' }).eq('id', input.interacao_id);
+  }
+
+  const cardId = String((interacaoRow as { card_id?: string }).card_id ?? '');
+  const origem = (interacaoRow as { origem?: string }).origem === 'legado' ? 'legado' : 'nativo';
+  if (novosResp.length > 0 && cardId) {
+    try {
+      const admin = createAdminClient();
+      const meta = await buscarMetaCardParaNotificacao(admin, cardId, origem);
+      if (meta) {
+        await notificarAlertasKanbanAtividade({
+          userIds: novosResp,
+          tipo: 'kanban_atividade_criada',
+          mensagem: `Nova Atividade Criada — ${meta.titulo}`,
+          cardId,
+          basePath: input.basePath?.trim() || meta.basePath,
+          excluirUserId: user.id,
+        });
+      }
+    } catch {
+      /* noop */
+    }
+  }
 
   revalidatePath(input.basePath?.trim() || '/');
   revalidatePath('/');
@@ -444,31 +691,134 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
 export async function editarSubInteracao(
   topicoId: string,
   payload: {
-    descricao: string;
-    tipo: SubInteracaoTipoDb;
+    nome: string;
+    descricao_detalhe?: string | null;
     times_ids: string[];
     responsaveis_ids: string[];
     data_fim: string | null;
     trava: boolean;
-    tema?: string | null;
+    status?: SubInteracaoStatusDb;
   },
   basePath?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: 'Faça login para editar.' };
+
+    const idNum = Number.parseInt(String(topicoId), 10);
+    if (!Number.isFinite(idNum)) return { ok: false, error: 'ID inválido.' };
+
+    const { data: antes } = await supabase
+      .from('sirene_topicos')
+      .select('interacao_id, responsaveis_ids, historico, times_ids')
+      .eq('id', idNum)
+      .maybeSingle();
+    if (!antes) return { ok: false, error: 'Atividade não encontrada.' };
+
+    const interacaoId = String((antes as { interacao_id?: string }).interacao_id ?? '');
+    const { data: interacaoRow } = await supabase
+      .from('kanban_atividades')
+      .select('card_id, categoria, origem')
+      .eq('id', interacaoId)
+      .maybeSingle();
+    if (!interacaoRow) return { ok: false, error: 'Chamado não encontrado.' };
+
+    const nome = (payload.nome ?? '').trim();
+    if (!nome) return { ok: false, error: 'Informe o nome da atividade.' };
+
+    const timesIds = uniqUuids(payload.times_ids);
+    const respIds = uniqUuids(payload.responsaveis_ids);
+    const nomesTimes = await nomesTimesFromIds(supabase, timesIds);
+    const categoria = ((interacaoRow as { categoria?: ChamadoCategoriaDb }).categoria ?? 'chamado') as ChamadoCategoriaDb;
+    const val = validarAtividadeInput(
+      {
+        nome,
+        descricao_detalhe: payload.descricao_detalhe,
+        times_ids: timesIds,
+        responsaveis_ids: respIds,
+        data_fim: payload.data_fim,
+        trava: payload.trava,
+        status: payload.status ?? 'nao_iniciado',
+      },
+      categoria,
+      nomesTimes,
+    );
+    if (!val.ok) return val;
+
+    const respAntes = uniqUuids((antes as { responsaveis_ids?: string[] }).responsaveis_ids);
+    const novos = respIds.filter((id) => !respAntes.includes(id));
+    const historicoAntes = (antes as { historico?: unknown }).historico;
+    let historico = historicoAntes;
+    if (novos.length > 0 || respAntes.some((id) => !respIds.includes(id))) {
+      historico = appendHistoricoEvento(historicoAntes, {
+        tipo: 'Redirecionado',
+        em: new Date().toISOString(),
+        por: user.id,
+        de: respAntes,
+        para: respIds,
+      });
+    }
+
+    const timeLabel = nomesTimes[0] ?? '—';
     const { error } = await supabase
       .from('sirene_topicos')
       .update({
-        descricao: payload.descricao.trim(),
-        tipo: payload.tipo,
-        times_ids: payload.times_ids,
-        responsaveis_ids: payload.responsaveis_ids,
-        data_fim: payload.data_fim?.trim() || null,
+        nome,
+        descricao: nome,
+        descricao_detalhe: (payload.descricao_detalhe ?? '').trim() || null,
+        times_ids: timesIds,
+        responsaveis_ids: respIds,
+        responsavel_id: respIds[0] ?? null,
+        time_responsavel: timeLabel,
+        data_fim: dataCampoCalendarioIso(payload.data_fim),
         trava: payload.trava,
-        tema: normalizeTemaChamado(payload.tema),
-      })
-      .eq('id', topicoId);
+        historico,
+        ...(payload.status ? { status: payload.status } : {}),
+      } as never)
+      .eq('id', idNum);
     if (error) return { ok: false, error: error.message };
+
+    if (payload.status === 'em_andamento') {
+      await supabase.from('kanban_atividades').update({ status: 'em_andamento' }).eq('id', interacaoId);
+    }
+
+    const cardId = String((interacaoRow as { card_id?: string }).card_id ?? '');
+    const origem = (interacaoRow as { origem?: string }).origem === 'legado' ? 'legado' : 'nativo';
+    if (cardId) {
+      try {
+        const admin = createAdminClient();
+        const meta = await buscarMetaCardParaNotificacao(admin, cardId, origem);
+        const { data: perf } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+        const quem = String((perf as { full_name?: string } | null)?.full_name ?? '').trim() || 'Alguém';
+        if (meta && novos.length > 0) {
+          await notificarAlertasKanbanAtividade({
+            userIds: novos,
+            tipo: 'kanban_atividade_redirecionada',
+            mensagem: `Nova Atividade Criada — ${meta.titulo}`,
+            cardId,
+            basePath: basePath?.trim() || meta.basePath,
+            excluirUserId: user.id,
+          });
+        }
+        if (meta && novos.length === 0 && respAntes.some((id) => !respIds.includes(id))) {
+          const todos = await todosResponsaveisDoChamado(supabase, interacaoId);
+          await notificarAlertasKanbanAtividade({
+            userIds: todos,
+            tipo: 'kanban_atividade_atualizada',
+            mensagem: `${quem} redirecionou responsáveis no chamado — ${meta.titulo}`,
+            cardId,
+            basePath: basePath?.trim() || meta.basePath,
+            excluirUserId: user.id,
+          });
+        }
+      } catch {
+        /* noop */
+      }
+    }
+
     revalidatePath(basePath ?? '/');
     return { ok: true };
   } catch (e) {
@@ -490,6 +840,14 @@ export async function atualizarStatusSubInteracao(
   const idNum = typeof id === 'number' ? id : Number.parseInt(String(id), 10);
   if (!Number.isFinite(idNum)) return { ok: false, error: 'ID inválido.' };
 
+  const { data: antes } = await supabase
+    .from('sirene_topicos')
+    .select('status, interacao_id')
+    .eq('id', idNum)
+    .maybeSingle();
+  if (!antes) return { ok: false, error: 'Atividade não encontrada.' };
+  const statusAntes = String((antes as { status?: string }).status ?? '');
+
   const { error } = await supabase
     .from('sirene_topicos')
     .update({ status, updated_at: new Date().toISOString() } as never)
@@ -497,23 +855,94 @@ export async function atualizarStatusSubInteracao(
 
   if (error) return { ok: false, error: error.message };
 
-  const { data: topico } = await supabase
-    .from('sirene_topicos')
-    .select('interacao_id, chamado_id')
-    .eq('id', idNum)
-    .maybeSingle();
+  const interacaoId = String((antes as { interacao_id?: string }).interacao_id ?? '');
 
-  if (topico?.interacao_id && status === 'em_andamento') {
+  if (interacaoId && status === 'em_andamento') {
     const { error: errPai } = await supabase
       .from('kanban_atividades')
       .update({ status: 'em_andamento' })
-      .eq('id', topico.interacao_id);
+      .eq('id', interacaoId);
     if (errPai) return { ok: false, error: errPai.message };
+  }
+
+  if (interacaoId && statusAntes !== status) {
+    const { data: interacaoRow } = await supabase
+      .from('kanban_atividades')
+      .select('card_id, origem, titulo')
+      .eq('id', interacaoId)
+      .maybeSingle();
+    const cardId = String((interacaoRow as { card_id?: string }).card_id ?? '');
+    const origem = (interacaoRow as { origem?: string }).origem === 'legado' ? 'legado' : 'nativo';
+    if (cardId) {
+      try {
+        const admin = createAdminClient();
+        const meta = await buscarMetaCardParaNotificacao(admin, cardId, origem);
+        const { data: perf } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+        const quem = String((perf as { full_name?: string } | null)?.full_name ?? '').trim() || 'Alguém';
+        const labelStatus: Record<string, string> = {
+          nao_iniciado: 'Não iniciado',
+          em_andamento: 'Em andamento',
+          concluido: 'Concluído',
+          aprovado: 'Aprovado',
+        };
+        const todos = await todosResponsaveisDoChamado(supabase, interacaoId);
+        if (meta) {
+          await notificarAlertasKanbanAtividade({
+            userIds: todos,
+            tipo: 'kanban_atividade_atualizada',
+            mensagem: `${quem} alterou status para "${labelStatus[status] ?? status}" — ${meta.titulo}`,
+            cardId,
+            basePath: basePath?.trim() || meta.basePath,
+            excluirUserId: user.id,
+          });
+        }
+      } catch {
+        /* noop */
+      }
+    }
   }
 
   revalidatePath(basePath?.trim() || '/');
   revalidatePath('/');
   revalidatePath('/sirene/chamados');
+  return { ok: true };
+}
+
+export async function togglePastelAtividade(
+  topicoId: string,
+  pastel: boolean,
+  basePath?: string,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const idNum = Number.parseInt(String(topicoId), 10);
+  if (!Number.isFinite(idNum)) return { ok: false, error: 'ID inválido.' };
+
+  const { data: row } = await supabase
+    .from('sirene_topicos')
+    .select('responsaveis_ids, times_ids')
+    .eq('id', idNum)
+    .maybeSingle();
+  if (!row) return { ok: false, error: 'Atividade não encontrada.' };
+
+  const respIds = uniqUuids((row as { responsaveis_ids?: string[] }).responsaveis_ids);
+  if (!respIds.includes(user.id)) {
+    return { ok: false, error: 'Somente o responsável da atividade pode alterar Pastel.' };
+  }
+
+  const nomesTimes = await nomesTimesFromIds(supabase, uniqUuids((row as { times_ids?: string[] }).times_ids));
+  if (nomesTimesIncluemBombeiro(nomesTimes)) {
+    return { ok: false, error: 'Atividades do time Bombeiro não podem usar Pastel.' };
+  }
+
+  const { error } = await supabase.from('sirene_topicos').update({ pastel: Boolean(pastel) } as never).eq('id', idNum);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(basePath?.trim() || '/');
   return { ok: true };
 }
 
@@ -523,6 +952,39 @@ export async function atualizarStatusInteracao(
   basePath?: string,
 ): Promise<ActionResult> {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para atualizar.' };
+
+  if (status === 'em_andamento') {
+    return { ok: false, error: 'O status em andamento é definido automaticamente pelas atividades.' };
+  }
+
+  if (status === 'concluida') {
+    const { data: interacao } = await supabase
+      .from('kanban_atividades')
+      .select('criado_por')
+      .eq('id', id)
+      .maybeSingle();
+    const criador = String((interacao as { criado_por?: string } | null)?.criado_por ?? '');
+    if (criador && criador !== user.id) {
+      return { ok: false, error: 'Somente quem abriu o chamado pode marcá-lo como concluído.' };
+    }
+
+    const { data: subs } = await supabase
+      .from('sirene_topicos')
+      .select('status')
+      .eq('interacao_id', id);
+    const abertas = (subs ?? []).filter((s) => {
+      const st = String((s as { status?: string }).status ?? '');
+      return st !== 'concluido' && st !== 'aprovado';
+    });
+    if (abertas.length > 0) {
+      return { ok: false, error: 'Conclua todas as atividades antes de fechar o chamado.' };
+    }
+  }
+
   const { error } = await supabase.from('kanban_atividades').update({ status }).eq('id', id);
   if (error) return { ok: false, error: error.message };
   revalidatePath(basePath?.trim() || '/');

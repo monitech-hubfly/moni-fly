@@ -20,6 +20,7 @@ export type InteracaoModal = {
   id: string;
   titulo: string;
   descricao: string | null;
+  categoria?: 'chamado' | 'melhoria';
   tipo: 'atividade' | 'duvida' | 'proposicoes';
   times_ids: string[] | null;
   status: 'pendente' | 'em_andamento' | 'concluida' | 'cancelada';
@@ -51,7 +52,9 @@ export type SubInteracaoModal = {
   id: string;
   interacao_id: string;
   tipo: SubInteracaoTipoDb;
+  nome: string;
   descricao: string;
+  descricao_detalhe: string | null;
   times_ids: string[];
   responsaveis_ids: string[];
   times_resolvidos: { id: string; nome: string }[];
@@ -59,6 +62,8 @@ export type SubInteracaoModal = {
   data_fim: string | null;
   status: SubInteracaoStatusDb;
   trava: boolean;
+  pastel: boolean;
+  historico: Array<{ tipo: string; em: string; por?: string | null }>;
 };
 
 export type KanbanTimeRow = { id: string; nome: string };
@@ -152,6 +157,91 @@ export function tagsTimesParaLinha(it: InteracaoModal, catalog: KanbanTimeRow[])
   }
   if (it.time?.trim()) return [{ id: '_legado', nome: it.time.replace(/_/g, ' ') }];
   return [];
+}
+
+/** Times únicos de todas as atividades abertas do chamado (fallback ao pai legado). */
+export function tagsTimesDeAtividades(
+  it: InteracaoModal,
+  subs: SubInteracaoModal[],
+  catalog: KanbanTimeRow[],
+): { id: string; nome: string }[] {
+  if (subs.length > 0) {
+    const seen = new Map<string, { id: string; nome: string }>();
+    for (const sub of subs) {
+      for (const t of sub.times_resolvidos ?? []) {
+        if (!seen.has(t.id)) seen.set(t.id, t);
+      }
+      if ((sub.times_resolvidos ?? []).length === 0) {
+        for (const id of sub.times_ids ?? []) {
+          if (seen.has(id)) continue;
+          const hit = catalog.find((x) => x.id === id);
+          seen.set(id, { id, nome: hit?.nome ?? id.slice(0, 8) });
+        }
+      }
+    }
+    if (seen.size > 0) return [...seen.values()];
+  }
+  return tagsTimesParaLinha(it, catalog);
+}
+
+/** Trava efetiva: qualquer atividade aberta com trava. */
+export function travaEfetivaParaChamado(_it: InteracaoModal, subs: SubInteracaoModal[]): boolean {
+  if (!subs.length) return false;
+  return subs.some(
+    (s) => s.trava && s.status !== 'concluido' && s.status !== 'aprovado',
+  );
+}
+
+function subPassaFiltroTime(
+  sub: SubInteracaoModal,
+  filtroId: string,
+  catalog: KanbanTimeRow[],
+): boolean {
+  if (filtroId === 'todos') return true;
+  if (filtroId.startsWith(MONI_TIME_FILTRO_PREFIX)) {
+    const nome = filtroId.slice(MONI_TIME_FILTRO_PREFIX.length).trim().toLowerCase();
+    if (!nome) return false;
+    for (const t of sub.times_resolvidos ?? []) {
+      if (t.nome.trim().toLowerCase() === nome) return true;
+    }
+    for (const id of sub.times_ids ?? []) {
+      const hit = catalog.find((x) => x.id === id);
+      if (hit && hit.nome.trim().toLowerCase() === nome) return true;
+    }
+    return false;
+  }
+  return (sub.times_ids ?? []).includes(filtroId);
+}
+
+function subPassaFiltroResponsavel(sub: SubInteracaoModal, filtroId: string): boolean {
+  if (filtroId === 'todos') return true;
+  const ids = [...(sub.responsaveis_ids ?? [])];
+  return ids.includes(filtroId);
+}
+
+export function interacaoPassaFiltroTimeComSubs(
+  it: InteracaoModal,
+  subs: SubInteracaoModal[],
+  filtroId: string,
+  catalog: KanbanTimeRow[],
+): boolean {
+  if (filtroId === 'todos') return true;
+  if (subs.length > 0) {
+    return subs.some((s) => subPassaFiltroTime(s, filtroId, catalog));
+  }
+  return interacaoPassaFiltroTime(it, filtroId, catalog);
+}
+
+export function interacaoPassaFiltroResponsavelComSubs(
+  it: InteracaoModal,
+  subs: SubInteracaoModal[],
+  filtroId: string,
+): boolean {
+  if (filtroId === 'todos') return true;
+  if (subs.length > 0) {
+    return subs.some((s) => subPassaFiltroResponsavel(s, filtroId));
+  }
+  return interacaoPassaFiltroResponsavel(it, filtroId);
 }
 
 export function interacaoPassaFiltroTime(

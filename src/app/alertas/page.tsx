@@ -7,6 +7,9 @@ function rotuloTipo(tipo: string): string {
   if (tipo === 'mencao_kanban_card') return 'Menção em card';
   if (tipo === 'mencao_sirene') return 'Menção no Sirene';
   if (tipo === 'mencao_card') return 'Menção em processo';
+  if (tipo === 'kanban_atividade_criada') return 'Nova atividade';
+  if (tipo === 'kanban_atividade_atualizada') return 'Chamado atualizado';
+  if (tipo === 'kanban_atividade_redirecionada') return 'Atividade redirecionada';
   return tipo;
 }
 

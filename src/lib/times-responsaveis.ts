@@ -11,18 +11,58 @@ export const TIMES_MONI = [
   'Bombeiro',
   'Caneta Verde',
   'Controladoria',
-  'Crédito',
+  'Diretoria',
   'Executivo Local',
   'Homologações',
   'Jurídico',
   'Marketing',
   'Modelo Virtual',
+  'Moní Capital',
   'Moní Inc',
   'Novos Franqueados',
   'Portfólio',
   'Produto',
   'Waysers',
 ] as const;
+
+/** Emails @moni.casa por nome canônico (catálogo chamados). */
+export const MONI_EMAIL_POR_NOME: Record<string, string> = {
+  'Neil Hirano': 'neil@moni.casa',
+  'Murillo Morale': 'murillo@moni.casa',
+  'Ingrid Hora': 'ingrid.hora@moni.casa',
+  'Fernanda Lobão': 'fernanda.lobao@moni.casa',
+  'Danilo Nyitray': 'danilo.n@moni.casa',
+  'Jéssica Ferreira': 'jessica.ferreira@moni.casa',
+  'Nathalia Ferezin': 'nathalia.ferezin@moni.casa',
+  'Rafael Matta': 'rafael.matta@moni.casa',
+  'Bruna Scarpeli': 'bruna.scarpeli@moni.casa',
+  'Alef Lopes': 'alef.lopes@moni.casa',
+  'Larissa Lima': 'larissa.lima@moni.casa',
+  'Letícia Ipolito': 'leticia.ipolito@moni.casa',
+  'Elisabete Nucci': 'elisabete.nucci@moni.casa',
+  'Renata Silva': 'renata.silva@moni.casa',
+  'Helenna Luz': 'helenna.luz@moni.casa',
+  'Daniel Viotto': 'daniel.viotto@moni.casa',
+  'Karoline Galdino': 'karoline.galdino@moni.casa',
+  'Helena Oliveira': 'helena.oliveira@moni.casa',
+  'Jéssica Silva': 'jessica.silva@moni.casa',
+  'Letícia Duarte': 'leticia.duarte@moni.casa',
+  'Vinícius França': 'vinicius.fr@moni.casa',
+  'Mateus Palma': 'mateus.palma@moni.casa',
+  'Fábio Siano': 'fabio.siano@moni.casa',
+  'Rafael Abreu': 'rafael.abreu@moni.casa',
+  'João Fernandes': 'joao.fernandes@moni.casa',
+  'Isabella Seabra': 'isa.seabra@moni.casa',
+  'Felipe Batista': 'felipe.batista@moni.casa',
+  'Isabela Correa': 'isabela.correa@moni.casa',
+  'Thais Kim': 'kim@moni.casa',
+  'Diogo Costa': 'diogo.costa@moni.casa',
+  'Paula Cruz': 'paula.cruz@moni.casa',
+};
+
+export const MONI_TODOS_EMAILS: readonly string[] = [
+  ...new Set(Object.values(MONI_EMAIL_POR_NOME).map((e) => e.trim().toLowerCase())),
+];
 
 /** Nomes exatos dos times Moní usados em chamados HDM (subset de `TIMES_MONI`). */
 export const TIMES_MONI_HDM = ['Homologações', 'Modelo Virtual', 'Produto', 'Executivo Local'] as const;
@@ -109,12 +149,15 @@ const APELIDO_MONI_PARA_EMAIL: Record<string, string> = {
   elisabete: 'elisabete.nucci@moni.casa',
 };
 
-/** Resolve email em `profiles` a partir do nome completo do catálogo HDM, apelido ou texto legado. */
+/** Resolve email em `profiles` a partir do nome completo do catálogo Moní, apelido ou texto legado. */
 export function resolverEmailMoniPorNomeOuApelido(texto: string): string | null {
   const raw = (texto ?? '').trim();
   if (!raw) return null;
   const n = normMoniNome(raw);
   if (!n) return null;
+  for (const [nome, email] of Object.entries(MONI_EMAIL_POR_NOME)) {
+    if (normMoniNome(nome) === n) return email.trim().toLowerCase();
+  }
   for (const t of TIMES_MONI_HDM) {
     for (const { nome, email } of HDM_RESPONSAVEIS[t]) {
       if (normMoniNome(nome) === n) return email.trim().toLowerCase();
@@ -206,22 +249,23 @@ export function filtrarOpcoesTimeIdNomePorHdm(
 }
 
 export const RESPONSAVEIS_POR_TIME: Record<string, string[]> = {
-  'Caneta Verde': ['Neil Hirano', 'Murillo Morale', 'Ingrid Hora', 'Fernanda Lobão', 'Danilo Nyitray'],
+  Diretoria: ['Neil Hirano', 'Murillo Morale'],
+  'Caneta Verde': ['Ingrid Hora', 'Fernanda Lobão', 'Danilo Nyitray', 'Jéssica Ferreira'],
+  Bombeiro: ['Danilo Nyitray'],
   Waysers: ['Nathalia Ferezin', 'Rafael Matta'],
   'Modelo Virtual': HDM_RESPONSAVEIS['Modelo Virtual'].map((x) => x.nome),
-  'Executivo Local': ['Larissa Lima'],
+  'Executivo Local': ['Larissa Lima', 'Letícia Ipolito'],
   Acoplamento: ['Elisabete Nucci'],
+  Portfólio: ['Renata Silva'],
   'Moní Inc': ['Helenna Luz', 'Daniel Viotto'],
   Homologações: HDM_RESPONSAVEIS.Homologações.map((x) => x.nome),
   Produto: HDM_RESPONSAVEIS.Produto.map((x) => x.nome),
-  Marketing: ['Rafael Abreu'],
+  Marketing: ['Rafael Abreu', 'João Fernandes'],
   Administrativo: ['Isabella Seabra'],
   Controladoria: ['Felipe Batista'],
   Jurídico: ['Isabela Correa'],
-  Crédito: ['Thais Kim'],
+  'Moní Capital': ['Thais Kim', 'Diogo Costa'],
   'Novos Franqueados': ['Paula Cruz'],
-  Portfólio: ['Helenna Luz'],
-  Bombeiro: ['Bombeiro'],
 };
 
 export const TODOS_RESPONSAVEIS = Object.values(RESPONSAVEIS_POR_TIME).flat();
@@ -254,7 +298,7 @@ export function timesOpcoesReceberChamado(
 }
 
 /**
- * Todos os responsáveis do catálogo + perfis extra (ex.: nomes fora da lista), sem duplicar por nome.
+ * Responsáveis do catálogo Moní com login (`profiles.id`); omite quem não tem perfil.
  */
 export function responsaveisFiltroOpcoesComCatalogoMoni(
   profiles: readonly { id: string; nome: string; email?: string | null }[],
@@ -266,22 +310,64 @@ export function responsaveisFiltroOpcoesComCatalogoMoni(
     if (!n) continue;
     const key = n.toLowerCase();
     if (seen.has(key)) continue;
-    seen.add(key);
     const em = resolverEmailMoniPorNomeOuApelido(n);
     const hit =
       profiles.find((p) => p.nome.trim() === n) ??
       (em ? profiles.find((p) => (p.email ?? '').trim().toLowerCase() === em) : undefined);
-    out.push(hit ?? { id: `${MONI_RESP_FILTRO_PREFIX}${encodeURIComponent(n)}`, nome: n });
-  }
-  for (const p of profiles) {
-    const n = p.nome.trim();
-    if (!n) continue;
-    const key = n.toLowerCase();
-    if (seen.has(key)) continue;
+    if (!hit) continue;
     seen.add(key);
-    out.push({ id: p.id, nome: p.nome });
+    out.push({ id: hit.id, nome: n });
   }
   return out.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+/** União de responsáveis dos times selecionados (nomes canônicos). */
+export function responsaveisNomesPorTimes(times: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const t of times) {
+    const nomeTime = String(t ?? '').trim();
+    if (!nomeTime) continue;
+    for (const p of responsaveisDoTimeMoni(nomeTime)) {
+      const key = p.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(p);
+    }
+  }
+  return out.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
+
+/** Filtra opções de perfil pelos times Moní selecionados (por nome de time). */
+export function responsaveisFiltradosPorTimesNomes(
+  timesNomes: readonly string[],
+  profileOpts: readonly PerfilNomeRow[],
+): PerfilNomeRow[] {
+  const allowed = new Set(responsaveisNomesPorTimes(timesNomes).map((n) => n.toLowerCase()));
+  if (allowed.size === 0) return [];
+  return profileOpts.filter((p) => {
+    const n = p.nome.trim();
+    if (n && allowed.has(n.toLowerCase())) return true;
+    const em = (p.email ?? '').trim().toLowerCase();
+    if (!em) return false;
+    for (const nome of allowed) {
+      const canon = Object.entries(MONI_EMAIL_POR_NOME).find(([k]) => k.toLowerCase() === nome)?.[1];
+      if (canon && canon.toLowerCase() === em) return true;
+    }
+    return false;
+  });
+}
+
+/** Filtra opções de perfil pelos IDs/nomes de times em `kanban_times`. */
+export function responsaveisFiltradosPorTimesIds(
+  timesIds: readonly string[],
+  kanbanTimes: readonly KanbanTimeNomeRow[],
+  profileOpts: readonly PerfilNomeRow[],
+): PerfilNomeRow[] {
+  const nomes = timesIds
+    .map((id) => kanbanTimes.find((t) => t.id === id)?.nome?.trim())
+    .filter((n): n is string => Boolean(n));
+  return responsaveisFiltradosPorTimesNomes(nomes, profileOpts);
 }
 
 const TIMES_SET = new Set<string>(TIMES_MONI);
