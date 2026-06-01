@@ -4474,16 +4474,18 @@ export default function Page() {
     setConcluindoMetaId(meta.id)
     setError(null)
     try {
-      const { error: errObj } = await supabase
+      const { error: errStatus } = await supabase
         .from('objetivos')
-        .update({
-          status: 'aberto',
-          concluido: false,
-          concluido_em: null,
-          comentario_conclusao: null
-        })
+        .update({ status: 'aberto' })
         .eq('id', meta.id)
-      if (errObj) throw errObj
+
+      if (errStatus) throw errStatus
+
+      await supabase
+        .from('objetivos')
+        .update({ concluido: false, concluido_em: null, comentario_conclusao: null })
+        .eq('id', meta.id)
+        .then(() => {})
 
       await supabase.from('conquistas').delete().eq('objetivo_id', meta.id)
       await supabase.from('indicador_conquistas').delete().eq('objetivo_id', meta.id)
