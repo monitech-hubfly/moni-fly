@@ -324,16 +324,15 @@ export function DetalheChamadoConteudo({
           time_responsavel: t.time_responsavel,
           data_inicio: t.data_inicio ?? '',
           data_fim: t.data_fim ?? '',
-          trava: t.trava,
         })),
       );
     } else {
-      setTopicos([{ descricao: '', time_responsavel: '', data_inicio: '', data_fim: '', trava: false }]);
+      setTopicos([{ descricao: '', time_responsavel: '', data_inicio: '', data_fim: '' }]);
     }
   }, [mostrarControlesBombeiro, chamado.id, topicosListCarregado, topicosList]);
 
   const adicionarTopico = () => {
-    setTopicos((prev) => [...prev, { descricao: '', time_responsavel: times[0] ?? '', data_inicio: '', data_fim: '', trava: false }]);
+    setTopicos((prev) => [...prev, { descricao: '', time_responsavel: times[0] ?? '', data_inicio: '', data_fim: '' }]);
   };
 
   const atualizarTopico = (idx: number, campo: keyof TopicoInput, valor: string | boolean) => {
@@ -907,17 +906,7 @@ export function DetalheChamadoConteudo({
                           disabled={isPending}
                         />
                       </div>
-                      <div className="flex items-center justify-between">
-                        <label className="flex items-center gap-1.5 text-xs text-stone-400">
-                          <input
-                            type="checkbox"
-                            checked={t.trava ?? false}
-                            onChange={(e) => atualizarTopico(idx, 'trava', e.target.checked)}
-                            className="rounded border-stone-500"
-                            disabled={isPending}
-                          />
-                          Trava
-                        </label>
+                      <div className="flex items-center justify-end">
                         <button
                           type="button"
                           onClick={() => removerTopico(idx)}

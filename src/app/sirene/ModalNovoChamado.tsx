@@ -24,6 +24,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
   const [titulo, setTitulo] = useState('');
   const [descricao, setDescricao] = useState('');
   const [categoria, setCategoria] = useState<'chamado' | 'melhoria'>('chamado');
+  const [trava, setTrava] = useState(false);
   const [atividade, setAtividade] = useState<AtividadeFormDraft>({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
   const [atividadeAberta, setAtividadeAberta] = useState(false);
   const [kanbanTimes, setKanbanTimes] = useState<{ id: string; nome: string }[]>([]);
@@ -93,6 +94,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     setTitulo('');
     setDescricao('');
     setCategoria('chamado');
+    setTrava(false);
     setAtividade({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
     setAtividadeAberta(false);
     setCardVinculo(null);
@@ -136,13 +138,13 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
       descricao: descricao.trim(),
       categoria,
       status: 'pendente',
+      trava,
       atividade: {
         nome: atividade.nome.trim(),
         descricao_detalhe: atividade.descricaoDetalhe.trim() || null,
         times_ids: atividade.timesIds,
         responsaveis_ids: atividade.responsaveisIds,
         data_fim: atividade.data.trim() || null,
-        trava: atividade.trava,
         status: atividade.status,
         pastel: atividade.pastel,
       },
@@ -295,6 +297,16 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
             <option value="chamado">Chamado</option>
             <option value="melhoria">Melhoria</option>
           </select>
+
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-stone-700">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-stone-300"
+              checked={trava}
+              onChange={(e) => setTrava(e.target.checked)}
+            />
+            Trava — bloqueia o avanço até concluir
+          </label>
 
           <ChamadoAtividadeCollapsibleSection
             aberto={atividadeAberta}

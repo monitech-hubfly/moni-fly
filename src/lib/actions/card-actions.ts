@@ -202,7 +202,6 @@ export type CriarSubInteracaoInput = {
   times_ids: string[];
   responsaveis_ids: string[];
   data_fim?: string | null;
-  trava: boolean;
   status?: SubInteracaoStatusDb;
   pastel?: boolean;
   basePath?: string;
@@ -219,7 +218,6 @@ export type AtividadeInput = {
   times_ids: string[];
   responsaveis_ids: string[];
   data_fim: string | null;
-  trava: boolean;
   status: SubInteracaoStatusDb;
   pastel?: boolean;
 };
@@ -230,6 +228,8 @@ export type CriarChamadoComAtividadeInput = {
   descricao: string;
   categoria: ChamadoCategoriaDb;
   status?: 'pendente' | 'concluida' | 'cancelada';
+  /** Trava no chamado (interação pai), não na atividade. */
+  trava?: boolean;
   atividade: AtividadeInput;
   ordem: number;
   basePath?: string;
@@ -241,6 +241,8 @@ export type CriarChamadoSireneComAtividadeInput = {
   descricao: string;
   categoria: ChamadoCategoriaDb;
   status?: 'pendente' | 'concluida' | 'cancelada';
+  /** Trava no chamado (sirene_chamados / interação pai), não na atividade. */
+  trava?: boolean;
   atividade: AtividadeInput;
   /** Vínculo opcional com card aberto — torna o chamado somente leitura na Sirene. */
   card_id?: string | null;
@@ -451,7 +453,7 @@ export async function criarChamadoComAtividade(input: CriarChamadoComAtividadeIn
     times_ids: [] as string[],
     responsaveis_ids: [] as string[],
     responsavel_id: null,
-    trava: false,
+    trava: Boolean(input.trava),
     data_vencimento: null,
     status: statusChamado,
     prioridade: 'normal',
@@ -486,7 +488,7 @@ export async function criarChamadoComAtividade(input: CriarChamadoComAtividadeIn
     responsavel_id: respIds[0] ?? null,
     responsaveis_ids: respIds,
     times_ids: timesIds,
-    trava: Boolean(input.atividade.trava),
+    trava: false,
     status: statusAtiv,
     tipo: 'atividade' as const,
     pastel,
@@ -580,7 +582,7 @@ export async function criarChamadoSireneComAtividade(
       abertura_responsavel_nome: null,
       tipo: tipoSc,
       hdm_responsavel: hdmResponsavel,
-      trava: Boolean(input.atividade.trava),
+      trava: Boolean(input.trava),
       ...(cardId
         ? {
             card_id: cardId,
@@ -612,7 +614,7 @@ export async function criarChamadoSireneComAtividade(
       times_ids: [] as string[],
       responsaveis_ids: [] as string[],
       responsavel_id: null,
-      trava: false,
+      trava: Boolean(input.trava),
       data_vencimento: null,
       status: statusChamado,
       prioridade: 'normal',
@@ -646,7 +648,7 @@ export async function criarChamadoSireneComAtividade(
     responsavel_id: respIds[0] ?? null,
     responsaveis_ids: respIds,
     times_ids: timesIds,
-    trava: Boolean(input.atividade.trava),
+    trava: false,
     status: statusAtiv,
     tipo: 'atividade',
     pastel,
@@ -866,7 +868,6 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
       times_ids: timesIds,
       responsaveis_ids: respIds,
       data_fim: input.data_fim ?? null,
-      trava: input.trava,
       status: input.status ?? 'nao_iniciado',
       pastel: input.pastel,
     },
@@ -903,7 +904,6 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
     responsavel_id: respIds[0] ?? null,
     responsaveis_ids: respIds,
     times_ids: timesIds,
-    trava: Boolean(input.trava),
     status: statusAtiv,
     tipo: 'atividade' as const,
     pastel,
@@ -945,7 +945,6 @@ export async function editarSubInteracao(
     times_ids: string[];
     responsaveis_ids: string[];
     data_fim: string | null;
-    trava: boolean;
     status?: SubInteracaoStatusDb;
     pastel?: boolean;
   },
@@ -994,7 +993,6 @@ export async function editarSubInteracao(
         times_ids: timesIds,
         responsaveis_ids: respIds,
         data_fim: payload.data_fim,
-        trava: payload.trava,
         status: payload.status ?? 'nao_iniciado',
         pastel: payload.pastel,
       },
@@ -1027,7 +1025,6 @@ export async function editarSubInteracao(
       responsaveis_ids: respIds,
       responsavel_id: respIds[0] ?? null,
       time_responsavel: timeLabel,
-      trava: payload.trava,
       historico,
       ...(payload.status ? { status: payload.status } : {}),
     };

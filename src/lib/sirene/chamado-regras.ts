@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+/** Trava existe somente no chamado (sirene_chamados / kanban_atividades pai). Atividades (sirene_topicos) não usam trava. */
+
 /** Sub-atividade considerada encerrada para o criador poder concluir o chamado. */
 export function topicoStatusFechado(status: string | null | undefined): boolean {
   const s = String(status ?? '').trim();

@@ -350,11 +350,6 @@ export function SireneChamadoDetalheModal({
                   >
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        {t.trava ? (
-                          <span className="mb-1 inline-block rounded border border-red-200 bg-red-50 px-1 py-0.5 text-[9px] font-bold uppercase text-red-800">
-                            Trava
-                          </span>
-                        ) : null}
                         {t.pastel && !podePastel ? (
                           <span className="mb-1 ml-1 inline-block rounded border border-amber-300 bg-amber-50 px-1 py-0.5 text-[9px] font-bold uppercase text-amber-800">
                             Pastel

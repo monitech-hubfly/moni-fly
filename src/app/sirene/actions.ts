@@ -497,7 +497,6 @@ export type TopicoInput = {
   time_responsavel: string;
   data_inicio?: string;
   data_fim?: string;
-  trava?: boolean;
 };
 
 /** Salvar resolução em tópicos: cria/atualiza tópicos, marca início do atendimento e status em andamento. */
@@ -534,7 +533,6 @@ export async function salvarResolucaoComTopicos(
       time_responsavel: t.time_responsavel.trim(),
       data_inicio: dataInicio || null,
       data_fim: dataFim || null,
-      trava: t.trava ?? false,
       status: 'nao_iniciado',
       tipo: 'atividade',
     });
@@ -1319,7 +1317,6 @@ export type AdicionarTopicoChamadoPainelInput = {
   times_ids: string[];
   responsaveis_ids: string[];
   data_fim: string | null;
-  trava: boolean;
   tema?: string | null;
 };
 
@@ -1391,7 +1388,6 @@ export async function adicionarTopicoChamadoPainel(
     responsavel_id: respIds.length > 0 ? respIds[0]! : null,
     responsaveis_ids: respIds,
     status: 'nao_iniciado',
-    trava: Boolean(payload.trava),
     data_fim: dataFim,
     tipo,
     tema: payload.tema?.trim() || null,
@@ -1424,7 +1420,6 @@ export async function editarTopico(
     times_ids: string[];
     responsaveis_ids: string[];
     data_fim: string | null;
-    trava: boolean;
     tema: string;
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -1439,7 +1434,6 @@ export async function editarTopico(
         times_ids: payload.times_ids,
         responsaveis_ids: payload.responsaveis_ids,
         data_fim: dataFim,
-        trava: payload.trava,
         tema: payload.tema,
       })
       .eq('id', topicoId);
@@ -2153,7 +2147,7 @@ export async function getMonitorTopicosPorTime(
       numero: c.numero,
       incendio: c.incendio,
       frank_nome: c.frank_nome,
-      trava: (t as { trava?: boolean }).trava ?? c.trava,
+      trava: c.trava,
       descricao: t.descricao,
       status: t.status,
       data_inicio: t.data_inicio ?? null,
@@ -2619,7 +2613,7 @@ function metricasToLista(
   return top8PorAbertos(rows);
 }
 
-/** Tópicos do escopo: abertos = não concluído/aprovado; atrasados = data_fim vencida ou SLA da interação; com_trava = trava do tópico ou do chamado. */
+/** Tópicos do escopo: abertos = não concluído/aprovado; atrasados = data_fim vencida ou SLA da interação; com_trava = trava do chamado. */
 async function aggregatePorResponsavel(
   queryClient: Awaited<ReturnType<typeof createClient>>,
   allowedChamadoIds: Set<number>,
@@ -2628,7 +2622,7 @@ async function aggregatePorResponsavel(
   const { data: topicosRows } = await queryClient
     .from('sirene_topicos')
     .select(
-      'status, chamado_id, interacao_id, data_fim, trava, responsaveis_ids, responsavel_id',
+      'status, chamado_id, interacao_id, data_fim, responsaveis_ids, responsavel_id',
     )
     .or('arquivado.eq.false,arquivado.is.null');
 
@@ -2688,8 +2682,7 @@ async function aggregatePorResponsavel(
       aberto &&
       (slaStatusFromDate(dataFim) === 'atrasado' ||
         (iid != null && slaByInteracao.get(String(iid)) === 'atrasado'));
-    const comTrava =
-      Boolean((t as { trava?: boolean }).trava) || (comTravaByChamadoId.get(cid) ?? false);
+    const comTrava = comTravaByChamadoId.get(cid) ?? false;
 
     for (const uid of responsaveisIdsFromTopico(t as { responsaveis_ids?: unknown; responsavel_id?: string | null })) {
       if (aberto) bump(uid, 'abertos');

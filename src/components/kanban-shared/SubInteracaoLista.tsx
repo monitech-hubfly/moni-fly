@@ -121,17 +121,6 @@ export function SubInteracaoLista({ items, variant, className = '', renderTraili
         return (
           <li key={String(it.id)} className={`flex flex-wrap items-center gap-1.5 text-[10px] leading-snug ${baseRow}`}>
             <span className={`rounded px-1 py-0.5 font-bold uppercase tracking-wide ${tipoClass}`}>{tipoBadge}</span>
-            {it.trava ? (
-              <span
-                className={
-                  isSirene
-                    ? 'rounded border border-red-200 bg-red-50 px-1 py-0.5 font-bold uppercase text-red-800'
-                    : 'rounded border border-red-300 bg-red-50 px-1 py-0.5 font-bold uppercase text-red-800'
-                }
-              >
-                Trava
-              </span>
-            ) : null}
             <span className={`rounded border px-1 py-0.5 font-semibold ${statusClass}`}>{statusPt}</span>
             <SlaAtividadeBadge
               prazoIso={it.data_fim}

@@ -70,9 +70,6 @@ export function ChamadoAtividadesPanel({
           {subs.map((sub) => (
             <li key={sub.id} className="rounded border border-stone-200 bg-white/80 px-2 py-1.5">
               <div className="flex flex-wrap items-center gap-1">
-                {sub.trava ? (
-                  <span className="text-[9px] font-bold uppercase text-red-600">Trava</span>
-                ) : null}
                 <span className="font-medium text-stone-800">{sub.nome || sub.descricao}</span>
                 {sub.historico.some((h) => h.tipo === 'Redirecionado') ? (
                   <span className="rounded border border-amber-300 bg-amber-50 px-1 text-[9px] text-amber-800">

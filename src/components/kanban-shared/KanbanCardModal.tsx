@@ -437,6 +437,7 @@ export function KanbanCardModal({
     descricao: '',
     categoria: 'chamado' as 'chamado' | 'melhoria',
     status: 'pendente' as const,
+    trava: false,
     atividade: { ...ATIVIDADE_FORM_DRAFT_VAZIO },
   });
   const [novoChamadoFormAberto, setNovoChamadoFormAberto] = useState(false);
@@ -552,6 +553,7 @@ export function KanbanCardModal({
       descricao: '',
       categoria: 'chamado',
       status: 'pendente',
+      trava: false,
       atividade: { ...ATIVIDADE_FORM_DRAFT_VAZIO },
     });
     setEditDraft({
@@ -1392,13 +1394,13 @@ export function KanbanCardModal({
         descricao: novaInteracao.descricao.trim(),
         categoria: novaInteracao.categoria,
         status: novaInteracao.status,
+        trava: novaInteracao.trava,
         atividade: {
           nome: ativ.nome.trim(),
           descricao_detalhe: ativ.descricaoDetalhe.trim() || null,
           times_ids: ativ.timesIds,
           responsaveis_ids: ativ.responsaveisIds,
           data_fim: ativ.data.trim() || null,
-          trava: ativ.trava,
           status: ativ.status,
           pastel: ativ.pastel,
         },
@@ -1430,6 +1432,7 @@ export function KanbanCardModal({
         descricao: '',
         categoria: 'chamado',
         status: 'pendente',
+        trava: false,
         atividade: { ...ATIVIDADE_FORM_DRAFT_VAZIO },
       });
       setNovoChamadoFormAberto(false);
@@ -1591,7 +1594,6 @@ export function KanbanCardModal({
         times_ids: subNovaDraft.timesIds,
         responsaveis_ids: subNovaDraft.responsaveisIds,
         data_fim: subNovaDraft.data.trim() || null,
-        trava: subNovaDraft.trava,
         status: subNovaDraft.status,
         pastel: subNovaDraft.pastel,
         basePath,
@@ -1644,7 +1646,6 @@ export function KanbanCardModal({
           times_ids: editSubDraft.timesIds,
           responsaveis_ids: editSubDraft.responsaveisIds,
           data_fim: editSubDraft.data.trim() || null,
-          trava: editSubDraft.trava,
           status: editSubDraft.status,
           pastel: editSubDraft.pastel,
         },
@@ -3657,11 +3658,6 @@ export function KanbanCardModal({
                                           </button>
                                           <div className="min-w-0 flex-1">
                                             <div className="flex flex-wrap items-center gap-1.5">
-                                              {sub.trava ? (
-                                                <span className="rounded border border-red-300 bg-red-50 px-1 py-0.5 text-[9px] font-bold uppercase text-red-700">
-                                                  Trava
-                                                </span>
-                                              ) : null}
                                               <span className="rounded border border-stone-300 bg-stone-100 px-1 py-0.5 text-[9px] font-bold uppercase text-stone-700">
                                                 {sub.tipo === 'duvida'
                                                   ? 'Dúvida'
@@ -3707,7 +3703,6 @@ export function KanbanCardModal({
                                                       data: sub.data_fim ?? '',
                                                       timesIds: sub.times_ids,
                                                       responsaveisIds: sub.responsaveis_ids,
-                                                      trava: sub.trava,
                                                       status:
                                                         sub.status === 'aprovado' ? 'concluido' : sub.status,
                                                       pastel: sub.pastel,
@@ -3954,6 +3949,7 @@ export function KanbanCardModal({
                           descricao: '',
                           categoria: 'chamado',
                           status: 'pendente',
+                          trava: false,
                           atividade: { ...ATIVIDADE_FORM_DRAFT_VAZIO },
                         });
                       }}
@@ -4011,6 +4007,15 @@ export function KanbanCardModal({
                       <option value="pendente">Pendente</option>
                     </select>
                   </div>
+                  <label className="flex cursor-pointer items-center gap-2 text-[11px] text-stone-700">
+                    <input
+                      type="checkbox"
+                      className="h-3.5 w-3.5 shrink-0"
+                      checked={novaInteracao.trava}
+                      onChange={(e) => setNovaInteracao((n) => ({ ...n, trava: e.target.checked }))}
+                    />
+                    Trava — bloqueia o card até concluir
+                  </label>
                   <ChamadoAtividadeCollapsibleSection
                     aberto={novaAtividadeAberta}
                     onAbrir={() => setNovaAtividadeAberta(true)}

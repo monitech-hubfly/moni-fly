@@ -13,7 +13,6 @@ export type AtividadeFormDraft = {
   data: string;
   timesIds: string[];
   responsaveisIds: string[];
-  trava: boolean;
   status: SubInteracaoStatusDb;
   pastel: boolean;
   /** Anexos selecionados antes de salvar a atividade. */
@@ -26,7 +25,6 @@ export const ATIVIDADE_FORM_DRAFT_VAZIO: AtividadeFormDraft = {
   data: '',
   timesIds: [],
   responsaveisIds: [],
-  trava: false,
   status: 'nao_iniciado',
   pastel: false,
   pendingAnexos: [],
@@ -117,7 +115,7 @@ export function KanbanAtividadeFormFields({
         ) : null}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="flex min-w-0 flex-col">
           <div className="mb-1 space-y-0.5">
             <span className="block font-medium text-stone-600">Prazo limite</span>
@@ -149,17 +147,6 @@ export function KanbanAtividadeFormFields({
             <option value="concluido">Concluído</option>
           </select>
         </div>
-        <label className="flex min-w-0 cursor-pointer flex-col text-stone-700">
-          <span className={`mt-auto flex items-center gap-2 ${py}`}>
-            <input
-              type="checkbox"
-              className="h-3.5 w-3.5 shrink-0"
-              checked={draft.trava}
-              onChange={(e) => setDraft((d) => ({ ...d, trava: e.target.checked }))}
-            />
-            <span className="leading-snug">Trava - não consigo avançar sem</span>
-          </span>
-        </label>
       </div>
 
       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">

@@ -258,12 +258,9 @@ export function tagsTimesDeAtividades(
   return tagsTimesParaLinha(it, catalog);
 }
 
-/** Trava efetiva: qualquer atividade aberta com trava. */
-export function travaEfetivaParaChamado(_it: InteracaoModal, subs: SubInteracaoModal[]): boolean {
-  if (!subs.length) return false;
-  return subs.some(
-    (s) => s.trava && s.status !== 'concluido' && s.status !== 'aprovado',
-  );
+/** Trava efetiva: apenas no chamado (interação pai / sirene_chamados), nunca em atividades. */
+export function travaEfetivaParaChamado(it: InteracaoModal, _subs?: SubInteracaoModal[]): boolean {
+  return Boolean(it.trava);
 }
 
 function subPassaFiltroTime(

@@ -66,6 +66,7 @@ export interface Topico {
   responsavel_nome: string | null;
   data_inicio: string | null;
   data_fim: string | null;
+  /** Legado: coluna mantida no DB; trava é só no chamado. */
   trava: boolean;
   status: TopicoStatus;
   resolucao_time: string | null;
