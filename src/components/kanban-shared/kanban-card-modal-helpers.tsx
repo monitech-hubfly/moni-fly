@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
+import { prazoIsoEfetivoSla, type PrazoNegociacaoCampos } from '@/lib/kanban/prazo-negociacao';
 import { MONI_RESP_FILTRO_PREFIX, MONI_TIME_FILTRO_PREFIX } from '@/lib/times-responsaveis';
 import {
   ArrowLeft,
@@ -63,11 +64,47 @@ export type SubInteracaoModal = {
   times_resolvidos: { id: string; nome: string }[];
   responsaveis_resolvidos: { id: string; nome: string }[];
   data_fim: string | null;
+  prazo_proposto: string | null;
+  prazo_status: string | null;
+  prazo_abridor_id: string | null;
+  prazo_proposto_por: string | null;
+  prazo_negociacao_expira_em: string | null;
   status: SubInteracaoStatusDb;
   trava: boolean;
   pastel: boolean;
   historico: Array<{ tipo: string; em: string; por?: string | null }>;
 };
+
+export function prazoSlaSubInteracao(sub: PrazoNegociacaoCampos): string | null {
+  return prazoIsoEfetivoSla(sub);
+}
+
+function ymdFromDb(v: unknown): string | null {
+  if (v == null || String(v).trim() === '') return null;
+  const s = String(v).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+}
+
+/** Campos de negociação vindos do SELECT em `sirene_topicos`. */
+export function camposPrazoNegociacaoDeTopicoRow(t: Record<string, unknown>): Pick<
+  SubInteracaoModal,
+  'prazo_proposto' | 'prazo_status' | 'prazo_abridor_id' | 'prazo_proposto_por' | 'prazo_negociacao_expira_em'
+> {
+  return {
+    prazo_proposto: ymdFromDb(t.prazo_proposto),
+    prazo_status: t.prazo_status != null ? String(t.prazo_status) : null,
+    prazo_abridor_id:
+      t.prazo_abridor_id != null && String(t.prazo_abridor_id).trim() !== ''
+        ? String(t.prazo_abridor_id)
+        : null,
+    prazo_proposto_por:
+      t.prazo_proposto_por != null && String(t.prazo_proposto_por).trim() !== ''
+        ? String(t.prazo_proposto_por)
+        : null,
+    prazo_negociacao_expira_em:
+      t.prazo_negociacao_expira_em != null ? String(t.prazo_negociacao_expira_em) : null,
+  };
+}
 
 export type KanbanTimeRow = { id: string; nome: string };
 
@@ -117,9 +154,9 @@ export function prazoEfetivoParaChamado(it: InteracaoModal, subs: SubInteracaoMo
   if (!subs.length) return chamadoYmd();
 
   const datas = subs
-    .filter((s) => Boolean(s.data_fim) && s.status !== 'concluido')
-    .map((s) => String(s.data_fim).trim().slice(0, 10))
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+    .filter((s) => s.status !== 'concluido')
+    .map((s) => prazoIsoEfetivoSla(s))
+    .filter((d): d is string => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d))
     .sort();
   const ultimo = datas.length > 0 ? datas[datas.length - 1]! : null;
   return ultimo ?? chamadoYmd();
@@ -144,8 +181,9 @@ export function derivarChamadoKanbanComSubs(
   }
   const hoje = startLocal(new Date());
   const prazoSubPassou = (s: SubInteracaoModal) => {
-    if (!s.data_fim || subConcluida(s)) return false;
-    const p = parseIsoDateOnlyLocal(s.data_fim);
+    const prazo = prazoIsoEfetivoSla(s);
+    if (!prazo || subConcluida(s)) return false;
+    const p = parseIsoDateOnlyLocal(prazo);
     if (!p) return false;
     return startLocal(p).getTime() < hoje.getTime();
   };

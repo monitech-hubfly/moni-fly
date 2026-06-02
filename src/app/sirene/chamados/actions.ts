@@ -9,6 +9,8 @@ import {
   notificarMencoesSirene,
   resolverMencoesSirene,
 } from '@/lib/actions/sirene-mencoes';
+import { concluirChamadoCriador } from '@/app/sirene/actions';
+import { todosTopicosFechados } from '@/lib/sirene/chamado-regras';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -102,6 +104,7 @@ async function usuarioPodeEditarAtividade(
 export async function atualizarStatusInteracaoSirene(
   atividadeId: string,
   status: StatusInteracaoDb,
+  opts?: { infoConclusaoCriador?: string; resolucaoSuficiente?: boolean },
 ): Promise<AtualizarStatusInteracaoResult> {
   const supabase = await createClient();
   const {
@@ -127,36 +130,80 @@ export async function atualizarStatusInteracaoSirene(
   });
   if (!ok) return { ok: false, error: 'Sem permissão para alterar este chamado.' };
 
-  const concluida_em = status === 'concluida' ? new Date().toISOString() : null;
+  if (status === 'em_andamento') {
+    return { ok: false, error: 'O status em andamento é definido automaticamente pelas atividades.' };
+  }
+
+  if (status === 'concluida') {
+    const criador = String((row as { criado_por?: string | null }).criado_por ?? '');
+    if (criador && criador !== user.id) {
+      return { ok: false, error: 'Somente quem abriu o chamado pode marcá-lo como concluído.' };
+    }
+
+    const { data: subs } = await admin
+      .from('sirene_topicos')
+      .select('status')
+      .eq('interacao_id', atividadeId)
+      .eq('arquivado', false);
+    if (!todosTopicosFechados(subs ?? [])) {
+      return { ok: false, error: 'Conclua todas as sub-interações antes de concluir o chamado.' };
+    }
+
+    const texto = opts?.infoConclusaoCriador?.trim();
+    if (!texto) {
+      return { ok: false, error: 'Informe as informações da conclusão do chamado.' };
+    }
+
+    const sireneCid = (row as { sirene_chamado_id?: number | null }).sirene_chamado_id;
+    const suficiente = opts?.resolucaoSuficiente !== false;
+
+    if (sireneCid != null && Number.isFinite(Number(sireneCid))) {
+      const r = await concluirChamadoCriador(Number(sireneCid), suficiente, texto);
+      if (!r.ok) return r;
+      revalidatePath('/sirene/chamados');
+      revalidatePath('/');
+      return { ok: true };
+    }
+
+    const now = new Date().toISOString();
+    if (suficiente) {
+      const { error } = await admin
+        .from('kanban_atividades')
+        .update({
+          status: 'concluida',
+          concluida_em: now,
+          info_conclusao_criador: texto,
+          updated_at: now,
+        })
+        .eq('id', atividadeId);
+      if (error) return { ok: false, error: error.message };
+    } else {
+      const { error } = await admin
+        .from('kanban_atividades')
+        .update({
+          status: 'em_andamento',
+          concluida_em: null,
+          info_conclusao_criador: null,
+          updated_at: now,
+        })
+        .eq('id', atividadeId);
+      if (error) return { ok: false, error: error.message };
+    }
+    revalidatePath('/sirene/chamados');
+    revalidatePath('/');
+    return { ok: true };
+  }
 
   const { error } = await admin
     .from('kanban_atividades')
     .update({
       status,
-      concluida_em,
+      concluida_em: null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', atividadeId);
 
   if (error) return { ok: false, error: error.message };
-
-  const sireneCid = (row as { sirene_chamado_id?: number | null }).sirene_chamado_id;
-  if (sireneCid != null && Number.isFinite(Number(sireneCid))) {
-    const scStatus =
-      status === 'concluida'
-        ? 'concluido'
-        : status === 'em_andamento'
-          ? 'em_andamento'
-          : 'nao_iniciado';
-    const scPatch: Record<string, unknown> = {
-      status: scStatus,
-      updated_at: new Date().toISOString(),
-    };
-    if (status === 'concluida') {
-      scPatch.data_conclusao = new Date().toISOString();
-    }
-    await admin.from('sirene_chamados').update(scPatch).eq('id', Number(sireneCid));
-  }
 
   revalidatePath('/sirene/chamados');
   revalidatePath('/');

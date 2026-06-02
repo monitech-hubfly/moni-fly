@@ -52,6 +52,7 @@ export default async function SireneChamadosPage({
     times: { id: string; nome: string }[];
     responsaveis: { id: string; nome: string; email?: string | null }[];
     currentUserId: string | null;
+    sessionEhAdmin: boolean;
     comentariosCountByCardId: Record<string, number>;
     filtroTipoChamado?: 'padrao' | 'hdm';
   } | null = null;
@@ -64,6 +65,17 @@ export default async function SireneChamadosPage({
       data: { user },
     } = await supabaseUser.auth.getUser();
     const currentUserId = user?.id ?? null;
+    let sessionEhAdmin = false;
+    if (user) {
+      const { data: prof } = await supabaseUser
+        .from('profiles')
+        .select('role, cargo')
+        .eq('id', user.id)
+        .maybeSingle();
+      const role = String((prof as { role?: string } | null)?.role ?? '').toLowerCase();
+      const cargo = String((prof as { cargo?: string } | null)?.cargo ?? '').toLowerCase();
+      sessionEhAdmin = role === 'admin' || cargo === 'adm';
+    }
 
     const rows = (viewRows ?? []) as unknown as ViewRow[];
     const ids = rows.map((r) => String(r.id)).filter(Boolean);
@@ -80,6 +92,7 @@ export default async function SireneChamadosPage({
         categoria: 'chamado' | 'melhoria';
         time_abertura_nome: string | null;
         numero: number | null;
+        criado_por: string | null;
       }
     >();
     if (ids.length > 0) {
@@ -89,7 +102,7 @@ export default async function SireneChamadosPage({
         const { data: kaRows } = await admin
           .from('kanban_atividades')
           .select(
-            'id, trava, origem, responsaveis_ids, times_ids, responsavel_nome_texto, sirene_chamado_id, categoria, time_abertura_nome, numero',
+            'id, trava, origem, responsaveis_ids, times_ids, responsavel_nome_texto, sirene_chamado_id, categoria, time_abertura_nome, numero, criado_por',
           )
           .in('id', slice);
         for (const r of kaRows ?? []) {
@@ -114,6 +127,10 @@ export default async function SireneChamadosPage({
             numero: (() => {
               const n = Number((r as { numero?: number | null }).numero);
               return Number.isFinite(n) ? n : null;
+            })(),
+            criado_por: (() => {
+              const cp = (r as { criado_por?: string | null }).criado_por;
+              return cp != null && String(cp).trim() !== '' ? String(cp) : null;
             })(),
           });
         }
@@ -254,6 +271,7 @@ export default async function SireneChamadosPage({
           frank_id,
           te_trata: ka?.origem === 'sirene' && scMeta ? scMeta.te_trata : null,
           sirene_arquivado: ka?.origem === 'sirene' && scMeta ? scMeta.arquivado : false,
+          criado_por: ka?.criado_por ?? null,
         };
       });
 
@@ -318,6 +336,7 @@ export default async function SireneChamadosPage({
       times,
       responsaveis,
       currentUserId,
+      sessionEhAdmin,
       comentariosCountByCardId,
       filtroTipoChamado,
     };
@@ -340,6 +359,7 @@ export default async function SireneChamadosPage({
               times={interacoesListaProps.times}
               responsaveis={interacoesListaProps.responsaveis}
               currentUserId={interacoesListaProps.currentUserId}
+              sessionEhAdmin={interacoesListaProps.sessionEhAdmin}
               comentariosCountByCardId={interacoesListaProps.comentariosCountByCardId}
               filtroTipoChamado={interacoesListaProps.filtroTipoChamado}
             />

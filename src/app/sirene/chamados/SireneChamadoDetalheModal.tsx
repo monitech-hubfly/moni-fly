@@ -27,19 +27,13 @@ import {
   filtrarSubAtividadesPorConclusao,
   isSubAtividadeConcluida,
 } from '@/components/kanban-shared/SubInteracaoLista';
+import { PrazoNegociacaoPanel } from '@/components/kanban-shared/PrazoNegociacaoPanel';
+import type { TopicoPainelLinha } from '../actions';
 
 const selectClass =
   'rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)] outline-none focus:border-[color:var(--moni-navy-400)] focus:ring-1 focus:ring-[color:var(--moni-navy-400)]';
 
-type TopicoLinha = {
-  id: number;
-  descricao: string;
-  tipo: string;
-  status: string;
-  data_fim: string | null;
-  trava: boolean;
-  time_responsavel: string;
-};
+type TopicoLinha = TopicoPainelLinha;
 
 type TimeOpt = { id: string; nome: string };
 type RespOpt = { id: string; nome: string; email?: string | null };
@@ -81,6 +75,8 @@ type Props = {
   currentUserId: string | null;
   onArquivarTopico?: (topicoId: number) => void;
   highlightTopicoId?: number | null;
+  sessionEhAdmin?: boolean;
+  onRecarregarTopicos?: () => void;
 };
 
 export function SireneChamadoDetalheModal({
@@ -120,6 +116,8 @@ export function SireneChamadoDetalheModal({
   currentUserId,
   onArquivarTopico,
   highlightTopicoId = null,
+  sessionEhAdmin = false,
+  onRecarregarTopicos,
 }: Props) {
   const ccid = row.card_id;
   const hrefCard = ccid ? rotaCardOrigem(row.kanban_nome, ccid) : null;
@@ -257,6 +255,11 @@ export function SireneChamadoDetalheModal({
               prazoIso={row.data_vencimento}
               status={statusSelect === 'concluida' ? 'concluida' : statusSelect}
             />
+                {statusSelect === 'em_andamento' ? (
+                  <span className={`min-w-[9.5rem] text-center text-sm text-[color:var(--moni-text-secondary)] ${selectClass}`}>
+                    Em andamento
+                  </span>
+                ) : (
                 <select
                   value={statusSelect}
                   disabled={pending}
@@ -265,11 +268,11 @@ export function SireneChamadoDetalheModal({
                   aria-label="Status do chamado"
                 >
                   <option value="pendente">A fazer</option>
-                  <option value="em_andamento">Em andamento</option>
                   <option value="concluida" disabled={temSubAberta}>
                     Concluída
                   </option>
                 </select>
+                )}
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -349,6 +352,26 @@ export function SireneChamadoDetalheModal({
                             size="compact"
                           />
                         </p>
+                        {t.prazo_status &&
+                        (t.prazo_status !== 'aceito' || sessionEhAdmin) ? (
+                          <PrazoNegociacaoPanel
+                            topicoId={String(t.id)}
+                            row={{
+                              prazo_proposto: t.prazo_proposto ?? null,
+                              prazo_status: t.prazo_status ?? null,
+                              prazo_abridor_id: t.prazo_abridor_id ?? null,
+                              prazo_proposto_por: t.prazo_proposto_por ?? null,
+                              prazo_negociacao_expira_em: t.prazo_negociacao_expira_em ?? null,
+                              responsaveis_ids: t.responsaveis_ids,
+                            }}
+                            sessionUserId={currentUserId}
+                            abridorId={row.criado_por ?? null}
+                            isAdmin={sessionEhAdmin}
+                            basePath="/sirene/chamados"
+                            compact
+                            onUpdated={onRecarregarTopicos}
+                          />
+                        ) : null}
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
                         {podeArquivar && onArquivarTopico ? (

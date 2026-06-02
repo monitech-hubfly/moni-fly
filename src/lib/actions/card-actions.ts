@@ -5,7 +5,12 @@ import { revalidatePath } from 'next/cache';
 import type { KanbanFaseMaterial } from '@/components/kanban-shared/types';
 import { KANBAN_APP_BASE_PATHS } from '@/lib/kanban/kanban-card-href';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
-import { criarChamado } from '@/app/sirene/actions';
+import { concluirChamadoCriador, criarChamado } from '@/app/sirene/actions';
+import {
+  registrarPrimeiroAtendimentoSeNecessario,
+  resolverSireneChamadoId,
+  todosTopicosFechados,
+} from '@/lib/sirene/chamado-regras';
 import { notificarMencoesSirene, resolverMencoesSirene } from '@/lib/actions/sirene-mencoes';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
@@ -46,6 +51,7 @@ import {
 import type { FaseChecklistItem } from './candidato-actions';
 import { executarBastaoDeVolta, executarBastoes } from '@/lib/actions/kanban-bastoes';
 import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-notify';
+import { payloadInicialNegociacaoPrazo } from '@/lib/kanban/prazo-negociacao';
 
 export type { FaseChecklistItem } from './candidato-actions';
 
@@ -468,6 +474,7 @@ export async function criarChamadoComAtividade(input: CriarChamadoComAtividadeIn
   const statusAtiv = input.atividade.status ?? 'nao_iniciado';
   const pastel = nomesTimesIncluemBombeiro(nomesTimes) ? false : Boolean(input.atividade.pastel);
 
+  const prazoInicial = dataCampoCalendarioIso(input.atividade.data_fim);
   const topicoRow = {
     chamado_id: null,
     interacao_id: interacaoId,
@@ -480,11 +487,11 @@ export async function criarChamadoComAtividade(input: CriarChamadoComAtividadeIn
     responsaveis_ids: respIds,
     times_ids: timesIds,
     trava: Boolean(input.atividade.trava),
-    data_fim: dataCampoCalendarioIso(input.atividade.data_fim),
     status: statusAtiv,
     tipo: 'atividade' as const,
     pastel,
     historico: [] as TopicoHistoricoEvento[],
+    ...(prazoInicial ? payloadInicialNegociacaoPrazo(prazoInicial, user.id) : { data_fim: null }),
   };
 
   const { data: topicoInserted, error: subErr } = await supabase.from('sirene_topicos').insert(topicoRow as never).select('id').single();
@@ -627,6 +634,7 @@ export async function criarChamadoSireneComAtividade(
   const interacaoId = String((inserted as { id: string }).id);
   const timeLabel = nomesTimes[0] ?? '—';
 
+  const prazoInicialSirene = dataCampoCalendarioIso(input.atividade.data_fim);
   const { error: subErr } = await admin.from('sirene_topicos').insert({
     chamado_id: null,
     interacao_id: interacaoId,
@@ -639,11 +647,11 @@ export async function criarChamadoSireneComAtividade(
     responsaveis_ids: respIds,
     times_ids: timesIds,
     trava: Boolean(input.atividade.trava),
-    data_fim: dataCampoCalendarioIso(input.atividade.data_fim),
     status: statusAtiv,
     tipo: 'atividade',
     pastel,
     historico: [],
+    ...(prazoInicialSirene ? payloadInicialNegociacaoPrazo(prazoInicialSirene, user.id) : { data_fim: null }),
   } as never);
 
   if (subErr) {
@@ -654,6 +662,7 @@ export async function criarChamadoSireneComAtividade(
 
   if (statusAtiv === 'em_andamento') {
     await admin.from('kanban_atividades').update({ status: 'em_andamento' }).eq('id', interacaoId);
+    await registrarPrimeiroAtendimentoSeNecessario(admin, sireneChamadoId);
   }
 
   if (timeAberturaNome && respIds[0]) {
@@ -882,6 +891,7 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
   const statusAtiv = input.status ?? 'nao_iniciado';
   const pastel = nomesTimesIncluemBombeiro(nomesTimes) ? false : Boolean(input.pastel);
 
+  const prazoNovaSub = dataCampoCalendarioIso(input.data_fim);
   const row = {
     chamado_id: null,
     interacao_id: input.interacao_id,
@@ -894,11 +904,11 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
     responsaveis_ids: respIds,
     times_ids: timesIds,
     trava: Boolean(input.trava),
-    data_fim: dataCampoCalendarioIso(input.data_fim),
     status: statusAtiv,
     tipo: 'atividade' as const,
     pastel,
     historico: [] as TopicoHistoricoEvento[],
+    ...(prazoNovaSub ? payloadInicialNegociacaoPrazo(prazoNovaSub, user.id) : { data_fim: null }),
   };
 
   const { data: topicoInserted, error } = await supabase.from('sirene_topicos').insert(row as never).select('id').single();
@@ -953,7 +963,7 @@ export async function editarSubInteracao(
 
     const { data: antes } = await supabase
       .from('sirene_topicos')
-      .select('interacao_id, responsaveis_ids, historico, times_ids')
+      .select('interacao_id, responsaveis_ids, historico, times_ids, prazo_status, prazo_negociacao_expira_em')
       .eq('id', idNum)
       .maybeSingle();
     if (!antes) return { ok: false, error: 'Atividade não encontrada.' };
@@ -1006,21 +1016,25 @@ export async function editarSubInteracao(
     }
 
     const timeLabel = nomesTimes[0] ?? '—';
+    const prazoStatusAntes = String((antes as { prazo_status?: string | null }).prazo_status ?? '').trim();
+    const updateSub: Record<string, unknown> = {
+      nome,
+      descricao: nome,
+      descricao_detalhe: (payload.descricao_detalhe ?? '').trim() || null,
+      times_ids: timesIds,
+      responsaveis_ids: respIds,
+      responsavel_id: respIds[0] ?? null,
+      time_responsavel: timeLabel,
+      trava: payload.trava,
+      historico,
+      ...(payload.status ? { status: payload.status } : {}),
+    };
+    if (!prazoStatusAntes) {
+      updateSub.data_fim = dataCampoCalendarioIso(payload.data_fim);
+    }
     const { error } = await supabase
       .from('sirene_topicos')
-      .update({
-        nome,
-        descricao: nome,
-        descricao_detalhe: (payload.descricao_detalhe ?? '').trim() || null,
-        times_ids: timesIds,
-        responsaveis_ids: respIds,
-        responsavel_id: respIds[0] ?? null,
-        time_responsavel: timeLabel,
-        data_fim: dataCampoCalendarioIso(payload.data_fim),
-        trava: payload.trava,
-        historico,
-        ...(payload.status ? { status: payload.status } : {}),
-      } as never)
+      .update(updateSub as never)
       .eq('id', idNum);
     if (error) return { ok: false, error: error.message };
 
@@ -1077,12 +1091,13 @@ export async function atualizarStatusSubInteracao(
 
   const { data: antes } = await supabase
     .from('sirene_topicos')
-    .select('status, interacao_id')
+    .select('status, interacao_id, chamado_id')
     .eq('id', idNum)
     .maybeSingle();
   if (!antes) return { ok: false, error: 'Atividade não encontrada.' };
   const statusAntes = String((antes as { status?: string }).status ?? '');
   const interacaoId = String((antes as { interacao_id?: string }).interacao_id ?? '');
+  const chamadoIdRaw = (antes as { chamado_id?: number | null }).chamado_id;
 
   const bloqueio = await assertEditableFromSirene(supabase, interacaoId, viaSirene);
   if (bloqueio) return bloqueio;
@@ -1100,6 +1115,16 @@ export async function atualizarStatusSubInteracao(
       .update({ status: 'em_andamento' })
       .eq('id', interacaoId);
     if (errPai) return { ok: false, error: errPai.message };
+  }
+
+  if (status === 'em_andamento' && statusAntes !== 'em_andamento') {
+    const sireneCid = await resolverSireneChamadoId(supabase, {
+      chamadoId: chamadoIdRaw,
+      interacaoId,
+    });
+    if (sireneCid != null) {
+      await registrarPrimeiroAtendimentoSeNecessario(supabase, sireneCid);
+    }
   }
 
   if (interacaoId && statusAntes !== status) {
@@ -1176,6 +1201,7 @@ export async function atualizarStatusInteracao(
   id: string,
   status: 'pendente' | 'em_andamento' | 'concluida',
   basePath?: string,
+  opts?: { infoConclusaoCriador?: string; resolucaoSuficiente?: boolean },
 ): Promise<ActionResult> {
   const supabase = await createClient();
   const {
@@ -1188,9 +1214,14 @@ export async function atualizarStatusInteracao(
   }
 
   if (status === 'concluida') {
+    const texto = opts?.infoConclusaoCriador?.trim();
+    if (!texto) {
+      return { ok: false, error: 'Informe as informações da conclusão do chamado.' };
+    }
+
     const { data: interacao } = await supabase
       .from('kanban_atividades')
-      .select('criado_por')
+      .select('criado_por, sirene_chamado_id')
       .eq('id', id)
       .maybeSingle();
     const criador = String((interacao as { criado_por?: string } | null)?.criado_por ?? '');
@@ -1201,14 +1232,50 @@ export async function atualizarStatusInteracao(
     const { data: subs } = await supabase
       .from('sirene_topicos')
       .select('status')
-      .eq('interacao_id', id);
-    const abertas = (subs ?? []).filter((s) => {
-      const st = String((s as { status?: string }).status ?? '');
-      return st !== 'concluido' && st !== 'aprovado';
-    });
-    if (abertas.length > 0) {
+      .eq('interacao_id', id)
+      .eq('arquivado', false);
+    if (!todosTopicosFechados(subs ?? [])) {
       return { ok: false, error: 'Conclua todas as atividades antes de fechar o chamado.' };
     }
+
+    const sireneCid = (interacao as { sirene_chamado_id?: number | null } | null)?.sirene_chamado_id;
+    const suficiente = opts?.resolucaoSuficiente !== false;
+
+    if (sireneCid != null && Number.isFinite(Number(sireneCid))) {
+      const r = await concluirChamadoCriador(Number(sireneCid), suficiente, texto);
+      if (!r.ok) return r;
+      revalidatePath(basePath?.trim() || '/');
+      revalidatePath('/sirene/chamados');
+      return { ok: true };
+    }
+
+    const now = new Date().toISOString();
+    if (suficiente) {
+      const { error } = await supabase
+        .from('kanban_atividades')
+        .update({
+          status: 'concluida',
+          concluida_em: now,
+          info_conclusao_criador: texto,
+          updated_at: now,
+        })
+        .eq('id', id);
+      if (error) return { ok: false, error: error.message };
+    } else {
+      const { error } = await supabase
+        .from('kanban_atividades')
+        .update({
+          status: 'em_andamento',
+          concluida_em: null,
+          info_conclusao_criador: null,
+          updated_at: now,
+        })
+        .eq('id', id);
+      if (error) return { ok: false, error: error.message };
+    }
+    revalidatePath(basePath?.trim() || '/');
+    revalidatePath('/sirene/chamados');
+    return { ok: true };
   }
 
   const { error } = await supabase.from('kanban_atividades').update({ status }).eq('id', id);

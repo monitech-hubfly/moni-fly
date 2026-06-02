@@ -50,6 +50,8 @@ import {
 import { chamadoEditavelNaSirene } from '@/lib/kanban/sirene-chamado-permissoes';
 import { formatChamadoNumero } from '@/lib/kanban/chamado-numero';
 import { SlaAtividadeBadge } from '@/components/SlaAtividadeBadge';
+import { ConclusaoChamadoCriadorModal } from '@/components/sirene/ConclusaoChamadoCriadorModal';
+import type { TopicoPainelLinha } from '../actions';
 
 export type InteracaoSireneRow = {
   id: string;
@@ -90,25 +92,12 @@ export type InteracaoSireneRow = {
   time_abertura_nome?: string | null;
   /** Chamado Sirene arquivado (admin/team pode exibir com toggle). */
   sirene_arquivado?: boolean;
+  criado_por?: string | null;
 };
 type TimeOpt = { id: string; nome: string };
 type RespOpt = { id: string; nome: string; email?: string | null };
 
-type TopicoChamadoLinha = {
-  id: number;
-  ordem: number;
-  descricao: string;
-  time_responsavel: string;
-  tipo: SubInteracaoTipoDb;
-  times_ids: string[];
-  responsaveis_ids: string[];
-  data_inicio: string | null;
-  data_fim: string | null;
-  trava: boolean;
-  status: string;
-  resolucao_time: string | null;
-  motivo_reprovacao: string | null;
-};
+type TopicoChamadoLinha = TopicoPainelLinha;
 
 /** Chave de cache de tópicos: sempre por interacao_id. */
 function topicosAlvoKey(row: { id: string }): string {
@@ -120,6 +109,7 @@ type Props = {
   times: TimeOpt[];
   responsaveis: RespOpt[];
   currentUserId: string | null;
+  sessionEhAdmin?: boolean;
   comentariosCountByCardId: Record<string, number>;
   filtroTipoChamado?: 'padrao' | 'hdm';
 };
@@ -332,6 +322,7 @@ export function InteracoesLista({
   times,
   responsaveis,
   currentUserId,
+  sessionEhAdmin = false,
   comentariosCountByCardId,
   filtroTipoChamado: _filtroTipoChamado,
 }: Props) {
@@ -361,6 +352,7 @@ export function InteracoesLista({
   /** Campos da linha após edição inline (merge sobre `interacoes`). */
   const [rowPatch, setRowPatch] = useState<Record<string, Partial<InteracaoSireneRow>>>({});
   const [msgErro, setMsgErro] = useState<string | null>(null);
+  const [conclusaoInteracaoId, setConclusaoInteracaoId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<EditLinhaDraft | null>(null);
@@ -653,6 +645,10 @@ export function InteracoesLista({
 
   function onStatusChange(id: string, novo: StatusInteracaoDb) {
     setMsgErro(null);
+    if (novo === 'em_andamento') {
+      setMsgErro('O status em andamento é definido automaticamente pelas atividades.');
+      return;
+    }
     if (novo === 'concluida') {
       const row = linhas.find((r) => r.id === id);
       if (row) {
@@ -663,7 +659,13 @@ export function InteracoesLista({
           setMsgErro('Conclua todas as sub-interações antes de concluir o chamado.');
           return;
         }
+        if (row.criado_por && currentUserId && row.criado_por !== currentUserId) {
+          setMsgErro('Somente quem abriu o chamado pode marcá-lo como concluído.');
+          return;
+        }
       }
+      setConclusaoInteracaoId(id);
+      return;
     }
     startTransition(async () => {
       const res = await atualizarStatusInteracaoSirene(id, novo);
@@ -672,6 +674,28 @@ export function InteracoesLista({
         return;
       }
       setStatusPatch((prev) => ({ ...prev, [id]: novo }));
+    });
+  }
+
+  function confirmarConclusaoInteracao(payload: { suficiente: boolean; texto: string }) {
+    const id = conclusaoInteracaoId;
+    if (!id) return;
+    setMsgErro(null);
+    startTransition(async () => {
+      const res = await atualizarStatusInteracaoSirene(id, 'concluida', {
+        infoConclusaoCriador: payload.texto,
+        resolucaoSuficiente: payload.suficiente,
+      });
+      if (!res.ok) {
+        setMsgErro(res.error);
+        return;
+      }
+      setConclusaoInteracaoId(null);
+      setStatusPatch((prev) => ({
+        ...prev,
+        [id]: payload.suficiente ? 'concluida' : 'em_andamento',
+      }));
+      router.refresh();
     });
   }
 
@@ -882,13 +906,6 @@ export function InteracoesLista({
       return;
     }
     if (status === 'em_andamento') {
-      const resPai = await atualizarStatusInteracaoSirene(row.id, 'em_andamento');
-      if (!resPai.ok) {
-        setMsgErro(resPai.error);
-        router.refresh();
-        void carregarTopicosSeNecessario(row, true);
-        return;
-      }
       setStatusPatch((prev) => ({ ...prev, [row.id]: 'em_andamento' }));
     }
     router.refresh();
@@ -1393,6 +1410,11 @@ export function InteracoesLista({
                             status={sel === 'concluida' ? 'concluida' : sel}
                             showOkText={false}
                           />
+                          {sel === 'em_andamento' ? (
+                            <span className="min-w-[9.5rem] rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-2 py-1.5 text-center text-sm text-[color:var(--moni-text-secondary)]">
+                              Em andamento
+                            </span>
+                          ) : (
                           <SelectMoni
                             value={sel}
                             disabled={pending}
@@ -1401,11 +1423,11 @@ export function InteracoesLista({
                             aria-label="Status do chamado"
                           >
                             <option value="pendente">A fazer</option>
-                            <option value="em_andamento">Em andamento</option>
                             <option value="concluida" disabled={temSubAberta}>
                               Concluída
                             </option>
                           </SelectMoni>
+                          )}
                         </div>
                       </div>
 
@@ -1562,8 +1584,19 @@ export function InteracoesLista({
             setMotivoArquivarTopico('');
           }}
           highlightTopicoId={highlightTopicoId}
+          sessionEhAdmin={sessionEhAdmin}
+          onRecarregarTopicos={() => {
+            if (detalheRowEff) void carregarTopicosSeNecessario(detalheRowEff, true);
+          }}
         />
       ) : null}
+
+      <ConclusaoChamadoCriadorModal
+        open={conclusaoInteracaoId != null}
+        onClose={() => setConclusaoInteracaoId(null)}
+        onConfirm={confirmarConclusaoInteracao}
+        pending={pending}
+      />
 
       {modalNovoAberto ? (
         <ModalNovoChamado

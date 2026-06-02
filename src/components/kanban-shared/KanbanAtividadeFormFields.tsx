@@ -119,6 +119,9 @@ export function KanbanAtividadeFormFields({
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <label className="block min-w-0">
           <span className="mb-0.5 block font-medium text-stone-600">Prazo limite</span>
+          <span className="mb-0.5 block text-[10px] text-stone-500">
+            O responsável precisa aceitar este prazo para contar no SLA.
+          </span>
           <input
             type="date"
             value={draft.data}

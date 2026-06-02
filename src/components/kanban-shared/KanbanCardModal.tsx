@@ -32,7 +32,7 @@ import {
   atualizarStatusInteracao,
   atualizarStatusSubInteracao,
   criarTagKanban,
-  criarChamadoComAtividade,
+  criarChamadoSireneComAtividade,
   criarSubInteracao,
   desvincularTagCard,
   editarInteracao,
@@ -83,6 +83,8 @@ import {
   KanbanAtividadeFormFields,
   type AtividadeFormDraft,
 } from './KanbanAtividadeFormFields';
+import { PrazoNegociacaoPanel } from './PrazoNegociacaoPanel';
+import { ConclusaoChamadoCriadorModal } from '@/components/sirene/ConclusaoChamadoCriadorModal';
 import { ChamadoAtividadeCollapsibleSection } from './ChamadoAtividadeCollapsibleSection';
 import { uploadAnexosAtividadePendentes } from '@/lib/kanban/upload-anexos-atividade';
 import { formatChamadoNumero } from '@/lib/kanban/chamado-numero';
@@ -134,6 +136,8 @@ import {
   countChamadosAbertosNoCard,
   isInteracaoDemonstracao,
   prazoEfetivoParaChamado,
+  camposPrazoNegociacaoDeTopicoRow,
+  prazoSlaSubInteracao,
   tagsTimesParaLinha,
   tagsTimesDeAtividades,
   textoResumidoAcaoHistorico,
@@ -450,6 +454,7 @@ export function KanbanCardModal({
   const [modalExcluirInteracaoId, setModalExcluirInteracaoId] = useState<string | null>(null);
   const [salvandoExcluirInteracao, setSalvandoExcluirInteracao] = useState(false);
   const [confirmandoFinalizar, setConfirmandoFinalizar] = useState(false);
+  const [conclusaoInteracaoId, setConclusaoInteracaoId] = useState<string | null>(null);
   const [modalDetalhes, setModalDetalhes] = useState<KanbanCardModalDetalhes>({
     rede: null,
     processo: null,
@@ -1223,7 +1228,7 @@ export function KanbanCardModal({
           const actIds = mapeadas.map((m) => m.id);
           const { data: topicosRows } = await supabase
             .from('sirene_topicos')
-            .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, status, trava, pastel, historico, arquivado')
+            .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, status, trava, pastel, historico, arquivado')
             .eq('arquivado', false)
             .in('interacao_id', actIds)
             .order('ordem', { ascending: true });
@@ -1277,6 +1282,7 @@ export function KanbanCardModal({
                 nome: profTop.get(id)?.full_name?.trim() || id.slice(0, 8),
               })),
               data_fim: (t as { data_fim?: string | null }).data_fim != null ? String((t as { data_fim: string }).data_fim).slice(0, 10) : null,
+              ...camposPrazoNegociacaoDeTopicoRow(t as Record<string, unknown>),
               status: ['nao_iniciado', 'em_andamento', 'concluido', 'aprovado'].includes(st) ? st : 'nao_iniciado',
               trava: Boolean((t as { trava?: boolean }).trava),
               pastel: Boolean((t as { pastel?: boolean }).pastel),
@@ -1357,10 +1363,11 @@ export function KanbanCardModal({
     }
     setLoading(true);
     try {
-      const ordemReal = interacoes.filter((a) => !isInteracaoDemonstracao(a.id)).length;
       const pendingAnexos = ativ.pendingAnexos ?? [];
-      const res = await criarChamadoComAtividade({
+      const res = await criarChamadoSireneComAtividade({
         card_id: card.id,
+        card_kanban_nome: typeof kanbanNome === 'string' ? kanbanNome : String(kanbanNome),
+        card_titulo: card.titulo?.trim() || null,
         titulo: novaInteracao.titulo.trim(),
         descricao: novaInteracao.descricao.trim(),
         categoria: novaInteracao.categoria,
@@ -1375,21 +1382,28 @@ export function KanbanCardModal({
           status: ativ.status,
           pastel: ativ.pastel,
         },
-        ordem: ordemReal,
-        basePath,
-        origem,
       });
       if (!res.ok) {
         alert(res.error);
         return;
       }
-      if (res.topicoId && pendingAnexos.length > 0) {
-        await uploadAnexosAtividadePendentes(
-          res.topicoId,
-          pendingAnexos,
-          modalSessao.uploaderNome,
-          basePath,
-        );
+      if (res.interacaoId && pendingAnexos.length > 0) {
+        const supabase = createClient();
+        const { data: topico } = await supabase
+          .from('sirene_topicos')
+          .select('id')
+          .eq('interacao_id', res.interacaoId)
+          .order('ordem', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        if (topico) {
+          await uploadAnexosAtividadePendentes(
+            String((topico as { id: number }).id),
+            pendingAnexos,
+            modalSessao.uploaderNome,
+            basePath,
+          );
+        }
       }
       setNovaInteracao({
         titulo: '',
@@ -1470,7 +1484,7 @@ export function KanbanCardModal({
     const supabase = createClient();
     const { data: topicosRows } = await supabase
       .from('sirene_topicos')
-      .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, status, trava, pastel, historico')
+      .select('id, interacao_id, nome, descricao, descricao_detalhe, tipo, times_ids, responsaveis_ids, data_fim, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em, status, trava, pastel, historico')
       .eq('interacao_id', interacaoId)
       .order('ordem', { ascending: true });
     const topicos = topicosRows ?? [];
@@ -1521,6 +1535,7 @@ export function KanbanCardModal({
           (t as { data_fim?: string | null }).data_fim != null
             ? String((t as { data_fim: string }).data_fim).slice(0, 10)
             : null,
+        ...camposPrazoNegociacaoDeTopicoRow(t as Record<string, unknown>),
         status: ['nao_iniciado', 'em_andamento', 'concluido', 'aprovado'].includes(st) ? st : 'nao_iniciado',
         trava: Boolean((t as { trava?: boolean }).trava),
         pastel: Boolean((t as { pastel?: boolean }).pastel),
@@ -1679,11 +1694,40 @@ export function KanbanCardModal({
       alert('Conclua todas as sub-interações antes de concluir o chamado.');
       return;
     }
+    if (novo === 'concluida') {
+      const it = interacoes.find((x) => x.id === interacaoId);
+      const criador = String(it?.criado_por ?? '');
+      if (criador && criador !== modalSessao.userId) {
+        alert('Somente quem abriu o chamado pode marcá-lo como concluído.');
+        return;
+      }
+      setConclusaoInteracaoId(interacaoId);
+      return;
+    }
     const res = await atualizarStatusInteracao(interacaoId, novo, basePath);
     if (!res.ok) {
       alert(res.error);
       return;
     }
+    await loadCard();
+    router.refresh();
+  }
+
+  async function confirmarConclusaoInteracaoCard(payload: {
+    suficiente: boolean;
+    texto: string;
+  }) {
+    const id = conclusaoInteracaoId;
+    if (!id) return;
+    const res = await atualizarStatusInteracao(id, 'concluida', basePath, {
+      infoConclusaoCriador: payload.texto,
+      resolucaoSuficiente: payload.suficiente,
+    });
+    if (!res.ok) {
+      alert(res.error);
+      return;
+    }
+    setConclusaoInteracaoId(null);
     await loadCard();
     router.refresh();
   }
@@ -3585,7 +3629,7 @@ export function KanbanCardModal({
                                                 {sub.nome || sub.descricao}
                                               </span>
                                               <SlaAtividadeBadge
-                                                prazoIso={sub.data_fim}
+                                                prazoIso={prazoSlaSubInteracao(sub)}
                                                 status={sub.status}
                                                 showOkText={false}
                                                 size="compact"
@@ -3684,7 +3728,24 @@ export function KanbanCardModal({
                                                     ? sub.responsaveis_resolvidos.map((r) => r.nome).join(', ')
                                                     : '—'}
                                                 </p>
-                                                {sub.data_fim ? (
+                                                {sub.prazo_status &&
+                                                (sub.prazo_status !== 'aceito' ||
+                                                  modalSessao.roleNorm === 'admin' ||
+                                                  modalSessao.cargoNorm === 'adm') ? (
+                                                  <PrazoNegociacaoPanel
+                                                    topicoId={sub.id}
+                                                    row={sub}
+                                                    sessionUserId={modalSessao.userId}
+                                                    abridorId={it.criado_por}
+                                                    isAdmin={
+                                                      modalSessao.roleNorm === 'admin' ||
+                                                      modalSessao.cargoNorm === 'adm'
+                                                    }
+                                                    basePath={basePath}
+                                                    compact
+                                                    onUpdated={() => void reloadSubsForParent(it.id)}
+                                                  />
+                                                ) : sub.data_fim ? (
                                                   <p className="text-[10px] text-stone-500">
                                                     Prazo: {formatIsoDateOnlyPtBr(sub.data_fim) ?? sub.data_fim}
                                                   </p>
@@ -5587,6 +5648,12 @@ export function KanbanCardModal({
         </div>
       </div>
     ) : null}
+
+    <ConclusaoChamadoCriadorModal
+      open={conclusaoInteracaoId != null}
+      onClose={() => setConclusaoInteracaoId(null)}
+      onConfirm={(p) => void confirmarConclusaoInteracaoCard(p)}
+    />
     </>
   );
 }

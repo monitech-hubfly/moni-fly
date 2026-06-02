@@ -8,6 +8,8 @@ import { MencaoContentEditable } from '@/components/kanban-shared/MencaoContentE
 import { ModalRedirecionarHDM } from './ModalRedirecionarHDM';
 import type { Chamado } from '@/types/sirene';
 import type { SireneUserContext } from '@/lib/sirene';
+import { ConclusaoChamadoCriadorModal } from '@/components/sirene/ConclusaoChamadoCriadorModal';
+import { todosTopicosFechados } from '@/lib/sirene/chamado-regras';
 import {
   definirPrioridade,
   fecharChamado,
@@ -200,7 +202,7 @@ export function DetalheChamadoConteudo({
   const [resolucaoPorTopico, setResolucaoPorTopico] = useState<Record<number, string>>({});
   const [reprovarTopicoId, setReprovarTopicoId] = useState<number | null>(null);
   const [motivoReprovar, setMotivoReprovar] = useState('');
-  const [motivoInsuficiente, setMotivoInsuficiente] = useState('');
+  const [modalConclusaoAberto, setModalConclusaoAberto] = useState(false);
   const [anexosList, setAnexosList] = useState<Array<{
     id: number;
     topico_id: number | null;
@@ -387,28 +389,25 @@ export function DetalheChamadoConteudo({
       if (!result.ok && 'error' in result) {
         setErro(result.error);
       } else {
-        setMensagem('Fechamento enviado ao criador. Aguardando aprovação.');
+        setMensagem('Parecer, tema e mapeamento salvos.');
         window.location.reload();
       }
     });
   };
 
-  const handleConcluirChamadoCriador = (suficiente: boolean) => {
+  const handleConfirmarConclusaoCriador = (payload: { suficiente: boolean; texto: string }) => {
     setMensagem(null);
     setErro(null);
-    if (!suficiente && !motivoInsuficiente.trim()) {
-      setErro('Informe o motivo da insuficiência para reabrir o chamado.');
-      return;
-    }
     startTransition(async () => {
-      const result = await concluirChamadoCriador(
-        chamado.id,
-        suficiente,
-        suficiente ? undefined : motivoInsuficiente.trim(),
-      );
+      const result = await concluirChamadoCriador(chamado.id, payload.suficiente, payload.texto);
       if (!result.ok && 'error' in result) setErro(result.error);
       else {
-        setMensagem(suficiente ? 'Chamado concluído.' : 'Chamado reaberto. O processo com Bombeiro e times segue.');
+        setModalConclusaoAberto(false);
+        setMensagem(
+          payload.suficiente
+            ? 'Chamado concluído.'
+            : 'Chamado reaberto. Você pode abrir novas atividades.',
+        );
         window.location.reload();
       }
     });
@@ -420,10 +419,10 @@ export function DetalheChamadoConteudo({
 
   const mostrarBlocoAvaliacaoCriador =
     isCriador &&
-    (chamado.status === 'aguardando_aprovacao_criador' ||
-      (chamado.status === 'em_andamento' &&
-        topicosList.length > 0 &&
-        topicosList.every((t) => t.status === 'concluido')));
+    chamado.status !== 'concluido' &&
+    (chamado.status === 'em_andamento' ||
+      chamado.status === 'aguardando_aprovacao_criador') &&
+    todosTopicosFechados(topicosList);
 
   const handleConcluirTopico = (topicoId: number) => {
     const texto = resolucaoPorTopico[topicoId] ?? '';
@@ -946,61 +945,28 @@ export function DetalheChamadoConteudo({
 
         {mostrarBlocoAvaliacaoCriador && (
           <section className="rounded-xl border-2 border-amber-500/50 bg-amber-500/10 p-4">
-            <h2 className="text-sm font-semibold text-amber-200">
-              Sua avaliação — O Bombeiro enviou o fechamento
-            </h2>
+            <h2 className="text-sm font-semibold text-amber-200">Concluir chamado (criador)</h2>
             <p className="mt-1 text-sm text-stone-300">
-              Revise as resoluções dos tópicos acima, o parecer, tema e mapeamento abaixo. A resolução
-              foi suficiente?
+              Todas as atividades estão encerradas. Você pode concluir o chamado ou indicar que a
+              resolução não foi suficiente e abrir novas atividades.
             </p>
-            {chamado.parecer_final && (
-              <div className="mt-3 rounded bg-stone-800/80 p-2 text-sm text-stone-200">
-                <strong>Parecer do Bombeiro:</strong> {chamado.parecer_final}
-              </div>
-            )}
-            {resumo.tema && (
-              <p className="mt-1 text-sm text-stone-300">
-                <strong>Tema:</strong> {resumo.tema}
-              </p>
-            )}
-            {chamado.mapeamento_pericia && (
-              <p className="mt-1 text-sm text-stone-300">
-                <strong>Mapeamento de perícia:</strong> {chamado.mapeamento_pericia}
-              </p>
-            )}
-            <div className="mt-4 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => handleConcluirChamadoCriador(true)}
-                disabled={isPending}
-                className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-stone-900 hover:bg-emerald-400 disabled:opacity-60"
-              >
-                {isPending ? 'Salvando…' : 'Sim, aprovar e concluir chamado'}
-              </button>
-              <div className="flex flex-wrap items-end gap-2">
-                <div>
-                  <label className="block text-xs text-stone-400">Não foi suficiente — informe o motivo:</label>
-                  <textarea
-                    value={motivoInsuficiente}
-                    onChange={(e) => setMotivoInsuficiente(e.target.value)}
-                    placeholder="Por que a resolução não foi suficiente?"
-                    rows={2}
-                    className="mt-1 w-80 rounded-md border border-stone-600 bg-stone-800 px-2 py-1.5 text-sm text-stone-100"
-                    disabled={isPending}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleConcluirChamadoCriador(false)}
-                  disabled={isPending || !motivoInsuficiente.trim()}
-                  className="rounded-md border border-red-500/50 bg-red-500/20 px-4 py-2 text-sm font-medium text-red-200 hover:bg-red-500/30 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {isPending ? 'Enviando…' : 'Não, reabrir chamado'}
-                </button>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => setModalConclusaoAberto(true)}
+              disabled={isPending}
+              className="mt-4 rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-stone-900 hover:bg-emerald-400 disabled:opacity-60"
+            >
+              Concluir ou reabrir chamado…
+            </button>
           </section>
         )}
+
+        <ConclusaoChamadoCriadorModal
+          open={modalConclusaoAberto}
+          onClose={() => setModalConclusaoAberto(false)}
+          onConfirm={handleConfirmarConclusaoCriador}
+          pending={isPending}
+        />
 
         <section className="rounded-xl border border-stone-700 bg-stone-800/80 p-4">
           <h2 className="text-sm font-semibold text-stone-200">
@@ -1008,15 +974,9 @@ export function DetalheChamadoConteudo({
           </h2>
           {podePreencherTemaMapeamento ? (
             <>
-              {topicosList.length > 0 && topicosList.every((t) => t.status === 'aprovado') && (
-                <div className="mt-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
-                  Todos os tópicos foram aprovados. Preencha o parecer, tema e mapeamento abaixo e
-                  clique em &quot;Salvar fechamento&quot; para enviar ao criador do chamado.
-                </div>
-              )}
               <p className="mt-2 text-sm text-stone-300">
-                Preenchimento exclusivo do Bombeiro. Use estes campos quando o chamado já passou por
-                todos os times e você for registrar o parecer final.
+                Preenchimento exclusivo do Bombeiro (opcional para o criador concluir o chamado).
+                Registre parecer, tema e mapeamento quando fizer sentido.
               </p>
 
               <div className="mt-4 space-y-3 text-sm">
@@ -1068,7 +1028,7 @@ export function DetalheChamadoConteudo({
                   disabled={isPending}
                   className="mt-1 rounded-md bg-emerald-500 px-4 py-2 text-xs font-semibold text-stone-900 hover:bg-emerald-400 disabled:opacity-60"
                 >
-                  {isPending ? 'Salvando…' : 'Salvar fechamento'}
+                  {isPending ? 'Salvando…' : 'Salvar parecer e mapeamento'}
                 </button>
               </div>
             </>

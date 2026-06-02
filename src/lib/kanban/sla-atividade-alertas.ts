@@ -1,4 +1,5 @@
 import { rotuloSlaAtividadeDiasUteis } from '@/lib/dias-uteis';
+import { prazoIsoEfetivoSla } from '@/lib/kanban/prazo-negociacao';
 import { montarPathAlertaAtividade } from '@/lib/kanban/alerta-atividade-path';
 import {
   buscarMetaNotificacaoChamado,
@@ -14,6 +15,8 @@ type TopicoSlaRow = {
   nome: string | null;
   descricao: string | null;
   data_fim: string | null;
+  prazo_proposto: string | null;
+  prazo_status: string | null;
   status: string | null;
   responsavel_id: string | null;
   responsaveis_ids: string[] | null;
@@ -103,9 +106,10 @@ export async function notificarAtividadesComSlaCritico(): Promise<void> {
 
   const { data: topicos, error: errTopicos } = await db
     .from('sirene_topicos')
-    .select('id, interacao_id, nome, descricao, data_fim, status, responsavel_id, responsaveis_ids')
+    .select(
+      'id, interacao_id, nome, descricao, data_fim, prazo_proposto, prazo_status, status, responsavel_id, responsaveis_ids',
+    )
     .in('status', ['nao_iniciado', 'em_andamento'])
-    .not('data_fim', 'is', null)
     .not('interacao_id', 'is', null);
 
   if (errTopicos) {
@@ -113,8 +117,8 @@ export async function notificarAtividadesComSlaCritico(): Promise<void> {
   } else {
     for (const raw of topicos ?? []) {
       const row = raw as TopicoSlaRow;
-      const prazo = String(row.data_fim ?? '').trim().slice(0, 10);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(prazo)) continue;
+      const prazo = prazoIsoEfetivoSla(row);
+      if (!prazo) continue;
 
       const sla = rotuloSlaAtividadeDiasUteis(prazo, row.status ?? undefined);
       if (sla.variante !== 'atrasado' && sla.variante !== 'atencao') continue;

@@ -20,6 +20,12 @@ import { notificarMencoesSirene, resolverMencoesSirene } from '@/lib/actions/sir
 import { criarPastelariaInboxParaChamadoSirene } from '@/lib/pastelaria/sirene-pastel-abertura';
 import { labelPastelariaColuna } from '@/lib/pastelaria/coluna-labels';
 import { syncPastelariaColunaFromSireneStatus } from '@/lib/pastelaria/sirene-status-sync';
+import {
+  buscarTopicosStatusChamado,
+  registrarPrimeiroAtendimentoSeNecessario,
+  todosTopicosFechados,
+  topicoStatusFechado,
+} from '@/lib/sirene/chamado-regras';
 
 export type SireneActionResult = { ok: true } | { ok: false; error: string };
 
@@ -346,6 +352,11 @@ export type TopicoPainelLinha = {
   status: string;
   resolucao_time: string | null;
   motivo_reprovacao: string | null;
+  prazo_proposto?: string | null;
+  prazo_status?: string | null;
+  prazo_abridor_id?: string | null;
+  prazo_proposto_por?: string | null;
+  prazo_negociacao_expira_em?: string | null;
 };
 
 type GetTopicosPainelResult =
@@ -353,7 +364,7 @@ type GetTopicosPainelResult =
   | { ok: false; error: string };
 
 const TOPICOS_PAINEL_SELECT =
-  'id, ordem, nome, descricao, descricao_detalhe, time_responsavel, tipo, times_ids, responsaveis_ids, data_inicio, data_fim, status, trava, pastel, historico, resolucao_time, motivo_reprovacao';
+  'id, ordem, nome, descricao, descricao_detalhe, time_responsavel, tipo, times_ids, responsaveis_ids, data_inicio, data_fim, status, trava, pastel, historico, resolucao_time, motivo_reprovacao, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em';
 
 function mapRowsToTopicosPainel(rows: Record<string, unknown>[]): TopicoPainelLinha[] {
   return rows.map((r) => {
@@ -392,6 +403,26 @@ function mapRowsToTopicosPainel(rows: Record<string, unknown>[]): TopicoPainelLi
       status: r.status as string,
       resolucao_time: rt != null && typeof rt === 'string' ? rt : null,
       motivo_reprovacao: mr != null && typeof mr === 'string' ? mr : null,
+      prazo_proposto:
+        (r as { prazo_proposto?: unknown }).prazo_proposto != null
+          ? String((r as { prazo_proposto?: unknown }).prazo_proposto)
+          : null,
+      prazo_status:
+        (r as { prazo_status?: unknown }).prazo_status != null
+          ? String((r as { prazo_status?: unknown }).prazo_status)
+          : null,
+      prazo_abridor_id:
+        (r as { prazo_abridor_id?: unknown }).prazo_abridor_id != null
+          ? String((r as { prazo_abridor_id?: unknown }).prazo_abridor_id)
+          : null,
+      prazo_proposto_por:
+        (r as { prazo_proposto_por?: unknown }).prazo_proposto_por != null
+          ? String((r as { prazo_proposto_por?: unknown }).prazo_proposto_por)
+          : null,
+      prazo_negociacao_expira_em:
+        (r as { prazo_negociacao_expira_em?: unknown }).prazo_negociacao_expira_em != null
+          ? String((r as { prazo_negociacao_expira_em?: unknown }).prazo_negociacao_expira_em)
+          : null,
     };
   });
 }
@@ -404,10 +435,29 @@ export async function getTopicosChamado(chamadoId: number): Promise<GetTopicosPa
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
 
-  const { data, error } = await supabase
+  const { data: direct, error: directErr } = await supabase
     .from('sirene_topicos')
     .select(TOPICOS_PAINEL_SELECT)
     .eq('chamado_id', chamadoId)
+    .eq('arquivado', false)
+    .order('ordem', { ascending: true });
+
+  if (directErr) return { ok: false, error: directErr.message };
+  if ((direct ?? []).length > 0) {
+    return { ok: true, topicos: mapRowsToTopicosPainel((direct ?? []) as Record<string, unknown>[]) };
+  }
+
+  const { data: interacoes } = await supabase
+    .from('kanban_atividades')
+    .select('id')
+    .eq('sirene_chamado_id', chamadoId);
+  const interacaoIds = (interacoes ?? []).map((r) => String((r as { id: string }).id));
+  if (interacaoIds.length === 0) return { ok: true, topicos: [] };
+
+  const { data, error } = await supabase
+    .from('sirene_topicos')
+    .select(TOPICOS_PAINEL_SELECT)
+    .in('interacao_id', interacaoIds)
     .eq('arquivado', false)
     .order('ordem', { ascending: true });
 
@@ -485,17 +535,12 @@ export async function salvarResolucaoComTopicos(
     if (insErr) return { ok: false, error: insErr.message };
   }
 
-  const updates: { data_inicio_atendimento?: string; status: string; updated_at: string } = {
-    status: 'em_andamento',
-    updated_at: new Date().toISOString(),
-  };
-  if (!chamado.data_inicio_atendimento) {
-    updates.data_inicio_atendimento = new Date().toISOString();
-  }
-
   const { error: updErr } = await supabase
     .from('sirene_chamados')
-    .update(updates)
+    .update({
+      status: 'em_andamento',
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', chamadoId);
   if (updErr) return { ok: false, error: updErr.message };
 
@@ -1599,7 +1644,9 @@ export async function reprovarTopico(
   return { ok: true };
 }
 
-/** Fechar chamado (parecer, tema, mapeamento). Só Bombeiro; só quando todos os tópicos estão aprovados. Coloca status em aguardando_aprovacao_criador. */
+/**
+ * @deprecated Não é mais gate de conclusão. Salva parecer/tema/mapeamento sem alterar status do chamado.
+ */
 export async function fecharChamado(
   chamadoId: number,
   parecer: string,
@@ -1618,21 +1665,9 @@ export async function fecharChamado(
 
   if (!chamado) return { ok: false, error: 'Chamado não encontrado.' };
 
-  const ctx = me.ctx;
   const chamadoTyped = chamado as unknown as Chamado;
-  if (!canActAsBombeiro(ctx, chamadoTyped))
+  if (!canActAsBombeiro(me.ctx, chamadoTyped))
     return { ok: false, error: 'Apenas Bombeiro pode preencher tema e mapeamento de perícia.' };
-
-  const { data: topicos } = await supabase
-    .from('sirene_topicos')
-    .select('id, status')
-    .eq('chamado_id', chamadoId);
-  const lista = topicos ?? [];
-  if (lista.length === 0)
-    return { ok: false, error: 'Não há tópicos. Crie e salve os tópicos antes de concluir o chamado.' };
-  const todosAprovados = lista.every((t) => t.status === 'aprovado');
-  if (!todosAprovados)
-    return { ok: false, error: 'Todos os tópicos precisam estar aprovados para enviar o fechamento ao criador.' };
 
   const parecerTrim = parecer?.trim();
   const temaTrim = tema?.trim();
@@ -1646,46 +1681,38 @@ export async function fecharChamado(
       parecer_final: parecerTrim,
       tema: temaTrim,
       mapeamento_pericia: mapeamentoTrim,
-      status: 'aguardando_aprovacao_criador',
       updated_at: new Date().toISOString(),
     })
     .eq('id', chamadoId);
 
   if (error) return { ok: false, error: error.message };
 
-  const adminSync = createAdminClient();
-  const syncPastel = await syncPastelariaColunaFromSireneStatus(
-    adminSync,
-    chamadoId,
-    'aguardando_aprovacao_criador',
-  );
-  if (!syncPastel.ok) console.error('[fecharChamado] sync pastelaria', syncPastel.error);
-
-  const numero = (chamado as { numero?: number })?.numero ?? chamadoId;
-  if ((chamado as { aberto_por?: string }).aberto_por) {
-    await inserirNotificacao(
-      supabase,
-      (chamado as { aberto_por: string }).aberto_por,
-      chamadoId,
-      'fechamento_enviado',
-      `Bombeiro enviou o fechamento do chamado #${numero}. Avalie se a resolução foi suficiente.`,
-    );
-  }
   revalidatePath('/sirene');
   revalidatePath(`/sirene/${chamadoId}`);
   revalidatePath('/carometro/pastelaria');
+  revalidatePath('/sirene/chamados');
   return { ok: true };
 }
 
-/** Criador aprova (suficiente) ou reprova (insuficiente) o fechamento. Só quem abriu o chamado. */
+/** Criador conclui ou reabre o chamado (regra CARD). Só quem abriu; todas as atividades fechadas. */
 export async function concluirChamadoCriador(
   chamadoId: number,
   suficiente: boolean,
-  motivoInsuficiente?: string,
+  texto: string,
 ): Promise<SireneActionResult> {
   const supabase = await createClient();
   const me = await getSireneUserContext(supabase);
   if (!me) return { ok: false, error: 'Faça login.' };
+
+  const textoTrim = texto?.trim();
+  if (!textoTrim) {
+    return {
+      ok: false,
+      error: suficiente
+        ? 'Informe as informações da conclusão.'
+        : 'Informe o motivo da insuficiência para reabrir.',
+    };
+  }
 
   const { data: chamado } = await supabase
     .from('sirene_chamados')
@@ -1695,27 +1722,28 @@ export async function concluirChamadoCriador(
 
   if (!chamado) return { ok: false, error: 'Chamado não encontrado.' };
   if (chamado.aberto_por !== me.userId)
-    return { ok: false, error: 'Apenas quem abriu o chamado pode aprovar ou reprovar o fechamento.' };
+    return { ok: false, error: 'Somente quem abriu o chamado pode marcá-lo como concluído.' };
 
-  const { data: topicosRows } = await supabase
-    .from('sirene_topicos')
-    .select('status')
-    .eq('chamado_id', chamadoId);
-  const topicos = topicosRows ?? [];
-  const todosTopicosConcluidos =
-    topicos.length > 0 && topicos.every((t) => t.status === 'concluido');
+  if (chamado.status === 'concluido')
+    return { ok: false, error: 'Este chamado já está concluído.' };
 
-  const podeAvaliar =
-    chamado.status === 'aguardando_aprovacao_criador' ||
-    (chamado.status === 'em_andamento' && todosTopicosConcluidos);
-  if (!podeAvaliar)
+  const topicos = await buscarTopicosStatusChamado(supabase, chamadoId);
+  if (!todosTopicosFechados(topicos)) {
     return {
       ok: false,
-      error:
-        chamado.status === 'em_andamento'
-          ? 'Só é possível avaliar quando todos os tópicos estiverem concluídos ou após o fechamento do Bombeiro.'
-          : 'Chamado não está aguardando aprovação do criador.',
+      error: 'Conclua todas as atividades (concluídas ou aprovadas) antes de fechar o chamado.',
     };
+  }
+
+  const legadoAguardando = chamado.status === 'aguardando_aprovacao_criador';
+  if (
+    chamado.status !== 'em_andamento' &&
+    !legadoAguardando
+  ) {
+    return { ok: false, error: 'Chamado não está em andamento.' };
+  }
+
+  const admin = createAdminClient();
 
   if (suficiente) {
     const { error } = await supabase
@@ -1723,28 +1751,45 @@ export async function concluirChamadoCriador(
       .update({
         resolucao_suficiente: true,
         motivo_insuficiente: null,
+        info_conclusao_criador: textoTrim,
         status: 'concluido',
         data_conclusao: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq('id', chamadoId);
     if (error) return { ok: false, error: error.message };
+
+    await admin
+      .from('kanban_atividades')
+      .update({
+        status: 'concluida',
+        concluida_em: new Date().toISOString(),
+        info_conclusao_criador: textoTrim,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('sirene_chamado_id', chamadoId);
   } else {
-    const motivo = motivoInsuficiente?.trim();
-    if (!motivo) return { ok: false, error: 'Informe o motivo da insuficiência para reabrir.' };
     const { error } = await supabase
       .from('sirene_chamados')
       .update({
         resolucao_suficiente: false,
-        motivo_insuficiente: motivo,
+        motivo_insuficiente: textoTrim,
+        info_conclusao_criador: null,
         status: 'em_andamento',
-        parecer_final: null,
-        tema: null,
-        mapeamento_pericia: null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', chamadoId);
     if (error) return { ok: false, error: error.message };
+
+    await admin
+      .from('kanban_atividades')
+      .update({
+        status: 'em_andamento',
+        concluida_em: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('sirene_chamado_id', chamadoId);
+
     const bombeiros = await getUserIdsToNotify(supabase, 'bombeiro');
     const numero = (chamado as { numero?: number })?.numero ?? chamadoId;
     for (const uid of bombeiros) {
@@ -1753,7 +1798,7 @@ export async function concluirChamadoCriador(
         uid,
         chamadoId,
         'criador_reabriu',
-        `Criador marcou o fechamento do chamado #${numero} como insuficiente. Chamado reaberto.`,
+        `Criador indicou resolução insuficiente no chamado #${numero}. Chamado reaberto.`,
       );
     }
   }
@@ -1766,8 +1811,11 @@ export async function concluirChamadoCriador(
   revalidatePath('/sirene');
   revalidatePath(`/sirene/${chamadoId}`);
   revalidatePath('/carometro/pastelaria');
+  revalidatePath('/sirene/chamados');
   return { ok: true };
 }
+
+export { topicoStatusFechado, todosTopicosFechados };
 
 export type AnexoOrigem = 'criador' | 'topico' | 'fechamento_bombeiro';
 

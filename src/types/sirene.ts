@@ -39,6 +39,8 @@ export interface Chamado {
   parecer_final: string | null;
   resolucao_suficiente: boolean | null;
   motivo_insuficiente: string | null;
+  /** Texto obrigatório do criador ao concluir (caminho suficiente). */
+  info_conclusao_criador: string | null;
   created_at: string;
   updated_at: string;
   // HDM
