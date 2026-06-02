@@ -3075,8 +3075,8 @@ export function KanbanCardModal({
               Voltar
                       </button>
             <div className="flex min-h-0 flex-1 flex-col">
-            <div className="mb-6 flex min-h-0 flex-1 flex-col">
-              <h4 className="mb-3 text-sm font-semibold" style={{ color: 'var(--moni-text-secondary)' }}>
+            <div className="mb-4 flex min-h-0 flex-1 flex-col">
+              <h4 className="mb-2 text-sm font-semibold" style={{ color: 'var(--moni-text-secondary)' }}>
                 Chamados
                 {interacoes.length > 0 ? (
                   <span className="ml-2 text-xs font-normal text-stone-500">
@@ -3110,13 +3110,13 @@ export function KanbanCardModal({
               ) : null}
 
               <div
-                className="flex min-h-0 flex-1 flex-col rounded-lg bg-white p-4"
+                className="flex min-h-0 flex-1 flex-col rounded-lg bg-white p-3"
                 style={{
                   border: '0.5px solid var(--moni-border-default)',
                   boxShadow: 'var(--moni-shadow-sm)',
                 }}
               >
-              <div className="relative mb-4 shrink-0">
+              <div className="relative mb-3 shrink-0">
                 <button
                   ref={filtrosBtnRef}
                   type="button"
@@ -3160,7 +3160,7 @@ export function KanbanCardModal({
 
               <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
               {interacoesFiltradas.length > 0 ? (
-                <div className="mb-4 space-y-2">
+                <div className="mb-2 space-y-1.5">
                   {interacoesFiltradas.map((it) => {
                     const subs = subInteracoesPorPai[it.id] ?? [];
                     const subsVisiveis = filtrarSubAtividadesPorConclusao(
@@ -3191,9 +3191,10 @@ export function KanbanCardModal({
                         key={it.id}
                         kind={surfaceKind}
                         as="div"
+                        compact
                         style={corFundoChamado(prazoEfetivo, statusVisual)}
                       >
-                        <div className="flex items-start gap-2">
+                        <div className="flex items-start gap-1.5">
                           {!demo ? (
                             <button
                               type="button"
@@ -3204,18 +3205,18 @@ export function KanbanCardModal({
                               }}
                             >
                               <ChevronRight
-                                className={`h-4 w-4 transition-transform ${subsDetalheAberto ? 'rotate-90' : ''}`}
+                                className={`h-3.5 w-3.5 transition-transform ${subsDetalheAberto ? 'rotate-90' : ''}`}
                                 aria-hidden
                               />
                             </button>
                           ) : (
-                            <span className="mt-0.5 inline-block w-5 shrink-0" aria-hidden />
+                            <span className="mt-0.5 inline-block w-4 shrink-0" aria-hidden />
                           )}
                           <span className="mt-0.5 shrink-0">
-                            <AtividadeVinculadaIcon kind={iconKind} size="md" />
+                            <AtividadeVinculadaIcon kind={iconKind} size="sm" />
                           </span>
                           <div className="min-w-0 flex-1">
-                            <div className="flex min-w-0 flex-nowrap items-center gap-2">
+                            <div className="flex min-w-0 flex-nowrap items-center gap-1.5">
                               {editingId === it.id ? (
                                 <>
                                   <input
@@ -3265,10 +3266,10 @@ export function KanbanCardModal({
                                       {formatChamadoNumero(it.numero)}
                                     </span>
                                   ) : null}
-                                  <h5 className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">
+                                  <h5 className="min-w-0 flex-1 truncate text-[13px] font-medium leading-tight text-stone-800">
                                     {it.titulo}
                                   </h5>
-                                  <div className="flex shrink-0 items-center gap-1.5">
+                                  <div className="flex shrink-0 items-center gap-1">
                                     <SlaTituloBolinha
                                       prazoIso={prazoEfetivo}
                                       statusPainel={mapInteracaoStatusParaPainelSla(statusVisual)}
@@ -3282,11 +3283,11 @@ export function KanbanCardModal({
                                           e.stopPropagation();
                                           abrirEdicaoInteracao(it);
                                         }}
-                                        className="shrink-0 rounded p-1 text-stone-700 hover:bg-stone-200 hover:text-stone-900"
+                                        className="shrink-0 rounded p-0.5 text-stone-700 hover:bg-stone-200 hover:text-stone-900"
                                         aria-label="Editar título do chamado"
                                         title="Editar título"
                                       >
-                                        <Pencil className="h-4 w-4 shrink-0" aria-hidden />
+                                        <Pencil className="h-3.5 w-3.5 shrink-0" aria-hidden />
                                       </button>
                                     ) : null}
                                     {!demo && pode('criar_chamados') ? (
@@ -3296,10 +3297,10 @@ export function KanbanCardModal({
                                           setModalArquivarInteracao({ id: it.id, tipo: 'chamado' });
                                           setMotivoArquivarInteracao('');
                                         }}
-                                        className="shrink-0 rounded p-1 text-stone-400 hover:bg-red-50 hover:text-red-500"
+                                        className="shrink-0 rounded p-0.5 text-stone-400 hover:bg-red-50 hover:text-red-500"
                                         title="Arquivar chamado"
                                       >
-                                        <Archive className="h-4 w-4 shrink-0" aria-hidden />
+                                        <Archive className="h-3.5 w-3.5 shrink-0" aria-hidden />
                                       </button>
                                     ) : null}
                                     {!demo &&
@@ -3310,10 +3311,10 @@ export function KanbanCardModal({
                                       <button
                                         type="button"
                                         onClick={() => setModalExcluirInteracaoId(it.id)}
-                                        className="shrink-0 rounded p-1 text-stone-400 hover:bg-red-50 hover:text-red-600"
+                                        className="shrink-0 rounded p-0.5 text-stone-400 hover:bg-red-50 hover:text-red-600"
                                         title="Excluir chamado"
                                       >
-                                        <Trash2 className="h-4 w-4 shrink-0" aria-hidden />
+                                        <Trash2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
                                       </button>
                                     ) : null}
                                   </div>
@@ -3331,7 +3332,7 @@ export function KanbanCardModal({
                             ) : null}
                             {subsDetalheAberto ? (
                             <>
-                            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                            <div className="mt-1 flex flex-wrap items-center gap-1">
                               <span
                                 className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase"
                                 style={
@@ -3397,7 +3398,7 @@ export function KanbanCardModal({
                               />
                             </div>
                             {editingId === it.id ? (
-                              <div className="mt-3 space-y-2 rounded-lg border border-stone-200 bg-white p-3">
+                              <div className="mt-2 space-y-1.5 rounded-lg border border-stone-200 bg-white p-2">
                                 <textarea
                                   value={editDraft.descricao}
                                   onChange={(e) => setEditDraft((d) => ({ ...d, descricao: e.target.value }))}
@@ -3440,7 +3441,7 @@ export function KanbanCardModal({
                             ) : it.descricao ? (
                               <p className="mt-1 text-xs text-stone-600">{it.descricao}</p>
                             ) : null}
-                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
                               {(!modalSessao.ehAdminOuTeam ||
                                 demo ||
                                 (deriv.usarDerivado && statusVisual !== statusInteracaoSelect)) ? (
@@ -3475,8 +3476,8 @@ export function KanbanCardModal({
                               </span>
                             </div>
                             {!demo ? (
-                              <div className="mt-3 rounded-lg border border-stone-200 bg-stone-50/80 p-3">
-                                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                              <div className="mt-2 rounded-lg border border-stone-200 bg-stone-50/80 p-2">
+                                <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1.5">
                                   <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">
                                     Atividades ({subsVisiveis.length}
                                     {!filtros.mostrarAtividadesConcluidas && subs.length > subsVisiveis.length
@@ -3486,7 +3487,7 @@ export function KanbanCardModal({
                                   </p>
                                 </div>
                                 {subsVisiveis.length > 0 ? (
-                                  <ul className="mb-3 space-y-2">
+                                  <ul className="mb-2 space-y-1.5">
                                     {subsVisiveis.map((sub) => {
                                       const subDetalheAberto = subAtividadeExpandida[sub.id] === true;
                                       const podePastel = usuarioPodeMarcarPastelSubInteracao(
@@ -3496,7 +3497,7 @@ export function KanbanCardModal({
                                       return (
                                       <li
                                         key={sub.id}
-                                        className={`rounded-md border bg-white px-2 py-2 text-xs ${
+                                        className={`rounded-md border bg-white px-2 py-1.5 text-xs ${
                                           deepLinkTopicoId != null && String(sub.id) === String(deepLinkTopicoId)
                                             ? 'border-[color:var(--moni-status-attention-border)] bg-[var(--moni-status-attention-bg)]'
                                             : 'border-stone-200'
@@ -3726,14 +3727,14 @@ export function KanbanCardModal({
                                     })}
                                   </ul>
                                 ) : (
-                                  <p className="mb-3 text-[11px] text-stone-500">
+                                  <p className="mb-2 text-[11px] text-stone-500">
                                     {!filtros.mostrarAtividadesConcluidas && subs.length > 0
                                       ? 'Só há atividades concluídas. Ative "Mostrar atividades concluídas" nos filtros.'
                                       : 'Nenhum sub-chamado.'}
                                   </p>
                                 )}
                                 {subFormInteracaoId === it.id ? (
-                                  <div className="space-y-2 border-t border-stone-200 pt-3">
+                                  <div className="space-y-1.5 border-t border-stone-200 pt-2">
                                     <p className="text-[10px] font-semibold text-stone-600">Nova atividade</p>
                                     <KanbanAtividadeFormFields
                                       draft={subNovaDraft}
@@ -3781,7 +3782,7 @@ export function KanbanCardModal({
                               </div>
                             ) : null}
                             {!demo && pode('criar_chamados') && subsDetalheAberto ? (
-                              <div className="mt-2">
+                              <div className="mt-1.5">
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -3804,7 +3805,7 @@ export function KanbanCardModal({
                   })}
                 </div>
               ) : (
-                <p className="mb-4 text-sm text-stone-500">
+                <p className="mb-2 text-sm text-stone-500">
                   {interacoes.length === 0
                     ? 'Nenhum chamado vinculado a este card no banco.'
                     : 'Nenhum chamado corresponde aos filtros atuais — limpe os filtros para ver todos.'}
@@ -3817,12 +3818,12 @@ export function KanbanCardModal({
               </div>
 
               <div
-                className="mt-4 shrink-0 border-t pt-4"
+                className="mt-2 shrink-0 border-t pt-2"
                 style={{ borderColor: 'var(--moni-border-default)' }}
               >
               {pode('criar_chamados') ? (
               <div
-                className="rounded-md p-2.5"
+                className="rounded-md p-2"
                 style={{
                   background: 'var(--moni-surface-50)',
                 }}

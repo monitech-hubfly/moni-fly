@@ -8,6 +8,8 @@ type Props = {
   kind: AtividadeVinculadaKind;
   as?: 'div' | 'li';
   className?: string;
+  /** Menos padding vertical — listagens densas (ex.: painel Chamados). */
+  compact?: boolean;
   /** Sobrescreve fundo/borda (ex.: SLA do chamado) mantendo relevo do `kind`. */
   style?: CSSProperties;
   children: ReactNode;
@@ -17,11 +19,21 @@ type Props = {
  * Cartão de linha de atividade: mesma base visual dos exemplos do Funil
  * (fundo por status, borda, relevo 3d leve).
  */
-export function AtividadeVinculadaCard({ kind, as = 'div', className, style: styleProp, children }: Props) {
+export function AtividadeVinculadaCard({
+  kind,
+  as = 'div',
+  className,
+  compact = false,
+  style: styleProp,
+  children,
+}: Props) {
   const Tag = as;
   const surface = atividadeVinculadaRaisedSurface(kind);
   return (
-    <Tag className={`p-3 text-sm ${className ?? ''}`} style={{ ...surface, ...styleProp }}>
+    <Tag
+      className={`${compact ? 'p-2' : 'p-3'} text-sm ${className ?? ''}`}
+      style={{ ...surface, ...styleProp }}
+    >
       {children}
     </Tag>
   );
