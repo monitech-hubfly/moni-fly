@@ -14,6 +14,7 @@ import {
 import { precisaMotivoReprovacaoComiteNoCancelamento } from '@/lib/painel/dashboard-etapas';
 import { allocNextOrdemColunaPainel } from '@/lib/painel-coluna-ordem';
 import { getPainelDbForPublicEdit } from '@/lib/painel-public-edit';
+import { calcularDataEnvioCreditoObra } from '@/lib/pre-obra/credito-obra-envio-data';
 
 const STEP2_NOVO_NEGOCIO_ESTUDOS_DOCS_TITULOS = [
   'BCA',
@@ -272,17 +273,21 @@ export async function updateDadosPreObra(
     return s.length > 0 ? s : null;
   };
 
+  const previsaoPref = normalize(payload.previsao_aprovacao_prefeitura);
+  const envioCreditoObra =
+    previsaoPref != null ? calcularDataEnvioCreditoObra(previsaoPref) : normalize(payload.previsao_liberacao_credito_obra);
+
   const { error } = await supabase
     .from('processo_step_one')
     .update({
       previsao_aprovacao_condominio: normalize(payload.previsao_aprovacao_condominio),
-      previsao_aprovacao_prefeitura: normalize(payload.previsao_aprovacao_prefeitura),
+      previsao_aprovacao_prefeitura: previsaoPref,
       previsao_emissao_alvara: normalize(payload.previsao_emissao_alvara),
       data_aprovacao_condominio: normalize(payload.data_aprovacao_condominio),
       data_aprovacao_prefeitura: normalize(payload.data_aprovacao_prefeitura),
       data_emissao_alvara: normalize(payload.data_emissao_alvara),
       data_aprovacao_credito: normalize(payload.data_aprovacao_credito),
-      previsao_liberacao_credito_obra: normalize(payload.previsao_liberacao_credito_obra),
+      previsao_liberacao_credito_obra: envioCreditoObra,
       previsao_inicio_obra: normalize(payload.previsao_inicio_obra),
       updated_at: new Date().toISOString(),
     })

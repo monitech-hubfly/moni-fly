@@ -17,6 +17,7 @@ import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
 import { isKanbanIdInterno } from '@/lib/kanban/filtrar-kanbans-internos';
 import { carregarPermissoesMap } from '@/lib/permissoes-load';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { calcularDataEnvioCreditoObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import {
   deveValidarGatePortfolioStep5,
   deveVerificarCapital,
@@ -1849,6 +1850,11 @@ export async function salvarDadosPreObra(input: SalvarDadosPreObraInput): Promis
   setDate('data_aprovacao_prefeitura', 'data_aprovacao_prefeitura');
   setDate('data_emissao_alvara', 'data_emissao_alvara');
   setDate('data_aprovacao_credito', 'data_aprovacao_credito');
+
+  if (input.previsao_aprovacao_prefeitura !== undefined) {
+    update.previsao_liberacao_credito_obra =
+      calcularDataEnvioCreditoObra(String(input.previsao_aprovacao_prefeitura ?? '')) ?? null;
+  }
 
   const { error } = await supabase.from('processo_step_one').update(update as never).eq('id', pid);
   if (error) return { ok: false, error: error.message };

@@ -59,7 +59,14 @@ import { enviarHipoteseAoPortfolio } from '@/lib/actions/card-actions';
 import { deletarChamado } from '@/app/sirene/actions';
 import { KANBANS_COM_CHAMADO_JURIDICO } from '@/lib/constants/kanban-ids';
 import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
-import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
+import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import {
+  autorizarAberturaCreditoObra,
+  consultarAberturaCreditoObraPendente,
+  recusarAberturaCreditoObra,
+} from '@/lib/actions/credito-obra-abertura-automatica';
+import { aplicarDataEnvioCreditoObraNoPreObra } from '@/lib/pre-obra/credito-obra-envio-data';
+import { CreditoObraAberturaAutorizacaoModal } from './CreditoObraAberturaAutorizacaoModal';
 import { isPortfolioKanbanRef } from '@/lib/kanban/portfolio-paralelas';
 import {
   enrichCardsParalelasContext,
@@ -474,6 +481,12 @@ export function KanbanCardModal({
   });
   const [preObraDraft, setPreObraDraft] = useState<PreObraDraftKanban>(() => preObraDraftFromProcesso(null));
   const [salvandoPreObra, setSalvandoPreObra] = useState(false);
+  const [creditoObraAbertura, setCreditoObraAbertura] = useState<{
+    tituloCard: string;
+    dataEnvio: string | null;
+    dataEnvioExibicao: string | null;
+  } | null>(null);
+  const [creditoObraAberturaPending, setCreditoObraAberturaPending] = useState(false);
   const [uploadingNegocioAnexo, setUploadingNegocioAnexo] = useState<ProcessoNegocioAnexoCampo | null>(
     null,
   );
@@ -521,6 +534,8 @@ export function KanbanCardModal({
     setFiltrosOpen(false);
     setModalDetalhes({ rede: null, processo: null, redeIdContrato: null });
     setPreObraDraft(preObraDraftFromProcesso(null));
+    setCreditoObraAbertura(null);
+    setCreditoObraAberturaPending(false);
     setLegadoCronologiaMoves([]);
     setEditandoInstrucoesFase(false);
     setDraftInstrucoesFase('');
@@ -1322,6 +1337,25 @@ export function KanbanCardModal({
         setErroCarregarChamados('Erro inesperado ao carregar chamados.');
         setInteracoes([]);
         setSubInteracoesPorPai({});
+      }
+
+      if (origem !== 'legado') {
+        const faseCarregada = fasesParaHistorico.find((f) => f.id === loaded.fase_id);
+        const slugAbertura = faseCarregada?.slug?.trim() ?? '';
+        if (loaded.kanban_id === KANBAN_IDS.OPERACOES && slugAbertura === FASE_SLUGS.APROVACAO_PREFEITURA) {
+          const pend = await consultarAberturaCreditoObraPendente(loaded.id);
+          if (pend.ok && pend.deveExibir) {
+            setCreditoObraAbertura({
+              tituloCard: pend.tituloCard,
+              dataEnvio: pend.dataEnvio,
+              dataEnvioExibicao: pend.dataEnvioExibicao,
+            });
+          } else {
+            setCreditoObraAbertura(null);
+          }
+        } else {
+          setCreditoObraAbertura(null);
+        }
       }
     } catch {
       // noop
@@ -2147,6 +2181,40 @@ export function KanbanCardModal({
       </div>
     );
   };
+
+  async function handleAutorizarAberturaCreditoObra() {
+    if (!card?.id) return;
+    setCreditoObraAberturaPending(true);
+    try {
+      const res = await autorizarAberturaCreditoObra(card.id, basePath);
+      if (!res.ok) {
+        alert(res.error);
+        return;
+      }
+      setCreditoObraAbertura(null);
+      await loadCard();
+      router.refresh();
+    } finally {
+      setCreditoObraAberturaPending(false);
+    }
+  }
+
+  async function handleRecusarAberturaCreditoObra(novaPrevisaoPrefeitura: string) {
+    if (!card?.id) return;
+    setCreditoObraAberturaPending(true);
+    try {
+      const res = await recusarAberturaCreditoObra(card.id, novaPrevisaoPrefeitura, basePath);
+      if (!res.ok) {
+        alert(res.error);
+        return;
+      }
+      setCreditoObraAbertura(null);
+      await loadCard();
+      router.refresh();
+    } finally {
+      setCreditoObraAberturaPending(false);
+    }
+  }
 
   async function handleSalvarPreObraKanban() {
     const pid = modalDetalhes.processo?.id;
@@ -5411,7 +5479,12 @@ export function KanbanCardModal({
                         type="date"
                         value={preObraDraft.previsao_aprovacao_prefeitura}
                         onChange={(e) =>
-                          setPreObraDraft((d) => ({ ...d, previsao_aprovacao_prefeitura: e.target.value }))
+                          setPreObraDraft((d) =>
+                            aplicarDataEnvioCreditoObraNoPreObra({
+                              ...d,
+                              previsao_aprovacao_prefeitura: e.target.value,
+                            }),
+                          )
                         }
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                       />
@@ -5426,15 +5499,17 @@ export function KanbanCardModal({
                       />
                     </label>
                     <label className="block">
-                      <span className="text-[11px] font-medium text-stone-500">Previsão de Liberação do Crédito para Obra</span>
+                      <span className="text-[11px] font-medium text-stone-500">Envio para Crédito Obra</span>
                       <input
                         type="date"
                         value={preObraDraft.previsao_liberacao_credito_obra}
-                        onChange={(e) =>
-                          setPreObraDraft((d) => ({ ...d, previsao_liberacao_credito_obra: e.target.value }))
-                        }
-                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                        readOnly
+                        title="Calculado automaticamente: previsão prefeitura − 30 dias corridos, próximo dia útil"
+                        className="mt-0.5 w-full cursor-not-allowed rounded border border-stone-200 bg-stone-50 px-2 py-1 text-xs text-stone-600"
                       />
+                      <span className="mt-0.5 block text-[10px] text-stone-400">
+                        Automático (prefeitura − 30 dias corridos, próximo dia útil)
+                      </span>
                     </label>
                     <label className="col-span-2 block">
                       <span className="text-[11px] font-medium text-stone-500">Previsão de Início de Obra</span>
@@ -5708,6 +5783,16 @@ export function KanbanCardModal({
         </div>
       </div>
     ) : null}
+
+    <CreditoObraAberturaAutorizacaoModal
+      open={creditoObraAbertura != null}
+      tituloCard={creditoObraAbertura?.tituloCard ?? card?.titulo ?? 'Card'}
+      dataEnvioExibicao={creditoObraAbertura?.dataEnvioExibicao ?? null}
+      dataEnvioIso={creditoObraAbertura?.dataEnvio ?? null}
+      onAutorizar={() => void handleAutorizarAberturaCreditoObra()}
+      onRecusar={(novaPref) => void handleRecusarAberturaCreditoObra(novaPref)}
+      pending={creditoObraAberturaPending}
+    />
 
     <ConclusaoChamadoCriadorModal
       open={conclusaoInteracaoId != null}

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { aplicarDataEnvioCreditoObraNoPreObra } from '@/lib/pre-obra/credito-obra-envio-data';
 
 /** Linha `rede_franqueados` para o painel esquerdo do modal Kanban. */
 export type RedeFranqueadoModalRow = {
@@ -399,7 +400,7 @@ export const PRE_OBRA_DRAFT_EMPTY: PreObraDraftKanban = {
 export function preObraDraftFromProcesso(p: ProcessoModalNegocioPreObra | null): PreObraDraftKanban {
   if (!p) return { ...PRE_OBRA_DRAFT_EMPTY };
   const t = (x: string | null | undefined) => (x != null ? String(x) : '');
-  return {
+  const draft: PreObraDraftKanban = {
     previsao_aprovacao_condominio: t(p.previsao_aprovacao_condominio),
     previsao_aprovacao_prefeitura: t(p.previsao_aprovacao_prefeitura),
     previsao_emissao_alvara: t(p.previsao_emissao_alvara),
@@ -410,6 +411,7 @@ export function preObraDraftFromProcesso(p: ProcessoModalNegocioPreObra | null):
     data_emissao_alvara: t(p.data_emissao_alvara),
     data_aprovacao_credito: t(p.data_aprovacao_credito),
   };
+  return aplicarDataEnvioCreditoObraNoPreObra(draft);
 }
 
 export function fmtMoedaKanban(raw: string | null | undefined): string {

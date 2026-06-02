@@ -2,6 +2,7 @@
 
 import type { Dispatch, SetStateAction } from 'react';
 import type { ProcessoRelacionado, ProcessoResumoStep1 } from './actions';
+import { aplicarDataEnvioCreditoObraNoPreObra } from '@/lib/pre-obra/credito-obra-envio-data';
 
 export type DadosPreObraFormState = {
   previsao_aprovacao_condominio: string;
@@ -259,7 +260,12 @@ export function ProcessoQuatroSecoesDados({
                   type="text"
                   value={dadosPreObraForm.previsao_aprovacao_prefeitura}
                   onChange={(e) =>
-                    setDadosPreObraForm((prev) => ({ ...prev, previsao_aprovacao_prefeitura: e.target.value }))
+                    setDadosPreObraForm((prev) =>
+                      aplicarDataEnvioCreditoObraNoPreObra({
+                        ...prev,
+                        previsao_aprovacao_prefeitura: e.target.value,
+                      }),
+                    )
                   }
                   placeholder="Ex.: 30/04/2026"
                   className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm"
@@ -345,17 +351,20 @@ export function ProcessoQuatroSecoesDados({
               )}
             </div>
             <div className="sm:col-span-2">
-              <label className="block text-xs text-stone-500">Previsão de Liberação do Crédito para Obra</label>
+              <label className="block text-xs text-stone-500">Envio para Crédito Obra</label>
               {allowEditPreObra ? (
-                <input
-                  type="text"
-                  value={dadosPreObraForm.previsao_liberacao_credito_obra}
-                  onChange={(e) =>
-                    setDadosPreObraForm((prev) => ({ ...prev, previsao_liberacao_credito_obra: e.target.value }))
-                  }
-                  placeholder="Ex.: 25/05/2026"
-                  className="mt-1 w-full rounded border border-stone-300 px-2 py-1.5 text-sm"
-                />
+                <>
+                  <input
+                    type="text"
+                    value={dadosPreObraForm.previsao_liberacao_credito_obra}
+                    readOnly
+                    placeholder="Calculado ao informar previsão prefeitura"
+                    className="mt-1 w-full cursor-not-allowed rounded border border-stone-200 bg-stone-50 px-2 py-1.5 text-sm text-stone-600"
+                  />
+                  <p className="mt-0.5 text-[11px] text-stone-400">
+                    Automático: previsão prefeitura − 30 dias corridos, próximo dia útil
+                  </p>
+                </>
               ) : (
                 <div className="mt-1 text-stone-800">{show(dadosPreObraForm.previsao_liberacao_credito_obra)}</div>
               )}
