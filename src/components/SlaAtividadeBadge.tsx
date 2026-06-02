@@ -5,6 +5,8 @@ type Props = {
   status?: string | boolean;
   /** Exibe texto interno quando em dia (variante ok). */
   showOkText?: boolean;
+  /** `compact` para linhas de atividade/sub-interação no modal e listas. */
+  size?: 'default' | 'compact';
   className?: string;
 };
 
@@ -12,6 +14,7 @@ export function SlaAtividadeBadge({
   prazoIso,
   status,
   showOkText = true,
+  size = 'default',
   className = '',
 }: Props) {
   const sla = rotuloSlaAtividadeDiasUteis(prazoIso, status);
@@ -30,9 +33,13 @@ export function SlaAtividadeBadge({
   }
 
   const isAtrasado = sla.variante === 'atrasado';
+  const sizeClass =
+    size === 'compact'
+      ? 'inline-flex rounded px-1 py-px text-[9px] font-semibold leading-tight'
+      : 'inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold';
   return (
     <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${className}`.trim()}
+      className={`${sizeClass} ${className}`.trim()}
       style={
         isAtrasado
           ? {

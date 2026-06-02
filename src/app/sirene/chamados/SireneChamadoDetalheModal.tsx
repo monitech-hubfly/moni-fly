@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Archive, Pencil, User, X } from 'lucide-react';
 import Link from 'next/link';
 import type { InteracaoSireneRow } from './InteracoesLista';
@@ -23,6 +23,10 @@ import {
   type AtividadeFormDraft,
 } from '@/components/kanban-shared/KanbanAtividadeFormFields';
 import { responsaveisFiltradosPorTimesIds } from '@/lib/times-responsaveis';
+import {
+  filtrarSubAtividadesPorConclusao,
+  isSubAtividadeConcluida,
+} from '@/components/kanban-shared/SubInteracaoLista';
 
 const selectClass =
   'rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)] outline-none focus:border-[color:var(--moni-navy-400)] focus:ring-1 focus:ring-[color:var(--moni-navy-400)]';
@@ -122,6 +126,19 @@ export function SireneChamadoDetalheModal({
   const editando = editingKanban || editingSirene;
   const podeEditar = chamadoEditavelNaSirene(row);
   const [novaAtivAberta, setNovaAtivAberta] = useState(false);
+  const [mostrarAtividadesConcluidas, setMostrarAtividadesConcluidas] = useState(false);
+  const topicosVisiveis = useMemo(
+    () => filtrarSubAtividadesPorConclusao(topicos, mostrarAtividadesConcluidas),
+    [topicos, mostrarAtividadesConcluidas],
+  );
+
+  useEffect(() => {
+    if (highlightTopicoId == null) return;
+    const t = topicos.find((x) => x.id === highlightTopicoId);
+    if (t && isSubAtividadeConcluida(t.status)) {
+      setMostrarAtividadesConcluidas(true);
+    }
+  }, [highlightTopicoId, topicos]);
 
   const kanbanTimesForm = useMemo(
     () => times.map((t) => ({ id: t.id, nome: t.nome, ordem: 0 })),
@@ -281,14 +298,29 @@ export function SireneChamadoDetalheModal({
           ) : null}
 
           <section>
-            <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
-              Atividades ({topicos.length})
-            </h3>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
+                Atividades ({topicosVisiveis.length}
+                {!mostrarAtividadesConcluidas && topicos.length > topicosVisiveis.length
+                  ? ` de ${topicos.length}`
+                  : ''}
+                )
+              </h3>
+              <label className="inline-flex cursor-pointer items-center gap-1.5 text-[10px] text-[color:var(--moni-text-secondary)]">
+                <input
+                  type="checkbox"
+                  className="h-3 w-3 rounded border-[color:var(--moni-border-default)]"
+                  checked={mostrarAtividadesConcluidas}
+                  onChange={(e) => setMostrarAtividadesConcluidas(e.target.checked)}
+                />
+                Mostrar concluídas
+              </label>
+            </div>
             {topicosLoading ? (
               <p className="text-xs text-[color:var(--moni-text-tertiary)]">Carregando atividades…</p>
-            ) : topicos.length > 0 ? (
+            ) : topicosVisiveis.length > 0 ? (
               <ul className="space-y-2">
-                {topicos.map((t) => (
+                {topicosVisiveis.map((t) => (
                   <li
                     key={t.id}
                     className={`rounded-lg border px-3 py-2 ${
@@ -310,7 +342,12 @@ export function SireneChamadoDetalheModal({
                           {t.data_fim ? (
                             <span>Prazo {t.data_fim.split('-').reverse().join('/')}</span>
                           ) : null}
-                          <SlaAtividadeBadge prazoIso={t.data_fim} status={t.status} showOkText={false} />
+                          <SlaAtividadeBadge
+                            prazoIso={t.data_fim}
+                            status={t.status}
+                            showOkText={false}
+                            size="compact"
+                          />
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
@@ -342,7 +379,11 @@ export function SireneChamadoDetalheModal({
                 ))}
               </ul>
             ) : (
-              <p className="text-xs text-[color:var(--moni-text-tertiary)]">Nenhuma atividade registrada.</p>
+              <p className="text-xs text-[color:var(--moni-text-tertiary)]">
+                {!mostrarAtividadesConcluidas && topicos.length > 0
+                  ? 'Só há atividades concluídas. Marque "Mostrar concluídas" acima.'
+                  : 'Nenhuma atividade registrada.'}
+              </p>
             )}
           </section>
 

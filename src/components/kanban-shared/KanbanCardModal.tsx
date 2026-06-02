@@ -144,7 +144,10 @@ import {
   type SecaoEsquerdaId,
   type SubInteracaoModal,
 } from './kanban-card-modal-helpers';
-import { SubInteracaoLista, mapRawTopicoToListaItem } from '@/components/kanban-shared/SubInteracaoLista';
+import {
+  filtrarSubAtividadesPorConclusao,
+  isSubAtividadeConcluida,
+} from '@/components/kanban-shared/SubInteracaoLista';
 import { KanbanPastelariaAtividadeSection } from '@/components/kanban-shared/KanbanPastelariaAtividadeSection';
 import {
   enrichResponsaveisIdsComLegadoMoni,
@@ -1313,6 +1316,19 @@ export function KanbanCardModal({
       setSubAtividadeExpandida((s) => ({ ...s, [topicoId]: true }));
     }
   }, [deepLinkInteracaoId, deepLinkTopicoId, interacoes.length]);
+
+  useEffect(() => {
+    const topicoId = String(deepLinkTopicoId ?? '').trim();
+    if (!topicoId) return;
+    for (const subs of Object.values(subInteracoesPorPai)) {
+      const sub = subs.find((s) => String(s.id) === topicoId);
+      if (sub && isSubAtividadeConcluida(sub.status)) {
+        setFiltros((f) => ({ ...f, mostrarAtividadesConcluidas: true }));
+        setFiltrosDraft((f) => ({ ...f, mostrarAtividadesConcluidas: true }));
+        break;
+      }
+    }
+  }, [deepLinkTopicoId, subInteracoesPorPai]);
 
   async function handleAdicionarInteracao() {
     if (!card || !novaInteracao.titulo.trim()) return;
@@ -3057,7 +3073,7 @@ export function KanbanCardModal({
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
               Voltar
                       </button>
-            <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col pb-3">
 <div className="mb-6 flex-1">
               <h4 className="mb-3 text-sm font-semibold" style={{ color: 'var(--moni-text-secondary)' }}>
                 Chamados
@@ -3138,6 +3154,10 @@ export function KanbanCardModal({
                 <div className="mb-4 space-y-2">
                   {interacoesFiltradas.map((it) => {
                     const subs = subInteracoesPorPai[it.id] ?? [];
+                    const subsVisiveis = filtrarSubAtividadesPorConclusao(
+                      subs,
+                      filtros.mostrarAtividadesConcluidas,
+                    );
                     const subsDetalheAberto = subExpandida[it.id] === true;
                     const deriv = derivarChamadoKanbanComSubs(it.status, subs);
                     const statusVisual = deriv.usarDerivado ? deriv.status : it.status;
@@ -3291,9 +3311,13 @@ export function KanbanCardModal({
                                 </>
                               )}
                             </div>
-                            {!subsDetalheAberto && subs.length > 0 ? (
+                            {!subsDetalheAberto && subsVisiveis.length > 0 ? (
                               <p className="mt-1 text-[10px] text-stone-500">
-                                {subs.length} atividade{subs.length === 1 ? '' : 's'} — clique na seta para expandir
+                                {subsVisiveis.length} atividade{subsVisiveis.length === 1 ? '' : 's'}
+                                {!filtros.mostrarAtividadesConcluidas && subs.length > subsVisiveis.length
+                                  ? ` (${subs.length - subsVisiveis.length} concluída${subs.length - subsVisiveis.length === 1 ? '' : 's'} oculta${subs.length - subsVisiveis.length === 1 ? '' : 's'})`
+                                  : ''}{' '}
+                                — clique na seta para expandir
                               </p>
                             ) : null}
                             {subsDetalheAberto ? (
@@ -3408,9 +3432,13 @@ export function KanbanCardModal({
                               <p className="mt-1 text-xs text-stone-600">{it.descricao}</p>
                             ) : null}
                             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                              <AtividadeVinculadaStatusPill kind={pillKind}>
-                                {labelKanbanAtividadeParaPill(statusVisual)}
-                              </AtividadeVinculadaStatusPill>
+                              {(!modalSessao.ehAdminOuTeam ||
+                                demo ||
+                                (deriv.usarDerivado && statusVisual !== statusInteracaoSelect)) ? (
+                                <AtividadeVinculadaStatusPill kind={pillKind}>
+                                  {labelKanbanAtividadeParaPill(statusVisual)}
+                                </AtividadeVinculadaStatusPill>
+                              ) : null}
                               {deriv.alertaSubAtrasada ? (
                                 <span
                                   className="rounded border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-900"
@@ -3441,12 +3469,16 @@ export function KanbanCardModal({
                               <div className="mt-3 rounded-lg border border-stone-200 bg-stone-50/80 p-3">
                                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                                   <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">
-                                    Atividades ({subs.length})
+                                    Atividades ({subsVisiveis.length}
+                                    {!filtros.mostrarAtividadesConcluidas && subs.length > subsVisiveis.length
+                                      ? ` de ${subs.length}`
+                                      : ''}
+                                    )
                                   </p>
                                 </div>
-                                {subs.length > 0 ? (
+                                {subsVisiveis.length > 0 ? (
                                   <ul className="mb-3 space-y-2">
-                                    {subs.map((sub) => {
+                                    {subsVisiveis.map((sub) => {
                                       const subDetalheAberto = subAtividadeExpandida[sub.id] === true;
                                       return (
                                       <li
@@ -3542,6 +3574,7 @@ export function KanbanCardModal({
                                                 prazoIso={sub.data_fim}
                                                 status={sub.status}
                                                 showOkText={false}
+                                                size="compact"
                                               />
                                               {sub.historico.some((h) => h.tipo === 'Redirecionado') ? (
                                                 <span className="rounded border border-amber-300 bg-amber-50 px-1 py-0.5 text-[9px] font-semibold text-amber-800">
@@ -3681,7 +3714,11 @@ export function KanbanCardModal({
                                     })}
                                   </ul>
                                 ) : (
-                                  <p className="mb-3 text-[11px] text-stone-500">Nenhum sub-chamado.</p>
+                                  <p className="mb-3 text-[11px] text-stone-500">
+                                    {!filtros.mostrarAtividadesConcluidas && subs.length > 0
+                                      ? 'Só há atividades concluídas. Ative "Mostrar atividades concluídas" nos filtros.'
+                                      : 'Nenhum sub-chamado.'}
+                                  </p>
                                 )}
                                 {subFormInteracaoId === it.id ? (
                                   <div className="space-y-2 border-t border-stone-200 pt-3">

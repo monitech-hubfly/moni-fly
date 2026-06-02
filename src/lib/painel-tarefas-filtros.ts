@@ -72,6 +72,8 @@ export type PainelTarefasFiltrosState = {
   /** `todos` | `__sem_responsavel__` | `responsavel_id` (UUID) */
   responsavel: string;
   status: 'todos' | 'nao_iniciada' | 'em_andamento' | 'concluido';
+  /** Inclui atividades concluídas quando o status é "todos". */
+  mostrarConcluidas: boolean;
   tipo: 'todos' | 'atividade' | 'duvida' | 'proposicoes';
   /** Coluna `sla_status` da view (sem prazo = NULL na view) */
   sla_status: 'todos' | 'atrasado' | 'vence_hoje' | 'ok' | 'sem_prazo';
@@ -84,6 +86,7 @@ export function defaultPainelTarefasFiltros(): PainelTarefasFiltrosState {
     time: 'todos',
     responsavel: 'todos',
     status: 'todos',
+    mostrarConcluidas: false,
     tipo: 'todos',
     sla_status: 'todos',
   };
@@ -97,6 +100,7 @@ export function painelTarefasFiltrosTemAlgumAtivo(f: PainelTarefasFiltrosState):
     f.time !== d.time ||
     f.responsavel !== d.responsavel ||
     f.status !== d.status ||
+    f.mostrarConcluidas !== d.mostrarConcluidas ||
     f.tipo !== d.tipo ||
     f.sla_status !== d.sla_status
   );
@@ -188,6 +192,13 @@ export function aplicarFiltrosTarefasPainel<T extends TarefaPainelFiltroRow>(
     const tipoNorm = String(t.tipo ?? 'atividade').trim().toLowerCase();
 
     if (filtros.status !== 'todos' && t.status !== filtros.status) return false;
+    if (
+      filtros.status === 'todos' &&
+      !filtros.mostrarConcluidas &&
+      t.status === 'concluido'
+    ) {
+      return false;
+    }
 
     if (filtros.responsavel !== 'todos') {
       if (filtros.responsavel === '__sem_responsavel__') {

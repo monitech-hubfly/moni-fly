@@ -23,6 +23,8 @@ export type KanbanModalInteracoesFiltros = {
   responsavel: string;
   ordenacao: OrdenacaoInteracoesModal;
   busca: string;
+  /** Exibe sub-atividades concluídas/aprovadas dentro de cada chamado. */
+  mostrarAtividadesConcluidas: boolean;
 };
 
 export const KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT: KanbanModalInteracoesFiltros = {
@@ -33,6 +35,7 @@ export const KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT: KanbanModalInteracoesFiltr
   responsavel: 'todos',
   ordenacao: 'prioridade_sirene',
   busca: '',
+  mostrarAtividadesConcluidas: false,
 };
 
 export function countKanbanModalInteracoesFiltrosAtivos(f: KanbanModalInteracoesFiltros): number {
@@ -44,6 +47,7 @@ export function countKanbanModalInteracoesFiltrosAtivos(f: KanbanModalInteracoes
   if (f.responsavel !== d.responsavel) n++;
   if (f.ordenacao !== d.ordenacao) n++;
   if (f.busca.trim() !== '') n++;
+  if (f.mostrarAtividadesConcluidas !== d.mostrarAtividadesConcluidas) n++;
   return n;
 }
 
@@ -410,6 +414,21 @@ export function KanbanInteracoesFiltrosPanel({
             ))}
           </div>
         </SecaoColapsavel>
+
+        <label
+          className="flex cursor-pointer items-center gap-2 border-b py-2 text-xs"
+          style={{ borderColor: 'var(--moni-border-default)', color: 'var(--moni-text-primary)' }}
+        >
+          <input
+            type="checkbox"
+            className="h-3 w-3 shrink-0 rounded border-stone-300"
+            checked={draft.mostrarAtividadesConcluidas}
+            onChange={(e) =>
+              setDraft((d) => ({ ...d, mostrarAtividadesConcluidas: e.target.checked }))
+            }
+          />
+          Mostrar atividades concluídas
+        </label>
 
         <SecaoColapsavel
           id="ordenar"

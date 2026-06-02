@@ -55,7 +55,7 @@ const GRUPO_DEFAULT_ABERTO: Record<GrupoKey, boolean> = {
   duvidas: true,
   a_fazer: true,
   em_andamento: true,
-  concluido: true,
+  concluido: false,
 };
 
 function textoInteracao(t: InteracaoPainel): string {
@@ -573,6 +573,19 @@ export function TarefasPainelConteudo({ basePath: _ = '/painel-novos-negocios' }
             <option value="em_andamento">Status: em andamento</option>
             <option value="concluido">Status: concluído</option>
           </select>
+
+          <label
+            className={`flex min-h-[42px] cursor-pointer items-center gap-2 rounded border border-stone-300 bg-white px-3 py-2 text-sm text-stone-700 ${filtros.status === 'concluido' ? 'opacity-50' : ''}`}
+          >
+            <input
+              type="checkbox"
+              className="h-4 w-4 shrink-0 rounded border-stone-300"
+              checked={filtros.mostrarConcluidas || filtros.status === 'concluido'}
+              disabled={filtros.status === 'concluido'}
+              onChange={(e) => setFiltros((f) => ({ ...f, mostrarConcluidas: e.target.checked }))}
+            />
+            Mostrar concluídas
+          </label>
 
           <select
             value={filtros.tipo}

@@ -51,6 +51,21 @@ export function rotuloStatusSubInteracaoPt(status: string): string {
   return 'Pendente';
 }
 
+/** Sub-atividade/tópico considerado concluído (`sirene_topicos.status`). */
+export function isSubAtividadeConcluida(status: string | null | undefined): boolean {
+  const s = String(status ?? '').trim().toLowerCase();
+  return s === 'concluido' || s === 'aprovado';
+}
+
+/** Por padrão oculta concluídas; `mostrarConcluidas` revela todas. */
+export function filtrarSubAtividadesPorConclusao<T extends { status: string }>(
+  items: T[],
+  mostrarConcluidas: boolean,
+): T[] {
+  if (mostrarConcluidas) return items;
+  return items.filter((it) => !isSubAtividadeConcluida(it.status));
+}
+
 function badgeTipoLabel(tipo: SubInteracaoTipoUi): string {
   if (tipo === 'duvida') return 'DÚVIDA';
   if (tipo === 'chamado') return 'CHAMADO';
@@ -118,7 +133,12 @@ export function SubInteracaoLista({ items, variant, className = '', renderTraili
               </span>
             ) : null}
             <span className={`rounded border px-1 py-0.5 font-semibold ${statusClass}`}>{statusPt}</span>
-            <SlaAtividadeBadge prazoIso={it.data_fim} status={it.status} showOkText={false} />
+            <SlaAtividadeBadge
+              prazoIso={it.data_fim}
+              status={it.status}
+              showOkText={false}
+              size="compact"
+            />
             <span className={`tabular-nums ${muted}`}>{prazoFmt ? `Prazo ${prazoFmt}` : 'Sem prazo'}</span>
             <span className={`min-w-0 flex-1 truncate font-medium ${text}`} title={it.descricao}>
               {it.descricao}
