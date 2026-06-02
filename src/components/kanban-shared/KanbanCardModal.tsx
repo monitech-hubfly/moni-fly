@@ -4591,7 +4591,7 @@ export function KanbanCardModal({
                 {tagsCard.map((t) => (
                   <span
                     key={t.id}
-                    className="inline-flex max-w-full items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-semibold leading-tight"
+                    className="inline-flex max-w-full items-center gap-0.5 rounded-md px-1.5 py-px text-[10px] font-semibold leading-tight"
                     style={{ background: t.cor + '22', color: t.cor, border: `1px solid ${t.cor}55` }}
                   >
                     <span className="truncate">{t.nome}</span>
@@ -4645,7 +4645,7 @@ export function KanbanCardModal({
                                 setTagsCard(tc);
                                 setTagsOpen(false);
                               }}
-                                className="rounded-full px-1.5 py-px text-[10px] font-semibold transition hover:opacity-90"
+                                className="rounded-md px-1.5 py-px text-[10px] font-semibold transition hover:opacity-90"
                               style={{ background: t.cor + '22', color: t.cor, border: `1px solid ${t.cor}55` }}
                             >
                               {t.nome}
