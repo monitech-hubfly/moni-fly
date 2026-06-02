@@ -6,12 +6,10 @@ import { createClient } from '@/lib/supabase/client';
 import { getStickyRouteTitle } from '@/lib/app-sticky-route-title';
 
 type Props = {
-  user: { id: string; email?: string } | null;
-  /** Visitante em modo app pública (sem sessão): sem Sair; opcional Entrar */
-  publicVisitor?: boolean;
+  user: { id: string; email?: string };
 };
 
-export function AppStickyHeader({ user, publicVisitor = false }: Props) {
+export function AppStickyHeader({ user }: Props) {
   const pathname = usePathname() ?? '/';
   const router = useRouter();
   const title = getStickyRouteTitle(pathname);
@@ -51,30 +49,17 @@ export function AppStickyHeader({ user, publicVisitor = false }: Props) {
         <h1 className={`min-w-0 truncate ${titleClass}`}>{title}</h1>
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        {publicVisitor && !user ? (
-          <Link
-            href="/login"
-            className={
-              isSirene
-                ? 'rounded-lg border border-stone-600 px-3 py-1.5 text-xs font-medium text-stone-200 hover:bg-stone-800'
-                : 'rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-3 py-1.5 text-xs font-medium text-[color:var(--moni-text-secondary)] hover:bg-[var(--moni-surface-100)]'
-            }
-          >
-            Entrar
-          </Link>
-        ) : user ? (
-          <button
-            type="button"
-            onClick={() => void handleSignOut()}
-            className={
-              isSirene
-                ? 'rounded-lg border border-stone-600 bg-stone-800 px-3 py-1.5 text-xs font-medium text-stone-200 hover:bg-stone-700'
-                : 'rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-3 py-1.5 text-xs font-medium text-[color:var(--moni-text-secondary)] hover:bg-[var(--moni-surface-100)]'
-            }
-          >
-            Sair
-          </button>
-        ) : null}
+        <button
+          type="button"
+          onClick={() => void handleSignOut()}
+          className={
+            isSirene
+              ? 'rounded-lg border border-stone-600 bg-stone-800 px-3 py-1.5 text-xs font-medium text-stone-200 hover:bg-stone-700'
+              : 'rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-3 py-1.5 text-xs font-medium text-[color:var(--moni-text-secondary)] hover:bg-[var(--moni-surface-100)]'
+          }
+        >
+          Sair
+        </button>
       </div>
     </header>
   );

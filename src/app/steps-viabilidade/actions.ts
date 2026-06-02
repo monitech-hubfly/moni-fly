@@ -566,7 +566,7 @@ export async function atualizarEtapaPainel(
 
   revalidatePath('/painel-novos-negocios');
   revalidatePath('/painel-contabilidade');
-  revalidatePath('/painel-credito');
+  revalidatePath('/funil-credito-obra');
   revalidatePath('/dashboard-novos-negocios');
   return { ok: true };
 }
@@ -663,7 +663,7 @@ export async function reordenarCardNaColunaPainel(
 
   revalidatePath('/painel-novos-negocios');
   revalidatePath('/painel-contabilidade');
-  revalidatePath('/painel-credito');
+  revalidatePath('/funil-credito-obra');
   revalidatePath('/dashboard-novos-negocios');
   return { ok: true };
 }
@@ -721,7 +721,7 @@ export async function atualizarFaseCreditoDashboard(
     .eq('id', processoId);
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath('/painel-credito');
+  revalidatePath('/funil-credito-obra');
   revalidatePath('/dashboard-novos-negocios');
   return { ok: true };
 }
@@ -859,7 +859,7 @@ export async function cancelarProcessoPainel(
   );
   revalidatePath('/painel-novos-negocios');
   revalidatePath('/painel-contabilidade');
-  revalidatePath('/painel-credito');
+  revalidatePath('/funil-credito-obra');
   revalidatePath('/dashboard-novos-negocios');
   return { ok: true, mensagem: 'Card cancelado.' };
 }

@@ -792,6 +792,7 @@ export function InteracoesLista({
       data_fim: d.data.trim() || null,
       trava: d.trava,
       status: 'nao_iniciado',
+      pastel: d.pastel,
       basePath: '/sirene/chamados',
       viaSirene: true,
     });

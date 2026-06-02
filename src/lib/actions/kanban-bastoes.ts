@@ -304,7 +304,7 @@ const KANBAN_ID_TO_ORIGEM_SLUG: Record<string, string> = {
   [KANBAN_IDS.PORTFOLIO]: 'portfolio',
   [KANBAN_IDS.ACOPLAMENTO]: 'acoplamento',
   [KANBAN_IDS.CONTABILIDADE]: 'contabilidade',
-  [KANBAN_IDS.CREDITO]: 'credito',
+  [KANBAN_IDS.CREDITO_OBRA]: 'credito',
   [KANBAN_IDS.LOTEADORES]: 'loteadores',
   [KANBAN_IDS.OPERACOES]: 'operacoes',
   [KANBAN_IDS.JURIDICO]: 'juridico',
@@ -539,7 +539,7 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     ],
     [FASE_SLUGS.STEP_4]: [
       { kanbanDestinoId: KANBAN_IDS.ACOPLAMENTO, faseDestinoSlug: 'modelagem_terreno' },
-      { kanbanDestinoId: KANBAN_IDS.CREDITO, faseDestinoSlug: 'credito_terreno' },
+      { kanbanDestinoId: KANBAN_IDS.CREDITO_OBRA, faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO },
       { kanbanDestinoId: KANBAN_IDS.CONTABILIDADE, faseDestinoSlug: 'contabilidade_incorporadora' },
     ],
     [FASE_SLUGS.STEP_7]: [
@@ -552,7 +552,7 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
       { kanbanDestinoId: KANBAN_IDS.OPERACOES, faseDestinoSlug: 'planialtimetrico' },
     ],
     [FASE_SLUGS.AGUARDANDO_CREDITO]: [
-      { kanbanDestinoId: KANBAN_IDS.CREDITO, faseDestinoSlug: 'credito_obra' },
+      { kanbanDestinoId: KANBAN_IDS.CREDITO_OBRA, faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO },
     ],
     [FASE_SLUGS.PROD_PUBLICADO]: [
       { kanbanDestinoId: KANBAN_IDS.HDM_MODELO_VIRTUAL, faseDestinoSlug: 'mv_recebimento' },
@@ -609,8 +609,7 @@ type BastaoRetornoFlagCol =
 const DESFECHO_FLAG_POR_FASE: Partial<Record<string, BastaoRetornoFlagCol>> = {
   [FASE_SLUGS.ACOPLAMENTO_APROVADO]: 'acoplamento_concluido',
   [FASE_SLUGS.ACOPLAMENTO_REPROVADO]: 'acoplamento_concluido',
-  [FASE_SLUGS.CREDITO_TERRENO_APROVADO]: 'credito_terreno_ok',
-  [FASE_SLUGS.CREDITO_TERRENO_REPROVADO]: 'credito_terreno_ok',
+  [FASE_SLUGS.CO_OUTRO_PARCEIRO]: 'credito_obra_ok',
   [FASE_SLUGS.CREDITO_OBRA_APROVADO]: 'credito_obra_ok',
   [FASE_SLUGS.CREDITO_OBRA_REPROVADO]: 'credito_obra_ok',
   [FASE_SLUGS.CONTABILIDADE_CONCLUIDO]: 'contabilidade_ok',
@@ -624,8 +623,7 @@ const DESFECHO_FLAG_POR_FASE: Partial<Record<string, BastaoRetornoFlagCol>> = {
 const DESFECHO_ESTEIRA_LABEL: Record<string, string> = {
   [FASE_SLUGS.ACOPLAMENTO_APROVADO]: 'Acoplamento (aprovado)',
   [FASE_SLUGS.ACOPLAMENTO_REPROVADO]: 'Acoplamento (reprovado)',
-  [FASE_SLUGS.CREDITO_TERRENO_APROVADO]: 'Crédito Terreno (aprovado)',
-  [FASE_SLUGS.CREDITO_TERRENO_REPROVADO]: 'Crédito Terreno (reprovado)',
+  [FASE_SLUGS.CO_OUTRO_PARCEIRO]: 'Crédito Obra (outro parceiro)',
   [FASE_SLUGS.CREDITO_OBRA_APROVADO]: 'Crédito Obra (aprovado)',
   [FASE_SLUGS.CREDITO_OBRA_REPROVADO]: 'Crédito Obra (reprovado)',
   [FASE_SLUGS.CONTABILIDADE_CONCLUIDO]: 'Contabilidade',

@@ -111,7 +111,7 @@ export function isFrankAllowedPath(pathname: string): boolean {
 export const ADMIN_ONLY_PATH_PREFIXES: readonly string[] = [
   '/admin',
   '/painel-contabilidade',
-  '/painel-credito',
+  '/funil-credito-obra',
   '/financeiro',
   '/juridico',
   '/processo-seletivo-candidatos',
@@ -130,9 +130,64 @@ export function isAdminOnlyPath(pathname: string): boolean {
   return ADMIN_ONLY_PATH_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
+/** Link público compartilhável do manual BCA (modo leitura, sem Hub). */
+export const BCA_PUBLIC_LEITURA_PATH = '/treinamento-bca/leitura' as const;
+
+/**
+ * Único conteúdo do portal acessível sem login: manual BCA em leitura + iframe do embed.
+ */
+export function isBcaPublicLeituraAccessPath(pathname: string): boolean {
+  if (pathname === BCA_PUBLIC_LEITURA_PATH || pathname.startsWith(`${BCA_PUBLIC_LEITURA_PATH}/`)) {
+    return true;
+  }
+  return pathname === '/embed' || pathname.startsWith('/embed/');
+}
+
+/** Login, convite e recuperação de senha (não é navegação no portal). */
+export function isAuthFlowAccessPath(pathname: string): boolean {
+  return (
+    pathname === '/login' ||
+    pathname === '/aceitar-convite' ||
+    pathname === '/esqueci-senha' ||
+    pathname === '/redefinir-senha'
+  );
+}
+
+export function isPortalFrankAuthAccessPath(pathname: string): boolean {
+  return (
+    pathname === '/portal-frank/login' ||
+    pathname.startsWith('/portal-frank/login/') ||
+    pathname === '/portal-frank/cadastro' ||
+    pathname.startsWith('/portal-frank/cadastro/')
+  );
+}
+
+/** Links externos com token (candidato, formulários) — fora do escopo BCA, mas sem sessão. */
+function isExternalTokenAccessPath(pathname: string): boolean {
+  return (
+    pathname.startsWith('/formulario-candidato/') ||
+    pathname.startsWith('/public/forms/') ||
+    pathname.startsWith('/api/public/') ||
+    pathname.startsWith('/api/candidato/') ||
+    pathname === '/api/accept-invite' ||
+    pathname.startsWith('/api/webhooks/')
+  );
+}
+
+/** Sem sessão Supabase: só BCA público, auth, portal Frank (login) e links tokenizados. */
+export function isAnonymousAllowedPath(pathname: string): boolean {
+  return (
+    isBcaPublicLeituraAccessPath(pathname) ||
+    isAuthFlowAccessPath(pathname) ||
+    isPortalFrankAuthAccessPath(pathname) ||
+    isExternalTokenAccessPath(pathname)
+  );
+}
+
 /** Considera legados: consultor/supervisor contam como admin. */
 export function roleMayAccessPath(pathname: string, role: string | null | undefined): boolean {
   const r: AccessRole = normalizeAccessRole(role);
+  if (r === 'pending') return isBcaPublicLeituraAccessPath(pathname);
   if (r === 'admin') return true;
   if (r === 'team') return isTeamAllowedPath(pathname);
   if (r === 'frank') return isFrankAllowedPath(pathname);

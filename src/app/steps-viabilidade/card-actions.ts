@@ -124,7 +124,7 @@ function mapChecklistRowToItem(it: Record<string, unknown>): {
 
 function revalidatePainelETarefas() {
   revalidatePath('/painel-novos-negocios');
-  revalidatePath('/painel-credito');
+  revalidatePath('/funil-credito-obra');
   revalidatePath('/painel-contabilidade');
   revalidatePath('/funil-stepone');
   revalidatePath('/funil-moni-inc');

@@ -28,7 +28,7 @@ function formatDate(val: string | null | undefined) {
 function linkPainelRelatedCard(processo: { id: string; etapa_painel?: string | null }) {
   const etapa = String(processo.etapa_painel ?? '');
   if (etapa === 'credito_terreno' || etapa === 'credito_obra') {
-    return `/painel-credito?card=${encodeURIComponent(processo.id)}`;
+    return `/funil-credito-obra?card=${encodeURIComponent(processo.id)}`;
   }
   if (
     etapa === 'contabilidade_incorporadora' ||

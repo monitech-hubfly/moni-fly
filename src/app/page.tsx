@@ -48,13 +48,7 @@ export default async function HomePage() {
     // Supabase não configurado ou indisponível
   }
 
-  /** Opt-in: landing só com Entrar/Cadastrar (sem portal). Por defeito: portal Rede + Novos Negócios (sidebar no layout). */
-  const showHomeLogin =
-    (process.env.NEXT_PUBLIC_SHOW_HOME_LOGIN ?? '').trim().toLowerCase() === 'true';
-
-  const showPublicPortalHome = !user && !showHomeLogin;
-
-  if (!user && showHomeLogin) {
+  if (!user) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-stone-50 via-white to-moni-light/20 px-4">
         <div className="flex flex-col items-center text-center">
@@ -78,7 +72,7 @@ export default async function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-stone-50 via-white to-moni-light/20">
       <main className="mx-auto max-w-7xl px-4 py-8 sm:py-12">
-        {accessRole === 'team' || showPublicPortalHome ? (
+        {accessRole === 'team' ? (
           <>
             <section>
               <p className="text-sm font-medium uppercase tracking-wider text-moni-accent">
@@ -88,9 +82,7 @@ export default async function HomePage() {
                 Início
               </h1>
               <p className="mt-1 text-sm text-stone-600">
-                {showPublicPortalHome
-                  ? 'Rede de Franqueados e Novos Negócios — use o menu à esquerda ou os atalhos abaixo.'
-                  : 'Acesse a rede de franqueados, a comunidade e o painel de novos negócios pelo menu à esquerda.'}
+                Acesse a rede de franqueados, a comunidade e o painel de novos negócios pelo menu à esquerda.
               </p>
             </section>
             <section className="mt-8 grid gap-4 sm:grid-cols-2">
@@ -155,13 +147,13 @@ export default async function HomePage() {
                 <p className="mt-1 text-sm text-stone-600">Kanban Incorporadora, SPE e Gestora.</p>
               </Link>
               <Link
-                href="/painel-credito"
+                href="/funil-credito-obra"
                 className="step-card block rounded-2xl border border-stone-200/80 bg-white p-5 shadow-sm"
               >
                 <span className="text-xs font-semibold uppercase tracking-wider text-moni-accent">
                   Novos Negócios
                 </span>
-                <h3 className="mt-2 font-semibold text-stone-900">Crédito</h3>
+                <h3 className="mt-2 font-semibold text-stone-900">Crédito Obra</h3>
                 <p className="mt-1 text-sm text-stone-600">Kanban Terreno e Obra.</p>
               </Link>
             </section>

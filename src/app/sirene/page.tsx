@@ -1,10 +1,9 @@
 import { redirect } from 'next/navigation';
 
-import { isAppFullyPublic } from '@/lib/public-rede-novos';
-
 import { getDashboardData } from './actions';
 
 import { DashboardSirene } from './DashboardSirene';
+import type { DashboardFiltroTipo } from './dashboard-breakdown';
 
 
 
@@ -20,7 +19,7 @@ export default async function SirenePage({
 
   const params = await searchParams;
 
-  const filtroTipoParam = params.tipo === 'padrao' || params.tipo === 'hdm' ? params.tipo : 'todos';
+  const filtroTipoParam: DashboardFiltroTipo = params.tipo === 'pasteis' ? 'pasteis' : 'todos';
 
 
 
@@ -28,7 +27,7 @@ export default async function SirenePage({
 
   if (!result.ok) {
 
-    if (!isAppFullyPublic()) redirect('/login');
+    redirect('/login');
 
     return (
 

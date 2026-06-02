@@ -1,8 +1,7 @@
+import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 
 import { canAccessCondominiosTab, isRedeStaffRole, isStrictAdminRole } from '@/lib/authz';
-
-import { isAppFullyPublic, isPublicRedeNovosNegociosEnabled } from '@/lib/public-rede-novos';
 
 import { fetchFranqueadoEmpresasRows } from '@/lib/franqueado-empresas';
 
@@ -15,8 +14,6 @@ import { fetchCondominiosRows } from '@/lib/condominios';
 import { contarLinhasSemCard, normalizarStatusEmProcessoRede } from './actions';
 
 import { RedeFranqueadosPageTabs } from './RedeFranqueadosPageTabs';
-
-import { createAdminClient } from '@/lib/supabase/admin';
 
 
 
@@ -34,39 +31,15 @@ export default async function RedeFranqueadosPage() {
 
   } = await supabase.auth.getUser();
 
-  const publicAccess = isPublicRedeNovosNegociosEnabled();
+  if (!user) redirect('/login');
 
 
 
-  let db = supabase;
-
-  if (!user && (publicAccess || isAppFullyPublic())) {
-
-    try {
-
-      db = createAdminClient();
-
-    } catch {
-
-      /* sem service role: RLS pode ocultar linhas */
-
-    }
-
-  }
-
-
-
-  const { data: profile } = user
-
-    ? await supabase.from('profiles').select('role').eq('id', user.id).single()
-
-    : { data: null };
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
 
   const role = (profile?.role as string) ?? 'frank';
 
-  const canManage =
-
-    (Boolean(user) && isRedeStaffRole(role)) || publicAccess || isAppFullyPublic();
+  const canManage = isRedeStaffRole(role);
 
   const maskSensitiveColumns = !isStrictAdminRole(role);
 
@@ -88,15 +61,15 @@ export default async function RedeFranqueadosPage() {
 
   const [rows, countResult, loteadoresRows, empresasResult, condominiosRows] = await Promise.all([
 
-    fetchRedeFranqueadosRows(db),
+    fetchRedeFranqueadosRows(supabase),
 
     canManage ? contarLinhasSemCard() : Promise.resolve({ ok: true as const, total: 0 }),
 
-    showStaffTabs ? fetchRedeLoteadoresRows(db) : Promise.resolve(null),
+    showStaffTabs ? fetchRedeLoteadoresRows(supabase) : Promise.resolve(null),
 
-    showStaffTabs ? fetchFranqueadoEmpresasRows(db) : Promise.resolve(null),
+    showStaffTabs ? fetchFranqueadoEmpresasRows(supabase) : Promise.resolve(null),
 
-    showCondominiosTab ? fetchCondominiosRows(db) : Promise.resolve(null),
+    showCondominiosTab ? fetchCondominiosRows(supabase) : Promise.resolve(null),
 
   ]);
 
@@ -173,5 +146,3 @@ export default async function RedeFranqueadosPage() {
   );
 
 }
-
-

@@ -6,8 +6,19 @@ import {
   FUNIL_CONTRATACOES_PATH,
   normalizeAccessRole,
 } from '@/lib/authz';
-import { isAdminOnlyPath, isFrankAllowedPath, isTeamAllowedPath } from '@/lib/access-matrix';
-import { allowPublicAccessRedeNovos, isAppFullyPublic } from '@/lib/public-rede-novos';
+import {
+  BCA_PUBLIC_LEITURA_PATH,
+  isAdminOnlyPath,
+  isAnonymousAllowedPath,
+  isAuthFlowAccessPath,
+  isBcaPublicLeituraAccessPath,
+  isFrankAllowedPath,
+  isTeamAllowedPath,
+} from '@/lib/access-matrix';
+
+function redirectToBcaPublicLeitura(request: NextRequest) {
+  return NextResponse.redirect(new URL(BCA_PUBLIC_LEITURA_PATH, request.url));
+}
 
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -42,18 +53,7 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAuthPage = pathname === '/login' || pathname === '/aceitar-convite';
-  const isPortalFrankPublic =
-    pathname === '/portal-frank/login' ||
-    pathname.startsWith('/portal-frank/login/') ||
-    pathname === '/portal-frank/cadastro' ||
-    pathname.startsWith('/portal-frank/cadastro/');
-  const isPublicPage =
-    isAuthPage ||
-    isPortalFrankPublic ||
-    pathname === '/esqueci-senha' ||
-    pathname === '/redefinir-senha' ||
-    pathname.startsWith('/api/webhooks/');
+  const isAuthPage = isAuthFlowAccessPath(pathname);
   const protectedPrefixes = [
     '/step-one',
     '/step-2',
@@ -92,23 +92,22 @@ export async function updateSession(request: NextRequest) {
     '/admin/universidade',
   ];
   const matchesProtected = protectedPrefixes.some((p) => pathname.startsWith(p));
-  const publicRedeNovos = allowPublicAccessRedeNovos(pathname);
-  const appPublic = isAppFullyPublic();
-  const needsAuth = appPublic
-    ? pathname === '/admin' || pathname.startsWith('/admin/')
-    : (matchesProtected && !publicRedeNovos) || isAdminOnlyPath(pathname);
+  const needsAuth = matchesProtected || isAdminOnlyPath(pathname);
 
-  if (needsAuth && !user) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('next', pathname);
-    return NextResponse.redirect(loginUrl);
+  if (!user) {
+    if (isAnonymousAllowedPath(pathname)) {
+      return response;
+    }
+    return redirectToBcaPublicLeitura(request);
   }
 
   if (isAuthPage && user) {
     const { data: profLogin } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
     const roleLogin = normalizeAccessRole((profLogin as { role?: string | null } | null)?.role);
-    // Usuários pendentes/bloqueados precisam conseguir ver `/login?status=...` sem loop de redirect.
-    if (roleLogin === 'pending' || roleLogin === 'blocked') {
+    if (roleLogin === 'pending') {
+      return redirectToBcaPublicLeitura(request);
+    }
+    if (roleLogin === 'blocked') {
       return response;
     }
     if (roleLogin === 'frank') {
@@ -116,8 +115,6 @@ export async function updateSession(request: NextRequest) {
     }
     return NextResponse.redirect(new URL('/rede-franqueados', request.url));
   }
-
-  if (!user || isPublicPage) return response;
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -169,10 +166,8 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (accessRole === 'pending') {
-    if (pathname !== '/login') {
-      const url = new URL('/login', request.url);
-      url.searchParams.set('status', 'pending');
-      return NextResponse.redirect(url);
+    if (!isBcaPublicLeituraAccessPath(pathname)) {
+      return redirectToBcaPublicLeitura(request);
     }
     return response;
   }

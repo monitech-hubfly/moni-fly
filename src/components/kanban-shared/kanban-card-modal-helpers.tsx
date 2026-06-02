@@ -120,6 +120,27 @@ export function usuarioPodeMarcarPastelSubInteracao(
   return !nomesTimesIncluemBombeiro(nomes);
 }
 
+/** Variante para linhas do painel Sirene (`TopicoPainelLinha`). */
+export function usuarioPodeMarcarPastelTopicoPainel(
+  topico: { responsaveis_ids: string[]; times_ids: string[]; time_responsavel?: string },
+  timesCatalog: { id: string; nome: string }[],
+  userId: string | null | undefined,
+): boolean {
+  const timesResolvidos =
+    topico.times_ids.length > 0
+      ? topico.times_ids.map((id) => ({
+          id,
+          nome: timesCatalog.find((t) => t.id === id)?.nome ?? '',
+        }))
+      : topico.time_responsavel?.trim()
+        ? [{ id: '', nome: topico.time_responsavel.trim() }]
+        : [];
+  return usuarioPodeMarcarPastelSubInteracao(
+    { responsaveis_ids: topico.responsaveis_ids, times_resolvidos: timesResolvidos },
+    userId,
+  );
+}
+
 export function nomeTimeParaSlugLegado(nome: string): string {
   return nome
     .normalize('NFD')
@@ -374,6 +395,7 @@ export type SecaoEsquerdaId =
   | 'novoNegocio'
   | 'preObra'
   | 'obra'
+  | 'documentacaoCreditoObra'
   | 'relacionamentos'
   | 'atasReuniao'
   | 'chamados'

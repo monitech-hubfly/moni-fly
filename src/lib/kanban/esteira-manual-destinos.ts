@@ -21,7 +21,7 @@ export const DESTINOS_ESTEIRA_MANUAL: Record<
   },
   credito_terreno: {
     label: 'Crédito Terreno',
-    kanbanDestinoId: KANBAN_IDS.CREDITO,
+    kanbanDestinoId: KANBAN_IDS.CREDITO_OBRA,
     faseDestinoSlug: 'credito_terreno',
   },
   contabilidade: {

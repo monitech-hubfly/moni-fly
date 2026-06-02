@@ -47,7 +47,7 @@ export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/loteadores',
   '/funil-moni-inc',
   '/painel-contabilidade',
-  '/painel-credito',
+  '/funil-credito-obra',
   '/login',
   '/portal-frank',
   '/perfil',

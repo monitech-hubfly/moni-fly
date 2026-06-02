@@ -17,7 +17,7 @@ export type KanbanNomeDisplay =
   | 'Funil Projetos Legais'
   | 'Funil Operações'
   | 'Funil Contabilidade'
-  | 'Funil Crédito';
+  | 'Funil Crédito Obra';
 
 export type KanbanFaseMaterialTipo = 'link' | 'documento' | 'video';
 
@@ -77,6 +77,11 @@ export type KanbanCardBrief = {
   tem_filho_juridico?: boolean;
   /** Ordem na coluna (menor = mais acima). Nativo: `kanban_cards.ordem_coluna`; legado: `processo_step_one.ordem_coluna_painel`. */
   ordem_coluna?: number | null;
+  /** Funil Crédito Obra — fase co_documentacao_alvara */
+  alvara_url?: string | null;
+  docs_terreno_url?: string | null;
+  /** Início do SLA (após documentação completa ou outras regras de fase). */
+  sla_iniciado_em?: string | null;
 };
 
 /** Conteúdo extra do checklist por `fase_id` (sobrescreve placeholder). */

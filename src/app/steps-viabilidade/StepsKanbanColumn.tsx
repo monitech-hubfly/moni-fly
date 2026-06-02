@@ -71,7 +71,7 @@ export function StepsKanbanColumn({
   kanbanReadOnly?: boolean;
   /** Abre detalhe via query (?card=id) em vez do CardDetalheModal embutido (ex.: Crédito). */
   openCardViaUrl?: boolean;
-  /** Caminho base para `?card=` (ex.: `/painel-credito`). Obrigatório se `openCardViaUrl`. */
+  /** Caminho base para `?card=` (ex.: `/funil-credito-obra`). Obrigatório se `openCardViaUrl`. */
   cardBasePath?: string;
 }) {
   const router = useRouter();

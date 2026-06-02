@@ -24,7 +24,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { calcularDiasUteis, calcularStatusSLA, formatIsoDateOnlyPtBr, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
+import { calcularDiasUteis, formatIsoDateOnlyPtBr, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
 import {
   arquivarCard,
   arquivarInteracao,
@@ -68,6 +68,13 @@ import {
   montarChipsParalelas,
 } from '@/lib/kanban/kanban-paralelas-chips';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
+import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCreditoObraDocumentacao';
+import {
+  calcularSlaKanbanCard,
+  creditoObraAguardandoDocumentacao,
+  CLASSE_TAG_AGUARDANDO_DOCUMENTACAO,
+  TAG_AGUARDANDO_DOCUMENTACAO,
+} from '@/lib/kanban/kanban-card-sla';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import {
   displayOrDash,
@@ -206,6 +213,9 @@ type Card = {
   capital_ok?: boolean;
   juridico_ok?: boolean;
   credito_obra_ok?: boolean;
+  alvara_url?: string | null;
+  docs_terreno_url?: string | null;
+  sla_iniciado_em?: string | null;
   portfolio_vinculo_rotulo?: string | null;
   tem_filho_juridico?: boolean;
   /** Legado: status e updated_at do processo (conclusão aproximada quando status = concluido). */
@@ -345,6 +355,7 @@ export function KanbanCardModal({
     novoNegocio: false,
     preObra: false,
     obra: false,
+    documentacaoCreditoObra: true,
     relacionamentos: false,
     atasReuniao: false,
     chamados: false,
@@ -750,6 +761,9 @@ export function KanbanCardModal({
         capital_ok?: boolean;
         juridico_ok?: boolean;
         credito_obra_ok?: boolean;
+        alvara_url?: string | null;
+        docs_terreno_url?: string | null;
+        sla_iniciado_em?: string | null;
       };
 
       let loaded: LoadedShape | null = null;
@@ -840,7 +854,7 @@ export function KanbanCardModal({
         const { data: cardData, error: cardError } = await supabase
           .from('kanban_cards')
           .select(
-            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, projeto_id, acoplamento_concluido, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok',
+            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, projeto_id, acoplamento_concluido, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, sla_iniciado_em',
           )
           .eq('id', cardId)
           .single();
@@ -889,6 +903,12 @@ export function KanbanCardModal({
           capital_ok: Boolean((cardData as { capital_ok?: boolean | null }).capital_ok),
           juridico_ok: Boolean((cardData as { juridico_ok?: boolean | null }).juridico_ok),
           credito_obra_ok: Boolean((cardData as { credito_obra_ok?: boolean | null }).credito_obra_ok),
+          alvara_url: (cardData as { alvara_url?: string | null }).alvara_url ?? null,
+          docs_terreno_url: (cardData as { docs_terreno_url?: string | null }).docs_terreno_url ?? null,
+          sla_iniciado_em:
+            (cardData as { sla_iniciado_em?: string | null }).sla_iniciado_em != null
+              ? String((cardData as { sla_iniciado_em?: string | null }).sla_iniciado_em)
+              : null,
         };
         nativeRedeFranqueadoId =
           (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? null;
@@ -1626,6 +1646,7 @@ export function KanbanCardModal({
           data_fim: editSubDraft.data.trim() || null,
           trava: editSubDraft.trava,
           status: editSubDraft.status,
+          pastel: editSubDraft.pastel,
         },
         basePath,
       );
@@ -2574,8 +2595,26 @@ export function KanbanCardModal({
         ? fmtDataHoraOuDash(card.concluido_em)
         : '—';
 
-  const createdDate = new Date(card.created_at);
-  const slaCard = calcularStatusSLA(createdDate, faseAtual?.sla_dias ?? 999);
+  const faseSlugAtual = faseAtual?.slug?.trim() ?? '';
+  const aguardandoDocumentacaoCreditoObra =
+    !isLegado &&
+    creditoObraAguardandoDocumentacao({
+      faseSlug: faseSlugAtual,
+      alvara_url: card.alvara_url,
+      docs_terreno_url: card.docs_terreno_url,
+    });
+  const slaCard = calcularSlaKanbanCard({
+    created_at: card.created_at,
+    sla_iniciado_em: card.sla_iniciado_em,
+    faseSlug: faseSlugAtual,
+    alvara_url: card.alvara_url,
+    docs_terreno_url: card.docs_terreno_url,
+    sla_dias: faseAtual?.sla_dias,
+  });
+  const exibirSecaoDocumentacaoCreditoObra =
+    !isLegado &&
+    kanbanNome === 'Funil Crédito Obra' &&
+    faseSlugAtual === FASE_SLUGS.CO_DOCUMENTACAO_ALVARA;
   const cardNativoConcluido = !isLegado && Boolean(card.concluido);
   const cardLegadoConcluido = isLegado && card.processo_meta?.status === 'concluido';
   const cardNativoArquivado = !isLegado && Boolean(card.arquivado);
@@ -3096,7 +3135,12 @@ export function KanbanCardModal({
                   {faseAtual.nome}
                 </span>
               ) : null}
-              {slaCard.label && slaCard.status !== 'ok' ? (
+              {aguardandoDocumentacaoCreditoObra ? (
+                <span className={`text-xs leading-none ${CLASSE_TAG_AGUARDANDO_DOCUMENTACAO}`}>
+                  {TAG_AGUARDANDO_DOCUMENTACAO}
+                </span>
+              ) : null}
+              {!aguardandoDocumentacaoCreditoObra && slaCard.label && slaCard.status !== 'ok' ? (
                 <span className={`text-xs leading-none ${slaCard.classe}`}>{slaCard.label}</span>
               ) : null}
             </div>
@@ -3804,7 +3848,6 @@ export function KanbanCardModal({
                                       responsaveisOpcoes={responsaveisSubNova}
                                       sessionUserId={modalSessao.userId}
                                       compact
-                                      showPastel={false}
                                       idPrefix={`nova-${it.id}`}
                                       onDelete={() => {
                                         setSubFormInteracaoId(null);
@@ -3993,7 +4036,6 @@ export function KanbanCardModal({
                       responsaveisOpcoes={responsaveisNovaAtividade}
                       sessionUserId={modalSessao.userId}
                       compact
-                      showPastel={false}
                       idPrefix="nova-ativ"
                       onDelete={() => {
                         setNovaAtividadeAberta(false);
@@ -5454,7 +5496,20 @@ export function KanbanCardModal({
                 </div>
               ),
             )}
-                {secaoHead('obra', 'Dados Obra', <p className="text-xs italic text-stone-500">Placeholder.</p>)}
+            {exibirSecaoDocumentacaoCreditoObra
+              ? secaoHead(
+                  'documentacaoCreditoObra',
+                  'Documentação Alvará e Terreno SPE',
+                  <KanbanCardModalCreditoObraDocumentacao
+                    cardId={card.id}
+                    alvaraUrl={card.alvara_url ?? null}
+                    docsTerrenoUrl={card.docs_terreno_url ?? null}
+                    faseSlug={faseSlugAtual}
+                    basePath={basePath}
+                    onSaved={loadCard}
+                  />,
+                )
+              : null}
             {!isLegado ? (
               secaoHead(
                 'atasReuniao',

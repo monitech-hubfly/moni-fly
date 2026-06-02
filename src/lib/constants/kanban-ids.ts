@@ -4,7 +4,7 @@ export const KANBAN_IDS = {
   PORTFOLIO:     'c57120a0-991c-422b-8def-4d16a9411d45',
   ACOPLAMENTO:   '15847602-231d-4937-a06f-82027eb87ef3',
   CONTABILIDADE: '26d1c83c-988e-40d7-8b78-470801b99c1f',
-  CREDITO:       '6463af1d-850d-4958-b74c-404f8d668e21',
+  CREDITO_OBRA:  '6463af1d-850d-4958-b74c-404f8d668e21',
   LOTEADORES:    '3e7b6ec7-2e15-4a66-8fdf-9dc942b5019c',
   OPERACOES:     'f6bba1de-a7a1-4b14-89d1-10c2f7bba636',
   JURIDICO:      '35fb5c8d-50c0-4999-bc16-89d53c2e758f',
@@ -24,7 +24,7 @@ export const KANBAN_ID_BY_NOME: Record<string, string> = {
   'Funil Portfólio': KANBAN_IDS.PORTFOLIO,
   'Funil Acoplamento': KANBAN_IDS.ACOPLAMENTO,
   'Funil Contabilidade': KANBAN_IDS.CONTABILIDADE,
-  'Funil Crédito': KANBAN_IDS.CREDITO,
+  'Funil Crédito Obra': KANBAN_IDS.CREDITO_OBRA,
   'Funil Loteadores': KANBAN_IDS.LOTEADORES,
   'Funil Operações': KANBAN_IDS.OPERACOES,
   'Funil Jurídico': KANBAN_IDS.JURIDICO,
@@ -49,8 +49,10 @@ export const FASE_IDS = {
   // Acoplamento — bastão de volta
   ACOPLAMENTO_APROVADO:      'b6a83104-e74f-4d0b-902b-2c4227227411',
   ACOPLAMENTO_REPROVADO:     '6d383485-9c9e-4f41-9d2a-c23c20b950c9',
-  // Crédito — bastão de volta
+  // Funil Crédito Obra — terminais (bastão de volta; conferir UUIDs no PROD após troca de fases)
+  /** @deprecated fase removida do funil — UUID legado, não usar em código novo */
   CREDITO_TERRENO_APROVADO:  'b1c22353-f20b-4545-9548-5328c253bd99',
+  /** @deprecated fase removida do funil — UUID legado, não usar em código novo */
   CREDITO_TERRENO_REPROVADO: '92bc0cab-e8b6-4199-9066-7fbea8d600a2',
   CREDITO_OBRA_APROVADO:     'da6b7ed6-3137-42aa-9cc7-0d3aec4e6cfd',
   CREDITO_OBRA_REPROVADO:    'aadb078e-d11a-48d1-9a4e-ee10b9fe7df5',
@@ -87,8 +89,19 @@ export const FASE_SLUGS = {
   // Gatilhos de VOLTA
   ACOPLAMENTO_APROVADO:      'acoplamento_aprovado',
   ACOPLAMENTO_REPROVADO:     'acoplamento_reprovado',
-  CREDITO_TERRENO_APROVADO:  'credito_terreno_aprovado',
-  CREDITO_TERRENO_REPROVADO: 'credito_terreno_reprovado',
+  // Funil Crédito Obra (KANBAN_IDS.CREDITO_OBRA) — fluxo ordem 1–11
+  CO_NOVO_PROJETO:           'co_novo_projeto',
+  CO_ENVIO_CASHME:           'co_envio_cashme',
+  CO_DOCUMENTACAO_ALVARA:    'co_documentacao_alvara',
+  CO_VALIDACAO_CONTRATO:     'co_validacao_contrato',
+  CO_CONTRATO_ASSINATURAS:   'co_contrato_assinaturas',
+  CO_FOLLOWUP_CARTORIO:      'co_followup_cartorio',
+  CO_AGUARDANDO_1A_TRANCHE:  'co_aguardando_1a_tranche',
+  CO_SOLICITACAO_TRANCHE:    'co_solicitacao_tranche',
+  CO_SHAREPOINT_CASHME:      'co_sharepoint_cashme',
+  CO_ACOMPANHAMENTO_TRANCHE: 'co_acompanhamento_tranche',
+  CO_OUTRO_PARCEIRO:         'co_outro_parceiro', // terminal
+  // Funil Crédito Obra — terminais ordem 12–13
   CREDITO_OBRA_APROVADO:     'credito_obra_aprovado',
   CREDITO_OBRA_REPROVADO:    'credito_obra_reprovado',
   CONTABILIDADE_CONCLUIDO:   'contabilidade_concluido',

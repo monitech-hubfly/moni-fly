@@ -1,4 +1,4 @@
-import { calcularStatusSLA } from '@/lib/dias-uteis';
+import { calcularSlaKanbanCard } from '@/lib/kanban/kanban-card-sla';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
 export type KanbanBoardFiltrosStatus = 'ativos' | 'arquivados' | 'concluidos';
@@ -56,9 +56,14 @@ function slaCategoria(
   faseMap: Map<string, KanbanFase>,
 ): 'atrasado' | 'vence_hoje' | 'atencao_outros' | 'ok' {
   const fase = faseMap.get(card.fase_id);
-  const slaDias = fase?.sla_dias ?? 999;
-  const created = new Date(card.created_at);
-  const sla = calcularStatusSLA(created, slaDias);
+  const sla = calcularSlaKanbanCard({
+    created_at: card.created_at,
+    sla_iniciado_em: card.sla_iniciado_em,
+    faseSlug: fase?.slug,
+    alvara_url: card.alvara_url,
+    docs_terreno_url: card.docs_terreno_url,
+    sla_dias: fase?.sla_dias,
+  });
   if (sla.status === 'atrasado') return 'atrasado';
   if (sla.label === 'Vence hoje') return 'vence_hoje';
   if (sla.status === 'atencao') return 'atencao_outros';
@@ -120,8 +125,14 @@ export function textoVisivelCardKanbanFechado(
   const created = new Date(card.created_at);
   if (!Number.isNaN(created.getTime())) {
     partes.push('Criado', created.toLocaleDateString('pt-BR'), created.toISOString().slice(0, 10));
-    const slaDias = fase?.sla_dias ?? 999;
-    const sla = calcularStatusSLA(created, slaDias);
+    const sla = calcularSlaKanbanCard({
+      created_at: card.created_at,
+      sla_iniciado_em: card.sla_iniciado_em,
+      faseSlug: fase?.slug,
+      alvara_url: card.alvara_url,
+      docs_terreno_url: card.docs_terreno_url,
+      sla_dias: fase?.sla_dias,
+    });
     if (sla.label) partes.push(sla.label);
     partes.push(sla.status);
   }

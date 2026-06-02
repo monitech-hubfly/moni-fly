@@ -34,8 +34,7 @@ async function requireRedeStaffOrPublicLink(): Promise<
 > {
   const auth = await getPainelDbForPublicEdit();
   if (!auth.ok) return { ok: false, error: auth.error };
-  const { supabase, userId, isServiceRole } = auth;
-  if (isServiceRole) return { ok: true, supabase, userId };
+  const { supabase, userId } = auth;
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
   const access = normalizeAccessRole((profile?.role as string) ?? 'frank');
   if (access !== 'admin' && access !== 'team') {
@@ -50,8 +49,7 @@ async function requireRedeAdminOrPublicLink(): Promise<
 > {
   const auth = await getPainelDbForPublicEdit();
   if (!auth.ok) return { ok: false, error: auth.error };
-  const { supabase, userId, isServiceRole } = auth;
-  if (isServiceRole) return { ok: true, supabase, userId };
+  const { supabase, userId } = auth;
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
   const access = normalizeAccessRole((profile?.role as string) ?? 'frank');
   if (access !== 'admin') return { ok: false, error: 'Apenas administradores.' };

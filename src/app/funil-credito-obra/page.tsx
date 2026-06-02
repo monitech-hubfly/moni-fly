@@ -2,12 +2,10 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { isAppFullyPublic } from '@/lib/public-rede-novos';
 import type { ProcessoCard } from '@/app/steps-viabilidade/StepsKanbanColumn';
 import type { PainelColumnKey } from '@/app/steps-viabilidade/painelColumns';
-import { PainelCreditoClient } from '@/app/painel-credito/PainelCreditoClient';
-import { CreditoModalWrapper } from '@/app/painel-credito/CreditoModalWrapper';
+import { PainelCreditoClient } from '@/app/funil-credito-obra/PainelCreditoClient';
+import { CreditoModalWrapper } from '@/app/funil-credito-obra/CreditoModalWrapper';
 import { PainelKanbanTabs } from '@/app/steps-viabilidade/PainelKanbanTabs';
 import { buildChecklistAtrasoByCardId } from '@/lib/painel-checklist-atraso';
 import { sortProcessosPorOrdemColuna } from '@/lib/painel-coluna-ordem';
@@ -30,18 +28,9 @@ export default async function PainelCreditoPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user && !isAppFullyPublic()) redirect('/login');
+  if (!user) redirect('/login');
 
-  let db = supabase;
-  if (!user && isAppFullyPublic()) {
-    try {
-      db = createAdminClient();
-    } catch {
-      /* RLS */
-    }
-  }
-
-  const snapshot = await fetchKanbanBoardSnapshot(db, 'Funil Crédito', user?.id ?? null);
+  const snapshot = await fetchKanbanBoardSnapshot(supabase, 'Funil Crédito Obra', user.id);
 
   const primeiro = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
   const modalOuProcessoAberto = Boolean(
@@ -56,17 +45,17 @@ export default async function PainelCreditoPage({
   if (snapshot.kanban) {
     return (
       <KanbanWrapper
-        basePath="/painel-credito"
+        basePath="/funil-credito-obra"
         isAdmin={snapshot.isAdmin}
         kanbanId={snapshot.kanban.id}
-        kanbanNome="Funil Crédito"
+        kanbanNome="Funil Crédito Obra"
         fases={snapshot.fases}
         cardQueryParam="kanbanCard"
         enableNovoCardModal
       >
         <div className="min-h-screen bg-[var(--moni-surface-50)]">
           <Suspense fallback={null}>
-            <PainelKanbanTabs basePath="/painel-credito" variant="credito" />
+            <PainelKanbanTabs basePath="/funil-credito-obra" variant="credito" />
           </Suspense>
 
           {activeTab === 'kanban' ? (
@@ -75,7 +64,7 @@ export default async function PainelCreditoPage({
                 fases={snapshot.fases}
                 cards={snapshot.cards}
                 cardsConcluidos={snapshot.cardsConcluidos}
-                basePath="/painel-credito"
+                basePath="/funil-credito-obra"
                 userRole={snapshot.role}
                 columnAccent="var(--moni-kanban-stepone)"
                 cardQueryParam="kanbanCard"
@@ -87,7 +76,7 @@ export default async function PainelCreditoPage({
           ) : (
             <main className="mx-auto max-w-[1600px] px-6 py-8">
               <PainelPerformance
-                kanbanNome="Funil Crédito"
+                kanbanNome="Funil Crédito Obra"
                 kanbanId={snapshot.kanban.id}
                 fases={snapshot.fases}
                 cards={snapshot.cards}
@@ -100,7 +89,7 @@ export default async function PainelCreditoPage({
     );
   }
 
-  const { data: rows } = await db
+  const { data: rows } = await supabase
     .from('processo_step_one')
     .select(
       'id, cidade, estado, status, etapa_atual, created_at, updated_at, user_id, step_atual, cancelado_em, removido_em, cancelado_motivo, removido_motivo, etapa_painel, trava_painel, tipo_aquisicao_terreno, numero_franquia, nome_franqueado, nome_condominio, quadra_lote, historico_base_id, ordem_coluna_painel',
@@ -115,7 +104,7 @@ export default async function PainelCreditoPage({
   const processIds = creditoProcessos.map((r) => r.user_id).filter(Boolean) as string[];
   let profiles: { id: string; full_name: string | null }[] = [];
   if (processIds.length > 0) {
-    const { data: prof } = await db
+    const { data: prof } = await supabase
       .from('profiles')
       .select('id, full_name')
       .in('id', [...new Set(processIds)]);
@@ -128,7 +117,7 @@ export default async function PainelCreditoPage({
   );
   let checklistAtrasoByCardId = new Map<string, { hasAtrasado: boolean; hasAtencao: boolean }>();
   if (baseProcessoIds.length > 0) {
-    const { data: checklistRows } = await db
+    const { data: checklistRows } = await supabase
       .from('processo_card_checklist')
       .select('processo_id, etapa_painel, prazo, status, concluido')
       .in('processo_id', baseProcessoIds);
@@ -197,7 +186,7 @@ export default async function PainelCreditoPage({
   return (
     <div className="min-h-screen bg-stone-50">
       <Suspense fallback={null}>
-        <PainelKanbanTabs basePath="/painel-credito" variant="credito" />
+        <PainelKanbanTabs basePath="/funil-credito-obra" variant="credito" />
       </Suspense>
 
       {activeTab === 'kanban' ? (
@@ -211,7 +200,7 @@ export default async function PainelCreditoPage({
       ) : (
         <main className="mx-auto max-w-[1600px] px-6 py-8">
           <p className="mb-4 text-sm text-stone-600">
-            O painel de performance do kanban fica disponível quando o funil Crédito estiver cadastrado em{' '}
+            O painel de performance do kanban fica disponível quando o funil Crédito Obra estiver cadastrado em{' '}
             <code className="rounded bg-stone-100 px-1">kanbans</code>. Use{' '}
             <Link href="/sirene/chamados" className="font-medium text-moni-primary hover:underline">
               Ver no Sirene →

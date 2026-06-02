@@ -95,7 +95,7 @@ export function PainelCreditoClient({ byEtapa, initialOpenProcessId }: Props) {
           statusFilter={statusFilter}
           tagFilter={tagFilter}
           openCardViaUrl
-          cardBasePath="/painel-credito"
+          cardBasePath="/funil-credito-obra"
         />
         <StepsKanbanColumn
           title={colCreditoObra?.title ?? 'Crédito Obra'}
@@ -106,7 +106,7 @@ export function PainelCreditoClient({ byEtapa, initialOpenProcessId }: Props) {
           statusFilter={statusFilter}
           tagFilter={tagFilter}
           openCardViaUrl
-          cardBasePath="/painel-credito"
+          cardBasePath="/funil-credito-obra"
         />
       </div>
     </>

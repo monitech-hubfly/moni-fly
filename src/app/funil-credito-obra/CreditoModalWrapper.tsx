@@ -4,11 +4,11 @@ import { PainelCardQueryModalWrapper } from '@/app/steps-viabilidade/PainelCardQ
 
 /**
  * Exibe o modal estilo Funil Step One quando a URL contém ?card=UUID.
- * Fechar remove o query param e mantém /painel-credito.
+ * Fechar remove o query param e mantém /funil-credito-obra.
  */
 export function CreditoModalWrapper({ children }: { children: React.ReactNode }) {
   return (
-    <PainelCardQueryModalWrapper basePath="/painel-credito" board="credito">
+    <PainelCardQueryModalWrapper basePath="/funil-credito-obra" board="credito">
       {children}
     </PainelCardQueryModalWrapper>
   );

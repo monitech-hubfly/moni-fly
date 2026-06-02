@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
-import { isAppFullyPublic, isPublicRedeNovosNegociosEnabled } from '@/lib/public-rede-novos';
+import { redirect } from 'next/navigation';
 import { type ProcessoCard } from '@/app/steps-viabilidade/StepsKanbanColumn';
 import { PAINEL_COLUMNS, type PainelColumnKey } from '@/app/steps-viabilidade/painelColumns';
 import { PainelNovosNegociosClient } from '@/app/steps-viabilidade/PainelNovosNegociosClient';
@@ -11,8 +11,6 @@ import { fetchKanbanBoardSnapshot } from '@/components/kanban-shared/fetchKanban
 import { PainelPerformance } from '@/components/kanban-shared/PainelPerformance';
 import { buildChecklistAtrasoByCardId } from '@/lib/painel-checklist-atraso';
 import { sortProcessosPorOrdemColuna } from '@/lib/painel-coluna-ordem';
-import { createAdminClient } from '@/lib/supabase/admin';
-
 export default async function PainelNovosNegociosPage({
   searchParams,
 }: {
@@ -22,21 +20,12 @@ export default async function PainelNovosNegociosPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const publicMode = isPublicRedeNovosNegociosEnabled();
+  if (!user) redirect('/login');
 
-  let db = supabase;
-  if (!user && (publicMode || isAppFullyPublic())) {
-    try {
-      db = createAdminClient();
-    } catch {
-      /* RLS com cliente anónimo: lista pode vir vazia */
-    }
-  }
+  const snapPortfolio = await fetchKanbanBoardSnapshot(supabase, 'Funil Portfólio', user.id);
+  const snapOperacoes = await fetchKanbanBoardSnapshot(supabase, 'Funil Operações', user.id);
 
-  const snapPortfolio = await fetchKanbanBoardSnapshot(db, 'Funil Portfólio', user?.id ?? null);
-  const snapOperacoes = await fetchKanbanBoardSnapshot(db, 'Funil Operações', user?.id ?? null);
-
-  const { data: rows } = await db
+  const { data: rows } = await supabase
     .from('processo_step_one')
     .select(
       'id, cidade, estado, status, etapa_atual, created_at, updated_at, user_id, step_atual, cancelado_em, removido_em, cancelado_motivo, removido_motivo, etapa_painel, trava_painel, tipo_aquisicao_terreno, numero_franquia, nome_franqueado, nome_condominio, quadra_lote, historico_base_id, ordem_coluna_painel',
@@ -48,7 +37,7 @@ export default async function PainelNovosNegociosPage({
   const processIds = rowsTodos.map((r) => r.user_id).filter(Boolean) as string[];
   let profiles: { id: string; full_name: string | null }[] = [];
   if (processIds.length > 0) {
-    const { data: prof } = await db
+    const { data: prof } = await supabase
       .from('profiles')
       .select('id, full_name')
       .in('id', [...new Set(processIds)]);
@@ -61,7 +50,7 @@ export default async function PainelNovosNegociosPage({
   );
   let checklistAtrasoByCardId = new Map<string, { hasAtrasado: boolean; hasAtencao: boolean }>();
   if (baseProcessoIds.length > 0) {
-    const { data: checklistRows } = await db
+    const { data: checklistRows } = await supabase
       .from('processo_card_checklist')
       .select('processo_id, etapa_painel, prazo, status, concluido')
       .in('processo_id', baseProcessoIds);
@@ -85,7 +74,7 @@ export default async function PainelNovosNegociosPage({
   }
   const baseIds = [...new Set(Array.from(baseIdByProcessoId.values()).filter(Boolean))];
   if (baseIds.length > 0) {
-    const { data: comiteRows } = await db
+    const { data: comiteRows } = await supabase
       .from('processo_card_comite')
       .select('processo_id, comite_resultado')
       .eq('comite_resultado', 'aprovado')

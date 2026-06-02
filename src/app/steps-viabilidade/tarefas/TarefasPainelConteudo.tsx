@@ -510,7 +510,7 @@ export function TarefasPainelConteudo({ basePath: _ = '/painel-novos-negocios' }
         <p className="font-medium">Não foi possível carregar os chamados.</p>
         <p className="mt-1 opacity-90">{loadError}</p>
         <p className="mt-2 text-xs opacity-80">
-          Modo visitante / listagem completa: o servidor precisa de{' '}
+          Listagem completa: o servidor precisa de{' '}
           <code className="rounded px-1" style={{ background: 'rgba(255,255,255,0.35)' }}>
             SUPABASE_DEV_SERVICE_ROLE_KEY ou SUPABASE_SERVICE_ROLE_KEY
           </code>{' '}

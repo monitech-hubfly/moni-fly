@@ -2,7 +2,12 @@
 
 import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState, useTransition, type DragEvent } from 'react';
-import { calcularStatusSLA } from '@/lib/dias-uteis';
+import {
+  calcularSlaKanbanCard,
+  creditoObraAguardandoDocumentacao,
+  CLASSE_TAG_AGUARDANDO_DOCUMENTACAO,
+  TAG_AGUARDANDO_DOCUMENTACAO,
+} from '@/lib/kanban/kanban-card-sla';
 import {
   moverCardKanbanDrag,
   reordenarCardKanbanDrag,
@@ -256,9 +261,22 @@ export function KanbanColumn({
         onDrop={(e) => handleDrop(e, null)}
       >
         {cards.map((card) => {
-          const createdDate = new Date(card.created_at);
-          const slaDiasUteis = fase.sla_dias ?? 999;
-          const sla = calcularStatusSLA(createdDate, slaDiasUteis);
+          const faseSlugCard = fase.slug ?? '';
+          const aguardandoDoc =
+            card.origem !== 'legado' &&
+            creditoObraAguardandoDocumentacao({
+              faseSlug: faseSlugCard,
+              alvara_url: card.alvara_url,
+              docs_terreno_url: card.docs_terreno_url,
+            });
+          const sla = calcularSlaKanbanCard({
+            created_at: card.created_at,
+            sla_iniciado_em: card.sla_iniciado_em,
+            faseSlug: faseSlugCard,
+            alvara_url: card.alvara_url,
+            docs_terreno_url: card.docs_terreno_url,
+            sla_dias: fase.sla_dias,
+          });
           const arquivado = cardArquivadoVisual(card);
           const concluido = cardConcluidoVisual(card);
           const motivo = (card.motivo_arquivamento ?? '').trim();
@@ -404,7 +422,12 @@ export function KanbanColumn({
                     ) : null}
                   </div>
                 ) : null}
-                {!arquivado && !concluido && sla.label && sla.status !== 'ok' ? (
+                {!arquivado && !concluido && aguardandoDoc ? (
+                  <p className={`mt-1 text-xs ${CLASSE_TAG_AGUARDANDO_DOCUMENTACAO}`}>
+                    {TAG_AGUARDANDO_DOCUMENTACAO}
+                  </p>
+                ) : null}
+                {!arquivado && !concluido && !aguardandoDoc && sla.label && sla.status !== 'ok' ? (
                   <p className={`mt-1 text-xs ${sla.classe}`}>{sla.label}</p>
                 ) : null}
               </button>

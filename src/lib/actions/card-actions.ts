@@ -947,6 +947,7 @@ export async function editarSubInteracao(
     data_fim: string | null;
     trava: boolean;
     status?: SubInteracaoStatusDb;
+    pastel?: boolean;
   },
   basePath?: string,
   viaSirene?: boolean,
@@ -995,6 +996,7 @@ export async function editarSubInteracao(
         data_fim: payload.data_fim,
         trava: payload.trava,
         status: payload.status ?? 'nao_iniciado',
+        pastel: payload.pastel,
       },
       categoria,
       nomesTimes,
@@ -1029,6 +1031,9 @@ export async function editarSubInteracao(
       historico,
       ...(payload.status ? { status: payload.status } : {}),
     };
+    if (payload.pastel !== undefined && respIds.includes(user.id)) {
+      updateSub.pastel = nomesTimesIncluemBombeiro(nomesTimes) ? false : Boolean(payload.pastel);
+    }
     if (!prazoStatusAntes) {
       updateSub.data_fim = dataCampoCalendarioIso(payload.data_fim);
     }
@@ -3073,6 +3078,9 @@ export async function moverCardParaFase(input: {
     .eq('id', cardId);
 
   if (updErr) return { ok: false, error: updErr.message };
+
+  const { aplicarSlaInicioDocumentacaoAoMoverFase } = await import('@/lib/actions/kanban-credito-obra-docs');
+  await aplicarSlaInicioDocumentacaoAoMoverFase(supabase, cardId, novaFaseSlug);
 
   await executarBastoes(cardId, novaFaseSlug);
   await executarBastaoDeVolta(cardId, novaFaseSlug);

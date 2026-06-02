@@ -1,4 +1,6 @@
-export const DASHBOARD_TIPO_KEYS = ['chamado_padrao', 'chamado_hdm', 'atividade', 'duvida'] as const;
+export type DashboardFiltroTipo = 'todos' | 'pasteis';
+
+export const DASHBOARD_TIPO_KEYS = ['chamado_padrao', 'chamado_hdm', 'melhoria'] as const;
 export const DASHBOARD_PRIORIDADE_KEYS = ['Urgente', 'Alta', 'Média', 'Baixa'] as const;
 
 export type DashboardBreakdownTab = 'todos' | 'com_trava' | 'atrasados';
@@ -36,13 +38,25 @@ export function normalizePrioridade(prioridade: string | null | undefined): stri
   return found ?? 'Média';
 }
 
+export type DashboardTipoNormalizeOpts = {
+  categoria?: string | null;
+  sireneChamadoTipo?: string | null;
+};
+
+/** Mapeia `kanban_atividades` para chaves do painel (melhoria vem de `categoria`, não de `tipo`). */
 export function normalizeTipoAtividade(
   tipo: string | null | undefined,
-): (typeof DASHBOARD_TIPO_KEYS)[number] {
+  opts?: DashboardTipoNormalizeOpts,
+): (typeof DASHBOARD_TIPO_KEYS)[number] | null {
   const t = String(tipo ?? '').trim().toLowerCase();
-  if (t === 'chamado_padrao' || t === 'chamado_hdm' || t === 'atividade' || t === 'duvida') return t;
-  if (t === 'chamado') return 'chamado_padrao';
-  return 'atividade';
+  const cat = String(opts?.categoria ?? 'chamado').trim().toLowerCase();
+  const sireneTipo = String(opts?.sireneChamadoTipo ?? 'padrao').trim().toLowerCase();
+
+  if (t === 'duvida') return null;
+  if (t === 'melhoria' || cat === 'melhoria') return 'melhoria';
+  if (t === 'chamado_hdm') return 'chamado_hdm';
+  if (t === 'chamado_padrao' || t === 'chamado') return 'chamado_padrao';
+  return sireneTipo === 'hdm' ? 'chamado_hdm' : 'chamado_padrao';
 }
 
 export function filterBreakdownByTab<T extends { comTrava: boolean; atrasado: boolean }>(
@@ -80,6 +94,7 @@ export function aggregatePorTipoFromBreakdown(
   >;
   for (const r of rows) {
     const tipo = normalizeTipoAtividade(r.tipo);
+    if (tipo == null) continue;
     counts[tipo]++;
   }
   const total = rows.length;

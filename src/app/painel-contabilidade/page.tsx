@@ -2,8 +2,6 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { isAppFullyPublic } from '@/lib/public-rede-novos';
 import type { ProcessoCard } from '@/app/steps-viabilidade/StepsKanbanColumn';
 import type { PainelColumnKey } from '@/app/steps-viabilidade/painelColumns';
 import { PainelContabilidadeClient } from '@/app/painel-contabilidade/PainelContabilidadeClient';
@@ -30,18 +28,9 @@ export default async function PainelContabilidadePage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user && !isAppFullyPublic()) redirect('/login');
+  if (!user) redirect('/login');
 
-  let db = supabase;
-  if (!user && isAppFullyPublic()) {
-    try {
-      db = createAdminClient();
-    } catch {
-      /* RLS */
-    }
-  }
-
-  const snapshot = await fetchKanbanBoardSnapshot(db, 'Funil Contabilidade', user?.id ?? null);
+  const snapshot = await fetchKanbanBoardSnapshot(supabase, 'Funil Contabilidade', user.id);
 
   const primeiro = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
   const modalOuProcessoAberto = Boolean(
@@ -100,7 +89,7 @@ export default async function PainelContabilidadePage({
     );
   }
 
-  const { data: rows } = await db
+  const { data: rows } = await supabase
     .from('processo_step_one')
     .select(
       'id, cidade, estado, status, etapa_atual, created_at, updated_at, user_id, step_atual, cancelado_em, removido_em, cancelado_motivo, removido_motivo, etapa_painel, trava_painel, tipo_aquisicao_terreno, numero_franquia, nome_franqueado, nome_condominio, quadra_lote, historico_base_id, ordem_coluna_painel',
@@ -117,7 +106,7 @@ export default async function PainelContabilidadePage({
   const processIds = contabProcessos.map((r) => r.user_id).filter(Boolean) as string[];
   let profiles: { id: string; full_name: string | null }[] = [];
   if (processIds.length > 0) {
-    const { data: prof } = await db.from('profiles').select('id, full_name').in('id', [...new Set(processIds)]);
+    const { data: prof } = await supabase.from('profiles').select('id, full_name').in('id', [...new Set(processIds)]);
     profiles = prof ?? [];
   }
   const profileByUserId = Object.fromEntries(profiles.map((p) => [p.id, p.full_name ?? null]));
@@ -125,7 +114,7 @@ export default async function PainelContabilidadePage({
   const baseProcessoIds = Array.from(new Set(contabProcessos.map((r) => (r.historico_base_id as string | null | undefined) ?? r.id)));
   let checklistByProcesso = new Map<string, { hasAtrasado: boolean; hasAtencao: boolean }>();
   if (baseProcessoIds.length > 0) {
-    const { data: checklistRows } = await db
+    const { data: checklistRows } = await supabase
       .from('processo_card_checklist')
       .select('processo_id, prazo, status, concluido')
       .in('processo_id', baseProcessoIds);

@@ -80,6 +80,7 @@ export function KanbanAtividadeFormFields({
 
   const py = compact ? 'py-1' : 'py-1.5';
   const text = compact ? 'text-[11px]' : 'text-xs';
+  const controlClass = `w-full px-2 ${py}`;
   const pendingAnexos = draft.pendingAnexos ?? [];
 
   return (
@@ -116,28 +117,30 @@ export function KanbanAtividadeFormFields({
         ) : null}
       </div>
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <label className="block min-w-0">
-          <span className="mb-0.5 block font-medium text-stone-600">Prazo limite</span>
-          <span className="mb-0.5 block text-[10px] text-stone-500">
-            O responsável precisa aceitar este prazo para contar no SLA.
-          </span>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="flex min-w-0 flex-col">
+          <div className="mb-1 space-y-0.5">
+            <span className="block font-medium text-stone-600">Prazo limite</span>
+            <p className="text-[10px] leading-snug text-stone-500">
+              O responsável precisa aceitar este prazo para contar no SLA.
+            </p>
+          </div>
           <input
             type="date"
             value={draft.data}
             onChange={(e) => setDraft((d) => ({ ...d, data: e.target.value }))}
-            className={`w-full px-2 ${py}`}
+            className={`mt-auto ${controlClass}`}
             style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
           />
-        </label>
-        <label className="block min-w-0">
-          <span className="mb-0.5 block font-medium text-stone-600">Status</span>
+        </div>
+        <div className="flex min-w-0 flex-col">
+          <span className="mb-1 block font-medium text-stone-600">Status</span>
           <select
             value={draft.status}
             onChange={(e) =>
               setDraft((d) => ({ ...d, status: e.target.value as SubInteracaoStatusDb }))
             }
-            className={`w-full px-2 ${py}`}
+            className={`mt-auto ${controlClass}`}
             style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
             id={`${idPrefix}-status`}
           >
@@ -145,15 +148,17 @@ export function KanbanAtividadeFormFields({
             <option value="em_andamento">Em andamento</option>
             <option value="concluido">Concluído</option>
           </select>
-        </label>
-        <label className="flex min-h-[2.25rem] cursor-pointer items-end gap-2 pb-1 text-stone-700 sm:pb-1.5">
-          <input
-            type="checkbox"
-            className="h-3.5 w-3.5 shrink-0"
-            checked={draft.trava}
-            onChange={(e) => setDraft((d) => ({ ...d, trava: e.target.checked }))}
-          />
-          <span className="leading-snug">Trava - não consigo avançar sem</span>
+        </div>
+        <label className="flex min-w-0 cursor-pointer flex-col text-stone-700">
+          <span className={`mt-auto flex items-center gap-2 ${py}`}>
+            <input
+              type="checkbox"
+              className="h-3.5 w-3.5 shrink-0"
+              checked={draft.trava}
+              onChange={(e) => setDraft((d) => ({ ...d, trava: e.target.checked }))}
+            />
+            <span className="leading-snug">Trava - não consigo avançar sem</span>
+          </span>
         </label>
       </div>
 

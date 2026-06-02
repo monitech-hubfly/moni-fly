@@ -196,7 +196,7 @@ export default function LoginPage() {
 
       const role = normalizeAccessRole((profile as { role?: string | null } | null)?.role);
       if (role === 'pending') {
-        router.push('/login?status=pending');
+        router.push('/treinamento-bca/leitura');
         router.refresh();
         setLoading(false);
         return;
@@ -288,7 +288,7 @@ export default function LoginPage() {
       await notifySignupComplete();
 
       if (!seeded) {
-        router.push('/login?status=pending');
+        router.push('/treinamento-bca/leitura');
       } else {
         const role = normalizeAccessRole(seeded.role);
         if (role === 'admin') router.push('/dashboard-novos-negocios');
@@ -342,7 +342,11 @@ export default function LoginPage() {
                 </p>
                 {status === 'pending' && (
                   <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                    Seu cadastro está pendente de aprovação do administrador.
+                    Seu cadastro está pendente de aprovação do administrador. Enquanto isso, você pode usar apenas o{' '}
+                    <Link href="/treinamento-bca/leitura" className="font-medium underline">
+                      manual BCA (link público)
+                    </Link>
+                    .
                   </p>
                 )}
                 {status === 'blocked' && (

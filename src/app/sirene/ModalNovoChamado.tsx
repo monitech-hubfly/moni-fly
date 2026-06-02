@@ -308,7 +308,6 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
               kanbanTimes={timesChips}
               responsaveisOpcoes={responsaveisFiltrados}
               sessionUserId={sessionUserId}
-              showPastel={false}
               idPrefix="sirene-nova"
               onDelete={fecharAtividade}
               deleteTitle="Limpar atividade"

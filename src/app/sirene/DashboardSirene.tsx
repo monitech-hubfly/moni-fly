@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -9,6 +9,7 @@ import {
   aggregatePorTipoFromBreakdown,
   type DashboardAtividadeBreakdownRow,
   type DashboardChamadoBreakdownRow,
+  type DashboardFiltroTipo,
 } from './dashboard-breakdown';
 
 type PorStatus = { status: string; count: number; pct: number };
@@ -63,11 +64,11 @@ type Props = {
   topicos_por_status: TopicoPorStatus[];
   por_responsavel: PessoaMetrica[];
   por_criador: PessoaMetrica[];
-  abertos_por_time: AbertosGrupo[];
-  abertos_por_funil: AbertosGrupo[];
+  abertos_por_time: PessoaMetrica[];
+  abertos_por_funil: PessoaMetrica[];
   top_franqueados: AbertosGrupo[];
   top_temas: TopTema[];
-  filtroTipo: 'todos' | 'padrao' | 'hdm';
+  filtroTipo: DashboardFiltroTipo;
 };
 
 const statusLabel: Record<string, string> = {
@@ -103,24 +104,21 @@ const topicoStatusColor: Record<string, string> = {
 };
 
 const tipoLabel: Record<string, string> = {
-  chamado_padrao: 'Chamado padrão',
+  chamado_padrao: 'Chamado Padrão',
   chamado_hdm: 'Chamado HDM',
-  atividade: 'Atividade',
-  duvida: 'Dúvida',
+  melhoria: 'Melhoria',
 };
 
 const tipoColor: Record<string, string> = {
   chamado_padrao: 'text-blue-700',
   chamado_hdm: 'text-violet-700',
-  atividade: 'text-amber-700',
-  duvida: 'text-stone-700',
+  melhoria: 'text-amber-700',
 };
 
 const tipoBarColor: Record<string, string> = {
   chamado_padrao: 'bg-blue-500',
   chamado_hdm: 'bg-violet-500',
-  atividade: 'bg-amber-500',
-  duvida: 'bg-stone-500',
+  melhoria: 'bg-amber-500',
 };
 
 const prioridadeColor: Record<string, string> = {
@@ -284,45 +282,6 @@ function HorizontalBars<T extends { count: number; pct: number }>({
   );
 }
 
-function AbertosLegend() {
-  return (
-    <div className="mb-3 flex flex-wrap gap-3 text-xs text-[color:var(--moni-text-tertiary)]">
-      <span className="inline-flex items-center gap-1.5">
-        <span className="rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-800">0</span>
-        Abertos
-      </span>
-    </div>
-  );
-}
-
-function AbertosGrupoListCard({ titulo, items }: { titulo: string; items: AbertosGrupo[] }) {
-  return (
-    <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-5">
-      <h2 className="text-lg font-semibold text-[color:var(--moni-text-primary)]">{titulo}</h2>
-      <AbertosLegend />
-      <ul className="space-y-2">
-        {items.length === 0 ? (
-          <li className="text-sm text-[color:var(--moni-text-tertiary)]">Nenhum dado no escopo</li>
-        ) : (
-          items.map((item) => (
-            <li
-              key={item.nome}
-              className="flex items-center justify-between gap-3 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-3 py-2"
-            >
-              <span className="truncate text-sm font-medium text-[color:var(--moni-text-secondary)]">
-                {item.nome}
-              </span>
-              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
-                {item.count}
-              </span>
-            </li>
-          ))
-        )}
-      </ul>
-    </div>
-  );
-}
-
 function TopFranqueadosCard({ items }: { items: AbertosGrupo[] }) {
   return (
     <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-5">
@@ -346,6 +305,52 @@ function TopFranqueadosCard({ items }: { items: AbertosGrupo[] }) {
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+function DashboardSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="mt-10 first:mt-0">
+      <div className="mb-6 border-b border-[color:var(--moni-border-default)] pb-3">
+        <h2 className="text-xl font-semibold tracking-tight text-[color:var(--moni-text-primary)]">
+          {title}
+        </h2>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function BreakdownTabBar({
+  active,
+  onChange,
+}: {
+  active: BreakdownTab;
+  onChange: (tab: BreakdownTab) => void;
+}) {
+  return (
+    <div className="flex rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-0.5">
+      {BREAKDOWN_TABS.map((tab) => (
+        <button
+          key={tab.key}
+          type="button"
+          onClick={() => onChange(tab.key)}
+          className={`rounded-md px-3 py-1 text-xs font-medium transition ${
+            active === tab.key
+              ? 'bg-[var(--moni-surface-0)] text-[color:var(--moni-text-primary)] shadow-sm'
+              : 'text-[color:var(--moni-text-tertiary)] hover:text-[color:var(--moni-text-secondary)]'
+          }`}
+        >
+          {tab.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -407,7 +412,8 @@ export function DashboardSirene({
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [breakdownTab, setBreakdownTab] = useState<BreakdownTab>('todos');
+  const [chamadoBreakdownTab, setChamadoBreakdownTab] = useState<BreakdownTab>('todos');
+  const [atividadeBreakdownTab, setAtividadeBreakdownTab] = useState<BreakdownTab>('todos');
   const [showAtrasados, setShowAtrasados] = useState(false);
 
   const listaTravaCard = useMemo(
@@ -416,12 +422,12 @@ export function DashboardSirene({
   );
 
   const filteredChamados = useMemo(
-    () => filterByTab(chamadosBreakdown, breakdownTab),
-    [chamadosBreakdown, breakdownTab],
+    () => filterByTab(chamadosBreakdown, chamadoBreakdownTab),
+    [chamadosBreakdown, chamadoBreakdownTab],
   );
   const filteredAtividades = useMemo(
-    () => filterByTab(atividadesBreakdown, breakdownTab),
-    [atividadesBreakdown, breakdownTab],
+    () => filterByTab(atividadesBreakdown, atividadeBreakdownTab),
+    [atividadesBreakdown, atividadeBreakdownTab],
   );
 
   const porStatusFiltrado = useMemo(
@@ -437,7 +443,7 @@ export function DashboardSirene({
     [filteredChamados],
   );
 
-  const setFiltroTipo = (value: 'todos' | 'padrao' | 'hdm') => {
+  const setFiltroTipo = (value: DashboardFiltroTipo) => {
     const p = new URLSearchParams(searchParams.toString());
     if (value === 'todos') p.delete('tipo');
     else p.set('tipo', value);
@@ -454,17 +460,16 @@ export function DashboardSirene({
         <span className="text-sm font-medium text-[color:var(--moni-text-tertiary)]">Tipo:</span>
         <select
           value={filtroTipo}
-          onChange={(e) => setFiltroTipo(e.target.value as 'todos' | 'padrao' | 'hdm')}
+          onChange={(e) => setFiltroTipo(e.target.value as DashboardFiltroTipo)}
           className="rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-3 py-1.5 text-sm text-[color:var(--moni-text-secondary)]"
         >
           <option value="todos">Todos</option>
-          <option value="padrao">Padrão</option>
-          <option value="hdm">HDM</option>
+          <option value="pasteis">Pastéis</option>
         </select>
       </div>
 
-      {/* KPIs — linha 1 */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <DashboardSection title="Análise de chamados">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-4">
           <p className="text-3xl font-bold text-red-700">{emAberto}</p>
           <p className="mt-1 text-sm text-[color:var(--moni-text-tertiary)]">Em aberto</p>
@@ -485,50 +490,25 @@ export function DashboardSirene({
         </div>
       </div>
 
-      {/* KPIs — linha 2 (SLA + satisfação) */}
-      <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-4">
-          <p className="text-3xl font-bold text-red-700">{slaAtrasados}</p>
-          <p className="mt-1 text-sm text-[color:var(--moni-text-tertiary)]">SLA atrasados</p>
+        <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-2">
+          <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-4">
+            <p className="text-3xl font-bold text-violet-700">{aguardandoJulgamento}</p>
+            <p className="mt-1 text-sm text-[color:var(--moni-text-tertiary)]">Aguardando julgamento</p>
+          </div>
+          <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-4">
+            <p className="text-3xl font-bold text-emerald-700">{satisfacaoPct}%</p>
+            <p className="mt-1 text-sm text-[color:var(--moni-text-tertiary)]">Satisfação 1º atendimento</p>
+            <p className="mt-0.5 text-xs text-[color:var(--moni-text-tertiary)]">
+              {satisfacao_aprovados} de {satisfacao_total} sem reincidência
+            </p>
+          </div>
         </div>
-        <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-4">
-          <p className="text-3xl font-bold text-amber-700">{slaVenceHoje}</p>
-          <p className="mt-1 text-sm text-[color:var(--moni-text-tertiary)]">SLA vence hoje</p>
-        </div>
-        <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-4">
-          <p className="text-3xl font-bold text-violet-700">{aguardandoJulgamento}</p>
-          <p className="mt-1 text-sm text-[color:var(--moni-text-tertiary)]">Aguardando julgamento</p>
-        </div>
-        <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-4">
-          <p className="text-3xl font-bold text-emerald-700">{satisfacaoPct}%</p>
-          <p className="mt-1 text-sm text-[color:var(--moni-text-tertiary)]">Satisfação 1º atendimento</p>
-          <p className="mt-0.5 text-xs text-[color:var(--moni-text-tertiary)]">
-            {satisfacao_aprovados} de {satisfacao_total} sem reincidência
-          </p>
-        </div>
-      </div>
 
-      {/* Duas colunas: breakdowns | lateral (trava, julgamento, tópicos) */}
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(380px,7fr)]">
         <div className="space-y-6 rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-[color:var(--moni-text-primary)]">Chamados por status</h2>
-            <div className="flex rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-0.5">
-              {BREAKDOWN_TABS.map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setBreakdownTab(tab.key)}
-                  className={`rounded-md px-3 py-1 text-xs font-medium transition ${
-                    breakdownTab === tab.key
-                      ? 'bg-[var(--moni-surface-0)] text-[color:var(--moni-text-primary)] shadow-sm'
-                      : 'text-[color:var(--moni-text-tertiary)] hover:text-[color:var(--moni-text-secondary)]'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+            <h3 className="text-lg font-semibold text-[color:var(--moni-text-primary)]">Chamados por status</h3>
+            <BreakdownTabBar active={chamadoBreakdownTab} onChange={setChamadoBreakdownTab} />
           </div>
 
           <HorizontalBars
@@ -538,19 +518,6 @@ export function DashboardSirene({
             labelColor={statusColor}
             barColor={statusBarColor}
           />
-
-          <div className="border-t border-[color:var(--moni-border-default)] pt-4">
-            <h3 className="text-sm font-semibold text-[color:var(--moni-text-primary)]">Por tipo</h3>
-            <div className="mt-3">
-              <HorizontalBars
-                items={porTipoFiltrado}
-                getKey={(item) => item.tipo}
-                getLabel={(item) => tipoLabel[item.tipo] ?? item.tipo}
-                labelColor={tipoColor}
-                barColor={tipoBarColor}
-              />
-            </div>
-          </div>
 
           <div className="border-t border-[color:var(--moni-border-default)] pt-4">
             <h3 className="text-sm font-semibold text-[color:var(--moni-text-primary)]">
@@ -662,53 +629,98 @@ export function DashboardSirene({
           </ul>
         </div>
 
-        <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-5">
-          <h2 className="text-lg font-semibold text-[color:var(--moni-text-primary)]">Tópicos / sub-atividades</h2>
-          <table className="mt-4 w-full text-sm">
-            <tbody>
-              {topicos_por_status.map((row) => (
-                <tr
-                  key={row.status}
-                  className="border-t border-[color:var(--moni-border-default)] first:border-t-0"
-                >
-                  <td className={`py-2 pr-4 ${topicoStatusColor[row.status] ?? 'text-[color:var(--moni-text-secondary)]'}`}>
-                    {topicoStatusLabel[row.status] ?? row.status}
-                  </td>
-                  <td className="py-2 text-right font-semibold tabular-nums text-[color:var(--moni-text-primary)]">
-                    {row.count}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
         </div>
-      </div>
 
-      {/* Por responsável | Por criador */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <PessoaMetricasCard
-          titulo="Por responsável"
-          tertiaryLabel="Com trava"
-          rows={por_responsavel}
-          getTertiary={(row) => row.com_trava ?? 0}
-        />
-        <PessoaMetricasCard
-          titulo="Por criador"
-          tertiaryLabel="Sem julgamento"
-          rows={por_criador}
-          getTertiary={(row) => row.sem_julgamento ?? 0}
-        />
-      </div>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(360px,1.35fr)]">
-        <AbertosGrupoListCard titulo="Abertos por time" items={abertos_por_time} />
-        <AbertosGrupoListCard titulo="Abertos por funil" items={abertos_por_funil} />
-        <div className="min-w-0 space-y-6">
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
           <TopFranqueadosCard items={top_franqueados} />
           <TopTemasCard items={top_temas} />
         </div>
-      </div>
+      </DashboardSection>
+
+      <DashboardSection title="Análise de atividades">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-2">
+          <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-4">
+            <p className="text-3xl font-bold text-red-700">{slaAtrasados}</p>
+            <p className="mt-1 text-sm text-[color:var(--moni-text-tertiary)]">SLA atrasados</p>
+          </div>
+          <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-4">
+            <p className="text-3xl font-bold text-amber-700">{slaVenceHoje}</p>
+            <p className="mt-1 text-sm text-[color:var(--moni-text-tertiary)]">SLA vence hoje</p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(320px,4fr)]">
+          <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="text-lg font-semibold text-[color:var(--moni-text-primary)]">Atividades por tipo</h3>
+              <BreakdownTabBar active={atividadeBreakdownTab} onChange={setAtividadeBreakdownTab} />
+            </div>
+            <div className="mt-4">
+              <HorizontalBars
+                items={porTipoFiltrado}
+                getKey={(item) => item.tipo}
+                getLabel={(item) => tipoLabel[item.tipo] ?? item.tipo}
+                labelColor={tipoColor}
+                barColor={tipoBarColor}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-5">
+            <h3 className="text-lg font-semibold text-[color:var(--moni-text-primary)]">Tópicos / sub-atividades</h3>
+            <table className="mt-4 w-full text-sm">
+              <tbody>
+                {topicos_por_status.map((row) => (
+                  <tr
+                    key={row.status}
+                    className="border-t border-[color:var(--moni-border-default)] first:border-t-0"
+                  >
+                    <td
+                      className={`py-2 pr-4 ${topicoStatusColor[row.status] ?? 'text-[color:var(--moni-text-secondary)]'}`}
+                    >
+                      {topicoStatusLabel[row.status] ?? row.status}
+                    </td>
+                    <td className="py-2 text-right font-semibold tabular-nums text-[color:var(--moni-text-primary)]">
+                      {row.count}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <PessoaMetricasCard
+            titulo="Por responsável"
+            tertiaryLabel="Com trava"
+            rows={por_responsavel}
+            getTertiary={(row) => row.com_trava ?? 0}
+          />
+          <PessoaMetricasCard
+            titulo="Por criador"
+            tertiaryLabel="Sem julgamento"
+            rows={por_criador}
+            getTertiary={(row) => row.sem_julgamento ?? 0}
+          />
+        </div>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <PessoaMetricasCard
+            titulo="Abertos por time"
+            tertiaryLabel="Com trava"
+            rows={abertos_por_time}
+            getTertiary={(row) => row.com_trava ?? 0}
+          />
+          <PessoaMetricasCard
+            titulo="Abertos por funil"
+            tertiaryLabel="Com trava"
+            rows={abertos_por_funil}
+            getTertiary={(row) => row.com_trava ?? 0}
+          />
+        </div>
+      </DashboardSection>
     </div>
   );
 }

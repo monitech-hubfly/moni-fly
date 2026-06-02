@@ -12,8 +12,6 @@ import { SidebarUniversidadeLinks } from '@/components/universidade/SidebarUnive
 type PortalSidebarProps = {
   user: { id: string; email?: string; full_name?: string | null } | null;
   userRole: string;
-  /** Sem sessão: macros Rede + funis (subitens completos para edição pública). */
-  publicVisitor?: boolean;
 };
 
 function getInicialNome(fullName: string | null | undefined): string {
@@ -58,7 +56,7 @@ const NOVOS_NEGOCIOS_SUBITENS_FRANK: NavItem[] = [
 const CREDITO_JURIDICO_SUBITENS: NavItem[] = [
   { href: '/funil-juridico', label: 'Funil Jurídico' },
   { href: '/funil-moni-capital', label: 'Moní Capital' },
-  { href: '/painel-credito', label: 'Funil Crédito' },
+  { href: '/funil-credito-obra', label: 'Crédito Obra' },
   { href: '/painel-contabilidade', label: 'Funil Contabilidade' },
 ];
 const PRE_OBRA_SUBITENS: NavItem[] = [
@@ -117,13 +115,11 @@ function isRedeFranqueadosActive(pathname: string) {
   }
   return pathname === '/rede' || (pathname.startsWith('/rede') && !pathname.startsWith('/rede-franqueados'));
 }
-function buildNovosNegociosSubitens(role: string, publicVisitor: boolean): NavItem[] {
+function buildNovosNegociosSubitens(role: string): NavItem[] {
   const base =
-    publicVisitor || normalizeAccessRole(role) !== 'frank'
-      ? NOVOS_NEGOCIOS_SUBITENS
-      : NOVOS_NEGOCIOS_SUBITENS_FRANK;
+    normalizeAccessRole(role) !== 'frank' ? NOVOS_NEGOCIOS_SUBITENS : NOVOS_NEGOCIOS_SUBITENS_FRANK;
 
-  if (publicVisitor || !isRedeStaffRole(role)) return base;
+  if (!isRedeStaffRole(role)) return base;
 
   return [{ href: '/portfolio/saude', label: 'Saúde' }, ...base];
 }
@@ -152,7 +148,7 @@ function isCreditoJuridicoActive(pathname: string) {
     pathname.startsWith('/funil-juridico') ||
     pathname.startsWith('/funil-moni-capital') ||
     pathname.startsWith('/painel-contabilidade') ||
-    pathname.startsWith('/painel-credito')
+    pathname.startsWith('/funil-credito-obra')
   );
 }
 
@@ -198,7 +194,7 @@ function isStepsActive(pathname: string) {
     pathname.startsWith('/acoplamento-pl')
   );
 }
-export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalSidebarProps) {
+export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
   const pathname = usePathname();
   const [resolvedRole, setResolvedRole] = useState(userRole);
   const [resolvedCargo, setResolvedCargo] = useState<string | null>(null);
@@ -209,22 +205,19 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
   const roleNorm = normalizeAccessRole(resolvedRole);
   const isFrank = roleNorm === 'frank';
   const isStaff = isAdmin || roleNorm === 'team';
-  const showNovosNegociosNav = publicVisitor || isStaff || isFrank;
-  const showCreditoJuridicoNav = publicVisitor || isStaff;
-  const showPreObraNav = publicVisitor || isStaff;
-  const showHdmNav = publicVisitor || isStaff;
+  const showNovosNegociosNav = isStaff || isFrank;
+  const showCreditoJuridicoNav = isStaff;
+  const showPreObraNav = isStaff;
+  const showHdmNav = isStaff;
 
-  const novosNegociosSubitens = useMemo(
-    () => buildNovosNegociosSubitens(resolvedRole, publicVisitor),
-    [resolvedRole, publicVisitor],
-  );
+  const novosNegociosSubitens = useMemo(() => buildNovosNegociosSubitens(resolvedRole), [resolvedRole]);
 
   useEffect(() => {
     setResolvedRole(userRole);
   }, [userRole]);
 
   useEffect(() => {
-    if (publicVisitor || !user?.id) return;
+    if (!user?.id) return;
     const supabase = createClient();
     void supabase
       .from('profiles')
@@ -239,7 +232,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
           setResolvedCargo(String(data.cargo));
         }
       });
-  }, [user?.id, publicVisitor]);
+  }, [user?.id]);
   const [perfilOpen, setPerfilOpen] = useState(() => (pathname ?? '') === '/perfil');
   const [redeFranqueadosOpen, setRedeFranqueadosOpen] = useState(() => isRedeFranqueadosActive(pathname ?? ''));
   const [catalogoOpen, setCatalogoOpen] = useState(() => isCatalogoActive(pathname ?? ''));
@@ -255,12 +248,12 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
   const [carometroOpen, setCarometroOpen] = useState(() => isCarometroNavActive(pathname ?? ''));
   /** Franqueado não acessa `/rede-franqueados` (middleware); visão consolidada em `/portal-frank/rede`. */
   const redeFranqueadosNavSubitens = useMemo((): NavItem[] => {
-    if (publicVisitor) return filterRedeFranqueadosSubitensParaProd(REDE_FRANQUEADOS_SUBITENS, showDevNav);
+    if (!user?.id) return filterRedeFranqueadosSubitensParaProd(REDE_FRANQUEADOS_SUBITENS, showDevNav);
     if (resolvedRole === 'frank') {
       return [{ href: '/portal-frank/rede', label: 'Rede de Franqueados' }];
     }
     return filterRedeFranqueadosSubitensParaProd(REDE_FRANQUEADOS_SUBITENS, showDevNav);
-  }, [publicVisitor, resolvedRole, showDevNav]);
+  }, [user?.id, resolvedRole, showDevNav]);
 
   useEffect(() => {
     const p = pathname ?? '';
@@ -283,10 +276,8 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
     else if (isStepsActive(p)) setStepsOpen(true);
   }, [pathname]);
 
-  const displayName = publicVisitor
-    ? 'Visitante'
-    : user?.full_name?.trim() || user?.email || 'Franqueado';
-  const inicial = publicVisitor ? 'V' : getInicialNome(user?.full_name ?? null);
+  const displayName = user?.full_name?.trim() || user?.email || 'Franqueado';
+  const inicial = getInicialNome(user?.full_name ?? null);
 
   const linkClassPrincipal = (active: boolean) =>
     `block w-full rounded-lg px-3 py-2 text-left text-sm font-semibold transition ${
@@ -388,7 +379,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
           },
         )}
 
-        {!publicVisitor && !limitedRelease && (isAdmin || resolvedRole === 'team') &&
+        {!limitedRelease && (isAdmin || resolvedRole === 'team') &&
           renderMacro(
             'carometro',
             'Carômetro',
@@ -399,7 +390,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
             (href) => Boolean(pathname === href || pathname?.startsWith(`${href}/`)),
           )}
 
-        {!publicVisitor && !limitedRelease && (
+        {!limitedRelease && (
           <SidebarUniversidadeLinks
             userId={user?.id}
             resolvedRole={resolvedRole}
@@ -452,7 +443,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
             (href) => pathname === href || (pathname?.startsWith(href + '/') ?? false),
           )}
 
-        {!publicVisitor && !limitedRelease && showInternoNav &&
+        {!limitedRelease && showInternoNav &&
           renderMacro(
             'interno',
             'Interno',
@@ -463,7 +454,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
             (href) => pathname === href || (pathname?.startsWith(`${href}/`) ?? false),
           )}
 
-        {!publicVisitor && !limitedRelease && (isAdmin || resolvedRole === 'team') && (
+        {!limitedRelease && (isAdmin || resolvedRole === 'team') && (
           <Link
             href="/repositorio"
             className={linkClassPrincipal(Boolean(pathname?.startsWith('/repositorio')))}
@@ -472,7 +463,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
           </Link>
         )}
 
-        {!publicVisitor && !limitedRelease &&
+        {!limitedRelease &&
           (isAdmin || resolvedRole === 'team') &&
           renderMacro(
             'sirene',
@@ -484,7 +475,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
             (href) => Boolean(pathname === href || pathname?.startsWith(`${href}/`)),
           )}
 
-        {!publicVisitor && isFrank && (
+        {isFrank && (
           <Link
             href="/minhas-empresas"
             className={`${linkClassPrincipal(Boolean(pathname?.startsWith('/minhas-empresas')))} flex items-center gap-2`}
@@ -494,7 +485,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
           </Link>
         )}
 
-        {!publicVisitor && !limitedRelease && showDevNav && isAdmin &&
+        {!limitedRelease && showDevNav && isAdmin &&
           renderMacro(
             'catalogo',
             'Catálogo de Produtos Moní',
@@ -505,7 +496,7 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
             (href) => pathname?.startsWith(href) ?? false,
           )}
 
-        {!publicVisitor && !limitedRelease && showDevNav && isAdmin &&
+        {!limitedRelease && showDevNav && isAdmin &&
           renderMacro(
             'steps',
             'Steps Viabilidade',
@@ -522,30 +513,20 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
           )}
       </nav>
 
-      {publicVisitor ? (
-        <div className="shrink-0 space-y-2 border-t border-stone-200 p-3 text-xs text-stone-600">
-          <p className="rounded-lg bg-stone-100 px-3 py-2 leading-snug">
-            Modo visitante — edição pública (Rede + Funis)
-          </p>
-          <Link href="/login" className="block font-medium text-moni-primary hover:underline">
-            Entrar com conta
-          </Link>
-        </div>
-      ) : (
-        <div className="shrink-0 space-y-1 border-t border-stone-200 p-3">
-          <div className="flex w-full items-center gap-2 rounded-lg px-3 py-2">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-moni-primary text-xs font-semibold text-white">
-              {inicial}
-            </span>
-            <div className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-moni-primary">{displayName}</span>
-              {user?.email && (
-                <span className="mt-0.5 block truncate text-[10px] text-stone-300">{user.email}</span>
-              )}
-            </div>
+      <div className="shrink-0 space-y-1 border-t border-stone-200 p-3">
+        <div className="flex w-full items-center gap-2 rounded-lg px-3 py-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-moni-primary text-xs font-semibold text-white">
+            {inicial}
+          </span>
+          <div className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold text-moni-primary">{displayName}</span>
+            {user?.email && (
+              <span className="mt-0.5 block truncate text-[10px] text-stone-300">{user.email}</span>
+            )}
           </div>
+        </div>
 
-          <div>
+        <div>
             <button
               type="button"
               onClick={() => setPerfilOpen((o) => !o)}
@@ -592,9 +573,8 @@ export function PortalSidebar({ user, userRole, publicVisitor = false }: PortalS
                 </Link>
               </div>
             )}
-          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -15,7 +15,7 @@ const KANBAN_NOME_DB_PARA_APP: Record<string, { basePath: string; cardQueryParam
   'Funil Projetos Locais': { basePath: '/projetos-locais', cardQueryParam: 'card' },
   'Funil Projetos Legais': { basePath: '/projetos-legais', cardQueryParam: 'card' },
   'Funil Contabilidade': { basePath: '/painel-contabilidade', cardQueryParam: 'kanbanCard' },
-  'Funil Crédito': { basePath: '/painel-credito', cardQueryParam: 'kanbanCard' },
+  'Funil Crédito Obra': { basePath: '/funil-credito-obra', cardQueryParam: 'kanbanCard' },
 };
 
 /** Bases de rota de todos os funis conhecidos (invalidação de cache após mutação). */

@@ -2,7 +2,6 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { isAppFullyPublic } from '@/lib/public-rede-novos';
 import { revalidatePath } from 'next/cache';
 import type { Chamado, HdmTime } from '@/types/sirene';
 import { canActAsBombeiro, type SireneUserContext } from '@/lib/sirene';
@@ -26,6 +25,7 @@ import {
   slaStatusFromDate,
   type DashboardAtividadeBreakdownRow,
   type DashboardChamadoBreakdownRow,
+  type DashboardFiltroTipo,
 } from './dashboard-breakdown';
 import { labelPastelariaColuna } from '@/lib/pastelaria/coluna-labels';
 import { syncPastelariaColunaFromSireneStatus } from '@/lib/pastelaria/sirene-status-sync';
@@ -275,9 +275,6 @@ export async function getSireneLayoutContext(): Promise<
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    if (isAppFullyPublic()) {
-      return { ok: true, userName: 'Visitante', isBombeiro: false };
-    }
     return { ok: false, error: 'Faça login.' };
   }
   const { data: profile } = await supabase
@@ -2166,11 +2163,63 @@ export async function getMonitorTopicosPorTime(
   return { ok: true, isBombeiro: true, porTime };
 }
 
-/** Conta atividades com SLA na view unificada, respeitando filtro de tipo Sirene (mesma regra do painel Chamados). */
+/** Chamados com ao menos um tópico não arquivado marcado como Pastel (`sirene_topicos.pastel = true`). */
+async function loadChamadoIdsComTopicoPastel(
+  queryClient: Awaited<ReturnType<typeof createClient>>,
+): Promise<Set<number>> {
+  const { data: topicosRows } = await queryClient
+    .from('sirene_topicos')
+    .select('chamado_id, interacao_id')
+    .eq('pastel', true)
+    .or('arquivado.eq.false,arquivado.is.null');
+
+  const out = new Set<number>();
+  const interacaoIds = new Set<string>();
+
+  for (const t of topicosRows ?? []) {
+    const rawCid = (t as { chamado_id?: number | null }).chamado_id;
+    if (rawCid != null && Number.isFinite(Number(rawCid))) {
+      out.add(Number(rawCid));
+      continue;
+    }
+    const iid = (t as { interacao_id?: string | null }).interacao_id;
+    if (iid) interacaoIds.add(String(iid));
+  }
+
+  if (interacaoIds.size > 0) {
+    const unique = [...interacaoIds];
+    const chunk = 200;
+    for (let i = 0; i < unique.length; i += chunk) {
+      const slice = unique.slice(i, i + chunk);
+      const { data: kaRows } = await queryClient
+        .from('kanban_atividades')
+        .select('id, sirene_chamado_id')
+        .in('id', slice);
+      for (const r of kaRows ?? []) {
+        const sid = Number((r as { sirene_chamado_id?: number | null }).sirene_chamado_id);
+        if (Number.isFinite(sid)) out.add(sid);
+      }
+    }
+  }
+
+  return out;
+}
+
+function passaFiltroPastelDashboard(
+  sireneChamadoId: number | null | undefined,
+  filtroTipo: DashboardFiltroTipo | undefined,
+  pastelChamadoIds: Set<number> | undefined,
+): boolean {
+  if (filtroTipo !== 'pasteis') return true;
+  return sireneChamadoId != null && Number.isFinite(sireneChamadoId) && pastelChamadoIds?.has(sireneChamadoId) === true;
+}
+
+/** Conta atividades com SLA na view unificada, respeitando filtro Pastéis do dashboard. */
 async function countSlaAtividades(
   queryClient: Awaited<ReturnType<typeof createClient>>,
   slaStatus: 'atrasado' | 'vence_hoje',
-  filtroTipo?: 'todos' | 'padrao' | 'hdm',
+  filtroTipo?: DashboardFiltroTipo,
+  pastelChamadoIds?: Set<number>,
 ): Promise<number> {
   const { data: rows } = await queryClient
     .from('v_atividades_unificadas')
@@ -2197,36 +2246,12 @@ async function countSlaAtividades(
     }
   }
 
-  const sireneIds = [
-    ...new Set(
-      [...kaById.values()]
-        .map((k) => k.sirene_chamado_id)
-        .filter((x): x is number => x != null && Number.isFinite(x)),
-    ),
-  ];
-  const sireneTipoById = new Map<number, string>();
-  if (sireneIds.length > 0) {
-    for (let i = 0; i < sireneIds.length; i += chunk) {
-      const slice = sireneIds.slice(i, i + chunk);
-      const { data: scRows } = await queryClient
-        .from('sirene_chamados')
-        .select('id, tipo')
-        .in('id', slice);
-      for (const s of scRows ?? []) {
-        sireneTipoById.set(Number((s as { id: number }).id), String((s as { tipo?: string }).tipo ?? 'padrao'));
-      }
-    }
-  }
-
   let count = 0;
   for (const row of rows) {
     const id = String((row as { id: string }).id);
     const ka = kaById.get(id);
-    if (filtroTipo === 'padrao' || filtroTipo === 'hdm') {
-      if (ka?.origem === 'sirene' && ka.sirene_chamado_id != null) {
-        const t = sireneTipoById.get(ka.sirene_chamado_id) ?? 'padrao';
-        if (filtroTipo === 'hdm' ? t !== 'hdm' : t !== 'padrao') continue;
-      }
+    if (filtroTipo === 'pasteis') {
+      if (!passaFiltroPastelDashboard(ka?.sirene_chamado_id, filtroTipo, pastelChamadoIds)) continue;
     }
     count++;
   }
@@ -2761,14 +2786,35 @@ async function aggregatePorCriador(
 
 type AbertosGrupo = { nome: string; count: number };
 
-/** Carrega origem/sirene_chamado_id e tipos de chamado Sirene para filtro padrao/hdm em atividades. */
+type GrupoMetricaAgg = { abertos: number; atrasados: number; com_trava: number };
+
+function bumpGrupoMetrica(
+  map: Map<string, GrupoMetricaAgg>,
+  nome: string,
+  field: keyof GrupoMetricaAgg,
+): void {
+  const cur = map.get(nome) ?? { abertos: 0, atrasados: 0, com_trava: 0 };
+  cur[field]++;
+  map.set(nome, cur);
+}
+
+function topGruposPorAbertos(map: Map<string, GrupoMetricaAgg>, limit: number): DashboardPessoaMetrica[] {
+  return [...map.entries()]
+    .map(([nome, m]) => ({
+      nome,
+      abertos: m.abertos,
+      atrasados: m.atrasados,
+      com_trava: m.com_trava,
+    }))
+    .sort((a, b) => b.abertos - a.abertos)
+    .slice(0, limit);
+}
+
+/** Carrega origem/sirene_chamado_id de kanban_atividades para filtro Pastéis no dashboard. */
 async function loadKanbanAtividadesFiltroContext(
   queryClient: Awaited<ReturnType<typeof createClient>>,
   ids: string[],
-): Promise<{
-  kaById: Map<string, { origem: string; sirene_chamado_id: number | null }>;
-  sireneTipoById: Map<number, string>;
-}> {
+): Promise<Map<string, { origem: string; sirene_chamado_id: number | null }>> {
   const kaById = new Map<string, { origem: string; sirene_chamado_id: number | null }>();
   const chunk = 200;
   for (let i = 0; i < ids.length; i += chunk) {
@@ -2787,41 +2833,7 @@ async function loadKanbanAtividadesFiltroContext(
     }
   }
 
-  const sireneIds = [
-    ...new Set(
-      [...kaById.values()]
-        .map((k) => k.sirene_chamado_id)
-        .filter((x): x is number => x != null && Number.isFinite(x)),
-    ),
-  ];
-  const sireneTipoById = new Map<number, string>();
-  for (let i = 0; i < sireneIds.length; i += chunk) {
-    const slice = sireneIds.slice(i, i + chunk);
-    const { data: scRows } = await queryClient
-      .from('sirene_chamados')
-      .select('id, tipo')
-      .in('id', slice);
-    for (const s of scRows ?? []) {
-      sireneTipoById.set(Number((s as { id: number }).id), String((s as { tipo?: string }).tipo ?? 'padrao'));
-    }
-  }
-
-  return { kaById, sireneTipoById };
-}
-
-function passaFiltroTipoKanbanAtividade(
-  id: string,
-  filtroTipo: 'todos' | 'padrao' | 'hdm' | undefined,
-  kaById: Map<string, { origem: string; sirene_chamado_id: number | null }>,
-  sireneTipoById: Map<number, string>,
-): boolean {
-  if (filtroTipo !== 'padrao' && filtroTipo !== 'hdm') return true;
-  const ka = kaById.get(id);
-  if (ka?.origem === 'sirene' && ka.sirene_chamado_id != null) {
-    const t = sireneTipoById.get(ka.sirene_chamado_id) ?? 'padrao';
-    if (filtroTipo === 'hdm' ? t !== 'hdm' : t !== 'padrao') return false;
-  }
-  return true;
+  return kaById;
 }
 
 function topGruposPorCount(map: Map<string, number>, limit: number): AbertosGrupo[] {
@@ -2837,11 +2849,12 @@ function topGruposPorCount(map: Map<string, number>, limit: number): AbertosGrup
  */
 async function aggregateAbertosDashboard(
   queryClient: Awaited<ReturnType<typeof createClient>>,
-  filtroTipo?: 'todos' | 'padrao' | 'hdm',
-): Promise<{ abertos_por_time: AbertosGrupo[]; abertos_por_funil: AbertosGrupo[] }> {
+  filtroTipo?: DashboardFiltroTipo,
+  pastelChamadoIds?: Set<number>,
+): Promise<{ abertos_por_time: DashboardPessoaMetrica[]; abertos_por_funil: DashboardPessoaMetrica[] }> {
   const { data: rows } = await queryClient
     .from('v_atividades_unificadas')
-    .select('id, card_id, kanban_nome, time_abertura_nome, atividade_status')
+    .select('id, card_id, kanban_nome, time_abertura_nome, atividade_status, sla_status')
     .neq('atividade_status', 'concluida');
 
   if (!rows?.length) {
@@ -2849,18 +2862,51 @@ async function aggregateAbertosDashboard(
   }
 
   const ids = rows.map((r) => String((r as { id: string }).id)).filter(Boolean);
-  const { kaById, sireneTipoById } = await loadKanbanAtividadesFiltroContext(queryClient, ids);
+  const kaById = await loadKanbanAtividadesFiltroContext(queryClient, ids);
 
-  const porTime = new Map<string, number>();
-  const porFunil = new Map<string, number>();
+  const sireneIds = [
+    ...new Set(
+      [...kaById.values()]
+        .map((k) => k.sirene_chamado_id)
+        .filter((x): x is number => x != null && Number.isFinite(x)),
+    ),
+  ];
+  const comTravaBySireneId = new Map<number, boolean>();
+  const chunk = 200;
+  for (let i = 0; i < sireneIds.length; i += chunk) {
+    const slice = sireneIds.slice(i, i + chunk);
+    const { data: scRows } = await queryClient
+      .from('sirene_chamados')
+      .select('id, trava, te_trata')
+      .in('id', slice);
+    for (const s of scRows ?? []) {
+      const id = Number((s as { id: number }).id);
+      comTravaBySireneId.set(
+        id,
+        (s as { trava?: boolean }).trava === true ||
+          (s as { te_trata?: boolean | null }).te_trata === true,
+      );
+    }
+  }
+
+  const porTime = new Map<string, GrupoMetricaAgg>();
+  const porFunil = new Map<string, GrupoMetricaAgg>();
 
   for (const row of rows) {
     const id = String((row as { id: string }).id);
-    if (!passaFiltroTipoKanbanAtividade(id, filtroTipo, kaById, sireneTipoById)) continue;
+    const ka = kaById.get(id);
+    if (!passaFiltroPastelDashboard(ka?.sirene_chamado_id, filtroTipo, pastelChamadoIds)) continue;
+    const atrasado = String((row as { sla_status?: string | null }).sla_status ?? '') === 'atrasado';
+    const comTrava =
+      ka?.sirene_chamado_id != null
+        ? (comTravaBySireneId.get(ka.sirene_chamado_id) ?? false)
+        : false;
 
     const timeNome = String((row as { time_abertura_nome?: string | null }).time_abertura_nome ?? '').trim();
     if (timeNome) {
-      porTime.set(timeNome, (porTime.get(timeNome) ?? 0) + 1);
+      bumpGrupoMetrica(porTime, timeNome, 'abertos');
+      if (atrasado) bumpGrupoMetrica(porTime, timeNome, 'atrasados');
+      if (comTrava) bumpGrupoMetrica(porTime, timeNome, 'com_trava');
     }
 
     const cardId = (row as { card_id?: string | null }).card_id;
@@ -2868,12 +2914,14 @@ async function aggregateAbertosDashboard(
       cardId == null || String(cardId).trim() === ''
         ? 'Sirene livre'
         : String((row as { kanban_nome?: string | null }).kanban_nome ?? '').trim() || 'Sem funil';
-    porFunil.set(funilNome, (porFunil.get(funilNome) ?? 0) + 1);
+    bumpGrupoMetrica(porFunil, funilNome, 'abertos');
+    if (atrasado) bumpGrupoMetrica(porFunil, funilNome, 'atrasados');
+    if (comTrava) bumpGrupoMetrica(porFunil, funilNome, 'com_trava');
   }
 
   return {
-    abertos_por_time: topGruposPorCount(porTime, 8),
-    abertos_por_funil: topGruposPorCount(porFunil, 6),
+    abertos_por_time: topGruposPorAbertos(porTime, 8),
+    abertos_por_funil: topGruposPorAbertos(porFunil, 6),
   };
 }
 
@@ -2979,7 +3027,7 @@ function aggregateTopTemas(
 
 /** Dados para o dashboard: KPIs, chamados por status, travados, satisfação, minhas tarefas. */
 export async function getDashboardData(
-  filtroTipo?: 'todos' | 'padrao' | 'hdm',
+  filtroTipo?: DashboardFiltroTipo,
 ): Promise<
   | {
       ok: true;
@@ -3023,8 +3071,8 @@ export async function getDashboardData(
       }>;
       por_responsavel: DashboardPessoaMetrica[];
       por_criador: DashboardPessoaMetrica[];
-      abertos_por_time: AbertosGrupo[];
-      abertos_por_funil: AbertosGrupo[];
+      abertos_por_time: DashboardPessoaMetrica[];
+      abertos_por_funil: DashboardPessoaMetrica[];
       top_franqueados: Array<{ nome: string; count: number }>;
       top_temas: Array<{ tema: string; count: number }>;
     }
@@ -3033,29 +3081,20 @@ export async function getDashboardData(
   const supabase = await createClient();
   let me = await getSireneUserContext(supabase);
   let queryClient: typeof supabase = supabase;
-  if (!me && isAppFullyPublic()) {
-    try {
-      queryClient = createAdminClient() as typeof supabase;
-      me = {
-        userId: '00000000-0000-0000-0000-000000000000',
-        userName: 'Visitante',
-        ctx: { papel: null, time: null },
-        role: null,
-        cargo: null,
-      };
-    } catch {
-      /* sem service role */
-    }
-  }
   if (!me) return { ok: false, error: 'Faça login.' };
+
+  const pastelChamadoIds =
+    filtroTipo === 'pasteis' ? await loadChamadoIdsComTopicoPastel(queryClient) : undefined;
 
   let query = queryClient
     .from('sirene_chamados')
     .select(
       'id, numero, status, trava, te_trata, data_abertura, data_vencimento, data_inicio_atendimento, resolucao_suficiente, incendio, tema, frank_nome, card_id, time_abertura, tipo, updated_at, prioridade',
     );
-  if (filtroTipo === 'padrao') query = query.eq('tipo', 'padrao');
-  else if (filtroTipo === 'hdm') query = query.eq('tipo', 'hdm');
+  if (filtroTipo === 'pasteis') {
+    const ids = [...(pastelChamadoIds ?? [])];
+    query = ids.length > 0 ? query.in('id', ids) : query.eq('id', -1);
+  }
 
   const { data: chamados } = await query;
 
@@ -3136,6 +3175,9 @@ export async function getDashboardData(
 
   const atrasadoByChamadoId = new Map<number, boolean>();
   const atividadesBreakdown: DashboardAtividadeBreakdownRow[] = [];
+  const sireneTipoByChamadoId = new Map<number, string>(
+    list.map((c) => [c.id, String((c as { tipo?: string | null }).tipo ?? 'padrao')]),
+  );
 
   if (filteredChamadoIds.length > 0) {
     const chunk = 200;
@@ -3143,7 +3185,7 @@ export async function getDashboardData(
       const slice = filteredChamadoIds.slice(i, i + chunk);
       const { data: atividadesRows } = await queryClient
         .from('kanban_atividades')
-        .select('tipo, sirene_chamado_id, data_vencimento')
+        .select('tipo, categoria, sirene_chamado_id, data_vencimento')
         .in('sirene_chamado_id', slice);
 
       for (const row of atividadesRows ?? []) {
@@ -3152,8 +3194,13 @@ export async function getDashboardData(
         const sla = slaStatusFromDate((row as { data_vencimento?: string | null }).data_vencimento);
         const atrasado = sla === 'atrasado';
         if (atrasado) atrasadoByChamadoId.set(cid, true);
+        const tipoNormalizado = normalizeTipoAtividade((row as { tipo?: string | null }).tipo, {
+          categoria: (row as { categoria?: string | null }).categoria,
+          sireneChamadoTipo: sireneTipoByChamadoId.get(cid),
+        });
+        if (tipoNormalizado == null) continue;
         atividadesBreakdown.push({
-          tipo: normalizeTipoAtividade((row as { tipo?: string | null }).tipo),
+          tipo: tipoNormalizado,
           comTrava: comTravaByChamadoId.get(cid) ?? false,
           atrasado,
         });
@@ -3174,8 +3221,8 @@ export async function getDashboardData(
   const naoConcluidoIds = list.filter((c) => c.status !== 'concluido').map((c) => c.id);
   const allowedChamadoIds = new Set(filteredChamadoIds);
   const [slaAtrasados, slaVenceHoje, topicosPorChamado, topicos_por_status] = await Promise.all([
-    countSlaAtividades(queryClient, 'atrasado', filtroTipo),
-    countSlaAtividades(queryClient, 'vence_hoje', filtroTipo),
+    countSlaAtividades(queryClient, 'atrasado', filtroTipo, pastelChamadoIds),
+    countSlaAtividades(queryClient, 'vence_hoje', filtroTipo, pastelChamadoIds),
     mapTopicosStatusPorChamado(queryClient, naoConcluidoIds),
     fetchTopicosPorStatus(queryClient, allowedChamadoIds),
   ]);
@@ -3217,7 +3264,7 @@ export async function getDashboardData(
   const [por_responsavel, por_criador, abertosAgg, top_franqueados] = await Promise.all([
     aggregatePorResponsavel(queryClient, allowedChamadoIds, comTravaByChamadoId),
     aggregatePorCriador(queryClient, allowedChamadoIds, aguardandoJulgamentoSet),
-    aggregateAbertosDashboard(queryClient, filtroTipo),
+    aggregateAbertosDashboard(queryClient, filtroTipo, pastelChamadoIds),
     aggregateTopFranqueados(
       queryClient,
       chamadosNaoConcluidos.map((c) => ({ id: c.id })),

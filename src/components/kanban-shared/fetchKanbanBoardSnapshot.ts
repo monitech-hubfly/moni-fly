@@ -230,7 +230,10 @@ export async function fetchKanbanBoardSnapshot(
       juridico_ok,
       credito_obra_ok,
       projeto_id,
-      ordem_coluna
+      ordem_coluna,
+      alvara_url,
+      docs_terreno_url,
+      sla_iniciado_em
     `;
 
   let cardsRaw: unknown[] = [];
@@ -334,6 +337,12 @@ export async function fetchKanbanBoardSnapshot(
       capital_ok: Boolean((c as { capital_ok?: boolean | null }).capital_ok),
       juridico_ok: Boolean((c as { juridico_ok?: boolean | null }).juridico_ok),
       credito_obra_ok: Boolean((c as { credito_obra_ok?: boolean | null }).credito_obra_ok),
+      alvara_url: (c as { alvara_url?: string | null }).alvara_url ?? null,
+      docs_terreno_url: (c as { docs_terreno_url?: string | null }).docs_terreno_url ?? null,
+      sla_iniciado_em:
+        (c as { sla_iniciado_em?: string | null }).sla_iniciado_em != null
+          ? String((c as { sla_iniciado_em?: string | null }).sla_iniciado_em)
+          : null,
       profiles: redeNomeDiretoMap.has(redeId)
         ? { full_name: redeNomeDiretoMap.get(redeId) ?? null }
         : redeNomeMapNativo.has(fid)

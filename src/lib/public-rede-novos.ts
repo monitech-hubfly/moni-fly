@@ -1,40 +1,23 @@
 /**
- * Acesso sem login a Rede de Franqueados + Novos Negócios (e subitens do menu).
- *
- * **Padrão: público** — não exige login em PROD (middleware + páginas).
- * Para **exigir login** nestas rotas: `NEXT_PUBLIC_PUBLIC_REDE_NOVOS_NEGOCIOS=false` na Vercel.
- *
- * Sem sessão, visualização/edição podem usar o service role no servidor
- * (`SUPABASE_DEV_SERVICE_ROLE_KEY` ou `SUPABASE_SERVICE_ROLE_KEY`).
- * Quem precisar de app fechada deve definir a env acima como `false`.
+ * Modo visitante / app pública removido — login obrigatório nas rotas do portal.
+ * Mantido só para evitar imports quebrados; sempre retorna false.
+ * @deprecated Não use em código novo.
  */
 export function isPublicRedeNovosNegociosEnabled(): boolean {
-  const v = (process.env.NEXT_PUBLIC_PUBLIC_REDE_NOVOS_NEGOCIOS ?? '').trim().toLowerCase();
-  if (v === '0' || v === 'false' || v === 'no' || v === 'off') return false;
-  return true;
+  return false;
 }
 
-/**
- * App aberta sem login/cadastro (visitantes entram direto; só /admin exige sessão no middleware).
- * Padrão: **público**. Para exigir login em todo o site: `NEXT_PUBLIC_APP_PUBLIC=false` na Vercel.
- */
+/** @deprecated Não use em código novo. */
 export function isAppFullyPublic(): boolean {
-  const v = (process.env.NEXT_PUBLIC_APP_PUBLIC ?? '').trim().toLowerCase();
-  if (v === '0' || v === 'false' || v === 'no' || v === 'off') return false;
-  return true;
+  return false;
 }
 
-const PUBLIC_REDE_NOVOS_PREFIXES: readonly string[] = [
-  '/rede-franqueados',
-  '/comunidade',
-  '/dashboard-novos-negocios',
-  '/painel-novos-negocios',
-] as const;
-
-export function isPublicRedeNovosPath(pathname: string): boolean {
-  return PUBLIC_REDE_NOVOS_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+/** @deprecated Não use em código novo. */
+export function isPublicRedeNovosPath(_pathname: string): boolean {
+  return false;
 }
 
-export function allowPublicAccessRedeNovos(pathname: string): boolean {
-  return isPublicRedeNovosNegociosEnabled() && isPublicRedeNovosPath(pathname);
+/** @deprecated Não use em código novo. */
+export function allowPublicAccessRedeNovos(_pathname: string): boolean {
+  return false;
 }
