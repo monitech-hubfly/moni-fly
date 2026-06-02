@@ -124,6 +124,10 @@ import type {
 import { usePermissoes } from '@/lib/hooks/usePermissoes';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { KanbanCardModalRelacionamentos } from './KanbanCardModalRelacionamentos';
+import {
+  KanbanCardModalOperacoesTrancheVinculoForm,
+  KanbanCardModalOperacoesTrancheVinculosSidebar,
+} from './KanbanCardModalOperacoesTrancheVinculos';
 import { KanbanCardModalCondominio } from './KanbanCardModalCondominio';
 import { KanbanCardModalAtasReuniao } from './KanbanCardModalAtasReuniao';
 import { KanbanCardDatasFields } from './KanbanCardDatasFields';
@@ -406,7 +410,9 @@ export function KanbanCardModal({
   const [novoFranqueadoId, setNovoFranqueadoId] = useState('');
   const [salvandoFranqueado, setSalvandoFranqueado] = useState(false);
   const [abaComentarios, setAbaComentarios] = useState<'comentarios' | 'email'>('comentarios');
-  const [abaCentro, setAbaCentro] = useState<'detalhes' | 'chamados'>('detalhes');
+  const [abaCentro, setAbaCentro] = useState<'detalhes' | 'chamados' | 'trancheVinculo'>('detalhes');
+  const [trancheVinculoIndex, setTrancheVinculoIndex] = useState<number | null>(null);
+  const [trancheVinculosTick, setTrancheVinculosTick] = useState(0);
   const [emailPara, setEmailPara] = useState('');
   const [emailCc, setEmailCc] = useState('');
   const [emailBcc, setEmailBcc] = useState('');
@@ -2127,7 +2133,19 @@ export function KanbanCardModal({
 
   function abrirPainelChamados() {
     setAbaCentro('chamados');
+    setTrancheVinculoIndex(null);
     setSecaoAberta((prev) => ({ ...prev, chamados: true }));
+  }
+
+  function abrirPainelTrancheVinculo(index: number) {
+    setTrancheVinculoIndex(index);
+    setAbaCentro('trancheVinculo');
+    setSecaoAberta((prev) => ({ ...prev, relacionamentos: true }));
+  }
+
+  function voltarPainelDetalhes() {
+    setAbaCentro('detalhes');
+    setTrancheVinculoIndex(null);
   }
 
   const secaoHeadPainelCentro = (label: string) => {
@@ -2728,6 +2746,10 @@ export function KanbanCardModal({
     (pode('mover_fase') || pode('finalizar_cards') || podeArquivarCardPerm);
   const podeGerenciarRelacionamentos =
     !isLegado && !ocultarGestaoCard && modalSessao.ehAdminOuTeam;
+  const ehFunilOperacoes =
+    !isLegado &&
+    (card.kanban_id === KANBAN_IDS.OPERACOES || kanbanNome === 'Funil Operações');
+  const painelCentroAlternativo = abaCentro === 'chamados' || abaCentro === 'trancheVinculo';
   const cardTitulo = card.titulo;
   const checklistExtra = card.fase_id && camposPorFase?.[card.fase_id];
   const faseChecklistFaseId = card.fase_id ?? '';
@@ -3188,7 +3210,7 @@ export function KanbanCardModal({
             className="moni-card-modal-center order-1 flex h-full min-h-0 flex-1 flex-col overflow-y-auto p-6 sm:order-2 sm:min-w-0"
             style={{ background: 'var(--moni-surface-0)' }}
           >
-            {abaCentro !== 'chamados' ? (
+            {!painelCentroAlternativo ? (
             <div className="mb-6 flex flex-wrap items-center gap-1.5">
               {faseAtual ? (
                 <span
@@ -3215,17 +3237,32 @@ export function KanbanCardModal({
             </div>
             ) : null}
 
-            {abaCentro !== 'chamados' && chipsParalelasModal.length > 0 ? (
+            {!painelCentroAlternativo && chipsParalelasModal.length > 0 ? (
               <div className="mb-4">
                 <KanbanParalelasChips chips={chipsParalelasModal} compact={false} />
                   </div>
             ) : null}
 
-            {abaCentro === 'chamados' ? (
+            {abaCentro === 'trancheVinculo' && trancheVinculoIndex != null ? (
+              <KanbanCardModalOperacoesTrancheVinculoForm
+                cardId={card.id}
+                trancheIndex={trancheVinculoIndex}
+                basePath={basePath}
+                refreshKey={trancheVinculosTick}
+                podeGerenciar={podeGerenciarRelacionamentos}
+                cardDesabilitado={Boolean(card.arquivado) || Boolean(card.concluido)}
+                onVoltar={voltarPainelDetalhes}
+                onConcluido={() => {
+                  setTrancheVinculosTick((t) => t + 1);
+                  void loadCard();
+                  router.refresh();
+                }}
+              />
+            ) : abaCentro === 'chamados' ? (
             <>
                       <button
                         type="button"
-              onClick={() => setAbaCentro('detalhes')}
+              onClick={voltarPainelDetalhes}
               className="mb-4 inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-stone-700 shadow-sm transition hover:bg-stone-50"
                       >
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
@@ -5603,9 +5640,21 @@ export function KanbanCardModal({
               )
             ) : null}
             {secaoHeadPainelCentro('Chamados')}
-            {!isLegado ? (
+            {!isLegado && ehFunilOperacoes ? (
               secaoHead(
-                  'relacionamentos',
+                'relacionamentos',
+                'Vínculos',
+                <KanbanCardModalOperacoesTrancheVinculosSidebar
+                  key={`${card.id}-tranche-vinculos-${trancheVinculosTick}`}
+                  cardId={card.id}
+                  refreshKey={trancheVinculosTick}
+                  trancheSelecionado={trancheVinculoIndex}
+                  onSelecionar={abrirPainelTrancheVinculo}
+                />,
+              )
+            ) : !isLegado ? (
+              secaoHead(
+                'relacionamentos',
                 'Vínculos',
                 <KanbanCardModalRelacionamentos
                   key={`${card.id}-${relacionamentosTick}`}

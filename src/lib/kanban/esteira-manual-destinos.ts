@@ -49,10 +49,16 @@ const PORTFOLIO_DESTINOS: DestinoEsteiraManualKey[] = [
   'moni_capital',
 ];
 
+/** Funis com os 5 destinos de esteira manual (mesmo conjunto do Portfólio). */
+const KANBANS_ESTEIRA_MANUAL_COMPLETA: readonly string[] = [
+  KANBAN_IDS.PORTFOLIO,
+  KANBAN_IDS.OPERACOES,
+];
+
 export function kanbanPermiteDispararEsteiraManual(kanbanId: string | null | undefined): boolean {
   const id = String(kanbanId ?? '').trim();
   if (!id) return false;
-  if (id === KANBAN_IDS.PORTFOLIO) return true;
+  if ((KANBANS_ESTEIRA_MANUAL_COMPLETA as readonly string[]).includes(id)) return true;
   return (KANBANS_COM_CHAMADO_JURIDICO as readonly string[]).includes(id);
 }
 
@@ -60,7 +66,7 @@ export function destinosEsteiraManualParaKanban(
   kanbanId: string | null | undefined,
 ): DestinoEsteiraManualKey[] {
   const id = String(kanbanId ?? '').trim();
-  if (id === KANBAN_IDS.PORTFOLIO) return PORTFOLIO_DESTINOS;
+  if ((KANBANS_ESTEIRA_MANUAL_COMPLETA as readonly string[]).includes(id)) return PORTFOLIO_DESTINOS;
   if ((KANBANS_COM_CHAMADO_JURIDICO as readonly string[]).includes(id)) return ['juridico'];
   return [];
 }
