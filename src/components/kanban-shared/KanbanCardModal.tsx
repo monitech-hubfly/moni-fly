@@ -25,7 +25,6 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { calcularDiasUteis, calcularStatusSLA, formatIsoDateOnlyPtBr, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
-import { rotuloSlaInteracaoPainel } from '@/lib/painel-tarefas-filtros';
 import {
   arquivarCard,
   arquivarInteracao,
@@ -88,6 +87,7 @@ import { ChamadoAtividadeCollapsibleSection } from './ChamadoAtividadeCollapsibl
 import { uploadAnexosAtividadePendentes } from '@/lib/kanban/upload-anexos-atividade';
 import { formatChamadoNumero } from '@/lib/kanban/chamado-numero';
 import { SlaTituloBolinha } from '@/components/SlaTituloBolinha';
+import { SlaAtividadeBadge } from '@/components/SlaAtividadeBadge';
 import { MultiSelectCheckbox } from '@/components/MultiSelectCheckbox';
 import { AtividadeVinculadaCard } from '@/components/AtividadeVinculadaCard';
 import { AtividadeVinculadaIcon } from '@/components/AtividadeVinculadaIcon';
@@ -134,7 +134,6 @@ import {
   countChamadosAbertosNoCard,
   isInteracaoDemonstracao,
   prazoEfetivoParaChamado,
-  slaInteracaoBadge,
   tagsTimesParaLinha,
   tagsTimesDeAtividades,
   textoResumidoAcaoHistorico,
@@ -300,6 +299,9 @@ export type KanbanCardModalProps = {
   origem?: 'legado' | 'nativo';
   /** Portal do franqueado: oculta arquivar, finalizar e mudança de fase. */
   portalFrank?: boolean;
+  /** Deep link: expande chamado/atividade ao abrir o modal. */
+  deepLinkInteracaoId?: string | null;
+  deepLinkTopicoId?: string | null;
 };
 
 /** PROD: stepone_hipoteses; DEV: hipoteses */
@@ -315,6 +317,8 @@ export function KanbanCardModal({
   camposPorFase,
   origem = 'nativo',
   portalFrank = false,
+  deepLinkInteracaoId = null,
+  deepLinkTopicoId = null,
 }: KanbanCardModalProps) {
   const router = useRouter();
   const { pode } = usePermissoes();
@@ -521,6 +525,8 @@ export function KanbanCardModal({
     setEditingId(null);
     setNovoChamadoFormAberto(false);
     setNovaAtividadeAberta(false);
+    setSubExpandida({});
+    setSubAtividadeExpandida({});
     setNovaInteracao({
       titulo: '',
       descricao: '',
@@ -1297,6 +1303,16 @@ export function KanbanCardModal({
     const f = fasesProp.find((x) => x.id === card.fase_id) ?? null;
     setFaseAtual(f);
   }, [card, fasesProp]);
+
+  useEffect(() => {
+    const interacaoId = String(deepLinkInteracaoId ?? '').trim();
+    if (!interacaoId || interacoes.length === 0) return;
+    setSubExpandida((s) => ({ ...s, [interacaoId]: true }));
+    const topicoId = String(deepLinkTopicoId ?? '').trim();
+    if (topicoId) {
+      setSubAtividadeExpandida((s) => ({ ...s, [topicoId]: true }));
+    }
+  }, [deepLinkInteracaoId, deepLinkTopicoId, interacoes.length]);
 
   async function handleAdicionarInteracao() {
     if (!card || !novaInteracao.titulo.trim()) return;
@@ -3132,11 +3148,6 @@ export function KanbanCardModal({
                       alertaSubAtrasada: deriv.alertaSubAtrasada,
                     });
                     const pillKind = kanbanStatusParaPillKind(statusVisual);
-                    const slaLegacy = slaInteracaoBadge(prazoEfetivo, statusVisual);
-                    const slaDu = rotuloSlaInteracaoPainel(
-                      prazoEfetivo,
-                      mapInteracaoStatusParaPainelSla(statusVisual),
-                    );
                     const timeTags = tagsTimesDeAtividades(it, subs, kanbanTimes);
                     const demo = isInteracaoDemonstracao(it.id);
                     const statusInteracaoSelect =
@@ -3346,26 +3357,11 @@ export function KanbanCardModal({
                                   {tg.nome}
                                 </span>
                               ))}
-                              {slaDu.variante !== 'nenhum' ? (
-                                <span
-                                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                                  style={
-                                    slaDu.variante === 'atrasado'
-                                      ? {
-                                          background: 'var(--moni-status-overdue-bg)',
-                                          color: 'var(--moni-status-overdue-text)',
-                                          border: '1px solid var(--moni-status-overdue-border)',
-                                        }
-                                      : {
-                                          background: 'var(--moni-status-attention-bg)',
-                                          color: 'var(--moni-status-attention-text)',
-                                          border: '1px solid var(--moni-status-attention-border)',
-                                        }
-                                  }
-                                >
-                                  {slaDu.texto}
-                                </span>
-                              ) : null}
+                              <SlaAtividadeBadge
+                                prazoIso={prazoEfetivo}
+                                status={mapInteracaoStatusParaPainelSla(statusVisual)}
+                                showOkText={false}
+                              />
                             </div>
                             {editingId === it.id ? (
                               <div className="mt-3 space-y-2 rounded-lg border border-stone-200 bg-white p-3">
@@ -3430,22 +3426,6 @@ export function KanbanCardModal({
                               ) : (
                                 <span className="text-stone-400">Sem prazo</span>
                               )}
-                              {slaLegacy === 'atrasado' ? (
-                                <span
-                                  className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
-                                  style={{ color: 'var(--moni-status-overdue-text)' }}
-                                >
-                                  Atrasado
-                                </span>
-                              ) : null}
-                              {slaLegacy === 'vence_hoje' ? (
-                                <span
-                                  className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
-                                  style={{ color: 'var(--moni-status-attention-text)' }}
-                                >
-                                  Vence hoje
-                                </span>
-                              ) : null}
                               <span className="text-stone-600">
                                 Resp.:{' '}
                                 <span className="font-medium">
@@ -3471,7 +3451,11 @@ export function KanbanCardModal({
                                       return (
                                       <li
                                         key={sub.id}
-                                        className="rounded-md border border-stone-200 bg-white px-2 py-2 text-xs"
+                                        className={`rounded-md border bg-white px-2 py-2 text-xs ${
+                                          deepLinkTopicoId != null && String(sub.id) === String(deepLinkTopicoId)
+                                            ? 'border-[color:var(--moni-status-attention-border)] bg-[var(--moni-status-attention-bg)]'
+                                            : 'border-stone-200'
+                                        }`}
                                       >
                                         {editingSubId === sub.id ? (
                                           <div className="space-y-2">
@@ -3554,6 +3538,11 @@ export function KanbanCardModal({
                                               <span className="min-w-0 truncate font-medium text-stone-800">
                                                 {sub.nome || sub.descricao}
                                               </span>
+                                              <SlaAtividadeBadge
+                                                prazoIso={sub.data_fim}
+                                                status={sub.status}
+                                                showOkText={false}
+                                              />
                                               {sub.historico.some((h) => h.tipo === 'Redirecionado') ? (
                                                 <span className="rounded border border-amber-300 bg-amber-50 px-1 py-0.5 text-[9px] font-semibold text-amber-800">
                                                   Redirecionado

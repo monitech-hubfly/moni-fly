@@ -1,4 +1,5 @@
--- 225: Unificar tópicos Sirene via interacao_id + time_abertura_nome + view
+-- 225: Unificar tópicos Sirene via interacao_id + time_abertura_nome
+-- Backfill pesado opcional: supabase/scripts/225_226_backfill.sql
 
 -- ─── time_abertura_nome (exibição no painel Sirene) ───────────────────────────
 ALTER TABLE public.kanban_atividades
@@ -7,45 +8,33 @@ ALTER TABLE public.kanban_atividades
 COMMENT ON COLUMN public.kanban_atividades.time_abertura_nome IS
   'Time de abertura exibido no painel Sirene (geralmente 1º time da 1ª atividade).';
 
--- Backfill a partir de sirene_chamados.time_abertura ou 1º time da atividade
+-- Backfill rápido via sirene_chamados (fallback por tópicos: script opcional)
 UPDATE public.kanban_atividades ka
-SET time_abertura_nome = COALESCE(
-  NULLIF(TRIM(ka.time_abertura_nome), ''),
-  NULLIF(TRIM((
-    SELECT sc.time_abertura
-    FROM public.sirene_chamados sc
-    WHERE sc.id = ka.sirene_chamado_id
-  )), ''),
-  (
-    SELECT kt.nome
-    FROM public.sirene_topicos st
-    JOIN public.kanban_times kt ON kt.id = ANY(st.times_ids)
-    WHERE st.interacao_id = ka.id
-    ORDER BY st.ordem NULLS LAST, st.id
-    LIMIT 1
-  ),
-  (
-    SELECT kt.nome
-    FROM public.sirene_topicos st
-    JOIN public.kanban_times kt ON kt.id = ANY(st.times_ids)
-    WHERE st.chamado_id = ka.sirene_chamado_id
-    ORDER BY st.ordem NULLS LAST, st.id
-    LIMIT 1
-  )
-)
+SET time_abertura_nome = NULLIF(TRIM(sc.time_abertura), '')
+FROM public.sirene_chamados sc
 WHERE ka.origem = 'sirene'
-  AND (ka.time_abertura_nome IS NULL OR TRIM(ka.time_abertura_nome) = '');
+  AND ka.sirene_chamado_id = sc.id
+  AND (ka.time_abertura_nome IS NULL OR TRIM(ka.time_abertura_nome) = '')
+  AND NULLIF(TRIM(sc.time_abertura), '') IS NOT NULL;
 
 -- ─── Backfill interacao_id em tópicos legados (chamado_id only) ───────────────
+-- Um kanban_atividade por sirene_chamado_id (índice único em 164).
 UPDATE public.sirene_topicos st
-SET interacao_id = ka.id
-FROM public.kanban_atividades ka
+SET interacao_id = pick.ka_id
+FROM (
+  SELECT DISTINCT ON (ka.sirene_chamado_id)
+    ka.sirene_chamado_id,
+    ka.id AS ka_id
+  FROM public.kanban_atividades ka
+  WHERE ka.origem = 'sirene'
+    AND ka.sirene_chamado_id IS NOT NULL
+  ORDER BY ka.sirene_chamado_id, ka.created_at NULLS LAST, ka.id
+) pick
 WHERE st.chamado_id IS NOT NULL
   AND st.interacao_id IS NULL
-  AND ka.sirene_chamado_id = st.chamado_id
-  AND ka.origem = 'sirene';
+  AND st.chamado_id = pick.sirene_chamado_id;
 
--- ─── View v_atividades_unificadas: categoria + time_abertura_nome ────────────
+-- ─── View: categoria + time_abertura_nome (chamado_numero vem na 226) ───────
 DROP VIEW IF EXISTS public.v_atividades_unificadas;
 
 CREATE VIEW public.v_atividades_unificadas

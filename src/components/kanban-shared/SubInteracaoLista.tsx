@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
+import { SlaAtividadeBadge } from '@/components/SlaAtividadeBadge';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 
 export type SubInteracaoTipoUi = SubInteracaoTipoDb;
@@ -117,6 +118,7 @@ export function SubInteracaoLista({ items, variant, className = '', renderTraili
               </span>
             ) : null}
             <span className={`rounded border px-1 py-0.5 font-semibold ${statusClass}`}>{statusPt}</span>
+            <SlaAtividadeBadge prazoIso={it.data_fim} status={it.status} showOkText={false} />
             <span className={`tabular-nums ${muted}`}>{prazoFmt ? `Prazo ${prazoFmt}` : 'Sem prazo'}</span>
             <span className={`min-w-0 flex-1 truncate font-medium ${text}`} title={it.descricao}>
               {it.descricao}

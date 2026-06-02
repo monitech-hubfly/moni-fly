@@ -1,4 +1,5 @@
 -- 226: Número único global por chamado (kanban_atividades.numero)
+-- Backfill pesado opcional: supabase/scripts/225_226_backfill.sql
 
 -- Garante colunas da migration 225 (caso 225 tenha falhado antes do commit)
 ALTER TABLE public.kanban_atividades
@@ -10,7 +11,7 @@ ALTER TABLE public.kanban_atividades
 COMMENT ON COLUMN public.kanban_atividades.numero IS
   'Número sequencial global do chamado (#0001). Gerado na abertura; exibido na Sirene, cards e Pastéis.';
 
--- Backfill a partir de sirene_chamados espelhado
+-- Backfill rápido: espelha sirene_chamados.numero (1:1 via sirene_chamado_id)
 UPDATE public.kanban_atividades ka
 SET numero = sc.numero
 FROM public.sirene_chamados sc
@@ -18,26 +19,81 @@ WHERE ka.sirene_chamado_id = sc.id
   AND ka.numero IS NULL
   AND sc.numero IS NOT NULL;
 
--- Demais chamados sem número: aloca da sequência global
-UPDATE public.kanban_atividades
-SET numero = nextval('public.sirene_numero_seq')
-WHERE numero IS NULL;
+-- Demais chamados Sirene sem vínculo: aloca em lote (sem nextval por linha)
+WITH base AS (
+  SELECT COALESCE(
+    GREATEST(
+      (SELECT MAX(numero) FROM public.sirene_chamados),
+      (SELECT MAX(numero) FROM public.kanban_atividades WHERE numero IS NOT NULL),
+      0
+    ),
+    0
+  ) AS max_num
+),
+pendentes AS (
+  SELECT
+    ka.id,
+    ROW_NUMBER() OVER (ORDER BY ka.created_at NULLS LAST, ka.id) AS rn
+  FROM public.kanban_atividades ka
+  WHERE ka.origem = 'sirene'
+    AND ka.numero IS NULL
+)
+UPDATE public.kanban_atividades ka
+SET numero = base.max_num + pendentes.rn
+FROM pendentes
+CROSS JOIN base
+WHERE ka.id = pendentes.id;
 
--- Garantir unicidade e default para novos registros
+-- Índice único (NULL permitido em linhas não-Sirene)
+DROP INDEX IF EXISTS public.kanban_atividades_numero_key;
+CREATE UNIQUE INDEX kanban_atividades_numero_key
+  ON public.kanban_atividades (numero)
+  WHERE numero IS NOT NULL;
+
+-- Sirene exige número; demais origens permanecem NULL
+ALTER TABLE public.kanban_atividades DROP CONSTRAINT IF EXISTS kanban_atividades_sirene_numero_check;
 ALTER TABLE public.kanban_atividades
-  ALTER COLUMN numero SET NOT NULL,
-  ALTER COLUMN numero SET DEFAULT nextval('public.sirene_numero_seq');
+  ADD CONSTRAINT kanban_atividades_sirene_numero_check
+  CHECK (origem <> 'sirene' OR numero IS NOT NULL);
 
-CREATE UNIQUE INDEX IF NOT EXISTS kanban_atividades_numero_key
-  ON public.kanban_atividades (numero);
+-- Novos chamados Sirene: espelha sirene_chamados.numero ou usa a sequência
+CREATE OR REPLACE FUNCTION public.trg_kanban_atividades_numero_sirene()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.origem <> 'sirene' OR NEW.numero IS NOT NULL THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.sirene_chamado_id IS NOT NULL THEN
+    SELECT sc.numero INTO NEW.numero
+    FROM public.sirene_chamados sc
+    WHERE sc.id = NEW.sirene_chamado_id;
+  END IF;
+
+  IF NEW.numero IS NULL THEN
+    NEW.numero := nextval('public.sirene_numero_seq');
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_kanban_atividades_numero_sirene ON public.kanban_atividades;
+CREATE TRIGGER trg_kanban_atividades_numero_sirene
+  BEFORE INSERT OR UPDATE OF origem, sirene_chamado_id, numero
+  ON public.kanban_atividades
+  FOR EACH ROW
+  EXECUTE FUNCTION public.trg_kanban_atividades_numero_sirene();
 
 -- Sincronizar sequência acima do maior número existente
 SELECT setval(
   'public.sirene_numero_seq',
   GREATEST(
-    (SELECT COALESCE(MAX(numero), 0) FROM public.sirene_chamados),
-    (SELECT COALESCE(MAX(numero), 0) FROM public.kanban_atividades),
-    (SELECT COALESCE(last_value, 0) FROM public.sirene_numero_seq)
+    COALESCE((SELECT MAX(numero) FROM public.sirene_chamados), 0),
+    COALESCE((SELECT MAX(numero) FROM public.kanban_atividades), 0),
+    COALESCE((SELECT last_value FROM public.sirene_numero_seq), 0)
   )
 );
 

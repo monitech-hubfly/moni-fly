@@ -1,13 +1,28 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import { Archive, Pencil, User, X } from 'lucide-react';
 import Link from 'next/link';
 import type { InteracaoSireneRow } from './InteracoesLista';
+import {
+  SireneChamadoEdicaoKanbanForm,
+  SireneChamadoEdicaoSireneForm,
+  type EditLinhaDraft,
+  type EditSireneDraft,
+} from './SireneChamadoEdicaoForms';
 import { formatChamadoNumero } from '@/lib/kanban/chamado-numero';
+import { SlaAtividadeBadge } from '@/components/SlaAtividadeBadge';
 import { chamadoEditavelNaSirene } from '@/lib/kanban/sirene-chamado-permissoes';
 import { rotaCardOrigem } from '@/lib/rota-card-origem';
 import type { StatusInteracaoDb } from './actions';
 import type { SubInteracaoStatusDb } from '@/lib/actions/card-actions';
+import { ChamadoAtividadeCollapsibleSection } from '@/components/kanban-shared/ChamadoAtividadeCollapsibleSection';
+import {
+  ATIVIDADE_FORM_DRAFT_VAZIO,
+  KanbanAtividadeFormFields,
+  type AtividadeFormDraft,
+} from '@/components/kanban-shared/KanbanAtividadeFormFields';
+import { responsaveisFiltradosPorTimesIds } from '@/lib/times-responsaveis';
 
 const selectClass =
   'rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1.5 text-sm text-[color:var(--moni-text-primary)] outline-none focus:border-[color:var(--moni-navy-400)] focus:ring-1 focus:ring-[color:var(--moni-navy-400)]';
@@ -21,6 +36,9 @@ type TopicoLinha = {
   trava: boolean;
   time_responsavel: string;
 };
+
+type TimeOpt = { id: string; nome: string };
+type RespOpt = { id: string; nome: string; email?: string | null };
 
 type Props = {
   row: InteracaoSireneRow;
@@ -38,6 +56,27 @@ type Props = {
   onArquivar?: () => void;
   podeArquivar: boolean;
   badgeTipo: { label: string; className: string };
+  editingKanban: boolean;
+  editDraft: EditLinhaDraft | null;
+  setEditDraft: React.Dispatch<React.SetStateAction<EditLinhaDraft | null>>;
+  editingSirene: boolean;
+  editSireneDraft: EditSireneDraft | null;
+  setEditSireneDraft: React.Dispatch<React.SetStateAction<EditSireneDraft | null>>;
+  times: TimeOpt[];
+  responsaveis: RespOpt[];
+  timesSireneEditOpcoes: string[];
+  salvandoEdicao: boolean;
+  salvandoSirene: boolean;
+  onSalvarEdicao: () => void;
+  onSalvarEdicaoSirene: () => void;
+  onCancelarEdicao: () => void;
+  novaAtivDraft: AtividadeFormDraft;
+  setNovaAtivDraft: React.Dispatch<React.SetStateAction<AtividadeFormDraft>>;
+  onAdicionarAtividade: () => void;
+  salvandoNovaAtividade: boolean;
+  currentUserId: string | null;
+  onArquivarTopico?: (topicoId: number) => void;
+  highlightTopicoId?: number | null;
 };
 
 export function SireneChamadoDetalheModal({
@@ -56,9 +95,42 @@ export function SireneChamadoDetalheModal({
   onArquivar,
   podeArquivar,
   badgeTipo,
+  editingKanban,
+  editDraft,
+  setEditDraft,
+  editingSirene,
+  editSireneDraft,
+  setEditSireneDraft,
+  times,
+  responsaveis,
+  timesSireneEditOpcoes,
+  salvandoEdicao,
+  salvandoSirene,
+  onSalvarEdicao,
+  onSalvarEdicaoSirene,
+  onCancelarEdicao,
+  novaAtivDraft,
+  setNovaAtivDraft,
+  onAdicionarAtividade,
+  salvandoNovaAtividade,
+  currentUserId,
+  onArquivarTopico,
+  highlightTopicoId = null,
 }: Props) {
   const ccid = row.card_id;
   const hrefCard = ccid ? rotaCardOrigem(row.kanban_nome, ccid) : null;
+  const editando = editingKanban || editingSirene;
+  const podeEditar = chamadoEditavelNaSirene(row);
+  const [novaAtivAberta, setNovaAtivAberta] = useState(false);
+
+  const kanbanTimesForm = useMemo(
+    () => times.map((t) => ({ id: t.id, nome: t.nome, ordem: 0 })),
+    [times],
+  );
+  const responsaveisNovaAtiv = useMemo(
+    () => responsaveisFiltradosPorTimesIds(novaAtivDraft.timesIds, kanbanTimesForm, responsaveis),
+    [responsaveis, novaAtivDraft.timesIds, kanbanTimesForm],
+  );
 
   return (
     <div
@@ -105,77 +177,108 @@ export function SireneChamadoDetalheModal({
         </div>
 
         <div className="space-y-4 p-4">
-          {row.descricao?.trim() ? (
-            <p className="whitespace-pre-wrap text-sm text-[color:var(--moni-text-secondary)]">{row.descricao.trim()}</p>
+          {editingKanban && editDraft ? (
+            <SireneChamadoEdicaoKanbanForm
+              draft={editDraft}
+              setDraft={setEditDraft}
+              times={times}
+              responsaveis={responsaveis}
+              salvando={salvandoEdicao}
+              onSalvar={onSalvarEdicao}
+              onCancelar={onCancelarEdicao}
+            />
           ) : null}
 
-          <div className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--moni-text-tertiary)]">
-            <span className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px]">{row.kanban_nome}</span>
-            {ccid && hrefCard ? (
-              <Link href={hrefCard} className="text-[color:var(--moni-navy-600)] underline-offset-2 hover:underline">
-                Card: {row.card_titulo?.trim() || '—'}
-              </Link>
-            ) : null}
-            {parseTimesNomes(row.times_nomes).map((tn) => (
-              <span key={tn} className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px]">
-                {tn}
-              </span>
-            ))}
-          </div>
-
-          {(row.franqueado_nome ?? '').trim() ? (
-            <div className="flex items-center gap-1 text-xs text-[color:var(--moni-text-tertiary)]">
-              <User className="h-3.5 w-3.5" aria-hidden />
-              <span>{row.franqueado_nome!.trim()}</span>
-            </div>
+          {editingSirene && editSireneDraft ? (
+            <SireneChamadoEdicaoSireneForm
+              draft={editSireneDraft}
+              setDraft={setEditSireneDraft}
+              timesSireneEditOpcoes={timesSireneEditOpcoes}
+              salvando={salvandoSirene}
+              onSalvar={onSalvarEdicaoSirene}
+              onCancelar={onCancelarEdicao}
+            />
           ) : null}
 
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <span className="text-[color:var(--moni-text-tertiary)]">
-              Resp.: <span className="font-medium text-[color:var(--moni-text-primary)]">{textoResponsavel}</span>
-            </span>
+          {!editando ? (
+            <>
+              {row.descricao?.trim() ? (
+                <p className="whitespace-pre-wrap text-sm text-[color:var(--moni-text-secondary)]">{row.descricao.trim()}</p>
+              ) : null}
+
+              <div className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--moni-text-tertiary)]">
+                <span className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px]">{row.kanban_nome}</span>
+                {ccid && hrefCard ? (
+                  <Link href={hrefCard} className="text-[color:var(--moni-navy-600)] underline-offset-2 hover:underline">
+                    Card: {row.card_titulo?.trim() || '—'}
+                  </Link>
+                ) : null}
+                {parseTimesNomes(row.times_nomes).map((tn) => (
+                  <span key={tn} className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px]">
+                    {tn}
+                  </span>
+                ))}
+              </div>
+
+              {(row.franqueado_nome ?? '').trim() ? (
+                <div className="flex items-center gap-1 text-xs text-[color:var(--moni-text-tertiary)]">
+                  <User className="h-3.5 w-3.5" aria-hidden />
+                  <span>{row.franqueado_nome!.trim()}</span>
+                </div>
+              ) : null}
+
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <span className="text-[color:var(--moni-text-tertiary)]">
+                  Resp.: <span className="font-medium text-[color:var(--moni-text-primary)]">{textoResponsavel}</span>
+                </span>
             {row.data_vencimento ? (
               <span className="text-[color:var(--moni-text-tertiary)]">
                 Prazo {row.data_vencimento.split('-').reverse().join('/')}
               </span>
             ) : null}
-            <select
-              value={statusSelect}
-              disabled={pending}
-              onChange={(e) => onStatusChange(row.id, e.target.value as StatusInteracaoDb)}
-              className={`min-w-[9.5rem] ${selectClass}`}
-              aria-label="Status do chamado"
-            >
-              <option value="pendente">A fazer</option>
-              <option value="em_andamento">Em andamento</option>
-              <option value="concluida" disabled={temSubAberta}>
-                Concluída
-              </option>
-            </select>
-          </div>
+            <SlaAtividadeBadge
+              prazoIso={row.data_vencimento}
+              status={statusSelect === 'concluida' ? 'concluida' : statusSelect}
+            />
+                <select
+                  value={statusSelect}
+                  disabled={pending}
+                  onChange={(e) => onStatusChange(row.id, e.target.value as StatusInteracaoDb)}
+                  className={`min-w-[9.5rem] ${selectClass}`}
+                  aria-label="Status do chamado"
+                >
+                  <option value="pendente">A fazer</option>
+                  <option value="em_andamento">Em andamento</option>
+                  <option value="concluida" disabled={temSubAberta}>
+                    Concluída
+                  </option>
+                </select>
+              </div>
 
-          <div className="flex flex-wrap gap-2">
-            {chamadoEditavelNaSirene(row) && onEdit ? (
-              <button
-                type="button"
-                onClick={onEdit}
-                className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] px-2 py-1 text-xs hover:bg-[var(--moni-surface-50)]"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                Editar
-              </button>
-            ) : null}
-            {podeArquivar && !row.sirene_arquivado && onArquivar ? (
-              <button
-                type="button"
-                onClick={onArquivar}
-                className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] px-2 py-1 text-xs hover:bg-red-50 hover:text-red-700"
-              >
-                <Archive className="h-3.5 w-3.5" />
-                Arquivar
-              </button>
-            ) : null}
-          </div>
+              <div className="flex flex-wrap gap-2">
+                {podeEditar && onEdit ? (
+                  <button
+                    type="button"
+                    onClick={onEdit}
+                    className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] px-2 py-1 text-xs hover:bg-[var(--moni-surface-50)]"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Editar
+                  </button>
+                ) : null}
+                {podeArquivar && !row.sirene_arquivado && onArquivar ? (
+                  <button
+                    type="button"
+                    onClick={onArquivar}
+                    className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] px-2 py-1 text-xs hover:bg-red-50 hover:text-red-700"
+                  >
+                    <Archive className="h-3.5 w-3.5" />
+                    Arquivar
+                  </button>
+                ) : null}
+              </div>
+            </>
+          ) : null}
 
           <section>
             <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
@@ -188,7 +291,11 @@ export function SireneChamadoDetalheModal({
                 {topicos.map((t) => (
                   <li
                     key={t.id}
-                    className="rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-3 py-2"
+                    className={`rounded-lg border px-3 py-2 ${
+                      highlightTopicoId != null && highlightTopicoId === t.id
+                        ? 'border-[color:var(--moni-status-attention-border)] bg-[var(--moni-status-attention-bg)]'
+                        : 'border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)]'
+                    }`}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
@@ -198,22 +305,38 @@ export function SireneChamadoDetalheModal({
                           </span>
                         ) : null}
                         <p className="text-sm font-medium text-[color:var(--moni-text-primary)]">{t.descricao}</p>
-                        <p className="mt-1 text-[10px] text-[color:var(--moni-text-tertiary)]">
-                          {t.time_responsavel}
-                          {t.data_fim ? ` · Prazo ${t.data_fim.split('-').reverse().join('/')}` : ''}
+                        <p className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-[color:var(--moni-text-tertiary)]">
+                          <span>{t.time_responsavel}</span>
+                          {t.data_fim ? (
+                            <span>Prazo {t.data_fim.split('-').reverse().join('/')}</span>
+                          ) : null}
+                          <SlaAtividadeBadge prazoIso={t.data_fim} status={t.status} showOkText={false} />
                         </p>
                       </div>
-                      <select
-                        value={t.status}
-                        onChange={(e) => onSubStatusChange(t.id, e.target.value as SubInteracaoStatusDb)}
-                        className={`min-w-[7.5rem] text-[10px] ${selectClass}`}
-                        aria-label="Status da atividade"
-                      >
-                        <option value="nao_iniciado">Não iniciado</option>
-                        <option value="em_andamento">Em andamento</option>
-                        <option value="concluido">Concluído</option>
-                        <option value="aprovado">Aprovado</option>
-                      </select>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {podeArquivar && onArquivarTopico ? (
+                          <button
+                            type="button"
+                            onClick={() => onArquivarTopico(t.id)}
+                            className="rounded p-1 text-[color:var(--moni-text-tertiary)] hover:bg-red-50 hover:text-red-700"
+                            title="Arquivar sub-chamado"
+                            aria-label="Arquivar sub-chamado"
+                          >
+                            <Archive className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                          </button>
+                        ) : null}
+                        <select
+                          value={t.status}
+                          onChange={(e) => onSubStatusChange(t.id, e.target.value as SubInteracaoStatusDb)}
+                          className={`min-w-[7.5rem] text-[10px] ${selectClass}`}
+                          aria-label="Status da atividade"
+                        >
+                          <option value="nao_iniciado">Não iniciado</option>
+                          <option value="em_andamento">Em andamento</option>
+                          <option value="concluido">Concluído</option>
+                          <option value="aprovado">Aprovado</option>
+                        </select>
+                      </div>
                     </div>
                   </li>
                 ))}
@@ -222,6 +345,39 @@ export function SireneChamadoDetalheModal({
               <p className="text-xs text-[color:var(--moni-text-tertiary)]">Nenhuma atividade registrada.</p>
             )}
           </section>
+
+          {podeEditar && !editando ? (
+            <ChamadoAtividadeCollapsibleSection
+              aberto={novaAtivAberta}
+              onAbrir={() => setNovaAtivAberta(true)}
+              onFechar={() => setNovaAtivAberta(false)}
+            >
+              <KanbanAtividadeFormFields
+                draft={novaAtivDraft}
+                setDraft={setNovaAtivDraft}
+                kanbanTimes={kanbanTimesForm}
+                responsaveisOpcoes={responsaveisNovaAtiv}
+                sessionUserId={currentUserId}
+                compact
+                idPrefix="sirene-modal-nova-ativ"
+                showAnexosDraft={false}
+                showPastel={false}
+              />
+              <button
+                type="button"
+                disabled={
+                  salvandoNovaAtividade ||
+                  !novaAtivDraft.nome.trim() ||
+                  novaAtivDraft.timesIds.length === 0 ||
+                  novaAtivDraft.responsaveisIds.length === 0
+                }
+                onClick={onAdicionarAtividade}
+                className="mt-2 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
+              >
+                {salvandoNovaAtividade ? 'Salvando…' : 'Adicionar atividade'}
+              </button>
+            </ChamadoAtividadeCollapsibleSection>
+          ) : null}
         </div>
       </div>
     </div>

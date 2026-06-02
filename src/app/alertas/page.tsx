@@ -10,6 +10,8 @@ function rotuloTipo(tipo: string): string {
   if (tipo === 'kanban_atividade_criada') return 'Nova atividade';
   if (tipo === 'kanban_atividade_atualizada') return 'Chamado atualizado';
   if (tipo === 'kanban_atividade_redirecionada') return 'Atividade redirecionada';
+  if (tipo === 'sla_atividade_atrasado') return 'Atividade atrasada';
+  if (tipo === 'sla_atividade_atencao') return 'Atividade em atenção';
   return tipo;
 }
 
@@ -58,11 +60,17 @@ export default async function AlertasPage() {
                   tipo === 'mencao_sirene' && basePath ? basePath : null;
                 const hrefCard =
                   cardId && basePath && tipo !== 'mencao_sirene'
-                    ? `${basePath}?card=${encodeURIComponent(cardId)}`
+                    ? basePath.includes('interacao=')
+                      ? basePath
+                      : `${basePath}?card=${encodeURIComponent(cardId)}`
                     : null;
                 const hrefInteracao =
                   !cardId && basePath?.includes('interacao=') ? basePath : null;
-                const hrefAlerta = hrefSirene || hrefCard || hrefInteracao;
+                const hrefSlaAtividade =
+                  tipo === 'sla_atividade_atrasado' || tipo === 'sla_atividade_atencao'
+                    ? basePath || null
+                    : null;
+                const hrefAlerta = hrefSlaAtividade || hrefSirene || hrefCard || hrefInteracao;
                 return (
                   <li
                     key={a.id}
@@ -76,7 +84,9 @@ export default async function AlertasPage() {
                           href={hrefAlerta}
                           className="mt-1 inline-block text-xs font-medium text-moni-primary hover:underline"
                         >
-                          {tipo === 'mencao_sirene' ? 'Abrir chamado →' : hrefInteracao ? 'Abrir chamado →' : 'Abrir card →'}
+                          {tipo === 'mencao_sirene' || hrefInteracao || hrefSlaAtividade
+                            ? 'Abrir chamado →'
+                            : 'Abrir card →'}
                         </Link>
                       ) : null}
                       <p className="mt-1 text-xs text-stone-400">

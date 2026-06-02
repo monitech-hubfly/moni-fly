@@ -40,6 +40,8 @@ function KanbanWrapperInner({
     searchParams.get(cardQueryParam) ||
     (cardQueryParam !== 'card' ? searchParams.get('card') : null) ||
     (cardQueryParam !== 'kanbanCard' ? searchParams.get('kanbanCard') : null);
+  const deepLinkInteracaoId = searchParams.get('interacao');
+  const deepLinkTopicoId = searchParams.get('topico');
   const origemParam = searchParams.get('origem');
   const cardOrigem: 'legado' | 'nativo' = origemParam === 'legado' ? 'legado' : 'nativo';
   const novoAberto = tab === tabBloqueiaCard ? false : searchParams.get('novo') === 'true';
@@ -61,6 +63,8 @@ function KanbanWrapperInner({
           basePath={basePath}
           camposPorFase={camposPorFase}
           origem={cardOrigem}
+          deepLinkInteracaoId={deepLinkInteracaoId}
+          deepLinkTopicoId={deepLinkTopicoId}
         />
       ) : null}
       {enableNovoCardModal && novoAberto ? (

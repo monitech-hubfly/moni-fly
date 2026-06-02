@@ -59,15 +59,95 @@ const FERIADOS_NACIONAIS = new Set([
   '2027-11-15', '2027-12-25',
 ]);
 
+/** Formata data local como `YYYY-MM-DD` (sem deslocamento UTC). */
+export function formatLocalYmd(data: Date): string {
+  const y = data.getFullYear();
+  const m = String(data.getMonth() + 1).padStart(2, '0');
+  const d = String(data.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function startOfLocalDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
 /**
  * Verifica se uma data é dia útil (não é sábado, domingo ou feriado)
  */
 export function isDiaUtil(data: Date): boolean {
   const diaSemana = data.getDay(); // 0=domingo, 6=sábado
   if (diaSemana === 0 || diaSemana === 6) return false;
+  return !FERIADOS_NACIONAIS.has(formatLocalYmd(data));
+}
 
-  const dataStr = data.toISOString().split('T')[0];
-  return !FERIADOS_NACIONAIS.has(dataStr);
+export type RotuloSlaAtividadeVariante = 'atrasado' | 'atencao' | 'ok' | 'nenhum';
+
+export type RotuloSlaAtividade = {
+  variante: RotuloSlaAtividadeVariante;
+  texto: string;
+  diasRestantes?: number;
+  diasAtraso?: number;
+};
+
+function statusAtividadeConcluido(statusConcluido?: string | boolean): boolean {
+  if (typeof statusConcluido === 'boolean') return statusConcluido;
+  const st = String(statusConcluido ?? '').trim().toLowerCase();
+  return (
+    st === 'concluido' ||
+    st === 'concluida' ||
+    st === 'aprovado' ||
+    st === 'cancelada' ||
+    st === 'cancelado'
+  );
+}
+
+/**
+ * Rótulo de SLA em dias úteis para atividades/sub-interações.
+ * - atrasado: vencimento &lt; hoje
+ * - atencao: vence hoje ou em 1 d.u.
+ * - ok: 2+ d.u. restantes (sem tag; texto interno)
+ */
+export function rotuloSlaAtividadeDiasUteis(
+  prazoIso: string | null | undefined,
+  statusConcluido?: string | boolean,
+): RotuloSlaAtividade {
+  if (statusAtividadeConcluido(statusConcluido)) {
+    return { variante: 'nenhum', texto: '—' };
+  }
+  const due = parseIsoDateOnlyLocal(prazoIso ?? null);
+  if (!due) return { variante: 'nenhum', texto: '—' };
+
+  const hoje = startOfLocalDay(new Date());
+  const dueD = startOfLocalDay(due);
+
+  if (dueD < hoje) {
+    const depoisDoPrazo = new Date(dueD);
+    depoisDoPrazo.setDate(depoisDoPrazo.getDate() + 1);
+    const diasAtraso = calcularDiasUteis(startOfLocalDay(depoisDoPrazo), hoje);
+    return {
+      variante: 'atrasado',
+      texto: diasAtraso > 0 ? `Atrasado ${diasAtraso} d.u.` : 'Atrasado',
+      diasAtraso,
+    };
+  }
+
+  if (dueD.getTime() === hoje.getTime()) {
+    return { variante: 'atencao', texto: 'Vence hoje', diasRestantes: 0 };
+  }
+
+  const amanha = new Date(hoje);
+  amanha.setDate(amanha.getDate() + 1);
+  const diasRestantes = calcularDiasUteis(startOfLocalDay(amanha), dueD);
+
+  if (diasRestantes === 1) {
+    return { variante: 'atencao', texto: 'Vence em 1 d.u.', diasRestantes: 1 };
+  }
+
+  return {
+    variante: 'ok',
+    texto: `${diasRestantes} d.u. restantes`,
+    diasRestantes,
+  };
 }
 
 /**
@@ -177,16 +257,7 @@ export function calcularStatusSLA(
     };
   }
 
-  // Vence em 2 dias úteis (atenção)
-  if (diasUteisRestantes === 2) {
-    return {
-      status: 'atencao',
-      label: 'Vence em 2 d.u.',
-      classe: 'moni-tag-atencao',
-    };
-  }
-
-  // Tudo certo
+  // Tudo certo (2+ dias úteis restantes)
   return {
     status: 'ok',
     label: `${diasUteisRestantes} d.u. restantes`,

@@ -1,12 +1,17 @@
 'use server';
 
+import { montarPathAlertaAtividade } from '@/lib/kanban/alerta-atividade-path';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
 
 export type AlertaKanbanAtividadeTipo =
   | 'kanban_atividade_criada'
   | 'kanban_atividade_atualizada'
-  | 'kanban_atividade_redirecionada';
+  | 'kanban_atividade_redirecionada'
+  | 'sla_atividade_atencao'
+  | 'sla_atividade_atrasado';
+
+export { montarPathAlertaAtividade };
 
 type NotificarParams = {
   userIds: string[];

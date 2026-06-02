@@ -1,4 +1,4 @@
-import { bolinhaSlaInteracaoTitulo } from '@/lib/painel-tarefas-filtros';
+import { rotuloSlaAtividadeDiasUteis } from '@/lib/dias-uteis';
 
 type Props = {
   prazoIso: string | null | undefined;
@@ -7,8 +7,9 @@ type Props = {
 };
 
 export function SlaTituloBolinha({ prazoIso, statusPainel, className = '' }: Props) {
-  const cor = bolinhaSlaInteracaoTitulo(prazoIso, statusPainel);
-  if (!cor) return null;
+  const sla = rotuloSlaAtividadeDiasUteis(prazoIso, statusPainel);
+  if (sla.variante !== 'atrasado' && sla.variante !== 'atencao') return null;
+  const cor = sla.variante === 'atrasado' ? 'vermelho' : 'amarelo';
   const title =
     cor === 'vermelho' ? 'SLA em atraso (dias úteis)' : 'SLA: vence hoje ou em 1 dia útil';
   return (

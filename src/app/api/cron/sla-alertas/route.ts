@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { notificarCardsComSlaVencido } from '@/lib/kanban/sla-alertas';
+import { notificarAtividadesComSlaCritico } from '@/lib/kanban/sla-atividade-alertas';
 
 /**
- * Cron: alertas Sirene para cards com SLA da fase atual vencido.
+ * Cron: alertas Sirene para cards com SLA da fase atual vencido
+ * e atividades/chamados com SLA em atenção ou atrasado.
  * GET /api/cron/sla-alertas
  * Header: Authorization: Bearer <CRON_SECRET>
  */
@@ -16,6 +18,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
   }
 
-  await notificarCardsComSlaVencido();
+  await Promise.all([notificarCardsComSlaVencido(), notificarAtividadesComSlaCritico()]);
   return NextResponse.json({ ok: true });
 }

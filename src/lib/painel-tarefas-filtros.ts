@@ -1,15 +1,7 @@
 import { ATIVIDADE_TIMES } from '@/lib/atividade-times';
 import { itemMatchesTimeFilter } from '@/lib/checklist-atividade-arrays';
-import { calcularDiasUteis, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
+import { parseIsoDateOnlyLocal, rotuloSlaAtividadeDiasUteis } from '@/lib/dias-uteis';
 import { formatChamadoNumero } from '@/lib/kanban/chamado-numero';
-
-function startOfLocalDay(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-function parsePrazoIsoDate(iso: string | null | undefined): Date | null {
-  return parseIsoDateOnlyLocal(iso);
-}
 
 /**
  * Rótulo de SLA em dias úteis para o painel de interações.
@@ -19,25 +11,14 @@ export function rotuloSlaInteracaoPainel(
   prazoIso: string | null | undefined,
   statusPainel: string,
 ): { variante: 'nenhum' | 'atrasado' | 'vence_hoje' | 'vence_futuro'; texto: string } {
-  const st = String(statusPainel ?? '').trim().toLowerCase();
-  if (st === 'concluido' || st === 'concluida') return { variante: 'nenhum', texto: '—' };
-  const due = parsePrazoIsoDate(prazoIso ?? null);
-  if (!due) return { variante: 'nenhum', texto: '—' };
-  const hoje = startOfLocalDay(new Date());
-  const dueD = startOfLocalDay(due);
-  if (dueD < hoje) {
-    const depoisDoPrazo = new Date(dueD);
-    depoisDoPrazo.setDate(depoisDoPrazo.getDate() + 1);
-    const du = calcularDiasUteis(startOfLocalDay(depoisDoPrazo), hoje);
-    return { variante: 'atrasado', texto: du > 0 ? `Atrasado ${du} d.u.` : 'Atrasado' };
+  const r = rotuloSlaAtividadeDiasUteis(prazoIso, statusPainel);
+  if (r.variante === 'nenhum') return { variante: 'nenhum', texto: r.texto };
+  if (r.variante === 'atrasado') return { variante: 'atrasado', texto: r.texto };
+  if (r.variante === 'atencao') {
+    if (r.texto === 'Vence hoje') return { variante: 'vence_hoje', texto: r.texto };
+    return { variante: 'vence_futuro', texto: r.texto };
   }
-  if (dueD.getTime() === hoje.getTime()) {
-    return { variante: 'vence_hoje', texto: 'Vence hoje' };
-  }
-  const amanha = new Date(hoje);
-  amanha.setDate(amanha.getDate() + 1);
-  const du = calcularDiasUteis(startOfLocalDay(amanha), dueD);
-  return { variante: 'vence_futuro', texto: du > 0 ? `Vence em ${du} d.u.` : 'Vence hoje' };
+  return { variante: 'nenhum', texto: r.texto };
 }
 
 /**
@@ -70,14 +51,9 @@ export function bolinhaSlaInteracaoTitulo(
 export function classificarSlaFundoChamado(
   prazoIso: string | null | undefined,
 ): 'atrasado' | 'proximo' | 'normal' {
-  const due = parsePrazoIsoDate(prazoIso ?? null);
-  if (!due) return 'normal';
-  const hoje = startOfLocalDay(new Date());
-  const dueD = startOfLocalDay(due);
-  if (dueD < hoje) return 'atrasado';
-  const r = rotuloSlaInteracaoPainel(prazoIso, 'nao_iniciada');
-  if (r.variante === 'vence_hoje') return 'proximo';
-  if (r.variante === 'vence_futuro' && r.texto.includes('1 d.u.')) return 'proximo';
+  const r = rotuloSlaAtividadeDiasUteis(prazoIso, 'nao_iniciada');
+  if (r.variante === 'atrasado') return 'atrasado';
+  if (r.variante === 'atencao') return 'proximo';
   return 'normal';
 }
 
@@ -160,16 +136,13 @@ export function getPrazoTagAtividade(
   prazo: string | null | undefined,
   status: string,
 ): 'atrasado' | 'atencao' | null {
-  const statusNorm = String(status ?? '').trim().toLowerCase();
-  if (statusNorm === 'concluido' || statusNorm === 'concluida') return null;
   const data = parsePrazoBrOrIso(prazo);
-  if (!data) return null;
-  const hoje = new Date();
-  const hojeDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
-  const amanhaDia = new Date(hojeDia.getFullYear(), hojeDia.getMonth(), hojeDia.getDate() + 1);
-  const prazoDia = new Date(data.getFullYear(), data.getMonth(), data.getDate());
-  if (prazoDia.getTime() < hojeDia.getTime()) return 'atrasado';
-  if (prazoDia.getTime() === amanhaDia.getTime()) return 'atencao';
+  const prazoIso = data
+    ? `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`
+    : null;
+  const r = rotuloSlaAtividadeDiasUteis(prazoIso, status);
+  if (r.variante === 'atrasado') return 'atrasado';
+  if (r.variante === 'atencao') return 'atencao';
   return null;
 }
 

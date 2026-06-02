@@ -2,7 +2,7 @@
 
 import type React from 'react';
 import { Archive, ChevronRight, MessageCircle, X } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { rotaCardOrigem } from '@/lib/rota-card-origem';
@@ -29,6 +29,7 @@ import {
   arquivarChamado,
   arquivarTopico,
   atualizarChamadoPainelUnificado,
+  getTopicosChamado,
   getTopicosPorInteracaoId,
 } from '../actions';
 import {
@@ -41,8 +42,14 @@ import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import { MencaoContentEditable } from '@/components/kanban-shared/MencaoContentEditable';
 import { ModalNovoChamado } from '../ModalNovoChamado';
 import { SireneChamadoDetalheModal } from './SireneChamadoDetalheModal';
+import type { EditLinhaDraft, EditSireneDraft } from './SireneChamadoEdicaoForms';
+import {
+  ATIVIDADE_FORM_DRAFT_VAZIO,
+  type AtividadeFormDraft,
+} from '@/components/kanban-shared/KanbanAtividadeFormFields';
 import { chamadoEditavelNaSirene } from '@/lib/kanban/sirene-chamado-permissoes';
 import { formatChamadoNumero } from '@/lib/kanban/chamado-numero';
+import { SlaAtividadeBadge } from '@/components/SlaAtividadeBadge';
 
 export type InteracaoSireneRow = {
   id: string;
@@ -87,25 +94,6 @@ export type InteracaoSireneRow = {
 type TimeOpt = { id: string; nome: string };
 type RespOpt = { id: string; nome: string; email?: string | null };
 
-type EditLinhaDraft = {
-  titulo: string;
-  tipo: 'atividade' | 'duvida' | 'proposicoes';
-  data: string;
-  timesIds: string[];
-  responsaveisIds: string[];
-  trava: boolean;
-};
-
-type EditSireneDraft = {
-  incendio: string;
-  time_abertura: string;
-  abertura_responsavel_nome: string;
-  data: string;
-  trava: boolean;
-  tipo: 'padrao' | 'hdm';
-  hdm_responsavel: string;
-};
-
 type TopicoChamadoLinha = {
   id: number;
   ordem: number;
@@ -122,33 +110,9 @@ type TopicoChamadoLinha = {
   motivo_reprovacao: string | null;
 };
 
-type NovoSubChamadoDraft = {
-  descricao: string;
-  tipo: SubInteracaoTipoDb;
-  data: string;
-  timesIds: string[];
-  responsaveisIds: string[];
-  trava: boolean;
-  tema: string;
-  temaOutro: string;
-};
-
 /** Chave de cache de tópicos: sempre por interacao_id. */
 function topicosAlvoKey(row: { id: string }): string {
   return `i:${row.id}`;
-}
-
-function emptyNovoSubDraft(): NovoSubChamadoDraft {
-  return {
-    descricao: '',
-    tipo: 'atividade',
-    data: '',
-    timesIds: [],
-    responsaveisIds: [],
-    trava: false,
-    tema: '',
-    temaOutro: '',
-  };
 }
 
 type Props = {
@@ -368,15 +332,17 @@ export function InteracoesLista({
   filtroTipoChamado: _filtroTipoChamado,
 }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   void _filtroTipoChamado;
+  const [highlightTopicoId, setHighlightTopicoId] = useState<number | null>(null);
   const [modalNovoAberto, setModalNovoAberto] = useState(false);
   const [editingSireneCid, setEditingSireneCid] = useState<number | null>(null);
   const [editSireneDraft, setEditSireneDraft] = useState<EditSireneDraft | null>(null);
   const [salvandoSirene, setSalvandoSirene] = useState(false);
   const [detalheRow, setDetalheRow] = useState<InteracaoSireneRow | null>(null);
+  const [novaAtivDraft, setNovaAtivDraft] = useState<AtividadeFormDraft>({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
   const [topicosPorAlvo, setTopicosPorAlvo] = useState<Record<string, TopicoChamadoLinha[]>>({});
   const [topicosLoading, setTopicosLoading] = useState<Record<string, boolean>>({});
-  const [novoSubPorAlvo, setNovoSubPorAlvo] = useState<Record<string, NovoSubChamadoDraft>>({});
   const [salvandoTopico, setSalvandoTopico] = useState<Record<string, boolean>>({});
 
   const [verTodas, setVerTodas] = useState(false);
@@ -403,8 +369,6 @@ export function InteracoesLista({
   const [salvandoComentario, setSalvandoComentario] = useState<Record<string, boolean>>({});
   const comentarioEditorRef = useRef<HTMLDivElement>(null);
   const comentarioAtivoCardIdRef = useRef<string | null>(null);
-  const subDescricaoEditorRef = useRef<HTMLDivElement>(null);
-  const subDescricaoAlvoKeyRef = useRef<string | null>(null);
   const [countPatch, setCountPatch] = useState<Record<string, number>>({});
   const [modalArquivar, setModalArquivar] = useState<{ cid: number | null; interacaoId: string } | null>(null);
   const [motivoArquivamento, setMotivoArquivamento] = useState('');
@@ -417,6 +381,19 @@ export function InteracoesLista({
   const [salvandoArquivarTopico, setSalvandoArquivarTopico] = useState(false);
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
   const [podeArquivar, setPodeArquivar] = useState(false);
+
+  useEffect(() => {
+    const interacaoId = searchParams.get('interacao')?.trim();
+    if (!interacaoId) return;
+    const topicoRaw = searchParams.get('topico')?.trim();
+    const topicoNum = topicoRaw ? Number.parseInt(topicoRaw, 10) : NaN;
+    setHighlightTopicoId(Number.isFinite(topicoNum) ? topicoNum : null);
+
+    const row = interacoes.find((r) => r.id === interacaoId);
+    if (!row) return;
+    setDetalheRow(row);
+    void carregarTopicosSeNecessario(row, true);
+  }, [interacoes, searchParams]);
 
   useEffect(() => {
     void (async () => {
@@ -438,10 +415,8 @@ export function InteracoesLista({
     setEditDraft(null);
     setEditingSireneCid(null);
     setEditSireneDraft(null);
-    setSubsOpenByRow({});
     setTopicosPorAlvo({});
     setTopicosLoading({});
-    setNovoSubPorAlvo({});
     setSalvandoTopico({});
     setCommentsOpenByRow({});
     setCommentsFetchedByCard({});
@@ -504,6 +479,16 @@ export function InteracoesLista({
       }),
     [interacoes, statusPatch, rowPatch],
   );
+
+  const detalheRowEff = useMemo(() => {
+    if (!detalheRow) return null;
+    const p = rowPatch[detalheRow.id];
+    return {
+      ...detalheRow,
+      atividade_status: statusPatch[detalheRow.id] ?? detalheRow.atividade_status,
+      ...(p ?? {}),
+    };
+  }, [detalheRow, rowPatch, statusPatch]);
 
   const timesById = useMemo(() => new Map(times.map((t) => [t.id, t.nome])), [times]);
 
@@ -659,16 +644,34 @@ export function InteracoesLista({
       setMsgErro('Este chamado só pode ser alterado no card vinculado.');
       return;
     }
+    if (row.origem === 'sirene' && row.sirene_chamado_id != null) {
+      setEditingId(null);
+      setEditDraft(null);
+      setEditingSireneCid(row.sirene_chamado_id);
+      const tipoSc = (row.sirene_chamado_tipo ?? 'padrao') === 'hdm' ? 'hdm' : 'padrao';
+      setEditSireneDraft({
+        incendio: row.titulo,
+        time_abertura: row.sirene_time_abertura ?? '',
+        abertura_responsavel_nome: row.sirene_abertura_responsavel_nome ?? '',
+        data: row.data_vencimento ?? '',
+        trava: row.trava,
+        tipo: tipoSc,
+        hdm_responsavel: row.sirene_hdm_responsavel ?? '',
+      });
+      return;
+    }
     setEditingSireneCid(null);
     setEditSireneDraft(null);
+    const rids = [...(row.responsaveis_ids ?? [])];
+    if (row.responsavel_id && !rids.includes(row.responsavel_id)) rids.unshift(row.responsavel_id);
     setEditingId(row.id);
     setEditDraft({
       titulo: row.titulo,
-      tipo: 'atividade',
-      data: '',
-      timesIds: [],
-      responsaveisIds: [],
-      trava: false,
+      tipo: tipoEdicaoFromRow(row.tipo),
+      data: row.data_vencimento ?? '',
+      timesIds: [...(row.times_ids ?? [])],
+      responsaveisIds: rids,
+      trava: row.trava,
     });
   }
 
@@ -683,7 +686,10 @@ export function InteracoesLista({
     const key = topicosAlvoKey(row);
     if (!force && topicosPorAlvo[key] != null && !topicosLoading[key]) return;
     setTopicosLoading((l) => ({ ...l, [key]: true }));
-    const res = await getTopicosPorInteracaoId(row.id);
+    const res =
+      row.sirene_chamado_id != null
+        ? await getTopicosChamado(row.sirene_chamado_id)
+        : await getTopicosPorInteracaoId(row.id);
     setTopicosLoading((l) => ({ ...l, [key]: false }));
     if (res.ok) setTopicosPorAlvo((m) => ({ ...m, [key]: res.topicos }));
     else setMsgErro(res.error);
@@ -691,6 +697,50 @@ export function InteracoesLista({
 
   function abrirDetalheChamado(row: InteracaoSireneRow) {
     setDetalheRow(row);
+    setNovaAtivDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
+    cancelarEdicao();
+    void carregarTopicosSeNecessario(row, true);
+  }
+
+  async function handleAdicionarAtividadeModal(row: InteracaoSireneRow) {
+    if (!chamadoEditavelNaSirene(row)) {
+      setMsgErro('Este chamado só pode ser alterado no card vinculado.');
+      return;
+    }
+    const d = novaAtivDraft;
+    if (!d.nome.trim()) {
+      setMsgErro('Informe o nome da atividade.');
+      return;
+    }
+    if (d.timesIds.length === 0) {
+      setMsgErro('Selecione ao menos um time.');
+      return;
+    }
+    if (d.responsaveisIds.length === 0) {
+      setMsgErro('Selecione ao menos um responsável.');
+      return;
+    }
+    const alvoKey = topicosAlvoKey(row);
+    setSalvandoTopico((s) => ({ ...s, [alvoKey]: true }));
+    setMsgErro(null);
+    const res = await criarSubInteracao({
+      interacao_id: row.id,
+      nome: d.nome.trim(),
+      descricao_detalhe: d.descricaoDetalhe.trim() || null,
+      times_ids: d.timesIds,
+      responsaveis_ids: d.responsaveisIds,
+      data_fim: d.data.trim() || null,
+      trava: d.trava,
+      status: 'nao_iniciado',
+      basePath: '/sirene/chamados',
+      viaSirene: true,
+    });
+    setSalvandoTopico((s) => ({ ...s, [alvoKey]: false }));
+    if (!res.ok) {
+      setMsgErro(res.error);
+      return;
+    }
+    setNovaAtivDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
     void carregarTopicosSeNecessario(row, true);
   }
 
@@ -782,64 +832,6 @@ export function InteracoesLista({
     } finally {
       setSalvandoSirene(false);
     }
-  }
-
-  function subDraft(alvoKey: string): NovoSubChamadoDraft {
-    return novoSubPorAlvo[alvoKey] ?? emptyNovoSubDraft();
-  }
-
-  function setSubDraft(alvoKey: string, patch: Partial<NovoSubChamadoDraft>) {
-    setNovoSubPorAlvo((m) => ({
-      ...m,
-      [alvoKey]: { ...subDraft(alvoKey), ...patch },
-    }));
-  }
-
-  async function handleAdicionarTopico(row: InteracaoSireneRow) {
-    if (!chamadoEditavelNaSirene(row)) {
-      setMsgErro('Este chamado só pode ser alterado no card vinculado.');
-      return;
-    }
-    const alvoKey = topicosAlvoKey(row);
-    const d = subDraft(alvoKey);
-    const nome =
-      subDescricaoAlvoKeyRef.current === alvoKey && subDescricaoEditorRef.current
-        ? subDescricaoEditorRef.current.innerHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
-        : d.descricao.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!nome) {
-      setMsgErro('Informe o nome da atividade.');
-      return;
-    }
-    if (d.timesIds.length === 0) {
-      setMsgErro('Selecione ao menos um time.');
-      return;
-    }
-    if (d.responsaveisIds.length === 0) {
-      setMsgErro('Selecione ao menos um responsável.');
-      return;
-    }
-    setSalvandoTopico((s) => ({ ...s, [alvoKey]: true }));
-    setMsgErro(null);
-    const res = await criarSubInteracao({
-      interacao_id: row.id,
-      nome,
-      descricao_detalhe: d.descricao.trim() || null,
-      times_ids: d.timesIds,
-      responsaveis_ids: d.responsaveisIds,
-      data_fim: d.data.trim() || null,
-      trava: d.trava,
-      status: 'nao_iniciado',
-      basePath: '/sirene/chamados',
-      viaSirene: true,
-    });
-    setSalvandoTopico((s) => ({ ...s, [alvoKey]: false }));
-    if (!res.ok) {
-      setMsgErro(res.error);
-      return;
-    }
-    setNovoSubPorAlvo((m) => ({ ...m, [alvoKey]: emptyNovoSubDraft() }));
-    if (subDescricaoEditorRef.current) subDescricaoEditorRef.current.innerHTML = '';
-    void carregarTopicosSeNecessario(row, true);
   }
 
   async function handleSubStatusPainel(
@@ -1342,6 +1334,11 @@ export function InteracoesLista({
                               </span>
                             ))}
                           </div>
+                          <SlaAtividadeBadge
+                            prazoIso={row.data_vencimento}
+                            status={sel === 'concluida' ? 'concluida' : sel}
+                            showOkText={false}
+                          />
                           <SelectMoni
                             value={sel}
                             disabled={pending}
@@ -1444,35 +1441,73 @@ export function InteracoesLista({
         <p className="mt-8 text-center text-sm text-[color:var(--moni-text-tertiary)]">Nenhum chamado com os filtros atuais.</p>
       )}
 
-      {detalheRow ? (
+      {detalheRowEff ? (
         <SireneChamadoDetalheModal
-          row={detalheRow}
+          row={detalheRowEff}
           onClose={() => {
             setDetalheRow(null);
+            setHighlightTopicoId(null);
+            setNovaAtivDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
             cancelarEdicao();
+            if (searchParams.get('interacao')) {
+              router.replace('/sirene/chamados');
+            }
           }}
-          topicos={topicosPorAlvo[topicosAlvoKey(detalheRow)] ?? []}
-          topicosLoading={Boolean(topicosLoading[topicosAlvoKey(detalheRow)])}
-          textoResponsavel={textoResponsavelPainel(detalheRow, nomePorUserId)}
+          topicos={topicosPorAlvo[topicosAlvoKey(detalheRowEff)] ?? []}
+          topicosLoading={Boolean(topicosLoading[topicosAlvoKey(detalheRowEff)])}
+          textoResponsavel={textoResponsavelPainel(detalheRowEff, nomePorUserId)}
           parseTimesNomes={parseTimesNomes}
-          statusSelect={statusDbParaSelect(detalheRow.atividade_status)}
-          temSubAberta={(topicosPorAlvo[topicosAlvoKey(detalheRow)] ?? []).some(
+          statusSelect={statusDbParaSelect(detalheRowEff.atividade_status)}
+          temSubAberta={(topicosPorAlvo[topicosAlvoKey(detalheRowEff)] ?? []).some(
             (s) => s.status !== 'concluido' && s.status !== 'aprovado',
           )}
           pending={pending}
           onStatusChange={onStatusChange}
           onSubStatusChange={(topicoId, status) =>
-            void handleSubStatusPainel(detalheRow, topicoId, status)
+            void handleSubStatusPainel(detalheRowEff, topicoId, status)
           }
-          onEdit={() => abrirEdicao(detalheRow)}
+          onEdit={() => abrirEdicao(detalheRowEff)}
           onArquivar={() =>
             setModalArquivar({
-              cid: detalheRow.sirene_chamado_id ?? null,
-              interacaoId: detalheRow.id,
+              cid: detalheRowEff.sirene_chamado_id ?? null,
+              interacaoId: detalheRowEff.id,
             })
           }
           podeArquivar={podeArquivar}
-          badgeTipo={badgeTipo(detalheRow.tipo)}
+          badgeTipo={badgeTipo(detalheRowEff.tipo)}
+          editingKanban={editingId === detalheRowEff.id && editDraft != null}
+          editDraft={editDraft}
+          setEditDraft={setEditDraft}
+          editingSirene={
+            detalheRowEff.sirene_chamado_id != null &&
+            editingSireneCid === detalheRowEff.sirene_chamado_id &&
+            editSireneDraft != null
+          }
+          editSireneDraft={editSireneDraft}
+          setEditSireneDraft={setEditSireneDraft}
+          times={times}
+          responsaveis={responsaveis}
+          timesSireneEditOpcoes={timesSireneEditOpcoes}
+          salvandoEdicao={salvandoEdicao}
+          salvandoSirene={salvandoSirene}
+          onSalvarEdicao={() => void salvarEdicao(detalheRowEff.id)}
+          onSalvarEdicaoSirene={() =>
+            void salvarEdicaoSirene(detalheRowEff.id, detalheRowEff.sirene_chamado_id!)
+          }
+          onCancelarEdicao={cancelarEdicao}
+          novaAtivDraft={novaAtivDraft}
+          setNovaAtivDraft={setNovaAtivDraft}
+          onAdicionarAtividade={() => void handleAdicionarAtividadeModal(detalheRowEff)}
+          salvandoNovaAtividade={Boolean(salvandoTopico[topicosAlvoKey(detalheRowEff)])}
+          currentUserId={currentUserId}
+          onArquivarTopico={(topicoId) => {
+            setModalArquivarTopico({
+              topicoId,
+              alvoKey: topicosAlvoKey(detalheRowEff),
+            });
+            setMotivoArquivarTopico('');
+          }}
+          highlightTopicoId={highlightTopicoId}
         />
       ) : null}
 

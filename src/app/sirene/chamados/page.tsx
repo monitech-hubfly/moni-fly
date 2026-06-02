@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { Suspense } from 'react';
 import { HDM_RESPONSAVEIS_TODOS_EMAILS } from '@/lib/times-responsaveis';
 import { InteracoesLista, type InteracaoSireneRow } from './InteracoesLista';
 
@@ -333,14 +334,16 @@ export default async function SireneChamadosPage({
         {painelErro ? (
           <p className="text-red-700">Erro ao carregar o painel: {painelErro}</p>
         ) : interacoesListaProps ? (
-          <InteracoesLista
-            interacoes={interacoesListaProps.interacoes}
-            times={interacoesListaProps.times}
-            responsaveis={interacoesListaProps.responsaveis}
-            currentUserId={interacoesListaProps.currentUserId}
-            comentariosCountByCardId={interacoesListaProps.comentariosCountByCardId}
-            filtroTipoChamado={interacoesListaProps.filtroTipoChamado}
-          />
+          <Suspense fallback={<p className="text-sm text-[color:var(--moni-text-tertiary)]">Carregando chamados…</p>}>
+            <InteracoesLista
+              interacoes={interacoesListaProps.interacoes}
+              times={interacoesListaProps.times}
+              responsaveis={interacoesListaProps.responsaveis}
+              currentUserId={interacoesListaProps.currentUserId}
+              comentariosCountByCardId={interacoesListaProps.comentariosCountByCardId}
+              filtroTipoChamado={interacoesListaProps.filtroTipoChamado}
+            />
+          </Suspense>
         ) : null}
       </section>
     </main>

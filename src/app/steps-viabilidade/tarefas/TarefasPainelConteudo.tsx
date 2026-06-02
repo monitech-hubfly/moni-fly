@@ -14,9 +14,9 @@ import {
   painelTarefasFiltrosTemAlgumAtivo,
   PAINEL_TAREFAS_SEARCH_CLASS,
   PAINEL_TAREFAS_SELECT_CLASS,
-  rotuloSlaInteracaoPainel,
   type PainelTarefasFiltrosState,
 } from '@/lib/painel-tarefas-filtros';
+import { SlaAtividadeBadge } from '@/components/SlaAtividadeBadge';
 import { rotaCardOrigem } from '@/lib/rota-card-origem';
 
 type InteracaoPainel = {
@@ -238,38 +238,9 @@ export function TarefasPainelConteudo({ basePath: _ = '/painel-novos-negocios' }
     </span>
   );
 
-  const renderSlaBadge = (t: InteracaoPainel) => {
-    const { variante, texto } = rotuloSlaInteracaoPainel(t.prazo_iso, t.status);
-    if (variante === 'nenhum') {
-      return <span className="text-xs text-[var(--moni-text-tertiary)]">{texto}</span>;
-    }
-    if (variante === 'atrasado') {
-      return (
-        <span
-          className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold"
-          style={{
-            background: 'var(--moni-status-overdue-bg)',
-            color: 'var(--moni-status-overdue-text)',
-            border: '1px solid var(--moni-status-overdue-border)',
-          }}
-        >
-          {texto}
-        </span>
-      );
-    }
-    return (
-      <span
-        className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold"
-        style={{
-          background: 'var(--moni-status-attention-bg)',
-          color: 'var(--moni-status-attention-text)',
-          border: '1px solid var(--moni-status-attention-border)',
-        }}
-      >
-        {texto}
-      </span>
-    );
-  };
+  const renderSlaBadge = (t: InteracaoPainel) => (
+    <SlaAtividadeBadge prazoIso={t.prazo_iso} status={t.status} />
+  );
 
   const renderLinhaDesktop = (t: InteracaoPainel, idx: number) => {
     const zebra = idx % 2 === 0 ? 'var(--moni-surface-0)' : 'var(--moni-surface-50)';
