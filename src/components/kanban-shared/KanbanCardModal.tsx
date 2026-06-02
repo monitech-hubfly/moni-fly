@@ -143,6 +143,7 @@ import {
   type KanbanTimeRow,
   type SecaoEsquerdaId,
   type SubInteracaoModal,
+  usuarioPodeMarcarPastelSubInteracao,
 } from './kanban-card-modal-helpers';
 import {
   filtrarSubAtividadesPorConclusao,
@@ -3073,8 +3074,8 @@ export function KanbanCardModal({
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
               Voltar
                       </button>
-            <div className="flex min-h-0 flex-1 flex-col pb-3">
-<div className="mb-6 flex-1">
+            <div className="flex min-h-0 flex-1 flex-col">
+            <div className="mb-6 flex min-h-0 flex-1 flex-col">
               <h4 className="mb-3 text-sm font-semibold" style={{ color: 'var(--moni-text-secondary)' }}>
                 Chamados
                 {interacoes.length > 0 ? (
@@ -3108,7 +3109,14 @@ export function KanbanCardModal({
                     </div>
               ) : null}
 
-              <div className="relative mb-4">
+              <div
+                className="flex min-h-0 flex-1 flex-col rounded-lg bg-white p-4"
+                style={{
+                  border: '0.5px solid var(--moni-border-default)',
+                  boxShadow: 'var(--moni-shadow-sm)',
+                }}
+              >
+              <div className="relative mb-4 shrink-0">
                 <button
                   ref={filtrosBtnRef}
                   type="button"
@@ -3150,6 +3158,7 @@ export function KanbanCardModal({
                 ) : null}
               </div>
 
+              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
               {interacoesFiltradas.length > 0 ? (
                 <div className="mb-4 space-y-2">
                   {interacoesFiltradas.map((it) => {
@@ -3480,6 +3489,10 @@ export function KanbanCardModal({
                                   <ul className="mb-3 space-y-2">
                                     {subsVisiveis.map((sub) => {
                                       const subDetalheAberto = subAtividadeExpandida[sub.id] === true;
+                                      const podePastel = usuarioPodeMarcarPastelSubInteracao(
+                                        sub,
+                                        modalSessao.userId,
+                                      );
                                       return (
                                       <li
                                         key={sub.id}
@@ -3581,6 +3594,19 @@ export function KanbanCardModal({
                                                   Redirecionado
                                                 </span>
                                               ) : null}
+                                              {podePastel ? (
+                                                <label className="flex cursor-pointer items-center gap-1 text-[10px] text-stone-600">
+                                                  <input
+                                                    type="checkbox"
+                                                    className="h-3 w-3"
+                                                    checked={sub.pastel}
+                                                    onChange={(e) =>
+                                                      void handleTogglePastel(sub.id, e.target.checked)
+                                                    }
+                                                  />
+                                                  Pastel
+                                                </label>
+                                              ) : null}
                                               {pode('criar_chamados') ? (
                                                 <button
                                                   type="button"
@@ -3664,20 +3690,6 @@ export function KanbanCardModal({
                                                 ) : (
                                                   <p className="text-[10px] text-stone-400">Sem prazo</p>
                                                 )}
-                                                {sub.responsaveis_resolvidos.some((r) => r.id === modalSessao.userId) &&
-                                                !sub.times_resolvidos.some((t) => t.nome === 'Bombeiro') ? (
-                                                  <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[10px] text-stone-600">
-                                                    <input
-                                                      type="checkbox"
-                                                      className="h-3 w-3"
-                                                      checked={sub.pastel}
-                                                      onChange={(e) =>
-                                                        void handleTogglePastel(sub.id, e.target.checked)
-                                                      }
-                                                    />
-                                                    Pastel
-                                                  </label>
-                                                ) : null}
                                                 <AnexosSubchamado
                                                   subchamadoId={sub.id}
                                                   uploader_nome={modalSessao.uploaderNome}
@@ -3802,13 +3814,17 @@ export function KanbanCardModal({
               {sireneChamadoIdPastel != null ? (
                 <KanbanPastelariaAtividadeSection sireneChamadoId={sireneChamadoIdPastel} />
               ) : null}
+              </div>
 
+              <div
+                className="mt-4 shrink-0 border-t pt-4"
+                style={{ borderColor: 'var(--moni-border-default)' }}
+              >
               {pode('criar_chamados') ? (
               <div
                 className="rounded-md p-2.5"
                 style={{
                   background: 'var(--moni-surface-50)',
-                  border: '0.5px solid var(--moni-border-default)',
                 }}
               >
                 {!novoChamadoFormAberto ? (
@@ -3942,11 +3958,11 @@ export function KanbanCardModal({
                 )}
               </div>
               ) : (
-                <p className="mb-4 text-xs text-stone-500">Criar chamados não está disponível para o seu perfil.</p>
+                <p className="text-xs text-stone-500">Criar chamados não está disponível para o seu perfil.</p>
               )}
+              </div>
+              </div>
             </div>
-
-
             </div>
             </>
             ) : (

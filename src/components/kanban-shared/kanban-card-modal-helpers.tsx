@@ -14,6 +14,7 @@ import {
   Tag,
 } from 'lucide-react';
 import type { SubInteracaoStatusDb } from '@/lib/actions/card-actions';
+import { nomesTimesIncluemBombeiro } from '@/lib/kanban/chamados-validacao';
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 
 export type InteracaoModal = {
@@ -69,6 +70,18 @@ export type SubInteracaoModal = {
 };
 
 export type KanbanTimeRow = { id: string; nome: string };
+
+/** Responsável da sub-atividade, fora do time Bombeiro — pode marcar Pastel no modal. */
+export function usuarioPodeMarcarPastelSubInteracao(
+  sub: Pick<SubInteracaoModal, 'responsaveis_ids' | 'times_resolvidos'>,
+  userId: string | null | undefined,
+): boolean {
+  if (userId == null || String(userId).trim() === '') return false;
+  const uid = String(userId);
+  if (!sub.responsaveis_ids.some((id) => String(id) === uid)) return false;
+  const nomes = sub.times_resolvidos.map((t) => t.nome);
+  return !nomesTimesIncluemBombeiro(nomes);
+}
 
 export function nomeTimeParaSlugLegado(nome: string): string {
   return nome
