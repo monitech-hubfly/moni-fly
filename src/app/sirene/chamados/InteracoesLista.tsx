@@ -134,6 +134,8 @@ type FiltrosChamados = {
   respF: string;
   travaF: string;
   busca: string;
+  /** Inclui chamados concluídos/cancelados quando o status do filtro é "todos". */
+  mostrarConcluidas: boolean;
 };
 
 const DEFAULT_FILTROS: FiltrosChamados = {
@@ -145,6 +147,7 @@ const DEFAULT_FILTROS: FiltrosChamados = {
   respF: 'todos',
   travaF: 'todos',
   busca: '',
+  mostrarConcluidas: false,
 };
 
 function countFiltrosAtivos(f: FiltrosChamados): number {
@@ -157,6 +160,7 @@ function countFiltrosAtivos(f: FiltrosChamados): number {
   if (f.respF !== 'todos') n++;
   if (f.travaF !== 'todos') n++;
   if (f.busca.trim() !== '') n++;
+  if (f.mostrarConcluidas !== d.mostrarConcluidas) n++;
   return n;
 }
 
@@ -391,6 +395,9 @@ export function InteracoesLista({
 
     const row = interacoes.find((r) => r.id === interacaoId);
     if (!row) return;
+    if (subGrupoFluxo(row) === 'concluido') {
+      setApplied((a) => (a.mostrarConcluidas ? a : { ...a, mostrarConcluidas: true }));
+    }
     setDetalheRow(row);
     void carregarTopicosSeNecessario(row, true);
   }, [interacoes, searchParams]);
@@ -513,9 +520,9 @@ export function InteracoesLista({
 
   const nomePorUserId = useMemo(() => new Map(responsaveis.map((r) => [r.id, r.nome])), [responsaveis]);
 
-  const filtradas = useMemo(() => {
+  const passaFiltrosLista = useMemo(() => {
     const q = norm(applied.busca);
-    return linhas.filter((row) => {
+    return (row: InteracaoSireneRow, ocultarConcluidasPorPadrao: boolean) => {
       if (row.origem === 'sirene' && row.sirene_arquivado && !podeArquivar) return false;
       if (
         row.origem === 'sirene' &&
@@ -540,6 +547,12 @@ export function InteracoesLista({
         if (applied.statusF === 'aguardando' && sg !== 'aguardando') return false;
         if (applied.statusF === 'em_andamento' && sg !== 'em_andamento') return false;
         if (applied.statusF === 'concluida' && sg !== 'concluido') return false;
+      } else if (
+        ocultarConcluidasPorPadrao &&
+        !applied.mostrarConcluidas &&
+        subGrupoFluxo(row) === 'concluido'
+      ) {
+        return false;
       }
 
       if (!filtroTipoMatch(row, applied.tipoF)) return false;
@@ -559,17 +572,40 @@ export function InteracoesLista({
       }
 
       return true;
-    });
+    };
   }, [
-    linhas,
+    applied,
     verTodas,
     currentUserId,
-    applied,
     timesById,
     nomePorUserId,
     podeArquivar,
     mostrarArquivados,
   ]);
+
+  const filtradas = useMemo(
+    () => linhas.filter((row) => passaFiltrosLista(row, true)),
+    [linhas, passaFiltrosLista],
+  );
+
+  const concluidosOcultosPorGrupo = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const g of ORDEM_GRUPOS_PAINEL) m.set(g.key, 0);
+    if (applied.statusF !== 'todos' || applied.mostrarConcluidas) return m;
+    for (const row of linhas) {
+      if (!passaFiltrosLista(row, false)) continue;
+      if (subGrupoFluxo(row) !== 'concluido') continue;
+      const rk = rankChamadoPainelUnificado({
+        frank_id: row.frank_id,
+        franqueado_nome: row.franqueado_nome,
+        trava: row.trava,
+        data_vencimento: row.data_vencimento,
+        atividade_status: row.atividade_status,
+      });
+      m.set(rk.group, (m.get(rk.group) ?? 0) + 1);
+    }
+    return m;
+  }, [linhas, passaFiltrosLista, applied.statusF, applied.mostrarConcluidas]);
 
   const porGrupo = useMemo(() => {
     const m = new Map<number, InteracaoSireneRow[]>();
@@ -994,6 +1030,19 @@ export function InteracoesLista({
                       </label>
                     ))}
                   </div>
+                  {draft.statusF === 'todos' ? (
+                    <label className="mt-2 inline-flex cursor-pointer items-center gap-2 text-sm text-[color:var(--moni-text-secondary)]">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-[color:var(--moni-border-default)]"
+                        checked={draft.mostrarConcluidas}
+                        onChange={(e) =>
+                          setDraft((d) => ({ ...d, mostrarConcluidas: e.target.checked }))
+                        }
+                      />
+                      Mostrar concluídos
+                    </label>
+                  ) : null}
                 </SecaoFiltro>
 
                 <SecaoFiltro titulo="Tipo">
@@ -1231,12 +1280,17 @@ export function InteracoesLista({
       <div className="space-y-8">
         {ORDEM_GRUPOS_PAINEL.map(({ key, titulo }) => {
           const lista = porGrupo.get(key) ?? [];
+          const ocultos = concluidosOcultosPorGrupo.get(key) ?? 0;
           if (lista.length === 0) return null;
+          const totalGrupo = lista.length + ocultos;
           return (
             <section key={key}>
               <h3 className="mb-3 border-b border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-3 py-2 text-sm font-semibold text-[color:var(--moni-text-primary)]">
                 {titulo}
-                <span className="ml-2 font-normal text-[color:var(--moni-text-tertiary)]">({lista.length})</span>
+                <span className="ml-2 font-normal text-[color:var(--moni-text-tertiary)]">
+                  ({lista.length}
+                  {ocultos > 0 ? ` de ${totalGrupo}` : ''})
+                </span>
               </h3>
               <ul className="rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)]">
                 {lista.map((row) => {
