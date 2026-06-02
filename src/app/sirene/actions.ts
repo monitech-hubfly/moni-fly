@@ -18,6 +18,15 @@ import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import { podeExcluirChamadoSirene } from '@/lib/sirene-utils';
 import { notificarMencoesSirene, resolverMencoesSirene } from '@/lib/actions/sirene-mencoes';
 import { criarPastelariaInboxParaChamadoSirene } from '@/lib/pastelaria/sirene-pastel-abertura';
+import {
+  aggregatePorPrioridadeAbertosFromBreakdown,
+  aggregatePorTipoFromBreakdown,
+  normalizePrioridade,
+  normalizeTipoAtividade,
+  slaStatusFromDate,
+  type DashboardAtividadeBreakdownRow,
+  type DashboardChamadoBreakdownRow,
+} from './dashboard-breakdown';
 import { labelPastelariaColuna } from '@/lib/pastelaria/coluna-labels';
 import { syncPastelariaColunaFromSireneStatus } from '@/lib/pastelaria/sirene-status-sync';
 import {
@@ -2157,6 +2166,817 @@ export async function getMonitorTopicosPorTime(
   return { ok: true, isBombeiro: true, porTime };
 }
 
+/** Conta atividades com SLA na view unificada, respeitando filtro de tipo Sirene (mesma regra do painel Chamados). */
+async function countSlaAtividades(
+  queryClient: Awaited<ReturnType<typeof createClient>>,
+  slaStatus: 'atrasado' | 'vence_hoje',
+  filtroTipo?: 'todos' | 'padrao' | 'hdm',
+): Promise<number> {
+  const { data: rows } = await queryClient
+    .from('v_atividades_unificadas')
+    .select('id')
+    .eq('sla_status', slaStatus);
+  if (!rows?.length) return 0;
+
+  const ids = rows.map((r) => String((r as { id: string }).id)).filter(Boolean);
+  const kaById = new Map<string, { origem: string; sirene_chamado_id: number | null }>();
+  const chunk = 200;
+  for (let i = 0; i < ids.length; i += chunk) {
+    const slice = ids.slice(i, i + chunk);
+    const { data: kaRows } = await queryClient
+      .from('kanban_atividades')
+      .select('id, origem, sirene_chamado_id')
+      .in('id', slice);
+    for (const r of kaRows ?? []) {
+      const id = String((r as { id: string }).id);
+      const sid = (r as { sirene_chamado_id?: number | null }).sirene_chamado_id;
+      kaById.set(id, {
+        origem: String((r as { origem?: string }).origem ?? 'nativo'),
+        sirene_chamado_id: sid != null && Number.isFinite(Number(sid)) ? Number(sid) : null,
+      });
+    }
+  }
+
+  const sireneIds = [
+    ...new Set(
+      [...kaById.values()]
+        .map((k) => k.sirene_chamado_id)
+        .filter((x): x is number => x != null && Number.isFinite(x)),
+    ),
+  ];
+  const sireneTipoById = new Map<number, string>();
+  if (sireneIds.length > 0) {
+    for (let i = 0; i < sireneIds.length; i += chunk) {
+      const slice = sireneIds.slice(i, i + chunk);
+      const { data: scRows } = await queryClient
+        .from('sirene_chamados')
+        .select('id, tipo')
+        .in('id', slice);
+      for (const s of scRows ?? []) {
+        sireneTipoById.set(Number((s as { id: number }).id), String((s as { tipo?: string }).tipo ?? 'padrao'));
+      }
+    }
+  }
+
+  let count = 0;
+  for (const row of rows) {
+    const id = String((row as { id: string }).id);
+    const ka = kaById.get(id);
+    if (filtroTipo === 'padrao' || filtroTipo === 'hdm') {
+      if (ka?.origem === 'sirene' && ka.sirene_chamado_id != null) {
+        const t = sireneTipoById.get(ka.sirene_chamado_id) ?? 'padrao';
+        if (filtroTipo === 'hdm' ? t !== 'hdm' : t !== 'padrao') continue;
+      }
+    }
+    count++;
+  }
+  return count;
+}
+
+/** Mesma regra de `buscarTopicosStatusChamado`, em lote (legado `chamado_id` ou `interacao_id`). */
+async function mapTopicosStatusPorChamado(
+  queryClient: Awaited<ReturnType<typeof createClient>>,
+  chamadoIds: number[],
+): Promise<Map<number, Array<{ status?: string | null }>>> {
+  const out = new Map<number, Array<{ status?: string | null }>>();
+  if (chamadoIds.length === 0) return out;
+
+  const { data: directTopicos } = await queryClient
+    .from('sirene_topicos')
+    .select('chamado_id, status')
+    .in('chamado_id', chamadoIds)
+    .eq('arquivado', false);
+
+  const directByChamado = new Map<number, Array<{ status?: string | null }>>();
+  for (const t of directTopicos ?? []) {
+    const cid = Number((t as { chamado_id: number }).chamado_id);
+    if (!Number.isFinite(cid)) continue;
+    const arr = directByChamado.get(cid) ?? [];
+    arr.push({ status: (t as { status?: string | null }).status });
+    directByChamado.set(cid, arr);
+  }
+
+  const chamadosSemDirect = chamadoIds.filter((id) => (directByChamado.get(id)?.length ?? 0) === 0);
+  const viaInteracaoByChamado = new Map<number, Array<{ status?: string | null }>>();
+
+  if (chamadosSemDirect.length > 0) {
+    const { data: interacoes } = await queryClient
+      .from('kanban_atividades')
+      .select('id, sirene_chamado_id')
+      .in('sirene_chamado_id', chamadosSemDirect);
+
+    const interacaoToChamado = new Map<string, number>();
+    const interacaoIds: string[] = [];
+    for (const i of interacoes ?? []) {
+      const kaId = String((i as { id: string }).id);
+      const cid = Number((i as { sirene_chamado_id?: number | null }).sirene_chamado_id);
+      if (!Number.isFinite(cid)) continue;
+      interacaoToChamado.set(kaId, cid);
+      interacaoIds.push(kaId);
+    }
+
+    if (interacaoIds.length > 0) {
+      const chunk = 200;
+      for (let i = 0; i < interacaoIds.length; i += chunk) {
+        const slice = interacaoIds.slice(i, i + chunk);
+        const { data: viaInteracao } = await queryClient
+          .from('sirene_topicos')
+          .select('interacao_id, status')
+          .in('interacao_id', slice)
+          .eq('arquivado', false);
+        for (const t of viaInteracao ?? []) {
+          const cid = interacaoToChamado.get(String((t as { interacao_id: string }).interacao_id));
+          if (cid == null) continue;
+          const arr = viaInteracaoByChamado.get(cid) ?? [];
+          arr.push({ status: (t as { status?: string | null }).status });
+          viaInteracaoByChamado.set(cid, arr);
+        }
+      }
+    }
+  }
+
+  for (const cid of chamadoIds) {
+    const direct = directByChamado.get(cid);
+    const topicos = direct && direct.length > 0 ? direct : (viaInteracaoByChamado.get(cid) ?? []);
+    out.set(cid, topicos);
+  }
+  return out;
+}
+
+/** Dias desde o fechamento pelo bombeiro; `updated_at` do chamado como proxy (ex.: fecharChamado). */
+function diasDesdeFechamentoBombeiro(updatedAt: string | null | undefined): number {
+  if (updatedAt == null || String(updatedAt).trim() === '') return 0;
+  const ms = Date.now() - new Date(String(updatedAt)).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return 0;
+  return Math.floor(ms / (1000 * 60 * 60 * 24));
+}
+
+/** Franqueado: `frank_nome` do chamado; senão card vinculado ou `v_atividades_unificadas` da interação kanban. */
+async function resolverFranqueadoNomesPorChamado(
+  queryClient: Awaited<ReturnType<typeof createClient>>,
+  chamados: Array<{ id: number; frank_nome?: string | null; card_id?: string | null }>,
+): Promise<Map<number, string | null>> {
+  const out = new Map<number, string | null>();
+  for (const c of chamados) {
+    const n = String(c.frank_nome ?? '').trim();
+    if (n) out.set(c.id, n);
+  }
+
+  const pendentes = chamados.filter((c) => !out.has(c.id));
+  if (pendentes.length === 0) return out;
+
+  const cardIds = [
+    ...new Set(
+      pendentes
+        .map((c) => (c.card_id != null ? String(c.card_id).trim() : ''))
+        .filter((id) => id.length > 0),
+    ),
+  ];
+  const cardFranqueadoId = new Map<string, string>();
+  if (cardIds.length > 0) {
+    const chunk = 200;
+    for (let i = 0; i < cardIds.length; i += chunk) {
+      const slice = cardIds.slice(i, i + chunk);
+      const { data: cards } = await queryClient
+        .from('kanban_cards')
+        .select('id, franqueado_id')
+        .in('id', slice);
+      for (const card of cards ?? []) {
+        const fid = String((card as { franqueado_id?: string | null }).franqueado_id ?? '').trim();
+        if (fid) cardFranqueadoId.set(String((card as { id: string }).id), fid);
+      }
+    }
+    const profileIds = [...new Set(cardFranqueadoId.values())];
+    const profileNome = new Map<string, string>();
+    if (profileIds.length > 0) {
+      const { data: profiles } = await queryClient
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', profileIds);
+      for (const p of profiles ?? []) {
+        const nome =
+          String((p as { full_name?: string | null }).full_name ?? '').trim() ||
+          String((p as { email?: string | null }).email ?? '').trim();
+        if (nome) profileNome.set(String((p as { id: string }).id), nome);
+      }
+    }
+    for (const c of pendentes) {
+      if (out.has(c.id) || !c.card_id) continue;
+      const fid = cardFranqueadoId.get(String(c.card_id));
+      const nome = fid ? profileNome.get(fid) : undefined;
+      if (nome) out.set(c.id, nome);
+    }
+  }
+
+  const aindaPendentes = pendentes.filter((c) => !out.has(c.id)).map((c) => c.id);
+  if (aindaPendentes.length === 0) return out;
+
+  const { data: interacoes } = await queryClient
+    .from('kanban_atividades')
+    .select('id, sirene_chamado_id')
+    .in('sirene_chamado_id', aindaPendentes);
+  const kaIds = (interacoes ?? []).map((r) => String((r as { id: string }).id));
+  const kaPorChamado = new Map<number, string>();
+  for (const i of interacoes ?? []) {
+    const cid = Number((i as { sirene_chamado_id?: number | null }).sirene_chamado_id);
+    if (!Number.isFinite(cid) || kaPorChamado.has(cid)) continue;
+    kaPorChamado.set(cid, String((i as { id: string }).id));
+  }
+
+  if (kaIds.length > 0) {
+    const chunk = 200;
+    for (let i = 0; i < kaIds.length; i += chunk) {
+      const slice = kaIds.slice(i, i + chunk);
+      const { data: views } = await queryClient
+        .from('v_atividades_unificadas')
+        .select('id, franqueado_nome')
+        .in('id', slice);
+      for (const v of views ?? []) {
+        const kaId = String((v as { id: string }).id);
+        const nome = String((v as { franqueado_nome?: string | null }).franqueado_nome ?? '').trim();
+        if (!nome) continue;
+        for (const [cid, kid] of kaPorChamado) {
+          if (kid === kaId && !out.has(cid)) out.set(cid, nome);
+        }
+      }
+    }
+  }
+
+  return out;
+}
+
+/** Dias de calendário desde data_abertura até agora (mesma base ms do KPI tempo médio). */
+function diasAbertoDesdeDataAbertura(dataAbertura: unknown): number {
+  if (dataAbertura == null) return 0;
+  const aberturaStr = String(dataAbertura).trim();
+  if (!aberturaStr) return 0;
+  const aberturaMs = new Date(aberturaStr).getTime();
+  if (!Number.isFinite(aberturaMs)) return 0;
+  const diff = (Date.now() - aberturaMs) / (1000 * 60 * 60 * 24);
+  return Math.max(0, Math.floor(diff));
+}
+
+function mapChamadoListaDashboard(c: {
+  id: number;
+  numero: number;
+  time_abertura: string | null;
+  incendio: string;
+  data_abertura?: unknown;
+}): {
+  id: number;
+  numero: number;
+  time_abertura: string | null;
+  incendio: string;
+  dias_aberto: number;
+} {
+  return {
+    id: c.id,
+    numero: c.numero,
+    time_abertura: c.time_abertura,
+    incendio: c.incendio,
+    dias_aberto: diasAbertoDesdeDataAbertura(c.data_abertura),
+  };
+}
+
+const TOPICOS_DASHBOARD_STATUSES = ['nao_iniciado', 'em_andamento', 'concluido', 'aprovado'] as const;
+
+/** Contagem de tópicos não arquivados por status, limitada aos chamados do escopo (filtro tipo via `allowedChamadoIds`). */
+async function fetchTopicosPorStatus(
+  queryClient: Awaited<ReturnType<typeof createClient>>,
+  allowedChamadoIds: Set<number>,
+): Promise<Array<{ status: string; count: number }>> {
+  const counts = Object.fromEntries(TOPICOS_DASHBOARD_STATUSES.map((s) => [s, 0])) as Record<
+    (typeof TOPICOS_DASHBOARD_STATUSES)[number],
+    number
+  >;
+
+  const { data: topicosRows } = await queryClient
+    .from('sirene_topicos')
+    .select('status, chamado_id, interacao_id')
+    .or('arquivado.eq.false,arquivado.is.null')
+    .in('status', [...TOPICOS_DASHBOARD_STATUSES]);
+
+  const interacaoIds = new Set<string>();
+  for (const t of topicosRows ?? []) {
+    const cid = (t as { chamado_id?: number | null }).chamado_id;
+    if (cid == null || !Number.isFinite(Number(cid))) {
+      const iid = (t as { interacao_id?: string | null }).interacao_id;
+      if (iid) interacaoIds.add(String(iid));
+    }
+  }
+
+  const interacaoToChamado = new Map<string, number>();
+  if (interacaoIds.size > 0) {
+    const unique = [...interacaoIds];
+    const chunk = 200;
+    for (let i = 0; i < unique.length; i += chunk) {
+      const slice = unique.slice(i, i + chunk);
+      const { data: kaRows } = await queryClient
+        .from('kanban_atividades')
+        .select('id, sirene_chamado_id')
+        .in('id', slice);
+      for (const r of kaRows ?? []) {
+        const id = String((r as { id: string }).id);
+        const sid = Number((r as { sirene_chamado_id?: number | null }).sirene_chamado_id);
+        if (Number.isFinite(sid)) interacaoToChamado.set(id, sid);
+      }
+    }
+  }
+
+  for (const t of topicosRows ?? []) {
+    let cid: number | null = null;
+    const rawCid = (t as { chamado_id?: number | null }).chamado_id;
+    if (rawCid != null && Number.isFinite(Number(rawCid))) {
+      cid = Number(rawCid);
+    } else {
+      const iid = (t as { interacao_id?: string | null }).interacao_id;
+      if (iid) cid = interacaoToChamado.get(String(iid)) ?? null;
+    }
+    if (cid == null || !allowedChamadoIds.has(cid)) continue;
+    const st = String((t as { status?: string }).status ?? '');
+    if (st in counts) counts[st as (typeof TOPICOS_DASHBOARD_STATUSES)[number]]++;
+  }
+
+  return TOPICOS_DASHBOARD_STATUSES.map((status) => ({ status, count: counts[status] }));
+}
+
+const DASHBOARD_PESSOA_UNASSIGNED = '__unassigned__';
+
+export type DashboardPessoaMetrica = {
+  nome: string;
+  abertos: number;
+  atrasados: number;
+  com_trava?: number;
+  sem_julgamento?: number;
+};
+
+function responsaveisIdsFromTopico(t: {
+  responsaveis_ids?: unknown;
+  responsavel_id?: string | null;
+}): string[] {
+  const raw = t.responsaveis_ids;
+  const arr = Array.isArray(raw) ? raw.map((x) => String(x)).filter(Boolean) : [];
+  if (arr.length > 0) return arr;
+  const rid = t.responsavel_id;
+  if (rid) return [String(rid)];
+  return [DASHBOARD_PESSOA_UNASSIGNED];
+}
+
+function interacaoStatusAberto(atividadeStatus: string | null | undefined): boolean {
+  const s = String(atividadeStatus ?? '')
+    .trim()
+    .toLowerCase();
+  return s !== 'concluida' && s !== 'concluída' && s !== 'cancelada';
+}
+
+function top8PorAbertos<T extends { abertos: number }>(rows: T[]): T[] {
+  return [...rows].sort((a, b) => b.abertos - a.abertos).slice(0, 8);
+}
+
+async function resolveInteracaoToChamado(
+  queryClient: Awaited<ReturnType<typeof createClient>>,
+  interacaoIds: string[],
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (interacaoIds.length === 0) return out;
+  const chunk = 200;
+  for (let i = 0; i < interacaoIds.length; i += chunk) {
+    const slice = interacaoIds.slice(i, i + chunk);
+    const { data: kaRows } = await queryClient
+      .from('kanban_atividades')
+      .select('id, sirene_chamado_id')
+      .in('id', slice);
+    for (const r of kaRows ?? []) {
+      const id = String((r as { id: string }).id);
+      const sid = Number((r as { sirene_chamado_id?: number | null }).sirene_chamado_id);
+      if (Number.isFinite(sid)) out.set(id, sid);
+    }
+  }
+  return out;
+}
+
+async function loadProfileNomes(
+  queryClient: Awaited<ReturnType<typeof createClient>>,
+  userIds: string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const ids = [...new Set(userIds.filter((id) => id && id !== DASHBOARD_PESSOA_UNASSIGNED))];
+  if (ids.length === 0) return out;
+  const chunk = 200;
+  for (let i = 0; i < ids.length; i += chunk) {
+    const slice = ids.slice(i, i + chunk);
+    const { data: profiles } = await queryClient.from('profiles').select('id, full_name').in('id', slice);
+    for (const p of profiles ?? []) {
+      const id = String((p as { id: string }).id);
+      const nome = String((p as { full_name?: string | null }).full_name ?? '').trim() || 'Sem nome';
+      out.set(id, nome);
+    }
+  }
+  return out;
+}
+
+function metricasToLista(
+  agg: Map<string, { abertos: number; atrasados: number; extra: number }>,
+  nomes: Map<string, string>,
+  extraKey: 'com_trava' | 'sem_julgamento',
+  unassignedLabel: string,
+): DashboardPessoaMetrica[] {
+  const rows: DashboardPessoaMetrica[] = [];
+  for (const [uid, m] of agg) {
+    const nome = uid === DASHBOARD_PESSOA_UNASSIGNED ? unassignedLabel : (nomes.get(uid) ?? 'Sem nome');
+    rows.push({
+      nome,
+      abertos: m.abertos,
+      atrasados: m.atrasados,
+      [extraKey]: m.extra,
+    });
+  }
+  return top8PorAbertos(rows);
+}
+
+/** Tópicos do escopo: abertos = não concluído/aprovado; atrasados = data_fim vencida ou SLA da interação; com_trava = trava do tópico ou do chamado. */
+async function aggregatePorResponsavel(
+  queryClient: Awaited<ReturnType<typeof createClient>>,
+  allowedChamadoIds: Set<number>,
+  comTravaByChamadoId: Map<number, boolean>,
+): Promise<DashboardPessoaMetrica[]> {
+  const { data: topicosRows } = await queryClient
+    .from('sirene_topicos')
+    .select(
+      'status, chamado_id, interacao_id, data_fim, trava, responsaveis_ids, responsavel_id',
+    )
+    .or('arquivado.eq.false,arquivado.is.null');
+
+  const interacaoIds = new Set<string>();
+  for (const t of topicosRows ?? []) {
+    const cid = (t as { chamado_id?: number | null }).chamado_id;
+    if (cid == null || !Number.isFinite(Number(cid))) {
+      const iid = (t as { interacao_id?: string | null }).interacao_id;
+      if (iid) interacaoIds.add(String(iid));
+    }
+  }
+  const interacaoToChamado = await resolveInteracaoToChamado(queryClient, [...interacaoIds]);
+
+  const slaByInteracao = new Map<string, ReturnType<typeof slaStatusFromDate>>();
+  if (interacaoIds.size > 0) {
+    const unique = [...interacaoIds];
+    const chunk = 200;
+    for (let i = 0; i < unique.length; i += chunk) {
+      const slice = unique.slice(i, i + chunk);
+      const { data: kaRows } = await queryClient
+        .from('kanban_atividades')
+        .select('id, data_vencimento')
+        .in('id', slice);
+      for (const r of kaRows ?? []) {
+        const id = String((r as { id: string }).id);
+        slaByInteracao.set(
+          id,
+          slaStatusFromDate((r as { data_vencimento?: string | null }).data_vencimento),
+        );
+      }
+    }
+  }
+
+  const agg = new Map<string, { abertos: number; atrasados: number; extra: number }>();
+  const bump = (uid: string, field: 'abertos' | 'atrasados' | 'extra') => {
+    const cur = agg.get(uid) ?? { abertos: 0, atrasados: 0, extra: 0 };
+    cur[field]++;
+    agg.set(uid, cur);
+  };
+
+  for (const t of topicosRows ?? []) {
+    let cid: number | null = null;
+    const rawCid = (t as { chamado_id?: number | null }).chamado_id;
+    if (rawCid != null && Number.isFinite(Number(rawCid))) {
+      cid = Number(rawCid);
+    } else {
+      const iid = (t as { interacao_id?: string | null }).interacao_id;
+      if (iid) cid = interacaoToChamado.get(String(iid)) ?? null;
+    }
+    if (cid == null || !allowedChamadoIds.has(cid)) continue;
+
+    const status = (t as { status?: string | null }).status;
+    const aberto = !topicoStatusFechado(status);
+    const iid = (t as { interacao_id?: string | null }).interacao_id;
+    const dataFim = (t as { data_fim?: string | null }).data_fim;
+    const atrasado =
+      aberto &&
+      (slaStatusFromDate(dataFim) === 'atrasado' ||
+        (iid != null && slaByInteracao.get(String(iid)) === 'atrasado'));
+    const comTrava =
+      Boolean((t as { trava?: boolean }).trava) || (comTravaByChamadoId.get(cid) ?? false);
+
+    for (const uid of responsaveisIdsFromTopico(t as { responsaveis_ids?: unknown; responsavel_id?: string | null })) {
+      if (aberto) bump(uid, 'abertos');
+      if (atrasado) bump(uid, 'atrasados');
+      if (comTrava && aberto) bump(uid, 'extra');
+    }
+  }
+
+  const nomes = await loadProfileNomes(queryClient, [...agg.keys()]);
+  return metricasToLista(agg, nomes, 'com_trava', 'Sem responsável');
+}
+
+/** Interações Sirene: abertos = status ≠ concluída; atrasados = SLA atrasado; sem_julgamento = chamados aguardando julgamento do criador. */
+async function aggregatePorCriador(
+  queryClient: Awaited<ReturnType<typeof createClient>>,
+  allowedChamadoIds: Set<number>,
+  aguardandoJulgamentoIds: Set<number>,
+): Promise<DashboardPessoaMetrica[]> {
+  const chamadoIds = [...allowedChamadoIds];
+  if (chamadoIds.length === 0) return [];
+
+  const kaRows: Array<{
+    id: string;
+    criado_por: string | null;
+    sirene_chamado_id: number;
+    data_vencimento: string | null;
+  }> = [];
+  const chunk = 200;
+  for (let i = 0; i < chamadoIds.length; i += chunk) {
+    const slice = chamadoIds.slice(i, i + chunk);
+    const { data: rows } = await queryClient
+      .from('kanban_atividades')
+      .select('id, criado_por, sirene_chamado_id, data_vencimento')
+      .in('sirene_chamado_id', slice);
+    for (const r of rows ?? []) {
+      const cid = Number((r as { sirene_chamado_id?: number | null }).sirene_chamado_id);
+      if (!Number.isFinite(cid)) continue;
+      kaRows.push({
+        id: String((r as { id: string }).id),
+        criado_por: (r as { criado_por?: string | null }).criado_por ?? null,
+        sirene_chamado_id: cid,
+        data_vencimento: (r as { data_vencimento?: string | null }).data_vencimento ?? null,
+      });
+    }
+  }
+
+  const kaIds = kaRows.map((r) => r.id);
+  const statusByKa = new Map<string, string>();
+  const slaAtrasadoIds = new Set<string>();
+  for (let i = 0; i < kaIds.length; i += chunk) {
+    const slice = kaIds.slice(i, i + chunk);
+    const { data: views } = await queryClient
+      .from('v_atividades_unificadas')
+      .select('id, atividade_status, sla_status')
+      .in('id', slice);
+    for (const v of views ?? []) {
+      const id = String((v as { id: string }).id);
+      statusByKa.set(id, String((v as { atividade_status?: string }).atividade_status ?? ''));
+      if (String((v as { sla_status?: string }).sla_status ?? '') === 'atrasado') {
+        slaAtrasadoIds.add(id);
+      }
+    }
+  }
+
+  const agg = new Map<string, { abertos: number; atrasados: number; extra: number }>();
+  const bump = (uid: string, field: 'abertos' | 'atrasados' | 'extra') => {
+    const cur = agg.get(uid) ?? { abertos: 0, atrasados: 0, extra: 0 };
+    cur[field]++;
+    agg.set(uid, cur);
+  };
+
+  const semJulgamentoCounted = new Set<string>();
+
+  for (const ka of kaRows) {
+    const uid = ka.criado_por ? String(ka.criado_por) : DASHBOARD_PESSOA_UNASSIGNED;
+    const st = statusByKa.get(ka.id) ?? '';
+    if (interacaoStatusAberto(st)) bump(uid, 'abertos');
+    const atrasado =
+      slaStatusFromDate(ka.data_vencimento) === 'atrasado' || slaAtrasadoIds.has(ka.id);
+    if (atrasado) bump(uid, 'atrasados');
+
+    if (aguardandoJulgamentoIds.has(ka.sirene_chamado_id)) {
+      const key = `${ka.sirene_chamado_id}:${uid}`;
+      if (!semJulgamentoCounted.has(key)) {
+        semJulgamentoCounted.add(key);
+        bump(uid, 'extra');
+      }
+    }
+  }
+
+  const nomes = await loadProfileNomes(queryClient, [...agg.keys()]);
+  return metricasToLista(agg, nomes, 'sem_julgamento', 'Sem criador');
+}
+
+type AbertosGrupo = { nome: string; count: number };
+
+/** Carrega origem/sirene_chamado_id e tipos de chamado Sirene para filtro padrao/hdm em atividades. */
+async function loadKanbanAtividadesFiltroContext(
+  queryClient: Awaited<ReturnType<typeof createClient>>,
+  ids: string[],
+): Promise<{
+  kaById: Map<string, { origem: string; sirene_chamado_id: number | null }>;
+  sireneTipoById: Map<number, string>;
+}> {
+  const kaById = new Map<string, { origem: string; sirene_chamado_id: number | null }>();
+  const chunk = 200;
+  for (let i = 0; i < ids.length; i += chunk) {
+    const slice = ids.slice(i, i + chunk);
+    const { data: kaRows } = await queryClient
+      .from('kanban_atividades')
+      .select('id, origem, sirene_chamado_id')
+      .in('id', slice);
+    for (const r of kaRows ?? []) {
+      const id = String((r as { id: string }).id);
+      const sid = (r as { sirene_chamado_id?: number | null }).sirene_chamado_id;
+      kaById.set(id, {
+        origem: String((r as { origem?: string }).origem ?? 'nativo'),
+        sirene_chamado_id: sid != null && Number.isFinite(Number(sid)) ? Number(sid) : null,
+      });
+    }
+  }
+
+  const sireneIds = [
+    ...new Set(
+      [...kaById.values()]
+        .map((k) => k.sirene_chamado_id)
+        .filter((x): x is number => x != null && Number.isFinite(x)),
+    ),
+  ];
+  const sireneTipoById = new Map<number, string>();
+  for (let i = 0; i < sireneIds.length; i += chunk) {
+    const slice = sireneIds.slice(i, i + chunk);
+    const { data: scRows } = await queryClient
+      .from('sirene_chamados')
+      .select('id, tipo')
+      .in('id', slice);
+    for (const s of scRows ?? []) {
+      sireneTipoById.set(Number((s as { id: number }).id), String((s as { tipo?: string }).tipo ?? 'padrao'));
+    }
+  }
+
+  return { kaById, sireneTipoById };
+}
+
+function passaFiltroTipoKanbanAtividade(
+  id: string,
+  filtroTipo: 'todos' | 'padrao' | 'hdm' | undefined,
+  kaById: Map<string, { origem: string; sirene_chamado_id: number | null }>,
+  sireneTipoById: Map<number, string>,
+): boolean {
+  if (filtroTipo !== 'padrao' && filtroTipo !== 'hdm') return true;
+  const ka = kaById.get(id);
+  if (ka?.origem === 'sirene' && ka.sirene_chamado_id != null) {
+    const t = sireneTipoById.get(ka.sirene_chamado_id) ?? 'padrao';
+    if (filtroTipo === 'hdm' ? t !== 'hdm' : t !== 'padrao') return false;
+  }
+  return true;
+}
+
+function topGruposPorCount(map: Map<string, number>, limit: number): AbertosGrupo[] {
+  return [...map.entries()]
+    .map(([nome, count]) => ({ nome, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+}
+
+/**
+ * Atividades não concluídas: agrupamento por time de abertura e por funil.
+ * Funil via `v_atividades_unificadas` (join nativo/legado em kanban_cards→kanbans); sem card_id → "Sirene livre".
+ */
+async function aggregateAbertosDashboard(
+  queryClient: Awaited<ReturnType<typeof createClient>>,
+  filtroTipo?: 'todos' | 'padrao' | 'hdm',
+): Promise<{ abertos_por_time: AbertosGrupo[]; abertos_por_funil: AbertosGrupo[] }> {
+  const { data: rows } = await queryClient
+    .from('v_atividades_unificadas')
+    .select('id, card_id, kanban_nome, time_abertura_nome, atividade_status')
+    .neq('atividade_status', 'concluida');
+
+  if (!rows?.length) {
+    return { abertos_por_time: [], abertos_por_funil: [] };
+  }
+
+  const ids = rows.map((r) => String((r as { id: string }).id)).filter(Boolean);
+  const { kaById, sireneTipoById } = await loadKanbanAtividadesFiltroContext(queryClient, ids);
+
+  const porTime = new Map<string, number>();
+  const porFunil = new Map<string, number>();
+
+  for (const row of rows) {
+    const id = String((row as { id: string }).id);
+    if (!passaFiltroTipoKanbanAtividade(id, filtroTipo, kaById, sireneTipoById)) continue;
+
+    const timeNome = String((row as { time_abertura_nome?: string | null }).time_abertura_nome ?? '').trim();
+    if (timeNome) {
+      porTime.set(timeNome, (porTime.get(timeNome) ?? 0) + 1);
+    }
+
+    const cardId = (row as { card_id?: string | null }).card_id;
+    const funilNome =
+      cardId == null || String(cardId).trim() === ''
+        ? 'Sirene livre'
+        : String((row as { kanban_nome?: string | null }).kanban_nome ?? '').trim() || 'Sem funil';
+    porFunil.set(funilNome, (porFunil.get(funilNome) ?? 0) + 1);
+  }
+
+  return {
+    abertos_por_time: topGruposPorCount(porTime, 8),
+    abertos_por_funil: topGruposPorCount(porFunil, 6),
+  };
+}
+
+function displayNomeRedeFranqueado(rf: {
+  nome_completo?: string | null;
+  n_franquia?: string | null;
+  nome?: string | null;
+  unidade?: string | null;
+}): string {
+  return (
+    String(rf.nome_completo ?? '').trim() ||
+    String(rf.n_franquia ?? '').trim() ||
+    String(rf.nome ?? '').trim() ||
+    String(rf.unidade ?? '').trim() ||
+    'Sem nome'
+  );
+}
+
+/**
+ * Top franqueados com chamados abertos: `kanban_atividades.card_id` → `kanban_cards.rede_franqueado_id` → `rede_franqueados`.
+ * Conta chamados com `status != 'concluido'` (escopo já filtrado por tipo).
+ */
+async function aggregateTopFranqueados(
+  queryClient: Awaited<ReturnType<typeof createClient>>,
+  chamadosAbertos: Array<{ id: number }>,
+): Promise<Array<{ nome: string; count: number }>> {
+  const ids = chamadosAbertos.map((c) => c.id);
+  if (ids.length === 0) return [];
+
+  const chamadoToCardId = new Map<number, string>();
+  const chunk = 200;
+  for (let i = 0; i < ids.length; i += chunk) {
+    const slice = ids.slice(i, i + chunk);
+    const { data: kaRows } = await queryClient
+      .from('kanban_atividades')
+      .select('sirene_chamado_id, card_id')
+      .in('sirene_chamado_id', slice);
+    for (const r of kaRows ?? []) {
+      const cid = Number((r as { sirene_chamado_id?: number | null }).sirene_chamado_id);
+      const cardId = String((r as { card_id?: string | null }).card_id ?? '').trim();
+      if (!Number.isFinite(cid) || !cardId || chamadoToCardId.has(cid)) continue;
+      chamadoToCardId.set(cid, cardId);
+    }
+  }
+
+  const cardIds = [...new Set(chamadoToCardId.values())];
+  const cardToRedeId = new Map<string, string>();
+  for (let i = 0; i < cardIds.length; i += chunk) {
+    const slice = cardIds.slice(i, i + chunk);
+    const { data: cards } = await queryClient
+      .from('kanban_cards')
+      .select('id, rede_franqueado_id')
+      .in('id', slice);
+    for (const card of cards ?? []) {
+      const rid = String((card as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '').trim();
+      if (rid) cardToRedeId.set(String((card as { id: string }).id), rid);
+    }
+  }
+
+  const redeIds = [...new Set(cardToRedeId.values())];
+  const redeNome = new Map<string, string>();
+  if (redeIds.length > 0) {
+    for (let i = 0; i < redeIds.length; i += chunk) {
+      const slice = redeIds.slice(i, i + chunk);
+      const { data: redes } = await queryClient
+        .from('rede_franqueados')
+        .select('id, nome_completo, n_franquia, nome, unidade')
+        .in('id', slice);
+      for (const rf of redes ?? []) {
+        redeNome.set(String((rf as { id: string }).id), displayNomeRedeFranqueado(rf as Parameters<typeof displayNomeRedeFranqueado>[0]));
+      }
+    }
+  }
+
+  const countsByNome = new Map<string, number>();
+  for (const c of chamadosAbertos) {
+    const cardId = chamadoToCardId.get(c.id);
+    if (!cardId) continue;
+    const redeId = cardToRedeId.get(cardId);
+    if (!redeId) continue;
+    const nome = redeNome.get(redeId) ?? 'Sem nome';
+    countsByNome.set(nome, (countsByNome.get(nome) ?? 0) + 1);
+  }
+
+  return topGruposPorCount(countsByNome, 5);
+}
+
+/** Top temas (`sirene_chamados.tema` preenchido) no escopo do filtro de tipo. */
+function aggregateTopTemas(
+  chamados: Array<{ tema?: string | null }>,
+): Array<{ tema: string; count: number }> {
+  const counts = new Map<string, number>();
+  for (const c of chamados) {
+    const tema = String(c.tema ?? '').trim();
+    if (!tema) continue;
+    counts.set(tema, (counts.get(tema) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([tema, count]) => ({ tema, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+}
+
 /** Dados para o dashboard: KPIs, chamados por status, travados, satisfação, minhas tarefas. */
 export async function getDashboardData(
   filtroTipo?: 'todos' | 'padrao' | 'hdm',
@@ -2166,15 +2986,40 @@ export async function getDashboardData(
       emAberto: number;
       emAndamento: number;
       concluidos: number;
-      tempoMedioPrimeiroAtendimento: string;
+      tempoMedioPrimeiroAtendimento: string | null;
+      slaAtrasados: number;
+      slaVenceHoje: number;
+      aguardandoJulgamento: number;
+      aguardando_julgamento_lista: Array<{
+        id: number;
+        numero: number;
+        tema: string;
+        franqueado_nome: string | null;
+        dias_desde_fechamento_bombeiro: number;
+      }>;
+      topicos_por_status: Array<{ status: string; count: number }>;
       porStatus: { status: string; count: number; pct: number }[];
+      por_tipo: { tipo: string; count: number; pct: number }[];
+      por_prioridade_abertos: { prioridade: string; count: number; pct: number }[];
+      chamadosBreakdown: DashboardChamadoBreakdownRow[];
+      atividadesBreakdown: DashboardAtividadeBreakdownRow[];
       satisfacaoPct: number;
+      satisfacao_total: number;
+      satisfacao_aprovados: number;
       chamadosComTrava: number;
       recentesComTrava: Array<{
         id: number;
         numero: number;
         time_abertura: string | null;
         incendio: string;
+        dias_aberto: number;
+      }>;
+      chamadosAtrasados: Array<{
+        id: number;
+        numero: number;
+        time_abertura: string | null;
+        incendio: string;
+        dias_aberto: number;
       }>;
       minhasTarefas: Array<{
         chamadoId: number;
@@ -2183,6 +3028,12 @@ export async function getDashboardData(
         titulo: string;
         status: string;
       }>;
+      por_responsavel: DashboardPessoaMetrica[];
+      por_criador: DashboardPessoaMetrica[];
+      abertos_por_time: AbertosGrupo[];
+      abertos_por_funil: AbertosGrupo[];
+      top_franqueados: Array<{ nome: string; count: number }>;
+      top_temas: Array<{ tema: string; count: number }>;
     }
   | { ok: false; error: string }
 > {
@@ -2208,7 +3059,7 @@ export async function getDashboardData(
   let query = queryClient
     .from('sirene_chamados')
     .select(
-      'id, numero, status, trava, te_trata, data_abertura, data_inicio_atendimento, resolucao_suficiente, incendio, time_abertura, tipo, updated_at',
+      'id, numero, status, trava, te_trata, data_abertura, data_vencimento, data_inicio_atendimento, resolucao_suficiente, incendio, tema, frank_nome, card_id, time_abertura, tipo, updated_at, prioridade',
     );
   if (filtroTipo === 'padrao') query = query.eq('tipo', 'padrao');
   else if (filtroTipo === 'hdm') query = query.eq('tipo', 'hdm');
@@ -2221,20 +3072,30 @@ export async function getDashboardData(
   const emAndamento = list.filter((c) => c.status === 'em_andamento').length;
   const concluidos = list.filter((c) => c.status === 'concluido').length;
 
-  const comPrimeiroAtendimento = list.filter(
-    (c) => c.data_inicio_atendimento != null && c.data_abertura != null,
-  );
-  let tempoMedioPrimeiroAtendimento = '—';
-  if (comPrimeiroAtendimento.length > 0) {
-    const avgMs =
-      comPrimeiroAtendimento.reduce((acc, c) => {
-        const a = new Date(c.data_abertura!).getTime();
-        const b = new Date(c.data_inicio_atendimento!).getTime();
-        return acc + (b - a);
-      }, 0) / comPrimeiroAtendimento.length;
-    const dias = avgMs / (1000 * 60 * 60 * 24);
-    tempoMedioPrimeiroAtendimento = `${dias.toFixed(1).replace('.', ',')}d`;
+  const deltasDiasPrimeiroAtendimento: number[] = [];
+  for (const c of list) {
+    const aberturaRaw = c.data_abertura;
+    const inicioRaw = c.data_inicio_atendimento;
+    if (aberturaRaw == null || inicioRaw == null) continue;
+    const aberturaStr = String(aberturaRaw).trim();
+    const inicioStr = String(inicioRaw).trim();
+    if (!aberturaStr || !inicioStr) continue;
+    const aberturaMs = new Date(aberturaStr).getTime();
+    const inicioMs = new Date(inicioStr).getTime();
+    if (!Number.isFinite(aberturaMs) || !Number.isFinite(inicioMs) || inicioMs <= aberturaMs) {
+      continue;
+    }
+    deltasDiasPrimeiroAtendimento.push((inicioMs - aberturaMs) / (1000 * 60 * 60 * 24));
   }
+  const tempoMedioPrimeiroAtendimento: string | null =
+    deltasDiasPrimeiroAtendimento.length > 0
+      ? `${(
+          deltasDiasPrimeiroAtendimento.reduce((acc, d) => acc + d, 0) /
+          deltasDiasPrimeiroAtendimento.length
+        )
+          .toFixed(1)
+          .replace('.', ',')}d`
+      : null;
 
   const comResolucao = list.filter((c) => c.resolucao_suficiente != null);
   const resolvidosPrimeira = comResolucao.filter((c) => c.resolucao_suficiente === true).length;
@@ -2246,12 +3107,20 @@ export async function getDashboardData(
   const recentesComTrava = comTrava
     .sort((a, b) => new Date(b.updated_at!).getTime() - new Date(a.updated_at!).getTime())
     .slice(0, 5)
-    .map((c) => ({
-      id: c.id,
-      numero: c.numero,
-      time_abertura: c.time_abertura,
-      incendio: c.incendio,
-    }));
+    .map((c) => mapChamadoListaDashboard(c));
+
+  const chamadosAtrasados = list
+    .filter((c) => {
+      if (c.status === 'concluido') return false;
+      return slaStatusFromDate((c as { data_vencimento?: string | null }).data_vencimento) === 'atrasado';
+    })
+    .sort((a, b) => {
+      const va = new Date(String(a.data_vencimento).trim()).getTime();
+      const vb = new Date(String(b.data_vencimento).trim()).getTime();
+      return va - vb;
+    })
+    .slice(0, 5)
+    .map((c) => mapChamadoListaDashboard(c));
 
   const porStatus = [
     { status: 'nao_iniciado', count: emAberto, pct: total > 0 ? (emAberto / total) * 100 : 0 },
@@ -2262,6 +3131,92 @@ export async function getDashboardData(
     },
     { status: 'concluido', count: concluidos, pct: total > 0 ? (concluidos / total) * 100 : 0 },
   ];
+
+  const filteredChamadoIds = list.map((c) => c.id);
+  const comTravaByChamadoId = new Map<number, boolean>();
+  for (const c of list) {
+    comTravaByChamadoId.set(
+      c.id,
+      c.trava === true || (c as { te_trata?: boolean | null }).te_trata === true,
+    );
+  }
+
+  const atrasadoByChamadoId = new Map<number, boolean>();
+  const atividadesBreakdown: DashboardAtividadeBreakdownRow[] = [];
+
+  if (filteredChamadoIds.length > 0) {
+    const chunk = 200;
+    for (let i = 0; i < filteredChamadoIds.length; i += chunk) {
+      const slice = filteredChamadoIds.slice(i, i + chunk);
+      const { data: atividadesRows } = await queryClient
+        .from('kanban_atividades')
+        .select('tipo, sirene_chamado_id, data_vencimento')
+        .in('sirene_chamado_id', slice);
+
+      for (const row of atividadesRows ?? []) {
+        const cid = Number((row as { sirene_chamado_id?: number | null }).sirene_chamado_id);
+        if (!Number.isFinite(cid)) continue;
+        const sla = slaStatusFromDate((row as { data_vencimento?: string | null }).data_vencimento);
+        const atrasado = sla === 'atrasado';
+        if (atrasado) atrasadoByChamadoId.set(cid, true);
+        atividadesBreakdown.push({
+          tipo: normalizeTipoAtividade((row as { tipo?: string | null }).tipo),
+          comTrava: comTravaByChamadoId.get(cid) ?? false,
+          atrasado,
+        });
+      }
+    }
+  }
+
+  const chamadosBreakdown: DashboardChamadoBreakdownRow[] = list.map((c) => ({
+    status: String(c.status ?? 'nao_iniciado'),
+    prioridade: normalizePrioridade((c as { prioridade?: string | null }).prioridade),
+    comTrava: comTravaByChamadoId.get(c.id) ?? false,
+    atrasado: atrasadoByChamadoId.get(c.id) ?? false,
+  }));
+
+  const por_tipo = aggregatePorTipoFromBreakdown(atividadesBreakdown);
+  const por_prioridade_abertos = aggregatePorPrioridadeAbertosFromBreakdown(chamadosBreakdown);
+
+  const naoConcluidoIds = list.filter((c) => c.status !== 'concluido').map((c) => c.id);
+  const allowedChamadoIds = new Set(filteredChamadoIds);
+  const [slaAtrasados, slaVenceHoje, topicosPorChamado, topicos_por_status] = await Promise.all([
+    countSlaAtividades(queryClient, 'atrasado', filtroTipo),
+    countSlaAtividades(queryClient, 'vence_hoje', filtroTipo),
+    mapTopicosStatusPorChamado(queryClient, naoConcluidoIds),
+    fetchTopicosPorStatus(queryClient, allowedChamadoIds),
+  ]);
+  const aguardandoJulgamentoIds = naoConcluidoIds.filter((id) =>
+    todosTopicosFechados(topicosPorChamado.get(id) ?? []),
+  );
+  const aguardandoJulgamento = aguardandoJulgamentoIds.length;
+
+  const aguardandoChamadosOrdenados = list
+    .filter((c) => aguardandoJulgamentoIds.includes(c.id))
+    .sort(
+      (a, b) =>
+        new Date(String(a.updated_at ?? 0)).getTime() - new Date(String(b.updated_at ?? 0)).getTime(),
+    )
+    .slice(0, 5);
+  const franqueadoPorChamado = await resolverFranqueadoNomesPorChamado(
+    queryClient,
+    aguardandoChamadosOrdenados.map((c) => ({
+      id: c.id,
+      frank_nome: (c as { frank_nome?: string | null }).frank_nome,
+      card_id: (c as { card_id?: string | null }).card_id,
+    })),
+  );
+  const aguardando_julgamento_lista = aguardandoChamadosOrdenados.map((c) => {
+    const temaRaw = String((c as { tema?: string | null }).tema ?? '').trim();
+    const incendioRaw = String(c.incendio ?? '').trim();
+    return {
+      id: c.id,
+      numero: c.numero,
+      tema: temaRaw || incendioRaw,
+      franqueado_nome: franqueadoPorChamado.get(c.id) ?? null,
+      dias_desde_fechamento_bombeiro: diasDesdeFechamentoBombeiro(c.updated_at),
+    };
+  });
 
   const minhasTarefas: Array<{
     chamadoId: number;
@@ -2340,17 +3295,48 @@ export async function getDashboardData(
     }
   }
 
+  const aguardandoJulgamentoSet = new Set(aguardandoJulgamentoIds);
+  const chamadosNaoConcluidos = list.filter((c) => c.status !== 'concluido');
+  const top_temas = aggregateTopTemas(list);
+  const [por_responsavel, por_criador, abertosAgg, top_franqueados] = await Promise.all([
+    aggregatePorResponsavel(queryClient, allowedChamadoIds, comTravaByChamadoId),
+    aggregatePorCriador(queryClient, allowedChamadoIds, aguardandoJulgamentoSet),
+    aggregateAbertosDashboard(queryClient, filtroTipo),
+    aggregateTopFranqueados(
+      queryClient,
+      chamadosNaoConcluidos.map((c) => ({ id: c.id })),
+    ),
+  ]);
+
   return {
     ok: true,
     emAberto,
     emAndamento,
     concluidos,
     tempoMedioPrimeiroAtendimento,
+    slaAtrasados,
+    slaVenceHoje,
+    aguardandoJulgamento,
+    aguardando_julgamento_lista,
+    topicos_por_status,
     porStatus,
+    por_tipo,
+    por_prioridade_abertos,
+    chamadosBreakdown,
+    atividadesBreakdown,
     satisfacaoPct,
+    satisfacao_total: comResolucao.length,
+    satisfacao_aprovados: resolvidosPrimeira,
     chamadosComTrava: comTrava.length,
     recentesComTrava,
+    chamadosAtrasados,
     minhasTarefas: minhasTarefas.slice(0, 10),
+    por_responsavel,
+    por_criador,
+    abertos_por_time: abertosAgg.abertos_por_time,
+    abertos_por_funil: abertosAgg.abertos_por_funil,
+    top_franqueados,
+    top_temas,
   };
 }
 
