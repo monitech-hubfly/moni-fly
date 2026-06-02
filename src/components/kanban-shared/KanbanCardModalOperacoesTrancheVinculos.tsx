@@ -233,7 +233,7 @@ export function KanbanCardModalOperacoesTrancheVinculoForm({
         return;
       }
       setConcluidoEm(new Date().toISOString());
-      setOkMsg('Vínculo concluído. Card Crédito Obra movido para a próxima fase.');
+      setOkMsg(`Vínculo concluído. Card Crédito Obra movido para "${cfg.faseDestinoLabel}".`);
       onConcluido();
     } finally {
       setConcluindo(false);
@@ -254,8 +254,7 @@ export function KanbanCardModalOperacoesTrancheVinculoForm({
       <div>
         <h4 className="text-sm font-semibold text-stone-900">{cfg.nome}</h4>
         <p className="mt-1 text-xs text-stone-600">
-          Ao concluir, o card filho no Funil Crédito Obra sai de{' '}
-          <strong className="font-medium">{cfg.faseOrigemLabel}</strong> e vai para{' '}
+          Ao concluir, o card filho no Funil Crédito Obra será movido para{' '}
           <strong className="font-medium">{cfg.faseDestinoLabel}</strong>.
         </p>
         {filhoFaseNome ? (

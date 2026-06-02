@@ -749,14 +749,54 @@ export async function dispararEsteiraManualDoCard(
     return { ok: false, error: `Serviço indisponível: ${msg}` };
   }
 
-  const { data: paiRow, error: errPai } = await db
+  let { data: paiRow, error: errPai } = await db
     .from('kanban_cards')
     .select('id, titulo, kanban_id, projeto_id, rede_franqueado_id, fase_id')
     .eq('id', paiId)
     .maybeSingle();
 
   if (errPai) return { ok: false, error: errPai.message };
-  if (!paiRow?.id) return { ok: false, error: 'Card não encontrado.' };
+
+  if (!paiRow?.id) {
+    const { data: vLeg, error: vErr } = await db
+      .from('v_processo_como_kanban_cards')
+      .select('id, kanban_id, fase_id, titulo, responsavel_id')
+      .eq('id', paiId)
+      .maybeSingle();
+
+    if (vErr) return { ok: false, error: vErr.message };
+    if (!vLeg?.id) return { ok: false, error: 'Card não encontrado.' };
+
+    const kid = String((vLeg as { kanban_id?: string | null }).kanban_id ?? '').trim();
+    const fid = String((vLeg as { fase_id?: string | null }).fase_id ?? '').trim();
+    const franq = String((vLeg as { responsavel_id?: string | null }).responsavel_id ?? '').trim();
+    if (!kid || !fid || !franq) {
+      return { ok: false, error: 'Dados incompletos do processo (kanban/fase/franqueado).' };
+    }
+
+    const { data: shadowExists } = await db.from('kanban_cards').select('id').eq('id', paiId).maybeSingle();
+    if (!shadowExists?.id) {
+      const { error: insErr } = await db.from('kanban_cards').insert({
+        id: paiId,
+        kanban_id: kid,
+        fase_id: fid,
+        franqueado_id: franq,
+        titulo: String((vLeg as { titulo?: string | null }).titulo ?? '').trim() || 'Sem título',
+        status: 'ativo',
+        concluido: false,
+      } as never);
+      if (insErr) return { ok: false, error: insErr.message };
+    }
+
+    const refetch = await db
+      .from('kanban_cards')
+      .select('id, titulo, kanban_id, projeto_id, rede_franqueado_id, fase_id')
+      .eq('id', paiId)
+      .maybeSingle();
+    if (refetch.error) return { ok: false, error: refetch.error.message };
+    paiRow = refetch.data;
+    if (!paiRow?.id) return { ok: false, error: 'Card não encontrado.' };
+  }
 
   const pai = paiRow as {
     id: string;

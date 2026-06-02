@@ -9,6 +9,7 @@ import {
   OPERACOES_TRANCHE_VINCULOS,
   type TrancheVinculoIndex,
 } from '@/lib/operacoes/tranche-vinculos-config';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 export type TrancheVinculoRow = {
@@ -116,17 +117,8 @@ export async function listarTrancheVinculosOperacoes(
   const cid = String(operacoesCardId ?? '').trim();
   if (!cid) return { ok: false, error: 'Card inválido.' };
 
-  const { data: card, error: cardErr } = await supabase
-    .from('kanban_cards')
-    .select('id, kanban_id')
-    .eq('id', cid)
-    .maybeSingle();
-
-  if (cardErr) return { ok: false, error: cardErr.message };
-  if (!card?.id) return { ok: false, error: 'Card não encontrado.' };
-  if (String(card.kanban_id ?? '') !== KANBAN_IDS.OPERACOES) {
-    return { ok: false, error: 'Disponível apenas no Funil Operações.' };
-  }
+  const cardOk = await resolverOperacoesCard(supabase, cid);
+  if (!cardOk.ok) return cardOk;
 
   const { data: rows, error: rowsErr } = await supabase
     .from('kanban_operacoes_tranche_vinculos')
@@ -175,22 +167,117 @@ function normalizarUrl(value: string | null | undefined): string | null {
   return s || null;
 }
 
-async function validarCardOperacoes(
+type LegadoOperacoesMeta = {
+  id: string;
+  kanban_id: string;
+  fase_id: string;
+  titulo: string | null;
+  responsavel_id: string;
+};
+
+type OperacoesCardResolvido = {
+  cardId: string;
+  origem: 'nativo' | 'legado';
+  legadoMeta?: LegadoOperacoesMeta;
+};
+
+async function resolverOperacoesCard(
   supabase: Awaited<ReturnType<typeof createClient>>,
   operacoesCardId: string,
-): Promise<ActionResult & { cardId?: string }> {
+): Promise<{ ok: true; card: OperacoesCardResolvido } | { ok: false; error: string }> {
+  const cid = String(operacoesCardId ?? '').trim();
+  if (!cid) return { ok: false, error: 'Card inválido.' };
+
   const { data: card, error } = await supabase
     .from('kanban_cards')
     .select('id, kanban_id')
-    .eq('id', operacoesCardId)
+    .eq('id', cid)
     .maybeSingle();
 
   if (error) return { ok: false, error: error.message };
-  if (!card?.id) return { ok: false, error: 'Card não encontrado.' };
-  if (String(card.kanban_id ?? '') !== KANBAN_IDS.OPERACOES) {
+  if (card?.id) {
+    if (String(card.kanban_id ?? '') !== KANBAN_IDS.OPERACOES) {
+      return { ok: false, error: 'Disponível apenas no Funil Operações.' };
+    }
+    return { ok: true, card: { cardId: String(card.id), origem: 'nativo' } };
+  }
+
+  const { data: vLeg, error: vErr } = await supabase
+    .from('v_processo_como_kanban_cards')
+    .select('id, kanban_id, fase_id, titulo, responsavel_id')
+    .eq('id', cid)
+    .maybeSingle();
+
+  if (vErr) return { ok: false, error: vErr.message };
+  if (!vLeg?.id) return { ok: false, error: 'Card não encontrado.' };
+
+  const kid = String((vLeg as { kanban_id?: string | null }).kanban_id ?? '').trim();
+  if (kid !== KANBAN_IDS.OPERACOES) {
     return { ok: false, error: 'Disponível apenas no Funil Operações.' };
   }
-  return { ok: true, cardId: String(card.id) };
+
+  const fid = String((vLeg as { fase_id?: string | null }).fase_id ?? '').trim();
+  const franq = String((vLeg as { responsavel_id?: string | null }).responsavel_id ?? '').trim();
+  if (!fid || !franq) {
+    return { ok: false, error: 'Dados incompletos do processo (fase/franqueado).' };
+  }
+
+  return {
+    ok: true,
+    card: {
+      cardId: cid,
+      origem: 'legado',
+      legadoMeta: {
+        id: cid,
+        kanban_id: kid,
+        fase_id: fid,
+        titulo: (vLeg as { titulo?: string | null }).titulo ?? null,
+        responsavel_id: franq,
+      },
+    },
+  };
+}
+
+async function garantirShadowKanbanCardLegado(meta: LegadoOperacoesMeta): Promise<ActionResult> {
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: `Serviço indisponível: ${msg}` };
+  }
+
+  const { data: existing } = await admin.from('kanban_cards').select('id').eq('id', meta.id).maybeSingle();
+  if (existing?.id) return { ok: true };
+
+  const { error } = await admin.from('kanban_cards').insert({
+    id: meta.id,
+    kanban_id: meta.kanban_id,
+    fase_id: meta.fase_id,
+    franqueado_id: meta.responsavel_id,
+    titulo: String(meta.titulo ?? '').trim() || 'Sem título',
+    status: 'ativo',
+    concluido: false,
+  } as never);
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+async function validarCardOperacoes(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  operacoesCardId: string,
+  options?: { garantirShadowLegado?: boolean },
+): Promise<ActionResult & OperacoesCardResolvido> {
+  const resolved = await resolverOperacoesCard(supabase, operacoesCardId);
+  if (!resolved.ok) return resolved;
+
+  if (resolved.card.origem === 'legado' && options?.garantirShadowLegado && resolved.card.legadoMeta) {
+    const shadow = await garantirShadowKanbanCardLegado(resolved.card.legadoMeta);
+    if (!shadow.ok) return shadow;
+  }
+
+  return { ok: true, ...resolved.card };
 }
 
 /** Salva rascunho dos campos sem concluir o vínculo. */
@@ -215,12 +302,12 @@ export async function salvarTrancheVinculoOperacoes(input: {
   const idx = Number(input.trancheIndex);
   if (!cid || !indiceTrancheValido(idx)) return { ok: false, error: 'Dados inválidos.' };
 
-  const cardOk = await validarCardOperacoes(supabase, cid);
+  const cardOk = await validarCardOperacoes(supabase, cid, { garantirShadowLegado: true });
   if (!cardOk.ok) return cardOk;
 
   const pct = normalizarPct(input.pct_fisico_financeiro);
   const patch = {
-    operacoes_card_id: cid,
+    operacoes_card_id: cardOk.cardId,
     tranche_index: idx,
     pct_fisico_financeiro: pct,
     nfts_url: normalizarUrl(input.nfts_url),
@@ -238,7 +325,7 @@ export async function salvarTrancheVinculoOperacoes(input: {
   return { ok: true };
 }
 
-/** Persiste dados, valida fase do filho Crédito Obra e move para a próxima fase de tranche. */
+/** Persiste dados e move o card filho Crédito Obra para a fase de destino da tranche. */
 export async function concluirTrancheVinculoOperacoes(input: {
   operacoesCardId: string;
   trancheIndex: number;
@@ -263,13 +350,15 @@ export async function concluirTrancheVinculoOperacoes(input: {
   const cfg = configTrancheVinculo(idx);
   if (!cfg) return { ok: false, error: 'Vínculo inválido.' };
 
-  const cardOk = await validarCardOperacoes(supabase, cid);
+  const cardOk = await validarCardOperacoes(supabase, cid, { garantirShadowLegado: true });
   if (!cardOk.ok) return cardOk;
+
+  const operacoesId = cardOk.cardId;
 
   const { data: existente } = await supabase
     .from('kanban_operacoes_tranche_vinculos')
     .select('concluido_em')
-    .eq('operacoes_card_id', cid)
+    .eq('operacoes_card_id', operacoesId)
     .eq('tranche_index', idx)
     .maybeSingle();
 
@@ -285,18 +374,11 @@ export async function concluirTrancheVinculoOperacoes(input: {
   if (!nfts) return { ok: false, error: 'Informe o link das NFs.' };
   if (!evidencias) return { ok: false, error: 'Informe o link de evidências/fotos da obra.' };
 
-  const filho = await resolverFilhoCreditoObra(supabase, cid);
+  const filho = await resolverFilhoCreditoObra(supabase, operacoesId);
   if (!filho) {
     return {
       ok: false,
       error: 'Não há card filho no Funil Crédito Obra vinculado a este card de Operações.',
-    };
-  }
-
-  if (filho.faseSlug !== cfg.faseOrigemSlug) {
-    return {
-      ok: false,
-      error: `O card Crédito Obra deve estar na fase "${cfg.faseOrigemLabel}" (atual: ${filho.faseNome}).`,
     };
   }
 
@@ -308,7 +390,7 @@ export async function concluirTrancheVinculoOperacoes(input: {
   const now = new Date().toISOString();
   const { error: upsertErr } = await supabase.from('kanban_operacoes_tranche_vinculos').upsert(
     {
-      operacoes_card_id: cid,
+      operacoes_card_id: operacoesId,
       tranche_index: idx,
       pct_fisico_financeiro: pct,
       nfts_url: nfts,
@@ -322,24 +404,28 @@ export async function concluirTrancheVinculoOperacoes(input: {
 
   if (upsertErr) return { ok: false, error: upsertErr.message };
 
-  const moveRes = await moverCardParaFase({
-    cardId: filho.id,
-    novaFaseId: faseDestinoId,
-    basePath: '/funil-credito-obra',
-    kanbanNome: 'Funil Crédito Obra',
-  });
+  const jaNaFaseDestino = filho.faseSlug === cfg.faseDestinoSlug;
 
-  if (!moveRes.ok) {
-    await supabase
-      .from('kanban_operacoes_tranche_vinculos')
-      .update({ concluido_em: null, concluido_por: null, updated_at: now } as never)
-      .eq('operacoes_card_id', cid)
-      .eq('tranche_index', idx);
+  if (!jaNaFaseDestino) {
+    const moveRes = await moverCardParaFase({
+      cardId: filho.id,
+      novaFaseId: faseDestinoId,
+      basePath: '/funil-credito-obra',
+      kanbanNome: 'Funil Crédito Obra',
+    });
 
-    return {
-      ok: false,
-      error: moveRes.error ?? 'Não foi possível mover o card Crédito Obra.',
-    };
+    if (!moveRes.ok) {
+      await supabase
+        .from('kanban_operacoes_tranche_vinculos')
+        .update({ concluido_em: null, concluido_por: null, updated_at: now } as never)
+        .eq('operacoes_card_id', operacoesId)
+        .eq('tranche_index', idx);
+
+      return {
+        ok: false,
+        error: moveRes.error ?? 'Não foi possível mover o card Crédito Obra.',
+      };
+    }
   }
 
   revalidatePath(input.basePath?.trim() || '/operacoes');
@@ -349,7 +435,6 @@ export async function concluirTrancheVinculoOperacoes(input: {
 
 /** Slugs usados nos testes / documentação. */
 export const TRANCHE_VINCULO_SLUGS_REF = {
-  origem: OPERACOES_TRANCHE_VINCULOS.map((v) => v.faseOrigemSlug),
   destino: OPERACOES_TRANCHE_VINCULOS.map((v) => v.faseDestinoSlug),
   creditoObraKanban: KANBAN_IDS.CREDITO_OBRA,
   documentacaoAlvara: FASE_SLUGS.CO_DOCUMENTACAO_ALVARA,
