@@ -1,0 +1,101 @@
+---
+description: Prompts de implementação do Funil Crédito Obra (slugs, SLA documentação, rename)
+globs: src/lib/constants/kanban-ids.ts,src/lib/actions/kanban-bastoes.ts,src/app/funil-credito-obra/**,src/lib/kanban/kanban-card-sla.ts,src/lib/actions/kanban-credito-obra-docs.ts,supabase/migrations/*credito*
+alwaysApply: false
+---
+
+# Funil Crédito Obra — prompts de referência
+
+Kanban UUID: `6463af1d-850d-4958-b74c-404f8d668e21` (`KANBAN_IDS.CREDITO_OBRA`).
+Rota: `/funil-credito-obra`. Nome: **Funil Crédito Obra**.
+
+---
+
+## PROMPT 1 — Renomear Funil Crédito → Funil Crédito Obra (frontend)
+
+1. Em `src/lib/constants/kanban-ids.ts`: chave `CREDITO_OBRA`, nome `Funil Crédito Obra` em `KANBAN_ID_BY_NOME`.
+2. Em `src/components/kanban-shared/types.ts`: `KanbanNomeDisplay` → `'Funil Crédito Obra'`.
+3. Rota: pasta `src/app/funil-credito-obra/` (não `painel-credito`).
+4. Atualizar: `middleware`, `access-matrix`, `release-scope`, `app-sticky-route-title`, `kanban-card-href`, `rota-card-origem`, sidebar, revalidates.
+5. **Não** alterar Funil Crédito Terreno nem colunas legadas `credito_terreno` no painel Step 4.
+
+---
+
+## PROMPT 2 — Registrar slugs das fases em `kanban-ids.ts`
+
+O funil teve as fases substituídas no banco. Registrar em `FASE_SLUGS` (ordem 1–25):
+
+```
+  ordem 1  | slug: co_novo_projeto               | 'Novo Projeto'
+  ordem 2  | slug: co_envio_cashme               | '1º Envio para CASHME'
+  ordem 3  | slug: co_outro_parceiro             | 'Procurar Outro Parceiro'
+  ordem 4  | slug: co_documentacao_alvara        | 'Documentação Alvará e Terreno SPE'
+  ordem 5  | slug: co_validacao_contrato         | 'Aguardando Validação do Contrato'
+  ordem 6  | slug: co_contrato_assinaturas       | 'Contrato para Assinaturas das 3 Partes'
+  ordem 7  | slug: co_followup_cartorio          | 'Follow-up Cartório'
+  ordem 8  | slug: co_aguardando_1a_tranche      | 'Aguardando 1ª Tranche'
+  ordem 9  | slug: co_solicitacao_tranche        | 'Necessidade de 2ª Tranche'
+  ordem 10 | slug: co_sharepoint_cashme          | '2ª T: SharePoint CASHME + Email do Franqueado'
+  ordem 11 | slug: co_acompanhamento_tranche     | '2ª T: Acompanhamento da Liberação'
+  ordem 12 | slug: co_necessidade_3a_tranche     | 'Necessidade de 3ª Tranche'
+  ordem 13 | slug: co_sharepoint_3a              | '3ª T: SharePoint CASHME + Email do Franqueado'
+  ordem 14 | slug: co_acompanhamento_3a          | '3ª T: Acompanhamento da Liberação'
+  ordem 15 | slug: co_necessidade_4a_tranche     | 'Necessidade de 4ª Tranche'
+  ordem 16 | slug: co_sharepoint_4a              | '4ª T: SharePoint CASHME + Email do Franqueado'
+  ordem 17 | slug: co_acompanhamento_4a          | '4ª T: Acompanhamento da Liberação'
+  ordem 18 | slug: co_necessidade_5a_tranche     | 'Necessidade de 5ª Tranche'
+  ordem 19 | slug: co_sharepoint_5a              | '5ª T: SharePoint CASHME + Email do Franqueado'
+  ordem 20 | slug: co_acompanhamento_5a          | '5ª T: Acompanhamento da Liberação'
+  ordem 21 | slug: co_necessidade_6a_tranche     | 'Necessidade de 6ª Tranche'
+  ordem 22 | slug: co_sharepoint_6a              | '6ª T: SharePoint CASHME + Email do Franqueado'
+  ordem 23 | slug: co_acompanhamento_6a          | '6ª T: Acompanhamento da Liberação'
+  ordem 24 | slug: credito_obra_aprovado         | 'Obra Aprovada'             ← terminal
+  ordem 25 | slug: credito_obra_reprovado        | 'Obra Reprovada'            ← terminal
+```
+
+**Removidos (obsoletos):** `credito_terreno`, `credito_obra` (fase antiga), `credito_terreno_aprovado`, `credito_terreno_reprovado`.
+
+**Constantes sugeridas** (prefixo `CO_` + sufixo em UPPER_SNAKE):
+
+| Constante | Slug |
+|-----------|------|
+| `CO_NOVO_PROJETO` | `co_novo_projeto` |
+| `CO_ENVIO_CASHME` | `co_envio_cashme` |
+| `CO_OUTRO_PARCEIRO` | `co_outro_parceiro` |
+| `CO_DOCUMENTACAO_ALVARA` | `co_documentacao_alvara` |
+| `CO_VALIDACAO_CONTRATO` | `co_validacao_contrato` |
+| `CO_CONTRATO_ASSINATURAS` | `co_contrato_assinaturas` |
+| `CO_FOLLOWUP_CARTORIO` | `co_followup_cartorio` |
+| `CO_AGUARDANDO_1A_TRANCHE` | `co_aguardando_1a_tranche` |
+| `CO_SOLICITACAO_TRANCHE` | `co_solicitacao_tranche` |
+| `CO_SHAREPOINT_CASHME` | `co_sharepoint_cashme` |
+| `CO_ACOMPANHAMENTO_TRANCHE` | `co_acompanhamento_tranche` |
+| `CO_NECESSIDADE_3A_TRANCHE` | `co_necessidade_3a_tranche` |
+| `CO_SHAREPOINT_3A` | `co_sharepoint_3a` |
+| `CO_ACOMPANHAMENTO_3A` | `co_acompanhamento_3a` |
+| `CO_NECESSIDADE_4A_TRANCHE` | `co_necessidade_4a_tranche` |
+| `CO_SHAREPOINT_4A` | `co_sharepoint_4a` |
+| `CO_ACOMPANHAMENTO_4A` | `co_acompanhamento_4a` |
+| `CO_NECESSIDADE_5A_TRANCHE` | `co_necessidade_5a_tranche` |
+| `CO_SHAREPOINT_5A` | `co_sharepoint_5a` |
+| `CO_ACOMPANHAMENTO_5A` | `co_acompanhamento_5a` |
+| `CO_NECESSIDADE_6A_TRANCHE` | `co_necessidade_6a_tranche` |
+| `CO_SHAREPOINT_6A` | `co_sharepoint_6a` |
+| `CO_ACOMPANHAMENTO_6A` | `co_acompanhamento_6a` |
+| `CREDITO_OBRA_APROVADO` | `credito_obra_aprovado` |
+| `CREDITO_OBRA_REPROVADO` | `credito_obra_reprovado` |
+
+**Bastões de ida** (já no código): destino inicial `CO_NOVO_PROJETO` (`kanban-bastoes.ts`).
+
+**Bastões de volta / desfecho:** `CO_OUTRO_PARCEIRO`, `CREDITO_OBRA_APROVADO`, `CREDITO_OBRA_REPROVADO` → flag `credito_obra_ok` no card pai.
+
+**`FASE_IDS`:** não atualizar automaticamente — conferir UUIDs dos terminais no PROD (`credito_obra_aprovado`, `credito_obra_reprovado`).
+
+---
+
+## PROMPT 3 — Tag "Aguardando Documentação" (`co_documentacao_alvara`)
+
+- Migration `229_kanban_credito_obra_documentacao_sla.sql`: `alvara_url`, `docs_terreno_url`, `sla_iniciado_em` em `kanban_cards`.
+- Enquanto faltar URL: tag `Aguardando Documentação` (`moni-tag-atencao`), SLA pausado.
+- Ambos preenchidos: `sla_iniciado_em = now()`, SLA conta a partir daí.
+- `src/lib/kanban/kanban-card-sla.ts`, `kanban-credito-obra-docs.ts`, hook em `moverCardParaFase`, UI no modal/coluna.
