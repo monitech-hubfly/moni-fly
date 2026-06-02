@@ -12,7 +12,7 @@ export default async function SirenePericiasPage() {
   const periciasPlanejamento = r2.ok ? r2.pericias : [];
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8">
+    <main className="mx-auto w-full min-w-0 max-w-[1600px] px-6 py-8">
       <h1 className="text-2xl font-bold text-white">Perícias (Caneta Verde)</h1>
       <p className="mt-1 text-stone-400">
         Vincule chamados (com tema e mapeamento preenchidos) ao planejamento de perícias. Filtre e

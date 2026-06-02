@@ -38,16 +38,7 @@ type PessoaMetrica = {
   com_trava?: number;
   sem_julgamento?: number;
 };
-type Tarefa = {
-  chamadoId: number;
-  numero: number;
-  incendio: string;
-  titulo: string;
-  status: string;
-};
-
 type BreakdownTab = 'todos' | 'com_trava' | 'atrasados';
-type TravaListaTab = 'trava' | 'atrasados' | 'ambos';
 
 type Props = {
   emAberto: number;
@@ -70,7 +61,6 @@ type Props = {
   chamadosAtrasados: ChamadoListaItem[];
   aguardando_julgamento_lista: AguardandoJulgamentoItem[];
   topicos_por_status: TopicoPorStatus[];
-  minhasTarefas: Tarefa[];
   por_responsavel: PessoaMetrica[];
   por_criador: PessoaMetrica[];
   abertos_por_time: AbertosGrupo[];
@@ -158,12 +148,6 @@ function pillDiasAbertoClass(dias: number): string {
   if (dias >= 3) return 'bg-amber-100 text-amber-700';
   return 'bg-emerald-100 text-emerald-700';
 }
-
-const TRAVA_LISTA_TABS: { key: TravaListaTab; label: string }[] = [
-  { key: 'trava', label: 'Com trava' },
-  { key: 'atrasados', label: 'Atrasados' },
-  { key: 'ambos', label: 'Ambos' },
-];
 
 function MetricLegend({ tertiaryLabel }: { tertiaryLabel: string }) {
   return (
@@ -300,40 +284,41 @@ function HorizontalBars<T extends { count: number; pct: number }>({
   );
 }
 
-function AbertosGrupoCard({
-  titulo,
-  items,
-  barClassName,
-}: {
-  titulo: string;
-  items: Array<{ nome: string; count: number }>;
-  barClassName: string;
-}) {
-  const max = Math.max(...items.map((i) => i.count), 1);
+function AbertosLegend() {
+  return (
+    <div className="mb-3 flex flex-wrap gap-3 text-xs text-[color:var(--moni-text-tertiary)]">
+      <span className="inline-flex items-center gap-1.5">
+        <span className="rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-800">0</span>
+        Abertos
+      </span>
+    </div>
+  );
+}
+
+function AbertosGrupoListCard({ titulo, items }: { titulo: string; items: AbertosGrupo[] }) {
   return (
     <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-5">
       <h2 className="text-lg font-semibold text-[color:var(--moni-text-primary)]">{titulo}</h2>
-      {items.length === 0 ? (
-        <p className="mt-4 text-sm text-[color:var(--moni-text-tertiary)]">Nenhum</p>
-      ) : (
-        <ul className="mt-4 space-y-3">
-          {items.map((item) => (
-            <li key={item.nome}>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-[color:var(--moni-text-secondary)]">
-                  {item.nome}: {item.count}
-                </span>
-              </div>
-              <div className="mt-1 h-2 overflow-hidden rounded-full bg-[var(--moni-surface-200)]">
-                <div
-                  className={`h-full rounded-full ${barClassName}`}
-                  style={{ width: `${Math.min(100, (item.count / max) * 100)}%` }}
-                />
-              </div>
+      <AbertosLegend />
+      <ul className="space-y-2">
+        {items.length === 0 ? (
+          <li className="text-sm text-[color:var(--moni-text-tertiary)]">Nenhum dado no escopo</li>
+        ) : (
+          items.map((item) => (
+            <li
+              key={item.nome}
+              className="flex items-center justify-between gap-3 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-3 py-2"
+            >
+              <span className="truncate text-sm font-medium text-[color:var(--moni-text-secondary)]">
+                {item.nome}
+              </span>
+              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                {item.count}
+              </span>
             </li>
-          ))}
-        </ul>
-      )}
+          ))
+        )}
+      </ul>
     </div>
   );
 }
@@ -412,7 +397,6 @@ export function DashboardSirene({
   chamadosAtrasados,
   aguardando_julgamento_lista,
   topicos_por_status,
-  minhasTarefas,
   por_responsavel,
   por_criador,
   abertos_por_time,
@@ -424,18 +408,12 @@ export function DashboardSirene({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [breakdownTab, setBreakdownTab] = useState<BreakdownTab>('todos');
-  const [travaListaTab, setTravaListaTab] = useState<TravaListaTab>('trava');
+  const [showAtrasados, setShowAtrasados] = useState(false);
 
-  const listaTravaCard = useMemo(() => {
-    if (travaListaTab === 'trava') return recentesComTrava;
-    if (travaListaTab === 'atrasados') return chamadosAtrasados;
-    const byId = new Map<number, ChamadoListaItem>();
-    for (const c of recentesComTrava) byId.set(c.id, c);
-    for (const c of chamadosAtrasados) {
-      if (!byId.has(c.id)) byId.set(c.id, c);
-    }
-    return [...byId.values()].sort((a, b) => b.dias_aberto - a.dias_aberto);
-  }, [travaListaTab, recentesComTrava, chamadosAtrasados]);
+  const listaTravaCard = useMemo(
+    () => (showAtrasados ? chamadosAtrasados : recentesComTrava),
+    [showAtrasados, recentesComTrava, chamadosAtrasados],
+  );
 
   const filteredChamados = useMemo(
     () => filterByTab(chamadosBreakdown, breakdownTab),
@@ -530,8 +508,8 @@ export function DashboardSirene({
         </div>
       </div>
 
-      {/* Duas colunas: breakdowns | Chamados com trava */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+      {/* Duas colunas: breakdowns | lateral (trava, julgamento, tópicos) */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(380px,7fr)]">
         <div className="space-y-6 rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-[color:var(--moni-text-primary)]">Chamados por status</h2>
@@ -595,20 +573,17 @@ export function DashboardSirene({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-[color:var(--moni-text-primary)]">Chamados com trava</h2>
             <div className="flex rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-0.5">
-              {TRAVA_LISTA_TABS.map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setTravaListaTab(tab.key)}
-                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                    travaListaTab === tab.key
-                      ? 'bg-[var(--moni-surface-0)] text-[color:var(--moni-text-primary)] shadow-sm'
-                      : 'text-[color:var(--moni-text-tertiary)] hover:text-[color:var(--moni-text-secondary)]'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+              <button
+                type="button"
+                onClick={() => setShowAtrasados((v) => !v)}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                  showAtrasados
+                    ? 'bg-[var(--moni-surface-0)] text-[color:var(--moni-text-primary)] shadow-sm'
+                    : 'text-[color:var(--moni-text-tertiary)] hover:text-[color:var(--moni-text-secondary)]'
+                }`}
+              >
+                Atrasados
+              </button>
             </div>
           </div>
           <div className="flex items-baseline gap-2">
@@ -617,11 +592,7 @@ export function DashboardSirene({
           </div>
           <div>
             <p className="mb-2 text-sm font-medium text-[color:var(--moni-text-tertiary)]">
-              {travaListaTab === 'trava'
-                ? 'Chamados recentes com trava'
-                : travaListaTab === 'atrasados'
-                  ? 'Chamados com SLA atrasado'
-                  : 'Com trava ou SLA atrasado'}
+              {showAtrasados ? 'Chamados com SLA atrasado' : 'Chamados recentes com trava'}
             </p>
             <ul className="space-y-2">
               {listaTravaCard.length === 0 ? (
@@ -714,40 +685,6 @@ export function DashboardSirene({
         </div>
       </div>
 
-      <div className="mt-6 rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] p-5">
-        <h2 className="text-lg font-semibold text-[color:var(--moni-text-primary)]">Minhas tarefas pendentes</h2>
-        <ul className="mt-4 space-y-2">
-          {minhasTarefas.length === 0 ? (
-            <li className="text-sm text-[color:var(--moni-text-tertiary)]">Nenhuma tarefa pendente</li>
-          ) : (
-            minhasTarefas.map((t) => (
-              <li key={`${t.chamadoId}-${t.titulo}`}>
-                <Link
-                  href={`/sirene/${t.chamadoId}`}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3 transition hover:border-amber-400 hover:bg-[var(--moni-surface-100)]"
-                >
-                  <span className="text-sm text-[color:var(--moni-text-secondary)]">
-                    <span className="font-medium">#{t.numero}</span> — {t.titulo}
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        t.status === 'Aguardando'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-[var(--moni-surface-100)] text-[color:var(--moni-text-secondary)]'
-                      }`}
-                    >
-                      {t.status}
-                    </span>
-                    <span className="text-xs text-amber-700">Ver ↗</span>
-                  </span>
-                </Link>
-              </li>
-            ))
-          )}
-        </ul>
-      </div>
-
       {/* Por responsável | Por criador */}
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <PessoaMetricasCard
@@ -764,10 +701,10 @@ export function DashboardSirene({
         />
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-3">
-        <AbertosGrupoCard titulo="Abertos por time" items={abertos_por_time} barClassName="bg-blue-500" />
-        <AbertosGrupoCard titulo="Abertos por funil" items={abertos_por_funil} barClassName="bg-violet-500" />
-        <div className="space-y-6">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(360px,1.35fr)]">
+        <AbertosGrupoListCard titulo="Abertos por time" items={abertos_por_time} />
+        <AbertosGrupoListCard titulo="Abertos por funil" items={abertos_por_funil} />
+        <div className="min-w-0 space-y-6">
           <TopFranqueadosCard items={top_franqueados} />
           <TopTemasCard items={top_temas} />
         </div>

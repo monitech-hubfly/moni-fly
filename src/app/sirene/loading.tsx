@@ -1,6 +1,6 @@
 export default function SireneLoading() {
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8">
+    <main className="mx-auto w-full min-w-0 max-w-[1600px] px-6 py-8">
       <div className="animate-pulse space-y-6">
         <div className="h-8 w-48 rounded bg-stone-700" />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

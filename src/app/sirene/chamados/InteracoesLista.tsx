@@ -997,7 +997,7 @@ export function InteracoesLista({
   const radioLabel = 'inline-flex cursor-pointer items-center gap-2';
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 text-[color:var(--moni-text-primary)]">
+    <div className="mx-auto w-full min-w-0 max-w-[1600px] px-6 py-6 text-[color:var(--moni-text-primary)]">
       <div className="mb-6 flex w-full flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
           <div className="relative shrink-0">

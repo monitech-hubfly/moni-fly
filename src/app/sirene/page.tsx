@@ -32,7 +32,7 @@ export default async function SirenePage({
 
     return (
 
-      <main className="mx-auto max-w-7xl px-4 py-8">
+      <main className="mx-auto w-full min-w-0 max-w-[1600px] px-6 py-8">
 
         <p className="text-sm text-stone-600">
 
@@ -50,7 +50,7 @@ export default async function SirenePage({
 
   return (
 
-    <main className="mx-auto max-w-7xl px-4 py-8">
+    <main className="mx-auto w-full min-w-0 max-w-[1600px] px-6 py-8">
 
       <DashboardSirene
 
@@ -93,8 +93,6 @@ export default async function SirenePage({
         aguardando_julgamento_lista={result.aguardando_julgamento_lista}
 
         topicos_por_status={result.topicos_por_status}
-
-        minhasTarefas={result.minhasTarefas}
 
         por_responsavel={result.por_responsavel}
 

@@ -3021,13 +3021,6 @@ export async function getDashboardData(
         incendio: string;
         dias_aberto: number;
       }>;
-      minhasTarefas: Array<{
-        chamadoId: number;
-        numero: number;
-        incendio: string;
-        titulo: string;
-        status: string;
-      }>;
       por_responsavel: DashboardPessoaMetrica[];
       por_criador: DashboardPessoaMetrica[];
       abertos_por_time: AbertosGrupo[];
@@ -3218,83 +3211,6 @@ export async function getDashboardData(
     };
   });
 
-  const minhasTarefas: Array<{
-    chamadoId: number;
-    numero: number;
-    incendio: string;
-    titulo: string;
-    status: string;
-  }> = [];
-
-  const { data: topicos } = await queryClient
-    .from('sirene_topicos')
-    .select('id, chamado_id, descricao, status, time_responsavel')
-    .eq('responsavel_id', me.userId);
-
-  const chamadoIds = [...new Set((topicos ?? []).map((t) => t.chamado_id))];
-  const chamadosById = new Map<number, { numero: number; incendio: string | null }>();
-  if (chamadoIds.length > 0) {
-    const { data: chamadosList } = await queryClient
-      .from('sirene_chamados')
-      .select('id, numero, incendio')
-      .in('id', chamadoIds);
-    for (const c of chamadosList ?? []) {
-      chamadosById.set(c.id, { numero: c.numero, incendio: c.incendio });
-    }
-  }
-
-  for (const t of topicos ?? []) {
-    if (t.status === 'aprovado') continue;
-    const c = chamadosById.get(t.chamado_id);
-    if (c)
-      minhasTarefas.push({
-        chamadoId: t.chamado_id,
-        numero: c.numero,
-        incendio: c.incendio ?? '',
-        titulo: `Tópico: ${t.descricao?.slice(0, 40) ?? ''}${(t.descricao?.length ?? 0) > 40 ? '…' : ''}`,
-        status: t.status === 'concluido' ? 'Aguardando' : 'Em andamento',
-      });
-  }
-
-  if (me.ctx.papel === 'bombeiro') {
-    const { data: chamadosEmAndamento } = await queryClient
-      .from('sirene_chamados')
-      .select('id, numero, incendio')
-      .eq('status', 'em_andamento');
-    const { data: todosTopicos } = await queryClient
-      .from('sirene_topicos')
-      .select('chamado_id, status, aprovado_bombeiro');
-    const porChamado = new Map<number, { concluidos: number; aprovados: number }>();
-    for (const t of todosTopicos ?? []) {
-      const cur = porChamado.get(t.chamado_id) ?? { concluidos: 0, aprovados: 0 };
-      if (t.status === 'concluido' || t.status === 'aprovado') cur.concluidos++;
-      if (t.status === 'aprovado' || t.aprovado_bombeiro === true) cur.aprovados++;
-      porChamado.set(t.chamado_id, cur);
-    }
-    for (const c of chamadosEmAndamento ?? []) {
-      const stats = porChamado.get(c.id);
-      if (!stats) continue;
-      const temConcluidoNaoAprovado = stats.concluidos > stats.aprovados;
-      const todosAprovados = stats.concluidos > 0 && stats.concluidos === stats.aprovados;
-      if (temConcluidoNaoAprovado)
-        minhasTarefas.push({
-          chamadoId: c.id,
-          numero: c.numero,
-          incendio: c.incendio ?? '',
-          titulo: 'Revisar resolução pontual',
-          status: 'Em andamento',
-        });
-      else if (todosAprovados)
-        minhasTarefas.push({
-          chamadoId: c.id,
-          numero: c.numero,
-          incendio: c.incendio ?? '',
-          titulo: 'Parecer final pendente após todos os times concluírem',
-          status: 'Em andamento',
-        });
-    }
-  }
-
   const aguardandoJulgamentoSet = new Set(aguardandoJulgamentoIds);
   const chamadosNaoConcluidos = list.filter((c) => c.status !== 'concluido');
   const top_temas = aggregateTopTemas(list);
@@ -3330,7 +3246,6 @@ export async function getDashboardData(
     chamadosComTrava: comTrava.length,
     recentesComTrava,
     chamadosAtrasados,
-    minhasTarefas: minhasTarefas.slice(0, 10),
     por_responsavel,
     por_criador,
     abertos_por_time: abertosAgg.abertos_por_time,
