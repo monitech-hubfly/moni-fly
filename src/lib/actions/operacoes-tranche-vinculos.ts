@@ -268,7 +268,7 @@ async function validarCardOperacoes(
   supabase: Awaited<ReturnType<typeof createClient>>,
   operacoesCardId: string,
   options?: { garantirShadowLegado?: boolean },
-): Promise<ActionResult & OperacoesCardResolvido> {
+): Promise<{ ok: false; error: string } | (OperacoesCardResolvido & { ok: true })> {
   const resolved = await resolverOperacoesCard(supabase, operacoesCardId);
   if (!resolved.ok) return resolved;
 
