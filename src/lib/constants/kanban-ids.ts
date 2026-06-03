@@ -121,11 +121,12 @@ export const FASE_SLUGS = {
   // Funil Crédito Obra — terminais ordem 24–25
   CREDITO_OBRA_APROVADO:      'credito_obra_aprovado',
   CREDITO_OBRA_REPROVADO:     'credito_obra_reprovado',
-  // Funil Projeto Legal (KANBAN_IDS.PROJETO_LEGAL) — fluxo ordem 1–14
+  // Funil Projeto Legal (KANBAN_IDS.PROJETO_LEGAL) — fluxo ordem 1–15
   PL_NOVA_DEMANDA:              'pl_nova_demanda',
   PL_PONTOS_EM_ABERTO:          'pl_pontos_em_aberto',
   PL_EM_EXECUCAO:               'pl_em_execucao',
   PL_EM_VALIDACAO:              'pl_em_validacao',
+  PL_AGUARDANDO_CONDOMINIO:     'pl_aguardando_condominio',
   PL_C_PROTOCOLO_ANDAMENTO:     'pl_c_protocolo_andamento',
   PL_C_EM_COMUNIQUESE:          'pl_c_em_comuniquese',
   PL_C_VALIDACAO_COMUNIQUESE:   'pl_c_validacao_comuniquese',
@@ -135,7 +136,7 @@ export const FASE_SLUGS = {
   PL_P_EM_COMUNIQUESE:          'pl_p_em_comuniquese',
   PL_P_VALIDACAO_COMUNIQUESE:   'pl_p_validacao_comuniquese',
   PL_P_PROJETO_APROVADO:        'pl_p_projeto_aprovado',
-  // Funil Projeto Legal — terminal ordem 14
+  // Funil Projeto Legal — terminal ordem 15
   PL_PAGAMENTOS:                'pl_pagamentos',
   CONTABILIDADE_CONCLUIDO:   'contabilidade_concluido',
   JURIDICO_CONCLUIDO:        'juridico_concluido',
