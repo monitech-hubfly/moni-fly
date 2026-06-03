@@ -53,6 +53,9 @@ import {
 import type { FaseChecklistItem } from './candidato-actions';
 import { executarBastaoDeVolta, executarBastoes } from '@/lib/actions/kanban-bastoes';
 import { sincronizarTagAcoplamentoPaiDoFilho } from '@/lib/kanban/acoplamento-tag-pai';
+import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-notify';
+import { payloadInicialNegociacaoPrazo } from '@/lib/kanban/prazo-negociacao';
+
 /** Wrapper para evitar import estático de módulo server-only no bundle do cliente. */
 export async function verificarGateAcoplamentoModelagemCasa(
   cardId: string,
@@ -63,8 +66,6 @@ export async function verificarGateAcoplamentoModelagemCasa(
   );
   return verify(cardId, novaFaseId);
 }
-import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-notify';
-import { payloadInicialNegociacaoPrazo } from '@/lib/kanban/prazo-negociacao';
 
 export type { FaseChecklistItem } from './candidato-actions';
 
@@ -3760,6 +3761,9 @@ export async function upsertFaseChecklistResposta(input: {
   );
   if (error) return { ok: false, error: error.message };
 
+  const { isChecklistItemSyncBcaAcoplamento, sincronizarLinksBcaAcoplamento } = await import(
+    '@/lib/kanban/links-bca-acoplamento-sync'
+  );
   const syncKey = isChecklistItemSyncBcaAcoplamento(
     (itemRow as { label?: string | null } | null)?.label,
   );
@@ -3795,6 +3799,7 @@ export async function salvarLinksBcaAcoplamentoNegocio(input: {
 
   const { data: prof } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
 
+  const { sincronizarLinksBcaAcoplamento } = await import('@/lib/kanban/links-bca-acoplamento-sync');
   const sync = await sincronizarLinksBcaAcoplamento({
     cardOrigemId: input.cardId,
     origem: 'painel_negocio',
