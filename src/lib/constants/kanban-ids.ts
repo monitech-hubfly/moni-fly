@@ -49,11 +49,7 @@ export const FASE_IDS = {
   // Acoplamento — bastão de volta
   ACOPLAMENTO_APROVADO:      'b6a83104-e74f-4d0b-902b-2c4227227411',
   ACOPLAMENTO_REPROVADO:     '6d383485-9c9e-4f41-9d2a-c23c20b950c9',
-  // Funil Crédito Obra — terminais (bastão de volta; conferir UUIDs no PROD após troca de fases)
-  /** @deprecated fase removida do funil — UUID legado, não usar em código novo */
-  CREDITO_TERRENO_APROVADO:  'b1c22353-f20b-4545-9548-5328c253bd99',
-  /** @deprecated fase removida do funil — UUID legado, não usar em código novo */
-  CREDITO_TERRENO_REPROVADO: '92bc0cab-e8b6-4199-9066-7fbea8d600a2',
+  // Funil Crédito Obra — terminais ordem 24–25 (bastão de volta)
   CREDITO_OBRA_APROVADO:     'da6b7ed6-3137-42aa-9cc7-0d3aec4e6cfd',
   CREDITO_OBRA_REPROVADO:    'aadb078e-d11a-48d1-9a4e-ee10b9fe7df5',
   // Contabilidade
@@ -121,12 +117,11 @@ export const FASE_SLUGS = {
   // Funil Crédito Obra — terminais ordem 24–25
   CREDITO_OBRA_APROVADO:      'credito_obra_aprovado',
   CREDITO_OBRA_REPROVADO:     'credito_obra_reprovado',
-  // Funil Projeto Legal (KANBAN_IDS.PROJETO_LEGAL) — fluxo ordem 1–15
+  // Funil Projeto Legal (KANBAN_IDS.PROJETO_LEGAL) — fluxo ordem 1–14 (PROD)
   PL_NOVA_DEMANDA:              'pl_nova_demanda',
   PL_PONTOS_EM_ABERTO:          'pl_pontos_em_aberto',
   PL_EM_EXECUCAO:               'pl_em_execucao',
   PL_EM_VALIDACAO:              'pl_em_validacao',
-  PL_AGUARDANDO_CONDOMINIO:     'pl_aguardando_condominio',
   PL_C_PROTOCOLO_ANDAMENTO:     'pl_c_protocolo_andamento',
   PL_C_EM_COMUNIQUESE:          'pl_c_em_comuniquese',
   PL_C_VALIDACAO_COMUNIQUESE:   'pl_c_validacao_comuniquese',
@@ -136,7 +131,7 @@ export const FASE_SLUGS = {
   PL_P_EM_COMUNIQUESE:          'pl_p_em_comuniquese',
   PL_P_VALIDACAO_COMUNIQUESE:   'pl_p_validacao_comuniquese',
   PL_P_PROJETO_APROVADO:        'pl_p_projeto_aprovado',
-  // Funil Projeto Legal — terminal ordem 15
+  // Funil Projeto Legal — terminal ordem 14
   PL_PAGAMENTOS:                'pl_pagamentos',
   CONTABILIDADE_CONCLUIDO:   'contabilidade_concluido',
   JURIDICO_CONCLUIDO:        'juridico_concluido',
