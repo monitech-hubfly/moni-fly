@@ -150,18 +150,45 @@ export function notaTamanhoM2(areaAnuncio: number | null, areaNossa: number | nu
   return 2;
 }
 
-/** Quartos: nossa casa 4 por padrão. Anúncio com menos = positivo. */
+/** Quartos: fallback 4 se modelo sem valor. Anúncio com menos = positivo. */
 export const QUARTOS_PADRAO_NOSSA = 4;
 
-export function notaQuartos(quartosAnuncio: number | null): number {
+/** Escala comum para banheiros e vagas: diff = nosso − anúncio. */
+export function notaDiffContagem(nosso: number | null, anuncio: number | null): number {
+  if (anuncio == null || nosso == null) return 0;
+  const diff = nosso - anuncio;
+  if (diff <= -2) return -2;
+  if (diff === -1) return -1;
+  if (diff === 0) return 0;
+  if (diff === 1) return 1;
+  return 2;
+}
+
+export function notaQuartos(
+  quartosNosso: number | null,
+  quartosAnuncio: number | null,
+): number {
   if (quartosAnuncio == null) return 0;
-  const diff = QUARTOS_PADRAO_NOSSA - quartosAnuncio;
+  const nosso = quartosNosso ?? QUARTOS_PADRAO_NOSSA;
+  const diff = nosso - quartosAnuncio;
   if (diff <= -4) return -3;
+  if (diff === -3) return -3;
   if (diff === -2) return -2;
   if (diff === -1) return -1;
   if (diff === 0) return 0;
   if (diff === 1) return 1;
-  return 2; // 2 ou mais quartos a menos
+  return 2;
+}
+
+export function notaBanheiros(
+  banheirosNosso: number | null,
+  banheirosAnuncio: number | null,
+): number {
+  return notaDiffContagem(banheirosNosso, banheirosAnuncio);
+}
+
+export function notaVagas(vagasNosso: number | null, vagasAnuncio: number | null): number {
+  return notaDiffContagem(vagasNosso, vagasAnuncio);
 }
 
 /** Design: opções e notas (franqueado seleciona) */
@@ -209,15 +236,17 @@ export function notaAmenidades(listing: {
   return clampNota(sum);
 }
 
-/** Nota final Produto = média simples dos 5 sub-itens */
+/** Nota final Produto = média simples dos 7 sub-itens (T, A, Q, B, V, D, I) */
 export function notaProdutoMedia(
   tamanho: number,
   amenidades: number,
   quartos: number,
+  banheiros: number,
+  vagas: number,
   design: number,
   idade: number,
 ): number {
-  const v = (tamanho + amenidades + quartos + design + idade) / 5;
+  const v = (tamanho + amenidades + quartos + banheiros + vagas + design + idade) / 7;
   return clampNota(Math.round(v * 10) / 10);
 }
 
