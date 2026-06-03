@@ -314,6 +314,7 @@ export function KanbanColumn({
               portfolioVinculoRotulo: card.portfolio_vinculo_rotulo,
               temFilhoJuridico: card.tem_filho_juridico,
               temFilhoAcoplamento: card.tem_filho_acoplamento,
+              filhoAcoplamentoArquivado: card.filho_acoplamento_arquivado,
             },
             { labelsCompletos: false },
           );

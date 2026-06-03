@@ -80,6 +80,8 @@ export type KanbanCardBrief = {
   tem_filho_juridico?: boolean;
   /** Portfolio: existe card filho no Funil Acoplamento (`origem_card_id`). */
   tem_filho_acoplamento?: boolean;
+  /** Portfolio: filho Acoplamento arquivado (sem filho ativo). */
+  filho_acoplamento_arquivado?: boolean;
   /** Ordem na coluna (menor = mais acima). Nativo: `kanban_cards.ordem_coluna`; legado: `processo_step_one.ordem_coluna_painel`. */
   ordem_coluna?: number | null;
   /** Funil Crédito Obra — fase co_documentacao_alvara */

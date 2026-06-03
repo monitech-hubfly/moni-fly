@@ -6,14 +6,39 @@ const FASES_ACOPLAMENTO_CONCLUIDO = new Set<string>([
   FASE_SLUGS.ACOPLAMENTO_REPROVADO,
 ]);
 
+export const FASE_EXIBICAO_CARD_ARQUIVADO = 'Arquivado';
+
+/** Nome de fase em vínculos / esteiras do projeto quando o card está arquivado. */
+export function faseNomeExibicaoVinculoCard(
+  faseNome: string | null | undefined,
+  arquivado: boolean | null | undefined,
+): string {
+  if (Boolean(arquivado)) return FASE_EXIBICAO_CARD_ARQUIVADO;
+  const n = String(faseNome ?? '').trim();
+  return n || '—';
+}
+
+type LabelChipAcoplamentoOpts = {
+  labelsCompletos?: boolean;
+  /** Filho no Funil Acoplamento arquivado (sem filho ativo). */
+  arquivado?: boolean;
+};
+
 /** Rótulo do chip de Acoplamento no card pai (Portfólio). */
 export function labelChipAcoplamentoPai(
   faseNome: string | null | undefined,
-  labelsCompletos?: boolean,
+  opts?: boolean | LabelChipAcoplamentoOpts,
 ): string {
+  const o: LabelChipAcoplamentoOpts =
+    typeof opts === 'boolean' ? { labelsCompletos: opts } : (opts ?? {});
+  if (o.arquivado) {
+    return o.labelsCompletos
+      ? `Acoplamento: ${FASE_EXIBICAO_CARD_ARQUIVADO}`
+      : 'Acop. arq.';
+  }
   const n = String(faseNome ?? '').trim();
-  if (!n) return labelsCompletos ? 'Acoplamento' : 'Acop.';
-  if (labelsCompletos) return `Acoplamento: ${n}`;
+  if (!n) return o.labelsCompletos ? 'Acoplamento' : 'Acop.';
+  if (o.labelsCompletos) return `Acoplamento: ${n}`;
   return n.length > 16 ? `Acop.: ${n.slice(0, 14)}…` : `Acop.: ${n}`;
 }
 
@@ -67,6 +92,46 @@ export async function sincronizarTagAcoplamentoPaiDoFilho(
   const { error: errUpd } = await db.from('kanban_cards').update(patch).eq('id', paiId);
   if (errUpd) {
     console.error('[sincronizarTagAcoplamentoPaiDoFilho] update pai:', errUpd.message);
+  }
+}
+
+/** Limpa tag de fase do filho no card Portfólio pai quando o filho Acoplamento é arquivado. */
+export async function limparTagAcoplamentoPaiDoFilhoArquivado(
+  cardFilhoId: string,
+): Promise<void> {
+  const filhoId = String(cardFilhoId ?? '').trim();
+  if (!filhoId) return;
+
+  let db: ReturnType<typeof createAdminClient>;
+  try {
+    db = createAdminClient();
+  } catch (e) {
+    console.error('[limparTagAcoplamentoPaiDoFilhoArquivado] admin client:', e);
+    return;
+  }
+
+  const { data: filho, error: errFilho } = await db
+    .from('kanban_cards')
+    .select('id, kanban_id, origem_card_id')
+    .eq('id', filhoId)
+    .maybeSingle();
+
+  if (errFilho || !filho?.id) return;
+  if (String(filho.kanban_id ?? '') !== KANBAN_IDS.ACOPLAMENTO) return;
+
+  const paiId = String((filho as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+  if (!paiId) return;
+
+  const { error: errUpd } = await db
+    .from('kanban_cards')
+    .update({
+      acoplamento_filho_fase_slug: null,
+      acoplamento_filho_fase_nome: null,
+    })
+    .eq('id', paiId);
+
+  if (errUpd) {
+    console.error('[limparTagAcoplamentoPaiDoFilhoArquivado] update pai:', errUpd.message);
   }
 }
 

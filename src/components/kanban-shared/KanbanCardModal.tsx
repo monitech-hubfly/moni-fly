@@ -247,6 +247,7 @@ type Card = {
   portfolio_vinculo_rotulo?: string | null;
   tem_filho_juridico?: boolean;
   tem_filho_acoplamento?: boolean;
+  filho_acoplamento_arquivado?: boolean;
   /** Legado: status e updated_at do processo (conclusão aproximada quando status = concluido). */
   processo_meta?: { status: string; updated_at: string } | null;
   profiles?: {
@@ -1072,10 +1073,13 @@ export function KanbanCardModal({
             portfolio_vinculo_rotulo: enrichedRow.portfolio_vinculo_rotulo,
             tem_filho_juridico: enrichedRow.tem_filho_juridico,
             tem_filho_acoplamento: enrichedRow.tem_filho_acoplamento,
-            acoplamento_filho_fase_nome:
-              enrichedRow.acoplamento_filho_fase_nome ?? cardParaEstado.acoplamento_filho_fase_nome,
-            acoplamento_filho_fase_slug:
-              enrichedRow.acoplamento_filho_fase_slug ?? cardParaEstado.acoplamento_filho_fase_slug,
+            filho_acoplamento_arquivado: enrichedRow.filho_acoplamento_arquivado,
+            acoplamento_filho_fase_nome: enrichedRow.filho_acoplamento_arquivado
+              ? enrichedRow.acoplamento_filho_fase_nome ?? null
+              : enrichedRow.acoplamento_filho_fase_nome ?? cardParaEstado.acoplamento_filho_fase_nome,
+            acoplamento_filho_fase_slug: enrichedRow.filho_acoplamento_arquivado
+              ? enrichedRow.acoplamento_filho_fase_slug ?? null
+              : enrichedRow.acoplamento_filho_fase_slug ?? cardParaEstado.acoplamento_filho_fase_slug,
           };
         }
       }
@@ -2894,6 +2898,7 @@ export function KanbanCardModal({
             portfolioVinculoRotulo: card.portfolio_vinculo_rotulo,
             temFilhoJuridico: card.tem_filho_juridico,
             temFilhoAcoplamento: card.tem_filho_acoplamento,
+            filhoAcoplamentoArquivado: card.filho_acoplamento_arquivado,
           },
           { labelsCompletos: true },
         )

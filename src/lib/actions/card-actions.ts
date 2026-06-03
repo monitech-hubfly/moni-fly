@@ -29,6 +29,10 @@ import {
 } from '@/lib/kanban/portfolio-paralelas';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { inserirKanbanCardVinculo, garantirShadowKanbanCardLegadoPorId } from '@/lib/kanban/kanban-card-vinculos';
+import {
+  faseNomeExibicaoVinculoCard,
+  limparTagAcoplamentoPaiDoFilhoArquivado,
+} from '@/lib/kanban/acoplamento-tag-pai';
 import { createClient } from '@/lib/supabase/server';
 import { usuarioConcluiuCasasUniversidade012 } from '@/lib/universidade/queries';
 import { podeExcluirChamadoSirene } from '@/lib/sirene-utils';
@@ -1479,6 +1483,15 @@ export async function arquivarCard(input: ArquivarCardInput): Promise<ActionResu
     if (!updated?.length) return { ok: false, error: 'Card não encontrado em kanban_cards.' };
   }
 
+  const { data: arquivadoRow } = await admin
+    .from('kanban_cards')
+    .select('kanban_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  if (String((arquivadoRow as { kanban_id?: string | null } | null)?.kanban_id ?? '') === KANBAN_IDS.ACOPLAMENTO) {
+    await limparTagAcoplamentoPaiDoFilhoArquivado(cardId);
+  }
+
   const bp = input.basePath?.trim() || '/';
   revalidatePath(bp);
   revalidatePath('/');
@@ -2185,6 +2198,13 @@ function faseNomeDeJoin(row: { kanban_fases?: unknown }): string {
   return '—';
 }
 
+function faseNomeExibicaoCardRow(row: {
+  kanban_fases?: unknown;
+  arquivado?: boolean | null;
+}): string {
+  return faseNomeExibicaoVinculoCard(faseNomeDeJoin(row), row.arquivado);
+}
+
 async function enriquecerMapInfoCardsLegado(
   supabase: Awaited<ReturnType<typeof createClient>>,
   mapInfo: Map<string, { titulo: string; kanban_nome: string; fase_nome: string }>,
@@ -2219,7 +2239,7 @@ function normalizarTipoRelacionamento(raw: string | null | undefined): TipoRelac
   return 'relacionado';
 }
 
-/** Filhos (`origem_card_id`) + vínculos em `kanban_card_vinculos` para a seção Vínculos. */
+/** Cadeia `origem_card_id` (pais e filhos) + vínculos em `kanban_card_vinculos` para a seção Vínculos. */
 export async function listarRelacionamentosCard(
   cardId: string,
 ): Promise<{ ok: true; items: RelacionamentoCardRow[] } | { ok: false; error: string }> {
@@ -2233,29 +2253,102 @@ export async function listarRelacionamentosCard(
   if (!cid) return { ok: false, error: 'Card inválido.' };
 
   const items: RelacionamentoCardRow[] = [];
-  const cardIdsFilhos = new Set<string>();
+  const cardIdsOrigemCadeia = new Set<string>();
 
-  const { data: filhos, error: errFilhos } = await supabase
-    .from('kanban_cards')
-    .select('id, titulo, kanban_fases ( nome ), kanbans ( nome )')
-    .eq('origem_card_id', cid)
-    .order('created_at', { ascending: true });
+  const ancestorIds: string[] = [];
+  let walkId = cid;
+  for (let depth = 0; depth < 32; depth++) {
+    const { data: row, error: errPai } = await supabase
+      .from('kanban_cards')
+      .select('origem_card_id')
+      .eq('id', walkId)
+      .maybeSingle();
+    if (errPai) return { ok: false, error: errPai.message };
+    const pai = String((row as { origem_card_id?: string | null } | null)?.origem_card_id ?? '').trim();
+    if (!pai || pai === walkId || ancestorIds.includes(pai)) break;
+    ancestorIds.push(pai);
+    walkId = pai;
+  }
 
-  if (errFilhos) return { ok: false, error: errFilhos.message };
+  const descendantIds: string[] = [];
+  let frontier = [cid];
+  for (let depth = 0; depth < 32 && frontier.length > 0; depth++) {
+    const { data: filhosBatch, error: errFilhos } = await supabase
+      .from('kanban_cards')
+      .select('id')
+      .in('origem_card_id', frontier)
+      .order('created_at', { ascending: true });
+    if (errFilhos) return { ok: false, error: errFilhos.message };
+    const novos: string[] = [];
+    for (const row of filhosBatch ?? []) {
+      const id = String((row as { id?: string }).id ?? '').trim();
+      if (!id || cardIdsOrigemCadeia.has(id)) continue;
+      cardIdsOrigemCadeia.add(id);
+      descendantIds.push(id);
+      novos.push(id);
+    }
+    frontier = novos;
+  }
 
-  for (const row of filhos ?? []) {
-    const r = row as { id: string; titulo: string | null; kanban_fases?: unknown; kanbans?: unknown };
-    const id = String(r.id);
-    cardIdsFilhos.add(id);
-    items.push({
-      key: `filho-${id}`,
-      card_id: id,
-      titulo: (r.titulo ?? '').trim() || '(sem título)',
-      kanban_nome: kanbanNomeDeJoin(r) || 'Kanban',
-      fase_nome: faseNomeDeJoin(r),
-      tipo: 'originou',
-      vinculo_id: null,
-    });
+  for (const id of ancestorIds) {
+    cardIdsOrigemCadeia.add(id);
+  }
+
+  const origemIdsParaDetalhe = [...ancestorIds, ...descendantIds];
+  if (origemIdsParaDetalhe.length > 0) {
+    const mapOrigem = new Map<
+      string,
+      { titulo: string; kanban_nome: string; fase_nome: string }
+    >();
+
+    const { data: cardsOrigem, error: errCardsOrigem } = await supabase
+      .from('kanban_cards')
+      .select('id, titulo, arquivado, kanban_fases ( nome ), kanbans ( nome )')
+      .in('id', origemIdsParaDetalhe);
+    if (errCardsOrigem) return { ok: false, error: errCardsOrigem.message };
+
+    for (const c of cardsOrigem ?? []) {
+      const row = c as {
+        id: string;
+        titulo: string | null;
+        arquivado?: boolean | null;
+        kanban_fases?: unknown;
+        kanbans?: unknown;
+      };
+      mapOrigem.set(String(row.id), {
+        titulo: (row.titulo ?? '').trim() || '(sem título)',
+        kanban_nome: kanbanNomeDeJoin(row) || 'Kanban',
+        fase_nome: faseNomeExibicaoCardRow(row),
+      });
+    }
+
+    await enriquecerMapInfoCardsLegado(supabase, mapOrigem, origemIdsParaDetalhe);
+
+    for (const id of ancestorIds) {
+      const info = mapOrigem.get(id) ?? { titulo: '—', kanban_nome: '—', fase_nome: '—' };
+      items.push({
+        key: `pai-${id}`,
+        card_id: id,
+        titulo: info.titulo,
+        kanban_nome: info.kanban_nome,
+        fase_nome: info.fase_nome,
+        tipo: 'depende_de',
+        vinculo_id: null,
+      });
+    }
+
+    for (const id of descendantIds) {
+      const info = mapOrigem.get(id) ?? { titulo: '—', kanban_nome: '—', fase_nome: '—' };
+      items.push({
+        key: `filho-${id}`,
+        card_id: id,
+        titulo: info.titulo,
+        kanban_nome: info.kanban_nome,
+        fase_nome: info.fase_nome,
+        tipo: 'originou',
+        vinculo_id: null,
+      });
+    }
   }
 
   const { data: vins, error: errVins } = await supabase
@@ -2280,7 +2373,7 @@ export async function listarRelacionamentosCard(
     }
     const { data: cards, error: cErr } = await supabase
       .from('kanban_cards')
-      .select('id, titulo, kanban_fases ( nome ), kanbans ( nome )')
+      .select('id, titulo, arquivado, kanban_fases ( nome ), kanbans ( nome )')
       .in('id', [...idSet]);
     if (cErr) return { ok: false, error: cErr.message };
 
@@ -2289,11 +2382,17 @@ export async function listarRelacionamentosCard(
       { titulo: string; kanban_nome: string; fase_nome: string }
     >();
     for (const c of cards ?? []) {
-      const row = c as { id: string; titulo: string | null; kanban_fases?: unknown; kanbans?: unknown };
+      const row = c as {
+        id: string;
+        titulo: string | null;
+        arquivado?: boolean | null;
+        kanban_fases?: unknown;
+        kanbans?: unknown;
+      };
       mapInfo.set(String(row.id), {
         titulo: (row.titulo ?? '').trim() || '(sem título)',
         kanban_nome: kanbanNomeDeJoin(row) || 'Kanban',
-        fase_nome: faseNomeDeJoin(row),
+        fase_nome: faseNomeExibicaoCardRow(row),
       });
     }
 
@@ -2302,7 +2401,7 @@ export async function listarRelacionamentosCard(
     for (const v of vincRows) {
       const outroId = v.card_origem_id === cid ? v.card_destino_id : v.card_origem_id;
       const tipo = normalizarTipoRelacionamento(v.tipo_vinculo);
-      if (cardIdsFilhos.has(outroId) && tipo === 'originou') continue;
+      if (outroId === cid || cardIdsOrigemCadeia.has(outroId)) continue;
       const info = mapInfo.get(outroId) ?? { titulo: '—', kanban_nome: '—', fase_nome: '—' };
       items.push({
         key: `vinculo-${v.id}`,

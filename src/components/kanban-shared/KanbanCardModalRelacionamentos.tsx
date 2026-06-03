@@ -40,7 +40,7 @@ function iconeTipoRelacionamento(tipo: TipoRelacionamentoDisplay): string {
 
 function labelTipoRelacionamento(tipo: TipoRelacionamentoDisplay): string {
   if (tipo === 'originou') return 'originou';
-  if (tipo === 'depende_de') return 'depende_de';
+  if (tipo === 'depende_de') return 'originado por';
   if (tipo === 'bloqueia') return 'bloqueia';
   if (tipo === 'retornou') return 'retornou';
   return 'relacionado';

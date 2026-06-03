@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { faseNomeExibicaoVinculoCard } from '@/lib/kanban/acoplamento-tag-pai';
 
 export type CardProjetoEsteiraRow = {
   id: string;
@@ -88,7 +89,7 @@ export async function fetchCardsProjetoEsteiras(
       arquivado: Boolean(row.arquivado),
       created_at: String(row.created_at ?? ''),
       origem_card_id: row.origem_card_id != null ? String(row.origem_card_id) : null,
-      fase_nome: String(fase?.nome ?? '—'),
+      fase_nome: faseNomeExibicaoVinculoCard(fase?.nome, row.arquivado),
       fase_slug: fase?.slug != null ? String(fase.slug) : null,
       sla_dias: fase?.sla_dias != null ? Number(fase.sla_dias) : null,
       kanban_nome: String(kanban?.nome ?? '—'),
