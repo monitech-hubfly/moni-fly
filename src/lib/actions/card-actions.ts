@@ -3082,6 +3082,20 @@ export async function moverCardParaFase(input: {
 
   if (updErr) return { ok: false, error: updErr.message };
 
+  if (novaFaseSlug) {
+    const { data: procRow } = await supabase
+      .from('processo_step_one')
+      .select('id')
+      .eq('id', cardId)
+      .maybeSingle();
+    if (procRow?.id) {
+      await supabase
+        .from('processo_step_one')
+        .update({ etapa_painel: novaFaseSlug, updated_at: new Date().toISOString() })
+        .eq('id', cardId);
+    }
+  }
+
   const { aplicarSlaInicioDocumentacaoAoMoverFase } = await import('@/lib/actions/kanban-credito-obra-docs');
   await aplicarSlaInicioDocumentacaoAoMoverFase(supabase, cardId, novaFaseSlug);
 

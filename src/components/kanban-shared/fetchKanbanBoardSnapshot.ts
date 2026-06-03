@@ -380,21 +380,36 @@ export async function fetchKanbanBoardSnapshot(
   cardsConcluidos = await enrichCardsParalelasContext(supabase, kanbanIdStr, cardsConcluidos);
   cardsArquivadosNativo = await enrichCardsParalelasContext(supabase, kanbanIdStr, cardsArquivadosNativo);
 
-  const idsComEstadoNativo = new Set([
+  /** `etapa_painel` (view legado) prevalece sobre `kanban_cards.fase_id` desatualizado. */
+  const legadoPorId = new Map(cardsLegado.map((c) => [c.id, c]));
+  const reconciliarFaseComLegado = (card: KanbanCardBrief): KanbanCardBrief => {
+    const leg = legadoPorId.get(card.id);
+    if (!leg?.fase_id || leg.fase_id === card.fase_id) return card;
+    return {
+      ...card,
+      fase_id: leg.fase_id,
+      ordem_coluna: leg.ordem_coluna ?? card.ordem_coluna,
+    };
+  };
+
+  cardsNativo = cardsNativo.map(reconciliarFaseComLegado);
+  cardsConcluidos = cardsConcluidos.map(reconciliarFaseComLegado);
+  cardsArquivadosNativo = cardsArquivadosNativo.map(reconciliarFaseComLegado);
+
+  const idsComLinhaNativa = new Set([
     ...cardsNativo.map((c) => c.id),
     ...cardsConcluidos.map((c) => c.id),
     ...cardsArquivadosNativo.map((c) => c.id),
   ]);
 
-  // Combina nativo + legado; legado só se não houver linha nativa (evita fantasma em "Ativos")
-  const seen = new Set<string>();
-  const cards = [...cardsNativo, ...cardsArquivadosNativo, ...cardsLegado].filter((c) => {
+  // Nativo prevalece quando existe linha; legado só preenche lacunas (sem duplicata por id).
+  const cards = [
+    ...cardsNativo,
+    ...cardsArquivadosNativo,
+    ...cardsLegado.filter((c) => !idsComLinhaNativa.has(c.id)),
+  ].filter((c) => {
     const id = String(c.id ?? '').trim();
-    if (!id) return false;
-    if (c.origem === 'legado' && idsComEstadoNativo.has(id)) return false;
-    if (seen.has(id)) return false;
-    seen.add(id);
-    return true;
+    return Boolean(id);
   });
 
   const fasesComOrfas = await augmentKanbanFasesComFasesDosCards(supabase, kanbanIdStr, fases, [
