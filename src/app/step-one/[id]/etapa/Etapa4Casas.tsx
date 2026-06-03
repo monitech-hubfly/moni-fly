@@ -12,7 +12,12 @@ import {
   saveScoreBatalhaPdfUrl,
   type BatalhaCasaRow,
 } from './actions';
-import { ScoreBatalhaPDFContent, type ScoreBatalhaRow } from './ScoreBatalhaPDFContent';
+import {
+  ScoreBatalhaPDFContent,
+  type ScoreBatalhaRow,
+  type PrecoSubNotas,
+  type ProdutoSubNotas,
+} from './ScoreBatalhaPDFContent';
 import {
   ATRIBUTOS_LOTE,
   notaAtributosLote,
@@ -26,12 +31,22 @@ import {
   notaPrecoPonderada,
   notaTamanhoM2,
   notaQuartos,
+  notaBanheiros,
+  notaVagas,
   DESIGN_OPCOES,
   notaIdade,
   notaAmenidades,
   notaProdutoMedia,
+  QUARTOS_PADRAO_NOSSA,
   type ChecklistReforma,
 } from './REGRAS_BATALHA';
+
+type ProdutoDadosBatalha = {
+  designId?: string;
+  idade?: number | null;
+  banheiros?: number | null;
+  vagas?: number | null;
+};
 import { createClient } from '@/lib/supabase/client';
 
 export type CasaRow = {
@@ -217,6 +232,14 @@ export function Etapa4Casas(props: {
     return map;
   }, [batalhasIniciais]);
 
+  const batalhaFullByKey = useMemo(() => {
+    const map = new Map<string, (typeof batalhasIniciais)[0]>();
+    for (const b of batalhasIniciais) {
+      map.set(`${b.casa_escolhida_id}__${b.listing_id}`, b);
+    }
+    return map;
+  }, [batalhasIniciais]);
+
   /** Atributos do Lote: respostas SIM/NÃO por (casa_escolhida_id, listing_id). Nota = soma dos scores. */
   const [atributosLoteByKey, setAtributosLoteByKey] = useState<
     Record<string, AtributosLoteRespostas>
@@ -295,20 +318,37 @@ export function Etapa4Casas(props: {
     });
     return obj;
   });
-  /** Produto: design e idade por (casa_escolhida_id, listing_id). */
+  /** Produto: design, idade e overrides de banheiros/vagas por (casa_escolhida_id, listing_id). */
   const [produtoDadosByKey, setProdutoDadosByKey] = useState<
-    Record<string, { designId?: string; idade?: number | null }>
+    Record<string, ProdutoDadosBatalha>
   >(() => {
-    const obj: Record<string, { designId?: string; idade?: number | null }> = {};
+    const obj: Record<string, ProdutoDadosBatalha> = {};
     batalhasIniciais.forEach((b) => {
-      const prod = b.produto_dados_json as { designId?: string; idade?: number | null } | undefined;
-      if (prod && (prod.designId != null || prod.idade != null)) {
+      const prod = b.produto_dados_json as ProdutoDadosBatalha | undefined;
+      if (
+        prod &&
+        (prod.designId != null ||
+          prod.idade != null ||
+          prod.banheiros != null ||
+          prod.vagas != null)
+      ) {
         const key = `${b.casa_escolhida_id}__${b.listing_id}`;
-        obj[key] = { designId: prod.designId, idade: prod.idade };
+        obj[key] = {
+          designId: prod.designId,
+          idade: prod.idade,
+          banheiros: prod.banheiros,
+          vagas: prod.vagas,
+        };
       }
     });
     return obj;
   });
+
+  const getBanheirosAnuncio = (listing: CasaRow, prodDados: ProdutoDadosBatalha): number | null =>
+    prodDados.banheiros ?? listing.banheiros;
+
+  const getVagasAnuncio = (listing: CasaRow, prodDados: ProdutoDadosBatalha): number | null =>
+    prodDados.vagas ?? listing.vagas;
   const [openPrecoKey, setOpenPrecoKey] = useState<string | null>(null);
   const [openProdutoKey, setOpenProdutoKey] = useState<string | null>(null);
 
@@ -349,24 +389,26 @@ export function Etapa4Casas(props: {
     return calcularNotaPreco(cat.preco_venda_m2, listing.preco_m2);
   };
 
-  /** Nota Produto: se houver design ou idade preenchidos, usa 5 sub-itens; senão fórmula antiga (quartos/banheiros/vagas). */
+  /** Nota Produto: se houver design ou idade preenchidos, usa 7 sub-itens; senão fórmula antiga (quartos/banheiros/vagas). */
   const getNotaProdutoCompleta = (ce: (typeof escolhidasComDados)[0], listing: CasaRow): number => {
     const key = `${ce.id}__${listing.id}`;
-    const dados = produtoDadosByKey[key];
+    const dados = produtoDadosByKey[key] ?? {};
     const cat = ce.catalogoRow as {
       quartos: number | null;
       banheiros: number | null;
       vagas: number | null;
       area_m2?: number | null;
     };
-    if (dados && (dados.designId != null || dados.idade != null)) {
+    if (dados.designId != null || dados.idade != null) {
       const T = notaTamanhoM2(listing.area_casa_m2, cat.area_m2 ?? null);
       const A = notaAmenidades(listing);
-      const Q = notaQuartos(listing.quartos);
+      const Q = notaQuartos(cat.quartos, listing.quartos);
+      const B = notaBanheiros(cat.banheiros, getBanheirosAnuncio(listing, dados));
+      const V = notaVagas(cat.vagas, getVagasAnuncio(listing, dados));
       const designOpt = DESIGN_OPCOES.find((o) => o.id === dados.designId);
       const D = designOpt?.nota ?? 0;
       const I = notaIdade(dados.idade ?? null);
-      return notaProdutoMedia(T, A, Q, D, I);
+      return notaProdutoMedia(T, A, Q, B, V, D, I);
     }
     return calcularNotaProduto(cat, listing);
   };
@@ -504,18 +546,31 @@ export function Etapa4Casas(props: {
         const prodDados = produtoDadosByKey[key];
         let produtoDados: Record<string, unknown> | null = null;
         if (prodDados) {
-          const cat = ce.catalogoRow as { area_m2?: number | null };
+          const cat = ce.catalogoRow as {
+            area_m2?: number | null;
+            quartos: number | null;
+            banheiros: number | null;
+            vagas: number | null;
+          };
+          const banheirosAnuncio = getBanheirosAnuncio(anuncio, prodDados);
+          const vagasAnuncio = getVagasAnuncio(anuncio, prodDados);
           const T = notaTamanhoM2(anuncio.area_casa_m2, cat.area_m2 ?? null);
           const A = notaAmenidades(anuncio);
-          const Q = notaQuartos(anuncio.quartos);
+          const Q = notaQuartos(cat.quartos, anuncio.quartos);
+          const B = notaBanheiros(cat.banheiros, banheirosAnuncio);
+          const V = notaVagas(cat.vagas, vagasAnuncio);
           const designOpt = DESIGN_OPCOES.find((o) => o.id === prodDados.designId);
           const D = designOpt?.nota ?? 0;
           const I = notaIdade(prodDados.idade ?? null);
           produtoDados = {
             designId: prodDados.designId,
             idade: prodDados.idade,
+            ...(prodDados.banheiros != null && { banheiros: prodDados.banheiros }),
+            ...(prodDados.vagas != null && { vagas: prodDados.vagas }),
             nota_tamanho: T,
             nota_quartos: Q,
+            nota_banheiros: B,
+            nota_vagas: V,
             nota_amenidades: A,
             nota_design: D,
             nota_idade: I,
@@ -733,22 +788,52 @@ export function Etapa4Casas(props: {
   const pdfRef = useRef<HTMLDivElement>(null);
   const [gerandoPdf, setGerandoPdf] = useState(false);
 
-  /** Dados para o PDF Score & Batalha: uma linha por competidor (casa), com notas do primeiro modelo e resultado G/E/P. */
+  /** Dados para o PDF Score & Batalha: uma linha por competidor (casa), com notas salvas do primeiro modelo. */
   const pdfRows = useMemo((): ScoreBatalhaRow[] => {
     if (rankingBatalha.length === 0 || escolhidasComDados.length === 0) return [];
     const primeiroModelo = escolhidasComDados[0];
     return rankingBatalha.map(({ casa, notaMedia }) => {
       const key = `${primeiroModelo.id}__${casa.id}`;
-      const notaAtrib = getNotaAtributosLote(key);
-      const catRow = primeiroModelo.catalogoRow as {
-        preco_venda_m2: number | null;
-        quartos: number | null;
-        banheiros: number | null;
-        vagas: number | null;
-      };
-      const notaPreco = calcularNotaPreco(catRow.preco_venda_m2, casa.preco_m2);
-      const notaProduto = calcularNotaProduto(catRow, casa);
-      const notaFinal = notaFinalBatalha(notaAtrib, notaPreco, notaProduto);
+      const saved = batalhaFullByKey.get(key);
+
+      const notaPreco =
+        saved?.nota_preco ?? getNotaPrecoCompleta(primeiroModelo, casa);
+      const notaProduto =
+        saved?.nota_produto ?? getNotaProdutoCompleta(primeiroModelo, casa);
+      const notaAtrib =
+        saved?.nota_localizacao ?? getNotaAtributosLote(key);
+      const notaFinal =
+        saved?.nota_final ??
+        notaFinalBatalha(notaAtrib, notaPreco, notaProduto);
+
+      const precoJson = saved?.preco_dados_json as Record<string, unknown> | undefined;
+      const precoSub: PrecoSubNotas | null =
+        precoJson && (precoJson.D != null || precoJson.E != null)
+          ? {
+              D: precoJson.D as number | null,
+              E: precoJson.E as number | null,
+              I: precoJson.I as number | null,
+              P: precoJson.P as number | null,
+            }
+          : null;
+
+      const prodJson = saved?.produto_dados_json as Record<string, unknown> | undefined;
+      const produtoSub: ProdutoSubNotas | null =
+        prodJson &&
+        (prodJson.nota_tamanho != null ||
+          prodJson.nota_quartos != null ||
+          prodJson.nota_banheiros != null)
+          ? {
+              nota_tamanho: prodJson.nota_tamanho as number | null,
+              nota_amenidades: prodJson.nota_amenidades as number | null,
+              nota_quartos: prodJson.nota_quartos as number | null,
+              nota_banheiros: prodJson.nota_banheiros as number | null,
+              nota_vagas: prodJson.nota_vagas as number | null,
+              nota_design: prodJson.nota_design as number | null,
+              nota_idade: prodJson.nota_idade as number | null,
+            }
+          : null;
+
       const resultado: 'G' | 'E' | 'P' = notaMedia >= 1 ? 'G' : notaMedia <= -1 ? 'P' : 'E';
       const precoNum = casa.preco != null ? casa.preco / 1e6 : 0;
       const precoLabel = precoNum > 0 ? `R$ ${precoNum.toFixed(2).replace('.', ',')} MM` : '—';
@@ -760,9 +845,11 @@ export function Etapa4Casas(props: {
         notaLocalizacao: notaAtrib,
         notaFinal: Number(notaFinal.toFixed(1)),
         resultado,
+        precoSub,
+        produtoSub,
       };
     });
-  }, [rankingBatalha, escolhidasComDados, atributosLoteByKey, batalhaByKey]);
+  }, [rankingBatalha, escolhidasComDados, batalhaFullByKey, atributosLoteByKey, batalhaByKey, reformaChecklistByListingId, produtoDadosByKey]);
 
   const handleGerarPdf = () => {
     if (pdfRows.length === 0) return;
@@ -1180,6 +1267,18 @@ export function Etapa4Casas(props: {
                           const produtoManualPreenchido =
                             (prodDados.designId != null && prodDados.designId !== '') ||
                             (prodDados.idade != null && Number.isFinite(prodDados.idade));
+                          const catProduto = ce.catalogoRow as {
+                            nome: string | null;
+                            quartos: number | null;
+                            banheiros: number | null;
+                            vagas: number | null;
+                            area_m2?: number | null;
+                          };
+                          const banheirosAnuncio = getBanheirosAnuncio(c, prodDados);
+                          const vagasAnuncio = getVagasAnuncio(c, prodDados);
+                          const notaQ = notaQuartos(catProduto.quartos, c.quartos);
+                          const notaB = notaBanheiros(catProduto.banheiros, banheirosAnuncio);
+                          const notaV = notaVagas(catProduto.vagas, vagasAnuncio);
                           return (
                             <React.Fragment key={ce.id}>
                               <td
@@ -1290,7 +1389,7 @@ export function Etapa4Casas(props: {
                                         setProdutoDadosByKey((p) => ({ ...p, [key]: {} }));
                                     }}
                                     className="min-w-[2rem] rounded border border-stone-300 bg-white px-1 py-0.5 text-xs hover:bg-stone-50"
-                                    title="Produto (5 sub-itens: tamanho, amenidades, quartos, design, idade)"
+                                    title="Produto (7 sub-itens: tamanho, amenidades, quartos, banheiros, vagas, design, idade)"
                                   >
                                     {notaProduto}
                                   </button>
@@ -1305,21 +1404,66 @@ export function Etapa4Casas(props: {
                                 </div>
                                 {isOpenProduto && (
                                   <>
-                                    <div className="absolute left-0 top-full z-30 mt-0.5 w-64 rounded-lg border border-stone-200 bg-white p-2 shadow-lg">
+                                    <div className="absolute left-0 top-full z-30 mt-0.5 w-72 rounded-lg border border-stone-200 bg-white p-2 shadow-lg">
                                       <p className="mb-2 text-xs font-semibold text-stone-800">
-                                        Produto — 5 sub-itens
+                                        Produto — 7 sub-itens
+                                      </p>
+                                      <p className="mb-2 text-[11px] text-stone-500">
+                                        Modelo (
+                                        {catProduto.nome ?? `Casa ${ce.ordem}`}):{' '}
+                                        {catProduto.quartos ?? QUARTOS_PADRAO_NOSSA} quartos,{' '}
+                                        {catProduto.banheiros ?? '—'} banh.,{' '}
+                                        {catProduto.vagas ?? '—'} vagas
                                       </p>
                                       <div className="space-y-1.5 text-xs">
                                         <p>
                                           Tamanho m²: auto (
-                                          {notaTamanhoM2(
-                                            c.area_casa_m2,
-                                            (ce.catalogoRow as { area_m2?: number | null })
-                                              .area_m2 ?? null,
-                                          )}
+                                          {notaTamanhoM2(c.area_casa_m2, catProduto.area_m2 ?? null)}
                                           )
                                         </p>
-                                        <p>Quartos: auto ({notaQuartos(c.quartos)})</p>
+                                        <p>
+                                          Quartos: anúncio {c.quartos ?? '—'} → auto ({notaQ})
+                                        </p>
+                                        <label className="flex items-center gap-2">
+                                          <span className="shrink-0 text-stone-600">Banheiros:</span>
+                                          <input
+                                            type="number"
+                                            min={0}
+                                            value={banheirosAnuncio ?? ''}
+                                            onChange={(e) => {
+                                              const v =
+                                                e.target.value === ''
+                                                  ? null
+                                                  : Number(e.target.value);
+                                              setProdutoDadosByKey((p) => ({
+                                                ...p,
+                                                [key]: { ...p[key], banheiros: v },
+                                              }));
+                                            }}
+                                            className="w-16 rounded border border-stone-300 px-1 py-0.5"
+                                          />
+                                          <span className="text-stone-500">({notaB})</span>
+                                        </label>
+                                        <label className="flex items-center gap-2">
+                                          <span className="shrink-0 text-stone-600">Vagas:</span>
+                                          <input
+                                            type="number"
+                                            min={0}
+                                            value={vagasAnuncio ?? ''}
+                                            onChange={(e) => {
+                                              const v =
+                                                e.target.value === ''
+                                                  ? null
+                                                  : Number(e.target.value);
+                                              setProdutoDadosByKey((p) => ({
+                                                ...p,
+                                                [key]: { ...p[key], vagas: v },
+                                              }));
+                                            }}
+                                            className="w-16 rounded border border-stone-300 px-1 py-0.5"
+                                          />
+                                          <span className="text-stone-500">({notaV})</span>
+                                        </label>
                                         <p>Amenidades: auto ({notaAmenidades(c)})</p>
                                         <label className="block">
                                           <span className="text-stone-600">Design:</span>
