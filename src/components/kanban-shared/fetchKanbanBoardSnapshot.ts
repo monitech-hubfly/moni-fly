@@ -1,7 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeAccessRole } from '@/lib/authz';
 import { KANBAN_ID_BY_NOME } from '@/lib/constants/kanban-ids';
-import { fetchKanbanFasesAtivas } from '@/lib/kanban/fetch-kanban-fases';
+import {
+  augmentKanbanFasesComFasesDosCards,
+  fetchKanbanFasesAtivas,
+} from '@/lib/kanban/fetch-kanban-fases';
 import { enrichCardsParalelasContext } from '@/lib/kanban/kanban-paralelas-chips';
 import { sortKanbanCardsPorOrdemColuna } from '@/lib/kanban/kanban-coluna-ordem';
 import type { KanbanCardBrief, KanbanFase } from './types';
@@ -9,7 +12,7 @@ import type { KanbanCardBrief, KanbanFase } from './types';
 export type KanbanBoardSnapshot = {
   kanban: { id: string } | null;
   fases: KanbanFase[];
-  /** Cards ativos: não arquivados e não concluídos (board padrão). */
+  /** Ativos + arquivados nativos (pool do filtro STATUS no board). Concluídos ficam em `cardsConcluidos`. */
   cards: KanbanCardBrief[];
   /** Nativo: cards finalizados (toggle “Mostrar concluídos”). Legado: []. */
   cardsConcluidos: KanbanCardBrief[];
@@ -238,6 +241,7 @@ export async function fetchKanbanBoardSnapshot(
 
   let cardsRaw: unknown[] = [];
   let conclRaw: unknown[] = [];
+  let arquivRaw: unknown[] = [];
   if (hasNativo) {
     let cardsQuery = supabase
       .from('kanban_cards')
@@ -259,20 +263,36 @@ export async function fetchKanbanBoardSnapshot(
       .order('ordem_coluna', { ascending: true })
       .order('created_at', { ascending: false });
 
+    let arquivadosQuery = supabase
+      .from('kanban_cards')
+      .select(selectCols)
+      .eq('kanban_id', kanban.id)
+      .eq('status', 'ativo')
+      .eq('arquivado', true)
+      .order('ordem_coluna', { ascending: true })
+      .order('created_at', { ascending: false });
+
     if (userId && !isAdmin) {
       cardsQuery = cardsQuery.eq('franqueado_id', userId);
       concluidosQuery = concluidosQuery.eq('franqueado_id', userId);
+      arquivadosQuery = arquivadosQuery.eq('franqueado_id', userId);
     }
 
-    const [cardsRes, conclRes] = await Promise.all([cardsQuery, concluidosQuery]);
+    const [cardsRes, conclRes, arquivRes] = await Promise.all([
+      cardsQuery,
+      concluidosQuery,
+      arquivadosQuery,
+    ]);
     cardsRaw = (cardsRes.data ?? []) as unknown[];
     conclRaw = (conclRes.data ?? []) as unknown[];
+    arquivRaw = (arquivRes.data ?? []) as unknown[];
   }
 
   const franqueadoIds = [
     ...new Set([
       ...((cardsRaw ?? []) as { franqueado_id?: string | null }[]).map((c) => c.franqueado_id),
       ...((conclRaw ?? []) as { franqueado_id?: string | null }[]).map((c) => c.franqueado_id),
+      ...((arquivRaw ?? []) as { franqueado_id?: string | null }[]).map((c) => c.franqueado_id),
     ]),
   ].filter(Boolean) as string[];
   const profilesMap = new Map<string, { full_name: string | null }>();
@@ -298,6 +318,7 @@ export async function fetchKanbanBoardSnapshot(
     ...new Set([
       ...(cardsRaw?.map((c) => (c as { rede_franqueado_id?: string | null }).rede_franqueado_id) ?? []).filter(Boolean),
       ...(conclRaw?.map((c) => (c as { rede_franqueado_id?: string | null }).rede_franqueado_id) ?? []).filter(Boolean),
+      ...(arquivRaw?.map((c) => (c as { rede_franqueado_id?: string | null }).rede_franqueado_id) ?? []).filter(Boolean),
     ]),
   ] as string[];
   const redeNomeDiretoMap = new Map<string, string>();
@@ -353,19 +374,33 @@ export async function fetchKanbanBoardSnapshot(
 
   let cardsNativo = (cardsRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
   let cardsConcluidos = (conclRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
+  let cardsArquivadosNativo = (arquivRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
 
   cardsNativo = await enrichCardsParalelasContext(supabase, kanbanIdStr, cardsNativo);
   cardsConcluidos = await enrichCardsParalelasContext(supabase, kanbanIdStr, cardsConcluidos);
+  cardsArquivadosNativo = await enrichCardsParalelasContext(supabase, kanbanIdStr, cardsArquivadosNativo);
 
-  // Combina nativo + legado (nativo primeiro) e remove duplicatas por id
+  const idsComEstadoNativo = new Set([
+    ...cardsNativo.map((c) => c.id),
+    ...cardsConcluidos.map((c) => c.id),
+    ...cardsArquivadosNativo.map((c) => c.id),
+  ]);
+
+  // Combina nativo + legado; legado só se não houver linha nativa (evita fantasma em "Ativos")
   const seen = new Set<string>();
-  const cards = [...cardsNativo, ...cardsLegado].filter((c) => {
+  const cards = [...cardsNativo, ...cardsArquivadosNativo, ...cardsLegado].filter((c) => {
     const id = String(c.id ?? '').trim();
     if (!id) return false;
+    if (c.origem === 'legado' && idsComEstadoNativo.has(id)) return false;
     if (seen.has(id)) return false;
     seen.add(id);
     return true;
   });
+
+  const fasesComOrfas = await augmentKanbanFasesComFasesDosCards(supabase, kanbanIdStr, fases, [
+    ...cards.map((c) => c.fase_id),
+    ...cardsConcluidos.map((c) => c.fase_id),
+  ]);
 
   // Tags (nativo): agrega em lote e acopla ao card brief
   const allCardIds = [...new Set([...cards.map((c) => c.id), ...cardsConcluidos.map((c) => c.id)].filter(Boolean))];
@@ -391,7 +426,7 @@ export async function fetchKanbanBoardSnapshot(
 
     return {
       kanban: { id: kanbanIdStr },
-      fases,
+      fases: fasesComOrfas,
       cards: cardsTagged,
       cardsConcluidos: cardsConcluidosTagged,
       role,
@@ -401,7 +436,7 @@ export async function fetchKanbanBoardSnapshot(
 
   return {
     kanban: { id: kanbanIdStr },
-    fases,
+    fases: fasesComOrfas,
     cards,
     cardsConcluidos,
     role,

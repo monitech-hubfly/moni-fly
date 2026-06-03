@@ -36,3 +36,29 @@ export async function fetchKanbanFasesAtivas(
 
   return (fasesRows ?? []).map((row) => mapKanbanFaseRow(row as Record<string, unknown>));
 }
+
+/** Inclui fases referenciadas por cards cujo `fase_id` não está nas fases ativas (ex.: fase desativada). */
+export async function augmentKanbanFasesComFasesDosCards(
+  supabase: SupabaseClient,
+  kanbanId: string,
+  fases: KanbanFase[],
+  cardFaseIds: Iterable<string>,
+): Promise<KanbanFase[]> {
+  const known = new Set(fases.map((f) => f.id));
+  const missing = [...new Set([...cardFaseIds].filter((id) => id && !known.has(id)))];
+  if (missing.length === 0) return fases;
+
+  const { data: extraRows, error } = await supabase
+    .from('kanban_fases')
+    .select('id, nome, ordem, sla_dias, slug, instrucoes, materiais')
+    .eq('kanban_id', kanbanId)
+    .in('id', missing);
+
+  if (error) {
+    console.error('[augmentKanbanFasesComFasesDosCards]', error.message);
+    return fases;
+  }
+
+  const extra = (extraRows ?? []).map((row) => mapKanbanFaseRow(row as Record<string, unknown>));
+  return [...fases, ...extra].sort((a, b) => a.ordem - b.ordem);
+}
