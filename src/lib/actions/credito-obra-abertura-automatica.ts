@@ -60,7 +60,7 @@ async function carregarContextoAbertura(cardId: string) {
       faseSlug: null,
       processo: null,
       filhoCreditoObraId: null,
-      motivo: 'Card fora do Funil Operações.',
+      motivo: 'Card fora do Funil Pré Obra e Obra.',
     };
   }
 

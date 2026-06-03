@@ -197,7 +197,7 @@ async function resolverOperacoesCard(
   if (error) return { ok: false, error: error.message };
   if (card?.id) {
     if (String(card.kanban_id ?? '') !== KANBAN_IDS.OPERACOES) {
-      return { ok: false, error: 'Disponível apenas no Funil Operações.' };
+      return { ok: false, error: 'Disponível apenas no Funil Pré Obra e Obra.' };
     }
     return { ok: true, card: { cardId: String(card.id), origem: 'nativo' } };
   }
@@ -213,7 +213,7 @@ async function resolverOperacoesCard(
 
   const kid = String((vLeg as { kanban_id?: string | null }).kanban_id ?? '').trim();
   if (kid !== KANBAN_IDS.OPERACOES) {
-    return { ok: false, error: 'Disponível apenas no Funil Operações.' };
+    return { ok: false, error: 'Disponível apenas no Funil Pré Obra e Obra.' };
   }
 
   const fid = String((vLeg as { fase_id?: string | null }).fase_id ?? '').trim();

@@ -60,7 +60,7 @@ const CREDITO_JURIDICO_SUBITENS: NavItem[] = [
   { href: '/painel-contabilidade', label: 'Funil Contabilidade' },
 ];
 const PRE_OBRA_SUBITENS: NavItem[] = [
-  { href: '/operacoes', label: 'Funil Operações' },
+  { href: '/operacoes', label: 'Funil Pré Obra e Obra' },
   { href: '/funil-projeto-legal', label: 'Funil Projeto Legal' },
   { href: '/projetos-locais', label: 'Projetos Locais' },
 ];
@@ -423,7 +423,7 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
         {showPreObraNav &&
           renderMacro(
             'preObra',
-            'Pré-Obra',
+            'Operações',
             isPreObraActive(pathname ?? ''),
             preObraOpen,
             setPreObraOpen,

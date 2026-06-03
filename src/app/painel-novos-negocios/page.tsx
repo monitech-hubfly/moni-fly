@@ -210,14 +210,14 @@ export default async function PainelNovosNegociosPage({
             )}
             {snapOperacoes.kanban ? (
               <PainelPerformance
-                kanbanNome="Funil Operações"
+                kanbanNome="Funil Pré Obra e Obra"
                 kanbanId={snapOperacoes.kanban.id}
                 fases={snapOperacoes.fases}
                 cards={snapOperacoes.cards}
                 origemCards={snapOperacoes.cards.some((c) => c.origem === 'legado') ? 'legado' : 'nativo'}
               />
             ) : (
-              <p className="text-sm text-stone-500">Kanban &ldquo;Funil Operações&rdquo; não encontrado.</p>
+              <p className="text-sm text-stone-500">Kanban &ldquo;Funil Pré Obra e Obra&rdquo; não encontrado.</p>
             )}
           </div>
         </main>

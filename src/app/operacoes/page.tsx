@@ -12,9 +12,9 @@ export default async function OperacoesKanbanPage({
 }) {
   return renderKanbanDatabasePage(searchParams, {
     kanbanNomeDb: 'Funil Operações',
-    kanbanNomeDisplay: 'Funil Operações',
+    kanbanNomeDisplay: 'Funil Pré Obra e Obra',
     basePath: '/operacoes',
-    pageTitle: 'Kanban Operações',
+    pageTitle: 'Funil Pré Obra e Obra',
     tabsVariant: 'operacoes',
     columnAccent: 'var(--moni-kanban-stepone)',
   });

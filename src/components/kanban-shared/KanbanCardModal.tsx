@@ -2841,7 +2841,9 @@ export function KanbanCardModal({
     !ocultarGestaoCard &&
     (pode('mover_fase') || pode('finalizar_cards') || podeArquivarCardPerm);
   const ehFunilOperacoes =
-    card.kanban_id === KANBAN_IDS.OPERACOES || kanbanNome === 'Funil Operações';
+    card.kanban_id === KANBAN_IDS.OPERACOES ||
+    kanbanNome === 'Funil Pré Obra e Obra' ||
+    kanbanNome === 'Funil Operações';
   const podeGerenciarRelacionamentos =
     !ocultarGestaoCard && modalSessao.ehAdminOuTeam;
   const painelCentroAlternativo = abaCentro === 'chamados' || abaCentro === 'trancheVinculo';

@@ -134,7 +134,7 @@ export default async function HomePage() {
                   Kanban
                 </span>
                 <h3 className="mt-2 font-semibold text-stone-900">Operações</h3>
-                <p className="mt-1 text-sm text-stone-600">Funil Operações e execução.</p>
+                <p className="mt-1 text-sm text-stone-600">Funil Pré Obra e Obra e execução.</p>
               </Link>
               <Link
                 href="/painel-contabilidade"
