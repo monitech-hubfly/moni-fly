@@ -63,7 +63,6 @@ const PRE_OBRA_SUBITENS: NavItem[] = [
   { href: '/operacoes', label: 'Funil Operações' },
   { href: '/funil-projeto-legal', label: 'Funil Projeto Legal' },
   { href: '/projetos-locais', label: 'Projetos Locais' },
-  { href: '/projetos-legais', label: 'Projetos Legais' },
 ];
 const HDM_SUBITENS: NavItem[] = [
   { href: '/funil-produto', label: 'Produto' },
