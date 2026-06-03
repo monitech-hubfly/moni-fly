@@ -29,7 +29,7 @@ import { FERRAMENTAS_BIBLIOTECA } from '@/lib/universidade/ferramentas-bibliotec
 type AbaBiblioteca = 'ferramentas' | 'documentos';
 
 /** Documentos internos exibidos como card na aba Ferramentas (não em Documentos). */
-const DOCUMENTO_SLUGS_NA_ABA_FERRAMENTAS = new Set(['moni-capital']);
+const DOCUMENTO_SLUGS_NA_ABA_FERRAMENTAS = new Set(['moni-capital', 'batalha-casas']);
 
 function iconeFerramenta(tipo: FerramentaBibliotecaIcon, className: string) {
   const c = `h-5 w-5 shrink-0 ${className}`;
@@ -212,7 +212,8 @@ export function BibliotecaClient({
               const abrirTreinoNoHub =
                 f.id === 'bca-analise-viabilidade' && f.linkPrincipal?.href?.startsWith('/treinamento-bca');
               const abrirGuiaInternoNoHub =
-                f.id === 'moni-capital' && f.linkPrincipal?.href?.startsWith('/universidade/ferramentas/');
+                (f.id === 'moni-capital' || f.id === 'batalha-casas') &&
+                f.linkPrincipal?.href?.startsWith('/universidade/ferramentas/');
               return (
                 <button
                   key={f.id}

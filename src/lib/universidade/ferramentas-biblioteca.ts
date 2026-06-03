@@ -92,26 +92,24 @@ Use a estrutura de abas da **Planilha Step One** (seção **Documentos**) ou o t
     iconColorClass: 'text-violet-800',
     conteudoExplicativoMd: `## O que resolve
 
-A **batalha de casas** compara a sua unidade (ou tipologia) contra cada concorrente relevante em três eixos:
-
-- **Localização** (vista, sol, andar, posição na quadra)
-- **Preço** (R$/m² e condições)
-- **Produto** (metragem, acabamento, diferenciais)
+A **batalha de casas** compara o produto Moní contra cada concorrente relevante em três eixos: **Atributos do Lote**, **Preço** (4 sub-itens) e **Produto** (7 sub-itens).
 
 ## Meta operacional
 
-Estar no **TOP 2** do ranking do condomínio no conjunto **preço × produto × localização**. Se você não está no topo, o BCA precisa mostrar **como** o desconto ou o produto fecham a conta.
+Estar no **Giro** do condomínio na faixa de valor escolhida. Regra: posição ≤ giro → vende; posição > giro → não vende no prazo esperado.
 
-## Fluxo sugerido
+## Guia completo
 
-1. Mapa de competidores atualizado.
-2. Preencher scores por concorrente (template em **Documentos**).
-3. Registrar no Step One e anexar evidências (fotos, links de anúncio).
+O passo a passo com escala -3 a +2, checklists, fórmulas e tese de vendas está no guia interativo (botão abaixo).
 
 ## Armadilhas comuns
 
-- Score “bonito” sem link de anúncio ou print — não passa em comitê.
-- Misturar tipologias incomparáveis sem normalizar m² e VGV.`,
+- Score sem evidência (link/print do anúncio) — não passa em comitê.
+- Batalhar fora da faixa de valor ou sem catálogo/configurador atualizado.`,
+    linkPrincipal: {
+      label: 'Abrir passo a passo',
+      href: '/universidade/ferramentas/batalha-casas',
+    },
   },
   {
     id: 'configurador-casas',

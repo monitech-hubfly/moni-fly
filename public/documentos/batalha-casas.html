@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Batalha de Casas | Guia do Franqueado</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --verde: #1a3a2a;
+    --verde-medio: #2d5c42;
+    --verde-claro: #4a8c63;
+    --dourado: #c9a84c;
+    --dourado-claro: #e8c96a;
+    --creme: #f5f0e8;
+    --creme-escuro: #e8dfc8;
+    --branco: #fafaf7;
+    --texto: #1a1a1a;
+    --cinza: #6b6b6b;
+    --vermelho: #8b2020;
+    --violeta: #4c1d95;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--creme); color: var(--texto); }
+
+  .hero {
+    background: var(--verde);
+    padding: 52px 56px 44px;
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute;
+    top: -80px; right: -80px;
+    width: 320px; height: 320px;
+    border-radius: 50%;
+    border: 1px solid rgba(201,168,76,0.2);
+  }
+  .hero-eyebrow {
+    font-size: 10px; font-weight: 700; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--dourado); margin-bottom: 16px;
+  }
+  .hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 40px; font-weight: 900;
+    color: var(--branco); line-height: 1.05;
+    max-width: 640px; margin-bottom: 12px;
+  }
+  .hero h1 em { color: var(--dourado); font-style: normal; }
+  .hero-sub {
+    font-size: 15px; color: rgba(255,255,255,0.7);
+    max-width: 560px; line-height: 1.65;
+  }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-top: 22px;
+    background: rgba(201,168,76,0.15);
+    border: 1px solid rgba(201,168,76,0.3);
+    border-radius: 6px; padding: 8px 16px;
+    font-size: 12px; color: var(--dourado-claro); font-weight: 500;
+  }
+
+  .doc-layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 0;
+    align-items: start;
+  }
+
+  .doc-nav {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    background: white;
+    border-right: 1px solid var(--creme-escuro);
+    padding: 20px 12px 24px;
+    min-height: calc(100vh - 1px);
+  }
+  .doc-nav-title {
+    font-size: 9px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--cinza);
+    padding: 0 10px 12px;
+  }
+  .nav-btn {
+    display: block; width: 100%; text-align: left;
+    border: none; background: transparent;
+    font-family: inherit; font-size: 12px;
+    color: var(--cinza); padding: 10px 12px;
+    border-radius: 8px; cursor: pointer;
+    line-height: 1.35; transition: background 0.15s, color 0.15s;
+  }
+  .nav-btn:hover { background: var(--creme); color: var(--verde); }
+  .nav-btn.active {
+    background: rgba(26,58,42,0.08);
+    color: var(--verde); font-weight: 600;
+  }
+  .nav-btn .nav-num {
+    display: block; font-size: 9px; font-weight: 700;
+    letter-spacing: 1px; color: var(--dourado);
+    margin-bottom: 2px;
+  }
+
+  .doc-main { min-width: 0; }
+
+  .page-section {
+    display: none;
+    padding: 44px 48px 52px;
+    border-bottom: 1px solid var(--creme-escuro);
+  }
+  .page-section.active { display: block; }
+  .page-section:last-child { border-bottom: none; }
+
+  .section-label {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: var(--dourado); margin-bottom: 24px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .section-label::after {
+    content: ''; flex: 1; height: 1px; background: var(--creme-escuro);
+  }
+
+  .highlight-box {
+    background: var(--verde);
+    border-radius: 12px; padding: 26px 30px;
+    color: white; margin-bottom: 22px;
+  }
+  .highlight-box h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px; color: var(--dourado); margin-bottom: 10px;
+  }
+  .highlight-box p { font-size: 14px; line-height: 1.7; color: rgba(255,255,255,0.82); }
+  .highlight-box strong { color: white; }
+
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    margin-bottom: 20px;
+  }
+  .card {
+    background: white; border-radius: 12px;
+    padding: 22px 24px; border: 1px solid var(--creme-escuro);
+  }
+  .card h4 {
+    font-family: 'Playfair Display', serif;
+    font-size: 15px; color: var(--verde); margin-bottom: 8px;
+  }
+  .card p, .card li { font-size: 13px; color: var(--cinza); line-height: 1.65; }
+  .card ul { list-style: none; margin-top: 8px; }
+  .card li { padding: 4px 0; display: flex; gap: 8px; }
+  .card li::before { content: '·'; color: var(--dourado); font-size: 18px; line-height: 1; }
+
+  .aviso-box {
+    background: rgba(139,32,32,0.06);
+    border: 1px solid rgba(139,32,32,0.2);
+    border-radius: 10px; padding: 16px 20px;
+    display: flex; gap: 12px; margin-bottom: 20px;
+  }
+  .aviso-box.info {
+    background: rgba(76,29,149,0.06);
+    border-color: rgba(76,29,149,0.2);
+  }
+  .aviso-box p { font-size: 13px; line-height: 1.6; color: #3a1a5a; }
+  .aviso-box.info p { color: #3a2860; }
+  .aviso-box strong { color: var(--violeta); }
+
+  .giro-rule {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+    border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--creme-escuro); margin-bottom: 20px;
+  }
+  .giro-col { padding: 18px 22px; background: white; }
+  .giro-col.ok { background: rgba(26,58,42,0.05); border-right: 1px solid var(--creme-escuro); }
+  .giro-col.bad { background: rgba(139,32,32,0.04); }
+  .giro-col h5 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .giro-col.ok h5 { color: var(--verde-claro); }
+  .giro-col.bad h5 { color: var(--vermelho); }
+  .giro-col p { font-size: 13px; color: var(--cinza); line-height: 1.55; }
+
+  .steps-timeline { position: relative; }
+  .step-row {
+    display: flex; gap: 22px; position: relative;
+    padding-bottom: 28px;
+  }
+  .step-row:last-child { padding-bottom: 0; }
+  .step-row:not(:last-child)::before {
+    content: ''; position: absolute;
+    left: 17px; top: 40px; width: 2px; bottom: 0;
+    background: var(--creme-escuro);
+  }
+  .step-num {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--verde); color: var(--dourado);
+    font-family: 'Playfair Display', serif;
+    font-size: 15px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; z-index: 1;
+  }
+  .step-body { flex: 1; padding-top: 6px; }
+  .step-body h4 {
+    font-family: 'Playfair Display', serif;
+    font-size: 15px; color: var(--verde); margin-bottom: 6px;
+  }
+  .step-body p { font-size: 13px; color: var(--cinza); line-height: 1.65; }
+  .step-body ul { margin-top: 8px; padding-left: 18px; font-size: 13px; color: var(--cinza); line-height: 1.6; }
+  .step-note {
+    margin-top: 10px;
+    background: rgba(201,168,76,0.1);
+    border-left: 3px solid var(--dourado);
+    padding: 8px 12px; border-radius: 0 6px 6px 0;
+    font-size: 12px; color: #6a4e10; line-height: 1.5;
+  }
+
+  .data-table {
+    width: 100%; border-collapse: collapse;
+    background: white; border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--creme-escuro);
+    margin-bottom: 20px; font-size: 13px;
+  }
+  .data-table th {
+    background: rgba(26,58,42,0.06);
+    color: var(--verde); font-weight: 600;
+    text-align: left; padding: 11px 14px;
+    border-bottom: 1px solid var(--creme-escuro);
+  }
+  .data-table td {
+    padding: 10px 14px; vertical-align: top;
+    border-bottom: 1px solid var(--creme-escuro);
+    color: var(--cinza); line-height: 1.5;
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table td:first-child { font-weight: 600; color: var(--verde); white-space: nowrap; }
+  .data-table .nota-pos { color: #1a5c32; font-weight: 600; }
+  .data-table .nota-neg { color: var(--vermelho); font-weight: 600; }
+  .data-table .nota-neu { color: var(--cinza); font-weight: 600; }
+
+  .formula-box {
+    background: white; border: 1px solid var(--creme-escuro);
+    border-radius: 10px; padding: 18px 22px;
+    font-family: 'DM Sans', monospace;
+    font-size: 14px; color: var(--verde); font-weight: 600;
+    margin-bottom: 18px; text-align: center;
+  }
+
+  .scale-grid {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;
+    margin-bottom: 20px;
+  }
+  .scale-cell {
+    background: white; border: 1px solid var(--creme-escuro);
+    border-radius: 8px; padding: 12px 8px; text-align: center;
+  }
+  .scale-cell .val {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px; font-weight: 700; color: var(--verde);
+  }
+  .scale-cell .lbl { font-size: 10px; color: var(--cinza); margin-top: 4px; line-height: 1.35; }
+
+  .peso-bar {
+    display: flex; height: 28px; border-radius: 6px; overflow: hidden;
+    margin: 12px 0 16px; font-size: 10px; font-weight: 700; color: white;
+  }
+  .peso-bar span { display: flex; align-items: center; justify-content: center; }
+
+  .gep-pills { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .gep-pill {
+    flex: 1; min-width: 140px; border-radius: 10px;
+    padding: 14px 16px; text-align: center;
+    border: 1px solid var(--creme-escuro); background: white;
+  }
+  .gep-pill .letter {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px; font-weight: 900; line-height: 1;
+  }
+  .gep-pill.g .letter { color: #1a7a3a; }
+  .gep-pill.e .letter { color: #b8860b; }
+  .gep-pill.p .letter { color: var(--vermelho); }
+  .gep-pill p { font-size: 11px; color: var(--cinza); margin-top: 6px; line-height: 1.4; }
+
+  .confidencial {
+    text-align: center; font-size: 11px; color: var(--cinza);
+    padding: 20px; letter-spacing: 0.5px;
+  }
+
+  @media (max-width: 800px) {
+    .hero { padding: 36px 24px 28px; }
+    .hero h1 { font-size: 28px; }
+    .doc-layout { grid-template-columns: 1fr; }
+    .doc-nav {
+      position: relative; min-height: 0;
+      border-right: none; border-bottom: 1px solid var(--creme-escuro);
+      display: flex; flex-wrap: wrap; gap: 6px; padding: 12px;
+    }
+    .doc-nav-title { width: 100%; }
+    .nav-btn { width: auto; flex: 1 1 calc(50% - 6px); min-width: 120px; }
+    .page-section { padding: 32px 20px 40px; }
+    .grid-2, .giro-rule, .scale-grid { grid-template-columns: 1fr; }
+    .scale-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-eyebrow">Universidade Moní · Step One</div>
+  <h1>Batalha de <em>Casas</em></h1>
+  <p class="hero-sub">Passo a passo para comparar seu produto Moní contra cada concorrente relevante — em Atributos do Lote, Preço e Produto — e construir ranking, leitura de giro e tese de vendas.</p>
+  <div class="hero-badge">🏆 Meta: estar no Giro do condomínio na faixa de valor escolhida</div>
+</div>
+
+<div class="doc-layout">
+  <nav class="doc-nav" aria-label="Seções do guia">
+    <p class="doc-nav-title">Navegação</p>
+    <button type="button" class="nav-btn active" data-section="sec-1"><span class="nav-num">01</span>O que é</button>
+    <button type="button" class="nav-btn" data-section="sec-2"><span class="nav-num">02</span>Fluxo</button>
+    <button type="button" class="nav-btn" data-section="sec-3"><span class="nav-num">03</span>Escala</button>
+    <button type="button" class="nav-btn" data-section="sec-4"><span class="nav-num">04</span>Atributos</button>
+    <button type="button" class="nav-btn" data-section="sec-5"><span class="nav-num">05</span>Preço</button>
+    <button type="button" class="nav-btn" data-section="sec-6"><span class="nav-num">06</span>Produto</button>
+    <button type="button" class="nav-btn" data-section="sec-7"><span class="nav-num">07</span>Ranking</button>
+  </nav>
+
+  <main class="doc-main">
+
+    <!-- SEÇÃO 1 -->
+    <section id="sec-1" class="page-section active" aria-labelledby="lbl-1">
+      <div class="section-label" id="lbl-1">O que é a Batalha de Casas</div>
+
+      <div class="highlight-box">
+        <h3>Propósito</h3>
+        <p>Comparar o <strong>produto Moní</strong> (modelo + lote) contra cada <strong>concorrente relevante</strong> da listagem, em três eixos independentes, para decidir posicionamento de preço, produto e narrativa comercial — antes de congelar o BCA e ir ao comitê.</p>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Meta operacional</h4>
+          <p>Estar no <strong>Giro</strong> do condomínio na <strong>faixa de valor</strong> que você escolheu no Step One (valor × giro). A batalha prova se o produto compete de fato nessa faixa.</p>
+        </div>
+        <div class="card">
+          <h4>Os 3 eixos</h4>
+          <ul>
+            <li><strong>Localização</strong> — Atributos do Lote (vista, verde, convivência…)</li>
+            <li><strong>Preço</strong> — distância nominal + reforma (4 sub-itens)</li>
+            <li><strong>Produto</strong> — programa, design, idade (7 sub-itens)</li>
+          </ul>
+        </div>
+      </div>
+
+      <p style="font-size:13px;font-weight:600;color:var(--verde);margin-bottom:10px;">Regra do giro</p>
+      <div class="giro-rule">
+        <div class="giro-col ok">
+          <h5>✓ Posição ≤ giro</h5>
+          <p>Sua oferta está na faixa em que o mercado absorve — <strong>vende</strong> dentro da hipótese de liquidez.</p>
+        </div>
+        <div class="giro-col bad">
+          <h5>✗ Posição &gt; giro</h5>
+          <p>Preço ou produto ficaram acima do que a praça gira — <strong>não vende</strong> na velocidade esperada; ajuste produto, preço ou tese.</p>
+        </div>
+      </div>
+
+      <div class="aviso-box info">
+        <span style="font-size:18px;">ℹ️</span>
+        <p><strong>Quartos, banheiros/suítes e vagas</strong> no eixo Produto são comparados com os dados do modelo escolhido em <code>catalogo_casas</code> (não mais com base fixa). Confirme que o Configurador e o catálogo estão atualizados antes da batalha.</p>
+      </div>
+    </section>
+
+    <!-- SEÇÃO 2 -->
+    <section id="sec-2" class="page-section" aria-labelledby="lbl-2">
+      <div class="section-label" id="lbl-2">Fluxo passo a passo</div>
+
+      <div class="steps-timeline">
+        <div class="step-row">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h4>Varrer os concorrentes (Mapa de Competidores)</h4>
+            <p>Ainda <strong>sem batalha completa</strong> — primeiro entenda a praça.</p>
+            <ul>
+              <li>Identificar valores target e faixas de venda</li>
+              <li>Compreender programas e estilos de casas da região</li>
+              <li>Ranquear casas possíveis usando só o eixo <strong>Produto</strong> (leitura rápida)</li>
+            </ul>
+          </div>
+        </div>
+        <div class="step-row">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h4>Selecionar as 3 casas possíveis</h4>
+            <p>Para cada tipologia candidata, abra o <strong>Configurador de Casas Moní</strong>, monte o produto no lote e <strong>gere o PDF</strong> do configurador (anexo para comitê e crédito).</p>
+          </div>
+        </div>
+        <div class="step-row">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h4>Aplicar BCA e Batalha com custos do Configurador</h4>
+            <p>Transfira VGV, metragem e custos reais para o <strong>BCA</strong>. Só então rode a batalha completa nos três eixos — premissa financeira e competitiva alinhadas.</p>
+          </div>
+        </div>
+        <div class="step-row">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h4>Preencher a matriz de scores (modelo × anúncio)</h4>
+            <p>No Step One (Etapa 6/7), escolha até <strong>3 modelos</strong> do catálogo e batalhe cada um contra <strong>todos os concorrentes</strong> da mesma faixa de valor. Use os popovers: Atributos do Lote, Preço (checklist reforma) e Produto (design + idade).</p>
+            <div class="step-note">Salve a batalha antes de gerar o PDF Score &amp; Batalha.</div>
+          </div>
+        </div>
+        <div class="step-row">
+          <div class="step-num">5</div>
+          <div class="step-body">
+            <h4>Interpretar o resultado em relação ao giro</h4>
+            <p>Cruze ranking de modelos e de anúncios com a faixa <strong>valor × giro</strong> do condomínio. Se a melhor pontuação não “fecha” no giro, o BCA precisa mostrar o ajuste (preço, produto ou prazo).</p>
+          </div>
+        </div>
+        <div class="step-row">
+          <div class="step-num">6</div>
+          <div class="step-body">
+            <h4>Escrever a tese de vendas</h4>
+            <p>Documente por que esta casa vende, com base em mercado + BCA + batalha (ver Seção 7).</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SEÇÃO 3 -->
+    <section id="sec-3" class="page-section" aria-labelledby="lbl-3">
+      <div class="section-label" id="lbl-3">Escala de notas</div>
+
+      <p style="font-size:14px;color:var(--cinza);line-height:1.65;margin-bottom:18px;">Todos os sub-itens e a nota final usam a faixa <strong>-3 a +2</strong>, com arredondamento de uma casa decimal e <strong>clamp</strong> nos extremos.</p>
+
+      <div class="scale-grid">
+        <div class="scale-cell"><div class="val">-3</div><div class="lbl">Caso extremo contra nós</div></div>
+        <div class="scale-cell"><div class="val">-2</div><div class="lbl">Muito pior</div></div>
+        <div class="scale-cell"><div class="val">-1</div><div class="lbl">Pior</div></div>
+        <div class="scale-cell"><div class="val">0</div><div class="lbl">Equivalente</div></div>
+        <div class="scale-cell"><div class="val">+1</div><div class="lbl">Melhor</div></div>
+        <div class="scale-cell"><div class="val">+2</div><div class="lbl">Muito melhor</div></div>
+      </div>
+
+      <div class="formula-box">Nota final = Atributos do Lote + Preço + Produto → clamp[-3, +2]</div>
+
+      <div class="card">
+        <h4>Desempate (ranking de modelos)</h4>
+        <p>Quando a pontuação total empatar, prevalece nesta ordem: <strong>1) soma Atributos do Lote</strong> → <strong>2) soma Preço</strong> → <strong>3) soma Produto</strong>.</p>
+      </div>
+    </section>
+
+    <!-- SEÇÃO 4 -->
+    <section id="sec-4" class="page-section" aria-labelledby="lbl-4">
+      <div class="section-label" id="lbl-4">Eixo: Atributos do Lote</div>
+
+      <p style="font-size:14px;color:var(--cinza);line-height:1.65;margin-bottom:16px;">Para cada par <strong>modelo × anúncio</strong>, marque SIM/NÃO nos 5 atributos. A nota é a <strong>soma</strong> dos scores dos itens marcados SIM, com clamp em +2 (mesmo que a soma bruta chegue a +4).</p>
+
+      <table class="data-table">
+        <thead>
+          <tr><th>Atributo</th><th>Se SIM</th><th>Interpretação</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Vista privilegiada</td><td class="nota-pos">+2</td><td>Lote com vista relevante vs. referência do anúncio</td></tr>
+          <tr><td>Perto de área verde</td><td class="nota-pos">+2</td><td>Proximidade de área verde / parque interno</td></tr>
+          <tr><td>Muro</td><td class="nota-neu">0</td><td>Presença de muro (neutro na soma)</td></tr>
+          <tr><td>Perto de área de convivência</td><td class="nota-neg">-2</td><td>Barulho / fluxo — desvantagem de privacidade</td></tr>
+          <tr><td>Perto de lixeira</td><td class="nota-neg">-1</td><td>Impacto de odor e circulação</td></tr>
+        </tbody>
+      </table>
+
+      <div class="aviso-box">
+        <span>⚠️</span>
+        <p>Sem nenhum atributo marcado, a nota de Localização fica <strong>0</strong>. Preencha com base no lote real — score “bonito” sem critério não passa em comitê.</p>
+      </div>
+    </section>
+
+    <!-- SEÇÃO 5 -->
+    <section id="sec-5" class="page-section" aria-labelledby="lbl-5">
+      <div class="section-label" id="lbl-5">Eixo: Preço</div>
+
+      <div class="formula-box">Nota Preço = (D×4 + E×3 + I×2 + P×1) / 10 → clamp[-3, +2]</div>
+
+      <div class="peso-bar">
+        <span style="width:40%;background:var(--verde);">D — Distância (4)</span>
+        <span style="width:30%;background:var(--verde-medio);">E — Esforço (3)</span>
+        <span style="width:20%;background:var(--verde-claro);">I — Incerteza (2)</span>
+        <span style="width:10%;background:var(--dourado);color:var(--verde);">P (1)</span>
+      </div>
+
+      <table class="data-table">
+        <thead><tr><th>Sub-item</th><th>Peso</th><th>Como calcular</th></tr></thead>
+        <tbody>
+          <tr><td>D — Distância nominal</td><td>4</td><td>Compara <strong>preço do anúncio + investimento em reforma</strong> (checklist) vs. valor do nosso modelo. Usa faixas percentuais (-3 a +2).</td></tr>
+          <tr><td>E — Esforço da reforma</td><td>3</td><td>0 se nada marcado ou tudo marcado; +1 só fácil; +1 só difícil+intermediário; 0 se mix intermediário+fácil.</td></tr>
+          <tr><td>I — Incerteza da reforma</td><td>2</td><td>-3 nada marcado; -2 só normal; +1 só alta; +2 tudo; -1 ou 0 conforme mix.</td></tr>
+          <tr><td>P — Preço nominal</td><td>1</td><td>Preço do anúncio vs. nosso modelo, mesmas faixas percentuais de D.</td></tr>
+        </tbody>
+      </table>
+
+      <p style="font-size:13px;font-weight:600;color:var(--verde);margin:18px 0 10px;">8 categorias de reforma (A–H) — valores padrão editáveis</p>
+      <table class="data-table">
+        <thead>
+          <tr><th>Cat.</th><th>Descrição</th><th>Valor ref. (R$)</th><th>Dificuldade</th><th>Incerteza</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>A</td><td>Estrutura e Fundação</td><td>65.000</td><td>Difícil</td><td>Alta</td></tr>
+          <tr><td>B</td><td>Impermeabilização e Infiltração</td><td>18.000</td><td>Difícil</td><td>Alta</td></tr>
+          <tr><td>C</td><td>Instalações</td><td>28.000</td><td>Difícil</td><td>Alta</td></tr>
+          <tr><td>D</td><td>Cobertura</td><td>14.000</td><td>Intermediário</td><td>Alta</td></tr>
+          <tr><td>E</td><td>Revestimentos e Esquadrias</td><td>22.000</td><td>Intermediário</td><td>Normal</td></tr>
+          <tr><td>F</td><td>Cozinha e Banheiros</td><td>15.000</td><td>Intermediário</td><td>Normal</td></tr>
+          <tr><td>G</td><td>Fachada e Áreas Externas</td><td>25.000</td><td>Intermediário</td><td>Alta</td></tr>
+          <tr><td>H</td><td>Acabamentos Leves</td><td>6.000</td><td>Fácil</td><td>Normal</td></tr>
+        </tbody>
+      </table>
+
+      <div class="aviso-box info">
+        <span>ℹ️</span>
+        <p><strong>Preencha valores reais de mercado</strong> quando tiver orçamento ou referência local — os defaults são referência Moní, não substituem pesquisa no condomínio.</p>
+      </div>
+
+      <p style="font-size:12px;color:var(--cinza);margin-top:8px;">Faixas percentuais (D e P): ≤-50% → -3; ≤-20% → -2; ≤-1% → -1; &lt;+1% → 0; &lt;+20% → +1; ≥+20% → +2.</p>
+    </section>
+
+    <!-- SEÇÃO 6 -->
+    <section id="sec-6" class="page-section" aria-labelledby="lbl-6">
+      <div class="section-label" id="lbl-6">Eixo: Produto</div>
+
+      <div class="formula-box">Nota Produto = (T + A + Q + B + V + D + I) / 7 → clamp[-3, +2]</div>
+
+      <table class="data-table">
+        <thead><tr><th>Sigla</th><th>Sub-item</th><th>Regra resumida</th></tr></thead>
+        <tbody>
+          <tr><td>T</td><td>Tamanho (m²)</td><td>Anúncio <strong>maior</strong> que nossa área → nota negativa para nós (faixas % sobre nossa metragem).</td></tr>
+          <tr><td>A</td><td>Amenidades</td><td>Piscina/rooftop: anúncio tem e nós não → -2; nós temos e anúncio não → +2. Ofurô/hidromassagem: ±1.</td></tr>
+          <tr><td>Q</td><td>Quartos</td><td><code>quartos</code> do <strong>catálogo</strong> do modelo vs. anúncio. Fallback 4 se catálogo vazio. Escala por diferença (até -3).</td></tr>
+          <tr><td>B</td><td>Banheiros</td><td><code>banheiros</code> do catálogo vs. anúncio. diff = nosso − anúncio (≤-2 → -2 … ≥+2 → +2).</td></tr>
+          <tr><td>V</td><td>Vagas</td><td><code>vagas</code> do catálogo vs. anúncio — mesma escala de B.</td></tr>
+          <tr><td>D</td><td>Design</td><td>Seleção manual: arquiteto renomado -2 … fachada degradada +2.</td></tr>
+          <tr><td>I</td><td>Idade</td><td>Até 1 ano → 0; 2–19 anos → +2 (casa usada favorece Moní nova); 20+ anos → +1.</td></tr>
+        </tbody>
+      </table>
+
+      <p style="font-size:13px;font-weight:600;color:var(--verde);margin:16px 0 8px;">Opções de Design (D)</p>
+      <table class="data-table">
+        <thead><tr><th>Opção</th><th>Nota</th></tr></thead>
+        <tbody>
+          <tr><td>Casa assinada por arquiteto renomado</td><td class="nota-neg">-2</td></tr>
+          <tr><td>Design contemporâneo de alto padrão</td><td class="nota-neg">-1</td></tr>
+          <tr><td>Design padrão moderno</td><td class="nota-neu">0</td></tr>
+          <tr><td>Design desatualizado / sem projeto</td><td class="nota-pos">+1</td></tr>
+          <tr><td>Design comprometido / fachada degradada</td><td class="nota-pos">+2</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- SEÇÃO 7 -->
+    <section id="sec-7" class="page-section" aria-labelledby="lbl-7">
+      <div class="section-label" id="lbl-7">Ranking e resultado</div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Ranking por modelo</h4>
+          <p>Soma das <strong>notas finais</strong> de cada modelo contra todos os anúncios da faixa. O maior total é o <strong>melhor modelo</strong> para levar ao BCA e comitê.</p>
+        </div>
+        <div class="card">
+          <h4>Ranking por anúncio</h4>
+          <p><strong>Média</strong> da nota final entre os modelos — ordena concorrentes do mais fraco ao mais forte frente à Moní.</p>
+        </div>
+      </div>
+
+      <p style="font-size:13px;font-weight:600;color:var(--verde);margin-bottom:12px;">Resultado G / E / P (por anúncio, na média entre modelos)</p>
+      <div class="gep-pills">
+        <div class="gep-pill g"><div class="letter">G</div><p><strong>Ganhador</strong><br>média ≥ +1</p></div>
+        <div class="gep-pill e"><div class="letter">E</div><p><strong>Empate</strong><br>entre -1 e +1</p></div>
+        <div class="gep-pill p"><div class="letter">P</div><p><strong>Perdedor</strong><br>média ≤ -1</p></div>
+      </div>
+
+      <div class="highlight-box">
+        <h3>Como ler em relação ao giro</h3>
+        <p>Se o melhor modelo pontua bem mas a faixa de preço está <strong>acima do giro</strong>, a operação não liquida no prazo — ajuste ticket, produto ou discurso. Se pontua mal <strong>dentro</strong> do giro, o mercado está mais competitivo do que o BCA assume.</p>
+      </div>
+
+      <p style="font-size:13px;font-weight:600;color:var(--verde);margin:18px 0 10px;">Tese de vendas — o que documentar</p>
+      <div class="steps-timeline">
+        <div class="step-row">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h4>Por que esta casa</h4>
+            <p>Conecte leitura de mercado (mapa + demanda), resultado da batalha e fechamento do BCA.</p>
+          </div>
+        </div>
+        <div class="step-row">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h4>Vantagens e desvantagens</h4>
+            <p>Liste o que a batalha mostrou como G/E/P em cada eixo — seja explícito nas fraquezas.</p>
+          </div>
+        </div>
+        <div class="step-row">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h4>Discurso para amenizar desvantagens</h4>
+            <p>Prepare respostas para corretor e comprador (ex.: reforma já precificada no Preço, lote compensa convivência, etc.).</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="confidencial">Documento confidencial · Uso exclusivo do franqueado Moní · Hub Fly / Step One</p>
+  </main>
+</div>
+
+<script>
+(function () {
+  var buttons = document.querySelectorAll('.nav-btn');
+  var sections = document.querySelectorAll('.page-section');
+  function show(id) {
+    sections.forEach(function (s) {
+      s.classList.toggle('active', s.id === id);
+    });
+    buttons.forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-section') === id);
+    });
+    if (history.replaceState) {
+      history.replaceState(null, '', '#' + id);
+    }
+  }
+  buttons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      show(btn.getAttribute('data-section'));
+    });
+  });
+  var hash = (location.hash || '').replace('#', '');
+  if (hash && document.getElementById(hash)) show(hash);
+})();
+</script>
+</body>
+</html>
