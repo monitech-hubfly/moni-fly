@@ -200,7 +200,9 @@ import {
 import { AnexosChamado } from './AnexosChamado';
 import { AnexosSubchamado } from './AnexosSubchamado';
 import { ChecklistCard } from './ChecklistCard';
+import { ChecklistLegalCondominioCard } from './ChecklistLegalCondominioCard';
 import { FaseChecklistCard } from './FaseChecklistCard';
+import { deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
 import {
   buildLegadoFaseTimeline,
   buildNativeFaseTimeline,
@@ -2850,7 +2852,6 @@ export function KanbanCardModal({
   const cardTitulo = card.titulo;
   const checklistExtra = card.fase_id && camposPorFase?.[card.fase_id];
   const faseChecklistFaseId = card.fase_id ?? '';
-
   const chipsParalelasModal =
     !isLegado && faseAtual
       ? montarChipsParalelas(
@@ -2877,6 +2878,15 @@ export function KanbanCardModal({
 
   const rede = modalDetalhes.rede;
   const proc = modalDetalhes.processo;
+  const condominioIdChecklistLegal =
+    card.condominio_id?.trim() || proc?.condominio_id?.trim() || null;
+  const exibirChecklistLegalCondominio =
+    !isLegado &&
+    deveExibirChecklistLegalNaFase(
+      card.kanban_id,
+      faseAtual?.slug ?? card.etapa_slug,
+      condominioIdChecklistLegal,
+    );
   const enderecoCasaLinha = rede
     ? [
         rede.endereco_casa_frank,
@@ -4542,12 +4552,23 @@ export function KanbanCardModal({
                 }}
               >
                 {checklistExtra ?? (
-                  <FaseChecklistCard
-                    faseId={faseChecklistFaseId}
-                    cardId={card.id}
-                    isFrank={portalFrank}
-                    isAdmin={isAdmin}
-                  />
+                  <div className="space-y-4">
+                    {exibirChecklistLegalCondominio ? (
+                      <ChecklistLegalCondominioCard
+                        cardId={card.id}
+                        basePath={basePath}
+                        condominioId={condominioIdChecklistLegal}
+                        exibirLinkPublico
+                      />
+                    ) : null}
+                    <FaseChecklistCard
+                      faseId={faseChecklistFaseId}
+                      cardId={card.id}
+                      isFrank={portalFrank}
+                      isAdmin={isAdmin}
+                      ocultarVazio={exibirChecklistLegalCondominio}
+                    />
+                  </div>
                 )}
               </div>
               {exibirEnviarHipotesePortfolio ? (

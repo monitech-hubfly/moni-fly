@@ -16,6 +16,8 @@ type Props = {
   cardId: string;
   isFrank: boolean;
   isAdmin: boolean;
+  /** Quando true e não há itens de fase, não mostra mensagem vazia (ex.: Checklist Legal no mesmo bloco). */
+  ocultarVazio?: boolean;
 };
 
 type EstadoResposta = {
@@ -25,7 +27,7 @@ type EstadoResposta = {
   erro: string | null;
 };
 
-export function FaseChecklistCard({ faseId, cardId, isFrank, isAdmin }: Props) {
+export function FaseChecklistCard({ faseId, cardId, isFrank, isAdmin, ocultarVazio = false }: Props) {
   const [itens, setItens] = useState<FaseChecklistItem[] | null>(null);
   const [respostas, setRespostas] = useState<Map<string, EstadoResposta>>(new Map());
   const [carregando, setCarregando] = useState(true);
@@ -143,6 +145,7 @@ export function FaseChecklistCard({ faseId, cardId, isFrank, isAdmin }: Props) {
   }
 
   if (!itens || itens.length === 0) {
+    if (ocultarVazio) return null;
     return (
       <p className="text-xs italic" style={{ color: 'var(--moni-text-tertiary)' }}>
         Nenhum item configurado para esta fase.

@@ -42,6 +42,9 @@ export function ChecklistLegalCondominioCard({
   const [copiado, setCopiado] = useState(false);
   const [gerandoLink, setGerandoLink] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(!modoCompacto);
+  const [condominioIdResolvido, setCondominioIdResolvido] = useState<string | null>(
+    condominioId?.trim() ? condominioId.trim() : null,
+  );
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -52,7 +55,12 @@ export function ChecklistLegalCondominioCard({
       setLoading(false);
       return;
     }
-    if (!r.condominioId && !condominioId) {
+    const cid =
+      r.condominioId?.trim() ||
+      condominioId?.trim() ||
+      null;
+    setCondominioIdResolvido(cid);
+    if (!cid) {
       setStatus('ausente');
       setLoading(false);
       return;
@@ -71,6 +79,10 @@ export function ChecklistLegalCondominioCard({
     }
     setLoading(false);
   }, [cardId, condominioId]);
+
+  useEffect(() => {
+    if (condominioId?.trim()) setCondominioIdResolvido(condominioId.trim());
+  }, [condominioId]);
 
   useEffect(() => {
     void reload();
@@ -125,11 +137,19 @@ export function ChecklistLegalCondominioCard({
   }
 
   async function copiarLink() {
-    if (!publicUrl) {
-      await gerarLink();
-      return;
+    let url = publicUrl;
+    if (!url) {
+      setGerandoLink(true);
+      const r = await getOrCreateChecklistLegalPublicLink(cardId);
+      setGerandoLink(false);
+      if (!r.ok) {
+        setErro(r.error);
+        return;
+      }
+      url = r.url;
+      setPublicUrl(url);
     }
-    await navigator.clipboard.writeText(publicUrl);
+    await navigator.clipboard.writeText(url);
     setCopiado(true);
     setTimeout(() => setCopiado(false), 2000);
   }
@@ -142,7 +162,7 @@ export function ChecklistLegalCondominioCard({
     );
   }
 
-  if (!condominioId && status === 'ausente' && !respostas.cadastro_condominio) {
+  if (!condominioIdResolvido && status === 'ausente' && !respostas.cadastro_condominio) {
     return (
       <p className="text-xs text-stone-500">
         Vincule um condomínio ao card para habilitar o Checklist Legal.

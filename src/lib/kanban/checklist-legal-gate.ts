@@ -131,3 +131,5 @@ export async function verificarGateChecklistLegalAcoplamento(
 }
 
 export { ERRO_CHECKLIST_LEGAL };
+
+export { deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
