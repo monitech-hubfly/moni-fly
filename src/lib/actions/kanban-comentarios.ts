@@ -9,7 +9,7 @@ import {
 } from '@/lib/kanban/mencao-comentario';
 import { createClient } from '@/lib/supabase/server';
 
-export type KanbanComentarioActionResult = { ok: true } | { ok: false; error: string };
+export type KanbanComentarioActionResult = { ok: true; comentarioId: string } | { ok: false; error: string };
 
 async function dbParaMencoes(supabase: Awaited<ReturnType<typeof createClient>>) {
   try {
@@ -185,8 +185,7 @@ export async function publicarComentarioKanbanCard(input: {
     }).catch((err) => console.error('[kanban-comentarios] email menção', err));
   }
 
-  void comentario;
   revalidatePath(basePath);
   revalidatePath('/alertas');
-  return { ok: true };
+  return { ok: true, comentarioId: String(comentario.id) };
 }

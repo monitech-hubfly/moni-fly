@@ -377,12 +377,20 @@ export type HistoricoItem = {
   criado_em: string;
 };
 
+export type ComentarioCardAnexoRow = {
+  id: string;
+  nome_original: string;
+  storage_path: string;
+  mime_type: string | null;
+};
+
 export type ComentarioCardRow = {
   id: string;
   conteudo: string;
   created_at: string;
   autor_id: string | null;
   autor_nome: string | null;
+  anexos?: ComentarioCardAnexoRow[];
 };
 
 export type SecaoEsquerdaId =

@@ -142,6 +142,8 @@ const APELIDO_MONI_PARA_EMAIL: Record<string, string> = {
   nathalia: 'nathalia.ferezin@moni.casa',
   vini: 'vinicius.fr@moni.casa',
   vinicius: 'vinicius.fr@moni.casa',
+  fabio: 'fabio.siano@moni.casa',
+  siano: 'fabio.siano@moni.casa',
   ingrid: 'ingrid.hora@moni.casa',
   danilo: 'danilo.n@moni.casa',
   fernanda: 'fernanda.lobao@moni.casa',
@@ -343,20 +345,19 @@ export function responsaveisFiltradosPorTimesNomes(
   timesNomes: readonly string[],
   profileOpts: readonly PerfilNomeRow[],
 ): PerfilNomeRow[] {
-  const allowed = new Set(responsaveisNomesPorTimes(timesNomes).map((n) => n.toLowerCase()));
-  if (allowed.size === 0) return [];
+  const allowedNomes = responsaveisNomesPorTimes(timesNomes);
+  if (allowedNomes.length === 0) return [];
+  const allowedNorm = new Set(allowedNomes.map((n) => normMoniNome(n)));
+  const allowedEmails = new Set<string>();
+  for (const nome of allowedNomes) {
+    const em = resolverEmailMoniPorNomeOuApelido(nome);
+    if (em) allowedEmails.add(em);
+  }
   return profileOpts.filter((p) => {
     const n = p.nome.trim();
-    if (n && allowed.has(n.toLowerCase())) return true;
+    if (n && allowedNorm.has(normMoniNome(n))) return true;
     const em = (p.email ?? '').trim().toLowerCase();
-    if (!em) return false;
-    for (const nome of allowed) {
-      const canonEmail = resolverEmailMoniPorNomeOuApelido(nome);
-      if (canonEmail && canonEmail === em) return true;
-      const canon = Object.entries(MONI_EMAIL_POR_NOME).find(([k]) => k.toLowerCase() === nome)?.[1];
-      if (canon && canon.toLowerCase() === em) return true;
-    }
-    return false;
+    return em.length > 0 && allowedEmails.has(em);
   });
 }
 

@@ -2624,11 +2624,11 @@ export async function enviarHipoteseAoPortfolio(
 
   const cardPortfolioId = String(portfolioCard.id);
 
-  const { error: errVinc } = await admin.from('kanban_card_vinculos').insert({
-    card_origem_id: cid,
-    card_destino_id: cardPortfolioId,
-    tipo_vinculo: 'relacionado',
-    criado_por: user.id,
+  const { error: errVinc } = await inserirKanbanCardVinculo(admin, {
+    cardOrigemId: cid,
+    cardDestinoId: cardPortfolioId,
+    tipoVinculo: 'relacionado',
+    criadoPor: user.id,
   });
 
   if (errVinc) {

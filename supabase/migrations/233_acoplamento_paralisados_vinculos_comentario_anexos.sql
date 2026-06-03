@@ -71,3 +71,32 @@ CREATE POLICY "kanban_card_comentario_anexos_insert"
   WITH CHECK (auth.uid() IS NOT NULL);
 
 GRANT SELECT, INSERT ON public.kanban_card_comentario_anexos TO authenticated;
+
+-- Limpa datas de reunião/follow-up inválidas já persistidas (ex.: ano parcial)
+UPDATE public.kanban_cards
+SET data_reuniao = NULL
+WHERE data_reuniao IS NOT NULL AND EXTRACT(YEAR FROM data_reuniao) < 1900;
+
+UPDATE public.kanban_cards
+SET data_followup = NULL
+WHERE data_followup IS NOT NULL AND EXTRACT(YEAR FROM data_followup) < 1900;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'processo_step_one' AND column_name = 'data_reuniao'
+  ) THEN
+    UPDATE public.processo_step_one
+    SET data_reuniao = NULL
+    WHERE data_reuniao IS NOT NULL AND EXTRACT(YEAR FROM data_reuniao::date) < 1900;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'processo_step_one' AND column_name = 'data_followup'
+  ) THEN
+    UPDATE public.processo_step_one
+    SET data_followup = NULL
+    WHERE data_followup IS NOT NULL AND EXTRACT(YEAR FROM data_followup::date) < 1900;
+  END IF;
+END $$;

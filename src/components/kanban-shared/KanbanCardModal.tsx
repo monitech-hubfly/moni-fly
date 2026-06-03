@@ -22,6 +22,7 @@ import {
   Copy,
   Check,
   Loader2,
+  Paperclip,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { calcularDiasUteis, formatIsoDateOnlyPtBr, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
@@ -140,6 +141,14 @@ import { MencaoContentEditable } from './MencaoContentEditable';
 import { fetchKanbanFasesAtivas, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
 import { loadHistoricoCardModal } from '@/lib/kanban/kanban-card-historico';
 import { publicarComentarioKanbanCard } from '@/lib/actions/kanban-comentarios';
+import {
+  listarAnexosComentariosKanbanCard,
+  urlAssinadaAnexoComentarioKanbanCard,
+  type KanbanComentarioAnexoRow,
+} from '@/lib/actions/kanban-comentario-anexos';
+import { uploadAnexosComentarioPendentes } from '@/lib/kanban/upload-anexos-comentario-card';
+import { dataIsoInputValida } from '@/lib/kanban/kanban-card-datas';
+import { AnexosAtividadeDraft } from './AnexosAtividadeDraft';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 import { compareChamadosPainelRank } from '@/lib/sirene-painel-chamados-rank';
 import {
@@ -273,6 +282,33 @@ function richTextPlainTrimmed(html: string): string {
   return (d.textContent || '').trim();
 }
 
+function mapComentariosCardRows(
+  comRows: { id: string; conteudo?: string | null; created_at: string; autor_id?: string | null }[],
+  nomePorId: Map<string, string>,
+  anexos: KanbanComentarioAnexoRow[],
+): ComentarioCardRow[] {
+  const anexosPorComentario = new Map<string, ComentarioCardRow['anexos']>();
+  for (const a of anexos) {
+    const cid = String(a.comentario_id);
+    const list = anexosPorComentario.get(cid) ?? [];
+    list.push({
+      id: String(a.id),
+      nome_original: String(a.nome_original),
+      storage_path: String(a.storage_path),
+      mime_type: a.mime_type,
+    });
+    anexosPorComentario.set(cid, list);
+  }
+  return comRows.map((c) => ({
+    id: String(c.id),
+    conteudo: String(c.conteudo ?? ''),
+    created_at: String(c.created_at),
+    autor_id: c.autor_id ? String(c.autor_id) : null,
+    autor_nome: c.autor_id ? nomePorId.get(String(c.autor_id)) ?? null : null,
+    anexos: anexosPorComentario.get(String(c.id)) ?? [],
+  }));
+}
+
 function inicioDiaLocal(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
@@ -383,6 +419,7 @@ export function KanbanCardModal({
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
   const [comentariosCard, setComentariosCard] = useState<ComentarioCardRow[]>([]);
   const [novoComentarioCard, setNovoComentarioCard] = useState('');
+  const [comentarioPendingAnexos, setComentarioPendingAnexos] = useState<File[]>([]);
   const [salvandoComentario, setSalvandoComentario] = useState(false);
   const [editingComentarioId, setEditingComentarioId] = useState<string | null>(null);
   const [editComentarioDraft, setEditComentarioDraft] = useState('');
@@ -1033,7 +1070,8 @@ export function KanbanCardModal({
       }
 
       setCard(cardParaEstado);
-      setDataReuniao(loaded.data_reuniao ? String(loaded.data_reuniao).slice(0, 10) : '');
+      const dr = loaded.data_reuniao ? String(loaded.data_reuniao).slice(0, 10) : '';
+      setDataReuniao(dr && dataIsoInputValida(dr) ? dr : '');
       setDataFollowup(loaded.data_followup ? String(loaded.data_followup).slice(0, 10) : '');
 
       // Carregar tags
@@ -1150,15 +1188,9 @@ export function KanbanCardModal({
             const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', autorIds);
             nomePorId = new Map((profs ?? []).map((p) => [p.id, (p.full_name as string | null)?.trim() || '']));
           }
-          setComentariosCard(
-            comRows.map((c) => ({
-              id: String(c.id),
-              conteudo: String((c as { conteudo?: string | null }).conteudo ?? ''),
-              created_at: String(c.created_at),
-              autor_id: c.autor_id ? String(c.autor_id) : null,
-              autor_nome: c.autor_id ? nomePorId.get(String(c.autor_id)) ?? null : null,
-            })),
-          );
+          const anexosRes = await listarAnexosComentariosKanbanCard(cardId);
+          const anexos = anexosRes.ok ? anexosRes.items : [];
+          setComentariosCard(mapComentariosCardRows(comRows, nomePorId, anexos));
         }
       } catch {
         setComentariosCard([]);
@@ -2021,11 +2053,21 @@ export function KanbanCardModal({
     }
   }
 
+  async function handleAbrirAnexoComentario(storagePath: string) {
+    const res = await urlAssinadaAnexoComentarioKanbanCard(storagePath);
+    if (!res.ok) {
+      alert(res.error);
+      return;
+    }
+    window.open(res.url, '_blank', 'noopener,noreferrer');
+  }
+
   async function handleEnviarComentarioCard() {
     if (!card || !novoComentarioCard.trim()) return;
     setSalvandoComentario(true);
     try {
       const conteudo = (comentarioEditorRef.current?.innerHTML ?? novoComentarioCard).trim();
+      const pendingAnexos = [...comentarioPendingAnexos];
       const result = await publicarComentarioKanbanCard({
         cardId: card.id,
         conteudo,
@@ -2035,7 +2077,11 @@ export function KanbanCardModal({
         alert(result.error);
         return;
       }
+      if (pendingAnexos.length > 0) {
+        await uploadAnexosComentarioPendentes(card.id, result.comentarioId, pendingAnexos, basePath);
+      }
       setNovoComentarioCard('');
+      setComentarioPendingAnexos([]);
       if (comentarioEditorRef.current) comentarioEditorRef.current.innerHTML = '';
       const supabase2 = createClient();
       const { data: comRows } = await supabase2
@@ -2050,15 +2096,9 @@ export function KanbanCardModal({
           const { data: profs } = await supabase2.from('profiles').select('id, full_name').in('id', autorIds);
           nomePorId = new Map((profs ?? []).map((p) => [p.id, (p.full_name as string | null)?.trim() || '']));
         }
-        setComentariosCard(
-          comRows.map((c) => ({
-            id: String(c.id),
-            conteudo: String((c as { conteudo?: string | null }).conteudo ?? ''),
-            created_at: String(c.created_at),
-            autor_id: c.autor_id ? String(c.autor_id) : null,
-            autor_nome: c.autor_id ? nomePorId.get(String(c.autor_id)) ?? null : null,
-          })),
-        );
+        const anexosRes = await listarAnexosComentariosKanbanCard(card.id);
+        const anexos = anexosRes.ok ? anexosRes.items : [];
+        setComentariosCard(mapComentariosCardRows(comRows, nomePorId, anexos));
       } else {
         setComentariosCard([]);
       }
@@ -4727,6 +4767,23 @@ export function KanbanCardModal({
                             ) : (
                               <>
                                 <p style={{ color: 'var(--moni-text-primary)' }} dangerouslySetInnerHTML={{ __html: c.conteudo }} />
+                                {c.anexos && c.anexos.length > 0 ? (
+                                  <ul className="mt-2 flex flex-col gap-1">
+                                    {c.anexos.map((a) => (
+                                      <li key={a.id}>
+                                        <button
+                                          type="button"
+                                          onClick={() => void handleAbrirAnexoComentario(a.storage_path)}
+                                          className="inline-flex max-w-full items-center gap-1 rounded px-1 py-0.5 text-[11px] text-sky-700 hover:bg-sky-50"
+                                          title={`Abrir anexo ${a.nome_original}`}
+                                        >
+                                          <Paperclip className="h-3 w-3 shrink-0" aria-hidden />
+                                          <span className="truncate underline">{a.nome_original}</span>
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : null}
                                 <p className="mt-1 flex items-center gap-0.5 text-xs text-stone-500">
                                   {c.autor_nome?.trim() || 'Usuário'}
                                   {c.autor_id === modalSessao.userId ? (
@@ -4780,6 +4837,13 @@ export function KanbanCardModal({
                         onInput={(html) => setNovoComentarioCard(html)}
                         className="min-h-[80px] w-full bg-[var(--moni-surface-0)] p-3 text-sm focus:outline-none empty:before:text-stone-400 empty:before:content-[attr(data-placeholder)]"
                         placeholder="Escreva um comentário… Use @ para mencionar alguém"
+                      />
+                    </div>
+                    <div className="mt-2 px-1">
+                      <AnexosAtividadeDraft
+                        files={comentarioPendingAnexos}
+                        onChange={setComentarioPendingAnexos}
+                        disabled={salvandoComentario}
                       />
                     </div>
                     <button
@@ -5988,7 +6052,7 @@ export function KanbanCardModal({
               onClick={() => {
                 const motivo = motivoReprovacaoDraft.trim();
                 if (!motivo) {
-                  alert('Informe o motivo da reprovação.');
+                  alert('Informe o motivo da paralisação.');
                   return;
                 }
                 const fase = modalReprovacaoAcoplamento;

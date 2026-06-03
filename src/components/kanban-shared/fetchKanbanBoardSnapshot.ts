@@ -13,6 +13,7 @@ import {
   fetchEtapaPainelPorProcessoIds,
 } from '@/lib/kanban/reconciliar-fase-etapa-painel';
 import { sortKanbanCardsPorOrdemColuna } from '@/lib/kanban/kanban-coluna-ordem';
+import { dataIsoInputValida } from '@/lib/kanban/kanban-card-datas';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
 export type KanbanBoardSnapshot = {
@@ -42,8 +43,8 @@ type ViewLegadoRow = {
 
 function dataIsoParaInput(v: unknown): string | null {
   if (v == null || v === '') return null;
-  const s = String(v);
-  return s.length >= 10 ? s.slice(0, 10) : s;
+  const s = String(v).slice(0, 10);
+  return dataIsoInputValida(s) ? s : null;
 }
 
 /** Resolve kanban ativo pelo UUID canônico (PROD) ou fallback em `kanbans.nome`. */
