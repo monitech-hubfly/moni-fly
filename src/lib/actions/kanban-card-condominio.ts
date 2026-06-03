@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { condominioFormDraftToPatch, type CondominioFormDraft } from '@/lib/condominios-form';
 import { condominioNomeJaExiste, fetchCondominiosRows, type CondominioRow } from '@/lib/condominios';
+import { propagarCamposKanbanCards, propagarCamposProcesso } from '@/lib/kanban/card-sync-group';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 export type KanbanCondominioActionResult = { ok: true } | { ok: false; error: string };
@@ -19,33 +21,6 @@ async function nomeCondominioJaExiste(
   ignorarId?: string,
 ): Promise<boolean> {
   return condominioNomeJaExiste(supabase, nome, ignorarId);
-}
-
-async function atualizarTituloCardNativo(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  cardId: string,
-  nomeCondominio: string,
-  quadra: string | null,
-  lote: string | null,
-): Promise<void> {
-  const { data: cardData } = await supabase
-    .from('kanban_cards')
-    .select('rede_franqueado_id')
-    .eq('id', cardId)
-    .maybeSingle();
-  const redeFk = (cardData as { rede_franqueado_id?: string | null } | null)?.rede_franqueado_id;
-  if (!redeFk) return;
-
-  const { data: redeData } = await supabase
-    .from('rede_franqueados')
-    .select('n_franquia')
-    .eq('id', redeFk)
-    .maybeSingle();
-  const nFq = String((redeData as { n_franquia?: string | null } | null)?.n_franquia ?? '');
-  const partes = [nFq, nomeCondominio.trim(), quadra?.trim() ?? '', lote?.trim() ?? ''].filter(Boolean);
-  const novoTitulo = partes.join(' - ');
-  if (!novoTitulo) return;
-  await supabase.from('kanban_cards').update({ titulo: novoTitulo }).eq('id', cardId);
 }
 
 export async function vincularCondominioAoCard(input: {
@@ -77,29 +52,30 @@ export async function vincularCondominioAoCard(input: {
   const quadra = input.quadra?.trim() || null;
   const lote = input.lote?.trim() || null;
 
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+
   if (input.origem === 'nativo') {
-    const { error } = await supabase
-      .from('kanban_cards')
-      .update({
-        condominio_id: condominioId,
-        nome_condominio: nome,
-        quadra,
-        lote,
-      })
-      .eq('id', cardId);
-    if (error) return { ok: false, error: error.message };
-    await atualizarTituloCardNativo(supabase, cardId, nome, quadra, lote);
+    const sync = await propagarCamposKanbanCards(admin, cardId, {
+      condominio_id: condominioId,
+      nome_condominio: nome,
+      quadra,
+      lote,
+    });
+    if (!sync.ok) return { ok: false, error: sync.error };
   } else {
-    const { error } = await supabase
-      .from('processo_step_one')
-      .update({
-        condominio_id: condominioId,
-        nome_condominio: nome,
-        quadra,
-        lote,
-      })
-      .eq('id', cardId);
-    if (error) return { ok: false, error: error.message };
+    const sync = await propagarCamposProcesso(admin, cardId, cardId, {
+      condominio_id: condominioId,
+      nome_condominio: nome,
+      quadra,
+      lote,
+    });
+    if (!sync.ok) return { ok: false, error: sync.error };
   }
 
   revalidatePath(input.basePath?.trim() || '/');
@@ -180,21 +156,29 @@ export async function salvarQuadraLoteCard(input: {
   nomeCondominio?: string | null;
   basePath?: string;
 }): Promise<KanbanCondominioActionResult> {
-  const supabase = await createClient();
   const cardId = String(input.cardId ?? '').trim();
   if (!cardId) return { ok: false, error: 'Card inválido.' };
 
   const quadra = input.quadra?.trim() || null;
   const lote = input.lote?.trim() || null;
 
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+
   if (input.origem === 'nativo') {
-    const { error } = await supabase.from('kanban_cards').update({ quadra, lote }).eq('id', cardId);
-    if (error) return { ok: false, error: error.message };
+    const patch: { quadra: string | null; lote: string | null; nome_condominio?: string } = { quadra, lote };
     const nome = input.nomeCondominio?.trim();
-    if (nome) await atualizarTituloCardNativo(supabase, cardId, nome, quadra, lote);
+    if (nome) patch.nome_condominio = nome;
+    const sync = await propagarCamposKanbanCards(admin, cardId, patch);
+    if (!sync.ok) return { ok: false, error: sync.error };
   } else {
-    const { error } = await supabase.from('processo_step_one').update({ quadra, lote }).eq('id', cardId);
-    if (error) return { ok: false, error: error.message };
+    const sync = await propagarCamposProcesso(admin, cardId, cardId, { quadra, lote });
+    if (!sync.ok) return { ok: false, error: sync.error };
   }
 
   revalidatePath(input.basePath?.trim() || '/');
