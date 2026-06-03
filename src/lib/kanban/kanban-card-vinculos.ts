@@ -56,7 +56,7 @@ export type InserirKanbanCardVinculoInput = {
 };
 
 /**
- * Insere vínculo entre cards. Preenche `card_id` legado (PROD) quando a coluna existir.
+ * Insere vínculo entre cards. Preenche colunas legadas PROD (`card_id`, `vinculado_a`) quando existirem.
  */
 export async function inserirKanbanCardVinculo(
   db: VinculoDb,
@@ -74,6 +74,7 @@ export async function inserirKanbanCardVinculo(
     tipo_vinculo: input.tipoVinculo,
     criado_por: input.criadoPor ?? null,
     card_id: orig,
+    vinculado_a: dest,
   };
 
   const { error } = await db.from('kanban_card_vinculos').insert(row as never);
