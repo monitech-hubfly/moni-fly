@@ -6,7 +6,7 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { createClient } from '@supabase/supabase-js';
-import { KANBAN_IDS } from '../src/lib/constants/kanban-ids';
+import { FASE_SLUGS, KANBAN_IDS } from '../src/lib/constants/kanban-ids';
 
 function loadEnvLocal() {
   try {
@@ -66,7 +66,7 @@ const BASTOES_ESPERADOS: Record<
   projeto_legal: [
     {
       kanbanId: KANBAN_IDS.PROJETO_LEGAL,
-      faseSlug: 'projleg_levantamento',
+      faseSlug: FASE_SLUGS.PL_NOVA_DEMANDA,
       kanbanNome: 'Funil Projeto Legal',
     },
   ],
@@ -100,7 +100,7 @@ const TESTS = [
   },
   {
     id: 4,
-    label: 'projeto_legal → Projeto Legal / projleg_levantamento',
+    label: `projeto_legal → Projeto Legal / ${FASE_SLUGS.PL_NOVA_DEMANDA}`,
     kanbanId: KANBAN_IDS.OPERACOES,
     kanbanNome: 'Funil Operações',
     faseAnteriorSlug: 'sondagem',
