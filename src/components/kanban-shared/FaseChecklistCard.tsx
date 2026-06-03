@@ -417,6 +417,23 @@ function ItemField({ item, estado, cardId, isAdmin, onChange, onBlur, onArquivo 
     return <TabelaCondominios item={item} estado={estado} onChange={onChange} onBlur={onBlur} />;
   }
 
+  if (item.tipo === 'url') {
+    return (
+      <div>
+        {labelEl}
+        <input
+          type="url"
+          className={inputClass}
+          placeholder={item.placeholder ?? 'https://…'}
+          value={estado.valor}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={(e) => onBlur(e.target.value)}
+        />
+        {erroEl}
+      </div>
+    );
+  }
+
   // texto_curto | email | telefone | numero
   const inputType =
     item.tipo === 'email' ? 'email' : item.tipo === 'telefone' ? 'tel' : item.tipo === 'numero' ? 'number' : 'text';

@@ -16,7 +16,7 @@ import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
 import { isKanbanIdInterno } from '@/lib/kanban/filtrar-kanbans-internos';
 import { carregarPermissoesMap } from '@/lib/permissoes-load';
-import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { calcularDataEnvioCreditoObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import {
   deveValidarGatePortfolioStep5,
@@ -52,6 +52,11 @@ import {
 import type { FaseChecklistItem } from './candidato-actions';
 import { executarBastaoDeVolta, executarBastoes } from '@/lib/actions/kanban-bastoes';
 import { sincronizarTagAcoplamentoPaiDoFilho } from '@/lib/kanban/acoplamento-tag-pai';
+import {
+  isChecklistItemSyncBcaAcoplamento,
+  sincronizarLinksBcaAcoplamento,
+  verificarGateAcoplamentoModelagemCasa,
+} from '@/lib/kanban/links-bca-acoplamento-sync';
 import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-notify';
 import { payloadInicialNegociacaoPrazo } from '@/lib/kanban/prazo-negociacao';
 
@@ -3052,6 +3057,8 @@ export async function moverCardParaFase(input: {
   novaFaseId: string;
   basePath?: string;
   kanbanNome?: string;
+  /** Obrigatório ao mover para Reprovado no Funil Acoplamento. */
+  motivoReprovacaoAcoplamento?: string;
 }): Promise<ActionResult> {
   const supabase = await createClient();
   const {
@@ -3075,6 +3082,31 @@ export async function moverCardParaFase(input: {
   const novaFaseSlug = String((faseRow as { slug?: string | null }).slug ?? '').trim();
   const gate = await obterGatePortfolioStep5(supabase, cardId, novaFaseSlug, input.kanbanNome);
   if (!gate.ok) return gate;
+
+  const gateAcoplamento = await verificarGateAcoplamentoModelagemCasa(cardId, novaFaseId);
+  if (!gateAcoplamento.ok) return gateAcoplamento;
+
+  const { data: cardKanban } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id')
+    .eq('id', cardId)
+    .maybeSingle();
+
+  if (
+    novaFaseSlug === FASE_SLUGS.ACOPLAMENTO_REPROVADO &&
+    String((cardKanban as { kanban_id?: string } | null)?.kanban_id ?? '') === KANBAN_IDS.ACOPLAMENTO
+  ) {
+    const motivo = String(input.motivoReprovacaoAcoplamento ?? '').trim();
+    if (!motivo) {
+      return { ok: false, error: 'Informe o motivo da reprovação para mover o card para Reprovado.' };
+    }
+    const admin = createAdminClient();
+    const { error: errMot } = await admin
+      .from('kanban_cards')
+      .update({ motivo_reprovacao_acoplamento: motivo } as never)
+      .eq('id', cardId);
+    if (errMot) return { ok: false, error: errMot.message };
+  }
 
   const { error: updErr } = await supabase
     .from('kanban_cards')
@@ -3663,6 +3695,12 @@ export async function upsertFaseChecklistResposta(input: {
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Não autenticado.' };
 
+  const { data: itemRow } = await supabase
+    .from('kanban_fase_checklist_itens')
+    .select('label')
+    .eq('id', input.item_id)
+    .maybeSingle();
+
   const { error } = await supabase.from('kanban_fase_checklist_respostas').upsert(
     {
       item_id: input.item_id,
@@ -3675,5 +3713,54 @@ export async function upsertFaseChecklistResposta(input: {
     { onConflict: 'item_id,card_id' },
   );
   if (error) return { ok: false, error: error.message };
+
+  const syncKey = isChecklistItemSyncBcaAcoplamento(
+    (itemRow as { label?: string | null } | null)?.label,
+  );
+  if (syncKey) {
+    const { data: prof } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+    const sync = await sincronizarLinksBcaAcoplamento({
+      cardOrigemId: input.card_id,
+      origem: 'checklist',
+      usuarioId: user.id,
+      usuarioNome: String((prof as { full_name?: string | null } | null)?.full_name ?? '').trim() || null,
+      ...(syncKey === 'bca' ? { linkBca: input.valor } : { linkAcoplamento: input.valor }),
+    });
+    if (!sync.ok) return sync;
+    revalidatePath('/');
+    return { ok: true };
+  }
+
   return { ok: true };
+}
+
+/** Salva links BCA/Acoplamento no processo e propaga a checklist + cards vinculados. */
+export async function salvarLinksBcaAcoplamentoNegocio(input: {
+  cardId: string;
+  linkBca?: string | null;
+  linkAcoplamento?: string | null;
+  basePath?: string;
+}): Promise<ActionResult & { linkBca?: string | null; linkAcoplamento?: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para salvar.' };
+
+  const { data: prof } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+
+  const sync = await sincronizarLinksBcaAcoplamento({
+    cardOrigemId: input.cardId,
+    origem: 'painel_negocio',
+    usuarioId: user.id,
+    usuarioNome: String((prof as { full_name?: string | null } | null)?.full_name ?? '').trim() || null,
+    linkBca: input.linkBca,
+    linkAcoplamento: input.linkAcoplamento,
+  });
+
+  if (!sync.ok) return sync;
+
+  revalidatePath(input.basePath?.trim() || '/');
+  revalidatePath('/');
+  return { ok: true, linkBca: sync.linkBca, linkAcoplamento: sync.linkAcoplamento };
 }

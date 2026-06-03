@@ -40,6 +40,7 @@ import {
   excluirSubInteracao,
   finalizarCard,
   moverCardParaFase,
+  salvarLinksBcaAcoplamentoNegocio,
   verificarGatePortfolioStep5,
   listarTagsCard,
   listarTagsKanban,
@@ -60,6 +61,10 @@ import { deletarChamado } from '@/app/sirene/actions';
 import { KANBANS_COM_CHAMADO_JURIDICO } from '@/lib/constants/kanban-ids';
 import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
 import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import {
+  FASE_SLUG_MODELAGEM_CASA_GBOX,
+  verificarGateAcoplamentoModelagemCasa,
+} from '@/lib/kanban/links-bca-acoplamento-sync';
 import {
   autorizarAberturaCreditoObra,
   consultarAberturaCreditoObraPendente,
@@ -511,6 +516,10 @@ export function KanbanCardModal({
   const [condominioTick, setCondominioTick] = useState(0);
   const [atasReuniaoTick, setAtasReuniaoTick] = useState(0);
   const [gateStep5Toast, setGateStep5Toast] = useState<string | null>(null);
+  const [acoplamentoGateToast, setAcoplamentoGateToast] = useState<string | null>(null);
+  const [modalReprovacaoAcoplamento, setModalReprovacaoAcoplamento] = useState<KanbanFase | null>(null);
+  const [motivoReprovacaoDraft, setMotivoReprovacaoDraft] = useState('');
+  const [salvandoReprovacaoAcoplamento, setSalvandoReprovacaoAcoplamento] = useState(false);
   const [userRoleRaw, setUserRoleRaw] = useState('');
   const [modalAprovacaoFase, setModalAprovacaoFase] = useState<{
     fase: KanbanFase;
@@ -1851,7 +1860,10 @@ export function KanbanCardModal({
     });
   }
 
-  async function executarAvancarFase(proximaFase: KanbanFase) {
+  async function executarAvancarFase(
+    proximaFase: KanbanFase,
+    opts?: { motivoReprovacaoAcoplamento?: string },
+  ) {
     if (!card || !faseAtual) return;
     setLoading(true);
     try {
@@ -1872,6 +1884,7 @@ export function KanbanCardModal({
           novaFaseId: proximaFase.id,
           basePath,
           kanbanNome: typeof kanbanNome === 'string' ? kanbanNome : String(kanbanNome),
+          motivoReprovacaoAcoplamento: opts?.motivoReprovacaoAcoplamento,
         });
         if (!res.ok) {
           const msg = res.error ?? 'Erro ao avançar fase.';
@@ -1910,6 +1923,30 @@ export function KanbanCardModal({
         return;
       }
       setGateStep5Toast(null);
+    }
+
+    setAcoplamentoGateToast(null);
+    if (
+      !isLegado &&
+      card.kanban_id === KANBAN_IDS.ACOPLAMENTO &&
+      (faseAtual.slug ?? '').trim() === FASE_SLUG_MODELAGEM_CASA_GBOX
+    ) {
+      const gateAcop = await verificarGateAcoplamentoModelagemCasa(card.id, proximaFase.id);
+      if (!gateAcop.ok) {
+        setAcoplamentoGateToast(gateAcop.error);
+        return;
+      }
+    }
+
+    const proximaSlug = (proximaFase.slug ?? '').trim();
+    if (
+      !isLegado &&
+      card.kanban_id === KANBAN_IDS.ACOPLAMENTO &&
+      proximaSlug === FASE_SLUGS.ACOPLAMENTO_REPROVADO
+    ) {
+      setMotivoReprovacaoDraft('');
+      setModalReprovacaoAcoplamento(proximaFase);
+      return;
     }
 
     if (!confirm(`Avançar para a fase "${proximaFase.nome}"?`)) return;
@@ -2287,16 +2324,24 @@ export function KanbanCardModal({
     setSalvandoNegocio(true);
     try {
       const supabase = createClient();
-      if (pid) {
+      if (pid && card) {
+        const syncLinks = await salvarLinksBcaAcoplamentoNegocio({
+          cardId: card.id,
+          linkBca: negocioDraft.link_bca?.trim() || null,
+          linkAcoplamento: negocioDraft.link_acoplamento?.trim() || null,
+          basePath,
+        });
+        if (!syncLinks.ok) throw new Error(syncLinks.error);
+
         const upd = await updateProcessoNegocioCampos(supabase, pid, {
-            tipo_aquisicao_terreno: negocioDraft.tipo_aquisicao_terreno || null,
-            valor_terreno: negocioDraft.valor_terreno || null,
-            vgv_pretendido: negocioDraft.vgv_pretendido || null,
-            produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
-            link_pasta_drive: negocioDraft.link_pasta_drive || null,
-          link_bca: negocioDraft.link_bca?.trim() || null,
+          tipo_aquisicao_terreno: negocioDraft.tipo_aquisicao_terreno || null,
+          valor_terreno: negocioDraft.valor_terreno || null,
+          vgv_pretendido: negocioDraft.vgv_pretendido || null,
+          produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
+          link_pasta_drive: negocioDraft.link_pasta_drive || null,
+          link_bca: (syncLinks.linkBca ?? negocioDraft.link_bca?.trim()) || null,
           link_mapa_competidores: negocioDraft.link_mapa_competidores?.trim() || null,
-          link_acoplamento: negocioDraft.link_acoplamento?.trim() || null,
+          link_acoplamento: (syncLinks.linkAcoplamento ?? negocioDraft.link_acoplamento?.trim()) || null,
           link_apresentacao_comite: negocioDraft.link_apresentacao_comite?.trim() || null,
           link_moni_capital_seguro_garantia: negocioDraft.link_moni_capital_seguro_garantia?.trim() || null,
           comentario_moni_capital_seguro_garantia:
@@ -2827,10 +2872,40 @@ export function KanbanCardModal({
     return `https://${t}`;
   };
 
+  async function sincronizarLinkNegocioAoBlur(campo: 'bca' | 'acoplamento', valor: string) {
+    if (!card?.id || !modalDetalhes.processo?.id) return;
+    const res = await salvarLinksBcaAcoplamentoNegocio({
+      cardId: card.id,
+      ...(campo === 'bca' ? { linkBca: valor } : { linkAcoplamento: valor }),
+      basePath,
+    });
+    if (!res.ok) {
+      alert(res.error);
+      return;
+    }
+    setNegocioDraft((d) => ({
+      ...d,
+      link_bca: res.linkBca ?? d.link_bca,
+      link_acoplamento: res.linkAcoplamento ?? d.link_acoplamento,
+    }));
+    setModalDetalhes((prev) =>
+      prev.processo
+        ? {
+            ...prev,
+            processo: {
+              ...prev.processo,
+              link_bca: res.linkBca ?? prev.processo.link_bca,
+              link_acoplamento: res.linkAcoplamento ?? prev.processo.link_acoplamento,
+            },
+          }
+        : prev,
+    );
+  }
+
   function renderNegocioLinkCampo(
     label: string,
     raw: string | null | undefined,
-    edit?: { value: string; onChange: (v: string) => void },
+    edit?: { value: string; onChange: (v: string) => void; onBlur?: (v: string) => void },
   ) {
     const href = linkHrefFromText(edit ? edit.value : raw);
     if (edit) {
@@ -2838,9 +2913,10 @@ export function KanbanCardModal({
         <label className="block">
           <span className="text-[11px] font-medium text-stone-500">{label}</span>
           <input
-            type="text"
+            type="url"
             value={edit.value}
             onChange={(e) => edit.onChange(e.target.value)}
+            onBlur={(e) => edit.onBlur?.(e.target.value)}
             placeholder="https://…"
             className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
           />
@@ -3040,6 +3116,7 @@ export function KanbanCardModal({
       {renderNegocioLinkCampo('BCA', proc.link_bca, {
         value: negocioDraft.link_bca,
         onChange: (v) => setNegocioDraft((d) => ({ ...d, link_bca: v })),
+        onBlur: (v) => void sincronizarLinkNegocioAoBlur('bca', v),
       })}
       {renderNegocioLinkCampo('Mapa de Competidores', proc.link_mapa_competidores, {
         value: negocioDraft.link_mapa_competidores,
@@ -3048,6 +3125,7 @@ export function KanbanCardModal({
       {renderNegocioLinkCampo('Acoplamento', proc.link_acoplamento, {
         value: negocioDraft.link_acoplamento,
         onChange: (v) => setNegocioDraft((d) => ({ ...d, link_acoplamento: v })),
+        onBlur: (v) => void sincronizarLinkNegocioAoBlur('acoplamento', v),
       })}
       {renderNegocioLinkCampo('Apresentação do Comitê', proc.link_apresentacao_comite, {
         value: negocioDraft.link_apresentacao_comite,
@@ -5028,6 +5106,19 @@ export function KanbanCardModal({
                     {gateStep5Toast}
                   </p>
                 ) : null}
+                {acoplamentoGateToast ? (
+                  <p
+                    className="mb-1.5 rounded px-2 py-1 text-[10px] font-medium leading-snug"
+                    role="alert"
+                    style={{
+                      background: '#FAEEDA',
+                      color: '#92400e',
+                      border: '0.5px solid #D4AD68',
+                    }}
+                  >
+                    {acoplamentoGateToast}
+                  </p>
+                ) : null}
                 {!modalAprovacaoFase ? (
                   <div className="grid grid-cols-2 gap-1.5">
                     <button
@@ -5870,6 +5961,71 @@ export function KanbanCardModal({
               className="flex-1 rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700"
             >
               Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+
+    {modalReprovacaoAcoplamento ? (
+      <div className="fixed inset-0 z-[225] flex items-center justify-center bg-black/50 p-4">
+        <div
+          className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reprovacao-acoplamento-titulo"
+        >
+          <h3 id="reprovacao-acoplamento-titulo" className="text-base font-semibold text-stone-900">
+            Mover para Reprovado
+          </h3>
+          <p className="mt-2 text-sm text-stone-600">
+            Informe o motivo da reprovação. Os links de BCA e Acoplamento não são obrigatórios nesta fase.
+          </p>
+          <label className="mt-4 block text-xs font-medium text-stone-600">
+            Motivo da reprovação
+            <textarea
+              value={motivoReprovacaoDraft}
+              onChange={(e) => setMotivoReprovacaoDraft(e.target.value)}
+              rows={4}
+              className="mt-1 w-full resize-none rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-800 focus:outline-none focus:ring-1 focus:ring-stone-400"
+              placeholder="Descreva o motivo…"
+              disabled={salvandoReprovacaoAcoplamento}
+              autoFocus
+            />
+          </label>
+          <div className="mt-6 flex justify-end gap-2">
+            <button
+              type="button"
+              disabled={salvandoReprovacaoAcoplamento}
+              onClick={() => {
+                setModalReprovacaoAcoplamento(null);
+                setMotivoReprovacaoDraft('');
+              }}
+              className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={salvandoReprovacaoAcoplamento}
+              onClick={() => {
+                const motivo = motivoReprovacaoDraft.trim();
+                if (!motivo) {
+                  alert('Informe o motivo da reprovação.');
+                  return;
+                }
+                const fase = modalReprovacaoAcoplamento;
+                setSalvandoReprovacaoAcoplamento(true);
+                void executarAvancarFase(fase, { motivoReprovacaoAcoplamento: motivo })
+                  .then(() => {
+                    setModalReprovacaoAcoplamento(null);
+                    setMotivoReprovacaoDraft('');
+                  })
+                  .finally(() => setSalvandoReprovacaoAcoplamento(false));
+              }}
+              className="rounded-lg bg-stone-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {salvandoReprovacaoAcoplamento ? 'Salvando…' : 'Confirmar'}
             </button>
           </div>
         </div>
