@@ -39,6 +39,7 @@ export type ProcessoModalNegocioPreObra = {
   produto_modelo_casa: string | null;
   link_pasta_drive: string | null;
   link_bca: string | null;
+  link_gbox: string | null;
   link_mapa_competidores: string | null;
   link_acoplamento: string | null;
   link_apresentacao_comite: string | null;
@@ -124,6 +125,7 @@ const PROCESSO_SELECT_LEGACY = [
 /** Links/anexos novos (185 + 186) — opcionais até rodar migration no Supabase. */
 const PROCESSO_SELECT_EXTENDED = [
   'link_bca',
+  'link_gbox',
   'link_mapa_competidores',
   'link_acoplamento',
   'link_apresentacao_comite',
@@ -155,6 +157,7 @@ export type ProcessoNegocioUpdatePayload = {
   produto_modelo_casa: string | null;
   link_pasta_drive: string | null;
   link_bca: string | null;
+  link_gbox: string | null;
   link_mapa_competidores: string | null;
   link_acoplamento: string | null;
   link_apresentacao_comite: string | null;
@@ -178,6 +181,7 @@ const PROCESSO_UPDATE_LEGACY_KEYS = [
 
 const PROCESSO_UPDATE_EXTENDED_KEYS = [
   'link_bca',
+  'link_gbox',
   'link_mapa_competidores',
   'link_acoplamento',
   'link_apresentacao_comite',
@@ -266,6 +270,7 @@ function mapProcesso(r: Record<string, unknown> | null): ProcessoModalNegocioPre
     produto_modelo_casa: g('produto_modelo_casa'),
     link_pasta_drive: g('link_pasta_drive'),
     link_bca: g('link_bca'),
+    link_gbox: g('link_gbox'),
     link_mapa_competidores: g('link_mapa_competidores'),
     link_acoplamento: g('link_acoplamento'),
     link_apresentacao_comite: g('link_apresentacao_comite'),

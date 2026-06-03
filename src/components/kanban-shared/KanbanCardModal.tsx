@@ -437,6 +437,7 @@ export function KanbanCardModal({
     produto_modelo_casa: '',
     link_pasta_drive: '',
     link_bca: '',
+    link_gbox: '',
     link_mapa_competidores: '',
     link_acoplamento: '',
     link_apresentacao_comite: '',
@@ -636,6 +637,7 @@ export function KanbanCardModal({
       produto_modelo_casa: '',
       link_pasta_drive: '',
       link_bca: '',
+      link_gbox: '',
       link_mapa_competidores: '',
       link_acoplamento: '',
       link_apresentacao_comite: '',
@@ -2366,7 +2368,7 @@ export function KanbanCardModal({
       if (pid && card) {
         const syncLinks = await salvarLinksBcaAcoplamentoNegocio({
           cardId: card.id,
-          linkBca: negocioDraft.link_bca?.trim() || null,
+          linkGbox: negocioDraft.link_gbox?.trim() || null,
           linkAcoplamento: negocioDraft.link_acoplamento?.trim() || null,
           basePath,
         });
@@ -2378,7 +2380,8 @@ export function KanbanCardModal({
           vgv_pretendido: negocioDraft.vgv_pretendido || null,
           produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
           link_pasta_drive: negocioDraft.link_pasta_drive || null,
-          link_bca: (syncLinks.linkBca ?? negocioDraft.link_bca?.trim()) || null,
+          link_bca: negocioDraft.link_bca?.trim() || null,
+          link_gbox: (syncLinks.linkGbox ?? negocioDraft.link_gbox?.trim()) || null,
           link_mapa_competidores: negocioDraft.link_mapa_competidores?.trim() || null,
           link_acoplamento: (syncLinks.linkAcoplamento ?? negocioDraft.link_acoplamento?.trim()) || null,
           link_apresentacao_comite: negocioDraft.link_apresentacao_comite?.trim() || null,
@@ -2919,11 +2922,11 @@ export function KanbanCardModal({
     return `https://${t}`;
   };
 
-  async function sincronizarLinkNegocioAoBlur(campo: 'bca' | 'acoplamento', valor: string) {
+  async function sincronizarLinkNegocioAoBlur(campo: 'gbox' | 'acoplamento', valor: string) {
     if (!card?.id || !modalDetalhes.processo?.id) return;
     const res = await salvarLinksBcaAcoplamentoNegocio({
       cardId: card.id,
-      ...(campo === 'bca' ? { linkBca: valor } : { linkAcoplamento: valor }),
+      ...(campo === 'gbox' ? { linkGbox: valor } : { linkAcoplamento: valor }),
       basePath,
     });
     if (!res.ok) {
@@ -2932,7 +2935,7 @@ export function KanbanCardModal({
     }
     setNegocioDraft((d) => ({
       ...d,
-      link_bca: res.linkBca ?? d.link_bca,
+      link_gbox: res.linkGbox ?? d.link_gbox,
       link_acoplamento: res.linkAcoplamento ?? d.link_acoplamento,
     }));
     setModalDetalhes((prev) =>
@@ -2941,7 +2944,7 @@ export function KanbanCardModal({
             ...prev,
             processo: {
               ...prev.processo,
-              link_bca: res.linkBca ?? prev.processo.link_bca,
+              link_gbox: res.linkGbox ?? prev.processo.link_gbox,
               link_acoplamento: res.linkAcoplamento ?? prev.processo.link_acoplamento,
             },
           }
@@ -3124,6 +3127,7 @@ export function KanbanCardModal({
         negocioOpcaoPermutaRef,
       )}
       {renderNegocioLinkCampo('BCA', proc.link_bca)}
+      {renderNegocioLinkCampo('Gbox', proc.link_gbox)}
       {renderNegocioLinkCampo('Mapa de Competidores', proc.link_mapa_competidores)}
       {renderNegocioLinkCampo('Acoplamento', proc.link_acoplamento)}
       {renderNegocioLinkCampo('Apresentação do Comitê', proc.link_apresentacao_comite)}
@@ -3163,7 +3167,11 @@ export function KanbanCardModal({
       {renderNegocioLinkCampo('BCA', proc.link_bca, {
         value: negocioDraft.link_bca,
         onChange: (v) => setNegocioDraft((d) => ({ ...d, link_bca: v })),
-        onBlur: (v) => void sincronizarLinkNegocioAoBlur('bca', v),
+      })}
+      {renderNegocioLinkCampo('Gbox', proc.link_gbox, {
+        value: negocioDraft.link_gbox,
+        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_gbox: v })),
+        onBlur: (v) => void sincronizarLinkNegocioAoBlur('gbox', v),
       })}
       {renderNegocioLinkCampo('Mapa de Competidores', proc.link_mapa_competidores, {
         value: negocioDraft.link_mapa_competidores,
@@ -3227,6 +3235,7 @@ export function KanbanCardModal({
         produto_modelo_casa: proc.produto_modelo_casa ?? '',
         link_pasta_drive: proc.link_pasta_drive ?? '',
         link_bca: proc.link_bca ?? '',
+        link_gbox: proc.link_gbox ?? '',
         link_mapa_competidores: proc.link_mapa_competidores ?? '',
         link_acoplamento: proc.link_acoplamento ?? '',
         link_apresentacao_comite: proc.link_apresentacao_comite ?? '',
@@ -6040,7 +6049,7 @@ export function KanbanCardModal({
             Mover para Paralisados
           </h3>
           <p className="mt-2 text-sm text-stone-600">
-            Informe o motivo da paralisação. Os links de BCA e Acoplamento não são obrigatórios nesta fase.
+            Informe o motivo da paralisação. Os links de Gbox e Acoplamento não são obrigatórios nesta fase.
           </p>
           <label className="mt-4 block text-xs font-medium text-stone-600">
             Motivo da paralisação

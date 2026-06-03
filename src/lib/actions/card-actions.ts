@@ -3761,20 +3761,20 @@ export async function upsertFaseChecklistResposta(input: {
   );
   if (error) return { ok: false, error: error.message };
 
-  const { isChecklistItemSyncBcaAcoplamento, sincronizarLinksBcaAcoplamento } = await import(
+  const { isChecklistItemSyncGboxAcoplamento, sincronizarLinksGboxAcoplamento } = await import(
     '@/lib/kanban/links-bca-acoplamento-sync'
   );
-  const syncKey = isChecklistItemSyncBcaAcoplamento(
+  const syncKey = isChecklistItemSyncGboxAcoplamento(
     (itemRow as { label?: string | null } | null)?.label,
   );
   if (syncKey) {
     const { data: prof } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
-    const sync = await sincronizarLinksBcaAcoplamento({
+    const sync = await sincronizarLinksGboxAcoplamento({
       cardOrigemId: input.card_id,
       origem: 'checklist',
       usuarioId: user.id,
       usuarioNome: String((prof as { full_name?: string | null } | null)?.full_name ?? '').trim() || null,
-      ...(syncKey === 'bca' ? { linkBca: input.valor } : { linkAcoplamento: input.valor }),
+      ...(syncKey === 'gbox' ? { linkGbox: input.valor } : { linkAcoplamento: input.valor }),
     });
     if (!sync.ok) return sync;
     revalidatePath('/');
@@ -3784,13 +3784,13 @@ export async function upsertFaseChecklistResposta(input: {
   return { ok: true };
 }
 
-/** Salva links BCA/Acoplamento no processo e propaga a checklist + cards vinculados. */
+/** Salva links Gbox/Acoplamento no processo e propaga a checklist + cards vinculados. */
 export async function salvarLinksBcaAcoplamentoNegocio(input: {
   cardId: string;
-  linkBca?: string | null;
+  linkGbox?: string | null;
   linkAcoplamento?: string | null;
   basePath?: string;
-}): Promise<ActionResult & { linkBca?: string | null; linkAcoplamento?: string | null }> {
+}): Promise<ActionResult & { linkGbox?: string | null; linkAcoplamento?: string | null }> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -3799,13 +3799,13 @@ export async function salvarLinksBcaAcoplamentoNegocio(input: {
 
   const { data: prof } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
 
-  const { sincronizarLinksBcaAcoplamento } = await import('@/lib/kanban/links-bca-acoplamento-sync');
-  const sync = await sincronizarLinksBcaAcoplamento({
+  const { sincronizarLinksGboxAcoplamento } = await import('@/lib/kanban/links-bca-acoplamento-sync');
+  const sync = await sincronizarLinksGboxAcoplamento({
     cardOrigemId: input.cardId,
     origem: 'painel_negocio',
     usuarioId: user.id,
     usuarioNome: String((prof as { full_name?: string | null } | null)?.full_name ?? '').trim() || null,
-    linkBca: input.linkBca,
+    linkGbox: input.linkGbox,
     linkAcoplamento: input.linkAcoplamento,
   });
 
@@ -3813,5 +3813,5 @@ export async function salvarLinksBcaAcoplamentoNegocio(input: {
 
   revalidatePath(input.basePath?.trim() || '/');
   revalidatePath('/');
-  return { ok: true, linkBca: sync.linkBca, linkAcoplamento: sync.linkAcoplamento };
+  return { ok: true, linkGbox: sync.linkGbox, linkAcoplamento: sync.linkAcoplamento };
 }

@@ -2,10 +2,10 @@ import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
-export const CHECKLIST_LABEL_BCA = 'BCA';
+export const CHECKLIST_LABEL_GBOX = 'Gbox';
 export const CHECKLIST_LABEL_ACOPLAMENTO = 'Acoplamento';
 
-export type OrigemSyncLinkBcaAcoplamento = 'checklist' | 'painel_negocio';
+export type OrigemSyncLinkGboxAcoplamento = 'checklist' | 'painel_negocio';
 
 function normLabel(label: string | null | undefined): string {
   return String(label ?? '')
@@ -18,8 +18,19 @@ function normLink(v: string | null | undefined): string | null {
   return s.length > 0 ? s : null;
 }
 
-export function linkBcaAcoplamentoPreenchidos(linkBca: string | null | undefined, linkAcoplamento: string | null | undefined): boolean {
-  return Boolean(normLink(linkBca)) && Boolean(normLink(linkAcoplamento));
+export function linkGboxAcoplamentoPreenchidos(
+  linkGbox: string | null | undefined,
+  linkAcoplamento: string | null | undefined,
+): boolean {
+  return Boolean(normLink(linkGbox)) && Boolean(normLink(linkAcoplamento));
+}
+
+/** @deprecated Use linkGboxAcoplamentoPreenchidos */
+export function linkBcaAcoplamentoPreenchidos(
+  linkGbox: string | null | undefined,
+  linkAcoplamento: string | null | undefined,
+): boolean {
+  return linkGboxAcoplamentoPreenchidos(linkGbox, linkAcoplamento);
 }
 
 /** Resolve `processo_step_one.id` a partir do card kanban. */
@@ -97,7 +108,7 @@ export async function listarCardIdsVinculadosAoProcesso(
 
 type ItensChecklistModelagem = {
   faseId: string;
-  bcaItemId: string | null;
+  gboxItemId: string | null;
   acoplamentoItemId: string | null;
 };
 
@@ -120,16 +131,16 @@ async function obterItensChecklistModelagemCasa(
     .select('id, label')
     .eq('fase_id', faseId);
 
-  let bcaItemId: string | null = null;
+  let gboxItemId: string | null = null;
   let acoplamentoItemId: string | null = null;
   for (const it of itens ?? []) {
     const id = String((it as { id?: string }).id ?? '').trim();
     const lab = normLabel((it as { label?: string }).label);
-    if (lab === normLabel(CHECKLIST_LABEL_BCA)) bcaItemId = id;
+    if (lab === normLabel(CHECKLIST_LABEL_GBOX)) gboxItemId = id;
     if (lab === normLabel(CHECKLIST_LABEL_ACOPLAMENTO)) acoplamentoItemId = id;
   }
 
-  return { faseId, bcaItemId, acoplamentoItemId };
+  return { faseId, gboxItemId, acoplamentoItemId };
 }
 
 async function listarCardsAcoplamentoDoProcesso(
@@ -151,49 +162,49 @@ async function registrarHistoricoLinks(
   params: {
     usuarioId: string | null;
     usuarioNome: string | null;
-    origem: OrigemSyncLinkBcaAcoplamento;
+    origem: OrigemSyncLinkGboxAcoplamento;
     cardOrigemId: string;
-    linkBca: string | null;
+    linkGbox: string | null;
     linkAcoplamento: string | null;
   },
 ): Promise<void> {
   const descricao =
     params.origem === 'checklist'
-      ? 'Links BCA e Acoplamento atualizados (checklist da fase).'
-      : 'Links BCA e Acoplamento atualizados (dados do negócio).';
+      ? 'Links Gbox e Acoplamento atualizados (checklist da fase).'
+      : 'Links Gbox e Acoplamento atualizados (dados do negócio).';
 
   const rows = cardIds.map((card_id) => ({
     card_id,
     usuario_id: params.usuarioId,
     usuario_nome: params.usuarioNome,
-    acao: 'links_bca_acoplamento',
+    acao: 'links_gbox_acoplamento',
     detalhe: {
-      tipo: 'links_bca_acoplamento',
+      tipo: 'links_gbox_acoplamento',
       descricao,
       origem: params.origem,
       card_origem_id: params.cardOrigemId,
-      link_bca: params.linkBca,
+      link_gbox: params.linkGbox,
       link_acoplamento: params.linkAcoplamento,
     },
   }));
 
   if (rows.length === 0) return;
   const { error } = await db.from('kanban_historico').insert(rows as never);
-  if (error) console.error('[links-bca-acoplamento] historico:', error.message);
+  if (error) console.error('[links-gbox-acoplamento] historico:', error.message);
 }
 
 /**
- * Sincroniza `link_bca` / `link_acoplamento` no processo, checklist Modelagem Casa+GBox
+ * Sincroniza `link_gbox` / `link_acoplamento` no processo, checklist Modelagem Casa+GBox
  * e histórico em todos os cards vinculados.
  */
-export async function sincronizarLinksBcaAcoplamento(params: {
+export async function sincronizarLinksGboxAcoplamento(params: {
   cardOrigemId: string;
-  linkBca?: string | null;
+  linkGbox?: string | null;
   linkAcoplamento?: string | null;
-  origem: OrigemSyncLinkBcaAcoplamento;
+  origem: OrigemSyncLinkGboxAcoplamento;
   usuarioId: string;
   usuarioNome?: string | null;
-}): Promise<{ ok: true; linkBca: string | null; linkAcoplamento: string | null } | { ok: false; error: string }> {
+}): Promise<{ ok: true; linkGbox: string | null; linkAcoplamento: string | null } | { ok: false; error: string }> {
   const cardOrigemId = String(params.cardOrigemId ?? '').trim();
   if (!cardOrigemId) return { ok: false, error: 'Card inválido.' };
 
@@ -207,21 +218,21 @@ export async function sincronizarLinksBcaAcoplamento(params: {
 
   const processoId = await resolverProcessoIdDoCard(db, cardOrigemId);
   if (!processoId) {
-    return { ok: false, error: 'Sem processo vinculado para sincronizar BCA/Acoplamento.' };
+    return { ok: false, error: 'Sem processo vinculado para sincronizar Gbox/Acoplamento.' };
   }
 
   const { data: procAtual, error: errProc } = await db
     .from('processo_step_one')
-    .select('link_bca, link_acoplamento')
+    .select('link_gbox, link_acoplamento')
     .eq('id', processoId)
     .maybeSingle();
 
   if (errProc) return { ok: false, error: errProc.message };
 
-  const linkBca =
-    params.linkBca !== undefined
-      ? normLink(params.linkBca)
-      : normLink((procAtual as { link_bca?: string | null } | null)?.link_bca);
+  const linkGbox =
+    params.linkGbox !== undefined
+      ? normLink(params.linkGbox)
+      : normLink((procAtual as { link_gbox?: string | null } | null)?.link_gbox);
   const linkAcoplamento =
     params.linkAcoplamento !== undefined
       ? normLink(params.linkAcoplamento)
@@ -230,7 +241,7 @@ export async function sincronizarLinksBcaAcoplamento(params: {
   const { error: errUpd } = await db
     .from('processo_step_one')
     .update({
-      link_bca: linkBca,
+      link_gbox: linkGbox,
       link_acoplamento: linkAcoplamento,
       updated_at: new Date().toISOString(),
     } as never)
@@ -244,12 +255,12 @@ export async function sincronizarLinksBcaAcoplamento(params: {
 
   if (itens) {
     for (const acopCardId of cardsAcoplamento) {
-      if (itens.bcaItemId) {
+      if (itens.gboxItemId) {
         await db.from('kanban_fase_checklist_respostas').upsert(
           {
-            item_id: itens.bcaItemId,
+            item_id: itens.gboxItemId,
             card_id: acopCardId,
-            valor: linkBca,
+            valor: linkGbox,
             preenchido_por: params.usuarioId,
             preenchido_em: now,
           } as never,
@@ -277,21 +288,29 @@ export async function sincronizarLinksBcaAcoplamento(params: {
     usuarioNome: params.usuarioNome ?? null,
     origem: params.origem,
     cardOrigemId,
-    linkBca,
+    linkGbox,
     linkAcoplamento,
   });
 
-  return { ok: true, linkBca, linkAcoplamento };
+  return { ok: true, linkGbox, linkAcoplamento };
 }
 
-export function isChecklistItemSyncBcaAcoplamento(label: string | null | undefined): 'bca' | 'acoplamento' | null {
+/** @deprecated Use sincronizarLinksGboxAcoplamento */
+export const sincronizarLinksBcaAcoplamento = sincronizarLinksGboxAcoplamento;
+
+export function isChecklistItemSyncGboxAcoplamento(label: string | null | undefined): 'gbox' | 'acoplamento' | null {
   const n = normLabel(label);
-  if (n === normLabel(CHECKLIST_LABEL_BCA)) return 'bca';
+  if (n === normLabel(CHECKLIST_LABEL_GBOX)) return 'gbox';
   if (n === normLabel(CHECKLIST_LABEL_ACOPLAMENTO)) return 'acoplamento';
   return null;
 }
 
-/** Gate: saída da fase Modelagem Casa+GBox exige links (exceto para Reprovado). */
+/** @deprecated Use isChecklistItemSyncGboxAcoplamento */
+export function isChecklistItemSyncBcaAcoplamento(label: string | null | undefined): 'gbox' | 'acoplamento' | null {
+  return isChecklistItemSyncGboxAcoplamento(label);
+}
+
+/** Gate: saída da fase Modelagem Casa+GBox exige links (exceto para Reprovado/Paralisados). */
 export async function verificarGateAcoplamentoModelagemCasa(
   cardId: string,
   novaFaseId: string,
@@ -337,21 +356,21 @@ export async function verificarGateAcoplamentoModelagemCasa(
   if (!processoId) {
     return {
       ok: false,
-      error: 'Preencha os links de BCA e Acoplamento no checklist da fase ou em Dados do Negócio antes de avançar.',
+      error: 'Preencha os links de Gbox e Acoplamento no checklist da fase ou em Dados do Negócio antes de avançar.',
     };
   }
 
   const { data: proc } = await db
     .from('processo_step_one')
-    .select('link_bca, link_acoplamento')
+    .select('link_gbox, link_acoplamento')
     .eq('id', processoId)
     .maybeSingle();
 
-  if (!linkBcaAcoplamentoPreenchidos(proc?.link_bca, proc?.link_acoplamento)) {
+  if (!linkGboxAcoplamentoPreenchidos(proc?.link_gbox, proc?.link_acoplamento)) {
     return {
       ok: false,
       error:
-        'Preencha os links de BCA e Acoplamento (checklist da fase ou painel esquerdo) antes de avançar para a próxima fase.',
+        'Preencha os links de Gbox e Acoplamento (checklist da fase ou painel esquerdo) antes de avançar para a próxima fase.',
     };
   }
 
