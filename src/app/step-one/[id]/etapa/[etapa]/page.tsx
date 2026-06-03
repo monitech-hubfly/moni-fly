@@ -12,18 +12,25 @@ import { Etapa11PDF, type ResumoProcesso } from '../Etapa11PDF';
 import { FinalizarEstudoButton } from '../FinalizarEstudoButton';
 import { IrParaStep3Button } from '../IrParaStep3Button';
 import { CancelarProcessoButtonEtapa } from '../CancelarProcessoButtonEtapa';
-import { getBcaInputs } from '../actions';
+import { getBcaInputs, getCustosConstrucaoEscolhaChecklist } from '../actions';
+import { isPreBatalhaFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 
 interface PageProps {
   params: Promise<{ id: string; etapa: string }>;
+  searchParams: Promise<{ modo?: string; fase?: string }>;
 }
 
-export default async function EtapaPage({ params }: PageProps) {
+export default async function EtapaPage({ params, searchParams }: PageProps) {
   const { id, etapa } = await params;
+  const sp = await searchParams;
   const etapaNum = parseInt(etapa, 10);
   if ([8, 9].includes(etapaNum)) redirect(`/step-one/${id}/etapa/7`);
   const etapaInfo = ETAPAS.find((e) => e.id === etapaNum);
   if (!etapaInfo || etapaNum < 1 || etapaNum > 11) notFound();
+
+  const modoPreBatalha =
+    etapaNum === 5 &&
+    (sp.modo === 'pre-batalha' || isPreBatalhaFaseSlug(sp.fase));
 
   const supabase = await createClient();
   const {
@@ -205,6 +212,7 @@ export default async function EtapaPage({ params }: PageProps) {
     loteEscolhidoIdEtapa4 = le?.listing_lote_id ?? null;
   }
   let pdfScoreBatalhaUrl: string | null = null;
+  let custosConstrucaoChecklist: Record<number, number | null> = {};
   if (etapaNum === 5 || etapaNum === 6) {
     const { data } = await supabase
       .from('listings_casas')
@@ -232,6 +240,7 @@ export default async function EtapaPage({ params }: PageProps) {
       .eq('processo_id', id);
     batalhasEtapa5 = (batalhas5 ?? []) as typeof batalhasEtapa5;
     if (etapaNum === 6) {
+      custosConstrucaoChecklist = await getCustosConstrucaoEscolhaChecklist(id);
       const { data: ep6 } = await supabase
         .from('etapa_progresso')
         .select('dados_json')
@@ -367,6 +376,9 @@ export default async function EtapaPage({ params }: PageProps) {
   /** No Step 2, exibir número da lista (6–9) em vez do ID interno (7, 6, 10, 11). */
   const STEP2_DISPLAY_NUM: Record<number, number> = { 7: 6, 6: 7, 10: 8, 11: 9 };
   const etapaDisplayNum = isStep2Etapa ? (STEP2_DISPLAY_NUM[etapaNum] ?? etapaNum) : etapaNum;
+  const modoPreBatalha =
+    etapaNum === 5 &&
+    (sp.modo === 'pre-batalha' || (sp.fase != null && isPreBatalhaFaseSlug(sp.fase)));
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -439,13 +451,28 @@ export default async function EtapaPage({ params }: PageProps) {
             />
           ) : etapaNum === 5 ? (
             <>
-              <h1 className="text-xl font-bold text-moni-dark">
-                Etapa {etapaDisplayNum} — {etapaInfo.nome}
-              </h1>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-xl font-bold text-moni-dark">
+                  Etapa {etapaDisplayNum} — {etapaInfo.nome}
+                </h1>
+                {modoPreBatalha ? (
+                  <span className="rounded-full bg-amber-100 px-3 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-amber-300">
+                    Pré-batalha
+                  </span>
+                ) : null}
+              </div>
               <p className="mt-2 text-stone-600">{etapaInfo.descricao}</p>
+              {modoPreBatalha ? (
+                <p className="mt-2 text-sm text-amber-900/90">
+                  Ranqueie candidatos Moní só com Produto e Atributos do Lote (sem Preço/reforma).
+                  As notas ficam apenas nesta sessão — use a batalha completa na etapa 6 para
+                  salvar.
+                </p>
+              ) : null}
               <div className="mt-6 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
                 <Etapa4Casas
-                  listagemOnly
+                  listagemOnly={!modoPreBatalha}
+                  modoPreBatalha={modoPreBatalha}
                   processoId={id}
                   casas={casas}
                   cidadeInicial={processo?.cidade ?? ''}
@@ -487,6 +514,7 @@ export default async function EtapaPage({ params }: PageProps) {
                   catalogo={catalogoEtapa5}
                   batalhasIniciais={batalhasEtapa5}
                   pdfScoreBatalhaUrl={pdfScoreBatalhaUrl}
+                  custosConstrucaoChecklist={custosConstrucaoChecklist}
                 />
               </div>
             </>

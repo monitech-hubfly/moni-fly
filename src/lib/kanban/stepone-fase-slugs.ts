@@ -86,6 +86,10 @@ export function isPreBatalhaFaseSlug(slug: string | null | undefined): boolean {
   return slugMatchesStepOneFase(slug, PRE_BATALHA_FASE_SLUGS);
 }
 
+export function stepOneEtapa5PreBatalhaHref(processoId: string): string {
+  return `/step-one/${encodeURIComponent(processoId)}/etapa/5?modo=pre-batalha`;
+}
+
 export function isEscolhaFaseSlug(slug: string | null | undefined): boolean {
   return slugMatchesStepOneFase(slug, ESCOLHA_FASE_SLUGS);
 }

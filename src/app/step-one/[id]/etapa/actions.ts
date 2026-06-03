@@ -9,8 +9,110 @@ import { mapZapItemToCasa, type ZapListingItem } from '@/lib/apify-zap';
 import { applyZapCasasUpdate, verifyProcessoCasasAccess } from '@/lib/zap-save-casas';
 import { applyZapLotesSave, verifyProcessoLotesAccess, type ZapLoteItem } from '@/lib/zap-save-lotes';
 import type { BcaInputs } from '@/lib/bca-calc';
+import { KANBAN_IDS, FASE_SLUGS } from '@/lib/constants/kanban-ids';
+import {
+  type AtributosLoteRespostas,
+  ATRIBUTOS_LOTE,
+} from './REGRAS_BATALHA';
 
 export type SaveEtapa1Result = { ok: true } | { ok: false; error: string };
+
+/** Fase Lotes Disponíveis (Funil Step One) — PROD UUID; fallback se slug lookup falhar. */
+const STEP_ONE_LOTES_DISPONIVEIS_FASE_ID = 'a6afabd9-2409-49a7-ab11-d2df4d3784e7';
+
+/** Itens ordem 6–10 do checklist lotes_disponiveis → ids em REGRAS_BATALHA.ATRIBUTOS_LOTE. */
+const CHECKLIST_ORDEM_TO_ATRIBUTO: Record<number, (typeof ATRIBUTOS_LOTE)[number]['id']> = {
+  6: 'vista',
+  7: 'area_verde',
+  8: 'muro',
+  9: 'area_convivencia',
+  10: 'lixeira',
+};
+
+/**
+ * Resolve card_id do Funil Step One a partir de `processo_step_one.id`.
+ * - Nativo: `kanban_cards.projeto_id` = processoId → card.id
+ * - Legado: `processo_step_one.id` é o próprio card (view `v_processo_como_kanban_cards`)
+ */
+async function resolveStepOneKanbanCardIds(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  processoId: string,
+): Promise<string[]> {
+  const ids = new Set<string>([processoId]);
+  const { data: cards } = await supabase
+    .from('kanban_cards')
+    .select('id')
+    .eq('projeto_id', processoId);
+  for (const c of cards ?? []) {
+    const id = String((c as { id?: string }).id ?? '').trim();
+    if (id) ids.add(id);
+  }
+  return [...ids];
+}
+
+/** Pré-preenche Atributos do Lote a partir do checklist da fase lotes_disponiveis (Step One). */
+export async function getAtributosLoteFromStepOneChecklist(
+  processoId: string,
+): Promise<{ ok: true; atributos: AtributosLoteRespostas } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const { data: processo } = await supabase
+    .from('processo_step_one')
+    .select('id')
+    .eq('id', processoId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (!processo) return { ok: false, error: 'Processo não encontrado.' };
+
+  const cardIds = await resolveStepOneKanbanCardIds(supabase, processoId);
+
+  const { data: fase } = await supabase
+    .from('kanban_fases')
+    .select('id')
+    .eq('kanban_id', KANBAN_IDS.STEP_ONE)
+    .eq('slug', FASE_SLUGS.LOTES_DISPONIVEIS)
+    .maybeSingle();
+  const faseId = fase?.id ?? STEP_ONE_LOTES_DISPONIVEIS_FASE_ID;
+
+  const { data: itens, error: errItens } = await supabase
+    .from('kanban_fase_checklist_itens')
+    .select('id, ordem')
+    .eq('fase_id', faseId)
+    .gte('ordem', 6)
+    .lte('ordem', 10);
+  if (errItens) return { ok: false, error: errItens.message };
+
+  const itemRows = (itens ?? []) as { id: string; ordem: number }[];
+  if (itemRows.length === 0) return { ok: true, atributos: {} };
+
+  const itemIds = itemRows.map((i) => i.id);
+  const { data: respostas, error: errResp } = await supabase
+    .from('kanban_fase_checklist_respostas')
+    .select('item_id, valor')
+    .in('card_id', cardIds)
+    .in('item_id', itemIds);
+  if (errResp) return { ok: false, error: errResp.message };
+
+  const valorPorItem = new Map<string, string>();
+  for (const r of (respostas ?? []) as { item_id: string; valor: string | null }[]) {
+    if (r.valor != null) valorPorItem.set(r.item_id, r.valor);
+  }
+
+  const atributos: AtributosLoteRespostas = {};
+  for (const item of itemRows) {
+    const atributoId = CHECKLIST_ORDEM_TO_ATRIBUTO[item.ordem];
+    if (!atributoId) continue;
+    if (valorPorItem.get(item.id) === 'true') {
+      atributos[atributoId] = true;
+    }
+  }
+
+  return { ok: true, atributos };
+}
 
 export async function saveEtapa1(
   processoId: string,
@@ -628,9 +730,80 @@ export type BatalhaCasaRow = {
   nota_final: number;
   /** Respostas SIM/NÃO dos atributos do lote (nota_localizacao = soma dos scores) */
   atributos_lote_json?: Record<string, boolean> | null;
+  /** Checklist reforma, sub-notas D/E/I/P, custo_construcao do configurador, etc. */
   preco_dados_json?: Record<string, unknown> | null;
   produto_dados_json?: Record<string, unknown> | null;
 };
+
+/** Custos de construção da fase Escolha (checklist "Custo de construção — Casa N"), keyed by ordem 1–3. */
+export async function getCustosConstrucaoEscolhaChecklist(
+  processoId: string,
+): Promise<Record<number, number | null>> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return {};
+
+  const { KANBAN_IDS, FASE_SLUGS } = await import('@/lib/constants/kanban-ids');
+  const { parseOrdemCustoConstrucaoEscolha } = await import('./REGRAS_BATALHA');
+
+  const { data: fase } = await supabase
+    .from('kanban_fases')
+    .select('id')
+    .eq('kanban_id', KANBAN_IDS.STEP_ONE)
+    .eq('slug', FASE_SLUGS.ESCOLHA)
+    .maybeSingle();
+
+  if (!fase?.id) return {};
+
+  const { data: itens } = await supabase
+    .from('kanban_fase_checklist_itens')
+    .select('id, label')
+    .eq('fase_id', fase.id)
+    .like('label', 'Custo de construção — Casa %');
+
+  if (!itens?.length) return {};
+
+  let cardId = processoId;
+  const { data: cardNativo } = await supabase
+    .from('kanban_cards')
+    .select('id')
+    .eq('projeto_id', processoId)
+    .eq('kanban_id', KANBAN_IDS.STEP_ONE)
+    .limit(1)
+    .maybeSingle();
+  if (cardNativo?.id) cardId = cardNativo.id;
+
+  const itemIds = itens.map((i) => i.id);
+  const { data: respostas } = await supabase
+    .from('kanban_fase_checklist_respostas')
+    .select('item_id, valor')
+    .eq('card_id', cardId)
+    .in('item_id', itemIds);
+
+  const valorPorItem = new Map<string, string>();
+  for (const r of respostas ?? []) {
+    if (r.valor) valorPorItem.set(r.item_id, r.valor);
+  }
+
+  const out: Record<number, number | null> = {};
+  for (const item of itens) {
+    const ordem = parseOrdemCustoConstrucaoEscolha(item.label);
+    if (ordem == null) continue;
+    const raw = valorPorItem.get(item.id);
+    if (raw == null || raw.trim() === '') {
+      out[ordem] = null;
+      continue;
+    }
+    const s = raw.trim();
+    const v = s.includes(',')
+      ? parseFloat(s.replace(/\./g, '').replace(',', '.'))
+      : parseFloat(s);
+    out[ordem] = Number.isFinite(v) ? v : null;
+  }
+  return out;
+}
 
 /** Salva até 3 casas do catálogo Moní escolhidas para batalha na Etapa 5 (limpa escolhas e batalhas anteriores). */
 export async function saveCasasEscolhidasEtapa5(

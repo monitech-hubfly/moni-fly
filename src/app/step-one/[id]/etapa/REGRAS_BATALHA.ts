@@ -118,6 +118,70 @@ export function valorInvestimento(checklist: ChecklistReforma): number {
   return sum;
 }
 
+export type CatalogoPrecoRef = {
+  preco_venda?: number | null;
+  preco_venda_m2?: number | null;
+  area_m2?: number | null;
+};
+
+/** Valor de venda do catálogo (preco_venda ou preco_venda_m2 × área). */
+export function getValorNossaCatalogo(cat: CatalogoPrecoRef): number | null {
+  if (cat.preco_venda != null && Number.isFinite(cat.preco_venda)) return cat.preco_venda;
+  if (cat.preco_venda_m2 != null && cat.area_m2 != null && cat.area_m2 > 0)
+    return cat.preco_venda_m2 * cat.area_m2;
+  return null;
+}
+
+/** Valor de referência para D (distância): custo de construção se preenchido, senão catálogo. */
+export function getValorNossaDistancia(
+  cat: CatalogoPrecoRef,
+  custoConstrucao?: number | null,
+): number | null {
+  if (custoConstrucao != null && Number.isFinite(custoConstrucao) && custoConstrucao > 0)
+    return custoConstrucao;
+  return getValorNossaCatalogo(cat);
+}
+
+export type PrecoSubNotasCalc = {
+  D: number;
+  E: number;
+  I: number;
+  P: number;
+  nota: number;
+};
+
+/** Nota Preço com checklist; P usa preço de venda do catálogo, D usa custo ou catálogo. */
+export function calcularNotaPrecoComChecklist(
+  cat: CatalogoPrecoRef,
+  checklist: ChecklistReforma,
+  valorListing: number,
+  custoConstrucao?: number | null,
+): PrecoSubNotasCalc | null {
+  const valorDist = getValorNossaDistancia(cat, custoConstrucao);
+  const valorNom = getValorNossaCatalogo(cat);
+  if (valorDist == null || valorDist <= 0 || valorNom == null || valorNom <= 0) return null;
+  const inv = valorInvestimento(checklist);
+  const totalComparativo = valorListing + inv;
+  const diffPercDist = (totalComparativo - valorDist) / valorDist;
+  const diffPercNominal = (valorListing - valorNom) / valorNom;
+  const D = notaPrecoPorPercentual(diffPercDist);
+  const P = notaPrecoPorPercentual(diffPercNominal);
+  const E = notaEsforco(checklist);
+  const I = notaIncertezaPreco(checklist);
+  return { D, E, I, P, nota: notaPrecoPonderada(D, E, I, P) };
+}
+
+export const CHECKLIST_LABEL_CUSTO_CONSTRUCAO_PREFIX = 'Custo de construção — Casa ';
+
+export function labelCustoConstrucaoEscolha(ordem: number): string {
+  return `${CHECKLIST_LABEL_CUSTO_CONSTRUCAO_PREFIX}${ordem}`;
+}
+
+export function parseOrdemCustoConstrucaoEscolha(label: string): number | null {
+  const m = label.match(/^Custo de construção — Casa (\d)$/);
+  return m ? Number(m[1]) : null;
+}
+
 /** Pesos dos 4 sub-itens de Preço: D=4, E=3, I=2, P=1. Nota = (D*4+E*3+I*2+P*1)/10 */
 export const PESOS_PRECO = { distancia: 4, esforco: 3, incerteza: 2, preco_nominal: 1 } as const;
 const TOTAL_PESO_PRECO =
@@ -257,6 +321,12 @@ export function notaFinalBatalha(
   notaProduto: number,
 ): number {
   return clampNota(notaAtributos + notaPreco + notaProduto);
+}
+
+/** Pré-batalha (etapa 5): média de Atributos do Lote + Produto, sem eixo Preço. */
+export function notaFinalPreBatalha(notaAtributos: number, notaProduto: number): number {
+  const v = (notaAtributos + notaProduto) / 2;
+  return clampNota(Math.round(v * 10) / 10);
 }
 
 function clampNota(n: number): number {
