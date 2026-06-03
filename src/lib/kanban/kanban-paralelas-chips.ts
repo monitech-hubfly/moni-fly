@@ -6,6 +6,7 @@ import {
   type PortfolioParalelasFlags,
   listarEsteirasParalelasPendentes,
 } from '@/lib/kanban/portfolio-paralelas';
+import { labelChipAcoplamentoPai } from '@/lib/kanban/acoplamento-tag-pai';
 
 export type { PortfolioParalelasFlags };
 export { listarEsteirasParalelasPendentes };
@@ -23,6 +24,7 @@ export type ParalelaChip = {
 
 export type CardParalelasFlags = {
   acoplamento_concluido?: boolean;
+  acoplamento_filho_fase_nome?: string | null;
   credito_terreno_ok?: boolean;
   contabilidade_ok?: boolean;
   capital_ok?: boolean;
@@ -109,9 +111,15 @@ export function montarChipsParalelas(
   if (kid === KANBAN_IDS.PORTFOLIO) {
     if (slug === 'step_4' || slug === 'acoplamento') {
       for (const p of PORTFOLIO_PARALELAS) {
-        chips.push(
-          chipEsteira(p.label, p.labelCurto, boolFlag(f[p.flag]), opts),
-        );
+        if (p.flag === 'acoplamento_concluido') {
+          chips.push({
+            label: labelChipAcoplamentoPai(f.acoplamento_filho_fase_nome, opts?.labelsCompletos),
+            concluido: boolFlag(f.acoplamento_concluido),
+            variant: 'esteira',
+          });
+          continue;
+        }
+        chips.push(chipEsteira(p.label, p.labelCurto, boolFlag(f[p.flag]), opts));
       }
     }
     if (slug === FASE_SLUGS.CAPTACAO_CAPITAL) {
@@ -133,6 +141,7 @@ export function montarChipsParalelas(
 export function flagsParalelasFromCard(card: Pick<
   KanbanCardBrief,
   | 'acoplamento_concluido'
+  | 'acoplamento_filho_fase_nome'
   | 'credito_terreno_ok'
   | 'contabilidade_ok'
   | 'capital_ok'
@@ -141,6 +150,7 @@ export function flagsParalelasFromCard(card: Pick<
 >): CardParalelasFlags {
   return {
     acoplamento_concluido: card.acoplamento_concluido,
+    acoplamento_filho_fase_nome: card.acoplamento_filho_fase_nome ?? null,
     credito_terreno_ok: card.credito_terreno_ok,
     contabilidade_ok: card.contabilidade_ok,
     capital_ok: card.capital_ok,

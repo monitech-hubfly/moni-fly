@@ -11,6 +11,7 @@ import {
   destinosEsteiraManualParaKanban,
   type DestinoEsteiraManualKey,
 } from '@/lib/kanban/esteira-manual-destinos';
+import { sincronizarTagAcoplamentoPaiDoFilho } from '@/lib/kanban/acoplamento-tag-pai';
 
 /** Verifica se já existe card filho no Funil Jurídico para o card pai. */
 export async function existeChamadoJuridicoParaCard(cardPaiId: string): Promise<boolean> {
@@ -482,7 +483,7 @@ async function dispararBastao(
   destino: BastaoDestino,
 ): Promise<void> {
   try {
-    await criarCardFilho({
+    const filho = await criarCardFilho({
       cardPaiId: pai.id,
       kanbanDestinoId: destino.kanbanDestinoId,
       faseDestinoSlug: destino.faseDestinoSlug,
@@ -492,6 +493,13 @@ async function dispararBastao(
       kanbanOrigemSlug: kanbanOrigemSlugPorId(pai.kanban_id),
       faseOrigemSlug,
     });
+    if (
+      filho?.id &&
+      destino.kanbanDestinoId === KANBAN_IDS.ACOPLAMENTO &&
+      destino.faseDestinoSlug
+    ) {
+      await sincronizarTagAcoplamentoPaiDoFilho(String(filho.id), destino.faseDestinoSlug);
+    }
   } catch (e) {
     console.error('[executarBastoes] falha ao criar filho:', destino, e);
   }
@@ -537,10 +545,8 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     [FASE_SLUGS.STEP_3]: [
       { kanbanDestinoId: KANBAN_IDS.JURIDICO, faseDestinoSlug: 'juridico_recebimento' },
     ],
-    [FASE_SLUGS.STEP_4]: [
+    [FASE_SLUGS.ACOPLAMENTO]: [
       { kanbanDestinoId: KANBAN_IDS.ACOPLAMENTO, faseDestinoSlug: 'modelagem_terreno' },
-      { kanbanDestinoId: KANBAN_IDS.CREDITO_OBRA, faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO },
-      { kanbanDestinoId: KANBAN_IDS.CONTABILIDADE, faseDestinoSlug: 'contabilidade_incorporadora' },
     ],
     [FASE_SLUGS.STEP_7]: [
       { kanbanDestinoId: KANBAN_IDS.CONTABILIDADE, faseDestinoSlug: 'contabilidade_spe' },
@@ -852,6 +858,10 @@ export async function dispararEsteiraManualDoCard(
 
     if (!filho?.id) {
       return { ok: false, error: 'Não foi possível criar o card filho (pode já existir).' };
+    }
+
+    if (destino.kanbanDestinoId === KANBAN_IDS.ACOPLAMENTO) {
+      await sincronizarTagAcoplamentoPaiDoFilho(String(filho.id), destino.faseDestinoSlug);
     }
 
     const { data: kb } = await db.from('kanbans').select('nome').eq('id', destino.kanbanDestinoId).maybeSingle();

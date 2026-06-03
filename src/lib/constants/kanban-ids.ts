@@ -84,6 +84,8 @@ export const FASE_SLUGS = {
   AGUARDANDO_CREDITO: 'aguardando_credito',
   PROD_PUBLICADO: 'prod_publicado',
   APROVACAO_CONDOMINIO: 'aprovacao_condominio',
+  /** Fase do Funil Portfólio — dispara bastão para Funil Acoplamento. */
+  ACOPLAMENTO: 'acoplamento',
   APROVACAO_PREFEITURA: 'aprovacao_prefeitura',
   PROJETO_LEGAL:      'projeto_legal',
   LOTEADOR_JURIDICO:  'loteador_juridico',

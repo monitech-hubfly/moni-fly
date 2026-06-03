@@ -219,6 +219,8 @@ type Card = {
   /** FK em `projeto_negocio` — esteiras paralelas do mesmo negócio. */
   projeto_id?: string | null;
   acoplamento_concluido?: boolean;
+  acoplamento_filho_fase_nome?: string | null;
+  acoplamento_filho_fase_slug?: string | null;
   credito_terreno_ok?: boolean;
   contabilidade_ok?: boolean;
   capital_ok?: boolean;
@@ -779,6 +781,8 @@ export function KanbanCardModal({
         data_followup?: string | null;
         projeto_id?: string | null;
         acoplamento_concluido?: boolean;
+        acoplamento_filho_fase_nome?: string | null;
+        acoplamento_filho_fase_slug?: string | null;
         credito_terreno_ok?: boolean;
         contabilidade_ok?: boolean;
         capital_ok?: boolean;
@@ -877,7 +881,7 @@ export function KanbanCardModal({
         const { data: cardData, error: cardError } = await supabase
           .from('kanban_cards')
           .select(
-            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, projeto_id, acoplamento_concluido, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, sla_iniciado_em',
+            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, projeto_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, sla_iniciado_em',
           )
           .eq('id', cardId)
           .single();
@@ -919,6 +923,12 @@ export function KanbanCardModal({
           acoplamento_concluido: Boolean(
             (cardData as { acoplamento_concluido?: boolean | null }).acoplamento_concluido,
           ),
+          acoplamento_filho_fase_nome:
+            (cardData as { acoplamento_filho_fase_nome?: string | null }).acoplamento_filho_fase_nome ??
+            null,
+          acoplamento_filho_fase_slug:
+            (cardData as { acoplamento_filho_fase_slug?: string | null }).acoplamento_filho_fase_slug ??
+            null,
           credito_terreno_ok: Boolean(
             (cardData as { credito_terreno_ok?: boolean | null }).credito_terreno_ok,
           ),
@@ -972,6 +982,8 @@ export function KanbanCardModal({
         arquivado: loaded.arquivado ?? false,
         projeto_id: loaded.projeto_id ?? null,
         acoplamento_concluido: loaded.acoplamento_concluido,
+        acoplamento_filho_fase_nome: loaded.acoplamento_filho_fase_nome ?? null,
+        acoplamento_filho_fase_slug: loaded.acoplamento_filho_fase_slug ?? null,
         credito_terreno_ok: loaded.credito_terreno_ok,
         contabilidade_ok: loaded.contabilidade_ok,
         capital_ok: loaded.capital_ok,
@@ -992,6 +1004,8 @@ export function KanbanCardModal({
           kanban_id: cardParaEstado.kanban_id,
           projeto_id: cardParaEstado.projeto_id,
           acoplamento_concluido: cardParaEstado.acoplamento_concluido,
+          acoplamento_filho_fase_nome: cardParaEstado.acoplamento_filho_fase_nome,
+          acoplamento_filho_fase_slug: cardParaEstado.acoplamento_filho_fase_slug,
           credito_terreno_ok: cardParaEstado.credito_terreno_ok,
           contabilidade_ok: cardParaEstado.contabilidade_ok,
           capital_ok: cardParaEstado.capital_ok,

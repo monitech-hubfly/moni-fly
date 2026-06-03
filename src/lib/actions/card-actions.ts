@@ -51,6 +51,7 @@ import {
 } from '@/lib/kanban/chamados-validacao';
 import type { FaseChecklistItem } from './candidato-actions';
 import { executarBastaoDeVolta, executarBastoes } from '@/lib/actions/kanban-bastoes';
+import { sincronizarTagAcoplamentoPaiDoFilho } from '@/lib/kanban/acoplamento-tag-pai';
 import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-notify';
 import { payloadInicialNegociacaoPrazo } from '@/lib/kanban/prazo-negociacao';
 
@@ -3101,6 +3102,7 @@ export async function moverCardParaFase(input: {
 
   await executarBastoes(cardId, novaFaseSlug);
   await executarBastaoDeVolta(cardId, novaFaseSlug);
+  await sincronizarTagAcoplamentoPaiDoFilho(cardId, novaFaseSlug);
 
   void notificarUniversidadeSeAvancoStep2({
     cardId,
@@ -3365,6 +3367,7 @@ export async function aprovarPassagemFase(aprovacaoId: string): Promise<ActionRe
   if (cErr) return { ok: false, error: cErr.message };
   await executarBastoes(aprovRow.card_id, novaFaseSlug);
   await executarBastaoDeVolta(aprovRow.card_id, novaFaseSlug);
+  await sincronizarTagAcoplamentoPaiDoFilho(aprovRow.card_id, novaFaseSlug);
 
   const { data: kbNome } = await admin
     .from('kanban_cards')

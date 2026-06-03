@@ -233,6 +233,8 @@ export async function fetchKanbanBoardSnapshot(
       data_reuniao,
       data_followup,
       acoplamento_concluido,
+      acoplamento_filho_fase_nome,
+      acoplamento_filho_fase_slug,
       credito_terreno_ok,
       contabilidade_ok,
       capital_ok,
@@ -359,6 +361,10 @@ export async function fetchKanbanBoardSnapshot(
       data_reuniao: dataIsoParaInput(c.data_reuniao),
       data_followup: dataIsoParaInput(c.data_followup),
       acoplamento_concluido: Boolean((c as { acoplamento_concluido?: boolean | null }).acoplamento_concluido),
+      acoplamento_filho_fase_nome:
+        (c as { acoplamento_filho_fase_nome?: string | null }).acoplamento_filho_fase_nome ?? null,
+      acoplamento_filho_fase_slug:
+        (c as { acoplamento_filho_fase_slug?: string | null }).acoplamento_filho_fase_slug ?? null,
       credito_terreno_ok: Boolean((c as { credito_terreno_ok?: boolean | null }).credito_terreno_ok),
       contabilidade_ok: Boolean((c as { contabilidade_ok?: boolean | null }).contabilidade_ok),
       capital_ok: Boolean((c as { capital_ok?: boolean | null }).capital_ok),

@@ -66,6 +66,9 @@ export type KanbanCardBrief = {
   data_followup?: string | null;
   /** Retorno de bastões paralelos (migration 208). */
   acoplamento_concluido?: boolean;
+  /** Fase atual do filho no Funil Acoplamento (tag no card pai). */
+  acoplamento_filho_fase_nome?: string | null;
+  acoplamento_filho_fase_slug?: string | null;
   credito_terreno_ok?: boolean;
   contabilidade_ok?: boolean;
   capital_ok?: boolean;
