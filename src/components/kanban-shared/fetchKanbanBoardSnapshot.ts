@@ -6,6 +6,12 @@ import {
   fetchKanbanFasesAtivas,
 } from '@/lib/kanban/fetch-kanban-fases';
 import { enrichCardsParalelasContext } from '@/lib/kanban/kanban-paralelas-chips';
+import {
+  aplicarFasePorEtapaPainelEmLote,
+  buildSlugParaFaseIdMap,
+  coletarIdsProcessoDosCards,
+  fetchEtapaPainelPorProcessoIds,
+} from '@/lib/kanban/reconciliar-fase-etapa-painel';
 import { sortKanbanCardsPorOrdemColuna } from '@/lib/kanban/kanban-coluna-ordem';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
@@ -380,21 +386,29 @@ export async function fetchKanbanBoardSnapshot(
   cardsConcluidos = await enrichCardsParalelasContext(supabase, kanbanIdStr, cardsConcluidos);
   cardsArquivadosNativo = await enrichCardsParalelasContext(supabase, kanbanIdStr, cardsArquivadosNativo);
 
-  /** `etapa_painel` (view legado) prevalece sobre `kanban_cards.fase_id` desatualizado. */
-  const legadoPorId = new Map(cardsLegado.map((c) => [c.id, c]));
-  const reconciliarFaseComLegado = (card: KanbanCardBrief): KanbanCardBrief => {
-    const leg = legadoPorId.get(card.id);
-    if (!leg?.fase_id || leg.fase_id === card.fase_id) return card;
-    return {
-      ...card,
-      fase_id: leg.fase_id,
-      ordem_coluna: leg.ordem_coluna ?? card.ordem_coluna,
-    };
-  };
+  /** `processo_step_one.etapa_painel` prevalece sobre `kanban_cards.fase_id` (incl. UUID de outro funil). */
+  const processoIdsReconciliar = coletarIdsProcessoDosCards(
+    cardsNativo,
+    cardsConcluidos,
+    cardsArquivadosNativo,
+    cardsLegado,
+  );
+  const etapaPorProcesso = await fetchEtapaPainelPorProcessoIds(supabase, processoIdsReconciliar);
+  const slugsEtapa = [...etapaPorProcesso.values()].map((p) => p.etapa_painel);
+  const slugParaFaseId = await buildSlugParaFaseIdMap(supabase, kanbanIdStr, fases, slugsEtapa);
 
-  cardsNativo = cardsNativo.map(reconciliarFaseComLegado);
-  cardsConcluidos = cardsConcluidos.map(reconciliarFaseComLegado);
-  cardsArquivadosNativo = cardsArquivadosNativo.map(reconciliarFaseComLegado);
+  cardsNativo = aplicarFasePorEtapaPainelEmLote(cardsNativo, etapaPorProcesso, slugParaFaseId);
+  cardsConcluidos = aplicarFasePorEtapaPainelEmLote(cardsConcluidos, etapaPorProcesso, slugParaFaseId);
+  cardsArquivadosNativo = aplicarFasePorEtapaPainelEmLote(
+    cardsArquivadosNativo,
+    etapaPorProcesso,
+    slugParaFaseId,
+  );
+  const cardsLegadoReconciliados = aplicarFasePorEtapaPainelEmLote(
+    cardsLegado,
+    etapaPorProcesso,
+    slugParaFaseId,
+  );
 
   const idsComLinhaNativa = new Set([
     ...cardsNativo.map((c) => c.id),
@@ -406,7 +420,7 @@ export async function fetchKanbanBoardSnapshot(
   const cards = [
     ...cardsNativo,
     ...cardsArquivadosNativo,
-    ...cardsLegado.filter((c) => !idsComLinhaNativa.has(c.id)),
+    ...cardsLegadoReconciliados.filter((c) => !idsComLinhaNativa.has(c.id)),
   ].filter((c) => {
     const id = String(c.id ?? '').trim();
     return Boolean(id);
