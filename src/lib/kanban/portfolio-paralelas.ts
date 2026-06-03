@@ -143,23 +143,37 @@ export async function resolverCardPaiPortfolioParaAcoplamento(
     .eq('id', cid)
     .maybeSingle();
 
-  if (error || !card?.id) return null;
+  if (!error && card?.id) {
+    const kanbanId = String((card as { kanban_id?: string | null }).kanban_id ?? '').trim();
+    if (kanbanId === KANBAN_IDS.PORTFOLIO) return cid;
 
-  const kanbanId = String((card as { kanban_id?: string | null }).kanban_id ?? '').trim();
-  if (kanbanId === KANBAN_IDS.PORTFOLIO) return cid;
+    const origemId = String((card as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+    if (origemId) {
+      const { data: origem } = await supabase
+        .from('kanban_cards')
+        .select('kanban_id')
+        .eq('id', origemId)
+        .maybeSingle();
 
-  const origemId = String((card as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
-  if (!origemId) return null;
+      if (
+        String((origem as { kanban_id?: string | null } | null)?.kanban_id ?? '').trim() ===
+        KANBAN_IDS.PORTFOLIO
+      ) {
+        return origemId;
+      }
+    }
+  }
 
-  const { data: origem } = await supabase
-    .from('kanban_cards')
-    .select('kanban_id')
-    .eq('id', origemId)
+  const { data: vLeg, error: vErr } = await supabase
+    .from('v_processo_como_kanban_cards')
+    .select('id, kanban_id')
+    .eq('id', cid)
     .maybeSingle();
 
-  if (String((origem as { kanban_id?: string | null } | null)?.kanban_id ?? '').trim() === KANBAN_IDS.PORTFOLIO) {
-    return origemId;
-  }
+  if (vErr || !vLeg?.id) return null;
+
+  const kanbanLegadoId = String((vLeg as { kanban_id?: string | null }).kanban_id ?? '').trim();
+  if (kanbanLegadoId === KANBAN_IDS.PORTFOLIO) return cid;
 
   return null;
 }

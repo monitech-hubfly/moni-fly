@@ -12,6 +12,7 @@ import {
   type DestinoEsteiraManualKey,
 } from '@/lib/kanban/esteira-manual-destinos';
 import { sincronizarTagAcoplamentoPaiDoFilho } from '@/lib/kanban/acoplamento-tag-pai';
+import { garantirShadowKanbanCardLegadoPorId } from '@/lib/kanban/kanban-card-vinculos';
 import { notificarTimeAcoplamentoNovoProjeto } from '@/lib/kanban/acoplamento-notificacoes';
 import { inserirKanbanCardVinculo } from '@/lib/kanban/kanban-card-vinculos';
 import {
@@ -944,6 +945,9 @@ export async function abrirFunilAcoplamentoManualDoCard(
   if (!paiPortfolioId) {
     return { ok: false, error: 'Card não pertence ao Funil Portfólio (nem é filho com origem no Portfólio).' };
   }
+
+  const shadowPai = await garantirShadowKanbanCardLegadoPorId(db, paiPortfolioId);
+  if (!shadowPai.ok) return { ok: false, error: shadowPai.error };
 
   const destino = DESTINOS_ESTEIRA_MANUAL.acoplamento;
 

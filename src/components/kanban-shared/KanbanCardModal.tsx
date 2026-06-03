@@ -2806,9 +2806,7 @@ export function KanbanCardModal({
   const ehFunilOperacoes =
     card.kanban_id === KANBAN_IDS.OPERACOES || kanbanNome === 'Funil Operações';
   const podeGerenciarRelacionamentos =
-    !ocultarGestaoCard &&
-    modalSessao.ehAdminOuTeam &&
-    (!isLegado || ehFunilOperacoes);
+    !ocultarGestaoCard && modalSessao.ehAdminOuTeam;
   const painelCentroAlternativo = abaCentro === 'chamados' || abaCentro === 'trancheVinculo';
   const cardTitulo = card.titulo;
   const checklistExtra = card.fase_id && camposPorFase?.[card.fase_id];
@@ -5751,11 +5749,11 @@ export function KanbanCardModal({
               )
             ) : null}
             {secaoHeadPainelCentro('Chamados')}
-            {ehFunilOperacoes ? (
-              secaoHead(
-                'relacionamentos',
-                'Vínculos',
-                <div className="space-y-3">
+            {secaoHead(
+              'relacionamentos',
+              'Vínculos',
+              <div className="space-y-3">
+                {ehFunilOperacoes ? (
                   <KanbanCardModalOperacoesTrancheVinculosSidebar
                     key={`${card.id}-tranche-vinculos-${trancheVinculosTick}`}
                     cardId={card.id}
@@ -5763,33 +5761,7 @@ export function KanbanCardModal({
                     trancheSelecionado={trancheVinculoIndex}
                     onSelecionar={abrirPainelTrancheVinculo}
                   />
-                  {isLegado ? (
-                    <div className="border-t border-stone-100 pt-3">
-                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-stone-500">
-                        Vínculos manuais
-                      </p>
-                      <KanbanCardModalRelacionamentos
-                        key={`${card.id}-rel-legado-${relacionamentosTick}`}
-                        cardId={card.id}
-                        cardTitulo={cardTitulo}
-                        kanbanId={card.kanban_id}
-                        basePath={basePath}
-                        podeGerenciar={podeGerenciarRelacionamentos}
-                        projetoId={card.projeto_id}
-                        ocultarKanbansInternos={usuarioFrank}
-                        mostrarBotaoJuridico={false}
-                        cardDesabilitado={
-                          cardLegadoArquivado || cardLegadoConcluido
-                        }
-                      />
-                    </div>
-                  ) : null}
-                </div>,
-              )
-            ) : !isLegado ? (
-              secaoHead(
-                'relacionamentos',
-                'Vínculos',
+                ) : null}
                 <KanbanCardModalRelacionamentos
                   key={`${card.id}-${relacionamentosTick}`}
                   cardId={card.id}
@@ -5800,10 +5772,15 @@ export function KanbanCardModal({
                   projetoId={card.projeto_id}
                   ocultarKanbansInternos={usuarioFrank}
                   mostrarBotaoJuridico={mostrarBotaoJuridico}
-                  cardDesabilitado={Boolean(card.arquivado) || Boolean(card.concluido)}
-                />,
-              )
-            ) : null}
+                  cardDesabilitado={
+                    cardLegadoArquivado ||
+                    cardLegadoConcluido ||
+                    Boolean(card.arquivado) ||
+                    Boolean(card.concluido)
+                  }
+                />
+              </div>,
+            )}
             {card && (
               <ChecklistCard
                 cardId={card.id}

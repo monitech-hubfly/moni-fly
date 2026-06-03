@@ -28,7 +28,7 @@ import {
   type PortfolioParalelasFlags,
 } from '@/lib/kanban/portfolio-paralelas';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { inserirKanbanCardVinculo } from '@/lib/kanban/kanban-card-vinculos';
+import { inserirKanbanCardVinculo, garantirShadowKanbanCardLegadoPorId } from '@/lib/kanban/kanban-card-vinculos';
 import { createClient } from '@/lib/supabase/server';
 import { usuarioConcluiuCasasUniversidade012 } from '@/lib/universidade/queries';
 import { podeExcluirChamadoSirene } from '@/lib/sirene-utils';
@@ -2124,6 +2124,31 @@ function faseNomeDeJoin(row: { kanban_fases?: unknown }): string {
   return '—';
 }
 
+async function enriquecerMapInfoCardsLegado(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  mapInfo: Map<string, { titulo: string; kanban_nome: string; fase_nome: string }>,
+  cardIds: string[],
+): Promise<void> {
+  const missing = cardIds.filter((id) => !mapInfo.has(id));
+  if (missing.length === 0) return;
+
+  const { data: legados, error } = await supabase
+    .from('v_processo_como_kanban_cards')
+    .select('id, titulo, kanban_fases ( nome ), kanbans ( nome )')
+    .in('id', missing);
+
+  if (error) return;
+
+  for (const c of legados ?? []) {
+    const row = c as { id: string; titulo: string | null; kanban_fases?: unknown; kanbans?: unknown };
+    mapInfo.set(String(row.id), {
+      titulo: (row.titulo ?? '').trim() || '(sem título)',
+      kanban_nome: kanbanNomeDeJoin(row) || 'Kanban',
+      fase_nome: faseNomeDeJoin(row),
+    });
+  }
+}
+
 function normalizarTipoRelacionamento(raw: string | null | undefined): TipoRelacionamentoDisplay {
   const t = String(raw ?? '').trim().toLowerCase();
   if (t === 'originou') return 'originou';
@@ -2210,6 +2235,8 @@ export async function listarRelacionamentosCard(
         fase_nome: faseNomeDeJoin(row),
       });
     }
+
+    await enriquecerMapInfoCardsLegado(supabase, mapInfo, [...idSet]);
 
     for (const v of vincRows) {
       const outroId = v.card_origem_id === cid ? v.card_destino_id : v.card_origem_id;
@@ -2312,6 +2339,11 @@ export async function criarVinculoCard(input: {
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, error: msg };
   }
+
+  const shadowOrig = await garantirShadowKanbanCardLegadoPorId(db, orig);
+  if (!shadowOrig.ok) return { ok: false, error: shadowOrig.error };
+  const shadowDest = await garantirShadowKanbanCardLegadoPorId(db, dest);
+  if (!shadowDest.ok) return { ok: false, error: shadowDest.error };
 
   const { error } = await inserirKanbanCardVinculo(db, {
     cardOrigemId: orig,
