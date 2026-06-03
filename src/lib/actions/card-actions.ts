@@ -28,6 +28,7 @@ import {
   type PortfolioParalelasFlags,
 } from '@/lib/kanban/portfolio-paralelas';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { inserirKanbanCardVinculo } from '@/lib/kanban/kanban-card-vinculos';
 import { createClient } from '@/lib/supabase/server';
 import { usuarioConcluiuCasasUniversidade012 } from '@/lib/universidade/queries';
 import { podeExcluirChamadoSirene } from '@/lib/sirene-utils';
@@ -2304,12 +2305,20 @@ export async function criarVinculoCard(input: {
       ? input.tipo
       : 'relacionado';
 
-  const { error } = await supabase.from('kanban_card_vinculos').insert({
-    card_origem_id: orig,
-    card_destino_id: dest,
-    tipo_vinculo: tipo,
-    criado_por: user.id,
-  } as never);
+  let db: ReturnType<typeof createAdminClient>;
+  try {
+    db = createAdminClient();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+
+  const { error } = await inserirKanbanCardVinculo(db, {
+    cardOrigemId: orig,
+    cardDestinoId: dest,
+    tipoVinculo: tipo,
+    criadoPor: user.id,
+  });
 
   if (error) {
     if (error.code === '23505') return { ok: false, error: 'Este vínculo já existe.' };
@@ -3098,7 +3107,7 @@ export async function moverCardParaFase(input: {
   ) {
     const motivo = String(input.motivoReprovacaoAcoplamento ?? '').trim();
     if (!motivo) {
-      return { ok: false, error: 'Informe o motivo da reprovação para mover o card para Reprovado.' };
+      return { ok: false, error: 'Informe o motivo da paralisação para mover o card para Paralisados.' };
     }
     const admin = createAdminClient();
     const { error: errMot } = await admin

@@ -12,6 +12,8 @@ import {
   type DestinoEsteiraManualKey,
 } from '@/lib/kanban/esteira-manual-destinos';
 import { sincronizarTagAcoplamentoPaiDoFilho } from '@/lib/kanban/acoplamento-tag-pai';
+import { notificarTimeAcoplamentoNovoProjeto } from '@/lib/kanban/acoplamento-notificacoes';
+import { inserirKanbanCardVinculo } from '@/lib/kanban/kanban-card-vinculos';
 import {
   deveDispararBastaoAcoplamentoAutomatico,
   resolverCardPaiPortfolioParaAcoplamento,
@@ -168,14 +170,13 @@ export async function criarCardFilho(
   const cardFilhoId = String(filho.id);
   const criadoPor = user?.id ?? null;
 
-  const inserirVinculo = async (tipo: 'originou' | 'relacionado') => {
-    return db.from('kanban_card_vinculos').insert({
-      card_origem_id: cardPaiId,
-      card_destino_id: cardFilhoId,
-      tipo_vinculo: tipo,
-      criado_por: criadoPor,
+  const inserirVinculo = async (tipo: string) =>
+    inserirKanbanCardVinculo(db, {
+      cardOrigemId: cardPaiId,
+      cardDestinoId: cardFilhoId,
+      tipoVinculo: tipo,
+      criadoPor,
     });
-  };
 
   let { error: errVinc } = await inserirVinculo('originou');
   if (errVinc?.code === '23514') {
@@ -183,6 +184,15 @@ export async function criarCardFilho(
   }
   if (errVinc && errVinc.code !== '23505') {
     throw new Error(errVinc.message);
+  }
+
+  if (kanbanDestinoId === KANBAN_IDS.ACOPLAMENTO && faseDestinoSlug === 'modelagem_terreno') {
+    void notificarTimeAcoplamentoNovoProjeto({
+      cardFilhoId,
+      tituloCard: titulo,
+      basePath: '/funil-acoplamento',
+      excluirUserId: criadoPor,
+    });
   }
 
   const origemLabel = `${params.kanbanOrigemSlug} / ${params.faseOrigemSlug}`;
@@ -645,7 +655,7 @@ const DESFECHO_FLAG_POR_FASE: Partial<Record<string, BastaoRetornoFlagCol>> = {
 
 const DESFECHO_ESTEIRA_LABEL: Record<string, string> = {
   [FASE_SLUGS.ACOPLAMENTO_APROVADO]: 'Acoplamento (aprovado)',
-  [FASE_SLUGS.ACOPLAMENTO_REPROVADO]: 'Acoplamento (reprovado)',
+  [FASE_SLUGS.ACOPLAMENTO_REPROVADO]: 'Acoplamento (paralisado)',
   [FASE_SLUGS.CO_OUTRO_PARCEIRO]: 'Crédito Obra (outro parceiro)',
   [FASE_SLUGS.CREDITO_OBRA_APROVADO]: 'Crédito Obra (aprovado)',
   [FASE_SLUGS.CREDITO_OBRA_REPROVADO]: 'Crédito Obra (reprovado)',

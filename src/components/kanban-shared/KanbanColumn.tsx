@@ -22,6 +22,7 @@ import {
   calcularCorDataTexto,
   labelRelativoData,
 } from '@/lib/kanban/kanban-card-datas';
+import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
 export type KanbanColumnProps = {
@@ -169,6 +170,20 @@ export function KanbanColumn({
             return;
           }
         } else {
+          let motivoParalisado: string | undefined;
+          const destSlug = (faseSlug || '').trim();
+          if (destSlug === FASE_SLUGS.ACOPLAMENTO_REPROVADO && basePath.includes('funil-acoplamento')) {
+            const motivo = window.prompt(
+              'Informe o motivo da paralisação antes de mover o card para Paralisados:',
+            );
+            if (motivo == null) return;
+            const m = motivo.trim();
+            if (!m) {
+              alert('Informe o motivo da paralisação.');
+              return;
+            }
+            motivoParalisado = m;
+          }
           const resMove = await moverCardKanbanDrag({
             cardId: payload.cardId,
             toFaseId: fase.id,
@@ -177,6 +192,7 @@ export function KanbanColumn({
             origem,
             basePath,
             kanbanNome: typeof kanbanNome === 'string' ? kanbanNome : undefined,
+            motivoReprovacaoAcoplamento: motivoParalisado,
           });
           if (!resMove.ok) {
             alert(resMove.error ?? 'Não foi possível mover o card.');

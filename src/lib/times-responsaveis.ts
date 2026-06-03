@@ -107,9 +107,9 @@ export const HDM_RESPONSAVEIS: Record<HdmTime, { nome: string; email: string }[]
     { nome: 'Alef Lopes', email: 'alef.lopes@moni.casa' },
   ],
   Produto: [
-    { nome: 'Vinícius França de Araújo', email: 'vinicius.fr@moni.casa' },
+    { nome: 'Vinícius França', email: 'vinicius.fr@moni.casa' },
     { nome: 'Mateus Palma', email: 'mateus.palma@moni.casa' },
-    { nome: 'Fabio Siano', email: 'fabio.siano@moni.casa' },
+    { nome: 'Fábio Siano', email: 'fabio.siano@moni.casa' },
   ],
   'Executivo Local': [{ nome: 'Larissa Lima', email: 'larissa.lima@moni.casa' }],
 };
@@ -351,6 +351,8 @@ export function responsaveisFiltradosPorTimesNomes(
     const em = (p.email ?? '').trim().toLowerCase();
     if (!em) return false;
     for (const nome of allowed) {
+      const canonEmail = resolverEmailMoniPorNomeOuApelido(nome);
+      if (canonEmail && canonEmail === em) return true;
       const canon = Object.entries(MONI_EMAIL_POR_NOME).find(([k]) => k.toLowerCase() === nome)?.[1];
       if (canon && canon.toLowerCase() === em) return true;
     }

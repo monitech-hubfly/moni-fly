@@ -1,6 +1,20 @@
 /** Utilitários compartilhados para datas de reunião / follow-up nos cards kanban. */
 
+/** Aceita apenas `YYYY-MM-DD` com ano de 4 dígitos (evita salvar datas parciais do input). */
+export function dataIsoInputValida(valor: string | null | undefined): boolean {
+  const s = String(valor ?? '').trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return false;
+  const ano = Number(m[1]);
+  const mes = Number(m[2]);
+  const dia = Number(m[3]);
+  if (ano < 1900 || ano > 2100 || mes < 1 || mes > 12 || dia < 1 || dia > 31) return false;
+  const d = new Date(`${s}T12:00:00`);
+  return !Number.isNaN(d.getTime());
+}
+
 export function calcularCorDataBadge(dataIso: string): string {
+  if (!dataIsoInputValida(dataIso)) return 'text-stone-600 bg-stone-50 border-stone-200';
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
   const data = new Date(`${dataIso}T00:00:00`);
@@ -21,6 +35,7 @@ export function calcularCorDataTexto(dataIso: string): string {
 }
 
 export function labelRelativoData(dataIso: string): string {
+  if (!dataIsoInputValida(dataIso)) return '—';
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
   const data = new Date(`${dataIso}T00:00:00`);

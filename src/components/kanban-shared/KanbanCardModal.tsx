@@ -5976,13 +5976,13 @@ export function KanbanCardModal({
           aria-labelledby="reprovacao-acoplamento-titulo"
         >
           <h3 id="reprovacao-acoplamento-titulo" className="text-base font-semibold text-stone-900">
-            Mover para Reprovado
+            Mover para Paralisados
           </h3>
           <p className="mt-2 text-sm text-stone-600">
-            Informe o motivo da reprovação. Os links de BCA e Acoplamento não são obrigatórios nesta fase.
+            Informe o motivo da paralisação. Os links de BCA e Acoplamento não são obrigatórios nesta fase.
           </p>
           <label className="mt-4 block text-xs font-medium text-stone-600">
-            Motivo da reprovação
+            Motivo da paralisação
             <textarea
               value={motivoReprovacaoDraft}
               onChange={(e) => setMotivoReprovacaoDraft(e.target.value)}

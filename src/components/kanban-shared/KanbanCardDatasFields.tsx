@@ -5,6 +5,7 @@ import { Calendar, FileText, Plus, RefreshCw } from 'lucide-react';
 import { salvarDataFollowupCard, salvarDataReuniaoCard } from '@/lib/actions/kanban-ata-reuniao';
 import {
   calcularCorDataBadge,
+  dataIsoInputValida,
   labelRelativoData,
 } from '@/lib/kanban/kanban-card-datas';
 import { KanbanAtaReuniaoFormModal } from './KanbanAtaReuniaoFormModal';
@@ -40,6 +41,8 @@ export function KanbanCardDatasFields({
   const [ataAberta, setAtaAberta] = useState(false);
 
   async function salvarFollowup(valor: string) {
+    const v = valor.trim();
+    if (v && !dataIsoInputValida(v)) return;
     setSalvandoFollowup(true);
     try {
       const res = await salvarDataFollowupCard({
@@ -56,6 +59,12 @@ export function KanbanCardDatasFields({
   }
 
   async function salvarReuniao(valor: string) {
+    const v = valor.trim();
+    if (v && !dataIsoInputValida(v)) {
+      alert('Data de reunião inválida. Informe o ano completo (4 dígitos).');
+      onDataReuniaoChange('');
+      return;
+    }
     setSalvandoReuniao(true);
     try {
       const res = await salvarDataReuniaoCard({
