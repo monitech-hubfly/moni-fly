@@ -55,6 +55,17 @@ import { executarBastaoDeVolta, executarBastoes } from '@/lib/actions/kanban-bas
 import { sincronizarTagAcoplamentoPaiDoFilho } from '@/lib/kanban/acoplamento-tag-pai';
 import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-notify';
 import { payloadInicialNegociacaoPrazo } from '@/lib/kanban/prazo-negociacao';
+import {
+  contarOutrosCardsSyncGroup,
+  fetchCamposKanbanCanonicos,
+  propagarCamposKanbanCards,
+  propagarCamposProcesso,
+  type KanbanCardCamposSync,
+} from '@/lib/kanban/card-sync-group';
+import {
+  updateProcessoNegocioCampos,
+  type ProcessoNegocioUpdatePayload,
+} from '@/lib/kanban/kanban-card-modal-detalhes';
 
 /** Wrapper para evitar import estático de módulo server-only no bundle do cliente. */
 export async function verificarGateAcoplamentoModelagemCasa(
@@ -1818,6 +1829,8 @@ export async function listarArquivados(kanbanId: string): Promise<ListarArquivad
 
 export type SalvarDadosPreObraInput = {
   processoId: string;
+  /** Card que originou o save — propaga datas para o grupo de sync. */
+  cardOrigemId?: string;
   previsao_aprovacao_condominio?: string | null;
   previsao_aprovacao_prefeitura?: string | null;
   previsao_emissao_alvara?: string | null;
@@ -1869,8 +1882,45 @@ export async function salvarDadosPreObra(input: SalvarDadosPreObraInput): Promis
       calcularDataEnvioCreditoObra(String(input.previsao_aprovacao_prefeitura ?? '')) ?? null;
   }
 
-  const { error } = await supabase.from('processo_step_one').update(update as never).eq('id', pid);
-  if (error) return { ok: false, error: error.message };
+  const cardOrigem = String(input.cardOrigemId ?? pid).trim();
+  try {
+    const admin = createAdminClient();
+    const procPatch: Record<string, string | null | undefined> = {};
+    for (const [k, v] of Object.entries(update)) {
+      if (k === 'updated_at') continue;
+      procPatch[k] = v as string | null;
+    }
+    const sync = await propagarCamposProcesso(admin, cardOrigem, pid, procPatch);
+    if (!sync.ok) return sync;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+
+  revalidatePath(input.basePath?.trim() || '/');
+  revalidatePath('/');
+  return { ok: true };
+}
+
+/** Salva dados do negócio no processo e propaga ao grupo de sync. */
+export async function salvarDadosNegocioKanban(input: {
+  cardId: string;
+  processoId: string;
+  payload: ProcessoNegocioUpdatePayload;
+  basePath?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para salvar.' };
+
+  const pid = String(input.processoId ?? '').trim();
+  const cardId = String(input.cardId ?? '').trim();
+  if (!pid || !cardId) return { ok: false, error: 'Processo ou card inválido.' };
+
+  const upd = await updateProcessoNegocioCampos(supabase, pid, input.payload);
+  if (!upd.ok) return upd;
 
   revalidatePath(input.basePath?.trim() || '/');
   revalidatePath('/');
@@ -1919,11 +1969,16 @@ export async function uploadProcessoNegocioAnexo(
   if (upErr) return { ok: false, error: upErr.message };
 
   const col = PROCESSO_NEGOCIO_ANEXO_COL[field];
-  const { error: dbErr } = await supabase
-    .from('processo_step_one')
-    .update({ [col]: path } as never)
-    .eq('id', processoId);
-  if (dbErr) return { ok: false, error: dbErr.message };
+  const cardOrigemId = String(formData.get('cardOrigemId') ?? processoId).trim();
+
+  try {
+    const admin = createAdminClient();
+    const sync = await propagarCamposProcesso(admin, cardOrigemId, processoId, { [col]: path });
+    if (!sync.ok) return sync;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
 
   revalidatePath(String(formData.get('basePath') ?? '').trim() || '/');
   revalidatePath('/');
@@ -2262,6 +2317,83 @@ export async function listarRelacionamentosCard(
   }
 
   return { ok: true, items };
+}
+
+/** Quantidade de outros cards no grupo de sync + campos canônicos (para UI/leitura). */
+export async function obterInfoSyncGrupoCard(
+  cardId: string,
+): Promise<
+  { ok: true; totalVinculados: number; camposCanonicos: KanbanCardCamposSync | null } | { ok: false; error: string }
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return { ok: false, error: 'Card inválido.' };
+
+  try {
+    const admin = createAdminClient();
+    const [totalVinculados, camposCanonicos] = await Promise.all([
+      contarOutrosCardsSyncGroup(admin, cid),
+      fetchCamposKanbanCanonicos(admin, cid),
+    ]);
+    return { ok: true, totalVinculados, camposCanonicos };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+}
+
+export async function salvarFranqueadoCardVinculado(input: {
+  cardId: string;
+  origem: 'nativo' | 'legado';
+  redeFranqueadoId: string;
+  nFranquia?: string | null;
+  nomeCondominio?: string | null;
+  quadra?: string | null;
+  lote?: string | null;
+  basePath?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para salvar.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  const redeId = String(input.redeFranqueadoId ?? '').trim();
+  if (!cardId || !redeId) return { ok: false, error: 'Card e franqueado são obrigatórios.' };
+
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+
+  if (input.origem === 'nativo') {
+    const sync = await propagarCamposKanbanCards(admin, cardId, {
+      rede_franqueado_id: redeId,
+      nome_condominio: input.nomeCondominio?.trim() || null,
+      quadra: input.quadra?.trim() || null,
+      lote: input.lote?.trim() || null,
+    });
+    if (!sync.ok) return sync;
+  } else {
+    const sync = await propagarCamposProcesso(admin, cardId, cardId, {
+      origem_rede_franqueados_id: redeId,
+      numero_franquia: input.nFranquia?.trim() || null,
+    });
+    if (!sync.ok) return sync;
+  }
+
+  revalidatePath(input.basePath?.trim() || '/');
+  revalidatePath('/');
+  return { ok: true };
 }
 
 export type BuscaCardVinculoRow = { id: string; titulo: string; kanban_nome: string };

@@ -45,8 +45,11 @@ import {
   verificarGatePortfolioStep5,
   listarTagsCard,
   listarTagsKanban,
+  salvarDadosNegocioKanban,
   salvarDadosPreObra,
+  salvarFranqueadoCardVinculado,
   salvarInstrucoesFase,
+  obterInfoSyncGrupoCard,
   solicitarAprovacaoFase,
   uploadProcessoNegocioAnexo,
   togglePastelAtividade,
@@ -91,7 +94,6 @@ import {
   fetchKanbanCardModalDetalhes,
   fmtMoedaKanban,
   preObraDraftFromProcesso,
-  updateProcessoNegocioCampos,
   type KanbanCardModalDetalhes,
   type PreObraDraftKanban,
 } from '@/lib/kanban/kanban-card-modal-detalhes';
@@ -244,6 +246,7 @@ type Card = {
   sla_iniciado_em?: string | null;
   portfolio_vinculo_rotulo?: string | null;
   tem_filho_juridico?: boolean;
+  tem_filho_acoplamento?: boolean;
   /** Legado: status e updated_at do processo (conclusão aproximada quando status = concluido). */
   processo_meta?: { status: string; updated_at: string } | null;
   profiles?: {
@@ -453,6 +456,7 @@ export function KanbanCardModal({
   >([]);
   const [novoFranqueadoId, setNovoFranqueadoId] = useState('');
   const [salvandoFranqueado, setSalvandoFranqueado] = useState(false);
+  const [totalCardsSyncGrupo, setTotalCardsSyncGrupo] = useState(0);
   const [abaComentarios, setAbaComentarios] = useState<'comentarios' | 'email'>('comentarios');
   const [abaCentro, setAbaCentro] = useState<'detalhes' | 'chamados' | 'trancheVinculo'>('detalhes');
   const [trancheVinculoIndex, setTrancheVinculoIndex] = useState<number | null>(null);
@@ -651,6 +655,7 @@ export function KanbanCardModal({
     setFranqueadosLista([]);
     setNovoFranqueadoId('');
     setSalvandoFranqueado(false);
+    setTotalCardsSyncGrupo(0);
     setEmailPara('');
     setEmailCc('');
     setEmailBcc('');
@@ -1066,8 +1071,46 @@ export function KanbanCardModal({
             ...cardParaEstado,
             portfolio_vinculo_rotulo: enrichedRow.portfolio_vinculo_rotulo,
             tem_filho_juridico: enrichedRow.tem_filho_juridico,
+            tem_filho_acoplamento: enrichedRow.tem_filho_acoplamento,
+            acoplamento_filho_fase_nome:
+              enrichedRow.acoplamento_filho_fase_nome ?? cardParaEstado.acoplamento_filho_fase_nome,
+            acoplamento_filho_fase_slug:
+              enrichedRow.acoplamento_filho_fase_slug ?? cardParaEstado.acoplamento_filho_fase_slug,
           };
         }
+      }
+
+      try {
+        const syncInfo = await obterInfoSyncGrupoCard(cardParaEstado.id);
+        if (syncInfo.ok) {
+          setTotalCardsSyncGrupo(syncInfo.totalVinculados);
+          const c = syncInfo.camposCanonicos;
+          if (c) {
+            if (c.titulo) cardParaEstado = { ...cardParaEstado, titulo: c.titulo };
+            if (c.rede_franqueado_id !== undefined) {
+              cardParaEstado = { ...cardParaEstado, rede_franqueado_id: c.rede_franqueado_id };
+            }
+            if (c.nome_condominio !== undefined) {
+              cardParaEstado = { ...cardParaEstado, nome_condominio: c.nome_condominio };
+            }
+            if (c.condominio_id !== undefined) {
+              cardParaEstado = { ...cardParaEstado, condominio_id: c.condominio_id };
+            }
+            if (c.quadra !== undefined) cardParaEstado = { ...cardParaEstado, quadra: c.quadra };
+            if (c.lote !== undefined) cardParaEstado = { ...cardParaEstado, lote: c.lote };
+            if (c.data_reuniao !== undefined) {
+              const drCanon = c.data_reuniao ? String(c.data_reuniao).slice(0, 10) : '';
+              if (drCanon && dataIsoInputValida(drCanon)) {
+                loaded = { ...loaded, data_reuniao: c.data_reuniao };
+              }
+            }
+            if (c.data_followup !== undefined) {
+              loaded = { ...loaded, data_followup: c.data_followup };
+            }
+          }
+        }
+      } catch {
+        setTotalCardsSyncGrupo(0);
       }
 
       setCard(cardParaEstado);
@@ -2336,6 +2379,7 @@ export function KanbanCardModal({
     try {
       const res = await salvarDadosPreObra({
         processoId: pid,
+        cardOrigemId: card?.id,
         previsao_aprovacao_condominio: preObraDraft.previsao_aprovacao_condominio,
         previsao_aprovacao_prefeitura: preObraDraft.previsao_aprovacao_prefeitura,
         previsao_emissao_alvara: preObraDraft.previsao_emissao_alvara,
@@ -2364,7 +2408,6 @@ export function KanbanCardModal({
     const pid = modalDetalhes.processo?.id;
     setSalvandoNegocio(true);
     try {
-      const supabase = createClient();
       if (pid && card) {
         const syncLinks = await salvarLinksBcaAcoplamentoNegocio({
           cardId: card.id,
@@ -2374,24 +2417,29 @@ export function KanbanCardModal({
         });
         if (!syncLinks.ok) throw new Error(syncLinks.error);
 
-        const upd = await updateProcessoNegocioCampos(supabase, pid, {
-          tipo_aquisicao_terreno: negocioDraft.tipo_aquisicao_terreno || null,
-          valor_terreno: negocioDraft.valor_terreno || null,
-          vgv_pretendido: negocioDraft.vgv_pretendido || null,
-          produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
-          link_pasta_drive: negocioDraft.link_pasta_drive || null,
-          link_bca: negocioDraft.link_bca?.trim() || null,
-          link_gbox: (syncLinks.linkGbox ?? negocioDraft.link_gbox?.trim()) || null,
-          link_mapa_competidores: negocioDraft.link_mapa_competidores?.trim() || null,
-          link_acoplamento: (syncLinks.linkAcoplamento ?? negocioDraft.link_acoplamento?.trim()) || null,
-          link_apresentacao_comite: negocioDraft.link_apresentacao_comite?.trim() || null,
-          link_moni_capital_seguro_garantia: negocioDraft.link_moni_capital_seguro_garantia?.trim() || null,
-          comentario_moni_capital_seguro_garantia:
-            negocioDraft.comentario_moni_capital_seguro_garantia?.trim() || null,
-          link_moni_capital_gastos_aporte_inicial:
-            negocioDraft.link_moni_capital_gastos_aporte_inicial?.trim() || null,
-          comentario_moni_capital_gastos_aporte_inicial:
-            negocioDraft.comentario_moni_capital_gastos_aporte_inicial?.trim() || null,
+        const upd = await salvarDadosNegocioKanban({
+          cardId: card.id,
+          processoId: pid,
+          payload: {
+            tipo_aquisicao_terreno: negocioDraft.tipo_aquisicao_terreno || null,
+            valor_terreno: negocioDraft.valor_terreno || null,
+            vgv_pretendido: negocioDraft.vgv_pretendido || null,
+            produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
+            link_pasta_drive: negocioDraft.link_pasta_drive || null,
+            link_bca: negocioDraft.link_bca?.trim() || null,
+            link_gbox: (syncLinks.linkGbox ?? negocioDraft.link_gbox?.trim()) || null,
+            link_mapa_competidores: negocioDraft.link_mapa_competidores?.trim() || null,
+            link_acoplamento: (syncLinks.linkAcoplamento ?? negocioDraft.link_acoplamento?.trim()) || null,
+            link_apresentacao_comite: negocioDraft.link_apresentacao_comite?.trim() || null,
+            link_moni_capital_seguro_garantia: negocioDraft.link_moni_capital_seguro_garantia?.trim() || null,
+            comentario_moni_capital_seguro_garantia:
+              negocioDraft.comentario_moni_capital_seguro_garantia?.trim() || null,
+            link_moni_capital_gastos_aporte_inicial:
+              negocioDraft.link_moni_capital_gastos_aporte_inicial?.trim() || null,
+            comentario_moni_capital_gastos_aporte_inicial:
+              negocioDraft.comentario_moni_capital_gastos_aporte_inicial?.trim() || null,
+          },
+          basePath,
         });
         if (!upd.ok) throw new Error(upd.error);
       } else {
@@ -2434,44 +2482,20 @@ export function KanbanCardModal({
     if (!novoFranqueadoId || !card) return;
     setSalvandoFranqueado(true);
     try {
-      const supabase = createClient();
       const franqueadoSelecionado = franqueadosLista.find((f) => f.id === novoFranqueadoId);
       if (!franqueadoSelecionado) return;
 
-      if (origem === 'nativo') {
-        const partes = [
-          franqueadoSelecionado.n_franquia,
-          card.nome_condominio?.trim() ?? '',
-          card.quadra?.trim() ?? '',
-          card.lote?.trim() ?? '',
-        ].filter(Boolean);
-        const novoTitulo = partes.join(' - ');
-        const patch: { rede_franqueado_id: string; titulo?: string } = {
-          rede_franqueado_id: novoFranqueadoId,
-        };
-        if (novoTitulo) patch.titulo = novoTitulo;
-        const { error } = await supabase.from('kanban_cards').update(patch).eq('id', card.id);
-        if (error) throw error;
-        setCard((prev) =>
-          prev
-            ? {
-                ...prev,
-                rede_franqueado_id: novoFranqueadoId,
-                ...(novoTitulo ? { titulo: novoTitulo } : {}),
-              }
-            : prev,
-        );
-      } else {
-        const pid = card.id;
-        const { error } = await supabase
-          .from('processo_step_one')
-          .update({
-            origem_rede_franqueados_id: novoFranqueadoId,
-            numero_franquia: franqueadoSelecionado.n_franquia || null,
-          })
-          .eq('id', pid);
-        if (error) throw error;
-      }
+      const res = await salvarFranqueadoCardVinculado({
+        cardId: card.id,
+        origem,
+        redeFranqueadoId: novoFranqueadoId,
+        nFranquia: franqueadoSelecionado.n_franquia,
+        nomeCondominio: card.nome_condominio,
+        quadra: card.quadra,
+        lote: card.lote,
+        basePath,
+      });
+      if (!res.ok) throw new Error(res.error);
 
       setEditandoFranqueado(false);
       await loadCard();
@@ -2527,6 +2551,7 @@ export function KanbanCardModal({
       const fd = new FormData();
       fd.append('file', f);
       fd.append('processoId', pid);
+      fd.append('cardOrigemId', card?.id ?? pid);
       fd.append('field', field);
       fd.append('basePath', basePath);
       const r = await uploadProcessoNegocioAnexo(fd);
@@ -2861,12 +2886,14 @@ export function KanbanCardModal({
           {
             kanbanId: card.kanban_id,
             faseSlug: faseAtual.slug ?? '',
+            faseNome: faseAtual.nome,
             faseOrdem: faseAtual.ordem,
             hipotesesOrdemMin: hipotesesOrdemMinima(fases),
             origem: 'nativo',
             flags: flagsParalelasFromCard(card),
             portfolioVinculoRotulo: card.portfolio_vinculo_rotulo,
             temFilhoJuridico: card.tem_filho_juridico,
+            temFilhoAcoplamento: card.tem_filho_acoplamento,
           },
           { labelsCompletos: true },
         )
@@ -5318,6 +5345,12 @@ export function KanbanCardModal({
               background: 'var(--moni-surface-50)',
             }}
           >
+            {totalCardsSyncGrupo > 0 ? (
+              <p className="mb-3 rounded border border-sky-200 bg-sky-50 px-2.5 py-2 text-[11px] text-sky-900">
+                Dados compartilhados com {totalCardsSyncGrupo} card{totalCardsSyncGrupo === 1 ? '' : 's'} vinculado
+                {totalCardsSyncGrupo === 1 ? '' : 's'}. Alterações neste painel refletem em todos.
+              </p>
+            ) : null}
             {secaoHead(
               'cronologia',
               'ID e datas do funil',
