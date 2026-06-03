@@ -2792,7 +2792,6 @@ ALTER TABLE indicadores
   }
 
   async function handleDragEndTarefa(event) {
-    if (!isAdmin) return
     const { active, over } = event
     if (!over || active.id === over.id) return
     const lista = comportamentosOrdenados
@@ -2817,7 +2816,6 @@ ALTER TABLE indicadores
   }
 
   async function handleDragEndAcao(tarefaId, acoesLista, event, ordemBase = 0) {
-    if (!isAdmin) return
     const { active, over } = event
     if (!over || active.id === over.id) return
     const oldIndex = acoesLista.findIndex(a => a.id === active.id)
@@ -3089,7 +3087,7 @@ ALTER TABLE indicadores
               const atividadesAbertas = estaExpandido('ativ', comp.id)
               const acoesComunsOrdenadas = ordenarAcoesLista(acoesTabelaComuns)
               return (
-                <SortableTarefaItem key={comp.id} id={comp.id} disabled={!isAdmin}>
+                <SortableTarefaItem key={comp.id} id={comp.id}>
                   {({ attributes, listeners, isDragging, disabled: dragDisabled }) => (
                     <>
                   <header className="workload-card-header">
@@ -3203,7 +3201,6 @@ ALTER TABLE indicadores
                                             key={par.mod.id}
                                             id={par.mod.id}
                                             className="workload-atividade-row"
-                                            disabled={!isAdmin}
                                           >
                                             {({ attributes, listeners, isDragging, disabled: dragDisabled }) => (
                                           <>
@@ -3430,7 +3427,6 @@ ALTER TABLE indicadores
                                   key={acao.id}
                                   id={acao.id}
                                   className="workload-atividade-row"
-                                  disabled={!isAdmin}
                                 >
                                   {({ attributes, listeners, isDragging, disabled: dragDisabled }) => (
                                 <>
