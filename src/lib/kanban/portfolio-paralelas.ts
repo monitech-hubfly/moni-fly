@@ -128,3 +128,54 @@ export function deveValidarGatePortfolioStep5(
     String(novaFaseSlug ?? '').trim() === FASE_SLUGS.STEP_5 && isPortfolioKanbanRef(kanbanId, kanbanNome)
   );
 }
+
+/** Card pai no Funil Portfólio (ou card de Operações com origem no Portfólio). */
+export async function resolverCardPaiPortfolioParaAcoplamento(
+  supabase: SupabaseHistoricoClient,
+  cardId: string,
+): Promise<string | null> {
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return null;
+
+  const { data: card, error } = await supabase
+    .from('kanban_cards')
+    .select('id, kanban_id, origem_card_id')
+    .eq('id', cid)
+    .maybeSingle();
+
+  if (error || !card?.id) return null;
+
+  const kanbanId = String((card as { kanban_id?: string | null }).kanban_id ?? '').trim();
+  if (kanbanId === KANBAN_IDS.PORTFOLIO) return cid;
+
+  const origemId = String((card as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+  if (!origemId) return null;
+
+  const { data: origem } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id')
+    .eq('id', origemId)
+    .maybeSingle();
+
+  if (String((origem as { kanban_id?: string | null } | null)?.kanban_id ?? '').trim() === KANBAN_IDS.PORTFOLIO) {
+    return origemId;
+  }
+
+  return null;
+}
+
+/** Bastão automático: só ao mover para a fase Portfólio `acoplamento` (card pai no Funil Portfólio). */
+export function deveDispararBastaoAcoplamentoAutomatico(
+  novaFaseSlug: string,
+  kanbanPaiId: string | null | undefined,
+): boolean {
+  return (
+    String(novaFaseSlug ?? '').trim() === FASE_SLUGS.ACOPLAMENTO &&
+    String(kanbanPaiId ?? '').trim() === KANBAN_IDS.PORTFOLIO
+  );
+}
+
+export function kanbanPermiteAbrirFunilAcoplamentoManual(kanbanId: string | null | undefined): boolean {
+  const id = String(kanbanId ?? '').trim();
+  return id === KANBAN_IDS.PORTFOLIO || id === KANBAN_IDS.OPERACOES;
+}

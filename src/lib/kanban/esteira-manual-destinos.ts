@@ -41,15 +41,15 @@ export const DESTINOS_ESTEIRA_MANUAL: Record<
   },
 };
 
+/** Acoplamento não entra na esteira genérica — use `abrirFunilAcoplamentoManualDoCard` no painel de vínculos. */
 const PORTFOLIO_DESTINOS: DestinoEsteiraManualKey[] = [
-  'acoplamento',
   'credito_terreno',
   'contabilidade',
   'juridico',
   'moni_capital',
 ];
 
-/** Funis com os 5 destinos de esteira manual (mesmo conjunto do Portfólio). */
+/** Funis com destinos de esteira manual do Portfólio (sem Acoplamento — ver painel de vínculos). */
 const KANBANS_ESTEIRA_MANUAL_COMPLETA: readonly string[] = [
   KANBAN_IDS.PORTFOLIO,
   KANBAN_IDS.OPERACOES,

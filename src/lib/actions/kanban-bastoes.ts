@@ -12,6 +12,10 @@ import {
   type DestinoEsteiraManualKey,
 } from '@/lib/kanban/esteira-manual-destinos';
 import { sincronizarTagAcoplamentoPaiDoFilho } from '@/lib/kanban/acoplamento-tag-pai';
+import {
+  deveDispararBastaoAcoplamentoAutomatico,
+  resolverCardPaiPortfolioParaAcoplamento,
+} from '@/lib/kanban/portfolio-paralelas';
 
 /** Verifica se já existe card filho no Funil Jurídico para o card pai. */
 export async function existeChamadoJuridicoParaCard(cardPaiId: string): Promise<boolean> {
@@ -482,6 +486,13 @@ async function dispararBastao(
   faseOrigemSlug: string,
   destino: BastaoDestino,
 ): Promise<void> {
+  if (
+    destino.kanbanDestinoId === KANBAN_IDS.ACOPLAMENTO &&
+    !deveDispararBastaoAcoplamentoAutomatico(faseOrigemSlug, pai.kanban_id)
+  ) {
+    return;
+  }
+
   try {
     const filho = await criarCardFilho({
       cardPaiId: pai.id,
@@ -598,6 +609,12 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
   const paiComTitulo: CardPaiBastao = { ...pai, titulo };
 
   for (const destino of destinos) {
+    if (
+      destino.kanbanDestinoId === KANBAN_IDS.ACOPLAMENTO &&
+      !deveDispararBastaoAcoplamentoAutomatico(slug, pai.kanban_id)
+    ) {
+      continue;
+    }
     await dispararBastao(paiComTitulo, slug, destino);
   }
 }
@@ -735,6 +752,14 @@ export async function dispararEsteiraManualDoCard(
   const destino = DESTINOS_ESTEIRA_MANUAL[key];
   if (!destino) return { ok: false, error: 'Destino inválido.' };
 
+  if (key === 'acoplamento') {
+    return {
+      ok: false,
+      error:
+        'Use o botão «Abrir Funil Acoplamento» no painel de vínculos (lado esquerdo do card).',
+    };
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -863,6 +888,115 @@ export async function dispararEsteiraManualDoCard(
     if (destino.kanbanDestinoId === KANBAN_IDS.ACOPLAMENTO) {
       await sincronizarTagAcoplamentoPaiDoFilho(String(filho.id), destino.faseDestinoSlug);
     }
+
+    const { data: kb } = await db.from('kanbans').select('nome').eq('id', destino.kanbanDestinoId).maybeSingle();
+    revalidatePath(basePath?.trim() || '/');
+    revalidatePath('/');
+
+    return {
+      ok: true,
+      cardFilhoId: String(filho.id),
+      kanbanNome: String((kb as { nome?: string | null } | null)?.nome ?? destino.label),
+      jaExistia: false,
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+}
+
+/** Abre ou cria o card filho no Funil Acoplamento (único caminho manual além da fase Portfólio Acoplamento). */
+export async function abrirFunilAcoplamentoManualDoCard(
+  cardId: string,
+  basePath?: string,
+): Promise<DispararEsteiraManualResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+  const role = String((prof as { role?: string | null } | null)?.role ?? '').toLowerCase();
+  if (role !== 'admin' && role !== 'team') {
+    return { ok: false, error: 'Sem permissão para abrir o Funil Acoplamento.' };
+  }
+
+  let db: ReturnType<typeof createAdminClient>;
+  try {
+    db = createAdminClient();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: `Serviço indisponível: ${msg}` };
+  }
+
+  const paiPortfolioId = await resolverCardPaiPortfolioParaAcoplamento(db, cardId);
+  if (!paiPortfolioId) {
+    return { ok: false, error: 'Card não pertence ao Funil Portfólio (nem é filho com origem no Portfólio).' };
+  }
+
+  const destino = DESTINOS_ESTEIRA_MANUAL.acoplamento;
+
+  const { data: paiRow, error: errPai } = await db
+    .from('kanban_cards')
+    .select('id, titulo, kanban_id, projeto_id, rede_franqueado_id, fase_id')
+    .eq('id', paiPortfolioId)
+    .maybeSingle();
+
+  if (errPai) return { ok: false, error: errPai.message };
+  if (!paiRow?.id) return { ok: false, error: 'Card do Portfólio não encontrado.' };
+
+  const pai = paiRow as {
+    id: string;
+    titulo?: string | null;
+    kanban_id?: string | null;
+    projeto_id?: string | null;
+    rede_franqueado_id?: string | null;
+    fase_id?: string | null;
+  };
+
+  let faseOrigemSlug = 'desconhecida';
+  const faseId = String(pai.fase_id ?? '').trim();
+  if (faseId) {
+    const { data: faseRow } = await db.from('kanban_fases').select('slug').eq('id', faseId).maybeSingle();
+    faseOrigemSlug = String((faseRow as { slug?: string | null } | null)?.slug ?? '').trim() || faseOrigemSlug;
+  }
+
+  const { data: existente } = await db
+    .from('kanban_cards')
+    .select('id')
+    .eq('origem_card_id', paiPortfolioId)
+    .eq('kanban_id', destino.kanbanDestinoId)
+    .limit(1)
+    .maybeSingle();
+
+  if (existente?.id) {
+    const { data: kb } = await db.from('kanbans').select('nome').eq('id', destino.kanbanDestinoId).maybeSingle();
+    return {
+      ok: true,
+      cardFilhoId: String(existente.id),
+      kanbanNome: String((kb as { nome?: string | null } | null)?.nome ?? destino.label),
+      jaExistia: true,
+    };
+  }
+
+  try {
+    const filho = await criarCardFilho({
+      cardPaiId: paiPortfolioId,
+      kanbanDestinoId: destino.kanbanDestinoId,
+      faseDestinoSlug: destino.faseDestinoSlug,
+      titulo: String(pai.titulo ?? '').trim() || 'Card',
+      projetoId: pai.projeto_id ?? null,
+      redeFranqueadoId: pai.rede_franqueado_id ?? null,
+      kanbanOrigemSlug: kanbanOrigemSlugPorId(KANBAN_IDS.PORTFOLIO),
+      faseOrigemSlug,
+    });
+
+    if (!filho?.id) {
+      return { ok: false, error: 'Não foi possível criar o card filho (pode já existir).' };
+    }
+
+    await sincronizarTagAcoplamentoPaiDoFilho(String(filho.id), destino.faseDestinoSlug);
 
     const { data: kb } = await db.from('kanbans').select('nome').eq('id', destino.kanbanDestinoId).maybeSingle();
     revalidatePath(basePath?.trim() || '/');

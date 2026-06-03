@@ -15,6 +15,7 @@ import {
 } from '@/lib/actions/card-actions';
 import {
   abrirChamadoJuridicoDoCard,
+  abrirFunilAcoplamentoManualDoCard,
   dispararEsteiraManualDoCard,
   existeChamadoJuridicoParaCard,
 } from '@/lib/actions/kanban-bastoes';
@@ -24,6 +25,7 @@ import {
   kanbanPermiteDispararEsteiraManual,
   type DestinoEsteiraManualKey,
 } from '@/lib/kanban/esteira-manual-destinos';
+import { kanbanPermiteAbrirFunilAcoplamentoManual } from '@/lib/kanban/portfolio-paralelas';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { MSG_CHAMADO_JURIDICO_JA_EXISTE } from '@/lib/constants/kanban-ids';
 import { KanbanCardModalProjetoTab } from './KanbanCardModalProjetoTab';
@@ -90,6 +92,8 @@ export function KanbanCardModalRelacionamentos({
   );
   const mostrarDispararEsteira =
     podeGerenciar && kanbanPermiteDispararEsteiraManual(kanbanId) && destinosDisponiveis.length > 0;
+  const mostrarAbrirFunilAcoplamento =
+    podeGerenciar && kanbanPermiteAbrirFunilAcoplamentoManual(kanbanId);
 
   const recarregar = useCallback(async () => {
     if (!cardId || disabled) {
@@ -188,6 +192,32 @@ export function KanbanCardModalRelacionamentos({
       await recarregar();
     } catch {
       setToast({ tipo: 'erro', msg: 'Erro ao vincular card.' });
+    } finally {
+      setDisparando(false);
+    }
+  }
+
+  async function handleAbrirFunilAcoplamento() {
+    setDisparando(true);
+    setToast(null);
+    try {
+      const res = await abrirFunilAcoplamentoManualDoCard(cardId, basePath);
+      if (!res.ok) {
+        setToast({ tipo: 'erro', msg: res.error });
+        return;
+      }
+      const href = hrefAbrirCardKanban(res.kanbanNome, res.cardFilhoId);
+      setToast({
+        tipo: 'ok',
+        msg: res.jaExistia
+          ? 'Card do Funil Acoplamento já existia.'
+          : 'Card criado no Funil Acoplamento.',
+        href,
+      });
+      fecharFormularios();
+      await recarregar();
+    } catch {
+      setToast({ tipo: 'erro', msg: 'Erro ao abrir Funil Acoplamento.' });
     } finally {
       setDisparando(false);
     }
@@ -328,6 +358,19 @@ export function KanbanCardModalRelacionamentos({
             </Link>
           ) : null}
         </p>
+      ) : null}
+
+      {mostrarAbrirFunilAcoplamento ? (
+        <div className="border-t border-stone-100 pt-2">
+          <button
+            type="button"
+            onClick={() => void handleAbrirFunilAcoplamento()}
+            disabled={disparando || cardDesabilitado}
+            className="w-full rounded-md border border-stone-200 bg-white px-2.5 py-2 text-left text-[11px] font-semibold text-stone-800 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {disparando ? 'Abrindo…' : 'Abrir Funil Acoplamento'}
+          </button>
+        </div>
       ) : null}
 
       {mostrarBotaoJuridico ? (
