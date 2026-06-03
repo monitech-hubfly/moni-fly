@@ -1,4 +1,4 @@
--- 243: Instruções da fase Pré-Batalha (link etapa 5 com modo pré-batalha)
+-- 244: Instruções da fase Pré-Batalha (link etapa 5 com modo pré-batalha)
 
 UPDATE public.kanban_fases
 SET instrucoes = $instr$
