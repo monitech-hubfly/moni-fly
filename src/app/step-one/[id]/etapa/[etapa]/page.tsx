@@ -376,9 +376,6 @@ export default async function EtapaPage({ params, searchParams }: PageProps) {
   /** No Step 2, exibir número da lista (6–9) em vez do ID interno (7, 6, 10, 11). */
   const STEP2_DISPLAY_NUM: Record<number, number> = { 7: 6, 6: 7, 10: 8, 11: 9 };
   const etapaDisplayNum = isStep2Etapa ? (STEP2_DISPLAY_NUM[etapaNum] ?? etapaNum) : etapaNum;
-  const modoPreBatalha =
-    etapaNum === 5 &&
-    (sp.modo === 'pre-batalha' || (sp.fase != null && isPreBatalhaFaseSlug(sp.fase)));
 
   return (
     <div className="min-h-screen bg-stone-50">
