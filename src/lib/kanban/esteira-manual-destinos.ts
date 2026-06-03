@@ -5,7 +5,6 @@ import {
 
 export type DestinoEsteiraManualKey =
   | 'acoplamento'
-  | 'credito_terreno'
   | 'contabilidade'
   | 'juridico'
   | 'moni_capital';
@@ -18,11 +17,6 @@ export const DESTINOS_ESTEIRA_MANUAL: Record<
     label: 'Acoplamento',
     kanbanDestinoId: KANBAN_IDS.ACOPLAMENTO,
     faseDestinoSlug: 'modelagem_terreno',
-  },
-  credito_terreno: {
-    label: 'Crédito Terreno',
-    kanbanDestinoId: KANBAN_IDS.CREDITO_OBRA,
-    faseDestinoSlug: 'credito_terreno',
   },
   contabilidade: {
     label: 'Contabilidade',
@@ -43,7 +37,6 @@ export const DESTINOS_ESTEIRA_MANUAL: Record<
 
 /** Acoplamento não entra na esteira genérica — use `abrirFunilAcoplamentoManualDoCard` no painel de vínculos. */
 const PORTFOLIO_DESTINOS: DestinoEsteiraManualKey[] = [
-  'credito_terreno',
   'contabilidade',
   'juridico',
   'moni_capital',
