@@ -306,12 +306,14 @@ export function KanbanColumn({
             {
               kanbanId,
               faseSlug,
+              faseNome: fase.nome,
               faseOrdem: fase.ordem,
               hipotesesOrdemMin,
               origem: card.origem,
               flags: flagsParalelasFromCard(card),
               portfolioVinculoRotulo: card.portfolio_vinculo_rotulo,
               temFilhoJuridico: card.tem_filho_juridico,
+              temFilhoAcoplamento: card.tem_filho_acoplamento,
             },
             { labelsCompletos: false },
           );

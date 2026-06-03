@@ -1,4 +1,5 @@
 import type { createAdminClient } from '@/lib/supabase/admin';
+import { sincronizarTagAcoplamentoPaiAoVincularCards } from '@/lib/kanban/acoplamento-tag-pai';
 
 type VinculoDb = ReturnType<typeof createAdminClient>;
 
@@ -78,5 +79,8 @@ export async function inserirKanbanCardVinculo(
   };
 
   const { error } = await db.from('kanban_card_vinculos').insert(row as never);
+  if (!error) {
+    void sincronizarTagAcoplamentoPaiAoVincularCards(orig, dest);
+  }
   return { error: error ? { message: error.message, code: error.code } : null };
 }

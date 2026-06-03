@@ -24,6 +24,7 @@ export type ParalelaChip = {
 
 export type CardParalelasFlags = {
   acoplamento_concluido?: boolean;
+  acoplamento_filho_fase_slug?: string | null;
   acoplamento_filho_fase_nome?: string | null;
   credito_terreno_ok?: boolean;
   contabilidade_ok?: boolean;
@@ -35,6 +36,8 @@ export type CardParalelasFlags = {
 export type MontarChipsParalelasInput = {
   kanbanId: string;
   faseSlug: string;
+  /** Nome da fase atual (ex.: chip no Funil Acoplamento). */
+  faseNome?: string | null;
   faseOrdem?: number;
   /** Ordem mínima da fase Hipóteses no Step One (para “a partir de hipóteses”). */
   hipotesesOrdemMin?: number | null;
@@ -42,6 +45,8 @@ export type MontarChipsParalelasInput = {
   flags: CardParalelasFlags;
   portfolioVinculoRotulo?: string | null;
   temFilhoJuridico?: boolean;
+  /** Portfolio: existe card filho no Funil Acoplamento (`origem_card_id`). */
+  temFilhoAcoplamento?: boolean;
 };
 
 export type MontarChipsParalelasOptions = {
@@ -59,6 +64,34 @@ function chipEsteira(label: string, labelCurto: string, concluido: boolean, opts
     concluido,
     variant: 'esteira',
   };
+}
+
+function portfolioFaseStep4OuAcoplamento(slug: string): boolean {
+  const s = String(slug ?? '').trim();
+  return s === 'step_4' || s === 'acoplamento';
+}
+
+function portfolioTemFilhoAcoplamento(
+  flags: CardParalelasFlags,
+  temFilhoAcoplamento?: boolean,
+): boolean {
+  if (temFilhoAcoplamento) return true;
+  return Boolean(
+    String(flags.acoplamento_filho_fase_slug ?? '').trim() ||
+      String(flags.acoplamento_filho_fase_nome ?? '').trim(),
+  );
+}
+
+function pushChipAcoplamentoPortfolio(
+  chips: ParalelaChip[],
+  flags: CardParalelasFlags,
+  opts?: MontarChipsParalelasOptions,
+): void {
+  chips.push({
+    label: labelChipAcoplamentoPai(flags.acoplamento_filho_fase_nome, opts?.labelsCompletos),
+    concluido: boolFlag(flags.acoplamento_concluido),
+    variant: 'esteira',
+  });
 }
 
 function rotuloFasePortfolio(nome: string, slug: string): string {
@@ -109,14 +142,11 @@ export function montarChipsParalelas(
   }
 
   if (kid === KANBAN_IDS.PORTFOLIO) {
-    if (slug === 'step_4' || slug === 'acoplamento') {
+    const emStep4OuAcoplamento = portfolioFaseStep4OuAcoplamento(slug);
+    if (emStep4OuAcoplamento) {
       for (const p of PORTFOLIO_PARALELAS) {
         if (p.flag === 'acoplamento_concluido') {
-          chips.push({
-            label: labelChipAcoplamentoPai(f.acoplamento_filho_fase_nome, opts?.labelsCompletos),
-            concluido: boolFlag(f.acoplamento_concluido),
-            variant: 'esteira',
-          });
+          pushChipAcoplamentoPortfolio(chips, f, opts);
           continue;
         }
         chips.push(chipEsteira(p.label, p.labelCurto, boolFlag(f[p.flag]), opts));
@@ -124,6 +154,12 @@ export function montarChipsParalelas(
     }
     if (slug === FASE_SLUGS.CAPTACAO_CAPITAL) {
       chips.push(chipEsteira('Moní Capital', 'Capital', boolFlag(f.capital_ok), opts));
+    }
+    if (
+      !emStep4OuAcoplamento &&
+      (portfolioTemFilhoAcoplamento(f, input.temFilhoAcoplamento) || boolFlag(f.acoplamento_concluido))
+    ) {
+      pushChipAcoplamentoPortfolio(chips, f, opts);
     }
     if (input.temFilhoJuridico || boolFlag(f.juridico_ok)) {
       chips.push(chipEsteira('Jurídico', 'Jurídico', boolFlag(f.juridico_ok), opts));
@@ -135,12 +171,30 @@ export function montarChipsParalelas(
     chips.push(chipEsteira('Crédito Obra', 'Créd. Obra', boolFlag(f.credito_obra_ok), opts));
   }
 
+  if (kid === KANBAN_IDS.ACOPLAMENTO) {
+    const concluido =
+      slug === FASE_SLUGS.ACOPLAMENTO_APROVADO || slug === FASE_SLUGS.ACOPLAMENTO_REPROVADO;
+    pushChipAcoplamentoPortfolio(
+      chips,
+      {
+        acoplamento_filho_fase_nome:
+          String(input.faseNome ?? '').trim() ||
+          String(f.acoplamento_filho_fase_nome ?? '').trim() ||
+          null,
+        acoplamento_concluido: concluido || boolFlag(f.acoplamento_concluido),
+      },
+      opts,
+    );
+    return chips;
+  }
+
   return chips;
 }
 
 export function flagsParalelasFromCard(card: Pick<
   KanbanCardBrief,
   | 'acoplamento_concluido'
+  | 'acoplamento_filho_fase_slug'
   | 'acoplamento_filho_fase_nome'
   | 'credito_terreno_ok'
   | 'contabilidade_ok'
@@ -150,6 +204,7 @@ export function flagsParalelasFromCard(card: Pick<
 >): CardParalelasFlags {
   return {
     acoplamento_concluido: card.acoplamento_concluido,
+    acoplamento_filho_fase_slug: card.acoplamento_filho_fase_slug ?? null,
     acoplamento_filho_fase_nome: card.acoplamento_filho_fase_nome ?? null,
     credito_terreno_ok: card.credito_terreno_ok,
     contabilidade_ok: card.contabilidade_ok,
@@ -163,6 +218,67 @@ type FaseJoin = { nome?: string | null; slug?: string | null } | null;
 
 function unwrapFase(v: FaseJoin | FaseJoin[]): FaseJoin {
   return Array.isArray(v) ? (v[0] ?? null) : v;
+}
+
+function registrarFilhoAcoplamentoPai(
+  map: Map<string, { nome: string; slug: string }>,
+  paiId: string,
+  fase: FaseJoin,
+): void {
+  if (!paiId || map.has(paiId)) return;
+  map.set(paiId, {
+    nome: String(fase?.nome ?? '').trim(),
+    slug: String(fase?.slug ?? '').trim(),
+  });
+}
+
+/** Cards do Funil Acoplamento ligados por `kanban_card_vinculos` (sem `origem_card_id`). */
+async function enrichFilhosAcoplamentoPorVinculos(
+  supabase: SupabaseClient,
+  cardIds: string[],
+  filhoAcoplamentoPorPai: Map<string, { nome: string; slug: string }>,
+): Promise<void> {
+  if (cardIds.length === 0) return;
+
+  const idsFilter = cardIds.join(',');
+  const { data: vinculos } = await supabase
+    .from('kanban_card_vinculos')
+    .select('card_origem_id, card_destino_id')
+    .or(`card_origem_id.in.(${idsFilter}),card_destino_id.in.(${idsFilter})`);
+
+  const cardIdSet = new Set(cardIds);
+  const peerToPortfolio = new Map<string, string>();
+  const peerIds = new Set<string>();
+
+  for (const row of vinculos ?? []) {
+    const orig = String((row as { card_origem_id?: string | null }).card_origem_id ?? '').trim();
+    const dest = String((row as { card_destino_id?: string | null }).card_destino_id ?? '').trim();
+    if (cardIdSet.has(orig) && !cardIdSet.has(dest)) {
+      peerToPortfolio.set(dest, orig);
+      peerIds.add(dest);
+    } else if (cardIdSet.has(dest) && !cardIdSet.has(orig)) {
+      peerToPortfolio.set(orig, dest);
+      peerIds.add(orig);
+    }
+  }
+
+  if (peerIds.size === 0) return;
+
+  const { data: peers } = await supabase
+    .from('kanban_cards')
+    .select('id, kanban_fases ( nome, slug )')
+    .in('id', [...peerIds])
+    .eq('kanban_id', KANBAN_IDS.ACOPLAMENTO);
+
+  for (const row of peers ?? []) {
+    const peerId = String((row as { id?: string | null }).id ?? '').trim();
+    const paiId = peerToPortfolio.get(peerId);
+    if (!paiId) continue;
+    const fase = unwrapFase(
+      (row as { kanban_fases?: FaseJoin | FaseJoin[] | null }).kanban_fases ?? null,
+    );
+    registrarFilhoAcoplamentoPai(filhoAcoplamentoPorPai, paiId, fase);
+  }
 }
 
 /** Enriquece cards do board com vínculo Portfolio (Step One) e filho Jurídico (Portfolio). */
@@ -216,22 +332,59 @@ export async function enrichCardsParalelasContext(
     const cardIds = cards.map((c) => c.id).filter(Boolean);
     if (cardIds.length === 0) return cards;
 
-    const { data: filhos } = await supabase
-      .from('kanban_cards')
-      .select('origem_card_id')
-      .eq('kanban_id', KANBAN_IDS.JURIDICO)
-      .in('origem_card_id', cardIds);
+    const [{ data: filhosJuridico }, { data: filhosAcoplamento }] = await Promise.all([
+      supabase
+        .from('kanban_cards')
+        .select('origem_card_id')
+        .eq('kanban_id', KANBAN_IDS.JURIDICO)
+        .in('origem_card_id', cardIds),
+      supabase
+        .from('kanban_cards')
+        .select('origem_card_id, kanban_fases ( nome, slug )')
+        .eq('kanban_id', KANBAN_IDS.ACOPLAMENTO)
+        .in('origem_card_id', cardIds),
+    ]);
 
-    const comFilho = new Set<string>();
-    for (const row of filhos ?? []) {
+    const comFilhoJuridico = new Set<string>();
+    for (const row of filhosJuridico ?? []) {
       const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
-      if (oid) comFilho.add(oid);
+      if (oid) comFilhoJuridico.add(oid);
     }
 
-    return cards.map((c) => ({
-      ...c,
-      tem_filho_juridico: comFilho.has(c.id),
-    }));
+    const filhoAcoplamentoPorPai = new Map<
+      string,
+      { nome: string; slug: string }
+    >();
+    for (const row of filhosAcoplamento ?? []) {
+      const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+      if (!oid) continue;
+      const fase = unwrapFase(
+        (row as { kanban_fases?: FaseJoin | FaseJoin[] | null }).kanban_fases ?? null,
+      );
+      registrarFilhoAcoplamentoPai(filhoAcoplamentoPorPai, oid, fase);
+    }
+
+    await enrichFilhosAcoplamentoPorVinculos(supabase, cardIds, filhoAcoplamentoPorPai);
+
+    return cards.map((c) => {
+      const filhoAcop = filhoAcoplamentoPorPai.get(c.id);
+      const temFilhoAcoplamento = Boolean(filhoAcop);
+      const temJuridico = comFilhoJuridico.has(c.id);
+      if (!temFilhoAcoplamento && !temJuridico) return c;
+
+      const patch: Partial<KanbanCardBrief> = {};
+      if (temJuridico) patch.tem_filho_juridico = true;
+      if (temFilhoAcoplamento) patch.tem_filho_acoplamento = true;
+      if (filhoAcop) {
+        if (!String(c.acoplamento_filho_fase_slug ?? '').trim() && filhoAcop.slug) {
+          patch.acoplamento_filho_fase_slug = filhoAcop.slug;
+        }
+        if (!String(c.acoplamento_filho_fase_nome ?? '').trim() && filhoAcop.nome) {
+          patch.acoplamento_filho_fase_nome = filhoAcop.nome;
+        }
+      }
+      return { ...c, ...patch };
+    });
   }
 
   return cards;

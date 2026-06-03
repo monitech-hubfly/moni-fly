@@ -985,10 +985,27 @@ export async function abrirFunilAcoplamentoManualDoCard(
     .maybeSingle();
 
   if (existente?.id) {
+    const filhoId = String(existente.id);
+    const { data: filhoFase } = await db
+      .from('kanban_cards')
+      .select('kanban_fases ( slug )')
+      .eq('id', filhoId)
+      .maybeSingle();
+    const faseJoin = (filhoFase as { kanban_fases?: { slug?: string | null } | { slug?: string | null }[] | null } | null)
+      ?.kanban_fases;
+    const faseSlugExistente = Array.isArray(faseJoin)
+      ? String(faseJoin[0]?.slug ?? '').trim()
+      : String(faseJoin?.slug ?? '').trim();
+    await sincronizarTagAcoplamentoPaiDoFilho(
+      filhoId,
+      faseSlugExistente || destino.faseDestinoSlug,
+    );
     const { data: kb } = await db.from('kanbans').select('nome').eq('id', destino.kanbanDestinoId).maybeSingle();
+    revalidatePath(basePath?.trim() || '/');
+    revalidatePath('/');
     return {
       ok: true,
-      cardFilhoId: String(existente.id),
+      cardFilhoId: filhoId,
       kanbanNome: String((kb as { nome?: string | null } | null)?.nome ?? destino.label),
       jaExistia: true,
     };
