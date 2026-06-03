@@ -2,7 +2,6 @@ import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
-export const FASE_SLUG_MODELAGEM_CASA_GBOX = 'modelagem_casa_gbox';
 export const CHECKLIST_LABEL_BCA = 'BCA';
 export const CHECKLIST_LABEL_ACOPLAMENTO = 'Acoplamento';
 
@@ -109,7 +108,7 @@ async function obterItensChecklistModelagemCasa(
     .from('kanban_fases')
     .select('id')
     .eq('kanban_id', KANBAN_IDS.ACOPLAMENTO)
-    .eq('slug', FASE_SLUG_MODELAGEM_CASA_GBOX)
+    .eq('slug', FASE_SLUGS.MODELAGEM_CASA_GBOX)
     .eq('ativo', true)
     .maybeSingle();
 
@@ -322,7 +321,7 @@ export async function verificarGateAcoplamentoModelagemCasa(
   const ordemAtual = Number((faseAtual as { ordem?: number } | null)?.ordem ?? 0);
   const ordemDest = Number((faseDest as { ordem?: number } | null)?.ordem ?? 0);
 
-  if (slugAtual !== FASE_SLUG_MODELAGEM_CASA_GBOX) return { ok: true };
+  if (slugAtual !== FASE_SLUGS.MODELAGEM_CASA_GBOX) return { ok: true };
   if (ordemDest <= ordemAtual) return { ok: true };
   if (slugDest === FASE_SLUGS.ACOPLAMENTO_REPROVADO) return { ok: true };
 

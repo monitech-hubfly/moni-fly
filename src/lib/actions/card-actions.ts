@@ -53,11 +53,16 @@ import {
 import type { FaseChecklistItem } from './candidato-actions';
 import { executarBastaoDeVolta, executarBastoes } from '@/lib/actions/kanban-bastoes';
 import { sincronizarTagAcoplamentoPaiDoFilho } from '@/lib/kanban/acoplamento-tag-pai';
-import {
-  isChecklistItemSyncBcaAcoplamento,
-  sincronizarLinksBcaAcoplamento,
-  verificarGateAcoplamentoModelagemCasa,
-} from '@/lib/kanban/links-bca-acoplamento-sync';
+/** Wrapper para evitar import estático de módulo server-only no bundle do cliente. */
+export async function verificarGateAcoplamentoModelagemCasa(
+  cardId: string,
+  novaFaseId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { verificarGateAcoplamentoModelagemCasa: verify } = await import(
+    '@/lib/kanban/links-bca-acoplamento-sync'
+  );
+  return verify(cardId, novaFaseId);
+}
 import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-notify';
 import { payloadInicialNegociacaoPrazo } from '@/lib/kanban/prazo-negociacao';
 

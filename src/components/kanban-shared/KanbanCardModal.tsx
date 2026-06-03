@@ -53,6 +53,7 @@ import {
   type ProcessoNegocioAnexoCampo,
   vincularTagCard,
   verificarChecklistParaFase,
+  verificarGateAcoplamentoModelagemCasa,
   gerarFormTokenCandidato,
   enviarEmailCard,
   type SubInteracaoStatusDb,
@@ -62,10 +63,6 @@ import { deletarChamado } from '@/app/sirene/actions';
 import { KANBANS_COM_CHAMADO_JURIDICO } from '@/lib/constants/kanban-ids';
 import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
 import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
-import {
-  FASE_SLUG_MODELAGEM_CASA_GBOX,
-  verificarGateAcoplamentoModelagemCasa,
-} from '@/lib/kanban/links-bca-acoplamento-sync';
 import {
   autorizarAberturaCreditoObra,
   consultarAberturaCreditoObraPendente,
@@ -1961,7 +1958,7 @@ export function KanbanCardModal({
     if (
       !isLegado &&
       card.kanban_id === KANBAN_IDS.ACOPLAMENTO &&
-      (faseAtual.slug ?? '').trim() === FASE_SLUG_MODELAGEM_CASA_GBOX
+      (faseAtual.slug ?? '').trim() === FASE_SLUGS.MODELAGEM_CASA_GBOX
     ) {
       const gateAcop = await verificarGateAcoplamentoModelagemCasa(card.id, proximaFase.id);
       if (!gateAcop.ok) {
