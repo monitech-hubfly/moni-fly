@@ -7,12 +7,15 @@ import {
   listarEsteirasParalelasPendentes,
 } from '@/lib/kanban/portfolio-paralelas';
 import { labelChipAcoplamentoPai, FASE_EXIBICAO_CARD_ARQUIVADO } from '@/lib/kanban/acoplamento-tag-pai';
+import {
+  HIPOTESES_FASE_SLUGS,
+  HIPOTESES_ORDEM_MIN_PROD,
+  isHipotesesFaseSlug,
+} from '@/lib/kanban/stepone-fase-slugs';
 
 export type { PortfolioParalelasFlags };
 export { listarEsteirasParalelasPendentes };
-
-/** Slugs da fase Hipóteses (PROD/DEV). */
-export const HIPOTESES_FASE_SLUGS = ['hipoteses', 'stepone_hipoteses'] as const;
+export { HIPOTESES_FASE_SLUGS };
 
 export type ParalelaChip = {
   label: string;
@@ -110,7 +113,7 @@ export function stepOneExibeChipsVinculo(
   hipotesesOrdemMin: number | null | undefined,
 ): boolean {
   const s = String(faseSlug ?? '').trim();
-  if ((HIPOTESES_FASE_SLUGS as readonly string[]).includes(s)) return true;
+  if (isHipotesesFaseSlug(s)) return true;
   const min = hipotesesOrdemMin;
   if (min != null && Number.isFinite(min) && faseOrdem >= min) return true;
   return false;
@@ -470,8 +473,8 @@ export function hipotesesOrdemMinima(fases: { slug?: string | null; ordem: numbe
   let min: number | null = null;
   for (const f of fases) {
     const s = String(f.slug ?? '').trim();
-    if (!(HIPOTESES_FASE_SLUGS as readonly string[]).includes(s)) continue;
+    if (!isHipotesesFaseSlug(s)) continue;
     if (min == null || f.ordem < min) min = f.ordem;
   }
-  return min;
+  return min ?? HIPOTESES_ORDEM_MIN_PROD;
 }

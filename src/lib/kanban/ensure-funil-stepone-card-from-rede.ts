@@ -1,9 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/admin';
 
+import { DADOS_CANDIDATO_FASE_SLUGS } from '@/lib/kanban/stepone-fase-slugs';
+
 const FUNIL_STEP_ONE_NOME = 'Funil Step One';
-/** PROD: dados_candidato; DEV: stepone_dados_candidato (migration 148). */
-const FASE_CANDIDATO_SLUGS = ['dados_candidato', 'stepone_dados_candidato'] as const;
 
 export type EnsureFunilStepOneCardFromRedeResult =
   | { ok: true; created: boolean; cardId: string | null; repaired?: boolean }
@@ -56,7 +56,7 @@ export async function ensureFunilStepOneCardFromRede(
     .from('kanban_fases')
     .select('id, slug')
     .eq('kanban_id', kanbanId)
-    .in('slug', [...FASE_CANDIDATO_SLUGS])
+    .in('slug', [...DADOS_CANDIDATO_FASE_SLUGS])
     .eq('ativo', true)
     .order('ordem', { ascending: true })
     .limit(1);
@@ -66,7 +66,7 @@ export async function ensureFunilStepOneCardFromRede(
   if (!fase?.id) {
     return {
       ok: false,
-      error: `Fase candidato (${FASE_CANDIDATO_SLUGS.join(' ou ')}) não encontrada no Funil Step One.`,
+      error: `Fase candidato (${DADOS_CANDIDATO_FASE_SLUGS.join(' ou ')}) não encontrada no Funil Step One.`,
     };
   }
 

@@ -80,6 +80,7 @@ import {
   hipotesesOrdemMinima,
   montarChipsParalelas,
 } from '@/lib/kanban/kanban-paralelas-chips';
+import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCreditoObraDocumentacao';
 import {
@@ -378,9 +379,6 @@ export type KanbanCardModalProps = {
   deepLinkInteracaoId?: string | null;
   deepLinkTopicoId?: string | null;
 };
-
-/** PROD: stepone_hipoteses; DEV: hipoteses */
-const HIPOTESES_SLUGS = ['hipoteses', 'stepone_hipoteses'] as const;
 
 export function KanbanCardModal({
   cardId,
@@ -2905,7 +2903,7 @@ export function KanbanCardModal({
       : [];
 
   const faseSlugHipoteses = faseAtual?.slug?.trim() ?? '';
-  const isFaseHipoteses = (HIPOTESES_SLUGS as readonly string[]).includes(faseSlugHipoteses);
+  const isFaseHipoteses = isHipotesesFaseSlug(faseSlugHipoteses);
   const exibirEnviarHipotesePortfolio =
     !isLegado && kanbanNome === 'Funil Step One' && isFaseHipoteses;
 

@@ -1,5 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanCardBrief, KanbanFase } from '@/components/kanban-shared/types';
+import {
+  normalizeStepOneFaseSlug,
+  stepOneSlugAliasesForFase,
+} from '@/lib/kanban/stepone-fase-slugs';
 
 const PROCESSO_CHUNK = 200;
 
@@ -57,20 +61,34 @@ export async function buildSlugParaFaseIdMap(
   const map = new Map<string, string>();
   for (const f of fases) {
     const slug = String(f.slug ?? '').trim();
-    if (slug) map.set(slug, f.id);
+    if (slug) {
+      map.set(slug, f.id);
+      for (const alias of stepOneSlugAliasesForFase(slug)) {
+        if (alias !== slug) map.set(alias, f.id);
+      }
+    }
   }
 
   const missing = [...new Set([...slugsExtras].map((s) => String(s ?? '').trim()).filter(Boolean))].filter(
     (slug) => !map.has(slug),
   );
 
-  if (missing.length === 0) return map;
+  const missingNormalized = [
+    ...new Set(
+      missing.flatMap((slug) => {
+        const aliases = stepOneSlugAliasesForFase(slug);
+        return aliases.length > 0 ? aliases : [normalizeStepOneFaseSlug(slug)];
+      }),
+    ),
+  ].filter((slug) => slug && !map.has(slug));
+
+  if (missingNormalized.length === 0) return map;
 
   const { data, error } = await supabase
     .from('kanban_fases')
     .select('id, slug')
     .eq('kanban_id', kanbanId)
-    .in('slug', missing);
+    .in('slug', missingNormalized);
 
   if (error) {
     console.error('[buildSlugParaFaseIdMap]', error.message);
@@ -80,7 +98,12 @@ export async function buildSlugParaFaseIdMap(
   for (const row of data ?? []) {
     const slug = String((row as { slug?: string | null }).slug ?? '').trim();
     const id = String((row as { id?: string }).id ?? '').trim();
-    if (slug && id) map.set(slug, id);
+    if (slug && id) {
+      map.set(slug, id);
+      for (const alias of stepOneSlugAliasesForFase(slug)) {
+        if (alias !== slug) map.set(alias, id);
+      }
+    }
   }
 
   return map;

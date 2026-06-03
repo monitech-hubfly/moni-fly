@@ -1,4 +1,4 @@
--- 241: Funil Step One — rebuild checklist BCA + Batalha de Casas
+-- 241: Funil Step One — rebuild checklist BCA (fase_id 8fda525c…, slug PROD: bca)
 
 DELETE FROM public.kanban_fase_checklist_itens
 WHERE fase_id = '8fda525c-720d-4db7-821d-52625867a000';

@@ -147,6 +147,20 @@ export const FASE_SLUGS = {
   OPERACOES_ENTREGUE:        'operacoes_entregue',
   // Gates
   STEP_5:             'step_5',
+  // Funil Step One (KANBAN_IDS.STEP_ONE) — fluxo ordem 1–11 (PROD)
+  DADOS_CANDIDATO:      'dados_candidato',
+  DADOS_CIDADE:         'dados_cidade',
+  LISTA_CONDOMINIOS:    'lista_condominios',
+  DADOS_CONDOMINIOS:    'dados_condominios',
+  LOTES_DISPONIVEIS:    'lotes_disponiveis',
+  MAPA_COMPETIDORES:    'mapa_competidores',
+  PRE_BATALHA:          'pre_batalha',
+  ESCOLHA:              'escolha',
+  BCA:                  'bca',
+  /** Slug legado renomeado — valor canônico PROD: `bca`. */
+  BCA_BATALHA_CASAS:    'bca',
+  BATALHA:              'batalha',
+  HIPOTESES:            'hipoteses',
 } as const
 
 // Kanbans onde Frank pode abrir chamado jurídico manualmente

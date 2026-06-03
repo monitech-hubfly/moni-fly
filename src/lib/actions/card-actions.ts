@@ -17,6 +17,7 @@ import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
 import { isKanbanIdInterno } from '@/lib/kanban/filtrar-kanbans-internos';
 import { carregarPermissoesMap } from '@/lib/permissoes-load';
 import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { calcularDataEnvioCreditoObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import {
   deveValidarGatePortfolioStep5,
@@ -2675,9 +2676,7 @@ export async function tentarCriarProjetoNegocioPortfolio(
     return null;
   }
 }
-/** PROD: stepone_hipoteses; DEV: hipoteses (migration 157 / sync_dev_with_prod). */
-const HIPOTESES_SLUGS = ['hipoteses', 'stepone_hipoteses'] as const;
-
+/** PROD: hipoteses; DEV: stepone_hipoteses (migration 157 / sync_dev_with_prod). */
 const ERRO_UNIVERSIDADE_HIPOTESE =
   'Conclua as Casas 0, 1 e 2 da Universidade Moní para enviar hipóteses ao Portfolio.';
 
@@ -2746,7 +2745,7 @@ export async function enviarHipoteseAoPortfolio(
   const faseSlug = String(
     (cardRow as { kanban_fases?: { slug?: string } | null }).kanban_fases?.slug ?? '',
   ).trim();
-  if (!(HIPOTESES_SLUGS as readonly string[]).includes(faseSlug)) {
+  if (!isHipotesesFaseSlug(faseSlug)) {
     return { ok: false, error: 'Card não está na fase de Hipóteses.' };
   }
 

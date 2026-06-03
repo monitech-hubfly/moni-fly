@@ -1,4 +1,4 @@
--- 238: Funil Step One — instrucoes das fases lotes, mapa, BCA e hipoteses
+-- 238: Funil Step One — instrucoes das fases lotes, mapa, BCA (8fda525c…) e hipoteses
 
 UPDATE public.kanban_fases
 SET instrucoes = $instr$
