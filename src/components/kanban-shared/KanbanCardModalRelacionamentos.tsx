@@ -46,6 +46,9 @@ function labelTipoRelacionamento(tipo: TipoRelacionamentoDisplay): string {
   return 'relacionado';
 }
 
+const BOTAO_ABRIR_FUNIL_CLASS =
+  'w-full rounded-md border border-stone-200 bg-white px-2.5 py-2 text-left text-[11px] font-semibold text-stone-800 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50';
+
 type Props = {
   cardId: string;
   cardTitulo: string;
@@ -75,7 +78,7 @@ export function KanbanCardModalRelacionamentos({
   const [rows, setRows] = useState<RelacionamentoCardRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
-  const [modo, setModo] = useState<'none' | 'esteira' | 'vincular'>('none');
+  const [modo, setModo] = useState<'none' | 'vincular'>('none');
   const [disparando, setDisparando] = useState(false);
   const [buscaVinculo, setBuscaVinculo] = useState('');
   const [resultadosBusca, setResultadosBusca] = useState<BuscaCardVinculoRow[]>([]);
@@ -90,10 +93,26 @@ export function KanbanCardModalRelacionamentos({
     () => destinosEsteiraManualParaKanban(kanbanId),
     [kanbanId],
   );
-  const mostrarDispararEsteira =
-    podeGerenciar && kanbanPermiteDispararEsteiraManual(kanbanId) && destinosDisponiveis.length > 0;
   const mostrarAbrirFunilAcoplamento =
     podeGerenciar && kanbanPermiteAbrirFunilAcoplamentoManual(kanbanId);
+  const botoesAbrirFunil = useMemo(() => {
+    const items: { key: string; label: string; tipo: 'acoplamento' | 'esteira'; destinoKey?: DestinoEsteiraManualKey }[] =
+      [];
+    if (mostrarAbrirFunilAcoplamento) {
+      items.push({ key: 'acoplamento', label: 'Abrir Funil Acoplamento', tipo: 'acoplamento' });
+    }
+    if (podeGerenciar && kanbanPermiteDispararEsteiraManual(kanbanId)) {
+      for (const destinoKey of destinosDisponiveis) {
+        items.push({
+          key: destinoKey,
+          label: `Abrir Funil ${DESTINOS_ESTEIRA_MANUAL[destinoKey].label}`,
+          tipo: 'esteira',
+          destinoKey,
+        });
+      }
+    }
+    return items;
+  }, [mostrarAbrirFunilAcoplamento, podeGerenciar, kanbanId, destinosDisponiveis]);
 
   const recarregar = useCallback(async () => {
     if (!cardId || disabled) {
@@ -360,16 +379,23 @@ export function KanbanCardModalRelacionamentos({
         </p>
       ) : null}
 
-      {mostrarAbrirFunilAcoplamento ? (
-        <div className="border-t border-stone-100 pt-2">
-          <button
-            type="button"
-            onClick={() => void handleAbrirFunilAcoplamento()}
-            disabled={disparando || cardDesabilitado}
-            className="w-full rounded-md border border-stone-200 bg-white px-2.5 py-2 text-left text-[11px] font-semibold text-stone-800 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {disparando ? 'Abrindo…' : 'Abrir Funil Acoplamento'}
-          </button>
+      {botoesAbrirFunil.length > 0 && !disabled ? (
+        <div className="space-y-1.5 border-t border-stone-100 pt-2">
+          {botoesAbrirFunil.map((botao) => (
+            <button
+              key={botao.key}
+              type="button"
+              onClick={() =>
+                void (botao.tipo === 'acoplamento'
+                  ? handleAbrirFunilAcoplamento()
+                  : handleDispararEsteira(botao.destinoKey!))
+              }
+              disabled={disparando || cardDesabilitado}
+              className={BOTAO_ABRIR_FUNIL_CLASS}
+            >
+              {disparando ? 'Abrindo…' : botao.label}
+            </button>
+          ))}
         </div>
       ) : null}
 
@@ -402,15 +428,6 @@ export function KanbanCardModalRelacionamentos({
             <div className="space-y-2">
               {modo === 'none' ? (
                 <div className="space-y-1">
-                  {mostrarDispararEsteira ? (
-                    <button
-                      type="button"
-                      onClick={() => setModo('esteira')}
-                      className="block w-full rounded px-2 py-1.5 text-left text-[11px] font-medium text-stone-700 hover:bg-stone-100"
-                    >
-                      Disparar esteira
-                    </button>
-                  ) : null}
                   <button
                     type="button"
                     onClick={() => setModo('vincular')}
@@ -421,31 +438,6 @@ export function KanbanCardModalRelacionamentos({
                   <button
                     type="button"
                     onClick={fecharFormularios}
-                    className="text-[10px] text-stone-500 hover:underline"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              ) : null}
-
-              {modo === 'esteira' ? (
-                <div className="space-y-1.5">
-                  <p className="text-[10px] font-medium text-stone-600">Destino da esteira</p>
-                  {destinosDisponiveis.map((key) => (
-                    <button
-                      key={key}
-                      type="button"
-                      disabled={disparando}
-                      onClick={() => void handleDispararEsteira(key)}
-                      className="block w-full rounded border border-stone-200 bg-white px-2 py-1.5 text-left text-[11px] font-medium text-stone-800 hover:bg-stone-50 disabled:opacity-50"
-                    >
-                      {DESTINOS_ESTEIRA_MANUAL[key].label}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={fecharFormularios}
-                    disabled={disparando}
                     className="text-[10px] text-stone-500 hover:underline"
                   >
                     Cancelar

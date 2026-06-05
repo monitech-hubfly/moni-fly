@@ -104,38 +104,11 @@ function mapRow(row: Record<string, unknown>): TrancheVinculoRow {
   };
 }
 
-/** Lista os 5 vínculos preset com status e dados salvos. */
-export async function listarTrancheVinculosOperacoes(
-  operacoesCardId: string,
-): Promise<{ ok: true; items: TrancheVinculoListItem[] } | { ok: false; error: string }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
-
-  const cid = String(operacoesCardId ?? '').trim();
-  if (!cid) return { ok: false, error: 'Card inválido.' };
-
-  const cardOk = await resolverOperacoesCard(supabase, cid);
-  if (!cardOk.ok) return cardOk;
-
-  const { data: rows, error: rowsErr } = await supabase
-    .from('kanban_operacoes_tranche_vinculos')
-    .select('tranche_index, pct_fisico_financeiro, nfts_url, evidencias_url, concluido_em')
-    .eq('operacoes_card_id', cid);
-
-  if (rowsErr) return { ok: false, error: rowsErr.message };
-
-  const porIndex = new Map<number, TrancheVinculoRow>();
-  for (const r of rows ?? []) {
-    const mapped = mapRow(r as Record<string, unknown>);
-    porIndex.set(mapped.tranche_index, mapped);
-  }
-
-  const filho = await resolverFilhoCreditoObra(supabase, cid);
-
-  const items: TrancheVinculoListItem[] = OPERACOES_TRANCHE_VINCULOS.map((cfg) => {
+function montarItensTrancheVinculo(
+  porIndex: Map<number, TrancheVinculoRow>,
+  filho: Awaited<ReturnType<typeof resolverFilhoCreditoObra>>,
+): TrancheVinculoListItem[] {
+  return OPERACOES_TRANCHE_VINCULOS.map((cfg) => {
     const saved = porIndex.get(cfg.index);
     return {
       index: cfg.index,
@@ -150,8 +123,61 @@ export async function listarTrancheVinculosOperacoes(
       filhoFaseNome: filho?.faseNome ?? null,
     };
   });
+}
 
-  return { ok: true, items };
+function erroTabelaTrancheVinculosAusente(err: { code?: string; message?: string }): boolean {
+  const code = String(err.code ?? '').trim();
+  const msg = String(err.message ?? '').toLowerCase();
+  return (
+    code === '42P01' ||
+    code === 'PGRST205' ||
+    msg.includes('kanban_operacoes_tranche_vinculos') ||
+    msg.includes('schema cache')
+  );
+}
+
+/** Lista os 5 vínculos preset com status e dados salvos. */
+export async function listarTrancheVinculosOperacoes(
+  operacoesCardId: string,
+): Promise<{ ok: true; items: TrancheVinculoListItem[] } | { ok: false; error: string }> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: 'Faça login.' };
+
+    const cid = String(operacoesCardId ?? '').trim();
+    if (!cid) return { ok: false, error: 'Card inválido.' };
+
+    const cardOk = await resolverOperacoesCard(supabase, cid);
+    if (!cardOk.ok) return cardOk;
+
+    const filho = await resolverFilhoCreditoObra(supabase, cid);
+
+    const { data: rows, error: rowsErr } = await supabase
+      .from('kanban_operacoes_tranche_vinculos')
+      .select('tranche_index, pct_fisico_financeiro, nfts_url, evidencias_url, concluido_em')
+      .eq('operacoes_card_id', cid);
+
+    if (rowsErr) {
+      if (erroTabelaTrancheVinculosAusente(rowsErr)) {
+        return { ok: true, items: montarItensTrancheVinculo(new Map(), filho) };
+      }
+      return { ok: false, error: rowsErr.message };
+    }
+
+    const porIndex = new Map<number, TrancheVinculoRow>();
+    for (const r of rows ?? []) {
+      const mapped = mapRow(r as Record<string, unknown>);
+      porIndex.set(mapped.tranche_index, mapped);
+    }
+
+    return { ok: true, items: montarItensTrancheVinculo(porIndex, filho) };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg || 'Erro ao carregar vínculos.' };
+  }
 }
 
 function normalizarPct(value: number | string | null | undefined): number | null {
