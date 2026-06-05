@@ -54,7 +54,6 @@ const NOVOS_NEGOCIOS_SUBITENS_FRANK: NavItem[] = [
   { href: '/portfolio', label: 'Funil Portfolio' },
 ];
 const CREDITO_JURIDICO_SUBITENS: NavItem[] = [
-  { href: '/funil-juridico', label: 'Funil Jurídico' },
   { href: '/funil-moni-capital', label: 'Moní Capital' },
   { href: '/funil-credito-obra', label: 'Crédito Obra' },
   { href: '/painel-contabilidade', label: 'Funil Contabilidade' },
@@ -412,7 +411,7 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
         {showCreditoJuridicoNav &&
           renderMacro(
             'creditoJuridico',
-            'Crédito e Jurídico',
+            'Crédito e Contabilidade',
             isCreditoJuridicoActive(pathname ?? ''),
             creditoJuridicoOpen,
             setCreditoJuridicoOpen,
