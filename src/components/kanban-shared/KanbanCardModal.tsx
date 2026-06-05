@@ -80,7 +80,7 @@ import {
   hipotesesOrdemMinima,
   montarChipsParalelas,
 } from '@/lib/kanban/kanban-paralelas-chips';
-import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { isDadosCondominiosFaseSlug, isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCreditoObraDocumentacao';
 import {
@@ -140,13 +140,17 @@ import { KanbanCardDatasFields } from './KanbanCardDatasFields';
 import { MencaoContentEditable } from './MencaoContentEditable';
 import { fetchKanbanFasesAtivas, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
 import { loadHistoricoCardModal } from '@/lib/kanban/kanban-card-historico';
-import { publicarComentarioKanbanCard } from '@/lib/actions/kanban-comentarios';
+import {
+  listarComentariosKanbanCard,
+  publicarComentarioKanbanCard,
+} from '@/lib/actions/kanban-comentarios';
 import {
   listarAnexosComentariosKanbanCard,
   urlAssinadaAnexoComentarioKanbanCard,
   type KanbanComentarioAnexoRow,
 } from '@/lib/actions/kanban-comentario-anexos';
 import { uploadAnexosComentarioPendentes } from '@/lib/kanban/upload-anexos-comentario-card';
+import { montarTituloCardSync } from '@/lib/kanban/card-sync-group';
 import { dataIsoInputValida } from '@/lib/kanban/kanban-card-datas';
 import { AnexosAtividadeDraft } from './AnexosAtividadeDraft';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
@@ -287,8 +291,13 @@ function richTextPlainTrimmed(html: string): string {
 }
 
 function mapComentariosCardRows(
-  comRows: { id: string; conteudo?: string | null; created_at: string; autor_id?: string | null }[],
-  nomePorId: Map<string, string>,
+  comRows: {
+    id: string;
+    conteudo?: string | null;
+    created_at: string;
+    autor_id?: string | null;
+    autor_nome?: string | null;
+  }[],
   anexos: KanbanComentarioAnexoRow[],
 ): ComentarioCardRow[] {
   const anexosPorComentario = new Map<string, ComentarioCardRow['anexos']>();
@@ -308,9 +317,19 @@ function mapComentariosCardRows(
     conteudo: String(c.conteudo ?? ''),
     created_at: String(c.created_at),
     autor_id: c.autor_id ? String(c.autor_id) : null,
-    autor_nome: c.autor_id ? nomePorId.get(String(c.autor_id)) ?? null : null,
+    autor_nome: c.autor_nome?.trim() || null,
     anexos: anexosPorComentario.get(String(c.id)) ?? [],
   }));
+}
+
+async function carregarComentariosCardModal(cardId: string): Promise<ComentarioCardRow[]> {
+  const [comRes, anexosRes] = await Promise.all([
+    listarComentariosKanbanCard(cardId),
+    listarAnexosComentariosKanbanCard(cardId),
+  ]);
+  if (!comRes.ok) return [];
+  const anexos = anexosRes.ok ? anexosRes.items : [];
+  return mapComentariosCardRows(comRes.items, anexos);
 }
 
 function inicioDiaLocal(d: Date) {
@@ -543,9 +562,6 @@ export function KanbanCardModal({
   const [uploadingNegocioAnexo, setUploadingNegocioAnexo] = useState<ProcessoNegocioAnexoCampo | null>(
     null,
   );
-  const negocioOpcaoPermutaRef = useRef<HTMLInputElement>(null);
-  const negocioContratoPermutaRef = useRef<HTMLInputElement>(null);
-  const negocioSeguroGarantiaRef = useRef<HTMLInputElement>(null);
   const comentarioEditorRef = useRef<HTMLDivElement>(null);
   const comentarioEdicaoRef = useRef<HTMLDivElement>(null);
   const [editandoInstrucoesFase, setEditandoInstrucoesFase] = useState(false);
@@ -770,7 +786,6 @@ export function KanbanCardModal({
   }, []);
 
   async function loadCard() {
-    console.log('[DEBUG loadCard] cardId:', cardId, 'origem:', origem);
     setLoading(true);
     try {
       const supabase = createClient();
@@ -927,8 +942,6 @@ export function KanbanCardModal({
         }
       } else {
         setLegadoCronologiaMoves([]);
-        // DEBUG: cardId vem da URL (?card=) via KanbanWrapper — ver KanbanColumn onClick
-        console.log('[DEBUG] cardId recebido no modal:', cardId);
         const { data: cardData, error: cardError } = await supabase
           .from('kanban_cards')
           .select(
@@ -1115,6 +1128,42 @@ export function KanbanCardModal({
         setTotalCardsSyncGrupo(0);
       }
 
+      if (origem === 'legado') {
+        try {
+          const { data: procRow } = await supabase
+            .from('processo_step_one')
+            .select('numero_franquia, nome_condominio, quadra, lote, condominio_id')
+            .eq('id', cardParaEstado.id)
+            .maybeSingle();
+          if (procRow) {
+            const pr = procRow as {
+              numero_franquia?: string | null;
+              nome_condominio?: string | null;
+              quadra?: string | null;
+              lote?: string | null;
+              condominio_id?: string | null;
+            };
+            const tituloCalc = montarTituloCardSync({
+              nFranquia: pr.numero_franquia,
+              nomeCondominio: pr.nome_condominio ?? cardParaEstado.nome_condominio,
+              quadra: pr.quadra ?? cardParaEstado.quadra,
+              lote: pr.lote ?? cardParaEstado.lote,
+              tituloFallback: cardParaEstado.titulo,
+            });
+            cardParaEstado = {
+              ...cardParaEstado,
+              nome_condominio: pr.nome_condominio ?? cardParaEstado.nome_condominio,
+              condominio_id: pr.condominio_id ?? cardParaEstado.condominio_id,
+              quadra: pr.quadra ?? cardParaEstado.quadra,
+              lote: pr.lote ?? cardParaEstado.lote,
+              titulo: tituloCalc ?? cardParaEstado.titulo,
+            };
+          }
+        } catch {
+          /* mantém título da view */
+        }
+      }
+
       setCard(cardParaEstado);
       const dr = loaded.data_reuniao ? String(loaded.data_reuniao).slice(0, 10) : '';
       setDataReuniao(dr && dataIsoInputValida(dr) ? dr : '');
@@ -1133,6 +1182,7 @@ export function KanbanCardModal({
           cardId: loaded.id,
           cardTitulo: loaded.titulo,
           redeFranqueadoId: origem === 'nativo' ? nativeRedeFranqueadoId : null,
+          cardProjetoId: loaded.projeto_id ?? null,
         });
         setModalDetalhes(det);
         setPreObraDraft(preObraDraftFromProcesso(det.processo));
@@ -1220,24 +1270,7 @@ export function KanbanCardModal({
       }
 
       try {
-        const { data: comRows, error: comErr } = await supabase
-          .from('kanban_card_comentarios')
-          .select('id, conteudo, created_at, autor_id')
-          .eq('card_id', cardId)
-          .order('created_at', { ascending: false });
-        if (comErr || !comRows?.length) {
-          setComentariosCard([]);
-        } else {
-          const autorIds = [...new Set(comRows.map((c) => c.autor_id).filter(Boolean))] as string[];
-          let nomePorId = new Map<string, string>();
-          if (autorIds.length > 0) {
-            const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', autorIds);
-            nomePorId = new Map((profs ?? []).map((p) => [p.id, (p.full_name as string | null)?.trim() || '']));
-          }
-          const anexosRes = await listarAnexosComentariosKanbanCard(cardId);
-          const anexos = anexosRes.ok ? anexosRes.items : [];
-          setComentariosCard(mapComentariosCardRows(comRows, nomePorId, anexos));
-        }
+        setComentariosCard(await carregarComentariosCardModal(cardId));
       } catch {
         setComentariosCard([]);
       }
@@ -2129,25 +2162,7 @@ export function KanbanCardModal({
       setNovoComentarioCard('');
       setComentarioPendingAnexos([]);
       if (comentarioEditorRef.current) comentarioEditorRef.current.innerHTML = '';
-      const supabase2 = createClient();
-      const { data: comRows } = await supabase2
-        .from('kanban_card_comentarios')
-        .select('id, conteudo, created_at, autor_id')
-        .eq('card_id', card.id)
-        .order('created_at', { ascending: false });
-      if (comRows?.length) {
-        const autorIds = [...new Set(comRows.map((c) => c.autor_id).filter(Boolean))] as string[];
-        let nomePorId = new Map<string, string>();
-        if (autorIds.length > 0) {
-          const { data: profs } = await supabase2.from('profiles').select('id, full_name').in('id', autorIds);
-          nomePorId = new Map((profs ?? []).map((p) => [p.id, (p.full_name as string | null)?.trim() || '']));
-        }
-        const anexosRes = await listarAnexosComentariosKanbanCard(card.id);
-        const anexos = anexosRes.ok ? anexosRes.items : [];
-        setComentariosCard(mapComentariosCardRows(comRows, nomePorId, anexos));
-      } else {
-        setComentariosCard([]);
-      }
+      setComentariosCard(await carregarComentariosCardModal(card.id));
     } catch (err) {
       alert(`Exceção inesperada: ${String((err as Error)?.message ?? err)}`);
     } finally {
@@ -2177,31 +2192,7 @@ export function KanbanCardModal({
       setEditingComentarioId(null);
       setEditComentarioDraft('');
       if (comentarioEdicaoRef.current) comentarioEdicaoRef.current.innerHTML = '';
-      const supabase2 = createClient();
-      const { data: comRows } = await supabase2
-        .from('kanban_card_comentarios')
-        .select('id, conteudo, created_at, autor_id')
-        .eq('card_id', card.id)
-        .order('created_at', { ascending: false });
-      if (comRows?.length) {
-        const autorIds = [...new Set(comRows.map((c) => c.autor_id).filter(Boolean))] as string[];
-        let nomePorId = new Map<string, string>();
-        if (autorIds.length > 0) {
-          const { data: profs } = await supabase2.from('profiles').select('id, full_name').in('id', autorIds);
-          nomePorId = new Map((profs ?? []).map((p) => [p.id, (p.full_name as string | null)?.trim() || '']));
-        }
-        setComentariosCard(
-          comRows.map((c) => ({
-            id: String(c.id),
-            conteudo: String((c as { conteudo?: string | null }).conteudo ?? ''),
-            created_at: String(c.created_at),
-            autor_id: c.autor_id ? String(c.autor_id) : null,
-            autor_nome: c.autor_id ? nomePorId.get(String(c.autor_id)) ?? null : null,
-          })),
-        );
-      } else {
-        setComentariosCard([]);
-      }
+      setComentariosCard(await carregarComentariosCardModal(card.id));
     } catch {
       alert('Erro ao editar comentário.');
     } finally {
@@ -2547,13 +2538,20 @@ export function KanbanCardModal({
     const f = e.target.files?.[0];
     e.target.value = '';
     const pid = modalDetalhes.processo?.id;
-    if (!f || !pid) return;
+    const cid = card?.id;
+    if (!f || !cid) return;
     setUploadingNegocioAnexo(field);
+    const pathKey =
+      field === 'opcao_permuta'
+        ? 'anexo_opcao_permuta_path'
+        : field === 'contrato_permuta'
+          ? 'anexo_contrato_permuta_path'
+          : 'anexo_seguro_garantia_path';
     try {
       const fd = new FormData();
       fd.append('file', f);
-      fd.append('processoId', pid);
-      fd.append('cardOrigemId', card?.id ?? pid);
+      if (pid) fd.append('processoId', pid);
+      fd.append('cardOrigemId', cid);
       fd.append('field', field);
       fd.append('basePath', basePath);
       const r = await uploadProcessoNegocioAnexo(fd);
@@ -2561,8 +2559,17 @@ export function KanbanCardModal({
         alert(r.error);
         return;
       }
+      if (r.path) {
+        setModalDetalhes((prev) =>
+          prev.processo
+            ? {
+                ...prev,
+                processo: { ...prev.processo, [pathKey]: r.path! },
+              }
+            : prev,
+        );
+      }
       await loadCard();
-      router.refresh();
     } catch {
       alert('Erro ao enviar anexo.');
     } finally {
@@ -2904,6 +2911,8 @@ export function KanbanCardModal({
 
   const faseSlugHipoteses = faseAtual?.slug?.trim() ?? '';
   const isFaseHipoteses = isHipotesesFaseSlug(faseSlugHipoteses);
+  const isFaseDadosCondominios =
+    !isLegado && kanbanNome === 'Funil Step One' && isDadosCondominiosFaseSlug(faseSlugHipoteses);
   const exibirEnviarHipotesePortfolio =
     !isLegado && kanbanNome === 'Funil Step One' && isFaseHipoteses;
 
@@ -3094,21 +3103,23 @@ export function KanbanCardModal({
     label: string,
     field: ProcessoNegocioAnexoCampo,
     path: string | null | undefined,
-    inputRef: React.Ref<HTMLInputElement>,
   ) {
     if (!proc?.id) return null;
+    const inputId = `negocio-anexo-${field}`;
     const uploading = uploadingNegocioAnexo === field;
     const canAnexar = modalSessao.ehAdminOuTeam;
-    const fileInputRef = inputRef as React.RefObject<HTMLInputElement | null>;
+    const anexoBtnClass =
+      'inline-flex cursor-pointer items-center rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50';
     return (
       <div>
         <p className="text-[11px] font-medium text-stone-500">{label}</p>
         <input
-          ref={inputRef as React.Ref<HTMLInputElement>}
+          id={inputId}
           type="file"
-          className="hidden"
+          className="sr-only"
           onChange={(e) => void handleNegocioAnexoFile(e, field)}
-          accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf"
+          accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,image/*"
+          disabled={uploading}
         />
         <div className="mt-0.5 flex flex-wrap items-center gap-2">
           {path?.trim() ? (
@@ -3121,25 +3132,15 @@ export function KanbanCardModal({
                 Baixar
               </button>
               {canAnexar ? (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
+                <label htmlFor={inputId} className={anexoBtnClass}>
                   {uploading ? 'Enviando…' : 'Substituir'}
-                </button>
+                </label>
               ) : null}
             </>
           ) : canAnexar ? (
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
+            <label htmlFor={inputId} className={anexoBtnClass}>
               {uploading ? 'Enviando…' : 'Anexar'}
-            </button>
+            </label>
           ) : (
             <span className="text-[11px] text-stone-500">—</span>
           )}
@@ -3148,113 +3149,101 @@ export function KanbanCardModal({
     );
   }
 
-  const dadosNegocioLinksEAnexosView = proc ? (
-    <div className="space-y-2 border-t border-stone-100 pt-2">
-      {renderNegocioAnexoCampo(
-        'Opção de Permuta',
-        'opcao_permuta',
-        proc.anexo_opcao_permuta_path,
-        negocioOpcaoPermutaRef,
-      )}
-      {renderNegocioLinkCampo('BCA', proc.link_bca)}
-      {renderNegocioLinkCampo('Gbox', proc.link_gbox)}
-      {renderNegocioLinkCampo('Mapa de Competidores', proc.link_mapa_competidores)}
-      {renderNegocioLinkCampo('Acoplamento', proc.link_acoplamento)}
-      {renderNegocioLinkCampo('Apresentação do Comitê', proc.link_apresentacao_comite)}
-      {renderNegocioAnexoCampo(
-        'Contrato de Permuta',
-        'contrato_permuta',
-        proc.anexo_contrato_permuta_path,
-        negocioContratoPermutaRef,
-      )}
-      {renderNegocioAnexoCampo(
-        'Seguro garantia',
-        'seguro_garantia',
-        proc.anexo_seguro_garantia_path,
-        negocioSeguroGarantiaRef,
-      )}
-      {renderNegocioLinkComComentarios(
-        'Moní Capital — seguro garantia',
-        proc.link_moni_capital_seguro_garantia,
-        proc.comentario_moni_capital_seguro_garantia,
-      )}
-      {renderNegocioLinkComComentarios(
-        'Moní Capital — gastos de Aporte Inicial',
-        proc.link_moni_capital_gastos_aporte_inicial,
-        proc.comentario_moni_capital_gastos_aporte_inicial,
-      )}
-    </div>
-  ) : null;
-
-  const dadosNegocioLinksEAnexosEdit = proc ? (
-    <div className="space-y-2 border-t border-stone-100 pt-2">
-      {renderNegocioAnexoCampo(
-        'Opção de Permuta',
-        'opcao_permuta',
-        proc.anexo_opcao_permuta_path,
-        negocioOpcaoPermutaRef,
-      )}
-      {renderNegocioLinkCampo('BCA', proc.link_bca, {
-        value: negocioDraft.link_bca,
-        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_bca: v })),
-      })}
-      {renderNegocioLinkCampo('Gbox', proc.link_gbox, {
-        value: negocioDraft.link_gbox,
-        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_gbox: v })),
-        onBlur: (v) => void sincronizarLinkNegocioAoBlur('gbox', v),
-      })}
-      {renderNegocioLinkCampo('Mapa de Competidores', proc.link_mapa_competidores, {
-        value: negocioDraft.link_mapa_competidores,
-        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_mapa_competidores: v })),
-      })}
-      {renderNegocioLinkCampo('Acoplamento', proc.link_acoplamento, {
-        value: negocioDraft.link_acoplamento,
-        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_acoplamento: v })),
-        onBlur: (v) => void sincronizarLinkNegocioAoBlur('acoplamento', v),
-      })}
-      {renderNegocioLinkCampo('Apresentação do Comitê', proc.link_apresentacao_comite, {
-        value: negocioDraft.link_apresentacao_comite,
-        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_apresentacao_comite: v })),
-      })}
-      {renderNegocioAnexoCampo(
-        'Contrato de Permuta',
-        'contrato_permuta',
-        proc.anexo_contrato_permuta_path,
-        negocioContratoPermutaRef,
-      )}
-      {renderNegocioAnexoCampo(
-        'Seguro garantia',
-        'seguro_garantia',
-        proc.anexo_seguro_garantia_path,
-        negocioSeguroGarantiaRef,
-      )}
-      {renderNegocioLinkComComentarios(
-        'Moní Capital — seguro garantia',
-        proc.link_moni_capital_seguro_garantia,
-        proc.comentario_moni_capital_seguro_garantia,
-        {
-          linkValue: negocioDraft.link_moni_capital_seguro_garantia,
-          comentarioValue: negocioDraft.comentario_moni_capital_seguro_garantia,
-          onLinkChange: (v) => setNegocioDraft((d) => ({ ...d, link_moni_capital_seguro_garantia: v })),
-          onComentarioChange: (v) =>
-            setNegocioDraft((d) => ({ ...d, comentario_moni_capital_seguro_garantia: v })),
-        },
-      )}
-      {renderNegocioLinkComComentarios(
-        'Moní Capital — gastos de Aporte Inicial',
-        proc.link_moni_capital_gastos_aporte_inicial,
-        proc.comentario_moni_capital_gastos_aporte_inicial,
-        {
-          linkValue: negocioDraft.link_moni_capital_gastos_aporte_inicial,
-          comentarioValue: negocioDraft.comentario_moni_capital_gastos_aporte_inicial,
-          onLinkChange: (v) =>
-            setNegocioDraft((d) => ({ ...d, link_moni_capital_gastos_aporte_inicial: v })),
-          onComentarioChange: (v) =>
-            setNegocioDraft((d) => ({ ...d, comentario_moni_capital_gastos_aporte_inicial: v })),
-        },
-      )}
-    </div>
-  ) : null;
+  function renderDadosNegocioLinksEAnexos(editMode: boolean) {
+    if (!proc) return null;
+    return (
+      <div className="space-y-2 border-t border-stone-100 pt-2">
+        {renderNegocioAnexoCampo('Opção de Permuta', 'opcao_permuta', proc.anexo_opcao_permuta_path)}
+        {renderNegocioLinkCampo(
+          'BCA',
+          proc.link_bca,
+          editMode
+            ? {
+                value: negocioDraft.link_bca,
+                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_bca: v })),
+              }
+            : undefined,
+        )}
+        {renderNegocioLinkCampo(
+          'Gbox',
+          proc.link_gbox,
+          editMode
+            ? {
+                value: negocioDraft.link_gbox,
+                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_gbox: v })),
+                onBlur: (v) => void sincronizarLinkNegocioAoBlur('gbox', v),
+              }
+            : undefined,
+        )}
+        {renderNegocioLinkCampo(
+          'Mapa de Competidores',
+          proc.link_mapa_competidores,
+          editMode
+            ? {
+                value: negocioDraft.link_mapa_competidores,
+                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_mapa_competidores: v })),
+              }
+            : undefined,
+        )}
+        {renderNegocioLinkCampo(
+          'Acoplamento',
+          proc.link_acoplamento,
+          editMode
+            ? {
+                value: negocioDraft.link_acoplamento,
+                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_acoplamento: v })),
+                onBlur: (v) => void sincronizarLinkNegocioAoBlur('acoplamento', v),
+              }
+            : undefined,
+        )}
+        {renderNegocioLinkCampo(
+          'Apresentação do Comitê',
+          proc.link_apresentacao_comite,
+          editMode
+            ? {
+                value: negocioDraft.link_apresentacao_comite,
+                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_apresentacao_comite: v })),
+              }
+            : undefined,
+        )}
+        {renderNegocioAnexoCampo(
+          'Contrato de Permuta',
+          'contrato_permuta',
+          proc.anexo_contrato_permuta_path,
+        )}
+        {renderNegocioAnexoCampo('Seguro garantia', 'seguro_garantia', proc.anexo_seguro_garantia_path)}
+        {renderNegocioLinkComComentarios(
+          'Moní Capital — seguro garantia',
+          proc.link_moni_capital_seguro_garantia,
+          proc.comentario_moni_capital_seguro_garantia,
+          editMode
+            ? {
+                linkValue: negocioDraft.link_moni_capital_seguro_garantia,
+                comentarioValue: negocioDraft.comentario_moni_capital_seguro_garantia,
+                onLinkChange: (v) => setNegocioDraft((d) => ({ ...d, link_moni_capital_seguro_garantia: v })),
+                onComentarioChange: (v) =>
+                  setNegocioDraft((d) => ({ ...d, comentario_moni_capital_seguro_garantia: v })),
+              }
+            : undefined,
+        )}
+        {renderNegocioLinkComComentarios(
+          'Moní Capital — gastos de Aporte Inicial',
+          proc.link_moni_capital_gastos_aporte_inicial,
+          proc.comentario_moni_capital_gastos_aporte_inicial,
+          editMode
+            ? {
+                linkValue: negocioDraft.link_moni_capital_gastos_aporte_inicial,
+                comentarioValue: negocioDraft.comentario_moni_capital_gastos_aporte_inicial,
+                onLinkChange: (v) =>
+                  setNegocioDraft((d) => ({ ...d, link_moni_capital_gastos_aporte_inicial: v })),
+                onComentarioChange: (v) =>
+                  setNegocioDraft((d) => ({ ...d, comentario_moni_capital_gastos_aporte_inicial: v })),
+              }
+            : undefined,
+        )}
+      </div>
+    );
+  }
 
   function abrirEdicaoNegocio() {
     if (!proc) return;
@@ -4600,12 +4589,33 @@ export function KanbanCardModal({
                         exibirLinkPublico
                       />
                     ) : null}
+
                     <FaseChecklistCard
                       faseId={faseChecklistFaseId}
+                      faseSlug={faseSlugAtual}
                       cardId={card.id}
                       isFrank={portalFrank}
                       isAdmin={isAdmin}
                       ocultarVazio={exibirChecklistLegalCondominio}
+                      condominioContext={
+                        !isFaseDadosCondominios
+                          ? {
+                              origem,
+                              basePath,
+                              condominioId: card.condominio_id ?? proc?.condominio_id ?? null,
+                              quadra: card.quadra ?? proc?.quadra ?? null,
+                              lote: card.lote ?? proc?.lote ?? null,
+                              nomeCondominioLegado: card.nome_condominio ?? proc?.nome_condominio ?? null,
+                              podeEditar: !ocultarGestaoCard && modalSessao.ehAdminOuTeam,
+                              podeCadastrarNovo: !ocultarGestaoCard && modalSessao.ehAdminOuTeam,
+                              onSalvo: () => {
+                                setCondominioTick((t) => t + 1);
+                                void loadCard();
+                                router.refresh();
+                              },
+                            }
+                          : undefined
+                      }
                     />
                   </div>
                 )}
@@ -5573,27 +5583,28 @@ export function KanbanCardModal({
                 </div>
               </div>,
             )}
-            {secaoHead(
-              'condominio',
-              'Dados do Condomínio',
-              <KanbanCardModalCondominio
-                key={`${card.id}-cond-${condominioTick}`}
-                cardId={card.id}
-                origem={origem}
-                basePath={basePath}
-                condominioIdInicial={card.condominio_id ?? proc?.condominio_id ?? null}
-                quadraInicial={card.quadra ?? proc?.quadra ?? null}
-                loteInicial={card.lote ?? proc?.lote ?? null}
-                nomeCondominioLegado={card.nome_condominio ?? proc?.nome_condominio ?? null}
-                podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
-                podeCadastrarNovo={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
-                onSalvo={() => {
-                  setCondominioTick((t) => t + 1);
-                  void loadCard();
-                  router.refresh();
-                }}
-              />,
-            )}
+            {!isFaseDadosCondominios &&
+              secaoHead(
+                'condominio',
+                'Dados do Condomínio',
+                <KanbanCardModalCondominio
+                  key={`${card.id}-cond-${condominioTick}`}
+                  cardId={card.id}
+                  origem={origem}
+                  basePath={basePath}
+                  condominioIdInicial={card.condominio_id ?? proc?.condominio_id ?? null}
+                  quadraInicial={card.quadra ?? proc?.quadra ?? null}
+                  loteInicial={card.lote ?? proc?.lote ?? null}
+                  nomeCondominioLegado={card.nome_condominio ?? proc?.nome_condominio ?? null}
+                  podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                  podeCadastrarNovo={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                  onSalvo={() => {
+                    setCondominioTick((t) => t + 1);
+                    void loadCard();
+                    router.refresh();
+                  }}
+                />,
+              )}
             {secaoHead(
               'novoNegocio',
               'Dados do Negócio',
@@ -5654,7 +5665,7 @@ export function KanbanCardModal({
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                       />
                     </label>
-                    {dadosNegocioLinksEAnexosEdit}
+                    {renderDadosNegocioLinksEAnexos(true)}
                     <div className="flex gap-2 pt-1">
                       <button
                         onClick={() => void handleSalvarNegocio()}
@@ -5713,7 +5724,7 @@ export function KanbanCardModal({
                         <div className="text-xs text-stone-800">—</div>
                       </div>
                     </div>
-                    {dadosNegocioLinksEAnexosView}
+                    {renderDadosNegocioLinksEAnexos(false)}
                     {modalSessao.ehAdminOuTeam && (
                       <button
                         type="button"

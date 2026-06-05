@@ -11,6 +11,93 @@ import { createClient } from '@/lib/supabase/server';
 
 export type KanbanComentarioActionResult = { ok: true; comentarioId: string } | { ok: false; error: string };
 
+export type KanbanComentarioListItem = {
+  id: string;
+  conteudo: string;
+  created_at: string;
+  autor_id: string | null;
+  autor_nome: string | null;
+};
+
+type ComentarioDbRow = {
+  id: string;
+  conteudo?: string | null;
+  texto?: string | null;
+  created_at: string;
+  autor_id?: string | null;
+  autor_nome?: string | null;
+};
+
+function mapComentarioDbRow(
+  row: ComentarioDbRow,
+  nomePorId: Map<string, string>,
+): KanbanComentarioListItem {
+  const autorId = row.autor_id ? String(row.autor_id) : null;
+  const nomeSalvo = String(row.autor_nome ?? '').trim();
+  const nomeResolvido = autorId ? nomePorId.get(autorId)?.trim() : undefined;
+  return {
+    id: String(row.id),
+    conteudo: String(row.conteudo ?? row.texto ?? ''),
+    created_at: String(row.created_at),
+    autor_id: autorId,
+    autor_nome: nomeSalvo || nomeResolvido || null,
+  };
+}
+
+async function resolverNomesAutoresComentarios(
+  db: Awaited<ReturnType<typeof dbParaMencoes>>,
+  rows: ComentarioDbRow[],
+): Promise<Map<string, string>> {
+  const ids = [
+    ...new Set(
+      rows
+        .filter((r) => r.autor_id && !String(r.autor_nome ?? '').trim())
+        .map((r) => String(r.autor_id)),
+    ),
+  ];
+  const nomePorId = new Map<string, string>();
+  if (ids.length === 0) return nomePorId;
+
+  const { data: profs } = await db.from('profiles').select('id, full_name, email').in('id', ids);
+  for (const p of profs ?? []) {
+    const id = String(p.id);
+    const nome =
+      String((p as { full_name?: string | null }).full_name ?? '').trim() ||
+      String((p as { email?: string | null }).email ?? '').split('@')[0]?.trim() ||
+      '';
+    if (nome) nomePorId.set(id, nome);
+  }
+  return nomePorId;
+}
+
+/** Lista comentários do card com nomes de autor (service role contorna RLS de profiles). */
+export async function listarComentariosKanbanCard(
+  cardId: string,
+): Promise<{ ok: true; items: KanbanComentarioListItem[] } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const id = String(cardId ?? '').trim();
+  if (!id) return { ok: false, error: 'Card inválido.' };
+
+  const { data: rows, error } = await supabase
+    .from('kanban_card_comentarios')
+    .select('id, conteudo, texto, created_at, autor_id, autor_nome')
+    .eq('card_id', id)
+    .order('created_at', { ascending: false });
+
+  if (error) return { ok: false, error: error.message };
+
+  const db = await dbParaMencoes(supabase);
+  const nomePorId = await resolverNomesAutoresComentarios(db, (rows ?? []) as ComentarioDbRow[]);
+  const items = ((rows ?? []) as ComentarioDbRow[]).map((r) => mapComentarioDbRow(r, nomePorId));
+
+  return { ok: true, items };
+}
+
 async function dbParaMencoes(supabase: Awaited<ReturnType<typeof createClient>>) {
   try {
     const { createAdminClient } = await import('@/lib/supabase/admin');
@@ -136,26 +223,30 @@ export async function publicarComentarioKanbanCard(input: {
   const perfis = await buscarPerfisPorNomesMencionados(supabase, nomesMencionados);
   const mencoesIds = extrairIdsMencoes(plain, perfis);
 
+  const db = await dbParaMencoes(supabase);
+  const { data: profAutor } = await db
+    .from('profiles')
+    .select('full_name, email')
+    .eq('id', user.id)
+    .maybeSingle();
+  const autorNomePersist =
+    String((profAutor as { full_name?: string | null } | null)?.full_name ?? '').trim() ||
+    user.email?.split('@')[0]?.trim() ||
+    null;
+  const autorNome = autorNomePersist || 'Alguém';
+
   const { data: comentario, error: insErr } = await supabase
     .from('kanban_card_comentarios')
     .insert({
       card_id: cardId,
       autor_id: user.id,
       conteudo,
+      autor_nome: autorNomePersist,
     })
     .select('id')
     .single();
 
   if (insErr) return { ok: false, error: insErr.message };
-
-  const { data: profAutor } = await supabase
-    .from('profiles')
-    .select('full_name')
-    .eq('id', user.id)
-    .maybeSingle();
-  const autorNome =
-    String((profAutor as { full_name?: string | null } | null)?.full_name ?? '').trim() ||
-    'Alguém';
 
   const { titulo: cardTitulo, kanbanNome } = await resolverCardParaNotificacao(supabase, cardId);
   const basePath = input.basePath?.trim() || '/';

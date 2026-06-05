@@ -19,6 +19,8 @@ export type FaseChecklistItem = {
     | 'data'
     | 'hora'
     | 'tabela'
+    | 'condominio'
+    | 'pesquisa_condominio'
     | 'url';
   obrigatorio: boolean;
   visivel_candidato: boolean;

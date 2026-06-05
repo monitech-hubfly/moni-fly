@@ -85,22 +85,26 @@ Use a estrutura de abas da **Planilha Step One** (seção **Documentos**) ou o t
     id: 'batalha-casas',
     titulo: 'Batalha de casas',
     descricaoCurta:
-      'Pontuação em Localização, Preço e Produto vs. cada concorrente. Meta: estar no TOP 2 do ranking do condomínio.',
+      'Pontuação em Atributos do Lote, Preço e Produto vs. cada concorrente. Meta: estar no Giro na faixa de valor escolhida.',
     tags: ['Score', 'Ranking', 'Step 2'],
     icon: 'batalha',
     iconBgClass: 'bg-violet-100',
     iconColorClass: 'text-violet-800',
     conteudoExplicativoMd: `## O que resolve
 
-A **batalha de casas** compara o produto Moní contra cada concorrente relevante em três eixos: **Atributos do Lote**, **Preço** (4 sub-itens) e **Produto** (7 sub-itens).
+A **batalha de casas** compara o produto Moní contra cada concorrente relevante em três eixos: **Atributos do Lote**, **Preço** (D/E/I/P) e **Produto** (T+A+Q+B+V+D+I).
+
+## Fluxo resumido
+
+Mapa → Pré-Batalha (só Lote + Produto) → Configurador + BCA → Batalha completa → Tese de vendas.
 
 ## Meta operacional
 
-Estar no **Giro** do condomínio na faixa de valor escolhida. Regra: posição ≤ giro → vende; posição > giro → não vende no prazo esperado.
+Estar no **Giro** do condomínio na faixa de valor escolhida. Posição ≤ giro → vende; posição > giro → não vende no prazo esperado.
 
 ## Guia completo
 
-O passo a passo com escala -3 a +2, checklists, fórmulas e tese de vendas está no guia interativo (botão abaixo).
+Escala -3 a +2, pré-preenchimento de atributos (Lotes Disponíveis), custo do Configurador, ranking G/E/P e tese — no guia interativo (botão abaixo).
 
 ## Armadilhas comuns
 

@@ -2,7 +2,14 @@
 
 import { revalidatePath } from 'next/cache';
 import { condominioFormDraftToPatch, type CondominioFormDraft } from '@/lib/condominios-form';
-import { condominioNomeJaExiste, fetchCondominiosRows, type CondominioRow } from '@/lib/condominios';
+import {
+  condominioNomeJaExiste,
+  fetchCondominiosRows,
+  parseDecimalInput,
+  parseIntegerInput,
+  type CondominioRow,
+} from '@/lib/condominios';
+import { normalizeAccessRole } from '@/lib/authz';
 import { propagarCamposKanbanCards, propagarCamposProcesso } from '@/lib/kanban/card-sync-group';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
@@ -13,6 +20,114 @@ export async function listarCondominiosCadastro(): Promise<CondominioRow[]> {
   const supabase = await createClient();
   const rows = await fetchCondominiosRows(supabase);
   return rows ?? [];
+}
+
+async function requireCondominiosStaff(): Promise<
+  | { ok: true; supabase: Awaited<ReturnType<typeof createClient>>; userId: string }
+  | { ok: false; error: string }
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const access = normalizeAccessRole((profile as { role?: string } | null)?.role);
+  if (access !== 'admin' && access !== 'team') {
+    return { ok: false, error: 'Apenas administradores ou time podem atualizar o cadastro de condomínios.' };
+  }
+  return { ok: true, supabase, userId: user.id };
+}
+
+/** Cria ou atualiza condomínio no cadastro a partir de uma linha da Tabela de Condomínios. */
+export async function sincronizarProspectComCadastro(input: {
+  condominioId?: string | null;
+  nome: string;
+  ticket_lote: string;
+  ticket_casas: string;
+  ticket_m2: string;
+  estimativa_giro?: string;
+  /** true = dados iguais ao cadastro (concordância); false = persistir alterações. */
+  apenasConfirmar?: boolean;
+}): Promise<KanbanCondominioActionResult & { condominioId?: string }> {
+  const gate = await requireCondominiosStaff();
+  if (!gate.ok) return gate;
+
+  const nome = String(input.nome ?? '').trim();
+  if (!nome) return { ok: false, error: 'Informe o nome do condomínio.' };
+
+  const patch = {
+    nome,
+    ticket_medio_lote: parseDecimalInput(input.ticket_lote),
+    ticket_medio_casas: parseDecimalInput(input.ticket_casas),
+    ticket_medio_casas_rsm2: parseDecimalInput(input.ticket_m2),
+    estimativa_casas_vendidas_ano: parseIntegerInput(input.estimativa_giro ?? ''),
+  };
+
+  const condominioId = String(input.condominioId ?? '').trim();
+
+  if (condominioId) {
+    const { data: existente, error: errExist } = await gate.supabase
+      .from('condominios')
+      .select('id, nome')
+      .eq('id', condominioId)
+      .maybeSingle();
+    if (errExist || !existente) return { ok: false, error: 'Condomínio não encontrado no cadastro.' };
+
+    if (input.apenasConfirmar) {
+      return { ok: true, condominioId };
+    }
+
+    if (patch.nome && (await condominioNomeJaExiste(gate.supabase, patch.nome, condominioId))) {
+      return { ok: false, error: 'Já existe outro condomínio cadastrado com este nome.' };
+    }
+
+    const { error } = await gate.supabase
+      .from('condominios')
+      .update({
+        nome: patch.nome,
+        ticket_medio_lote: patch.ticket_medio_lote,
+        ticket_medio_casas: patch.ticket_medio_casas,
+        ticket_medio_casas_rsm2: patch.ticket_medio_casas_rsm2,
+        estimativa_casas_vendidas_ano: patch.estimativa_casas_vendidas_ano,
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq('id', condominioId);
+    if (error) return { ok: false, error: error.message };
+    revalidatePath('/rede-franqueados');
+    return { ok: true, condominioId };
+  }
+
+  if (await condominioNomeJaExiste(gate.supabase, nome)) {
+    return { ok: false, error: 'Condomínio já existe — selecione-o na lista em vez de cadastrar de novo.' };
+  }
+
+  const { data: ins, error: insErr } = await gate.supabase
+    .from('condominios')
+    .insert({
+      nome: patch.nome,
+      ticket_medio_lote: patch.ticket_medio_lote,
+      ticket_medio_casas: patch.ticket_medio_casas,
+      ticket_medio_casas_rsm2: patch.ticket_medio_casas_rsm2,
+      estimativa_casas_vendidas_ano: patch.estimativa_casas_vendidas_ano,
+      criado_por: gate.userId,
+      updated_at: new Date().toISOString(),
+    } as never)
+    .select('id')
+    .single();
+
+  if (insErr) {
+    const msg = insErr.message.toLowerCase();
+    if (msg.includes('duplicate') || msg.includes('unique')) {
+      return { ok: false, error: 'Já existe um condomínio cadastrado com este nome.' };
+    }
+    return { ok: false, error: insErr.message };
+  }
+
+  const novoId = String((ins as { id?: string } | null)?.id ?? '').trim();
+  if (!novoId) return { ok: false, error: 'Condomínio criado sem ID.' };
+  revalidatePath('/rede-franqueados');
+  return { ok: true, condominioId: novoId };
 }
 
 async function nomeCondominioJaExiste(
@@ -115,6 +230,8 @@ export async function cadastrarCondominioEVincularCard(input: {
     ticket_medio_casas: patch.ticket_medio_casas ?? null,
     ticket_medio_casas_rsm2: patch.ticket_medio_casas_rsm2 ?? null,
     estimativa_casas_vendidas_ano: patch.estimativa_casas_vendidas_ano ?? null,
+    extrato_como_eram_casas: patch.extrato_como_eram_casas ?? null,
+    extrato_tempo_venda: patch.extrato_tempo_venda ?? null,
     criado_por: user.id,
     updated_at: new Date().toISOString(),
   };

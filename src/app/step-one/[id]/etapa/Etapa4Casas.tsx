@@ -10,6 +10,7 @@ import {
   saveCasasEscolhidasEtapa5,
   saveBatalhaCasasEtapa5,
   saveScoreBatalhaPdfUrl,
+  getAtributosLoteFromStepOneChecklist,
   type BatalhaCasaRow,
 } from './actions';
 import {
@@ -22,13 +23,12 @@ import {
   ATRIBUTOS_LOTE,
   notaAtributosLote,
   notaFinalBatalha,
+  notaFinalPreBatalha,
   type AtributosLoteRespostas,
   CATEGORIAS_REFORMA,
   valorInvestimento,
-  notaEsforco,
-  notaIncertezaPreco,
-  notaPrecoPorPercentual,
-  notaPrecoPonderada,
+  calcularNotaPrecoComChecklist,
+  type CatalogoPrecoRef,
   notaTamanhoM2,
   notaQuartos,
   notaBanheiros,
@@ -103,8 +103,10 @@ export function Etapa4Casas(props: {
   resultadoPortalTargetId?: string;
   /** Step 1 — apenas listagem (sem modelo/batalha). Step 2 usa false. */
   listagemOnly?: boolean;
+  modoPreBatalha?: boolean;
   /** URL do PDF Score & Batalha já armazenado na etapa 7 (etapa 6). */
   pdfScoreBatalhaUrl?: string | null;
+  custosConstrucaoChecklist?: Record<number, number | null>;
 }) {
   const {
     processoId,
@@ -117,7 +119,9 @@ export function Etapa4Casas(props: {
     batalhasIniciais,
     resultadoPortalTargetId,
     listagemOnly = false,
+    modoPreBatalha = false,
     pdfScoreBatalhaUrl = null,
+    custosConstrucaoChecklist = {},
   } = props;
   const casasManuais = useMemo(() => casas.filter((c) => c.manual === true), [casas]);
   const precisaAlertaValidacao = useMemo(() => {
@@ -305,6 +309,41 @@ export function Etapa4Casas(props: {
   };
 
   const [openAtributosKey, setOpenAtributosKey] = useState<string | null>(null);
+  const stepOneAtributosCacheRef = useRef<AtributosLoteRespostas | null | undefined>(undefined);
+  const [prefillingAtributosKey, setPrefillingAtributosKey] = useState<string | null>(null);
+
+  const isAtributosLoteEmpty = (resp: AtributosLoteRespostas | undefined): boolean => {
+    if (resp === undefined) return true;
+    return !ATRIBUTOS_LOTE.some((a) => resp[a.id] === true);
+  };
+
+  const handleOpenAtributosLote = async (key: string) => {
+    if (openAtributosKey === key) {
+      setOpenAtributosKey(null);
+      return;
+    }
+    setOpenAtributosKey(key);
+    if (!isAtributosLoteEmpty(atributosLoteByKey[key])) return;
+
+    setPrefillingAtributosKey(key);
+    try {
+      if (stepOneAtributosCacheRef.current === undefined) {
+        const result = await getAtributosLoteFromStepOneChecklist(processoId);
+        stepOneAtributosCacheRef.current = result.ok ? result.atributos : {};
+      }
+      const prefill = stepOneAtributosCacheRef.current;
+      setAtributosLoteByKey((prev) => {
+        if (!isAtributosLoteEmpty(prev[key])) return prev;
+        if (prefill && Object.keys(prefill).length > 0) {
+          return { ...prev, [key]: { ...prefill } };
+        }
+        return { ...prev, [key]: prev[key] ?? {} };
+      });
+    } finally {
+      setPrefillingAtributosKey(null);
+    }
+  };
+
   /** Checklist de reforma: um por listagem (listing_id). Alimenta os 4 sub-itens de Preço. */
   const [reformaChecklistByListingId, setReformaChecklistByListingId] = useState<
     Record<string, ChecklistReforma>
@@ -314,6 +353,18 @@ export function Etapa4Casas(props: {
       const preco = b.preco_dados_json as { checklist?: ChecklistReforma } | undefined;
       if (preco?.checklist && typeof preco.checklist === 'object') {
         obj[b.listing_id] = preco.checklist;
+      }
+    });
+    return obj;
+  });
+  const [custoConstrucaoByCasaEscolhidaId, setCustoConstrucaoByCasaEscolhidaId] = useState<
+    Record<string, number | null | undefined>
+  >(() => {
+    const obj: Record<string, number | null | undefined> = {};
+    batalhasIniciais.forEach((b) => {
+      const preco = b.preco_dados_json as { custo_construcao?: number } | undefined;
+      if (preco?.custo_construcao != null && obj[b.casa_escolhida_id] === undefined) {
+        obj[b.casa_escolhida_id] = preco.custo_construcao;
       }
     });
     return obj;
@@ -352,39 +403,19 @@ export function Etapa4Casas(props: {
   const [openPrecoKey, setOpenPrecoKey] = useState<string | null>(null);
   const [openProdutoKey, setOpenProdutoKey] = useState<string | null>(null);
 
-  /** Valor da nossa casa (modelo) para comparação de preço. */
-  const getValorNossaCasa = (ce: (typeof escolhidasComDados)[0]): number | null => {
-    const cat = ce.catalogoRow as {
-      preco_venda?: number | null;
-      preco_venda_m2?: number | null;
-      area_m2?: number | null;
-    };
-    if (cat.preco_venda != null && Number.isFinite(cat.preco_venda)) return cat.preco_venda;
-    if (cat.preco_venda_m2 != null && cat.area_m2 != null && cat.area_m2 > 0)
-      return cat.preco_venda_m2 * cat.area_m2;
-    return null;
-  };
+  const getCustoConstrucaoModelo = (
+    ce: (typeof escolhidasComDados)[0],
+  ): number | null | undefined => custoConstrucaoByCasaEscolhidaId[ce.id];
 
   /** Nota Preço: se houver checklist de reforma para a listagem, usa 4 sub-itens; senão usa fórmula antiga (preço/m²). */
   const getNotaPrecoCompleta = (ce: (typeof escolhidasComDados)[0], listing: CasaRow): number => {
     const checklist = reformaChecklistByListingId[listing.id];
-    const cat = ce.catalogoRow as {
-      preco_venda_m2: number | null;
-      area_m2?: number | null;
-      preco_venda?: number | null;
-    };
-    const valorNossa = getValorNossaCasa(ce);
+    const cat = ce.catalogoRow as CatalogoPrecoRef & { preco_venda_m2: number | null };
     const valorListing = listing.preco ?? null;
-    if (checklist && valorNossa != null && valorNossa > 0 && valorListing != null) {
-      const inv = valorInvestimento(checklist);
-      const totalComparativo = valorListing + inv;
-      const diffPercDist = (totalComparativo - valorNossa) / valorNossa;
-      const diffPercNominal = (valorListing - valorNossa) / valorNossa;
-      const D = notaPrecoPorPercentual(diffPercDist);
-      const P = notaPrecoPorPercentual(diffPercNominal);
-      const E = notaEsforco(checklist);
-      const I = notaIncertezaPreco(checklist);
-      return notaPrecoPonderada(D, E, I, P);
+    const custo = getCustoConstrucaoModelo(ce);
+    if (checklist && valorListing != null) {
+      const calc = calcularNotaPrecoComChecklist(cat, checklist, valorListing, custo);
+      if (calc) return calc.nota;
     }
     return calcularNotaPreco(cat.preco_venda_m2, listing.preco_m2);
   };
@@ -399,7 +430,7 @@ export function Etapa4Casas(props: {
       vagas: number | null;
       area_m2?: number | null;
     };
-    if (dados.designId != null || dados.idade != null) {
+    if (modoPreBatalha || dados.designId != null || dados.idade != null) {
       const T = notaTamanhoM2(listing.area_casa_m2, cat.area_m2 ?? null);
       const A = notaAmenidades(listing);
       const Q = notaQuartos(cat.quartos, listing.quartos);
@@ -412,6 +443,11 @@ export function Etapa4Casas(props: {
     }
     return calcularNotaProduto(cat, listing);
   };
+
+  const calcNotaFinal = (notaAtrib: number, notaPreco: number, notaProduto: number): number =>
+    modoPreBatalha
+      ? notaFinalPreBatalha(notaAtrib, notaProduto)
+      : notaFinalBatalha(notaAtrib, notaPreco, notaProduto);
 
   /** Cores por modelo (seções de colunas na tabela) */
   const CORES_POR_MODELO = ['bg-sky-50', 'bg-emerald-50', 'bg-amber-50'] as const;
@@ -437,7 +473,7 @@ export function Etapa4Casas(props: {
         const notaAtrib = getNotaAtributosLote(key);
         const notaPreco = getNotaPrecoCompleta(ce, c);
         const notaProduto = getNotaProdutoCompleta(ce, c);
-        const notaFinal = notaFinalBatalha(notaAtrib, notaPreco, notaProduto);
+        const notaFinal = calcNotaFinal(notaAtrib, notaPreco, notaProduto);
         total += notaFinal;
         sumAtributos += notaAtrib;
         sumPreco += notaPreco;
@@ -454,7 +490,7 @@ export function Etapa4Casas(props: {
     scores.sort((a, b) => {
       if (b.pontuacaoTotal !== a.pontuacaoTotal) return b.pontuacaoTotal - a.pontuacaoTotal;
       if (b.sumAtributos !== a.sumAtributos) return b.sumAtributos - a.sumAtributos;
-      if (b.sumPreco !== a.sumPreco) return b.sumPreco - a.sumPreco;
+      if (!modoPreBatalha && b.sumPreco !== a.sumPreco) return b.sumPreco - a.sumPreco;
       return b.sumProduto - a.sumProduto;
     });
     return scores;
@@ -465,6 +501,8 @@ export function Etapa4Casas(props: {
     batalhaByKey,
     reformaChecklistByListingId,
     produtoDadosByKey,
+    custoConstrucaoByCasaEscolhidaId,
+    modoPreBatalha,
   ]);
 
   /** Ranking das casas pela nota final (média entre os modelos). Só entram listagens com Atributos do Lote preenchido. */
@@ -479,11 +517,11 @@ export function Etapa4Casas(props: {
         const notaAtrib = getNotaAtributosLote(key);
         const notaPreco = getNotaPrecoCompleta(ce, c);
         const notaProduto = getNotaProdutoCompleta(ce, c);
-        const notaFinal = notaFinalBatalha(notaAtrib, notaPreco, notaProduto);
+        const notaFinal = calcNotaFinal(notaAtrib, notaPreco, notaProduto);
         if (
           atributosLoteByKey[key] !== undefined ||
           batalhaByKey.get(key)?.nota_localizacao != null ||
-          reformaChecklistByListingId[c.id] !== undefined ||
+          (!modoPreBatalha && reformaChecklistByListingId[c.id] !== undefined) ||
           produtoDadosByKey[key] !== undefined
         ) {
           soma += notaFinal;
@@ -501,12 +539,15 @@ export function Etapa4Casas(props: {
     batalhaByKey,
     reformaChecklistByListingId,
     produtoDadosByKey,
+    custoConstrucaoByCasaEscolhidaId,
+    modoPreBatalha,
   ]);
 
   /** Ranking final por pontuação total = soma das notas finais de cada modelo (para Seção 5). */
   // Mantido apenas se necessário futuramente; atualmente o ranking final detalhado foi removido.
 
   const handleSalvarBatalha = async () => {
+    if (modoPreBatalha) return;
     const rows: BatalhaCasaRow[] = [];
     for (const ce of escolhidasComDados) {
       for (const anuncio of casas) {
@@ -514,34 +555,42 @@ export function Etapa4Casas(props: {
         const respostas = atributosLoteByKey[key];
         const temReforma = reformaChecklistByListingId[anuncio.id] !== undefined;
         const temProduto = produtoDadosByKey[key] !== undefined;
-        if (respostas === undefined && !temReforma && !temProduto) continue;
+        const custoConstrucao = getCustoConstrucaoModelo(ce);
+        const temCustoConstrucao =
+          custoConstrucao != null && Number.isFinite(custoConstrucao) && custoConstrucao > 0;
+        if (respostas === undefined && !temReforma && !temProduto && !temCustoConstrucao) continue;
         const notaAtrib =
           respostas != null
             ? notaAtributosLote(respostas)
             : (batalhaByKey.get(key)?.nota_localizacao ?? 0);
         const notaPreco = getNotaPrecoCompleta(ce, anuncio);
         const notaProduto = getNotaProdutoCompleta(ce, anuncio);
-        const notaFinal = notaFinalBatalha(notaAtrib, notaPreco, notaProduto);
+        const notaFinal = calcNotaFinal(notaAtrib, notaPreco, notaProduto);
         const checklistReforma = reformaChecklistByListingId[anuncio.id];
         let precoDados: Record<string, unknown> | null = null;
+        const catPreco = ce.catalogoRow as CatalogoPrecoRef;
+        const valorListing = anuncio.preco ?? 0;
         if (checklistReforma) {
-          const inv = valorInvestimento(checklistReforma);
-          const valorNossa = getValorNossaCasa(ce);
-          const valorListing = anuncio.preco ?? 0;
-          const totalComp = valorListing + inv;
-          const diffD =
-            valorNossa != null && valorNossa > 0 ? (totalComp - valorNossa) / valorNossa : 0;
-          const diffP =
-            valorNossa != null && valorNossa > 0 ? (valorListing - valorNossa) / valorNossa : 0;
-          precoDados = {
-            checklist: checklistReforma,
-            valor_investimento: inv,
-            D: notaPrecoPorPercentual(diffD),
-            E: notaEsforco(checklistReforma),
-            I: notaIncertezaPreco(checklistReforma),
-            P: notaPrecoPorPercentual(diffP),
-            nota_preco: notaPreco,
-          };
+          const calc = calcularNotaPrecoComChecklist(
+            catPreco,
+            checklistReforma,
+            valorListing,
+            custoConstrucao,
+          );
+          if (calc) {
+            precoDados = {
+              checklist: checklistReforma,
+              valor_investimento: valorInvestimento(checklistReforma),
+              D: calc.D,
+              E: calc.E,
+              I: calc.I,
+              P: calc.P,
+              nota_preco: notaPreco,
+              ...(temCustoConstrucao && { custo_construcao: custoConstrucao }),
+            };
+          }
+        } else if (temCustoConstrucao) {
+          precoDados = { custo_construcao: custoConstrucao };
         }
         const prodDados = produtoDadosByKey[key];
         let produtoDados: Record<string, unknown> | null = null;
@@ -804,7 +853,7 @@ export function Etapa4Casas(props: {
         saved?.nota_localizacao ?? getNotaAtributosLote(key);
       const notaFinal =
         saved?.nota_final ??
-        notaFinalBatalha(notaAtrib, notaPreco, notaProduto);
+        calcNotaFinal(notaAtrib, notaPreco, notaProduto);
 
       const precoJson = saved?.preco_dados_json as Record<string, unknown> | undefined;
       const precoSub: PrecoSubNotas | null =
@@ -1016,11 +1065,23 @@ export function Etapa4Casas(props: {
         {/* Seção 1 — Listagem (+ opcional: escolha dos 3 modelos e batalha) */}
         {casas.length > 0 && (
           <section className="overflow-hidden rounded-xl border border-stone-200">
+            {modoPreBatalha ? (
+              <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2">
+                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-amber-300">
+                  Pré-batalha
+                </span>
+                <span className="text-xs text-amber-900/90">
+                  Somente Produto e Atributos do Lote — notas locais, sem salvar no banco.
+                </span>
+              </div>
+            ) : null}
             {/* Bloco compacto: escolher 3 do catálogo para batalha — só no Step 2 (não listagemOnly) */}
             {!listagemOnly && catalogo.length > 0 && (
               <div className="border-b border-stone-200 bg-stone-50 px-4 py-3">
                 <p className="mb-2 text-sm font-medium text-stone-800">
-                  Escolher até 3 modelos do catálogo para batalhar com a listagem abaixo:
+                  {modoPreBatalha
+                    ? 'Escolha até 3 modelos Moní para ranquear (produto + localização):'
+                    : 'Escolher até 3 modelos do catálogo para batalhar com a listagem abaixo:'}
                 </p>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                   {catalogo.map((mod) => (
@@ -1062,18 +1123,26 @@ export function Etapa4Casas(props: {
                       <button
                         type="button"
                         onClick={handleSalvarBatalha}
-                        className="btn-primary text-sm"
+                        disabled={modoPreBatalha}
+                        title={
+                          modoPreBatalha
+                            ? 'Modo auxiliar pré-batalha: notas só nesta sessão. Use a etapa 6 para salvar a batalha completa.'
+                            : undefined
+                        }
+                        className="btn-primary text-sm disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         Salvar batalha
                       </button>
-                      <button
-                        type="button"
-                        onClick={handleGerarPdf}
-                        disabled={gerandoPdf || pdfRows.length === 0}
-                        className="btn-primary text-sm"
-                      >
-                        {gerandoPdf ? 'Gerando PDF…' : 'Gerar e guardar PDF'}
-                      </button>
+                      {!modoPreBatalha ? (
+                        <button
+                          type="button"
+                          onClick={handleGerarPdf}
+                          disabled={gerandoPdf || pdfRows.length === 0}
+                          className="btn-primary text-sm"
+                        >
+                          {gerandoPdf ? 'Gerando PDF…' : 'Gerar e guardar PDF'}
+                        </button>
+                      ) : null}
                     </>
                   )}
                 </div>
@@ -1107,7 +1176,7 @@ export function Etapa4Casas(props: {
                         return (
                           <th
                             key={ce.id}
-                            colSpan={4}
+                            colSpan={modoPreBatalha ? 3 : 4}
                             className={`border-l border-stone-200 p-2 text-center ${bg} text-stone-800`}
                             title={`Modelo ${ce.ordem}: ${cat.nome ?? ''}`}
                           >
@@ -1124,13 +1193,15 @@ export function Etapa4Casas(props: {
                         const bg = CORES_HEADER_POR_MODELO[idx % CORES_HEADER_POR_MODELO.length];
                         return (
                           <React.Fragment key={ce.id}>
+                            {!modoPreBatalha ? (
+                              <th
+                                className={`border-l border-stone-200 p-1 px-2 text-center ${bg} min-w-[70px] text-xs font-medium`}
+                              >
+                                Nota Preço
+                              </th>
+                            ) : null}
                             <th
-                              className={`border-l border-stone-200 p-1 px-2 text-center ${bg} min-w-[70px] text-xs font-medium`}
-                            >
-                              Nota Preço
-                            </th>
-                            <th
-                              className={`p-1 px-2 text-center ${bg} min-w-[70px] text-xs font-medium`}
+                              className={`min-w-[70px] p-1 px-2 text-center text-xs font-medium ${bg} ${modoPreBatalha ? 'border-l border-stone-200' : ''}`}
                             >
                               Nota Produto
                             </th>
@@ -1250,7 +1321,7 @@ export function Etapa4Casas(props: {
                           const notaAtrib = getNotaAtributosLote(key);
                           const notaPreco = getNotaPrecoCompleta(ce, c);
                           const notaProduto = getNotaProdutoCompleta(ce, c);
-                          const notaFinal = notaFinalBatalha(notaAtrib, notaPreco, notaProduto);
+                          const notaFinal = calcNotaFinal(notaAtrib, notaPreco, notaProduto);
                           const bg = CORES_POR_MODELO[idx % CORES_POR_MODELO.length];
                           const borderLeft = 'border-l border-stone-200';
                           const isOpenAtrib = openAtributosKey === key;
@@ -1262,8 +1333,7 @@ export function Etapa4Casas(props: {
                           const precoManualPreenchido = Object.values(checklistReforma).some(
                             (m) => !!m?.marked,
                           );
-                          const atribManualPreenchido =
-                            atributosLoteByKey[key] !== undefined && Object.keys(resp).length > 0;
+                          const atribManualPreenchido = !isAtributosLoteEmpty(atributosLoteByKey[key]);
                           const produtoManualPreenchido =
                             (prodDados.designId != null && prodDados.designId !== '') ||
                             (prodDados.idade != null && Number.isFinite(prodDados.idade));
@@ -1279,8 +1349,11 @@ export function Etapa4Casas(props: {
                           const notaQ = notaQuartos(catProduto.quartos, c.quartos);
                           const notaB = notaBanheiros(catProduto.banheiros, banheirosAnuncio);
                           const notaV = notaVagas(catProduto.vagas, vagasAnuncio);
+                          const refCustoEscolha = custosConstrucaoChecklist[ce.ordem];
+                          const custoModelo = custoConstrucaoByCasaEscolhidaId[ce.id];
                           return (
                             <React.Fragment key={ce.id}>
+                              {!modoPreBatalha ? (
                               <td
                                 className={`p-1 px-2 text-center ${borderLeft} ${bg} relative min-w-[70px]`}
                               >
@@ -1312,6 +1385,35 @@ export function Etapa4Casas(props: {
                                 {isOpenPreco && (
                                   <>
                                     <div className="absolute left-0 top-full z-30 mt-0.5 max-h-[70vh] w-72 overflow-y-auto rounded-lg border border-stone-200 bg-white p-2 shadow-lg">
+                                      <label className="mb-2 block text-xs">
+                                        <span className="font-medium text-stone-700">
+                                          Custo de construção do modelo (R$)
+                                        </span>
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          step={1000}
+                                          value={custoModelo ?? ''}
+                                          onChange={(e) => {
+                                            const v =
+                                              e.target.value === ''
+                                                ? null
+                                                : Number(e.target.value);
+                                            setCustoConstrucaoByCasaEscolhidaId((p) => ({
+                                              ...p,
+                                              [ce.id]: v,
+                                            }));
+                                          }}
+                                          className="mt-0.5 w-full rounded border border-stone-300 px-2 py-1 text-xs"
+                                        />
+                                      </label>
+                                      {refCustoEscolha != null &&
+                                      Number.isFinite(refCustoEscolha) ? (
+                                        <p className="mb-2 text-[11px] text-stone-500">
+                                          Referência Escolha (checklist): R${' '}
+                                          {refCustoEscolha.toLocaleString('pt-BR')}
+                                        </p>
+                                      ) : null}
                                       <p className="mb-2 text-xs font-semibold text-stone-800">
                                         Preço — Checklist de reforma (listagem)
                                       </p>
@@ -1379,7 +1481,10 @@ export function Etapa4Casas(props: {
                                   </>
                                 )}
                               </td>
-                              <td className={`p-1 px-2 text-center ${bg} relative min-w-[70px]`}>
+                              ) : null}
+                              <td
+                                className={`p-1 px-2 text-center ${modoPreBatalha ? `${borderLeft} ${bg}` : bg} relative min-w-[70px]`}
+                              >
                                 <div className="flex items-center justify-center gap-0.5">
                                   <button
                                     type="button"
@@ -1393,7 +1498,7 @@ export function Etapa4Casas(props: {
                                   >
                                     {notaProduto}
                                   </button>
-                                  {!produtoManualPreenchido && (
+                                  {!modoPreBatalha && !produtoManualPreenchido && (
                                     <span
                                       className="text-[10px] font-bold leading-none text-amber-600"
                                       title="Nota automática (quartos/banheiros/vagas). Preencha design e idade para refinar."
@@ -1524,11 +1629,7 @@ export function Etapa4Casas(props: {
                                 <div className="relative inline-block flex items-center justify-center gap-0.5">
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      setOpenAtributosKey((k) => (k === key ? null : key));
-                                      if (!atributosLoteByKey[key])
-                                        setAtributosLoteByKey((p) => ({ ...p, [key]: {} }));
-                                    }}
+                                    onClick={() => void handleOpenAtributosLote(key)}
                                     className="min-w-[2rem] rounded border border-stone-300 bg-white px-1 py-0.5 text-xs hover:bg-stone-50"
                                     title="Atributos do Lote (SIM/NÃO)"
                                   >
@@ -1548,6 +1649,11 @@ export function Etapa4Casas(props: {
                                         <p className="mb-1.5 text-xs font-medium text-stone-700">
                                           Atributos do Lote
                                         </p>
+                                        {prefillingAtributosKey === key && (
+                                          <p className="mb-1 text-[10px] text-stone-500">
+                                            Carregando do Step One…
+                                          </p>
+                                        )}
                                         {ATRIBUTOS_LOTE.map((a) => (
                                           <label
                                             key={a.id}

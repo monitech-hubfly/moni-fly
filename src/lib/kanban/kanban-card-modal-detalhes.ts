@@ -336,7 +336,13 @@ async function resolveProcessoNativo(
   supabase: SupabaseClient,
   rede: RedeFranqueadoModalRow | null,
   cardTitulo: string,
+  cardProjetoId?: string | null,
 ): Promise<ProcessoModalNegocioPreObra | null> {
+  const projetoId = String(cardProjetoId ?? '').trim();
+  if (projetoId) {
+    const porProjeto = await fetchProcessoById(supabase, projetoId);
+    if (porProjeto) return porProjeto;
+  }
   if (rede?.processo_id) {
     const p = await fetchProcessoById(supabase, rede.processo_id);
     if (p) return p;
@@ -445,9 +451,11 @@ export async function fetchKanbanCardModalDetalhes(
     cardId: string;
     cardTitulo: string;
     redeFranqueadoId: string | null;
+    /** `kanban_cards.projeto_id` — Step One nativo aponta para `processo_step_one`. */
+    cardProjetoId?: string | null;
   },
 ): Promise<KanbanCardModalDetalhes> {
-  const { origem, cardId, cardTitulo, redeFranqueadoId } = params;
+  const { origem, cardId, cardTitulo, redeFranqueadoId, cardProjetoId } = params;
 
   if (origem === 'legado') {
     const processo = await fetchProcessoById(supabase, cardId);
@@ -477,6 +485,6 @@ export async function fetchKanbanCardModalDetalhes(
     const { data } = await supabase.from('rede_franqueados').select(REDE_SELECT).eq('id', redeFranqueadoId).maybeSingle();
     rede = mapRede((data as Record<string, unknown> | null) ?? null);
   }
-  const processo = await resolveProcessoNativo(supabase, rede, cardTitulo);
+  const processo = await resolveProcessoNativo(supabase, rede, cardTitulo, cardProjetoId);
   return { rede, processo, redeIdContrato: rede?.id ?? null };
 }

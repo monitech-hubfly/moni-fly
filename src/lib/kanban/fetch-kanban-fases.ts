@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanFase } from '@/components/kanban-shared/types';
+import { isRemovedStepOneFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { parseKanbanFaseMateriais } from './parse-kanban-fase-materiais';
 
 export function mapKanbanFaseRow(row: Record<string, unknown>): KanbanFase {
@@ -59,6 +60,8 @@ export async function augmentKanbanFasesComFasesDosCards(
     return fases;
   }
 
-  const extra = (extraRows ?? []).map((row) => mapKanbanFaseRow(row as Record<string, unknown>));
+  const extra = (extraRows ?? [])
+    .map((row) => mapKanbanFaseRow(row as Record<string, unknown>))
+    .filter((f) => !isRemovedStepOneFaseSlug(f.slug));
   return [...fases, ...extra].sort((a, b) => a.ordem - b.ordem);
 }

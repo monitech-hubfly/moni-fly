@@ -1,7 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  compress: true,
+  poweredByHeader: false,
   experimental: {
+    optimizePackageImports: ['lucide-react', 'date-fns'],
     serverActions: {
       /** Etapas ZAP / uploads podem enviar payloads maiores que 1 MB (default). */
       bodySizeLimit: '10mb',
@@ -28,6 +31,10 @@ const nextConfig = {
       { source: '/treinamento-bca/aba-resumo', destination: '/treinamento-bca/ordem', permanent: true },
       { source: '/carta-fianca', destination: '/carta-fianca/leitura', permanent: false },
       { source: '/moni-capital', destination: '/moni-capital/leitura', permanent: false },
+      { source: '/funil-credito', destination: '/funil-credito-obra', permanent: true },
+      { source: '/funil-credito/:path*', destination: '/funil-credito-obra/:path*', permanent: true },
+      { source: '/painel-credito', destination: '/funil-credito-obra', permanent: true },
+      { source: '/painel-credito/:path*', destination: '/funil-credito-obra/:path*', permanent: true },
     ];
   },
 };

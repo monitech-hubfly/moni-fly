@@ -47,6 +47,8 @@ export function CondominioCamposForm({ draft, onChange, readOnly = false, row }:
           label="Est. casas vendidas/ano"
           value={formatCondominioInteiro(row.estimativa_casas_vendidas_ano)}
         />
+        <FieldView label="Extrato — Como eram essas casas" value={row.extrato_como_eram_casas ?? ''} />
+        <FieldView label="Extrato — Tempo para vender" value={row.extrato_tempo_venda ?? ''} />
       </div>
     );
   }
@@ -154,6 +156,24 @@ export function CondominioCamposForm({ draft, onChange, readOnly = false, row }:
           inputMode="numeric"
           value={draft.estimativa_casas_vendidas_ano}
           onChange={(e) => onChange({ estimativa_casas_vendidas_ano: e.target.value })}
+          className={inputCls}
+        />
+      </label>
+      <label className="col-span-2 block">
+        <span className="text-[11px] font-medium text-stone-500">Extrato — Como eram essas casas</span>
+        <textarea
+          rows={2}
+          value={draft.extrato_como_eram_casas}
+          onChange={(e) => onChange({ extrato_como_eram_casas: e.target.value })}
+          className={inputCls}
+        />
+      </label>
+      <label className="col-span-2 block">
+        <span className="text-[11px] font-medium text-stone-500">Extrato — Quanto tempo demorou pra vender</span>
+        <textarea
+          rows={2}
+          value={draft.extrato_tempo_venda}
+          onChange={(e) => onChange({ extrato_tempo_venda: e.target.value })}
           className={inputCls}
         />
       </label>
