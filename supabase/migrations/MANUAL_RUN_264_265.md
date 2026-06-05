@@ -1,5 +1,7 @@
 # Execução manual — migrations 264–266 (Supabase SQL Editor)
 
+> **Preferível para timeout:** use os scripts atômicos em [`scripts/manual/README.md`](../../scripts/manual/README.md) (1 statement por arquivo, LIMIT 25 no reparo).
+
 Use este guia quando o SQL Editor encerrar com **"Connection terminated due to connection timeout"**.
 
 ## Por que estoura timeout?
