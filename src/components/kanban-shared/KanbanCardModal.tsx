@@ -1134,6 +1134,7 @@ export function KanbanCardModal({
           cardId: loaded.id,
           cardTitulo: loaded.titulo,
           redeFranqueadoId: origem === 'nativo' ? nativeRedeFranqueadoId : null,
+          cardProjetoId: loaded.projeto_id ?? null,
         });
         setModalDetalhes(det);
         setPreObraDraft(preObraDraftFromProcesso(det.processo));
@@ -2548,13 +2549,20 @@ export function KanbanCardModal({
     const f = e.target.files?.[0];
     e.target.value = '';
     const pid = modalDetalhes.processo?.id;
-    if (!f || !pid) return;
+    const cid = card?.id;
+    if (!f || !cid) return;
     setUploadingNegocioAnexo(field);
+    const pathKey =
+      field === 'opcao_permuta'
+        ? 'anexo_opcao_permuta_path'
+        : field === 'contrato_permuta'
+          ? 'anexo_contrato_permuta_path'
+          : 'anexo_seguro_garantia_path';
     try {
       const fd = new FormData();
       fd.append('file', f);
-      fd.append('processoId', pid);
-      fd.append('cardOrigemId', card?.id ?? pid);
+      if (pid) fd.append('processoId', pid);
+      fd.append('cardOrigemId', cid);
       fd.append('field', field);
       fd.append('basePath', basePath);
       const r = await uploadProcessoNegocioAnexo(fd);
@@ -2562,8 +2570,17 @@ export function KanbanCardModal({
         alert(r.error);
         return;
       }
+      if (r.path) {
+        setModalDetalhes((prev) =>
+          prev.processo
+            ? {
+                ...prev,
+                processo: { ...prev.processo, [pathKey]: r.path! },
+              }
+            : prev,
+        );
+      }
       await loadCard();
-      router.refresh();
     } catch {
       alert('Erro ao enviar anexo.');
     } finally {

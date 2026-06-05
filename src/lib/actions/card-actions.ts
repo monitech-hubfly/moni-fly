@@ -65,6 +65,7 @@ import {
   fetchCamposKanbanCanonicos,
   propagarCamposKanbanCards,
   propagarCamposProcesso,
+  resolverProcessoStepOneIdDoCard,
   type KanbanCardCamposSync,
 } from '@/lib/kanban/card-sync-group';
 import {
@@ -1964,10 +1965,35 @@ export async function uploadProcessoNegocioAnexo(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login para anexar.' };
 
-  const processoId = String(formData.get('processoId') ?? '').trim();
   const field = String(formData.get('field') ?? '').trim() as ProcessoNegocioAnexoCampo;
-  if (!processoId) return { ok: false, error: 'Processo inválido.' };
   if (!PROCESSO_NEGOCIO_ANEXO_COL[field]) return { ok: false, error: 'Campo de anexo inválido.' };
+
+  const cardOrigemId = String(formData.get('cardOrigemId') ?? formData.get('processoId') ?? '').trim();
+  if (!cardOrigemId) return { ok: false, error: 'Card inválido.' };
+
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+
+  const { data: cardRow } = await admin
+    .from('kanban_cards')
+    .select('projeto_id, rede_franqueado_id, titulo')
+    .eq('id', cardOrigemId)
+    .maybeSingle();
+
+  const resolvedProcessoId = await resolverProcessoStepOneIdDoCard(admin, {
+    cardProjetoId: (cardRow as { projeto_id?: string | null } | null)?.projeto_id,
+    redeFranqueadoId: (cardRow as { rede_franqueado_id?: string | null } | null)?.rede_franqueado_id,
+    cardTitulo: String((cardRow as { titulo?: string | null } | null)?.titulo ?? ''),
+  });
+
+  const processoId =
+    resolvedProcessoId ?? String(formData.get('processoId') ?? '').trim();
+  if (!processoId) return { ok: false, error: 'Processo inválido.' };
 
   const file = formData.get('file');
   if (!file || !(file instanceof File) || file.size === 0) return { ok: false, error: 'Selecione um arquivo.' };
@@ -1983,10 +2009,8 @@ export async function uploadProcessoNegocioAnexo(
   if (upErr) return { ok: false, error: upErr.message };
 
   const col = PROCESSO_NEGOCIO_ANEXO_COL[field];
-  const cardOrigemId = String(formData.get('cardOrigemId') ?? processoId).trim();
 
   try {
-    const admin = createAdminClient();
     const sync = await propagarCamposProcesso(admin, cardOrigemId, processoId, { [col]: path });
     if (!sync.ok) return sync;
   } catch (e) {

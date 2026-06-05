@@ -2,14 +2,101 @@ import type { createAdminClient } from '@/lib/supabase/admin';
 
 type SyncDb = ReturnType<typeof createAdminClient>;
 
+function tituloParaNumeroFranquiaSync(titulo: string): string {
+  const t = titulo.trim();
+  if (!t) return '';
+  const i = t.indexOf(' - ');
+  return i >= 0 ? t.slice(0, i).trim() : t;
+}
+
+async function resolveProcessoIdByNumeroFranquia(db: SyncDb, num: string): Promise<string | null> {
+  const n = num.trim();
+  if (!n) return null;
+  const { data: byNum } = await db
+    .from('processo_step_one')
+    .select('id')
+    .eq('numero_franquia', n)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nid = (byNum as { id?: string } | null)?.id;
+  return nid ? String(nid) : null;
+}
+
+/**
+ * Resolve `processo_step_one.id` para card kanban.
+ * `kanban_cards.projeto_id` pode apontar para `projeto_negocio` (Portfolio) ou `processo_step_one` (Step One).
+ */
+export async function resolverProcessoStepOneIdDoCard(
+  db: SyncDb,
+  params: {
+    cardProjetoId?: string | null;
+    redeFranqueadoId?: string | null;
+    cardTitulo?: string | null;
+  },
+): Promise<string | null> {
+  const projetoId = String(params.cardProjetoId ?? '').trim();
+  if (projetoId) {
+    const { data: byProjeto } = await db.from('processo_step_one').select('id').eq('id', projetoId).maybeSingle();
+    if (byProjeto?.id) return String(byProjeto.id);
+  }
+
+  const redeId = String(params.redeFranqueadoId ?? '').trim();
+  if (redeId) {
+    const { data: rede } = await db
+      .from('rede_franqueados')
+      .select('processo_id, id, n_franquia')
+      .eq('id', redeId)
+      .maybeSingle();
+    const redeRow = rede as { processo_id?: string | null; id?: string; n_franquia?: string | null } | null;
+    const redeProcessoId = String(redeRow?.processo_id ?? '').trim();
+    if (redeProcessoId) return redeProcessoId;
+
+    const rid = String(redeRow?.id ?? '').trim();
+    if (rid) {
+      const { data: byOrigem } = await db
+        .from('processo_step_one')
+        .select('id')
+        .eq('origem_rede_franqueados_id', rid)
+        .maybeSingle();
+      const oid = (byOrigem as { id?: string } | null)?.id;
+      if (oid) return String(oid);
+    }
+
+    const numRede = String(redeRow?.n_franquia ?? '').trim();
+    if (numRede) {
+      const byNumRede = await resolveProcessoIdByNumeroFranquia(db, numRede);
+      if (byNumRede) return byNumRede;
+    }
+  }
+
+  const numTitulo = tituloParaNumeroFranquiaSync(String(params.cardTitulo ?? ''));
+  if (numTitulo) {
+    const byNumTitulo = await resolveProcessoIdByNumeroFranquia(db, numTitulo);
+    if (byNumTitulo) return byNumTitulo;
+  }
+
+  return null;
+}
+
 /** Resolve `processo_step_one.id` a partir do card kanban (sem importar módulo server-only). */
 async function resolverProcessoIdDoCard(db: SyncDb, cardId: string): Promise<string | null> {
   const cid = String(cardId ?? '').trim();
   if (!cid) return null;
 
-  const { data: card } = await db.from('kanban_cards').select('projeto_id').eq('id', cid).maybeSingle();
-  const projetoId = String((card as { projeto_id?: string | null } | null)?.projeto_id ?? '').trim();
-  if (projetoId) return projetoId;
+  const { data: card } = await db
+    .from('kanban_cards')
+    .select('projeto_id, rede_franqueado_id, titulo')
+    .eq('id', cid)
+    .maybeSingle();
+  const row = card as { projeto_id?: string | null; rede_franqueado_id?: string | null; titulo?: string | null } | null;
+
+  const resolved = await resolverProcessoStepOneIdDoCard(db, {
+    cardProjetoId: row?.projeto_id,
+    redeFranqueadoId: row?.rede_franqueado_id,
+    cardTitulo: row?.titulo,
+  });
+  if (resolved) return resolved;
 
   const { data: proc } = await db.from('processo_step_one').select('id').eq('id', cid).maybeSingle();
   return proc?.id ? String(proc.id) : null;
@@ -368,11 +455,14 @@ export async function propagarCamposProcesso(
   const procPatch = pickSyncFields(patch as Record<string, unknown>, PROCESSO_CAMPOS_SYNC);
   if (Object.keys(procPatch).length === 0) return { ok: true };
 
-  const { error: errProc } = await db
+  const { data: updated, error: errProc } = await db
     .from('processo_step_one')
     .update({ ...procPatch, updated_at: new Date().toISOString() } as never)
-    .eq('id', pid);
+    .eq('id', pid)
+    .select('id')
+    .maybeSingle();
   if (errProc) return { ok: false, error: errProc.message };
+  if (!updated?.id) return { ok: false, error: 'Processo não encontrado ao salvar dados.' };
 
   const kanbanMirror: KanbanCardCamposSync = {};
   if (procPatch.nome_condominio !== undefined) kanbanMirror.nome_condominio = procPatch.nome_condominio;

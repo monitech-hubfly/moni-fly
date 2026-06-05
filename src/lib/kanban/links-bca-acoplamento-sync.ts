@@ -1,4 +1,5 @@
 import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { resolverProcessoStepOneIdDoCard } from '@/lib/kanban/card-sync-group';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -43,12 +44,17 @@ export async function resolverProcessoIdDoCard(
 
   const { data: card } = await db
     .from('kanban_cards')
-    .select('projeto_id')
+    .select('projeto_id, rede_franqueado_id, titulo')
     .eq('id', cid)
     .maybeSingle();
+  const row = card as { projeto_id?: string | null; rede_franqueado_id?: string | null; titulo?: string | null } | null;
 
-  const projetoId = String((card as { projeto_id?: string | null } | null)?.projeto_id ?? '').trim();
-  if (projetoId) return projetoId;
+  const resolved = await resolverProcessoStepOneIdDoCard(db, {
+    cardProjetoId: row?.projeto_id,
+    redeFranqueadoId: row?.rede_franqueado_id,
+    cardTitulo: row?.titulo,
+  });
+  if (resolved) return resolved;
 
   const { data: proc } = await db.from('processo_step_one').select('id').eq('id', cid).maybeSingle();
   return proc?.id ? String(proc.id) : null;
