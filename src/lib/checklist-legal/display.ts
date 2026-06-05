@@ -1,7 +1,7 @@
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import { isPortfolioKanbanRef } from '@/lib/kanban/portfolio-paralelas';
 
-/** Exibe Checklist Legal + Crédito apenas no Funil Portfólio, fase Step 4. */
+/** Exibe Checklist Legal + Crédito apenas no Funil Portfólio, fase Check Legal e Crédito (step_4). */
 function portfolioFaseStep4(
   kanbanId: string | null | undefined,
   faseSlug: string | null | undefined,
@@ -11,7 +11,7 @@ function portfolioFaseStep4(
   return isPortfolioKanbanRef(kid) && slug === FASE_SLUGS.STEP_4;
 }
 
-/** Exibe Checklist Legal no modal do card (Step 4 — Funil Portfólio). */
+/** Exibe Checklist Legal no modal do card (Check Legal e Crédito — Funil Portfólio). */
 export function deveExibirChecklistLegalNaFase(
   kanbanId: string | null | undefined,
   faseSlug: string | null | undefined,
@@ -20,7 +20,7 @@ export function deveExibirChecklistLegalNaFase(
   return portfolioFaseStep4(kanbanId, faseSlug);
 }
 
-/** Exibe Checklist de Crédito no modal do card (Step 4 — Funil Portfólio). */
+/** Exibe Checklist de Crédito no modal do card (Check Legal e Crédito — Funil Portfólio). */
 export function deveExibirChecklistCreditoNaFase(
   kanbanId: string | null | undefined,
   faseSlug: string | null | undefined,

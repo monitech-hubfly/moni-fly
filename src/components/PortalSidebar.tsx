@@ -35,13 +35,13 @@ const CATALOGO_SUBITENS: NavItem[] = [
 ];
 const STEPS_SUBITENS: NavItem[] = [
   { href: '/step-one', label: 'Step 1: Mapeamento da Região' },
-  { href: '/step-2', label: 'Step 2: Novo Negócio' },
-  { href: '/step-3', label: 'Step 3: Opção' },
-  { href: '/painel', label: 'Step 4: Check Legal + Checklist Crédito' },
-  { href: '/acoplamento-pl', label: 'Acoplamento (paralelo Step 4)' },
-  { href: '/step-5', label: 'Step 5: Comitê' },
-  { href: '/step-6', label: 'Step 6: Diligência' },
-  { href: '/step-7', label: 'Step 7: Contrato' },
+  { href: '/step-2', label: 'Novo Negócio' },
+  { href: '/step-3', label: 'Opção' },
+  { href: '/painel', label: 'Check Legal e Crédito' },
+  { href: '/acoplamento-pl', label: 'Acoplamento (paralelo Check Legal e Crédito)' },
+  { href: '/step-5', label: 'Comitê' },
+  { href: '/step-6', label: 'Diligência' },
+  { href: '/step-7', label: 'Contrato' },
 ];
 const NOVOS_NEGOCIOS_SUBITENS: NavItem[] = [
   { href: '/funil-stepone', label: 'Funil Step One' },

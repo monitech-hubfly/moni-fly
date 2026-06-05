@@ -74,7 +74,7 @@ export async function resolverCondominioIdDoCard(
   return String((procDirect as { condominio_id?: string | null } | null)?.condominio_id ?? '').trim() || null;
 }
 
-/** Gate: exige checklist legal concluído ao sair da fase Step 4 no Funil Portfólio. */
+/** Gate: exige checklist legal concluído ao sair da fase Check Legal e Crédito no Funil Portfólio. */
 export async function verificarGateChecklistLegalAcoplamento(
   cardId: string,
   novaFaseId: string,

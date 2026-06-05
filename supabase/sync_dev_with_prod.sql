@@ -119,29 +119,29 @@ ON CONFLICT (kanban_id, slug) WHERE slug IS NOT NULL DO NOTHING;
 
 -- Funil Portfólio e Funil Operações — 19 fases (112), nomes alinhados 114
 INSERT INTO public.kanban_fases (kanban_id, nome, slug, ordem, sla_dias, ativo)
-SELECT k.id, fase.nome, fase.slug, fase.ordem, 7, true
+SELECT k.id, fase.nome, fase.slug, fase.ordem, fase.sla_dias, true
 FROM public.kanbans k
 CROSS JOIN (VALUES
-  ('Step 2: Novo Negócio',                     'step_2',                    1),
-  ('Aprovação Moní - Novo Negócio',           'aprovacao_moni_novo_negocio',2),
-  ('Step 3: Opção',                           'step_3',                    3),
-  ('Acoplamento',                             'acoplamento',               4),
-  ('Step 4: Check Legal + Checklist de Crédito','step_4',                  5),
-  ('Step 5: Comitê',                          'step_5',                    6),
-  ('Step 6: Diligência',                      'step_6',                    7),
-  ('Step 7: Contrato',                        'step_7',                    8),
-  ('Passagem para Wayser',                    'passagem_wayser',           9),
-  ('Planialtimétrico',                        'planialtimetrico',          10),
-  ('Sondagem (paralelo Planialtimétrico)',    'sondagem',                  11),
-  ('Projeto Legal',                           'projeto_legal',             12),
-  ('Aprovação no Condomínio',                 'aprovacao_condominio',      13),
-  ('Aprovação na Prefeitura',                 'aprovacao_prefeitura',      14),
-  ('Revisão do BCA',                          'revisao_bca',               15),
-  ('Processos Cartorários',                   'processos_cartorarios',    16),
-  ('Aguardando Crédito',                      'aguardando_credito',        17),
-  ('Em Obra',                                 'em_obra',                   18),
-  ('Moní Care',                               'moni_care',                 19)
-) AS fase(nome, slug, ordem)
+  ('Novo Negócio',                            'step_2',                    1,  2),
+  ('Aprovação Moní - Novo Negócio',           'aprovacao_moni_novo_negocio',2,  2),
+  ('Opção',                                   'step_3',                    3,  3),
+  ('Acoplamento',                             'acoplamento',               4,  5),
+  ('Check Legal e Crédito',                   'step_4',                    5,  3),
+  ('Comitê',                                  'step_5',                    6,  5),
+  ('Diligência',                              'step_6',                    7, 10),
+  ('Contrato',                                'step_7',                    8,  3),
+  ('Passagem para Wayser',                    'passagem_wayser',           9,  2),
+  ('Planialtimétrico',                        'planialtimetrico',          10, 7),
+  ('Sondagem (paralelo Planialtimétrico)',    'sondagem',                  11, 7),
+  ('Projeto Legal',                           'projeto_legal',             12, 7),
+  ('Aprovação no Condomínio',                 'aprovacao_condominio',      13, 7),
+  ('Aprovação na Prefeitura',                 'aprovacao_prefeitura',      14, 7),
+  ('Revisão do BCA',                          'revisao_bca',               15, 7),
+  ('Processos Cartorários',                   'processos_cartorarios',    16, 7),
+  ('Aguardando Crédito',                      'aguardando_credito',        17, 7),
+  ('Em Obra',                                 'em_obra',                   18, 7),
+  ('Moní Care',                               'moni_care',                 19, 7)
+) AS fase(nome, slug, ordem, sla_dias)
 WHERE k.nome IN ('Funil Portfólio', 'Funil Operações')
 ON CONFLICT (kanban_id, slug) WHERE slug IS NOT NULL DO NOTHING;
 
@@ -168,7 +168,7 @@ BEGIN
   WHERE kanban_id = v_kanban_id
     AND ordem >= 9;
   INSERT INTO public.kanban_fases (kanban_id, nome, slug, ordem, sla_dias, ativo)
-  VALUES (v_kanban_id, 'Captação Moní Capital', 'captacao_moni_capital', 9, 7, true);
+  VALUES (v_kanban_id, 'Captação Moní Capital', 'captacao_moni_capital', 9, 30, true);
 END $$;
 
 -- Funil Acoplamento — 4 fases (128)
