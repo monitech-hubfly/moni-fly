@@ -22,8 +22,10 @@ export default async function PainelNovosNegociosPage({
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const snapPortfolio = await fetchKanbanBoardSnapshot(supabase, 'Funil Portfólio', user.id);
-  const snapOperacoes = await fetchKanbanBoardSnapshot(supabase, 'Funil Operações', user.id);
+  const [snapPortfolio, snapOperacoes] = await Promise.all([
+    fetchKanbanBoardSnapshot(supabase, 'Funil Portfólio', user.id),
+    fetchKanbanBoardSnapshot(supabase, 'Funil Operações', user.id),
+  ]);
 
   const { data: rows } = await supabase
     .from('processo_step_one')

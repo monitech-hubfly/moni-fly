@@ -89,33 +89,31 @@ export async function fetchKanbanBoardSnapshot(
 ): Promise<KanbanBoardSnapshot> {
   let role = 'frank';
   let isAdmin = false;
+
+  const profilePromise = userId
+    ? supabase.from('profiles').select('role').eq('id', userId).single()
+    : Promise.resolve({ data: null as { role?: string | null } | null });
+
+  const [profileRes, kanban] = await Promise.all([
+    profilePromise,
+    resolveKanbanAtivo(supabase, kanbanNomeDb),
+  ]);
+
   if (userId) {
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+    const profile = profileRes.data;
     role = (profile?.role as string) ?? 'frank';
-    // Mesmo critério que RLS (163) e `normalizeAccessRole`: evita visão “frank” por casing/espaços
-    // ou legados já mapeados (consultor/supervisor → admin).
     const accessRole = normalizeAccessRole(profile?.role);
     isAdmin = accessRole === 'admin' || accessRole === 'team';
   } else {
     isAdmin = true;
   }
 
-  const kanban = await resolveKanbanAtivo(supabase, kanbanNomeDb);
   if (!kanban) {
     return { kanban: null, fases: [], cards: [], cardsConcluidos: [], role, isAdmin };
   }
 
   const kanbanIdStr = String(kanban.id);
 
-  const fases = await fetchKanbanFasesAtivas(supabase, kanbanIdStr);
-
-  const { count: nativeCount } = await supabase
-    .from('kanban_cards')
-    .select('*', { count: 'exact', head: true })
-    .eq('kanban_id', kanban.id);
-  const hasNativo = (nativeCount ?? 0) > 0;
-
-  // Sempre busca cards legados (view); mistura com nativo quando existirem ambos.
   let viewQuery = supabase
     .from('v_processo_como_kanban_cards')
     .select('id, kanban_id, fase_id, titulo, status, criado_em, responsavel_id, etapa_slug, origem, data_reuniao, data_followup')
@@ -126,8 +124,17 @@ export async function fetchKanbanBoardSnapshot(
     viewQuery = viewQuery.eq('responsavel_id', userId);
   }
 
-  const { data: rowsRaw } = await viewQuery;
-  const rowsAll = (rowsRaw ?? []) as ViewLegadoRow[];
+  const [fases, nativeCountResult, viewResult] = await Promise.all([
+    fetchKanbanFasesAtivas(supabase, kanbanIdStr),
+    supabase
+      .from('kanban_cards')
+      .select('*', { count: 'exact', head: true })
+      .eq('kanban_id', kanban.id),
+    viewQuery,
+  ]);
+
+  const hasNativo = (nativeCountResult.count ?? 0) > 0;
+  const rowsAll = (viewResult.data ?? []) as ViewLegadoRow[];
 
   const processoIdsAll = rowsAll.map((r) => String(r.id)).filter(Boolean);
   const archivedLegadoIds = new Set<string>();
@@ -146,19 +153,15 @@ export async function fetchKanbanBoardSnapshot(
 
   const franqueadoIdsLegado = [...new Set(rows.map((r) => r.responsavel_id).filter(Boolean))] as string[];
   const profilesMapLegado = new Map<string, { full_name: string | null }>();
+  const redeNomeMapLegado = new Map<string, string>();
   if (franqueadoIdsLegado.length > 0) {
-    const { data: profiles } = await supabase.from('profiles').select('id, full_name').in('id', franqueadoIdsLegado);
+    const [{ data: profiles }, { data: redes }] = await Promise.all([
+      supabase.from('profiles').select('id, full_name').in('id', franqueadoIdsLegado),
+      supabase.from('rede_franqueados').select('id, nome_completo').in('id', franqueadoIdsLegado),
+    ]);
     profiles?.forEach((p) => {
       profilesMapLegado.set(p.id, { full_name: p.full_name });
     });
-  }
-
-  const redeNomeMapLegado = new Map<string, string>();
-  if (franqueadoIdsLegado.length > 0) {
-    const { data: redes } = await supabase
-      .from('rede_franqueados')
-      .select('id, nome_completo')
-      .in('id', franqueadoIdsLegado);
     (redes ?? []).forEach((r) => {
       if (r.nome_completo) redeNomeMapLegado.set(String(r.id), String(r.nome_completo));
     });
@@ -304,25 +307,6 @@ export async function fetchKanbanBoardSnapshot(
       ...((arquivRaw ?? []) as { franqueado_id?: string | null }[]).map((c) => c.franqueado_id),
     ]),
   ].filter(Boolean) as string[];
-  const profilesMap = new Map<string, { full_name: string | null }>();
-  if (franqueadoIds.length > 0) {
-    const { data: profiles } = await supabase.from('profiles').select('id, full_name').in('id', franqueadoIds);
-    profiles?.forEach((p) => {
-      profilesMap.set(p.id, { full_name: p.full_name });
-    });
-  }
-
-  const redeNomeMapNativo = new Map<string, string>();
-  if (franqueadoIds.length > 0) {
-    const { data: redes } = await supabase
-      .from('rede_franqueados')
-      .select('id, nome_completo')
-      .in('id', franqueadoIds);
-    (redes ?? []).forEach((r) => {
-      if (r.nome_completo) redeNomeMapNativo.set(String(r.id), String(r.nome_completo));
-    });
-  }
-
   const redeIdsDiretos = [
     ...new Set([
       ...(cardsRaw?.map((c) => (c as { rede_franqueado_id?: string | null }).rede_franqueado_id) ?? []).filter(Boolean),
@@ -330,12 +314,34 @@ export async function fetchKanbanBoardSnapshot(
       ...(arquivRaw?.map((c) => (c as { rede_franqueado_id?: string | null }).rede_franqueado_id) ?? []).filter(Boolean),
     ]),
   ] as string[];
+  const allRedeLookupIds = [...new Set([...franqueadoIds, ...redeIdsDiretos])];
+
+  const profilesMap = new Map<string, { full_name: string | null }>();
+  const redeById = new Map<string, string>();
+  const [profilesRes, redesRes] = await Promise.all([
+    franqueadoIds.length > 0
+      ? supabase.from('profiles').select('id, full_name').in('id', franqueadoIds)
+      : Promise.resolve({ data: [] as { id: string; full_name: string | null }[] }),
+    allRedeLookupIds.length > 0
+      ? supabase.from('rede_franqueados').select('id, nome_completo').in('id', allRedeLookupIds)
+      : Promise.resolve({ data: [] as { id: string; nome_completo: string | null }[] }),
+  ]);
+  (profilesRes.data ?? []).forEach((p) => {
+    profilesMap.set(p.id, { full_name: p.full_name });
+  });
+  (redesRes.data ?? []).forEach((r) => {
+    if (r.nome_completo) redeById.set(String(r.id), String(r.nome_completo));
+  });
+
+  const redeNomeMapNativo = new Map<string, string>();
+  for (const id of franqueadoIds) {
+    const nome = redeById.get(id);
+    if (nome) redeNomeMapNativo.set(id, nome);
+  }
   const redeNomeDiretoMap = new Map<string, string>();
-  if (redeIdsDiretos.length > 0) {
-    const { data: redes } = await supabase.from('rede_franqueados').select('id, nome_completo').in('id', redeIdsDiretos);
-    (redes ?? []).forEach((r) => {
-      if (r.nome_completo) redeNomeDiretoMap.set(String(r.id), String(r.nome_completo));
-    });
+  for (const id of redeIdsDiretos) {
+    const nome = redeById.get(id);
+    if (nome) redeNomeDiretoMap.set(id, nome);
   }
 
   const mapNativo = (c: Record<string, unknown>): KanbanCardBrief => {
@@ -389,9 +395,11 @@ export async function fetchKanbanBoardSnapshot(
   let cardsConcluidos = (conclRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
   let cardsArquivadosNativo = (arquivRaw ?? []).map((c) => mapNativo(c as unknown as Record<string, unknown>));
 
-  cardsNativo = await enrichCardsParalelasContext(supabase, kanbanIdStr, cardsNativo);
-  cardsConcluidos = await enrichCardsParalelasContext(supabase, kanbanIdStr, cardsConcluidos);
-  cardsArquivadosNativo = await enrichCardsParalelasContext(supabase, kanbanIdStr, cardsArquivadosNativo);
+  [cardsNativo, cardsConcluidos, cardsArquivadosNativo] = await Promise.all([
+    enrichCardsParalelasContext(supabase, kanbanIdStr, cardsNativo),
+    enrichCardsParalelasContext(supabase, kanbanIdStr, cardsConcluidos),
+    enrichCardsParalelasContext(supabase, kanbanIdStr, cardsArquivadosNativo),
+  ]);
 
   /** `processo_step_one.etapa_painel` prevalece sobre `kanban_cards.fase_id` (incl. UUID de outro funil). */
   const processoIdsReconciliar = coletarIdsProcessoDosCards(
