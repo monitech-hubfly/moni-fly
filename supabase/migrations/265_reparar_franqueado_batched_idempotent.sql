@@ -1,12 +1,12 @@
--- 262: Repara rede_franqueado_id perdido em grupos de sync (vínculos + origem_card_id).
--- Nunca sobrescreve valor existente; só preenche cards com NULL a partir de parceiro do grupo.
--- Otimizado para Supabase SQL editor: batches de 500 linhas, early exit, índice parcial.
+-- 265: Reparo idempotente de rede_franqueado_id (substitui loops completos da 262 original).
+-- Seguro se a 262 antiga estourou timeout no meio ou não foi registrada.
+-- Rodar no SQL editor: uma migration; batch_size=500 (ajuste para 200 se ainda timeout).
 
 CREATE INDEX IF NOT EXISTS idx_kanban_cards_rede_null_origem
   ON kanban_cards (origem_card_id)
   WHERE rede_franqueado_id IS NULL AND origem_card_id IS NOT NULL;
 
--- Cadeia origem_card_id (pais → filhos), até 32 níveis, em lotes
+-- ── Parte A: cadeia origem_card_id ──────────────────────────────────────────
 DO $$
 DECLARE
   batch_size constant int := 500;
@@ -42,9 +42,11 @@ BEGIN
 
     EXIT WHEN pass_total = 0;
   END LOOP;
+
+  RAISE NOTICE '265 parte A (origem_card_id): concluída após % passes', pass_num;
 END $$;
 
--- Vínculos bidirecionais em kanban_card_vinculos, até 16 passes, em lotes
+-- ── Parte B: vínculos bidirecionais ─────────────────────────────────────────
 DO $$
 DECLARE
   batch_size constant int := 500;
@@ -106,13 +108,16 @@ BEGIN
 
     EXIT WHEN pass_total = 0;
   END LOOP;
+
+  RAISE NOTICE '265 parte B (vínculos): concluída após % passes', pass_num;
 END $$;
 
--- Espelha em processo_step_one quando origem_rede foi zerada indevidamente
+-- ── Parte C: espelho em processo_step_one ───────────────────────────────────
 DO $$
 DECLARE
   batch_size constant int := 500;
   n int;
+  total int := 0;
 BEGIN
   LOOP
     UPDATE processo_step_one ps
@@ -139,6 +144,9 @@ BEGIN
     WHERE ps.id = batch.id;
 
     GET DIAGNOSTICS n = ROW_COUNT;
+    total := total + n;
     EXIT WHEN n = 0;
   END LOOP;
+
+  RAISE NOTICE '265 parte C (processo_step_one): % linha(s) atualizada(s)', total;
 END $$;
