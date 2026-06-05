@@ -80,7 +80,7 @@ import {
   hipotesesOrdemMinima,
   montarChipsParalelas,
 } from '@/lib/kanban/kanban-paralelas-chips';
-import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { isDadosCondominiosFaseSlug, isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCreditoObraDocumentacao';
 import {
@@ -693,6 +693,13 @@ export function KanbanCardModal({
       cancel = true;
     };
   }, [card?.fase_id, card?.id]);
+
+  useEffect(() => {
+    if (origem === 'legado' || kanbanNome !== 'Funil Step One') return;
+    const slug = faseAtual?.slug?.trim() ?? '';
+    if (!isDadosCondominiosFaseSlug(slug)) return;
+    setSecaoAberta((prev) => (prev.condominio ? prev : { ...prev, condominio: true }));
+  }, [faseAtual?.slug, faseAtual?.id, origem, kanbanNome]);
 
   useEffect(() => {
     if (filtros.lista === 'abertas' && filtros.situacao === 'concluida') {
@@ -2898,6 +2905,8 @@ export function KanbanCardModal({
 
   const faseSlugHipoteses = faseAtual?.slug?.trim() ?? '';
   const isFaseHipoteses = isHipotesesFaseSlug(faseSlugHipoteses);
+  const isFaseDadosCondominios =
+    !isLegado && kanbanNome === 'Funil Step One' && isDadosCondominiosFaseSlug(faseSlugHipoteses);
   const exibirEnviarHipotesePortfolio =
     !isLegado && kanbanNome === 'Funil Step One' && isFaseHipoteses;
 
@@ -4574,12 +4583,18 @@ export function KanbanCardModal({
                         exibirLinkPublico
                       />
                     ) : null}
+                    {isFaseDadosCondominios ? (
+                      <p className="text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
+                        Preencha os dados do condomínio em &ldquo;Dados do Condomínio&rdquo; (painel esquerdo).
+                        Os campos vêm do cadastro em Rede → Condomínios.
+                      </p>
+                    ) : null}
                     <FaseChecklistCard
                       faseId={faseChecklistFaseId}
                       cardId={card.id}
                       isFrank={portalFrank}
                       isAdmin={isAdmin}
-                      ocultarVazio={exibirChecklistLegalCondominio}
+                      ocultarVazio={exibirChecklistLegalCondominio || isFaseDadosCondominios}
                     />
                   </div>
                 )}

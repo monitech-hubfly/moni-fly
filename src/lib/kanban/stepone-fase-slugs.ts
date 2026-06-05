@@ -1,10 +1,9 @@
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 
-/** Slugs canónicos PROD (ordem 1–11). */
+/** Slugs canónicos PROD (ordem 1–10). */
 export const STEPONE_FASE_SLUGS = {
   DADOS_CANDIDATO: FASE_SLUGS.DADOS_CANDIDATO,
   DADOS_CIDADE: FASE_SLUGS.DADOS_CIDADE,
-  LISTA_CONDOMINIOS: FASE_SLUGS.LISTA_CONDOMINIOS,
   DADOS_CONDOMINIOS: FASE_SLUGS.DADOS_CONDOMINIOS,
   LOTES_DISPONIVEIS: FASE_SLUGS.LOTES_DISPONIVEIS,
   MAPA_COMPETIDORES: FASE_SLUGS.MAPA_COMPETIDORES,
@@ -16,7 +15,12 @@ export const STEPONE_FASE_SLUGS = {
 } as const;
 
 /** Ordem PROD da fase Hipóteses (chips Portfolio a partir desta fase). */
-export const HIPOTESES_ORDEM_MIN_PROD = 11;
+export const HIPOTESES_ORDEM_MIN_PROD = 10;
+
+export const DADOS_CONDOMINIOS_FASE_SLUGS = [
+  FASE_SLUGS.DADOS_CONDOMINIOS,
+  'stepone_dados_cond',
+] as const;
 
 /** PROD + aliases DEV/legado para matching de fase. */
 export const DADOS_CANDIDATO_FASE_SLUGS = [
@@ -43,8 +47,10 @@ export const BATALHA_FASE_SLUGS = [FASE_SLUGS.BATALHA, 'stepone_batalha'] as con
 export const STEPONE_SLUG_LEGACY_TO_CANONICAL: Record<string, string> = {
   stepone_dados_candidato: FASE_SLUGS.DADOS_CANDIDATO,
   stepone_dados_cidade: FASE_SLUGS.DADOS_CIDADE,
-  stepone_lista_cond: FASE_SLUGS.LISTA_CONDOMINIOS,
   stepone_dados_cond: FASE_SLUGS.DADOS_CONDOMINIOS,
+  /** Fase removida (248) — legado redireciona para Dados dos Condomínios. */
+  stepone_lista_cond: FASE_SLUGS.DADOS_CONDOMINIOS,
+  lista_condominios: FASE_SLUGS.DADOS_CONDOMINIOS,
   stepone_lotes: FASE_SLUGS.LOTES_DISPONIVEIS,
   stepone_mapa: FASE_SLUGS.MAPA_COMPETIDORES,
   stepone_pre_batalha: FASE_SLUGS.PRE_BATALHA,
@@ -76,6 +82,10 @@ export function slugMatchesStepOneFase(
 
 export function isHipotesesFaseSlug(slug: string | null | undefined): boolean {
   return slugMatchesStepOneFase(slug, HIPOTESES_FASE_SLUGS);
+}
+
+export function isDadosCondominiosFaseSlug(slug: string | null | undefined): boolean {
+  return slugMatchesStepOneFase(slug, DADOS_CONDOMINIOS_FASE_SLUGS);
 }
 
 export function isBcaFaseSlug(slug: string | null | undefined): boolean {

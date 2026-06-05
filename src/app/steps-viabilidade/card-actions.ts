@@ -21,7 +21,7 @@ export type ShareFormType = 'legal' | 'credito';
 const STEP1_AREAS_ETAPAS = [
   'Dados do Candidato',
   'Dados da Cidade',
-  'Lista de Condomínios',
+  'Dados dos Condomínios',
   'Listagem de lotes',
   'Rede',
 ] as const;
