@@ -1537,6 +1537,8 @@ export default function Page() {
   const [concluindoMetaId, setConcluindoMetaId] = useState(null)
   /** Modal em duas etapas para reverter conclusão de meta (admin). */
   const [modalReverter, setModalReverter] = useState(null)
+  /** Modal de seleção de registro quando uma linha tem múltiplos registros em gantt_planejamento. */
+  const [modalSelecionarRegistro, setModalSelecionarRegistro] = useState(null)
   const concluirMetaComentarioRef = useRef(null)
 
   useEffect(() => {
@@ -1563,6 +1565,9 @@ export default function Page() {
 
   const [metasObjetivos, setMetasObjetivos] = useState([])
   const [metasObjetivosLoading, setMetasObjetivosLoading] = useState(false)
+  const [metasExpandidas, setMetasExpandidas] = useState(() => {
+    try { return localStorage.getItem('gantt_metas_expandidas') !== 'false' } catch { return true }
+  })
 
   /** Parte 2: usar na UI. { [objetivo_id]: indicador[] } */
   const [indicadoresPorObjetivo, setIndicadoresPorObjetivo] = useState({})
@@ -1746,8 +1751,7 @@ export default function Page() {
   async function carregarPlanejamento() {
     if (!periodoId || !areaId) return
     setLoading(true)
-    const nomeAreaPlanej = String((areas || []).find(a => a.id === areaId)?.nome ?? '').trim()
-    const comJoinCasas = isNomeAreaComCasas(nomeAreaPlanej)
+    const comJoinCasas = ['0710d19c-c081-4c12-842c-d16bb2fb26cd', '2470e274-4ba5-4d5d-b17f-eb0adf8f67a9'].includes(areaId)
     const selPlanejamento = selectGanttPlanejamentoRows(comJoinCasas)
     // periodo_id é metadado de gravação; a grade usa semanas ISO do período visualizado.
     // Não filtrar por periodo_id — planejamento salvo em outro mês/trimestre some da grade.
@@ -2071,20 +2075,14 @@ export default function Page() {
   const areaAtual = useMemo(() => (areas || []).find(a => a.id === areaId) || null, [areas, areaId])
   const areaSelecionadaNome = String(areaAtual?.nome ?? '').trim()
   /** Produto, Projetos - Modelo Virtual ou alias Projetos: campo Casa e legenda no Gantt. */
-  const isAreaCasa = useMemo(() => isNomeAreaComCasas(areaSelecionadaNome), [areaSelecionadaNome])
-  const isAreaAdm = useMemo(() => String(areaSelecionadaNome ?? '').trim().toLowerCase() === 'adm', [areaSelecionadaNome])
-  const isAreaControladoria = useMemo(
-    () => String(areaSelecionadaNome ?? '').trim().toLowerCase() === 'controladoria',
-    [areaSelecionadaNome]
+  const isAreaCasa = useMemo(
+    () => ['0710d19c-c081-4c12-842c-d16bb2fb26cd', '2470e274-4ba5-4d5d-b17f-eb0adf8f67a9'].includes(areaId),
+    [areaId]
   )
-  const isAreaComercial = useMemo(
-    () => String(areaSelecionadaNome ?? '').trim().toLowerCase() === 'comercial',
-    [areaSelecionadaNome]
-  )
-  const isAreaJuridico = useMemo(
-    () => areaId === JURIDICO_AREA_ID || isNomeAreaJuridico(areaSelecionadaNome),
-    [areaId, areaSelecionadaNome]
-  )
+  const isAreaAdm = useMemo(() => areaId === '7601b490-ba64-4d07-92d5-e9d1dc2cd35b', [areaId])
+  const isAreaControladoria = useMemo(() => areaId === 'f05cf716-0028-493b-aede-69a7d437b9cd', [areaId])
+  const isAreaComercial = useMemo(() => areaId === '35ae737d-fba2-44bf-906d-b3c9f56da7a0', [areaId])
+  const isAreaJuridico = useMemo(() => areaId === JURIDICO_AREA_ID, [areaId])
   const juridicoIdentMap = useMemo(
     () => new Map((juridicoIdentificacoes || []).map(j => [String(j.id), j])),
     [juridicoIdentificacoes]
@@ -2093,30 +2091,13 @@ export default function Page() {
     () => nomeAreaNorm(areaSelecionadaNome).toLowerCase(),
     [areaSelecionadaNome]
   )
-  const isAreaAcoplamento = useMemo(
-    () => nomeAreaLower === nomeAreaNorm('acoplamento').toLowerCase(),
-    [nomeAreaLower]
-  )
-  const isAreaExecutivosLocais = useMemo(
-    () => nomeAreaLower === nomeAreaNorm('projetos - executivos locais').toLowerCase(),
-    [nomeAreaLower]
-  )
-  const isAreaWayzerNath = useMemo(
-    () => nomeAreaLower === nomeAreaNorm('wayzer - nath').toLowerCase(),
-    [nomeAreaLower]
-  )
-  const isAreaWayzerRafa = useMemo(
-    () => nomeAreaLower === nomeAreaNorm('wayzer - rafa').toLowerCase(),
-    [nomeAreaLower]
-  )
+  const isAreaAcoplamento = useMemo(() => areaId === 'b24c8ac0-9a86-40bb-8aad-be79531e95ea', [areaId])
+  const isAreaExecutivosLocais = useMemo(() => areaId === '787b6790-4f7f-4d7e-a9b3-806cc13acbc4', [areaId])
+  const isAreaWayzerNath = useMemo(() => areaId === '8ff5a1e1-4cb4-4d82-86ef-ef1b31e9fe46', [areaId])
+  const isAreaWayzerRafa = useMemo(() => areaId === 'a213bee1-4cfb-4f47-8013-8f4d2b319f32', [areaId])
   const isAreaFranqueado =
     isAreaAcoplamento || isAreaExecutivosLocais || isAreaWayzerNath || isAreaWayzerRafa
-  const isAreaPortfolio = useMemo(
-    () =>
-      nomeAreaLower === nomeAreaNorm('portfólio').toLowerCase() ||
-      nomeAreaLower === nomeAreaNorm('portfolio').toLowerCase(),
-    [nomeAreaLower]
-  )
+  const isAreaPortfolio = useMemo(() => areaId === '45de8e00-368c-4436-94b2-ba9094eeaf9a', [areaId])
 
   const franqueadosAtivos = useMemo(
     () =>
@@ -2166,14 +2147,14 @@ export default function Page() {
   )
 
   /** `areas.nome` exato — agrupamento Modelagem/Documentação no Gantt e no drawer. */
-  const isAreaTipoAtividadeProjeto = useMemo(() => {
-    const n = nomeAreaNorm(areaAtual?.nome)
-    return ['Projetos - Modelo Virtual', 'Projetos - Executivos Locais'].some(nome => n === nomeAreaNorm(nome))
-  }, [areaAtual])
+  const isAreaTipoAtividadeProjeto = useMemo(
+    () => ['787b6790-4f7f-4d7e-a9b3-806cc13acbc4', '2470e274-4ba5-4d5d-b17f-eb0adf8f67a9'].includes(areaId),
+    [areaId]
+  )
 
   useEffect(() => {
     const nomeArea = String((areas || []).find(a => a.id === areaId)?.nome ?? '').trim()
-    if (!isNomeAreaComCasas(nomeArea) || !areaId) {
+    if (!['0710d19c-c081-4c12-842c-d16bb2fb26cd', '2470e274-4ba5-4d5d-b17f-eb0adf8f67a9'].includes(areaId) || !areaId) {
       setCasas([])
       return
     }
@@ -2449,6 +2430,22 @@ export default function Page() {
       if (err) { setError(err.message); setSalvando(false); return }
     }
     setSalvando(false)
+    void registrarLog({
+      modulo: 'Planejamento',
+      area: areas.find((a) => a.id === areaId)?.nome ?? null,
+      entidade: 'cronograma',
+      entidade_id: acaoId,
+      operacao: concluido ? 'UPDATE' : 'INSERT',
+      valor_novo: {
+        acao_id: acaoId,
+        semana: semanaAno,
+        horas: horas,
+        concluido: concluido
+      },
+      descricao: concluido
+        ? `Registrou conclusão da atividade na semana ${semanaAno}`
+        : `Registrou ${horas}h na atividade semana ${semanaAno}`
+    })
     await carregarCronograma()
   }
 
@@ -2530,15 +2527,25 @@ export default function Page() {
         const wk = expandGanttSemanasParaGradeIso(p, semanasDoPeriodo)
         return wk.length > 0
       })
-      const temNoCronograma = [...acaoIdsDaTarefa].some(id => acaoIdsNoCronograma.has(id))
       if (!temPlanejamentoComportamentoNoPeriodo(t)) return
-      // Agrupar pelas metas do plano e/ou meta vinculada ao comportamento (tarefas.objetivo_id)
-      const objetivosDoPlano = [...new Set(
-        [
-          ...acoesNoPlano.map(p => p.objetivo_id).filter(Boolean),
-          ...(t.objetivo_id ? [t.objetivo_id] : [])
-        ].map(oid => metaIdCanonica(metasObjetivos, oid)).filter(Boolean)
-      )]
+      // Agrupar pelas metas do plano e/ou meta vinculada ao comportamento (tarefas.objetivo_id).
+      // t.objetivo_id só é incluído se a tarefa não tiver registros em metas diferentes — evita
+      // aparecer em seções de metas onde não há planejamento real.
+      const objetivosDoRegistros = acoesNoPlano
+        .map(p => p.objetivo_id)
+        .filter(Boolean)
+        .map(oid => metaIdCanonica(metasObjetivos, oid))
+        .filter(Boolean)
+
+      const temRegistrosEmOutrasMetas = objetivosDoRegistros
+        .some(oid => !idObjetivoIgual(oid, t.objetivo_id))
+
+      const objetivosDoPlano = [...new Set([
+        ...objetivosDoRegistros,
+        ...(!temRegistrosEmOutrasMetas && t.objetivo_id
+          ? [metaIdCanonica(metasObjetivos, t.objetivo_id)]
+          : [])
+      ])]
 
       if (objetivosDoPlano.length > 0) {
         objetivosDoPlano.forEach(oid => {
@@ -2547,6 +2554,15 @@ export default function Page() {
             const semMeta = p.objetivo_id == null || String(p.objetivo_id).trim() === ''
             return semMeta && idObjetivoIgual(t.objetivo_id, oid)
           })
+          const acaoIdsParaEsteObjetivo = new Set(
+            filtrado.map(p => String(p.acao_id || '')).filter(Boolean)
+          )
+          if (idObjetivoIgual(t.objetivo_id, oid)) {
+            acaoIdsDaTarefa.forEach(id => acaoIdsParaEsteObjetivo.add(id))
+          }
+          const temNoCronograma = [...acaoIdsParaEsteObjetivo].some(
+            id => acaoIdsNoCronograma.has(id)
+          )
           if (filtrado.length === 0 && !temNoCronograma) return
           if (!grupos.has(oid)) grupos.set(oid, [])
           grupos.get(oid).push({ t, acoesNoPlano: filtrado })
@@ -2568,6 +2584,20 @@ export default function Page() {
     })
     if (grupos.has('_sem')) orderedKeys.push('_sem')
 
+    // Ordenar metas: prazo mais próximo primeiro, empate = alfabético
+    orderedKeys.sort((oidA, oidB) => {
+      if (oidA === '_sem') return 1
+      if (oidB === '_sem') return -1
+      const metaA = metasObjetivos.find(m => m.id === oidA)
+      const metaB = metasObjetivos.find(m => m.id === oidB)
+      const prazoA = metaA ? (extrairSemanaPrazoMeta(metaA) ?? Infinity) : Infinity
+      const prazoB = metaB ? (extrairSemanaPrazoMeta(metaB) ?? Infinity) : Infinity
+      if (prazoA !== prazoB) return prazoA - prazoB
+      const nomeA = String(metaA?.descricao || '').toLowerCase()
+      const nomeB = String(metaB?.descricao || '').toLowerCase()
+      return nomeA.localeCompare(nomeB, 'pt-BR')
+    })
+
     for (const oid of orderedKeys) {
       const items = grupos.get(oid) ?? []
       const chunkObjetivo = []
@@ -2581,55 +2611,189 @@ export default function Page() {
           meta: meta || null
         })
       }
-      for (const { t, acoesNoPlano } of items) {
+      // Ordenar comportamentos: menor semana planejada no período atual primeiro
+      const itemsOrdenados = [...items].sort((ia, ib) => {
+        const minSemana = (acoesDoItem) => {
+          if (!acoesDoItem?.length) return Infinity
+          const wks = acoesDoItem.flatMap(p =>
+            expandGanttSemanasParaGradeIso(p, semanas)
+          ).map(Number).filter(Number.isFinite)
+          return wks.length ? Math.min(...wks) : Infinity
+        }
+        return minSemana(ia.acoesNoPlano) - minSemana(ib.acoesNoPlano)
+      })
+      for (const { t, acoesNoPlano } of itemsOrdenados) {
         const chunkTarefa = []
         const pushLinhaAcao = (a, rowsMesmaAcao, tipoAtividadeBar, rowOpts = {}) => {
           if (process.env.NODE_ENV === 'development' && isAreaTipoAtividadeProjeto) {
             console.log('[pushLinhaAcao] acao:', a.nome, 'tipo:', tipoAtividadeBar, 'rows:', rowsMesmaAcao.length, 'casas:', rowsMesmaAcao.map(r => r.casa_id))
           }
-          const mergedSet = new Set()
-          rowsMesmaAcao.forEach(r => {
-            expandGanttSemanasParaGradeIso(r, semanas).forEach(w => mergedSet.add(w))
-          })
-          const semSel = Array.from(mergedSet).sort((x, y) => x - y)
           const horasEst = a.tempo_estimado_minutos != null ? Math.round((a.tempo_estimado_minutos / 60) * 10) / 10 : null
-          const responsaveis = [...new Set(
-            (rowsMesmaAcao || [])
-              .map(r => r?.responsavel)
-              .filter(r => r && r !== '—' && String(r).trim() !== '')
-              .map(r => String(r).trim())
-          )]
-          const resp = responsaveis.length > 0 ? responsaveis.join(', ') : '—'
-          chunkTarefa.push({
-            id: `a_${a.id}_${oid}`,
-            tipo: 'acao',
-            nome: a.nome,
-            responsavel: resp,
-            semanasSelecionadas: semSel,
-            tempoHoras: horasEst,
-            comportamentoId: t.id,
-            acaoId: a.id,
-            planejamentoId: rowsMesmaAcao[0]?.id,
-            planejamentoIds: rowsMesmaAcao.map(r => r.id).filter(Boolean),
-            planejamentoRows: rowsMesmaAcao,
-            objetivoId: oid,
-            tipoAtividadeBar: tipoAtividadeBar === 'modelagem' || tipoAtividadeBar === 'documentacao' ? tipoAtividadeBar : null,
-            /** Linha montada só a partir de `cronograma` (sem `gantt_planejamento`): os ids são de cronograma, não de planejamento. */
-            origemCronogramaLegado: Boolean(rowOpts.origemCronogramaLegado)
-          })
+          const tipoBar = tipoAtividadeBar === 'modelagem' || tipoAtividadeBar === 'documentacao' ? tipoAtividadeBar : null
+          const origemLegado = Boolean(rowOpts.origemCronogramaLegado)
+
+          if (rowsMesmaAcao.length <= 1) {
+            // Caso simples: comportamento original preservado
+            const mergedSet = new Set()
+            rowsMesmaAcao.forEach(r => {
+              expandGanttSemanasParaGradeIso(r, semanas).forEach(w => mergedSet.add(w))
+            })
+            const semSel = Array.from(mergedSet).sort((x, y) => x - y)
+            const responsaveis = [...new Set(
+              (rowsMesmaAcao || [])
+                .map(r => r?.responsavel)
+                .filter(r => r && r !== '—' && String(r).trim() !== '')
+                .map(r => String(r).trim())
+            )]
+            const resp = responsaveis.length > 0 ? responsaveis.join(', ') : '—'
+            chunkTarefa.push({
+              id: `a_${a.id}_${oid}`,
+              tipo: 'acao',
+              nome: a.nome,
+              responsavel: resp,
+              semanasSelecionadas: semSel,
+              tempoHoras: horasEst,
+              comportamentoId: t.id,
+              acaoId: a.id,
+              planejamentoId: rowsMesmaAcao[0]?.id,
+              planejamentoIds: rowsMesmaAcao.map(r => r.id).filter(Boolean),
+              planejamentoRows: rowsMesmaAcao,
+              objetivoId: oid,
+              tipoAtividadeBar: tipoBar,
+              /** Linha montada só a partir de `cronograma` (sem `gantt_planejamento`): os ids são de cronograma, não de planejamento. */
+              origemCronogramaLegado: origemLegado
+            })
+          } else {
+            // Múltiplos registros: uma sublinha por registro — rowspan real nas colunas fixas
+            const regsComSemanas = rowsMesmaAcao.filter(reg =>
+              expandGanttSemanasParaGradeIso(reg, semanas).length > 0
+            )
+            const total = regsComSemanas.length
+            const todasSemanas = regsComSemanas.flatMap(r => expandGanttSemanasParaGradeIso(r, semanas))
+            regsComSemanas.forEach((reg, idx) => {
+              const semanasDoReg = expandGanttSemanasParaGradeIso(reg, semanas)
+              const respReg = String(reg.responsavel || '').trim() || '—'
+              chunkTarefa.push({
+                id: idx === 0 ? `a_${a.id}_${oid}` : `a_${a.id}_${oid}_sub${idx}`,
+                tipo: 'acao',
+                nome: idx === 0 ? a.nome : '',
+                responsavel: idx === 0 ? respReg : '',
+                semanasSelecionadas: semanasDoReg,
+                tempoHoras: horasEst,
+                comportamentoId: t.id,
+                acaoId: a.id,
+                planejamentoId: reg.id,
+                planejamentoIds: [reg.id].filter(Boolean),
+                planejamentoRows: [reg],
+                objetivoId: oid,
+                tipoAtividadeBar: tipoBar,
+                origemCronogramaLegado: origemLegado,
+                esconderAcoes: idx > 0,
+                temSublinhas: idx === 0 && total > 1,
+                grupoTotal: total,
+                grupoSemanas: idx === 0 ? todasSemanas : undefined,
+                grupoRows: idx === 0 ? regsComSemanas : undefined
+              })
+            })
+          }
         }
+
+        // Ordenar ações: concluídas primeiro, depois por semana planejada mais próxima
+        const minSemPorAcaoOrd = new Map()
+        acoesNoPlano.forEach(p => {
+          const k = String(p.acao_id || '')
+          if (!k) return
+          const wks = expandGanttSemanasParaGradeIso(p, semanas).map(Number).filter(Number.isFinite)
+          if (wks.length > 0) {
+            const m = Math.min(...wks)
+            if (m < (minSemPorAcaoOrd.get(k) ?? Infinity)) minSemPorAcaoOrd.set(k, m)
+          }
+        })
+        const concluidasPorAcaoOrd = new Set(
+          Object.entries(mapaStatus)
+            .filter(([, semanaMap]) =>
+              semanaMap != null &&
+              Object.values(semanaMap).some(st => cronogramaStatusEhConcluido(st))
+            )
+            .map(([chave]) => {
+              // chave: a_{acaoId}__p_{planejamentoId} ou a_{acaoId}
+              const match = chave.match(/^a_([^_].*?)(?:__p_|$)/)
+              return match ? match[1] : null
+            })
+            .filter(Boolean)
+        )
+        const semanaConclPorAcao = new Map()
+        Object.entries(mapaStatus).forEach(([chave, semanaMap]) => {
+          if (!semanaMap) return
+          const match = chave.match(/^a_([^_].*?)(?:__p_|$)/)
+          if (!match) return
+          const acaoId = match[1]
+          Object.entries(semanaMap).forEach(([sem, st]) => {
+            if (cronogramaStatusEhConcluido(st)) {
+              const s = Number(sem)
+              if (!semanaConclPorAcao.has(acaoId) || s < semanaConclPorAcao.get(acaoId)) {
+                semanaConclPorAcao.set(acaoId, s)
+              }
+            }
+          })
+        })
+        const acoesNoPlanoPorSemana = [...acoesNoPlano].sort((pa, pb) => {
+          const aidA = String(pa.acao_id || '')
+          const aidB = String(pb.acao_id || '')
+          const conclA = concluidasPorAcaoOrd.has(aidA)
+          const conclB = concluidasPorAcaoOrd.has(aidB)
+          if (conclA && conclB) {
+            const sA = semanaConclPorAcao.get(aidA) ?? Infinity
+            const sB = semanaConclPorAcao.get(aidB) ?? Infinity
+            return sA - sB
+          }
+          if (conclA && !conclB) return -1
+          if (!conclA && conclB) return 1
+          return (minSemPorAcaoOrd.get(aidA) ?? Infinity) - (minSemPorAcaoOrd.get(aidB) ?? Infinity)
+        })
 
         if (!isAreaTipoAtividadeProjeto) {
           const acoesJaListadasLegacy = new Set()
           if (acoesNoPlano.length > 0) {
             // Novo: gantt_planejamento
-            acoesNoPlano.forEach(p => {
+            acoesNoPlanoPorSemana.forEach(p => {
               const a = acaoPorId[p.acao_id]
               const k = String(p.acao_id || '')
               if (!a || !k || acoesJaListadasLegacy.has(k)) return
               if (!temPlanejamentoAcaoNoPeriodo(k)) return
               acoesJaListadasLegacy.add(k)
-              const rowsMesmaAcao = acoesNoPlano.filter(x => String(x.acao_id || '') === k)
+              const rowsMesmaAcao = acoesNoPlano
+                .filter(x => String(x.acao_id || '') === k)
+                .sort((a, b) => {
+                  const planejIdA = String(a.id || '')
+                  const planejIdB = String(b.id || '')
+                  const acaoId = String(a.acao_id || '')
+                  const semMapA = mapaStatus[`a_${acaoId}__p_${planejIdA}`]
+                  const semMapB = mapaStatus[`a_${acaoId}__p_${planejIdB}`]
+                  const conclA = semMapA ? Object.values(semMapA).some(st => cronogramaStatusEhConcluido(st)) : false
+                  const conclB = semMapB ? Object.values(semMapB).some(st => cronogramaStatusEhConcluido(st)) : false
+                  if (conclA && !conclB) return -1
+                  if (!conclA && conclB) return 1
+                  const chaveA = String(
+                    a.franqueado_nome ||
+                    a.adm_cnpj_id ||
+                    a.controladoria_cnpj_id ||
+                    a.portfolio_franqueado_id ||
+                    a.comercial_candidato_id ||
+                    a.juridico_identificacao_id ||
+                    a.casa_id || ''
+                  ).toLowerCase()
+                  const chaveB = String(
+                    b.franqueado_nome ||
+                    b.adm_cnpj_id ||
+                    b.controladoria_cnpj_id ||
+                    b.portfolio_franqueado_id ||
+                    b.comercial_candidato_id ||
+                    b.juridico_identificacao_id ||
+                    b.casa_id || ''
+                  ).toLowerCase()
+                  return chaveA.localeCompare(chaveB, 'pt-BR')
+                })
               pushLinhaAcao(a, rowsMesmaAcao, null)
             })
           } else {
@@ -2678,13 +2842,44 @@ export default function Page() {
 
         const acoesJaListadas = new Set()
         const ordemDescoberta = []
-        acoesNoPlano.forEach(p => {
+        acoesNoPlanoPorSemana.forEach(p => {
           const a = acaoPorId[p.acao_id]
           const k = String(p.acao_id || '')
           if (!a || !k || acoesJaListadas.has(k)) return
           if (!temPlanejamentoAcaoNoPeriodo(k)) return
           acoesJaListadas.add(k)
-          const rowsMesmaAcao = acoesNoPlano.filter(x => String(x.acao_id || '') === k)
+          const rowsMesmaAcao = acoesNoPlano
+            .filter(x => String(x.acao_id || '') === k)
+            .sort((a, b) => {
+              const planejIdA = String(a.id || '')
+              const planejIdB = String(b.id || '')
+              const acaoId = String(a.acao_id || '')
+              const semMapA = mapaStatus[`a_${acaoId}__p_${planejIdA}`]
+              const semMapB = mapaStatus[`a_${acaoId}__p_${planejIdB}`]
+              const conclA = semMapA ? Object.values(semMapA).some(st => cronogramaStatusEhConcluido(st)) : false
+              const conclB = semMapB ? Object.values(semMapB).some(st => cronogramaStatusEhConcluido(st)) : false
+              if (conclA && !conclB) return -1
+              if (!conclA && conclB) return 1
+              const chaveA = String(
+                a.franqueado_nome ||
+                a.adm_cnpj_id ||
+                a.controladoria_cnpj_id ||
+                a.portfolio_franqueado_id ||
+                a.comercial_candidato_id ||
+                a.juridico_identificacao_id ||
+                a.casa_id || ''
+              ).toLowerCase()
+              const chaveB = String(
+                b.franqueado_nome ||
+                b.adm_cnpj_id ||
+                b.controladoria_cnpj_id ||
+                b.portfolio_franqueado_id ||
+                b.comercial_candidato_id ||
+                b.juridico_identificacao_id ||
+                b.casa_id || ''
+              ).toLowerCase()
+              return chaveA.localeCompare(chaveB, 'pt-BR')
+            })
           const tipoDb = a.tipo_atividade
           const tipo = tipoDb === 'modelagem' || tipoDb === 'documentacao' ? tipoDb : null
           ordemDescoberta.push({ a, rowsMesmaAcao, tipo })
@@ -2753,13 +2948,46 @@ export default function Page() {
       if (chunkObjetivo.some(l => l.tipo === 'acao')) out.push(...chunkObjetivo)
     }
     return filtrarLinhasGradeSohComPlanoNoPeriodo(out)
-  }, [tarefas, planejamentoNaArea, cronograma, acaoPorId, metasObjetivos, semanas, indicadoresPorObjetivo, periodo, isAreaTipoAtividadeProjeto])
+  }, [tarefas, planejamentoNaArea, cronograma, acaoPorId, metasObjetivos, semanas, indicadoresPorObjetivo, periodo, isAreaTipoAtividadeProjeto, mapaStatus])
 
   const linhasFiltradas = useMemo(() => {
     if (!filtroResponsavelId) return linhas
+
+    // Passo 1: quais acao_id têm ao menos um registro com o responsável selecionado.
+    // Para sublinhas (esconderAcoes), o responsável real está em planejamentoRows[0].
+    const acaoIdsDoResponsavel = new Set(
+      linhas
+        .filter(l => l.tipo === 'acao')
+        .filter(l => {
+          const respStr = l.esconderAcoes
+            ? String(l.planejamentoRows?.[0]?.responsavel ?? '')
+            : String(l.responsavel ?? '')
+          return responsavelStrParaIds(respStr, areaPessoasLista).includes(filtroResponsavelId)
+        })
+        .map(l => l.acaoId)
+        .filter(Boolean)
+    )
+
+    // Passo 2: coletar objetivos e comportamentos que têm ao menos uma ação do responsável.
+    const objetivosComResponsavel = new Set()
+    const comportamentosComResponsavel = new Set()
+    linhas.forEach(l => {
+      if (l.tipo === 'acao' && acaoIdsDoResponsavel.has(l.acaoId)) {
+        if (l.objetivoId) objetivosComResponsavel.add(l.objetivoId)
+        if (l.comportamentoId) comportamentosComResponsavel.add(l.comportamentoId)
+      }
+    })
+
+    // Passo 3: filtrar — ações pelo acaoId, comportamentos e objetivos pelos seus sets,
+    // seções e outros tipos sempre passam (sem responsável próprio).
     return linhas.filter(l => {
-      const ids = responsavelStrParaIds(l.responsavel, areaPessoasLista)
-      return ids.includes(filtroResponsavelId)
+      if (l.tipo === 'acao') return acaoIdsDoResponsavel.has(l.acaoId)
+      if (l.tipo === 'comportamento') {
+        return comportamentosComResponsavel.has(l.comportamentoId) &&
+          objetivosComResponsavel.has(l.objetivoId)
+      }
+      if (l.tipo === 'objetivo') return objetivosComResponsavel.has(l.objetivoId)
+      return true // secao_tipo_atividade, secao_spacer, etc.
     })
   }, [linhas, filtroResponsavelId, areaPessoasLista])
 
@@ -2936,7 +3164,8 @@ export default function Page() {
       const salvarPlanejamentoPorCasa = async (casaId) => {
         const existente = planejamento.find(p =>
           p.acao_id === addAcaoId &&
-          String(p.casa_id || '') === String(casaId)
+          String(p.casa_id || '') === String(casaId) &&
+          String(p.objetivo_id || '') === String(addObjetivoId || '')
         )
 
         if (existente?.id) {
@@ -3119,26 +3348,30 @@ export default function Page() {
       let existenteNoPeriodo
       if (isAreaFranqueado) {
         existenteNoPeriodo = planejamentoNaArea.find(
-          p => p.acao_id === addAcaoId && normalizeFranqueadoNome(p.franqueado_nome) === fnAlvo
+          p => p.acao_id === addAcaoId && normalizeFranqueadoNome(p.franqueado_nome) === fnAlvo &&
+            String(p.objetivo_id || '') === String(addObjetivoId || '')
         )
       } else if (isAreaComercial) {
         existenteNoPeriodo = planejamentoNaArea.find(
           p =>
             p.acao_id === addAcaoId &&
-            String(p.comercial_candidato_id ?? '') === String(comercialCandidatoId ?? '')
+            String(p.comercial_candidato_id ?? '') === String(comercialCandidatoId ?? '') &&
+            String(p.objetivo_id || '') === String(addObjetivoId || '')
         )
       } else if (isAreaJuridico) {
         existenteNoPeriodo = planejamentoNaArea.find(
           p =>
             p.acao_id === addAcaoId &&
-            String(p.juridico_identificacao_id || '') === String(juridicoIdentificacaoId || '')
+            String(p.juridico_identificacao_id || '') === String(juridicoIdentificacaoId || '') &&
+            String(p.objetivo_id || '') === String(addObjetivoId || '')
         )
       } else if (isAreaAdm) {
         /** Mesma ação + CNPJ = um registro; CNPJ diferente → insert (empilhamento na grade). */
         existenteNoPeriodo = planejamentoNaArea.find(
           p =>
             p.acao_id === addAcaoId &&
-            String(p.adm_cnpj_id || '') === String(admCnpjSelecionado || '')
+            String(p.adm_cnpj_id || '') === String(admCnpjSelecionado || '') &&
+            String(p.objetivo_id || '') === String(addObjetivoId || '')
         )
       } else if (isAreaControladoria) {
         existenteNoPeriodo = planejamentoNaArea.find(
@@ -3226,7 +3459,8 @@ export default function Page() {
         const existentePort = planejamentoNaArea.find(
           p =>
             p.acao_id === addAcaoId &&
-            String(p.portfolio_franqueado_id ?? '') === String(portfolioFranqueadoId ?? '')
+            String(p.portfolio_franqueado_id ?? '') === String(portfolioFranqueadoId ?? '') &&
+            String(p.objetivo_id || '') === String(addObjetivoId || '')
         )
         const payloadPort = {
           acao_id: addAcaoId,
@@ -3276,7 +3510,8 @@ export default function Page() {
         const existenteCtrl = planejamentoNaArea.find(
           p =>
             p.acao_id === addAcaoId &&
-            String(p.controladoria_cnpj_id ?? '') === String(controladoriaCnpjSelecionado ?? '')
+            String(p.controladoria_cnpj_id ?? '') === String(controladoriaCnpjSelecionado ?? '') &&
+            String(p.objetivo_id || '') === String(addObjetivoId || '')
         )
         const payloadCtrl = {
           acao_id: addAcaoId,
@@ -4448,6 +4683,19 @@ export default function Page() {
       return
     }
 
+    void registrarLog({
+      modulo: 'Planejamento',
+      area: areas.find((a) => a.id === areaId)?.nome ?? null,
+      entidade: 'objetivos',
+      entidade_id: objetivoId,
+      operacao: 'UPDATE',
+      valor_novo: {
+        status: 'concluido',
+        concluido_em: semanaAtual ?? null,
+        comentario_conclusao: comentario
+      },
+      descricao: `Concluiu meta "${metaParaConcluir?.descricao || objetivoId}"`
+    })
     setConcluindoMetaId(null)
     setMetasObjetivos(prev => (prev || []).map(m => {
       if (String(m?.id) !== String(objetivoId)) return m
@@ -4975,17 +5223,36 @@ export default function Page() {
           key={l.id}
           className={`gantt-tr ${rowClass} ${cronClass}`}
           role="row"
-          style={metaFechada ? { background: '#f9fafb', color: '#374151', opacity: 0.8 } : undefined}
+          style={
+            metaFechada || l.esconderAcoes
+              ? {
+                  ...(metaFechada ? { background: '#f9fafb', color: '#374151', opacity: 0.8 } : {}),
+                  ...(l.esconderAcoes ? { borderTop: '0.5px solid rgba(0,0,0,0.06)' } : {})
+                }
+              : undefined
+          }
         >
-          <td className="gantt-shell-cell gantt-shell-cell--atividade">
-            <span
-              className="gantt-nome-acao"
-              style={metaFechada ? { color: '#888780', textDecoration: 'line-through', opacity: 0.85 } : undefined}
+          {l.esconderAcoes ? null : (
+            <td
+              className="gantt-shell-cell gantt-shell-cell--atividade"
+              rowSpan={l.temSublinhas ? l.grupoTotal : undefined}
+              style={l.temSublinhas ? { verticalAlign: 'middle' } : undefined}
             >
-              ↳ {l.nome}
-            </span>
-          </td>
-          <td className="gantt-shell-cell gantt-shell-cell--responsavel">{l.responsavel}</td>
+              <span
+                className="gantt-nome-acao"
+                style={metaFechada ? { color: '#888780', textDecoration: 'line-through', opacity: 0.85 } : undefined}
+              >
+                ↳ {l.nome}
+              </span>
+            </td>
+          )}
+          {l.esconderAcoes ? null : (
+            <td
+              className="gantt-shell-cell gantt-shell-cell--responsavel"
+              rowSpan={l.temSublinhas ? l.grupoTotal : undefined}
+              style={l.temSublinhas ? { verticalAlign: 'middle' } : undefined}
+            >{l.responsavel}</td>
+          )}
           {semanas.map(s => {
                   const sn = Number(s)
                   const rowsPlano = l.planejamentoRows || []
@@ -6160,8 +6427,10 @@ export default function Page() {
                     </td>
                   )
                 })}
+          {l.esconderAcoes ? null : (
           <td
             className="gantt-td-acoes"
+            rowSpan={l.temSublinhas ? l.grupoTotal : undefined}
             style={{
               background: isAcaoAltR ? '#fafafa' : 'var(--color-background-primary, #ffffff)',
               padding: '5px 6px',
@@ -6183,33 +6452,60 @@ export default function Page() {
               ) : null}
               {l.planejamentoId && !metaFechada ? (
                 <>
-                  <button
-                    type="button"
-                    onClick={() => abrirDrawerEditarPlanejamento(l)}
-                    title="Editar"
-                    style={GANTT_ACAO_BTN_EDITAR}
-                  >
-                    ✎
-                  </button>
-                  {podeExibirExcluirComHistorico(isAdmin, linhaTemHistoricoPreenchido(l, cronograma)) ? (
-                  <button
-                    type="button"
-                    disabled={(l.planejamentoIds || [l.planejamentoId]).some(id => id === removendoId)}
-                    onClick={() => solicitarRemocaoAtividade(l)}
-                    title="Excluir"
-                    style={{
-                      ...GANTT_ACAO_BTN_EXCLUIR,
-                      opacity: (l.planejamentoIds || [l.planejamentoId]).some(id => id === removendoId) ? 0.55 : 1,
-                      cursor: (l.planejamentoIds || [l.planejamentoId]).some(id => id === removendoId) ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    {(l.planejamentoIds || [l.planejamentoId]).some(id => id === removendoId) ? '…' : '×'}
-                  </button>
-                  ) : null}
+                  {(() => {
+                    const semanaLimite = semanaAtual != null ? semanaAtual - 2 : null
+                    const todasSemanas = l.grupoSemanas || l.semanasSelecionadas || []
+                    const todasAntigas = semanaLimite != null &&
+                      todasSemanas.length > 0 &&
+                      todasSemanas.every(s => Number(s) < semanaLimite)
+                    const bloqueado = !isAdmin && todasAntigas
+                    const removendo = (l.planejamentoIds || [l.planejamentoId]).some(id => id === removendoId)
+                    const titleBloqueado = 'Edição não permitida para semanas anteriores. Solicite ao admin.'
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (bloqueado) return
+                            const rows = l.grupoRows || l.planejamentoRows || []
+                            if (rows.length > 1) {
+                              setModalSelecionarRegistro({ linha: l, rows })
+                            } else {
+                              abrirDrawerEditarPlanejamento(l)
+                            }
+                          }}
+                          title={bloqueado ? titleBloqueado : 'Editar'}
+                          style={{
+                            ...GANTT_ACAO_BTN_EDITAR,
+                            ...(bloqueado ? { opacity: 0.3, cursor: 'not-allowed', pointerEvents: 'none' } : {})
+                          }}
+                        >
+                          ✎
+                        </button>
+                        {podeExibirExcluirComHistorico(isAdmin, linhaTemHistoricoPreenchido(l, cronograma)) ? (
+                        <button
+                          type="button"
+                          disabled={removendo || bloqueado}
+                          onClick={() => { if (!bloqueado) solicitarRemocaoAtividade(l) }}
+                          title={bloqueado ? titleBloqueado : 'Excluir'}
+                          style={{
+                            ...GANTT_ACAO_BTN_EXCLUIR,
+                            opacity: bloqueado ? 0.3 : removendo ? 0.55 : 1,
+                            cursor: removendo || bloqueado ? 'not-allowed' : 'pointer',
+                            ...(bloqueado ? { pointerEvents: 'none' } : {})
+                          }}
+                        >
+                          {removendo ? '…' : '×'}
+                        </button>
+                        ) : null}
+                      </>
+                    )
+                  })()}
                 </>
               ) : null}
             </div>
           </td>
+          )}
         </tr>
       )
     })
@@ -6597,7 +6893,59 @@ export default function Page() {
           </div>
         </div>
       )}
-      <section className="gantt-metas-panel" aria-label="Metas da área selecionada">
+      <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button
+          type="button"
+          onClick={() => {
+            const next = !metasExpandidas
+            setMetasExpandidas(next)
+            try { localStorage.setItem('gantt_metas_expandidas', String(next)) } catch {}
+          }}
+          style={{
+            background: 'transparent',
+            border: '0.5px solid var(--color-border-secondary)',
+            borderRadius: 6,
+            fontSize: 11,
+            color: 'var(--color-text-secondary)',
+            padding: '3px 10px',
+            cursor: 'pointer',
+            marginBottom: 6,
+            alignSelf: 'flex-end'
+          }}
+        >
+          {metasExpandidas ? '⌄ Ocultar metas' : '› Exibir metas'}
+        </button>
+      </div>
+      {!metasExpandidas && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+          {(() => {
+            const metasFiltradas = (metasObjetivos || []).filter(m => metaDeveAparecerNoPeriodo(m, minSemanaVisivel))
+            const visiveis = metasFiltradas.slice(0, 5)
+            const resto = metasFiltradas.length - 5
+            return (
+              <>
+                {visiveis.map(m => (
+                  <span key={m.id} style={{ background: '#1C3A2B', color: '#9FE1CB', fontSize: 11, padding: '2px 10px', borderRadius: 20 }}>
+                    {(() => {
+                      const nome = String(m.descricao || '—').trim()
+                      const curto = nome.length > 22 ? nome.slice(0, 22) + '…' : nome
+                      const prazo = formatoPrazoMeta(m).replace('Prazo: ', '')
+                      return prazo && prazo !== '—' ? curto + ' · ' + prazo : curto
+                    })()}
+                  </span>
+                ))}
+                {resto > 0 && (
+                  <span style={{ background: '#1C3A2B', color: '#9FE1CB', fontSize: 11, padding: '2px 10px', borderRadius: 20, opacity: 0.7 }}>
+                    +{resto} mais
+                  </span>
+                )}
+              </>
+            )
+          })()}
+        </div>
+      )}
+      <section className="gantt-metas-panel" aria-label="Metas da área selecionada" style={!metasExpandidas ? { display: 'none' } : undefined}>
         {metasObjetivosLoading ? (
           <p className="gantt-metas-empty">Carregando…</p>
         ) : metasObjetivos.length === 0 ? (
@@ -6742,6 +7090,7 @@ export default function Page() {
           </div>
         )}
       </section>
+      </div>
       {error && deveExibirBannerErroGantt(error) && (
         <div className="alert alert-error">
           {error}
@@ -10317,6 +10666,73 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
           </>
         )}
       </div>
+
+      {modalSelecionarRegistro && (
+        <div
+          className="workload-remove-modal-overlay"
+          onMouseDown={e => {
+            if (e.target === e.currentTarget) setModalSelecionarRegistro(null)
+          }}
+        >
+          <div className="workload-remove-modal-card" role="dialog" aria-modal="true">
+            <div className="workload-remove-modal-header">
+              <h2 className="workload-remove-modal-title">Selecionar registro para editar</h2>
+              <button
+                type="button"
+                className="workload-remove-modal-close"
+                onClick={() => setModalSelecionarRegistro(null)}
+                aria-label="Fechar"
+              >×</button>
+            </div>
+            <div className="workload-remove-modal-body">
+              <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 12 }}>
+                Esta atividade tem múltiplos registros. Qual deseja editar?
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {modalSelecionarRegistro.rows.map((reg, idx) => {
+                  const franqueado = reg.franqueado_nome ||
+                    reg.casa_id || reg.adm_cnpj_id ||
+                    reg.portfolio_franqueado_id ||
+                    reg.comercial_candidato_id ||
+                    reg.juridico_identificacao_id || '—'
+                  const semanas = (reg.semanas_selecionadas || [])
+                    .map(s => `S${s}`).join(', ') || '—'
+                  return (
+                    <button
+                      key={reg.id || idx}
+                      type="button"
+                      onClick={() => {
+                        setModalSelecionarRegistro(null)
+                        abrirDrawerEditarPlanejamento(modalSelecionarRegistro.linha, reg)
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 14px',
+                        border: '0.5px solid var(--color-border-secondary)',
+                        borderRadius: 8,
+                        background: 'var(--color-background-primary)',
+                        cursor: 'pointer',
+                        fontSize: 13,
+                        textAlign: 'left',
+                        width: '100%'
+                      }}
+                    >
+                      <span style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                        {franqueado}
+                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                        {semanas}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {modalExclusao && (
         <div

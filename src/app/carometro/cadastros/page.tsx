@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { registrarLog } from '@/hooks/useAuditLog'
 import { listarAreas } from '@/utils/areasOrder'
 import CalendarioComSemanas from '@/components/CalendarioComSemanas'
+import { useAdmin } from '@/context/AdminContext'
 
 function formatarData(d) {
   if (!d) return '—'
@@ -27,6 +28,15 @@ const AREAS_PADRAO = [
   'Ferramentas', 'Crédito', 'Moní Capital', 'Controladoria', 'Adm', 'Jurídico'
 ]
 
+const NOMES_AREA_PROTEGIDOS = [
+  'adm', 'controladoria', 'comercial',
+  'portfólio', 'portfolio',
+  'acoplamento', 'wayzer - nath', 'wayzer - rafa',
+  'projetos - executivos locais',
+  'produto', 'projetos - modelo virtual', 'projetos',
+  'jurídico', 'juridico'
+]
+
 function proximaOrdemSugerida(lista) {
   const nums = (lista || []).map(a => Number(a.ordem) || 0)
   return (nums.length ? Math.max(...nums) : 0) + 10
@@ -43,6 +53,7 @@ const TIPOS_PERIODO = [
 
 export default function Page() {
   const supabase = createClient()
+  const { isAdmin } = useAdmin()
   const [areas, setAreas] = useState([])
   const [periodos, setPeriodos] = useState([])
   const [loadingPeriodos, setLoadingPeriodos] = useState(true)
@@ -109,6 +120,16 @@ export default function Page() {
   const [seedandoAreas, setSeedandoAreas] = useState(false)
   const [reordenandoAreaId, setReordenandoAreaId] = useState(null)
   const [dragAreaId, setDragAreaId] = useState(null)
+
+  const [responsaveis, setResponsaveis] = useState([])
+  const [loadingResponsaveis, setLoadingResponsaveis] = useState(false)
+  const [profiles, setProfiles] = useState([])
+  const [hasProfileIdCol, setHasProfileIdCol] = useState(false)
+  const [responsavelModalAberto, setResponsavelModalAberto] = useState(false)
+  const [responsavelEditando, setResponsavelEditando] = useState(null)
+  const [respNomeEdit, setRespNomeEdit] = useState('')
+  const [respProfileIdEdit, setRespProfileIdEdit] = useState('')
+  const [salvandoResponsavel, setSalvandoResponsavel] = useState(false)
 
   async function carregarAreas() {
     setLoadingAreas(true)
@@ -332,6 +353,7 @@ export default function Page() {
       else if (tipo === 'recMeta') await executarExclusaoRecorrenciaMeta(id)
       else if (tipo === 'area') await executarExclusaoArea(id)
       else if (tipo === 'mult') await executarExclusaoMultiplicador(id)
+      else if (tipo === 'responsavel') await executarExclusaoResponsavel(id)
       setExcluirConfirm(null)
     } finally {
       setExcluirConfirmando(false)
@@ -536,6 +558,12 @@ export default function Page() {
   useEffect(() => { carregarRecorrencias() }, [])
   useEffect(() => { carregarRecorrenciasMetas() }, [])
   useEffect(() => { carregarMultiplicadorTipos() }, [])
+  useEffect(() => {
+    if (isAdmin) {
+      carregarResponsaveis()
+      carregarProfiles()
+    }
+  }, [isAdmin])
 
   async function carregarPeriodos() {
     setLoadingPeriodos(true)
@@ -851,6 +879,76 @@ export default function Page() {
     }
   }
 
+  async function carregarResponsaveis() {
+    setLoadingResponsaveis(true)
+    const { data: comProfile, error: errProfile } = await supabase
+      .from('area_pessoas')
+      .select('id, nome, area_id, ativo, profile_id, areas(nome), profiles(full_name, email)')
+      .order('nome')
+    if (!errProfile) {
+      setHasProfileIdCol(true)
+      setResponsaveis(comProfile || [])
+    } else {
+      setHasProfileIdCol(false)
+      const { data: semProfile } = await supabase
+        .from('area_pessoas')
+        .select('id, nome, area_id, ativo, areas(nome)')
+        .order('nome')
+      setResponsaveis(semProfile || [])
+    }
+    setLoadingResponsaveis(false)
+  }
+
+  async function carregarProfiles() {
+    const { data } = await supabase.from('profiles').select('id, full_name, email').order('full_name')
+    setProfiles(data || [])
+  }
+
+  function abrirEditarResponsavel(r) {
+    setResponsavelEditando(r)
+    setRespNomeEdit(r.nome || '')
+    setRespProfileIdEdit(r.profile_id || '')
+    setResponsavelModalAberto(true)
+  }
+
+  function fecharResponsavelModal() {
+    setResponsavelModalAberto(false)
+    setResponsavelEditando(null)
+    setRespNomeEdit('')
+    setRespProfileIdEdit('')
+  }
+
+  async function salvarResponsavel() {
+    if (!responsavelEditando || salvandoResponsavel) return
+    const nome = respNomeEdit.trim()
+    if (!nome) return
+    setSalvandoResponsavel(true)
+    const updateData = { nome }
+    if (hasProfileIdCol) updateData.profile_id = respProfileIdEdit || null
+    const { error: e } = await supabase.from('area_pessoas').update(updateData).eq('id', responsavelEditando.id)
+    if (!e) {
+      fecharResponsavelModal()
+      await carregarResponsaveis()
+    }
+    setSalvandoResponsavel(false)
+  }
+
+  function solicitarExclusaoResponsavel(r) {
+    setExcluirConfirm({
+      tipo: 'responsavel',
+      id: r.id,
+      titulo: 'Excluir responsável',
+      mensagem: `Excluir "${r.nome}"? Registros vinculados no planejamento podem ser afetados.`
+    })
+  }
+
+  async function executarExclusaoResponsavel(id) {
+    setError(null)
+    const { error: e } = await supabase.from('area_pessoas').delete().eq('id', id)
+    if (e) setError(e.message)
+    else await carregarResponsaveis()
+  }
+
   return (
     <div className="cadastros-page">
       <h1 className="carometro-page-title">Cadastros</h1>
@@ -1025,16 +1123,37 @@ export default function Page() {
                     </span>
                     {areaEditandoId === area.id ? (
                       <>
-                        <input
-                          value={nomeAreaEdit}
-                          onChange={e => setNomeAreaEdit(e.target.value)}
-                          style={{ flex: 1, padding: '5px 8px', borderRadius: 5, border: '0.5px solid #D3D1C7', fontSize: 13 }}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') { e.preventDefault(); salvarEdicaoArea(area.id) }
-                            if (e.key === 'Escape') cancelarEdicaoArea()
-                          }}
-                          autoFocus
-                        />
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                          <input
+                            value={nomeAreaEdit}
+                            onChange={e => setNomeAreaEdit(e.target.value)}
+                            style={{ padding: '5px 8px', borderRadius: 5, border: '0.5px solid #D3D1C7', fontSize: 13 }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') { e.preventDefault(); salvarEdicaoArea(area.id) }
+                              if (e.key === 'Escape') cancelarEdicaoArea()
+                            }}
+                            autoFocus
+                          />
+                          {(() => {
+                            const nomeOrigNorm = String(area.nome || '').trim().normalize('NFC').toLowerCase()
+                            const nomeNovoNorm = nomeAreaEdit.trim().normalize('NFC').toLowerCase()
+                            if (!NOMES_AREA_PROTEGIDOS.includes(nomeOrigNorm)) return null
+                            if (nomeNovoNorm === nomeOrigNorm) return null
+                            return (
+                              <div style={{
+                                background: '#FAEEDA',
+                                border: '0.5px solid #EF9F27',
+                                borderRadius: 6,
+                                padding: '8px 12px',
+                                fontSize: 12,
+                                color: '#633806',
+                                marginTop: 6
+                              }}>
+                                ⚠️ Atenção: esta área tem um nome especial usado pelo Planejamento (Gantt). Renomear pode alterar o comportamento de visualização do Gantt para esta área. Confirme se deseja prosseguir.
+                              </div>
+                            )
+                          })()}
+                        </div>
                         <button
                           type="button"
                           onClick={() => setAtivoAreaEdit(v => !v)}
@@ -1495,6 +1614,50 @@ export default function Page() {
 
         {/* Seções abaixo do calendário removidas a pedido */}
 
+      {isAdmin && (
+        <section className="cadastro-card cadastro-card--full">
+          <div className="cadastro-section-header">
+            <div className="cadastro-section-header-text">
+              <h2>Responsáveis</h2>
+              <p>Pessoas cadastradas por área. Usadas no Planejamento (Gantt). Para adicionar, use o seletor de responsáveis no Gantt.</p>
+            </div>
+          </div>
+          <div className="cadastro-section-body">
+            {loadingResponsaveis ? (
+              <p style={{ padding: '0 1.25rem' }}>Carregando…</p>
+            ) : responsaveis.length === 0 ? (
+              <p className="empty-state">Nenhum responsável cadastrado. Adicione pelo Gantt.</p>
+            ) : (
+              <div className="table-wrap">
+                <table className="cadastro-table">
+                  <thead>
+                    <tr>
+                      <th>Apelido</th>
+                      <th>Área</th>
+                      <th>Vínculo (profile)</th>
+                      <th style={{ width: 140 }}>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {responsaveis.map(r => (
+                      <tr key={r.id}>
+                        <td>{r.nome}</td>
+                        <td>{r.areas?.nome || '—'}</td>
+                        <td>{r.profiles?.email || (hasProfileIdCol ? 'Sem vínculo' : '—')}</td>
+                        <td>
+                          <button type="button" className="btn-edit" onClick={() => abrirEditarResponsavel(r)}>Editar</button>
+                          <button type="button" className="btn-del" onClick={() => solicitarExclusaoResponsavel(r)}>Excluir</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       {excluirConfirm && (
         <div
           className="workload-remove-modal-overlay"
@@ -1544,6 +1707,82 @@ export default function Page() {
                 disabled={excluirConfirmando}
               >
                 {excluirConfirmando ? 'Excluindo…' : 'Excluir'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {responsavelModalAberto && responsavelEditando && (
+        <div
+          className="workload-remove-modal-overlay"
+          onMouseDown={(e) => { if (e.target === e.currentTarget && !salvandoResponsavel) fecharResponsavelModal() }}
+        >
+          <div
+            className="workload-remove-modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="resp-edit-title"
+          >
+            <div className="workload-remove-modal-header">
+              <div>
+                <h2 id="resp-edit-title" className="workload-remove-modal-title">Editar responsável</h2>
+              </div>
+              <button
+                type="button"
+                className="workload-remove-modal-close"
+                onClick={fecharResponsavelModal}
+                disabled={salvandoResponsavel}
+                aria-label="Fechar"
+              >×</button>
+            </div>
+            <div className="workload-remove-modal-body">
+              <div className="form-group">
+                <label>Apelido</label>
+                <input
+                  value={respNomeEdit}
+                  onChange={e => setRespNomeEdit(e.target.value)}
+                  className="cadastro-edit-input"
+                  style={{ width: '100%' }}
+                  autoFocus
+                  onKeyDown={e => { if (e.key === 'Enter') salvarResponsavel() }}
+                />
+              </div>
+              {hasProfileIdCol && (
+                <div className="form-group" style={{ marginTop: '1rem' }}>
+                  <label>Vínculo com profile</label>
+                  <select
+                    value={respProfileIdEdit}
+                    onChange={e => setRespProfileIdEdit(e.target.value)}
+                    style={{ width: '100%' }}
+                  >
+                    <option value="">Sem vínculo</option>
+                    {profiles.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.full_name ? `${p.full_name} — ${p.email}` : p.email}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+            <div className="workload-remove-modal-footer">
+              <button
+                type="button"
+                className="workload-remove-modal-btn workload-remove-modal-btn--cancel"
+                onClick={fecharResponsavelModal}
+                disabled={salvandoResponsavel}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="workload-remove-modal-btn"
+                style={{ background: '#2F4A3A', color: '#fff' }}
+                onClick={salvarResponsavel}
+                disabled={salvandoResponsavel}
+              >
+                {salvandoResponsavel ? 'Salvando…' : 'Salvar'}
               </button>
             </div>
           </div>
