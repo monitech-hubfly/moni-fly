@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   Pencil,
   Archive,
+  ArchiveRestore,
   BookOpen,
   Link2,
   FileText,
@@ -28,6 +29,7 @@ import { createClient } from '@/lib/supabase/client';
 import { calcularDiasUteis, formatIsoDateOnlyPtBr, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
 import {
   arquivarCard,
+  desarquivarCard,
   arquivarInteracao,
   arquivarSubInteracao,
   atualizarStatusInteracao,
@@ -2255,6 +2257,40 @@ export function KanbanCardModal({
     }
   }
 
+  async function handleConfirmarDesarquivar() {
+    if (!card) return;
+    const rl = modalSessao.roleNorm;
+    const podeDesarquivar =
+      pode('arquivar_cards') ||
+      rl === 'admin' ||
+      rl === 'team' ||
+      rl === 'supervisor' ||
+      rl === 'consultor';
+    if (ocultarGestaoCard || !podeDesarquivar) {
+      alert('Sem permissão para desarquivar cards.');
+      return;
+    }
+    if (!confirm('Desarquivar este card? Ele voltará a aparecer no kanban.')) return;
+    setLoading(true);
+    try {
+      const r = await desarquivarCard({
+        cardId: card.id,
+        basePath,
+        origem: origem === 'legado' ? 'legado' : 'nativo',
+      });
+      if (!r.ok) {
+        alert(r.error ?? 'Não foi possível desarquivar o card.');
+        return;
+      }
+      router.refresh();
+      onClose();
+    } catch {
+      alert('Erro ao desarquivar o card. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function toggleSecaoEsquerda(id: SecaoEsquerdaId) {
     setSecaoAberta((prev) => ({ ...prev, [id]: !prev[id] }));
   }
@@ -2865,6 +2901,8 @@ export function KanbanCardModal({
     !cardLegadoConcluido &&
     !cardNativoArquivado &&
     !cardLegadoArquivado;
+  const exibirBlocoDesarquivar =
+    podeArquivarCardPerm && (cardNativoArquivado || cardLegadoArquivado);
   const roleNormUsuario = normalizeAccessRole(userRoleRaw);
   const userRoleLc = (userRoleRaw || '').trim().toLowerCase();
   const usuarioFrank = portalFrank || isFrankOrFranqueadoRole(userRoleRaw);
@@ -5219,6 +5257,25 @@ export function KanbanCardModal({
                     </button>
                   </div>
                 )}
+              </PainelLateralSecao>
+            ) : null}
+
+            {exibirBlocoDesarquivar ? (
+              <PainelLateralSecao titulo="Desarquivar">
+                <button
+                  type="button"
+                  onClick={() => void handleConfirmarDesarquivar()}
+                  disabled={loading}
+                  className="flex w-full items-center justify-center gap-1.5 rounded px-2 py-1.5 text-[10px] font-semibold transition disabled:opacity-50"
+                  style={{
+                    background: 'var(--moni-status-success-bg, #f0fdf4)',
+                    color: 'var(--moni-status-success-text, #166534)',
+                    border: '0.5px solid var(--moni-status-success-border, #bbf7d0)',
+                  }}
+                >
+                  <ArchiveRestore className="h-4 w-4 shrink-0" aria-hidden />
+                  {loading ? 'Desarquivando…' : 'Desarquivar card'}
+                </button>
               </PainelLateralSecao>
             ) : null}
 
