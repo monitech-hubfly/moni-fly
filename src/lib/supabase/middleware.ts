@@ -20,12 +20,22 @@ function redirectToBcaPublicLeitura(request: NextRequest) {
   return NextResponse.redirect(new URL(BCA_PUBLIC_LEITURA_PATH, request.url));
 }
 
+/** Cookie de sessão Supabase — evita round-trip Auth em rotas públicas sem login. */
+function hasSupabaseAuthCookie(request: NextRequest): boolean {
+  return request.cookies.getAll().some((cookie) => cookie.name.includes('-auth-token'));
+}
+
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   if (pathname === '/signup' || pathname.startsWith('/signup/')) {
     const url = new URL('/login', request.url);
     url.searchParams.set('tab', 'cadastro');
     return NextResponse.redirect(url);
+  }
+
+  // Rotas públicas sem cookie de sessão: não chama Supabase (reduz timeout no Edge).
+  if (isAnonymousAllowedPath(pathname) && !hasSupabaseAuthCookie(request)) {
+    return NextResponse.next({ request });
   }
 
   const response = NextResponse.next({ request });
@@ -52,6 +62,11 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // APIs: só renova cookies de sessão; autorização fica nos handlers / RLS.
+  if (pathname.startsWith('/api')) {
+    return response;
+  }
 
   const isAuthPage = isAuthFlowAccessPath(pathname);
   const protectedPrefixes = [
@@ -101,13 +116,19 @@ export async function updateSession(request: NextRequest) {
     return redirectToBcaPublicLeitura(request);
   }
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, cargo')
+    .eq('id', user.id)
+    .maybeSingle();
+  const profileRow = profile as { role?: string | null; cargo?: string | null } | null;
+
   if (isAuthPage && user) {
-    const { data: profLogin } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-    if (!profLogin) {
+    if (!profileRow) {
       return response;
     }
-    const rawRoleLogin = String((profLogin as { role?: string | null }).role ?? '').trim().toLowerCase();
-    const roleLogin = normalizeAccessRole((profLogin as { role?: string | null }).role);
+    const rawRoleLogin = String(profileRow.role ?? '').trim().toLowerCase();
+    const roleLogin = normalizeAccessRole(profileRow.role);
     if (rawRoleLogin === 'pending') {
       return redirectToBcaPublicLeitura(request);
     }
@@ -119,13 +140,6 @@ export async function updateSession(request: NextRequest) {
     }
     return NextResponse.redirect(new URL('/rede-franqueados', request.url));
   }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, cargo')
-    .eq('id', user.id)
-    .maybeSingle();
-  const profileRow = profile as { role?: string | null; cargo?: string | null } | null;
   const rawProfileRole = String(profileRow?.role ?? '').trim().toLowerCase();
   const accessRole = normalizeAccessRole(profileRow?.role);
 
