@@ -47,6 +47,8 @@ function cleanPatch(patch: CondominioPatch): Record<string, unknown> {
   setNum('ticket_medio_casas', patch.ticket_medio_casas);
   setNum('ticket_medio_casas_rsm2', patch.ticket_medio_casas_rsm2);
   setNum('estimativa_casas_vendidas_ano', patch.estimativa_casas_vendidas_ano);
+  setText('extrato_como_eram_casas', patch.extrato_como_eram_casas);
+  setText('extrato_tempo_venda', patch.extrato_tempo_venda);
   return out;
 }
 

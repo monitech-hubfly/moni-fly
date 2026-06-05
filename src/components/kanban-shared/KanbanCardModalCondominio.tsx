@@ -15,7 +15,6 @@ import {
   type CondominioRow,
 } from '@/lib/condominios';
 import {
-  condominioRowToFormDraft,
   emptyCondominioFormDraft,
   type CondominioFormDraft,
 } from '@/lib/condominios-form';
@@ -79,6 +78,8 @@ export function KanbanCardModalCondominio({
             (r as { ticket_medio_casas_rsm2?: number | null }).ticket_medio_casas_rsm2 ?? null,
           estimativa_casas_vendidas_ano:
             (r as { estimativa_casas_vendidas_ano?: number | null }).estimativa_casas_vendidas_ano ?? null,
+          extrato_como_eram_casas: (r as { extrato_como_eram_casas?: string | null }).extrato_como_eram_casas ?? null,
+          extrato_tempo_venda: (r as { extrato_tempo_venda?: string | null }).extrato_tempo_venda ?? null,
         })),
       );
       setLista(rows);
@@ -115,6 +116,8 @@ export function KanbanCardModalCondominio({
           ticket_medio_casas: data.ticket_medio_casas ?? null,
           ticket_medio_casas_rsm2: data.ticket_medio_casas_rsm2 ?? null,
           estimativa_casas_vendidas_ano: data.estimativa_casas_vendidas_ano ?? null,
+          extrato_como_eram_casas: data.extrato_como_eram_casas ?? null,
+          extrato_tempo_venda: data.extrato_tempo_venda ?? null,
         });
       }
     },

@@ -14,6 +14,8 @@ export type CondominioRow = {
   ticket_medio_casas: number | null;
   ticket_medio_casas_rsm2: number | null;
   estimativa_casas_vendidas_ano: number | null;
+  extrato_como_eram_casas: string | null;
+  extrato_tempo_venda: string | null;
   criado_por?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -61,6 +63,8 @@ export function condominioRowMatchesBusca(row: CondominioRow, busca: string): bo
     numToSearch(row.ticket_medio_casas),
     numToSearch(row.ticket_medio_casas_rsm2),
     numToSearch(row.estimativa_casas_vendidas_ano),
+    row.extrato_como_eram_casas,
+    row.extrato_tempo_venda,
     formatCondominioMoeda(row.ticket_medio_lote),
     formatCondominioMoeda(row.ticket_medio_casas),
     formatCondominioMoeda(row.ticket_medio_casas_rsm2),
@@ -99,6 +103,8 @@ function mapRow(r: Record<string, unknown>): CondominioRow {
     ticket_medio_casas: parseNumericField(r.ticket_medio_casas),
     ticket_medio_casas_rsm2: parseNumericField(r.ticket_medio_casas_rsm2),
     estimativa_casas_vendidas_ano: parseIntegerField(r.estimativa_casas_vendidas_ano),
+    extrato_como_eram_casas: ((r.extrato_como_eram_casas as string | null) ?? null)?.trim() || null,
+    extrato_tempo_venda: ((r.extrato_tempo_venda as string | null) ?? null)?.trim() || null,
     criado_por: (r.criado_por as string | null) ?? null,
     created_at: (r.created_at as string | null) ?? null,
     updated_at: (r.updated_at as string | null) ?? null,
@@ -141,6 +147,8 @@ export type CondominioPatch = {
   ticket_medio_casas?: number | null;
   ticket_medio_casas_rsm2?: number | null;
   estimativa_casas_vendidas_ano?: number | null;
+  extrato_como_eram_casas?: string | null;
+  extrato_tempo_venda?: string | null;
 };
 
 export function parseDecimalInput(raw: string): number | null {

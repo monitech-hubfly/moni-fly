@@ -36,6 +36,8 @@ type Draft = {
   ticket_medio_casas: string;
   ticket_medio_casas_rsm2: string;
   estimativa_casas_vendidas_ano: string;
+  extrato_como_eram_casas: string;
+  extrato_tempo_venda: string;
 };
 
 function emptyDraft(): Draft {
@@ -50,6 +52,8 @@ function emptyDraft(): Draft {
     ticket_medio_casas: '',
     ticket_medio_casas_rsm2: '',
     estimativa_casas_vendidas_ano: '',
+    extrato_como_eram_casas: '',
+    extrato_tempo_venda: '',
   };
 }
 
@@ -65,6 +69,8 @@ function rowToDraft(r: CondominioRow): Draft {
     ticket_medio_casas: decimalInputFromValue(r.ticket_medio_casas),
     ticket_medio_casas_rsm2: decimalInputFromValue(r.ticket_medio_casas_rsm2),
     estimativa_casas_vendidas_ano: integerInputFromValue(r.estimativa_casas_vendidas_ano),
+    extrato_como_eram_casas: r.extrato_como_eram_casas ?? '',
+    extrato_tempo_venda: r.extrato_tempo_venda ?? '',
   };
 }
 
@@ -80,6 +86,8 @@ function draftToPatch(d: Draft) {
     ticket_medio_casas: parseDecimalInput(d.ticket_medio_casas),
     ticket_medio_casas_rsm2: parseDecimalInput(d.ticket_medio_casas_rsm2),
     estimativa_casas_vendidas_ano: parseIntegerInput(d.estimativa_casas_vendidas_ano),
+    extrato_como_eram_casas: d.extrato_como_eram_casas.trim() || null,
+    extrato_tempo_venda: d.extrato_tempo_venda.trim() || null,
   };
 }
 
@@ -250,6 +258,12 @@ export function TabelaCondominiosEditavel({
               <th className={redeTh} scope="col">
                 Est. casas vendidas/ano
               </th>
+              <th className={redeTh} scope="col">
+                Extrato — Como eram
+              </th>
+              <th className={redeTh} scope="col">
+                Extrato — Tempo venda
+              </th>
               {canEdit ? (
                 <th
                   className="sticky right-0 z-20 w-28 min-w-[7rem] border-l border-stone-200 bg-stone-50 px-1 py-2 text-center"
@@ -303,6 +317,16 @@ export function TabelaCondominiosEditavel({
                   </td>
                   <td className="px-3 py-2.5 tabular-nums text-stone-700">
                     {formatCondominioInteiro(r.estimativa_casas_vendidas_ano)}
+                  </td>
+                  <td className="max-w-[12rem] px-3 py-2.5 text-stone-700">
+                    <span className="line-clamp-2 text-xs" title={r.extrato_como_eram_casas ?? ''}>
+                      {r.extrato_como_eram_casas?.trim() || '—'}
+                    </span>
+                  </td>
+                  <td className="max-w-[12rem] px-3 py-2.5 text-stone-700">
+                    <span className="line-clamp-2 text-xs" title={r.extrato_tempo_venda ?? ''}>
+                      {r.extrato_tempo_venda?.trim() || '—'}
+                    </span>
                   </td>
                   {canEdit ? (
                     <td className="sticky right-0 z-10 border-l border-stone-200 bg-white px-1 py-2 align-middle group-hover:bg-stone-50/90">
@@ -494,6 +518,24 @@ function CondominioEditRow({
           onChange={(e) => setDraft((d) => ({ ...d, estimativa_casas_vendidas_ano: e.target.value }))}
           className={inputCls}
           placeholder="Ex.: 120"
+        />
+      </td>
+      <td className="px-3 py-2">
+        <textarea
+          rows={2}
+          value={draft.extrato_como_eram_casas}
+          onChange={(e) => setDraft((d) => ({ ...d, extrato_como_eram_casas: e.target.value }))}
+          className={`${inputCls} min-w-[10rem]`}
+          placeholder="Como eram as casas"
+        />
+      </td>
+      <td className="px-3 py-2">
+        <textarea
+          rows={2}
+          value={draft.extrato_tempo_venda}
+          onChange={(e) => setDraft((d) => ({ ...d, extrato_tempo_venda: e.target.value }))}
+          className={`${inputCls} min-w-[10rem]`}
+          placeholder="Tempo para vender"
         />
       </td>
       <td className="sticky right-0 border-l border-stone-200 bg-stone-50 px-1 py-2 align-middle">

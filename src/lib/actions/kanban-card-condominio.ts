@@ -115,6 +115,8 @@ export async function cadastrarCondominioEVincularCard(input: {
     ticket_medio_casas: patch.ticket_medio_casas ?? null,
     ticket_medio_casas_rsm2: patch.ticket_medio_casas_rsm2 ?? null,
     estimativa_casas_vendidas_ano: patch.estimativa_casas_vendidas_ano ?? null,
+    extrato_como_eram_casas: patch.extrato_como_eram_casas ?? null,
+    extrato_tempo_venda: patch.extrato_tempo_venda ?? null,
     criado_por: user.id,
     updated_at: new Date().toISOString(),
   };
