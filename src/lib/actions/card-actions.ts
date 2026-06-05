@@ -73,6 +73,15 @@ import {
   type ProcessoNegocioUpdatePayload,
 } from '@/lib/kanban/kanban-card-modal-detalhes';
 
+/** Wrapper para validar gate Checklist Legal (Step 4 Portfólio) no cliente. */
+export async function verificarGateChecklistLegalPortfolio(
+  cardId: string,
+  novaFaseId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { verificarGateChecklistLegalAcoplamento } = await import('@/lib/kanban/checklist-legal-gate');
+  return verificarGateChecklistLegalAcoplamento(cardId, novaFaseId);
+}
+
 /** Wrapper para evitar import estático de módulo server-only no bundle do cliente. */
 export async function verificarGateAcoplamentoModelagemCasa(
   cardId: string,
@@ -3386,6 +3395,9 @@ export async function moverCardParaFase(input: {
 
   const gateAcoplamento = await verificarGateAcoplamentoModelagemCasa(cardId, novaFaseId);
   if (!gateAcoplamento.ok) return gateAcoplamento;
+
+  const gateChecklistLegal = await verificarGateChecklistLegalPortfolio(cardId, novaFaseId);
+  if (!gateChecklistLegal.ok) return gateChecklistLegal;
 
   const { data: cardKanban } = await supabase
     .from('kanban_cards')

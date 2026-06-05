@@ -1,16 +1,29 @@
-import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import { isPortfolioKanbanRef } from '@/lib/kanban/portfolio-paralelas';
 
-/** Exibe Checklist Legal no modal quando fase/kanban exige ou card já tem condomínio vinculado. */
+/** Exibe Checklist Legal + Crédito apenas no Funil Portfólio, fase Step 4. */
+function portfolioFaseStep4(
+  kanbanId: string | null | undefined,
+  faseSlug: string | null | undefined,
+): boolean {
+  const kid = String(kanbanId ?? '').trim();
+  const slug = String(faseSlug ?? '').trim();
+  return isPortfolioKanbanRef(kid) && slug === FASE_SLUGS.STEP_4;
+}
+
+/** Exibe Checklist Legal no modal do card (Step 4 — Funil Portfólio). */
 export function deveExibirChecklistLegalNaFase(
   kanbanId: string | null | undefined,
   faseSlug: string | null | undefined,
-  condominioId?: string | null,
+  _condominioId?: string | null,
 ): boolean {
-  if (String(condominioId ?? '').trim()) return true;
-  const kid = String(kanbanId ?? '').trim();
-  const slug = String(faseSlug ?? '').trim();
-  if (kid === KANBAN_IDS.ACOPLAMENTO) return true;
-  if (isPortfolioKanbanRef(kid) && (slug === FASE_SLUGS.STEP_4 || slug === FASE_SLUGS.ACOPLAMENTO)) return true;
-  return false;
+  return portfolioFaseStep4(kanbanId, faseSlug);
+}
+
+/** Exibe Checklist de Crédito no modal do card (Step 4 — Funil Portfólio). */
+export function deveExibirChecklistCreditoNaFase(
+  kanbanId: string | null | undefined,
+  faseSlug: string | null | undefined,
+): boolean {
+  return portfolioFaseStep4(kanbanId, faseSlug);
 }

@@ -59,6 +59,7 @@ import {
   vincularTagCard,
   verificarChecklistParaFase,
   verificarGateAcoplamentoModelagemCasa,
+  verificarGateChecklistLegalPortfolio,
   gerarFormTokenCandidato,
   enviarEmailCard,
   type SubInteracaoStatusDb,
@@ -210,8 +211,9 @@ import { AnexosChamado } from './AnexosChamado';
 import { AnexosSubchamado } from './AnexosSubchamado';
 import { ChecklistCard } from './ChecklistCard';
 import { ChecklistLegalCondominioCard } from './ChecklistLegalCondominioCard';
+import { ChecklistCreditoSection } from '@/app/steps-viabilidade/ChecklistCreditoSection';
 import { FaseChecklistCard } from './FaseChecklistCard';
-import { deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
+import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
 import {
   buildLegadoFaseTimeline,
   buildNativeFaseTimeline,
@@ -2038,6 +2040,18 @@ export function KanbanCardModal({
       setGateStep5Toast(null);
     }
 
+    if (
+      !isLegado &&
+      isPortfolioKanbanRef(card.kanban_id, String(kanbanNome)) &&
+      (faseAtual.slug ?? '').trim() === FASE_SLUGS.STEP_4
+    ) {
+      const gateLegal = await verificarGateChecklistLegalPortfolio(card.id, proximaFase.id);
+      if (!gateLegal.ok) {
+        alert(gateLegal.error ?? 'Conclua o Checklist Legal antes de avançar.');
+        return;
+      }
+    }
+
     setAcoplamentoGateToast(null);
     if (
       !isLegado &&
@@ -2967,6 +2981,10 @@ export function KanbanCardModal({
       faseAtual?.slug ?? card.etapa_slug,
       condominioIdChecklistLegal,
     );
+  const exibirChecklistCredito =
+    !isLegado &&
+    deveExibirChecklistCreditoNaFase(card.kanban_id, faseAtual?.slug ?? card.etapa_slug);
+  const processoIdChecklists = proc?.id?.trim() || card.projeto_id?.trim() || null;
   const enderecoCasaLinha = rede
     ? [
         rede.endereco_casa_frank,
@@ -4628,13 +4646,17 @@ export function KanbanCardModal({
                       />
                     ) : null}
 
+                    {exibirChecklistCredito && processoIdChecklists ? (
+                      <ChecklistCreditoSection processoId={processoIdChecklists} />
+                    ) : null}
+
                     <FaseChecklistCard
                       faseId={faseChecklistFaseId}
                       faseSlug={faseSlugAtual}
                       cardId={card.id}
                       isFrank={portalFrank}
                       isAdmin={isAdmin}
-                      ocultarVazio={exibirChecklistLegalCondominio}
+                      ocultarVazio={exibirChecklistLegalCondominio || exibirChecklistCredito}
                       condominioContext={
                         !isFaseDadosCondominios
                           ? {

@@ -69,7 +69,7 @@ export default function PublicChecklistLegalPage({ params }: { params: { token: 
 
   return (
     <main className="mx-auto min-h-screen max-w-3xl bg-white px-4 py-8">
-      <h1 className="text-xl font-semibold text-stone-800">Checklist Legal — Acoplamento</h1>
+      <h1 className="text-xl font-semibold text-stone-800">Checklist Legal — Funil Portfólio</h1>
       <p className="mt-1 text-sm text-stone-500">
         Preencha por seções. Você pode salvar rascunho e retomar depois com o mesmo link (válido por 30 dias).
       </p>
