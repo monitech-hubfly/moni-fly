@@ -103,8 +103,12 @@ export async function updateSession(request: NextRequest) {
 
   if (isAuthPage && user) {
     const { data: profLogin } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-    const roleLogin = normalizeAccessRole((profLogin as { role?: string | null } | null)?.role);
-    if (roleLogin === 'pending') {
+    if (!profLogin) {
+      return response;
+    }
+    const rawRoleLogin = String((profLogin as { role?: string | null }).role ?? '').trim().toLowerCase();
+    const roleLogin = normalizeAccessRole((profLogin as { role?: string | null }).role);
+    if (rawRoleLogin === 'pending') {
       return redirectToBcaPublicLeitura(request);
     }
     if (roleLogin === 'blocked') {
