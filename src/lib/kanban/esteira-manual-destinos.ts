@@ -1,13 +1,16 @@
 import {
+  FASE_SLUGS,
   KANBAN_IDS,
   KANBANS_COM_CHAMADO_JURIDICO,
+  KANBANS_INTERNOS,
 } from '@/lib/constants/kanban-ids';
 
 export type DestinoEsteiraManualKey =
   | 'acoplamento'
   | 'contabilidade'
   | 'juridico'
-  | 'moni_capital';
+  | 'moni_capital'
+  | 'projeto_legal';
 
 export const DESTINOS_ESTEIRA_MANUAL: Record<
   DestinoEsteiraManualKey,
@@ -33,6 +36,11 @@ export const DESTINOS_ESTEIRA_MANUAL: Record<
     kanbanDestinoId: KANBAN_IDS.MONI_CAPITAL,
     faseDestinoSlug: 'capital_recebimento',
   },
+  projeto_legal: {
+    label: 'Projeto Legal',
+    kanbanDestinoId: KANBAN_IDS.PROJETO_LEGAL,
+    faseDestinoSlug: FASE_SLUGS.PL_NOVA_DEMANDA,
+  },
 };
 
 /** Acoplamento não entra na esteira genérica — use `abrirFunilAcoplamentoManualDoCard` no painel de vínculos. */
@@ -40,7 +48,10 @@ const PORTFOLIO_DESTINOS: DestinoEsteiraManualKey[] = [
   'contabilidade',
   'juridico',
   'moni_capital',
+  'projeto_legal',
 ];
+
+const KANBANS_INTERNOS_SET = new Set<string>(KANBANS_INTERNOS as readonly string[]);
 
 /** Funis com destinos de esteira manual do Portfólio (sem Acoplamento — ver painel de vínculos). */
 const KANBANS_ESTEIRA_MANUAL_COMPLETA: readonly string[] = [
@@ -49,17 +60,17 @@ const KANBANS_ESTEIRA_MANUAL_COMPLETA: readonly string[] = [
 ];
 
 export function kanbanPermiteDispararEsteiraManual(kanbanId: string | null | undefined): boolean {
-  const id = String(kanbanId ?? '').trim();
-  if (!id) return false;
-  if ((KANBANS_ESTEIRA_MANUAL_COMPLETA as readonly string[]).includes(id)) return true;
-  return (KANBANS_COM_CHAMADO_JURIDICO as readonly string[]).includes(id);
+  return destinosEsteiraManualParaKanban(kanbanId).length > 0;
 }
 
 export function destinosEsteiraManualParaKanban(
   kanbanId: string | null | undefined,
 ): DestinoEsteiraManualKey[] {
   const id = String(kanbanId ?? '').trim();
+  if (!id || KANBANS_INTERNOS_SET.has(id)) return [];
   if ((KANBANS_ESTEIRA_MANUAL_COMPLETA as readonly string[]).includes(id)) return PORTFOLIO_DESTINOS;
-  if ((KANBANS_COM_CHAMADO_JURIDICO as readonly string[]).includes(id)) return ['juridico'];
-  return [];
+  if ((KANBANS_COM_CHAMADO_JURIDICO as readonly string[]).includes(id)) {
+    return ['juridico', 'projeto_legal'];
+  }
+  return ['projeto_legal'];
 }

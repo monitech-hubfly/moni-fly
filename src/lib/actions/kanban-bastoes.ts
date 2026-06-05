@@ -705,15 +705,163 @@ const DESFECHO_ESTEIRA_LABEL: Record<string, string> = {
 };
 
 /**
+ * Bastão de volta com movimento de fase: filho Projeto Legal → pai Operações.
+ * Quando o filho entra em `pl_c_protocolo_andamento`, move o pai para `aprovacao_condominio`.
+ */
+async function executarBastaoDeVoltaMoverPaiPorFaseFilho(
+  cardFilhoId: string,
+  novaFaseSlug: string,
+): Promise<void> {
+  const slug = String(novaFaseSlug ?? '').trim();
+  if (slug !== FASE_SLUGS.PL_C_PROTOCOLO_ANDAMENTO) return;
+
+  const filhoId = String(cardFilhoId ?? '').trim();
+  if (!filhoId) return;
+
+  let db: ReturnType<typeof createAdminClient>;
+  try {
+    db = createAdminClient();
+  } catch (e) {
+    console.error('[executarBastaoDeVoltaMoverPai] admin client:', e);
+    return;
+  }
+
+  const { data: filhoRow, error: errFilho } = await db
+    .from('kanban_cards')
+    .select('id, kanban_id, origem_card_id, fase_id')
+    .eq('id', filhoId)
+    .maybeSingle();
+
+  if (errFilho) {
+    console.error('[executarBastaoDeVoltaMoverPai] card filho:', errFilho.message);
+    return;
+  }
+  if (!filhoRow?.id) return;
+  if (String((filhoRow as { kanban_id?: string }).kanban_id ?? '') !== KANBAN_IDS.PROJETO_LEGAL) {
+    return;
+  }
+
+  const paiId = String(
+    (filhoRow as { origem_card_id?: string | null }).origem_card_id ?? '',
+  ).trim();
+  if (!paiId) return;
+
+  const { data: paiRow, error: errPai } = await db
+    .from('kanban_cards')
+    .select('id, kanban_id, fase_id')
+    .eq('id', paiId)
+    .maybeSingle();
+
+  if (errPai) {
+    console.error('[executarBastaoDeVoltaMoverPai] card pai:', errPai.message);
+    return;
+  }
+  if (!paiRow?.id) return;
+  if (String((paiRow as { kanban_id?: string }).kanban_id ?? '') !== KANBAN_IDS.OPERACOES) {
+    return;
+  }
+
+  const fasePaiIdAtual = String((paiRow as { fase_id?: string }).fase_id ?? '').trim();
+
+  const { data: faseDestino, error: errFaseDest } = await db
+    .from('kanban_fases')
+    .select('id, slug, ordem')
+    .eq('kanban_id', KANBAN_IDS.OPERACOES)
+    .eq('slug', FASE_SLUGS.APROVACAO_CONDOMINIO)
+    .eq('ativo', true)
+    .maybeSingle();
+
+  if (errFaseDest) {
+    console.error('[executarBastaoDeVoltaMoverPai] fase destino:', errFaseDest.message);
+    return;
+  }
+  if (!faseDestino?.id) {
+    console.error('[executarBastaoDeVoltaMoverPai] fase aprovacao_condominio não encontrada.');
+    return;
+  }
+
+  const faseDestinoId = String(faseDestino.id);
+  const ordemDestino = Number((faseDestino as { ordem?: number }).ordem ?? 0);
+
+  if (fasePaiIdAtual === faseDestinoId) return;
+
+  if (fasePaiIdAtual) {
+    const { data: faseAtualPai } = await db
+      .from('kanban_fases')
+      .select('slug, ordem')
+      .eq('id', fasePaiIdAtual)
+      .maybeSingle();
+    const ordemAtual = Number((faseAtualPai as { ordem?: number } | null)?.ordem ?? 0);
+    const slugAtual = String((faseAtualPai as { slug?: string | null } | null)?.slug ?? '').trim();
+    if (slugAtual === FASE_SLUGS.APROVACAO_CONDOMINIO) return;
+    if (ordemAtual > 0 && ordemDestino > 0 && ordemAtual >= ordemDestino) return;
+  }
+
+  const { error: errUpd } = await db
+    .from('kanban_cards')
+    .update({ fase_id: faseDestinoId })
+    .eq('id', paiId);
+
+  if (errUpd) {
+    console.error('[executarBastaoDeVoltaMoverPai] update pai:', errUpd.message);
+    return;
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let usuarioNome: string | null = null;
+  if (user?.id) {
+    const { data: prof } = await db
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .maybeSingle();
+    usuarioNome = String((prof as { full_name?: string | null } | null)?.full_name ?? '').trim() || null;
+  }
+
+  const descricao =
+    'Bastão de retorno: Projeto Legal em C: Protocolo em Andamento → Operações em Aprovação no Condomínio.';
+
+  const { error: errHist } = await db.from('kanban_historico').insert({
+    card_id: paiId,
+    usuario_id: user?.id ?? null,
+    usuario_nome: usuarioNome,
+    acao: 'bastao_retorno',
+    detalhe: {
+      tipo: 'bastao_retorno',
+      descricao,
+      fase_slug: slug,
+      card_filho_id: filhoId,
+      fase_pai_slug: FASE_SLUGS.APROVACAO_CONDOMINIO,
+      esteira: 'Projeto Legal',
+    },
+  } as never);
+
+  if (errHist) {
+    console.error('[executarBastaoDeVoltaMoverPai] historico:', errHist.message);
+  }
+
+  await executarBastoes(paiId, FASE_SLUGS.APROVACAO_CONDOMINIO);
+
+  revalidatePath('/operacoes');
+  revalidatePath('/funil-projeto-legal');
+}
+
+/**
  * Quando card filho entra em fase de desfecho, marca flag no card pai (`origem_card_id`).
  */
 export async function executarBastaoDeVolta(cardId: string, novaFaseSlug: string): Promise<void> {
   const slug = String(novaFaseSlug ?? '').trim();
+  const cardFilhoId = String(cardId ?? '').trim();
+  if (!cardFilhoId || !slug) return;
+
+  await executarBastaoDeVoltaMoverPaiPorFaseFilho(cardFilhoId, slug);
+
   const flagCol = DESFECHO_FLAG_POR_FASE[slug];
   if (!flagCol) return;
-
-  const cardFilhoId = String(cardId ?? '').trim();
-  if (!cardFilhoId) return;
 
   let db: ReturnType<typeof createAdminClient>;
   try {
@@ -939,6 +1087,9 @@ export async function dispararEsteiraManualDoCard(
     const { data: kb } = await db.from('kanbans').select('nome').eq('id', destino.kanbanDestinoId).maybeSingle();
     revalidatePath(basePath?.trim() || '/');
     revalidatePath('/');
+    if (destino.kanbanDestinoId === KANBAN_IDS.PROJETO_LEGAL) {
+      revalidatePath('/funil-projeto-legal');
+    }
 
     return {
       ok: true,
