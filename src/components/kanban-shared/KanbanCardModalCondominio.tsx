@@ -8,6 +8,7 @@ import {
   vincularCondominioAoCard,
   salvarQuadraLoteCard,
 } from '@/lib/actions/kanban-card-condominio';
+import { snapshotCondominioChecklist } from '@/lib/condominios-checklist';
 import {
   condominioRowMatchesBusca,
   normalizarParaBuscaCondominio,
@@ -30,6 +31,12 @@ type Props = {
   nomeCondominioLegado: string | null;
   podeEditar: boolean;
   podeCadastrarNovo: boolean;
+  /** Espelho somente leitura (ex.: painel esquerdo na fase Dados dos Condomínios). */
+  somenteLeitura?: boolean;
+  /** Só vincula condomínio — quadra/lote vêm de outros campos do checklist (fase Lotes disponíveis). */
+  apenasVinculo?: boolean;
+  /** Callback para sincronizar resposta do checklist da fase. */
+  onChecklistValor?: (valor: string) => void;
   onSalvo: () => void;
 };
 
@@ -43,6 +50,9 @@ export function KanbanCardModalCondominio({
   nomeCondominioLegado,
   podeEditar,
   podeCadastrarNovo,
+  somenteLeitura = false,
+  apenasVinculo = false,
+  onChecklistValor,
   onSalvo,
 }: Props) {
   const [lista, setLista] = useState<CondominioRow[]>([]);
@@ -158,6 +168,23 @@ export function KanbanCardModalCondominio({
     return base.slice(0, 40);
   }, [lista, busca]);
 
+  const notificarChecklist = useCallback(
+    (id: string, q: string, l: string) => {
+      if (!onChecklistValor || !id || !q.trim() || !l.trim()) return;
+      onChecklistValor(snapshotCondominioChecklist(id, q, l));
+    },
+    [onChecklistValor],
+  );
+
+  useEffect(() => {
+    if (!onChecklistValor || !condominioId) return;
+    if (apenasVinculo) {
+      onChecklistValor(snapshotCondominioChecklist(condominioId, '', ''));
+      return;
+    }
+    notificarChecklist(condominioId, quadra, lote);
+  }, [condominioId, quadra, lote, onChecklistValor, notificarChecklist, apenasVinculo]);
+
   async function handleVincular(id: string) {
     setSalvando(true);
     setErro(null);
@@ -176,6 +203,7 @@ export function KanbanCardModalCondominio({
       }
       setCondominioId(id);
       setModoNovo(false);
+      notificarChecklist(id, quadra, lote);
       onSalvo();
     } finally {
       setSalvando(false);
@@ -201,6 +229,7 @@ export function KanbanCardModalCondominio({
       if (res.condominioId) setCondominioId(res.condominioId);
       setModoNovo(false);
       await carregarLista();
+      notificarChecklist(res.condominioId ?? condominioId, quadra, lote);
       onSalvo();
     } finally {
       setSalvando(false);
@@ -224,7 +253,10 @@ export function KanbanCardModalCondominio({
         basePath,
       });
       if (!res.ok) setErro(res.error);
-      else onSalvo();
+      else {
+        notificarChecklist(condominioId, quadra, lote);
+        onSalvo();
+      }
     } finally {
       setSalvando(false);
     }
@@ -240,16 +272,22 @@ export function KanbanCardModalCondominio({
   }
 
   const vinculado = Boolean(condominioId && condominioRow);
+  const editavel = podeEditar && !somenteLeitura;
 
   return (
     <div className="space-y-2">
+      {somenteLeitura ? (
+        <p className="text-[10px] text-stone-500">
+          Espelho dos dados preenchidos no checklist. Edite na área central da fase.
+        </p>
+      ) : null}
       {!vinculado && nomeCondominioLegado?.trim() ? (
         <p className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] text-amber-900">
           Texto legado &quot;{nomeCondominioLegado}&quot; — selecione o condomínio no cadastro ou cadastre um novo.
         </p>
       ) : null}
 
-      {podeEditar ? (
+      {editavel ? (
         <>
           {!modoNovo ? (
             <div className="space-y-2">
@@ -343,36 +381,45 @@ export function KanbanCardModalCondominio({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-x-2 border-t border-stone-100 pt-2">
-            <label className="block">
-              <span className="text-[11px] font-medium text-stone-500">Quadra</span>
-              <input
-                type="text"
-                value={quadra}
-                onChange={(e) => setQuadra(e.target.value)}
-                className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs"
-              />
-            </label>
-            <label className="block">
-              <span className="text-[11px] font-medium text-stone-500">Lote</span>
-              <input
-                type="text"
-                value={lote}
-                onChange={(e) => setLote(e.target.value)}
-                className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs"
-              />
-            </label>
-          </div>
-          {vinculado ? (
-            <button
-              type="button"
-              disabled={salvando}
-              onClick={() => void handleSalvarQuadraLote()}
-              className="rounded border border-stone-200 px-3 py-1 text-xs text-stone-700 hover:bg-stone-50 disabled:opacity-50"
-            >
-              Salvar quadra e lote
-            </button>
-          ) : null}
+          {!apenasVinculo ? (
+            <>
+              <div className="grid grid-cols-2 gap-x-2 border-t border-stone-100 pt-2">
+                <label className="block">
+                  <span className="text-[11px] font-medium text-stone-500">Quadra</span>
+                  <input
+                    type="text"
+                    value={quadra}
+                    onChange={(e) => setQuadra(e.target.value)}
+                    className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[11px] font-medium text-stone-500">Lote</span>
+                  <input
+                    type="text"
+                    value={lote}
+                    onChange={(e) => setLote(e.target.value)}
+                    className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs"
+                  />
+                </label>
+              </div>
+              {vinculado ? (
+                <button
+                  type="button"
+                  disabled={salvando}
+                  onClick={() => void handleSalvarQuadraLote()}
+                  className="rounded border border-stone-200 px-3 py-1 text-xs text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                >
+                  Salvar quadra e lote
+                </button>
+              ) : null}
+            </>
+          ) : (
+            <p className="border-t border-stone-100 pt-2 text-[10px] text-stone-500">
+              Quadra e lote são informados nos campos abaixo do checklist. O lote será anexado ao cadastro deste
+              condomínio ao salvar.
+            </p>
+          )}
         </>
       ) : null}
 
@@ -391,11 +438,13 @@ export function KanbanCardModalCondominio({
             </div>
           </div>
         </div>
-      ) : !podeEditar ? (
-        <p className="text-xs text-stone-500">Nenhum condomínio vinculado ao card.</p>
-      ) : (
+      ) : !editavel && !vinculado ? (
+        <p className="text-xs text-stone-500">
+          {somenteLeitura ? 'Nenhum condomínio vinculado — preencha no checklist.' : 'Nenhum condomínio vinculado ao card.'}
+        </p>
+      ) : !vinculado ? (
         <p className="text-[10px] text-stone-500">Selecione um condomínio do cadastro para preencher os dados.</p>
-      )}
+      ) : null}
 
       {erro ? <p className="text-[10px] text-red-600">{erro}</p> : null}
     </div>

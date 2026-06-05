@@ -20,13 +20,13 @@ export type SaveEtapa1Result = { ok: true } | { ok: false; error: string };
 /** Fase Lotes Disponíveis (Funil Step One) — PROD UUID; fallback se slug lookup falhar. */
 const STEP_ONE_LOTES_DISPONIVEIS_FASE_ID = 'a6afabd9-2409-49a7-ab11-d2df4d3784e7';
 
-/** Itens ordem 6–10 do checklist lotes_disponiveis → ids em REGRAS_BATALHA.ATRIBUTOS_LOTE. */
+/** Itens ordem 8–12 do checklist lotes_disponiveis → ids em REGRAS_BATALHA.ATRIBUTOS_LOTE. */
 const CHECKLIST_ORDEM_TO_ATRIBUTO: Record<number, (typeof ATRIBUTOS_LOTE)[number]['id']> = {
-  6: 'vista',
-  7: 'area_verde',
-  8: 'muro',
-  9: 'area_convivencia',
-  10: 'lixeira',
+  8: 'vista',
+  9: 'area_verde',
+  10: 'muro',
+  11: 'area_convivencia',
+  12: 'lixeira',
 };
 
 /**
@@ -82,8 +82,8 @@ export async function getAtributosLoteFromStepOneChecklist(
     .from('kanban_fase_checklist_itens')
     .select('id, ordem')
     .eq('fase_id', faseId)
-    .gte('ordem', 6)
-    .lte('ordem', 10);
+    .gte('ordem', 8)
+    .lte('ordem', 12);
   if (errItens) return { ok: false, error: errItens.message };
 
   const itemRows = (itens ?? []) as { id: string; ordem: number }[];

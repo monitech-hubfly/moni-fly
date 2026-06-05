@@ -9,15 +9,44 @@ import {
   type FaseChecklistItem,
   type FaseChecklistResposta,
 } from '@/lib/actions/card-actions';
+import { listarCondominiosCadastro } from '@/lib/actions/kanban-card-condominio';
+import {
+  formatCidadeEstadoCondominio,
+  formatCondominioInteiro,
+  formatCondominioMoeda,
+  formatEnderecoNumero,
+  ordenarCondominiosPorNome,
+  type CondominioRow,
+} from '@/lib/condominios';
+import { KanbanCardModalCondominio } from '@/components/kanban-shared/KanbanCardModalCondominio';
+import { PesquisaCondominioProspect } from '@/components/kanban-shared/PesquisaCondominioProspect';
+import { TabelaCondominiosProspect } from '@/components/kanban-shared/TabelaCondominiosProspect';
+import { sincronizarLoteChecklistComCadastro } from '@/lib/actions/kanban-lotes-condominio';
+import { CondominioLotesAnexados } from '@/components/kanban-shared/CondominioLotesAnexados';
+import { isDadosCidadeFaseSlug, isLotesDisponiveisFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { ChecklistDocumentDiffModal } from '@/components/kanban-shared/ChecklistDocumentDiffModal';
+
+export type CondominioChecklistContext = {
+  origem: 'nativo' | 'legado';
+  basePath: string;
+  condominioId: string | null;
+  quadra: string | null;
+  lote: string | null;
+  nomeCondominioLegado: string | null;
+  podeEditar: boolean;
+  podeCadastrarNovo: boolean;
+  onSalvo: () => void;
+};
 
 type Props = {
   faseId: string;
+  faseSlug?: string | null;
   cardId: string;
   isFrank: boolean;
   isAdmin: boolean;
   /** Quando true e não há itens de fase, não mostra mensagem vazia (ex.: Checklist Legal no mesmo bloco). */
   ocultarVazio?: boolean;
+  condominioContext?: CondominioChecklistContext;
 };
 
 type EstadoResposta = {
@@ -27,7 +56,15 @@ type EstadoResposta = {
   erro: string | null;
 };
 
-export function FaseChecklistCard({ faseId, cardId, isFrank, isAdmin, ocultarVazio = false }: Props) {
+export function FaseChecklistCard({
+  faseId,
+  faseSlug,
+  cardId,
+  isFrank,
+  isAdmin,
+  ocultarVazio = false,
+  condominioContext,
+}: Props) {
   const [itens, setItens] = useState<FaseChecklistItem[] | null>(null);
   const [respostas, setRespostas] = useState<Map<string, EstadoResposta>>(new Map());
   const [carregando, setCarregando] = useState(true);
@@ -114,8 +151,18 @@ export function FaseChecklistCard({ faseId, cardId, isFrank, isAdmin, ocultarVaz
       valor: valor ?? respostas.get(itemId)?.valor ?? null,
       arquivo_path: arquivo_path !== undefined ? arquivo_path : (respostas.get(itemId)?.arquivo_path ?? null),
     });
-    setResposta(itemId, { salvando: false, erro: res.ok ? null : res.error });
-    return res;
+    let erroFinal = res.ok ? null : res.error;
+    if (res.ok && isLotesDisponiveisFaseSlug(faseSlug) && condominioContext) {
+      const sync = await sincronizarLoteChecklistComCadastro({
+        cardId,
+        origem: condominioContext.origem,
+        basePath: condominioContext.basePath,
+      });
+      if (!sync.ok) erroFinal = sync.error;
+      else condominioContext.onSalvo();
+    }
+    setResposta(itemId, { salvando: false, erro: erroFinal });
+    return res.ok && !erroFinal ? { ok: true } : { ok: false, error: erroFinal ?? res.error };
   }
 
   async function compararAposAssinado(itemId: string) {
@@ -172,9 +219,11 @@ export function FaseChecklistCard({ faseId, cardId, isFrank, isAdmin, ocultarVaz
         <ItemField
           key={item.id}
           item={item}
+          faseSlug={faseSlug}
           estado={respostas.get(item.id) ?? { valor: '', arquivo_path: null, salvando: false, erro: null }}
           cardId={cardId}
           isAdmin={isAdmin}
+          condominioContext={condominioContext}
           onChange={(valor) => setResposta(item.id, { valor })}
           onBlur={(valor) => void salvar(item.id, valor)}
           onArquivo={async (path) => {
@@ -184,23 +233,47 @@ export function FaseChecklistCard({ faseId, cardId, isFrank, isAdmin, ocultarVaz
               await compararAposAssinado(item.id);
             }
           }}
+          onChecklistValor={async (valor) => {
+            setResposta(item.id, { valor });
+            await salvar(item.id, valor);
+          }}
         />
       ))}
+      {isLotesDisponiveisFaseSlug(faseSlug) && condominioContext ? (
+        <CondominioLotesAnexados
+          condominioId={condominioContext.condominioId}
+          cardIdAtual={cardId}
+        />
+      ) : null}
     </div>
   );
 }
 
 type ItemFieldProps = {
   item: FaseChecklistItem;
+  faseSlug?: string | null;
   estado: EstadoResposta;
   cardId: string;
   isAdmin: boolean;
+  condominioContext?: CondominioChecklistContext;
   onChange: (valor: string) => void;
   onBlur: (valor: string) => void;
   onArquivo: (path: string) => void | Promise<void>;
+  onChecklistValor: (valor: string) => void | Promise<void>;
 };
 
-function ItemField({ item, estado, cardId, isAdmin, onChange, onBlur, onArquivo }: ItemFieldProps) {
+function ItemField({
+  item,
+  faseSlug,
+  estado,
+  cardId,
+  isAdmin,
+  condominioContext,
+  onChange,
+  onBlur,
+  onArquivo,
+  onChecklistValor,
+}: ItemFieldProps) {
   const inputFileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [baixandoModelo, setBaixandoModelo] = useState(false);
@@ -422,8 +495,73 @@ function ItemField({ item, estado, cardId, isAdmin, onChange, onBlur, onArquivo 
     );
   }
 
+  if (item.tipo === 'condominio') {
+    if (!condominioContext) {
+      return (
+        <p className="text-xs italic" style={{ color: 'var(--moni-text-tertiary)' }}>
+          Item de condomínio indisponível neste contexto.
+        </p>
+      );
+    }
+    return (
+      <div>
+        <span className="mb-2 block text-xs font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
+          {item.label}
+          {item.obrigatorio && <span className="ml-1 text-red-500">*</span>}
+          {estado.salvando && <Loader2 size={10} className="ml-1 inline animate-spin" />}
+        </span>
+        {item.placeholder ? (
+          <p className="mb-2 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+            {item.placeholder}
+          </p>
+        ) : null}
+        <KanbanCardModalCondominio
+          key={`${cardId}-checklist-cond-${condominioContext.condominioId ?? 'none'}`}
+          cardId={cardId}
+          origem={condominioContext.origem}
+          basePath={condominioContext.basePath}
+          condominioIdInicial={condominioContext.condominioId}
+          quadraInicial={condominioContext.quadra}
+          loteInicial={condominioContext.lote}
+          nomeCondominioLegado={condominioContext.nomeCondominioLegado}
+          podeEditar={condominioContext.podeEditar}
+          podeCadastrarNovo={condominioContext.podeCadastrarNovo}
+          apenasVinculo={isLotesDisponiveisFaseSlug(faseSlug)}
+          onChecklistValor={(valor) => void onChecklistValor(valor)}
+          onSalvo={condominioContext.onSalvo}
+        />
+        {erroEl}
+      </div>
+    );
+  }
+
+  if (item.tipo === 'pesquisa_condominio') {
+    return (
+      <PesquisaCondominioProspect cardId={cardId} itemLabel={item.label} obrigatorio={item.obrigatorio} />
+    );
+  }
+
   if (item.tipo === 'tabela') {
-    return <TabelaCondominios item={item} estado={estado} onChange={onChange} onBlur={onBlur} />;
+    if (item.label.trim() === 'Tabela de Condomínios') {
+      if (!isDadosCidadeFaseSlug(faseSlug)) {
+        return (
+          <p className="text-xs italic" style={{ color: 'var(--moni-text-tertiary)' }}>
+            A Tabela de Condomínios é preenchida na fase <strong>Dados da Cidade</strong>.
+          </p>
+        );
+      }
+      return <TabelaCondominiosProspect item={item} estado={estado} onChange={onChange} onBlur={onBlur} />;
+    }
+    const modoVinculado = Boolean(condominioContext && item.label.trim() === 'Dados do cadastro');
+    return (
+      <TabelaCondominiosCadastro
+        item={item}
+        estado={estado}
+        onChange={onChange}
+        onBlur={onBlur}
+        condominioIdFiltro={modoVinculado ? condominioContext?.condominioId ?? null : null}
+      />
+    );
   }
 
   if (item.tipo === 'url') {
@@ -463,103 +601,153 @@ function ItemField({ item, estado, cardId, isAdmin, onChange, onBlur, onArquivo 
   );
 }
 
-// ─── Tabela de Condomínios ────────────────────────────────────────────────────
+// ─── Dados do cadastro (somente leitura — tabela `condominios`) ───────────────
 
-type LinhaTabela = {
-  condominio: string;
-  ticket_lote: string;
-  ticket_casas: string;
-  ticket_m2: string;
-};
+const COLUNAS_TABELA_CONDOMINIOS = [
+  { key: 'nome', header: 'Nome' },
+  { key: 'endereco', header: 'Endereço + Nº' },
+  { key: 'cep', header: 'CEP' },
+  { key: 'cidade_estado', header: 'Cidade / Estado' },
+  { key: 'ticket_medio_lote', header: 'Ticket Médio Lote' },
+  { key: 'ticket_medio_casas', header: 'Ticket Médio Casas' },
+  { key: 'ticket_medio_casas_rsm2', header: 'Ticket Médio Casas (R$/m²)' },
+  { key: 'estimativa_casas_vendidas_ano', header: 'Est. casas vendidas/ano' },
+  { key: 'extrato_como_eram_casas', header: 'Extrato — Como eram' },
+  { key: 'extrato_tempo_venda', header: 'Extrato — Tempo venda' },
+] as const;
 
-const LINHA_VAZIA: LinhaTabela = {
-  condominio: '',
-  ticket_lote: '',
-  ticket_casas: '',
-  ticket_m2: '',
-};
-
-const COLUNAS_TABELA = [
-  { key: 'condominio' as keyof LinhaTabela, header: 'Condomínio', type: 'text' },
-  { key: 'ticket_lote' as keyof LinhaTabela, header: 'Ticket Médio lote R$', type: 'text' },
-  { key: 'ticket_casas' as keyof LinhaTabela, header: 'Ticket Médio casas R$', type: 'text' },
-  { key: 'ticket_m2' as keyof LinhaTabela, header: 'Ticket Médio casas R$/m²', type: 'text' },
-];
-
-function normalizeLinhaTabela(raw: unknown): LinhaTabela {
-  const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+function condominioRowToSnapshot(r: CondominioRow) {
   return {
-    condominio: String(o.condominio ?? ''),
-    ticket_lote: String(o.ticket_lote ?? ''),
-    ticket_casas: String(o.ticket_casas ?? ''),
-    ticket_m2: String(o.ticket_m2 ?? ''),
+    id: r.id,
+    nome: r.nome,
+    endereco: r.endereco,
+    numero: r.numero,
+    cep: r.cep,
+    cidade: r.cidade,
+    estado: r.estado,
+    ticket_medio_lote: r.ticket_medio_lote,
+    ticket_medio_casas: r.ticket_medio_casas,
+    ticket_medio_casas_rsm2: r.ticket_medio_casas_rsm2,
+    estimativa_casas_vendidas_ano: r.estimativa_casas_vendidas_ano,
+    extrato_como_eram_casas: r.extrato_como_eram_casas,
+    extrato_tempo_venda: r.extrato_tempo_venda,
   };
 }
 
-function parseTabelaValor(valor: string): LinhaTabela[] {
-  try {
-    const parsed = JSON.parse(valor || '[]') as unknown;
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed.map(normalizeLinhaTabela);
-    }
-  } catch {
-    /* valor inválido — começa com 1 linha vazia */
-  }
-  return [{ ...LINHA_VAZIA }];
+function valorJsonCondominios(rows: CondominioRow[]): string {
+  const comNome = rows.filter((r) => r.nome?.trim());
+  return JSON.stringify(comNome.map(condominioRowToSnapshot));
 }
 
-function TabelaCondominios({
+function celulaCondominio(row: CondominioRow, key: (typeof COLUNAS_TABELA_CONDOMINIOS)[number]['key']): string {
+  switch (key) {
+    case 'nome':
+      return row.nome?.trim() || '—';
+    case 'endereco':
+      return formatEnderecoNumero(row.endereco, row.numero);
+    case 'cep':
+      return row.cep?.trim() || '—';
+    case 'cidade_estado':
+      return formatCidadeEstadoCondominio(row.cidade, row.estado);
+    case 'ticket_medio_lote':
+      return formatCondominioMoeda(row.ticket_medio_lote);
+    case 'ticket_medio_casas':
+      return formatCondominioMoeda(row.ticket_medio_casas);
+    case 'ticket_medio_casas_rsm2':
+      return formatCondominioMoeda(row.ticket_medio_casas_rsm2);
+    case 'estimativa_casas_vendidas_ano':
+      return formatCondominioInteiro(row.estimativa_casas_vendidas_ano);
+    case 'extrato_como_eram_casas':
+      return row.extrato_como_eram_casas?.trim() || '—';
+    case 'extrato_tempo_venda':
+      return row.extrato_tempo_venda?.trim() || '—';
+    default:
+      return '—';
+  }
+}
+
+function TabelaCondominiosCadastro({
   item,
   estado,
   onChange,
   onBlur,
+  condominioIdFiltro = null,
 }: {
   item: FaseChecklistItem;
   estado: EstadoResposta;
   onChange: (valor: string) => void;
   onBlur: (valor: string) => void;
+  condominioIdFiltro?: string | null;
 }) {
-  const [linhas, setLinhas] = useState<LinhaTabela[]>(() => parseTabelaValor(estado.valor));
+  const [rows, setRows] = useState<CondominioRow[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erroCarregar, setErroCarregar] = useState<string | null>(null);
+  const syncRef = useRef<string | null>(null);
+  const modoVinculado = Boolean(condominioIdFiltro?.trim());
 
-  function atualizarCelula(idx: number, campo: keyof LinhaTabela, valor: string): LinhaTabela[] {
-    const novas = linhas.map((l, i) => (i === idx ? { ...l, [campo]: valor } : l));
-    setLinhas(novas);
-    onChange(JSON.stringify(novas));
-    return novas;
-  }
+  useEffect(() => {
+    let cancelado = false;
+    void (async () => {
+      setCarregando(true);
+      setErroCarregar(null);
+      try {
+        const data = ordenarCondominiosPorNome(await listarCondominiosCadastro());
+        if (cancelado) return;
+        const filtradas = modoVinculado
+          ? data.filter((r) => r.id === condominioIdFiltro)
+          : data;
+        setRows(filtradas);
+        setCarregando(false);
 
-  function adicionarLinha() {
-    if (linhas.length >= 20) return;
-    const novas = [...linhas, { ...LINHA_VAZIA }];
-    setLinhas(novas);
-    const json = JSON.stringify(novas);
-    onChange(json);
-    onBlur(json);
-  }
+        if (modoVinculado) {
+          if (filtradas.length === 0) return;
+          const json = valorJsonCondominios(filtradas);
+          if (!json || json === '[]') return;
+          if (syncRef.current === json) return;
+          syncRef.current = json;
+          if (estado.valor !== json) {
+            onChange(json);
+            onBlur(json);
+          }
+          return;
+        }
 
-  function removerLinha(idx: number) {
-    const novas = linhas.filter((_, i) => i !== idx);
-    const semVazias = novas.length === 0 ? [{ ...LINHA_VAZIA }] : novas;
-    setLinhas(semVazias);
-    const json = JSON.stringify(semVazias);
-    onChange(json);
-    onBlur(json);
-  }
+        const json = valorJsonCondominios(data);
+        if (!json || json === '[]') return;
+        if (syncRef.current === json) return;
+        syncRef.current = json;
+        if (estado.valor !== json) {
+          onChange(json);
+          onBlur(json);
+        }
+      } catch {
+        if (!cancelado) {
+          setErroCarregar('Não foi possível carregar os condomínios.');
+          setCarregando(false);
+        }
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync inicial / condomínio vinculado
+  }, [condominioIdFiltro, modoVinculado]);
 
-  const cellStyle: CSSProperties = {
+  const thStyle: CSSProperties = {
     border: '1px solid var(--moni-border-default)',
-    padding: 0,
+    padding: '6px 8px',
+    textAlign: 'left',
+    fontWeight: 600,
+    background: 'var(--moni-surface-100)',
+    whiteSpace: 'nowrap',
+    color: 'var(--moni-text-secondary)',
   };
 
-  const inputCellStyle: CSSProperties = {
-    width: '100%',
-    border: 'none',
-    outline: 'none',
-    padding: '4px 8px',
-    background: 'transparent',
-    fontSize: '0.75rem',
+  const tdStyle: CSSProperties = {
+    border: '1px solid var(--moni-border-default)',
+    padding: '6px 8px',
     color: 'var(--moni-text-primary)',
-    minWidth: 90,
+    verticalAlign: 'top',
   };
 
   return (
@@ -569,95 +757,71 @@ function TabelaCondominios({
         {item.obrigatorio && <span className="ml-1 text-red-500">*</span>}
         {estado.salvando && <Loader2 size={10} className="ml-1 inline animate-spin" />}
       </span>
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
-          <thead>
-            <tr>
-              {COLUNAS_TABELA.map((col) => (
-                <th
-                  key={col.key}
-                  style={{
-                    border: '1px solid var(--moni-border-default)',
-                    padding: '6px 8px',
-                    textAlign: 'left',
-                    fontWeight: 600,
-                    background: 'var(--moni-surface-100)',
-                    whiteSpace: 'nowrap',
-                    color: 'var(--moni-text-secondary)',
-                  }}
-                >
-                  {col.header}
-                </th>
-              ))}
-              <th
-                style={{
-                  border: '1px solid var(--moni-border-default)',
-                  padding: '6px 4px',
-                  width: 28,
-                  background: 'var(--moni-surface-100)',
-                }}
-              />
-            </tr>
-          </thead>
-          <tbody>
-            {linhas.map((linha, idx) => (
-              <tr key={idx}>
-                {COLUNAS_TABELA.map((col) => (
-                  <td key={col.key} style={cellStyle}>
-                    <input
-                      type={col.type}
-                      value={linha[col.key]}
-                      placeholder={col.type === 'number' ? '0' : '—'}
-                      style={inputCellStyle}
-                      onChange={(e) => atualizarCelula(idx, col.key, e.target.value)}
-                      onBlur={(e) => {
-                        const novas = linhas.map((l, i) =>
-                          i === idx ? { ...l, [col.key]: e.target.value } : l,
-                        );
-                        onBlur(JSON.stringify(novas));
-                      }}
-                    />
-                  </td>
+      <p className="mb-2 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+        {modoVinculado
+          ? 'Dados do condomínio vinculado ao card (cadastro em Rede → Condomínios, somente leitura).'
+          : 'Dados do cadastro em Rede → Condomínios (somente leitura).'}
+      </p>
+      {carregando ? (
+        <div className="flex items-center gap-2 py-2 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+          <Loader2 size={12} className="animate-spin" />
+          Carregando condomínios...
+        </div>
+      ) : erroCarregar ? (
+        <p className="text-xs text-red-500">{erroCarregar}</p>
+      ) : modoVinculado && !condominioIdFiltro ? (
+        <p className="text-xs italic" style={{ color: 'var(--moni-text-tertiary)' }}>
+          Selecione um condomínio no item acima para exibir os dados do cadastro.
+        </p>
+      ) : rows.length === 0 ? (
+        <p className="text-xs italic" style={{ color: 'var(--moni-text-tertiary)' }}>
+          {modoVinculado ? 'Condomínio não encontrado no cadastro.' : 'Nenhum condomínio cadastrado.'}
+        </p>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', minWidth: 1100, borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+            <thead>
+              <tr>
+                {COLUNAS_TABELA_CONDOMINIOS.map((col) => (
+                  <th key={col.key} style={thStyle}>
+                    {col.header}
+                  </th>
                 ))}
-                <td style={{ ...cellStyle, textAlign: 'center' }}>
-                  <button
-                    type="button"
-                    onClick={() => removerLinha(idx)}
-                    title="Remover linha"
-                    style={{
-                      color: 'var(--moni-text-tertiary)',
-                      fontSize: '1rem',
-                      lineHeight: 1,
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: '0 4px',
-                    }}
-                  >
-                    ×
-                  </button>
-                </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {linhas.length < 20 && (
-        <button
-          type="button"
-          onClick={adicionarLinha}
-          style={{
-            marginTop: 8,
-            fontSize: '0.75rem',
-            color: 'var(--moni-primary-600)',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: 0,
-          }}
-        >
-          + Adicionar linha
-        </button>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  {COLUNAS_TABELA_CONDOMINIOS.map((col) => {
+                    const texto = celulaCondominio(row, col.key);
+                    const isExtrato =
+                      col.key === 'extrato_como_eram_casas' || col.key === 'extrato_tempo_venda';
+                    return (
+                      <td
+                        key={col.key}
+                        style={{
+                          ...tdStyle,
+                          ...(col.key === 'nome' ? { fontWeight: 500 } : {}),
+                          ...(col.key.startsWith('ticket_') || col.key === 'estimativa_casas_vendidas_ano'
+                            ? { fontVariantNumeric: 'tabular-nums' }
+                            : {}),
+                          ...(isExtrato ? { maxWidth: '12rem' } : {}),
+                        }}
+                        title={isExtrato ? texto : undefined}
+                      >
+                        {isExtrato ? (
+                          <span className="line-clamp-2 text-xs">{texto}</span>
+                        ) : (
+                          texto
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {estado.erro && <p className="mt-1 text-xs text-red-500">{estado.erro}</p>}
     </div>
