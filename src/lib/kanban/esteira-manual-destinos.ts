@@ -8,6 +8,7 @@ import {
 export type DestinoEsteiraManualKey =
   | 'acoplamento'
   | 'contabilidade'
+  | 'credito_obra'
   | 'juridico'
   | 'moni_capital'
   | 'projeto_legal';
@@ -25,6 +26,11 @@ export const DESTINOS_ESTEIRA_MANUAL: Record<
     label: 'Contabilidade',
     kanbanDestinoId: KANBAN_IDS.CONTABILIDADE,
     faseDestinoSlug: 'contabilidade_incorporadora',
+  },
+  credito_obra: {
+    label: 'Crédito Obra',
+    kanbanDestinoId: KANBAN_IDS.CREDITO_OBRA,
+    faseDestinoSlug: FASE_SLUGS.CO_NOVO_PROJETO,
   },
   juridico: {
     label: 'Jurídico',
@@ -46,6 +52,7 @@ export const DESTINOS_ESTEIRA_MANUAL: Record<
 /** Acoplamento não entra na esteira genérica — use `abrirFunilAcoplamentoManualDoCard` no painel de vínculos. */
 const PORTFOLIO_DESTINOS: DestinoEsteiraManualKey[] = [
   'contabilidade',
+  'credito_obra',
   'juridico',
   'moni_capital',
   'projeto_legal',
@@ -70,7 +77,7 @@ export function destinosEsteiraManualParaKanban(
   if (!id || KANBANS_INTERNOS_SET.has(id)) return [];
   if ((KANBANS_ESTEIRA_MANUAL_COMPLETA as readonly string[]).includes(id)) return PORTFOLIO_DESTINOS;
   if ((KANBANS_COM_CHAMADO_JURIDICO as readonly string[]).includes(id)) {
-    return ['juridico', 'projeto_legal'];
+    return ['juridico', 'projeto_legal', 'credito_obra'];
   }
-  return ['projeto_legal'];
+  return ['projeto_legal', 'credito_obra'];
 }
