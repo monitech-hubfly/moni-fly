@@ -10,7 +10,10 @@ ALTER TABLE public.kanban_cards
   ADD COLUMN IF NOT EXISTS data_reuniao date,
   ADD COLUMN IF NOT EXISTS data_followup date;
 
-CREATE OR REPLACE VIEW public.v_processo_como_kanban_cards AS
+DROP VIEW IF EXISTS public.v_atividades_unificadas;
+DROP VIEW IF EXISTS public.v_processo_como_kanban_cards;
+
+CREATE VIEW public.v_processo_como_kanban_cards AS
 SELECT
   p.id,
   kf.kanban_id,

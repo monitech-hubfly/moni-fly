@@ -11,7 +11,10 @@ COMMENT ON COLUMN public.processo_step_one.lote IS 'Lote no condomínio (card le
 COMMENT ON COLUMN public.processo_step_one.data_reuniao IS 'Data planejada de reunião (processo / card legado).';
 COMMENT ON COLUMN public.processo_step_one.data_followup IS 'Data de follow-up (processo / card legado).';
 
-CREATE OR REPLACE VIEW public.v_processo_como_kanban_cards AS
+DROP VIEW IF EXISTS public.v_atividades_unificadas;
+DROP VIEW IF EXISTS public.v_processo_como_kanban_cards;
+
+CREATE VIEW public.v_processo_como_kanban_cards AS
 SELECT
   p.id,
   kf.kanban_id,
