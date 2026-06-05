@@ -1,6 +1,7 @@
 import type { createAdminClient } from '@/lib/supabase/admin';
+import type { createClient } from '@/lib/supabase/server';
 
-type SyncDb = ReturnType<typeof createAdminClient>;
+type SyncDb = Pick<Awaited<ReturnType<typeof createClient>>, 'from'>;
 
 function tituloParaNumeroFranquiaSync(titulo: string): string {
   const t = titulo.trim();

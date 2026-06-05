@@ -2987,7 +2987,7 @@ export function KanbanCardModal({
   const exibirChecklistCredito =
     !isLegado &&
     deveExibirChecklistCreditoNaFase(card.kanban_id, faseAtual?.slug ?? card.etapa_slug);
-  const processoIdChecklists = proc?.id?.trim() || card.projeto_id?.trim() || null;
+  const processoIdChecklists = proc?.id?.trim() || null;
   const enderecoCasaLinha = rede
     ? [
         rede.endereco_casa_frank,
@@ -4645,12 +4645,20 @@ export function KanbanCardModal({
                         cardId={card.id}
                         basePath={basePath}
                         condominioId={condominioIdChecklistLegal}
+                        nomeCondominioLegado={card.nome_condominio ?? proc?.nome_condominio ?? null}
                         exibirLinkPublico
                       />
                     ) : null}
 
                     {exibirChecklistCredito && processoIdChecklists ? (
                       <ChecklistCreditoSection processoId={processoIdChecklists} />
+                    ) : null}
+
+                    {exibirChecklistCredito && !processoIdChecklists ? (
+                      <p className="text-xs text-stone-500">
+                        Processo Step One não vinculado a este card. O Checklist de Crédito ficará disponível quando
+                        houver um processo associado (via rede do franqueado ou número FK no título).
+                      </p>
                     ) : null}
 
                     <FaseChecklistCard
