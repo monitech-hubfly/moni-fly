@@ -543,9 +543,6 @@ export function KanbanCardModal({
   const [uploadingNegocioAnexo, setUploadingNegocioAnexo] = useState<ProcessoNegocioAnexoCampo | null>(
     null,
   );
-  const negocioOpcaoPermutaRef = useRef<HTMLInputElement>(null);
-  const negocioContratoPermutaRef = useRef<HTMLInputElement>(null);
-  const negocioSeguroGarantiaRef = useRef<HTMLInputElement>(null);
   const comentarioEditorRef = useRef<HTMLDivElement>(null);
   const comentarioEdicaoRef = useRef<HTMLDivElement>(null);
   const [editandoInstrucoesFase, setEditandoInstrucoesFase] = useState(false);
@@ -3091,21 +3088,23 @@ export function KanbanCardModal({
     label: string,
     field: ProcessoNegocioAnexoCampo,
     path: string | null | undefined,
-    inputRef: React.Ref<HTMLInputElement>,
   ) {
     if (!proc?.id) return null;
+    const inputId = `negocio-anexo-${field}`;
     const uploading = uploadingNegocioAnexo === field;
     const canAnexar = modalSessao.ehAdminOuTeam;
-    const fileInputRef = inputRef as React.RefObject<HTMLInputElement | null>;
+    const anexoBtnClass =
+      'inline-flex cursor-pointer items-center rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50';
     return (
       <div>
         <p className="text-[11px] font-medium text-stone-500">{label}</p>
         <input
-          ref={inputRef as React.Ref<HTMLInputElement>}
+          id={inputId}
           type="file"
-          className="hidden"
+          className="sr-only"
           onChange={(e) => void handleNegocioAnexoFile(e, field)}
-          accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf"
+          accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,image/*"
+          disabled={uploading}
         />
         <div className="mt-0.5 flex flex-wrap items-center gap-2">
           {path?.trim() ? (
@@ -3118,25 +3117,15 @@ export function KanbanCardModal({
                 Baixar
               </button>
               {canAnexar ? (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
+                <label htmlFor={inputId} className={anexoBtnClass}>
                   {uploading ? 'Enviando…' : 'Substituir'}
-                </button>
+                </label>
               ) : null}
             </>
           ) : canAnexar ? (
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="rounded border border-stone-300 bg-white px-2 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
+            <label htmlFor={inputId} className={anexoBtnClass}>
               {uploading ? 'Enviando…' : 'Anexar'}
-            </button>
+            </label>
           ) : (
             <span className="text-[11px] text-stone-500">—</span>
           )}
@@ -3145,113 +3134,101 @@ export function KanbanCardModal({
     );
   }
 
-  const dadosNegocioLinksEAnexosView = proc ? (
-    <div className="space-y-2 border-t border-stone-100 pt-2">
-      {renderNegocioAnexoCampo(
-        'Opção de Permuta',
-        'opcao_permuta',
-        proc.anexo_opcao_permuta_path,
-        negocioOpcaoPermutaRef,
-      )}
-      {renderNegocioLinkCampo('BCA', proc.link_bca)}
-      {renderNegocioLinkCampo('Gbox', proc.link_gbox)}
-      {renderNegocioLinkCampo('Mapa de Competidores', proc.link_mapa_competidores)}
-      {renderNegocioLinkCampo('Acoplamento', proc.link_acoplamento)}
-      {renderNegocioLinkCampo('Apresentação do Comitê', proc.link_apresentacao_comite)}
-      {renderNegocioAnexoCampo(
-        'Contrato de Permuta',
-        'contrato_permuta',
-        proc.anexo_contrato_permuta_path,
-        negocioContratoPermutaRef,
-      )}
-      {renderNegocioAnexoCampo(
-        'Seguro garantia',
-        'seguro_garantia',
-        proc.anexo_seguro_garantia_path,
-        negocioSeguroGarantiaRef,
-      )}
-      {renderNegocioLinkComComentarios(
-        'Moní Capital — seguro garantia',
-        proc.link_moni_capital_seguro_garantia,
-        proc.comentario_moni_capital_seguro_garantia,
-      )}
-      {renderNegocioLinkComComentarios(
-        'Moní Capital — gastos de Aporte Inicial',
-        proc.link_moni_capital_gastos_aporte_inicial,
-        proc.comentario_moni_capital_gastos_aporte_inicial,
-      )}
-    </div>
-  ) : null;
-
-  const dadosNegocioLinksEAnexosEdit = proc ? (
-    <div className="space-y-2 border-t border-stone-100 pt-2">
-      {renderNegocioAnexoCampo(
-        'Opção de Permuta',
-        'opcao_permuta',
-        proc.anexo_opcao_permuta_path,
-        negocioOpcaoPermutaRef,
-      )}
-      {renderNegocioLinkCampo('BCA', proc.link_bca, {
-        value: negocioDraft.link_bca,
-        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_bca: v })),
-      })}
-      {renderNegocioLinkCampo('Gbox', proc.link_gbox, {
-        value: negocioDraft.link_gbox,
-        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_gbox: v })),
-        onBlur: (v) => void sincronizarLinkNegocioAoBlur('gbox', v),
-      })}
-      {renderNegocioLinkCampo('Mapa de Competidores', proc.link_mapa_competidores, {
-        value: negocioDraft.link_mapa_competidores,
-        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_mapa_competidores: v })),
-      })}
-      {renderNegocioLinkCampo('Acoplamento', proc.link_acoplamento, {
-        value: negocioDraft.link_acoplamento,
-        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_acoplamento: v })),
-        onBlur: (v) => void sincronizarLinkNegocioAoBlur('acoplamento', v),
-      })}
-      {renderNegocioLinkCampo('Apresentação do Comitê', proc.link_apresentacao_comite, {
-        value: negocioDraft.link_apresentacao_comite,
-        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_apresentacao_comite: v })),
-      })}
-      {renderNegocioAnexoCampo(
-        'Contrato de Permuta',
-        'contrato_permuta',
-        proc.anexo_contrato_permuta_path,
-        negocioContratoPermutaRef,
-      )}
-      {renderNegocioAnexoCampo(
-        'Seguro garantia',
-        'seguro_garantia',
-        proc.anexo_seguro_garantia_path,
-        negocioSeguroGarantiaRef,
-      )}
-      {renderNegocioLinkComComentarios(
-        'Moní Capital — seguro garantia',
-        proc.link_moni_capital_seguro_garantia,
-        proc.comentario_moni_capital_seguro_garantia,
-        {
-          linkValue: negocioDraft.link_moni_capital_seguro_garantia,
-          comentarioValue: negocioDraft.comentario_moni_capital_seguro_garantia,
-          onLinkChange: (v) => setNegocioDraft((d) => ({ ...d, link_moni_capital_seguro_garantia: v })),
-          onComentarioChange: (v) =>
-            setNegocioDraft((d) => ({ ...d, comentario_moni_capital_seguro_garantia: v })),
-        },
-      )}
-      {renderNegocioLinkComComentarios(
-        'Moní Capital — gastos de Aporte Inicial',
-        proc.link_moni_capital_gastos_aporte_inicial,
-        proc.comentario_moni_capital_gastos_aporte_inicial,
-        {
-          linkValue: negocioDraft.link_moni_capital_gastos_aporte_inicial,
-          comentarioValue: negocioDraft.comentario_moni_capital_gastos_aporte_inicial,
-          onLinkChange: (v) =>
-            setNegocioDraft((d) => ({ ...d, link_moni_capital_gastos_aporte_inicial: v })),
-          onComentarioChange: (v) =>
-            setNegocioDraft((d) => ({ ...d, comentario_moni_capital_gastos_aporte_inicial: v })),
-        },
-      )}
-    </div>
-  ) : null;
+  function renderDadosNegocioLinksEAnexos(editMode: boolean) {
+    if (!proc) return null;
+    return (
+      <div className="space-y-2 border-t border-stone-100 pt-2">
+        {renderNegocioAnexoCampo('Opção de Permuta', 'opcao_permuta', proc.anexo_opcao_permuta_path)}
+        {renderNegocioLinkCampo(
+          'BCA',
+          proc.link_bca,
+          editMode
+            ? {
+                value: negocioDraft.link_bca,
+                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_bca: v })),
+              }
+            : undefined,
+        )}
+        {renderNegocioLinkCampo(
+          'Gbox',
+          proc.link_gbox,
+          editMode
+            ? {
+                value: negocioDraft.link_gbox,
+                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_gbox: v })),
+                onBlur: (v) => void sincronizarLinkNegocioAoBlur('gbox', v),
+              }
+            : undefined,
+        )}
+        {renderNegocioLinkCampo(
+          'Mapa de Competidores',
+          proc.link_mapa_competidores,
+          editMode
+            ? {
+                value: negocioDraft.link_mapa_competidores,
+                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_mapa_competidores: v })),
+              }
+            : undefined,
+        )}
+        {renderNegocioLinkCampo(
+          'Acoplamento',
+          proc.link_acoplamento,
+          editMode
+            ? {
+                value: negocioDraft.link_acoplamento,
+                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_acoplamento: v })),
+                onBlur: (v) => void sincronizarLinkNegocioAoBlur('acoplamento', v),
+              }
+            : undefined,
+        )}
+        {renderNegocioLinkCampo(
+          'Apresentação do Comitê',
+          proc.link_apresentacao_comite,
+          editMode
+            ? {
+                value: negocioDraft.link_apresentacao_comite,
+                onChange: (v) => setNegocioDraft((d) => ({ ...d, link_apresentacao_comite: v })),
+              }
+            : undefined,
+        )}
+        {renderNegocioAnexoCampo(
+          'Contrato de Permuta',
+          'contrato_permuta',
+          proc.anexo_contrato_permuta_path,
+        )}
+        {renderNegocioAnexoCampo('Seguro garantia', 'seguro_garantia', proc.anexo_seguro_garantia_path)}
+        {renderNegocioLinkComComentarios(
+          'Moní Capital — seguro garantia',
+          proc.link_moni_capital_seguro_garantia,
+          proc.comentario_moni_capital_seguro_garantia,
+          editMode
+            ? {
+                linkValue: negocioDraft.link_moni_capital_seguro_garantia,
+                comentarioValue: negocioDraft.comentario_moni_capital_seguro_garantia,
+                onLinkChange: (v) => setNegocioDraft((d) => ({ ...d, link_moni_capital_seguro_garantia: v })),
+                onComentarioChange: (v) =>
+                  setNegocioDraft((d) => ({ ...d, comentario_moni_capital_seguro_garantia: v })),
+              }
+            : undefined,
+        )}
+        {renderNegocioLinkComComentarios(
+          'Moní Capital — gastos de Aporte Inicial',
+          proc.link_moni_capital_gastos_aporte_inicial,
+          proc.comentario_moni_capital_gastos_aporte_inicial,
+          editMode
+            ? {
+                linkValue: negocioDraft.link_moni_capital_gastos_aporte_inicial,
+                comentarioValue: negocioDraft.comentario_moni_capital_gastos_aporte_inicial,
+                onLinkChange: (v) =>
+                  setNegocioDraft((d) => ({ ...d, link_moni_capital_gastos_aporte_inicial: v })),
+                onComentarioChange: (v) =>
+                  setNegocioDraft((d) => ({ ...d, comentario_moni_capital_gastos_aporte_inicial: v })),
+              }
+            : undefined,
+        )}
+      </div>
+    );
+  }
 
   function abrirEdicaoNegocio() {
     if (!proc) return;
@@ -5651,7 +5628,7 @@ export function KanbanCardModal({
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                       />
                     </label>
-                    {dadosNegocioLinksEAnexosEdit}
+                    {renderDadosNegocioLinksEAnexos(true)}
                     <div className="flex gap-2 pt-1">
                       <button
                         onClick={() => void handleSalvarNegocio()}
@@ -5710,7 +5687,7 @@ export function KanbanCardModal({
                         <div className="text-xs text-stone-800">—</div>
                       </div>
                     </div>
-                    {dadosNegocioLinksEAnexosView}
+                    {renderDadosNegocioLinksEAnexos(false)}
                     {modalSessao.ehAdminOuTeam && (
                       <button
                         type="button"
