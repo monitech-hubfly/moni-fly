@@ -470,7 +470,6 @@ type LinhaTabela = {
   ticket_lote: string;
   ticket_casas: string;
   ticket_m2: string;
-  estimativa_giro: string;
 };
 
 const LINHA_VAZIA: LinhaTabela = {
@@ -478,7 +477,6 @@ const LINHA_VAZIA: LinhaTabela = {
   ticket_lote: '',
   ticket_casas: '',
   ticket_m2: '',
-  estimativa_giro: '',
 };
 
 const COLUNAS_TABELA = [
@@ -486,13 +484,24 @@ const COLUNAS_TABELA = [
   { key: 'ticket_lote' as keyof LinhaTabela, header: 'Ticket Médio lote R$', type: 'text' },
   { key: 'ticket_casas' as keyof LinhaTabela, header: 'Ticket Médio casas R$', type: 'text' },
   { key: 'ticket_m2' as keyof LinhaTabela, header: 'Ticket Médio casas R$/m²', type: 'text' },
-  { key: 'estimativa_giro' as keyof LinhaTabela, header: 'Estimativa de Casas Vendidas/Ano', type: 'number' },
 ];
+
+function normalizeLinhaTabela(raw: unknown): LinhaTabela {
+  const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  return {
+    condominio: String(o.condominio ?? ''),
+    ticket_lote: String(o.ticket_lote ?? ''),
+    ticket_casas: String(o.ticket_casas ?? ''),
+    ticket_m2: String(o.ticket_m2 ?? ''),
+  };
+}
 
 function parseTabelaValor(valor: string): LinhaTabela[] {
   try {
     const parsed = JSON.parse(valor || '[]') as unknown;
-    if (Array.isArray(parsed) && parsed.length > 0) return parsed as LinhaTabela[];
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map(normalizeLinhaTabela);
+    }
   } catch {
     /* valor inválido — começa com 1 linha vazia */
   }
