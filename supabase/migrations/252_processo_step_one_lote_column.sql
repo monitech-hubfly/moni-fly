@@ -1,4 +1,4 @@
--- 251: título de cards legados inclui quadra e lote (alinhado a montarTituloCardSync)
+-- 252: idempotente — coluna lote em processo_step_one (PROD sem 251 completa) + view título
 
 ALTER TABLE public.processo_step_one
   ADD COLUMN IF NOT EXISTS quadra TEXT,
@@ -7,7 +7,8 @@ ALTER TABLE public.processo_step_one
 COMMENT ON COLUMN public.processo_step_one.quadra IS 'Quadra do lote no condomínio (card legado).';
 COMMENT ON COLUMN public.processo_step_one.lote IS 'Lote no condomínio (card legado).';
 
-CREATE OR REPLACE VIEW public.v_processo_como_kanban_cards ASSELECT
+CREATE OR REPLACE VIEW public.v_processo_como_kanban_cards AS
+SELECT
   p.id,
   kf.kanban_id,
   kf.id          AS fase_id,
