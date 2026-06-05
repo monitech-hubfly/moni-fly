@@ -193,6 +193,28 @@ export function FormularioCandidatoForm({
           </label>
         );
 
+        if (item.tipo === 'condominio' || item.tipo === 'pesquisa_condominio') {
+          return (
+            <div key={item.id}>
+              {label}
+              <p className="text-sm text-stone-500">
+                Preencha este campo no painel interno do card (fase Dados dos Condomínios).
+              </p>
+            </div>
+          );
+        }
+
+        if (item.tipo === 'tabela') {
+          return (
+            <div key={item.id}>
+              {label}
+              <p className="text-sm text-stone-500">
+                Os dados do cadastro são exibidos automaticamente no painel interno após vincular o condomínio.
+              </p>
+            </div>
+          );
+        }
+
         if (item.tipo === 'anexo_template') {
           return (
             <div key={item.id}>

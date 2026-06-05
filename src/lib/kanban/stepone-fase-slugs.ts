@@ -21,9 +21,19 @@ export const STEPONE_FASE_SLUGS = {
 /** Ordem PROD da fase Hipóteses (chips Portfolio a partir desta fase). */
 export const HIPOTESES_ORDEM_MIN_PROD = 10;
 
+export const DADOS_CIDADE_FASE_SLUGS = [
+  FASE_SLUGS.DADOS_CIDADE,
+  'stepone_dados_cidade',
+] as const;
+
 export const DADOS_CONDOMINIOS_FASE_SLUGS = [
   FASE_SLUGS.DADOS_CONDOMINIOS,
   'stepone_dados_cond',
+] as const;
+
+export const LOTES_DISPONIVEIS_FASE_SLUGS = [
+  FASE_SLUGS.LOTES_DISPONIVEIS,
+  'stepone_lotes',
 ] as const;
 
 /** PROD + aliases DEV/legado para matching de fase. */
@@ -88,8 +98,16 @@ export function isHipotesesFaseSlug(slug: string | null | undefined): boolean {
   return slugMatchesStepOneFase(slug, HIPOTESES_FASE_SLUGS);
 }
 
+export function isDadosCidadeFaseSlug(slug: string | null | undefined): boolean {
+  return slugMatchesStepOneFase(slug, DADOS_CIDADE_FASE_SLUGS);
+}
+
 export function isDadosCondominiosFaseSlug(slug: string | null | undefined): boolean {
   return slugMatchesStepOneFase(slug, DADOS_CONDOMINIOS_FASE_SLUGS);
+}
+
+export function isLotesDisponiveisFaseSlug(slug: string | null | undefined): boolean {
+  return slugMatchesStepOneFase(slug, LOTES_DISPONIVEIS_FASE_SLUGS);
 }
 
 export function isBcaFaseSlug(slug: string | null | undefined): boolean {

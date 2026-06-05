@@ -714,13 +714,6 @@ export function KanbanCardModal({
   }, [card?.fase_id, card?.id]);
 
   useEffect(() => {
-    if (origem === 'legado' || kanbanNome !== 'Funil Step One') return;
-    const slug = faseAtual?.slug?.trim() ?? '';
-    if (!isDadosCondominiosFaseSlug(slug)) return;
-    setSecaoAberta((prev) => (prev.condominio ? prev : { ...prev, condominio: true }));
-  }, [faseAtual?.slug, faseAtual?.id, origem, kanbanNome]);
-
-  useEffect(() => {
     if (filtros.lista === 'abertas' && filtros.situacao === 'concluida') {
       setFiltros((f) => ({ ...f, situacao: 'qualquer' }));
     }
@@ -4596,18 +4589,33 @@ export function KanbanCardModal({
                         exibirLinkPublico
                       />
                     ) : null}
-                    {isFaseDadosCondominios ? (
-                      <p className="text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
-                        Preencha os dados do condomínio em &ldquo;Dados do Condomínio&rdquo; (painel esquerdo).
-                        Os campos vêm do cadastro em Rede → Condomínios.
-                      </p>
-                    ) : null}
+
                     <FaseChecklistCard
                       faseId={faseChecklistFaseId}
+                      faseSlug={faseSlugAtual}
                       cardId={card.id}
                       isFrank={portalFrank}
                       isAdmin={isAdmin}
-                      ocultarVazio={exibirChecklistLegalCondominio || isFaseDadosCondominios}
+                      ocultarVazio={exibirChecklistLegalCondominio}
+                      condominioContext={
+                        !isFaseDadosCondominios
+                          ? {
+                              origem,
+                              basePath,
+                              condominioId: card.condominio_id ?? proc?.condominio_id ?? null,
+                              quadra: card.quadra ?? proc?.quadra ?? null,
+                              lote: card.lote ?? proc?.lote ?? null,
+                              nomeCondominioLegado: card.nome_condominio ?? proc?.nome_condominio ?? null,
+                              podeEditar: !ocultarGestaoCard && modalSessao.ehAdminOuTeam,
+                              podeCadastrarNovo: !ocultarGestaoCard && modalSessao.ehAdminOuTeam,
+                              onSalvo: () => {
+                                setCondominioTick((t) => t + 1);
+                                void loadCard();
+                                router.refresh();
+                              },
+                            }
+                          : undefined
+                      }
                     />
                   </div>
                 )}
@@ -5575,27 +5583,28 @@ export function KanbanCardModal({
                 </div>
               </div>,
             )}
-            {secaoHead(
-              'condominio',
-              'Dados do Condomínio',
-              <KanbanCardModalCondominio
-                key={`${card.id}-cond-${condominioTick}`}
-                cardId={card.id}
-                origem={origem}
-                basePath={basePath}
-                condominioIdInicial={card.condominio_id ?? proc?.condominio_id ?? null}
-                quadraInicial={card.quadra ?? proc?.quadra ?? null}
-                loteInicial={card.lote ?? proc?.lote ?? null}
-                nomeCondominioLegado={card.nome_condominio ?? proc?.nome_condominio ?? null}
-                podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
-                podeCadastrarNovo={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
-                onSalvo={() => {
-                  setCondominioTick((t) => t + 1);
-                  void loadCard();
-                  router.refresh();
-                }}
-              />,
-            )}
+            {!isFaseDadosCondominios &&
+              secaoHead(
+                'condominio',
+                'Dados do Condomínio',
+                <KanbanCardModalCondominio
+                  key={`${card.id}-cond-${condominioTick}`}
+                  cardId={card.id}
+                  origem={origem}
+                  basePath={basePath}
+                  condominioIdInicial={card.condominio_id ?? proc?.condominio_id ?? null}
+                  quadraInicial={card.quadra ?? proc?.quadra ?? null}
+                  loteInicial={card.lote ?? proc?.lote ?? null}
+                  nomeCondominioLegado={card.nome_condominio ?? proc?.nome_condominio ?? null}
+                  podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                  podeCadastrarNovo={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                  onSalvo={() => {
+                    setCondominioTick((t) => t + 1);
+                    void loadCard();
+                    router.refresh();
+                  }}
+                />,
+              )}
             {secaoHead(
               'novoNegocio',
               'Dados do Negócio',
