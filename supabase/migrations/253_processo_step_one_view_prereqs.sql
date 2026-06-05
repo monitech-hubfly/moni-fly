@@ -1,4 +1,4 @@
--- 251: título de cards legados inclui quadra e lote (alinhado a montarTituloCardSync)
+-- 253: pré-requisitos da view v_processo_como_kanban_cards em PROD (idempotente)
 
 ALTER TABLE public.processo_step_one
   ADD COLUMN IF NOT EXISTS quadra TEXT,
@@ -6,12 +6,12 @@ ALTER TABLE public.processo_step_one
   ADD COLUMN IF NOT EXISTS data_reuniao date,
   ADD COLUMN IF NOT EXISTS data_followup date;
 
-COMMENT ON COLUMN public.processo_step_one.quadra IS 'Quadra do lote no condomínio (card legado).';
-COMMENT ON COLUMN public.processo_step_one.lote IS 'Lote no condomínio (card legado).';
-COMMENT ON COLUMN public.processo_step_one.data_reuniao IS 'Data planejada de reunião (processo / card legado).';
-COMMENT ON COLUMN public.processo_step_one.data_followup IS 'Data de follow-up (processo / card legado).';
+ALTER TABLE public.kanban_cards
+  ADD COLUMN IF NOT EXISTS data_reuniao date,
+  ADD COLUMN IF NOT EXISTS data_followup date;
 
-CREATE OR REPLACE VIEW public.v_processo_como_kanban_cards ASSELECT
+CREATE OR REPLACE VIEW public.v_processo_como_kanban_cards AS
+SELECT
   p.id,
   kf.kanban_id,
   kf.id          AS fase_id,

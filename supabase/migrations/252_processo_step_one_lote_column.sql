@@ -2,10 +2,14 @@
 
 ALTER TABLE public.processo_step_one
   ADD COLUMN IF NOT EXISTS quadra TEXT,
-  ADD COLUMN IF NOT EXISTS lote TEXT;
+  ADD COLUMN IF NOT EXISTS lote TEXT,
+  ADD COLUMN IF NOT EXISTS data_reuniao date,
+  ADD COLUMN IF NOT EXISTS data_followup date;
 
 COMMENT ON COLUMN public.processo_step_one.quadra IS 'Quadra do lote no condomínio (card legado).';
 COMMENT ON COLUMN public.processo_step_one.lote IS 'Lote no condomínio (card legado).';
+COMMENT ON COLUMN public.processo_step_one.data_reuniao IS 'Data planejada de reunião (processo / card legado).';
+COMMENT ON COLUMN public.processo_step_one.data_followup IS 'Data de follow-up (processo / card legado).';
 
 CREATE OR REPLACE VIEW public.v_processo_como_kanban_cards AS
 SELECT
