@@ -162,7 +162,7 @@ export function FaseChecklistCard({
       else condominioContext.onSalvo();
     }
     setResposta(itemId, { salvando: false, erro: erroFinal });
-    return res.ok && !erroFinal ? { ok: true } : { ok: false, error: erroFinal ?? res.error };
+    return res.ok && !erroFinal ? { ok: true } : { ok: false, error: erroFinal ?? (!res.ok ? res.error : 'Erro ao salvar') };
   }
 
   async function compararAposAssinado(itemId: string) {
