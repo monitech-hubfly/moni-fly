@@ -441,18 +441,22 @@ export async function fetchKanbanBoardSnapshot(
     return Boolean(id);
   });
 
-  const fasesComOrfas = await augmentKanbanFasesComFasesDosCards(supabase, kanbanIdStr, fases, [
-    ...cards.map((c) => c.fase_id),
-    ...cardsConcluidos.map((c) => c.fase_id),
+  const allCardIds = [...new Set([...cards.map((c) => c.id), ...cardsConcluidos.map((c) => c.id)].filter(Boolean))];
+  const faseIdsOrfas = [...cards.map((c) => c.fase_id), ...cardsConcluidos.map((c) => c.fase_id)];
+
+  const [fasesComOrfas, tagsRes] = await Promise.all([
+    augmentKanbanFasesComFasesDosCards(supabase, kanbanIdStr, fases, faseIdsOrfas),
+    allCardIds.length > 0
+      ? supabase
+          .from('kanban_card_tags')
+          .select('card_id, tag_id, kanban_tags(nome, cor)')
+          .in('card_id', allCardIds)
+      : Promise.resolve({ data: [] as { card_id: string; tag_id: string; kanban_tags: { nome: string | null; cor: string | null } | null }[] }),
   ]);
 
   // Tags (nativo): agrega em lote e acopla ao card brief
-  const allCardIds = [...new Set([...cards.map((c) => c.id), ...cardsConcluidos.map((c) => c.id)].filter(Boolean))];
   if (allCardIds.length > 0) {
-    const { data: rows } = await supabase
-      .from('kanban_card_tags')
-      .select('card_id, tag_id, kanban_tags(nome, cor)')
-      .in('card_id', allCardIds);
+    const rows = tagsRes.data;
     const byCardId = new Map<string, { tag_id: string; nome: string; cor: string }[]>();
     (rows ?? []).forEach((r) => {
       const cid = String((r as { card_id?: string | null }).card_id ?? '').trim();

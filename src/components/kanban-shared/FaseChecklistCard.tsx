@@ -42,16 +42,22 @@ export function FaseChecklistCard({ faseId, cardId, isFrank, isAdmin, ocultarVaz
     void (async () => {
       try {
         const supabase = createClient();
-        const { data: itensData, error: itensError } = await supabase
-          .from('kanban_fase_checklist_itens')
-          .select('*')
-          .eq('fase_id', faseId)
-          .order('ordem', { ascending: true });
+        const checklistItemCols =
+          'id, fase_id, ordem, label, tipo, obrigatorio, visivel_candidato, template_storage_path, placeholder';
+        const checklistRespCols = 'id, item_id, card_id, valor, arquivo_path, preenchido_por, preenchido_em';
 
-        const { data: respostasData, error: respostasError } = await supabase
-          .from('kanban_fase_checklist_respostas')
-          .select('*')
-          .eq('card_id', cardId);
+        const [{ data: itensData, error: itensError }, { data: respostasData, error: respostasError }] =
+          await Promise.all([
+            supabase
+              .from('kanban_fase_checklist_itens')
+              .select(checklistItemCols)
+              .eq('fase_id', faseId)
+              .order('ordem', { ascending: true }),
+            supabase
+              .from('kanban_fase_checklist_respostas')
+              .select(checklistRespCols)
+              .eq('card_id', cardId),
+          ]);
 
         if (cancelado) return;
 

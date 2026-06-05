@@ -22,48 +22,46 @@ export default async function PainelNovosNegociosPage({
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const [snapPortfolio, snapOperacoes] = await Promise.all([
+  const processoSelect =
+    'id, cidade, estado, status, etapa_atual, created_at, updated_at, user_id, step_atual, cancelado_em, removido_em, cancelado_motivo, removido_motivo, etapa_painel, trava_painel, tipo_aquisicao_terreno, numero_franquia, nome_franqueado, nome_condominio, quadra_lote, historico_base_id, ordem_coluna_painel';
+
+  const [snapPortfolio, snapOperacoes, processoRes] = await Promise.all([
     fetchKanbanBoardSnapshot(supabase, 'Funil Portfólio', user.id),
     fetchKanbanBoardSnapshot(supabase, 'Funil Operações', user.id),
+    supabase.from('processo_step_one').select(processoSelect),
   ]);
 
-  const { data: rows } = await supabase
-    .from('processo_step_one')
-    .select(
-      'id, cidade, estado, status, etapa_atual, created_at, updated_at, user_id, step_atual, cancelado_em, removido_em, cancelado_motivo, removido_motivo, etapa_painel, trava_painel, tipo_aquisicao_terreno, numero_franquia, nome_franqueado, nome_condominio, quadra_lote, historico_base_id, ordem_coluna_painel',
-    )
-  ;
-
-  const rowsTodos = rows ?? [];
+  const rowsTodos = processoRes.data ?? [];
 
   const processIds = rowsTodos.map((r) => r.user_id).filter(Boolean) as string[];
-  let profiles: { id: string; full_name: string | null }[] = [];
-  if (processIds.length > 0) {
-    const { data: prof } = await supabase
-      .from('profiles')
-      .select('id, full_name')
-      .in('id', [...new Set(processIds)]);
-    profiles = prof ?? [];
-  }
-  const profileByUserId = Object.fromEntries(profiles.map((p) => [p.id, p.full_name ?? null]));
-
   const baseProcessoIds = Array.from(
     new Set(rowsTodos.map((r) => (r.historico_base_id as string | null | undefined) ?? r.id)),
   );
+
+  const [profRes, checklistRes] = await Promise.all([
+    processIds.length > 0
+      ? supabase.from('profiles').select('id, full_name').in('id', [...new Set(processIds)])
+      : Promise.resolve({ data: [] as { id: string; full_name: string | null }[] }),
+    baseProcessoIds.length > 0
+      ? supabase
+          .from('processo_card_checklist')
+          .select('processo_id, etapa_painel, prazo, status, concluido')
+          .in('processo_id', baseProcessoIds)
+      : Promise.resolve({ data: [] as { processo_id: string; etapa_painel: string | null; prazo: string | null; status: string | null; concluido: boolean | null }[] }),
+  ]);
+
+  const profiles = profRes.data ?? [];
+  const profileByUserId = Object.fromEntries(profiles.map((p) => [p.id, p.full_name ?? null]));
+
   let checklistAtrasoByCardId = new Map<string, { hasAtrasado: boolean; hasAtencao: boolean }>();
   if (baseProcessoIds.length > 0) {
-    const { data: checklistRows } = await supabase
-      .from('processo_card_checklist')
-      .select('processo_id, etapa_painel, prazo, status, concluido')
-      .in('processo_id', baseProcessoIds);
-
     checklistAtrasoByCardId = buildChecklistAtrasoByCardId(
       rowsTodos.map((r) => ({
         id: r.id,
         historico_base_id: (r as { historico_base_id?: string | null }).historico_base_id ?? null,
         etapa_painel: (r as { etapa_painel?: string | null }).etapa_painel ?? null,
       })),
-      checklistRows ?? [],
+      checklistRes.data ?? [],
       { defaultEtapaPainel: 'step_1' },
     );
   }
