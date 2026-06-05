@@ -2902,10 +2902,7 @@ export function KanbanCardModal({
     !cardNativoArquivado &&
     !cardLegadoArquivado;
   const exibirBlocoDesarquivar =
-    podeArquivarCardPerm &&
-    !cardNativoConcluido &&
-    !cardLegadoConcluido &&
-    (cardNativoArquivado || cardLegadoArquivado);
+    podeArquivarCardPerm && (cardNativoArquivado || cardLegadoArquivado);
   const roleNormUsuario = normalizeAccessRole(userRoleRaw);
   const userRoleLc = (userRoleRaw || '').trim().toLowerCase();
   const usuarioFrank = portalFrank || isFrankOrFranqueadoRole(userRoleRaw);
