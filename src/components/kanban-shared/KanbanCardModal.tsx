@@ -331,7 +331,10 @@ async function carregarComentariosCardModal(cardId: string): Promise<ComentarioC
     listarComentariosKanbanCard(cardId),
     listarAnexosComentariosKanbanCard(cardId),
   ]);
-  if (!comRes.ok) return [];
+  if (!comRes.ok) {
+    console.error('[KanbanCardModal] falha ao carregar comentários', comRes.error);
+    return [];
+  }
   const anexos = anexosRes.ok ? anexosRes.items : [];
   return mapComentariosCardRows(comRes.items, anexos);
 }
