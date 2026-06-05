@@ -14,7 +14,7 @@ import {
   fetchEtapaPainelPorProcessoIds,
 } from '@/lib/kanban/reconciliar-fase-etapa-painel';
 import { sortKanbanCardsPorOrdemColuna } from '@/lib/kanban/kanban-coluna-ordem';
-import { montarTituloCardSync } from '@/lib/kanban/card-sync-group';
+import { montarTituloCardSync, escolherTituloExibicaoCard } from '@/lib/kanban/card-sync-group';
 import { dataIsoInputValida } from '@/lib/kanban/kanban-card-datas';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
@@ -246,6 +246,9 @@ export async function fetchKanbanBoardSnapshot(
       concluido,
       concluido_em,
       rede_franqueado_id,
+      nome_condominio,
+      quadra,
+      lote,
       data_reuniao,
       data_followup,
       acoplamento_concluido,
@@ -330,19 +333,22 @@ export async function fetchKanbanBoardSnapshot(
 
   const profilesMap = new Map<string, { full_name: string | null }>();
   const redeById = new Map<string, string>();
+  const nFranquiaByRedeId = new Map<string, string>();
   const [profilesRes, redesRes] = await Promise.all([
     franqueadoIds.length > 0
       ? supabase.from('profiles').select('id, full_name').in('id', franqueadoIds)
       : Promise.resolve({ data: [] as { id: string; full_name: string | null }[] }),
     allRedeLookupIds.length > 0
-      ? supabase.from('rede_franqueados').select('id, nome_completo').in('id', allRedeLookupIds)
-      : Promise.resolve({ data: [] as { id: string; nome_completo: string | null }[] }),
+      ? supabase.from('rede_franqueados').select('id, nome_completo, n_franquia').in('id', allRedeLookupIds)
+      : Promise.resolve({ data: [] as { id: string; nome_completo: string | null; n_franquia: string | null }[] }),
   ]);
   (profilesRes.data ?? []).forEach((p) => {
     profilesMap.set(p.id, { full_name: p.full_name });
   });
   (redesRes.data ?? []).forEach((r) => {
     if (r.nome_completo) redeById.set(String(r.id), String(r.nome_completo));
+    const num = String((r as { n_franquia?: string | null }).n_franquia ?? '').trim();
+    if (num) nFranquiaByRedeId.set(String(r.id), num);
   });
 
   const redeNomeMapNativo = new Map<string, string>();
@@ -359,9 +365,17 @@ export async function fetchKanbanBoardSnapshot(
   const mapNativo = (c: Record<string, unknown>): KanbanCardBrief => {
     const fid = String(c.franqueado_id ?? '');
     const redeId = String((c as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '');
+    const tituloRaw = String(c.titulo ?? '');
+    const tituloCalc = montarTituloCardSync({
+      nFranquia: redeId ? nFranquiaByRedeId.get(redeId) : null,
+      nomeCondominio: (c as { nome_condominio?: string | null }).nome_condominio,
+      quadra: (c as { quadra?: string | null }).quadra,
+      lote: (c as { lote?: string | null }).lote,
+      tituloFallback: tituloRaw,
+    });
     return {
       id: String(c.id),
-      titulo: String(c.titulo ?? ''),
+      titulo: escolherTituloExibicaoCard(tituloRaw, tituloCalc),
       status: String(c.status ?? ''),
       created_at: String(c.created_at ?? ''),
       fase_id: String(c.fase_id ?? ''),

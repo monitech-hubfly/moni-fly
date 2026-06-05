@@ -62,9 +62,12 @@ import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-no
 import { payloadInicialNegociacaoPrazo } from '@/lib/kanban/prazo-negociacao';
 import {
   contarOutrosCardsSyncGroup,
+  escolherTituloExibicaoCard,
   fetchCamposKanbanCanonicos,
+  montarTituloCardSync,
   propagarCamposKanbanCards,
   propagarCamposProcesso,
+  reconciliarFranqueadoNoSyncGroup,
   resolverProcessoStepOneIdDoCard,
   type KanbanCardCamposSync,
 } from '@/lib/kanban/card-sync-group';
@@ -2264,6 +2267,138 @@ async function enriquecerMapInfoCardsLegado(
   }
 }
 
+type CardTituloKanbanRow = {
+  id: string;
+  titulo: string | null;
+  origem_card_id?: string | null;
+  rede_franqueado_id?: string | null;
+  nome_condominio?: string | null;
+  quadra?: string | null;
+  lote?: string | null;
+};
+
+async function enriquecerTitulosMapInfoCards(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  mapInfo: Map<string, { titulo: string; kanban_nome: string; fase_nome: string }>,
+  cardRows: CardTituloKanbanRow[],
+): Promise<void> {
+  if (cardRows.length === 0) return;
+
+  const redeIds = [
+    ...new Set(
+      cardRows.map((r) => String(r.rede_franqueado_id ?? '').trim()).filter(Boolean),
+    ),
+  ];
+  const nFranquiaPorRede = new Map<string, string>();
+  if (redeIds.length > 0) {
+    const { data: redes } = await supabase
+      .from('rede_franqueados')
+      .select('id, n_franquia')
+      .in('id', redeIds);
+    for (const r of redes ?? []) {
+      const id = String((r as { id?: string }).id ?? '').trim();
+      const num = String((r as { n_franquia?: string | null }).n_franquia ?? '').trim();
+      if (id && num) nFranquiaPorRede.set(id, num);
+    }
+  }
+
+  for (const row of cardRows) {
+    const id = String(row.id);
+    const info = mapInfo.get(id);
+    if (!info) continue;
+
+    const redeId = String(row.rede_franqueado_id ?? '').trim();
+    const tituloCalc = montarTituloCardSync({
+      nFranquia: redeId ? nFranquiaPorRede.get(redeId) : null,
+      nomeCondominio: row.nome_condominio,
+      quadra: row.quadra,
+      lote: row.lote,
+      tituloFallback: row.titulo,
+    });
+    info.titulo = escolherTituloExibicaoCard(info.titulo, tituloCalc);
+  }
+}
+
+async function enriquecerTitulosMapInfoComAncestrais(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  mapInfo: Map<string, { titulo: string; kanban_nome: string; fase_nome: string }>,
+  cardRows: CardTituloKanbanRow[],
+): Promise<void> {
+  const byId = new Map(cardRows.map((r) => [String(r.id), r]));
+  let frontier = cardRows
+    .map((r) => String(r.origem_card_id ?? '').trim())
+    .filter((id) => id && !byId.has(id));
+
+  while (frontier.length > 0) {
+    const { data: ancestrais } = await supabase
+      .from('kanban_cards')
+      .select(
+        'id, titulo, origem_card_id, rede_franqueado_id, nome_condominio, quadra, lote',
+      )
+      .in('id', frontier);
+    const next: string[] = [];
+    for (const row of (ancestrais ?? []) as CardTituloKanbanRow[]) {
+      const id = String(row.id);
+      byId.set(id, row);
+      const origem = String(row.origem_card_id ?? '').trim();
+      if (origem && !byId.has(origem)) next.push(origem);
+    }
+    frontier = next;
+  }
+
+  const redeIds = [
+    ...new Set(
+      [...byId.values()]
+        .map((r) => String(r.rede_franqueado_id ?? '').trim())
+        .filter(Boolean),
+    ),
+  ];
+  const nFranquiaPorRede = new Map<string, string>();
+  if (redeIds.length > 0) {
+    const { data: redes } = await supabase
+      .from('rede_franqueados')
+      .select('id, n_franquia')
+      .in('id', redeIds);
+    for (const r of redes ?? []) {
+      const id = String((r as { id?: string }).id ?? '').trim();
+      const num = String((r as { n_franquia?: string | null }).n_franquia ?? '').trim();
+      if (id && num) nFranquiaPorRede.set(id, num);
+    }
+  }
+
+  for (const row of cardRows) {
+    const id = String(row.id);
+    const info = mapInfo.get(id);
+    if (!info) continue;
+
+    let merged: CardTituloKanbanRow = { ...row };
+    let cur = String(row.origem_card_id ?? '').trim();
+    for (let depth = 0; depth < 32 && cur; depth++) {
+      const pai = byId.get(cur);
+      if (!pai) break;
+      merged = {
+        ...merged,
+        titulo: escolherTituloExibicaoCard(merged.titulo, pai.titulo),
+        rede_franqueado_id: merged.rede_franqueado_id ?? pai.rede_franqueado_id,
+        nome_condominio: merged.nome_condominio ?? pai.nome_condominio,
+        quadra: merged.quadra ?? pai.quadra,
+        lote: merged.lote ?? pai.lote,
+      };
+      cur = String(pai.origem_card_id ?? '').trim();
+    }
+
+    const redeId = String(merged.rede_franqueado_id ?? '').trim();
+    const tituloCalc = montarTituloCardSync({
+      nFranquia: redeId ? nFranquiaPorRede.get(redeId) : null,
+      nomeCondominio: merged.nome_condominio,
+      quadra: merged.quadra,
+      lote: merged.lote,
+      tituloFallback: merged.titulo,
+    });
+    info.titulo = escolherTituloExibicaoCard(info.titulo, tituloCalc);
+  }
+}
+
 function normalizarTipoRelacionamento(raw: string | null | undefined): TipoRelacionamentoDisplay {
   const t = String(raw ?? '').trim().toLowerCase();
   if (t === 'originou') return 'originou';
@@ -2337,18 +2472,27 @@ export async function listarRelacionamentosCard(
 
     const { data: cardsOrigem, error: errCardsOrigem } = await supabase
       .from('kanban_cards')
-      .select('id, titulo, arquivado, kanban_fases ( nome ), kanbans ( nome )')
+      .select(
+        'id, titulo, arquivado, origem_card_id, rede_franqueado_id, nome_condominio, quadra, lote, kanban_fases ( nome ), kanbans ( nome )',
+      )
       .in('id', origemIdsParaDetalhe);
     if (errCardsOrigem) return { ok: false, error: errCardsOrigem.message };
 
+    const rowsOrigem: CardTituloKanbanRow[] = [];
     for (const c of cardsOrigem ?? []) {
       const row = c as {
         id: string;
         titulo: string | null;
         arquivado?: boolean | null;
+        origem_card_id?: string | null;
+        rede_franqueado_id?: string | null;
+        nome_condominio?: string | null;
+        quadra?: string | null;
+        lote?: string | null;
         kanban_fases?: unknown;
         kanbans?: unknown;
       };
+      rowsOrigem.push(row);
       mapOrigem.set(String(row.id), {
         titulo: (row.titulo ?? '').trim() || '(sem título)',
         kanban_nome: kanbanNomeDeJoin(row) || 'Kanban',
@@ -2357,6 +2501,8 @@ export async function listarRelacionamentosCard(
     }
 
     await enriquecerMapInfoCardsLegado(supabase, mapOrigem, origemIdsParaDetalhe);
+    await enriquecerTitulosMapInfoCards(supabase, mapOrigem, rowsOrigem);
+    await enriquecerTitulosMapInfoComAncestrais(supabase, mapOrigem, rowsOrigem);
 
     for (const id of ancestorIds) {
       const info = mapOrigem.get(id) ?? { titulo: '—', kanban_nome: '—', fase_nome: '—' };
@@ -2407,7 +2553,9 @@ export async function listarRelacionamentosCard(
     }
     const { data: cards, error: cErr } = await supabase
       .from('kanban_cards')
-      .select('id, titulo, arquivado, kanban_fases ( nome ), kanbans ( nome )')
+      .select(
+        'id, titulo, arquivado, origem_card_id, rede_franqueado_id, nome_condominio, quadra, lote, kanban_fases ( nome ), kanbans ( nome )',
+      )
       .in('id', [...idSet]);
     if (cErr) return { ok: false, error: cErr.message };
 
@@ -2415,14 +2563,21 @@ export async function listarRelacionamentosCard(
       string,
       { titulo: string; kanban_nome: string; fase_nome: string }
     >();
+    const rowsVinculo: CardTituloKanbanRow[] = [];
     for (const c of cards ?? []) {
       const row = c as {
         id: string;
         titulo: string | null;
         arquivado?: boolean | null;
+        origem_card_id?: string | null;
+        rede_franqueado_id?: string | null;
+        nome_condominio?: string | null;
+        quadra?: string | null;
+        lote?: string | null;
         kanban_fases?: unknown;
         kanbans?: unknown;
       };
+      rowsVinculo.push(row);
       mapInfo.set(String(row.id), {
         titulo: (row.titulo ?? '').trim() || '(sem título)',
         kanban_nome: kanbanNomeDeJoin(row) || 'Kanban',
@@ -2431,6 +2586,8 @@ export async function listarRelacionamentosCard(
     }
 
     await enriquecerMapInfoCardsLegado(supabase, mapInfo, [...idSet]);
+    await enriquecerTitulosMapInfoCards(supabase, mapInfo, rowsVinculo);
+    await enriquecerTitulosMapInfoComAncestrais(supabase, mapInfo, rowsVinculo);
 
     for (const v of vincRows) {
       const outroId = v.card_origem_id === cid ? v.card_destino_id : v.card_origem_id;
@@ -2627,6 +2784,11 @@ export async function criarVinculoCard(input: {
     if (error.code === '23505') return { ok: false, error: 'Este vínculo já existe.' };
     return { ok: false, error: error.message };
   }
+
+  const healOrig = await reconciliarFranqueadoNoSyncGroup(db, orig);
+  if (!healOrig.ok) return { ok: false, error: healOrig.error };
+  const healDest = await reconciliarFranqueadoNoSyncGroup(db, dest);
+  if (!healDest.ok) return { ok: false, error: healDest.error };
 
   revalidatePath(input.basePath?.trim() || '/');
   revalidatePath('/');

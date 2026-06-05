@@ -19,6 +19,7 @@ import {
   deveDispararBastaoAcoplamentoAutomatico,
   resolverCardPaiPortfolioParaAcoplamento,
 } from '@/lib/kanban/portfolio-paralelas';
+import { reconciliarFranqueadoNoSyncGroup, resolverTituloCardKanban } from '@/lib/kanban/card-sync-group';
 
 /** Verifica se já existe card filho no Funil Jurídico para o card pai. */
 export async function existeChamadoJuridicoParaCard(cardPaiId: string): Promise<boolean> {
@@ -89,7 +90,7 @@ export async function criarCardFilho(
   const cardPaiId = String(params.cardPaiId ?? '').trim();
   const kanbanDestinoId = String(params.kanbanDestinoId ?? '').trim();
   const faseDestinoSlug = String(params.faseDestinoSlug ?? '').trim();
-  const titulo = String(params.titulo ?? '').trim();
+  let titulo = String(params.titulo ?? '').trim();
 
   if (!cardPaiId || !kanbanDestinoId || !faseDestinoSlug || !titulo) {
     throw new Error('Parâmetros inválidos para criar card filho.');
@@ -138,14 +139,42 @@ export async function criarCardFilho(
 
   const { data: cardPai, error: errPai } = await db
     .from('kanban_cards')
-    .select('id, franqueado_id')
+    .select(
+      'id, franqueado_id, titulo, nome_condominio, quadra, lote, condominio_id, rede_franqueado_id',
+    )
     .eq('id', cardPaiId)
     .maybeSingle();
 
   if (errPai) throw new Error(errPai.message);
   if (!cardPai?.id) throw new Error('Card pai não encontrado.');
 
-  const franqueadoId = String((cardPai as { franqueado_id?: string }).franqueado_id ?? '').trim();
+  const paiRow = cardPai as {
+    id: string;
+    franqueado_id?: string;
+    titulo?: string | null;
+    nome_condominio?: string | null;
+    quadra?: string | null;
+    lote?: string | null;
+    condominio_id?: string | null;
+    rede_franqueado_id?: string | null;
+  };
+
+  const redeFranqueadoId = params.redeFranqueadoId ?? paiRow.rede_franqueado_id ?? null;
+  const nomeCondominio = paiRow.nome_condominio ?? null;
+  const quadra = paiRow.quadra ?? null;
+  const lote = paiRow.lote ?? null;
+  const condominioId = paiRow.condominio_id ?? null;
+
+  const tituloCalculado = await resolverTituloCardKanban(db, {
+    rede_franqueado_id: redeFranqueadoId,
+    nome_condominio: nomeCondominio,
+    quadra,
+    lote,
+    titulo: String(paiRow.titulo ?? titulo).trim() || titulo,
+  });
+  if (tituloCalculado) titulo = tituloCalculado;
+
+  const franqueadoId = String(paiRow.franqueado_id ?? '').trim();
   if (!franqueadoId) throw new Error('Card pai sem franqueado_id.');
 
   const faseId = String(fase.id);
@@ -158,7 +187,11 @@ export async function criarCardFilho(
       titulo,
       origem_card_id: cardPaiId,
       projeto_id: params.projetoId ?? null,
-      rede_franqueado_id: params.redeFranqueadoId ?? null,
+      rede_franqueado_id: redeFranqueadoId,
+      nome_condominio: nomeCondominio,
+      quadra,
+      lote,
+      condominio_id: condominioId,
       franqueado_id: franqueadoId,
       status: 'ativo',
     })
@@ -186,6 +219,9 @@ export async function criarCardFilho(
   if (errVinc && errVinc.code !== '23505') {
     throw new Error(errVinc.message);
   }
+
+  const healFranq = await reconciliarFranqueadoNoSyncGroup(db, cardPaiId);
+  if (!healFranq.ok) throw new Error(healFranq.error);
 
   if (kanbanDestinoId === KANBAN_IDS.ACOPLAMENTO && faseDestinoSlug === 'modelagem_terreno') {
     void notificarTimeAcoplamentoNovoProjeto({
@@ -1000,6 +1036,8 @@ export async function abrirFunilAcoplamentoManualDoCard(
       filhoId,
       faseSlugExistente || destino.faseDestinoSlug,
     );
+    const healFranq = await reconciliarFranqueadoNoSyncGroup(db, paiPortfolioId);
+    if (!healFranq.ok) return { ok: false, error: healFranq.error };
     const { data: kb } = await db.from('kanbans').select('nome').eq('id', destino.kanbanDestinoId).maybeSingle();
     revalidatePath(basePath?.trim() || '/');
     revalidatePath('/');
@@ -1028,6 +1066,9 @@ export async function abrirFunilAcoplamentoManualDoCard(
     }
 
     await sincronizarTagAcoplamentoPaiDoFilho(String(filho.id), destino.faseDestinoSlug);
+
+    const healFranq = await reconciliarFranqueadoNoSyncGroup(db, paiPortfolioId);
+    if (!healFranq.ok) return { ok: false, error: healFranq.error };
 
     const { data: kb } = await db.from('kanbans').select('nome').eq('id', destino.kanbanDestinoId).maybeSingle();
     revalidatePath(basePath?.trim() || '/');

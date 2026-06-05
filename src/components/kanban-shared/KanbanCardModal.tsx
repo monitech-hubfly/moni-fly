@@ -1106,7 +1106,7 @@ export function KanbanCardModal({
           const c = syncInfo.camposCanonicos;
           if (c) {
             if (c.titulo) cardParaEstado = { ...cardParaEstado, titulo: c.titulo };
-            if (c.rede_franqueado_id !== undefined) {
+            if (c.rede_franqueado_id) {
               cardParaEstado = { ...cardParaEstado, rede_franqueado_id: c.rede_franqueado_id };
             }
             if (c.nome_condominio !== undefined) {
@@ -1184,8 +1184,11 @@ export function KanbanCardModal({
         const det = await fetchKanbanCardModalDetalhes(supabase, {
           origem,
           cardId: loaded.id,
-          cardTitulo: loaded.titulo,
-          redeFranqueadoId: origem === 'nativo' ? nativeRedeFranqueadoId : null,
+          cardTitulo: cardParaEstado.titulo,
+          redeFranqueadoId:
+            origem === 'nativo'
+              ? cardParaEstado.rede_franqueado_id ?? nativeRedeFranqueadoId
+              : null,
           cardProjetoId: loaded.projeto_id ?? null,
         });
         setModalDetalhes(det);

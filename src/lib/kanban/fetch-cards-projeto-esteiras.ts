@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { faseNomeExibicaoVinculoCard } from '@/lib/kanban/acoplamento-tag-pai';
+import { escolherTituloExibicaoCard, montarTituloCardSync } from '@/lib/kanban/card-sync-group';
 
 export type CardProjetoEsteiraRow = {
   id: string;
@@ -35,6 +36,10 @@ type RawRow = {
   arquivado: boolean | null;
   created_at: string;
   origem_card_id: string | null;
+  rede_franqueado_id?: string | null;
+  nome_condominio?: string | null;
+  quadra?: string | null;
+  lote?: string | null;
   kanban_fases: FaseJoin | FaseJoin[];
   kanbans: KanbanJoin | KanbanJoin[];
 };
@@ -65,12 +70,15 @@ export async function fetchCardsProjetoEsteiras(
       arquivado,
       created_at,
       origem_card_id,
+      rede_franqueado_id,
+      nome_condominio,
+      quadra,
+      lote,
       kanban_fases!fase_id ( nome, slug, sla_dias ),
       kanbans!kanban_id ( nome, id )
     `,
     )
     .eq('projeto_id', pid)
-    .neq('id', exclude)
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -78,12 +86,70 @@ export async function fetchCardsProjetoEsteiras(
     throw new Error(error.message);
   }
 
-  return ((data ?? []) as RawRow[]).map((row) => {
+  const allRows = (data ?? []) as RawRow[];
+  const rows = allRows.filter((row) => String(row.id) !== exclude);
+  const redeIds = [
+    ...new Set(
+      allRows.map((r) => String(r.rede_franqueado_id ?? '').trim()).filter(Boolean),
+    ),
+  ];
+  const nFranquiaPorRede = new Map<string, string>();
+  if (redeIds.length > 0) {
+    const { data: redes } = await supabase
+      .from('rede_franqueados')
+      .select('id, n_franquia')
+      .in('id', redeIds);
+    for (const r of redes ?? []) {
+      const id = String((r as { id?: string }).id ?? '').trim();
+      const num = String((r as { n_franquia?: string | null }).n_franquia ?? '').trim();
+      if (id && num) nFranquiaPorRede.set(id, num);
+    }
+  }
+
+  const camposProjeto = allRows.reduce(
+    (acc, row) => ({
+      titulo: escolherTituloExibicaoCard(acc.titulo, row.titulo),
+      rede_franqueado_id: acc.rede_franqueado_id ?? row.rede_franqueado_id ?? null,
+      nome_condominio: acc.nome_condominio ?? row.nome_condominio ?? null,
+      quadra: acc.quadra ?? row.quadra ?? null,
+      lote: acc.lote ?? row.lote ?? null,
+    }),
+    {
+      titulo: null as string | null,
+      rede_franqueado_id: null as string | null,
+      nome_condominio: null as string | null,
+      quadra: null as string | null,
+      lote: null as string | null,
+    },
+  );
+  const redeCanonica = String(camposProjeto.rede_franqueado_id ?? '').trim();
+  const tituloCanonicoProjeto = montarTituloCardSync({
+    nFranquia: redeCanonica ? nFranquiaPorRede.get(redeCanonica) : null,
+    nomeCondominio: camposProjeto.nome_condominio,
+    quadra: camposProjeto.quadra,
+    lote: camposProjeto.lote,
+    tituloFallback: camposProjeto.titulo,
+  });
+
+  return rows.map((row) => {
     const fase = unwrapJoin(row.kanban_fases);
     const kanban = unwrapJoin(row.kanbans);
+    const tituloRaw = String(row.titulo ?? '').trim();
+    const redeId = String(row.rede_franqueado_id ?? '').trim();
+    const tituloCalc = montarTituloCardSync({
+      nFranquia: redeId ? nFranquiaPorRede.get(redeId) : null,
+      nomeCondominio: row.nome_condominio ?? camposProjeto.nome_condominio,
+      quadra: row.quadra ?? camposProjeto.quadra,
+      lote: row.lote ?? camposProjeto.lote,
+      tituloFallback: row.titulo,
+    });
     return {
       id: String(row.id),
-      titulo: String(row.titulo ?? '').trim() || '—',
+      titulo:
+        escolherTituloExibicaoCard(
+          escolherTituloExibicaoCard(tituloRaw, tituloCalc),
+          tituloCanonicoProjeto,
+        ) || '—',
       status: String(row.status ?? 'ativo'),
       concluido: Boolean(row.concluido),
       arquivado: Boolean(row.arquivado),
