@@ -14,6 +14,7 @@ import {
   fetchEtapaPainelPorProcessoIds,
 } from '@/lib/kanban/reconciliar-fase-etapa-painel';
 import { sortKanbanCardsPorOrdemColuna } from '@/lib/kanban/kanban-coluna-ordem';
+import { montarTituloCardSync } from '@/lib/kanban/card-sync-group';
 import { dataIsoInputValida } from '@/lib/kanban/kanban-card-datas';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
@@ -171,14 +172,24 @@ export async function fetchKanbanBoardSnapshot(
   const processoIds = rows.map((r) => String(r.id)).filter(Boolean);
   const franqueadoNomeMap = new Map<string, string>();
   const legadoOrdemMap = new Map<string, number>();
+  const legadoTituloMap = new Map<string, string>();
   if (processoIds.length > 0) {
     const { data: processos } = await supabase
       .from('processo_step_one')
-      .select('id, numero_franquia, ordem_coluna_painel')
+      .select('id, numero_franquia, nome_condominio, quadra, lote, ordem_coluna_painel')
       .in('id', processoIds);
     (processos ?? []).forEach((p) => {
       const pid = String(p.id);
       legadoOrdemMap.set(pid, Number((p as { ordem_coluna_painel?: number | null }).ordem_coluna_painel ?? 0));
+      const viewTitulo = rows.find((r) => String(r.id) === pid)?.titulo ?? '';
+      const tituloCalc = montarTituloCardSync({
+        nFranquia: (p as { numero_franquia?: string | null }).numero_franquia,
+        nomeCondominio: (p as { nome_condominio?: string | null }).nome_condominio,
+        quadra: (p as { quadra?: string | null }).quadra,
+        lote: (p as { lote?: string | null }).lote,
+        tituloFallback: viewTitulo,
+      });
+      if (tituloCalc) legadoTituloMap.set(pid, tituloCalc);
     });
     const numeros = [...new Set((processos ?? []).map((p) => p.numero_franquia).filter(Boolean))] as string[];
     if (numeros.length > 0) {
@@ -200,7 +211,7 @@ export async function fetchKanbanBoardSnapshot(
     const cardId = String(r.id);
     return {
       id: cardId,
-      titulo: String(r.titulo ?? ''),
+      titulo: legadoTituloMap.get(cardId) ?? String(r.titulo ?? ''),
       status: String(r.status ?? ''),
       created_at: String(r.criado_em ?? ''),
       fase_id: String(r.fase_id ?? ''),

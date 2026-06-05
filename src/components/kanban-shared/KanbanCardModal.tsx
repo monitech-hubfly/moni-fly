@@ -140,13 +140,17 @@ import { KanbanCardDatasFields } from './KanbanCardDatasFields';
 import { MencaoContentEditable } from './MencaoContentEditable';
 import { fetchKanbanFasesAtivas, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
 import { loadHistoricoCardModal } from '@/lib/kanban/kanban-card-historico';
-import { publicarComentarioKanbanCard } from '@/lib/actions/kanban-comentarios';
+import {
+  listarComentariosKanbanCard,
+  publicarComentarioKanbanCard,
+} from '@/lib/actions/kanban-comentarios';
 import {
   listarAnexosComentariosKanbanCard,
   urlAssinadaAnexoComentarioKanbanCard,
   type KanbanComentarioAnexoRow,
 } from '@/lib/actions/kanban-comentario-anexos';
 import { uploadAnexosComentarioPendentes } from '@/lib/kanban/upload-anexos-comentario-card';
+import { montarTituloCardSync } from '@/lib/kanban/card-sync-group';
 import { dataIsoInputValida } from '@/lib/kanban/kanban-card-datas';
 import { AnexosAtividadeDraft } from './AnexosAtividadeDraft';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
@@ -287,8 +291,13 @@ function richTextPlainTrimmed(html: string): string {
 }
 
 function mapComentariosCardRows(
-  comRows: { id: string; conteudo?: string | null; created_at: string; autor_id?: string | null }[],
-  nomePorId: Map<string, string>,
+  comRows: {
+    id: string;
+    conteudo?: string | null;
+    created_at: string;
+    autor_id?: string | null;
+    autor_nome?: string | null;
+  }[],
   anexos: KanbanComentarioAnexoRow[],
 ): ComentarioCardRow[] {
   const anexosPorComentario = new Map<string, ComentarioCardRow['anexos']>();
@@ -308,9 +317,19 @@ function mapComentariosCardRows(
     conteudo: String(c.conteudo ?? ''),
     created_at: String(c.created_at),
     autor_id: c.autor_id ? String(c.autor_id) : null,
-    autor_nome: c.autor_id ? nomePorId.get(String(c.autor_id)) ?? null : null,
+    autor_nome: c.autor_nome?.trim() || null,
     anexos: anexosPorComentario.get(String(c.id)) ?? [],
   }));
+}
+
+async function carregarComentariosCardModal(cardId: string): Promise<ComentarioCardRow[]> {
+  const [comRes, anexosRes] = await Promise.all([
+    listarComentariosKanbanCard(cardId),
+    listarAnexosComentariosKanbanCard(cardId),
+  ]);
+  if (!comRes.ok) return [];
+  const anexos = anexosRes.ok ? anexosRes.items : [];
+  return mapComentariosCardRows(comRes.items, anexos);
 }
 
 function inicioDiaLocal(d: Date) {
@@ -1116,6 +1135,42 @@ export function KanbanCardModal({
         setTotalCardsSyncGrupo(0);
       }
 
+      if (origem === 'legado') {
+        try {
+          const { data: procRow } = await supabase
+            .from('processo_step_one')
+            .select('numero_franquia, nome_condominio, quadra, lote, condominio_id')
+            .eq('id', cardParaEstado.id)
+            .maybeSingle();
+          if (procRow) {
+            const pr = procRow as {
+              numero_franquia?: string | null;
+              nome_condominio?: string | null;
+              quadra?: string | null;
+              lote?: string | null;
+              condominio_id?: string | null;
+            };
+            const tituloCalc = montarTituloCardSync({
+              nFranquia: pr.numero_franquia,
+              nomeCondominio: pr.nome_condominio ?? cardParaEstado.nome_condominio,
+              quadra: pr.quadra ?? cardParaEstado.quadra,
+              lote: pr.lote ?? cardParaEstado.lote,
+              tituloFallback: cardParaEstado.titulo,
+            });
+            cardParaEstado = {
+              ...cardParaEstado,
+              nome_condominio: pr.nome_condominio ?? cardParaEstado.nome_condominio,
+              condominio_id: pr.condominio_id ?? cardParaEstado.condominio_id,
+              quadra: pr.quadra ?? cardParaEstado.quadra,
+              lote: pr.lote ?? cardParaEstado.lote,
+              titulo: tituloCalc ?? cardParaEstado.titulo,
+            };
+          }
+        } catch {
+          /* mantém título da view */
+        }
+      }
+
       setCard(cardParaEstado);
       const dr = loaded.data_reuniao ? String(loaded.data_reuniao).slice(0, 10) : '';
       setDataReuniao(dr && dataIsoInputValida(dr) ? dr : '');
@@ -1222,24 +1277,7 @@ export function KanbanCardModal({
       }
 
       try {
-        const { data: comRows, error: comErr } = await supabase
-          .from('kanban_card_comentarios')
-          .select('id, conteudo, created_at, autor_id')
-          .eq('card_id', cardId)
-          .order('created_at', { ascending: false });
-        if (comErr || !comRows?.length) {
-          setComentariosCard([]);
-        } else {
-          const autorIds = [...new Set(comRows.map((c) => c.autor_id).filter(Boolean))] as string[];
-          let nomePorId = new Map<string, string>();
-          if (autorIds.length > 0) {
-            const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', autorIds);
-            nomePorId = new Map((profs ?? []).map((p) => [p.id, (p.full_name as string | null)?.trim() || '']));
-          }
-          const anexosRes = await listarAnexosComentariosKanbanCard(cardId);
-          const anexos = anexosRes.ok ? anexosRes.items : [];
-          setComentariosCard(mapComentariosCardRows(comRows, nomePorId, anexos));
-        }
+        setComentariosCard(await carregarComentariosCardModal(cardId));
       } catch {
         setComentariosCard([]);
       }
@@ -2131,25 +2169,7 @@ export function KanbanCardModal({
       setNovoComentarioCard('');
       setComentarioPendingAnexos([]);
       if (comentarioEditorRef.current) comentarioEditorRef.current.innerHTML = '';
-      const supabase2 = createClient();
-      const { data: comRows } = await supabase2
-        .from('kanban_card_comentarios')
-        .select('id, conteudo, created_at, autor_id')
-        .eq('card_id', card.id)
-        .order('created_at', { ascending: false });
-      if (comRows?.length) {
-        const autorIds = [...new Set(comRows.map((c) => c.autor_id).filter(Boolean))] as string[];
-        let nomePorId = new Map<string, string>();
-        if (autorIds.length > 0) {
-          const { data: profs } = await supabase2.from('profiles').select('id, full_name').in('id', autorIds);
-          nomePorId = new Map((profs ?? []).map((p) => [p.id, (p.full_name as string | null)?.trim() || '']));
-        }
-        const anexosRes = await listarAnexosComentariosKanbanCard(card.id);
-        const anexos = anexosRes.ok ? anexosRes.items : [];
-        setComentariosCard(mapComentariosCardRows(comRows, nomePorId, anexos));
-      } else {
-        setComentariosCard([]);
-      }
+      setComentariosCard(await carregarComentariosCardModal(card.id));
     } catch (err) {
       alert(`Exceção inesperada: ${String((err as Error)?.message ?? err)}`);
     } finally {
@@ -2179,31 +2199,7 @@ export function KanbanCardModal({
       setEditingComentarioId(null);
       setEditComentarioDraft('');
       if (comentarioEdicaoRef.current) comentarioEdicaoRef.current.innerHTML = '';
-      const supabase2 = createClient();
-      const { data: comRows } = await supabase2
-        .from('kanban_card_comentarios')
-        .select('id, conteudo, created_at, autor_id')
-        .eq('card_id', card.id)
-        .order('created_at', { ascending: false });
-      if (comRows?.length) {
-        const autorIds = [...new Set(comRows.map((c) => c.autor_id).filter(Boolean))] as string[];
-        let nomePorId = new Map<string, string>();
-        if (autorIds.length > 0) {
-          const { data: profs } = await supabase2.from('profiles').select('id, full_name').in('id', autorIds);
-          nomePorId = new Map((profs ?? []).map((p) => [p.id, (p.full_name as string | null)?.trim() || '']));
-        }
-        setComentariosCard(
-          comRows.map((c) => ({
-            id: String(c.id),
-            conteudo: String((c as { conteudo?: string | null }).conteudo ?? ''),
-            created_at: String(c.created_at),
-            autor_id: c.autor_id ? String(c.autor_id) : null,
-            autor_nome: c.autor_id ? nomePorId.get(String(c.autor_id)) ?? null : null,
-          })),
-        );
-      } else {
-        setComentariosCard([]);
-      }
+      setComentariosCard(await carregarComentariosCardModal(card.id));
     } catch {
       alert('Erro ao editar comentário.');
     } finally {
