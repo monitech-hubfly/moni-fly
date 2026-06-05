@@ -1090,9 +1090,6 @@ export async function dispararEsteiraManualDoCard(
     if (destino.kanbanDestinoId === KANBAN_IDS.PROJETO_LEGAL) {
       revalidatePath('/funil-projeto-legal');
     }
-    if (destino.kanbanDestinoId === KANBAN_IDS.CREDITO_OBRA) {
-      revalidatePath('/funil-credito-obra');
-    }
 
     return {
       ok: true,
