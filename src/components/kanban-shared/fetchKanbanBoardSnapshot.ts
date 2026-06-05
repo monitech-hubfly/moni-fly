@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeAccessRole } from '@/lib/authz';
-import { KANBAN_ID_BY_NOME } from '@/lib/constants/kanban-ids';
+import { KANBAN_ID_BY_NOME, KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { prepareStepOneBoardSnapshot } from '@/lib/kanban/stepone-fase-slugs';
 import {
   augmentKanbanFasesComFasesDosCards,
   fetchKanbanFasesAtivas,
@@ -432,7 +433,7 @@ export async function fetchKanbanBoardSnapshot(
   ]);
 
   // Nativo prevalece quando existe linha; legado só preenche lacunas (sem duplicata por id).
-  const cards = [
+  let cards = [
     ...cardsNativo,
     ...cardsArquivadosNativo,
     ...cardsLegadoReconciliados.filter((c) => !idsComLinhaNativa.has(c.id)),
@@ -444,7 +445,7 @@ export async function fetchKanbanBoardSnapshot(
   const allCardIds = [...new Set([...cards.map((c) => c.id), ...cardsConcluidos.map((c) => c.id)].filter(Boolean))];
   const faseIdsOrfas = [...cards.map((c) => c.fase_id), ...cardsConcluidos.map((c) => c.fase_id)];
 
-  const [fasesComOrfas, tagsRes] = await Promise.all([
+  let [fasesComOrfas, tagsRes] = await Promise.all([
     augmentKanbanFasesComFasesDosCards(supabase, kanbanIdStr, fases, faseIdsOrfas),
     allCardIds.length > 0
       ? supabase
@@ -453,6 +454,17 @@ export async function fetchKanbanBoardSnapshot(
           .in('card_id', allCardIds)
       : Promise.resolve({ data: [] as { card_id: string; tag_id: string; kanban_tags: { nome: string | null; cor: string | null } | null }[] }),
   ]);
+
+  if (kanbanIdStr === KANBAN_IDS.STEP_ONE) {
+    const prepared = prepareStepOneBoardSnapshot({
+      fases: fasesComOrfas,
+      cards,
+      cardsConcluidos,
+    });
+    fasesComOrfas = prepared.fases;
+    cards = prepared.cards;
+    cardsConcluidos = prepared.cardsConcluidos;
+  }
 
   // Tags (nativo): agrega em lote e acopla ao card brief
   if (allCardIds.length > 0) {

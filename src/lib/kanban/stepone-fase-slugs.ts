@@ -1,4 +1,8 @@
+import type { KanbanCardBrief, KanbanFase } from '@/components/kanban-shared/types';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
+
+/** Fase removida na migration 248 — não deve aparecer como coluna no board. */
+export const STEPONE_REMOVED_FASE_SLUGS = ['lista_condominios', 'stepone_lista_cond'] as const;
 
 /** Slugs canónicos PROD (ordem 1–10). */
 export const STEPONE_FASE_SLUGS = {
@@ -117,4 +121,48 @@ export function stepOneSlugAliasesForFase(slug: string | null | undefined): stri
     if (canon === canonical) out.add(legacy);
   }
   return [...out];
+}
+
+export function isRemovedStepOneFaseSlug(slug: string | null | undefined): boolean {
+  const s = String(slug ?? '').trim();
+  return (STEPONE_REMOVED_FASE_SLUGS as readonly string[]).includes(s);
+}
+
+/** Remove colunas da fase Condomínios (lista_condominios) do board Step One. */
+export function filterStepOneBoardFases(fases: KanbanFase[]): KanbanFase[] {
+  return fases.filter((f) => !isRemovedStepOneFaseSlug(f.slug));
+}
+
+/** Cards na fase removida passam para Dados dos Condomínios (evita órfãos). */
+export function remapCardsFromRemovedStepOneFases(
+  cards: KanbanCardBrief[],
+  fases: KanbanFase[],
+): KanbanCardBrief[] {
+  const removedIds = new Set(
+    fases.filter((f) => isRemovedStepOneFaseSlug(f.slug)).map((f) => f.id),
+  );
+  if (removedIds.size === 0) return cards;
+
+  const dadosCondFase = fases.find((f) => isDadosCondominiosFaseSlug(f.slug));
+  const targetFaseId = dadosCondFase?.id;
+  if (!targetFaseId) return cards;
+
+  return cards.map((c) =>
+    removedIds.has(c.fase_id) ? { ...c, fase_id: targetFaseId } : c,
+  );
+}
+
+/** Filtra fases removidas e realoca cards órfãos (board Funil Step One). */
+export function prepareStepOneBoardSnapshot(input: {
+  fases: KanbanFase[];
+  cards: KanbanCardBrief[];
+  cardsConcluidos?: KanbanCardBrief[];
+}): { fases: KanbanFase[]; cards: KanbanCardBrief[]; cardsConcluidos: KanbanCardBrief[] } {
+  const cards = remapCardsFromRemovedStepOneFases(input.cards, input.fases);
+  const cardsConcluidos = remapCardsFromRemovedStepOneFases(
+    input.cardsConcluidos ?? [],
+    input.fases,
+  );
+  const fases = filterStepOneBoardFases(input.fases);
+  return { fases, cards, cardsConcluidos };
 }

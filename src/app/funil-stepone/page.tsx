@@ -9,6 +9,7 @@ import { KanbanTabs } from './KanbanTabs';
 import { PainelPerformance } from '@/components/kanban-shared/PainelPerformance';
 import type { KanbanCardBrief, KanbanFase } from '@/components/kanban-shared/types';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
+import { prepareStepOneBoardSnapshot } from '@/lib/kanban/stepone-fase-slugs';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,7 +75,7 @@ export default async function FunilStepOnePage({
     .eq('ativo', true)
     .order('ordem');
 
-  const fases: KanbanFase[] = (fasesRaw ?? []).map((row) => ({
+  let fases: KanbanFase[] = (fasesRaw ?? []).map((row) => ({
     id: String(row.id),
     nome: String(row.nome ?? ''),
     ordem: Number(row.ordem ?? 0),
@@ -166,8 +167,17 @@ export default async function FunilStepOnePage({
     profiles: profilesMap.get(c.franqueado_id) || null,
   });
 
-  const cards = cardsRaw?.map((c) => mapCard(c)) || [];
-  const cardsConcluidos = conclRaw?.map((c) => mapCard(c)) || [];
+  const cardsMapped = cardsRaw?.map((c) => mapCard(c)) || [];
+  const cardsConcluidosMapped = conclRaw?.map((c) => mapCard(c)) || [];
+
+  const preparedBoard = prepareStepOneBoardSnapshot({
+    fases,
+    cards: cardsMapped,
+    cardsConcluidos: cardsConcluidosMapped,
+  });
+  fases = preparedBoard.fases;
+  const cards = preparedBoard.cards as typeof cardsMapped;
+  const cardsConcluidos = preparedBoard.cardsConcluidos as typeof cardsConcluidosMapped;
 
   console.log('[FunilStepOne] Cards normalizados:', cards.length);
 

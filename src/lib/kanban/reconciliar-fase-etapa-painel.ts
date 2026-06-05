@@ -88,6 +88,7 @@ export async function buildSlugParaFaseIdMap(
     .from('kanban_fases')
     .select('id, slug')
     .eq('kanban_id', kanbanId)
+    .eq('ativo', true)
     .in('slug', missingNormalized);
 
   if (error) {
