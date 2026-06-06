@@ -253,6 +253,7 @@ type Card = {
   alvara_url?: string | null;
   docs_terreno_url?: string | null;
   sla_iniciado_em?: string | null;
+  entered_fase_at?: string | null;
   portfolio_vinculo_rotulo?: string | null;
   tem_filho_juridico?: boolean;
   tem_filho_acoplamento?: boolean;
@@ -864,6 +865,7 @@ export function KanbanCardModal({
         alvara_url?: string | null;
         docs_terreno_url?: string | null;
         sla_iniciado_em?: string | null;
+  entered_fase_at?: string | null;
       };
 
       let loaded: LoadedShape | null = null;
@@ -952,7 +954,7 @@ export function KanbanCardModal({
         const { data: cardData, error: cardError } = await supabase
           .from('kanban_cards')
           .select(
-            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, projeto_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, sla_iniciado_em',
+            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, projeto_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, sla_iniciado_em, entered_fase_at',
           )
           .eq('id', cardId)
           .single();
@@ -1012,6 +1014,10 @@ export function KanbanCardModal({
           sla_iniciado_em:
             (cardData as { sla_iniciado_em?: string | null }).sla_iniciado_em != null
               ? String((cardData as { sla_iniciado_em?: string | null }).sla_iniciado_em)
+              : null,
+          entered_fase_at:
+            (cardData as { entered_fase_at?: string | null }).entered_fase_at != null
+              ? String((cardData as { entered_fase_at?: string | null }).entered_fase_at)
               : null,
         };
         nativeRedeFranqueadoId =
@@ -2883,6 +2889,7 @@ export function KanbanCardModal({
     });
   const slaCard = calcularSlaKanbanCard({
     created_at: card.created_at,
+    entered_fase_at: card.entered_fase_at,
     sla_iniciado_em: card.sla_iniciado_em,
     faseSlug: faseSlugAtual,
     alvara_url: card.alvara_url,

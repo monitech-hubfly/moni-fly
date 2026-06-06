@@ -1,27 +1,43 @@
 -- Reinicia contagem de SLA e remove atrasos de follow-up em todos os funis.
--- O board usa sla_iniciado_em (se preenchido) em vez de created_at — não altera created_at.
+-- O board usa: sla_iniciado_em > entered_fase_at > created_at (ver kanban-card-sla.ts).
 --
--- Escopo: cards ativos, não arquivados, não concluídos.
--- Exceção: fase co_documentacao_alvara sem documentos → SLA permanece pausado (sla_iniciado_em NULL).
+-- Escopo: cards ativos no board (não arquivados, não concluídos).
+-- Cards legado-only (só processo_step_one): PASSO 4 reinicia created_at do processo.
 --
--- SQL Editor: rode PASSO 1 (preview), depois PASSO 2, PASSO 3 e PASSO 4. Confira com PASSO 5.
+-- SQL Editor: PASSO 1 → 2 → 3 → 4 → 5. Depois recarregue o funil (Ctrl+F5).
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- PASSO 1 — Preview (quantos serão afetados)
+-- PASSO 1 — Diagnóstico: cards ainda com base antiga (>30 d.u. estimados)
 -- ══════════════════════════════════════════════════════════════════════════════
 SELECT
   k.nome AS kanban,
-  count(*) AS cards
+  c.titulo,
+  c.created_at,
+  c.entered_fase_at,
+  c.sla_iniciado_em,
+  CASE
+    WHEN c.sla_iniciado_em IS NOT NULL THEN 'sla_iniciado_em'
+    WHEN c.entered_fase_at IS NOT NULL THEN 'entered_fase_at'
+    ELSE 'created_at'
+  END AS base_sla_atual
 FROM public.kanban_cards c
 JOIN public.kanbans k ON k.id = c.kanban_id
-WHERE c.status = 'ativo'
-  AND c.arquivado = false
+WHERE c.arquivado = false
   AND c.concluido = false
-GROUP BY k.nome
-ORDER BY k.nome;
+  AND coalesce(c.created_at, now() - interval '999 days') < (now() - interval '30 days')
+  AND coalesce(c.entered_fase_at, c.sla_iniciado_em, c.created_at) < (now() - interval '7 days')
+ORDER BY k.nome, c.created_at
+LIMIT 50;
+
+-- Processos legado-only (sem linha em kanban_cards)
+SELECT count(*) AS processos_legado_sem_kanban_card
+FROM public.processo_step_one p
+WHERE p.cancelado_em IS NULL
+  AND p.removido_em IS NULL
+  AND NOT EXISTS (SELECT 1 FROM public.kanban_cards c WHERE c.id = p.id);
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- PASSO 2 — Reiniciar SLA nos cards nativos (todos os kanbans)
+-- PASSO 2 — Reiniciar SLA nos cards nativos (TODOS os kanbans, sem filtro status)
 -- ══════════════════════════════════════════════════════════════════════════════
 UPDATE public.kanban_cards c
 SET
@@ -30,8 +46,7 @@ SET
   sla_dias_acumulados = 0,
   data_followup = NULL,
   updated_at = now()
-WHERE c.status = 'ativo'
-  AND c.arquivado = false
+WHERE c.arquivado = false
   AND c.concluido = false;
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -42,7 +57,6 @@ SET sla_iniciado_em = NULL
 FROM public.kanban_fases f
 WHERE c.fase_id = f.id
   AND f.slug = 'co_documentacao_alvara'
-  AND c.status = 'ativo'
   AND c.arquivado = false
   AND c.concluido = false
   AND (
@@ -51,31 +65,34 @@ WHERE c.fase_id = f.id
   );
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- PASSO 4 — Follow-up em processos legados (processo_step_one)
+-- PASSO 4 — Legado-only: processos visíveis no board sem kanban_cards
+-- (o board usa processo.created_at quando não há entered_fase_at)
 -- ══════════════════════════════════════════════════════════════════════════════
-UPDATE public.processo_step_one
+UPDATE public.processo_step_one p
 SET
+  created_at = now(),
   data_followup = NULL,
   updated_at = now()
+WHERE p.cancelado_em IS NULL
+  AND p.removido_em IS NULL
+  AND NOT EXISTS (SELECT 1 FROM public.kanban_cards c WHERE c.id = p.id);
+
+-- Follow-up em processos que também têm kanban_cards (já limpo no PASSO 2 em kanban_cards)
+UPDATE public.processo_step_one
+SET data_followup = NULL, updated_at = now()
 WHERE data_followup IS NOT NULL;
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- PASSO 5 — Conferência (cards ainda “atrasados” pelo SLA da fase)
--- Esperado: 0 ou só fases sem sla_dias / crédito obra aguardando doc
+-- PASSO 5 — Conferência
 -- ══════════════════════════════════════════════════════════════════════════════
 SELECT
   k.nome AS kanban,
-  f.nome AS fase,
-  count(*) AS ainda_com_base_antiga
+  count(*) AS cards_ativos,
+  count(*) FILTER (
+    WHERE coalesce(c.entered_fase_at, c.sla_iniciado_em, c.created_at) >= (now() - interval '1 day')
+  ) AS sla_reiniciado_hoje
 FROM public.kanban_cards c
 JOIN public.kanbans k ON k.id = c.kanban_id
-JOIN public.kanban_fases f ON f.id = c.fase_id
-WHERE c.status = 'ativo'
-  AND c.arquivado = false
-  AND c.concluido = false
-  AND c.sla_iniciado_em IS NULL
-  AND f.slug <> 'co_documentacao_alvara'
-  AND coalesce(f.sla_dias, 0) > 0
-  AND c.created_at < (now() - interval '1 day')
-GROUP BY k.nome, f.nome
-ORDER BY k.nome, f.nome;
+WHERE c.arquivado = false AND c.concluido = false
+GROUP BY k.nome
+ORDER BY k.nome;

@@ -170,6 +170,30 @@ export async function fetchKanbanBoardSnapshot(
   }
 
   const processoIds = rows.map((r) => String(r.id)).filter(Boolean);
+  const slaBasePorCardId = new Map<
+    string,
+    { entered_fase_at: string | null; sla_iniciado_em: string | null }
+  >();
+  if (processoIds.length > 0) {
+    const { data: slaRows } = await supabase
+      .from('kanban_cards')
+      .select('id, entered_fase_at, sla_iniciado_em')
+      .in('id', processoIds);
+    for (const row of slaRows ?? []) {
+      const id = String((row as { id?: string }).id ?? '').trim();
+      if (!id) continue;
+      slaBasePorCardId.set(id, {
+        entered_fase_at:
+          (row as { entered_fase_at?: string | null }).entered_fase_at != null
+            ? String((row as { entered_fase_at?: string | null }).entered_fase_at)
+            : null,
+        sla_iniciado_em:
+          (row as { sla_iniciado_em?: string | null }).sla_iniciado_em != null
+            ? String((row as { sla_iniciado_em?: string | null }).sla_iniciado_em)
+            : null,
+      });
+    }
+  }
   const franqueadoNomeMap = new Map<string, string>();
   const legadoOrdemMap = new Map<string, number>();
   const legadoTituloMap = new Map<string, string>();
@@ -209,6 +233,7 @@ export async function fetchKanbanBoardSnapshot(
   const cardsLegado: KanbanCardBrief[] = rows.map((r) => {
     const fid = r.responsavel_id ? String(r.responsavel_id) : null;
     const cardId = String(r.id);
+    const slaBase = slaBasePorCardId.get(cardId);
     return {
       id: cardId,
       titulo: legadoTituloMap.get(cardId) ?? String(r.titulo ?? ''),
@@ -224,6 +249,8 @@ export async function fetchKanbanBoardSnapshot(
       origem: 'legado' as const,
       data_reuniao: dataIsoParaInput(r.data_reuniao),
       data_followup: dataIsoParaInput(r.data_followup),
+      entered_fase_at: slaBase?.entered_fase_at ?? null,
+      sla_iniciado_em: slaBase?.sla_iniciado_em ?? null,
       profiles: franqueadoNomeMap.has(String(r.id))
         ? { full_name: franqueadoNomeMap.get(String(r.id)) ?? null }
         : fid
@@ -263,7 +290,8 @@ export async function fetchKanbanBoardSnapshot(
       ordem_coluna,
       alvara_url,
       docs_terreno_url,
-      sla_iniciado_em
+      sla_iniciado_em,
+      entered_fase_at
     `;
 
   let cardsRaw: unknown[] = [];
@@ -408,6 +436,10 @@ export async function fetchKanbanBoardSnapshot(
       sla_iniciado_em:
         (c as { sla_iniciado_em?: string | null }).sla_iniciado_em != null
           ? String((c as { sla_iniciado_em?: string | null }).sla_iniciado_em)
+          : null,
+      entered_fase_at:
+        (c as { entered_fase_at?: string | null }).entered_fase_at != null
+          ? String((c as { entered_fase_at?: string | null }).entered_fase_at)
           : null,
       profiles: redeNomeDiretoMap.has(redeId)
         ? { full_name: redeNomeDiretoMap.get(redeId) ?? null }

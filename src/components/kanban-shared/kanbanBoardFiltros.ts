@@ -58,6 +58,7 @@ function slaCategoria(
   const fase = faseMap.get(card.fase_id);
   const sla = calcularSlaKanbanCard({
     created_at: card.created_at,
+    entered_fase_at: card.entered_fase_at,
     sla_iniciado_em: card.sla_iniciado_em,
     faseSlug: fase?.slug,
     alvara_url: card.alvara_url,
@@ -127,6 +128,7 @@ export function textoVisivelCardKanbanFechado(
     partes.push('Criado', created.toLocaleDateString('pt-BR'), created.toISOString().slice(0, 10));
     const sla = calcularSlaKanbanCard({
       created_at: card.created_at,
+      entered_fase_at: card.entered_fase_at,
       sla_iniciado_em: card.sla_iniciado_em,
       faseSlug: fase?.slug,
       alvara_url: card.alvara_url,

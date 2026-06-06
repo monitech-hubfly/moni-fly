@@ -30,8 +30,16 @@ export function creditoObraAguardandoDocumentacao(input: {
   );
 }
 
+function parseDataIso(iso: string | null | undefined): Date | null {
+  const s = String(iso ?? '').trim();
+  if (!s) return null;
+  const d = new Date(s);
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
 export function resolveDataBaseSlaKanban(input: {
   created_at: string;
+  entered_fase_at?: string | null;
   sla_iniciado_em?: string | null;
   faseSlug?: string | null;
   alvara_url?: string | null;
@@ -46,17 +54,18 @@ export function resolveDataBaseSlaKanban(input: {
   ) {
     return null;
   }
-  const slaIso = String(input.sla_iniciado_em ?? '').trim();
-  if (slaIso) {
-    const d = new Date(slaIso);
-    if (Number.isFinite(d.getTime())) return d;
-  }
-  const created = new Date(input.created_at);
-  return Number.isFinite(created.getTime()) ? created : null;
+  // sla_iniciado_em: override explícito (ex.: Crédito Obra após docs).
+  const slaIniciado = parseDataIso(input.sla_iniciado_em);
+  if (slaIniciado) return slaIniciado;
+  // entered_fase_at: entrada na fase atual (migration 213) — base correta do SLA por fase.
+  const enteredFase = parseDataIso(input.entered_fase_at);
+  if (enteredFase) return enteredFase;
+  return parseDataIso(input.created_at);
 }
 
 export function calcularSlaKanbanCard(input: {
   created_at: string;
+  entered_fase_at?: string | null;
   sla_iniciado_em?: string | null;
   faseSlug?: string | null;
   alvara_url?: string | null;
