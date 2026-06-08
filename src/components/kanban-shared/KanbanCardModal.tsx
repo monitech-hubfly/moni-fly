@@ -141,7 +141,7 @@ import { KanbanCardModalCondominio } from './KanbanCardModalCondominio';
 import { KanbanCardModalAtasReuniao } from './KanbanCardModalAtasReuniao';
 import { KanbanCardDatasFields } from './KanbanCardDatasFields';
 import { MencaoContentEditable } from './MencaoContentEditable';
-import { fetchKanbanFasesAtivas, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
+import { fetchKanbanFasesAtivas, augmentKanbanFasesComFasesDosCards, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
 import { loadHistoricoCardModal } from '@/lib/kanban/kanban-card-historico';
 import {
   listarComentariosKanbanCard,
@@ -425,6 +425,7 @@ export function KanbanCardModal({
   const { pode } = usePermissoes();
   const ocultarGestaoCard = portalFrank === true;
   const [loading, setLoading] = useState(true);
+  const [movendoFase, setMovendoFase] = useState(false);
   const [card, setCard] = useState<Card | null>(null);
   const [linkCandidato, setLinkCandidato] = useState<string | null>(null);
   const [gerandoLink, setGerandoLink] = useState(false);
@@ -794,8 +795,9 @@ export function KanbanCardModal({
     };
   }, []);
 
-  async function loadCard() {
-    setLoading(true);
+  async function loadCard(opts?: { silencioso?: boolean }) {
+    const silencioso = Boolean(opts?.silencioso && card);
+    if (!silencioso) setLoading(true);
     try {
       const supabase = createClient();
 
@@ -1213,7 +1215,12 @@ export function KanbanCardModal({
 
       let fasesParaHistorico: KanbanFase[] = [];
       if (!fasesProp?.length) {
-        const mapped = await fetchKanbanFasesAtivas(supabase, loaded.kanban_id);
+        let mapped = await fetchKanbanFasesAtivas(supabase, loaded.kanban_id);
+        if (loaded.fase_id && !mapped.some((f) => f.id === loaded.fase_id)) {
+          mapped = await augmentKanbanFasesComFasesDosCards(supabase, loaded.kanban_id, mapped, [
+            loaded.fase_id,
+          ]);
+        }
         fasesParaHistorico = mapped;
         setFases(mapped);
         setFaseAtual(mapped.find((f) => f.id === loaded.fase_id) ?? null);
@@ -1229,9 +1236,18 @@ export function KanbanCardModal({
             materiais: f.materiais as unknown,
           }),
         );
-        fasesParaHistorico = normalizedFromProp;
-        setFases(normalizedFromProp);
-        setFaseAtual(normalizedFromProp.find((f) => f.id === loaded.fase_id) ?? null);
+        let fasesResolved = normalizedFromProp;
+        if (loaded.fase_id && !fasesResolved.some((f) => f.id === loaded.fase_id)) {
+          fasesResolved = await augmentKanbanFasesComFasesDosCards(
+            supabase,
+            loaded.kanban_id,
+            fasesResolved,
+            [loaded.fase_id],
+          );
+        }
+        fasesParaHistorico = fasesResolved;
+        setFases(fasesResolved);
+        setFaseAtual(fasesResolved.find((f) => f.id === loaded.fase_id) ?? null);
       }
 
       let cacheKanbanTimes: KanbanTimeRow[] = [];
@@ -1518,14 +1534,14 @@ export function KanbanCardModal({
     } catch {
       // noop
     } finally {
-      setLoading(false);
+      if (!silencioso) setLoading(false);
     }
   }
 
   useEffect(() => {
     if (!card || !fasesProp?.length) return;
-    const f = fasesProp.find((x) => x.id === card.fase_id) ?? null;
-    setFaseAtual(f);
+    const f = fasesProp.find((x) => x.id === card.fase_id);
+    if (f) setFaseAtual(f);
   }, [card, fasesProp]);
 
   useEffect(() => {
@@ -1994,7 +2010,7 @@ export function KanbanCardModal({
     opts?: { motivoReprovacaoAcoplamento?: string },
   ) {
     if (!card || !faseAtual) return;
-    setLoading(true);
+    setMovendoFase(true);
     try {
       const supabase = createClient();
       if (origem === 'legado') {
@@ -2025,12 +2041,12 @@ export function KanbanCardModal({
           return;
         }
       }
-      await loadCard();
+      await loadCard({ silencioso: true });
       router.refresh();
     } catch {
       alert('Erro ao avançar fase.');
     } finally {
-      setLoading(false);
+      setMovendoFase(false);
     }
   }
 
@@ -2040,7 +2056,8 @@ export function KanbanCardModal({
       alert('Sem permissão para mover de fase.');
       return;
     }
-    const proximaFase = fases.find((f) => f.ordem === faseAtual.ordem + 1);
+    const idxAtual = fases.findIndex((f) => f.id === faseAtual.id);
+    const proximaFase = idxAtual >= 0 && idxAtual < fases.length - 1 ? fases[idxAtual + 1] : undefined;
     if (!proximaFase) {
       alert('Esta é a última fase do funil.');
       return;
@@ -2106,13 +2123,14 @@ export function KanbanCardModal({
       alert('Sem permissão para mover de fase.');
       return;
     }
-    const faseAnterior = fases.find((f) => f.ordem === faseAtual.ordem - 1);
+    const idxAtual = fases.findIndex((f) => f.id === faseAtual.id);
+    const faseAnterior = idxAtual > 0 ? fases[idxAtual - 1] : undefined;
     if (!faseAnterior) {
       alert('Esta é a primeira fase do funil.');
       return;
     }
     if (!confirm(`Voltar para a fase "${faseAnterior.nome}"?`)) return;
-    setLoading(true);
+    setMovendoFase(true);
     try {
       const supabase = createClient();
       if (origem === 'legado') {
@@ -2129,12 +2147,12 @@ export function KanbanCardModal({
         const { error } = await supabase.from('kanban_cards').update({ fase_id: faseAnterior.id }).eq('id', card.id);
         if (error) throw error;
       }
-      await loadCard();
+      await loadCard({ silencioso: true });
       router.refresh();
     } catch {
       alert('Erro ao retroceder fase.');
     } finally {
-      setLoading(false);
+      setMovendoFase(false);
     }
   }
 
@@ -2902,10 +2920,10 @@ export function KanbanCardModal({
   const cardLegadoConcluido = isLegado && card.processo_meta?.status === 'concluido';
   const cardNativoArquivado = !isLegado && Boolean(card.arquivado);
   const cardLegadoArquivado = isLegado && Boolean(card.arquivado);
-  const podeRetrocederFase =
-    !cardNativoConcluido && Boolean(faseAtual && fases.some((f) => f.ordem === faseAtual.ordem - 1));
+  const faseAtualIdx = faseAtual ? fases.findIndex((f) => f.id === faseAtual.id) : -1;
+  const podeRetrocederFase = !cardNativoConcluido && faseAtualIdx > 0;
   const podeAvancarFase =
-    !cardNativoConcluido && Boolean(faseAtual && fases.some((f) => f.ordem === faseAtual.ordem + 1));
+    !cardNativoConcluido && faseAtualIdx >= 0 && faseAtualIdx < fases.length - 1;
   const maxOrdemFases = fases.length > 0 ? Math.max(...fases.map((f) => f.ordem)) : 0;
   const estaNaUltimaFaseNativo = Boolean(faseAtual && faseAtual.ordem === maxOrdemFases);
   const exibirBotaoFinalizar =
@@ -4704,7 +4722,7 @@ export function KanbanCardModal({
                               podeCadastrarNovo: !ocultarGestaoCard && modalSessao.ehAdminOuTeam,
                               onSalvo: () => {
                                 setCondominioTick((t) => t + 1);
-                                void loadCard();
+                                void loadCard({ silencioso: true });
                                 router.refresh();
                               },
                             }
@@ -5368,16 +5386,16 @@ export function KanbanCardModal({
                     <button
                       type="button"
                       onClick={() => void handleRetrocederFase()}
-                      disabled={loading || !podeRetrocederFase}
+                      disabled={movendoFase || !podeRetrocederFase}
                       className="flex items-center justify-center gap-0.5 rounded border border-stone-300 bg-white px-1.5 py-1.5 text-[10px] font-semibold leading-tight text-stone-800 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <ChevronLeft className="h-3 w-3 shrink-0" aria-hidden />
-                      {loading ? '…' : 'Anterior'}
+                      {movendoFase ? '…' : 'Anterior'}
                     </button>
                     <button
                       type="button"
                       onClick={() => void handleAvancarFase()}
-                      disabled={loading || !podeAvancarFase}
+                      disabled={movendoFase || !podeAvancarFase}
                       className="flex items-center justify-center gap-0.5 rounded border px-1.5 py-1.5 text-[10px] font-semibold leading-tight transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
                       style={{
                         background: 'var(--moni-green-50)',
@@ -5385,7 +5403,7 @@ export function KanbanCardModal({
                         borderColor: 'var(--moni-green-400)',
                       }}
                     >
-                      {loading ? '…' : 'Próxima'}
+                      {movendoFase ? '…' : 'Próxima'}
                       <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
                     </button>
                   </div>
@@ -5713,7 +5731,7 @@ export function KanbanCardModal({
                   podeCadastrarNovo={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
                   onSalvo={() => {
                     setCondominioTick((t) => t + 1);
-                    void loadCard();
+                    void loadCard({ silencioso: true });
                     router.refresh();
                   }}
                 />,
