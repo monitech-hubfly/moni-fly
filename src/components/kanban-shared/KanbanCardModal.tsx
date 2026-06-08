@@ -200,6 +200,7 @@ import {
   MONI_TODOS_EMAILS,
   inferirHdmResponsavelPorNomesTimes,
   ordenarLinhasTimeKanbanPorCatalogoMoni,
+  resolveKanbanTimeNomeFromId,
   responsaveisFiltradosPorTimesIds,
   responsaveisFiltroOpcoesComCatalogoMoni,
   responsaveisDoTimeMoni,
@@ -2682,20 +2683,16 @@ export function KanbanCardModal({
   );
 
   const inferidoHdmSubNova = useMemo(() => {
-    const nomes: string[] = [];
-    for (const id of subNovaDraft.timesIds) {
-      const n = kanbanTimes.find((t) => t.id === id)?.nome?.trim();
-      if (n) nomes.push(n);
-    }
+    const nomes = subNovaDraft.timesIds
+      .map((id) => resolveKanbanTimeNomeFromId(id, kanbanTimes))
+      .filter((n): n is string => Boolean(n));
     return inferirHdmResponsavelPorNomesTimes(nomes);
   }, [subNovaDraft.timesIds, kanbanTimes]);
 
   const inferidoHdmSubEdicao = useMemo(() => {
-    const nomes: string[] = [];
-    for (const id of editSubDraft.timesIds) {
-      const n = kanbanTimes.find((t) => t.id === id)?.nome?.trim();
-      if (n) nomes.push(n);
-    }
+    const nomes = editSubDraft.timesIds
+      .map((id) => resolveKanbanTimeNomeFromId(id, kanbanTimes))
+      .filter((n): n is string => Boolean(n));
     return inferirHdmResponsavelPorNomesTimes(nomes);
   }, [editSubDraft.timesIds, kanbanTimes]);
 

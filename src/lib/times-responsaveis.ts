@@ -149,6 +149,7 @@ const APELIDO_MONI_PARA_EMAIL: Record<string, string> = {
   fernanda: 'fernanda.lobao@moni.casa',
   alef: 'alef.lopes@moni.casa',
   elisabete: 'elisabete.nucci@moni.casa',
+  isabela: 'isabela.correa@moni.casa',
 };
 
 /** Resolve email em `profiles` a partir do nome completo do catálogo Moní, apelido ou texto legado. */
@@ -361,16 +362,45 @@ export function responsaveisFiltradosPorTimesNomes(
   });
 }
 
+/** Nome do time a partir do UUID em `kanban_times` ou id sintético `MONI_TIME_FILTRO_PREFIX`. */
+export function resolveKanbanTimeNomeFromId(
+  id: string,
+  kanbanTimes: readonly KanbanTimeNomeRow[],
+): string | null {
+  const trimmed = String(id ?? '').trim();
+  if (!trimmed) return null;
+  const hit = kanbanTimes.find((t) => t.id === trimmed)?.nome?.trim();
+  if (hit) return hit;
+  if (trimmed.startsWith(MONI_TIME_FILTRO_PREFIX)) {
+    const nome = trimmed.slice(MONI_TIME_FILTRO_PREFIX.length).trim();
+    return nome || null;
+  }
+  return null;
+}
+
+/** Nomes de times na ordem da seleção (UUID ou id sintético do catálogo Moní). */
+export function nomesKanbanTimesFromIds(
+  timesIds: readonly string[],
+  kanbanTimes: readonly KanbanTimeNomeRow[],
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const id of timesIds) {
+    const nome = resolveKanbanTimeNomeFromId(id, kanbanTimes);
+    if (!nome || seen.has(nome)) continue;
+    seen.add(nome);
+    out.push(nome);
+  }
+  return out;
+}
+
 /** Filtra opções de perfil pelos IDs/nomes de times em `kanban_times`. */
 export function responsaveisFiltradosPorTimesIds(
   timesIds: readonly string[],
   kanbanTimes: readonly KanbanTimeNomeRow[],
   profileOpts: readonly PerfilNomeRow[],
 ): PerfilNomeRow[] {
-  const nomes = timesIds
-    .map((id) => kanbanTimes.find((t) => t.id === id)?.nome?.trim())
-    .filter((n): n is string => Boolean(n));
-  return responsaveisFiltradosPorTimesNomes(nomes, profileOpts);
+  return responsaveisFiltradosPorTimesNomes(nomesKanbanTimesFromIds(timesIds, kanbanTimes), profileOpts);
 }
 
 const TIMES_SET = new Set<string>(TIMES_MONI);

@@ -47,6 +47,7 @@ import { normalizeTemaChamado } from '@/lib/kanban/resolve-tema-chamado';
 import { criarPastelariaInboxParaChamadoSirene } from '@/lib/pastelaria/sirene-pastel-abertura';
 import {
   inferirHdmResponsavelPorNomesTimes,
+  MONI_TIME_FILTRO_PREFIX,
   TIMES_MONI_HDM,
 } from '@/lib/times-responsaveis';
 import type { HdmTime } from '@/types/sirene';
@@ -367,8 +368,70 @@ async function nomesTimesFromIds(
   timesIds: string[],
 ): Promise<string[]> {
   if (!timesIds.length) return [];
-  const { data } = await supabase.from('kanban_times').select('id, nome').in('id', timesIds);
-  return (data ?? []).map((r) => String((r as { nome?: string }).nome ?? '').trim()).filter(Boolean);
+  const uuids: string[] = [];
+  const nomes: string[] = [];
+  for (const raw of timesIds) {
+    const id = String(raw ?? '').trim();
+    if (!id) continue;
+    if (id.startsWith(MONI_TIME_FILTRO_PREFIX)) {
+      const nome = id.slice(MONI_TIME_FILTRO_PREFIX.length).trim();
+      if (nome) nomes.push(nome);
+      continue;
+    }
+    uuids.push(id);
+  }
+  if (uuids.length) {
+    const { data } = await supabase.from('kanban_times').select('id, nome').in('id', uuids);
+    for (const id of uuids) {
+      const row = (data ?? []).find((r) => String((r as { id?: string }).id) === id);
+      const nome = String((row as { nome?: string } | undefined)?.nome ?? '').trim();
+      if (nome) nomes.push(nome);
+    }
+  }
+  return nomes;
+}
+
+async function ensureKanbanTimeIdByNome(
+  admin: ReturnType<typeof createAdminClient>,
+  nome: string,
+): Promise<string | null> {
+  const n = nome.trim();
+  if (!n) return null;
+  const { data: existing } = await admin.from('kanban_times').select('id').eq('nome', n).maybeSingle();
+  if (existing) return String((existing as { id: string }).id);
+  const { data: inserted, error } = await admin
+    .from('kanban_times')
+    .insert({ nome: n } as never)
+    .select('id')
+    .single();
+  if (error || !inserted) return null;
+  return String((inserted as { id: string }).id);
+}
+
+/** Converte ids sintéticos do catálogo Moní em UUIDs persistíveis em `kanban_times`. */
+async function resolvePersistableTimesIds(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  admin: ReturnType<typeof createAdminClient>,
+  rawIds: string[],
+): Promise<string[]> {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of uniqUuids(rawIds)) {
+    if (raw.startsWith(MONI_TIME_FILTRO_PREFIX)) {
+      const nome = raw.slice(MONI_TIME_FILTRO_PREFIX.length).trim();
+      if (!nome) continue;
+      const id = await ensureKanbanTimeIdByNome(admin, nome);
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      out.push(id);
+      continue;
+    }
+    const { data } = await supabase.from('kanban_times').select('id').eq('id', raw).maybeSingle();
+    if (!data || seen.has(raw)) continue;
+    seen.add(raw);
+    out.push(raw);
+  }
+  return out;
 }
 
 async function todosResponsaveisDoChamado(
@@ -475,7 +538,12 @@ export async function criarChamadoComAtividade(input: CriarChamadoComAtividadeIn
   if (!titulo) return { ok: false, error: 'Informe o título do chamado.' };
   if (!descricao) return { ok: false, error: 'Informe a descrição do chamado.' };
 
-  const timesIds = uniqUuids(input.atividade.times_ids);
+  const admin = createAdminClient();
+  const timesIds = await resolvePersistableTimesIds(
+    supabase,
+    admin,
+    uniqUuids(input.atividade.times_ids),
+  );
   const respIds = uniqUuids(input.atividade.responsaveis_ids);
   const nomesTimes = await nomesTimesFromIds(supabase, timesIds);
   const val = validarAtividadeInput(
@@ -550,9 +618,7 @@ export async function criarChamadoComAtividade(input: CriarChamadoComAtividadeIn
   }
 
   const origem = input.origem === 'legado' ? 'legado' : 'nativo';
-  let admin;
   try {
-    admin = createAdminClient();
     const meta = await buscarMetaCardParaNotificacao(admin, input.card_id, origem);
     if (meta) {
       await notificarAlertasKanbanAtividade({
@@ -590,7 +656,12 @@ export async function criarChamadoSireneComAtividade(
   if (!titulo) return { ok: false, error: 'Informe o título do chamado.' };
   if (!descricao) return { ok: false, error: 'Informe a descrição do chamado.' };
 
-  const timesIds = uniqUuids(input.atividade.times_ids);
+  const admin = createAdminClient();
+  const timesIds = await resolvePersistableTimesIds(
+    supabase,
+    admin,
+    uniqUuids(input.atividade.times_ids),
+  );
   const respIds = uniqUuids(input.atividade.responsaveis_ids);
   const nomesTimes = await nomesTimesFromIds(supabase, timesIds);
   const val = validarAtividadeInput(
@@ -612,7 +683,6 @@ export async function criarChamadoSireneComAtividade(
   const { data: perf } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
   const userName = String((perf as { full_name?: string } | null)?.full_name ?? '').trim() || 'Usuário';
 
-  const admin = createAdminClient();
   const timeAberturaNome = nomesTimes[0] ?? null;
 
   const { data: chamadoSc, error: scErr } = await supabase
@@ -901,7 +971,8 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
   if (!interacaoRow) return { ok: false, error: 'Chamado não encontrado.' };
 
   const categoria = ((interacaoRow as { categoria?: ChamadoCategoriaDb }).categoria ?? 'chamado') as ChamadoCategoriaDb;
-  const timesIds = uniqUuids(input.times_ids);
+  const admin = createAdminClient();
+  const timesIds = await resolvePersistableTimesIds(supabase, admin, uniqUuids(input.times_ids));
   const respIds = uniqUuids(input.responsaveis_ids);
   const nomesTimes = await nomesTimesFromIds(supabase, timesIds);
   const val = validarAtividadeInput(
@@ -1025,7 +1096,8 @@ export async function editarSubInteracao(
     const nome = (payload.nome ?? '').trim();
     if (!nome) return { ok: false, error: 'Informe o nome da atividade.' };
 
-    const timesIds = uniqUuids(payload.times_ids);
+    const admin = createAdminClient();
+    const timesIds = await resolvePersistableTimesIds(supabase, admin, uniqUuids(payload.times_ids));
     const respIds = uniqUuids(payload.responsaveis_ids);
     const nomesTimes = await nomesTimesFromIds(supabase, timesIds);
     const categoria = ((interacaoRow as { categoria?: ChamadoCategoriaDb }).categoria ?? 'chamado') as ChamadoCategoriaDb;
