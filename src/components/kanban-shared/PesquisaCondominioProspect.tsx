@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ChevronDown, ChevronRight, Circle, Loader2 } from 'lucide-react';
+import { KanbanFaseSecaoTabs } from '@/components/kanban-shared/KanbanFaseSecaoTabs';
 import {
   carregarProspectsCondominioCard,
   salvarPesquisaCondominioProspect,
@@ -62,6 +63,14 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
   }, [recarregar]);
 
   const prospects = useMemo(() => linhas.filter(linhaProspectTemNome), [linhas]);
+  const tabsCondominio = useMemo(
+    () =>
+      prospects.map((p) => ({
+        id: p.row_id,
+        label: `${p.condominio.trim()}${linhaPesquisaCompleta(p) ? ' ✓' : ''}`,
+      })),
+    [prospects],
+  );
   const linhaAtiva = useMemo(
     () => linhas.find((l) => l.row_id === rowIdAtivo) ?? null,
     [linhas, rowIdAtivo],
@@ -131,7 +140,8 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
           {obrigatorio ? <span className="ml-1 text-red-500">*</span> : null}
         </span>
         <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
-          Responda todas as perguntas para cada condomínio prospectado na fase Dados da Cidade.
+          Use as abas para alternar entre os condomínios da Tabela de Condomínios (fase Dados da Cidade) e
+          responda todas as perguntas em cada um.
         </p>
       </div>
 
@@ -149,25 +159,12 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
           Preencha a Tabela de Condomínios na fase Dados da Cidade primeiro.
         </p>
       ) : (
-        <>
-          <div>
-            <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
-              Condomínio
-            </label>
-            <select
-              className={inputClass}
-              value={rowIdAtivo ?? ''}
-              onChange={(e) => setRowIdAtivo(e.target.value || null)}
-            >
-              {prospects.map((p) => (
-                <option key={p.row_id} value={p.row_id}>
-                  {p.condominio.trim()}
-                  {linhaPesquisaCompleta(p) ? ' ✓' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-
+        <KanbanFaseSecaoTabs
+          tabs={tabsCondominio}
+          abaAtiva={rowIdAtivo ?? tabsCondominio[0]?.id ?? ''}
+          onAbaChange={(id) => setRowIdAtivo(id || null)}
+          ariaLabel="Condomínios prospectados"
+        >
           {linhaAtiva ? (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-2">
@@ -273,7 +270,7 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
               ))}
             </div>
           ) : null}
-        </>
+        </KanbanFaseSecaoTabs>
       )}
 
       {erroSalvar ? <p className="text-xs text-red-500">{erroSalvar}</p> : null}
