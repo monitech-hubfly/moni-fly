@@ -69,7 +69,7 @@ async function resolverPracaCard(
 
   const { data: cardRow } = await supabase
     .from('kanban_cards')
-    .select('kanban_id, rede_franqueado_id')
+    .select('kanban_id, rede_franqueado_id, condominio_id')
     .eq('id', cardIdTrim)
     .maybeSingle();
 
@@ -90,6 +90,22 @@ async function resolverPracaCard(
       .eq('id', redeId)
       .maybeSingle();
     areaAtuacao = (redeRow as { area_atuacao?: string | null } | null)?.area_atuacao ?? null;
+  }
+
+  // Prioridade 1: cidade/estado do condomínio vinculado ao card
+  const condominioId = String(
+    (cardRow as { condominio_id?: string | null } | null)?.condominio_id ?? '',
+  ).trim();
+  if (condominioId) {
+    const { data: condRow } = await supabase
+      .from('condominios')
+      .select('cidade, estado')
+      .eq('id', condominioId)
+      .maybeSingle();
+    const condCidade = (condRow as { cidade?: string | null } | null)?.cidade?.trim() ?? '';
+    const condEstado =
+      (condRow as { estado?: string | null } | null)?.estado?.trim().toUpperCase().slice(0, 2) ?? '';
+    if (condCidade && condEstado) return { cidade: condCidade, uf: condEstado };
   }
 
   const areas = parseAreaAtuacao(areaAtuacao);
