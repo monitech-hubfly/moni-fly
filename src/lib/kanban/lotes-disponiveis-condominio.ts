@@ -16,6 +16,7 @@ export const LOTES_DISPONIVEIS_CHECKBOXES = [
   { chave: 'frente_lago', label: 'Frente lago' },
   { chave: 'perto_area_convivencia', label: 'Perto de área de convivência' },
   { chave: 'perto_lixeira', label: 'Perto de lixeira' },
+  { chave: 'perto_portaria', label: 'Perto da portaria' },
   { chave: 'muro', label: 'Muro' },
 ] as const;
 

@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { AdminProvider } from '@/context/AdminContext';
 import { normalizeAccessRole } from '@/lib/authz';
+import { isBcaPublicLeituraPagePath } from '@/lib/access-matrix';
 import { PortalSidebar } from './PortalSidebar';
 import { AppStickyHeader } from './AppStickyHeader';
 
@@ -16,9 +17,12 @@ export function AppShell({ user, userRole, children }: AppShellProps) {
   const pathname = usePathname() ?? '';
   const hideGlobalHeader = pathname.startsWith('/sirene');
   const pendingOnly = Boolean(user) && normalizeAccessRole(userRole) === 'pending';
+  const publicStandalone = isBcaPublicLeituraPagePath(pathname);
 
-  if (!user || pendingOnly) {
-    return <>{children}</>;
+  if (!user || pendingOnly || publicStandalone) {
+    return (
+      <div className={publicStandalone ? 'flex min-h-[100dvh] flex-col' : undefined}>{children}</div>
+    );
   }
 
   return (

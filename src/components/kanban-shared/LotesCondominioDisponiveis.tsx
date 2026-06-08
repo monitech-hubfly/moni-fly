@@ -24,6 +24,8 @@ import {
   type LinhaLoteDisponivel,
 } from '@/lib/kanban/lotes-disponiveis-condominio';
 
+const LINHAS_GRID_ATRIBUTOS_LOTE = Math.ceil(LOTES_DISPONIVEIS_CHECKBOXES.length / 2);
+
 type Props = {
   cardId: string;
   itemLabel: string;
@@ -384,7 +386,10 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
                         >
                           Atributos do lote
                         </p>
-                        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                        <div
+                          className="grid grid-flow-col grid-cols-2 gap-x-4 gap-y-1.5"
+                          style={{ gridTemplateRows: `repeat(${LINHAS_GRID_ATRIBUTOS_LOTE}, minmax(0, auto))` }}
+                        >
                           {LOTES_DISPONIVEIS_CHECKBOXES.map((campo) => {
                             const valor = String(loteAtivo[campo.chave] ?? '');
                             return (
