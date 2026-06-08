@@ -2,7 +2,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@/lib/supabase/server';
-import { normalizeAccessRole } from '@/lib/authz';
+import { canAccessRedeFranqueadosCadastrosCompletos, normalizeAccessRole } from '@/lib/authz';
 import { revalidatePath } from 'next/cache';
 import { normalizeNFranquiaCsv, parseAndMapRedeCSV, type RedeFranqueadoRow } from '@/lib/import-rede-csv';
 import {
@@ -50,9 +50,15 @@ async function requireRedeAdminOrPublicLink(): Promise<
   const auth = await getPainelDbForPublicEdit();
   if (!auth.ok) return { ok: false, error: auth.error };
   const { supabase, userId } = auth;
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
-  const access = normalizeAccessRole((profile?.role as string) ?? 'frank');
-  if (access !== 'admin') return { ok: false, error: 'Apenas administradores.' };
+  const { data: profile } = await supabase.from('profiles').select('role, departamento').eq('id', userId).single();
+  const role = (profile?.role as string) ?? 'frank';
+  const departamento = (profile as { departamento?: string | null } | null)?.departamento ?? null;
+  if (!canAccessRedeFranqueadosCadastrosCompletos(role, departamento)) {
+    return {
+      ok: false,
+      error: 'Apenas administradores ou times Administrativo / Controladoria podem realizar esta ação.',
+    };
+  }
   return { ok: true, supabase, userId };
 }
 

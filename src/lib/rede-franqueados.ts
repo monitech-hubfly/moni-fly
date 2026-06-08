@@ -152,7 +152,7 @@ export const REDE_FRANQUEADOS_TABLE_KEYS = REDE_FRANQUEADOS_DB_KEYS.filter(
   (k) => !REDE_COLUNAS_OCULTAS_TABELA_SET.has(k),
 );
 
-/** Dados pessoais/endereço do Frank — visíveis só para role `admin` na tabela. */
+/** Dados pessoais/endereço do Frank — visíveis para admin e times ADM / Controladoria na tabela. */
 export const REDE_COLUNAS_DADOS_SENSIVEIS: readonly RedeFranqueadoDbKey[] = [
   'cpf_frank',
   'data_nasc_frank',

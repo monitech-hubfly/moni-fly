@@ -1,7 +1,11 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 
-import { canAccessCondominiosTab, isRedeStaffRole, isStrictAdminRole } from '@/lib/authz';
+import {
+  canAccessCondominiosTab,
+  canAccessRedeFranqueadosCadastrosCompletos,
+  isRedeStaffRole,
+} from '@/lib/authz';
 
 import { fetchFranqueadoEmpresasRows } from '@/lib/franqueado-empresas';
 
@@ -35,13 +39,14 @@ export default async function RedeFranqueadosPage() {
 
 
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const { data: profile } = await supabase.from('profiles').select('role, departamento').eq('id', user.id).single();
 
   const role = (profile?.role as string) ?? 'frank';
+  const departamento = (profile as { departamento?: string | null } | null)?.departamento ?? null;
 
   const canManage = isRedeStaffRole(role);
 
-  const maskSensitiveColumns = !isStrictAdminRole(role);
+  const maskSensitiveColumns = !canAccessRedeFranqueadosCadastrosCompletos(role, departamento);
 
   const showStaffTabs = isRedeStaffRole(role);
 

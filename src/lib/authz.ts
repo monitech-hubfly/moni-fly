@@ -29,6 +29,33 @@ export function isRedeStaffRole(role: string | null | undefined): boolean {
   return access === 'admin' || access === 'team';
 }
 
+const REDE_FRANQUEADOS_CADASTROS_FULL_ACCESS_DEPTS = new Set([
+  'administrativo',
+  'controladoria',
+  'adm',
+]);
+
+export function normalizeDepartamentoMoni(departamento: string | null | undefined): string {
+  return String(departamento ?? '')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * Dados completos em /rede-franqueados (colunas sensíveis, import CSV, duplicatas, etc.):
+ * admin ou time dos departamentos Administrativo / Controladoria (ou "Adm").
+ */
+export function canAccessRedeFranqueadosCadastrosCompletos(
+  role: string | null | undefined,
+  departamento?: string | null,
+): boolean {
+  if (isAdminRole(role)) return true;
+  if (normalizeAccessRole(role) !== 'team') return false;
+  return REDE_FRANQUEADOS_CADASTROS_FULL_ACCESS_DEPTS.has(normalizeDepartamentoMoni(departamento));
+}
+
 /** Aba Condomínios em /rede-franqueados: admin, team (edição) e frank (somente leitura). */
 export function canAccessCondominiosTab(role: string | null | undefined): boolean {
   return isRedeStaffRole(role) || isFrankOrFranqueadoRole(role);
