@@ -269,7 +269,7 @@ export async function fetchKanbanBoardSnapshot(
   let arquivRaw: unknown[] = [];
   if (hasNativo) {
     type KanbanCardRow = Record<string, unknown>;
-    const buildCardsQuery = (select: string, concluido: boolean, arquivado: boolean) => {
+    const buildCardsQuery = async (select: string, concluido: boolean, arquivado: boolean) => {
       let q = supabase
         .from('kanban_cards')
         .select(select)
@@ -280,7 +280,11 @@ export async function fetchKanbanBoardSnapshot(
         .order('ordem_coluna', { ascending: true })
         .order('created_at', { ascending: false });
       if (userId && !isAdmin) q = q.eq('franqueado_id', userId);
-      return q;
+      const { data, error } = await q;
+      return {
+        data: (data ?? null) as KanbanCardRow[] | null,
+        error: error ? { message: error.message } : null,
+      };
     };
 
     const [cardsRes, conclRes, arquivRes] = await Promise.all([
