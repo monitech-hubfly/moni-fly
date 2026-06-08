@@ -3,11 +3,15 @@ import type { createClient } from '@/lib/supabase/server';
 
 type SyncDb = Pick<Awaited<ReturnType<typeof createClient>>, 'from'>;
 
-function tituloParaNumeroFranquiaSync(titulo: string): string {
+export function extrairNumeroFranquiaDoTitulo(titulo: string): string {
   const t = titulo.trim();
   if (!t) return '';
   const i = t.indexOf(' - ');
   return i >= 0 ? t.slice(0, i).trim() : t;
+}
+
+function tituloParaNumeroFranquiaSync(titulo: string): string {
+  return extrairNumeroFranquiaDoTitulo(titulo);
 }
 
 async function resolveProcessoIdByNumeroFranquia(db: SyncDb, num: string): Promise<string | null> {
@@ -623,7 +627,7 @@ export async function reconciliarFranqueadoNoSyncGroup(
 
   const { data: rows, error } = await db
     .from('kanban_cards')
-    .select('id, rede_franqueado_id')
+    .select('id, rede_franqueado_id, projeto_id, titulo')
     .in('id', cardIds);
   if (error) return { ok: false, error: error.message };
 
@@ -635,6 +639,59 @@ export async function reconciliarFranqueadoNoSyncGroup(
       break;
     }
   }
+
+  if (!redeCanonica) {
+    for (const row of rows ?? []) {
+      const cardId = String((row as { id?: string }).id ?? '').trim();
+      if (!cardId) continue;
+
+      const processoId = await resolverProcessoIdDoCard(db, cardId);
+      if (processoId) {
+        const { data: proc } = await db
+          .from('processo_step_one')
+          .select('origem_rede_franqueados_id, numero_franquia')
+          .eq('id', processoId)
+          .maybeSingle();
+        const procRow = proc as {
+          origem_rede_franqueados_id?: string | null;
+          numero_franquia?: string | null;
+        } | null;
+        const origemId = String(procRow?.origem_rede_franqueados_id ?? '').trim();
+        if (origemId) {
+          redeCanonica = origemId;
+          break;
+        }
+        const numProc = String(procRow?.numero_franquia ?? '').trim();
+        if (numProc) {
+          const { data: rf } = await db
+            .from('rede_franqueados')
+            .select('id')
+            .eq('n_franquia', numProc)
+            .maybeSingle();
+          const rfId = String((rf as { id?: string } | null)?.id ?? '').trim();
+          if (rfId) {
+            redeCanonica = rfId;
+            break;
+          }
+        }
+      }
+
+      const numTitulo = tituloParaNumeroFranquiaSync(String((row as { titulo?: string | null }).titulo ?? ''));
+      if (numTitulo) {
+        const { data: rf } = await db
+          .from('rede_franqueados')
+          .select('id')
+          .eq('n_franquia', numTitulo)
+          .maybeSingle();
+        const rfId = String((rf as { id?: string } | null)?.id ?? '').trim();
+        if (rfId) {
+          redeCanonica = rfId;
+          break;
+        }
+      }
+    }
+  }
+
   if (!redeCanonica) return { ok: true, atualizados: 0 };
 
   let atualizados = 0;

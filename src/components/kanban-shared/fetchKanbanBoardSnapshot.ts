@@ -14,7 +14,11 @@ import {
   fetchEtapaPainelPorProcessoIds,
 } from '@/lib/kanban/reconciliar-fase-etapa-painel';
 import { sortKanbanCardsPorOrdemColuna } from '@/lib/kanban/kanban-coluna-ordem';
-import { montarTituloCardSync, escolherTituloExibicaoCard } from '@/lib/kanban/card-sync-group';
+import {
+  montarTituloCardSync,
+  escolherTituloExibicaoCard,
+  extrairNumeroFranquiaDoTitulo,
+} from '@/lib/kanban/card-sync-group';
 import {
   runKanbanCardSelectWithSlaFallback,
 } from '@/lib/kanban/kanban-card-select-cols';
@@ -157,16 +161,12 @@ export async function fetchKanbanBoardSnapshot(
   const rows = rowsAll.filter((r) => !archivedLegadoIds.has(String(r.id)));
 
   const franqueadoIdsLegado = [...new Set(rows.map((r) => r.responsavel_id).filter(Boolean))] as string[];
-  const profilesMapLegado = new Map<string, { full_name: string | null }>();
   const redeNomeMapLegado = new Map<string, string>();
   if (franqueadoIdsLegado.length > 0) {
-    const [{ data: profiles }, { data: redes }] = await Promise.all([
-      supabase.from('profiles').select('id, full_name').in('id', franqueadoIdsLegado),
-      supabase.from('rede_franqueados').select('id, nome_completo').in('id', franqueadoIdsLegado),
-    ]);
-    profiles?.forEach((p) => {
-      profilesMapLegado.set(p.id, { full_name: p.full_name });
-    });
+    const { data: redes } = await supabase
+      .from('rede_franqueados')
+      .select('id, nome_completo')
+      .in('id', franqueadoIdsLegado);
     (redes ?? []).forEach((r) => {
       if (r.nome_completo) redeNomeMapLegado.set(String(r.id), String(r.nome_completo));
     });
@@ -258,10 +258,8 @@ export async function fetchKanbanBoardSnapshot(
       sla_iniciado_em: slaBase?.sla_iniciado_em ?? null,
       profiles: franqueadoNomeMap.has(String(r.id))
         ? { full_name: franqueadoNomeMap.get(String(r.id)) ?? null }
-        : fid
-          ? redeNomeMapLegado.has(fid)
-            ? { full_name: redeNomeMapLegado.get(fid) ?? null }
-            : (profilesMapLegado.get(fid) ?? null)
+        : fid && redeNomeMapLegado.has(fid)
+          ? { full_name: redeNomeMapLegado.get(fid) ?? null }
           : null,
     };
   });
@@ -318,25 +316,19 @@ export async function fetchKanbanBoardSnapshot(
   ] as string[];
   const allRedeLookupIds = [...new Set([...franqueadoIds, ...redeIdsDiretos])];
 
-  const profilesMap = new Map<string, { full_name: string | null }>();
   const redeById = new Map<string, string>();
   const nFranquiaByRedeId = new Map<string, string>();
-  const [profilesRes, redesRes] = await Promise.all([
-    franqueadoIds.length > 0
-      ? supabase.from('profiles').select('id, full_name').in('id', franqueadoIds)
-      : Promise.resolve({ data: [] as { id: string; full_name: string | null }[] }),
-    allRedeLookupIds.length > 0
-      ? supabase.from('rede_franqueados').select('id, nome_completo, n_franquia').in('id', allRedeLookupIds)
-      : Promise.resolve({ data: [] as { id: string; nome_completo: string | null; n_franquia: string | null }[] }),
-  ]);
-  (profilesRes.data ?? []).forEach((p) => {
-    profilesMap.set(p.id, { full_name: p.full_name });
-  });
-  (redesRes.data ?? []).forEach((r) => {
-    if (r.nome_completo) redeById.set(String(r.id), String(r.nome_completo));
-    const num = String((r as { n_franquia?: string | null }).n_franquia ?? '').trim();
-    if (num) nFranquiaByRedeId.set(String(r.id), num);
-  });
+  if (allRedeLookupIds.length > 0) {
+    const { data: redesData } = await supabase
+      .from('rede_franqueados')
+      .select('id, nome_completo, n_franquia')
+      .in('id', allRedeLookupIds);
+    (redesData ?? []).forEach((r) => {
+      if (r.nome_completo) redeById.set(String(r.id), String(r.nome_completo));
+      const num = String((r as { n_franquia?: string | null }).n_franquia ?? '').trim();
+      if (num) nFranquiaByRedeId.set(String(r.id), num);
+    });
+  }
 
   const redeNomeMapNativo = new Map<string, string>();
   for (const id of franqueadoIds) {
@@ -347,6 +339,211 @@ export async function fetchKanbanBoardSnapshot(
   for (const id of redeIdsDiretos) {
     const nome = redeById.get(id);
     if (nome) redeNomeDiretoMap.set(id, nome);
+  }
+
+  /** Cards sem `rede_franqueado_id`: resolve nome via processo/título (nunca perfil interno de `franqueado_id`). */
+  const franqueadoNomePorCardId = new Map<string, string>();
+  const allNativeCards = [
+    ...((cardsRaw ?? []) as {
+      id?: string;
+      projeto_id?: string | null;
+      rede_franqueado_id?: string | null;
+      titulo?: string | null;
+      nome_condominio?: string | null;
+    }[]),
+    ...((conclRaw ?? []) as {
+      id?: string;
+      projeto_id?: string | null;
+      rede_franqueado_id?: string | null;
+      titulo?: string | null;
+      nome_condominio?: string | null;
+    }[]),
+    ...((arquivRaw ?? []) as {
+      id?: string;
+      projeto_id?: string | null;
+      rede_franqueado_id?: string | null;
+      titulo?: string | null;
+      nome_condominio?: string | null;
+    }[]),
+  ];
+  const cardsSemRede = allNativeCards.filter((c) => !String(c.rede_franqueado_id ?? '').trim());
+
+  if (cardsSemRede.length > 0) {
+    const processoIdsToFetch = new Set<string>();
+    const numerosFranquia = new Set<string>();
+
+    for (const c of cardsSemRede) {
+      const id = String(c.id ?? '').trim();
+      const pid = String(c.projeto_id ?? '').trim();
+      if (id) processoIdsToFetch.add(id);
+      if (pid) processoIdsToFetch.add(pid);
+      const num = extrairNumeroFranquiaDoTitulo(String(c.titulo ?? ''));
+      if (num) numerosFranquia.add(num);
+    }
+
+    const processoPorId = new Map<
+      string,
+      { numero_franquia?: string | null; origem_rede_franqueados_id?: string | null }
+    >();
+    if (processoIdsToFetch.size > 0) {
+      const { data: processos } = await supabase
+        .from('processo_step_one')
+        .select('id, numero_franquia, origem_rede_franqueados_id')
+        .in('id', [...processoIdsToFetch]);
+      for (const p of processos ?? []) {
+        processoPorId.set(String(p.id), p);
+        const num = String(p.numero_franquia ?? '').trim();
+        if (num) numerosFranquia.add(num);
+      }
+    }
+
+    const redeNomePorNumero = new Map<string, string>();
+    const redeNomePorRedeId = new Map<string, string>(redeById);
+    const origemRedeIds = new Set<string>();
+    for (const p of processoPorId.values()) {
+      const rid = String(p.origem_rede_franqueados_id ?? '').trim();
+      if (rid && !redeNomePorRedeId.has(rid)) origemRedeIds.add(rid);
+    }
+
+    if (numerosFranquia.size > 0 || origemRedeIds.size > 0) {
+      const lookups = await Promise.all([
+        numerosFranquia.size > 0
+          ? supabase
+              .from('rede_franqueados')
+              .select('id, n_franquia, nome_completo')
+              .in('n_franquia', [...numerosFranquia])
+          : Promise.resolve({ data: [] as { id: string; n_franquia: string | null; nome_completo: string | null }[] }),
+        origemRedeIds.size > 0
+          ? supabase
+              .from('rede_franqueados')
+              .select('id, n_franquia, nome_completo')
+              .in('id', [...origemRedeIds])
+          : Promise.resolve({ data: [] as { id: string; n_franquia: string | null; nome_completo: string | null }[] }),
+      ]);
+      for (const r of [...(lookups[0].data ?? []), ...(lookups[1].data ?? [])]) {
+        const nome = String(r.nome_completo ?? '').trim();
+        const num = String(r.n_franquia ?? '').trim();
+        if (num && nome) redeNomePorNumero.set(num, nome);
+        if (r.id && nome) redeNomePorRedeId.set(String(r.id), nome);
+      }
+    }
+
+    for (const c of cardsSemRede) {
+      const cardId = String(c.id ?? '').trim();
+      if (!cardId) continue;
+
+      let nome: string | null = null;
+      const numTitulo = extrairNumeroFranquiaDoTitulo(String(c.titulo ?? ''));
+      if (numTitulo && redeNomePorNumero.has(numTitulo)) {
+        nome = redeNomePorNumero.get(numTitulo)!;
+      }
+
+      if (!nome) {
+        const proc =
+          processoPorId.get(String(c.projeto_id ?? '').trim()) ?? processoPorId.get(cardId);
+        if (proc) {
+          const origemId = String(proc.origem_rede_franqueados_id ?? '').trim();
+          if (origemId && redeNomePorRedeId.has(origemId)) {
+            nome = redeNomePorRedeId.get(origemId)!;
+          } else {
+            const numProc = String(proc.numero_franquia ?? '').trim();
+            if (numProc && redeNomePorNumero.has(numProc)) {
+              nome = redeNomePorNumero.get(numProc)!;
+            }
+          }
+        }
+      }
+
+      if (nome) franqueadoNomePorCardId.set(cardId, nome);
+    }
+
+    const condominiosSemNome = [
+      ...new Set(
+        cardsSemRede
+          .filter((c) => !franqueadoNomePorCardId.has(String(c.id ?? '').trim()))
+          .flatMap((c) => {
+            const nomes = [
+              String(c.nome_condominio ?? '').trim(),
+              String(c.titulo ?? '').trim(),
+            ].filter(Boolean);
+            return nomes;
+          }),
+      ),
+    ];
+
+    if (condominiosSemNome.length > 0) {
+      const { data: processosPorCondominio } = await supabase
+        .from('processo_step_one')
+        .select('nome_condominio, origem_rede_franqueados_id, numero_franquia')
+        .in('nome_condominio', condominiosSemNome);
+      const redeIdsCondominio = new Set<string>();
+      const numerosCondominio = new Set<string>();
+      const nomeParaRedeId = new Map<string, string>();
+      const nomeParaNumero = new Map<string, string>();
+
+      for (const p of processosPorCondominio ?? []) {
+        const nomeCond = String(p.nome_condominio ?? '').trim();
+        const origemId = String(p.origem_rede_franqueados_id ?? '').trim();
+        const num = String(p.numero_franquia ?? '').trim();
+        if (!nomeCond) continue;
+        if (origemId) {
+          nomeParaRedeId.set(nomeCond.toLowerCase(), origemId);
+          redeIdsCondominio.add(origemId);
+        } else if (num) {
+          nomeParaNumero.set(nomeCond.toLowerCase(), num);
+          numerosCondominio.add(num);
+        }
+      }
+
+      if (redeIdsCondominio.size > 0 || numerosCondominio.size > 0) {
+        const lookups = await Promise.all([
+          redeIdsCondominio.size > 0
+            ? supabase
+                .from('rede_franqueados')
+                .select('id, nome_completo')
+                .in('id', [...redeIdsCondominio])
+            : Promise.resolve({ data: [] as { id: string; nome_completo: string | null }[] }),
+          numerosCondominio.size > 0
+            ? supabase
+                .from('rede_franqueados')
+                .select('n_franquia, nome_completo')
+                .in('n_franquia', [...numerosCondominio])
+            : Promise.resolve({ data: [] as { n_franquia: string | null; nome_completo: string | null }[] }),
+        ]);
+        const nomePorRedeId = new Map<string, string>();
+        for (const r of lookups[0].data ?? []) {
+          const nome = String(r.nome_completo ?? '').trim();
+          if (r.id && nome) nomePorRedeId.set(String(r.id), nome);
+        }
+        const nomePorNumero = new Map<string, string>();
+        for (const r of lookups[1].data ?? []) {
+          const nome = String(r.nome_completo ?? '').trim();
+          const num = String(r.n_franquia ?? '').trim();
+          if (num && nome) nomePorNumero.set(num, nome);
+        }
+
+        for (const c of cardsSemRede) {
+          const cardId = String(c.id ?? '').trim();
+          if (!cardId || franqueadoNomePorCardId.has(cardId)) continue;
+          const chaves = [
+            String(c.nome_condominio ?? '').trim().toLowerCase(),
+            String(c.titulo ?? '').trim().toLowerCase(),
+          ].filter(Boolean);
+          for (const chave of chaves) {
+            const redeId = nomeParaRedeId.get(chave);
+            if (redeId && nomePorRedeId.has(redeId)) {
+              franqueadoNomePorCardId.set(cardId, nomePorRedeId.get(redeId)!);
+              break;
+            }
+            const num = nomeParaNumero.get(chave);
+            if (num && nomePorNumero.has(num)) {
+              franqueadoNomePorCardId.set(cardId, nomePorNumero.get(num)!);
+              break;
+            }
+          }
+        }
+      }
+    }
   }
 
   const mapNativo = (c: Record<string, unknown>): KanbanCardBrief => {
@@ -402,9 +599,11 @@ export async function fetchKanbanBoardSnapshot(
           : null,
       profiles: redeNomeDiretoMap.has(redeId)
         ? { full_name: redeNomeDiretoMap.get(redeId) ?? null }
-        : redeNomeMapNativo.has(fid)
-          ? { full_name: redeNomeMapNativo.get(fid) ?? null }
-          : (profilesMap.get(fid) ?? null),
+        : franqueadoNomePorCardId.has(String(c.id))
+          ? { full_name: franqueadoNomePorCardId.get(String(c.id)) ?? null }
+          : redeNomeMapNativo.has(fid)
+            ? { full_name: redeNomeMapNativo.get(fid) ?? null }
+            : null,
     };
   };
 
