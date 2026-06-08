@@ -194,10 +194,12 @@ export function Etapa4Casas(props: {
     setCondominioManual(c);
   }, [condominioInicial]);
 
-  const campoTexto = listagemOnly ? 'text-xs' : 'text-sm';
-  const campoPadding = listagemOnly ? 'px-2.5 py-1.5' : 'px-3 py-2';
+  const campoTexto = listagemOnly ? 'text-[11px] leading-tight' : 'text-sm';
+  const campoPadding = listagemOnly ? 'px-2 py-1' : 'px-3 py-2';
   const campoInputClass = `rounded-lg border border-stone-300 ${campoPadding} ${campoTexto} disabled:cursor-not-allowed disabled:opacity-60`;
-  const campoLabelClass = `font-medium text-stone-700 ${campoTexto}`;
+  const campoLabelClass = listagemOnly
+    ? 'text-[10px] font-medium leading-tight text-stone-600'
+    : `font-medium text-stone-700 ${campoTexto}`;
 
   const ROWS_PER_PAGE = 15;
   const totalPages = Math.max(1, Math.ceil(casas.length / ROWS_PER_PAGE));
@@ -1013,7 +1015,7 @@ export function Etapa4Casas(props: {
       <div className={resultadoPortalTargetId ? 'space-y-8 p-4 sm:p-6' : 'mt-6 space-y-8'}>
         {/* Bloco Varrer ZAP */}
         <section className={`space-y-3 rounded-xl border border-stone-200 bg-stone-50 ${listagemOnly ? 'p-3' : 'p-4'}`}>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className={`grid sm:grid-cols-3 ${listagemOnly ? 'gap-2' : 'gap-3'}`}>
             <label className="grid gap-1">
               <span className={campoLabelClass}>Cidade</span>
               <input
@@ -1072,7 +1074,9 @@ export function Etapa4Casas(props: {
             type="button"
             onClick={handleVarrerZap}
             disabled={zapLoading || readOnly}
-            className={`btn-primary disabled:cursor-not-allowed disabled:opacity-60 ${listagemOnly ? 'px-3 py-1.5 text-xs' : 'text-sm'}`}
+            className={`btn-primary disabled:cursor-not-allowed disabled:opacity-60 ${
+              listagemOnly ? '!px-2.5 !py-1 !text-[11px] !font-normal' : 'text-sm'
+            }`}
           >
             {zapLoading ? 'Buscando…' : 'Buscar'}
           </button>
@@ -1830,12 +1834,12 @@ export function Etapa4Casas(props: {
             type="button"
             onClick={() => setManualFormOpen((v) => !v)}
             className={`flex w-full items-center justify-between text-left text-stone-800 transition-colors hover:bg-stone-100 ${
-              listagemOnly ? 'px-3 py-2 text-xs font-medium' : 'px-4 py-3 font-medium'
+              listagemOnly ? 'px-3 py-1.5 text-[11px] font-medium' : 'px-4 py-3 font-medium'
             }`}
             aria-expanded={manualFormOpen}
           >
             <span>Adicionar casa manualmente</span>
-            <span className={`leading-none text-stone-500 ${listagemOnly ? 'text-sm' : 'text-lg'}`}>
+            <span className={`leading-none text-stone-500 ${listagemOnly ? 'text-xs' : 'text-lg'}`}>
               {manualFormOpen ? '−' : '+'}
             </span>
           </button>
