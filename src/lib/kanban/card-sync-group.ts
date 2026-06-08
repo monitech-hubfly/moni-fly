@@ -10,6 +10,18 @@ export function extrairNumeroFranquiaDoTitulo(titulo: string): string {
   return i >= 0 ? t.slice(0, i).trim() : t;
 }
 
+/** Remove o segmento do nome do franqueado em títulos legados `FK - Nome - …`. */
+function tituloFallbackSemFranqueado(fb: string, nFranquia: string | null | undefined): string {
+  const t = fb.trim();
+  if (!t) return t;
+  const parts = t.split(' - ').filter(Boolean);
+  if (parts.length <= 1) return t;
+  const num = (nFranquia ?? '').trim() || parts[0]!;
+  if (parts[0] !== num) return t;
+  if (parts.length === 2) return num;
+  return [num, ...parts.slice(2)].join(' - ');
+}
+
 function tituloParaNumeroFranquiaSync(titulo: string): string {
   return extrairNumeroFranquiaDoTitulo(titulo);
 }
@@ -353,6 +365,7 @@ export async function resolverCardPrimarioSyncGroup(db: SyncDb, cardId: string):
 
 export function montarTituloCardSync(params: {
   nFranquia?: string | null;
+  /** Ignorado no título — nome do franqueado fica no subtítulo do card. */
   nomeFranqueado?: string | null;
   nomeCondominio?: string | null;
   quadra?: string | null;
@@ -361,32 +374,25 @@ export function montarTituloCardSync(params: {
 }): string | null {
   const partes = [
     params.nFranquia?.trim() ?? '',
-    params.nomeFranqueado?.trim() ?? '',
     params.nomeCondominio?.trim() ?? '',
     params.quadra?.trim() ?? '',
     params.lote?.trim() ?? '',
   ].filter(Boolean);
   if (partes.length > 0) return partes.join(' - ');
   const fb = params.tituloFallback?.trim();
-  return fb || null;
+  if (!fb) return null;
+  return tituloFallbackSemFranqueado(fb, params.nFranquia);
 }
 
-function segmentosTituloCard(titulo: string | null | undefined): number {
-  const t = String(titulo ?? '').trim();
-  if (!t) return 0;
-  return t.split(' - ').filter(Boolean).length;
-}
-
-/** Prefere o título mais completo (mais segmentos ` - `). */
+/** Prefere o título calculado (sem nome do franqueado). */
 export function escolherTituloExibicaoCard(
   tituloAtual: string | null | undefined,
   tituloCalculado: string | null | undefined,
 ): string {
-  const atual = String(tituloAtual ?? '').trim();
   const calc = String(tituloCalculado ?? '').trim();
-  if (!calc) return atual || '(sem título)';
-  if (!atual) return calc;
-  return segmentosTituloCard(calc) >= segmentosTituloCard(atual) ? calc : atual;
+  if (calc) return calc;
+  const atual = String(tituloAtual ?? '').trim();
+  return atual || '(sem título)';
 }
 
 export async function resolverTituloCardKanban(
@@ -404,12 +410,8 @@ export async function resolverTituloCardKanban(
   const nFq =
     String(fields.n_franquia ?? '').trim() ||
     (await nFranquiaDeRede(db, fields.rede_franqueado_id));
-  const nomeFq =
-    String(fields.nome_franqueado ?? '').trim() ||
-    (await redeTituloFieldsDeRede(db, fields.rede_franqueado_id)).nomeFranqueado;
   return montarTituloCardSync({
     nFranquia: nFq,
-    nomeFranqueado: nomeFq,
     nomeCondominio: fields.nome_condominio,
     quadra: fields.quadra,
     lote: fields.lote,
@@ -634,6 +636,18 @@ export async function fetchCamposKanbanCanonicos(
     }
 
     out[k] = valor;
+  }
+
+  const tituloRecalc = await resolverTituloCardKanban(db, {
+    rede_franqueado_id: out.rede_franqueado_id,
+    nome_condominio: out.nome_condominio,
+    quadra: out.quadra,
+    lote: out.lote,
+    titulo: out.titulo,
+  });
+  if (tituloRecalc) {
+    out.titulo = escolherTituloExibicaoCard(out.titulo, tituloRecalc);
+    if (out.titulo === '(sem título)') out.titulo = null;
   }
 
   return Object.keys(out).length > 0 ? out : null;

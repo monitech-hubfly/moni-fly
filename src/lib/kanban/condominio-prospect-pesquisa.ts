@@ -444,12 +444,14 @@ function aplicarMigracaoLegadoEstrutura(
   for (const k of CHAVES_FAIXA_MIGRADAS_DE_GLOBAL) {
     const top = strField(raw, k) || strField(linhaRec, k);
     if (top.trim()) {
-      const premium = faixas.premium ?? {};
-      if (!strField(premium as Record<string, unknown>, k)) {
-        faixas.premium = { ...premium, [k]: top };
+      for (const { id } of FAIXAS_CONDOMINIO) {
+        const dados = faixas[id] ?? {};
+        if (!strField(dados as Record<string, unknown>, k)) {
+          faixas[id] = { ...dados, [k]: top };
+        }
       }
-      delete linhaRec[k];
     }
+    delete linhaRec[k];
   }
 
   out.faixas = faixas;

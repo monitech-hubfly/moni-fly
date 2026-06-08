@@ -26,9 +26,9 @@ function splitAreas(area: string | null): string[] {
     .filter(Boolean);
 }
 
-// Monta o título padrão: "FK0001 - João Silva" (com área opcional ao criar múltiplos cards)
+// Monta o título padrão: "FK0001" ou "FK0001 - Praça" (nome do franqueado fica no subtítulo)
 function buildTitulo(f: Franqueado, area: string, incluirArea: boolean): string {
-  const base = [f.n_franquia, f.nome_completo].filter(Boolean).join(' - ');
+  const base = f.n_franquia?.trim() ?? '';
   if (incluirArea && area.trim()) return [base, area.trim()].filter(Boolean).join(' - ');
   return base;
 }
