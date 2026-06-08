@@ -65,22 +65,28 @@ export function DadosCidadeIbgeSecao({ cidade, estado, showHeading = true }: Pro
 
   const compact = !showHeading;
   const labelClass = compact
-    ? 'text-[10px] font-medium uppercase text-stone-500'
+    ? 'text-[9px] font-medium uppercase tracking-wide text-stone-500'
     : 'text-xs font-medium uppercase text-stone-500';
   const valueClass = compact
-    ? 'mt-0.5 text-sm font-semibold text-stone-800'
+    ? 'mt-0.5 text-[11px] font-medium leading-snug text-stone-700'
     : 'mt-1 text-xl font-semibold text-stone-800';
   const cardClass = compact
-    ? 'rounded-lg border border-stone-200 bg-white p-2 shadow-sm'
+    ? 'rounded-lg border border-stone-200 bg-white p-1.5 shadow-sm'
     : 'rounded-lg border border-stone-200 bg-white p-3 shadow-sm';
+  const sectionClass = compact
+    ? 'rounded-xl border border-stone-200 bg-stone-50/80 p-3'
+    : 'rounded-xl border border-stone-200 bg-stone-50/80 p-4';
+  const gridClass = compact
+    ? `grid gap-2 sm:grid-cols-2 lg:grid-cols-5 ${showHeading ? 'mt-4' : 'mt-1'}`
+    : `grid gap-3 sm:grid-cols-2 lg:grid-cols-5 ${showHeading ? 'mt-4' : 'mt-1'}`;
 
   return (
-    <section className="rounded-xl border border-stone-200 bg-stone-50/80 p-4">
+    <section className={sectionClass}>
       {showHeading ? (
         <h2 className="text-lg font-semibold text-stone-800">Seção 1 — Dados da cidade</h2>
       ) : null}
       {errorDados ? <p className={`text-sm text-red-600 ${showHeading ? 'mt-3' : ''}`}>{errorDados}</p> : null}
-      <div className={`grid gap-3 sm:grid-cols-2 lg:grid-cols-5 ${showHeading ? 'mt-4' : 'mt-1'}`}>
+      <div className={gridClass}>
         <div className={cardClass}>
           <p className={labelClass}>População</p>
           <p className={valueClass}>

@@ -139,13 +139,15 @@ async function fetchRoads(bbox: [number, number, number, number]): Promise<Road[
     way(${south},${west},${north},${east})["highway"~"^(primary|secondary|trunk|motorway)$"];
     out geom;
   `;
-  let json: { elements?: OverpassWayElement[]; remark?: string };
+  let json: OverpassResponse;
   try {
     json = await overpassQuery(query);
   } catch {
     return [];
   }
-  const ways = json.elements ?? [];
+  const ways = (json.elements ?? []).filter(
+    (el): el is OverpassWayElement => el.type === 'way' && Array.isArray((el as OverpassWayElement).geometry),
+  );
   const roads: Road[] = [];
   for (const w of ways) {
     const geom = w.geometry;
