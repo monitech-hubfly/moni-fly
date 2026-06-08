@@ -20,6 +20,7 @@ import {
 } from '@/lib/condominios';
 import { KanbanCardModalCondominio } from '@/components/kanban-shared/KanbanCardModalCondominio';
 import { PesquisaCondominioProspect } from '@/components/kanban-shared/PesquisaCondominioProspect';
+import { LotesCondominioDisponiveis } from '@/components/kanban-shared/LotesCondominioDisponiveis';
 import { TabelaCondominiosProspect } from '@/components/kanban-shared/TabelaCondominiosProspect';
 import { sincronizarLoteChecklistComCadastro } from '@/lib/actions/kanban-lotes-condominio';
 import { CondominioLotesAnexados } from '@/components/kanban-shared/CondominioLotesAnexados';
@@ -341,13 +342,19 @@ export function FaseChecklistCard({
     });
     let erroFinal = res.ok ? null : res.error;
     if (res.ok && isLotesDisponiveisFaseSlug(faseSlug) && condominioContext) {
-      const sync = await sincronizarLoteChecklistComCadastro({
-        cardId,
-        origem: condominioContext.origem,
-        basePath: condominioContext.basePath,
-      });
-      if (!sync.ok) erroFinal = sync.error;
-      else condominioContext.onSalvo();
+      const itensLotes = itens?.filter((i) => i.tipo !== 'lotes_condominio') ?? [];
+      const usaChecklistLegado = itensLotes.some(
+        (i) => i.tipo === 'condominio' || i.label.trim() === 'Quadra' || i.label.trim() === 'Lote',
+      );
+      if (usaChecklistLegado) {
+        const sync = await sincronizarLoteChecklistComCadastro({
+          cardId,
+          origem: condominioContext.origem,
+          basePath: condominioContext.basePath,
+        });
+        if (!sync.ok) erroFinal = sync.error;
+        else condominioContext.onSalvo();
+      }
     }
     if (res.ok && !erroFinal && isDadosCidadeFaseSlug(faseSlug) && !multiPracaAtivo) {
       const label = itens?.find((i) => i.id === itemId)?.label.trim();
@@ -515,7 +522,9 @@ export function FaseChecklistCard({
       ) : (
         itensFiltrados.map((item) => renderItemField(item))
       )}
-      {isLotesDisponiveisFaseSlug(faseSlug) && condominioContext ? (
+      {isLotesDisponiveisFaseSlug(faseSlug) &&
+      condominioContext &&
+      itensFiltrados.every((i) => i.tipo !== 'lotes_condominio') ? (
         <CondominioLotesAnexados
           condominioId={condominioContext.condominioId}
           cardIdAtual={cardId}
@@ -826,6 +835,12 @@ function ItemField({
   if (item.tipo === 'pesquisa_condominio') {
     return (
       <PesquisaCondominioProspect cardId={cardId} itemLabel={item.label} obrigatorio={item.obrigatorio} />
+    );
+  }
+
+  if (item.tipo === 'lotes_condominio') {
+    return (
+      <LotesCondominioDisponiveis cardId={cardId} itemLabel={item.label} obrigatorio={item.obrigatorio} />
     );
   }
 

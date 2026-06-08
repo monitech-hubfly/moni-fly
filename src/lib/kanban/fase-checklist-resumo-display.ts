@@ -118,6 +118,7 @@ export function resumoChecklistItem(
     item.tipo === 'mapa_praca' ||
     item.tipo === 'listagem_casas_zap' ||
     item.tipo === 'pesquisa_condominio' ||
+    item.tipo === 'lotes_condominio' ||
     item.tipo === 'condominio'
   ) {
     return {

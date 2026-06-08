@@ -23,6 +23,7 @@ export type FaseChecklistItem = {
     | 'tabela'
     | 'condominio'
     | 'pesquisa_condominio'
+    | 'lotes_condominio'
     | 'listagem_casas_zap'
     | 'dados_cidade_ibge'
     | 'mapa_praca'

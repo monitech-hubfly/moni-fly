@@ -196,6 +196,7 @@ export function FormularioCandidatoForm({
         if (
           item.tipo === 'condominio' ||
           item.tipo === 'pesquisa_condominio' ||
+          item.tipo === 'lotes_condominio' ||
           item.tipo === 'listagem_casas_zap' ||
           item.tipo === 'dados_cidade_ibge' ||
           item.tipo === 'mapa_praca'

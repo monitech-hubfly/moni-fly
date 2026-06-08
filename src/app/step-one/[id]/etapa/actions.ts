@@ -52,7 +52,7 @@ async function resolveStepOneKanbanCardIds(
   return [...ids];
 }
 
-/** Pré-preenche Atributos do Lote a partir do checklist da fase lotes_disponiveis (Step One). */
+/** Pré-preenche Atributos do Lote a partir da fase lotes_disponiveis (Step One). */
 export async function getAtributosLoteFromStepOneChecklist(
   processoId: string,
 ): Promise<{ ok: true; atributos: AtributosLoteRespostas } | { ok: false; error: string }> {
@@ -71,6 +71,7 @@ export async function getAtributosLoteFromStepOneChecklist(
   if (!processo) return { ok: false, error: 'Processo não encontrado.' };
 
   const cardIds = await resolveStepOneKanbanCardIds(supabase, processoId);
+  if (cardIds.length === 0) return { ok: true, atributos: {} };
 
   const { data: fase } = await supabase
     .from('kanban_fases')
@@ -82,16 +83,37 @@ export async function getAtributosLoteFromStepOneChecklist(
 
   const { data: itens, error: errItens } = await supabase
     .from('kanban_fase_checklist_itens')
-    .select('id, ordem')
-    .eq('fase_id', faseId)
-    .gte('ordem', 8)
-    .lte('ordem', 12);
+    .select('id, ordem, tipo')
+    .eq('fase_id', faseId);
   if (errItens) return { ok: false, error: errItens.message };
 
-  const itemRows = (itens ?? []) as { id: string; ordem: number }[];
-  if (itemRows.length === 0) return { ok: true, atributos: {} };
+  const itemRows = (itens ?? []) as { id: string; ordem: number; tipo: string }[];
+  const usaLotesPorCondominio = itemRows.some((i) => i.tipo === 'lotes_condominio');
 
-  const itemIds = itemRows.map((i) => i.id);
+  if (usaLotesPorCondominio) {
+    const { carregarLotesCondominioCard } = await import('@/lib/actions/kanban-lotes-disponiveis');
+    for (const cardId of cardIds) {
+      const loaded = await carregarLotesCondominioCard(cardId);
+      if (!loaded.ok) continue;
+      for (const linha of loaded.linhas) {
+        for (const lote of linha.lotes_disponiveis ?? []) {
+          const atributos: AtributosLoteRespostas = {};
+          if (lote.vista_privilegiada === 'true') atributos.vista = true;
+          if (lote.perto_area_verde === 'true') atributos.area_verde = true;
+          if (lote.muro === 'true') atributos.muro = true;
+          if (lote.perto_area_convivencia === 'true') atributos.area_convivencia = true;
+          if (lote.perto_lixeira === 'true') atributos.lixeira = true;
+          if (Object.keys(atributos).length > 0) return { ok: true, atributos };
+        }
+      }
+    }
+    return { ok: true, atributos: {} };
+  }
+
+  const legacyItens = itemRows.filter((i) => i.ordem >= 8 && i.ordem <= 12);
+  if (legacyItens.length === 0) return { ok: true, atributos: {} };
+
+  const itemIds = legacyItens.map((i) => i.id);
   const { data: respostas, error: errResp } = await supabase
     .from('kanban_fase_checklist_respostas')
     .select('item_id, valor')
@@ -105,7 +127,7 @@ export async function getAtributosLoteFromStepOneChecklist(
   }
 
   const atributos: AtributosLoteRespostas = {};
-  for (const item of itemRows) {
+  for (const item of legacyItens) {
     const atributoId = CHECKLIST_ORDEM_TO_ATRIBUTO[item.ordem];
     if (!atributoId) continue;
     if (valorPorItem.get(item.id) === 'true') {

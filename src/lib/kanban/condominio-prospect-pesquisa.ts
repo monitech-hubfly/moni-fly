@@ -3,6 +3,10 @@ import {
   integerInputFromValue,
   type CondominioRow,
 } from '@/lib/condominios';
+import {
+  parseLotesDisponiveisCondominio,
+  type LinhaLoteDisponivel,
+} from '@/lib/kanban/lotes-disponiveis-condominio';
 
 export type FontePesquisaCondominio = 'online' | 'corretor' | 'destaque';
 
@@ -140,6 +144,9 @@ export type LinhaProspectCondominio = {
   q_casas_caracteristicas_buscadas?: string;
   q_locacao_valores?: string;
   pesquisa_preenchida_em?: string | null;
+  /** Lotes cadastrados na fase Lotes Disponíveis (sessão por condomínio). */
+  lotes_disponiveis?: LinhaLoteDisponivel[];
+  lotes_preenchidos_em?: string | null;
 };
 
 export type SecaoPesquisaCondominio = {
@@ -440,6 +447,16 @@ export function normalizarLinhaProspect(raw: unknown, fallbackIndex = 0): LinhaP
     linha.pesquisa_preenchida_em = o.pesquisa_preenchida_em.trim();
   } else if (o.pesquisa_preenchida_em === null) {
     linha.pesquisa_preenchida_em = null;
+  }
+
+  if (Array.isArray(o.lotes_disponiveis)) {
+    linha.lotes_disponiveis = parseLotesDisponiveisCondominio(o.lotes_disponiveis);
+  }
+
+  if (typeof o.lotes_preenchidos_em === 'string' && o.lotes_preenchidos_em.trim()) {
+    linha.lotes_preenchidos_em = o.lotes_preenchidos_em.trim();
+  } else if (o.lotes_preenchidos_em === null) {
+    linha.lotes_preenchidos_em = null;
   }
 
   return linha;
