@@ -15,6 +15,7 @@ import {
   linhaLotesCondominioCompleta,
   loteDisponivelCompleto,
   LOTES_DISPONIVEIS_CAMPOS,
+  LOTES_DISPONIVEIS_CHECKBOXES,
   rotuloLoteDisponivel,
   type ChaveLoteDisponivel,
   type LinhaLoteDisponivel,
@@ -279,32 +280,8 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
                         ) : null}
                       </div>
 
-                      {LOTES_DISPONIVEIS_CAMPOS.map((campo) => {
+                      {LOTES_DISPONIVEIS_CAMPOS.filter((c) => c.tipo !== 'checkbox').map((campo) => {
                         const valor = String(loteAtivo[campo.chave] ?? '');
-
-                        if (campo.tipo === 'checkbox') {
-                          return (
-                            <label
-                              key={campo.chave}
-                              className="flex cursor-pointer items-center gap-2 text-sm"
-                              style={{ color: 'var(--moni-text-primary)' }}
-                            >
-                              <input
-                                type="checkbox"
-                                className="h-4 w-4 rounded"
-                                checked={valor === 'true'}
-                                onChange={(e) => {
-                                  const v = e.target.checked ? 'true' : 'false';
-                                  setRascunhoLotes((prev) =>
-                                    prev.map((l) => (l.lote_id === loteAtivo.lote_id ? { ...l, [campo.chave]: v } : l)),
-                                  );
-                                  void salvarCampoBlur(loteAtivo.lote_id, campo.chave, v);
-                                }}
-                              />
-                              {campo.label}
-                            </label>
-                          );
-                        }
 
                         if (campo.tipo === 'anexo') {
                           return (
@@ -396,6 +373,43 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
                           </div>
                         );
                       })}
+
+                      <div>
+                        <p
+                          className="mb-2 text-xs font-medium"
+                          style={{ color: 'var(--moni-text-primary)' }}
+                        >
+                          Atributos do lote
+                        </p>
+                        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                          {LOTES_DISPONIVEIS_CHECKBOXES.map((campo) => {
+                            const valor = String(loteAtivo[campo.chave] ?? '');
+                            return (
+                              <label
+                                key={campo.chave}
+                                className="flex cursor-pointer items-center gap-2 text-sm"
+                                style={{ color: 'var(--moni-text-primary)' }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="h-4 w-4 shrink-0 rounded"
+                                  checked={valor === 'true'}
+                                  onChange={(e) => {
+                                    const v = e.target.checked ? 'true' : 'false';
+                                    setRascunhoLotes((prev) =>
+                                      prev.map((l) =>
+                                        l.lote_id === loteAtivo.lote_id ? { ...l, [campo.chave]: v } : l,
+                                      ),
+                                    );
+                                    void salvarCampoBlur(loteAtivo.lote_id, campo.chave, v);
+                                  }}
+                                />
+                                {campo.label}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </section>
                   ) : null}
                 </KanbanFaseSecaoTabs>

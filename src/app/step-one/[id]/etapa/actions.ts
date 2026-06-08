@@ -52,6 +52,16 @@ async function resolveStepOneKanbanCardIds(
   return [...ids];
 }
 
+function loteDisponivelParaAtributosBatalha(lote: import('@/lib/kanban/lotes-disponiveis-condominio').LinhaLoteDisponivel): AtributosLoteRespostas {
+  const atributos: AtributosLoteRespostas = {};
+  if (lote.vista_privilegiada === 'true') atributos.vista = true;
+  if (lote.perto_area_verde === 'true') atributos.area_verde = true;
+  if (lote.muro === 'true') atributos.muro = true;
+  if (lote.perto_area_convivencia === 'true') atributos.area_convivencia = true;
+  if (lote.perto_lixeira === 'true') atributos.lixeira = true;
+  return atributos;
+}
+
 /** Pré-preenche Atributos do Lote a partir da fase lotes_disponiveis (Step One). */
 export async function getAtributosLoteFromStepOneChecklist(
   processoId: string,
@@ -97,12 +107,7 @@ export async function getAtributosLoteFromStepOneChecklist(
       if (!loaded.ok) continue;
       for (const linha of loaded.linhas) {
         for (const lote of linha.lotes_disponiveis ?? []) {
-          const atributos: AtributosLoteRespostas = {};
-          if (lote.vista_privilegiada === 'true') atributos.vista = true;
-          if (lote.perto_area_verde === 'true') atributos.area_verde = true;
-          if (lote.muro === 'true') atributos.muro = true;
-          if (lote.perto_area_convivencia === 'true') atributos.area_convivencia = true;
-          if (lote.perto_lixeira === 'true') atributos.lixeira = true;
+          const atributos = loteDisponivelParaAtributosBatalha(lote);
           if (Object.keys(atributos).length > 0) return { ok: true, atributos };
         }
       }

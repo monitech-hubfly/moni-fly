@@ -9,17 +9,20 @@ import {
   salvarPesquisaCondominioProspect,
 } from '@/lib/actions/kanban-condominio-pesquisa';
 import {
-  CARACTERIZACAO_CONDOMINIO_CAMPOS,
+  CARACTERIZACAO_GLOBAL_CAMPOS,
   CHAVES_CARACTERIZACAO_OBRIGATORIAS,
-  CHAVES_PESQUISA_OBRIGATORIAS,
+  CHAVES_FAIXA_OBRIGATORIAS,
+  FAIXA_CONDOMINIO_CAMPOS,
+  FAIXAS_CONDOMINIO,
   atualizarPesquisaPreenchidaEm,
+  faixaCondominioCompleta,
   linhaProspectTemNome,
   linhaSessaoCondominioCompleta,
   normalizarLinhaProspect,
-  PESQUISA_CONDOMINIO_SECOES,
-  rotuloFontePesquisa,
-  type ChaveLinhaProspectCondominio,
-  type ChavePesquisaCondominio,
+  valorFaixaCondominio,
+  type ChaveCaracterizacaoGlobal,
+  type ChaveFaixaCondominio,
+  type FaixaCondominioId,
   type LinhaProspectCondominio,
 } from '@/lib/kanban/condominio-prospect-pesquisa';
 
@@ -34,15 +37,19 @@ const inputClass =
   ' bg-white border-[var(--moni-border-default)] text-[var(--moni-text-primary)]' +
   ' focus:ring-[var(--moni-primary-500)] focus:border-[var(--moni-primary-500)]';
 
+type RascunhoGlobal = Partial<Record<ChaveCaracterizacaoGlobal, string>>;
+type RascunhoFaixas = Partial<Record<FaixaCondominioId, Partial<Record<ChaveFaixaCondominio, string>>>>;
+
 export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: Props) {
   const [linhas, setLinhas] = useState<LinhaProspectCondominio[]>([]);
   const [rowIdAtivo, setRowIdAtivo] = useState<string | null>(null);
+  const [faixaAtiva, setFaixaAtiva] = useState<FaixaCondominioId>('premium');
   const [carregandoInicial, setCarregandoInicial] = useState(true);
   const [erroCarregar, setErroCarregar] = useState<string | null>(null);
-  const [salvandoSecao, setSalvandoSecao] = useState<string | null>(null);
   const [uploadMapa, setUploadMapa] = useState(false);
   const [erroSalvar, setErroSalvar] = useState<string | null>(null);
-  const [rascunho, setRascunho] = useState<Partial<Record<ChaveLinhaProspectCondominio, string>>>({});
+  const [rascunhoGlobal, setRascunhoGlobal] = useState<RascunhoGlobal>({});
+  const [rascunhoFaixas, setRascunhoFaixas] = useState<RascunhoFaixas>({});
   const rowIdRascunhoRef = useRef<string | null>(null);
 
   const recarregar = useCallback(async (opts?: { silencioso?: boolean }) => {
@@ -51,8 +58,10 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
     const res = await carregarProspectsCondominioCard(cardId);
     if (!res.ok) {
       setErroCarregar(res.error);
-      if (!opts?.silencioso) setLinhas([]);
-      if (!opts?.silencioso) setCarregandoInicial(false);
+      if (!opts?.silencioso) {
+        setLinhas([]);
+        setCarregandoInicial(false);
+      }
       return;
     }
     setLinhas(res.linhas);
@@ -86,66 +95,45 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
     [linhas, rowIdAtivo],
   );
 
-  /** Repõe rascunho só ao trocar de aba (não após cada save). */
   useEffect(() => {
     if (!rowIdAtivo) {
       rowIdRascunhoRef.current = null;
-      setRascunho({});
+      setRascunhoGlobal({});
+      setRascunhoFaixas({});
       return;
     }
     if (rowIdRascunhoRef.current === rowIdAtivo) return;
     rowIdRascunhoRef.current = rowIdAtivo;
     const linha = linhas.find((l) => l.row_id === rowIdAtivo);
     if (!linha) return;
-    const draft: Partial<Record<ChaveLinhaProspectCondominio, string>> = {};
-    for (const chave of [...CHAVES_CARACTERIZACAO_OBRIGATORIAS, ...CHAVES_PESQUISA_OBRIGATORIAS]) {
-      draft[chave] = linha[chave] ?? '';
+
+    const global: RascunhoGlobal = {};
+    for (const chave of [...CHAVES_CARACTERIZACAO_OBRIGATORIAS, 'mapa_condominio_path' as const]) {
+      global[chave] = linha[chave] ?? '';
     }
-    setRascunho(draft);
+
+    const faixas: RascunhoFaixas = {};
+    for (const { id } of FAIXAS_CONDOMINIO) {
+      const draft: Partial<Record<ChaveFaixaCondominio, string>> = {};
+      for (const chave of CHAVES_FAIXA_OBRIGATORIAS) {
+        draft[chave] = valorFaixaCondominio(linha, id, chave);
+      }
+      faixas[id] = draft;
+    }
+
+    setRascunhoGlobal(global);
+    setRascunhoFaixas(faixas);
+    setFaixaAtiva('premium');
     setErroSalvar(null);
   }, [rowIdAtivo, linhas]);
 
-  function aplicarLinhaSalvaLocal(
-    rowId: string,
-    respostas: Partial<Record<ChaveLinhaProspectCondominio, string>>,
-  ) {
+  function aplicarLinhaSalvaLocal(linha: LinhaProspectCondominio) {
     setLinhas((prev) =>
-      prev.map((l) => {
-        if (l.row_id !== rowId) return l;
-        return atualizarPesquisaPreenchidaEm(
-          normalizarLinhaProspect({ ...l, ...respostas, row_id: rowId }),
-        );
-      }),
+      prev.map((l) => (l.row_id === linha.row_id ? atualizarPesquisaPreenchidaEm(linha) : l)),
     );
   }
 
-  async function salvarSecao(secaoId: string) {
-    if (!linhaAtiva) return;
-    setSalvandoSecao(secaoId);
-    setErroSalvar(null);
-    const secao = PESQUISA_CONDOMINIO_SECOES.find((s) => s.id === secaoId);
-    if (!secao) {
-      setSalvandoSecao(null);
-      return;
-    }
-    const respostas: Partial<Record<ChavePesquisaCondominio, string>> = {};
-    for (const p of secao.perguntas) {
-      respostas[p.chave] = rascunho[p.chave] ?? '';
-    }
-    const res = await salvarPesquisaCondominioProspect({
-      cardId,
-      rowId: linhaAtiva.row_id,
-      respostas,
-    });
-    setSalvandoSecao(null);
-    if (!res.ok) {
-      setErroSalvar(res.error);
-      return;
-    }
-    aplicarLinhaSalvaLocal(linhaAtiva.row_id, respostas);
-  }
-
-  async function salvarCampoBlur(chave: ChaveLinhaProspectCondominio, valor: string) {
+  async function salvarCampoGlobal(chave: ChaveCaracterizacaoGlobal, valor: string) {
     if (!linhaAtiva) return;
     const atual = linhaAtiva[chave] ?? '';
     if (valor.trim() === atual.trim()) return;
@@ -159,7 +147,35 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
       setErroSalvar(res.error);
       return;
     }
-    aplicarLinhaSalvaLocal(linhaAtiva.row_id, { [chave]: valor });
+    aplicarLinhaSalvaLocal(
+      normalizarLinhaProspect({ ...linhaAtiva, [chave]: valor, row_id: linhaAtiva.row_id }),
+    );
+  }
+
+  async function salvarCampoFaixa(faixaId: FaixaCondominioId, chave: ChaveFaixaCondominio, valor: string) {
+    if (!linhaAtiva) return;
+    const atual = valorFaixaCondominio(linhaAtiva, faixaId, chave);
+    if (valor.trim() === atual.trim()) return;
+    setErroSalvar(null);
+    const res = await salvarPesquisaCondominioProspect({
+      cardId,
+      rowId: linhaAtiva.row_id,
+      faixaId,
+      faixaRespostas: { [chave]: valor },
+    });
+    if (!res.ok) {
+      setErroSalvar(res.error);
+      return;
+    }
+    setRascunhoFaixas((prev) => ({
+      ...prev,
+      [faixaId]: { ...prev[faixaId], [chave]: valor },
+    }));
+    const loaded = await carregarProspectsCondominioCard(cardId);
+    if (loaded.ok) {
+      const atualizada = loaded.linhas.find((l) => l.row_id === linhaAtiva.row_id);
+      if (atualizada) aplicarLinhaSalvaLocal(atualizada);
+    }
   }
 
   async function salvarMapaCondominio(file: File) {
@@ -175,15 +191,29 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
         setErroSalvar(error.message);
         return;
       }
-      await salvarCampoBlur('mapa_condominio_path', path);
-      setRascunho((prev) => ({ ...prev, mapa_condominio_path: path }));
+      await salvarCampoGlobal('mapa_condominio_path', path);
+      setRascunhoGlobal((prev) => ({ ...prev, mapa_condominio_path: path }));
     } finally {
       setUploadMapa(false);
     }
   }
 
-  const camposCaracterizacao = CARACTERIZACAO_CONDOMINIO_CAMPOS.filter((c) => c.grupo === 'caracterizacao');
-  const camposLiquidez = CARACTERIZACAO_CONDOMINIO_CAMPOS.filter((c) => c.grupo === 'liquidez');
+  const camposGlobalTexto = CARACTERIZACAO_GLOBAL_CAMPOS.filter((c) => c.tipo !== 'anexo');
+  const campoMapa = CARACTERIZACAO_GLOBAL_CAMPOS.find((c) => c.chave === 'mapa_condominio_path');
+
+  const tabsFaixa = useMemo(
+    () =>
+      FAIXAS_CONDOMINIO.map((f) => ({
+        id: f.id,
+        label: `${f.label}${linhaAtiva && faixaCondominioCompleta(linhaAtiva, f.id) ? ' ✓' : ''}`,
+      })),
+    [linhaAtiva],
+  );
+
+  const camposLiquidez = FAIXA_CONDOMINIO_CAMPOS.filter((c) => c.secao === 'liquidez');
+  const camposLotes = FAIXA_CONDOMINIO_CAMPOS.filter((c) => c.secao === 'lotes');
+  const camposCasas = FAIXA_CONDOMINIO_CAMPOS.filter((c) => c.secao === 'casas');
+  const camposLocacao = FAIXA_CONDOMINIO_CAMPOS.filter((c) => c.secao === 'locacao');
 
   return (
     <div className="space-y-4">
@@ -192,6 +222,10 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
           {itemLabel}
           {obrigatorio ? <span className="ml-1 text-red-500">*</span> : null}
         </span>
+        <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+          Para cada condomínio: caracterização geral e, em seguida, liquidez e mercado nas três faixas (Premium,
+          Intermediária e Entrada).
+        </p>
       </div>
 
       {carregandoInicial ? (
@@ -202,7 +236,10 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
       ) : erroCarregar ? (
         <p className="text-xs text-red-500">{erroCarregar}</p>
       ) : prospects.length === 0 ? (
-        <p className="rounded-md border px-3 py-4 text-sm italic" style={{ borderColor: 'var(--moni-border-default)', color: 'var(--moni-text-tertiary)' }}>
+        <p
+          className="rounded-md border px-3 py-4 text-sm italic"
+          style={{ borderColor: 'var(--moni-border-default)', color: 'var(--moni-text-tertiary)' }}
+        >
           Preencha a Tabela de Condomínios na fase Dados da Cidade primeiro.
         </p>
       ) : (
@@ -231,162 +268,167 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
                 className="rounded-lg border p-3 space-y-3"
                 style={{ borderColor: 'var(--moni-border-default)', background: 'var(--moni-surface-50)' }}
               >
-                <h4 className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-secondary)' }}>
+                <h4
+                  className="text-xs font-semibold uppercase tracking-wide"
+                  style={{ color: 'var(--moni-text-secondary)' }}
+                >
                   Caracterização do condomínio
                 </h4>
-                {camposCaracterizacao.map((campo) => (
-                  <CampoCaracterizacao
+                {camposGlobalTexto.map((campo) => (
+                  <CampoTexto
                     key={campo.chave}
-                    campo={campo}
-                    valor={rascunho[campo.chave] ?? ''}
+                    label={campo.label}
+                    placeholder={campo.placeholder}
+                    tipo={campo.tipo === 'texto_longo' ? 'texto_longo' : 'texto'}
+                    valor={rascunhoGlobal[campo.chave] ?? ''}
                     inputClass={inputClass}
-                    onChange={(v) => setRascunho((prev) => ({ ...prev, [campo.chave]: v }))}
-                    onBlur={(v) => void salvarCampoBlur(campo.chave, v)}
+                    onChange={(v) => setRascunhoGlobal((prev) => ({ ...prev, [campo.chave]: v }))}
+                    onBlur={(v) => void salvarCampoGlobal(campo.chave, v)}
                   />
                 ))}
-              </section>
-
-              <section
-                className="rounded-lg border p-3 space-y-3"
-                style={{ borderColor: 'var(--moni-border-default)', background: 'var(--moni-surface-50)' }}
-              >
-                <h4 className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-secondary)' }}>
-                  Liquidez e Valorização Exponencial
-                </h4>
-                {camposLiquidez.map((campo) =>
-                  campo.tipo === 'anexo' ? (
-                    <div key={campo.chave}>
-                      <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--moni-text-primary)' }}>
-                        {campo.label}
-                        <span className="ml-1 text-red-500">*</span>
+                {campoMapa ? (
+                  <div>
+                    <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                      {campoMapa.label}
+                    </label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label
+                        className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium hover:bg-stone-50"
+                        style={{ borderColor: 'var(--moni-border-default)', color: 'var(--moni-primary-600)' }}
+                      >
+                        {uploadMapa ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                        {uploadMapa ? 'Enviando…' : 'Enviar mapa'}
+                        <input
+                          type="file"
+                          accept="image/*,.pdf"
+                          className="sr-only"
+                          disabled={uploadMapa}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) void salvarMapaCondominio(f);
+                            e.target.value = '';
+                          }}
+                        />
                       </label>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium hover:bg-stone-50"
-                          style={{ borderColor: 'var(--moni-border-default)', color: 'var(--moni-primary-600)' }}>
-                          {uploadMapa ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
-                          {uploadMapa ? 'Enviando…' : 'Enviar mapa'}
-                          <input
-                            type="file"
-                            accept="image/*,.pdf"
-                            className="sr-only"
-                            disabled={uploadMapa}
-                            onChange={(e) => {
-                              const f = e.target.files?.[0];
-                              if (f) void salvarMapaCondominio(f);
-                              e.target.value = '';
-                            }}
-                          />
-                        </label>
-                        {rascunho.mapa_condominio_path ? (
-                          <span className="text-[10px] text-stone-500 truncate max-w-[200px]">
-                            {String(rascunho.mapa_condominio_path).split('/').pop()}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] italic text-stone-400">Nenhum arquivo</span>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <CampoCaracterizacao
-                      key={campo.chave}
-                      campo={campo}
-                      valor={rascunho[campo.chave] ?? ''}
-                      inputClass={inputClass}
-                      onChange={(v) => setRascunho((prev) => ({ ...prev, [campo.chave]: v }))}
-                      onBlur={(v) => void salvarCampoBlur(campo.chave, v)}
-                    />
-                  ),
-                )}
-              </section>
-
-              {PESQUISA_CONDOMINIO_SECOES.map((secao) => (
-                <section
-                  key={secao.id}
-                  className="rounded-lg border p-3"
-                  style={{ borderColor: 'var(--moni-border-default)', background: 'var(--moni-surface-50)' }}
-                >
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    <h4 className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-secondary)' }}>
-                      {secao.titulo}
-                    </h4>
-                    <button
-                      type="button"
-                      disabled={salvandoSecao === secao.id}
-                      onClick={() => void salvarSecao(secao.id)}
-                      className="rounded-md border px-2 py-1 text-[11px] font-medium disabled:opacity-50"
-                      style={{
-                        borderColor: 'var(--moni-border-default)',
-                        color: 'var(--moni-primary-600)',
-                        background: 'white',
-                      }}
-                    >
-                      {salvandoSecao === secao.id ? (
-                        <span className="inline-flex items-center gap-1">
-                          <Loader2 size={10} className="animate-spin" />
-                          Salvando...
+                      {rascunhoGlobal.mapa_condominio_path ? (
+                        <span className="max-w-[200px] truncate text-[10px] text-stone-500">
+                          {String(rascunhoGlobal.mapa_condominio_path).split('/').pop()}
                         </span>
                       ) : (
-                        'Salvar seção'
+                        <span className="text-[10px] italic text-stone-400">Nenhum arquivo</span>
                       )}
-                    </button>
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+
+              <KanbanFaseSecaoTabs
+                tabs={tabsFaixa}
+                abaAtiva={faixaAtiva}
+                onAbaChange={(id) => setFaixaAtiva((id as FaixaCondominioId) || 'premium')}
+                ariaLabel={`Faixas — ${linhaAtiva.condominio}`}
+              >
+                <section
+                  className="rounded-lg border p-3 space-y-4"
+                  style={{ borderColor: 'var(--moni-border-default)', background: 'var(--moni-surface-50)' }}
+                >
+                  <div className="space-y-3">
+                    <h4
+                      className="text-xs font-semibold uppercase tracking-wide"
+                      style={{ color: 'var(--moni-text-secondary)' }}
+                    >
+                      Liquidez e Valorização Exponencial
+                    </h4>
+                    {camposLiquidez.map((campo) => (
+                      <CampoTexto
+                        key={campo.chave}
+                        label={campo.label}
+                        placeholder={campo.placeholder}
+                        tipo={campo.tipo}
+                        obrigatorio={campo.obrigatorio}
+                        valor={rascunhoFaixas[faixaAtiva]?.[campo.chave] ?? ''}
+                        inputClass={inputClass}
+                        onChange={(v) =>
+                          setRascunhoFaixas((prev) => ({
+                            ...prev,
+                            [faixaAtiva]: { ...prev[faixaAtiva], [campo.chave]: v },
+                          }))
+                        }
+                        onBlur={(v) => void salvarCampoFaixa(faixaAtiva, campo.chave, v)}
+                      />
+                    ))}
                   </div>
 
-                  <div className="space-y-3">
-                    {secao.perguntas.map((pergunta) => (
-                      <div key={pergunta.chave}>
-                        <div className="mb-1 flex flex-wrap items-center gap-2">
-                          <label className="text-xs font-medium" style={{ color: 'var(--moni-text-primary)' }}>
-                            {pergunta.label}
-                          </label>
-                          <span
-                            className="rounded px-1.5 py-0.5 text-[10px] font-medium uppercase"
-                            style={{
-                              background:
-                                pergunta.fonte === 'online'
-                                  ? 'var(--moni-primary-50, #eef2ff)'
-                                  : pergunta.fonte === 'corretor'
-                                    ? 'var(--moni-surface-100)'
-                                    : '#fef3c7',
-                              color:
-                                pergunta.fonte === 'online'
-                                  ? 'var(--moni-primary-700, #4338ca)'
-                                  : pergunta.fonte === 'corretor'
-                                    ? 'var(--moni-text-secondary)'
-                                    : '#92400e',
-                            }}
-                          >
-                            {rotuloFontePesquisa(pergunta.fonte)}
-                          </span>
-                          {pergunta.destaque ? (
-                            <span className="text-[10px] font-medium uppercase text-amber-700">Destaque</span>
-                          ) : null}
-                        </div>
-                        {pergunta.tipo === 'texto_longo' ? (
-                          <textarea
-                            rows={3}
-                            className={inputClass + ' resize-none'}
-                            value={rascunho[pergunta.chave] ?? ''}
-                            onChange={(e) =>
-                              setRascunho((prev) => ({ ...prev, [pergunta.chave]: e.target.value }))
-                            }
-                            onBlur={(e) => void salvarCampoBlur(pergunta.chave, e.target.value)}
-                          />
-                        ) : (
-                          <input
-                            type="text"
-                            className={inputClass}
-                            value={rascunho[pergunta.chave] ?? ''}
-                            onChange={(e) =>
-                              setRascunho((prev) => ({ ...prev, [pergunta.chave]: e.target.value }))
-                            }
-                            onBlur={(e) => void salvarCampoBlur(pergunta.chave, e.target.value)}
-                          />
-                        )}
-                      </div>
+                  <div className="space-y-3 border-t pt-3" style={{ borderColor: 'var(--moni-border-default)' }}>
+                    <h4
+                      className="text-xs font-semibold uppercase tracking-wide"
+                      style={{ color: 'var(--moni-text-secondary)' }}
+                    >
+                      Sobre os lotes
+                    </h4>
+                    {camposLotes.map((campo) => (
+                      <CampoTexto
+                        key={campo.chave}
+                        label={campo.label}
+                        placeholder={campo.placeholder}
+                        tipo={campo.tipo}
+                        obrigatorio={campo.obrigatorio}
+                        valor={rascunhoFaixas[faixaAtiva]?.[campo.chave] ?? ''}
+                        inputClass={inputClass}
+                        onChange={(v) =>
+                          setRascunhoFaixas((prev) => ({
+                            ...prev,
+                            [faixaAtiva]: { ...prev[faixaAtiva], [campo.chave]: v },
+                          }))
+                        }
+                        onBlur={(v) => void salvarCampoFaixa(faixaAtiva, campo.chave, v)}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="space-y-3 border-t pt-3" style={{ borderColor: 'var(--moni-border-default)' }}>
+                    {camposCasas.map((campo) => (
+                      <CampoTexto
+                        key={campo.chave}
+                        label={campo.label}
+                        placeholder={campo.placeholder}
+                        tipo={campo.tipo}
+                        obrigatorio={campo.obrigatorio}
+                        valor={rascunhoFaixas[faixaAtiva]?.[campo.chave] ?? ''}
+                        inputClass={inputClass}
+                        onChange={(v) =>
+                          setRascunhoFaixas((prev) => ({
+                            ...prev,
+                            [faixaAtiva]: { ...prev[faixaAtiva], [campo.chave]: v },
+                          }))
+                        }
+                        onBlur={(v) => void salvarCampoFaixa(faixaAtiva, campo.chave, v)}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="space-y-3 border-t pt-3" style={{ borderColor: 'var(--moni-border-default)' }}>
+                    {camposLocacao.map((campo) => (
+                      <CampoTexto
+                        key={campo.chave}
+                        label={campo.label}
+                        placeholder={campo.placeholder}
+                        tipo={campo.tipo}
+                        obrigatorio={campo.obrigatorio}
+                        valor={rascunhoFaixas[faixaAtiva]?.[campo.chave] ?? ''}
+                        inputClass={inputClass}
+                        onChange={(v) =>
+                          setRascunhoFaixas((prev) => ({
+                            ...prev,
+                            [faixaAtiva]: { ...prev[faixaAtiva], [campo.chave]: v },
+                          }))
+                        }
+                        onBlur={(v) => void salvarCampoFaixa(faixaAtiva, campo.chave, v)}
+                      />
                     ))}
                   </div>
                 </section>
-              ))}
+              </KanbanFaseSecaoTabs>
             </div>
           ) : null}
         </KanbanFaseSecaoTabs>
@@ -414,31 +456,37 @@ function BadgeConclusao({ completa }: { completa: boolean }) {
   );
 }
 
-function CampoCaracterizacao({
-  campo,
+function CampoTexto({
+  label,
+  placeholder,
+  tipo,
   valor,
   inputClass,
+  obrigatorio,
   onChange,
   onBlur,
 }: {
-  campo: (typeof CARACTERIZACAO_CONDOMINIO_CAMPOS)[number];
+  label: string;
+  placeholder?: string;
+  tipo: 'texto' | 'texto_longo';
   valor: string;
   inputClass: string;
+  obrigatorio?: boolean;
   onChange: (v: string) => void;
   onBlur: (v: string) => void;
 }) {
   return (
     <div>
       <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--moni-text-primary)' }}>
-        {campo.label}
-        <span className="ml-1 text-red-500">*</span>
+        {label}
+        {obrigatorio ? <span className="ml-1 text-red-500">*</span> : null}
       </label>
-      {campo.placeholder ? (
+      {placeholder ? (
         <p className="mb-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-          {campo.placeholder}
+          {placeholder}
         </p>
       ) : null}
-      {campo.tipo === 'texto_longo' ? (
+      {tipo === 'texto_longo' ? (
         <textarea
           rows={3}
           className={inputClass + ' resize-none'}

@@ -5,6 +5,7 @@ import { parseCondominioChecklistSnapshot } from '@/lib/condominios-checklist';
 import type { CondominioLotePatch } from '@/lib/condominios-lotes';
 import { parseDecimalInput } from '@/lib/condominios';
 import { KANBAN_IDS, FASE_SLUGS } from '@/lib/constants/kanban-ids';
+import { LOTES_DISPONIVEIS_CHECKBOXES } from '@/lib/kanban/lotes-disponiveis-condominio';
 import { createClient } from '@/lib/supabase/server';
 
 export type LotesCondominioActionResult = { ok: true } | { ok: false; error: string };
@@ -121,14 +122,13 @@ export async function sincronizarLoteChecklistComCadastro(input: {
     valor: parseNumeroChecklist(porLabel.get('Valor do lote (R$)')?.valor ?? porLabel.get('Valor estimado')?.valor),
     situacao_documental: porLabel.get('Situação documental')?.valor?.trim() || null,
     fotos_path: porLabel.get('Fotos do lote')?.arquivo_path ?? null,
-    vista_privilegiada: porLabel.get('Vista privilegiada')?.valor === 'true',
-    perto_area_verde: porLabel.get('Perto de área verde')?.valor === 'true',
-    muro: porLabel.get('Muro')?.valor === 'true',
-    perto_area_convivencia: porLabel.get('Perto de área de convivência')?.valor === 'true',
-    perto_lixeira: porLabel.get('Perto de lixeira')?.valor === 'true',
     observacoes: porLabel.get('Observações adicionais sobre o lote')?.valor?.trim() || null,
     kanban_card_id: cardId,
   };
+
+  for (const { chave, label } of LOTES_DISPONIVEIS_CHECKBOXES) {
+    patch[chave] = porLabel.get(label)?.valor === 'true';
+  }
 
   const { data: existente } = await supabase
     .from('condominios_lotes')

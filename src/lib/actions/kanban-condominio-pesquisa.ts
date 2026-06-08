@@ -4,11 +4,12 @@ import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import {
   atualizarPesquisaPreenchidaEm,
   linhaSessaoCondominioCompleta,
+  mesclarRespostasFaixaCondominio,
   normalizarLinhaProspect,
   todasPesquisasProspectCompletas,
-  type ChavePesquisaCondominio,
-  type ChaveLinhaProspectCondominio,
-  type ChaveCaracterizacaoCondominio,
+  type ChaveCaracterizacaoGlobal,
+  type ChaveFaixaCondominio,
+  type FaixaCondominioId,
   type LinhaProspectCondominio,
 } from '@/lib/kanban/condominio-prospect-pesquisa';
 import {
@@ -188,7 +189,9 @@ export async function carregarProspectsCondominioCard(cardId: string): Promise<C
 export async function salvarPesquisaCondominioProspect(input: {
   cardId: string;
   rowId: string;
-  respostas: Partial<Record<ChaveLinhaProspectCondominio, string>>;
+  respostas?: Partial<Record<ChaveCaracterizacaoGlobal, string>>;
+  faixaId?: FaixaCondominioId;
+  faixaRespostas?: Partial<Record<ChaveFaixaCondominio, string>>;
 }): Promise<KanbanCondominioPesquisaResult> {
   const supabase = await createClient();
   const {
@@ -206,13 +209,19 @@ export async function salvarPesquisaCondominioProspect(input: {
   const atual = loaded.linhas.find((l) => l.row_id === rowId);
   if (!atual) return { ok: false, error: 'Condomínio não encontrado na tabela de prospects.' };
 
-  const merged: LinhaProspectCondominio = atualizarPesquisaPreenchidaEm(
+  let merged: LinhaProspectCondominio = atualizarPesquisaPreenchidaEm(
     normalizarLinhaProspect({
       ...atual,
       ...input.respostas,
       row_id: rowId,
     }),
   );
+
+  if (input.faixaId && input.faixaRespostas) {
+    merged = atualizarPesquisaPreenchidaEm(
+      mesclarRespostasFaixaCondominio(merged, input.faixaId, input.faixaRespostas),
+    );
+  }
 
   if (linhaSessaoCondominioCompleta(merged) && !merged.pesquisa_preenchida_em) {
     merged.pesquisa_preenchida_em = new Date().toISOString();

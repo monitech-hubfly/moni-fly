@@ -115,20 +115,16 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur, prac
     const atual = linhas[idx];
     const nova = linhaProspectDeCondominioRow(row, atual.row_id, {
       pesquisa_preenchida_em: atual.pesquisa_preenchida_em,
-      q_lotes_total_disponiveis: atual.q_lotes_total_disponiveis,
-      q_lotes_tamanho_medio: atual.q_lotes_tamanho_medio,
-      q_lotes_preco_m2: atual.q_lotes_preco_m2,
-      q_lotes_area_maior_demanda: atual.q_lotes_area_maior_demanda,
-      q_casas_prontas: atual.q_casas_prontas,
+      localizacao_contexto: atual.localizacao_contexto,
+      caracteristicas_condominio: atual.caracteristicas_condominio,
+      tempo_condominio: atual.tempo_condominio,
       q_casas_em_construcao: atual.q_casas_em_construcao,
-      q_casas_para_venda: atual.q_casas_para_venda,
-      q_casas_preco_m2: atual.q_casas_preco_m2,
-      q_casas_tempo_venda: atual.q_casas_tempo_venda,
-      q_casas_vendidas_12m: atual.q_casas_vendidas_12m,
-      q_casas_remanescentes_demora: atual.q_casas_remanescentes_demora,
       q_casas_caracteristicas_elogiadas: atual.q_casas_caracteristicas_elogiadas,
       q_casas_caracteristicas_buscadas: atual.q_casas_caracteristicas_buscadas,
-      q_locacao_valores: atual.q_locacao_valores,
+      mapa_condominio_path: atual.mapa_condominio_path,
+      faixas: atual.faixas,
+      lotes_disponiveis: atual.lotes_disponiveis,
+      lotes_preenchidos_em: atual.lotes_preenchidos_em,
     });
     const novas = linhas.map((l, i) => (i === idx ? nova : l));
     setPickerAberto(null);

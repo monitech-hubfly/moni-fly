@@ -1,18 +1,34 @@
 import type { LinhaProspectCondominio } from '@/lib/kanban/condominio-prospect-pesquisa';
 import { linhaProspectTemNome } from '@/lib/kanban/condominio-prospect-pesquisa';
 
+export const LOTES_DISPONIVEIS_CHECKBOXES = [
+  { chave: 'vista_privilegiada', label: 'Vista privilegiada' },
+  { chave: 'terreno_plano', label: 'Terreno plano' },
+  { chave: 'terreno_aclive', label: 'Terreno aclive' },
+  { chave: 'terreno_aclive_acentuado', label: 'Terreno aclive acentuado' },
+  { chave: 'terreno_declive', label: 'Terreno declive' },
+  { chave: 'terreno_declive_acentuado', label: 'Terreno declive acentuado' },
+  { chave: 'fundo_mata', label: 'Fundo mata' },
+  { chave: 'frente_mata', label: 'Frente mata' },
+  { chave: 'perto_area_verde', label: 'Perto de área verde' },
+  { chave: 'perto_lago', label: 'Perto do lago' },
+  { chave: 'fundo_lago', label: 'Fundo lago' },
+  { chave: 'frente_lago', label: 'Frente lago' },
+  { chave: 'perto_area_convivencia', label: 'Perto de área de convivência' },
+  { chave: 'perto_lixeira', label: 'Perto de lixeira' },
+  { chave: 'muro', label: 'Muro' },
+] as const;
+
+export type ChaveLoteCheckbox = (typeof LOTES_DISPONIVEIS_CHECKBOXES)[number]['chave'];
+
 export type ChaveLoteDisponivel =
+  | ChaveLoteCheckbox
   | 'quadra'
   | 'lote'
   | 'area_m2'
   | 'valor'
   | 'situacao_documental'
   | 'fotos_path'
-  | 'vista_privilegiada'
-  | 'perto_area_verde'
-  | 'muro'
-  | 'perto_area_convivencia'
-  | 'perto_lixeira'
   | 'observacoes';
 
 export type CampoLoteDisponivel = {
@@ -30,11 +46,11 @@ export const LOTES_DISPONIVEIS_CAMPOS: CampoLoteDisponivel[] = [
   { chave: 'valor', label: 'Valor do lote (R$)', tipo: 'numero', obrigatorio: true },
   { chave: 'situacao_documental', label: 'Situação documental', tipo: 'texto', obrigatorio: true },
   { chave: 'fotos_path', label: 'Fotos do lote', tipo: 'anexo', obrigatorio: true },
-  { chave: 'vista_privilegiada', label: 'Vista privilegiada', tipo: 'checkbox' },
-  { chave: 'perto_area_verde', label: 'Perto de área verde', tipo: 'checkbox' },
-  { chave: 'muro', label: 'Muro', tipo: 'checkbox' },
-  { chave: 'perto_area_convivencia', label: 'Perto de área de convivência', tipo: 'checkbox' },
-  { chave: 'perto_lixeira', label: 'Perto de lixeira', tipo: 'checkbox' },
+  ...LOTES_DISPONIVEIS_CHECKBOXES.map((c) => ({
+    chave: c.chave,
+    label: c.label,
+    tipo: 'checkbox' as const,
+  })),
   { chave: 'observacoes', label: 'Observações adicionais sobre o lote', tipo: 'texto_longo' },
 ];
 
@@ -50,15 +66,17 @@ export type LinhaLoteDisponivel = {
   valor: string;
   situacao_documental: string;
   fotos_path: string;
-  vista_privilegiada: string;
-  perto_area_verde: string;
-  muro: string;
-  perto_area_convivencia: string;
-  perto_lixeira: string;
   observacoes: string;
   /** FK em `condominios_lotes` após sync com cadastro. */
   cadastro_lote_id?: string | null;
-};
+} & Record<ChaveLoteCheckbox, string>;
+
+function checkboxDefaults(): Record<ChaveLoteCheckbox, string> {
+  return Object.fromEntries(LOTES_DISPONIVEIS_CHECKBOXES.map((c) => [c.chave, 'false'])) as Record<
+    ChaveLoteCheckbox,
+    string
+  >;
+}
 
 export const LOTE_DISPONIVEL_VAZIO: Omit<LinhaLoteDisponivel, 'lote_id'> = {
   quadra: '',
@@ -67,14 +85,20 @@ export const LOTE_DISPONIVEL_VAZIO: Omit<LinhaLoteDisponivel, 'lote_id'> = {
   valor: '',
   situacao_documental: '',
   fotos_path: '',
-  vista_privilegiada: 'false',
-  perto_area_verde: 'false',
-  muro: 'false',
-  perto_area_convivencia: 'false',
-  perto_lixeira: 'false',
   observacoes: '',
   cadastro_lote_id: null,
+  ...checkboxDefaults(),
 };
+
+export function loteDisponivelParaAtributosBoolean(
+  lote: LinhaLoteDisponivel,
+): Record<ChaveLoteCheckbox, boolean> {
+  const out = {} as Record<ChaveLoteCheckbox, boolean>;
+  for (const { chave } of LOTES_DISPONIVEIS_CHECKBOXES) {
+    out[chave] = lote[chave] === 'true';
+  }
+  return out;
+}
 
 export function gerarLoteId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -94,12 +118,21 @@ function strField(o: Record<string, unknown>, k: string, fallback = ''): string 
   return fallback;
 }
 
+function normalizarCheckbox(o: Record<string, unknown>, chave: ChaveLoteCheckbox): string {
+  return strField(o, chave, 'false') === 'true' ? 'true' : 'false';
+}
+
 export function normalizarLinhaLote(raw: unknown, fallbackIndex = 0): LinhaLoteDisponivel {
   const o = isRecord(raw) ? raw : {};
   const loteId =
     typeof o.lote_id === 'string' && o.lote_id.trim()
       ? o.lote_id.trim()
       : gerarLoteId() + (fallbackIndex > 0 ? `-${fallbackIndex}` : '');
+
+  const checkboxes = {} as Record<ChaveLoteCheckbox, string>;
+  for (const { chave } of LOTES_DISPONIVEIS_CHECKBOXES) {
+    checkboxes[chave] = normalizarCheckbox(o, chave);
+  }
 
   return {
     lote_id: loteId,
@@ -109,14 +142,10 @@ export function normalizarLinhaLote(raw: unknown, fallbackIndex = 0): LinhaLoteD
     valor: strField(o, 'valor'),
     situacao_documental: strField(o, 'situacao_documental'),
     fotos_path: strField(o, 'fotos_path'),
-    vista_privilegiada: strField(o, 'vista_privilegiada', 'false') === 'true' ? 'true' : 'false',
-    perto_area_verde: strField(o, 'perto_area_verde', 'false') === 'true' ? 'true' : 'false',
-    muro: strField(o, 'muro', 'false') === 'true' ? 'true' : 'false',
-    perto_area_convivencia: strField(o, 'perto_area_convivencia', 'false') === 'true' ? 'true' : 'false',
-    perto_lixeira: strField(o, 'perto_lixeira', 'false') === 'true' ? 'true' : 'false',
     observacoes: strField(o, 'observacoes'),
     cadastro_lote_id:
       typeof o.cadastro_lote_id === 'string' && o.cadastro_lote_id.trim() ? o.cadastro_lote_id.trim() : null,
+    ...checkboxes,
   };
 }
 
