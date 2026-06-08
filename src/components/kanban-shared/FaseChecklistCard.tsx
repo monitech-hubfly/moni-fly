@@ -23,6 +23,9 @@ import { PesquisaCondominioProspect } from '@/components/kanban-shared/PesquisaC
 import { TabelaCondominiosProspect } from '@/components/kanban-shared/TabelaCondominiosProspect';
 import { sincronizarLoteChecklistComCadastro } from '@/lib/actions/kanban-lotes-condominio';
 import { CondominioLotesAnexados } from '@/components/kanban-shared/CondominioLotesAnexados';
+import { DadosCidadeIbgeChecklist } from '@/components/kanban-shared/DadosCidadeIbgeChecklist';
+import { MapaPracaChecklist } from '@/components/kanban-shared/MapaPracaChecklist';
+import { MapaCompetidoresChecklist } from '@/components/kanban-shared/MapaCompetidoresChecklist';
 import { isDadosCidadeFaseSlug, isLotesDisponiveisFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { ChecklistDocumentDiffModal } from '@/components/kanban-shared/ChecklistDocumentDiffModal';
 
@@ -47,6 +50,8 @@ type Props = {
   /** Quando true e não há itens de fase, não mostra mensagem vazia (ex.: Checklist Legal no mesmo bloco). */
   ocultarVazio?: boolean;
   condominioContext?: CondominioChecklistContext;
+  /** `processo_step_one.id` — necessário para listagem ZAP na fase Mapa de Competidores. */
+  processoId?: string | null;
 };
 
 type EstadoResposta = {
@@ -64,6 +69,7 @@ export function FaseChecklistCard({
   isAdmin,
   ocultarVazio = false,
   condominioContext,
+  processoId = null,
 }: Props) {
   const [itens, setItens] = useState<FaseChecklistItem[] | null>(null);
   const [respostas, setRespostas] = useState<Map<string, EstadoResposta>>(new Map());
@@ -223,6 +229,7 @@ export function FaseChecklistCard({
           estado={respostas.get(item.id) ?? { valor: '', arquivo_path: null, salvando: false, erro: null }}
           cardId={cardId}
           isAdmin={isAdmin}
+          processoId={processoId}
           condominioContext={condominioContext}
           onChange={(valor) => setResposta(item.id, { valor })}
           onBlur={(valor) => void salvar(item.id, valor)}
@@ -255,6 +262,7 @@ type ItemFieldProps = {
   estado: EstadoResposta;
   cardId: string;
   isAdmin: boolean;
+  processoId?: string | null;
   condominioContext?: CondominioChecklistContext;
   onChange: (valor: string) => void;
   onBlur: (valor: string) => void;
@@ -268,6 +276,7 @@ function ItemField({
   estado,
   cardId,
   isAdmin,
+  processoId,
   condominioContext,
   onChange,
   onBlur,
@@ -538,6 +547,40 @@ function ItemField({
   if (item.tipo === 'pesquisa_condominio') {
     return (
       <PesquisaCondominioProspect cardId={cardId} itemLabel={item.label} obrigatorio={item.obrigatorio} />
+    );
+  }
+
+  if (item.tipo === 'listagem_casas_zap') {
+    const pid = processoId?.trim();
+    const podeEditar = condominioContext?.podeEditar ?? isAdmin;
+    return (
+      <MapaCompetidoresChecklist
+        processoId={pid ?? ''}
+        itemLabel={item.label}
+        podeEditar={podeEditar}
+      />
+    );
+  }
+
+  if (item.tipo === 'dados_cidade_ibge') {
+    const pid = processoId?.trim();
+    return (
+      <DadosCidadeIbgeChecklist
+        processoId={pid ?? ''}
+        itemLabel={item.label}
+        obrigatorio={item.obrigatorio}
+      />
+    );
+  }
+
+  if (item.tipo === 'mapa_praca') {
+    const pid = processoId?.trim();
+    return (
+      <MapaPracaChecklist
+        processoId={pid ?? ''}
+        itemLabel={item.label}
+        obrigatorio={item.obrigatorio}
+      />
     );
   }
 

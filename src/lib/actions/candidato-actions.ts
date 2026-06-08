@@ -21,6 +21,9 @@ export type FaseChecklistItem = {
     | 'tabela'
     | 'condominio'
     | 'pesquisa_condominio'
+    | 'listagem_casas_zap'
+    | 'dados_cidade_ibge'
+    | 'mapa_praca'
     | 'url';
   obrigatorio: boolean;
   visivel_candidato: boolean;

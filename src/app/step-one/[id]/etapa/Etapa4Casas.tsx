@@ -103,6 +103,10 @@ export function Etapa4Casas(props: {
   resultadoPortalTargetId?: string;
   /** Step 1 — apenas listagem (sem modelo/batalha). Step 2 usa false. */
   listagemOnly?: boolean;
+  /** Desabilita varredura ZAP, cadastro manual e edição de status. */
+  readOnly?: boolean;
+  /** Callback após mutação (ex.: recarregar dados no checklist Kanban). */
+  onMutate?: () => void;
   modoPreBatalha?: boolean;
   /** URL do PDF Score & Batalha já armazenado na etapa 7 (etapa 6). */
   pdfScoreBatalhaUrl?: string | null;
@@ -119,6 +123,8 @@ export function Etapa4Casas(props: {
     batalhasIniciais,
     resultadoPortalTargetId,
     listagemOnly = false,
+    readOnly = false,
+    onMutate,
     modoPreBatalha = false,
     pdfScoreBatalhaUrl = null,
     custosConstrucaoChecklist = {},
@@ -695,6 +701,7 @@ export function Etapa4Casas(props: {
           despublicados: data.despublicados ?? 0,
         });
         router.refresh();
+        onMutate?.();
       } else {
         setZapError('Resposta inesperada da API (dados não salvos).');
       }
@@ -740,6 +747,7 @@ export function Etapa4Casas(props: {
     setLoading(false);
     if (result.ok) {
       router.refresh();
+      onMutate?.();
       setCidadeManual(cidadeInicial);
       setEstadoManual(estadoInicial);
       setCondominioManual('');
@@ -760,14 +768,20 @@ export function Etapa4Casas(props: {
 
   const handleStatusChange = async (casaId: string, status: 'a_venda' | 'despublicado') => {
     const result = await updateCasaStatus(casaId, status);
-    if (result.ok) router.refresh();
+    if (result.ok) {
+      router.refresh();
+      onMutate?.();
+    }
   };
 
   const handleValidarStatusCasasManuais = async () => {
     setValidandoStatus(true);
     const result = await validarStatusCasasManuais(processoId);
     setValidandoStatus(false);
-    if (result.ok) router.refresh();
+    if (result.ok) {
+      router.refresh();
+      onMutate?.();
+    }
   };
 
   const labelCasa = (c: CasaRow) =>
@@ -984,14 +998,16 @@ export function Etapa4Casas(props: {
               placeholder="Cidade"
               value={cidade}
               onChange={(e) => setCidade(e.target.value)}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
+              disabled={readOnly}
+              className="rounded-lg border border-stone-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
             />
             <input
               type="text"
               placeholder="Estado (ex.: SP)"
               value={estado}
               onChange={(e) => setEstado(e.target.value)}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
+              disabled={readOnly}
+              className="rounded-lg border border-stone-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
               maxLength={2}
             />
             <input
@@ -999,7 +1015,8 @@ export function Etapa4Casas(props: {
               placeholder="Condomínio (opcional)"
               value={condominio}
               onChange={(e) => setCondominio(e.target.value)}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
+              disabled={readOnly}
+              className="rounded-lg border border-stone-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
           {zapLoading ? (
@@ -1024,8 +1041,8 @@ export function Etapa4Casas(props: {
           <button
             type="button"
             onClick={handleVarrerZap}
-            disabled={zapLoading}
-            className="btn-primary text-sm"
+            disabled={zapLoading || readOnly}
+            className="btn-primary text-sm disabled:cursor-not-allowed disabled:opacity-60"
           >
             {zapLoading ? 'Buscando…' : 'Buscar'}
           </button>
@@ -1054,8 +1071,8 @@ export function Etapa4Casas(props: {
             <button
               type="button"
               onClick={handleValidarStatusCasasManuais}
-              disabled={validandoStatus}
-              className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60"
+              disabled={validandoStatus || readOnly}
+              className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {validandoStatus ? 'Salvando…' : 'Validar status'}
             </button>
@@ -1247,7 +1264,8 @@ export function Etapa4Casas(props: {
                             onChange={(e) =>
                               handleStatusChange(c.id, e.target.value as 'a_venda' | 'despublicado')
                             }
-                            className="rounded border border-stone-300 px-2 py-1 text-sm"
+                            disabled={readOnly}
+                            className="rounded border border-stone-300 px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             <option value="a_venda">À venda</option>
                             <option value="despublicado">Despublicado</option>
@@ -1776,6 +1794,7 @@ export function Etapa4Casas(props: {
         )}
 
         {/* Adicionar casa manual — dropdown */}
+        {!readOnly ? (
         <div className="overflow-hidden rounded-xl border border-stone-200 bg-stone-50">
           <button
             type="button"
@@ -1963,6 +1982,7 @@ export function Etapa4Casas(props: {
             </form>
           )}
         </div>
+        ) : null}
       </div>
     </>
   );

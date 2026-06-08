@@ -1,4 +1,6 @@
 import { mapZapItemToCasa, type ZapListingItem } from '@/lib/apify-zap';
+import { normalizeAccessRole } from '@/lib/authz';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
@@ -15,15 +17,41 @@ export async function verifyProcessoCasasAccess(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
 
+  const pid = String(processoId ?? '').trim();
+  if (!pid) return { ok: false, error: 'Processo inválido.' };
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+  const accessRole = normalizeAccessRole((profile as { role?: string } | null)?.role);
+
+  if (accessRole === 'admin' || accessRole === 'team') {
+    try {
+      const admin = createAdminClient();
+      const { data: processo } = await admin.from('processo_step_one').select('id').eq('id', pid).maybeSingle();
+      if (!processo) return { ok: false, error: 'Processo não encontrado.' };
+      return { ok: true, supabase: admin as unknown as SupabaseServer };
+    } catch {
+      return { ok: false, error: 'Serviço indisponível.' };
+    }
+  }
+
   const { data: processo } = await supabase
     .from('processo_step_one')
     .select('id')
-    .eq('id', processoId)
+    .eq('id', pid)
     .eq('user_id', user.id)
-    .single();
-  if (!processo) return { ok: false, error: 'Processo não encontrado.' };
+    .maybeSingle();
+  if (processo) return { ok: true, supabase };
 
-  return { ok: true, supabase };
+  const { data: card } = await supabase
+    .from('kanban_cards')
+    .select('id')
+    .eq('projeto_id', pid)
+    .eq('franqueado_id', user.id)
+    .limit(1)
+    .maybeSingle();
+  if (card) return { ok: true, supabase };
+
+  return { ok: false, error: 'Processo não encontrado.' };
 }
 
 /**

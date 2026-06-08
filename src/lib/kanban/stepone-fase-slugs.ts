@@ -36,6 +36,11 @@ export const LOTES_DISPONIVEIS_FASE_SLUGS = [
   'stepone_lotes',
 ] as const;
 
+export const MAPA_COMPETIDORES_FASE_SLUGS = [
+  FASE_SLUGS.MAPA_COMPETIDORES,
+  'stepone_mapa',
+] as const;
+
 /** PROD + aliases DEV/legado para matching de fase. */
 export const DADOS_CANDIDATO_FASE_SLUGS = [
   FASE_SLUGS.DADOS_CANDIDATO,
@@ -108,6 +113,10 @@ export function isDadosCondominiosFaseSlug(slug: string | null | undefined): boo
 
 export function isLotesDisponiveisFaseSlug(slug: string | null | undefined): boolean {
   return slugMatchesStepOneFase(slug, LOTES_DISPONIVEIS_FASE_SLUGS);
+}
+
+export function isMapaCompetidoresFaseSlug(slug: string | null | undefined): boolean {
+  return slugMatchesStepOneFase(slug, MAPA_COMPETIDORES_FASE_SLUGS);
 }
 
 export function isBcaFaseSlug(slug: string | null | undefined): boolean {

@@ -193,7 +193,13 @@ export function FormularioCandidatoForm({
           </label>
         );
 
-        if (item.tipo === 'condominio' || item.tipo === 'pesquisa_condominio') {
+        if (
+          item.tipo === 'condominio' ||
+          item.tipo === 'pesquisa_condominio' ||
+          item.tipo === 'listagem_casas_zap' ||
+          item.tipo === 'dados_cidade_ibge' ||
+          item.tipo === 'mapa_praca'
+        ) {
           return (
             <div key={item.id}>
               {label}

@@ -2,6 +2,8 @@
 
 import { createHash } from 'node:crypto';
 import { getPublicAppUrl } from '@/lib/app-url';
+import { normalizeAccessRole } from '@/lib/authz';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { buscarMunicipioIbge } from '@/lib/ibge';
 import type { MunicipioIbge } from '@/lib/ibge';
@@ -548,12 +550,9 @@ export async function addCasaListing(
     link?: string;
   },
 ): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
-  const { error } = await supabase.from('listings_casas').insert({
+  const access = await verifyProcessoCasasAccess(processoId);
+  if (!access.ok) return { ok: false, error: access.error };
+  const { error } = await access.supabase.from('listings_casas').insert({
     processo_id: processoId,
     manual: true,
     cidade: data.cidade || null,
@@ -634,8 +633,40 @@ export async function updateCasaStatus(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
+
+  let processoId: string | null = null;
+  const { data: casa } = await supabase
+    .from('listings_casas')
+    .select('processo_id')
+    .eq('id', casaId)
+    .maybeSingle();
+  processoId = (casa as { processo_id?: string } | null)?.processo_id ?? null;
+
+  if (!processoId) {
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+    const accessRole = normalizeAccessRole((profile as { role?: string } | null)?.role);
+    if (accessRole === 'admin' || accessRole === 'team') {
+      try {
+        const admin = createAdminClient();
+        const { data: casaAdmin } = await admin
+          .from('listings_casas')
+          .select('processo_id')
+          .eq('id', casaId)
+          .maybeSingle();
+        processoId = (casaAdmin as { processo_id?: string } | null)?.processo_id ?? null;
+      } catch {
+        /* fallback abaixo */
+      }
+    }
+  }
+
+  if (!processoId) return { ok: false, error: 'Casa não encontrada.' };
+
+  const access = await verifyProcessoCasasAccess(processoId);
+  if (!access.ok) return { ok: false, error: access.error };
+
   const today = new Date().toISOString().slice(0, 10);
-  const { error } = await supabase
+  const { error } = await access.supabase
     .from('listings_casas')
     .update({
       status,
@@ -648,17 +679,13 @@ export async function updateCasaStatus(
 
 /** Marca que o franqueado validou o status das casas manuais hoje (dispensa alerta mensal). */
 export async function validarStatusCasasManuais(processoId: string): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const access = await verifyProcessoCasasAccess(processoId);
+  if (!access.ok) return { ok: false, error: access.error };
   const today = new Date().toISOString().slice(0, 10);
-  const { error } = await supabase
+  const { error } = await access.supabase
     .from('processo_step_one')
     .update({ ultima_validacao_casas_manuais_em: today })
-    .eq('id', processoId)
-    .eq('user_id', user.id);
+    .eq('id', processoId);
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
