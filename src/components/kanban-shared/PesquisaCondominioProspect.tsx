@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Circle, Loader2 } from 'lucide-react';
 import { KanbanFaseSecaoTabs } from '@/components/kanban-shared/KanbanFaseSecaoTabs';
 import {
@@ -9,8 +9,10 @@ import {
 } from '@/lib/actions/kanban-condominio-pesquisa';
 import {
   CHAVES_PESQUISA_OBRIGATORIAS,
+  atualizarPesquisaPreenchidaEm,
   linhaPesquisaCompleta,
   linhaProspectTemNome,
+  normalizarLinhaProspect,
   PESQUISA_CONDOMINIO_SECOES,
   rotuloFontePesquisa,
   type ChavePesquisaCondominio,
@@ -31,20 +33,21 @@ const inputClass =
 export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: Props) {
   const [linhas, setLinhas] = useState<LinhaProspectCondominio[]>([]);
   const [rowIdAtivo, setRowIdAtivo] = useState<string | null>(null);
-  const [carregando, setCarregando] = useState(true);
+  const [carregandoInicial, setCarregandoInicial] = useState(true);
   const [erroCarregar, setErroCarregar] = useState<string | null>(null);
   const [salvandoSecao, setSalvandoSecao] = useState<string | null>(null);
   const [erroSalvar, setErroSalvar] = useState<string | null>(null);
   const [rascunho, setRascunho] = useState<Partial<Record<ChavePesquisaCondominio, string>>>({});
+  const rowIdRascunhoRef = useRef<string | null>(null);
 
-  const recarregar = useCallback(async () => {
-    setCarregando(true);
+  const recarregar = useCallback(async (opts?: { silencioso?: boolean }) => {
+    if (!opts?.silencioso) setCarregandoInicial(true);
     setErroCarregar(null);
     const res = await carregarProspectsCondominioCard(cardId);
     if (!res.ok) {
       setErroCarregar(res.error);
-      setLinhas([]);
-      setCarregando(false);
+      if (!opts?.silencioso) setLinhas([]);
+      if (!opts?.silencioso) setCarregandoInicial(false);
       return;
     }
     setLinhas(res.linhas);
@@ -53,7 +56,11 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
       if (atual && comNome.some((l) => l.row_id === atual)) return atual;
       return comNome[0]?.row_id ?? null;
     });
-    setCarregando(false);
+    if (!opts?.silencioso) setCarregandoInicial(false);
+  }, [cardId]);
+
+  useEffect(() => {
+    rowIdRascunhoRef.current = null;
   }, [cardId]);
 
   useEffect(() => {
@@ -74,18 +81,38 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
     [linhas, rowIdAtivo],
   );
 
+  /** Repõe rascunho só ao trocar de aba (não após cada save). */
   useEffect(() => {
-    if (!linhaAtiva) {
+    if (!rowIdAtivo) {
+      rowIdRascunhoRef.current = null;
       setRascunho({});
       return;
     }
+    if (rowIdRascunhoRef.current === rowIdAtivo) return;
+    rowIdRascunhoRef.current = rowIdAtivo;
+    const linha = linhas.find((l) => l.row_id === rowIdAtivo);
+    if (!linha) return;
     const draft: Partial<Record<ChavePesquisaCondominio, string>> = {};
     for (const chave of CHAVES_PESQUISA_OBRIGATORIAS) {
-      draft[chave] = linhaAtiva[chave] ?? '';
+      draft[chave] = linha[chave] ?? '';
     }
     setRascunho(draft);
     setErroSalvar(null);
-  }, [linhaAtiva]);
+  }, [rowIdAtivo, linhas]);
+
+  function aplicarLinhaSalvaLocal(
+    rowId: string,
+    respostas: Partial<Record<ChavePesquisaCondominio, string>>,
+  ) {
+    setLinhas((prev) =>
+      prev.map((l) => {
+        if (l.row_id !== rowId) return l;
+        return atualizarPesquisaPreenchidaEm(
+          normalizarLinhaProspect({ ...l, ...respostas, row_id: rowId }),
+        );
+      }),
+    );
+  }
 
   async function salvarSecao(secaoId: string) {
     if (!linhaAtiva) return;
@@ -110,7 +137,7 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
       setErroSalvar(res.error);
       return;
     }
-    await recarregar();
+    aplicarLinhaSalvaLocal(linhaAtiva.row_id, respostas);
   }
 
   async function salvarCampoBlur(chave: ChavePesquisaCondominio, valor: string) {
@@ -127,7 +154,7 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
       setErroSalvar(res.error);
       return;
     }
-    await recarregar();
+    aplicarLinhaSalvaLocal(linhaAtiva.row_id, { [chave]: valor });
   }
 
   return (
@@ -139,7 +166,7 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
         </span>
       </div>
 
-      {carregando ? (
+      {carregandoInicial ? (
         <div className="flex items-center gap-2 py-2 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
           <Loader2 size={12} className="animate-spin" />
           Carregando condomínios prospectados...
