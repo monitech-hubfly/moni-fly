@@ -83,7 +83,7 @@ import {
   hipotesesOrdemMinima,
   montarChipsParalelas,
 } from '@/lib/kanban/kanban-paralelas-chips';
-import { isDadosCondominiosFaseSlug, isHipotesesFaseSlug, isStepOneFaseAntesOuDadosCidade } from '@/lib/kanban/stepone-fase-slugs';
+import { isDadosCondominiosFaseSlug, isHipotesesFaseSlug, isStepOneFaseDesdeDadosCondominios } from '@/lib/kanban/stepone-fase-slugs';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCreditoObraDocumentacao';
 import {
@@ -2976,8 +2976,8 @@ export function KanbanCardModal({
   const isFaseHipoteses = isHipotesesFaseSlug(faseSlugHipoteses);
   const isFaseDadosCondominios =
     !isLegado && kanbanNome === 'Funil Step One' && isDadosCondominiosFaseSlug(faseSlugHipoteses);
-  const stepOneCondominioSidebarBloqueado =
-    !isLegado && kanbanNome === 'Funil Step One' && isStepOneFaseAntesOuDadosCidade(faseAtual, fases);
+  const exibirSecaoCondominioSidebar =
+    !isLegado && kanbanNome === 'Funil Step One' && isStepOneFaseDesdeDadosCondominios(faseAtual, fases);
   const exibirEnviarHipotesePortfolio =
     !isLegado && kanbanNome === 'Funil Step One' && isFaseHipoteses;
 
@@ -5696,38 +5696,27 @@ export function KanbanCardModal({
                 </div>
               </div>,
             )}
-            {!isFaseDadosCondominios &&
+            {exibirSecaoCondominioSidebar &&
               secaoHead(
                 'condominio',
                 'Dados do Condomínio',
-                stepOneCondominioSidebarBloqueado && !condominioIdSidebar?.trim() ? (
-                  <p className="text-xs leading-snug text-stone-500">
-                    Disponível após selecionar um condomínio na fase Dados dos Condomínios.
-                  </p>
-                ) : (
-                  <KanbanCardModalCondominio
-                    key={`${card.id}-cond-${condominioTick}`}
-                    cardId={card.id}
-                    origem={origem}
-                    basePath={basePath}
-                    condominioIdInicial={condominioIdSidebar}
-                    quadraInicial={card.quadra ?? proc?.quadra ?? null}
-                    loteInicial={card.lote ?? proc?.lote ?? null}
-                    nomeCondominioLegado={card.nome_condominio ?? proc?.nome_condominio ?? null}
-                    podeEditar={
-                      !stepOneCondominioSidebarBloqueado && !ocultarGestaoCard && modalSessao.ehAdminOuTeam
-                    }
-                    podeCadastrarNovo={
-                      !stepOneCondominioSidebarBloqueado && !ocultarGestaoCard && modalSessao.ehAdminOuTeam
-                    }
-                    somenteLeitura={stepOneCondominioSidebarBloqueado}
-                    onSalvo={() => {
-                      setCondominioTick((t) => t + 1);
-                      void loadCard();
-                      router.refresh();
-                    }}
-                  />
-                ),
+                <KanbanCardModalCondominio
+                  key={`${card.id}-cond-${condominioTick}`}
+                  cardId={card.id}
+                  origem={origem}
+                  basePath={basePath}
+                  condominioIdInicial={condominioIdSidebar}
+                  quadraInicial={card.quadra ?? proc?.quadra ?? null}
+                  loteInicial={card.lote ?? proc?.lote ?? null}
+                  nomeCondominioLegado={card.nome_condominio ?? proc?.nome_condominio ?? null}
+                  podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                  podeCadastrarNovo={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                  onSalvo={() => {
+                    setCondominioTick((t) => t + 1);
+                    void loadCard();
+                    router.refresh();
+                  }}
+                />,
               )}
             {secaoHead(
               'novoNegocio',

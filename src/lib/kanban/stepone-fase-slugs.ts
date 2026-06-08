@@ -169,6 +169,29 @@ export function isBatalhaFaseSlug(slug: string | null | undefined): boolean {
   return slugMatchesStepOneFase(slug, BATALHA_FASE_SLUGS);
 }
 
+/** Funil Step One: fase Dados dos Condomínios em diante (ordem ≥ fase dados_condominios). */
+export function isStepOneFaseDesdeDadosCondominios(
+  faseAtual: { slug?: string | null; ordem?: number } | null | undefined,
+  fases: KanbanFase[],
+): boolean {
+  if (!faseAtual) return false;
+  const dadosCond = fases.find((f) => isDadosCondominiosFaseSlug(f.slug));
+  if (!dadosCond) return isDadosCondominiosFaseSlug(faseAtual.slug);
+  if (typeof faseAtual.ordem === 'number' && typeof dadosCond.ordem === 'number') {
+    return faseAtual.ordem >= dadosCond.ordem;
+  }
+  return (
+    isDadosCondominiosFaseSlug(faseAtual.slug) ||
+    isLotesDisponiveisFaseSlug(faseAtual.slug) ||
+    isMapaCompetidoresFaseSlug(faseAtual.slug) ||
+    isPreBatalhaFaseSlug(faseAtual.slug) ||
+    isEscolhaFaseSlug(faseAtual.slug) ||
+    isBcaFaseSlug(faseAtual.slug) ||
+    isBatalhaFaseSlug(faseAtual.slug) ||
+    isHipotesesFaseSlug(faseAtual.slug)
+  );
+}
+
 /** Aliases legados que devem resolver para o mesmo `fase_id` no board. */
 export function stepOneSlugAliasesForFase(slug: string | null | undefined): string[] {
   const canonical = normalizeStepOneFaseSlug(slug);
