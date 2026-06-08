@@ -4677,6 +4677,16 @@ export function KanbanCardModal({
                       isAdmin={isAdmin}
                       processoId={processoIdChecklists}
                       areaAtuacao={modalDetalhes.rede?.area_atuacao}
+                      redeFranqueado={
+                        modalDetalhes.rede
+                          ? {
+                              nome_completo: modalDetalhes.rede.nome_completo,
+                              email_frank: modalDetalhes.rede.email_frank,
+                              telefone_frank: modalDetalhes.rede.telefone_frank,
+                              data_nasc_frank: modalDetalhes.rede.data_nasc_frank,
+                            }
+                          : null
+                      }
                       ocultarVazio={exibirChecklistLegalCondominio || exibirChecklistCredito}
                       condominioContext={
                         !isFaseDadosCondominios

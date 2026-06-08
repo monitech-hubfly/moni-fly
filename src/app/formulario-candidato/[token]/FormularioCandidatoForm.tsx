@@ -233,7 +233,7 @@ export function FormularioCandidatoForm({
                   style={btnStyle}
                 >
                   <Download size={14} />
-                  Baixar modelo
+                  Baixar template
                 </button>
                 <label className={`${btnOutline} cursor-pointer`} style={btnStyle}>
                   <input

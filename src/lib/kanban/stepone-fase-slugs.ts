@@ -107,6 +107,10 @@ export function isDadosCidadeFaseSlug(slug: string | null | undefined): boolean 
   return slugMatchesStepOneFase(slug, DADOS_CIDADE_FASE_SLUGS);
 }
 
+export function isDadosCandidatoFaseSlug(slug: string | null | undefined): boolean {
+  return slugMatchesStepOneFase(slug, DADOS_CANDIDATO_FASE_SLUGS);
+}
+
 export function isDadosCondominiosFaseSlug(slug: string | null | undefined): boolean {
   return slugMatchesStepOneFase(slug, DADOS_CONDOMINIOS_FASE_SLUGS);
 }

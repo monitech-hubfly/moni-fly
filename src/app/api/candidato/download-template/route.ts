@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { createChecklistTemplateSignedUrl } from '@/lib/kanban/checklist-template-storage';
 
 /**
  * GET /api/candidato/download-template?token=...&item_id=...  (candidato)
@@ -19,6 +20,8 @@ export async function GET(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Serviço indisponível.' }, { status: 503 });
   }
+
+  const origin = req.nextUrl.origin;
 
   if (token) {
     const { data: tok, error: tokErr } = await admin
@@ -49,21 +52,10 @@ export async function GET(req: NextRequest) {
     if (row.tipo !== 'anexo_template') {
       return NextResponse.json({ error: 'Este item não possui modelo para download.' }, { status: 400 });
     }
-    const path = String(row.template_storage_path ?? '').trim();
-    if (!path) {
-      return NextResponse.json({ error: 'Modelo não configurado para este item.' }, { status: 404 });
-    }
 
-    const { data: signed, error: signErr } = await admin.storage
-      .from('documentos-templates')
-      .createSignedUrl(path, 3600);
-    if (signErr || !signed?.signedUrl) {
-      return NextResponse.json(
-        { error: signErr?.message ?? 'Não foi possível gerar o link do arquivo.' },
-        { status: 500 },
-      );
-    }
-    return NextResponse.json({ url: signed.signedUrl });
+    const dl = await createChecklistTemplateSignedUrl(admin, String(row.template_storage_path ?? ''), origin);
+    if (!dl.ok) return NextResponse.json({ error: dl.error }, { status: 404 });
+    return NextResponse.json({ url: dl.url });
   }
 
   const supabase = await createClient();
@@ -89,20 +81,8 @@ export async function GET(req: NextRequest) {
   if (row.tipo !== 'anexo_template') {
     return NextResponse.json({ error: 'Este item não possui modelo para download.' }, { status: 400 });
   }
-  const path = String(row.template_storage_path ?? '').trim();
-  if (!path) {
-    return NextResponse.json({ error: 'Modelo não configurado para este item.' }, { status: 404 });
-  }
 
-  const { data: signed, error: signErr } = await admin.storage
-    .from('documentos-templates')
-    .createSignedUrl(path, 3600);
-  if (signErr || !signed?.signedUrl) {
-    return NextResponse.json(
-      { error: signErr?.message ?? 'Não foi possível gerar o link do arquivo.' },
-      { status: 500 },
-    );
-  }
-
-  return NextResponse.json({ url: signed.signedUrl });
+  const dl = await createChecklistTemplateSignedUrl(admin, String(row.template_storage_path ?? ''), origin);
+  if (!dl.ok) return NextResponse.json({ error: dl.error }, { status: 404 });
+  return NextResponse.json({ url: dl.url });
 }

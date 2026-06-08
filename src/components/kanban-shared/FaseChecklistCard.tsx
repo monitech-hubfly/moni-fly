@@ -28,7 +28,12 @@ import { MapaPracaChecklist } from '@/components/kanban-shared/MapaPracaChecklis
 import { MapaCompetidoresChecklist } from '@/components/kanban-shared/MapaCompetidoresChecklist';
 import { ChecklistAreaAtuacaoSelect } from '@/components/kanban-shared/ChecklistAreaAtuacaoSelect';
 import { DadosCidadePracaTabs } from '@/components/kanban-shared/DadosCidadePracaTabs';
-import { isDadosCidadeFaseSlug, isLotesDisponiveisFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { isDadosCandidatoFaseSlug, isDadosCidadeFaseSlug, isLotesDisponiveisFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import {
+  isLabelDadosCandidatoRede,
+  valorDadosCandidatoFromRede,
+  type RedeDadosCandidatoSource,
+} from '@/lib/kanban/dados-candidato-rede';
 import { ChecklistDocumentDiffModal } from '@/components/kanban-shared/ChecklistDocumentDiffModal';
 import { parseAreaAtuacao, parCidadeEstadoValidoNaArea } from '@/lib/rede-area-atuacao';
 import { sincronizarPracaChecklistComProcesso } from '@/lib/actions/kanban-dados-cidade-praca';
@@ -71,6 +76,8 @@ type Props = {
   processoId?: string | null;
   /** Área de atuação da rede vinculada ao card (`UF - Cidade; …`). */
   areaAtuacao?: string | null;
+  /** Dados do franqueado na rede — auto-preenche Nome, E-mail, Telefone e Idade em Dados do Candidato. */
+  redeFranqueado?: RedeDadosCandidatoSource | null;
 };
 
 type EstadoResposta = {
@@ -90,6 +97,7 @@ export function FaseChecklistCard({
   condominioContext,
   processoId = null,
   areaAtuacao = null,
+  redeFranqueado = null,
 }: Props) {
   const [itens, setItens] = useState<FaseChecklistItem[] | null>(null);
   const [respostas, setRespostas] = useState<Map<string, EstadoResposta>>(new Map());
@@ -97,6 +105,7 @@ export function FaseChecklistCard({
   const [pracaReloadKey, setPracaReloadKey] = useState(0);
   const [abaPracaAtiva, setAbaPracaAtiva] = useState('');
   const [diffModal, setDiffModal] = useState<{ open: boolean; lines: string[] }>({ open: false, lines: [] });
+  const redeSyncFeitoRef = useRef('');
 
   const areasAtuacao = parseAreaAtuacao(areaAtuacao);
   const multiPracaAtivo = isDadosCidadeFaseSlug(faseSlug) && areasAtuacao.length >= 1;
@@ -114,6 +123,10 @@ export function FaseChecklistCard({
     const inicial = chaveLegadoPraca && chaves.includes(chaveLegadoPraca) ? chaveLegadoPraca : chaves[0];
     setAbaPracaAtiva(inicial);
   }, [multiPracaAtivo, areasAtuacao, abaPracaAtiva, chaveLegadoPraca]);
+
+  useEffect(() => {
+    redeSyncFeitoRef.current = '';
+  }, [cardId, faseId]);
 
   useEffect(() => {
     if (!faseId || !cardId) {
@@ -181,6 +194,33 @@ export function FaseChecklistCard({
     };
   }, [faseId, cardId]);
 
+  useEffect(() => {
+    if (carregando || !itens?.length) return;
+    if (!isDadosCandidatoFaseSlug(faseSlug) || !redeFranqueado) return;
+
+    const syncKey = `${cardId}:${faseId}`;
+    if (redeSyncFeitoRef.current === syncKey) return;
+
+    const pendencias: { itemId: string; valor: string }[] = [];
+    for (const item of itens) {
+      if (!isLabelDadosCandidatoRede(item.label)) continue;
+      const fromRede = valorDadosCandidatoFromRede(item.label, redeFranqueado);
+      if (!fromRede) continue;
+      const atual = respostas.get(item.id)?.valor?.trim() ?? '';
+      if (!atual) pendencias.push({ itemId: item.id, valor: fromRede });
+    }
+
+    redeSyncFeitoRef.current = syncKey;
+    if (pendencias.length === 0) return;
+
+    void (async () => {
+      for (const p of pendencias) {
+        setResposta(p.itemId, { valor: p.valor });
+        await salvar(p.itemId, p.valor);
+      }
+    })();
+  }, [carregando, faseSlug, cardId, faseId, itens, redeFranqueado, respostas]);
+
   function setResposta(itemId: string, patch: Partial<EstadoResposta>) {
     setRespostas((prev) => {
       const atual = prev.get(itemId) ?? { valor: '', arquivo_path: null, salvando: false, erro: null };
@@ -239,6 +279,25 @@ export function FaseChecklistCard({
       valor: resolverValorMultiPraca(raw.valor, chave, chaveLegadoPraca),
       arquivo_path: resolverArquivoMultiPraca(raw.arquivo_path, chave, chaveLegadoPraca),
     };
+  }
+
+  function getEstadoRespostaItem(item: FaseChecklistItem, chave?: string): EstadoResposta {
+    const chaveUse = chave ?? abaPracaAtiva;
+    const base =
+      multiPracaAtivo && chaveUse
+        ? getEstadoRespostaScoped(item.id, chaveUse)
+        : (respostas.get(item.id) ?? { valor: '', arquivo_path: null, salvando: false, erro: null });
+
+    if (
+      isDadosCandidatoFaseSlug(faseSlug) &&
+      redeFranqueado &&
+      isLabelDadosCandidatoRede(item.label) &&
+      !base.valor.trim()
+    ) {
+      const fromRede = valorDadosCandidatoFromRede(item.label, redeFranqueado);
+      if (fromRede) return { ...base, valor: fromRede };
+    }
+    return base;
   }
 
   async function salvar(
@@ -355,7 +414,7 @@ export function FaseChecklistCard({
         key={multiPracaAtivo ? `${item.id}-${chave}` : item.id}
         item={item}
         faseSlug={faseSlug}
-        estado={getEstadoRespostaScoped(item.id, chave)}
+        estado={getEstadoRespostaItem(item, chave)}
         cardId={cardId}
         isAdmin={isAdmin}
         processoId={processoId}
@@ -670,7 +729,7 @@ function ItemField({
               }}
             >
               {baixandoModelo ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-              Baixar modelo
+              Baixar template
             </button>
           )}
           <button
