@@ -1,6 +1,8 @@
 'use server';
 
 import { createAdminClient } from '@/lib/supabase/admin';
+import { ordenarItensChecklistDadosCidade } from '@/lib/kanban/dados-cidade-praca-multi';
+import { isDadosCidadeFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 
 export type FaseChecklistItem = {
   id: string;
@@ -124,5 +126,12 @@ export async function listarFaseChecklistItens(faseId: string): Promise<FaseChec
 
   console.log('[CANDIDATO] faseId:', faseId, '| itens:', data, '| error:', error);
 
-  return (data ?? []) as FaseChecklistItem[];
+  const rows = (data ?? []) as FaseChecklistItem[];
+  if (rows.length === 0) return rows;
+
+  const { data: faseRow } = await admin.from('kanban_fases').select('slug').eq('id', faseId).maybeSingle();
+  if (isDadosCidadeFaseSlug(faseRow?.slug)) {
+    return ordenarItensChecklistDadosCidade(rows);
+  }
+  return rows;
 }

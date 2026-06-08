@@ -45,6 +45,7 @@ import {
   inferirChaveLegadoPraca,
   mergeArquivoMultiPraca,
   mergeValorMultiPraca,
+  ordenarItensChecklistDadosCidade,
   parseChavePracaCidade,
   resolverArquivoMultiPraca,
   resolverValorMultiPraca,
@@ -157,6 +158,9 @@ export function FaseChecklistCard({
         if (cancelado) return;
 
         const itemRows = (itensData ?? []) as FaseChecklistItem[];
+        const itensOrdenados = isDadosCidadeFaseSlug(faseSlug)
+          ? ordenarItensChecklistDadosCidade(itemRows)
+          : itemRows;
         const respRows = (respostasData ?? []) as FaseChecklistResposta[];
 
         if (itensError || respostasError) {
@@ -166,11 +170,11 @@ export function FaseChecklistCard({
           return;
         }
 
-        setItens(itemRows);
+        setItens(itensOrdenados);
         const map = new Map<string, EstadoResposta>();
         const respPorItem = new Map<string, FaseChecklistResposta>();
         for (const r of respRows) respPorItem.set(r.item_id, r);
-        for (const it of itemRows) {
+        for (const it of itensOrdenados) {
           const resp = respPorItem.get(it.id);
           map.set(it.id, {
             valor: resp?.valor ?? '',
@@ -192,7 +196,7 @@ export function FaseChecklistCard({
     return () => {
       cancelado = true;
     };
-  }, [faseId, cardId]);
+  }, [faseId, cardId, faseSlug]);
 
   useEffect(() => {
     if (carregando || !itens?.length) return;

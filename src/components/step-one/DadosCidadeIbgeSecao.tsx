@@ -63,6 +63,17 @@ export function DadosCidadeIbgeSecao({ cidade, estado, showHeading = true }: Pro
     );
   }
 
+  const compact = !showHeading;
+  const labelClass = compact
+    ? 'text-[10px] font-medium uppercase text-stone-500'
+    : 'text-xs font-medium uppercase text-stone-500';
+  const valueClass = compact
+    ? 'mt-0.5 text-sm font-semibold text-stone-800'
+    : 'mt-1 text-xl font-semibold text-stone-800';
+  const cardClass = compact
+    ? 'rounded-lg border border-stone-200 bg-white p-2 shadow-sm'
+    : 'rounded-lg border border-stone-200 bg-white p-3 shadow-sm';
+
   return (
     <section className="rounded-xl border border-stone-200 bg-stone-50/80 p-4">
       {showHeading ? (
@@ -70,33 +81,33 @@ export function DadosCidadeIbgeSecao({ cidade, estado, showHeading = true }: Pro
       ) : null}
       {errorDados ? <p className={`text-sm text-red-600 ${showHeading ? 'mt-3' : ''}`}>{errorDados}</p> : null}
       <div className={`grid gap-3 sm:grid-cols-2 lg:grid-cols-5 ${showHeading ? 'mt-4' : 'mt-1'}`}>
-        <div className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
-          <p className="text-xs font-medium uppercase text-stone-500">População</p>
-          <p className="mt-1 text-xl font-semibold text-stone-800">
+        <div className={cardClass}>
+          <p className={labelClass}>População</p>
+          <p className={valueClass}>
             {loadingDados ? 'Carregando...' : dadosCidade?.populacao?.trim() || 'Dado não disponível'}
           </p>
         </div>
-        <div className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
-          <p className="text-xs font-medium uppercase text-stone-500">PIB per capita</p>
-          <p className="mt-1 text-xl font-semibold text-stone-800">
+        <div className={cardClass}>
+          <p className={labelClass}>PIB per capita</p>
+          <p className={valueClass}>
             {loadingDados ? 'Carregando...' : dadosCidade?.pibPerCapita?.trim() || 'Dado não disponível'}
           </p>
         </div>
-        <div className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
-          <p className="text-xs font-medium uppercase text-stone-500">Renda média domiciliar</p>
-          <p className="mt-1 text-xl font-semibold text-stone-800">
+        <div className={cardClass}>
+          <p className={labelClass}>Renda média domiciliar</p>
+          <p className={valueClass}>
             {loadingDados ? 'Carregando...' : dadosCidade?.rendaMedia?.trim() || 'Dado não disponível'}
           </p>
         </div>
-        <div className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
-          <p className="text-xs font-medium uppercase text-stone-500">Área territorial</p>
-          <p className="mt-1 text-xl font-semibold text-stone-800">
+        <div className={cardClass}>
+          <p className={labelClass}>Área territorial</p>
+          <p className={valueClass}>
             {loadingDados ? 'Carregando...' : dadosCidade?.areaTerritorial?.trim() || 'Dado não disponível'}
           </p>
         </div>
-        <div className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
-          <p className="text-xs font-medium uppercase text-stone-500">Densidade demográfica</p>
-          <p className="mt-1 text-xl font-semibold text-stone-800">
+        <div className={cardClass}>
+          <p className={labelClass}>Densidade demográfica</p>
+          <p className={valueClass}>
             {loadingDados ? 'Carregando...' : dadosCidade?.densidade?.trim() || 'Dado não disponível'}
           </p>
         </div>

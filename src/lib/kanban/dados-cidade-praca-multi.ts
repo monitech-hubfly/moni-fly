@@ -9,11 +9,48 @@ export type PracaCidade = { uf: string; cidade: string };
 
 export const CHECKLIST_LABEL_CIDADE = 'Cidade de interesse';
 export const CHECKLIST_LABEL_ESTADO = 'Estado';
+export const CHECKLIST_LABEL_TABELA_CONDOMINIOS = 'Tabela de Condomínios';
+export const CHECKLIST_LABEL_BREVE_DESCRICAO = 'Breve descrição da Cidade';
+export const CHECKLIST_LABEL_MAPA_PINS =
+  'Mapa da Cidade (cole o mapa com os condomínios demarcados por Pins)';
 
 export const CHECKLIST_ITENS_OCULTOS_MULTI_PRACA = new Set([
   CHECKLIST_LABEL_CIDADE,
   CHECKLIST_LABEL_ESTADO,
 ]);
+
+function isLabelMapaPins(label: string): boolean {
+  const t = label.trim();
+  return (
+    t === CHECKLIST_LABEL_MAPA_PINS ||
+    t.toLowerCase().startsWith('mapa da cidade (cole o mapa')
+  );
+}
+
+/** Ordem canônica dos itens da fase Dados da Cidade (Funil Step One). */
+export function ordemChecklistItemDadosCidade(label: string, ordemDb: number): number {
+  const t = label.trim();
+  if (t === CHECKLIST_LABEL_CIDADE) return 10;
+  if (t === CHECKLIST_LABEL_ESTADO) return 20;
+  if (t === 'Dados da cidade (IBGE)') return 30;
+  if (t === 'Mapa interativo da praça') return 40;
+  if (t === CHECKLIST_LABEL_BREVE_DESCRICAO) return 50;
+  if (isLabelMapaPins(t)) return 60;
+  if (t === CHECKLIST_LABEL_TABELA_CONDOMINIOS) return 70;
+  if (t === 'Observações sobre a praça') return 80;
+  return 900 + ordemDb;
+}
+
+export function ordenarItensChecklistDadosCidade<T extends { label: string; ordem: number }>(
+  itens: T[],
+): T[] {
+  return [...itens].sort((a, b) => {
+    const oa = ordemChecklistItemDadosCidade(a.label, a.ordem);
+    const ob = ordemChecklistItemDadosCidade(b.label, b.ordem);
+    if (oa !== ob) return oa - ob;
+    return a.ordem - b.ordem;
+  });
+}
 
 export function chavePracaCidade(p: PracaCidade): string {
   return `${p.uf}::${p.cidade}`;
