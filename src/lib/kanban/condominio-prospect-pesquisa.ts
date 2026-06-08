@@ -22,6 +22,85 @@ export type ChavePesquisaCondominio =
   | 'q_casas_caracteristicas_buscadas'
   | 'q_locacao_valores';
 
+/** Caracterização do condomínio — persistida por linha da Tabela de Condomínios (sessão/aba). */
+export type ChaveCaracterizacaoCondominio =
+  | 'localizacao_contexto'
+  | 'caracteristicas_condominio'
+  | 'tempo_condominio'
+  | 'oferta_estoque'
+  | 'demanda_historico_vendas'
+  | 'volume_velocidade_compra'
+  | 'tamanho_lote_padrao'
+  | 'mapa_condominio_path';
+
+export type ChaveLinhaProspectCondominio = ChavePesquisaCondominio | ChaveCaracterizacaoCondominio;
+
+export type CampoCaracterizacaoCondominio = {
+  chave: ChaveCaracterizacaoCondominio;
+  label: string;
+  tipo: 'texto' | 'texto_longo' | 'anexo';
+  placeholder?: string;
+  grupo?: 'caracterizacao' | 'liquidez';
+};
+
+export const CARACTERIZACAO_CONDOMINIO_CAMPOS: CampoCaracterizacaoCondominio[] = [
+  {
+    chave: 'localizacao_contexto',
+    label: 'Localização – Condomínio e Contexto',
+    tipo: 'texto_longo',
+    placeholder: 'Posicionamento do condomínio, público e dinâmica de mercado.',
+    grupo: 'caracterizacao',
+  },
+  {
+    chave: 'caracteristicas_condominio',
+    label: 'Características do Condomínio',
+    tipo: 'texto_longo',
+    placeholder: 'Infraestrutura, padrão de produto e maturidade.',
+    grupo: 'caracterizacao',
+  },
+  {
+    chave: 'tempo_condominio',
+    label: 'Tempo de Condomínio',
+    tipo: 'texto',
+    placeholder: 'Tempo de existência ou maturação do empreendimento.',
+    grupo: 'liquidez',
+  },
+  {
+    chave: 'oferta_estoque',
+    label: 'Oferta Atual (Estoque)',
+    tipo: 'texto_longo',
+    placeholder: 'Perfil das casas disponíveis, tipologias e faixa de preço.',
+    grupo: 'liquidez',
+  },
+  {
+    chave: 'demanda_historico_vendas',
+    label: 'Demanda (Histórico de Vendas)',
+    tipo: 'texto_longo',
+    grupo: 'liquidez',
+  },
+  {
+    chave: 'volume_velocidade_compra',
+    label: 'Volume, velocidade e comportamento de compra',
+    tipo: 'texto_longo',
+    grupo: 'liquidez',
+  },
+  {
+    chave: 'tamanho_lote_padrao',
+    label: 'Tamanho lote padrão',
+    tipo: 'texto',
+    grupo: 'liquidez',
+  },
+  {
+    chave: 'mapa_condominio_path',
+    label: 'Mapa do Condomínio (cole o mapa com a infraestrutura demarcada por Pins)',
+    tipo: 'anexo',
+    grupo: 'liquidez',
+  },
+];
+
+export const CHAVES_CARACTERIZACAO_OBRIGATORIAS: ChaveCaracterizacaoCondominio[] =
+  CARACTERIZACAO_CONDOMINIO_CAMPOS.map((c) => c.chave);
+
 export type LinhaProspectCondominio = {
   row_id: string;
   /** FK do cadastro em `condominios`, quando vinculado. */
@@ -38,6 +117,14 @@ export type LinhaProspectCondominio = {
   cadastro_snapshot?: string | null;
   /** Snapshot ao carregar do cadastro (detecta edição vs. concordância). */
   cadastro_carregado_snapshot?: string | null;
+  localizacao_contexto?: string;
+  caracteristicas_condominio?: string;
+  tempo_condominio?: string;
+  oferta_estoque?: string;
+  demanda_historico_vendas?: string;
+  volume_velocidade_compra?: string;
+  tamanho_lote_padrao?: string;
+  mapa_condominio_path?: string;
   q_lotes_total_disponiveis?: string;
   q_lotes_tamanho_medio?: string;
   q_lotes_preco_m2?: string;
@@ -335,6 +422,13 @@ export function normalizarLinhaProspect(raw: unknown, fallbackIndex = 0): LinhaP
         : null,
   };
 
+  for (const chave of CHAVES_CARACTERIZACAO_OBRIGATORIAS) {
+    const v = o[chave];
+    if (typeof v === 'string' && v.trim()) {
+      linha[chave] = v;
+    }
+  }
+
   for (const chave of CHAVES_PESQUISA_OBRIGATORIAS) {
     const v = o[chave];
     if (typeof v === 'string' && v.trim()) {
@@ -377,12 +471,23 @@ export function linhaProspectTemNome(linha: LinhaProspectCondominio): boolean {
   return Boolean(linha.condominio?.trim());
 }
 
+export function linhaCaracterizacaoCompleta(linha: LinhaProspectCondominio): boolean {
+  return CHAVES_CARACTERIZACAO_OBRIGATORIAS.every((chave) =>
+    Boolean(String(linha[chave] ?? '').trim()),
+  );
+}
+
 export function linhaPesquisaCompleta(linha: LinhaProspectCondominio): boolean {
   return CHAVES_PESQUISA_OBRIGATORIAS.every((chave) => Boolean(String(linha[chave] ?? '').trim()));
 }
 
+/** Caracterização + pesquisa de mercado preenchidas na aba do condomínio. */
+export function linhaSessaoCondominioCompleta(linha: LinhaProspectCondominio): boolean {
+  return linhaCaracterizacaoCompleta(linha) && linhaPesquisaCompleta(linha);
+}
+
 export function atualizarPesquisaPreenchidaEm(linha: LinhaProspectCondominio): LinhaProspectCondominio {
-  if (linhaPesquisaCompleta(linha)) {
+  if (linhaSessaoCondominioCompleta(linha)) {
     return { ...linha, pesquisa_preenchida_em: linha.pesquisa_preenchida_em ?? new Date().toISOString() };
   }
   return { ...linha, pesquisa_preenchida_em: null };
@@ -391,7 +496,7 @@ export function atualizarPesquisaPreenchidaEm(linha: LinhaProspectCondominio): L
 export function todasPesquisasProspectCompletas(linhas: LinhaProspectCondominio[]): boolean {
   const comNome = linhas.filter(linhaProspectTemNome);
   if (comNome.length === 0) return false;
-  return comNome.every(linhaPesquisaCompleta);
+  return comNome.every(linhaSessaoCondominioCompleta);
 }
 
 export function rotuloFontePesquisa(fonte: FontePesquisaCondominio): string {

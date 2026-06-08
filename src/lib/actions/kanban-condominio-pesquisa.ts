@@ -3,10 +3,12 @@
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import {
   atualizarPesquisaPreenchidaEm,
-  linhaPesquisaCompleta,
+  linhaSessaoCondominioCompleta,
   normalizarLinhaProspect,
   todasPesquisasProspectCompletas,
   type ChavePesquisaCondominio,
+  type ChaveLinhaProspectCondominio,
+  type ChaveCaracterizacaoCondominio,
   type LinhaProspectCondominio,
 } from '@/lib/kanban/condominio-prospect-pesquisa';
 import {
@@ -186,7 +188,7 @@ export async function carregarProspectsCondominioCard(cardId: string): Promise<C
 export async function salvarPesquisaCondominioProspect(input: {
   cardId: string;
   rowId: string;
-  respostas: Partial<Record<ChavePesquisaCondominio, string>>;
+  respostas: Partial<Record<ChaveLinhaProspectCondominio, string>>;
 }): Promise<KanbanCondominioPesquisaResult> {
   const supabase = await createClient();
   const {
@@ -212,7 +214,7 @@ export async function salvarPesquisaCondominioProspect(input: {
     }),
   );
 
-  if (linhaPesquisaCompleta(merged) && !merged.pesquisa_preenchida_em) {
+  if (linhaSessaoCondominioCompleta(merged) && !merged.pesquisa_preenchida_em) {
     merged.pesquisa_preenchida_em = new Date().toISOString();
   }
 
