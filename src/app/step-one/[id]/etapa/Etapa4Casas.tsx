@@ -194,7 +194,10 @@ export function Etapa4Casas(props: {
     setCondominioManual(c);
   }, [condominioInicial]);
 
-  const condominioSessaoFixo = listagemOnly && Boolean(condominioInicial.trim());
+  const campoTexto = listagemOnly ? 'text-xs' : 'text-sm';
+  const campoPadding = listagemOnly ? 'px-2.5 py-1.5' : 'px-3 py-2';
+  const campoInputClass = `rounded-lg border border-stone-300 ${campoPadding} ${campoTexto} disabled:cursor-not-allowed disabled:opacity-60`;
+  const campoLabelClass = `font-medium text-stone-700 ${campoTexto}`;
 
   const ROWS_PER_PAGE = 15;
   const totalPages = Math.max(1, Math.ceil(casas.length / ROWS_PER_PAGE));
@@ -1009,51 +1012,58 @@ export function Etapa4Casas(props: {
       )}
       <div className={resultadoPortalTargetId ? 'space-y-8 p-4 sm:p-6' : 'mt-6 space-y-8'}>
         {/* Bloco Varrer ZAP */}
-        <section className="space-y-3 rounded-xl border border-stone-200 bg-stone-50 p-4">
+        <section className={`space-y-3 rounded-xl border border-stone-200 bg-stone-50 ${listagemOnly ? 'p-3' : 'p-4'}`}>
           <div className="grid gap-3 sm:grid-cols-3">
-            <input
-              type="text"
-              placeholder="Cidade"
-              value={cidade}
-              onChange={(e) => setCidade(e.target.value)}
-              disabled={readOnly}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-            />
-            <input
-              type="text"
-              placeholder="Estado (ex.: SP)"
-              value={estado}
-              onChange={(e) => setEstado(e.target.value)}
-              disabled={readOnly}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-              maxLength={2}
-            />
-            <input
-              type="text"
-              placeholder="Condomínio (opcional)"
-              value={condominio}
-              onChange={(e) => setCondominio(e.target.value)}
-              disabled={readOnly || condominioSessaoFixo}
-              readOnly={condominioSessaoFixo}
-              title={condominioSessaoFixo ? 'Condomínio definido pela sessão do funil' : undefined}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-            />
+            <label className="grid gap-1">
+              <span className={campoLabelClass}>Cidade</span>
+              <input
+                type="text"
+                placeholder="Ex.: Salto"
+                value={cidade}
+                onChange={(e) => setCidade(e.target.value)}
+                disabled={readOnly}
+                className={campoInputClass}
+              />
+            </label>
+            <label className="grid gap-1">
+              <span className={campoLabelClass}>Estado</span>
+              <input
+                type="text"
+                placeholder="Ex.: SP"
+                value={estado}
+                onChange={(e) => setEstado(e.target.value)}
+                disabled={readOnly}
+                className={campoInputClass}
+                maxLength={2}
+              />
+            </label>
+            <label className="grid gap-1">
+              <span className={campoLabelClass}>Condomínio</span>
+              <input
+                type="text"
+                placeholder={listagemOnly ? 'Nome do condomínio' : 'Condomínio (opcional)'}
+                value={condominio}
+                onChange={(e) => setCondominio(e.target.value)}
+                disabled={readOnly}
+                className={campoInputClass}
+              />
+            </label>
           </div>
           {zapLoading ? (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+            <p className={`rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700 ${campoTexto}`}>
               Buscando imóveis no ZAP via Apify… pode levar até 4 minutos. Não feche a página.
             </p>
           ) : null}
           {zapError ? (
             <div
-              className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+              className={`rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 ${campoTexto}`}
               role="alert"
             >
               <strong>Erro ao varrer ZAP:</strong> {zapError}
             </div>
           ) : null}
           {zapResult ? (
-            <p className="text-sm text-green-700">
+            <p className={`${campoTexto} text-green-700`}>
               Inseridos: {zapResult.inserted}, atualizados: {zapResult.updated}, marcados
               despublicados: {zapResult.despublicados}.
             </p>
@@ -1062,7 +1072,7 @@ export function Etapa4Casas(props: {
             type="button"
             onClick={handleVarrerZap}
             disabled={zapLoading || readOnly}
-            className="btn-primary text-sm disabled:cursor-not-allowed disabled:opacity-60"
+            className={`btn-primary disabled:cursor-not-allowed disabled:opacity-60 ${listagemOnly ? 'px-3 py-1.5 text-xs' : 'text-sm'}`}
           >
             {zapLoading ? 'Buscando…' : 'Buscar'}
           </button>
@@ -1819,11 +1829,13 @@ export function Etapa4Casas(props: {
           <button
             type="button"
             onClick={() => setManualFormOpen((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 text-left font-medium text-stone-800 transition-colors hover:bg-stone-100"
+            className={`flex w-full items-center justify-between text-left text-stone-800 transition-colors hover:bg-stone-100 ${
+              listagemOnly ? 'px-3 py-2 text-xs font-medium' : 'px-4 py-3 font-medium'
+            }`}
             aria-expanded={manualFormOpen}
           >
             <span>Adicionar casa manualmente</span>
-            <span className="text-lg leading-none text-stone-500">
+            <span className={`leading-none text-stone-500 ${listagemOnly ? 'text-sm' : 'text-lg'}`}>
               {manualFormOpen ? '−' : '+'}
             </span>
           </button>
@@ -1863,9 +1875,8 @@ export function Etapa4Casas(props: {
                     type="text"
                     value={condominioManual}
                     onChange={(e) => setCondominioManual(e.target.value)}
-                    disabled={readOnly || condominioSessaoFixo}
-                    readOnly={condominioSessaoFixo}
-                    className="rounded-lg border border-stone-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={readOnly}
+                    className={`rounded-lg border border-stone-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60`}
                   />
                 </label>
                 <label className="grid gap-1 sm:col-span-2">
