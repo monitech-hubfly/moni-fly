@@ -1,5 +1,7 @@
 'use client';
 
+import { SearchableSelect } from '@/components/SearchableSelect';
+
 type AreaPar = { uf: string; cidade: string };
 
 type Props = {
@@ -77,31 +79,54 @@ export function ChecklistAreaAtuacaoSelect({
     return (
       <div>
         {labelEl(label, obrigatorio, salvando)}
-        <select
-          className={inputClass}
+        <SearchableSelect
           value={valor.trim().toUpperCase()}
-          onChange={(e) => {
-            const v = e.target.value;
+          onChange={(v) => {
             onChange(v);
             onBlur(v);
           }}
-        >
-          <option value="">— Selecione o estado —</option>
-          {ufs.map((uf) => (
-            <option key={uf} value={uf}>
-              {uf}
-            </option>
-          ))}
-        </select>
+          placeholder="— Selecione o estado —"
+          searchPlaceholder="Buscar UF"
+          size="md"
+          className="w-full"
+          triggerClassName={inputClass}
+          options={ufs.map((uf) => ({ value: uf, label: uf }))}
+        />
         {erro ? <p className="mt-1 text-xs text-red-500">{erro}</p> : null}
       </div>
     );
   }
 
   const ufRef = estadoReferencia.trim().toUpperCase();
-  const opcoes = ufRef
-    ? areas.filter((a) => a.uf === ufRef)
-    : areas;
+  const opcoes = ufRef ? areas.filter((a) => a.uf === ufRef) : areas;
+
+  const valorSelect = (() => {
+    const v = valor.trim();
+    if (!v) return '';
+    if (ufRef) return v;
+    if (v.includes('::')) return v;
+    const hit = opcoes.find((a) => a.cidade === v);
+    return hit ? `${hit.uf}::${hit.cidade}` : v;
+  })();
+
+  function handleCidadeChange(raw: string) {
+    if (!raw) {
+      onChange('');
+      onBlur('');
+      return;
+    }
+    const sep = raw.indexOf('::');
+    if (sep >= 0) {
+      const uf = raw.slice(0, sep);
+      const cidade = raw.slice(sep + 2);
+      onChange(cidade);
+      onSelectCidadeComUf?.(cidade, uf);
+      onBlur(cidade);
+      return;
+    }
+    onChange(raw);
+    onBlur(raw);
+  }
 
   return (
     <div>
@@ -111,40 +136,19 @@ export function ChecklistAreaAtuacaoSelect({
           Selecione o estado primeiro ou escolha abaixo (cidade + UF).
         </p>
       ) : null}
-      <select
-        className={inputClass}
-        value={valor}
-        onChange={(e) => {
-          const raw = e.target.value;
-          if (!raw) {
-            onChange('');
-            onBlur('');
-            return;
-          }
-          const sep = raw.indexOf('::');
-          if (sep >= 0) {
-            const uf = raw.slice(0, sep);
-            const cidade = raw.slice(sep + 2);
-            onChange(cidade);
-            onSelectCidadeComUf?.(cidade, uf);
-            onBlur(cidade);
-            return;
-          }
-          onChange(raw);
-          onBlur(raw);
-        }}
-      >
-        <option value="">— Selecione a cidade —</option>
-        {opcoes.map((a) => {
-          const key = `${a.uf}::${a.cidade}`;
-          const rotulo = ufRef ? a.cidade : `${a.cidade} (${a.uf})`;
-          return (
-            <option key={key} value={ufRef ? a.cidade : key}>
-              {rotulo}
-            </option>
-          );
-        })}
-      </select>
+      <SearchableSelect
+        value={valorSelect}
+        onChange={handleCidadeChange}
+        placeholder="— Selecione a cidade —"
+        searchPlaceholder="Buscar cidade"
+        size="md"
+        className="w-full"
+        triggerClassName={inputClass}
+        options={opcoes.map((a) => ({
+          value: ufRef ? a.cidade : `${a.uf}::${a.cidade}`,
+          label: ufRef ? a.cidade : `${a.cidade} (${a.uf})`,
+        }))}
+      />
       {erro ? <p className="mt-1 text-xs text-red-500">{erro}</p> : null}
     </div>
   );

@@ -9,6 +9,7 @@ import {
 } from '@/lib/condominios';
 import type { CondominioFormDraft } from '@/lib/condominios-form';
 import { UFS_BRASIL } from '@/lib/uf';
+import { SearchableSelect } from '@/components/SearchableSelect';
 
 const inputCls =
   'mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800';
@@ -103,18 +104,16 @@ export function CondominioCamposForm({ draft, onChange, readOnly = false, row }:
       </label>
       <label className="block">
         <span className="text-[11px] font-medium text-stone-500">Estado</span>
-        <select
+        <SearchableSelect
           value={draft.estado}
-          onChange={(e) => onChange({ estado: e.target.value })}
-          className={inputCls}
-        >
-          <option value="">UF</option>
-          {UFS_BRASIL.map((uf) => (
-            <option key={uf.sigla} value={uf.sigla}>
-              {uf.sigla}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => onChange({ estado: v })}
+          placeholder="UF"
+          searchPlaceholder="Buscar UF"
+          size="sm"
+          className="mt-0.5"
+          triggerClassName={inputCls.replace('mt-0.5 ', '')}
+          options={UFS_BRASIL.map((uf) => ({ value: uf.sigla, label: uf.sigla }))}
+        />
       </label>
       <label className="block">
         <span className="text-[11px] font-medium text-stone-500">Ticket médio lote</span>

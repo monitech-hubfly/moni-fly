@@ -114,6 +114,7 @@ import { formatChamadoNumero } from '@/lib/kanban/chamado-numero';
 import { SlaTituloBolinha } from '@/components/SlaTituloBolinha';
 import { SlaAtividadeBadge } from '@/components/SlaAtividadeBadge';
 import { MultiSelectCheckbox } from '@/components/MultiSelectCheckbox';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import { AtividadeVinculadaCard } from '@/components/AtividadeVinculadaCard';
 import { AtividadeVinculadaIcon } from '@/components/AtividadeVinculadaIcon';
 import { AtividadeVinculadaStatusPill } from '@/components/AtividadeVinculadaStatusPill';
@@ -3812,21 +3813,21 @@ export function KanbanCardModal({
                                     Em andamento
                                   </span>
                                 ) : (
-                                <select
+                                <SearchableSelect
                                   value={statusInteracaoSelect}
-                                  onChange={(e) =>
+                                  onChange={(v) =>
                                     void handleInteracaoStatusChange(
                                       it.id,
-                                      e.target.value as 'pendente' | 'em_andamento' | 'concluida',
+                                      v as 'pendente' | 'em_andamento' | 'concluida',
                                     )
                                   }
-                                  className="rounded border border-stone-300 px-1.5 py-0.5 text-[10px]"
-                                >
-                                  <option value="pendente">A fazer</option>
-                                  <option value="concluida" disabled={temSubAbertaPai}>
-                                    Concluída
-                                  </option>
-                                </select>
+                                  size="xs"
+                                  emptyOption={null}
+                                  options={[
+                                    { value: 'pendente', label: 'A fazer' },
+                                    { value: 'concluida', label: 'Concluída', disabled: temSubAbertaPai },
+                                  ]}
+                                />
                                 )
                               ) : null}
                               {travaEfetivaParaChamado(it, subs) ? (
@@ -3861,19 +3862,21 @@ export function KanbanCardModal({
                                   placeholder="Descrição do chamado"
                                   className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
                                 />
-                                <select
+                                <SearchableSelect
                                   value={editDraft.categoria}
-                                  onChange={(e) =>
+                                  onChange={(v) =>
                                     setEditDraft((d) => ({
                                       ...d,
-                                      categoria: e.target.value as 'chamado' | 'melhoria',
+                                      categoria: v as 'chamado' | 'melhoria',
                                     }))
                                   }
-                                  className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
-                                >
-                                  <option value="chamado">Chamado</option>
-                                  <option value="melhoria">Melhoria</option>
-                                </select>
+                                  size="sm"
+                                  emptyOption={null}
+                                  options={[
+                                    { value: 'chamado', label: 'Chamado' },
+                                    { value: 'melhoria', label: 'Melhoria' },
+                                  ]}
+                                />
                                 <div className="flex gap-2">
                                   <button
                                     type="button"
@@ -4100,22 +4103,24 @@ export function KanbanCardModal({
                                               <div className="mt-2 space-y-1 border-t border-stone-100 pt-2">
                                                 {modalSessao.ehAdminOuTeam ||
                                                 sub.responsaveis_resolvidos.some((r) => r.id === modalSessao.userId) ? (
-                                                  <select
+                                                  <SearchableSelect
                                                     value={sub.status}
-                                                    onChange={(e) =>
+                                                    onChange={(v) =>
                                                       void handleSubStatusChange(
                                                         it.id,
                                                         sub.id,
-                                                        e.target.value as SubInteracaoStatusDb,
+                                                        v as SubInteracaoStatusDb,
                                                       )
                                                     }
-                                                    className="mb-1 rounded border border-stone-300 px-1.5 py-0.5 text-[9px]"
-                                                  >
-                                                    <option value="nao_iniciado">Não iniciado</option>
-                                                    <option value="em_andamento">Em andamento</option>
-                                                    <option value="concluido">Concluído</option>
-                                                    <option value="aprovado">Aprovado</option>
-                                                  </select>
+                                                    size="xs"
+                                                    emptyOption={null}
+                                                    options={[
+                                                      { value: 'nao_iniciado', label: 'Não iniciado' },
+                                                      { value: 'em_andamento', label: 'Em andamento' },
+                                                      { value: 'concluido', label: 'Concluído' },
+                                                      { value: 'aprovado', label: 'Aprovado' },
+                                                    ]}
+                                                  />
                                                 ) : null}
                                                 <div className="flex flex-wrap gap-1">
                                                   {sub.times_resolvidos.map((tg) => (
@@ -4166,22 +4171,24 @@ export function KanbanCardModal({
                                                 />
                                                 {!modalSessao.ehAdminOuTeam &&
                                                 sub.responsaveis_resolvidos.some((r) => r.id === modalSessao.userId) ? (
-                                                  <select
+                                                  <SearchableSelect
                                                     value={sub.status}
-                                                    onChange={(e) =>
+                                                    onChange={(v) =>
                                                       void handleSubStatusChange(
                                                         it.id,
                                                         sub.id,
-                                                        e.target.value as SubInteracaoStatusDb,
+                                                        v as SubInteracaoStatusDb,
                                                       )
                                                     }
-                                                    className="rounded border border-stone-300 px-1.5 py-1 text-[10px]"
-                                                  >
-                                                    <option value="nao_iniciado">Não iniciado</option>
-                                                    <option value="em_andamento">Em andamento</option>
-                                                    <option value="concluido">Concluído</option>
-                                                    <option value="aprovado">Aprovado</option>
-                                                  </select>
+                                                    size="xs"
+                                                    emptyOption={null}
+                                                    options={[
+                                                      { value: 'nao_iniciado', label: 'Não iniciado' },
+                                                      { value: 'em_andamento', label: 'Em andamento' },
+                                                      { value: 'concluido', label: 'Concluído' },
+                                                      { value: 'aprovado', label: 'Aprovado' },
+                                                    ]}
+                                                  />
                                                 ) : null}
                                               </div>
                                             ) : null}
@@ -4343,35 +4350,37 @@ export function KanbanCardModal({
                     style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
                   />
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <select
+                    <SearchableSelect
                       value={novaInteracao.categoria}
-                      onChange={(e) =>
+                      onChange={(v) =>
                         setNovaInteracao((n) => ({
                           ...n,
-                          categoria: e.target.value as 'chamado' | 'melhoria',
+                          categoria: v as 'chamado' | 'melhoria',
                         }))
                       }
                       aria-label="Tipo do chamado"
-                      className="px-2 py-1.5 text-xs text-stone-700"
-                      style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
-                    >
-                      <option value="chamado">Chamado</option>
-                      <option value="melhoria">Melhoria</option>
-                    </select>
-                    <select
+                      size="sm"
+                      emptyOption={null}
+                      triggerClassName="border-[var(--moni-border-default)]"
+                      options={[
+                        { value: 'chamado', label: 'Chamado' },
+                        { value: 'melhoria', label: 'Melhoria' },
+                      ]}
+                    />
+                    <SearchableSelect
                       value={novaInteracao.status}
-                      onChange={(e) =>
+                      onChange={(v) =>
                         setNovaInteracao((n) => ({
                           ...n,
-                          status: e.target.value as 'pendente',
+                          status: v as 'pendente',
                         }))
                       }
                       aria-label="Status do chamado"
-                      className="px-2 py-1.5 text-xs text-stone-700"
-                      style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
-                    >
-                      <option value="pendente">Pendente</option>
-                    </select>
+                      size="sm"
+                      emptyOption={null}
+                      triggerClassName="border-[var(--moni-border-default)]"
+                      options={[{ value: 'pendente', label: 'Pendente' }]}
+                    />
                   </div>
                   <label className="flex cursor-pointer items-center gap-2 text-[11px] text-stone-700">
                     <input
@@ -4534,20 +4543,22 @@ export function KanbanCardModal({
                               placeholder="https://…"
                               className="min-w-[8rem] flex-[2] rounded border border-stone-300 px-2 py-1 text-xs"
                             />
-                            <select
+                            <SearchableSelect
                               value={m.tipo}
-                              onChange={(e) => {
-                                const v = e.target.value as KanbanFaseMaterial['tipo'];
+                              onChange={(v) => {
+                                const tipo = v as KanbanFaseMaterial['tipo'];
                                 setDraftMateriaisFase((rows) =>
-                                  rows.map((r, i) => (i === idx ? { ...r, tipo: v } : r)),
+                                  rows.map((r, i) => (i === idx ? { ...r, tipo } : r)),
                                 );
                               }}
-                              className="rounded border border-stone-300 px-2 py-1 text-xs"
-                            >
-                              <option value="link">link</option>
-                              <option value="documento">documento</option>
-                              <option value="video">video</option>
-                            </select>
+                              size="sm"
+                              emptyOption={null}
+                              options={[
+                                { value: 'link', label: 'link' },
+                                { value: 'documento', label: 'documento' },
+                                { value: 'video', label: 'video' },
+                              ]}
+                            />
                             <button
                               type="button"
                               onClick={() =>
@@ -5557,18 +5568,17 @@ export function KanbanCardModal({
                   <div className="space-y-2">
                     <label className="block">
                       <span className="text-[11px] font-medium text-stone-500">Franqueado (rede)</span>
-                      <select
+                      <SearchableSelect
                         value={novoFranqueadoId}
-                        onChange={(e) => setNovoFranqueadoId(e.target.value)}
-                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                      >
-                        <option value="">Selecione o franqueado</option>
-                        {franqueadosLista.map((f) => (
-                          <option key={f.id} value={f.id}>
-                            {f.n_franquia} — {f.nome_completo}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={setNovoFranqueadoId}
+                        placeholder="Selecione o franqueado"
+                        searchPlaceholder="Buscar por FK ou nome"
+                        className="mt-0.5"
+                        options={franqueadosLista.map((f) => ({
+                          value: f.id,
+                          label: `${f.n_franquia} — ${f.nome_completo}`,
+                        }))}
+                      />
                     </label>
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -5747,17 +5757,18 @@ export function KanbanCardModal({
                     <div className="grid grid-cols-2 gap-x-2 gap-y-2">
                       <label className="block">
                         <span className="text-[11px] font-medium text-stone-500">Tipo de negociação</span>
-                        <select
+                        <SearchableSelect
                           value={negocioDraft.tipo_aquisicao_terreno}
-                          onChange={(e) => setNegocioDraft((d) => ({ ...d, tipo_aquisicao_terreno: e.target.value }))}
-                          className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                        >
-                          <option value="">Selecione</option>
-                          <option value="Permuta parcial">Permuta parcial</option>
-                          <option value="100% Permuta">100% Permuta</option>
-                          <option value="100% Compra e Venda Moní">100% Compra e Venda Moní</option>
-                          <option value="100% Compra e Venda Frank">100% Compra e Venda Frank</option>
-                        </select>
+                          onChange={(v) => setNegocioDraft((d) => ({ ...d, tipo_aquisicao_terreno: v }))}
+                          placeholder="Selecione"
+                          className="mt-0.5"
+                          options={[
+                            { value: 'Permuta parcial', label: 'Permuta parcial' },
+                            { value: '100% Permuta', label: '100% Permuta' },
+                            { value: '100% Compra e Venda Moní', label: '100% Compra e Venda Moní' },
+                            { value: '100% Compra e Venda Frank', label: '100% Compra e Venda Frank' },
+                          ]}
+                        />
                       </label>
                       <label className="block">
                         <span className="text-[11px] font-medium text-stone-500">Valor do Terreno</span>

@@ -10,6 +10,7 @@ import {
   type ChecklistItem,
 } from '@/lib/actions/card-actions';
 import { FaseChecklistSidebarResumo } from '@/components/kanban-shared/FaseChecklistSidebarResumo';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import type { KanbanFase } from '@/components/kanban-shared/types';
 import type { LinhaCronologiaFase } from '@/lib/kanban/kanban-card-timeline';
 
@@ -194,16 +195,14 @@ export function ChecklistCard({
                 onKeyDown={(e) => { if (e.key === 'Enter') handleAdicionar(); }}
                 className="w-full rounded border border-stone-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-stone-400"
               />
-              <select
+              <SearchableSelect
                 value={novoResponsavel}
-                onChange={(e) => setNovoResponsavel(e.target.value)}
-                className="w-full rounded border border-stone-200 px-2 py-1 text-xs text-stone-600 focus:outline-none focus:ring-1 focus:ring-stone-400"
-              >
-                <option value="">Responsável (opcional)</option>
-                {responsaveisOpcoes.map((r) => (
-                  <option key={r.id} value={r.id}>{r.nome}</option>
-                ))}
-              </select>
+                onChange={setNovoResponsavel}
+                placeholder="Responsável (opcional)"
+                searchPlaceholder="Buscar responsável"
+                size="xs"
+                options={responsaveisOpcoes.map((r) => ({ value: r.id, label: r.nome }))}
+              />
               {erroAdd && <p className="text-[10px] text-red-500">{erroAdd}</p>}
               <button
                 type="button"

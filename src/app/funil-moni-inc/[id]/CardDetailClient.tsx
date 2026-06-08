@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { SearchableSelect } from '@/components/SearchableSelect';
 
 type Fase = {
   id: string;
@@ -189,26 +190,22 @@ export function CardDetailClient({
           <label htmlFor="fase" className="block text-sm font-medium text-stone-700">
             Fase atual
           </label>
-          <select
+          <SearchableSelect
             id="fase"
             value={faseId}
-            onChange={(e) => {
-              setFaseId(e.target.value);
+            onChange={(v) => {
+              setFaseId(v);
               setIsEditing(true);
             }}
             disabled={!isEditing && loading}
-            style={{
-              border: '0.5px solid var(--moni-border-default)',
-              borderRadius: 'var(--moni-radius-md)',
-            }}
-            className="mt-1 w-full px-4 py-2 text-sm focus:border-stone-300 focus:outline-none focus:ring-2 focus:ring-stone-200"
-          >
-            {fases.map((fase) => (
-              <option key={fase.id} value={fase.id}>
-                {fase.nome}
-              </option>
-            ))}
-          </select>
+            placeholder="Selecione a fase"
+            searchPlaceholder="Buscar fase"
+            size="md"
+            className="mt-1"
+            emptyOption={null}
+            triggerClassName="w-full px-4 py-2 text-sm border-[0.5px] border-[var(--moni-border-default)] rounded-[var(--moni-radius-md)]"
+            options={fases.map((fase) => ({ value: fase.id, label: fase.nome }))}
+          />
         </div>
 
         {isEditing && (

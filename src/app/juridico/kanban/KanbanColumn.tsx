@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { updateJuridicoTicketStatus } from '../actions';
 import { JURIDICO_STATUS_LIST } from '../constants';
+import { SearchableSelect } from '@/components/SearchableSelect';
 
 type Ticket = {
   id: string;
@@ -60,18 +61,16 @@ export function KanbanColumn({
             </Link>
             <div className="mt-2 border-t border-stone-100 pt-2">
               <label className="mb-1 block text-xs text-stone-500">Mover para:</label>
-              <select
-                value={t.status}
-                onChange={(e) => handleStatusChange(t.id, e.target.value)}
-                className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
-                onClick={(e) => e.preventDefault()}
-              >
-                {JURIDICO_STATUS_LIST.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
+              <div onClick={(e) => e.preventDefault()}>
+                <SearchableSelect
+                  value={t.status}
+                  onChange={(v) => void handleStatusChange(t.id, v)}
+                  size="xs"
+                  emptyOption={null}
+                  searchPlaceholder="Buscar status"
+                  options={JURIDICO_STATUS_LIST.map((s) => ({ value: s.value, label: s.label }))}
+                />
+              </div>
             </div>
           </div>
         ))}

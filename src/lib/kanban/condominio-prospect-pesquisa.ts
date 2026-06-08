@@ -638,6 +638,55 @@ export function ticketCasasProspectNumerico(linha: LinhaProspectCondominio): num
   return parseDecimalInput(String(linha.ticket_casas ?? '').trim());
 }
 
+function normalizarNomeCondominioProspect(nome: string): string {
+  return nome
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+}
+
+function pontuacaoPreferenciaLinhaProspect(linha: LinhaProspectCondominio): number {
+  let score = 0;
+  if (linha.pesquisa_preenchida_em) score += 1000;
+  if (linha.condominio_id) score += 100;
+  if (linha.cadastro_confirmado_em) score += 50;
+  for (const chave of CHAVES_TODAS_GLOBAL) {
+    if (String(linha[chave] ?? '').trim()) score += 5;
+  }
+  for (const { id } of FAIXAS_CONDOMINIO) {
+    for (const campo of FAIXA_CONDOMINIO_CAMPOS) {
+      if (valorFaixaCondominio(linha, id, campo.chave).trim()) score += 1;
+    }
+  }
+  const ticket = ticketCasasProspectNumerico(linha);
+  if (ticket != null) score += ticket / 1_000_000;
+  return score;
+}
+
+/** Remove linhas repetidas pelo nome do condomínio (ex.: legado multi-praça ou cadastro duplicado). */
+export function deduplicarLinhasProspectPorCondominio(
+  linhas: LinhaProspectCondominio[],
+): LinhaProspectCondominio[] {
+  const semNome: LinhaProspectCondominio[] = [];
+  const melhorPorNome = new Map<string, LinhaProspectCondominio>();
+
+  for (const linha of linhas) {
+    const nome = linha.condominio?.trim();
+    if (!nome) {
+      semNome.push(linha);
+      continue;
+    }
+    const chave = normalizarNomeCondominioProspect(nome);
+    const atual = melhorPorNome.get(chave);
+    if (!atual || pontuacaoPreferenciaLinhaProspect(linha) > pontuacaoPreferenciaLinhaProspect(atual)) {
+      melhorPorNome.set(chave, linha);
+    }
+  }
+
+  return [...melhorPorNome.values(), ...semNome];
+}
+
 export function ordenarLinhasProspectPorTicketCasas(
   linhas: LinhaProspectCondominio[],
 ): LinhaProspectCondominio[] {
@@ -673,7 +722,9 @@ export function parseLinhasProspectCondominio(valor: string | null | undefined):
     if (parsed.length === 0) {
       return [{ row_id: gerarRowIdProspect(), ...LINHA_PROSPECT_VAZIA }];
     }
-    return ordenarLinhasProspectPorTicketCasas(parsed.map((row, idx) => normalizarLinhaProspect(row, idx)));
+    return deduplicarLinhasProspectPorCondominio(
+      ordenarLinhasProspectPorTicketCasas(parsed.map((row, idx) => normalizarLinhaProspect(row, idx))),
+    );
   } catch {
     return [{ row_id: gerarRowIdProspect(), ...LINHA_PROSPECT_VAZIA }];
   }

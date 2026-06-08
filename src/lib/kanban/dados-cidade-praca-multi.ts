@@ -1,4 +1,6 @@
 import {
+  deduplicarLinhasProspectPorCondominio,
+  linhaProspectTemNome,
   ordenarLinhasProspectPorTicketCasas,
   parseLinhasProspectCondominio,
   serializarLinhasProspectCondominio,
@@ -189,9 +191,10 @@ export function parseLinhasTabelaTodasPracas(
 ): LinhaProspectCondominio[] {
   const store = parseStore(valor);
   if (store) {
-    return ordenarLinhasProspectPorTicketCasas(
-      Object.values(store).flatMap((v) => parseLinhasProspectCondominio(v)),
+    const linhas = Object.values(store).flatMap((v) =>
+      parseLinhasProspectCondominio(v).filter(linhaProspectTemNome),
     );
+    return ordenarLinhasProspectPorTicketCasas(deduplicarLinhasProspectPorCondominio(linhas));
   }
   return parseLinhasProspectCondominio(valor);
 }

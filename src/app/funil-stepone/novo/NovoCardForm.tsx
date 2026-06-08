@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { SearchableSelect } from '@/components/SearchableSelect';
 
 type Fase = {
   id: string;
@@ -120,23 +121,20 @@ export function NovoCardForm({
             Nenhum franqueado cadastrado em Rede de Franqueados.
           </p>
         ) : (
-          <select
+          <SearchableSelect
             id="franqueado"
             value={selectedFranqueadoId}
-            onChange={(e) => setSelectedFranqueadoId(e.target.value)}
-            required
-            style={{
-              border: '0.5px solid var(--moni-border-default)',
-              borderRadius: 'var(--moni-radius-md)',
-            }}
-            className="mt-1 w-full px-4 py-2 text-sm focus:border-stone-300 focus:outline-none focus:ring-2 focus:ring-stone-200"
-          >
-            {franqueados.map((f) => (
-              <option key={f.id} value={f.id}>
-                {[f.n_franquia, f.nome_completo].filter(Boolean).join(' - ')}
-              </option>
-            ))}
-          </select>
+            onChange={setSelectedFranqueadoId}
+            placeholder="Selecione o franqueado"
+            searchPlaceholder="Buscar por FK ou nome"
+            size="md"
+            className="mt-1"
+            triggerClassName="w-full px-4 py-2 text-sm border-[0.5px] border-[var(--moni-border-default)] rounded-[var(--moni-radius-md)]"
+            options={franqueados.map((f) => ({
+              value: f.id,
+              label: [f.n_franquia, f.nome_completo].filter(Boolean).join(' - '),
+            }))}
+          />
         )}
       </div>
 
@@ -182,23 +180,18 @@ export function NovoCardForm({
         <label htmlFor="fase" className="block text-sm font-medium text-stone-700">
           Fase inicial
         </label>
-        <select
+        <SearchableSelect
           id="fase"
           value={faseId}
-          onChange={(e) => setFaseId(e.target.value)}
-          required
-          style={{
-            border: '0.5px solid var(--moni-border-default)',
-            borderRadius: 'var(--moni-radius-md)',
-          }}
-          className="mt-1 w-full px-4 py-2 text-sm focus:border-[var(--moni-navy-800)] focus:outline-none focus:ring-2 focus:ring-[var(--moni-navy-800)]/20"
-        >
-          {fases.map((fase) => (
-            <option key={fase.id} value={fase.id}>
-              {fase.nome}
-            </option>
-          ))}
-        </select>
+          onChange={setFaseId}
+          placeholder="Selecione a fase"
+          searchPlaceholder="Buscar fase"
+          size="md"
+          className="mt-1"
+          emptyOption={null}
+          triggerClassName="w-full px-4 py-2 text-sm border-[0.5px] border-[var(--moni-border-default)] rounded-[var(--moni-radius-md)]"
+          options={fases.map((fase) => ({ value: fase.id, label: fase.nome }))}
+        />
       </div>
 
       <div className="flex flex-col gap-3 pt-4 sm:flex-row">
