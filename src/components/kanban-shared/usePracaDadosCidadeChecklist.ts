@@ -6,7 +6,7 @@ import {
   type PracaDadosCidadeChecklistData,
 } from '@/lib/actions/kanban-dados-cidade-praca';
 
-export function usePracaDadosCidadeChecklist(processoId: string) {
+export function usePracaDadosCidadeChecklist(processoId: string, reloadKey = 0) {
   const [dados, setDados] = useState<PracaDadosCidadeChecklistData | null>(null);
   const [carregando, setCarregando] = useState(true);
 
@@ -34,7 +34,7 @@ export function usePracaDadosCidadeChecklist(processoId: string) {
     return () => {
       cancelado = true;
     };
-  }, [processoId]);
+  }, [processoId, reloadKey]);
 
   return { dados, carregando };
 }

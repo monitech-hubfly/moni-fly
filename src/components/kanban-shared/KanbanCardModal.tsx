@@ -4676,6 +4676,7 @@ export function KanbanCardModal({
                       isFrank={portalFrank}
                       isAdmin={isAdmin}
                       processoId={processoIdChecklists}
+                      areaAtuacao={modalDetalhes.rede?.area_atuacao}
                       ocultarVazio={exibirChecklistLegalCondominio || exibirChecklistCredito}
                       condominioContext={
                         !isFaseDadosCondominios

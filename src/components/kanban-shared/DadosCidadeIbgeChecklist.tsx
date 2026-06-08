@@ -8,10 +8,11 @@ type Props = {
   processoId: string;
   itemLabel: string;
   obrigatorio?: boolean;
+  reloadKey?: number;
 };
 
-export function DadosCidadeIbgeChecklist({ processoId, itemLabel, obrigatorio }: Props) {
-  const { dados, carregando } = usePracaDadosCidadeChecklist(processoId);
+export function DadosCidadeIbgeChecklist({ processoId, itemLabel, obrigatorio, reloadKey = 0 }: Props) {
+  const { dados, carregando } = usePracaDadosCidadeChecklist(processoId, reloadKey);
 
   if (carregando) {
     return (
