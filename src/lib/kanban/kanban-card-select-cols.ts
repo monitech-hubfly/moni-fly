@@ -1,0 +1,52 @@
+/** Colunas de kanban_cards usadas no board/modal (sem campos de SLA opcionais). */
+export const KANBAN_CARD_SELECT_BASE = `
+      id,
+      titulo,
+      status,
+      created_at,
+      fase_id,
+      franqueado_id,
+      arquivado,
+      motivo_arquivamento,
+      concluido,
+      concluido_em,
+      rede_franqueado_id,
+      nome_condominio,
+      quadra,
+      lote,
+      data_reuniao,
+      data_followup,
+      acoplamento_concluido,
+      acoplamento_filho_fase_nome,
+      acoplamento_filho_fase_slug,
+      credito_terreno_ok,
+      contabilidade_ok,
+      capital_ok,
+      juridico_ok,
+      credito_obra_ok,
+      projeto_id,
+      ordem_coluna,
+      alvara_url,
+      docs_terreno_url
+    `;
+
+export const KANBAN_CARD_SELECT_WITH_SLA = `${KANBAN_CARD_SELECT_BASE.trim()},
+      sla_iniciado_em,
+      entered_fase_at`;
+
+export function isSupabaseMissingColumnError(message: string | undefined): boolean {
+  return Boolean(message && /does not exist/i.test(message));
+}
+
+export async function runKanbanCardSelectWithSlaFallback<T>(run: (select: string) => Promise<{
+  data: T | null;
+  error: { message: string } | null;
+}>): Promise<{ data: T | null; error: { message: string } | null; slaColsAvailable: boolean }> {
+  const withSla = await run(KANBAN_CARD_SELECT_WITH_SLA);
+  if (!withSla.error) return { ...withSla, slaColsAvailable: true };
+  if (!isSupabaseMissingColumnError(withSla.error?.message)) {
+    return { ...withSla, slaColsAvailable: false };
+  }
+  const base = await run(KANBAN_CARD_SELECT_BASE);
+  return { ...base, slaColsAvailable: false };
+}

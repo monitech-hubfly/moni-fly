@@ -951,13 +951,14 @@ export function KanbanCardModal({
         }
       } else {
         setLegadoCronologiaMoves([]);
-        const { data: cardData, error: cardError } = await supabase
-          .from('kanban_cards')
-          .select(
-            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, projeto_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, sla_iniciado_em, entered_fase_at',
-          )
-          .eq('id', cardId)
-          .single();
+        const cardSelectBase =
+          'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, projeto_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url';
+        const cardSelectWithSla = `${cardSelectBase}, sla_iniciado_em, entered_fase_at`;
+        let cardRes = await supabase.from('kanban_cards').select(cardSelectWithSla).eq('id', cardId).single();
+        if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
+          cardRes = await supabase.from('kanban_cards').select(cardSelectBase).eq('id', cardId).single();
+        }
+        const { data: cardData, error: cardError } = cardRes;
 
         if (cardError || !cardData) {
           alert('Card não encontrado');

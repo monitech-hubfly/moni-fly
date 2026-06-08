@@ -1,10 +1,10 @@
 -- Reinicia contagem de SLA e remove atrasos de follow-up em todos os funis.
+--
+-- ⚠️ PRÉ-REQUISITO (obrigatório se o board “voltou” com atrasos antigos):
+--    Rode primeiro scripts/manual/apply_sla_columns_213_229.sql no MESMO banco.
+--    Sem entered_fase_at / sla_iniciado_em o reset e o deploy não surtem efeito.
+--
 -- O board usa: sla_iniciado_em > entered_fase_at > created_at (ver kanban-card-sla.ts).
---
--- Escopo: cards ativos no board (não arquivados, não concluídos).
--- Cards legado-only (só processo_step_one): PASSO 4 reinicia created_at do processo.
---
--- SQL Editor: PASSO 1 → 2 → 3 → 4 → 5. Depois recarregue o funil (Ctrl+F5).
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- PASSO 1 — Diagnóstico: cards ainda com base antiga (>30 d.u. estimados)

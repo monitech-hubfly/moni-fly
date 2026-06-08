@@ -15,6 +15,9 @@ import {
 } from '@/lib/kanban/reconciliar-fase-etapa-painel';
 import { sortKanbanCardsPorOrdemColuna } from '@/lib/kanban/kanban-coluna-ordem';
 import { montarTituloCardSync, escolherTituloExibicaoCard } from '@/lib/kanban/card-sync-group';
+import {
+  runKanbanCardSelectWithSlaFallback,
+} from '@/lib/kanban/kanban-card-select-cols';
 import { dataIsoInputValida } from '@/lib/kanban/kanban-card-datas';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
@@ -175,23 +178,25 @@ export async function fetchKanbanBoardSnapshot(
     { entered_fase_at: string | null; sla_iniciado_em: string | null }
   >();
   if (processoIds.length > 0) {
-    const { data: slaRows } = await supabase
+    const { data: slaRows, error: slaErr } = await supabase
       .from('kanban_cards')
       .select('id, entered_fase_at, sla_iniciado_em')
       .in('id', processoIds);
-    for (const row of slaRows ?? []) {
-      const id = String((row as { id?: string }).id ?? '').trim();
-      if (!id) continue;
-      slaBasePorCardId.set(id, {
-        entered_fase_at:
-          (row as { entered_fase_at?: string | null }).entered_fase_at != null
-            ? String((row as { entered_fase_at?: string | null }).entered_fase_at)
-            : null,
-        sla_iniciado_em:
-          (row as { sla_iniciado_em?: string | null }).sla_iniciado_em != null
-            ? String((row as { sla_iniciado_em?: string | null }).sla_iniciado_em)
-            : null,
-      });
+    if (!slaErr) {
+      for (const row of slaRows ?? []) {
+        const id = String((row as { id?: string }).id ?? '').trim();
+        if (!id) continue;
+        slaBasePorCardId.set(id, {
+          entered_fase_at:
+            (row as { entered_fase_at?: string | null }).entered_fase_at != null
+              ? String((row as { entered_fase_at?: string | null }).entered_fase_at)
+              : null,
+          sla_iniciado_em:
+            (row as { sla_iniciado_em?: string | null }).sla_iniciado_em != null
+              ? String((row as { sla_iniciado_em?: string | null }).sla_iniciado_em)
+              : null,
+        });
+      }
     }
   }
   const franqueadoNomeMap = new Map<string, string>();
@@ -261,83 +266,37 @@ export async function fetchKanbanBoardSnapshot(
     };
   });
 
-  const selectCols = `
-      id,
-      titulo,
-      status,
-      created_at,
-      fase_id,
-      franqueado_id,
-      arquivado,
-      motivo_arquivamento,
-      concluido,
-      concluido_em,
-      rede_franqueado_id,
-      nome_condominio,
-      quadra,
-      lote,
-      data_reuniao,
-      data_followup,
-      acoplamento_concluido,
-      acoplamento_filho_fase_nome,
-      acoplamento_filho_fase_slug,
-      credito_terreno_ok,
-      contabilidade_ok,
-      capital_ok,
-      juridico_ok,
-      credito_obra_ok,
-      projeto_id,
-      ordem_coluna,
-      alvara_url,
-      docs_terreno_url,
-      sla_iniciado_em,
-      entered_fase_at
-    `;
-
   let cardsRaw: unknown[] = [];
   let conclRaw: unknown[] = [];
   let arquivRaw: unknown[] = [];
   if (hasNativo) {
-    let cardsQuery = supabase
-      .from('kanban_cards')
-      .select(selectCols)
-      .eq('kanban_id', kanban.id)
-      .eq('status', 'ativo')
-      .eq('arquivado', false)
-      .eq('concluido', false)
-      .order('ordem_coluna', { ascending: true })
-      .order('created_at', { ascending: false });
-
-    let concluidosQuery = supabase
-      .from('kanban_cards')
-      .select(selectCols)
-      .eq('kanban_id', kanban.id)
-      .eq('status', 'ativo')
-      .eq('arquivado', false)
-      .eq('concluido', true)
-      .order('ordem_coluna', { ascending: true })
-      .order('created_at', { ascending: false });
-
-    let arquivadosQuery = supabase
-      .from('kanban_cards')
-      .select(selectCols)
-      .eq('kanban_id', kanban.id)
-      .eq('status', 'ativo')
-      .eq('arquivado', true)
-      .order('ordem_coluna', { ascending: true })
-      .order('created_at', { ascending: false });
-
-    if (userId && !isAdmin) {
-      cardsQuery = cardsQuery.eq('franqueado_id', userId);
-      concluidosQuery = concluidosQuery.eq('franqueado_id', userId);
-      arquivadosQuery = arquivadosQuery.eq('franqueado_id', userId);
-    }
+    type KanbanCardRow = Record<string, unknown>;
+    const buildCardsQuery = (select: string, concluido: boolean, arquivado: boolean) => {
+      let q = supabase
+        .from('kanban_cards')
+        .select(select)
+        .eq('kanban_id', kanban.id)
+        .eq('status', 'ativo')
+        .eq('arquivado', arquivado)
+        .eq('concluido', concluido)
+        .order('ordem_coluna', { ascending: true })
+        .order('created_at', { ascending: false });
+      if (userId && !isAdmin) q = q.eq('franqueado_id', userId);
+      return q;
+    };
 
     const [cardsRes, conclRes, arquivRes] = await Promise.all([
-      cardsQuery,
-      concluidosQuery,
-      arquivadosQuery,
+      runKanbanCardSelectWithSlaFallback<KanbanCardRow[]>((select) =>
+        buildCardsQuery(select, false, false),
+      ),
+      runKanbanCardSelectWithSlaFallback<KanbanCardRow[]>((select) =>
+        buildCardsQuery(select, true, false),
+      ),
+      runKanbanCardSelectWithSlaFallback<KanbanCardRow[]>((select) =>
+        buildCardsQuery(select, false, true),
+      ),
     ]);
+
     cardsRaw = (cardsRes.data ?? []) as unknown[];
     conclRaw = (conclRes.data ?? []) as unknown[];
     arquivRaw = (arquivRes.data ?? []) as unknown[];
