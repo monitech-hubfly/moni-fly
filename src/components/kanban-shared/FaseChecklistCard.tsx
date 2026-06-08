@@ -849,6 +849,7 @@ function ItemField({
     const podeEditar = condominioContext?.podeEditar ?? isAdmin;
     return (
       <MapaCompetidoresChecklist
+        cardId={cardId}
         processoId={pid ?? ''}
         itemLabel={item.label}
         podeEditar={podeEditar}

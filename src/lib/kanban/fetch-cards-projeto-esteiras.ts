@@ -140,20 +140,23 @@ export async function fetchCardsProjetoEsteiras(
     const kanban = unwrapJoin(row.kanbans);
     const tituloRaw = String(row.titulo ?? '').trim();
     const redeId = String(row.rede_franqueado_id ?? '').trim();
+    const nFranquia = redeId ? nFranquiaPorRede.get(redeId) : null;
     const tituloCalc = montarTituloCardSync({
-      nFranquia: redeId ? nFranquiaPorRede.get(redeId) : null,
+      nFranquia,
       nomeFranqueado: redeId ? nomeFranqueadoPorRede.get(redeId) : null,
       nomeCondominio: row.nome_condominio ?? camposProjeto.nome_condominio,
       quadra: row.quadra ?? camposProjeto.quadra,
       lote: row.lote ?? camposProjeto.lote,
       tituloFallback: row.titulo,
     });
+    const nFranquiaCanonico = redeCanonica ? nFranquiaPorRede.get(redeCanonica) : null;
     return {
       id: String(row.id),
       titulo:
         escolherTituloExibicaoCard(
-          escolherTituloExibicaoCard(tituloRaw, tituloCalc),
+          escolherTituloExibicaoCard(tituloRaw, tituloCalc, nFranquia),
           tituloCanonicoProjeto,
+          nFranquiaCanonico ?? nFranquia,
         ) || '—',
       status: String(row.status ?? 'ativo'),
       concluido: Boolean(row.concluido),

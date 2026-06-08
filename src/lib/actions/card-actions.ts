@@ -2383,15 +2383,16 @@ async function enriquecerTitulosMapInfoCards(
     if (!info) continue;
 
     const redeId = String(row.rede_franqueado_id ?? '').trim();
+    const nFranquia = redeId ? nFranquiaPorRede.get(redeId) : null;
     const tituloCalc = montarTituloCardSync({
-      nFranquia: redeId ? nFranquiaPorRede.get(redeId) : null,
+      nFranquia,
       nomeFranqueado: redeId ? nomeFranqueadoPorRede.get(redeId) : null,
       nomeCondominio: row.nome_condominio,
       quadra: row.quadra,
       lote: row.lote,
       tituloFallback: row.titulo,
     });
-    info.titulo = escolherTituloExibicaoCard(info.titulo, tituloCalc);
+    info.titulo = escolherTituloExibicaoCard(info.titulo, tituloCalc, nFranquia);
   }
 }
 
@@ -2467,15 +2468,16 @@ async function enriquecerTitulosMapInfoComAncestrais(
     }
 
     const redeId = String(merged.rede_franqueado_id ?? '').trim();
+    const nFranquia = redeId ? nFranquiaPorRede.get(redeId) : null;
     const tituloCalc = montarTituloCardSync({
-      nFranquia: redeId ? nFranquiaPorRede.get(redeId) : null,
+      nFranquia,
       nomeFranqueado: redeId ? nomeFranqueadoPorRede.get(redeId) : null,
       nomeCondominio: merged.nome_condominio,
       quadra: merged.quadra,
       lote: merged.lote,
       tituloFallback: merged.titulo,
     });
-    info.titulo = escolherTituloExibicaoCard(info.titulo, tituloCalc);
+    info.titulo = escolherTituloExibicaoCard(info.titulo, tituloCalc, nFranquia);
   }
 }
 

@@ -562,10 +562,11 @@ export async function fetchKanbanBoardSnapshot(
     const redeId = String((c as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '').trim();
     const cardId = String(c.id ?? '');
     const tituloRaw = String(c.titulo ?? '');
+    const nFranquiaCard = redeId
+      ? nFranquiaByRedeId.get(redeId)
+      : nFranquiaPorCardId.get(cardId) ?? extrairNumeroFranquiaDoTitulo(tituloRaw);
     const tituloCalc = montarTituloCardSync({
-      nFranquia: redeId
-        ? nFranquiaByRedeId.get(redeId)
-        : nFranquiaPorCardId.get(cardId) ?? extrairNumeroFranquiaDoTitulo(tituloRaw),
+      nFranquia: nFranquiaCard,
       nomeFranqueado: redeId
         ? redeNomeDiretoMap.get(redeId)
         : franqueadoNomePorCardId.get(cardId),
@@ -576,7 +577,7 @@ export async function fetchKanbanBoardSnapshot(
     });
     return {
       id: String(c.id),
-      titulo: escolherTituloExibicaoCard(tituloRaw, tituloCalc),
+      titulo: escolherTituloExibicaoCard(tituloRaw, tituloCalc, nFranquiaCard),
       status: String(c.status ?? ''),
       created_at: String(c.created_at ?? ''),
       fase_id: String(c.fase_id ?? ''),

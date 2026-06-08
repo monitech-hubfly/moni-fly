@@ -107,6 +107,8 @@ export function Etapa4Casas(props: {
   readOnly?: boolean;
   /** Callback após mutação (ex.: recarregar dados no checklist Kanban). */
   onMutate?: () => void;
+  /** Pré-preenche o condomínio na varredura ZAP e no cadastro manual (sessão por condomínio no funil). */
+  condominioInicial?: string;
   modoPreBatalha?: boolean;
   /** URL do PDF Score & Batalha já armazenado na etapa 7 (etapa 6). */
   pdfScoreBatalhaUrl?: string | null;
@@ -125,6 +127,7 @@ export function Etapa4Casas(props: {
     listagemOnly = false,
     readOnly = false,
     onMutate,
+    condominioInicial = '',
     modoPreBatalha = false,
     pdfScoreBatalhaUrl = null,
     custosConstrucaoChecklist = {},
@@ -141,7 +144,7 @@ export function Etapa4Casas(props: {
   const router = useRouter();
   const [cidade, setCidade] = useState(cidadeInicial);
   const [estado, setEstado] = useState(estadoInicial);
-  const [condominio, setCondominio] = useState('');
+  const [condominio, setCondominio] = useState(condominioInicial);
   const [zapError, setZapError] = useState('');
   const [zapLoading, setZapLoading] = useState(false);
   const [zapResult, setZapResult] = useState<{
@@ -153,7 +156,7 @@ export function Etapa4Casas(props: {
   const [cidadeManual, setCidadeManual] = useState(cidadeInicial);
   const [estadoManual, setEstadoManual] = useState(estadoInicial);
   const [statusManual, setStatusManual] = useState<'a_venda' | 'despublicado'>('a_venda');
-  const [condominioManual, setCondominioManual] = useState('');
+  const [condominioManual, setCondominioManual] = useState(condominioInicial);
   const [enderecoManual, setEnderecoManual] = useState('');
   const [quartos, setQuartos] = useState('');
   const [banheiros, setBanheiros] = useState('');
@@ -177,6 +180,12 @@ export function Etapa4Casas(props: {
 
   const [manualFormOpen, setManualFormOpen] = useState(false);
   const [validandoStatus, setValidandoStatus] = useState(false);
+
+  useEffect(() => {
+    const c = condominioInicial.trim();
+    setCondominio(c);
+    setCondominioManual(c);
+  }, [condominioInicial]);
 
   const ROWS_PER_PAGE = 15;
   const totalPages = Math.max(1, Math.ceil(casas.length / ROWS_PER_PAGE));

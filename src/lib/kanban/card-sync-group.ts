@@ -14,12 +14,17 @@ export function extrairNumeroFranquiaDoTitulo(titulo: string): string {
 function tituloFallbackSemFranqueado(fb: string, nFranquia: string | null | undefined): string {
   const t = fb.trim();
   if (!t) return t;
+  const num = (nFranquia ?? '').trim();
   const parts = t.split(' - ').filter(Boolean);
-  if (parts.length <= 1) return t;
-  const num = (nFranquia ?? '').trim() || parts[0]!;
-  if (parts[0] !== num) return t;
-  if (parts.length === 2) return num;
-  return [num, ...parts.slice(2)].join(' - ');
+  if (parts.length <= 1) {
+    // Título legado só com nome do franqueado → substituir pelo FK quando conhecido.
+    if (num && parts[0] !== num) return num;
+    return t;
+  }
+  const fk = num || parts[0]!;
+  if (parts[0] !== fk) return t;
+  if (parts.length === 2) return fk;
+  return [fk, ...parts.slice(2)].join(' - ');
 }
 
 function tituloParaNumeroFranquiaSync(titulo: string): string {
@@ -384,14 +389,15 @@ export function montarTituloCardSync(params: {
   return tituloFallbackSemFranqueado(fb, params.nFranquia);
 }
 
-/** Prefere o título calculado (sem nome do franqueado). */
+/** Prefere o título calculado (FK + condomínio/quadra/lote, sem nome do franqueado). */
 export function escolherTituloExibicaoCard(
   tituloAtual: string | null | undefined,
   tituloCalculado: string | null | undefined,
+  nFranquia?: string | null,
 ): string {
   const calc = String(tituloCalculado ?? '').trim();
   if (calc) return calc;
-  const atual = String(tituloAtual ?? '').trim();
+  const atual = tituloFallbackSemFranqueado(String(tituloAtual ?? ''), nFranquia);
   return atual || '(sem título)';
 }
 
@@ -646,7 +652,11 @@ export async function fetchCamposKanbanCanonicos(
     titulo: out.titulo,
   });
   if (tituloRecalc) {
-    out.titulo = escolherTituloExibicaoCard(out.titulo, tituloRecalc);
+    const nFq =
+      out.rede_franqueado_id != null
+        ? await nFranquiaDeRede(db, out.rede_franqueado_id)
+        : extrairNumeroFranquiaDoTitulo(String(out.titulo ?? '')) || null;
+    out.titulo = escolherTituloExibicaoCard(out.titulo, tituloRecalc, nFq);
     if (out.titulo === '(sem título)') out.titulo = null;
   }
 
