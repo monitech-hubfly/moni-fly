@@ -21,7 +21,12 @@ import { gerarRegistroFranquiaPdf } from '@/lib/registro-franquia-pdf';
 import { getRegistroFranquiaRecipients, sendRegistroFranquiaEmail } from '@/lib/email';
 import { allocNextOrdemColunaPainel } from '@/lib/painel-coluna-ordem';
 import { getPainelDbForPublicEdit } from '@/lib/painel-public-edit';
-import { ensureFunilStepOneCardFromRede } from '@/lib/kanban/ensure-funil-stepone-card-from-rede';
+import {
+  contarRedeSemCardFunilStepOne,
+  ensureFunilStepOneCardFromRede,
+  garantirCardsFunilStepOneParaTodaRede,
+  tituloFunilFromRedeRow,
+} from '@/lib/kanban/ensure-funil-stepone-card-from-rede';
 import { isRedeStatusEmProcesso } from '@/lib/rede-franqueado-form-options';
 import {
   REDE_EMPRESA_ANEXO_JUSTIFICATIVA_COLUNA,
@@ -72,7 +77,24 @@ async function requireRedeAdminOrPublicLink(): Promise<
 }
 
 export type CriarCardsDesdeRedeResult =
-  | { ok: true; criados: number; mensagem: string }
+  | {
+      ok: true;
+      criados: number;
+      funilCriados: number;
+      funilReparados: number;
+      mensagem: string;
+    }
+  | { ok: false; error: string };
+
+export type GarantirCardsFunilStepOneDesdeRedeResult =
+  | {
+      ok: true;
+      criados: number;
+      reparados: number;
+      jaExistiam: number;
+      ignorados: number;
+      mensagem: string;
+    }
   | { ok: false; error: string };
 
 export type CriarLinhaRedeECardResult =
@@ -210,10 +232,10 @@ export async function criarLinhaRedeECard(
     .eq('id', rede.id);
   if (errLink) return { ok: false, error: `Erro ao vincular processo à rede: ${errLink.message}` };
 
-  const tituloFunil =
-    String(clean.nome_completo ?? '').trim() ||
-    String(clean.n_franquia ?? '').trim() ||
-    'Franqueado';
+  const tituloFunil = tituloFunilFromRedeRow({
+    nome_completo: clean.nome_completo != null ? String(clean.nome_completo) : null,
+    n_franquia: clean.n_franquia != null ? String(clean.n_franquia) : null,
+  });
   const funilRes = await ensureFunilStepOneCardFromRede(supabase, {
     redeFranqueadoId: rede.id,
     franqueadoUserId: userId,
@@ -262,15 +284,9 @@ export async function criarCardsDesdeRedeFranqueados(): Promise<CriarCardsDesdeR
     .limit(MAX_POR_VEZ);
 
   if (errSelect) return { ok: false, error: errSelect.message ?? 'Erro ao ler a tabela.' };
-  if (!rows?.length) {
-    return {
-      ok: true,
-      criados: 0,
-      mensagem: 'Nenhuma linha sem card. Todas as linhas da Rede já possuem um card no Painel.',
-    };
-  }
 
   let criados = 0;
+  if (rows?.length) {
   for (const row of rows) {
     const cidade = String(row.cidade_casa_frank ?? '').trim() || 'A definir';
     const estado = (row.estado_casa_frank && String(row.estado_casa_frank).trim()) || null;
@@ -356,14 +372,95 @@ export async function criarCardsDesdeRedeFranqueados(): Promise<CriarCardsDesdeR
     }
     criados += 1;
   }
+  }
+
+  const funilRes = await garantirCardsFunilStepOneParaTodaRede(userId);
+  if (!funilRes.ok) return funilRes;
 
   revalidatePath('/rede-franqueados');
   revalidatePath('/painel-novos-negocios');
+  revalidatePath('/funil-stepone');
+
+  const partes: string[] = [];
+  if (criados > 0) {
+    partes.push(criados === 1 ? '1 card criado no Painel' : `${criados} cards criados no Painel`);
+  }
+  if (funilRes.criados > 0) {
+    partes.push(
+      funilRes.criados === 1
+        ? '1 card criado no Funil Step One'
+        : `${funilRes.criados} cards criados no Funil Step One`,
+    );
+  }
+  if (funilRes.reparados > 0) {
+    partes.push(`${funilRes.reparados} card(s) reparado(s) no Funil Step One`);
+  }
+  if (partes.length === 0) {
+    partes.push('Todos os franqueados já possuem cards no Painel e no Funil Step One.');
+  }
+
   return {
     ok: true,
     criados,
-    mensagem: criados === 1 ? '1 card criado no Painel.' : `${criados} cards criados no Painel.`,
+    funilCriados: funilRes.criados,
+    funilReparados: funilRes.reparados,
+    mensagem: partes.join('. ') + '.',
   };
+}
+
+/**
+ * Garante card no Funil Step One para cada linha da Rede de Franqueados (backfill idempotente).
+ */
+export async function garantirCardsFunilStepOneDesdeRede(): Promise<GarantirCardsFunilStepOneDesdeRedeResult> {
+  const gate = await requireRedeStaffOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+
+  const res = await garantirCardsFunilStepOneParaTodaRede(gate.userId);
+  if (!res.ok) return res;
+
+  revalidatePath('/rede-franqueados');
+  revalidatePath('/funil-stepone');
+
+  const partes: string[] = [];
+  if (res.criados > 0) {
+    partes.push(
+      res.criados === 1
+        ? '1 card criado no Funil Step One'
+        : `${res.criados} cards criados no Funil Step One`,
+    );
+  }
+  if (res.reparados > 0) {
+    partes.push(`${res.reparados} card(s) reparado(s) no Funil Step One`);
+  }
+  if (res.jaExistiam > 0 && res.criados === 0 && res.reparados === 0) {
+    partes.push(`${res.jaExistiam} franqueado(s) já tinham card no funil`);
+  }
+  if (res.ignorados > 0) {
+    partes.push(`${res.ignorados} linha(s) ignorada(s) (sem usuário ou erro)`);
+  }
+  if (partes.length === 0) {
+    partes.push('Nenhuma linha na Rede de Franqueados.');
+  }
+
+  return {
+    ok: true,
+    criados: res.criados,
+    reparados: res.reparados,
+    jaExistiam: res.jaExistiam,
+    ignorados: res.ignorados,
+    mensagem: partes.join('. ') + '.',
+  };
+}
+
+/**
+ * Retorna quantas linhas da Rede ainda não têm card no Funil Step One.
+ */
+export async function contarRedeSemCardFunil(): Promise<
+  { ok: true; total: number } | { ok: false; error: string }
+> {
+  const gate = await requireRedeStaffOrPublicLink();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  return contarRedeSemCardFunilStepOne();
 }
 
 /**
@@ -881,15 +978,27 @@ export async function importarRedeFranqueadosCSV(csvText: string): Promise<Impor
       criados += 1;
     }
 
+    const funilRes = await garantirCardsFunilStepOneParaTodaRede(userId);
+    if (!funilRes.ok) return { ok: false, error: funilRes.error };
+
     revalidatePath('/painel-novos-negocios');
     revalidatePath('/rede-franqueados');
+    revalidatePath('/funil-stepone');
+
+    const funilMsg =
+      funilRes.criados > 0
+        ? ` ${funilRes.criados} card(s) no Funil Step One.`
+        : funilRes.reparados > 0
+          ? ` ${funilRes.reparados} card(s) reparado(s) no Funil Step One.`
+          : '';
+
     return {
       ok: true,
       inseridos,
       mensagem:
         inseridos === 1
-          ? `1 linha importada. ${criados} card(s) criado(s) no Step 1.`
-          : `${inseridos} linhas importadas. ${criados} card(s) criado(s) no Step 1.`,
+          ? `1 linha importada. ${criados} card(s) criado(s) no Step 1.${funilMsg}`
+          : `${inseridos} linhas importadas. ${criados} card(s) criado(s) no Step 1.${funilMsg}`,
     };
   }
 

@@ -35,6 +35,7 @@ type Props = {
   canManageFranqueados: boolean;
   maskSensitiveColumns: boolean;
   linhasSemCard: number;
+  linhasSemFunil: number;
   showDashboard: boolean;
 };
 
@@ -50,6 +51,7 @@ export function RedeFranqueadosPageTabs({
   canManageFranqueados,
   maskSensitiveColumns,
   linhasSemCard,
+  linhasSemFunil,
   showDashboard,
 }: Props) {
   const tabs = [
@@ -113,7 +115,7 @@ export function RedeFranqueadosPageTabs({
               {canManageFranqueados ? (
                 <>
                   <ImportarRedeCSVButton />
-                  <CriarCardsDesdeRedeButton linhasSemCard={linhasSemCard} />
+                  <CriarCardsDesdeRedeButton linhasSemCard={linhasSemCard} linhasSemFunil={linhasSemFunil} />
                   <NovoFranqueadoModal />
                 </>
               ) : null}
