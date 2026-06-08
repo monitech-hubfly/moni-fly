@@ -46,3 +46,9 @@ body {
   white-space: nowrap !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15) !important;
 }
+
+/* Pins de equipamentos urbanos (Leaflet divIcon) */
+.moni-mapa-poi-marker {
+  background: transparent !important;
+  border: none !important;
+}

@@ -49,6 +49,15 @@ const CATEGORIES: {
   },
 ];
 
+/** Categorias desmarcadas por padrão — só aparecem no mapa após clique. */
+const CATEGORIES_OPT_IN: PoiCategory[] = ['clinic', 'square', 'bank', 'pharmacy'];
+
+const PIN_SIZE = 16;
+
+function initialVisibleCategories(): Set<PoiCategory> {
+  return new Set(CATEGORIES.filter((c) => !CATEGORIES_OPT_IN.includes(c.key)).map((c) => c.key));
+}
+
 export type Poi = { lat: number; lon: number; name: string; category: PoiCategory };
 
 export type Road = { name: string; coordinates: [number, number][] };
@@ -167,10 +176,10 @@ function MapView({
     for (const cat of CATEGORIES) {
       const catConfig = CATEGORIES.find((c) => c.key === cat.key)!;
       const icon = L.divIcon({
-        className: 'custom-marker',
-        html: `<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:${catConfig.color};color:white;font-size:11px;font-weight:bold;border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.3);">${catConfig.symbol}</span>`,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
+        className: 'moni-mapa-poi-marker',
+        html: `<span style="display:inline-flex;align-items:center;justify-content:center;width:${PIN_SIZE}px;height:${PIN_SIZE}px;border-radius:50%;background:${catConfig.color};color:white;font-size:8px;font-weight:bold;border:1.5px solid white;box-shadow:0 1px 2px rgba(0,0,0,0.25);">${catConfig.symbol}</span>`,
+        iconSize: [PIN_SIZE, PIN_SIZE],
+        iconAnchor: [PIN_SIZE / 2, PIN_SIZE / 2],
       });
       const group = L.layerGroup();
       const pois = poisByCat.get(cat.key) ?? [];
@@ -182,12 +191,6 @@ function MapView({
       layerGroups[cat.key] = group;
     }
     layerGroupsRef.current = layerGroups;
-
-    // Adicionar todos os grupos ao mapa logo após criar; o effect abaixo só mostra/oculta conforme os checkboxes
-    for (const cat of CATEGORIES) {
-      const group = layerGroups[cat.key];
-      if (group) map.addLayer(group);
-    }
 
     return () => {
       map.remove();
@@ -238,9 +241,7 @@ export function MapaPraca({ cidade, estado }: { cidade: string; estado: string |
   const [center, setCenter] = useState<{ lat: number; lon: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [visibleCategories, setVisibleCategories] = useState<Set<PoiCategory>>(
-    () => new Set(CATEGORIES.map((c) => c.key)),
-  );
+  const [visibleCategories, setVisibleCategories] = useState<Set<PoiCategory>>(initialVisibleCategories);
   const [showRoads, setShowRoads] = useState(true);
 
   const toggleCategory = useCallback((key: PoiCategory) => {
