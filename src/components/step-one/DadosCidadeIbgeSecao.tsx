@@ -33,20 +33,20 @@ export function DadosCidadeIbgeSecao({ cidade, estado, showHeading = true }: Pro
     const params = new URLSearchParams({ cidade: cidade.trim() });
     if (estado?.trim()) params.set('estado', estado.trim());
     fetch(`/api/etapa1/dados-cidade?${params.toString()}`)
-      .then((res) => res.json())
-      .then((data: DadosCidade & { error?: string }) => {
-        if (data.error) {
-          setErrorDados(data.error);
+      .then(async (res) => {
+        const data = (await res.json()) as DadosCidade & { error?: string };
+        if (!res.ok || data.error) {
+          setErrorDados(data.error ?? 'Erro ao carregar dados da cidade.');
           setDadosCidade(null);
-        } else {
-          setDadosCidade({
-            populacao: data.populacao ?? null,
-            pibPerCapita: data.pibPerCapita ?? null,
-            rendaMedia: data.rendaMedia ?? null,
-            areaTerritorial: data.areaTerritorial ?? null,
-            densidade: data.densidade ?? null,
-          });
+          return;
         }
+        setDadosCidade({
+          populacao: data.populacao ?? null,
+          pibPerCapita: data.pibPerCapita ?? null,
+          rendaMedia: data.rendaMedia ?? null,
+          areaTerritorial: data.areaTerritorial ?? null,
+          densidade: data.densidade ?? null,
+        });
       })
       .catch(() => {
         setErrorDados('Erro ao carregar dados da cidade.');

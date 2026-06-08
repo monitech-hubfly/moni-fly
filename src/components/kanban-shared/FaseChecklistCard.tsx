@@ -413,10 +413,11 @@ export function FaseChecklistCard({
   function renderItemField(item: FaseChecklistItem, chavePraca?: string) {
     const chave = chavePraca ?? abaPracaAtiva;
     const praca = parseChavePracaCidade(chave) ?? pracaAtiva;
+    const itemKey = multiPracaAtivo ? `${item.id}-${chave}` : item.id;
     return (
-      <ItemField
-        key={multiPracaAtivo ? `${item.id}-${chave}` : item.id}
-        item={item}
+      <div key={itemKey} className="kanban-fase-checklist-item">
+        <ItemField
+          item={item}
         faseSlug={faseSlug}
         estado={getEstadoRespostaItem(item, chave)}
         cardId={cardId}
@@ -472,12 +473,13 @@ export function FaseChecklistCard({
           }
           await salvar(item.id, valor, undefined, chave);
         }}
-      />
+        />
+      </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="kanban-fase-checklist-list">
       <ChecklistDocumentDiffModal
         open={diffModal.open}
         diferencas={diffModal.lines}

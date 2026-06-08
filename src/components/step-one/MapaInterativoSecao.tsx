@@ -27,11 +27,7 @@ export function MapaInterativoSecao({ cidade, estado, showHeading = true }: Prop
       {showHeading ? (
         <h2 className="text-lg font-semibold text-stone-800">Seção 2 — Mapa interativo</h2>
       ) : null}
-      <p className={`text-sm text-stone-500 ${showHeading ? 'mt-1' : ''}`}>
-        OpenStreetMap + Leaflet + Overpass: escolas, hospitais, UBS, shoppings, supermercados, parques,
-        praças, bancos, farmácias.
-      </p>
-      <div className={showHeading ? 'mt-4' : 'mt-2'}>
+      <div className={showHeading ? 'mt-4' : ''}>
         <MapaPraca cidade={cidade} estado={estado} />
       </div>
     </section>

@@ -11,11 +11,11 @@ type Props = {
 
 export function DadosCidadePracaTabs({ pracas, abaAtiva, onAbaChange, children }: Props) {
   if (pracas.length <= 1) {
-    return <div className="space-y-4">{children}</div>;
+    return <div className="kanban-fase-checklist-list">{children}</div>;
   }
 
   return (
-    <div className="space-y-4">
+    <div className="kanban-fase-checklist-list">
       <div
         className="flex flex-wrap gap-1 border-b pb-0.5"
         style={{ borderColor: 'var(--moni-border-default)' }}
@@ -44,7 +44,9 @@ export function DadosCidadePracaTabs({ pracas, abaAtiva, onAbaChange, children }
           );
         })}
       </div>
-      <div role="tabpanel">{children}</div>
+      <div role="tabpanel" className="kanban-fase-checklist-list">
+        {children}
+      </div>
     </div>
   );
 }

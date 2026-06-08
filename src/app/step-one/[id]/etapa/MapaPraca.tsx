@@ -242,7 +242,7 @@ export function MapaPraca({ cidade, estado }: { cidade: string; estado: string |
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [visibleCategories, setVisibleCategories] = useState<Set<PoiCategory>>(initialVisibleCategories);
-  const [showRoads, setShowRoads] = useState(true);
+  const [showRoads, setShowRoads] = useState(false);
 
   const toggleCategory = useCallback((key: PoiCategory) => {
     setVisibleCategories((prev) => {
@@ -334,30 +334,6 @@ export function MapaPraca({ cidade, estado }: { cidade: string; estado: string |
             </label>
           ))}
         </div>
-        {roads.length > 0 && (
-          <div className="mt-2 border-t border-stone-200 pt-2">
-            <p className="mb-1.5 text-xs font-semibold uppercase text-stone-500">
-              Principais vias exibidas:
-            </p>
-            <ul className="flex list-none flex-wrap gap-x-3 gap-y-1 text-sm text-stone-700">
-              {roads
-                .filter((r) => r.name.trim())
-                .map((r, i) => (
-                  <li key={`${r.name}-${i}`} className="flex items-center gap-1.5">
-                    <span
-                      className="inline-block h-0.5 w-2 shrink-0 rounded"
-                      style={{ backgroundColor: 'var(--moni-gold-600)' }}
-                      aria-hidden
-                    />
-                    <span>{r.name}</span>
-                  </li>
-                ))}
-            </ul>
-            {roads.filter((r) => r.name.trim()).length === 0 && (
-              <p className="text-sm text-stone-500">Vias sem nome cadastrado no mapa base.</p>
-            )}
-          </div>
-        )}
       </div>
 
       {loading && <p className="text-sm text-stone-500">Carregando mapa e equipamentos…</p>}
