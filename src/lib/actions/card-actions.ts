@@ -2362,15 +2362,18 @@ async function enriquecerTitulosMapInfoCards(
     ),
   ];
   const nFranquiaPorRede = new Map<string, string>();
+  const nomeFranqueadoPorRede = new Map<string, string>();
   if (redeIds.length > 0) {
     const { data: redes } = await supabase
       .from('rede_franqueados')
-      .select('id, n_franquia')
+      .select('id, n_franquia, nome_completo')
       .in('id', redeIds);
     for (const r of redes ?? []) {
       const id = String((r as { id?: string }).id ?? '').trim();
       const num = String((r as { n_franquia?: string | null }).n_franquia ?? '').trim();
+      const nome = String((r as { nome_completo?: string | null }).nome_completo ?? '').trim();
       if (id && num) nFranquiaPorRede.set(id, num);
+      if (id && nome) nomeFranqueadoPorRede.set(id, nome);
     }
   }
 
@@ -2382,6 +2385,7 @@ async function enriquecerTitulosMapInfoCards(
     const redeId = String(row.rede_franqueado_id ?? '').trim();
     const tituloCalc = montarTituloCardSync({
       nFranquia: redeId ? nFranquiaPorRede.get(redeId) : null,
+      nomeFranqueado: redeId ? nomeFranqueadoPorRede.get(redeId) : null,
       nomeCondominio: row.nome_condominio,
       quadra: row.quadra,
       lote: row.lote,
@@ -2426,15 +2430,18 @@ async function enriquecerTitulosMapInfoComAncestrais(
     ),
   ];
   const nFranquiaPorRede = new Map<string, string>();
+  const nomeFranqueadoPorRede = new Map<string, string>();
   if (redeIds.length > 0) {
     const { data: redes } = await supabase
       .from('rede_franqueados')
-      .select('id, n_franquia')
+      .select('id, n_franquia, nome_completo')
       .in('id', redeIds);
     for (const r of redes ?? []) {
       const id = String((r as { id?: string }).id ?? '').trim();
       const num = String((r as { n_franquia?: string | null }).n_franquia ?? '').trim();
+      const nome = String((r as { nome_completo?: string | null }).nome_completo ?? '').trim();
       if (id && num) nFranquiaPorRede.set(id, num);
+      if (id && nome) nomeFranqueadoPorRede.set(id, nome);
     }
   }
 
@@ -2462,6 +2469,7 @@ async function enriquecerTitulosMapInfoComAncestrais(
     const redeId = String(merged.rede_franqueado_id ?? '').trim();
     const tituloCalc = montarTituloCardSync({
       nFranquia: redeId ? nFranquiaPorRede.get(redeId) : null,
+      nomeFranqueado: redeId ? nomeFranqueadoPorRede.get(redeId) : null,
       nomeCondominio: merged.nome_condominio,
       quadra: merged.quadra,
       lote: merged.lote,

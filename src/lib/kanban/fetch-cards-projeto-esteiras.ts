@@ -94,15 +94,18 @@ export async function fetchCardsProjetoEsteiras(
     ),
   ];
   const nFranquiaPorRede = new Map<string, string>();
+  const nomeFranqueadoPorRede = new Map<string, string>();
   if (redeIds.length > 0) {
     const { data: redes } = await supabase
       .from('rede_franqueados')
-      .select('id, n_franquia')
+      .select('id, n_franquia, nome_completo')
       .in('id', redeIds);
     for (const r of redes ?? []) {
       const id = String((r as { id?: string }).id ?? '').trim();
       const num = String((r as { n_franquia?: string | null }).n_franquia ?? '').trim();
+      const nome = String((r as { nome_completo?: string | null }).nome_completo ?? '').trim();
       if (id && num) nFranquiaPorRede.set(id, num);
+      if (id && nome) nomeFranqueadoPorRede.set(id, nome);
     }
   }
 
@@ -125,6 +128,7 @@ export async function fetchCardsProjetoEsteiras(
   const redeCanonica = String(camposProjeto.rede_franqueado_id ?? '').trim();
   const tituloCanonicoProjeto = montarTituloCardSync({
     nFranquia: redeCanonica ? nFranquiaPorRede.get(redeCanonica) : null,
+    nomeFranqueado: redeCanonica ? nomeFranqueadoPorRede.get(redeCanonica) : null,
     nomeCondominio: camposProjeto.nome_condominio,
     quadra: camposProjeto.quadra,
     lote: camposProjeto.lote,
@@ -138,6 +142,7 @@ export async function fetchCardsProjetoEsteiras(
     const redeId = String(row.rede_franqueado_id ?? '').trim();
     const tituloCalc = montarTituloCardSync({
       nFranquia: redeId ? nFranquiaPorRede.get(redeId) : null,
+      nomeFranqueado: redeId ? nomeFranqueadoPorRede.get(redeId) : null,
       nomeCondominio: row.nome_condominio ?? camposProjeto.nome_condominio,
       quadra: row.quadra ?? camposProjeto.quadra,
       lote: row.lote ?? camposProjeto.lote,

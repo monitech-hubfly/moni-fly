@@ -1,4 +1,9 @@
 import {
+  getRedeDocFranqueadoSlotValues,
+  REDE_DOCS_FRANQUEADO_SLOTS,
+  type RedeFranqueadoDocsRow,
+} from '@/lib/rede-documentos-franqueado';
+import {
   isRedeDocSlotCompleto,
   REDE_DOCS_FRANQUIA_SLOTS,
   REDE_SECAO_DOCS_EMPRESAS,
@@ -14,18 +19,21 @@ type Props = {
   justificativaCof: string | null;
   justificativaContrato: string | null;
   justificativaNumeroFranquia: string | null;
+  franqueadoDocs: RedeFranqueadoDocsRow;
 };
 
 function DocStatus({
   titulo,
   path,
   justificativa,
+  aceitaJustificativa,
 }: {
   titulo: string;
   path: string | null;
   justificativa: string | null;
+  aceitaJustificativa: boolean;
 }) {
-  const completo = isRedeDocSlotCompleto(path, justificativa);
+  const completo = isRedeDocSlotCompleto(path, aceitaJustificativa ? justificativa : null);
   return (
     <div className="rounded-lg border border-stone-100 bg-stone-50/50 p-3">
       <h3 className="text-sm font-semibold text-stone-800">{titulo}</h3>
@@ -51,8 +59,9 @@ export function RedeFranqueadoDetalheDocsFranqueado({
   justificativaCof,
   justificativaContrato,
   justificativaNumeroFranquia,
+  franqueadoDocs,
 }: Props) {
-  const slots = [
+  const slotsFranquia = [
     { slot: REDE_DOCS_FRANQUIA_SLOTS[0], path: pathCof, justificativa: justificativaCof },
     { slot: REDE_DOCS_FRANQUIA_SLOTS[1], path: pathContrato, justificativa: justificativaContrato },
     { slot: REDE_DOCS_FRANQUIA_SLOTS[2], path: pathNumeroFranquia, justificativa: justificativaNumeroFranquia },
@@ -65,16 +74,33 @@ export function RedeFranqueadoDetalheDocsFranqueado({
         registrada; o download fica restrito ao time interno.
       </p>
 
-      <RedeDocsSecaoColapsavel
-        titulo={REDE_SECAO_DOCS_FRANQUEADO.titulo}
-        sectionId={REDE_SECAO_DOCS_FRANQUEADO.id}
-        vazio
-      />
+      <RedeDocsSecaoColapsavel titulo={REDE_SECAO_DOCS_FRANQUEADO.titulo} sectionId={REDE_SECAO_DOCS_FRANQUEADO.id}>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {REDE_DOCS_FRANQUEADO_SLOTS.map((slot) => {
+            const { path, justificativa } = getRedeDocFranqueadoSlotValues(franqueadoDocs, slot);
+            return (
+              <DocStatus
+                key={slot.tipo}
+                titulo={slot.titulo}
+                path={path}
+                justificativa={justificativa}
+                aceitaJustificativa={slot.justificativaKey !== null}
+              />
+            );
+          })}
+        </div>
+      </RedeDocsSecaoColapsavel>
 
       <RedeDocsSecaoColapsavel titulo={REDE_SECAO_DOCS_FRANQUIA.titulo} sectionId={REDE_SECAO_DOCS_FRANQUIA.id}>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {slots.map(({ slot, path, justificativa }) => (
-            <DocStatus key={slot.tipo} titulo={slot.titulo} path={path} justificativa={justificativa} />
+          {slotsFranquia.map(({ slot, path, justificativa }) => (
+            <DocStatus
+              key={slot.tipo}
+              titulo={slot.titulo}
+              path={path}
+              justificativa={justificativa}
+              aceitaJustificativa
+            />
           ))}
         </div>
       </RedeDocsSecaoColapsavel>

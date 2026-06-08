@@ -9,6 +9,11 @@ import {
   type RedeEmpresaDocsRow,
 } from '@/lib/rede-documentos-empresas';
 import {
+  getRedeDocFranqueadoSlotValues,
+  REDE_DOCS_FRANQUEADO_SLOTS,
+  type RedeFranqueadoDocsRow,
+} from '@/lib/rede-documentos-franqueado';
+import {
   isRedeDocSlotCompleto,
   REDE_DOCS_FRANQUIA_SLOTS,
   REDE_SECAO_DOCS_EMPRESAS,
@@ -45,6 +50,7 @@ type Props = {
   justificativaCof: string | null;
   justificativaContrato: string | null;
   justificativaNumeroFranquia: string | null;
+  franqueadoDocs: RedeFranqueadoDocsRow;
   empresaDocs: RedeEmpresaDocsRow;
 };
 
@@ -100,7 +106,9 @@ function DocUploadCard({
       <h3 className="text-sm font-semibold text-stone-800">{titulo}</h3>
       {contaPendencia && !completo ? (
         <p className="mt-1 text-[11px] text-amber-800">
-          Pendente: envie o arquivo ou registre uma justificativa (conta como cadastro incompleto no dashboard).
+          {permiteJustificativa
+            ? 'Pendente: envie o arquivo ou registre uma justificativa (conta como cadastro incompleto no dashboard).'
+            : 'Pendente: envie o arquivo (conta como cadastro incompleto no dashboard).'}
         </p>
       ) : null}
       {!contaPendencia ? (
@@ -184,6 +192,7 @@ export function RedeFranqueadoDetalheDocs({
   justificativaCof,
   justificativaContrato,
   justificativaNumeroFranquia,
+  franqueadoDocs,
   empresaDocs,
 }: Props) {
   const router = useRouter();
@@ -204,6 +213,18 @@ export function RedeFranqueadoDetalheDocs({
     }, 150);
     return () => window.clearTimeout(t);
   }, []);
+
+  const cardsFranqueado: DocCardConfig[] = REDE_DOCS_FRANQUEADO_SLOTS.map((slot) => {
+    const { path, justificativa } = getRedeDocFranqueadoSlotValues(franqueadoDocs, slot);
+    return {
+      tipo: slot.tipo,
+      titulo: slot.titulo,
+      path,
+      justificativa,
+      permiteJustificativa: slot.justificativaKey !== null,
+      contaPendencia: true,
+    };
+  });
 
   const cardsFranquia: DocCardConfig[] = REDE_DOCS_FRANQUIA_SLOTS.map((slot) => {
     const paths = {
@@ -302,8 +323,13 @@ export function RedeFranqueadoDetalheDocs({
       <RedeDocsSecaoColapsavel
         titulo={REDE_SECAO_DOCS_FRANQUEADO.titulo}
         sectionId={REDE_SECAO_DOCS_FRANQUEADO.id}
-        vazio
-      />
+      >
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {cardsFranqueado.map((config) => (
+            <DocUploadCard key={config.tipo} config={config} {...cardProps} />
+          ))}
+        </div>
+      </RedeDocsSecaoColapsavel>
 
       <RedeDocsSecaoColapsavel titulo={REDE_SECAO_DOCS_FRANQUIA.titulo} sectionId={REDE_SECAO_DOCS_FRANQUIA.id}>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

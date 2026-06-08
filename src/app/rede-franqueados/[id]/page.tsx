@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { normalizeAccessRole } from '@/lib/authz';
 import { pickRedeEmpresaDocsFromRow } from '@/lib/rede-documentos-empresas';
+import { pickRedeFranqueadoDocsFromRow } from '@/lib/rede-documentos-franqueado';
 import { fetchRedeFranqueadoDetalheForPage } from '@/lib/rede-franqueados';
 import { RedeFranqueadoDetalheDocs } from './RedeFranqueadoDetalheDocs';
 import { RedeFranqueadoDetalheDocsFranqueado } from './RedeFranqueadoDetalheDocsFranqueado';
@@ -64,6 +65,7 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
   const justificativaContrato = row.anexo_contrato_justificativa ?? null;
   const justificativaNumeroFranquia = row.anexo_numero_franquia_justificativa ?? null;
   const empresaDocs = pickRedeEmpresaDocsFromRow(row as Record<string, unknown>);
+  const franqueadoDocs = pickRedeFranqueadoDocsFromRow(row as Record<string, unknown>);
 
   const voltarHref = staff ? '/rede-franqueados' : '/portal-frank/rede';
   const voltarLabel = staff ? 'Voltar à rede' : 'Voltar à rede (portal)';
@@ -87,6 +89,7 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
               justificativaCof={justificativaCof}
               justificativaContrato={justificativaContrato}
               justificativaNumeroFranquia={justificativaNumeroFranquia}
+              franqueadoDocs={franqueadoDocs}
               empresaDocs={empresaDocs}
             />
           ) : (
@@ -97,6 +100,7 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
               justificativaCof={justificativaCof}
               justificativaContrato={justificativaContrato}
               justificativaNumeroFranquia={justificativaNumeroFranquia}
+              franqueadoDocs={franqueadoDocs}
             />
           )}
         </div>

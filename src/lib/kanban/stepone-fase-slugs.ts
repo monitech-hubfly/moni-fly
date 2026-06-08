@@ -123,6 +123,24 @@ export function isDadosCondominiosFaseSlug(slug: string | null | undefined): boo
   return slugMatchesStepOneFase(slug, DADOS_CONDOMINIOS_FASE_SLUGS);
 }
 
+/** Funil Step One: fases Onboarding → Dados da Cidade (inclusive) — sem condomínio selecionado ainda. */
+export function isStepOneFaseAntesOuDadosCidade(
+  faseAtual: { slug?: string | null; ordem?: number } | null | undefined,
+  fases: KanbanFase[],
+): boolean {
+  if (!faseAtual) return false;
+  const dadosCidade = fases.find((f) => isDadosCidadeFaseSlug(f.slug));
+  if (!dadosCidade) return false;
+  if (typeof faseAtual.ordem === 'number' && typeof dadosCidade.ordem === 'number') {
+    return faseAtual.ordem <= dadosCidade.ordem;
+  }
+  return (
+    isOnboardingFaseSlug(faseAtual.slug) ||
+    isDadosCandidatoFaseSlug(faseAtual.slug) ||
+    isDadosCidadeFaseSlug(faseAtual.slug)
+  );
+}
+
 export function isLotesDisponiveisFaseSlug(slug: string | null | undefined): boolean {
   return slugMatchesStepOneFase(slug, LOTES_DISPONIVEIS_FASE_SLUGS);
 }

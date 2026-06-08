@@ -32,6 +32,10 @@ import {
   REDE_EMPRESA_ANEXO_JUSTIFICATIVA_COLUNA,
   REDE_EMPRESA_ANEXO_PATH_COLUNA,
 } from '@/lib/rede-documentos-empresas';
+import {
+  REDE_FRANQUEADO_ANEXO_JUSTIFICATIVA_COLUNA,
+  REDE_FRANQUEADO_ANEXO_PATH_COLUNA,
+} from '@/lib/rede-documentos-franqueado';
 
 async function requireRedeStaffOrPublicLink(): Promise<
   | { ok: true; supabase: Awaited<ReturnType<typeof createClient>>; userId: string }
@@ -1089,11 +1093,13 @@ const REDE_FRANQUIA_ANEXO_JUSTIFICATIVA_COLUNA = {
 
 const REDE_ANEXO_COLUNA = {
   ...REDE_FRANQUIA_ANEXO_COLUNA,
+  ...REDE_FRANQUEADO_ANEXO_PATH_COLUNA,
   ...REDE_EMPRESA_ANEXO_PATH_COLUNA,
 } as const;
 
 const REDE_ANEXO_JUSTIFICATIVA_COLUNA = {
   ...REDE_FRANQUIA_ANEXO_JUSTIFICATIVA_COLUNA,
+  ...REDE_FRANQUEADO_ANEXO_JUSTIFICATIVA_COLUNA,
   ...REDE_EMPRESA_ANEXO_JUSTIFICATIVA_COLUNA,
 } as const;
 

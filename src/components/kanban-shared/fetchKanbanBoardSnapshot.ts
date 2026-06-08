@@ -210,29 +210,37 @@ export async function fetchKanbanBoardSnapshot(
     (processos ?? []).forEach((p) => {
       const pid = String(p.id);
       legadoOrdemMap.set(pid, Number((p as { ordem_coluna_painel?: number | null }).ordem_coluna_painel ?? 0));
+    });
+    const numeros = [...new Set((processos ?? []).map((p) => p.numero_franquia).filter(Boolean))] as string[];
+    const redeByNumero = new Map<string, string>();
+    if (numeros.length > 0) {
+      const { data: redes } = await supabase
+        .from('rede_franqueados')
+        .select('n_franquia, nome_completo')
+        .in('n_franquia', numeros);
+      for (const r of redes ?? []) {
+        const num = String(r.n_franquia ?? '').trim();
+        const nome = String(r.nome_completo ?? '').trim();
+        if (num && nome) redeByNumero.set(num, nome);
+      }
+    }
+    (processos ?? []).forEach((p) => {
+      const pid = String(p.id);
       const viewTitulo = rows.find((r) => String(r.id) === pid)?.titulo ?? '';
+      const num = String((p as { numero_franquia?: string | null }).numero_franquia ?? '').trim();
       const tituloCalc = montarTituloCardSync({
-        nFranquia: (p as { numero_franquia?: string | null }).numero_franquia,
+        nFranquia: num || null,
+        nomeFranqueado: num ? redeByNumero.get(num) : null,
         nomeCondominio: (p as { nome_condominio?: string | null }).nome_condominio,
         quadra: (p as { quadra?: string | null }).quadra,
         lote: (p as { lote?: string | null }).lote,
         tituloFallback: viewTitulo,
       });
       if (tituloCalc) legadoTituloMap.set(pid, tituloCalc);
+      if (num && redeByNumero.has(num)) {
+        franqueadoNomeMap.set(pid, redeByNumero.get(num)!);
+      }
     });
-    const numeros = [...new Set((processos ?? []).map((p) => p.numero_franquia).filter(Boolean))] as string[];
-    if (numeros.length > 0) {
-      const { data: redes } = await supabase
-        .from('rede_franqueados')
-        .select('n_franquia, nome_completo')
-        .in('n_franquia', numeros);
-      const redeByNumero = new Map((redes ?? []).map((r) => [String(r.n_franquia), String(r.nome_completo ?? '')]));
-      (processos ?? []).forEach((p) => {
-        if (p.numero_franquia && redeByNumero.has(p.numero_franquia)) {
-          franqueadoNomeMap.set(String(p.id), redeByNumero.get(p.numero_franquia)!);
-        }
-      });
-    }
   }
 
   const cardsLegado: KanbanCardBrief[] = rows.map((r) => {
@@ -556,6 +564,9 @@ export async function fetchKanbanBoardSnapshot(
     const tituloRaw = String(c.titulo ?? '');
     const tituloCalc = montarTituloCardSync({
       nFranquia: redeId ? nFranquiaByRedeId.get(redeId) : null,
+      nomeFranqueado: redeId
+        ? redeNomeDiretoMap.get(redeId)
+        : franqueadoNomePorCardId.get(String(c.id)),
       nomeCondominio: (c as { nome_condominio?: string | null }).nome_condominio,
       quadra: (c as { quadra?: string | null }).quadra,
       lote: (c as { lote?: string | null }).lote,

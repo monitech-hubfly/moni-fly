@@ -83,7 +83,7 @@ import {
   hipotesesOrdemMinima,
   montarChipsParalelas,
 } from '@/lib/kanban/kanban-paralelas-chips';
-import { isDadosCondominiosFaseSlug, isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { isDadosCondominiosFaseSlug, isHipotesesFaseSlug, isStepOneFaseAntesOuDadosCidade } from '@/lib/kanban/stepone-fase-slugs';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCreditoObraDocumentacao';
 import {
@@ -2976,6 +2976,8 @@ export function KanbanCardModal({
   const isFaseHipoteses = isHipotesesFaseSlug(faseSlugHipoteses);
   const isFaseDadosCondominios =
     !isLegado && kanbanNome === 'Funil Step One' && isDadosCondominiosFaseSlug(faseSlugHipoteses);
+  const stepOneCondominioSidebarBloqueado =
+    !isLegado && kanbanNome === 'Funil Step One' && isStepOneFaseAntesOuDadosCidade(faseAtual, fases);
   const exibirEnviarHipotesePortfolio =
     !isLegado && kanbanNome === 'Funil Step One' && isFaseHipoteses;
 
@@ -2983,6 +2985,7 @@ export function KanbanCardModal({
 
   const rede = modalDetalhes.rede;
   const proc = modalDetalhes.processo;
+  const condominioIdSidebar = card.condominio_id ?? proc?.condominio_id ?? null;
   const condominioIdChecklistLegal =
     card.condominio_id?.trim() || proc?.condominio_id?.trim() || null;
   const exibirChecklistLegalCondominio =
@@ -5697,23 +5700,34 @@ export function KanbanCardModal({
               secaoHead(
                 'condominio',
                 'Dados do Condomínio',
-                <KanbanCardModalCondominio
-                  key={`${card.id}-cond-${condominioTick}`}
-                  cardId={card.id}
-                  origem={origem}
-                  basePath={basePath}
-                  condominioIdInicial={card.condominio_id ?? proc?.condominio_id ?? null}
-                  quadraInicial={card.quadra ?? proc?.quadra ?? null}
-                  loteInicial={card.lote ?? proc?.lote ?? null}
-                  nomeCondominioLegado={card.nome_condominio ?? proc?.nome_condominio ?? null}
-                  podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
-                  podeCadastrarNovo={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
-                  onSalvo={() => {
-                    setCondominioTick((t) => t + 1);
-                    void loadCard();
-                    router.refresh();
-                  }}
-                />,
+                stepOneCondominioSidebarBloqueado && !condominioIdSidebar?.trim() ? (
+                  <p className="text-xs leading-snug text-stone-500">
+                    Disponível após selecionar um condomínio na fase Dados dos Condomínios.
+                  </p>
+                ) : (
+                  <KanbanCardModalCondominio
+                    key={`${card.id}-cond-${condominioTick}`}
+                    cardId={card.id}
+                    origem={origem}
+                    basePath={basePath}
+                    condominioIdInicial={condominioIdSidebar}
+                    quadraInicial={card.quadra ?? proc?.quadra ?? null}
+                    loteInicial={card.lote ?? proc?.lote ?? null}
+                    nomeCondominioLegado={card.nome_condominio ?? proc?.nome_condominio ?? null}
+                    podeEditar={
+                      !stepOneCondominioSidebarBloqueado && !ocultarGestaoCard && modalSessao.ehAdminOuTeam
+                    }
+                    podeCadastrarNovo={
+                      !stepOneCondominioSidebarBloqueado && !ocultarGestaoCard && modalSessao.ehAdminOuTeam
+                    }
+                    somenteLeitura={stepOneCondominioSidebarBloqueado}
+                    onSalvo={() => {
+                      setCondominioTick((t) => t + 1);
+                      void loadCard();
+                      router.refresh();
+                    }}
+                  />
+                ),
               )}
             {secaoHead(
               'novoNegocio',
@@ -6038,6 +6052,11 @@ export function KanbanCardModal({
                 isFrank={portalFrank}
                 responsaveisOpcoes={responsaveisOpcoes}
                 basePath={basePath}
+                fases={fases}
+                linhasCronologia={linhasCronologiaFases}
+                faseAtualId={card.fase_id}
+                areaAtuacao={modalDetalhes.rede?.area_atuacao}
+                structuralRefreshKey={`${card.fase_id}-${historico.length}-${condominioTick}`}
               />
             )}
             <div

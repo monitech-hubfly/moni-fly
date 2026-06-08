@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { montarTituloCardSync } from '@/lib/kanban/card-sync-group';
 
 import { ONBOARDING_FASE_SLUGS } from '@/lib/kanban/stepone-fase-slugs';
 
@@ -14,9 +15,10 @@ export type RedeRowForFunilCard = {
 
 export function tituloFunilFromRedeRow(row: Pick<RedeRowForFunilCard, 'nome_completo' | 'n_franquia'>): string {
   return (
-    String(row.nome_completo ?? '').trim() ||
-    String(row.n_franquia ?? '').trim() ||
-    'Franqueado'
+    montarTituloCardSync({
+      nFranquia: row.n_franquia,
+      nomeFranqueado: row.nome_completo,
+    }) ?? 'Franqueado'
   );
 }
 

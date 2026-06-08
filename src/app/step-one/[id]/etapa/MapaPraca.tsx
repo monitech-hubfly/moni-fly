@@ -291,20 +291,20 @@ export function MapaPraca({ cidade, estado }: { cidade: string; estado: string |
         (OpenStreetMap + Overpass).
       </p>
 
-      <div className="space-y-3 rounded-lg border border-stone-200 bg-stone-50 p-3">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <span className="w-full text-xs font-semibold uppercase text-stone-500 sm:w-auto">
+      <div className="space-y-2 rounded-lg border border-stone-200 bg-stone-50 p-2.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <span className="w-full text-[10px] font-semibold uppercase tracking-wide text-stone-500 sm:w-auto">
             Exibir no mapa:
           </span>
-          <label className="flex cursor-pointer select-none items-center gap-2 text-sm">
+          <label className="flex cursor-pointer select-none items-center gap-1.5 text-xs">
             <input
               type="checkbox"
               checked={showRoads}
               onChange={(e) => setShowRoads(e.target.checked)}
-              className="h-4 w-4 rounded border-stone-300"
+              className="h-3.5 w-3.5 rounded border-stone-300"
             />
             <span
-              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+              className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white"
               style={{ backgroundColor: 'var(--moni-gold-600)' }}
               title="Vias"
             >
@@ -315,16 +315,16 @@ export function MapaPraca({ cidade, estado }: { cidade: string; estado: string |
           {CATEGORIES.map((cat) => (
             <label
               key={cat.key}
-              className="flex cursor-pointer select-none items-center gap-2 text-sm"
+              className="flex cursor-pointer select-none items-center gap-1.5 text-xs"
             >
               <input
                 type="checkbox"
                 checked={visibleCategories.has(cat.key)}
                 onChange={() => toggleCategory(cat.key)}
-                className="h-4 w-4 rounded border-stone-300"
+                className="h-3.5 w-3.5 rounded border-stone-300"
               />
               <span
-                className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white"
                 style={{ backgroundColor: cat.color }}
                 title={cat.label}
               >

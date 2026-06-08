@@ -26,10 +26,11 @@ function splitAreas(area: string | null): string[] {
     .filter(Boolean);
 }
 
-// Monta o título padrão: "FK0001 - João Silva - Zona Sul de São Paulo"
-function buildTitulo(f: Franqueado, area: string): string {
-  const parts = [f.n_franquia, f.nome_completo, area].filter(Boolean);
-  return parts.join(' - ');
+// Monta o título padrão: "FK0001 - João Silva" (com área opcional ao criar múltiplos cards)
+function buildTitulo(f: Franqueado, area: string, incluirArea: boolean): string {
+  const base = [f.n_franquia, f.nome_completo].filter(Boolean).join(' - ');
+  if (incluirArea && area.trim()) return [base, area.trim()].filter(Boolean).join(' - ');
+  return base;
 }
 
 export function NovoCardForm({
@@ -65,8 +66,8 @@ export function NovoCardForm({
 
   // Preview dos títulos que serão criados
   const previews = criarPorArea
-    ? areas.map((a) => buildTitulo(selectedFranqueado!, a))
-    : [selectedFranqueado ? buildTitulo(selectedFranqueado, areas[0] || '') : ''];
+    ? areas.map((a) => buildTitulo(selectedFranqueado!, a, true))
+    : [selectedFranqueado ? buildTitulo(selectedFranqueado, areas[0] || '', false) : ''];
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -83,7 +84,9 @@ export function NovoCardForm({
       const cardList = criarPorArea ? areas : [areas[0] || ''];
 
       for (const area of cardList) {
-        const titulo = selectedFranqueado ? buildTitulo(selectedFranqueado, area) : area;
+        const titulo = selectedFranqueado
+          ? buildTitulo(selectedFranqueado, area, criarPorArea)
+          : area;
         const { error } = await supabase.from('kanban_cards').insert({
           kanban_id: kanbanId,
           fase_id: faseId,

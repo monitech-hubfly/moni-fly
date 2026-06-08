@@ -349,6 +349,7 @@ export async function resolverCardPrimarioSyncGroup(db: SyncDb, cardId: string):
 
 export function montarTituloCardSync(params: {
   nFranquia?: string | null;
+  nomeFranqueado?: string | null;
   nomeCondominio?: string | null;
   quadra?: string | null;
   lote?: string | null;
@@ -356,6 +357,7 @@ export function montarTituloCardSync(params: {
 }): string | null {
   const partes = [
     params.nFranquia?.trim() ?? '',
+    params.nomeFranqueado?.trim() ?? '',
     params.nomeCondominio?.trim() ?? '',
     params.quadra?.trim() ?? '',
     params.lote?.trim() ?? '',
@@ -392,13 +394,18 @@ export async function resolverTituloCardKanban(
     lote?: string | null;
     titulo?: string | null;
     n_franquia?: string | null;
+    nome_franqueado?: string | null;
   },
 ): Promise<string | null> {
   const nFq =
     String(fields.n_franquia ?? '').trim() ||
     (await nFranquiaDeRede(db, fields.rede_franqueado_id));
+  const nomeFq =
+    String(fields.nome_franqueado ?? '').trim() ||
+    (await redeTituloFieldsDeRede(db, fields.rede_franqueado_id)).nomeFranqueado;
   return montarTituloCardSync({
     nFranquia: nFq,
+    nomeFranqueado: nomeFq,
     nomeCondominio: fields.nome_condominio,
     quadra: fields.quadra,
     lote: fields.lote,
@@ -406,11 +413,23 @@ export async function resolverTituloCardKanban(
   });
 }
 
-async function nFranquiaDeRede(db: SyncDb, redeId: string | null | undefined): Promise<string | null> {
+async function redeTituloFieldsDeRede(
+  db: SyncDb,
+  redeId: string | null | undefined,
+): Promise<{ nFranquia: string | null; nomeFranqueado: string | null }> {
   const rid = String(redeId ?? '').trim();
-  if (!rid) return null;
-  const { data } = await db.from('rede_franqueados').select('n_franquia').eq('id', rid).maybeSingle();
-  return String((data as { n_franquia?: string | null } | null)?.n_franquia ?? '').trim() || null;
+  if (!rid) return { nFranquia: null, nomeFranqueado: null };
+  const { data } = await db.from('rede_franqueados').select('n_franquia, nome_completo').eq('id', rid).maybeSingle();
+  return {
+    nFranquia: String((data as { n_franquia?: string | null } | null)?.n_franquia ?? '').trim() || null,
+    nomeFranqueado:
+      String((data as { nome_completo?: string | null } | null)?.nome_completo ?? '').trim() || null,
+  };
+}
+
+async function nFranquiaDeRede(db: SyncDb, redeId: string | null | undefined): Promise<string | null> {
+  const { nFranquia } = await redeTituloFieldsDeRede(db, redeId);
+  return nFranquia;
 }
 
 /**

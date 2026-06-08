@@ -7,8 +7,10 @@ import {
   criarLinhaRedeECard,
   extrairDadosFranqueadoDePdfUpload,
   getProximoNFranquia,
+  salvarJustificativaRedeAnexo,
   uploadRedeFranqueadoAssinado,
 } from './actions';
+import type { RedeAnexoDocFranqueadoTipo } from '@/lib/rede-documentos-franqueado';
 import {
   REDE_OPCOES_CLASSIFICACAO_FRANQUEADO,
   REDE_OPCOES_MODALIDADE,
@@ -66,12 +68,25 @@ const emptyForm = (): FormState => ({
   socios: '',
 });
 
-async function enviarAnexo(redeId: string, tipo: 'cof' | 'contrato', file: File): Promise<string | null> {
+async function enviarAnexo(
+  redeId: string,
+  tipo: 'cof' | 'contrato' | RedeAnexoDocFranqueadoTipo,
+  file: File,
+): Promise<string | null> {
   const fd = new FormData();
   fd.append('tipo', tipo);
   fd.append('redeId', redeId);
   fd.append('file', file);
   const r = await uploadRedeFranqueadoAssinado(fd);
+  return r.ok ? null : r.error;
+}
+
+async function salvarJustificativaEstadoCivil(redeId: string, texto: string): Promise<string | null> {
+  const fd = new FormData();
+  fd.append('tipo', 'estado_civil');
+  fd.append('redeId', redeId);
+  fd.append('justificativa', texto);
+  const r = await salvarJustificativaRedeAnexo(fd);
   return r.ok ? null : r.error;
 }
 
@@ -81,6 +96,11 @@ export function NovoFranqueadoModal() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [cofFile, setCofFile] = useState<File | null>(null);
   const [contratoFile, setContratoFile] = useState<File | null>(null);
+  const [cnhFile, setCnhFile] = useState<File | null>(null);
+  const [comprovanteEnderecoFile, setComprovanteEnderecoFile] = useState<File | null>(null);
+  const [estadoCivilFile, setEstadoCivilFile] = useState<File | null>(null);
+  const [irpfFile, setIrpfFile] = useState<File | null>(null);
+  const [estadoCivilJustificativa, setEstadoCivilJustificativa] = useState('');
   const [loadingFk, setLoadingFk] = useState(false);
   const [extraindo, setExtraindo] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -165,6 +185,11 @@ export function NovoFranqueadoModal() {
     setForm(emptyForm());
     setCofFile(null);
     setContratoFile(null);
+    setCnhFile(null);
+    setComprovanteEnderecoFile(null);
+    setEstadoCivilFile(null);
+    setIrpfFile(null);
+    setEstadoCivilJustificativa('');
     setError(null);
     setInfoExtracao(null);
   }
@@ -215,6 +240,25 @@ export function NovoFranqueadoModal() {
       if (contratoFile) {
         const err = await enviarAnexo(res.redeId, 'contrato', contratoFile);
         if (err) errosAnexo.push(`Contrato: ${err}`);
+      }
+      if (cnhFile) {
+        const err = await enviarAnexo(res.redeId, 'cnh', cnhFile);
+        if (err) errosAnexo.push(`CNH: ${err}`);
+      }
+      if (comprovanteEnderecoFile) {
+        const err = await enviarAnexo(res.redeId, 'comprovante_endereco', comprovanteEnderecoFile);
+        if (err) errosAnexo.push(`Comprovante de endereço: ${err}`);
+      }
+      if (estadoCivilFile) {
+        const err = await enviarAnexo(res.redeId, 'estado_civil', estadoCivilFile);
+        if (err) errosAnexo.push(`Comprovante de estado civil: ${err}`);
+      } else if (estadoCivilJustificativa.trim()) {
+        const err = await salvarJustificativaEstadoCivil(res.redeId, estadoCivilJustificativa.trim());
+        if (err) errosAnexo.push(`Comprovante de estado civil (justificativa): ${err}`);
+      }
+      if (irpfFile) {
+        const err = await enviarAnexo(res.redeId, 'irpf', irpfFile);
+        if (err) errosAnexo.push(`Declaração de IRPF: ${err}`);
       }
       if (errosAnexo.length) {
         setError(`Franqueado criado, mas falha ao enviar anexo(s): ${errosAnexo.join(' · ')}`);
@@ -324,6 +368,64 @@ export function NovoFranqueadoModal() {
                     <FileUp className="h-3.5 w-3.5" />
                     {[cofFile?.name, contratoFile?.name].filter(Boolean).join(' · ')}
                   </p>
+                ) : null}
+              </fieldset>
+
+              <fieldset className="space-y-3 rounded-xl border border-stone-200 bg-stone-50/50 p-4">
+                <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-stone-600">
+                  Documentos do franqueado
+                </legend>
+                <p className="text-xs text-stone-500">Anexe os documentos pessoais do franqueado (até 10 MB cada).</p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="block text-xs font-medium text-stone-600">
+                    CNH
+                    <input
+                      type="file"
+                      disabled={extraindo || submitting}
+                      className="mt-1 block w-full text-sm text-stone-700 file:mr-2 file:rounded-md file:border-0 file:bg-stone-200 file:px-3 file:py-1.5 file:text-xs file:font-medium"
+                      onChange={(e) => setCnhFile(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  <label className="block text-xs font-medium text-stone-600">
+                    Comprovante de endereço
+                    <input
+                      type="file"
+                      disabled={extraindo || submitting}
+                      className="mt-1 block w-full text-sm text-stone-700 file:mr-2 file:rounded-md file:border-0 file:bg-stone-200 file:px-3 file:py-1.5 file:text-xs file:font-medium"
+                      onChange={(e) => setComprovanteEnderecoFile(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  <label className="block text-xs font-medium text-stone-600">
+                    Comprovante de estado civil
+                    <input
+                      type="file"
+                      disabled={extraindo || submitting}
+                      className="mt-1 block w-full text-sm text-stone-700 file:mr-2 file:rounded-md file:border-0 file:bg-stone-200 file:px-3 file:py-1.5 file:text-xs file:font-medium"
+                      onChange={(e) => setEstadoCivilFile(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  <label className="block text-xs font-medium text-stone-600">
+                    Declaração de IRPF
+                    <input
+                      type="file"
+                      disabled={extraindo || submitting}
+                      className="mt-1 block w-full text-sm text-stone-700 file:mr-2 file:rounded-md file:border-0 file:bg-stone-200 file:px-3 file:py-1.5 file:text-xs file:font-medium"
+                      onChange={(e) => setIrpfFile(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                </div>
+                {!estadoCivilFile ? (
+                  <label className="block text-xs font-medium text-stone-600">
+                    Justificativa — comprovante de estado civil (sem anexo)
+                    <textarea
+                      rows={2}
+                      value={estadoCivilJustificativa}
+                      onChange={(e) => setEstadoCivilJustificativa(e.target.value)}
+                      disabled={extraindo || submitting}
+                      placeholder="Ex.: aguardando documento do franqueado…"
+                      className={inputClass + ' resize-y'}
+                    />
+                  </label>
                 ) : null}
               </fieldset>
 
