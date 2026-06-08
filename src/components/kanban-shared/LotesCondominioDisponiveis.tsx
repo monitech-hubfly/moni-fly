@@ -9,7 +9,10 @@ import {
   salvarCampoLoteCondominio,
   salvarLotesCondominioDisponivel,
 } from '@/lib/actions/kanban-lotes-disponiveis';
-import { linhaProspectTemNome, type LinhaProspectCondominio } from '@/lib/kanban/condominio-prospect-pesquisa';
+import {
+  prospectsOrdenadosPorTicketCasas,
+  type LinhaProspectCondominio,
+} from '@/lib/kanban/condominio-prospect-pesquisa';
 import {
   criarLoteDisponivelVazio,
   linhaLotesCondominioCompleta,
@@ -57,7 +60,7 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
       return;
     }
     setLinhas(res.linhas);
-    const comNome = res.linhas.filter(linhaProspectTemNome);
+    const comNome = prospectsOrdenadosPorTicketCasas(res.linhas);
     setRowIdAtivo((atual) => {
       if (atual && comNome.some((l) => l.row_id === atual)) return atual;
       return comNome[0]?.row_id ?? null;
@@ -73,7 +76,7 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
     void recarregar();
   }, [recarregar]);
 
-  const prospects = useMemo(() => linhas.filter(linhaProspectTemNome), [linhas]);
+  const prospects = useMemo(() => prospectsOrdenadosPorTicketCasas(linhas), [linhas]);
   const tabsCondominio = useMemo(
     () =>
       prospects.map((p) => ({

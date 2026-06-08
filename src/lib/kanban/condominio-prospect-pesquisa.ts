@@ -1,6 +1,7 @@
 import {
   decimalInputFromValue,
   integerInputFromValue,
+  parseDecimalInput,
   type CondominioRow,
 } from '@/lib/condominios';
 import {
@@ -27,31 +28,30 @@ export const FAIXAS_CONDOMINIO: { id: FaixaCondominioId; label: string }[] = [
   { id: 'entrada', label: 'Faixa de Entrada' },
 ];
 
-/** Campos globais do condomínio (fora das faixas). */
-export type ChaveCaracterizacaoGlobal =
+/** Campos globais do condomínio (fora das faixas): caracterização + lotes. */
+export type ChaveGlobalCondominio =
   | 'localizacao_contexto'
   | 'caracteristicas_condominio'
   | 'tempo_condominio'
-  | 'q_casas_em_construcao'
-  | 'q_casas_como_sao'
-  | 'q_casas_faixas_preco'
+  | 'oferta_estoque'
   | 'q_casas_caracteristicas_buscadas'
   | 'q_casas_caracteristicas_elogiadas'
-  | 'mapa_condominio_path';
-
-/** Campos repetidos em cada faixa (Premium, Intermediária, Entrada). */
-export type ChaveFaixaCondominio =
-  | 'oferta_estoque'
-  | 'demanda_historico_vendas'
+  | 'mapa_condominio_path'
   | 'volume_velocidade_compra'
   | 'tamanho_lote_padrao'
   | 'q_lotes_total_disponiveis'
   | 'q_lotes_tamanho_medio'
   | 'q_lotes_preco_m2'
-  | 'q_lotes_area_maior_demanda'
-  | 'q_casas_prontas'
+  | 'q_lotes_area_maior_demanda';
+
+/** @deprecated Use ChaveGlobalCondominio. */
+export type ChaveCaracterizacaoGlobal = ChaveGlobalCondominio;
+
+/** Campos repetidos em cada faixa (Premium, Intermediária, Entrada). */
+export type ChaveFaixaCondominio =
   | 'q_casas_em_construcao'
   | 'q_casas_como_sao'
+  | 'q_casas_prontas'
   | 'q_casas_faixas_preco'
   | 'q_casas_preco_m2'
   | 'q_casas_tempo_venda'
@@ -65,160 +65,141 @@ export type ChaveCaracterizacaoCondominio = ChaveCaracterizacaoGlobal | ChaveFai
 /** @deprecated Campos de faixa — use ChaveFaixaCondominio. */
 export type ChavePesquisaCondominio = ChaveFaixaCondominio;
 
-export type ChaveLinhaProspectCondominio = ChaveCaracterizacaoGlobal | ChaveFaixaCondominio;
+export type ChaveLinhaProspectCondominio = ChaveGlobalCondominio | ChaveFaixaCondominio;
 
-export type CampoCaracterizacaoGlobal = {
-  chave: ChaveCaracterizacaoGlobal;
+export type CampoGlobalCondominio = {
+  chave: ChaveGlobalCondominio;
   label: string;
   tipo: 'texto' | 'texto_longo' | 'anexo';
   placeholder?: string;
+  grupo: 'caracterizacao' | 'lotes';
+  obrigatorio?: boolean;
 };
+
+/** @deprecated Use CampoGlobalCondominio. */
+export type CampoCaracterizacaoGlobal = CampoGlobalCondominio;
 
 export type CampoFaixaCondominio = {
   chave: ChaveFaixaCondominio;
   label: string;
   tipo: 'texto' | 'texto_longo';
   placeholder?: string;
-  secao: 'liquidez' | 'lotes' | 'casas' | 'locacao';
   obrigatorio?: boolean;
 };
 
-export const CARACTERIZACAO_GLOBAL_CAMPOS: CampoCaracterizacaoGlobal[] = [
+export const CARACTERIZACAO_GLOBAL_CAMPOS: CampoGlobalCondominio[] = [
   {
     chave: 'localizacao_contexto',
     label: 'Localização – Condomínio e Contexto',
     tipo: 'texto_longo',
     placeholder: 'Posicionamento do condomínio, público e dinâmica de mercado.',
+    grupo: 'caracterizacao',
   },
   {
     chave: 'caracteristicas_condominio',
     label: 'Características do Condomínio',
     tipo: 'texto_longo',
     placeholder: 'Infraestrutura, padrão de produto e maturidade.',
+    grupo: 'caracterizacao',
   },
   {
     chave: 'tempo_condominio',
     label: 'Tempo de Condomínio',
     tipo: 'texto',
     placeholder: 'Tempo de existência ou maturação do empreendimento.',
+    grupo: 'caracterizacao',
   },
   {
-    chave: 'q_casas_em_construcao',
-    label:
-      'Quantas casas estão sendo construídas? Dessas, quantas estão para venda e quantas são para cliente final?',
+    chave: 'oferta_estoque',
+    label: 'Oferta Atual (Estoque)',
     tipo: 'texto_longo',
-    placeholder: PLACEHOLDER_CASAS_EM_CONSTRUCAO,
-  },
-  {
-    chave: 'q_casas_como_sao',
-    label: 'Como são essas casas?',
-    tipo: 'texto_longo',
-    placeholder: PLACEHOLDER_COMO_SAO_ESSAS_CASAS,
-  },
-  {
-    chave: 'q_casas_faixas_preco',
-    label: 'Quais as faixas de preço dessas casas?',
-    tipo: 'texto_longo',
-    placeholder: PLACEHOLDER_FAIXAS_PRECO_CASAS,
+    grupo: 'caracterizacao',
+    obrigatorio: true,
   },
   {
     chave: 'q_casas_caracteristicas_buscadas',
     label: 'Quais as características os clientes estão buscando nas casas desse condomínio?',
     tipo: 'texto_longo',
+    grupo: 'caracterizacao',
   },
   {
     chave: 'q_casas_caracteristicas_elogiadas',
     label:
       'E das casas vendidas ultimamente, quais eram as características mais elogiadas pelos compradores?',
     tipo: 'texto_longo',
+    grupo: 'caracterizacao',
   },
   {
     chave: 'mapa_condominio_path',
     label: 'Mapa do Condomínio (cole o mapa com a infraestrutura demarcada por Pins)',
     tipo: 'anexo',
-  },
-];
-
-export const FAIXA_CONDOMINIO_CAMPOS: CampoFaixaCondominio[] = [
-  {
-    chave: 'oferta_estoque',
-    label: 'Oferta Atual (Estoque)',
-    tipo: 'texto_longo',
-    placeholder: 'Perfil das casas disponíveis para essa faixa',
-    secao: 'liquidez',
-    obrigatorio: true,
-  },
-  {
-    chave: 'demanda_historico_vendas',
-    label: 'Demanda (Histórico de Vendas)',
-    tipo: 'texto_longo',
-    secao: 'liquidez',
-    obrigatorio: true,
+    grupo: 'caracterizacao',
   },
   {
     chave: 'volume_velocidade_compra',
-    label: 'Volume, velocidade e comportamento de compra',
+    label: 'Volume, velocidade e comportamento de compra do condomínio',
     tipo: 'texto_longo',
-    secao: 'liquidez',
+    grupo: 'caracterizacao',
     obrigatorio: true,
   },
+];
+
+export const LOTES_GLOBAL_CAMPOS: CampoGlobalCondominio[] = [
   {
     chave: 'tamanho_lote_padrao',
     label: 'Tamanho lote padrão',
     tipo: 'texto',
-    secao: 'liquidez',
+    grupo: 'lotes',
     obrigatorio: true,
   },
   {
     chave: 'q_lotes_total_disponiveis',
     label: 'Quantos lotes esse condomínio tem? Quantos estão disponíveis para venda?',
     tipo: 'texto',
-    secao: 'lotes',
+    grupo: 'lotes',
     obrigatorio: true,
   },
   {
     chave: 'q_lotes_tamanho_medio',
     label: 'Qual o tamanho médio dos lotes?',
     tipo: 'texto',
-    secao: 'lotes',
+    grupo: 'lotes',
     obrigatorio: true,
   },
   {
     chave: 'q_lotes_preco_m2',
     label: 'Qual o preço médio do m² de venda dos lotes?',
     tipo: 'texto',
-    secao: 'lotes',
+    grupo: 'lotes',
     obrigatorio: true,
   },
   {
     chave: 'q_lotes_area_maior_demanda',
     label: 'Qual a área onde os lotes são mais valorizados e tem maior demanda?',
     tipo: 'texto',
-    secao: 'lotes',
+    grupo: 'lotes',
     obrigatorio: true,
   },
-  {
-    chave: 'q_casas_prontas',
-    label: 'Quantas casas estão prontas?',
-    tipo: 'texto',
-    secao: 'casas',
-    obrigatorio: true,
-  },
+];
+
+export const FAIXA_CONDOMINIO_CAMPOS: CampoFaixaCondominio[] = [
   {
     chave: 'q_casas_em_construcao',
     label:
       'Quantas casas estão sendo construídas? Dessas, quantas estão para venda e quantas são para cliente final?',
     tipo: 'texto_longo',
     placeholder: PLACEHOLDER_CASAS_EM_CONSTRUCAO,
-    secao: 'casas',
-    obrigatorio: true,
   },
   {
     chave: 'q_casas_como_sao',
     label: 'Como são essas casas?',
     tipo: 'texto_longo',
     placeholder: PLACEHOLDER_COMO_SAO_ESSAS_CASAS,
-    secao: 'casas',
+  },
+  {
+    chave: 'q_casas_prontas',
+    label: 'Quantas casas estão prontas?',
+    tipo: 'texto',
     obrigatorio: true,
   },
   {
@@ -226,28 +207,23 @@ export const FAIXA_CONDOMINIO_CAMPOS: CampoFaixaCondominio[] = [
     label: 'Quais as faixas de preço dessas casas?',
     tipo: 'texto_longo',
     placeholder: PLACEHOLDER_FAIXAS_PRECO_CASAS,
-    secao: 'casas',
-    obrigatorio: true,
   },
   {
     chave: 'q_casas_preco_m2',
     label: 'Qual o preço do m² de venda das casas?',
     tipo: 'texto',
-    secao: 'casas',
     obrigatorio: true,
   },
   {
     chave: 'q_casas_tempo_venda',
     label: 'Quanto tempo leva, em média, para uma casa ser vendida depois de pronta?',
     tipo: 'texto',
-    secao: 'casas',
     obrigatorio: true,
   },
   {
     chave: 'q_casas_vendidas_12m',
     label: 'Quantas casas foram vendidas nos últimos 12 meses?',
     tipo: 'texto',
-    secao: 'casas',
     obrigatorio: true,
   },
   {
@@ -255,14 +231,12 @@ export const FAIXA_CONDOMINIO_CAMPOS: CampoFaixaCondominio[] = [
     label:
       'O que fez as casas remanescentes demorarem tanto para serem vendidas? (preço, acabamento, localização, etc.)',
     tipo: 'texto_longo',
-    secao: 'casas',
     obrigatorio: true,
   },
   {
     chave: 'q_locacao_valores',
     label: 'Qual valor das casas para locação? Dê alguns exemplos abaixo',
     tipo: 'texto_longo',
-    secao: 'locacao',
     obrigatorio: true,
   },
 ];
@@ -270,8 +244,21 @@ export const FAIXA_CONDOMINIO_CAMPOS: CampoFaixaCondominio[] = [
 /** @deprecated Use CARACTERIZACAO_GLOBAL_CAMPOS. */
 export const CARACTERIZACAO_CONDOMINIO_CAMPOS = CARACTERIZACAO_GLOBAL_CAMPOS;
 
-export const CHAVES_CARACTERIZACAO_OBRIGATORIAS: ChaveCaracterizacaoGlobal[] =
-  CARACTERIZACAO_GLOBAL_CAMPOS.filter((c) => c.tipo !== 'anexo').map((c) => c.chave);
+export const GLOBAL_CONDOMINIO_CAMPOS: CampoGlobalCondominio[] = [
+  ...CARACTERIZACAO_GLOBAL_CAMPOS,
+  ...LOTES_GLOBAL_CAMPOS,
+];
+
+export const CHAVES_TODAS_GLOBAL: ChaveGlobalCondominio[] = GLOBAL_CONDOMINIO_CAMPOS.map((c) => c.chave);
+
+export const CHAVES_GLOBAL_OBRIGATORIAS: ChaveGlobalCondominio[] = GLOBAL_CONDOMINIO_CAMPOS.filter(
+  (c) => c.obrigatorio,
+).map((c) => c.chave);
+
+/** @deprecated Use CHAVES_GLOBAL_OBRIGATORIAS. */
+export const CHAVES_CARACTERIZACAO_OBRIGATORIAS: ChaveGlobalCondominio[] = CHAVES_GLOBAL_OBRIGATORIAS;
+
+export const CHAVES_FAIXA_TODAS: ChaveFaixaCondominio[] = FAIXA_CONDOMINIO_CAMPOS.map((c) => c.chave);
 
 export const CHAVES_FAIXA_OBRIGATORIAS: ChaveFaixaCondominio[] = FAIXA_CONDOMINIO_CAMPOS.filter(
   (c) => c.obrigatorio,
@@ -298,12 +285,16 @@ export type LinhaProspectCondominio = {
   localizacao_contexto?: string;
   caracteristicas_condominio?: string;
   tempo_condominio?: string;
-  q_casas_em_construcao?: string;
-  q_casas_como_sao?: string;
-  q_casas_faixas_preco?: string;
+  oferta_estoque?: string;
   q_casas_caracteristicas_buscadas?: string;
   q_casas_caracteristicas_elogiadas?: string;
   mapa_condominio_path?: string;
+  volume_velocidade_compra?: string;
+  tamanho_lote_padrao?: string;
+  q_lotes_total_disponiveis?: string;
+  q_lotes_tamanho_medio?: string;
+  q_lotes_preco_m2?: string;
+  q_lotes_area_maior_demanda?: string;
   faixas?: FaixasCondominioPorId;
   pesquisa_preenchida_em?: string | null;
   lotes_disponiveis?: LinhaLoteDisponivel[];
@@ -317,30 +308,12 @@ export type SecaoPesquisaCondominio = {
   perguntas: { chave: ChaveFaixaCondominio; label: string; tipo: 'texto' | 'texto_longo' }[];
 };
 
-/** @deprecated Mantido para compatibilidade de imports. */
+/** @deprecated Use FAIXA_CONDOMINIO_CAMPOS. */
 export const PESQUISA_CONDOMINIO_SECOES: SecaoPesquisaCondominio[] = [
   {
-    id: 'lotes',
-    titulo: 'Sobre os lotes',
-    perguntas: FAIXA_CONDOMINIO_CAMPOS.filter((c) => c.secao === 'lotes').map((c) => ({
-      chave: c.chave,
-      label: c.label,
-      tipo: c.tipo,
-    })),
-  },
-  {
-    id: 'casas',
-    titulo: 'Sobre as casas e construções',
-    perguntas: FAIXA_CONDOMINIO_CAMPOS.filter((c) => c.secao === 'casas').map((c) => ({
-      chave: c.chave,
-      label: c.label,
-      tipo: c.tipo,
-    })),
-  },
-  {
-    id: 'locacao',
-    titulo: 'Locação',
-    perguntas: FAIXA_CONDOMINIO_CAMPOS.filter((c) => c.secao === 'locacao').map((c) => ({
+    id: 'liquidez',
+    titulo: 'Liquidez e Valorização Exponencial',
+    perguntas: FAIXA_CONDOMINIO_CAMPOS.map((c) => ({
       chave: c.chave,
       label: c.label,
       tipo: c.tipo,
@@ -394,14 +367,32 @@ export function todasFaixasCondominioCompletas(linha: LinhaProspectCondominio): 
   return FAIXAS_CONDOMINIO.every((f) => faixaCondominioCompleta(linha, f.id));
 }
 
-const CHAVES_FAIXA_LEGADO: ChaveFaixaCondominio[] = CHAVES_FAIXA_OBRIGATORIAS;
+const CHAVES_GLOBAL_MIGRADAS_DE_FAIXA: ChaveGlobalCondominio[] = [
+  'oferta_estoque',
+  'volume_velocidade_compra',
+  'tamanho_lote_padrao',
+  'q_lotes_total_disponiveis',
+  'q_lotes_tamanho_medio',
+  'q_lotes_preco_m2',
+  'q_lotes_area_maior_demanda',
+];
 
-const CHAVES_CARACTERIZACAO_LEGADO_FAIXA: ChaveFaixaCondominio[] = [
+const CHAVES_FAIXA_MIGRADAS_DE_GLOBAL: ChaveFaixaCondominio[] = [
+  'q_casas_em_construcao',
+  'q_casas_como_sao',
+  'q_casas_faixas_preco',
+];
+
+const CHAVES_OBSOLETAS_FAIXA = [
   'oferta_estoque',
   'demanda_historico_vendas',
   'volume_velocidade_compra',
   'tamanho_lote_padrao',
-];
+  'q_lotes_total_disponiveis',
+  'q_lotes_tamanho_medio',
+  'q_lotes_preco_m2',
+  'q_lotes_area_maior_demanda',
+] as const;
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -417,10 +408,51 @@ function strField(o: Record<string, unknown>, k: string): string {
 function normalizarDadosFaixa(raw: unknown): DadosFaixaCondominio {
   if (!isRecord(raw)) return {};
   const out: DadosFaixaCondominio = {};
-  for (const chave of CHAVES_FAIXA_OBRIGATORIAS) {
+  for (const chave of CHAVES_FAIXA_TODAS) {
     const v = strField(raw, chave);
     if (v.trim()) out[chave] = v;
   }
+  return out;
+}
+
+function aplicarMigracaoLegadoEstrutura(
+  linha: LinhaProspectCondominio,
+  raw: Record<string, unknown>,
+): LinhaProspectCondominio {
+  const out: LinhaProspectCondominio = { ...linha };
+  const faixas: FaixasCondominioPorId = { ...criarFaixasVazias(), ...out.faixas };
+  const linhaRec = out as Record<string, unknown>;
+
+  for (const k of CHAVES_GLOBAL_MIGRADAS_DE_FAIXA) {
+    const linhaVal = strField(linhaRec, k);
+    const top = strField(raw, k);
+    const faixaVal = strField(faixas.premium as Record<string, unknown>, k);
+    if (!linhaVal.trim()) {
+      if (top.trim()) linhaRec[k] = top;
+      else if (faixaVal.trim()) linhaRec[k] = faixaVal;
+    }
+  }
+
+  for (const { id } of FAIXAS_CONDOMINIO) {
+    const dados = { ...(faixas[id] ?? {}) };
+    for (const obs of CHAVES_OBSOLETAS_FAIXA) {
+      delete (dados as Record<string, unknown>)[obs];
+    }
+    faixas[id] = dados;
+  }
+
+  for (const k of CHAVES_FAIXA_MIGRADAS_DE_GLOBAL) {
+    const top = strField(raw, k) || strField(linhaRec, k);
+    if (top.trim()) {
+      const premium = faixas.premium ?? {};
+      if (!strField(premium as Record<string, unknown>, k)) {
+        faixas.premium = { ...premium, [k]: top };
+      }
+      delete linhaRec[k];
+    }
+  }
+
+  out.faixas = faixas;
   return out;
 }
 
@@ -435,13 +467,9 @@ function normalizarFaixas(raw: unknown, legado: Record<string, unknown>): Faixas
   }
 
   const legadoFaixa: DadosFaixaCondominio = {};
-  for (const chave of CHAVES_FAIXA_LEGADO) {
+  for (const chave of CHAVES_FAIXA_TODAS) {
     const v = strField(legado, chave);
     if (v.trim()) legadoFaixa[chave] = v;
-  }
-  for (const chave of CHAVES_CARACTERIZACAO_LEGADO_FAIXA) {
-    const v = strField(legado, chave);
-    if (v.trim() && !legadoFaixa[chave]) legadoFaixa[chave] = v;
   }
 
   if (Object.keys(legadoFaixa).length > 0) {
@@ -580,13 +608,10 @@ export function normalizarLinhaProspect(raw: unknown, fallbackIndex = 0): LinhaP
     faixas: normalizarFaixas(o.faixas, o),
   };
 
-  for (const chave of CHAVES_CARACTERIZACAO_OBRIGATORIAS) {
+  for (const chave of CHAVES_TODAS_GLOBAL) {
     const v = strField(o, chave);
     if (v.trim()) linha[chave] = v;
   }
-
-  const mapa = strField(o, 'mapa_condominio_path');
-  if (mapa.trim()) linha.mapa_condominio_path = mapa;
 
   if (typeof o.pesquisa_preenchida_em === 'string' && o.pesquisa_preenchida_em.trim()) {
     linha.pesquisa_preenchida_em = o.pesquisa_preenchida_em.trim();
@@ -604,7 +629,34 @@ export function normalizarLinhaProspect(raw: unknown, fallbackIndex = 0): LinhaP
     linha.lotes_preenchidos_em = null;
   }
 
-  return linha;
+  return aplicarMigracaoLegadoEstrutura(linha, o);
+}
+
+export function ticketCasasProspectNumerico(linha: LinhaProspectCondominio): number | null {
+  return parseDecimalInput(String(linha.ticket_casas ?? '').trim());
+}
+
+export function ordenarLinhasProspectPorTicketCasas(
+  linhas: LinhaProspectCondominio[],
+): LinhaProspectCondominio[] {
+  return [...linhas].sort((a, b) => {
+    const vA = ticketCasasProspectNumerico(a);
+    const vB = ticketCasasProspectNumerico(b);
+    if (vA == null && vB == null) {
+      return (a.condominio ?? '').localeCompare(b.condominio ?? '', 'pt-BR', { sensitivity: 'base' });
+    }
+    if (vA == null) return 1;
+    if (vB == null) return -1;
+    if (vB !== vA) return vB - vA;
+    return (a.condominio ?? '').localeCompare(b.condominio ?? '', 'pt-BR', { sensitivity: 'base' });
+  });
+}
+
+/** Condomínios com nome, ordenados por ticket médio de casas (maior primeiro). */
+export function prospectsOrdenadosPorTicketCasas(
+  linhas: LinhaProspectCondominio[],
+): LinhaProspectCondominio[] {
+  return ordenarLinhasProspectPorTicketCasas(linhas.filter(linhaProspectTemNome));
 }
 
 export function parseLinhasProspectCondominio(valor: string | null | undefined): LinhaProspectCondominio[] {
@@ -619,7 +671,7 @@ export function parseLinhasProspectCondominio(valor: string | null | undefined):
     if (parsed.length === 0) {
       return [{ row_id: gerarRowIdProspect(), ...LINHA_PROSPECT_VAZIA }];
     }
-    return parsed.map((row, idx) => normalizarLinhaProspect(row, idx));
+    return ordenarLinhasProspectPorTicketCasas(parsed.map((row, idx) => normalizarLinhaProspect(row, idx)));
   } catch {
     return [{ row_id: gerarRowIdProspect(), ...LINHA_PROSPECT_VAZIA }];
   }
@@ -629,14 +681,23 @@ export function serializarLinhasProspectCondominio(linhas: LinhaProspectCondomin
   return JSON.stringify(linhas);
 }
 
+export function extrairCamposPesquisaGlobal(
+  linha: LinhaProspectCondominio,
+): Partial<Pick<LinhaProspectCondominio, ChaveGlobalCondominio>> {
+  const out: Partial<Pick<LinhaProspectCondominio, ChaveGlobalCondominio>> = {};
+  for (const chave of CHAVES_TODAS_GLOBAL) {
+    const v = linha[chave];
+    if (v?.trim()) out[chave] = v;
+  }
+  return out;
+}
+
 export function linhaProspectTemNome(linha: LinhaProspectCondominio): boolean {
   return Boolean(linha.condominio?.trim());
 }
 
 export function linhaCaracterizacaoGlobalCompleta(linha: LinhaProspectCondominio): boolean {
-  return CHAVES_CARACTERIZACAO_OBRIGATORIAS.every((chave) =>
-    Boolean(String(linha[chave] ?? '').trim()),
-  );
+  return CHAVES_GLOBAL_OBRIGATORIAS.every((chave) => Boolean(String(linha[chave] ?? '').trim()));
 }
 
 /** @deprecated Use linhaCaracterizacaoGlobalCompleta. */

@@ -10,17 +10,17 @@ import {
 } from '@/lib/actions/kanban-condominio-pesquisa';
 import {
   CARACTERIZACAO_GLOBAL_CAMPOS,
-  CHAVES_CARACTERIZACAO_OBRIGATORIAS,
-  CHAVES_FAIXA_OBRIGATORIAS,
+  CHAVES_TODAS_GLOBAL,
   FAIXA_CONDOMINIO_CAMPOS,
   FAIXAS_CONDOMINIO,
+  LOTES_GLOBAL_CAMPOS,
   atualizarPesquisaPreenchidaEm,
   faixaCondominioCompleta,
-  linhaProspectTemNome,
+  prospectsOrdenadosPorTicketCasas,
   linhaSessaoCondominioCompleta,
   normalizarLinhaProspect,
   valorFaixaCondominio,
-  type ChaveCaracterizacaoGlobal,
+  type ChaveGlobalCondominio,
   type ChaveFaixaCondominio,
   type FaixaCondominioId,
   type LinhaProspectCondominio,
@@ -37,7 +37,7 @@ const inputClass =
   ' bg-white border-[var(--moni-border-default)] text-[var(--moni-text-primary)]' +
   ' focus:ring-[var(--moni-primary-500)] focus:border-[var(--moni-primary-500)]';
 
-type RascunhoGlobal = Partial<Record<ChaveCaracterizacaoGlobal, string>>;
+type RascunhoGlobal = Partial<Record<ChaveGlobalCondominio, string>>;
 type RascunhoFaixas = Partial<Record<FaixaCondominioId, Partial<Record<ChaveFaixaCondominio, string>>>>;
 
 export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: Props) {
@@ -65,7 +65,7 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
       return;
     }
     setLinhas(res.linhas);
-    const comNome = res.linhas.filter(linhaProspectTemNome);
+    const comNome = prospectsOrdenadosPorTicketCasas(res.linhas);
     setRowIdAtivo((atual) => {
       if (atual && comNome.some((l) => l.row_id === atual)) return atual;
       return comNome[0]?.row_id ?? null;
@@ -81,7 +81,7 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
     void recarregar();
   }, [recarregar]);
 
-  const prospects = useMemo(() => linhas.filter(linhaProspectTemNome), [linhas]);
+  const prospects = useMemo(() => prospectsOrdenadosPorTicketCasas(linhas), [linhas]);
   const tabsCondominio = useMemo(
     () =>
       prospects.map((p) => ({
@@ -108,15 +108,15 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
     if (!linha) return;
 
     const global: RascunhoGlobal = {};
-    for (const chave of [...CHAVES_CARACTERIZACAO_OBRIGATORIAS, 'mapa_condominio_path' as const]) {
+    for (const chave of CHAVES_TODAS_GLOBAL) {
       global[chave] = linha[chave] ?? '';
     }
 
     const faixas: RascunhoFaixas = {};
     for (const { id } of FAIXAS_CONDOMINIO) {
       const draft: Partial<Record<ChaveFaixaCondominio, string>> = {};
-      for (const chave of CHAVES_FAIXA_OBRIGATORIAS) {
-        draft[chave] = valorFaixaCondominio(linha, id, chave);
+      for (const campo of FAIXA_CONDOMINIO_CAMPOS) {
+        draft[campo.chave] = valorFaixaCondominio(linha, id, campo.chave);
       }
       faixas[id] = draft;
     }
@@ -133,7 +133,7 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
     );
   }
 
-  async function salvarCampoGlobal(chave: ChaveCaracterizacaoGlobal, valor: string) {
+  async function salvarCampoGlobal(chave: ChaveGlobalCondominio, valor: string) {
     if (!linhaAtiva) return;
     const atual = linhaAtiva[chave] ?? '';
     if (valor.trim() === atual.trim()) return;
@@ -198,8 +198,9 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
     }
   }
 
-  const camposGlobalTexto = CARACTERIZACAO_GLOBAL_CAMPOS.filter((c) => c.tipo !== 'anexo');
+  const camposCaracterizacao = CARACTERIZACAO_GLOBAL_CAMPOS.filter((c) => c.tipo !== 'anexo');
   const campoMapa = CARACTERIZACAO_GLOBAL_CAMPOS.find((c) => c.chave === 'mapa_condominio_path');
+  const camposLotesGlobal = LOTES_GLOBAL_CAMPOS;
 
   const tabsFaixa = useMemo(
     () =>
@@ -210,11 +211,6 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
     [linhaAtiva],
   );
 
-  const camposLiquidez = FAIXA_CONDOMINIO_CAMPOS.filter((c) => c.secao === 'liquidez');
-  const camposLotes = FAIXA_CONDOMINIO_CAMPOS.filter((c) => c.secao === 'lotes');
-  const camposCasas = FAIXA_CONDOMINIO_CAMPOS.filter((c) => c.secao === 'casas');
-  const camposLocacao = FAIXA_CONDOMINIO_CAMPOS.filter((c) => c.secao === 'locacao');
-
   return (
     <div className="space-y-4">
       <div>
@@ -223,8 +219,8 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
           {obrigatorio ? <span className="ml-1 text-red-500">*</span> : null}
         </span>
         <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-          Para cada condomínio: caracterização geral e, em seguida, liquidez e mercado nas três faixas (Premium,
-          Intermediária e Entrada).
+          Para cada condomínio: caracterização e lotes (globais) e, em seguida, Liquidez e Valorização
+          Exponencial nas três faixas (Premium, Intermediária e Entrada).
         </p>
       </div>
 
@@ -274,12 +270,13 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
                 >
                   Caracterização do condomínio
                 </h4>
-                {camposGlobalTexto.map((campo) => (
+                {camposCaracterizacao.map((campo) => (
                   <CampoTexto
                     key={campo.chave}
                     label={campo.label}
                     placeholder={campo.placeholder}
                     tipo={campo.tipo === 'texto_longo' ? 'texto_longo' : 'texto'}
+                    obrigatorio={campo.obrigatorio}
                     valor={rascunhoGlobal[campo.chave] ?? ''}
                     inputClass={inputClass}
                     onChange={(v) => setRascunhoGlobal((prev) => ({ ...prev, [campo.chave]: v }))}
@@ -322,6 +319,31 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
                 ) : null}
               </section>
 
+              <section
+                className="rounded-lg border p-3 space-y-3"
+                style={{ borderColor: 'var(--moni-border-default)', background: 'var(--moni-surface-50)' }}
+              >
+                <h4
+                  className="text-xs font-semibold uppercase tracking-wide"
+                  style={{ color: 'var(--moni-text-secondary)' }}
+                >
+                  Sobre os lotes
+                </h4>
+                {camposLotesGlobal.map((campo) => (
+                  <CampoTexto
+                    key={campo.chave}
+                    label={campo.label}
+                    placeholder={campo.placeholder}
+                    tipo={campo.tipo === 'texto_longo' ? 'texto_longo' : 'texto'}
+                    obrigatorio={campo.obrigatorio}
+                    valor={rascunhoGlobal[campo.chave] ?? ''}
+                    inputClass={inputClass}
+                    onChange={(v) => setRascunhoGlobal((prev) => ({ ...prev, [campo.chave]: v }))}
+                    onBlur={(v) => void salvarCampoGlobal(campo.chave, v)}
+                  />
+                ))}
+              </section>
+
               <KanbanFaseSecaoTabs
                 tabs={tabsFaixa}
                 abaAtiva={faixaAtiva}
@@ -329,104 +351,33 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
                 ariaLabel={`Faixas — ${linhaAtiva.condominio}`}
               >
                 <section
-                  className="rounded-lg border p-3 space-y-4"
+                  className="rounded-lg border p-3 space-y-3"
                   style={{ borderColor: 'var(--moni-border-default)', background: 'var(--moni-surface-50)' }}
                 >
-                  <div className="space-y-3">
-                    <h4
-                      className="text-xs font-semibold uppercase tracking-wide"
-                      style={{ color: 'var(--moni-text-secondary)' }}
-                    >
-                      Liquidez e Valorização Exponencial
-                    </h4>
-                    {camposLiquidez.map((campo) => (
-                      <CampoTexto
-                        key={campo.chave}
-                        label={campo.label}
-                        placeholder={campo.placeholder}
-                        tipo={campo.tipo}
-                        obrigatorio={campo.obrigatorio}
-                        valor={rascunhoFaixas[faixaAtiva]?.[campo.chave] ?? ''}
-                        inputClass={inputClass}
-                        onChange={(v) =>
-                          setRascunhoFaixas((prev) => ({
-                            ...prev,
-                            [faixaAtiva]: { ...prev[faixaAtiva], [campo.chave]: v },
-                          }))
-                        }
-                        onBlur={(v) => void salvarCampoFaixa(faixaAtiva, campo.chave, v)}
-                      />
-                    ))}
-                  </div>
-
-                  <div className="space-y-3 border-t pt-3" style={{ borderColor: 'var(--moni-border-default)' }}>
-                    <h4
-                      className="text-xs font-semibold uppercase tracking-wide"
-                      style={{ color: 'var(--moni-text-secondary)' }}
-                    >
-                      Sobre os lotes
-                    </h4>
-                    {camposLotes.map((campo) => (
-                      <CampoTexto
-                        key={campo.chave}
-                        label={campo.label}
-                        placeholder={campo.placeholder}
-                        tipo={campo.tipo}
-                        obrigatorio={campo.obrigatorio}
-                        valor={rascunhoFaixas[faixaAtiva]?.[campo.chave] ?? ''}
-                        inputClass={inputClass}
-                        onChange={(v) =>
-                          setRascunhoFaixas((prev) => ({
-                            ...prev,
-                            [faixaAtiva]: { ...prev[faixaAtiva], [campo.chave]: v },
-                          }))
-                        }
-                        onBlur={(v) => void salvarCampoFaixa(faixaAtiva, campo.chave, v)}
-                      />
-                    ))}
-                  </div>
-
-                  <div className="space-y-3 border-t pt-3" style={{ borderColor: 'var(--moni-border-default)' }}>
-                    {camposCasas.map((campo) => (
-                      <CampoTexto
-                        key={campo.chave}
-                        label={campo.label}
-                        placeholder={campo.placeholder}
-                        tipo={campo.tipo}
-                        obrigatorio={campo.obrigatorio}
-                        valor={rascunhoFaixas[faixaAtiva]?.[campo.chave] ?? ''}
-                        inputClass={inputClass}
-                        onChange={(v) =>
-                          setRascunhoFaixas((prev) => ({
-                            ...prev,
-                            [faixaAtiva]: { ...prev[faixaAtiva], [campo.chave]: v },
-                          }))
-                        }
-                        onBlur={(v) => void salvarCampoFaixa(faixaAtiva, campo.chave, v)}
-                      />
-                    ))}
-                  </div>
-
-                  <div className="space-y-3 border-t pt-3" style={{ borderColor: 'var(--moni-border-default)' }}>
-                    {camposLocacao.map((campo) => (
-                      <CampoTexto
-                        key={campo.chave}
-                        label={campo.label}
-                        placeholder={campo.placeholder}
-                        tipo={campo.tipo}
-                        obrigatorio={campo.obrigatorio}
-                        valor={rascunhoFaixas[faixaAtiva]?.[campo.chave] ?? ''}
-                        inputClass={inputClass}
-                        onChange={(v) =>
-                          setRascunhoFaixas((prev) => ({
-                            ...prev,
-                            [faixaAtiva]: { ...prev[faixaAtiva], [campo.chave]: v },
-                          }))
-                        }
-                        onBlur={(v) => void salvarCampoFaixa(faixaAtiva, campo.chave, v)}
-                      />
-                    ))}
-                  </div>
+                  <h4
+                    className="text-xs font-semibold uppercase tracking-wide"
+                    style={{ color: 'var(--moni-text-secondary)' }}
+                  >
+                    Liquidez e Valorização Exponencial
+                  </h4>
+                  {FAIXA_CONDOMINIO_CAMPOS.map((campo) => (
+                    <CampoTexto
+                      key={campo.chave}
+                      label={campo.label}
+                      placeholder={campo.placeholder}
+                      tipo={campo.tipo}
+                      obrigatorio={campo.obrigatorio}
+                      valor={rascunhoFaixas[faixaAtiva]?.[campo.chave] ?? ''}
+                      inputClass={inputClass}
+                      onChange={(v) =>
+                        setRascunhoFaixas((prev) => ({
+                          ...prev,
+                          [faixaAtiva]: { ...prev[faixaAtiva], [campo.chave]: v },
+                        }))
+                      }
+                      onBlur={(v) => void salvarCampoFaixa(faixaAtiva, campo.chave, v)}
+                    />
+                  ))}
                 </section>
               </KanbanFaseSecaoTabs>
             </div>

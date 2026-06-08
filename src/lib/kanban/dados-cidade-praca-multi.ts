@@ -1,4 +1,5 @@
 import {
+  ordenarLinhasProspectPorTicketCasas,
   parseLinhasProspectCondominio,
   serializarLinhasProspectCondominio,
   type LinhaProspectCondominio,
@@ -188,7 +189,9 @@ export function parseLinhasTabelaTodasPracas(
 ): LinhaProspectCondominio[] {
   const store = parseStore(valor);
   if (store) {
-    return Object.values(store).flatMap((v) => parseLinhasProspectCondominio(v));
+    return ordenarLinhasProspectPorTicketCasas(
+      Object.values(store).flatMap((v) => parseLinhasProspectCondominio(v)),
+    );
   }
   return parseLinhasProspectCondominio(valor);
 }

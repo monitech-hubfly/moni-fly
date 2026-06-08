@@ -9,6 +9,7 @@ import {
 import {
   COLUNAS_TABELA_PROSPECT,
   confirmarLinhaProspectCadastroLocal,
+  extrairCamposPesquisaGlobal,
   gerarRowIdProspect,
   LINHA_PROSPECT_VAZIA,
   linhaProspectAlteradaDesdeCarregamento,
@@ -16,6 +17,7 @@ import {
   linhaProspectCadastroPendente,
   linhaProspectDeCondominioRow,
   marcarLinhaProspectCadastroPendente,
+  ordenarLinhasProspectPorTicketCasas,
   parseLinhasProspectCondominio,
   serializarLinhasProspectCondominio,
   type LinhaProspectCondominio,
@@ -75,8 +77,9 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur, prac
   }, [cadastro, pracaCidade]);
 
   function persistir(novas: LinhaProspectCondominio[], blur = false) {
-    setLinhas(novas);
-    const json = serializarLinhasProspectCondominio(novas);
+    const finais = blur ? ordenarLinhasProspectPorTicketCasas(novas) : novas;
+    setLinhas(finais);
+    const json = serializarLinhasProspectCondominio(finais);
     onChange(json);
     if (blur) onBlur(json);
   }
@@ -115,15 +118,7 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur, prac
     const atual = linhas[idx];
     const nova = linhaProspectDeCondominioRow(row, atual.row_id, {
       pesquisa_preenchida_em: atual.pesquisa_preenchida_em,
-      localizacao_contexto: atual.localizacao_contexto,
-      caracteristicas_condominio: atual.caracteristicas_condominio,
-      tempo_condominio: atual.tempo_condominio,
-      q_casas_em_construcao: atual.q_casas_em_construcao,
-      q_casas_como_sao: atual.q_casas_como_sao,
-      q_casas_faixas_preco: atual.q_casas_faixas_preco,
-      q_casas_caracteristicas_elogiadas: atual.q_casas_caracteristicas_elogiadas,
-      q_casas_caracteristicas_buscadas: atual.q_casas_caracteristicas_buscadas,
-      mapa_condominio_path: atual.mapa_condominio_path,
+      ...extrairCamposPesquisaGlobal(atual),
       faixas: atual.faixas,
       lotes_disponiveis: atual.lotes_disponiveis,
       lotes_preenchidos_em: atual.lotes_preenchidos_em,

@@ -7,7 +7,7 @@ import {
   mesclarRespostasFaixaCondominio,
   normalizarLinhaProspect,
   todasPesquisasProspectCompletas,
-  type ChaveCaracterizacaoGlobal,
+  type ChaveGlobalCondominio,
   type ChaveFaixaCondominio,
   type FaixaCondominioId,
   type LinhaProspectCondominio,
@@ -189,7 +189,7 @@ export async function carregarProspectsCondominioCard(cardId: string): Promise<C
 export async function salvarPesquisaCondominioProspect(input: {
   cardId: string;
   rowId: string;
-  respostas?: Partial<Record<ChaveCaracterizacaoGlobal, string>>;
+  respostas?: Partial<Record<ChaveGlobalCondominio, string>>;
   faixaId?: FaixaCondominioId;
   faixaRespostas?: Partial<Record<ChaveFaixaCondominio, string>>;
 }): Promise<KanbanCondominioPesquisaResult> {

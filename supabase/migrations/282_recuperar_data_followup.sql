@@ -41,11 +41,18 @@ WHERE p.data_followup IS NULL
 WITH prazos_ata AS (
   SELECT
     a.card_id,
-    max((elem->>'prazo')::date) AS data_followup
+    max((elem.value->>'prazo')::date) AS data_followup
   FROM public.kanban_card_atas_reuniao a
-  CROSS JOIN LATERAL jsonb_array_elements(coalesce(a.conteudo->'acoes', '[]'::jsonb)) AS elem
-  WHERE a.card_origem = 'nativo'
-    AND coalesce(trim(elem->>'prazo'), '') ~ '^\d{4}-\d{2}-\d{2}$'
+  CROSS JOIN LATERAL jsonb_array_elements(
+    CASE jsonb_typeof(coalesce(a.conteudo::jsonb, '{}'::jsonb)->'acoes')
+      WHEN 'array' THEN (coalesce(a.conteudo::jsonb, '{}'::jsonb)->'acoes')
+      ELSE '[]'::jsonb
+    END
+  ) AS elem(value)
+  WHERE EXISTS (
+    SELECT 1 FROM public.kanban_cards c WHERE c.id = a.card_id
+  )
+    AND coalesce(trim(elem.value->>'prazo'), '') ~ '^\d{4}-\d{2}-\d{2}$'
   GROUP BY a.card_id
 )
 UPDATE public.kanban_cards c
