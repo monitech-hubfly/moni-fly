@@ -1,4 +1,5 @@
--- Reinicia contagem de SLA e remove atrasos de follow-up em todos os funis.
+-- Reinicia contagem de SLA em todos os funis.
+-- ⚠️ NÃO apaga data_followup — use scripts/manual/recuperar_data_followup.sql se precisar restaurar.
 --
 -- ⚠️ PRÉ-REQUISITO (obrigatório se o board “voltou” com atrasos antigos):
 --    Rode primeiro scripts/manual/apply_sla_columns_213_229.sql no MESMO banco.
@@ -44,7 +45,6 @@ SET
   sla_iniciado_em = now(),
   entered_fase_at = now(),
   sla_dias_acumulados = 0,
-  data_followup = NULL,
   updated_at = now()
 WHERE c.arquivado = false
   AND c.concluido = false;
@@ -71,16 +71,15 @@ WHERE c.fase_id = f.id
 UPDATE public.processo_step_one p
 SET
   created_at = now(),
-  data_followup = NULL,
   updated_at = now()
 WHERE p.cancelado_em IS NULL
   AND p.removido_em IS NULL
   AND NOT EXISTS (SELECT 1 FROM public.kanban_cards c WHERE c.id = p.id);
 
--- Follow-up em processos que também têm kanban_cards (já limpo no PASSO 2 em kanban_cards)
-UPDATE public.processo_step_one
-SET data_followup = NULL, updated_at = now()
-WHERE data_followup IS NOT NULL;
+-- Opcional: limpar follow-ups em processos (descomente apenas se for intencional)
+-- UPDATE public.processo_step_one
+-- SET data_followup = NULL, updated_at = now()
+-- WHERE data_followup IS NOT NULL;
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- PASSO 5 — Conferência

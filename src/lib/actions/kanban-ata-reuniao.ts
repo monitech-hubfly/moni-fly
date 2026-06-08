@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import type { AcaoAtaReuniao, AtaReuniaoRow, ConteudoAtaReuniao } from '@/lib/kanban/ata-reuniao-types';
 import { dataIsoInputValida } from '@/lib/kanban/kanban-card-datas';
+import { propagarCamposKanbanCards } from '@/lib/kanban/card-sync-group';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 export type KanbanAtaActionResult = { ok: true } | { ok: false; error: string };
@@ -152,13 +154,26 @@ export async function salvarDataFollowupCard(input: {
   const raw = String(input.dataFollowup ?? '').trim();
   const valor = raw && dataIsoInputValida(raw) ? raw : raw ? null : null;
   if (raw && !valor) return { ok: false, error: 'Data de follow-up inválida. Use o formato completo (dia/mês/ano).' };
-  const q =
-    input.origem === 'nativo'
-      ? supabase.from('kanban_cards').update({ data_followup: valor }).eq('id', cardId)
-      : supabase.from('processo_step_one').update({ data_followup: valor }).eq('id', cardId);
 
-  const { error } = await q;
-  if (error) return { ok: false, error: error.message };
+  if (input.origem === 'nativo' && valor) {
+    let admin: ReturnType<typeof createAdminClient>;
+    try {
+      admin = createAdminClient();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { ok: false, error: msg };
+    }
+    const sync = await propagarCamposKanbanCards(admin, cardId, { data_followup: valor });
+    if (!sync.ok) return { ok: false, error: sync.error };
+  } else {
+    const q =
+      input.origem === 'nativo'
+        ? supabase.from('kanban_cards').update({ data_followup: valor }).eq('id', cardId)
+        : supabase.from('processo_step_one').update({ data_followup: valor }).eq('id', cardId);
+
+    const { error } = await q;
+    if (error) return { ok: false, error: error.message };
+  }
 
   revalidatePath(input.basePath?.trim() || '/');
   return { ok: true };
@@ -182,13 +197,26 @@ export async function salvarDataReuniaoCard(input: {
   const raw = String(input.dataReuniao ?? '').trim();
   const valor = raw && dataIsoInputValida(raw) ? raw : raw ? null : null;
   if (raw && !valor) return { ok: false, error: 'Data de reunião inválida. Informe o ano completo (4 dígitos).' };
-  const q =
-    input.origem === 'nativo'
-      ? supabase.from('kanban_cards').update({ data_reuniao: valor }).eq('id', cardId)
-      : supabase.from('processo_step_one').update({ data_reuniao: valor }).eq('id', cardId);
 
-  const { error } = await q;
-  if (error) return { ok: false, error: error.message };
+  if (input.origem === 'nativo' && valor) {
+    let admin: ReturnType<typeof createAdminClient>;
+    try {
+      admin = createAdminClient();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { ok: false, error: msg };
+    }
+    const sync = await propagarCamposKanbanCards(admin, cardId, { data_reuniao: valor });
+    if (!sync.ok) return { ok: false, error: sync.error };
+  } else {
+    const q =
+      input.origem === 'nativo'
+        ? supabase.from('kanban_cards').update({ data_reuniao: valor }).eq('id', cardId)
+        : supabase.from('processo_step_one').update({ data_reuniao: valor }).eq('id', cardId);
+
+    const { error } = await q;
+    if (error) return { ok: false, error: error.message };
+  }
 
   revalidatePath(input.basePath?.trim() || '/');
   return { ok: true };

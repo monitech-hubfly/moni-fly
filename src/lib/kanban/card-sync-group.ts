@@ -202,7 +202,11 @@ function pickSyncFields<T extends Record<string, unknown>>(
 }
 
 /** Campos que não devem ser propagados como `null` (evita wipe ao sincronizar grupo). */
-const KANBAN_CAMPOS_ANTI_NULL_SYNC = new Set<string>(['rede_franqueado_id']);
+const KANBAN_CAMPOS_ANTI_NULL_SYNC = new Set<string>([
+  'rede_franqueado_id',
+  'data_followup',
+  'data_reuniao',
+]);
 
 function omitNullStickyKanbanFields(patch: Record<string, string | null>): Record<string, string | null> {
   const out: Record<string, string | null> = { ...patch };
@@ -587,6 +591,8 @@ const CAMPOS_COALESCE_GRUPO_SYNC = new Set<string>([
   'quadra',
   'lote',
   'titulo',
+  'data_reuniao',
+  'data_followup',
 ]);
 
 /** Campos compartilhados canônicos para o modal (leitura). */
