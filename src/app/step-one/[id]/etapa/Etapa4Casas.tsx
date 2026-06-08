@@ -40,6 +40,7 @@ import {
   QUARTOS_PADRAO_NOSSA,
   type ChecklistReforma,
 } from './REGRAS_BATALHA';
+import { resolverTermoBuscaZap } from '@/lib/zap-condominio-busca';
 
 type ProdutoDadosBatalha = {
   designId?: string;
@@ -144,13 +145,16 @@ export function Etapa4Casas(props: {
   const router = useRouter();
   const [cidade, setCidade] = useState(cidadeInicial);
   const [estado, setEstado] = useState(estadoInicial);
-  const [condominio, setCondominio] = useState(condominioInicial);
+  const [condominio, setCondominio] = useState(() =>
+    listagemOnly ? resolverTermoBuscaZap(condominioInicial) : condominioInicial,
+  );
   const [zapError, setZapError] = useState('');
   const [zapLoading, setZapLoading] = useState(false);
   const [zapResult, setZapResult] = useState<{
     inserted: number;
     updated: number;
     despublicados: number;
+    itemCount: number;
   } | null>(null);
 
   const [cidadeManual, setCidadeManual] = useState(cidadeInicial);
@@ -190,9 +194,9 @@ export function Etapa4Casas(props: {
 
   useEffect(() => {
     const c = condominioInicial.trim();
-    setCondominio(c);
+    setCondominio(listagemOnly ? resolverTermoBuscaZap(c) : c);
     setCondominioManual(c);
-  }, [condominioInicial]);
+  }, [condominioInicial, listagemOnly]);
 
   const campoTexto = listagemOnly ? 'text-[11px] leading-tight' : 'text-sm';
   const campoPadding = listagemOnly ? 'px-2 py-1' : 'px-3 py-2';
@@ -707,6 +711,9 @@ export function Etapa4Casas(props: {
           estado: state,
           condominio: condominio.trim() || undefined,
           processoId,
+          ...(listagemOnly && condominioInicial.trim()
+            ? { condominioVinculo: condominioInicial.trim() }
+            : {}),
         }),
       });
       const data = await res.json();
@@ -722,6 +729,7 @@ export function Etapa4Casas(props: {
           inserted: data.inserted ?? 0,
           updated: data.updated ?? 0,
           despublicados: data.despublicados ?? 0,
+          itemCount: data.itemCount ?? 0,
         });
         router.refresh();
         onMutate?.();
@@ -1051,6 +1059,13 @@ export function Etapa4Casas(props: {
               />
             </label>
           </div>
+          {listagemOnly &&
+          condominioInicial.trim() &&
+          condominio.trim().toLowerCase() !== condominioInicial.trim().toLowerCase() ? (
+            <p className={`${campoTexto} text-stone-500`}>
+              Termo na ZAP para &quot;{condominioInicial.trim()}&quot; — ajuste se necessário.
+            </p>
+          ) : null}
           {zapLoading ? (
             <p className={`rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700 ${campoTexto}`}>
               Buscando imóveis no ZAP via Apify… pode levar até 4 minutos. Não feche a página.
@@ -1065,10 +1080,21 @@ export function Etapa4Casas(props: {
             </div>
           ) : null}
           {zapResult ? (
-            <p className={`${campoTexto} text-green-700`}>
-              Inseridos: {zapResult.inserted}, atualizados: {zapResult.updated}, marcados
-              despublicados: {zapResult.despublicados}.
-            </p>
+            zapResult.itemCount === 0 ? (
+              <p
+                className={`rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 ${campoTexto}`}
+              >
+                Nenhum imóvel encontrado na ZAP com estes filtros (casas/sobrados acima de R$
+                4.000.000). Confira se o termo do condomínio corresponde ao bairro/loteamento na
+                ZAP ou cadastre manualmente.
+              </p>
+            ) : (
+              <p className={`${campoTexto} text-green-700`}>
+                {zapResult.itemCount} {zapResult.itemCount === 1 ? 'imóvel' : 'imóveis'} na ZAP —
+                inseridos: {zapResult.inserted}, atualizados: {zapResult.updated}, marcados
+                despublicados: {zapResult.despublicados}.
+              </p>
+            )
           ) : null}
           <button
             type="button"

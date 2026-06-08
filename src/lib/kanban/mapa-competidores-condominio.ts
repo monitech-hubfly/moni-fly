@@ -1,5 +1,6 @@
 import type { CasaRow } from '@/app/step-one/[id]/etapa/Etapa4Casas';
 import type { LinhaProspectCondominio } from '@/lib/kanban/condominio-prospect-pesquisa';
+import { condominiosMapaCompativeis } from '@/lib/zap-condominio-busca';
 
 export function normalizarNomeCondominioMapa(valor: string): string {
   return valor
@@ -14,7 +15,8 @@ export function casaMapaPertenceCondominio(casa: CasaRow, nomeCondominio: string
   if (!alvo) return false;
   const cnd = normalizarNomeCondominioMapa(casa.condominio ?? '');
   if (!cnd) return false;
-  return cnd === alvo || cnd.includes(alvo) || alvo.includes(cnd);
+  if (cnd === alvo || cnd.includes(alvo) || alvo.includes(cnd)) return true;
+  return condominiosMapaCompativeis(nomeCondominio, casa.condominio ?? '');
 }
 
 export function filtrarCasasMapaPorCondominio(casas: CasaRow[], nomeCondominio: string): CasaRow[] {

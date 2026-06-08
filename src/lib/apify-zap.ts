@@ -104,7 +104,7 @@ export function buildZapSearchUrl(cidade: string, estado: string, condominio?: s
   const condSlug = condominio ? condominioSlug(condominio) : '';
   const pathSegment = condSlug ? `${uf}+${citySlug}++${condSlug}` : `${uf}+${citySlug}`;
   const onde = buildOndeParam(cidade.trim(), estado, condominio?.trim());
-  const base = `https://www.zapimoveis.com.br/venda/sobrados/${pathSegment}/?transacao=venda&onde=${onde}&tipos=${ZAP_TIPOS}&precoMinimo=4000000`;
+  const base = `https://www.zapimoveis.com.br/venda/casas/${pathSegment}/?transacao=venda&onde=${onde}&tipos=${ZAP_TIPOS}&precoMinimo=4000000`;
   return base;
 }
 

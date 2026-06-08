@@ -64,13 +64,16 @@ export async function applyZapCasasUpdate(
   items: ZapListingItem[],
   cidade: string,
   estado: string,
+  opts?: { condominioVinculo?: string },
 ): Promise<{ inserted: number; updated: number; despublicados: number }> {
   const cidadeNorm = cidade.trim();
   const estadoNorm = estado.trim().slice(0, 2).toUpperCase();
+  const vinculo = opts?.condominioVinculo?.trim() || null;
   const rows = (items ?? [])
     .filter((i) => i?.url)
     .map((i) => mapZapItemToCasa(i as ZapListingItem, cidadeNorm, estadoNorm))
-    .filter((r) => r.link);
+    .filter((r) => r.link)
+    .map((r) => (vinculo ? { ...r, condominio: vinculo } : r));
 
   const linksFromZap = new Set(rows.map((r) => r.link as string));
 

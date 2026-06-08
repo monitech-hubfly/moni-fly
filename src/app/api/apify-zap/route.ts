@@ -18,6 +18,11 @@ export async function POST(request: Request) {
     const estado = typeof body?.estado === 'string' ? body.estado.trim() : '';
     const condominio =
       typeof body?.condominio === 'string' ? body.condominio.trim() || undefined : undefined;
+    const condominioVinculo =
+      typeof body?.condominioVinculo === 'string'
+        ? body.condominioVinculo.trim() || undefined
+        : undefined;
+
     const processoId =
       typeof body?.processoId === 'string' ? body.processoId.trim() || undefined : undefined;
 
@@ -52,6 +57,7 @@ export async function POST(request: Request) {
         result.items,
         cidade,
         estado,
+        { condominioVinculo },
       );
 
       return NextResponse.json({
@@ -60,6 +66,7 @@ export async function POST(request: Request) {
         inserted,
         updated,
         despublicados,
+        itemCount: result.items.length,
         source: result.source,
       });
     }
