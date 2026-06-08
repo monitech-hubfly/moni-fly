@@ -182,10 +182,19 @@ export function Etapa4Casas(props: {
   const [validandoStatus, setValidandoStatus] = useState(false);
 
   useEffect(() => {
+    setCidade(cidadeInicial);
+    setEstado(estadoInicial);
+    setCidadeManual(cidadeInicial);
+    setEstadoManual(estadoInicial);
+  }, [cidadeInicial, estadoInicial]);
+
+  useEffect(() => {
     const c = condominioInicial.trim();
     setCondominio(c);
     setCondominioManual(c);
   }, [condominioInicial]);
+
+  const condominioSessaoFixo = listagemOnly && Boolean(condominioInicial.trim());
 
   const ROWS_PER_PAGE = 15;
   const totalPages = Math.max(1, Math.ceil(casas.length / ROWS_PER_PAGE));
@@ -759,7 +768,7 @@ export function Etapa4Casas(props: {
       onMutate?.();
       setCidadeManual(cidadeInicial);
       setEstadoManual(estadoInicial);
-      setCondominioManual('');
+      setCondominioManual(condominioInicial.trim());
       setEnderecoManual('');
       setQuartos('');
       setBanheiros('');
@@ -1024,7 +1033,9 @@ export function Etapa4Casas(props: {
               placeholder="Condomínio (opcional)"
               value={condominio}
               onChange={(e) => setCondominio(e.target.value)}
-              disabled={readOnly}
+              disabled={readOnly || condominioSessaoFixo}
+              readOnly={condominioSessaoFixo}
+              title={condominioSessaoFixo ? 'Condomínio definido pela sessão do funil' : undefined}
               className="rounded-lg border border-stone-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
@@ -1852,7 +1863,9 @@ export function Etapa4Casas(props: {
                     type="text"
                     value={condominioManual}
                     onChange={(e) => setCondominioManual(e.target.value)}
-                    className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                    disabled={readOnly || condominioSessaoFixo}
+                    readOnly={condominioSessaoFixo}
+                    className="rounded-lg border border-stone-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                   />
                 </label>
                 <label className="grid gap-1 sm:col-span-2">

@@ -58,7 +58,7 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
       try {
         const [prospectsRes, mapaRes] = await Promise.all([
           carregarProspectsCondominioCard(cid),
-          carregarMapaCompetidoresChecklist(pid),
+          carregarMapaCompetidoresChecklist(pid, cid),
         ]);
         if (cancelado) return;
 
@@ -132,7 +132,9 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
           {itemLabel}
         </p>
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          {erroCarregar ?? dadosMapa?.error ?? 'Processo Step One não vinculado a este card.'}
+          {erroCarregar ??
+            (dadosMapa && !dadosMapa.ok ? dadosMapa.error : null) ??
+            'Processo Step One não vinculado a este card.'}
         </p>
       </div>
     );
@@ -171,22 +173,28 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
                   {casasCondominioAtivo.length === 1 ? 'listagem' : 'listagens'} neste condomínio
                 </span>
               </div>
-              <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
-                <Etapa4Casas
-                  key={linhaAtiva.row_id}
-                  listagemOnly
-                  readOnly={!podeEditar}
-                  processoId={dadosMapa.processoId}
-                  casas={casasCondominioAtivo}
-                  cidadeInicial={dadosMapa.cidadeInicial}
-                  estadoInicial={dadosMapa.estadoInicial}
-                  ultimaValidacaoCasasManuaisEm={dadosMapa.ultimaValidacaoCasasManuaisEm}
-                  casasEscolhidas={[]}
-                  catalogo={[]}
-                  batalhasIniciais={[]}
-                  condominioInicial={linhaAtiva.condominio.trim()}
-                  onMutate={recarregar}
-                />
+              <div className="space-y-2">
+                <p className="text-xs font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
+                  Listagem de casas (ZAP)
+                  <span className="ml-1 text-red-500">*</span>
+                </p>
+                <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+                  <Etapa4Casas
+                    key={`${linhaAtiva.row_id}-${dadosMapa.cidadeInicial}-${dadosMapa.estadoInicial}`}
+                    listagemOnly
+                    readOnly={!podeEditar}
+                    processoId={dadosMapa.processoId}
+                    casas={casasCondominioAtivo}
+                    cidadeInicial={dadosMapa.cidadeInicial}
+                    estadoInicial={dadosMapa.estadoInicial}
+                    ultimaValidacaoCasasManuaisEm={dadosMapa.ultimaValidacaoCasasManuaisEm}
+                    casasEscolhidas={[]}
+                    catalogo={[]}
+                    batalhasIniciais={[]}
+                    condominioInicial={linhaAtiva.condominio.trim()}
+                    onMutate={recarregar}
+                  />
+                </div>
               </div>
             </div>
           ) : null}
