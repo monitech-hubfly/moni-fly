@@ -406,18 +406,3 @@ export function rotuloFontePesquisa(fonte: FontePesquisaCondominio): string {
       return fonte;
   }
 }
-
-export const METODOLOGIA_PESQUISA_CONDOMINIO = {
-  titulo: 'Metodologia de pesquisa',
-  fontes: [
-    'Pesquisa online — portais imobiliários, sites de incorporadoras, Google Maps e redes sociais.',
-    'Contato com corretores — ligações e mensagens para corretores que atuam no condomínio.',
-    'Destaques — informações obtidas em visitas, anúncios em evidência e conversas com moradores.',
-  ],
-  preparacao: {
-    selecao:
-      'Selecione na tabela da fase Dados da Cidade os condomínios com maior potencial (tickets, giro e proximidade). Priorize os que aparecem nos portais e têm corretores ativos.',
-    abordagem:
-      'Olá, [nome]! Sou franqueado Moni e estou mapeando condomínios na região de [cidade]. Você atua no [condomínio]? Poderia me ajudar com algumas informações sobre lotes, casas à venda e valores praticados? Agradeço desde já!',
-  },
-} as const;

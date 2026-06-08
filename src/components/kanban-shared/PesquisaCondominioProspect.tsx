@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, ChevronDown, ChevronRight, Circle, Loader2 } from 'lucide-react';
+import { CheckCircle2, Circle, Loader2 } from 'lucide-react';
 import { KanbanFaseSecaoTabs } from '@/components/kanban-shared/KanbanFaseSecaoTabs';
 import {
   carregarProspectsCondominioCard,
@@ -11,7 +11,6 @@ import {
   CHAVES_PESQUISA_OBRIGATORIAS,
   linhaPesquisaCompleta,
   linhaProspectTemNome,
-  METODOLOGIA_PESQUISA_CONDOMINIO,
   PESQUISA_CONDOMINIO_SECOES,
   rotuloFontePesquisa,
   type ChavePesquisaCondominio,
@@ -36,7 +35,6 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
   const [erroCarregar, setErroCarregar] = useState<string | null>(null);
   const [salvandoSecao, setSalvandoSecao] = useState<string | null>(null);
   const [erroSalvar, setErroSalvar] = useState<string | null>(null);
-  const [metodologiaAberta, setMetodologiaAberta] = useState(false);
   const [rascunho, setRascunho] = useState<Partial<Record<ChavePesquisaCondominio, string>>>({});
 
   const recarregar = useCallback(async () => {
@@ -139,13 +137,7 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
           {itemLabel}
           {obrigatorio ? <span className="ml-1 text-red-500">*</span> : null}
         </span>
-        <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
-          Use as abas para alternar entre os condomínios da Tabela de Condomínios (fase Dados da Cidade) e
-          responda todas as perguntas em cada um.
-        </p>
       </div>
-
-      <PainelMetodologia aberto={metodologiaAberta} onToggle={() => setMetodologiaAberta((v) => !v)} />
 
       {carregando ? (
         <div className="flex items-center gap-2 py-2 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
@@ -292,62 +284,5 @@ function BadgeConclusao({ completa }: { completa: boolean }) {
       <Circle size={10} />
       Pesquisa incompleta
     </span>
-  );
-}
-
-function PainelMetodologia({ aberto, onToggle }: { aberto: boolean; onToggle: () => void }) {
-  return (
-    <div
-      className="rounded-lg border"
-      style={{ borderColor: 'var(--moni-border-default)', background: 'var(--moni-surface-50)' }}
-    >
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold"
-        style={{ color: 'var(--moni-text-secondary)' }}
-      >
-        {aberto ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        2. Metodologia de pesquisa · 3. Preparação para contato
-      </button>
-      {aberto ? (
-        <div className="space-y-3 border-t px-3 py-3 text-xs" style={{ borderColor: 'var(--moni-border-default)' }}>
-          <div>
-            <p className="mb-1 font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              2. Metodologia de pesquisa — três fontes
-            </p>
-            <ul className="list-disc space-y-1 pl-4" style={{ color: 'var(--moni-text-secondary)' }}>
-              {METODOLOGIA_PESQUISA_CONDOMINIO.fontes.map((f) => (
-                <li key={f}>{f}</li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <p className="mb-1 font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              3. Preparação para contato
-            </p>
-            <p className="mb-1 font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
-              3.1 Seleção
-            </p>
-            <p className="mb-2" style={{ color: 'var(--moni-text-secondary)' }}>
-              {METODOLOGIA_PESQUISA_CONDOMINIO.preparacao.selecao}
-            </p>
-            <p className="mb-1 font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
-              3.2 Abordagem padrão
-            </p>
-            <p
-              className="rounded-md border px-2 py-2 italic"
-              style={{
-                borderColor: 'var(--moni-border-default)',
-                background: 'white',
-                color: 'var(--moni-text-secondary)',
-              }}
-            >
-              {METODOLOGIA_PESQUISA_CONDOMINIO.preparacao.abordagem}
-            </p>
-          </div>
-        </div>
-      ) : null}
-    </div>
   );
 }
