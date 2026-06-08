@@ -50,10 +50,19 @@ async function requireRedeAdminOrPublicLink(): Promise<
   const auth = await getPainelDbForPublicEdit();
   if (!auth.ok) return { ok: false, error: auth.error };
   const { supabase, userId } = auth;
-  const { data: profile } = await supabase.from('profiles').select('role, departamento').eq('id', userId).single();
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, departamento, time, email')
+    .eq('id', userId)
+    .single();
   const role = (profile?.role as string) ?? 'frank';
   const departamento = (profile as { departamento?: string | null } | null)?.departamento ?? null;
-  if (!canAccessRedeFranqueadosCadastrosCompletos(role, departamento)) {
+  const time = (profile as { time?: string | null } | null)?.time ?? null;
+  const email =
+    (profile as { email?: string | null } | null)?.email ??
+    (await supabase.auth.getUser()).data.user?.email ??
+    null;
+  if (!canAccessRedeFranqueadosCadastrosCompletos(role, departamento, time, email)) {
     return {
       ok: false,
       error: 'Apenas administradores ou times Administrativo / Controladoria podem realizar esta ação.',

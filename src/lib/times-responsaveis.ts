@@ -271,6 +271,19 @@ export const RESPONSAVEIS_POR_TIME: Record<string, string[]> = {
   'Novos Franqueados': ['Paula Cruz'],
 };
 
+/** Times Moní com visão/edição completa em /rede-franqueados (sem blur de dados sensíveis). */
+export const REDE_FRANQUEADOS_CADASTROS_FULL_ACCESS_TIMES = ['Administrativo', 'Controladoria'] as const;
+
+export const REDE_FRANQUEADOS_CADASTROS_FULL_ACCESS_EMAILS: readonly string[] = [
+  ...new Set(
+    REDE_FRANQUEADOS_CADASTROS_FULL_ACCESS_TIMES.flatMap((time) =>
+      (RESPONSAVEIS_POR_TIME[time] ?? [])
+        .map((nome) => MONI_EMAIL_POR_NOME[nome]?.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ),
+];
+
 export const TODOS_RESPONSAVEIS = Object.values(RESPONSAVEIS_POR_TIME).flat();
 
 /** Valor de `filtros.time` / `timeF` quando o id não existe em `kanban_times` (filtro por nome Moní). */

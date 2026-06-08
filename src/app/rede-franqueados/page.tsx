@@ -39,14 +39,25 @@ export default async function RedeFranqueadosPage() {
 
 
 
-  const { data: profile } = await supabase.from('profiles').select('role, departamento').eq('id', user.id).single();
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, departamento, time, email')
+    .eq('id', user.id)
+    .single();
 
   const role = (profile?.role as string) ?? 'frank';
   const departamento = (profile as { departamento?: string | null } | null)?.departamento ?? null;
+  const time = (profile as { time?: string | null } | null)?.time ?? null;
+  const email = (profile as { email?: string | null } | null)?.email ?? user.email ?? null;
 
   const canManage = isRedeStaffRole(role);
 
-  const maskSensitiveColumns = !canAccessRedeFranqueadosCadastrosCompletos(role, departamento);
+  const maskSensitiveColumns = !canAccessRedeFranqueadosCadastrosCompletos(
+    role,
+    departamento,
+    time,
+    email,
+  );
 
   const showStaffTabs = isRedeStaffRole(role);
 
