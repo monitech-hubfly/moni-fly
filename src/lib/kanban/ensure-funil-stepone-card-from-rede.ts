@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-import { DADOS_CANDIDATO_FASE_SLUGS } from '@/lib/kanban/stepone-fase-slugs';
+import { ONBOARDING_FASE_SLUGS } from '@/lib/kanban/stepone-fase-slugs';
 
 const FUNIL_STEP_ONE_NOME = 'Funil Step One';
 
@@ -71,7 +71,7 @@ export async function ensureFunilStepOneCardFromRede(
     .from('kanban_fases')
     .select('id, slug')
     .eq('kanban_id', kanbanId)
-    .in('slug', [...DADOS_CANDIDATO_FASE_SLUGS])
+    .in('slug', [...ONBOARDING_FASE_SLUGS])
     .eq('ativo', true)
     .order('ordem', { ascending: true })
     .limit(1);
@@ -81,7 +81,7 @@ export async function ensureFunilStepOneCardFromRede(
   if (!fase?.id) {
     return {
       ok: false,
-      error: `Fase candidato (${DADOS_CANDIDATO_FASE_SLUGS.join(' ou ')}) não encontrada no Funil Step One.`,
+      error: `Fase Onboarding (${ONBOARDING_FASE_SLUGS.join(' ou ')}) não encontrada no Funil Step One.`,
     };
   }
 
@@ -99,14 +99,8 @@ export async function ensureFunilStepOneCardFromRede(
 
   if (existente?.id) {
     const cardId = String(existente.id);
-    if (String(existente.fase_id) !== faseId) {
-      const { error: errUp } = await db
-        .from('kanban_cards')
-        .update({ fase_id: faseId, titulo })
-        .eq('id', cardId);
-      if (errUp) return { ok: false, error: errUp.message };
-      return { ok: true, created: false, cardId, repaired: true };
-    }
+    const { error: errUp } = await db.from('kanban_cards').update({ titulo }).eq('id', cardId);
+    if (errUp) return { ok: false, error: errUp.message };
     return { ok: true, created: false, cardId };
   }
 

@@ -149,7 +149,8 @@ export const FASE_SLUGS = {
   OPERACOES_ENTREGUE:        'operacoes_entregue',
   // Gates
   STEP_5:             'step_5',
-  // Funil Step One (KANBAN_IDS.STEP_ONE) — fluxo ordem 1–10 (PROD)
+  // Funil Step One (KANBAN_IDS.STEP_ONE) — fluxo ordem 1–11 (PROD)
+  ONBOARDING:           'onboarding',
   DADOS_CANDIDATO:      'dados_candidato',
   DADOS_CIDADE:         'dados_cidade',
   DADOS_CONDOMINIOS:    'dados_condominios',

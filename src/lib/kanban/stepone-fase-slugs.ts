@@ -4,8 +4,9 @@ import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 /** Fase removida na migration 248 — não deve aparecer como coluna no board. */
 export const STEPONE_REMOVED_FASE_SLUGS = ['lista_condominios', 'stepone_lista_cond'] as const;
 
-/** Slugs canónicos PROD (ordem 1–10). */
+/** Slugs canónicos PROD (ordem 1–11). */
 export const STEPONE_FASE_SLUGS = {
+  ONBOARDING: FASE_SLUGS.ONBOARDING,
   DADOS_CANDIDATO: FASE_SLUGS.DADOS_CANDIDATO,
   DADOS_CIDADE: FASE_SLUGS.DADOS_CIDADE,
   DADOS_CONDOMINIOS: FASE_SLUGS.DADOS_CONDOMINIOS,
@@ -19,7 +20,9 @@ export const STEPONE_FASE_SLUGS = {
 } as const;
 
 /** Ordem PROD da fase Hipóteses (chips Portfolio a partir desta fase). */
-export const HIPOTESES_ORDEM_MIN_PROD = 10;
+export const HIPOTESES_ORDEM_MIN_PROD = 11;
+
+export const ONBOARDING_FASE_SLUGS = [FASE_SLUGS.ONBOARDING, 'stepone_onboarding'] as const;
 
 export const DADOS_CIDADE_FASE_SLUGS = [
   FASE_SLUGS.DADOS_CIDADE,
@@ -64,6 +67,7 @@ export const BATALHA_FASE_SLUGS = [FASE_SLUGS.BATALHA, 'stepone_batalha'] as con
 
 /** Mapa slug legado/DEV → slug canônico PROD. */
 export const STEPONE_SLUG_LEGACY_TO_CANONICAL: Record<string, string> = {
+  stepone_onboarding: FASE_SLUGS.ONBOARDING,
   stepone_dados_candidato: FASE_SLUGS.DADOS_CANDIDATO,
   stepone_dados_cidade: FASE_SLUGS.DADOS_CIDADE,
   stepone_dados_cond: FASE_SLUGS.DADOS_CONDOMINIOS,
@@ -105,6 +109,10 @@ export function isHipotesesFaseSlug(slug: string | null | undefined): boolean {
 
 export function isDadosCidadeFaseSlug(slug: string | null | undefined): boolean {
   return slugMatchesStepOneFase(slug, DADOS_CIDADE_FASE_SLUGS);
+}
+
+export function isOnboardingFaseSlug(slug: string | null | undefined): boolean {
+  return slugMatchesStepOneFase(slug, ONBOARDING_FASE_SLUGS);
 }
 
 export function isDadosCandidatoFaseSlug(slug: string | null | undefined): boolean {
