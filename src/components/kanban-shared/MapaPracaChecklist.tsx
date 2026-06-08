@@ -5,14 +5,38 @@ import { MapaInterativoSecao } from '@/components/step-one/MapaInterativoSecao';
 import { usePracaDadosCidadeChecklist } from '@/components/kanban-shared/usePracaDadosCidadeChecklist';
 
 type Props = {
-  processoId: string;
+  processoId?: string;
+  cidade?: string;
+  estado?: string | null;
   itemLabel: string;
   obrigatorio?: boolean;
   reloadKey?: number;
 };
 
-export function MapaPracaChecklist({ processoId, itemLabel, obrigatorio, reloadKey = 0 }: Props) {
-  const { dados, carregando } = usePracaDadosCidadeChecklist(processoId, reloadKey);
+export function MapaPracaChecklist({
+  processoId = '',
+  cidade,
+  estado,
+  itemLabel,
+  obrigatorio,
+  reloadKey = 0,
+}: Props) {
+  const cidadeDirect = cidade?.trim() ?? '';
+  const { dados, carregando } = usePracaDadosCidadeChecklist(processoId, reloadKey, {
+    skip: Boolean(cidadeDirect),
+  });
+
+  if (cidadeDirect) {
+    return (
+      <div>
+        <p className="mb-2 text-xs font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
+          {itemLabel}
+          {obrigatorio ? <span className="ml-1 text-red-500">*</span> : null}
+        </p>
+        <MapaInterativoSecao cidade={cidadeDirect} estado={estado ?? null} showHeading={false} />
+      </div>
+    );
+  }
 
   if (carregando) {
     return (

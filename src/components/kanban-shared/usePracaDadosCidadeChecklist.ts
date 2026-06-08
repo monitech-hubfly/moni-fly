@@ -6,11 +6,21 @@ import {
   type PracaDadosCidadeChecklistData,
 } from '@/lib/actions/kanban-dados-cidade-praca';
 
-export function usePracaDadosCidadeChecklist(processoId: string, reloadKey = 0) {
+export function usePracaDadosCidadeChecklist(
+  processoId: string,
+  reloadKey = 0,
+  opts?: { skip?: boolean },
+) {
   const [dados, setDados] = useState<PracaDadosCidadeChecklistData | null>(null);
-  const [carregando, setCarregando] = useState(true);
+  const [carregando, setCarregando] = useState(!opts?.skip);
 
   useEffect(() => {
+    if (opts?.skip) {
+      setDados(null);
+      setCarregando(false);
+      return;
+    }
+
     const pid = processoId?.trim();
     if (!pid) {
       setDados({ ok: false, error: 'Processo Step One não vinculado a este card.' });
@@ -34,7 +44,7 @@ export function usePracaDadosCidadeChecklist(processoId: string, reloadKey = 0) 
     return () => {
       cancelado = true;
     };
-  }, [processoId, reloadKey]);
+  }, [processoId, reloadKey, opts?.skip]);
 
   return { dados, carregando };
 }

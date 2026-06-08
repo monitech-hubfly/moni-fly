@@ -5,14 +5,39 @@ import { DadosCidadeIbgeSecao } from '@/components/step-one/DadosCidadeIbgeSecao
 import { usePracaDadosCidadeChecklist } from '@/components/kanban-shared/usePracaDadosCidadeChecklist';
 
 type Props = {
-  processoId: string;
+  processoId?: string;
+  /** Quando informados, usa IBGE direto (aba por cidade) em vez do processo Step One. */
+  cidade?: string;
+  estado?: string | null;
   itemLabel: string;
   obrigatorio?: boolean;
   reloadKey?: number;
 };
 
-export function DadosCidadeIbgeChecklist({ processoId, itemLabel, obrigatorio, reloadKey = 0 }: Props) {
-  const { dados, carregando } = usePracaDadosCidadeChecklist(processoId, reloadKey);
+export function DadosCidadeIbgeChecklist({
+  processoId = '',
+  cidade,
+  estado,
+  itemLabel,
+  obrigatorio,
+  reloadKey = 0,
+}: Props) {
+  const cidadeDirect = cidade?.trim() ?? '';
+  const { dados, carregando } = usePracaDadosCidadeChecklist(processoId, reloadKey, {
+    skip: Boolean(cidadeDirect),
+  });
+
+  if (cidadeDirect) {
+    return (
+      <div>
+        <p className="mb-2 text-xs font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
+          {itemLabel}
+          {obrigatorio ? <span className="ml-1 text-red-500">*</span> : null}
+        </p>
+        <DadosCidadeIbgeSecao cidade={cidadeDirect} estado={estado ?? null} showHeading={false} />
+      </div>
+    );
+  }
 
   if (carregando) {
     return (
