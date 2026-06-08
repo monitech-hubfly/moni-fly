@@ -10,6 +10,17 @@ import {
 
 export type FaixaCondominioId = 'premium' | 'intermediaria' | 'entrada';
 
+/** Rascunho sugerido (placeholder) — editável livremente pelo usuário. */
+export const PLACEHOLDER_CASAS_EM_CONSTRUCAO = `Existem atualmente 24 casas únicas à venda no [ ], distribuídas em [0] anúncios totais ([0] casas com múltiplos corretores anunciando simultaneamente). [0]% das casas que entraram em catálogo já foram desativadas, levando em média [0] meses e [0] dias até sair do mercado (considerando apenas o tracking de anúncios, sem considerar a média dada pelos corretores).
+
+De todas as casas a venda [0] estão pronta e [0] estão sendo construídas, sendo [0] para venda e [0] para cliente final`;
+
+export const PLACEHOLDER_COMO_SAO_ESSAS_CASAS =
+  '[0] casas na faixa de preço de R$[0.00]M. As áreas variam de [000]m² a [000]m². O grupo está listado há entre [00] e [00] meses, com média de ~[00] meses.';
+
+export const PLACEHOLDER_FAIXAS_PRECO_CASAS =
+  'Produto a R$ [0.00]M está no centro do cluster. Os preços ficam entre R$ [0.00]M e R$ [0.00]M, todas próximas ao ticket do produto. O R$/m² oscila entre R$[00.000] e R$ [00.000].';
+
 export const FAIXAS_CONDOMINIO: { id: FaixaCondominioId; label: string }[] = [
   { id: 'premium', label: 'Faixa Premium' },
   { id: 'intermediaria', label: 'Faixa Intermediária' },
@@ -22,6 +33,8 @@ export type ChaveCaracterizacaoGlobal =
   | 'caracteristicas_condominio'
   | 'tempo_condominio'
   | 'q_casas_em_construcao'
+  | 'q_casas_como_sao'
+  | 'q_casas_faixas_preco'
   | 'q_casas_caracteristicas_buscadas'
   | 'q_casas_caracteristicas_elogiadas'
   | 'mapa_condominio_path';
@@ -38,6 +51,8 @@ export type ChaveFaixaCondominio =
   | 'q_lotes_area_maior_demanda'
   | 'q_casas_prontas'
   | 'q_casas_em_construcao'
+  | 'q_casas_como_sao'
+  | 'q_casas_faixas_preco'
   | 'q_casas_preco_m2'
   | 'q_casas_tempo_venda'
   | 'q_casas_vendidas_12m'
@@ -91,7 +106,20 @@ export const CARACTERIZACAO_GLOBAL_CAMPOS: CampoCaracterizacaoGlobal[] = [
     chave: 'q_casas_em_construcao',
     label:
       'Quantas casas estão sendo construídas? Dessas, quantas estão para venda e quantas são para cliente final?',
-    tipo: 'texto',
+    tipo: 'texto_longo',
+    placeholder: PLACEHOLDER_CASAS_EM_CONSTRUCAO,
+  },
+  {
+    chave: 'q_casas_como_sao',
+    label: 'Como são essas casas?',
+    tipo: 'texto_longo',
+    placeholder: PLACEHOLDER_COMO_SAO_ESSAS_CASAS,
+  },
+  {
+    chave: 'q_casas_faixas_preco',
+    label: 'Quais as faixas de preço dessas casas?',
+    tipo: 'texto_longo',
+    placeholder: PLACEHOLDER_FAIXAS_PRECO_CASAS,
   },
   {
     chave: 'q_casas_caracteristicas_buscadas',
@@ -180,7 +208,24 @@ export const FAIXA_CONDOMINIO_CAMPOS: CampoFaixaCondominio[] = [
     chave: 'q_casas_em_construcao',
     label:
       'Quantas casas estão sendo construídas? Dessas, quantas estão para venda e quantas são para cliente final?',
-    tipo: 'texto',
+    tipo: 'texto_longo',
+    placeholder: PLACEHOLDER_CASAS_EM_CONSTRUCAO,
+    secao: 'casas',
+    obrigatorio: true,
+  },
+  {
+    chave: 'q_casas_como_sao',
+    label: 'Como são essas casas?',
+    tipo: 'texto_longo',
+    placeholder: PLACEHOLDER_COMO_SAO_ESSAS_CASAS,
+    secao: 'casas',
+    obrigatorio: true,
+  },
+  {
+    chave: 'q_casas_faixas_preco',
+    label: 'Quais as faixas de preço dessas casas?',
+    tipo: 'texto_longo',
+    placeholder: PLACEHOLDER_FAIXAS_PRECO_CASAS,
     secao: 'casas',
     obrigatorio: true,
   },
@@ -254,6 +299,8 @@ export type LinhaProspectCondominio = {
   caracteristicas_condominio?: string;
   tempo_condominio?: string;
   q_casas_em_construcao?: string;
+  q_casas_como_sao?: string;
+  q_casas_faixas_preco?: string;
   q_casas_caracteristicas_buscadas?: string;
   q_casas_caracteristicas_elogiadas?: string;
   mapa_condominio_path?: string;

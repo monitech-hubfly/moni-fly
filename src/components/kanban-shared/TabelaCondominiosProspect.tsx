@@ -119,6 +119,8 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur, prac
       caracteristicas_condominio: atual.caracteristicas_condominio,
       tempo_condominio: atual.tempo_condominio,
       q_casas_em_construcao: atual.q_casas_em_construcao,
+      q_casas_como_sao: atual.q_casas_como_sao,
+      q_casas_faixas_preco: atual.q_casas_faixas_preco,
       q_casas_caracteristicas_elogiadas: atual.q_casas_caracteristicas_elogiadas,
       q_casas_caracteristicas_buscadas: atual.q_casas_caracteristicas_buscadas,
       mapa_condominio_path: atual.mapa_condominio_path,

@@ -481,16 +481,17 @@ function CampoTexto({
         {label}
         {obrigatorio ? <span className="ml-1 text-red-500">*</span> : null}
       </label>
-      {placeholder ? (
+      {placeholder && tipo !== 'texto_longo' ? (
         <p className="mb-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
           {placeholder}
         </p>
       ) : null}
       {tipo === 'texto_longo' ? (
         <textarea
-          rows={3}
-          className={inputClass + ' resize-none'}
+          rows={placeholder && placeholder.length > 120 ? 6 : 3}
+          className={inputClass + ' resize-y'}
           value={valor}
+          placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
           onBlur={(e) => onBlur(e.target.value)}
         />
