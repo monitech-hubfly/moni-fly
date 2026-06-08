@@ -183,7 +183,7 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur }: Pr
     const map = new Map<string, CondominioRow[]>();
     for (const linha of linhas) {
       const q = (buscaPorLinha[linha.row_id] ?? '').trim();
-      const base = q ? cadastro.filter((r) => condominioRowMatchesBusca(r, q)) : cadastro;
+      const base = q ? cadastro.filter((r) => condominioRowMatchesBusca(r, q)) : [];
       map.set(linha.row_id, base.slice(0, 30));
     }
     return map;
@@ -260,6 +260,7 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur }: Pr
             {linhas.map((linha, idx) => {
               const opcoes = opcoesPorLinha.get(linha.row_id) ?? [];
               const pickerOpen = pickerAberto === linha.row_id;
+              const buscaLinha = (buscaPorLinha[linha.row_id] ?? '').trim();
               const pendente = linhaProspectCadastroPendente(linha);
               const ok = linhaProspectCadastroOk(linha);
               const salvando = salvandoLinha === linha.row_id;
@@ -299,7 +300,7 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur }: Pr
                           }}
                         />
                       </div>
-                      {pickerOpen && opcoes.length > 0 ? (
+                      {pickerOpen && buscaLinha && opcoes.length > 0 ? (
                         <ul
                           className="absolute z-20 mt-0.5 max-h-36 w-full overflow-y-auto rounded border bg-white shadow-sm"
                           style={{ borderColor: 'var(--moni-border-default)' }}
