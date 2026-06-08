@@ -410,9 +410,20 @@ export function FaseChecklistCard({
     ? itensFiltrados.filter((it) => !CHECKLIST_ITENS_OCULTOS_MULTI_PRACA.has(it.label.trim()))
     : itensFiltrados;
 
+  function resolverPracaSessao(chavePraca?: string): PracaCidade | null {
+    if (multiPracaAtivo) {
+      const chave = chavePraca ?? abaPracaAtiva;
+      return parseChavePracaCidade(chave) ?? pracaAtiva;
+    }
+    const uf = estadoChecklistValor.trim().toUpperCase();
+    const cidade = cidadeChecklistValor.trim();
+    if (cidade && uf.length === 2) return { uf, cidade };
+    return null;
+  }
+
   function renderItemField(item: FaseChecklistItem, chavePraca?: string) {
     const chave = chavePraca ?? abaPracaAtiva;
-    const praca = parseChavePracaCidade(chave) ?? pracaAtiva;
+    const praca = resolverPracaSessao(chave);
     const itemKey = multiPracaAtivo ? `${item.id}-${chave}` : item.id;
     return (
       <div key={itemKey} className="kanban-fase-checklist-item">
@@ -424,7 +435,7 @@ export function FaseChecklistCard({
         isAdmin={isAdmin}
         processoId={processoId}
         pracaReloadKey={pracaReloadKey}
-        pracaCidade={multiPracaAtivo ? praca : null}
+        pracaCidade={praca}
         areasAtuacao={areasAtuacao}
         estadoChecklistValor={estadoChecklistValor}
         onCidadeComUfSelected={(cidade, uf) => void salvarCidadeComEstado(cidade, uf)}
@@ -889,7 +900,15 @@ function ItemField({
           </p>
         );
       }
-      return <TabelaCondominiosProspect item={item} estado={estado} onChange={onChange} onBlur={onBlur} />;
+      return (
+        <TabelaCondominiosProspect
+          item={item}
+          estado={estado}
+          onChange={onChange}
+          onBlur={onBlur}
+          pracaCidade={pracaCidade}
+        />
+      );
     }
     const modoVinculado = Boolean(condominioContext && item.label.trim() === 'Dados do cadastro');
     return (

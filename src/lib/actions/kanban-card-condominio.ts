@@ -49,6 +49,8 @@ export async function sincronizarProspectComCadastro(input: {
   estimativa_giro?: string;
   /** true = dados iguais ao cadastro (concordância); false = persistir alterações. */
   apenasConfirmar?: boolean;
+  cidade?: string | null;
+  estado?: string | null;
 }): Promise<KanbanCondominioActionResult & { condominioId?: string }> {
   const gate = await requireCondominiosStaff();
   if (!gate.ok) return gate;
@@ -63,6 +65,12 @@ export async function sincronizarProspectComCadastro(input: {
     ticket_medio_casas_rsm2: parseDecimalInput(input.ticket_m2),
     estimativa_casas_vendidas_ano: parseIntegerInput(input.estimativa_giro ?? ''),
   };
+  const cidadePraca = String(input.cidade ?? '').trim() || null;
+  const estadoPraca = String(input.estado ?? '').trim().toUpperCase() || null;
+  const localizacaoPatch =
+    cidadePraca && estadoPraca && estadoPraca.length === 2
+      ? { cidade: cidadePraca, estado: estadoPraca }
+      : {};
 
   const condominioId = String(input.condominioId ?? '').trim();
 
@@ -90,6 +98,7 @@ export async function sincronizarProspectComCadastro(input: {
         ticket_medio_casas: patch.ticket_medio_casas,
         ticket_medio_casas_rsm2: patch.ticket_medio_casas_rsm2,
         estimativa_casas_vendidas_ano: patch.estimativa_casas_vendidas_ano,
+        ...localizacaoPatch,
         updated_at: new Date().toISOString(),
       } as never)
       .eq('id', condominioId);
@@ -110,6 +119,7 @@ export async function sincronizarProspectComCadastro(input: {
       ticket_medio_casas: patch.ticket_medio_casas,
       ticket_medio_casas_rsm2: patch.ticket_medio_casas_rsm2,
       estimativa_casas_vendidas_ano: patch.estimativa_casas_vendidas_ano,
+      ...localizacaoPatch,
       criado_por: gate.userId,
       updated_at: new Date().toISOString(),
     } as never)

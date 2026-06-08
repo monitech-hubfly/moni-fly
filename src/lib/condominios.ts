@@ -72,6 +72,24 @@ export function condominioRowMatchesBusca(row: CondominioRow, busca: string): bo
   return parts.some((p) => normalizarParaBuscaCondominio(p ?? '').includes(q));
 }
 
+/** Condomínio pertence à praça (cidade + UF) da sessão de preenchimento. */
+export function condominioRowNaPraca(
+  row: CondominioRow,
+  praca: { cidade: string; uf: string } | null | undefined,
+): boolean {
+  if (!praca) return false;
+  const uf = String(praca.uf ?? '').trim().toUpperCase();
+  const cidade = String(praca.cidade ?? '').trim();
+  if (!cidade || uf.length !== 2) return false;
+  const rowUf = String(row.estado ?? '').trim().toUpperCase();
+  const rowCidade = String(row.cidade ?? '').trim();
+  if (!rowCidade || rowUf.length !== 2) return false;
+  return (
+    rowUf === uf &&
+    normalizarParaBuscaCondominio(rowCidade) === normalizarParaBuscaCondominio(cidade)
+  );
+}
+
 export function ordenarCondominiosPorNome(rows: CondominioRow[]): CondominioRow[] {
   return [...rows].sort((a, b) =>
     (a.nome ?? '').localeCompare(b.nome ?? '', 'pt-BR', { sensitivity: 'base' }),

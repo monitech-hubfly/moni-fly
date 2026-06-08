@@ -108,13 +108,16 @@ export async function fetchKanbanBoardSnapshot(
     resolveKanbanAtivo(supabase, kanbanNomeDb),
   ]);
 
+  let veTodosCards = false;
   if (userId) {
     const profile = profileRes.data;
     role = (profile?.role as string) ?? 'frank';
     const accessRole = normalizeAccessRole(profile?.role);
     isAdmin = accessRole === 'admin' || accessRole === 'team';
+    veTodosCards = isAdmin || role === 'consultor' || role === 'supervisor';
   } else {
     isAdmin = true;
+    veTodosCards = true;
   }
 
   if (!kanban) {
@@ -129,7 +132,7 @@ export async function fetchKanbanBoardSnapshot(
     .eq('kanban_id', kanban.id)
     .order('criado_em', { ascending: false });
 
-  if (userId && !isAdmin) {
+  if (userId && !veTodosCards) {
     viewQuery = viewQuery.eq('responsavel_id', userId);
   }
 
@@ -287,7 +290,7 @@ export async function fetchKanbanBoardSnapshot(
         .eq('concluido', concluido)
         .order('ordem_coluna', { ascending: true })
         .order('created_at', { ascending: false });
-      if (userId && !isAdmin) q = q.eq('franqueado_id', userId);
+      if (userId && !veTodosCards) q = q.eq('franqueado_id', userId);
       const { data, error } = await q;
       return {
         data: (data ?? null) as KanbanCardRow[] | null,
@@ -312,13 +315,6 @@ export async function fetchKanbanBoardSnapshot(
     arquivRaw = (arquivRes.data ?? []) as unknown[];
   }
 
-  const franqueadoIds = [
-    ...new Set([
-      ...((cardsRaw ?? []) as { franqueado_id?: string | null }[]).map((c) => c.franqueado_id),
-      ...((conclRaw ?? []) as { franqueado_id?: string | null }[]).map((c) => c.franqueado_id),
-      ...((arquivRaw ?? []) as { franqueado_id?: string | null }[]).map((c) => c.franqueado_id),
-    ]),
-  ].filter(Boolean) as string[];
   const redeIdsDiretos = [
     ...new Set([
       ...(cardsRaw?.map((c) => (c as { rede_franqueado_id?: string | null }).rede_franqueado_id) ?? []).filter(Boolean),
@@ -326,15 +322,14 @@ export async function fetchKanbanBoardSnapshot(
       ...(arquivRaw?.map((c) => (c as { rede_franqueado_id?: string | null }).rede_franqueado_id) ?? []).filter(Boolean),
     ]),
   ] as string[];
-  const allRedeLookupIds = [...new Set([...franqueadoIds, ...redeIdsDiretos])];
 
   const redeById = new Map<string, string>();
   const nFranquiaByRedeId = new Map<string, string>();
-  if (allRedeLookupIds.length > 0) {
+  if (redeIdsDiretos.length > 0) {
     const { data: redesData } = await supabase
       .from('rede_franqueados')
       .select('id, nome_completo, n_franquia')
-      .in('id', allRedeLookupIds);
+      .in('id', redeIdsDiretos);
     (redesData ?? []).forEach((r) => {
       if (r.nome_completo) redeById.set(String(r.id), String(r.nome_completo));
       const num = String((r as { n_franquia?: string | null }).n_franquia ?? '').trim();
@@ -342,19 +337,15 @@ export async function fetchKanbanBoardSnapshot(
     });
   }
 
-  const redeNomeMapNativo = new Map<string, string>();
-  for (const id of franqueadoIds) {
-    const nome = redeById.get(id);
-    if (nome) redeNomeMapNativo.set(id, nome);
-  }
   const redeNomeDiretoMap = new Map<string, string>();
   for (const id of redeIdsDiretos) {
     const nome = redeById.get(id);
     if (nome) redeNomeDiretoMap.set(id, nome);
   }
 
-  /** Cards sem `rede_franqueado_id`: resolve nome via processo/título (nunca perfil interno de `franqueado_id`). */
+  /** Cards sem `rede_franqueado_id`: resolve nome/nº via processo/título (nunca perfil interno de `franqueado_id`). */
   const franqueadoNomePorCardId = new Map<string, string>();
+  const nFranquiaPorCardId = new Map<string, string>();
   const allNativeCards = [
     ...((cardsRaw ?? []) as {
       id?: string;
@@ -445,9 +436,11 @@ export async function fetchKanbanBoardSnapshot(
       if (!cardId) continue;
 
       let nome: string | null = null;
+      let nFranquia: string | null = null;
       const numTitulo = extrairNumeroFranquiaDoTitulo(String(c.titulo ?? ''));
       if (numTitulo && redeNomePorNumero.has(numTitulo)) {
         nome = redeNomePorNumero.get(numTitulo)!;
+        nFranquia = numTitulo;
       }
 
       if (!nome) {
@@ -461,12 +454,18 @@ export async function fetchKanbanBoardSnapshot(
             const numProc = String(proc.numero_franquia ?? '').trim();
             if (numProc && redeNomePorNumero.has(numProc)) {
               nome = redeNomePorNumero.get(numProc)!;
+              nFranquia = numProc;
             }
+          }
+          if (!nFranquia) {
+            const numProc = String(proc.numero_franquia ?? '').trim();
+            if (numProc) nFranquia = numProc;
           }
         }
       }
 
       if (nome) franqueadoNomePorCardId.set(cardId, nome);
+      if (nFranquia) nFranquiaPorCardId.set(cardId, nFranquia);
     }
 
     const condominiosSemNome = [
@@ -560,13 +559,16 @@ export async function fetchKanbanBoardSnapshot(
 
   const mapNativo = (c: Record<string, unknown>): KanbanCardBrief => {
     const fid = String(c.franqueado_id ?? '');
-    const redeId = String((c as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '');
+    const redeId = String((c as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '').trim();
+    const cardId = String(c.id ?? '');
     const tituloRaw = String(c.titulo ?? '');
     const tituloCalc = montarTituloCardSync({
-      nFranquia: redeId ? nFranquiaByRedeId.get(redeId) : null,
+      nFranquia: redeId
+        ? nFranquiaByRedeId.get(redeId)
+        : nFranquiaPorCardId.get(cardId) ?? extrairNumeroFranquiaDoTitulo(tituloRaw),
       nomeFranqueado: redeId
         ? redeNomeDiretoMap.get(redeId)
-        : franqueadoNomePorCardId.get(String(c.id)),
+        : franqueadoNomePorCardId.get(cardId),
       nomeCondominio: (c as { nome_condominio?: string | null }).nome_condominio,
       quadra: (c as { quadra?: string | null }).quadra,
       lote: (c as { lote?: string | null }).lote,
@@ -614,11 +616,9 @@ export async function fetchKanbanBoardSnapshot(
           : null,
       profiles: redeNomeDiretoMap.has(redeId)
         ? { full_name: redeNomeDiretoMap.get(redeId) ?? null }
-        : franqueadoNomePorCardId.has(String(c.id))
-          ? { full_name: franqueadoNomePorCardId.get(String(c.id)) ?? null }
-          : redeNomeMapNativo.has(fid)
-            ? { full_name: redeNomeMapNativo.get(fid) ?? null }
-            : null,
+        : franqueadoNomePorCardId.has(cardId)
+          ? { full_name: franqueadoNomePorCardId.get(cardId) ?? null }
+          : null,
     };
   };
 
