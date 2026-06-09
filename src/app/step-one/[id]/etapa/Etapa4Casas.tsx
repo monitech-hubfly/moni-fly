@@ -204,6 +204,9 @@ export function Etapa4Casas(props: {
   const campoLabelClass = listagemOnly
     ? 'text-[10px] font-medium leading-tight text-stone-600'
     : `font-medium text-stone-700 ${campoTexto}`;
+  const tabelaTexto = listagemOnly ? 'text-[11px] leading-snug' : 'text-sm';
+  const tabelaTh = listagemOnly ? 'px-1.5 py-1 text-left font-medium' : 'p-2 text-left';
+  const tabelaTd = listagemOnly ? 'px-1.5 py-1' : 'p-2';
 
   const ROWS_PER_PAGE = 15;
   const totalPages = Math.max(1, Math.ceil(casas.length / ROWS_PER_PAGE));
@@ -1226,26 +1229,26 @@ export function Etapa4Casas(props: {
               </div>
             )}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-sm">
+              <table className={`w-full min-w-[900px] ${tabelaTexto}`}>
                 <thead>
                   <tr className="border-b border-stone-200 bg-stone-100">
-                    <th className="p-2 text-left">Cidade</th>
-                    <th className="p-2 text-left">Fotos</th>
-                    <th className="p-2 text-left">Status</th>
-                    <th className="p-2 text-left">Condomínio</th>
-                    <th className="p-2 text-left">Endereço</th>
-                    <th className="p-2 text-left">Quartos</th>
-                    <th className="p-2 text-left">Banheiros</th>
-                    <th className="p-2 text-left">Vagas</th>
-                    <th className="p-2 text-left">Piscina</th>
-                    <th className="p-2 text-left">Móveis planej.</th>
-                    <th className="p-2 text-left">Preço</th>
-                    <th className="p-2 text-left">m²</th>
-                    <th className="p-2 text-left">R$/m²</th>
-                    <th className="p-2 text-left">Estado</th>
-                    <th className="p-2 text-left">Data criação ZAP</th>
-                    <th className="p-2 text-left">Duração anúncio</th>
-                    <th className="p-2 text-left">Listing</th>
+                    <th className={tabelaTh}>Cidade</th>
+                    <th className={tabelaTh}>Fotos</th>
+                    <th className={tabelaTh}>Status</th>
+                    <th className={tabelaTh}>Condomínio</th>
+                    <th className={tabelaTh}>Endereço</th>
+                    <th className={tabelaTh}>Quartos</th>
+                    <th className={tabelaTh}>Banheiros</th>
+                    <th className={tabelaTh}>Vagas</th>
+                    <th className={tabelaTh}>Piscina</th>
+                    <th className={tabelaTh}>Móveis planej.</th>
+                    <th className={tabelaTh}>Preço</th>
+                    <th className={tabelaTh}>m²</th>
+                    <th className={tabelaTh}>R$/m²</th>
+                    <th className={tabelaTh}>Estado</th>
+                    <th className={tabelaTh}>Data criação ZAP</th>
+                    <th className={tabelaTh}>Duração anúncio</th>
+                    <th className={tabelaTh}>Listing</th>
                     {!listagemOnly &&
                       escolhidasComDados.map((ce, idx) => {
                         const cat = ce.catalogoRow as { nome: string | null };
@@ -1302,8 +1305,8 @@ export function Etapa4Casas(props: {
                 <tbody>
                   {casasPaginated.map((c) => (
                     <tr key={c.id} className="border-b border-stone-100 hover:bg-stone-50">
-                      <td className="p-2">{c.cidade ?? '—'}</td>
-                      <td className="p-2">
+                      <td className={tabelaTd}>{c.cidade ?? '—'}</td>
+                      <td className={tabelaTd}>
                         {c.foto_url ? (
                           <a
                             href={c.foto_url}
@@ -1317,7 +1320,7 @@ export function Etapa4Casas(props: {
                           '—'
                         )}
                       </td>
-                      <td className="p-2">
+                      <td className={tabelaTd}>
                         {c.manual ? (
                           <select
                             value={c.status ?? 'a_venda'}
@@ -1325,7 +1328,7 @@ export function Etapa4Casas(props: {
                               handleStatusChange(c.id, e.target.value as 'a_venda' | 'despublicado')
                             }
                             disabled={readOnly}
-                            className="rounded border border-stone-300 px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                            className={`rounded border border-stone-300 ${campoPadding} ${campoTexto} disabled:cursor-not-allowed disabled:opacity-60`}
                           >
                             <option value="a_venda">À venda</option>
                             <option value="despublicado">Despublicado</option>
@@ -1336,28 +1339,28 @@ export function Etapa4Casas(props: {
                           'a venda'
                         )}
                       </td>
-                      <td className="p-2">{c.condominio ?? '—'}</td>
+                      <td className={tabelaTd}>{c.condominio ?? '—'}</td>
                       <td
-                        className="max-w-[120px] truncate p-2"
+                        className={`${tabelaTd} max-w-[120px] truncate`}
                         title={c.localizacao_condominio ?? undefined}
                       >
                         {c.localizacao_condominio ?? '—'}
                       </td>
-                      <td className="p-2">{c.quartos ?? '—'}</td>
-                      <td className="p-2">{c.banheiros ?? '—'}</td>
-                      <td className="p-2">{c.vagas ?? '—'}</td>
-                      <td className="p-2">{c.piscina ? 'sim' : 'não'}</td>
-                      <td className="p-2">{c.marcenaria ? 'sim' : 'não'}</td>
-                      <td className="p-2">
+                      <td className={tabelaTd}>{c.quartos ?? '—'}</td>
+                      <td className={tabelaTd}>{c.banheiros ?? '—'}</td>
+                      <td className={tabelaTd}>{c.vagas ?? '—'}</td>
+                      <td className={tabelaTd}>{c.piscina ? 'sim' : 'não'}</td>
+                      <td className={tabelaTd}>{c.marcenaria ? 'sim' : 'não'}</td>
+                      <td className={tabelaTd}>
                         {c.preco != null ? `R$ ${c.preco.toLocaleString('pt-BR')}` : '—'}
                       </td>
-                      <td className="p-2">{c.area_casa_m2 ?? '—'}</td>
-                      <td className="p-2">
+                      <td className={tabelaTd}>{c.area_casa_m2 ?? '—'}</td>
+                      <td className={tabelaTd}>
                         {c.preco_m2 != null ? `R$ ${c.preco_m2.toLocaleString('pt-BR')}` : '—'}
                       </td>
-                      <td className="p-2">{c.estado ?? '—'}</td>
-                      <td className="p-2">{c.data_publicacao ?? '—'}</td>
-                      <td className="p-2">
+                      <td className={tabelaTd}>{c.estado ?? '—'}</td>
+                      <td className={tabelaTd}>{c.data_publicacao ?? '—'}</td>
+                      <td className={tabelaTd}>
                         {(() => {
                           const pub = c.data_publicacao ? new Date(c.data_publicacao) : null;
                           if (!pub || isNaN(pub.getTime())) return '—';
@@ -1379,7 +1382,7 @@ export function Etapa4Casas(props: {
                           return `${dias} dias`;
                         })()}
                       </td>
-                      <td className="p-2">
+                      <td className={tabelaTd}>
                         {c.link ? (
                           <a
                             href={c.link}
@@ -1783,7 +1786,9 @@ export function Etapa4Casas(props: {
           </section>
         )}
         {casas.length > ROWS_PER_PAGE && (
-          <div className="mt-3 flex items-center justify-between rounded-lg border border-stone-200 bg-stone-50 px-4 py-2 text-sm">
+          <div
+            className={`mt-3 flex items-center justify-between rounded-lg border border-stone-200 bg-stone-50 ${listagemOnly ? 'px-3 py-1.5 text-[11px]' : 'px-4 py-2 text-sm'}`}
+          >
             <span className="text-stone-600">
               Página {pageCasas} de {totalPages} ({casas.length} casas)
             </span>
