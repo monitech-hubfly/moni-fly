@@ -28,7 +28,7 @@ type Props = {
   authUserId: string | null;
   authNome: string;
   isAdmin: boolean;
-  onDesfeito: () => void;
+  onDesfeito: () => void | Promise<void>;
 };
 
 function formatarDataExtenso(iso: string): string {
@@ -109,7 +109,7 @@ export function StatusPreenchimentoEntregaModal({
     );
     setSalvando(false);
     setConfirmando(false);
-    onDesfeito();
+    await onDesfeito();
     onClose();
   }
 

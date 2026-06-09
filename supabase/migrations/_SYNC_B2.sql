@@ -1,4 +1,4 @@
-﻿-- â”€â”€â”€ 121: sirene_topicos como sub-interaÃ§Ã£o sÃ³ de kanban (sem chamado) â”€â”€â”€â”€â”€â”€â”€
+-- â”€â”€â”€ 121: sirene_topicos como sub-interaÃ§Ã£o sÃ³ de kanban (sem chamado) â”€â”€â”€â”€â”€â”€â”€
 -- Permite chamado_id NULL quando interacao_id aponta para kanban_atividades.
 -- Ajusta RLS para linhas vinculadas a interaÃ§Ã£o (acesso alinhado ao card/atividade).
 

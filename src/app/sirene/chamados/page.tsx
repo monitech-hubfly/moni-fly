@@ -183,6 +183,54 @@ export default async function SireneChamadosPage({
       }
     }
 
+    // Busca responsaveis_ids dos tópicos de chamados Sirene para o filtro "Ver minhas"
+    const topicosResponsaveisByChamadoId = new Map<number, string[]>();
+    if (sireneIds.length > 0 || kaById.size > 0) {
+      // tópicos linkados por chamado_id (criados via Sirene direta normal)
+      const byChamadoQuery = sireneIds.length > 0
+        ? await admin
+            .from('sirene_topicos')
+            .select('chamado_id, interacao_id, responsavel_id, responsaveis_ids')
+            .in('chamado_id', sireneIds)
+            .eq('arquivado', false)
+        : { data: [] };
+
+      // tópicos linkados por interacao_id (criados via Sirene sem chamado_id preenchido)
+      const kaIds = [...kaById.keys()];
+      const byInteracaoQuery = kaIds.length > 0
+        ? await admin
+            .from('sirene_topicos')
+            .select('chamado_id, interacao_id, responsavel_id, responsaveis_ids')
+            .in('interacao_id', kaIds)
+            .eq('arquivado', false)
+        : { data: [] };
+
+      // helper para resolver chamado_id a partir de interacao_id
+      const chamadoIdByKaId = new Map<string, number>();
+      for (const [kaId, ka] of kaById.entries()) {
+        if (ka.sirene_chamado_id != null) chamadoIdByKaId.set(kaId, ka.sirene_chamado_id);
+      }
+
+      const allTopicos = [...(byChamadoQuery.data ?? []), ...(byInteracaoQuery.data ?? [])];
+      for (const t of allTopicos) {
+        const tRaw = t as { chamado_id?: number | null; interacao_id?: string | null; responsavel_id?: string | null; responsaveis_ids?: unknown };
+        // resolve o chamado_id: direto ou via interacao_id → ka → sirene_chamado_id
+        let cid = tRaw.chamado_id != null && Number.isFinite(Number(tRaw.chamado_id))
+          ? Number(tRaw.chamado_id)
+          : null;
+        if (cid == null && tRaw.interacao_id) {
+          cid = chamadoIdByKaId.get(tRaw.interacao_id) ?? null;
+        }
+        if (cid == null) continue;
+        const existing = topicosResponsaveisByChamadoId.get(cid) ?? [];
+        const rawRi = tRaw.responsaveis_ids;
+        const ri = Array.isArray(rawRi) ? rawRi.map((x) => String(x)) : [];
+        const rid = tRaw.responsavel_id;
+        const merged = [...new Set([...existing, ...ri, ...(rid ? [rid] : [])])];
+        topicosResponsaveisByChamadoId.set(cid, merged);
+      }
+    }
+
     const cardIdsNativo = [
       ...new Set(
         rows
@@ -253,7 +301,15 @@ export default async function SireneChamadosPage({
           sla_status: (r.sla_status as string | null) ?? null,
           trava: ka?.trava ?? false,
           origem: ka?.origem ?? 'nativo',
-          responsaveis_ids: ka?.responsaveis_ids ?? [],
+          responsaveis_ids: (() => {
+            const base = ka?.responsaveis_ids ?? [];
+            const sid = ka?.sirene_chamado_id ?? null;
+            if (ka?.origem === 'sirene' && sid != null) {
+              const fromTopicos = topicosResponsaveisByChamadoId.get(sid) ?? [];
+              return [...new Set([...base, ...fromTopicos])];
+            }
+            return base;
+          })(),
           times_ids: ka?.times_ids ?? [],
           responsavel_nome_texto: ka?.responsavel_nome_texto ?? null,
           sirene_chamado_id: sid,
@@ -280,6 +336,68 @@ export default async function SireneChamadosPage({
         if (row.origem !== 'sirene' || row.sirene_chamado_id == null) return true;
         const t = row.sirene_chamado_tipo ?? 'padrao';
         return filtroTipoChamado === 'hdm' ? t === 'hdm' : t === 'padrao';
+      });
+    }
+
+    // Busca cards em aberto da Pastelaria e injeta na lista
+    const { data: pastelariaCards } = await admin
+      .from('pastelaria_cards')
+      .select('id, nome, coluna, responsavel_id, responsavel_nome, created_at, area_id, sirene_chamado_id')
+      .in('coluna', ['mapped', 'doing'])
+      .order('created_at', { ascending: false });
+
+    for (const pc of pastelariaCards ?? []) {
+      const p = pc as {
+        id: string;
+        nome: string | null;
+        coluna: string;
+        responsavel_id: string | null;
+        responsavel_nome: string | null;
+        created_at: string | null;
+        area_id: string | null;
+        sirene_chamado_id: number | null;
+      };
+      const statusMap: Record<string, string> = {
+        mapped: 'pendente',
+        doing: 'em_andamento',
+      };
+      interacoes.push({
+        id: `pastelaria-${String(p.id)}`,
+        card_id: null,
+        card_titulo: null,
+        fase_nome: '',
+        kanban_nome: 'Pastelaria',
+        kanban_id: null,
+        responsavel_id: p.responsavel_id ?? null,
+        responsavel_nome: p.responsavel_nome ?? null,
+        tipo: 'atividade',
+        titulo: String(p.nome ?? '').trim() || '(sem título)',
+        descricao: null,
+        atividade_status: statusMap[p.coluna] ?? 'pendente',
+        data_vencimento: null,
+        time_nome: null,
+        times_nomes: [],
+        franqueado_nome: null,
+        criado_em: String(p.created_at ?? ''),
+        sla_status: null,
+        trava: false,
+        origem: 'pastelaria',
+        responsaveis_ids: p.responsavel_id ? [p.responsavel_id] : [],
+        times_ids: [],
+        responsavel_nome_texto: p.responsavel_nome ?? null,
+        sirene_chamado_id: p.sirene_chamado_id ?? null,
+        numero: null,
+        sirene_numero: null,
+        sirene_chamado_tipo: null,
+        sirene_time_abertura: null,
+        categoria: 'chamado',
+        time_abertura_nome: null,
+        sirene_abertura_responsavel_nome: null,
+        sirene_hdm_responsavel: null,
+        frank_id: null,
+        te_trata: null,
+        sirene_arquivado: false,
+        criado_por: null,
       });
     }
 

@@ -1,4 +1,4 @@
-﻿-- 150: Tokens de formulÃ¡rio pÃºblico para candidatos (por card + fase)
+-- 150: Tokens de formulÃ¡rio pÃºblico para candidatos (por card + fase)
 
 CREATE TABLE IF NOT EXISTS public.kanban_card_form_tokens (
   id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -48,14 +48,14 @@ const COLUNAS: PastelariaColunaConfig[] = [
     title: 'Mapeados',
     color: '#378ADD',
     border: '#5ca3e8',
-    showAdd: true,
+    showAdd: false,
   },
   {
     id: 'doing',
     title: 'Em Andamento',
     color: '#EF9F27',
     border: '#f5c76a',
-    showAdd: true,
+    showAdd: false,
   },
   {
     id: 'done',

@@ -1,4 +1,4 @@
-﻿-- â”€â”€â”€ 106: Trigger â€” criar card no Funil Step One ao inserir franqueado â”€â”€â”€â”€â”€â”€â”€â”€
+-- â”€â”€â”€ 106: Trigger â€” criar card no Funil Step One ao inserir franqueado â”€â”€â”€â”€â”€â”€â”€â”€
 -- Dispara AFTER INSERT em rede_franqueados.
 -- Busca o kanban "Funil Step One" e a fase "Dados da Cidade" dinamicamente.
 -- TÃ­tulo do card: n_franquia - cidade_casa_frank - area_atuacao (partes nulas omitidas).

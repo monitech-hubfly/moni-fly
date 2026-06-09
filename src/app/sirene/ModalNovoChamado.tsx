@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Trash2 } from 'lucide-react';
 import { buscarCardsParaNovoChamadoSirene, type SireneVinculoCardBuscaItem } from './actions';
-import { criarChamadoSireneComAtividade } from '@/lib/actions/card-actions';
+import { criarChamadoSireneComAtividade, criarSubInteracao } from '@/lib/actions/card-actions';
 import { createClient } from '@/lib/supabase/client';
 import {
   MONI_TODOS_EMAILS,
@@ -15,7 +15,6 @@ import {
   KanbanAtividadeFormFields,
   type AtividadeFormDraft,
 } from '@/components/kanban-shared/KanbanAtividadeFormFields';
-import { ChamadoAtividadeCollapsibleSection } from '@/components/kanban-shared/ChamadoAtividadeCollapsibleSection';
 import { uploadAnexosAtividadePendentes } from '@/lib/kanban/upload-anexos-atividade';
 
 type Props = { onClose: () => void; onSuccess?: () => void };
@@ -25,8 +24,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
   const [descricao, setDescricao] = useState('');
   const [categoria, setCategoria] = useState<'chamado' | 'melhoria'>('chamado');
   const [trava, setTrava] = useState(false);
-  const [atividade, setAtividade] = useState<AtividadeFormDraft>({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
-  const [atividadeAberta, setAtividadeAberta] = useState(false);
+  const [atividades, setAtividades] = useState<AtividadeFormDraft[]>([]);
   const [kanbanTimes, setKanbanTimes] = useState<{ id: string; nome: string }[]>([]);
   const [responsaveisOpcoes, setResponsaveisOpcoes] = useState<{ id: string; nome: string }[]>([]);
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
@@ -68,10 +66,6 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
   }, []);
 
   const timesChips = useMemo(() => timesOpcoesReceberChamado(kanbanTimes), [kanbanTimes]);
-  const responsaveisFiltrados = useMemo(
-    () => responsaveisFiltradosPorTimesIds(atividade.timesIds, kanbanTimes, responsaveisOpcoes),
-    [atividade.timesIds, kanbanTimes, responsaveisOpcoes],
-  );
 
   useEffect(() => {
     const q = buscaCard.trim();
@@ -90,21 +84,32 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     return () => window.clearTimeout(t);
   }, [buscaCard]);
 
+  function adicionarAtividade() {
+    setAtividades((prev) => [...prev, { ...ATIVIDADE_FORM_DRAFT_VAZIO }]);
+  }
+
+  function removerAtividade(i: number) {
+    setAtividades((prev) => prev.filter((_, j) => j !== i));
+  }
+
+  function setAtividadeDraft(i: number, action: AtividadeFormDraft | ((prev: AtividadeFormDraft) => AtividadeFormDraft)) {
+    setAtividades((prev) =>
+      prev.map((a, j) => {
+        if (j !== i) return a;
+        return typeof action === 'function' ? action(a) : action;
+      }),
+    );
+  }
+
   function limparRascunho() {
     setTitulo('');
     setDescricao('');
     setCategoria('chamado');
     setTrava(false);
-    setAtividade({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
-    setAtividadeAberta(false);
+    setAtividades([]);
     setCardVinculo(null);
     setBuscaCard('');
     setError(null);
-  }
-
-  function fecharAtividade() {
-    setAtividade({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
-    setAtividadeAberta(false);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -118,75 +123,108 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
       setError('Informe a descrição do chamado.');
       return;
     }
-    if (!atividadeAberta || !atividade.nome.trim()) {
-      setError('Abra "+ Atividade" e preencha a primeira atividade.');
-      setAtividadeAberta(true);
+    if (atividades.length === 0 || !atividades[0]!.nome.trim()) {
+      setError('Adicione ao menos uma atividade e preencha o nome.');
+      if (atividades.length === 0) setAtividades([{ ...ATIVIDADE_FORM_DRAFT_VAZIO }]);
       return;
     }
-    if (atividade.timesIds.length === 0) {
+    if (atividades[0]!.timesIds.length === 0) {
       setError('Selecione ao menos um time na atividade.');
       return;
     }
-    if (atividade.responsaveisIds.length === 0) {
+    if (atividades[0]!.responsaveisIds.length === 0) {
       setError('Selecione ao menos um responsável na atividade.');
       return;
     }
-    setLoading(true);
-    const pendingAnexos = atividade.pendingAnexos ?? [];
-    const result = await criarChamadoSireneComAtividade({
-      titulo: titulo.trim(),
-      descricao: descricao.trim(),
-      categoria,
-      status: 'pendente',
-      trava,
-      atividade: {
-        nome: atividade.nome.trim(),
-        descricao_detalhe: atividade.descricaoDetalhe.trim() || null,
-        times_ids: atividade.timesIds,
-        responsaveis_ids: atividade.responsaveisIds,
-        data_fim: atividade.data.trim() || null,
-        status: atividade.status,
-        pastel: atividade.pastel,
-      },
-      card_id: cardVinculo?.card_id ?? null,
-      card_kanban_nome: cardVinculo?.kanban_nome ?? null,
-      card_titulo: cardVinculo?.titulo ?? null,
-    });
-    if (!result.ok) {
-      setLoading(false);
-      setError(result.error);
-      return;
-    }
-    if (result.interacaoId && pendingAnexos.length > 0) {
-      const supabase = createClient();
-      const { data: topico } = await supabase
-        .from('sirene_topicos')
-        .select('id')
-        .eq('interacao_id', result.interacaoId)
-        .order('ordem', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      if (topico) {
-        await uploadAnexosAtividadePendentes(
-          String((topico as { id: number }).id),
-          pendingAnexos,
-          uploaderNome,
-          '/sirene/chamados',
-        );
+    for (let i = 1; i < atividades.length; i++) {
+      if (atividades[i]!.nome.trim() && atividades[i]!.responsaveisIds.length === 0) {
+        setError(`Atividade ${i + 1}: selecione ao menos um responsável.`);
+        return;
       }
     }
-    setLoading(false);
-    onSuccess?.();
-    onClose();
+
+    setLoading(true);
+    try {
+      const primeiraAtiv = atividades[0]!;
+      const pendingAnexos = primeiraAtiv.pendingAnexos ?? [];
+      const result = await criarChamadoSireneComAtividade({
+        titulo: titulo.trim(),
+        descricao: descricao.trim(),
+        categoria,
+        status: 'pendente',
+        trava,
+        atividade: {
+          nome: primeiraAtiv.nome.trim(),
+          descricao_detalhe: primeiraAtiv.descricaoDetalhe.trim() || null,
+          times_ids: primeiraAtiv.timesIds,
+          responsaveis_ids: primeiraAtiv.responsaveisIds,
+          data_fim: primeiraAtiv.data.trim() || null,
+          status: primeiraAtiv.status,
+          pastel: false,
+        },
+        card_id: cardVinculo?.card_id ?? null,
+        card_kanban_nome: cardVinculo?.kanban_nome ?? null,
+        card_titulo: cardVinculo?.titulo ?? null,
+      });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+
+      if (result.interacaoId && pendingAnexos.length > 0) {
+        const supabase = createClient();
+        const { data: topico } = await supabase
+          .from('sirene_topicos')
+          .select('id')
+          .eq('interacao_id', result.interacaoId)
+          .order('ordem', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        if (topico) {
+          await uploadAnexosAtividadePendentes(
+            String((topico as { id: number }).id),
+            pendingAnexos,
+            uploaderNome,
+            '/sirene/chamados',
+          );
+        }
+      }
+
+      // Atividades adicionais
+      if (result.interacaoId && atividades.length > 1) {
+        for (let i = 1; i < atividades.length; i++) {
+          const ativ = atividades[i]!;
+          if (!ativ.nome.trim()) continue;
+          await criarSubInteracao({
+            interacao_id: result.interacaoId,
+            nome: ativ.nome.trim(),
+            descricao_detalhe: ativ.descricaoDetalhe.trim() || null,
+            times_ids: ativ.timesIds,
+            responsaveis_ids: ativ.responsaveisIds,
+            data_fim: ativ.data.trim() || null,
+            status: 'nao_iniciado',
+            pastel: false,
+            basePath: '/sirene/chamados',
+            viaSirene: true,
+          });
+        }
+      }
+
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      console.error('[ModalNovoChamado] erro ao salvar:', err);
+      setError('Erro inesperado ao criar chamado. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   const temRascunho =
     titulo.trim() ||
     descricao.trim() ||
     cardVinculo ||
-    atividadeAberta ||
-    atividade.nome.trim() ||
-    (atividade.pendingAnexos?.length ?? 0) > 0;
+    atividades.length > 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -308,23 +346,56 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
             Trava — bloqueia o avanço até concluir
           </label>
 
-          <ChamadoAtividadeCollapsibleSection
-            aberto={atividadeAberta}
-            onAbrir={() => setAtividadeAberta(true)}
-            onFechar={fecharAtividade}
-            obrigatorio
-          >
-            <KanbanAtividadeFormFields
-              draft={atividade}
-              setDraft={setAtividade}
-              kanbanTimes={timesChips}
-              responsaveisOpcoes={responsaveisFiltrados}
-              sessionUserId={sessionUserId}
-              idPrefix="sirene-nova"
-              onDelete={fecharAtividade}
-              deleteTitle="Limpar atividade"
-            />
-          </ChamadoAtividadeCollapsibleSection>
+          {/* Atividades */}
+          {atividades.length === 0 ? (
+            <button
+              type="button"
+              onClick={adicionarAtividade}
+              className="text-left text-xs font-medium text-stone-700 underline-offset-2 hover:underline"
+            >
+              + Atividade<span className="text-red-600"> *</span>
+            </button>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {atividades.map((ativ, i) => {
+                const respFiltrados = responsaveisFiltradosPorTimesIds(ativ.timesIds, kanbanTimes, responsaveisOpcoes);
+                return (
+                  <div key={i} className="rounded-md border border-stone-200 bg-white/80 p-2" style={{ borderColor: 'var(--moni-border-default)' }}>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                        Atividade {i + 1}{i === 0 ? ' *' : ''}
+                      </p>
+                      {i > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => removerAtividade(i)}
+                          className="text-[10px] font-medium text-red-500 hover:text-red-700"
+                        >
+                          Remover
+                        </button>
+                      ) : null}
+                    </div>
+                    <KanbanAtividadeFormFields
+                      draft={ativ}
+                      setDraft={(action) => setAtividadeDraft(i, action as AtividadeFormDraft | ((prev: AtividadeFormDraft) => AtividadeFormDraft))}
+                      kanbanTimes={timesChips}
+                      responsaveisOpcoes={respFiltrados}
+                      sessionUserId={sessionUserId}
+                      idPrefix={`sirene-nova-${i}`}
+                      showPastel={false}
+                    />
+                  </div>
+                );
+              })}
+              <button
+                type="button"
+                onClick={adicionarAtividade}
+                className="text-left text-xs font-medium text-stone-700 underline-offset-2 hover:underline"
+              >
+                + Adicionar atividade
+              </button>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 border-t border-stone-100 pt-3">
             <button

@@ -1,4 +1,4 @@
-﻿-- Perfis: Frank, Consultor, Admin (vinculado ao auth.users)
+-- Perfis: Frank, Consultor, Admin (vinculado ao auth.users)
 CREATE TABLE public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   role TEXT NOT NULL DEFAULT 'frank' CHECK (role IN ('frank', 'consultor', 'admin')),

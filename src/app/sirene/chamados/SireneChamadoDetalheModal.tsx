@@ -16,7 +16,6 @@ import { chamadoEditavelNaSirene } from '@/lib/kanban/sirene-chamado-permissoes'
 import { rotaCardOrigem } from '@/lib/rota-card-origem';
 import type { StatusInteracaoDb } from './actions';
 import type { SubInteracaoStatusDb } from '@/lib/actions/card-actions';
-import { togglePastelAtividade } from '@/lib/actions/card-actions';
 import { ChamadoAtividadeCollapsibleSection } from '@/components/kanban-shared/ChamadoAtividadeCollapsibleSection';
 import {
   ATIVIDADE_FORM_DRAFT_VAZIO,
@@ -28,7 +27,6 @@ import {
   filtrarSubAtividadesPorConclusao,
   isSubAtividadeConcluida,
 } from '@/components/kanban-shared/SubInteracaoLista';
-import { usuarioPodeMarcarPastelTopicoPainel } from '@/components/kanban-shared/kanban-card-modal-helpers';
 import { PrazoNegociacaoPanel } from '@/components/kanban-shared/PrazoNegociacaoPanel';
 import type { TopicoPainelLinha } from '../actions';
 
@@ -127,7 +125,6 @@ export function SireneChamadoDetalheModal({
   const podeEditar = chamadoEditavelNaSirene(row);
   const [novaAtivAberta, setNovaAtivAberta] = useState(false);
   const [mostrarAtividadesConcluidas, setMostrarAtividadesConcluidas] = useState(false);
-  const [salvandoPastelTopicoId, setSalvandoPastelTopicoId] = useState<number | null>(null);
   const topicosVisiveis = useMemo(
     () => filtrarSubAtividadesPorConclusao(topicos, mostrarAtividadesConcluidas),
     [topicos, mostrarAtividadesConcluidas],
@@ -149,17 +146,6 @@ export function SireneChamadoDetalheModal({
     () => responsaveisFiltradosPorTimesIds(novaAtivDraft.timesIds, kanbanTimesForm, responsaveis),
     [responsaveis, novaAtivDraft.timesIds, kanbanTimesForm],
   );
-
-  async function handleTogglePastelTopico(topicoId: number, checked: boolean) {
-    setSalvandoPastelTopicoId(topicoId);
-    const res = await togglePastelAtividade(String(topicoId), checked, '/sirene/chamados');
-    setSalvandoPastelTopicoId(null);
-    if (!res.ok) {
-      alert(res.error);
-      return;
-    }
-    onRecarregarTopicos?.();
-  }
 
   return (
     <div
@@ -338,7 +324,6 @@ export function SireneChamadoDetalheModal({
             ) : topicosVisiveis.length > 0 ? (
               <ul className="space-y-2">
                 {topicosVisiveis.map((t) => {
-                  const podePastel = usuarioPodeMarcarPastelTopicoPainel(t, times, currentUserId);
                   return (
                   <li
                     key={t.id}
@@ -350,11 +335,6 @@ export function SireneChamadoDetalheModal({
                   >
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        {t.pastel && !podePastel ? (
-                          <span className="mb-1 ml-1 inline-block rounded border border-amber-300 bg-amber-50 px-1 py-0.5 text-[9px] font-bold uppercase text-amber-800">
-                            Pastel
-                          </span>
-                        ) : null}
                         <p className="text-sm font-medium text-[color:var(--moni-text-primary)]">{t.descricao}</p>
                         <p className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-[color:var(--moni-text-tertiary)]">
                           <span>{t.time_responsavel}</span>
@@ -390,18 +370,6 @@ export function SireneChamadoDetalheModal({
                         ) : null}
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
-                        {podePastel ? (
-                          <label className="flex cursor-pointer items-center gap-1 text-[10px] text-[color:var(--moni-text-secondary)]">
-                            <input
-                              type="checkbox"
-                              className="h-3 w-3"
-                              checked={t.pastel}
-                              disabled={salvandoPastelTopicoId === t.id}
-                              onChange={(e) => void handleTogglePastelTopico(t.id, e.target.checked)}
-                            />
-                            Pastel
-                          </label>
-                        ) : null}
                         {podeArquivar && onArquivarTopico ? (
                           <button
                             type="button"

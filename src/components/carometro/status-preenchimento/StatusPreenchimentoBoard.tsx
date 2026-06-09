@@ -307,9 +307,7 @@ export function StatusPreenchimentoBoard({
                             r.area_id === area.id &&
                             r.semana_iso === c.semanaIso &&
                             r.ano === c.ano &&
-                            (r.usuario_id === uid ||
-                              r.usuario_id === resp.usuarioId ||
-                              (authUserId && r.usuario_id === authUserId)),
+                            (r.usuario_id === uid || r.usuario_id === resp.usuarioId),
                         );
                         const clicavel = celulaClicavel(status, c, reg);
                         return (

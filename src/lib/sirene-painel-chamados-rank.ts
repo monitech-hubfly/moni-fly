@@ -30,33 +30,55 @@ export type RankChamadoPainelInput = {
   criado_em?: string | null;
 };
 
-export function rankChamadoPainelUnificado(row: RankChamadoPainelInput): { group: number; dueMs: number } {
+export type PrioridadeLabel = 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6';
+
+const PRIORIDADE_BY_GROUP: Record<number, { label: PrioridadeLabel; criterio: string }> = {
+  1: { label: 'P1', criterio: 'Franqueado + trava + atrasado' },
+  2: { label: 'P2', criterio: 'Trava + atrasado (sem franqueado)' },
+  3: { label: 'P3', criterio: 'Franqueado + trava (sem atraso)' },
+  4: { label: 'P4', criterio: 'Só trava (sem franqueado)' },
+  5: { label: 'P5', criterio: 'Franqueado (sem trava)' },
+};
+const P6_PRIO = { label: 'P6' as PrioridadeLabel, criterio: 'Demais' } as const;
+
+function groupToPrioridade(group: number): { prioridade_label: PrioridadeLabel; prioridade_criterio: string } {
+  const p = PRIORIDADE_BY_GROUP[group] ?? P6_PRIO;
+  return { prioridade_label: p.label, prioridade_criterio: p.criterio };
+}
+
+export function rankChamadoPainelUnificado(row: RankChamadoPainelInput): {
+  group: number;
+  dueMs: number;
+  prioridade_label: PrioridadeLabel;
+  prioridade_criterio: string;
+} {
   const st = String(row.atividade_status ?? '')
     .trim()
     .toLowerCase();
+  const due = parseDateOnlyLocal(row.data_vencimento ?? null);
+  const dueMs =
+    due != null && !Number.isNaN(due.getTime()) ? due.getTime() : Number.POSITIVE_INFINITY;
+
   if (st === 'concluida' || st === 'concluída' || st === 'cancelada') {
-    const due = parseDateOnlyLocal(row.data_vencimento ?? null);
-    const dueMs =
-      due != null && !Number.isNaN(due.getTime()) ? due.getTime() : Number.POSITIVE_INFINITY;
-    return { group: 100, dueMs };
+    return { group: 100, dueMs, ...groupToPrioridade(100) };
   }
 
   const hasFrankId = row.frank_id != null && String(row.frank_id).trim() !== '';
   const hasFrankNome = (row.franqueado_nome ?? '').trim() !== '';
   const hasFrank = hasFrankId || hasFrankNome;
   const trava = Boolean(row.trava) || row.te_trata === true;
-  const due = parseDateOnlyLocal(row.data_vencimento ?? null);
   const today = startOfTodayLocal();
   const overdue = due != null && due < today;
-  const dueMs =
-    due != null && !Number.isNaN(due.getTime()) ? due.getTime() : Number.POSITIVE_INFINITY;
 
-  if (hasFrank && trava && overdue) return { group: 1, dueMs };
-  if (trava && overdue) return { group: 2, dueMs };
-  if (hasFrank && trava) return { group: 3, dueMs };
-  if (trava) return { group: 4, dueMs };
-  if (hasFrank) return { group: 5, dueMs };
-  return { group: 6, dueMs };
+  let group: number;
+  if (hasFrank && trava && overdue) group = 1;
+  else if (trava && overdue) group = 2;
+  else if (hasFrank && trava) group = 3;
+  else if (trava) group = 4;
+  else if (hasFrank) group = 5;
+  else group = 6;
+
+  return { group, dueMs, ...groupToPrioridade(group) };
 }
 
 /** Comparador compartilhado: grupo → prazo → criação (mais recente primeiro). */

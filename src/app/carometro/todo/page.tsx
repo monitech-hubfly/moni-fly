@@ -2,12 +2,63 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { listarAreas } from '@/utils/areasOrder'
 import { isoWeek } from '@/utils/periodos'
+import { TodoPainelSirene } from '@/components/carometro/todo/TodoPainelSirene'
+
+const MAX_VISIBLE = 5
+
+function PainelHeader({ titulo, badge, badgeStyle, expandido, onToggle }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      style={{
+        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        background: 'none', border: 'none', borderRadius: expandido ? '8px 8px 0 0' : 8,
+        padding: '10px 14px', cursor: 'pointer', textAlign: 'left',
+      }}
+    >
+      <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: '#1D2F25' }}>{titulo}</span>
+        {badge != null && (
+          <span style={{ fontWeight: 700, fontSize: 12, padding: '2px 8px', borderRadius: 999, ...badgeStyle }}>
+            {badge}
+          </span>
+        )}
+      </span>
+      <span style={{ fontSize: 12, color: '#888780', flexShrink: 0 }}>{expandido ? '▲' : '▼'}</span>
+    </button>
+  )
+}
+
+function ItemLista({ t, onClick }) {
+  return (
+    <div
+      title={t.acaoNome}
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px',
+        borderBottom: '1px solid #f0ece5', cursor: 'pointer', fontSize: 13, color: '#1D2F25',
+      }}
+    >
+      <span style={{
+        flexShrink: 0, width: 7, height: 7, borderRadius: '50%',
+        background: t.urgencia === 'atrasada' ? '#c62828' : '#1a5a8a',
+      }} />
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {t.acaoNome}
+      </span>
+      <span style={{ flexShrink: 0, fontSize: 11, color: '#888780' }}>S{t.semana}</span>
+    </div>
+  )
+}
 
 export default function Page() {
   const supabase = createClient()
+  const router = useRouter()
   const [periodoId, setPeriodoId] = useState(null)
   const [periodo, setPeriodo] = useState(null)
   const [areas, setAreas] = useState([])
@@ -17,8 +68,13 @@ export default function Page() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [filtroResponsavel, setFiltroResponsavel] = useState('')
-  const [kanbanFiltro, setKanbanFiltro] = useState('todas') // 'atrasadas' | 'semana' | 'proximas' | 'todas'
-  const [taskAberta, setTaskAberta] = useState(null) // id da tarefa expandida
+  const [sireneStats, setSireneStats] = useState(null)
+
+  const [expandidoAtrasadas, setExpandidoAtrasadas] = useState(true)
+  const [expandidoSemana, setExpandidoSemana] = useState(true)
+  const [expandidoSirene, setExpandidoSirene] = useState(true)
+  const [verMaisAtrasadas, setVerMaisAtrasadas] = useState(false)
+  const [verMaisSemana, setVerMaisSemana] = useState(false)
 
   useEffect(() => {
     async function carregarPeriodoAtual() {
@@ -27,7 +83,6 @@ export default function Page() {
       const mesNum = hoje.getMonth() + 1
       const mes = String(mesNum).padStart(2, '0')
 
-      // 1) Modelo canônico: tipo 'mes' + ano + numero (1–12), ver supabase-periodos.sql
       const { data: porAnoMes, error: errAnoMes } = await supabase
         .from('periodos')
         .select('id')
@@ -37,13 +92,8 @@ export default function Page() {
         .eq('ativo', true)
         .limit(1)
         .maybeSingle()
+      if (!errAnoMes && porAnoMes?.id) { setPeriodoId(porAnoMes.id); return }
 
-      if (!errAnoMes && porAnoMes?.id) {
-        setPeriodoId(porAnoMes.id)
-        return
-      }
-
-      // 2) Se existir coluna `nome` no banco (ex.: "Mês 05/2026"), alinha ao padrão de labelPeriodo
       const { data: porNome, error: errNome } = await supabase
         .from('periodos')
         .select('id')
@@ -51,13 +101,8 @@ export default function Page() {
         .ilike('nome', `%${mes}/${ano}%`)
         .limit(1)
         .maybeSingle()
+      if (!errNome && porNome?.id) { setPeriodoId(porNome.id); return }
 
-      if (!errNome && porNome?.id) {
-        setPeriodoId(porNome.id)
-        return
-      }
-
-      // 3) Fallback: período mensal mais recente
       const { data: fallback } = await supabase
         .from('periodos')
         .select('id')
@@ -66,15 +111,10 @@ export default function Page() {
         .order('criado_em', { ascending: false })
         .limit(1)
         .maybeSingle()
-
       if (fallback?.id) setPeriodoId(fallback.id)
     }
     carregarPeriodoAtual()
   }, [])
-
-  useEffect(() => {
-    console.log('[TODO] periodoId carregado:', periodoId)
-  }, [periodoId])
 
   async function carregarDados() {
     if (!periodoId) return
@@ -82,11 +122,7 @@ export default function Page() {
     setError(null)
 
     const { data: p, error: errPer } = await supabase.from('periodos').select('*').eq('id', periodoId).single()
-    if (errPer) {
-      setError(errPer.message)
-      setLoading(false)
-      return
-    }
+    if (errPer) { setError(errPer.message); setLoading(false); return }
     setPeriodo(p)
 
     const { data: areasData } = await listarAreas(supabase, 'id, nome')
@@ -101,20 +137,12 @@ export default function Page() {
       }
     }
 
-    let gantt = []
     const { data: ganttData, error: errGantt } = await supabase
       .from('gantt_planejamento')
       .select('id, acao_id, responsavel, semanas_selecionadas, semana_inicio, semana_fim, acoes(nome, tarefas(area_id))')
       .eq('periodo_id', periodoId)
-    if (errGantt) {
-      setError(errGantt.message)
-      setLoading(false)
-      return
-    }
-    gantt = ganttData || []
-
-    console.log('[TODO] ganttData recebido:', ganttData?.length, 'itens')
-    console.log('[TODO] semanaAtual:', semanaAtual)
+    if (errGantt) { setError(errGantt.message); setLoading(false); return }
+    const gantt = ganttData || []
 
     const acaoIds = gantt.map(g => g.acao_id).filter(Boolean)
     let cronoByKey = {}
@@ -125,11 +153,7 @@ export default function Page() {
         .eq('periodo_id', periodoId)
         .in('acao_id', acaoIds)
         .not('semana', 'is', null)
-      if (errCrono) {
-        setError(errCrono.message)
-        setLoading(false)
-        return
-      }
+      if (errCrono) { setError(errCrono.message); setLoading(false); return }
       ;(cronoList || []).forEach(c => {
         const sem = Number(c.semana)
         if (!Number.isFinite(sem)) return
@@ -144,9 +168,7 @@ export default function Page() {
 
   useEffect(() => { carregarDados() }, [periodoId])
 
-  const semanaAtual = useMemo(() => {
-    return isoWeek(new Date())
-  }, [])
+  const semanaAtual = useMemo(() => isoWeek(new Date()), [])
 
   const areaMap = useMemo(() => {
     const m = new Map()
@@ -207,32 +229,22 @@ export default function Page() {
     return lista
   }, [ganttList, cronogramaStatus, filtroArea, filtroResponsavel, semanaAtual, areaMap, periodoId])
 
-  const counts = useMemo(() => ({
-    atrasadas: todasTarefas.filter(t => t.urgencia === 'atrasada').length,
-    semana:    todasTarefas.filter(t => t.urgencia === 'semana').length,
-    proximas:  todasTarefas.filter(t => t.urgencia === 'proximas').length,
-    todas:     todasTarefas.length,
-  }), [todasTarefas])
-
-  const tarefasFiltradas = useMemo(() => {
-    if (kanbanFiltro === 'todas')     return todasTarefas
-    if (kanbanFiltro === 'atrasadas') return todasTarefas.filter(t => t.urgencia === 'atrasada')
-    if (kanbanFiltro === 'semana')    return todasTarefas.filter(t => t.urgencia === 'semana')
-    if (kanbanFiltro === 'proximas')  return todasTarefas.filter(t => t.urgencia === 'proximas' || t.urgencia === 'semana')
-    return todasTarefas
-  }, [todasTarefas, kanbanFiltro])
+  const tarefasAtrasadas = useMemo(() => todasTarefas.filter(t => t.urgencia === 'atrasada'), [todasTarefas])
+  const tarefasSemana    = useMemo(() => todasTarefas.filter(t => t.urgencia === 'semana'),   [todasTarefas])
+  const tarefasS1        = useMemo(() => todasTarefas.filter(t => t.semana === semanaAtual + 1), [todasTarefas, semanaAtual])
+  const tarefasS2        = useMemo(() => todasTarefas.filter(t => t.semana === semanaAtual + 2), [todasTarefas, semanaAtual])
+  const countProximas    = tarefasS1.length + tarefasS2.length
 
   return (
     <>
       <div style={{ marginBottom: 18 }}>
         <h1 className="carometro-page-title">TO DO — Entregas da semana</h1>
-        <p className="carometro-page-subtitle">
-          Atividades pendentes ordenadas por urgência e semana.
-        </p>
+        <p className="carometro-page-subtitle">Atividades pendentes ordenadas por urgência e semana.</p>
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
 
+      {/* Filtros */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <label style={{ fontSize: 13, color: '#888780', margin: 0, whiteSpace: 'nowrap' }}>Área</label>
@@ -272,92 +284,187 @@ export default function Page() {
         <p>Carregando…</p>
       ) : (
         <>
-          {/* Bloco 1 — Metas & Indicadores */}
-          <section className="todo-metas-section">
-            <div className="todo-metas-header">
-              <span className="todo-metas-titulo">Metas &amp; Indicadores</span>
-              <span className="todo-metas-sub">ordenados por prioridade e status</span>
-            </div>
-            <div className="todo-metas-cols">
-              <div className="todo-metas-grupo">
-                <div className="todo-metas-grupo-label todo-metas-grupo-label--ruim">
-                  Precisam de atenção
-                </div>
-                {/* TODO: mapear indicadores com status ruim vindos do Supabase */}
-                <p className="todo-metas-placeholder">
-                  Integração com indicadores pendente — conectar à tabela de metas do Supabase.
-                </p>
-              </div>
-              <div className="todo-metas-grupo">
-                <div className="todo-metas-grupo-label todo-metas-grupo-label--ok">
-                  Mantendo o ritmo
-                </div>
-                {/* TODO: mapear indicadores com status bom vindos do Supabase */}
-                <p className="todo-metas-placeholder">
-                  Integração com indicadores pendente — conectar à tabela de metas do Supabase.
-                </p>
-              </div>
-            </div>
-          </section>
+          {/* Resumo agrupado — 3 grupos */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 28 }}>
 
-          <div className="todo-section-divider">
-            <span>Atividades</span>
+            {/* Grupo 1 — Atividades planejadas */}
+            <div style={{ border: '1px solid #e0d9ce', borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ background: '#faf9f6', padding: '10px 14px', borderBottom: '1px solid #e0d9ce', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <i className="ti ti-calendar-week" style={{ fontSize: 16, color: '#1D2F25' }} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#1D2F25' }}>Atividades planejadas</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#e0d9ce' }}>
+                {[
+                  { label: 'Atrasadas',    count: tarefasAtrasadas.length, bg: '#fef2f2', color: '#c62828' },
+                  { label: 'Esta semana',  count: tarefasSemana.length,    bg: '#eff6ff', color: '#1a5a8a' },
+                  { label: 'Próx. 2 sem.', count: countProximas,           bg: '#fff',    color: '#555'    },
+                  { label: 'Total',        count: todasTarefas.length,     bg: '#fff',    color: '#888780' },
+                ].map(c => (
+                  <div key={c.label} style={{ background: c.bg, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: c.color }}>{c.count}</div>
+                    <div style={{ fontSize: 11, color: '#888', marginTop: 1 }}>{c.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Grupo 2 — Sirene / Pastelaria */}
+            <div style={{ border: '1px solid #e0d9ce', borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ background: '#faf9f6', padding: '10px 14px', borderBottom: '1px solid #e0d9ce', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <i className="ti ti-bell-ringing" style={{ fontSize: 16, color: '#b45309' }} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#1D2F25' }}>Sirene / Pastelaria</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#e0d9ce' }}>
+                {[
+                  { label: 'Abertos',   count: sireneStats?.total    ?? '—', bg: '#fffbeb', color: '#b45309' },
+                  { label: 'Com trava', count: sireneStats?.comTrava ?? '—', bg: '#fef2f2', color: '#c62828' },
+                  { label: 'Atrasados', count: sireneStats?.atrasados ?? '—',bg: '#fef2f2', color: '#c62828' },
+                  { label: 'Sem prazo', count: sireneStats?.semPrazo ?? '—', bg: '#fff',    color: '#888780' },
+                ].map(c => (
+                  <div key={c.label} style={{ background: c.bg, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: c.color }}>{c.count}</div>
+                    <div style={{ fontSize: 11, color: '#888', marginTop: 1 }}>{c.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Grupo 3 — Cards e Prazos */}
+            <div style={{ border: '1px solid #e0d9ce', borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ background: '#faf9f6', padding: '10px 14px', borderBottom: '1px solid #e0d9ce', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <i className="ti ti-layout-kanban" style={{ fontSize: 16, color: '#888780' }} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#1D2F25' }}>Cards e Prazos</span>
+              </div>
+              <div style={{ padding: '16px 14px', fontSize: 12, color: '#aaa9a6', fontStyle: 'italic' }}>
+                Disponível após vincular responsável nos funnéis.
+              </div>
+            </div>
           </div>
 
-          {/* Bloco 2 — Atividades */}
-          <section style={{ marginTop: 0 }}>
+          {/* Divisor — ATIVIDADES PLANEJADAS */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#aaa9a6', letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Atividades planejadas</span>
+            <div style={{ flex: 1, height: 1, background: '#e0d9ce' }} />
+          </div>
 
-            {/* Kanban strip */}
-            <div className="todo-kanban-strip">
-              {[
-                { key: 'atrasadas', label: 'Atrasadas',      cor: 'vermelho', count: counts.atrasadas },
-                { key: 'semana',    label: 'Esta semana',    cor: 'amarelo',  count: counts.semana },
-                { key: 'proximas',  label: 'Próx. 2 sem.',   cor: 'azul',     count: counts.proximas },
-                { key: 'todas',     label: 'Todas',          cor: 'cinza',    count: counts.todas },
-              ].map(col => (
-                <button
-                  key={col.key}
-                  type="button"
-                  className={`todo-kanban-card todo-kanban-card--${col.cor}${kanbanFiltro === col.key ? ' todo-kanban-card--ativo' : ''}`}
-                  onClick={() => setKanbanFiltro(col.key)}
-                >
-                  <span className="todo-kanban-num">{col.count}</span>
-                  <span className="todo-kanban-label">{col.label}</span>
-                </button>
-              ))}
-            </div>
+          {/* Grid 1fr 1fr — Atrasadas + Esta Semana */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
 
-            {/* Lista de tarefas */}
-            <div className="todo-task-list">
-              {tarefasFiltradas.length === 0 ? (
-                <p className="empty-state">Nenhuma entrega para o período selecionado.</p>
-              ) : (
-                tarefasFiltradas.map(t => (
-                  <div key={t.id} className="todo-task-item">
-                    <button
-                      className="todo-task-row"
-                      onClick={() => setTaskAberta(prev => prev === t.id ? null : t.id)}
-                    >
-                      <span className={`todo-task-dot todo-task-dot--${t.urgencia}`} />
-                      <span className="todo-task-nome">{t.acaoNome}</span>
-                      <span className={`todo-task-badge todo-task-badge--${t.urgencia}`}>
-                        {{ atrasada: 'Atrasada', semana: 'Esta semana', proximas: 'Próx. 2 sem.', futura: 'Futura' }[t.urgencia]}
-                      </span>
-                      <span className="todo-task-semana">Sem. {t.semana}</span>
-                      <span className={`todo-task-chevron${taskAberta === t.id ? ' todo-task-chevron--aberto' : ''}`}>›</span>
-                    </button>
-                    {taskAberta === t.id && (
-                      <div className="todo-task-detalhe">
-                        <span>Responsável: <strong>{t.responsavel}</strong></span>
-                        <span>Área: <strong>{t.areaNome}</strong></span>
-                        <span>Semana <strong>{t.semana}</strong></span>
-                      </div>
-                    )}
-                  </div>
-                ))
+            {/* Painel Atrasadas */}
+            <div style={{ border: '1px solid #e0d9ce', borderRadius: 8 }}>
+              <PainelHeader
+                titulo="Atrasadas"
+                badge={tarefasAtrasadas.length}
+                badgeStyle={{ background: '#c62828', color: '#fff' }}
+                expandido={expandidoAtrasadas}
+                onToggle={() => setExpandidoAtrasadas(v => !v)}
+              />
+              {expandidoAtrasadas && (
+                <>
+                  {tarefasAtrasadas.length === 0 ? (
+                    <div style={{ padding: '16px 14px', background: '#f0fdf4', borderRadius: '0 0 8px 8px', fontSize: 13, color: '#15803d', fontWeight: 600 }}>
+                      🎉 Parabéns, você não tem nada atrasado!
+                    </div>
+                  ) : (
+                    <>
+                      {(verMaisAtrasadas ? tarefasAtrasadas : tarefasAtrasadas.slice(0, MAX_VISIBLE)).map(t => (
+                        <ItemLista key={t.id} t={t} onClick={() => router.push(`/carometro/gantt?area=${t.areaId}&semana=S${t.semana}`)} />
+                      ))}
+                      {tarefasAtrasadas.length > MAX_VISIBLE && (
+                        <button
+                          type="button"
+                          onClick={() => setVerMaisAtrasadas(v => !v)}
+                          style={{ width: '100%', padding: '8px', fontSize: 12, color: '#888780', background: 'none', border: 'none', borderTop: '1px solid #f0ece5', cursor: 'pointer' }}
+                        >
+                          {verMaisAtrasadas ? '▲ Ver menos' : `▼ Ver mais ${tarefasAtrasadas.length - MAX_VISIBLE}`}
+                        </button>
+                      )}
+                    </>
+                  )}
+                </>
               )}
             </div>
-          </section>
+
+            {/* Painel Esta Semana */}
+            <div style={{ border: '1px solid #e0d9ce', borderRadius: 8 }}>
+              <PainelHeader
+                titulo={`Esta semana — S${semanaAtual}`}
+                badge={tarefasSemana.length}
+                badgeStyle={{ background: '#1a5a8a', color: '#fff' }}
+                expandido={expandidoSemana}
+                onToggle={() => setExpandidoSemana(v => !v)}
+              />
+              {expandidoSemana && (
+                <>
+                  {tarefasSemana.length === 0 ? (
+                    <div style={{ padding: '16px 14px', background: '#f0fdf4', borderRadius: '0 0 8px 8px', fontSize: 13, color: '#15803d', fontWeight: 600 }}>
+                      Nenhuma atividade para esta semana.
+                    </div>
+                  ) : (
+                    <>
+                      {(verMaisSemana ? tarefasSemana : tarefasSemana.slice(0, MAX_VISIBLE)).map(t => (
+                        <ItemLista key={t.id} t={t} onClick={() => router.push(`/carometro/gantt?area=${t.areaId}&semana=S${t.semana}`)} />
+                      ))}
+                      {tarefasSemana.length > MAX_VISIBLE && (
+                        <button
+                          type="button"
+                          onClick={() => setVerMaisSemana(v => !v)}
+                          style={{ width: '100%', padding: '8px', fontSize: 12, color: '#888780', background: 'none', border: 'none', borderTop: '1px solid #f0ece5', cursor: 'pointer' }}
+                        >
+                          {verMaisSemana ? '▲ Ver menos' : `▼ Ver mais ${tarefasSemana.length - MAX_VISIBLE}`}
+                        </button>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Divisor — SIRENE / PASTELARIA */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#aaa9a6', letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Sirene / Pastelaria</span>
+            <div style={{ flex: 1, height: 1, background: '#e0d9ce' }} />
+          </div>
+
+          {/* Painel Sirene — full width */}
+          <div style={{ border: '1px solid #e0d9ce', borderRadius: 8, marginBottom: 24 }}>
+            <PainelHeader
+              titulo="🚨 Sirene / Pastelaria"
+              badge={sireneStats != null ? `${sireneStats.total} aberto${sireneStats.total !== 1 ? 's' : ''}` : undefined}
+              badgeStyle={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fcd34d' }}
+              expandido={expandidoSirene}
+              onToggle={() => setExpandidoSirene(v => !v)}
+            />
+            {expandidoSirene && (
+              <div style={{ padding: '4px 0 12px' }}>
+                {sireneStats?.total === 0 ? (
+                  <div style={{ padding: '16px 14px', background: '#f0fdf4', fontSize: 13, color: '#15803d', fontWeight: 600 }}>
+                    🎉 Nenhuma Sirene em aberto para você!
+                  </div>
+                ) : (
+                  <TodoPainelSirene onCountReady={setSireneStats} />
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Divisor — CARDS E PRAZOS */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#aaa9a6', letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Cards e Prazos</span>
+            <div style={{ flex: 1, height: 1, background: '#e0d9ce' }} />
+          </div>
+
+          {/* Banner Cards e Prazos */}
+          <div style={{ border: '2px dashed #e0d9ce', borderRadius: 10, background: '#faf9f6', padding: '20px 24px', display: 'flex', alignItems: 'center', gap: 16 }}>
+            <i className="ti ti-layout-kanban" style={{ fontSize: 28, color: '#c8c3bc', flexShrink: 0 }} />
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: '#1D2F25' }}>Cards e Prazos — Em construção</div>
+              <div style={{ fontSize: 12, color: '#aaa9a6', marginTop: 4 }}>
+                Disponível após vincular responsável nos funnéis.
+              </div>
+            </div>
+          </div>
         </>
       )}
     </>

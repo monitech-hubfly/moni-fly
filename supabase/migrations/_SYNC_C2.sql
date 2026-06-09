@@ -1,4 +1,4 @@
-﻿-- Justificativa quando documento da franquia nÃ£o foi anexado (cadastro incompleto se vazio).
+-- Justificativa quando documento da franquia nÃ£o foi anexado (cadastro incompleto se vazio).
 
 ALTER TABLE public.rede_franqueados
   ADD COLUMN IF NOT EXISTS anexo_cof_justificativa TEXT,
