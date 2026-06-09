@@ -339,7 +339,7 @@ export function FormularioInicioProcesso({
   const [tamanhoCamisetaFrank, setTamanhoCamisetaFrank] = useState('');
   const [socios, setSocios] = useState('');
 
-  // Rede de Franqueados (usado no Step 2: Novo Negócio)
+  // Rede de Franqueados (usado na fase Novo Negócio)
   const [redeFranqueados, setRedeFranqueados] = useState<RedeFranqueadoRowDb[]>([]);
   const [loadingRedeFranqueados, setLoadingRedeFranqueados] = useState(false);
   const [franqueadoSelecionadoId, setFranqueadoSelecionadoId] = useState<string | null>(null);

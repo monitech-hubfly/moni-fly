@@ -193,7 +193,14 @@ export function FormularioCandidatoForm({
           </label>
         );
 
-        if (item.tipo === 'condominio' || item.tipo === 'pesquisa_condominio') {
+        if (
+          item.tipo === 'condominio' ||
+          item.tipo === 'pesquisa_condominio' ||
+          item.tipo === 'lotes_condominio' ||
+          item.tipo === 'listagem_casas_zap' ||
+          item.tipo === 'dados_cidade_ibge' ||
+          item.tipo === 'mapa_praca'
+        ) {
           return (
             <div key={item.id}>
               {label}
@@ -227,7 +234,7 @@ export function FormularioCandidatoForm({
                   style={btnStyle}
                 >
                   <Download size={14} />
-                  Baixar modelo
+                  Baixar template
                 </button>
                 <label className={`${btnOutline} cursor-pointer`} style={btnStyle}>
                   <input

@@ -21,7 +21,7 @@ export default async function Step6Page() {
       </header>
       <main className="mx-auto max-w-7xl px-4 py-12">
         <div className="card">
-          <h1 className="text-2xl font-bold text-moni-dark">Step 06: Diligência</h1>
+          <h1 className="text-2xl font-bold text-moni-dark">Diligência</h1>
           <p className="mt-2 text-stone-600">Etapa de diligência do fluxo de viabilidade.</p>
           <div className="mt-6 rounded-xl border border-dashed border-stone-200 bg-stone-50 p-8 text-center text-sm text-stone-500">
             Conteúdo em construção.

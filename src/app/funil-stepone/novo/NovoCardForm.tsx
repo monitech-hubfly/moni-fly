@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { SearchableSelect } from '@/components/SearchableSelect';
 
 type Fase = {
   id: string;
@@ -26,10 +27,11 @@ function splitAreas(area: string | null): string[] {
     .filter(Boolean);
 }
 
-// Monta o título padrão: "FK0001 - João Silva - Zona Sul de São Paulo"
-function buildTitulo(f: Franqueado, area: string): string {
-  const parts = [f.n_franquia, f.nome_completo, area].filter(Boolean);
-  return parts.join(' - ');
+// Monta o título padrão: "FK0001" ou "FK0001 - Praça" (nome do franqueado fica no subtítulo)
+function buildTitulo(f: Franqueado, area: string, incluirArea: boolean): string {
+  const base = f.n_franquia?.trim() ?? '';
+  if (incluirArea && area.trim()) return [base, area.trim()].filter(Boolean).join(' - ');
+  return base;
 }
 
 export function NovoCardForm({
@@ -65,8 +67,8 @@ export function NovoCardForm({
 
   // Preview dos títulos que serão criados
   const previews = criarPorArea
-    ? areas.map((a) => buildTitulo(selectedFranqueado!, a))
-    : [selectedFranqueado ? buildTitulo(selectedFranqueado, areas[0] || '') : ''];
+    ? areas.map((a) => buildTitulo(selectedFranqueado!, a, true))
+    : [selectedFranqueado ? buildTitulo(selectedFranqueado, areas[0] || '', false) : ''];
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -83,7 +85,9 @@ export function NovoCardForm({
       const cardList = criarPorArea ? areas : [areas[0] || ''];
 
       for (const area of cardList) {
-        const titulo = selectedFranqueado ? buildTitulo(selectedFranqueado, area) : area;
+        const titulo = selectedFranqueado
+          ? buildTitulo(selectedFranqueado, area, criarPorArea)
+          : area;
         const { error } = await supabase.from('kanban_cards').insert({
           kanban_id: kanbanId,
           fase_id: faseId,
@@ -117,23 +121,20 @@ export function NovoCardForm({
             Nenhum franqueado cadastrado em Rede de Franqueados.
           </p>
         ) : (
-          <select
+          <SearchableSelect
             id="franqueado"
             value={selectedFranqueadoId}
-            onChange={(e) => setSelectedFranqueadoId(e.target.value)}
-            required
-            style={{
-              border: '0.5px solid var(--moni-border-default)',
-              borderRadius: 'var(--moni-radius-md)',
-            }}
-            className="mt-1 w-full px-4 py-2 text-sm focus:border-stone-300 focus:outline-none focus:ring-2 focus:ring-stone-200"
-          >
-            {franqueados.map((f) => (
-              <option key={f.id} value={f.id}>
-                {[f.n_franquia, f.nome_completo].filter(Boolean).join(' - ')}
-              </option>
-            ))}
-          </select>
+            onChange={setSelectedFranqueadoId}
+            placeholder="Selecione o franqueado"
+            searchPlaceholder="Buscar por FK ou nome"
+            size="md"
+            className="mt-1"
+            triggerClassName="w-full px-4 py-2 text-sm border-[0.5px] border-[var(--moni-border-default)] rounded-[var(--moni-radius-md)]"
+            options={franqueados.map((f) => ({
+              value: f.id,
+              label: [f.n_franquia, f.nome_completo].filter(Boolean).join(' - '),
+            }))}
+          />
         )}
       </div>
 
@@ -179,23 +180,18 @@ export function NovoCardForm({
         <label htmlFor="fase" className="block text-sm font-medium text-stone-700">
           Fase inicial
         </label>
-        <select
+        <SearchableSelect
           id="fase"
           value={faseId}
-          onChange={(e) => setFaseId(e.target.value)}
-          required
-          style={{
-            border: '0.5px solid var(--moni-border-default)',
-            borderRadius: 'var(--moni-radius-md)',
-          }}
-          className="mt-1 w-full px-4 py-2 text-sm focus:border-[var(--moni-navy-800)] focus:outline-none focus:ring-2 focus:ring-[var(--moni-navy-800)]/20"
-        >
-          {fases.map((fase) => (
-            <option key={fase.id} value={fase.id}>
-              {fase.nome}
-            </option>
-          ))}
-        </select>
+          onChange={setFaseId}
+          placeholder="Selecione a fase"
+          searchPlaceholder="Buscar fase"
+          size="md"
+          className="mt-1"
+          emptyOption={null}
+          triggerClassName="w-full px-4 py-2 text-sm border-[0.5px] border-[var(--moni-border-default)] rounded-[var(--moni-radius-md)]"
+          options={fases.map((fase) => ({ value: fase.id, label: fase.nome }))}
+        />
       </div>
 
       <div className="flex flex-col gap-3 pt-4 sm:flex-row">

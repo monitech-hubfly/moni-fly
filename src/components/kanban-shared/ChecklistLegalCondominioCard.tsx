@@ -22,6 +22,7 @@ type Props = {
   cardId: string;
   basePath?: string;
   condominioId?: string | null;
+  nomeCondominioLegado?: string | null;
   modoCompacto?: boolean;
   exibirLinkPublico?: boolean;
 };
@@ -30,6 +31,7 @@ export function ChecklistLegalCondominioCard({
   cardId,
   basePath = '/',
   condominioId,
+  nomeCondominioLegado,
   modoCompacto = false,
   exibirLinkPublico = true,
 }: Props) {
@@ -163,9 +165,12 @@ export function ChecklistLegalCondominioCard({
   }
 
   if (!condominioIdResolvido && status === 'ausente' && !respostas.cadastro_condominio) {
+    const nomeLivre = String(nomeCondominioLegado ?? '').trim();
     return (
       <p className="text-xs text-stone-500">
-        Vincule um condomínio ao card para habilitar o Checklist Legal.
+        {nomeLivre
+          ? `O condomínio "${nomeLivre}" ainda não está vinculado ao cadastro. Associe em Dados do Negócio (Rede → Condomínios) para habilitar o Checklist Legal.`
+          : 'Vincule um condomínio ao card para habilitar o Checklist Legal.'}
       </p>
     );
   }

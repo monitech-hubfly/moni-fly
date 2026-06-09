@@ -85,7 +85,7 @@ export async function listarComentariosKanbanCard(
 
   const { data: rows, error } = await supabase
     .from('kanban_card_comentarios')
-    .select('id, conteudo, texto, created_at, autor_id, autor_nome')
+    .select('id, conteudo, created_at, autor_id, autor_nome')
     .eq('card_id', id)
     .order('created_at', { ascending: false });
 

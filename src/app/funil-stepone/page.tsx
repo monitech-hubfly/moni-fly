@@ -2,14 +2,12 @@ import { guardLoginRequired } from '@/lib/auth-guard';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
 import { KanbanBoard } from '@/components/kanban-shared/KanbanBoard';
 import { KanbanWrapper } from '@/components/kanban-shared/KanbanWrapper';
+import { fetchKanbanBoardSnapshot } from '@/components/kanban-shared/fetchKanbanBoardSnapshot';
 import { KanbanTabs } from './KanbanTabs';
 import { PainelPerformance } from '@/components/kanban-shared/PainelPerformance';
 import type { KanbanCardBrief, KanbanFase } from '@/components/kanban-shared/types';
-import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
-import { prepareStepOneBoardSnapshot } from '@/lib/kanban/stepone-fase-slugs';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,37 +17,21 @@ export default async function FunilStepOnePage({
   searchParams: { [key: string]: string | string[] | undefined };
 }) {
   const activeTab = (searchParams.tab as string) || 'kanban';
-  
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   guardLoginRequired(user);
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-  const role = (profile?.role as string) ?? 'frank';
-  
-  console.log('[FunilStepOne] User ID:', user.id);
-  console.log('[FunilStepOne] Role:', role);
+  const { kanban, fases, cards, cardsConcluidos, role } = await fetchKanbanBoardSnapshot(
+    supabase,
+    'Funil Step One',
+    user.id,
+  );
 
-  // Busca o kanban "Funil Step One"
-  const { data: kanbans, error: kanbanError } = await supabase
-    .from('kanbans')
-    .select('id, nome')
-    .eq('nome', 'Funil Step One')
-    .eq('ativo', true)
-    .limit(1);
-
-  if (kanbanError) {
-    console.error('[FunilStepOne] erro ao buscar kanban:', kanbanError);
-  }
-  console.log('[FunilStepOne] kanbans encontrados:', kanbans);
-
-  const kanban = kanbans?.[0] ?? null;
+  const isAdmin =
+    role === 'admin' || role === 'consultor' || role === 'supervisor' || role === 'team';
 
   if (!kanban) {
     return (
@@ -67,122 +49,6 @@ export default async function FunilStepOnePage({
     );
   }
 
-  // Busca as fases deste kanban
-  const { data: fasesRaw } = await supabase
-    .from('kanban_fases')
-    .select('id, nome, ordem, sla_dias, slug, instrucoes, materiais')
-    .eq('kanban_id', kanban.id)
-    .eq('ativo', true)
-    .order('ordem');
-
-  let fases: KanbanFase[] = (fasesRaw ?? []).map((row) => ({
-    id: String(row.id),
-    nome: String(row.nome ?? ''),
-    ordem: Number(row.ordem ?? 0),
-    sla_dias: row.sla_dias != null ? Number(row.sla_dias) : null,
-    slug: (row as { slug?: string | null }).slug ?? null,
-    instrucoes: (row as { instrucoes?: string | null }).instrucoes ?? null,
-    materiais: parseKanbanFaseMateriais((row as { materiais?: unknown }).materiais),
-  }));
-
-  const selectCols = `
-      id,
-      titulo,
-      status,
-      created_at,
-      fase_id,
-      franqueado_id,
-      arquivado,
-      motivo_arquivamento,
-      concluido,
-      concluido_em,
-      ordem_coluna
-    `;
-
-  let cardsQuery = supabase
-    .from('kanban_cards')
-    .select(selectCols)
-    .eq('kanban_id', kanban.id)
-    .eq('status', 'ativo')
-    .eq('arquivado', false)
-    .eq('concluido', false)
-    .order('ordem_coluna', { ascending: true })
-    .order('created_at', { ascending: false });
-
-  let concluidosQuery = supabase
-    .from('kanban_cards')
-    .select(selectCols)
-    .eq('kanban_id', kanban.id)
-    .eq('status', 'ativo')
-    .eq('arquivado', false)
-    .eq('concluido', true)
-    .order('ordem_coluna', { ascending: true })
-    .order('created_at', { ascending: false });
-
-  const visaoAmplaCards =
-    role === 'admin' || role === 'consultor' || role === 'supervisor' || role === 'team';
-  if (!visaoAmplaCards) {
-    cardsQuery = cardsQuery.eq('franqueado_id', user.id);
-    concluidosQuery = concluidosQuery.eq('franqueado_id', user.id);
-  }
-
-  const [{ data: cardsRaw, error: cardsError }, { data: conclRaw }] = await Promise.all([
-    cardsQuery,
-    concluidosQuery,
-  ]);
-  
-  console.log('[FunilStepOne] Cards query error:', cardsError);
-  console.log('[FunilStepOne] Cards raw:', cardsRaw);
-  console.log('[FunilStepOne] Total cards encontrados:', cardsRaw?.length || 0);
-
-  const franqueadoIds = [
-    ...new Set([
-      ...(cardsRaw?.map((c) => c.franqueado_id).filter(Boolean) || []),
-      ...(conclRaw?.map((c) => c.franqueado_id).filter(Boolean) || []),
-    ]),
-  ];
-  let profilesMap = new Map<string, { full_name: string | null }>();
-  
-  if (franqueadoIds.length > 0) {
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, full_name')
-      .in('id', franqueadoIds);
-    
-    profiles?.forEach(p => {
-      profilesMap.set(p.id, { full_name: p.full_name });
-    });
-  }
-
-  const mapCard = (c: NonNullable<typeof cardsRaw>[number]) => ({
-    ...c,
-    arquivado: Boolean((c as { arquivado?: boolean | null }).arquivado),
-    motivo_arquivamento: (c as { motivo_arquivamento?: string | null }).motivo_arquivamento ?? null,
-    concluido: Boolean((c as { concluido?: boolean | null }).concluido),
-    concluido_em:
-      (c as { concluido_em?: string | null }).concluido_em != null
-        ? String((c as { concluido_em?: string | null }).concluido_em)
-        : null,
-    origem: 'nativo' as const,
-    profiles: profilesMap.get(c.franqueado_id) || null,
-  });
-
-  const cardsMapped = cardsRaw?.map((c) => mapCard(c)) || [];
-  const cardsConcluidosMapped = conclRaw?.map((c) => mapCard(c)) || [];
-
-  const preparedBoard = prepareStepOneBoardSnapshot({
-    fases,
-    cards: cardsMapped,
-    cardsConcluidos: cardsConcluidosMapped,
-  });
-  fases = preparedBoard.fases;
-  const cards = preparedBoard.cards as typeof cardsMapped;
-  const cardsConcluidos = preparedBoard.cardsConcluidos as typeof cardsConcluidosMapped;
-
-  console.log('[FunilStepOne] Cards normalizados:', cards.length);
-
-  const isAdmin = role === 'admin' || role === 'consultor' || role === 'supervisor' || role === 'team';
-
   return (
     <KanbanWrapper
       basePath="/funil-stepone"
@@ -193,12 +59,10 @@ export default async function FunilStepOnePage({
       enableNovoCardModal
     >
       <div className="min-h-screen bg-stone-50">
-        {/* Abas: Kanban / Painel (Suspense por useSearchParams no cliente) */}
         <Suspense fallback={null}>
           <KanbanTabs />
         </Suspense>
 
-        {/* Conteúdo da aba ativa */}
         {activeTab === 'kanban' && (
           <main className="mx-auto w-full min-w-0 max-w-[1600px] px-6 py-8">
             <KanbanBoard

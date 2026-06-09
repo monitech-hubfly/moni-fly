@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { extractText, filterRelevantChecklistDiff } from '@/lib/document-diff';
-
-const BUCKET = 'documentos-templates';
+import { readChecklistTemplateBuffer } from '@/lib/kanban/checklist-template-storage';
 
 type Body = { token?: string; item_id?: string; card_id?: string };
 
@@ -11,12 +10,7 @@ async function downloadBuffer(
   admin: ReturnType<typeof createAdminClient>,
   path: string,
 ): Promise<{ ok: true; buf: Buffer } | { ok: false; error: string }> {
-  const { data, error } = await admin.storage.from(BUCKET).download(path);
-  if (error || !data) {
-    return { ok: false, error: error?.message ?? 'Falha ao ler ficheiro no armazenamento.' };
-  }
-  const buf = Buffer.from(await data.arrayBuffer());
-  return { ok: true, buf };
+  return readChecklistTemplateBuffer(admin, path);
 }
 
 function mimeFromPath(path: string): string {

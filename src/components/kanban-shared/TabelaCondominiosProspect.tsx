@@ -7,13 +7,9 @@ import {
   sincronizarProspectComCadastro,
 } from '@/lib/actions/kanban-card-condominio';
 import {
-  condominioRowMatchesBusca,
-  ordenarCondominiosPorNome,
-  type CondominioRow,
-} from '@/lib/condominios';
-import {
   COLUNAS_TABELA_PROSPECT,
   confirmarLinhaProspectCadastroLocal,
+  extrairCamposPesquisaGlobal,
   gerarRowIdProspect,
   LINHA_PROSPECT_VAZIA,
   linhaProspectAlteradaDesdeCarregamento,
@@ -21,10 +17,18 @@ import {
   linhaProspectCadastroPendente,
   linhaProspectDeCondominioRow,
   marcarLinhaProspectCadastroPendente,
+  ordenarLinhasProspectPorTicketCasas,
   parseLinhasProspectCondominio,
   serializarLinhasProspectCondominio,
   type LinhaProspectCondominio,
 } from '@/lib/kanban/condominio-prospect-pesquisa';
+import type { PracaCidade } from '@/lib/kanban/dados-cidade-praca-multi';
+import {
+  condominioRowMatchesBusca,
+  condominioRowNaPraca,
+  ordenarCondominiosPorNome,
+  type CondominioRow,
+} from '@/lib/condominios';
 import type { FaseChecklistItem } from '@/lib/actions/card-actions';
 
 type EstadoResposta = {
@@ -37,9 +41,11 @@ type Props = {
   estado: EstadoResposta;
   onChange: (valor: string) => void;
   onBlur: (valor: string) => void;
+  /** Praça da sessão (aba ou cidade/estado do checklist) — filtra o cadastro na busca. */
+  pracaCidade?: PracaCidade | null;
 };
 
-export function TabelaCondominiosProspect({ item, estado, onChange, onBlur }: Props) {
+export function TabelaCondominiosProspect({ item, estado, onChange, onBlur, pracaCidade = null }: Props) {
   const [linhas, setLinhas] = useState<LinhaProspectCondominio[]>(() =>
     parseLinhasProspectCondominio(estado.valor),
   );
@@ -65,9 +71,15 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur }: Pr
     void carregarCadastro();
   }, [carregarCadastro]);
 
+  const cadastroDaPraca = useMemo(() => {
+    if (!pracaCidade) return [];
+    return cadastro.filter((r) => condominioRowNaPraca(r, pracaCidade));
+  }, [cadastro, pracaCidade]);
+
   function persistir(novas: LinhaProspectCondominio[], blur = false) {
-    setLinhas(novas);
-    const json = serializarLinhasProspectCondominio(novas);
+    const finais = blur ? ordenarLinhasProspectPorTicketCasas(novas) : novas;
+    setLinhas(finais);
+    const json = serializarLinhasProspectCondominio(finais);
     onChange(json);
     if (blur) onBlur(json);
   }
@@ -106,20 +118,10 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur }: Pr
     const atual = linhas[idx];
     const nova = linhaProspectDeCondominioRow(row, atual.row_id, {
       pesquisa_preenchida_em: atual.pesquisa_preenchida_em,
-      q_lotes_total_disponiveis: atual.q_lotes_total_disponiveis,
-      q_lotes_tamanho_medio: atual.q_lotes_tamanho_medio,
-      q_lotes_preco_m2: atual.q_lotes_preco_m2,
-      q_lotes_area_maior_demanda: atual.q_lotes_area_maior_demanda,
-      q_casas_prontas: atual.q_casas_prontas,
-      q_casas_em_construcao: atual.q_casas_em_construcao,
-      q_casas_para_venda: atual.q_casas_para_venda,
-      q_casas_preco_m2: atual.q_casas_preco_m2,
-      q_casas_tempo_venda: atual.q_casas_tempo_venda,
-      q_casas_vendidas_12m: atual.q_casas_vendidas_12m,
-      q_casas_remanescentes_demora: atual.q_casas_remanescentes_demora,
-      q_casas_caracteristicas_elogiadas: atual.q_casas_caracteristicas_elogiadas,
-      q_casas_caracteristicas_buscadas: atual.q_casas_caracteristicas_buscadas,
-      q_locacao_valores: atual.q_locacao_valores,
+      ...extrairCamposPesquisaGlobal(atual),
+      faixas: atual.faixas,
+      lotes_disponiveis: atual.lotes_disponiveis,
+      lotes_preenchidos_em: atual.lotes_preenchidos_em,
     });
     const novas = linhas.map((l, i) => (i === idx ? nova : l));
     setPickerAberto(null);
@@ -146,6 +148,8 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur }: Pr
         ticket_m2: linha.ticket_m2,
         estimativa_giro: linha.estimativa_giro,
         apenasConfirmar,
+        cidade: pracaCidade?.cidade ?? null,
+        estado: pracaCidade?.uf ?? null,
       });
 
       if (!res.ok) {
@@ -183,11 +187,11 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur }: Pr
     const map = new Map<string, CondominioRow[]>();
     for (const linha of linhas) {
       const q = (buscaPorLinha[linha.row_id] ?? '').trim();
-      const base = q ? cadastro.filter((r) => condominioRowMatchesBusca(r, q)) : cadastro;
+      const base = q ? cadastroDaPraca.filter((r) => condominioRowMatchesBusca(r, q)) : [];
       map.set(linha.row_id, base.slice(0, 30));
     }
     return map;
-  }, [linhas, buscaPorLinha, cadastro]);
+  }, [linhas, buscaPorLinha, cadastroDaPraca]);
 
   function rotuloAcao(linha: LinhaProspectCondominio): string {
     if (!linha.condominio_id) return 'Cadastrar no Rede → Condomínios';
@@ -204,8 +208,22 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur }: Pr
       </span>
       <p className="mb-2 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
         {item.placeholder ??
-          'Fase Dados da Cidade: selecione condomínios do cadastro (Rede → Condomínios) ou cadastre novos. Confirme ou atualize os dados de cada linha antes de avançar para Dados dos Condomínios.'}
+          'Selecione condomínios do cadastro (Rede → Condomínios) ou cadastre novos. Preencha tickets e estimativa de giro; confirme ou atualize o cadastro em cada linha.'}
       </p>
+      {!pracaCidade ? (
+        <p className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Selecione a praça (aba) ou preencha <strong>Cidade de interesse</strong> e <strong>Estado</strong> para
+          buscar condomínios desta cidade.
+        </p>
+      ) : (
+        <p className="mb-2 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+          Exibindo condomínios cadastrados em{' '}
+          <strong>
+            {pracaCidade.cidade}/{pracaCidade.uf}
+          </strong>
+          .
+        </p>
+      )}
       {loadingCadastro ? (
         <div className="mb-2 flex items-center gap-2 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
           <Loader2 size={12} className="animate-spin" />
@@ -260,6 +278,7 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur }: Pr
             {linhas.map((linha, idx) => {
               const opcoes = opcoesPorLinha.get(linha.row_id) ?? [];
               const pickerOpen = pickerAberto === linha.row_id;
+              const buscaLinha = (buscaPorLinha[linha.row_id] ?? '').trim();
               const pendente = linhaProspectCadastroPendente(linha);
               const ok = linhaProspectCadastroOk(linha);
               const salvando = salvandoLinha === linha.row_id;
@@ -299,7 +318,7 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur }: Pr
                           }}
                         />
                       </div>
-                      {pickerOpen && opcoes.length > 0 ? (
+                      {pickerOpen && buscaLinha && opcoes.length > 0 ? (
                         <ul
                           className="absolute z-20 mt-0.5 max-h-36 w-full overflow-y-auto rounded border bg-white shadow-sm"
                           style={{ borderColor: 'var(--moni-border-default)' }}

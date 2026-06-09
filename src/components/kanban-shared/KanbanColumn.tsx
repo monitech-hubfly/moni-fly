@@ -287,6 +287,7 @@ export function KanbanColumn({
             });
           const sla = calcularSlaKanbanCard({
             created_at: card.created_at,
+            entered_fase_at: card.entered_fase_at,
             sla_iniciado_em: card.sla_iniciado_em,
             faseSlug: faseSlugCard,
             alvara_url: card.alvara_url,

@@ -1,4 +1,7 @@
 import { mapZapItemToCasa, type ZapListingItem } from '@/lib/apify-zap';
+import { normalizeAccessRole } from '@/lib/authz';
+import { casaMapaPertenceCondominio } from '@/lib/kanban/mapa-competidores-condominio';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
@@ -15,15 +18,41 @@ export async function verifyProcessoCasasAccess(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
 
+  const pid = String(processoId ?? '').trim();
+  if (!pid) return { ok: false, error: 'Processo inválido.' };
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+  const accessRole = normalizeAccessRole((profile as { role?: string } | null)?.role);
+
+  if (accessRole === 'admin' || accessRole === 'team') {
+    try {
+      const admin = createAdminClient();
+      const { data: processo } = await admin.from('processo_step_one').select('id').eq('id', pid).maybeSingle();
+      if (!processo) return { ok: false, error: 'Processo não encontrado.' };
+      return { ok: true, supabase: admin as unknown as SupabaseServer };
+    } catch {
+      return { ok: false, error: 'Serviço indisponível.' };
+    }
+  }
+
   const { data: processo } = await supabase
     .from('processo_step_one')
     .select('id')
-    .eq('id', processoId)
+    .eq('id', pid)
     .eq('user_id', user.id)
-    .single();
-  if (!processo) return { ok: false, error: 'Processo não encontrado.' };
+    .maybeSingle();
+  if (processo) return { ok: true, supabase };
 
-  return { ok: true, supabase };
+  const { data: card } = await supabase
+    .from('kanban_cards')
+    .select('id')
+    .eq('projeto_id', pid)
+    .eq('franqueado_id', user.id)
+    .limit(1)
+    .maybeSingle();
+  if (card) return { ok: true, supabase };
+
+  return { ok: false, error: 'Processo não encontrado.' };
 }
 
 /**
@@ -36,19 +65,22 @@ export async function applyZapCasasUpdate(
   items: ZapListingItem[],
   cidade: string,
   estado: string,
+  opts?: { condominioVinculo?: string },
 ): Promise<{ inserted: number; updated: number; despublicados: number }> {
   const cidadeNorm = cidade.trim();
   const estadoNorm = estado.trim().slice(0, 2).toUpperCase();
+  const vinculo = opts?.condominioVinculo?.trim() || null;
   const rows = (items ?? [])
     .filter((i) => i?.url)
     .map((i) => mapZapItemToCasa(i as ZapListingItem, cidadeNorm, estadoNorm))
-    .filter((r) => r.link);
+    .filter((r) => r.link)
+    .map((r) => (vinculo ? { ...r, condominio: vinculo } : r));
 
   const linksFromZap = new Set(rows.map((r) => r.link as string));
 
   const { data: existing } = await supabase
     .from('listings_casas')
-    .select('id, link, manual')
+    .select('id, link, manual, condominio')
     .eq('processo_id', processoId);
 
   let despublicados = 0;
@@ -57,6 +89,10 @@ export async function applyZapCasasUpdate(
     if (row.manual) continue;
     const link = row.link as string | null;
     if (!link || linksFromZap.has(link)) continue;
+    // Mapa por condomínio: só despublica listagens da sessão atual, não de outras abas.
+    if (vinculo && !casaMapaPertenceCondominio({ condominio: row.condominio ?? null }, vinculo)) {
+      continue;
+    }
     const { error: upErr } = await supabase
       .from('listings_casas')
       .update({ status: 'despublicado', data_despublicado: now })

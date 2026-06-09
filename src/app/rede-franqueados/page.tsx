@@ -1,7 +1,11 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 
-import { canAccessCondominiosTab, isRedeStaffRole, isStrictAdminRole } from '@/lib/authz';
+import {
+  canAccessCondominiosTab,
+  canAccessRedeFranqueadosCadastrosCompletos,
+  isRedeStaffRole,
+} from '@/lib/authz';
 
 import { fetchFranqueadoEmpresasRows } from '@/lib/franqueado-empresas';
 
@@ -11,7 +15,7 @@ import { fetchRedeLoteadoresRows } from '@/lib/rede-loteadores';
 
 import { fetchCondominiosRows } from '@/lib/condominios';
 
-import { contarLinhasSemCard, normalizarStatusEmProcessoRede } from './actions';
+import { contarLinhasSemCard, contarRedeSemCardFunil, normalizarStatusEmProcessoRede } from './actions';
 
 import { RedeFranqueadosPageTabs } from './RedeFranqueadosPageTabs';
 
@@ -35,13 +39,25 @@ export default async function RedeFranqueadosPage() {
 
 
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, departamento, time, email')
+    .eq('id', user.id)
+    .single();
 
   const role = (profile?.role as string) ?? 'frank';
+  const departamento = (profile as { departamento?: string | null } | null)?.departamento ?? null;
+  const time = (profile as { time?: string | null } | null)?.time ?? null;
+  const email = (profile as { email?: string | null } | null)?.email ?? user.email ?? null;
 
   const canManage = isRedeStaffRole(role);
 
-  const maskSensitiveColumns = !isStrictAdminRole(role);
+  const maskSensitiveColumns = !canAccessRedeFranqueadosCadastrosCompletos(
+    role,
+    departamento,
+    time,
+    email,
+  );
 
   const showStaffTabs = isRedeStaffRole(role);
 
@@ -59,11 +75,13 @@ export default async function RedeFranqueadosPage() {
 
 
 
-  const [rows, countResult, loteadoresRows, empresasResult, condominiosRows] = await Promise.all([
+  const [rows, countResult, funilCountResult, loteadoresRows, empresasResult, condominiosRows] = await Promise.all([
 
     fetchRedeFranqueadosRows(supabase),
 
     canManage ? contarLinhasSemCard() : Promise.resolve({ ok: true as const, total: 0 }),
+
+    canManage ? contarRedeSemCardFunil() : Promise.resolve({ ok: true as const, total: 0 }),
 
     showStaffTabs ? fetchRedeLoteadoresRows(supabase) : Promise.resolve(null),
 
@@ -74,6 +92,7 @@ export default async function RedeFranqueadosPage() {
   ]);
 
   const linhasSemCard = countResult.ok ? countResult.total : 0;
+  const linhasSemFunil = funilCountResult.ok ? funilCountResult.total : 0;
 
   const empresasLoadError = showStaffTabs && empresasResult === null;
 
@@ -128,6 +147,7 @@ export default async function RedeFranqueadosPage() {
             maskSensitiveColumns={maskSensitiveColumns}
 
             linhasSemCard={linhasSemCard}
+            linhasSemFunil={linhasSemFunil}
 
             showDashboard={rows.length > 0}
 

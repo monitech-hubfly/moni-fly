@@ -334,47 +334,18 @@ async function fetchProcessoById(supabase: SupabaseClient, id: string) {
  */
 async function resolveProcessoNativo(
   supabase: SupabaseClient,
-  rede: RedeFranqueadoModalRow | null,
   cardTitulo: string,
   cardProjetoId?: string | null,
+  redeFranqueadoId?: string | null,
 ): Promise<ProcessoModalNegocioPreObra | null> {
-  const projetoId = String(cardProjetoId ?? '').trim();
-  if (projetoId) {
-    const porProjeto = await fetchProcessoById(supabase, projetoId);
-    if (porProjeto) return porProjeto;
-  }
-  if (rede?.processo_id) {
-    const p = await fetchProcessoById(supabase, rede.processo_id);
-    if (p) return p;
-  }
-  if (rede?.id) {
-    const { data: byOrigem } = await supabase
-      .from('processo_step_one')
-      .select('id')
-      .eq('origem_rede_franqueados_id', rede.id)
-      .maybeSingle();
-    const oid = (byOrigem as { id?: string } | null)?.id;
-    if (oid) {
-      const m = await fetchProcessoById(supabase, String(oid));
-      if (m) return m;
-    }
-  }
-  const num = rede?.n_franquia?.trim() || tituloParaNumeroFranquia(cardTitulo);
-  if (num) {
-    const { data: byNum } = await supabase
-      .from('processo_step_one')
-      .select('id')
-      .eq('numero_franquia', num)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const nid = (byNum as { id?: string } | null)?.id;
-    if (nid) {
-      const m2 = await fetchProcessoById(supabase, String(nid));
-      if (m2) return m2;
-    }
-  }
-  return null;
+  const { resolverProcessoStepOneIdDoCard } = await import('@/lib/kanban/card-sync-group');
+  const processoId = await resolverProcessoStepOneIdDoCard(supabase, {
+    cardProjetoId,
+    redeFranqueadoId,
+    cardTitulo,
+  });
+  if (!processoId) return null;
+  return fetchProcessoById(supabase, processoId);
 }
 
 export type KanbanCardModalDetalhes = {
@@ -485,6 +456,6 @@ export async function fetchKanbanCardModalDetalhes(
     const { data } = await supabase.from('rede_franqueados').select(REDE_SELECT).eq('id', redeFranqueadoId).maybeSingle();
     rede = mapRede((data as Record<string, unknown> | null) ?? null);
   }
-  const processo = await resolveProcessoNativo(supabase, rede, cardTitulo, cardProjetoId);
+  const processo = await resolveProcessoNativo(supabase, cardTitulo, cardProjetoId, redeFranqueadoId);
   return { rede, processo, redeIdContrato: rede?.id ?? null };
 }

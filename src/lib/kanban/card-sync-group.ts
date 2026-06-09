@@ -1,12 +1,50 @@
 import type { createAdminClient } from '@/lib/supabase/admin';
+import type { createClient } from '@/lib/supabase/server';
 
-type SyncDb = ReturnType<typeof createAdminClient>;
+type SyncDb = Pick<Awaited<ReturnType<typeof createClient>>, 'from'>;
 
-function tituloParaNumeroFranquiaSync(titulo: string): string {
+export function extrairNumeroFranquiaDoTitulo(titulo: string): string {
   const t = titulo.trim();
   if (!t) return '';
   const i = t.indexOf(' - ');
   return i >= 0 ? t.slice(0, i).trim() : t;
+}
+
+/** Extrai condomínio/quadra/lote de títulos `FK#### - …`. */
+export function parseCamposDoTituloCard(titulo: string): {
+  nomeCondominio?: string;
+  quadra?: string;
+  lote?: string;
+} {
+  const parts = titulo
+    .split(' - ')
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length < 2 || !/^FK\d+/i.test(parts[0] ?? '')) return {};
+  if (parts.length === 2) return { nomeCondominio: parts[1] };
+  if (parts.length === 3) return { nomeCondominio: parts[1], quadra: parts[2] };
+  return { nomeCondominio: parts[1], quadra: parts[2], lote: parts[3] };
+}
+
+/** Remove o segmento do nome do franqueado em títulos legados `FK - Nome - …`. */
+function tituloFallbackSemFranqueado(fb: string, nFranquia: string | null | undefined): string {
+  const t = fb.trim();
+  if (!t) return t;
+  const num = (nFranquia ?? '').trim();
+  const parts = t.split(' - ').filter(Boolean);
+  if (parts.length <= 1) {
+    // Título legado só com nome do franqueado → substituir pelo FK quando conhecido.
+    if (num && parts[0] !== num) return num;
+    return t;
+  }
+  const fk = num || parts[0]!;
+  if (parts[0] !== fk) return t;
+  if (parts.length === 2) return fk;
+  return [fk, ...parts.slice(2)].join(' - ');
+}
+
+function tituloParaNumeroFranquiaSync(titulo: string): string {
+  return extrairNumeroFranquiaDoTitulo(titulo);
 }
 
 async function resolveProcessoIdByNumeroFranquia(db: SyncDb, num: string): Promise<string | null> {
@@ -187,12 +225,38 @@ function pickSyncFields<T extends Record<string, unknown>>(
 ): Record<string, string | null> {
   const out: Record<string, string | null> = {};
   for (const k of allowed) {
-    if (Object.prototype.hasOwnProperty.call(patch, k)) {
-      const v = patch[k];
-      out[k] = v != null && String(v).trim() !== '' ? String(v) : null;
-    }
+    if (!Object.prototype.hasOwnProperty.call(patch, k)) continue;
+    const v = patch[k];
+    // `undefined` = campo omitido do patch; não deve zerar dados existentes.
+    if (v === undefined) continue;
+    out[k] = v != null && String(v).trim() !== '' ? String(v) : null;
   }
   return out;
+}
+
+/** Campos que não devem ser propagados como `null` (evita wipe ao sincronizar grupo). */
+const KANBAN_CAMPOS_ANTI_NULL_SYNC = new Set<string>([
+  'rede_franqueado_id',
+  'data_followup',
+  'data_reuniao',
+]);
+
+function omitNullStickyKanbanFields(patch: Record<string, string | null>): Record<string, string | null> {
+  const out: Record<string, string | null> = { ...patch };
+  for (const k of KANBAN_CAMPOS_ANTI_NULL_SYNC) {
+    if (out[k] === null) delete out[k];
+  }
+  return out;
+}
+
+function coalesceCampoSync(
+  atual: string | null | undefined,
+  candidato: string | null | undefined,
+): string | null {
+  const c = String(candidato ?? '').trim();
+  if (c) return c;
+  const a = String(atual ?? '').trim();
+  return a || null;
 }
 
 /** BFS em `kanban_card_vinculos` (bidirecional). */
@@ -322,6 +386,8 @@ export async function resolverCardPrimarioSyncGroup(db: SyncDb, cardId: string):
 
 export function montarTituloCardSync(params: {
   nFranquia?: string | null;
+  /** Ignorado no título — nome do franqueado fica no subtítulo do card. */
+  nomeFranqueado?: string | null;
   nomeCondominio?: string | null;
   quadra?: string | null;
   lote?: string | null;
@@ -335,14 +401,65 @@ export function montarTituloCardSync(params: {
   ].filter(Boolean);
   if (partes.length > 0) return partes.join(' - ');
   const fb = params.tituloFallback?.trim();
-  return fb || null;
+  if (!fb) return null;
+  return tituloFallbackSemFranqueado(fb, params.nFranquia);
+}
+
+/** Prefere o título mais completo (FK + condomínio + quadra + lote). */
+export function escolherTituloExibicaoCard(
+  tituloAtual: string | null | undefined,
+  tituloCalculado: string | null | undefined,
+  nFranquia?: string | null,
+): string {
+  const calc = String(tituloCalculado ?? '').trim();
+  const atual = tituloFallbackSemFranqueado(String(tituloAtual ?? ''), nFranquia);
+  const partes = (t: string) => t.split(' - ').map((p) => p.trim()).filter(Boolean).length;
+  if (atual && calc && partes(atual) > partes(calc)) return atual;
+  if (calc) return calc;
+  return atual || '(sem título)';
+}
+
+export async function resolverTituloCardKanban(
+  db: SyncDb,
+  fields: {
+    rede_franqueado_id?: string | null;
+    nome_condominio?: string | null;
+    quadra?: string | null;
+    lote?: string | null;
+    titulo?: string | null;
+    n_franquia?: string | null;
+    nome_franqueado?: string | null;
+  },
+): Promise<string | null> {
+  const nFq =
+    String(fields.n_franquia ?? '').trim() ||
+    (await nFranquiaDeRede(db, fields.rede_franqueado_id));
+  return montarTituloCardSync({
+    nFranquia: nFq,
+    nomeCondominio: fields.nome_condominio,
+    quadra: fields.quadra,
+    lote: fields.lote,
+    tituloFallback: fields.titulo,
+  });
+}
+
+async function redeTituloFieldsDeRede(
+  db: SyncDb,
+  redeId: string | null | undefined,
+): Promise<{ nFranquia: string | null; nomeFranqueado: string | null }> {
+  const rid = String(redeId ?? '').trim();
+  if (!rid) return { nFranquia: null, nomeFranqueado: null };
+  const { data } = await db.from('rede_franqueados').select('n_franquia, nome_completo').eq('id', rid).maybeSingle();
+  return {
+    nFranquia: String((data as { n_franquia?: string | null } | null)?.n_franquia ?? '').trim() || null,
+    nomeFranqueado:
+      String((data as { nome_completo?: string | null } | null)?.nome_completo ?? '').trim() || null,
+  };
 }
 
 async function nFranquiaDeRede(db: SyncDb, redeId: string | null | undefined): Promise<string | null> {
-  const rid = String(redeId ?? '').trim();
-  if (!rid) return null;
-  const { data } = await db.from('rede_franqueados').select('n_franquia').eq('id', rid).maybeSingle();
-  return String((data as { n_franquia?: string | null } | null)?.n_franquia ?? '').trim() || null;
+  const { nFranquia } = await redeTituloFieldsDeRede(db, redeId);
+  return nFranquia;
 }
 
 /**
@@ -365,39 +482,46 @@ export async function propagarCamposKanbanCards(
   let atualizados = 0;
 
   const precisaTitulo =
+    syncPatch.titulo !== undefined ||
     syncPatch.rede_franqueado_id !== undefined ||
     syncPatch.nome_condominio !== undefined ||
     syncPatch.quadra !== undefined ||
     syncPatch.lote !== undefined;
 
+  let tituloCanonico: string | null | undefined =
+    syncPatch.titulo !== undefined ? syncPatch.titulo : undefined;
+
+  if (precisaTitulo && tituloCanonico === undefined) {
+    const { data: origemRow } = await db
+      .from('kanban_cards')
+      .select('rede_franqueado_id, nome_condominio, quadra, lote, titulo')
+      .eq('id', origem)
+      .maybeSingle();
+    const o = origemRow as {
+      rede_franqueado_id?: string | null;
+      nome_condominio?: string | null;
+      quadra?: string | null;
+      lote?: string | null;
+      titulo?: string | null;
+    } | null;
+
+    tituloCanonico = await resolverTituloCardKanban(db, {
+      rede_franqueado_id: syncPatch.rede_franqueado_id ?? o?.rede_franqueado_id,
+      nome_condominio: syncPatch.nome_condominio ?? o?.nome_condominio,
+      quadra: syncPatch.quadra ?? o?.quadra,
+      lote: syncPatch.lote ?? o?.lote,
+      titulo: o?.titulo,
+    });
+  }
+
   for (const targetId of cardIds) {
-    const rowPatch: Record<string, string | null> = { ...syncPatch };
+    const rowPatch = omitNullStickyKanbanFields({ ...syncPatch });
 
-    if (precisaTitulo && rowPatch.titulo === undefined) {
-      const { data: cur } = await db
-        .from('kanban_cards')
-        .select('rede_franqueado_id, nome_condominio, quadra, lote, titulo')
-        .eq('id', targetId)
-        .maybeSingle();
-      const c = cur as {
-        rede_franqueado_id?: string | null;
-        nome_condominio?: string | null;
-        quadra?: string | null;
-        lote?: string | null;
-        titulo?: string | null;
-      } | null;
-
-      const redeId = rowPatch.rede_franqueado_id ?? c?.rede_franqueado_id ?? null;
-      const nFq = await nFranquiaDeRede(db, redeId);
-      const titulo = montarTituloCardSync({
-        nFranquia: nFq,
-        nomeCondominio: rowPatch.nome_condominio ?? c?.nome_condominio,
-        quadra: rowPatch.quadra ?? c?.quadra,
-        lote: rowPatch.lote ?? c?.lote,
-        tituloFallback: c?.titulo,
-      });
-      if (titulo) rowPatch.titulo = titulo;
+    if (tituloCanonico && rowPatch.titulo === undefined) {
+      rowPatch.titulo = tituloCanonico;
     }
+
+    if (Object.keys(rowPatch).length === 0) continue;
 
     const { error } = await db.from('kanban_cards').update(rowPatch as never).eq('id', targetId);
     if (error) return { ok: false, error: error.message };
@@ -405,17 +529,22 @@ export async function propagarCamposKanbanCards(
   }
 
   if (!options?.skipProcessoMirror) {
-    const processoPatch = pickSyncFields(
-      {
-        nome_condominio: syncPatch.nome_condominio,
-        condominio_id: syncPatch.condominio_id,
-        quadra: syncPatch.quadra,
-        lote: syncPatch.lote,
-        origem_rede_franqueados_id: syncPatch.rede_franqueado_id,
-        numero_franquia: undefined as string | null | undefined,
-      },
-      ['nome_condominio', 'condominio_id', 'quadra', 'lote', 'origem_rede_franqueados_id'],
-    );
+    const processoSource: Record<string, unknown> = {};
+    if (syncPatch.nome_condominio !== undefined) processoSource.nome_condominio = syncPatch.nome_condominio;
+    if (syncPatch.condominio_id !== undefined) processoSource.condominio_id = syncPatch.condominio_id;
+    if (syncPatch.quadra !== undefined) processoSource.quadra = syncPatch.quadra;
+    if (syncPatch.lote !== undefined) processoSource.lote = syncPatch.lote;
+    if (syncPatch.rede_franqueado_id !== undefined) {
+      processoSource.origem_rede_franqueados_id = syncPatch.rede_franqueado_id;
+    }
+
+    const processoPatch = pickSyncFields(processoSource, [
+      'nome_condominio',
+      'condominio_id',
+      'quadra',
+      'lote',
+      'origem_rede_franqueados_id',
+    ]);
 
     if (syncPatch.rede_franqueado_id !== undefined) {
       const nFq = await nFranquiaDeRede(db, syncPatch.rede_franqueado_id);
@@ -469,7 +598,7 @@ export async function propagarCamposProcesso(
   if (procPatch.condominio_id !== undefined) kanbanMirror.condominio_id = procPatch.condominio_id;
   if (procPatch.quadra !== undefined) kanbanMirror.quadra = procPatch.quadra;
   if (procPatch.lote !== undefined) kanbanMirror.lote = procPatch.lote;
-  if (procPatch.origem_rede_franqueados_id !== undefined) {
+  if (procPatch.origem_rede_franqueados_id != null && String(procPatch.origem_rede_franqueados_id).trim()) {
     kanbanMirror.rede_franqueado_id = procPatch.origem_rede_franqueados_id;
   }
 
@@ -481,23 +610,190 @@ export async function propagarCamposProcesso(
   return { ok: true };
 }
 
+const CAMPOS_COALESCE_GRUPO_SYNC = new Set<string>([
+  'rede_franqueado_id',
+  'nome_condominio',
+  'condominio_id',
+  'quadra',
+  'lote',
+  'titulo',
+  'data_reuniao',
+  'data_followup',
+]);
+
 /** Campos compartilhados canônicos para o modal (leitura). */
 export async function fetchCamposKanbanCanonicos(
   db: SyncDb,
   cardId: string,
 ): Promise<KanbanCardCamposSync | null> {
   const primario = await resolverCardPrimarioSyncGroup(db, cardId);
-  const { data, error } = await db
-    .from('kanban_cards')
-    .select(KANBAN_CARD_CAMPOS_SYNC.join(','))
-    .eq('id', primario)
-    .maybeSingle();
-  if (error || !data) return null;
+  const cardIds = await listarCardIdsSyncGroup(db, cardId);
+  if (cardIds.length === 0) return null;
 
-  const row = data as unknown as Record<string, unknown>;
+  const { data: rows, error } = await db
+    .from('kanban_cards')
+    .select(`id, ${KANBAN_CARD_CAMPOS_SYNC.join(',')}`)
+    .in('id', cardIds);
+  if (error || !rows?.length) return null;
+
+  const typedRows = rows as unknown as Record<string, unknown>[];
+  const primarioRow = typedRows.find((r) => String(r.id ?? '') === primario) ?? typedRows[0];
   const out: KanbanCardCamposSync = {};
+
   for (const k of KANBAN_CARD_CAMPOS_SYNC) {
-    if (row[k] !== undefined) out[k] = row[k] != null ? String(row[k]) : null;
+    if (primarioRow[k] === undefined) continue;
+    let valor: string | null = primarioRow[k] != null ? String(primarioRow[k]) : null;
+
+    if (CAMPOS_COALESCE_GRUPO_SYNC.has(k)) {
+      for (const row of typedRows) {
+        if (row[k] === undefined) continue;
+        const candidato = row[k] != null ? String(row[k]) : null;
+        valor = coalesceCampoSync(valor, candidato);
+      }
+      if (k === 'titulo') {
+        valor = escolherTituloExibicaoCard(
+          primarioRow[k] != null ? String(primarioRow[k]) : null,
+          valor,
+        );
+        if (valor === '(sem título)') valor = null;
+      }
+    }
+
+    out[k] = valor;
   }
-  return out;
+
+  const tituloRecalc = await resolverTituloCardKanban(db, {
+    rede_franqueado_id: out.rede_franqueado_id,
+    nome_condominio: out.nome_condominio,
+    quadra: out.quadra,
+    lote: out.lote,
+    titulo: out.titulo,
+  });
+  if (tituloRecalc) {
+    const nFq =
+      out.rede_franqueado_id != null
+        ? await nFranquiaDeRede(db, out.rede_franqueado_id)
+        : extrairNumeroFranquiaDoTitulo(String(out.titulo ?? '')) || null;
+    out.titulo = escolherTituloExibicaoCard(out.titulo, tituloRecalc, nFq);
+    if (out.titulo === '(sem título)') out.titulo = null;
+  }
+
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+/**
+ * Após vínculo/sync, propaga `rede_franqueado_id` do card que tem dado para os demais do grupo.
+ * Nunca limpa com null.
+ */
+export async function reconciliarFranqueadoNoSyncGroup(
+  db: SyncDb,
+  startCardId: string,
+): Promise<{ ok: true; atualizados: number } | { ok: false; error: string }> {
+  const cardIds = await listarCardIdsSyncGroup(db, startCardId);
+  if (cardIds.length === 0) return { ok: true, atualizados: 0 };
+
+  const { data: rows, error } = await db
+    .from('kanban_cards')
+    .select('id, rede_franqueado_id, projeto_id, titulo')
+    .in('id', cardIds);
+  if (error) return { ok: false, error: error.message };
+
+  let redeCanonica: string | null = null;
+  for (const row of rows ?? []) {
+    const rid = String((row as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '').trim();
+    if (rid) {
+      redeCanonica = rid;
+      break;
+    }
+  }
+
+  if (!redeCanonica) {
+    for (const row of rows ?? []) {
+      const cardId = String((row as { id?: string }).id ?? '').trim();
+      if (!cardId) continue;
+
+      const processoId = await resolverProcessoIdDoCard(db, cardId);
+      if (processoId) {
+        const { data: proc } = await db
+          .from('processo_step_one')
+          .select('origem_rede_franqueados_id, numero_franquia')
+          .eq('id', processoId)
+          .maybeSingle();
+        const procRow = proc as {
+          origem_rede_franqueados_id?: string | null;
+          numero_franquia?: string | null;
+        } | null;
+        const origemId = String(procRow?.origem_rede_franqueados_id ?? '').trim();
+        if (origemId) {
+          redeCanonica = origemId;
+          break;
+        }
+        const numProc = String(procRow?.numero_franquia ?? '').trim();
+        if (numProc) {
+          const { data: rf } = await db
+            .from('rede_franqueados')
+            .select('id')
+            .eq('n_franquia', numProc)
+            .maybeSingle();
+          const rfId = String((rf as { id?: string } | null)?.id ?? '').trim();
+          if (rfId) {
+            redeCanonica = rfId;
+            break;
+          }
+        }
+      }
+
+      const numTitulo = tituloParaNumeroFranquiaSync(String((row as { titulo?: string | null }).titulo ?? ''));
+      if (numTitulo) {
+        const { data: rf } = await db
+          .from('rede_franqueados')
+          .select('id')
+          .eq('n_franquia', numTitulo)
+          .maybeSingle();
+        const rfId = String((rf as { id?: string } | null)?.id ?? '').trim();
+        if (rfId) {
+          redeCanonica = rfId;
+          break;
+        }
+      }
+    }
+  }
+
+  if (!redeCanonica) return { ok: true, atualizados: 0 };
+
+  let atualizados = 0;
+  for (const row of rows ?? []) {
+    const id = String((row as { id?: string }).id ?? '').trim();
+    const atual = String((row as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '').trim();
+    if (!id || atual === redeCanonica) continue;
+    const { error: upErr } = await db
+      .from('kanban_cards')
+      .update({ rede_franqueado_id: redeCanonica } as never)
+      .eq('id', id);
+    if (upErr) return { ok: false, error: upErr.message };
+    atualizados++;
+  }
+
+  if (atualizados > 0) {
+    const processoIds = new Set<string>();
+    for (const cid of cardIds) {
+      const pid = await resolverProcessoIdDoCard(db, cid);
+      if (pid) processoIds.add(pid);
+    }
+    const nFq = await nFranquiaDeRede(db, redeCanonica);
+    for (const pid of processoIds) {
+      const procPatch: Record<string, string | null> = {
+        origem_rede_franqueados_id: redeCanonica,
+      };
+      if (nFq) procPatch.numero_franquia = nFq;
+      const { error: pErr } = await db
+        .from('processo_step_one')
+        .update({ ...procPatch, updated_at: new Date().toISOString() } as never)
+        .eq('id', pid)
+        .is('origem_rede_franqueados_id', null);
+      if (pErr) return { ok: false, error: pErr.message };
+    }
+  }
+
+  return { ok: true, atualizados };
 }

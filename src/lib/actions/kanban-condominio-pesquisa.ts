@@ -3,14 +3,24 @@
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import {
   atualizarPesquisaPreenchidaEm,
-  linhaPesquisaCompleta,
+  linhaSessaoCondominioCompleta,
+  mesclarRespostasFaixaCondominio,
   normalizarLinhaProspect,
-  parseLinhasProspectCondominio,
-  serializarLinhasProspectCondominio,
   todasPesquisasProspectCompletas,
-  type ChavePesquisaCondominio,
+  type ChaveGlobalCondominio,
+  type ChaveFaixaCondominio,
+  type FaixaCondominioId,
   type LinhaProspectCondominio,
 } from '@/lib/kanban/condominio-prospect-pesquisa';
+import {
+  atualizarLinhaNaTabelaMultiPraca,
+  CHECKLIST_LABEL_CIDADE,
+  CHECKLIST_LABEL_ESTADO,
+  inferirChaveLegadoPraca,
+  parseLinhasTabelaTodasPracas,
+  type PracaCidade,
+} from '@/lib/kanban/dados-cidade-praca-multi';
+import { parseAreaAtuacao } from '@/lib/rede-area-atuacao';
 import { createClient } from '@/lib/supabase/server';
 
 export type KanbanCondominioPesquisaResult = { ok: true } | { ok: false; error: string };
@@ -103,6 +113,37 @@ async function upsertChecklistValor(
   return { ok: true };
 }
 
+async function buscarContextoPracaCard(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  cardId: string,
+  faseCidadeId: string,
+): Promise<{ areas: PracaCidade[]; chaveLegado: string | null }> {
+  const { data: cardRow } = await supabase
+    .from('kanban_cards')
+    .select('rede_franqueado_id')
+    .eq('id', cardId)
+    .maybeSingle();
+
+  let areaAtuacao: string | null = null;
+  const redeId = String((cardRow as { rede_franqueado_id?: string | null } | null)?.rede_franqueado_id ?? '').trim();
+  if (redeId) {
+    const { data: redeRow } = await supabase
+      .from('rede_franqueados')
+      .select('area_atuacao')
+      .eq('id', redeId)
+      .maybeSingle();
+    areaAtuacao = (redeRow as { area_atuacao?: string | null } | null)?.area_atuacao ?? null;
+  }
+
+  const areas = parseAreaAtuacao(areaAtuacao);
+  const cidadeItemId = await buscarItemChecklistPorLabel(supabase, faseCidadeId, CHECKLIST_LABEL_CIDADE);
+  const estadoItemId = await buscarItemChecklistPorLabel(supabase, faseCidadeId, CHECKLIST_LABEL_ESTADO);
+  const cidadeVal = cidadeItemId ? ((await buscarValorChecklist(supabase, cidadeItemId, cardId)) ?? '') : '';
+  const estadoVal = estadoItemId ? ((await buscarValorChecklist(supabase, estadoItemId, cardId)) ?? '') : '';
+
+  return { areas, chaveLegado: inferirChaveLegadoPraca(areas, cidadeVal, estadoVal) };
+}
+
 export async function carregarProspectsCondominioCard(cardId: string): Promise<CarregarProspectsCondominioResult> {
   const supabase = await createClient();
   const {
@@ -139,7 +180,8 @@ export async function carregarProspectsCondominioCard(cardId: string): Promise<C
     : null;
 
   const valor = await buscarValorChecklist(supabase, tabelaItemId, cardIdTrim);
-  const linhas = parseLinhasProspectCondominio(valor);
+  const ctx = await buscarContextoPracaCard(supabase, cardIdTrim, faseCidadeId);
+  const linhas = parseLinhasTabelaTodasPracas(valor, ctx.chaveLegado);
 
   return { ok: true, linhas, tabelaItemId, pesquisaItemId };
 }
@@ -147,7 +189,9 @@ export async function carregarProspectsCondominioCard(cardId: string): Promise<C
 export async function salvarPesquisaCondominioProspect(input: {
   cardId: string;
   rowId: string;
-  respostas: Partial<Record<ChavePesquisaCondominio, string>>;
+  respostas?: Partial<Record<ChaveGlobalCondominio, string>>;
+  faixaId?: FaixaCondominioId;
+  faixaRespostas?: Partial<Record<ChaveFaixaCondominio, string>>;
 }): Promise<KanbanCondominioPesquisaResult> {
   const supabase = await createClient();
   const {
@@ -162,11 +206,10 @@ export async function salvarPesquisaCondominioProspect(input: {
   const loaded = await carregarProspectsCondominioCard(cardId);
   if (!loaded.ok) return loaded;
 
-  const idx = loaded.linhas.findIndex((l) => l.row_id === rowId);
-  if (idx < 0) return { ok: false, error: 'Condomínio não encontrado na tabela de prospects.' };
+  const atual = loaded.linhas.find((l) => l.row_id === rowId);
+  if (!atual) return { ok: false, error: 'Condomínio não encontrado na tabela de prospects.' };
 
-  const atual = loaded.linhas[idx];
-  const merged: LinhaProspectCondominio = atualizarPesquisaPreenchidaEm(
+  let merged: LinhaProspectCondominio = atualizarPesquisaPreenchidaEm(
     normalizarLinhaProspect({
       ...atual,
       ...input.respostas,
@@ -174,19 +217,45 @@ export async function salvarPesquisaCondominioProspect(input: {
     }),
   );
 
-  if (linhaPesquisaCompleta(merged) && !merged.pesquisa_preenchida_em) {
+  if (input.faixaId && input.faixaRespostas) {
+    merged = atualizarPesquisaPreenchidaEm(
+      mesclarRespostasFaixaCondominio(merged, input.faixaId, input.faixaRespostas),
+    );
+  }
+
+  if (linhaSessaoCondominioCompleta(merged) && !merged.pesquisa_preenchida_em) {
     merged.pesquisa_preenchida_em = new Date().toISOString();
   }
 
-  const novasLinhas = [...loaded.linhas];
-  novasLinhas[idx] = merged;
-  const json = serializarLinhasProspectCondominio(novasLinhas);
+  const supabaseInner = await createClient();
+  const { data: cardRow } = await supabaseInner
+    .from('kanban_cards')
+    .select('kanban_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  const kanbanId = String((cardRow as { kanban_id?: string } | null)?.kanban_id ?? '').trim();
+  const faseCidadeId = kanbanId ? await buscarFaseIdPorSlugs(supabaseInner, kanbanId, DADOS_CIDADE_SLUGS) : null;
+
+  const valorRaw = await buscarValorChecklist(supabase, loaded.tabelaItemId!, cardId);
+  const ctx =
+    faseCidadeId != null
+      ? await buscarContextoPracaCard(supabase, cardId, faseCidadeId)
+      : { areas: [] as PracaCidade[], chaveLegado: null };
+
+  const json = atualizarLinhaNaTabelaMultiPraca(valorRaw, ctx.chaveLegado, rowId, (linhas) => {
+    const idx = linhas.findIndex((l) => l.row_id === rowId);
+    if (idx < 0) return linhas;
+    const novas = [...linhas];
+    novas[idx] = merged;
+    return novas;
+  });
 
   const saveTabela = await upsertChecklistValor(supabase, loaded.tabelaItemId!, cardId, json, user.id);
   if (!saveTabela.ok) return saveTabela;
 
   if (loaded.pesquisaItemId) {
-    const valorPesquisa = todasPesquisasProspectCompletas(novasLinhas) ? 'true' : '';
+    const todasLinhas = parseLinhasTabelaTodasPracas(json, ctx.chaveLegado);
+    const valorPesquisa = todasPesquisasProspectCompletas(todasLinhas) ? 'true' : '';
     const savePesquisa = await upsertChecklistValor(supabase, loaded.pesquisaItemId, cardId, valorPesquisa, user.id);
     if (!savePesquisa.ok) return savePesquisa;
   }

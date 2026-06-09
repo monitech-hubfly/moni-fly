@@ -87,6 +87,8 @@ export type KanbanCardBrief = {
   /** Funil Crédito Obra — fase co_documentacao_alvara */
   alvara_url?: string | null;
   docs_terreno_url?: string | null;
+  /** Entrada na fase atual — base do SLA por fase (migration 213). */
+  entered_fase_at?: string | null;
   /** Início do SLA (após documentação completa ou outras regras de fase). */
   sla_iniciado_em?: string | null;
 };

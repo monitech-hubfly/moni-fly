@@ -109,7 +109,7 @@ export function mensagemGatePortfolioStep5(pendentes: string[]): string {
   if (pendentes.length === 0) {
     return 'Não é possível avançar para o Comitê: esteiras paralelas ainda pendentes.';
   }
-  return `Não é possível avançar para o Comitê (Step 5). Esteiras pendentes: ${pendentes.join(', ')}.`;
+  return `Não é possível avançar para o Comitê. Esteiras pendentes: ${pendentes.join(', ')}.`;
 }
 
 export function gatePortfolioStep5Liberado(

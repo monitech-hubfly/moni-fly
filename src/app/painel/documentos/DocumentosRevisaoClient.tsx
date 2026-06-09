@@ -45,7 +45,7 @@ export function DocumentosRevisaoClient({ instance, onApprove, onReject }: Props
     });
   };
 
-  const stepLabel = instance.step === 3 ? 'Step 3: Opções' : 'Step 7: Contrato do Terreno';
+  const stepLabel = instance.step === 3 ? 'Opção' : 'Contrato';
   const diff = instance.diff_json;
   const totalDiffs = diff?.summary?.total ?? 0;
   const changes = diff?.changes ?? [];

@@ -47,6 +47,7 @@ import { normalizeTemaChamado } from '@/lib/kanban/resolve-tema-chamado';
 import { criarPastelariaInboxParaChamadoSirene } from '@/lib/pastelaria/sirene-pastel-abertura';
 import {
   inferirHdmResponsavelPorNomesTimes,
+  MONI_TIME_FILTRO_PREFIX,
   TIMES_MONI_HDM,
 } from '@/lib/times-responsaveis';
 import type { HdmTime } from '@/types/sirene';
@@ -62,9 +63,12 @@ import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-no
 import { payloadInicialNegociacaoPrazo } from '@/lib/kanban/prazo-negociacao';
 import {
   contarOutrosCardsSyncGroup,
+  escolherTituloExibicaoCard,
   fetchCamposKanbanCanonicos,
+  montarTituloCardSync,
   propagarCamposKanbanCards,
   propagarCamposProcesso,
+  reconciliarFranqueadoNoSyncGroup,
   resolverProcessoStepOneIdDoCard,
   type KanbanCardCamposSync,
 } from '@/lib/kanban/card-sync-group';
@@ -72,6 +76,15 @@ import {
   updateProcessoNegocioCampos,
   type ProcessoNegocioUpdatePayload,
 } from '@/lib/kanban/kanban-card-modal-detalhes';
+
+/** Wrapper para validar gate Checklist Legal (Step 4 Portfólio) no cliente. */
+export async function verificarGateChecklistLegalPortfolio(
+  cardId: string,
+  novaFaseId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { verificarGateChecklistLegalAcoplamento } = await import('@/lib/kanban/checklist-legal-gate');
+  return verificarGateChecklistLegalAcoplamento(cardId, novaFaseId);
+}
 
 /** Wrapper para evitar import estático de módulo server-only no bundle do cliente. */
 export async function verificarGateAcoplamentoModelagemCasa(
@@ -355,8 +368,70 @@ async function nomesTimesFromIds(
   timesIds: string[],
 ): Promise<string[]> {
   if (!timesIds.length) return [];
-  const { data } = await supabase.from('kanban_times').select('id, nome').in('id', timesIds);
-  return (data ?? []).map((r) => String((r as { nome?: string }).nome ?? '').trim()).filter(Boolean);
+  const uuids: string[] = [];
+  const nomes: string[] = [];
+  for (const raw of timesIds) {
+    const id = String(raw ?? '').trim();
+    if (!id) continue;
+    if (id.startsWith(MONI_TIME_FILTRO_PREFIX)) {
+      const nome = id.slice(MONI_TIME_FILTRO_PREFIX.length).trim();
+      if (nome) nomes.push(nome);
+      continue;
+    }
+    uuids.push(id);
+  }
+  if (uuids.length) {
+    const { data } = await supabase.from('kanban_times').select('id, nome').in('id', uuids);
+    for (const id of uuids) {
+      const row = (data ?? []).find((r) => String((r as { id?: string }).id) === id);
+      const nome = String((row as { nome?: string } | undefined)?.nome ?? '').trim();
+      if (nome) nomes.push(nome);
+    }
+  }
+  return nomes;
+}
+
+async function ensureKanbanTimeIdByNome(
+  admin: ReturnType<typeof createAdminClient>,
+  nome: string,
+): Promise<string | null> {
+  const n = nome.trim();
+  if (!n) return null;
+  const { data: existing } = await admin.from('kanban_times').select('id').eq('nome', n).maybeSingle();
+  if (existing) return String((existing as { id: string }).id);
+  const { data: inserted, error } = await admin
+    .from('kanban_times')
+    .insert({ nome: n } as never)
+    .select('id')
+    .single();
+  if (error || !inserted) return null;
+  return String((inserted as { id: string }).id);
+}
+
+/** Converte ids sintéticos do catálogo Moní em UUIDs persistíveis em `kanban_times`. */
+async function resolvePersistableTimesIds(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  admin: ReturnType<typeof createAdminClient>,
+  rawIds: string[],
+): Promise<string[]> {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of uniqUuids(rawIds)) {
+    if (raw.startsWith(MONI_TIME_FILTRO_PREFIX)) {
+      const nome = raw.slice(MONI_TIME_FILTRO_PREFIX.length).trim();
+      if (!nome) continue;
+      const id = await ensureKanbanTimeIdByNome(admin, nome);
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      out.push(id);
+      continue;
+    }
+    const { data } = await supabase.from('kanban_times').select('id').eq('id', raw).maybeSingle();
+    if (!data || seen.has(raw)) continue;
+    seen.add(raw);
+    out.push(raw);
+  }
+  return out;
 }
 
 async function todosResponsaveisDoChamado(
@@ -463,7 +538,12 @@ export async function criarChamadoComAtividade(input: CriarChamadoComAtividadeIn
   if (!titulo) return { ok: false, error: 'Informe o título do chamado.' };
   if (!descricao) return { ok: false, error: 'Informe a descrição do chamado.' };
 
-  const timesIds = uniqUuids(input.atividade.times_ids);
+  const admin = createAdminClient();
+  const timesIds = await resolvePersistableTimesIds(
+    supabase,
+    admin,
+    uniqUuids(input.atividade.times_ids),
+  );
   const respIds = uniqUuids(input.atividade.responsaveis_ids);
   const nomesTimes = await nomesTimesFromIds(supabase, timesIds);
   const val = validarAtividadeInput(
@@ -538,9 +618,7 @@ export async function criarChamadoComAtividade(input: CriarChamadoComAtividadeIn
   }
 
   const origem = input.origem === 'legado' ? 'legado' : 'nativo';
-  let admin;
   try {
-    admin = createAdminClient();
     const meta = await buscarMetaCardParaNotificacao(admin, input.card_id, origem);
     if (meta) {
       await notificarAlertasKanbanAtividade({
@@ -578,7 +656,12 @@ export async function criarChamadoSireneComAtividade(
   if (!titulo) return { ok: false, error: 'Informe o título do chamado.' };
   if (!descricao) return { ok: false, error: 'Informe a descrição do chamado.' };
 
-  const timesIds = uniqUuids(input.atividade.times_ids);
+  const admin = createAdminClient();
+  const timesIds = await resolvePersistableTimesIds(
+    supabase,
+    admin,
+    uniqUuids(input.atividade.times_ids),
+  );
   const respIds = uniqUuids(input.atividade.responsaveis_ids);
   const nomesTimes = await nomesTimesFromIds(supabase, timesIds);
   const val = validarAtividadeInput(
@@ -600,7 +683,6 @@ export async function criarChamadoSireneComAtividade(
   const { data: perf } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
   const userName = String((perf as { full_name?: string } | null)?.full_name ?? '').trim() || 'Usuário';
 
-  const admin = createAdminClient();
   const timeAberturaNome = nomesTimes[0] ?? null;
 
   const { data: chamadoSc, error: scErr } = await supabase
@@ -889,7 +971,8 @@ export async function criarSubInteracao(input: CriarSubInteracaoInput): Promise<
   if (!interacaoRow) return { ok: false, error: 'Chamado não encontrado.' };
 
   const categoria = ((interacaoRow as { categoria?: ChamadoCategoriaDb }).categoria ?? 'chamado') as ChamadoCategoriaDb;
-  const timesIds = uniqUuids(input.times_ids);
+  const admin = createAdminClient();
+  const timesIds = await resolvePersistableTimesIds(supabase, admin, uniqUuids(input.times_ids));
   const respIds = uniqUuids(input.responsaveis_ids);
   const nomesTimes = await nomesTimesFromIds(supabase, timesIds);
   const val = validarAtividadeInput(
@@ -1013,7 +1096,8 @@ export async function editarSubInteracao(
     const nome = (payload.nome ?? '').trim();
     if (!nome) return { ok: false, error: 'Informe o nome da atividade.' };
 
-    const timesIds = uniqUuids(payload.times_ids);
+    const admin = createAdminClient();
+    const timesIds = await resolvePersistableTimesIds(supabase, admin, uniqUuids(payload.times_ids));
     const respIds = uniqUuids(payload.responsaveis_ids);
     const nomesTimes = await nomesTimesFromIds(supabase, timesIds);
     const categoria = ((interacaoRow as { categoria?: ChamadoCategoriaDb }).categoria ?? 'chamado') as ChamadoCategoriaDb;
@@ -2255,6 +2339,148 @@ async function enriquecerMapInfoCardsLegado(
   }
 }
 
+type CardTituloKanbanRow = {
+  id: string;
+  titulo: string | null;
+  origem_card_id?: string | null;
+  rede_franqueado_id?: string | null;
+  nome_condominio?: string | null;
+  quadra?: string | null;
+  lote?: string | null;
+};
+
+async function enriquecerTitulosMapInfoCards(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  mapInfo: Map<string, { titulo: string; kanban_nome: string; fase_nome: string }>,
+  cardRows: CardTituloKanbanRow[],
+): Promise<void> {
+  if (cardRows.length === 0) return;
+
+  const redeIds = [
+    ...new Set(
+      cardRows.map((r) => String(r.rede_franqueado_id ?? '').trim()).filter(Boolean),
+    ),
+  ];
+  const nFranquiaPorRede = new Map<string, string>();
+  const nomeFranqueadoPorRede = new Map<string, string>();
+  if (redeIds.length > 0) {
+    const { data: redes } = await supabase
+      .from('rede_franqueados')
+      .select('id, n_franquia, nome_completo')
+      .in('id', redeIds);
+    for (const r of redes ?? []) {
+      const id = String((r as { id?: string }).id ?? '').trim();
+      const num = String((r as { n_franquia?: string | null }).n_franquia ?? '').trim();
+      const nome = String((r as { nome_completo?: string | null }).nome_completo ?? '').trim();
+      if (id && num) nFranquiaPorRede.set(id, num);
+      if (id && nome) nomeFranqueadoPorRede.set(id, nome);
+    }
+  }
+
+  for (const row of cardRows) {
+    const id = String(row.id);
+    const info = mapInfo.get(id);
+    if (!info) continue;
+
+    const redeId = String(row.rede_franqueado_id ?? '').trim();
+    const nFranquia = redeId ? nFranquiaPorRede.get(redeId) : null;
+    const tituloCalc = montarTituloCardSync({
+      nFranquia,
+      nomeFranqueado: redeId ? nomeFranqueadoPorRede.get(redeId) : null,
+      nomeCondominio: row.nome_condominio,
+      quadra: row.quadra,
+      lote: row.lote,
+      tituloFallback: row.titulo,
+    });
+    info.titulo = escolherTituloExibicaoCard(info.titulo, tituloCalc, nFranquia);
+  }
+}
+
+async function enriquecerTitulosMapInfoComAncestrais(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  mapInfo: Map<string, { titulo: string; kanban_nome: string; fase_nome: string }>,
+  cardRows: CardTituloKanbanRow[],
+): Promise<void> {
+  const byId = new Map(cardRows.map((r) => [String(r.id), r]));
+  let frontier = cardRows
+    .map((r) => String(r.origem_card_id ?? '').trim())
+    .filter((id) => id && !byId.has(id));
+
+  while (frontier.length > 0) {
+    const { data: ancestrais } = await supabase
+      .from('kanban_cards')
+      .select(
+        'id, titulo, origem_card_id, rede_franqueado_id, nome_condominio, quadra, lote',
+      )
+      .in('id', frontier);
+    const next: string[] = [];
+    for (const row of (ancestrais ?? []) as CardTituloKanbanRow[]) {
+      const id = String(row.id);
+      byId.set(id, row);
+      const origem = String(row.origem_card_id ?? '').trim();
+      if (origem && !byId.has(origem)) next.push(origem);
+    }
+    frontier = next;
+  }
+
+  const redeIds = [
+    ...new Set(
+      [...byId.values()]
+        .map((r) => String(r.rede_franqueado_id ?? '').trim())
+        .filter(Boolean),
+    ),
+  ];
+  const nFranquiaPorRede = new Map<string, string>();
+  const nomeFranqueadoPorRede = new Map<string, string>();
+  if (redeIds.length > 0) {
+    const { data: redes } = await supabase
+      .from('rede_franqueados')
+      .select('id, n_franquia, nome_completo')
+      .in('id', redeIds);
+    for (const r of redes ?? []) {
+      const id = String((r as { id?: string }).id ?? '').trim();
+      const num = String((r as { n_franquia?: string | null }).n_franquia ?? '').trim();
+      const nome = String((r as { nome_completo?: string | null }).nome_completo ?? '').trim();
+      if (id && num) nFranquiaPorRede.set(id, num);
+      if (id && nome) nomeFranqueadoPorRede.set(id, nome);
+    }
+  }
+
+  for (const row of cardRows) {
+    const id = String(row.id);
+    const info = mapInfo.get(id);
+    if (!info) continue;
+
+    let merged: CardTituloKanbanRow = { ...row };
+    let cur = String(row.origem_card_id ?? '').trim();
+    for (let depth = 0; depth < 32 && cur; depth++) {
+      const pai = byId.get(cur);
+      if (!pai) break;
+      merged = {
+        ...merged,
+        titulo: escolherTituloExibicaoCard(merged.titulo, pai.titulo),
+        rede_franqueado_id: merged.rede_franqueado_id ?? pai.rede_franqueado_id,
+        nome_condominio: merged.nome_condominio ?? pai.nome_condominio,
+        quadra: merged.quadra ?? pai.quadra,
+        lote: merged.lote ?? pai.lote,
+      };
+      cur = String(pai.origem_card_id ?? '').trim();
+    }
+
+    const redeId = String(merged.rede_franqueado_id ?? '').trim();
+    const nFranquia = redeId ? nFranquiaPorRede.get(redeId) : null;
+    const tituloCalc = montarTituloCardSync({
+      nFranquia,
+      nomeFranqueado: redeId ? nomeFranqueadoPorRede.get(redeId) : null,
+      nomeCondominio: merged.nome_condominio,
+      quadra: merged.quadra,
+      lote: merged.lote,
+      tituloFallback: merged.titulo,
+    });
+    info.titulo = escolherTituloExibicaoCard(info.titulo, tituloCalc, nFranquia);
+  }
+}
+
 function normalizarTipoRelacionamento(raw: string | null | undefined): TipoRelacionamentoDisplay {
   const t = String(raw ?? '').trim().toLowerCase();
   if (t === 'originou') return 'originou';
@@ -2328,18 +2554,27 @@ export async function listarRelacionamentosCard(
 
     const { data: cardsOrigem, error: errCardsOrigem } = await supabase
       .from('kanban_cards')
-      .select('id, titulo, arquivado, kanban_fases ( nome ), kanbans ( nome )')
+      .select(
+        'id, titulo, arquivado, origem_card_id, rede_franqueado_id, nome_condominio, quadra, lote, kanban_fases ( nome ), kanbans ( nome )',
+      )
       .in('id', origemIdsParaDetalhe);
     if (errCardsOrigem) return { ok: false, error: errCardsOrigem.message };
 
+    const rowsOrigem: CardTituloKanbanRow[] = [];
     for (const c of cardsOrigem ?? []) {
       const row = c as {
         id: string;
         titulo: string | null;
         arquivado?: boolean | null;
+        origem_card_id?: string | null;
+        rede_franqueado_id?: string | null;
+        nome_condominio?: string | null;
+        quadra?: string | null;
+        lote?: string | null;
         kanban_fases?: unknown;
         kanbans?: unknown;
       };
+      rowsOrigem.push(row);
       mapOrigem.set(String(row.id), {
         titulo: (row.titulo ?? '').trim() || '(sem título)',
         kanban_nome: kanbanNomeDeJoin(row) || 'Kanban',
@@ -2348,6 +2583,8 @@ export async function listarRelacionamentosCard(
     }
 
     await enriquecerMapInfoCardsLegado(supabase, mapOrigem, origemIdsParaDetalhe);
+    await enriquecerTitulosMapInfoCards(supabase, mapOrigem, rowsOrigem);
+    await enriquecerTitulosMapInfoComAncestrais(supabase, mapOrigem, rowsOrigem);
 
     for (const id of ancestorIds) {
       const info = mapOrigem.get(id) ?? { titulo: '—', kanban_nome: '—', fase_nome: '—' };
@@ -2398,7 +2635,9 @@ export async function listarRelacionamentosCard(
     }
     const { data: cards, error: cErr } = await supabase
       .from('kanban_cards')
-      .select('id, titulo, arquivado, kanban_fases ( nome ), kanbans ( nome )')
+      .select(
+        'id, titulo, arquivado, origem_card_id, rede_franqueado_id, nome_condominio, quadra, lote, kanban_fases ( nome ), kanbans ( nome )',
+      )
       .in('id', [...idSet]);
     if (cErr) return { ok: false, error: cErr.message };
 
@@ -2406,14 +2645,21 @@ export async function listarRelacionamentosCard(
       string,
       { titulo: string; kanban_nome: string; fase_nome: string }
     >();
+    const rowsVinculo: CardTituloKanbanRow[] = [];
     for (const c of cards ?? []) {
       const row = c as {
         id: string;
         titulo: string | null;
         arquivado?: boolean | null;
+        origem_card_id?: string | null;
+        rede_franqueado_id?: string | null;
+        nome_condominio?: string | null;
+        quadra?: string | null;
+        lote?: string | null;
         kanban_fases?: unknown;
         kanbans?: unknown;
       };
+      rowsVinculo.push(row);
       mapInfo.set(String(row.id), {
         titulo: (row.titulo ?? '').trim() || '(sem título)',
         kanban_nome: kanbanNomeDeJoin(row) || 'Kanban',
@@ -2422,6 +2668,8 @@ export async function listarRelacionamentosCard(
     }
 
     await enriquecerMapInfoCardsLegado(supabase, mapInfo, [...idSet]);
+    await enriquecerTitulosMapInfoCards(supabase, mapInfo, rowsVinculo);
+    await enriquecerTitulosMapInfoComAncestrais(supabase, mapInfo, rowsVinculo);
 
     for (const v of vincRows) {
       const outroId = v.card_origem_id === cid ? v.card_destino_id : v.card_origem_id;
@@ -2619,6 +2867,11 @@ export async function criarVinculoCard(input: {
     return { ok: false, error: error.message };
   }
 
+  const healOrig = await reconciliarFranqueadoNoSyncGroup(db, orig);
+  if (!healOrig.ok) return { ok: false, error: healOrig.error };
+  const healDest = await reconciliarFranqueadoNoSyncGroup(db, dest);
+  if (!healDest.ok) return { ok: false, error: healDest.error };
+
   revalidatePath(input.basePath?.trim() || '/');
   revalidatePath('/');
   return { ok: true };
@@ -2770,7 +3023,7 @@ export async function enviarHipoteseAoPortfolio(
     (cardRow as { kanban_fases?: { slug?: string } | null }).kanban_fases?.slug ?? '',
   ).trim();
   if (!isHipotesesFaseSlug(faseSlug)) {
-    return { ok: false, error: 'Card não está na fase de Hipóteses.' };
+    return { ok: false, error: 'Card não está na fase Nova Hipótese.' };
   }
 
   const franqueadoId = String((cardRow as { franqueado_id?: string }).franqueado_id ?? '').trim();
@@ -3386,6 +3639,9 @@ export async function moverCardParaFase(input: {
 
   const gateAcoplamento = await verificarGateAcoplamentoModelagemCasa(cardId, novaFaseId);
   if (!gateAcoplamento.ok) return gateAcoplamento;
+
+  const gateChecklistLegal = await verificarGateChecklistLegalPortfolio(cardId, novaFaseId);
+  if (!gateChecklistLegal.ok) return gateChecklistLegal;
 
   const { data: cardKanban } = await supabase
     .from('kanban_cards')

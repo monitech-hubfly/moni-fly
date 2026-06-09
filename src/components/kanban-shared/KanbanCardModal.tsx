@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   Pencil,
   Archive,
+  ArchiveRestore,
   BookOpen,
   Link2,
   FileText,
@@ -28,6 +29,7 @@ import { createClient } from '@/lib/supabase/client';
 import { calcularDiasUteis, formatIsoDateOnlyPtBr, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
 import {
   arquivarCard,
+  desarquivarCard,
   arquivarInteracao,
   arquivarSubInteracao,
   atualizarStatusInteracao,
@@ -57,6 +59,7 @@ import {
   vincularTagCard,
   verificarChecklistParaFase,
   verificarGateAcoplamentoModelagemCasa,
+  verificarGateChecklistLegalPortfolio,
   gerarFormTokenCandidato,
   enviarEmailCard,
   type SubInteracaoStatusDb,
@@ -81,6 +84,7 @@ import {
   montarChipsParalelas,
 } from '@/lib/kanban/kanban-paralelas-chips';
 import { isDadosCondominiosFaseSlug, isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { kanbanExibeSecaoCondominioSidebar } from '@/lib/kanban/kanban-secao-condominio';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCreditoObraDocumentacao';
 import {
@@ -111,6 +115,7 @@ import { formatChamadoNumero } from '@/lib/kanban/chamado-numero';
 import { SlaTituloBolinha } from '@/components/SlaTituloBolinha';
 import { SlaAtividadeBadge } from '@/components/SlaAtividadeBadge';
 import { MultiSelectCheckbox } from '@/components/MultiSelectCheckbox';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import { AtividadeVinculadaCard } from '@/components/AtividadeVinculadaCard';
 import { AtividadeVinculadaIcon } from '@/components/AtividadeVinculadaIcon';
 import { AtividadeVinculadaStatusPill } from '@/components/AtividadeVinculadaStatusPill';
@@ -138,7 +143,7 @@ import { KanbanCardModalCondominio } from './KanbanCardModalCondominio';
 import { KanbanCardModalAtasReuniao } from './KanbanCardModalAtasReuniao';
 import { KanbanCardDatasFields } from './KanbanCardDatasFields';
 import { MencaoContentEditable } from './MencaoContentEditable';
-import { fetchKanbanFasesAtivas, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
+import { fetchKanbanFasesAtivas, augmentKanbanFasesComFasesDosCards, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
 import { loadHistoricoCardModal } from '@/lib/kanban/kanban-card-historico';
 import {
   listarComentariosKanbanCard,
@@ -197,6 +202,7 @@ import {
   MONI_TODOS_EMAILS,
   inferirHdmResponsavelPorNomesTimes,
   ordenarLinhasTimeKanbanPorCatalogoMoni,
+  resolveKanbanTimeNomeFromId,
   responsaveisFiltradosPorTimesIds,
   responsaveisFiltroOpcoesComCatalogoMoni,
   responsaveisDoTimeMoni,
@@ -208,8 +214,9 @@ import { AnexosChamado } from './AnexosChamado';
 import { AnexosSubchamado } from './AnexosSubchamado';
 import { ChecklistCard } from './ChecklistCard';
 import { ChecklistLegalCondominioCard } from './ChecklistLegalCondominioCard';
+import { ChecklistCreditoSection } from '@/app/steps-viabilidade/ChecklistCreditoSection';
 import { FaseChecklistCard } from './FaseChecklistCard';
-import { deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
+import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
 import {
   buildLegadoFaseTimeline,
   buildNativeFaseTimeline,
@@ -249,6 +256,7 @@ type Card = {
   alvara_url?: string | null;
   docs_terreno_url?: string | null;
   sla_iniciado_em?: string | null;
+  entered_fase_at?: string | null;
   portfolio_vinculo_rotulo?: string | null;
   tem_filho_juridico?: boolean;
   tem_filho_acoplamento?: boolean;
@@ -327,7 +335,10 @@ async function carregarComentariosCardModal(cardId: string): Promise<ComentarioC
     listarComentariosKanbanCard(cardId),
     listarAnexosComentariosKanbanCard(cardId),
   ]);
-  if (!comRes.ok) return [];
+  if (!comRes.ok) {
+    console.error('[KanbanCardModal] falha ao carregar comentários', comRes.error);
+    return [];
+  }
   const anexos = anexosRes.ok ? anexosRes.items : [];
   return mapComentariosCardRows(comRes.items, anexos);
 }
@@ -416,6 +427,7 @@ export function KanbanCardModal({
   const { pode } = usePermissoes();
   const ocultarGestaoCard = portalFrank === true;
   const [loading, setLoading] = useState(true);
+  const [movendoFase, setMovendoFase] = useState(false);
   const [card, setCard] = useState<Card | null>(null);
   const [linkCandidato, setLinkCandidato] = useState<string | null>(null);
   const [gerandoLink, setGerandoLink] = useState(false);
@@ -785,8 +797,9 @@ export function KanbanCardModal({
     };
   }, []);
 
-  async function loadCard() {
-    setLoading(true);
+  async function loadCard(opts?: { silencioso?: boolean }) {
+    const silencioso = Boolean(opts?.silencioso && card);
+    if (!silencioso) setLoading(true);
     try {
       const supabase = createClient();
 
@@ -857,6 +870,7 @@ export function KanbanCardModal({
         alvara_url?: string | null;
         docs_terreno_url?: string | null;
         sla_iniciado_em?: string | null;
+  entered_fase_at?: string | null;
       };
 
       let loaded: LoadedShape | null = null;
@@ -942,13 +956,14 @@ export function KanbanCardModal({
         }
       } else {
         setLegadoCronologiaMoves([]);
-        const { data: cardData, error: cardError } = await supabase
-          .from('kanban_cards')
-          .select(
-            'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, projeto_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, sla_iniciado_em',
-          )
-          .eq('id', cardId)
-          .single();
+        const cardSelectBase =
+          'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, projeto_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url';
+        const cardSelectWithSla = `${cardSelectBase}, sla_iniciado_em, entered_fase_at`;
+        let cardRes = await supabase.from('kanban_cards').select(cardSelectWithSla).eq('id', cardId).single();
+        if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
+          cardRes = await supabase.from('kanban_cards').select(cardSelectBase).eq('id', cardId).single();
+        }
+        const { data: cardData, error: cardError } = cardRes;
 
         if (cardError || !cardData) {
           alert('Card não encontrado');
@@ -1005,6 +1020,10 @@ export function KanbanCardModal({
           sla_iniciado_em:
             (cardData as { sla_iniciado_em?: string | null }).sla_iniciado_em != null
               ? String((cardData as { sla_iniciado_em?: string | null }).sla_iniciado_em)
+              : null,
+          entered_fase_at:
+            (cardData as { entered_fase_at?: string | null }).entered_fase_at != null
+              ? String((cardData as { entered_fase_at?: string | null }).entered_fase_at)
               : null,
         };
         nativeRedeFranqueadoId =
@@ -1102,7 +1121,7 @@ export function KanbanCardModal({
           const c = syncInfo.camposCanonicos;
           if (c) {
             if (c.titulo) cardParaEstado = { ...cardParaEstado, titulo: c.titulo };
-            if (c.rede_franqueado_id !== undefined) {
+            if (c.rede_franqueado_id) {
               cardParaEstado = { ...cardParaEstado, rede_franqueado_id: c.rede_franqueado_id };
             }
             if (c.nome_condominio !== undefined) {
@@ -1180,8 +1199,11 @@ export function KanbanCardModal({
         const det = await fetchKanbanCardModalDetalhes(supabase, {
           origem,
           cardId: loaded.id,
-          cardTitulo: loaded.titulo,
-          redeFranqueadoId: origem === 'nativo' ? nativeRedeFranqueadoId : null,
+          cardTitulo: cardParaEstado.titulo,
+          redeFranqueadoId:
+            origem === 'nativo'
+              ? cardParaEstado.rede_franqueado_id ?? nativeRedeFranqueadoId
+              : null,
           cardProjetoId: loaded.projeto_id ?? null,
         });
         setModalDetalhes(det);
@@ -1195,7 +1217,12 @@ export function KanbanCardModal({
 
       let fasesParaHistorico: KanbanFase[] = [];
       if (!fasesProp?.length) {
-        const mapped = await fetchKanbanFasesAtivas(supabase, loaded.kanban_id);
+        let mapped = await fetchKanbanFasesAtivas(supabase, loaded.kanban_id);
+        if (loaded.fase_id && !mapped.some((f) => f.id === loaded.fase_id)) {
+          mapped = await augmentKanbanFasesComFasesDosCards(supabase, loaded.kanban_id, mapped, [
+            loaded.fase_id,
+          ]);
+        }
         fasesParaHistorico = mapped;
         setFases(mapped);
         setFaseAtual(mapped.find((f) => f.id === loaded.fase_id) ?? null);
@@ -1211,9 +1238,18 @@ export function KanbanCardModal({
             materiais: f.materiais as unknown,
           }),
         );
-        fasesParaHistorico = normalizedFromProp;
-        setFases(normalizedFromProp);
-        setFaseAtual(normalizedFromProp.find((f) => f.id === loaded.fase_id) ?? null);
+        let fasesResolved = normalizedFromProp;
+        if (loaded.fase_id && !fasesResolved.some((f) => f.id === loaded.fase_id)) {
+          fasesResolved = await augmentKanbanFasesComFasesDosCards(
+            supabase,
+            loaded.kanban_id,
+            fasesResolved,
+            [loaded.fase_id],
+          );
+        }
+        fasesParaHistorico = fasesResolved;
+        setFases(fasesResolved);
+        setFaseAtual(fasesResolved.find((f) => f.id === loaded.fase_id) ?? null);
       }
 
       let cacheKanbanTimes: KanbanTimeRow[] = [];
@@ -1500,14 +1536,14 @@ export function KanbanCardModal({
     } catch {
       // noop
     } finally {
-      setLoading(false);
+      if (!silencioso) setLoading(false);
     }
   }
 
   useEffect(() => {
     if (!card || !fasesProp?.length) return;
-    const f = fasesProp.find((x) => x.id === card.fase_id) ?? null;
-    setFaseAtual(f);
+    const f = fasesProp.find((x) => x.id === card.fase_id);
+    if (f) setFaseAtual(f);
   }, [card, fasesProp]);
 
   useEffect(() => {
@@ -1976,7 +2012,7 @@ export function KanbanCardModal({
     opts?: { motivoReprovacaoAcoplamento?: string },
   ) {
     if (!card || !faseAtual) return;
-    setLoading(true);
+    setMovendoFase(true);
     try {
       const supabase = createClient();
       if (origem === 'legado') {
@@ -2007,12 +2043,12 @@ export function KanbanCardModal({
           return;
         }
       }
-      await loadCard();
+      await loadCard({ silencioso: true });
       router.refresh();
     } catch {
       alert('Erro ao avançar fase.');
     } finally {
-      setLoading(false);
+      setMovendoFase(false);
     }
   }
 
@@ -2022,7 +2058,8 @@ export function KanbanCardModal({
       alert('Sem permissão para mover de fase.');
       return;
     }
-    const proximaFase = fases.find((f) => f.ordem === faseAtual.ordem + 1);
+    const idxAtual = fases.findIndex((f) => f.id === faseAtual.id);
+    const proximaFase = idxAtual >= 0 && idxAtual < fases.length - 1 ? fases[idxAtual + 1] : undefined;
     if (!proximaFase) {
       alert('Esta é a última fase do funil.');
       return;
@@ -2034,6 +2071,18 @@ export function KanbanCardModal({
         return;
       }
       setGateStep5Toast(null);
+    }
+
+    if (
+      !isLegado &&
+      isPortfolioKanbanRef(card.kanban_id, String(kanbanNome)) &&
+      (faseAtual.slug ?? '').trim() === FASE_SLUGS.STEP_4
+    ) {
+      const gateLegal = await verificarGateChecklistLegalPortfolio(card.id, proximaFase.id);
+      if (!gateLegal.ok) {
+        alert(gateLegal.error ?? 'Conclua o Checklist Legal antes de avançar.');
+        return;
+      }
     }
 
     setAcoplamentoGateToast(null);
@@ -2076,13 +2125,14 @@ export function KanbanCardModal({
       alert('Sem permissão para mover de fase.');
       return;
     }
-    const faseAnterior = fases.find((f) => f.ordem === faseAtual.ordem - 1);
+    const idxAtual = fases.findIndex((f) => f.id === faseAtual.id);
+    const faseAnterior = idxAtual > 0 ? fases[idxAtual - 1] : undefined;
     if (!faseAnterior) {
       alert('Esta é a primeira fase do funil.');
       return;
     }
     if (!confirm(`Voltar para a fase "${faseAnterior.nome}"?`)) return;
-    setLoading(true);
+    setMovendoFase(true);
     try {
       const supabase = createClient();
       if (origem === 'legado') {
@@ -2099,12 +2149,12 @@ export function KanbanCardModal({
         const { error } = await supabase.from('kanban_cards').update({ fase_id: faseAnterior.id }).eq('id', card.id);
         if (error) throw error;
       }
-      await loadCard();
+      await loadCard({ silencioso: true });
       router.refresh();
     } catch {
       alert('Erro ao retroceder fase.');
     } finally {
-      setLoading(false);
+      setMovendoFase(false);
     }
   }
 
@@ -2250,6 +2300,40 @@ export function KanbanCardModal({
       onClose();
     } catch {
       alert('Erro ao arquivar o card. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleConfirmarDesarquivar() {
+    if (!card) return;
+    const rl = modalSessao.roleNorm;
+    const podeDesarquivar =
+      pode('arquivar_cards') ||
+      rl === 'admin' ||
+      rl === 'team' ||
+      rl === 'supervisor' ||
+      rl === 'consultor';
+    if (ocultarGestaoCard || !podeDesarquivar) {
+      alert('Sem permissão para desarquivar cards.');
+      return;
+    }
+    if (!confirm('Desarquivar este card? Ele voltará a aparecer no kanban.')) return;
+    setLoading(true);
+    try {
+      const r = await desarquivarCard({
+        cardId: card.id,
+        basePath,
+        origem: origem === 'legado' ? 'legado' : 'nativo',
+      });
+      if (!r.ok) {
+        alert(r.error ?? 'Não foi possível desarquivar o card.');
+        return;
+      }
+      router.refresh();
+      onClose();
+    } catch {
+      alert('Erro ao desarquivar o card. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -2604,35 +2688,31 @@ export function KanbanCardModal({
 
   const responsaveisNovaAtividade = useMemo(
     () =>
-      responsaveisFiltradosPorTimesIds(novaInteracao.atividade.timesIds, kanbanTimes, responsaveisOpcoes),
-    [novaInteracao.atividade.timesIds, kanbanTimes, responsaveisOpcoes],
+      responsaveisFiltradosPorTimesIds(novaInteracao.atividade.timesIds, timesChamadoOpcoes, responsaveisOpcoes),
+    [novaInteracao.atividade.timesIds, timesChamadoOpcoes, responsaveisOpcoes],
   );
 
   const responsaveisSubNova = useMemo(
-    () => responsaveisFiltradosPorTimesIds(subNovaDraft.timesIds, kanbanTimes, responsaveisOpcoes),
-    [subNovaDraft.timesIds, kanbanTimes, responsaveisOpcoes],
+    () => responsaveisFiltradosPorTimesIds(subNovaDraft.timesIds, timesChamadoOpcoes, responsaveisOpcoes),
+    [subNovaDraft.timesIds, timesChamadoOpcoes, responsaveisOpcoes],
   );
 
   const responsaveisSubEdicao = useMemo(
-    () => responsaveisFiltradosPorTimesIds(editSubDraft.timesIds, kanbanTimes, responsaveisOpcoes),
-    [editSubDraft.timesIds, kanbanTimes, responsaveisOpcoes],
+    () => responsaveisFiltradosPorTimesIds(editSubDraft.timesIds, timesChamadoOpcoes, responsaveisOpcoes),
+    [editSubDraft.timesIds, timesChamadoOpcoes, responsaveisOpcoes],
   );
 
   const inferidoHdmSubNova = useMemo(() => {
-    const nomes: string[] = [];
-    for (const id of subNovaDraft.timesIds) {
-      const n = kanbanTimes.find((t) => t.id === id)?.nome?.trim();
-      if (n) nomes.push(n);
-    }
+    const nomes = subNovaDraft.timesIds
+      .map((id) => resolveKanbanTimeNomeFromId(id, kanbanTimes))
+      .filter((n): n is string => Boolean(n));
     return inferirHdmResponsavelPorNomesTimes(nomes);
   }, [subNovaDraft.timesIds, kanbanTimes]);
 
   const inferidoHdmSubEdicao = useMemo(() => {
-    const nomes: string[] = [];
-    for (const id of editSubDraft.timesIds) {
-      const n = kanbanTimes.find((t) => t.id === id)?.nome?.trim();
-      if (n) nomes.push(n);
-    }
+    const nomes = editSubDraft.timesIds
+      .map((id) => resolveKanbanTimeNomeFromId(id, kanbanTimes))
+      .filter((n): n is string => Boolean(n));
     return inferirHdmResponsavelPorNomesTimes(nomes);
   }, [editSubDraft.timesIds, kanbanTimes]);
 
@@ -2827,6 +2907,7 @@ export function KanbanCardModal({
     });
   const slaCard = calcularSlaKanbanCard({
     created_at: card.created_at,
+    entered_fase_at: card.entered_fase_at,
     sla_iniciado_em: card.sla_iniciado_em,
     faseSlug: faseSlugAtual,
     alvara_url: card.alvara_url,
@@ -2841,10 +2922,10 @@ export function KanbanCardModal({
   const cardLegadoConcluido = isLegado && card.processo_meta?.status === 'concluido';
   const cardNativoArquivado = !isLegado && Boolean(card.arquivado);
   const cardLegadoArquivado = isLegado && Boolean(card.arquivado);
-  const podeRetrocederFase =
-    !cardNativoConcluido && Boolean(faseAtual && fases.some((f) => f.ordem === faseAtual.ordem - 1));
+  const faseAtualIdx = faseAtual ? fases.findIndex((f) => f.id === faseAtual.id) : -1;
+  const podeRetrocederFase = !cardNativoConcluido && faseAtualIdx > 0;
   const podeAvancarFase =
-    !cardNativoConcluido && Boolean(faseAtual && fases.some((f) => f.ordem === faseAtual.ordem + 1));
+    !cardNativoConcluido && faseAtualIdx >= 0 && faseAtualIdx < fases.length - 1;
   const maxOrdemFases = fases.length > 0 ? Math.max(...fases.map((f) => f.ordem)) : 0;
   const estaNaUltimaFaseNativo = Boolean(faseAtual && faseAtual.ordem === maxOrdemFases);
   const exibirBotaoFinalizar =
@@ -2865,6 +2946,8 @@ export function KanbanCardModal({
     !cardLegadoConcluido &&
     !cardNativoArquivado &&
     !cardLegadoArquivado;
+  const exibirBlocoDesarquivar =
+    podeArquivarCardPerm && (cardNativoArquivado || cardLegadoArquivado);
   const roleNormUsuario = normalizeAccessRole(userRoleRaw);
   const userRoleLc = (userRoleRaw || '').trim().toLowerCase();
   const usuarioFrank = portalFrank || isFrankOrFranqueadoRole(userRoleRaw);
@@ -2913,6 +2996,13 @@ export function KanbanCardModal({
   const isFaseHipoteses = isHipotesesFaseSlug(faseSlugHipoteses);
   const isFaseDadosCondominios =
     !isLegado && kanbanNome === 'Funil Step One' && isDadosCondominiosFaseSlug(faseSlugHipoteses);
+  const exibirSecaoCondominioSidebar = kanbanExibeSecaoCondominioSidebar({
+    isLegado,
+    kanbanId: card.kanban_id,
+    kanbanNome,
+    faseAtual,
+    fases,
+  });
   const exibirEnviarHipotesePortfolio =
     !isLegado && kanbanNome === 'Funil Step One' && isFaseHipoteses;
 
@@ -2920,6 +3010,7 @@ export function KanbanCardModal({
 
   const rede = modalDetalhes.rede;
   const proc = modalDetalhes.processo;
+  const condominioIdSidebar = card.condominio_id ?? proc?.condominio_id ?? null;
   const condominioIdChecklistLegal =
     card.condominio_id?.trim() || proc?.condominio_id?.trim() || null;
   const exibirChecklistLegalCondominio =
@@ -2929,6 +3020,10 @@ export function KanbanCardModal({
       faseAtual?.slug ?? card.etapa_slug,
       condominioIdChecklistLegal,
     );
+  const exibirChecklistCredito =
+    !isLegado &&
+    deveExibirChecklistCreditoNaFase(card.kanban_id, faseAtual?.slug ?? card.etapa_slug);
+  const processoIdChecklists = proc?.id?.trim() || null;
   const enderecoCasaLinha = rede
     ? [
         rede.endereco_casa_frank,
@@ -3724,21 +3819,21 @@ export function KanbanCardModal({
                                     Em andamento
                                   </span>
                                 ) : (
-                                <select
+                                <SearchableSelect
                                   value={statusInteracaoSelect}
-                                  onChange={(e) =>
+                                  onChange={(v) =>
                                     void handleInteracaoStatusChange(
                                       it.id,
-                                      e.target.value as 'pendente' | 'em_andamento' | 'concluida',
+                                      v as 'pendente' | 'em_andamento' | 'concluida',
                                     )
                                   }
-                                  className="rounded border border-stone-300 px-1.5 py-0.5 text-[10px]"
-                                >
-                                  <option value="pendente">A fazer</option>
-                                  <option value="concluida" disabled={temSubAbertaPai}>
-                                    Concluída
-                                  </option>
-                                </select>
+                                  size="xs"
+                                  emptyOption={null}
+                                  options={[
+                                    { value: 'pendente', label: 'A fazer' },
+                                    { value: 'concluida', label: 'Concluída', disabled: temSubAbertaPai },
+                                  ]}
+                                />
                                 )
                               ) : null}
                               {travaEfetivaParaChamado(it, subs) ? (
@@ -3773,19 +3868,21 @@ export function KanbanCardModal({
                                   placeholder="Descrição do chamado"
                                   className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
                                 />
-                                <select
+                                <SearchableSelect
                                   value={editDraft.categoria}
-                                  onChange={(e) =>
+                                  onChange={(v) =>
                                     setEditDraft((d) => ({
                                       ...d,
-                                      categoria: e.target.value as 'chamado' | 'melhoria',
+                                      categoria: v as 'chamado' | 'melhoria',
                                     }))
                                   }
-                                  className="w-full rounded border border-stone-300 px-2 py-1 text-xs"
-                                >
-                                  <option value="chamado">Chamado</option>
-                                  <option value="melhoria">Melhoria</option>
-                                </select>
+                                  size="sm"
+                                  emptyOption={null}
+                                  options={[
+                                    { value: 'chamado', label: 'Chamado' },
+                                    { value: 'melhoria', label: 'Melhoria' },
+                                  ]}
+                                />
                                 <div className="flex gap-2">
                                   <button
                                     type="button"
@@ -4012,22 +4109,24 @@ export function KanbanCardModal({
                                               <div className="mt-2 space-y-1 border-t border-stone-100 pt-2">
                                                 {modalSessao.ehAdminOuTeam ||
                                                 sub.responsaveis_resolvidos.some((r) => r.id === modalSessao.userId) ? (
-                                                  <select
+                                                  <SearchableSelect
                                                     value={sub.status}
-                                                    onChange={(e) =>
+                                                    onChange={(v) =>
                                                       void handleSubStatusChange(
                                                         it.id,
                                                         sub.id,
-                                                        e.target.value as SubInteracaoStatusDb,
+                                                        v as SubInteracaoStatusDb,
                                                       )
                                                     }
-                                                    className="mb-1 rounded border border-stone-300 px-1.5 py-0.5 text-[9px]"
-                                                  >
-                                                    <option value="nao_iniciado">Não iniciado</option>
-                                                    <option value="em_andamento">Em andamento</option>
-                                                    <option value="concluido">Concluído</option>
-                                                    <option value="aprovado">Aprovado</option>
-                                                  </select>
+                                                    size="xs"
+                                                    emptyOption={null}
+                                                    options={[
+                                                      { value: 'nao_iniciado', label: 'Não iniciado' },
+                                                      { value: 'em_andamento', label: 'Em andamento' },
+                                                      { value: 'concluido', label: 'Concluído' },
+                                                      { value: 'aprovado', label: 'Aprovado' },
+                                                    ]}
+                                                  />
                                                 ) : null}
                                                 <div className="flex flex-wrap gap-1">
                                                   {sub.times_resolvidos.map((tg) => (
@@ -4078,22 +4177,24 @@ export function KanbanCardModal({
                                                 />
                                                 {!modalSessao.ehAdminOuTeam &&
                                                 sub.responsaveis_resolvidos.some((r) => r.id === modalSessao.userId) ? (
-                                                  <select
+                                                  <SearchableSelect
                                                     value={sub.status}
-                                                    onChange={(e) =>
+                                                    onChange={(v) =>
                                                       void handleSubStatusChange(
                                                         it.id,
                                                         sub.id,
-                                                        e.target.value as SubInteracaoStatusDb,
+                                                        v as SubInteracaoStatusDb,
                                                       )
                                                     }
-                                                    className="rounded border border-stone-300 px-1.5 py-1 text-[10px]"
-                                                  >
-                                                    <option value="nao_iniciado">Não iniciado</option>
-                                                    <option value="em_andamento">Em andamento</option>
-                                                    <option value="concluido">Concluído</option>
-                                                    <option value="aprovado">Aprovado</option>
-                                                  </select>
+                                                    size="xs"
+                                                    emptyOption={null}
+                                                    options={[
+                                                      { value: 'nao_iniciado', label: 'Não iniciado' },
+                                                      { value: 'em_andamento', label: 'Em andamento' },
+                                                      { value: 'concluido', label: 'Concluído' },
+                                                      { value: 'aprovado', label: 'Aprovado' },
+                                                    ]}
+                                                  />
                                                 ) : null}
                                               </div>
                                             ) : null}
@@ -4255,35 +4356,37 @@ export function KanbanCardModal({
                     style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
                   />
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <select
+                    <SearchableSelect
                       value={novaInteracao.categoria}
-                      onChange={(e) =>
+                      onChange={(v) =>
                         setNovaInteracao((n) => ({
                           ...n,
-                          categoria: e.target.value as 'chamado' | 'melhoria',
+                          categoria: v as 'chamado' | 'melhoria',
                         }))
                       }
                       aria-label="Tipo do chamado"
-                      className="px-2 py-1.5 text-xs text-stone-700"
-                      style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
-                    >
-                      <option value="chamado">Chamado</option>
-                      <option value="melhoria">Melhoria</option>
-                    </select>
-                    <select
+                      size="sm"
+                      emptyOption={null}
+                      triggerClassName="border-[var(--moni-border-default)]"
+                      options={[
+                        { value: 'chamado', label: 'Chamado' },
+                        { value: 'melhoria', label: 'Melhoria' },
+                      ]}
+                    />
+                    <SearchableSelect
                       value={novaInteracao.status}
-                      onChange={(e) =>
+                      onChange={(v) =>
                         setNovaInteracao((n) => ({
                           ...n,
-                          status: e.target.value as 'pendente',
+                          status: v as 'pendente',
                         }))
                       }
                       aria-label="Status do chamado"
-                      className="px-2 py-1.5 text-xs text-stone-700"
-                      style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
-                    >
-                      <option value="pendente">Pendente</option>
-                    </select>
+                      size="sm"
+                      emptyOption={null}
+                      triggerClassName="border-[var(--moni-border-default)]"
+                      options={[{ value: 'pendente', label: 'Pendente' }]}
+                    />
                   </div>
                   <label className="flex cursor-pointer items-center gap-2 text-[11px] text-stone-700">
                     <input
@@ -4446,20 +4549,22 @@ export function KanbanCardModal({
                               placeholder="https://…"
                               className="min-w-[8rem] flex-[2] rounded border border-stone-300 px-2 py-1 text-xs"
                             />
-                            <select
+                            <SearchableSelect
                               value={m.tipo}
-                              onChange={(e) => {
-                                const v = e.target.value as KanbanFaseMaterial['tipo'];
+                              onChange={(v) => {
+                                const tipo = v as KanbanFaseMaterial['tipo'];
                                 setDraftMateriaisFase((rows) =>
-                                  rows.map((r, i) => (i === idx ? { ...r, tipo: v } : r)),
+                                  rows.map((r, i) => (i === idx ? { ...r, tipo } : r)),
                                 );
                               }}
-                              className="rounded border border-stone-300 px-2 py-1 text-xs"
-                            >
-                              <option value="link">link</option>
-                              <option value="documento">documento</option>
-                              <option value="video">video</option>
-                            </select>
+                              size="sm"
+                              emptyOption={null}
+                              options={[
+                                { value: 'link', label: 'link' },
+                                { value: 'documento', label: 'documento' },
+                                { value: 'video', label: 'video' },
+                              ]}
+                            />
                             <button
                               type="button"
                               onClick={() =>
@@ -4586,8 +4691,20 @@ export function KanbanCardModal({
                         cardId={card.id}
                         basePath={basePath}
                         condominioId={condominioIdChecklistLegal}
+                        nomeCondominioLegado={card.nome_condominio ?? proc?.nome_condominio ?? null}
                         exibirLinkPublico
                       />
+                    ) : null}
+
+                    {exibirChecklistCredito && processoIdChecklists ? (
+                      <ChecklistCreditoSection processoId={processoIdChecklists} />
+                    ) : null}
+
+                    {exibirChecklistCredito && !processoIdChecklists ? (
+                      <p className="text-xs text-stone-500">
+                        Processo Step One não vinculado a este card. O Checklist de Crédito ficará disponível quando
+                        houver um processo associado (via rede do franqueado ou número FK no título).
+                      </p>
                     ) : null}
 
                     <FaseChecklistCard
@@ -4596,7 +4713,19 @@ export function KanbanCardModal({
                       cardId={card.id}
                       isFrank={portalFrank}
                       isAdmin={isAdmin}
-                      ocultarVazio={exibirChecklistLegalCondominio}
+                      processoId={processoIdChecklists}
+                      areaAtuacao={modalDetalhes.rede?.area_atuacao}
+                      redeFranqueado={
+                        modalDetalhes.rede
+                          ? {
+                              nome_completo: modalDetalhes.rede.nome_completo,
+                              email_frank: modalDetalhes.rede.email_frank,
+                              telefone_frank: modalDetalhes.rede.telefone_frank,
+                              data_nasc_frank: modalDetalhes.rede.data_nasc_frank,
+                            }
+                          : null
+                      }
+                      ocultarVazio={exibirChecklistLegalCondominio || exibirChecklistCredito}
                       condominioContext={
                         !isFaseDadosCondominios
                           ? {
@@ -4610,7 +4739,7 @@ export function KanbanCardModal({
                               podeCadastrarNovo: !ocultarGestaoCard && modalSessao.ehAdminOuTeam,
                               onSalvo: () => {
                                 setCondominioTick((t) => t + 1);
-                                void loadCard();
+                                void loadCard({ silencioso: true });
                                 router.refresh();
                               },
                             }
@@ -5222,6 +5351,25 @@ export function KanbanCardModal({
               </PainelLateralSecao>
             ) : null}
 
+            {exibirBlocoDesarquivar ? (
+              <PainelLateralSecao titulo="Desarquivar">
+                <button
+                  type="button"
+                  onClick={() => void handleConfirmarDesarquivar()}
+                  disabled={loading}
+                  className="flex w-full items-center justify-center gap-1.5 rounded px-2 py-1.5 text-[10px] font-semibold transition disabled:opacity-50"
+                  style={{
+                    background: 'var(--moni-status-success-bg, #f0fdf4)',
+                    color: 'var(--moni-status-success-text, #166534)',
+                    border: '0.5px solid var(--moni-status-success-border, #bbf7d0)',
+                  }}
+                >
+                  <ArchiveRestore className="h-4 w-4 shrink-0" aria-hidden />
+                  {loading ? 'Desarquivando…' : 'Desarquivar card'}
+                </button>
+              </PainelLateralSecao>
+            ) : null}
+
             {pode('mover_fase') ? (
               <PainelLateralSecao titulo="Movimentação">
                 {gateStep5Toast ? (
@@ -5255,16 +5403,16 @@ export function KanbanCardModal({
                     <button
                       type="button"
                       onClick={() => void handleRetrocederFase()}
-                      disabled={loading || !podeRetrocederFase}
+                      disabled={movendoFase || !podeRetrocederFase}
                       className="flex items-center justify-center gap-0.5 rounded border border-stone-300 bg-white px-1.5 py-1.5 text-[10px] font-semibold leading-tight text-stone-800 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <ChevronLeft className="h-3 w-3 shrink-0" aria-hidden />
-                      {loading ? '…' : 'Anterior'}
+                      {movendoFase ? '…' : 'Anterior'}
                     </button>
                     <button
                       type="button"
                       onClick={() => void handleAvancarFase()}
-                      disabled={loading || !podeAvancarFase}
+                      disabled={movendoFase || !podeAvancarFase}
                       className="flex items-center justify-center gap-0.5 rounded border px-1.5 py-1.5 text-[10px] font-semibold leading-tight transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
                       style={{
                         background: 'var(--moni-green-50)',
@@ -5272,7 +5420,7 @@ export function KanbanCardModal({
                         borderColor: 'var(--moni-green-400)',
                       }}
                     >
-                      {loading ? '…' : 'Próxima'}
+                      {movendoFase ? '…' : 'Próxima'}
                       <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
                     </button>
                   </div>
@@ -5426,18 +5574,17 @@ export function KanbanCardModal({
                   <div className="space-y-2">
                     <label className="block">
                       <span className="text-[11px] font-medium text-stone-500">Franqueado (rede)</span>
-                      <select
+                      <SearchableSelect
                         value={novoFranqueadoId}
-                        onChange={(e) => setNovoFranqueadoId(e.target.value)}
-                        className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                      >
-                        <option value="">Selecione o franqueado</option>
-                        {franqueadosLista.map((f) => (
-                          <option key={f.id} value={f.id}>
-                            {f.n_franquia} — {f.nome_completo}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={setNovoFranqueadoId}
+                        placeholder="Selecione o franqueado"
+                        searchPlaceholder="Buscar por FK ou nome"
+                        className="mt-0.5"
+                        options={franqueadosLista.map((f) => ({
+                          value: f.id,
+                          label: `${f.n_franquia} — ${f.nome_completo}`,
+                        }))}
+                      />
                     </label>
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -5583,7 +5730,7 @@ export function KanbanCardModal({
                 </div>
               </div>,
             )}
-            {!isFaseDadosCondominios &&
+            {exibirSecaoCondominioSidebar &&
               secaoHead(
                 'condominio',
                 'Dados do Condomínio',
@@ -5592,7 +5739,7 @@ export function KanbanCardModal({
                   cardId={card.id}
                   origem={origem}
                   basePath={basePath}
-                  condominioIdInicial={card.condominio_id ?? proc?.condominio_id ?? null}
+                  condominioIdInicial={condominioIdSidebar}
                   quadraInicial={card.quadra ?? proc?.quadra ?? null}
                   loteInicial={card.lote ?? proc?.lote ?? null}
                   nomeCondominioLegado={card.nome_condominio ?? proc?.nome_condominio ?? null}
@@ -5600,7 +5747,7 @@ export function KanbanCardModal({
                   podeCadastrarNovo={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
                   onSalvo={() => {
                     setCondominioTick((t) => t + 1);
-                    void loadCard();
+                    void loadCard({ silencioso: true });
                     router.refresh();
                   }}
                 />,
@@ -5616,17 +5763,18 @@ export function KanbanCardModal({
                     <div className="grid grid-cols-2 gap-x-2 gap-y-2">
                       <label className="block">
                         <span className="text-[11px] font-medium text-stone-500">Tipo de negociação</span>
-                        <select
+                        <SearchableSelect
                           value={negocioDraft.tipo_aquisicao_terreno}
-                          onChange={(e) => setNegocioDraft((d) => ({ ...d, tipo_aquisicao_terreno: e.target.value }))}
-                          className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
-                        >
-                          <option value="">Selecione</option>
-                          <option value="Permuta parcial">Permuta parcial</option>
-                          <option value="100% Permuta">100% Permuta</option>
-                          <option value="100% Compra e Venda Moní">100% Compra e Venda Moní</option>
-                          <option value="100% Compra e Venda Frank">100% Compra e Venda Frank</option>
-                        </select>
+                          onChange={(v) => setNegocioDraft((d) => ({ ...d, tipo_aquisicao_terreno: v }))}
+                          placeholder="Selecione"
+                          className="mt-0.5"
+                          options={[
+                            { value: 'Permuta parcial', label: 'Permuta parcial' },
+                            { value: '100% Permuta', label: '100% Permuta' },
+                            { value: '100% Compra e Venda Moní', label: '100% Compra e Venda Moní' },
+                            { value: '100% Compra e Venda Frank', label: '100% Compra e Venda Frank' },
+                          ]}
+                        />
                       </label>
                       <label className="block">
                         <span className="text-[11px] font-medium text-stone-500">Valor do Terreno</span>
@@ -5928,6 +6076,11 @@ export function KanbanCardModal({
                 isFrank={portalFrank}
                 responsaveisOpcoes={responsaveisOpcoes}
                 basePath={basePath}
+                fases={fases}
+                linhasCronologia={linhasCronologiaFases}
+                faseAtualId={card.fase_id}
+                areaAtuacao={modalDetalhes.rede?.area_atuacao}
+                structuralRefreshKey={`${card.fase_id}-${historico.length}-${condominioTick}`}
               />
             )}
             <div

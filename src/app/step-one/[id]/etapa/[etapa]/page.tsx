@@ -13,7 +13,7 @@ import { FinalizarEstudoButton } from '../FinalizarEstudoButton';
 import { IrParaStep3Button } from '../IrParaStep3Button';
 import { CancelarProcessoButtonEtapa } from '../CancelarProcessoButtonEtapa';
 import { getBcaInputs, getCustosConstrucaoEscolhaChecklist } from '../actions';
-import { isPreBatalhaFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { isBatalhaCasasFaseSlug, isPreBatalhaFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 
 interface PageProps {
   params: Promise<{ id: string; etapa: string }>;
@@ -31,6 +31,8 @@ export default async function EtapaPage({ params, searchParams }: PageProps) {
   const modoPreBatalha =
     etapaNum === 5 &&
     (sp.modo === 'pre-batalha' || isPreBatalhaFaseSlug(sp.fase));
+
+  const modoBatalhaCasas = etapaNum === 6 && isBatalhaCasasFaseSlug(sp.fase);
 
   const supabase = await createClient();
   const {
@@ -450,20 +452,17 @@ export default async function EtapaPage({ params, searchParams }: PageProps) {
             <>
               <div className="flex flex-wrap items-center gap-3">
                 <h1 className="text-xl font-bold text-moni-dark">
-                  Etapa {etapaDisplayNum} — {etapaInfo.nome}
+                  Etapa {etapaDisplayNum} —{' '}
+                  {modoPreBatalha ? 'Pré Batalha' : etapaInfo.nome}
                 </h1>
-                {modoPreBatalha ? (
-                  <span className="rounded-full bg-amber-100 px-3 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-amber-300">
-                    Pré-batalha
-                  </span>
-                ) : null}
               </div>
               <p className="mt-2 text-stone-600">{etapaInfo.descricao}</p>
               {modoPreBatalha ? (
                 <p className="mt-2 text-sm text-amber-900/90">
-                  Ranqueie candidatos Moní só com Produto e Atributos do Lote (sem Preço/reforma).
-                  As notas ficam apenas nesta sessão — use a batalha completa na etapa 6 para
-                  salvar.
+                  Os modelos Moní são ranqueados automaticamente por compatibilidade com a listagem
+                  (alta → baixa). Aplique Atributos do Lote, Preço (checklist de reforma) e Produto
+                  (7 sub-itens). Nota final = soma dos três eixos; desempate: Lote &gt; Preço &gt;
+                  Produto.
                 </p>
               ) : null}
               <div className="mt-6 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
@@ -488,9 +487,18 @@ export default async function EtapaPage({ params, searchParams }: PageProps) {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <h1 className="text-xl font-bold text-moni-dark">
-                    Etapa {etapaDisplayNum} — {etapaInfo.nome}
+                    Etapa {etapaDisplayNum} —{' '}
+                    {modoBatalhaCasas ? 'Batalha de Casas' : etapaInfo.nome}
                   </h1>
                   <p className="mt-2 text-stone-600">{etapaInfo.descricao}</p>
+                  {modoBatalhaCasas ? (
+                    <p className="mt-2 text-sm text-amber-900/90">
+                      Selecione até 3 modelos do catálogo e aplique os 3 eixos (Atributos do Lote,
+                      Preço com checklist de reforma, Produto com 7 sub-itens). Nota final = soma
+                      dos eixos; desempate: Lote &gt; Preço &gt; Produto. Gere o PDF e compare com
+                      o Giro da faixa.
+                    </p>
+                  ) : null}
                 </div>
                 <div
                   id="etapa6-resultado-batalha"

@@ -164,8 +164,8 @@ export function KanbanCardModalCondominio({
 
   const opcoesFiltradas = useMemo(() => {
     const q = busca.trim();
-    const base = q ? lista.filter((r) => condominioRowMatchesBusca(r, q)) : lista;
-    return base.slice(0, 40);
+    if (!q) return [];
+    return lista.filter((r) => condominioRowMatchesBusca(r, q)).slice(0, 40);
   }, [lista, busca]);
 
   const notificarChecklist = useCallback(
@@ -304,6 +304,7 @@ export function KanbanCardModalCondominio({
                   />
                 </div>
               </label>
+              {busca.trim() ? (
               <div className="max-h-32 overflow-y-auto rounded border border-stone-100">
                 {opcoesFiltradas.length === 0 ? (
                   <p className="px-2 py-2 text-[10px] text-stone-500">Nenhum condomínio encontrado.</p>
@@ -332,6 +333,7 @@ export function KanbanCardModalCondominio({
                   </ul>
                 )}
               </div>
+              ) : null}
               {podeCadastrarNovo ? (
                 <button
                   type="button"

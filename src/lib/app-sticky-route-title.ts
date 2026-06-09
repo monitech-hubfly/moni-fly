@@ -1,4 +1,9 @@
-/** Título exibido ao lado do breadcrumb « Hub Fly » no cabeçalho fixo (AppStickyHeader). */
+/** Título e breadcrumb do cabeçalho fixo (AppStickyHeader). */
+
+import { isFrankRedeFranqueadoDetalhePath } from '@/lib/access-matrix';
+import { isFrankOrFranqueadoRole } from '@/lib/authz';
+
+export type StickyBreadcrumb = { href?: string; label: string };
 
 const PREFIX_TITLE: { prefix: string; title: string }[] = [
   { prefix: '/portal-frank/rede', title: 'Rede de Franqueados' },
@@ -43,12 +48,12 @@ const PREFIX_TITLE: { prefix: string; title: string }[] = [
   { prefix: '/admin', title: 'Admin' },
   { prefix: '/acoplamento-pl', title: 'Acoplamento PL' },
   { prefix: '/step-one', title: 'Step 1: Mapeamento da Região' },
-  { prefix: '/step-2', title: 'Step 2: Novo Negócio' },
-  { prefix: '/step-3', title: 'Step 3: Opção' },
-  { prefix: '/step-5', title: 'Step 5: Comitê' },
-  { prefix: '/step-6', title: 'Step 6: Diligência' },
-  { prefix: '/step-7', title: 'Step 7: Contrato' },
-  { prefix: '/painel', title: 'Step 4: Check Legal' },
+  { prefix: '/step-2', title: 'Novo Negócio' },
+  { prefix: '/step-3', title: 'Opção' },
+  { prefix: '/step-5', title: 'Comitê' },
+  { prefix: '/step-6', title: 'Diligência' },
+  { prefix: '/step-7', title: 'Contrato' },
+  { prefix: '/painel', title: 'Check Legal e Crédito' },
   { prefix: '/rede', title: 'Rede de Contatos' },
   { prefix: '/juridico', title: 'Dúvidas jurídicas' },
   { prefix: '/iniciar-processo', title: 'Iniciar processo' },
@@ -56,6 +61,11 @@ const PREFIX_TITLE: { prefix: string; title: string }[] = [
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function normalizePathname(pathname: string): string {
+  const raw = pathname.split('?')[0] || '/';
+  return raw.endsWith('/') && raw.length > 1 ? raw.slice(0, -1) : raw;
+}
 
 function humanizeSegment(seg: string): string {
   if (UUID_RE.test(seg)) return 'Detalhe';
@@ -65,8 +75,7 @@ function humanizeSegment(seg: string): string {
 }
 
 export function getStickyRouteTitle(pathname: string): string {
-  const raw = pathname.split('?')[0] || '/';
-  const path = raw.endsWith('/') && raw.length > 1 ? raw.slice(0, -1) : raw;
+  const path = normalizePathname(pathname);
 
   for (const { prefix, title } of PREFIX_TITLE) {
     if (path === prefix || path.startsWith(`${prefix}/`)) return title;
@@ -75,4 +84,24 @@ export function getStickyRouteTitle(pathname: string): string {
   const parts = path.split('/').filter(Boolean);
   if (parts.length === 0) return 'Hub Fly';
   return humanizeSegment(parts[parts.length - 1] ?? '');
+}
+
+/** Breadcrumb do cabeçalho fixo; último item é a página atual (sem link). */
+export function getStickyRouteBreadcrumbs(pathname: string, userRole?: string | null): StickyBreadcrumb[] {
+  const path = normalizePathname(pathname);
+
+  if (isFrankRedeFranqueadoDetalhePath(path)) {
+    const redeListHref = isFrankOrFranqueadoRole(userRole) ? '/portal-frank/rede' : '/rede-franqueados';
+    return [
+      { href: '/', label: 'Hub Fly' },
+      { href: redeListHref, label: 'Rede de Franqueados' },
+      { label: 'Documentos' },
+    ];
+  }
+
+  const title = getStickyRouteTitle(pathname);
+  return [
+    { href: '/', label: 'Hub Fly' },
+    { label: title },
+  ];
 }

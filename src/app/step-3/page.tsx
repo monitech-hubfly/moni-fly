@@ -91,7 +91,7 @@ export default async function Step3Page({ searchParams }: PageProps) {
       </header>
       <main className="mx-auto max-w-5xl px-4 py-10">
         <div className="card">
-          <h1 className="text-2xl font-bold text-moni-dark">Step 3: Opções</h1>
+          <h1 className="text-2xl font-bold text-moni-dark">Opção</h1>
           <p className="mt-1 text-sm text-stone-500">
             Processo em {processo.cidade} - {processo.estado}
             {isOwner && ` · Step atual: ${processo.step_atual}`}
@@ -156,7 +156,7 @@ export default async function Step3Page({ searchParams }: PageProps) {
                           motivo_reprovacao: inst.motivo_reprovacao,
                           arquivo_assinado_path: inst.arquivo_assinado_path,
                         }}
-                        stepLabel="Step 3: Opções"
+                        stepLabel="Opção"
                       />
                     </li>
                   ))}

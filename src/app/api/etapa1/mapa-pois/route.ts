@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 
-const CATEGORIES = [
+const OVERPASS_HEADERS = {
+  'Content-Type': 'text/plain',
+  Accept: 'application/json',
+  'User-Agent': 'MoniFly/1.0 (viabilidade; +https://monitech.com.br)',
+} as const;
+
+const POI_CATEGORIES = [
   { key: 'school', overpassTag: 'amenity=school' },
   { key: 'hospital', overpassTag: 'amenity=hospital' },
   { key: 'clinic', overpassTag: 'amenity=clinic' },
@@ -12,7 +18,7 @@ const CATEGORIES = [
   { key: 'pharmacy', overpassTag: 'amenity=pharmacy' },
 ] as const;
 
-type PoiCategory = (typeof CATEGORIES)[number]['key'];
+type PoiCategory = (typeof POI_CATEGORIES)[number]['key'];
 
 export type Poi = { lat: number; lon: number; name: string; category: PoiCategory };
 
@@ -26,7 +32,7 @@ async function getBbox(
   const query = estado ? `${cidade}, ${estado}, Brazil` : `${cidade}, Brazil`;
   const res = await fetch(
     `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
-    { headers: { 'Accept-Language': 'pt-BR', 'User-Agent': 'ViabilidadeApp/1.0' } },
+    { headers: { 'Accept-Language': 'pt-BR', 'User-Agent': 'MoniFly/1.0 (viabilidade; +https://monitech.com.br)' } },
   );
   if (!res.ok) return null;
   const data = (await res.json()) as { boundingbox?: string[] }[];
@@ -35,50 +41,74 @@ async function getBbox(
   return [south, west, north, east];
 }
 
-async function fetchOverpass(
-  bbox: [number, number, number, number],
-  tag: string,
-  category: PoiCategory,
-): Promise<Poi[]> {
-  const [south, west, north, east] = bbox;
-  const query = `
-    [out:json][timeout:25];
-    (
-      node[${tag}](${south},${west},${north},${east});
-      way[${tag}](${south},${west},${north},${east});
-    );
-    out center;
-  `;
+type OverpassElement = {
+  type: string;
+  lat?: number;
+  lon?: number;
+  center?: { lat: number; lon: number };
+  tags?: Record<string, string>;
+};
+
+type OverpassResponse = { elements?: OverpassElement[]; remark?: string; error?: string };
+
+async function overpassQuery(query: string): Promise<OverpassResponse> {
   const res = await fetch('https://overpass-api.de/api/interpreter', {
     method: 'POST',
     body: query,
-    headers: { 'Content-Type': 'text/plain' },
+    headers: OVERPASS_HEADERS,
   });
   const text = await res.text();
-  type OverpassElement = {
-    type: string;
-    lat?: number;
-    lon?: number;
-    center?: { lat: number; lon: number };
-    tags?: { name?: string };
-  };
-  type OverpassResponse = { elements?: OverpassElement[]; remark?: string; error?: string };
   let json: OverpassResponse;
   try {
     json = JSON.parse(text) as OverpassResponse;
   } catch {
-    return [];
+    throw new Error('Resposta inválida do Overpass.');
   }
-  if (json.remark) {
-    throw new Error(json.remark);
+  if (json.remark) throw new Error(json.remark);
+  if (!res.ok) throw new Error(json.error ?? `Overpass ${res.status}`);
+  return json;
+}
+
+function categoryFromTags(tags?: Record<string, string>): PoiCategory | null {
+  if (!tags) return null;
+  const amenity = tags.amenity;
+  if (
+    amenity === 'school' ||
+    amenity === 'hospital' ||
+    amenity === 'clinic' ||
+    amenity === 'bank' ||
+    amenity === 'pharmacy'
+  ) {
+    return amenity;
   }
-  if (!res.ok) {
-    const msg = json.error ?? `Overpass ${res.status}`;
-    throw new Error(msg);
-  }
-  const elements = json.elements ?? [];
+  const shop = tags.shop;
+  if (shop === 'mall' || shop === 'supermarket') return shop;
+  if (tags.leisure === 'park') return 'park';
+  if (tags.place === 'square') return 'square';
+  return null;
+}
+
+async function fetchAllPois(bbox: [number, number, number, number]): Promise<Poi[]> {
+  const [south, west, north, east] = bbox;
+  const query = `
+    [out:json][timeout:60];
+    (
+      node["amenity"~"^(school|hospital|clinic|bank|pharmacy)$"](${south},${west},${north},${east});
+      way["amenity"~"^(school|hospital|clinic|bank|pharmacy)$"](${south},${west},${north},${east});
+      node["shop"~"^(mall|supermarket)$"](${south},${west},${north},${east});
+      way["shop"~"^(mall|supermarket)$"](${south},${west},${north},${east});
+      node["leisure"="park"](${south},${west},${north},${east});
+      way["leisure"="park"](${south},${west},${north},${east});
+      node["place"="square"](${south},${west},${north},${east});
+      way["place"="square"](${south},${west},${north},${east});
+    );
+    out center;
+  `;
+  const json = await overpassQuery(query);
   const pois: Poi[] = [];
-  for (const el of elements) {
+  for (const el of json.elements ?? []) {
+    const category = categoryFromTags(el.tags);
+    if (!category) continue;
     let lat: number | undefined;
     let lon: number | undefined;
     if (el.type === 'node') {
@@ -98,7 +128,6 @@ async function fetchOverpass(
 type OverpassWayElement = {
   type: 'way';
   id: number;
-  nodes?: number[];
   geometry?: { lat: number; lon: number }[];
   tags?: { name?: string; highway?: string };
 };
@@ -106,24 +135,19 @@ type OverpassWayElement = {
 async function fetchRoads(bbox: [number, number, number, number]): Promise<Road[]> {
   const [south, west, north, east] = bbox;
   const query = `
-    [out:json][timeout:20];
+    [out:json][timeout:25];
     way(${south},${west},${north},${east})["highway"~"^(primary|secondary|trunk|motorway)$"];
     out geom;
   `;
-  const res = await fetch('https://overpass-api.de/api/interpreter', {
-    method: 'POST',
-    body: query,
-    headers: { 'Content-Type': 'text/plain' },
-  });
-  const text = await res.text();
-  let json: { elements?: OverpassWayElement[]; remark?: string };
+  let json: OverpassResponse;
   try {
-    json = JSON.parse(text) as typeof json;
+    json = await overpassQuery(query);
   } catch {
     return [];
   }
-  if (json.remark) return [];
-  const ways = json.elements ?? [];
+  const ways = (json.elements ?? []).filter(
+    (el): el is OverpassWayElement => el.type === 'way' && Array.isArray((el as OverpassWayElement).geometry),
+  );
   const roads: Road[] = [];
   for (const w of ways) {
     const geom = w.geometry;
@@ -156,11 +180,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const [poisResults, roads] = await Promise.all([
-      Promise.all(CATEGORIES.map((cat) => fetchOverpass(bbox, cat.overpassTag, cat.key))),
-      fetchRoads(bbox),
-    ]);
-    const pois: Poi[] = poisResults.flat();
+    const [pois, roads] = await Promise.all([fetchAllPois(bbox), fetchRoads(bbox)]);
 
     const [south, west, north, east] = bbox;
     const centerLat = (south + north) / 2;

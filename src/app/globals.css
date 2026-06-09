@@ -32,6 +32,13 @@ body {
   .moni-heading {
     @apply font-semibold tracking-tight text-moni-dark;
   }
+  /** Lista de itens de checklist estrutural da fase (todos os funis/kanbans). */
+  .kanban-fase-checklist-list {
+    @apply flex flex-col gap-6;
+  }
+  .kanban-fase-checklist-item {
+    @apply min-w-0;
+  }
 }
 
 /* Etiquetas de vias no mapa (Leaflet tooltip permanente) */
@@ -45,4 +52,10 @@ body {
   color: #92400e !important;
   white-space: nowrap !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Pins de equipamentos urbanos (Leaflet divIcon) */
+.moni-mapa-poi-marker {
+  background: transparent !important;
+  border: none !important;
 }

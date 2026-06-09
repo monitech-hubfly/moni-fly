@@ -1,6 +1,7 @@
 'use client';
 
 import { Trash2 } from 'lucide-react';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import type { SubInteracaoStatusDb } from '@/lib/actions/card-actions';
 import { nomesTimesIncluemBombeiro } from '@/lib/kanban/chamados-validacao';
 import type { KanbanTimeRow } from './kanban-card-modal-helpers';
@@ -133,19 +134,18 @@ export function KanbanAtividadeFormFields({
         </div>
         <div className="flex min-w-0 flex-col">
           <span className="mb-1 block font-medium text-stone-600">Status</span>
-          <select
+          <SearchableSelect
             value={draft.status}
-            onChange={(e) =>
-              setDraft((d) => ({ ...d, status: e.target.value as SubInteracaoStatusDb }))
-            }
-            className={`mt-auto ${controlClass}`}
-            style={{ border: '0.5px solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}
-            id={`${idPrefix}-status`}
-          >
-            <option value="nao_iniciado">Não Iniciado</option>
-            <option value="em_andamento">Em andamento</option>
-            <option value="concluido">Concluído</option>
-          </select>
+            onChange={(v) => setDraft((d) => ({ ...d, status: v as SubInteracaoStatusDb }))}
+            size={compact ? 'xs' : 'sm'}
+            emptyOption={null}
+            triggerClassName={controlClass}
+            options={[
+              { value: 'nao_iniciado', label: 'Não Iniciado' },
+              { value: 'em_andamento', label: 'Em andamento' },
+              { value: 'concluido', label: 'Concluído' },
+            ]}
+          />
         </div>
       </div>
 
@@ -189,6 +189,10 @@ export function KanbanAtividadeFormFields({
           {draft.timesIds.length === 0 ? (
             <p className="rounded border border-stone-200 bg-stone-50 p-2 text-stone-500">
               Selecione ao menos um time.
+            </p>
+          ) : responsaveisOpcoes.length === 0 ? (
+            <p className="rounded border border-stone-200 bg-stone-50 p-2 text-stone-500">
+              Nenhum responsável encontrado para os times selecionados.
             </p>
           ) : (
             <div className={listBoxClass}>

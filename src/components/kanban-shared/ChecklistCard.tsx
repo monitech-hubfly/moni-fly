@@ -9,6 +9,10 @@ import {
   deletarChecklistItem,
   type ChecklistItem,
 } from '@/lib/actions/card-actions';
+import { FaseChecklistSidebarResumo } from '@/components/kanban-shared/FaseChecklistSidebarResumo';
+import { SearchableSelect } from '@/components/SearchableSelect';
+import type { KanbanFase } from '@/components/kanban-shared/types';
+import type { LinhaCronologiaFase } from '@/lib/kanban/kanban-card-timeline';
 
 type Props = {
   cardId: string;
@@ -16,15 +20,32 @@ type Props = {
   isFrank: boolean;
   responsaveisOpcoes: { id: string; nome: string }[];
   basePath?: string;
+  fases?: KanbanFase[];
+  linhasCronologia?: LinhaCronologiaFase[];
+  faseAtualId?: string;
+  areaAtuacao?: string | null;
+  structuralRefreshKey?: string;
 };
 
-export function ChecklistCard({ cardId, userId, isFrank, responsaveisOpcoes, basePath }: Props) {
+export function ChecklistCard({
+  cardId,
+  userId,
+  isFrank,
+  responsaveisOpcoes,
+  basePath,
+  fases,
+  linhasCronologia,
+  faseAtualId,
+  areaAtuacao,
+  structuralRefreshKey,
+}: Props) {
   const [itens, setItens] = useState<ChecklistItem[] | null>(null);
   const [aberto, setAberto] = useState(false);
   const [novoTexto, setNovoTexto] = useState('');
   const [novoResponsavel, setNovoResponsavel] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erroAdd, setErroAdd] = useState('');
+  const [structuralLoadTick, setStructuralLoadTick] = useState(0);
   const [, startTransition] = useTransition();
 
   async function abrir() {
@@ -33,6 +54,7 @@ export function ChecklistCard({ cardId, userId, isFrank, responsaveisOpcoes, bas
       return;
     }
     setAberto(true);
+    setStructuralLoadTick((t) => t + 1);
     if (itens === null) {
       const data = await listarChecklistCard(cardId);
       const filtrados = isFrank ? data.filter((i) => i.responsavel_id === userId) : data;
@@ -102,6 +124,24 @@ export function ChecklistCard({ cardId, userId, isFrank, responsaveisOpcoes, bas
 
       {aberto && (
         <div className="border-t px-2 pb-2 pt-1.5" style={{ borderColor: 'var(--moni-border-subtle)' }}>
+          {fases && linhasCronologia && faseAtualId ? (
+            <div className="mb-3">
+              <FaseChecklistSidebarResumo
+                cardId={cardId}
+                fases={fases}
+                linhasCronologia={linhasCronologia}
+                faseAtualId={faseAtualId}
+                areaAtuacao={areaAtuacao}
+                isFrank={isFrank}
+                refreshKey={`${structuralRefreshKey ?? ''}-${structuralLoadTick}`}
+              />
+            </div>
+          ) : null}
+
+          {itens !== null && (itens.length > 0 || !isFrank) ? (
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-500">Tarefas manuais</p>
+          ) : null}
+
           {itens === null ? (
             <p className="text-xs text-stone-400">Carregando…</p>
           ) : itens.length === 0 ? (
@@ -155,16 +195,14 @@ export function ChecklistCard({ cardId, userId, isFrank, responsaveisOpcoes, bas
                 onKeyDown={(e) => { if (e.key === 'Enter') handleAdicionar(); }}
                 className="w-full rounded border border-stone-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-stone-400"
               />
-              <select
+              <SearchableSelect
                 value={novoResponsavel}
-                onChange={(e) => setNovoResponsavel(e.target.value)}
-                className="w-full rounded border border-stone-200 px-2 py-1 text-xs text-stone-600 focus:outline-none focus:ring-1 focus:ring-stone-400"
-              >
-                <option value="">Responsável (opcional)</option>
-                {responsaveisOpcoes.map((r) => (
-                  <option key={r.id} value={r.id}>{r.nome}</option>
-                ))}
-              </select>
+                onChange={setNovoResponsavel}
+                placeholder="Responsável (opcional)"
+                searchPlaceholder="Buscar responsável"
+                size="xs"
+                options={responsaveisOpcoes.map((r) => ({ value: r.id, label: r.nome }))}
+              />
               {erroAdd && <p className="text-[10px] text-red-500">{erroAdd}</p>}
               <button
                 type="button"

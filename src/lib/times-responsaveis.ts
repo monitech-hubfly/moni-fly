@@ -149,6 +149,7 @@ const APELIDO_MONI_PARA_EMAIL: Record<string, string> = {
   fernanda: 'fernanda.lobao@moni.casa',
   alef: 'alef.lopes@moni.casa',
   elisabete: 'elisabete.nucci@moni.casa',
+  isabela: 'isabela.correa@moni.casa',
 };
 
 /** Resolve email em `profiles` a partir do nome completo do catálogo Moní, apelido ou texto legado. */
@@ -270,6 +271,19 @@ export const RESPONSAVEIS_POR_TIME: Record<string, string[]> = {
   'Novos Franqueados': ['Paula Cruz'],
 };
 
+/** Times Moní com visão/edição completa em /rede-franqueados (sem blur de dados sensíveis). */
+export const REDE_FRANQUEADOS_CADASTROS_FULL_ACCESS_TIMES = ['Administrativo', 'Controladoria'] as const;
+
+export const REDE_FRANQUEADOS_CADASTROS_FULL_ACCESS_EMAILS: readonly string[] = [
+  ...new Set(
+    REDE_FRANQUEADOS_CADASTROS_FULL_ACCESS_TIMES.flatMap((time) =>
+      (RESPONSAVEIS_POR_TIME[time] ?? [])
+        .map((nome) => MONI_EMAIL_POR_NOME[nome]?.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ),
+];
+
 export const TODOS_RESPONSAVEIS = Object.values(RESPONSAVEIS_POR_TIME).flat();
 
 /** Valor de `filtros.time` / `timeF` quando o id não existe em `kanban_times` (filtro por nome Moní). */
@@ -345,20 +359,46 @@ export function responsaveisFiltradosPorTimesNomes(
   timesNomes: readonly string[],
   profileOpts: readonly PerfilNomeRow[],
 ): PerfilNomeRow[] {
-  const allowedNomes = responsaveisNomesPorTimes(timesNomes);
+  const normalizedTimes = timesNomes.map(normalizarNomeTimeMoni).filter(Boolean);
+  const allowedNomes = responsaveisNomesPorTimes(normalizedTimes);
   if (allowedNomes.length === 0) return [];
   const allowedNorm = new Set(allowedNomes.map((n) => normMoniNome(n)));
-  const allowedEmails = new Set<string>();
-  for (const nome of allowedNomes) {
-    const em = resolverEmailMoniPorNomeOuApelido(nome);
-    if (em) allowedEmails.add(em);
+  const catalog = responsaveisFiltroOpcoesComCatalogoMoni(profileOpts);
+  return catalog.filter((p) => allowedNorm.has(normMoniNome(p.nome)));
+}
+
+/** Nome do time a partir do UUID em `kanban_times` ou id sintético `MONI_TIME_FILTRO_PREFIX`. */
+export function resolveKanbanTimeNomeFromId(
+  id: string,
+  kanbanTimes: readonly KanbanTimeNomeRow[],
+): string | null {
+  const trimmed = String(id ?? '').trim();
+  if (!trimmed) return null;
+  const hit = kanbanTimes.find((t) => t.id === trimmed)?.nome?.trim();
+  if (hit) return hit;
+  if (trimmed.startsWith(MONI_TIME_FILTRO_PREFIX)) {
+    const nome = trimmed.slice(MONI_TIME_FILTRO_PREFIX.length).trim();
+    return nome || null;
   }
-  return profileOpts.filter((p) => {
-    const n = p.nome.trim();
-    if (n && allowedNorm.has(normMoniNome(n))) return true;
-    const em = (p.email ?? '').trim().toLowerCase();
-    return em.length > 0 && allowedEmails.has(em);
-  });
+  return null;
+}
+
+/** Nomes de times na ordem da seleção (UUID ou id sintético do catálogo Moní). */
+export function nomesKanbanTimesFromIds(
+  timesIds: readonly string[],
+  kanbanTimes: readonly KanbanTimeNomeRow[],
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const id of timesIds) {
+    const raw = resolveKanbanTimeNomeFromId(id, kanbanTimes);
+    if (!raw) continue;
+    const nome = normalizarNomeTimeMoni(raw);
+    if (!nome || seen.has(nome)) continue;
+    seen.add(nome);
+    out.push(nome);
+  }
+  return out;
 }
 
 /** Filtra opções de perfil pelos IDs/nomes de times em `kanban_times`. */
@@ -367,16 +407,25 @@ export function responsaveisFiltradosPorTimesIds(
   kanbanTimes: readonly KanbanTimeNomeRow[],
   profileOpts: readonly PerfilNomeRow[],
 ): PerfilNomeRow[] {
-  const nomes = timesIds
-    .map((id) => kanbanTimes.find((t) => t.id === id)?.nome?.trim())
-    .filter((n): n is string => Boolean(n));
-  return responsaveisFiltradosPorTimesNomes(nomes, profileOpts);
+  return responsaveisFiltradosPorTimesNomes(nomesKanbanTimesFromIds(timesIds, kanbanTimes), profileOpts);
 }
 
 const TIMES_SET = new Set<string>(TIMES_MONI);
 
 export function isTimeMoni(t: string): boolean {
   return TIMES_SET.has(t);
+}
+
+/** Mapeia nome vindo de `kanban_times` (ou legado) para o nome canônico do catálogo Moní. */
+export function normalizarNomeTimeMoni(nome: string): string {
+  const t = String(nome ?? '').trim();
+  if (!t) return t;
+  if (TIMES_SET.has(t)) return t;
+  const norm = normMoniNome(t);
+  for (const cat of TIMES_MONI) {
+    if (normMoniNome(cat) === norm) return cat;
+  }
+  return t;
 }
 
 export function responsaveisDoTimeMoni(time: string): string[] {

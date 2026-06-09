@@ -10,12 +10,18 @@ import {
   type BcaTreinamentoSecao,
 } from '@/lib/treinamento-bca-secoes';
 
-type Props = { secao: BcaTreinamentoSecao; /** Link público: só manual, modo leitura, sem sidebar Hub. */ modoPublico?: boolean };
+type Props = {
+  secao: BcaTreinamentoSecao;
+  /** Link público: só manual, modo leitura, sem sidebar Hub. */
+  modoPublico?: boolean;
+  /** Visitante já autenticado — mostra atalho ao Hub em vez de "Entrar". */
+  usuarioLogado?: boolean;
+};
 
 /** Caminho canónico compartilhável: sem query (todos o mesmo link). */
 const PATH_LEITURA_PUBLICA = '/treinamento-bca/leitura';
 
-export function TreinamentoBcaSecaoClient({ secao, modoPublico = false }: Props) {
+export function TreinamentoBcaSecaoClient({ secao, modoPublico = false, usuarioLogado = false }: Props) {
   const sp = useSearchParams();
   const frank = sp.get('frank');
   const querySuffix = frank ? `?frank=${encodeURIComponent(frank)}` : '';
@@ -64,11 +70,13 @@ export function TreinamentoBcaSecaoClient({ secao, modoPublico = false }: Props)
 
   if (modoPublico) {
     return (
-      <div className="flex h-full min-h-0 flex-1 flex-col bg-stone-100">
+      <div className="flex min-h-[100dvh] flex-col bg-stone-100">
         <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-stone-200 bg-white px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] md:px-4">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-stone-800">Treinamento BCA — modo leitura</p>
-            <p className="truncate text-xs text-stone-500">Manual completo · role a página para ver todas as seções</p>
+            <p className="truncate text-xs text-stone-500">
+              Manual completo · link público · sem acesso ao Hub Fly
+            </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <button
@@ -79,19 +87,28 @@ export function TreinamentoBcaSecaoClient({ secao, modoPublico = false }: Props)
               <Link2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
               {copiedPublico ? 'Link copiado!' : 'Copiar link público'}
             </button>
-            <Link
-              href="/login"
-              className="touch-manipulation flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-700 hover:bg-stone-50 sm:min-h-0 sm:min-w-0 sm:py-1.5"
-            >
-              Entrar
-            </Link>
+            {usuarioLogado ? (
+              <Link
+                href={`/treinamento-bca/${secao}${querySuffix}`}
+                className="touch-manipulation flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-700 hover:bg-stone-50 sm:min-h-0 sm:min-w-0 sm:py-1.5"
+              >
+                Abrir no Hub
+              </Link>
+            ) : (
+              <Link
+                href="/login"
+                className="touch-manipulation flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-700 hover:bg-stone-50 sm:min-h-0 sm:min-w-0 sm:py-1.5"
+              >
+                Entrar
+              </Link>
+            )}
           </div>
         </header>
         <main className="relative min-h-0 flex-1 overflow-hidden p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:p-3">
           <iframe
             title="Treinamento BCA — manual completo (leitura)"
             src={iframeSrc}
-            className="h-full min-h-[45vh] w-full flex-1 rounded-xl border border-stone-200 bg-white shadow-sm sm:min-h-0"
+            className="h-full min-h-[50vh] w-full flex-1 rounded-xl border border-stone-200 bg-white shadow-sm"
             sandbox="allow-scripts allow-same-origin allow-forms"
           />
         </main>

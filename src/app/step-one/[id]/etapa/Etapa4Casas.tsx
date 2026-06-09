@@ -23,7 +23,6 @@ import {
   ATRIBUTOS_LOTE,
   notaAtributosLote,
   notaFinalBatalha,
-  notaFinalPreBatalha,
   type AtributosLoteRespostas,
   CATEGORIAS_REFORMA,
   valorInvestimento,
@@ -40,6 +39,11 @@ import {
   QUARTOS_PADRAO_NOSSA,
   type ChecklistReforma,
 } from './REGRAS_BATALHA';
+import { resolverTermoBuscaZap } from '@/lib/zap-condominio-busca';
+import {
+  labelCompatibilidade,
+  ordenarCatalogoPorCompatibilidade,
+} from '@/lib/kanban/pre-batalha-compatibilidade';
 
 type ProdutoDadosBatalha = {
   designId?: string;
@@ -70,6 +74,7 @@ export type CasaRow = {
   data_despublicado?: string | null;
   link: string | null;
   manual?: boolean | null;
+  faixa?: 'entrada' | 'intermediaria' | 'premium';
 };
 
 export function Etapa4Casas(props: {
@@ -103,6 +108,14 @@ export function Etapa4Casas(props: {
   resultadoPortalTargetId?: string;
   /** Step 1 — apenas listagem (sem modelo/batalha). Step 2 usa false. */
   listagemOnly?: boolean;
+  /** Desabilita varredura ZAP, cadastro manual e edição de status. */
+  readOnly?: boolean;
+  /** Callback após mutação (ex.: recarregar dados no checklist Kanban). */
+  onMutate?: () => void;
+  /** Pré-preenche o condomínio na varredura ZAP e no cadastro manual (sessão por condomínio no funil). */
+  condominioInicial?: string;
+  /** Conteúdo entre o botão Buscar e a tabela (ex.: resumo de faixas no checklist). */
+  painelAposBuscar?: React.ReactNode;
   modoPreBatalha?: boolean;
   /** URL do PDF Score & Batalha já armazenado na etapa 7 (etapa 6). */
   pdfScoreBatalhaUrl?: string | null;
@@ -119,6 +132,10 @@ export function Etapa4Casas(props: {
     batalhasIniciais,
     resultadoPortalTargetId,
     listagemOnly = false,
+    readOnly = false,
+    onMutate,
+    condominioInicial = '',
+    painelAposBuscar,
     modoPreBatalha = false,
     pdfScoreBatalhaUrl = null,
     custosConstrucaoChecklist = {},
@@ -135,19 +152,22 @@ export function Etapa4Casas(props: {
   const router = useRouter();
   const [cidade, setCidade] = useState(cidadeInicial);
   const [estado, setEstado] = useState(estadoInicial);
-  const [condominio, setCondominio] = useState('');
+  const [condominio, setCondominio] = useState(() =>
+    listagemOnly ? resolverTermoBuscaZap(condominioInicial) : condominioInicial,
+  );
   const [zapError, setZapError] = useState('');
   const [zapLoading, setZapLoading] = useState(false);
   const [zapResult, setZapResult] = useState<{
     inserted: number;
     updated: number;
     despublicados: number;
+    itemCount: number;
   } | null>(null);
 
   const [cidadeManual, setCidadeManual] = useState(cidadeInicial);
   const [estadoManual, setEstadoManual] = useState(estadoInicial);
   const [statusManual, setStatusManual] = useState<'a_venda' | 'despublicado'>('a_venda');
-  const [condominioManual, setCondominioManual] = useState('');
+  const [condominioManual, setCondominioManual] = useState(condominioInicial);
   const [enderecoManual, setEnderecoManual] = useState('');
   const [quartos, setQuartos] = useState('');
   const [banheiros, setBanheiros] = useState('');
@@ -172,6 +192,29 @@ export function Etapa4Casas(props: {
   const [manualFormOpen, setManualFormOpen] = useState(false);
   const [validandoStatus, setValidandoStatus] = useState(false);
 
+  useEffect(() => {
+    setCidade(cidadeInicial);
+    setEstado(estadoInicial);
+    setCidadeManual(cidadeInicial);
+    setEstadoManual(estadoInicial);
+  }, [cidadeInicial, estadoInicial]);
+
+  useEffect(() => {
+    const c = condominioInicial.trim();
+    setCondominio(listagemOnly ? resolverTermoBuscaZap(c) : c);
+    setCondominioManual(c);
+  }, [condominioInicial, listagemOnly]);
+
+  const campoTexto = listagemOnly ? 'text-[11px] leading-tight' : 'text-sm';
+  const campoPadding = listagemOnly ? 'px-2 py-1' : 'px-3 py-2';
+  const campoInputClass = `rounded-lg border border-stone-300 ${campoPadding} ${campoTexto} disabled:cursor-not-allowed disabled:opacity-60`;
+  const campoLabelClass = listagemOnly
+    ? 'text-[10px] font-medium leading-tight text-stone-600'
+    : `font-medium text-stone-700 ${campoTexto}`;
+  const tabelaTexto = listagemOnly ? 'text-[11px] leading-snug' : 'text-sm';
+  const tabelaTh = listagemOnly ? 'px-1.5 py-1 text-left font-medium' : 'p-2 text-left';
+  const tabelaTd = listagemOnly ? 'px-1.5 py-1' : 'p-2';
+
   const ROWS_PER_PAGE = 15;
   const totalPages = Math.max(1, Math.ceil(casas.length / ROWS_PER_PAGE));
   const [pageCasas, setPageCasas] = useState(1);
@@ -181,15 +224,55 @@ export function Etapa4Casas(props: {
   }, [casas, pageCasas]);
   useEffect(() => setPageCasas(1), [casas.length]);
 
-  // --- Seção 2: escolha de até 3 casas do catálogo para batalha ---
-  const selectedLimit = 3;
+  // --- Seção 2: escolha de modelos do catálogo (Pré Batalha: ranking por compatibilidade) ---
+  const selectedLimit = modoPreBatalha ? null : 3;
+  const catalogoRankeado = useMemo(() => {
+    if (!modoPreBatalha || catalogo.length === 0) return [];
+    return ordenarCatalogoPorCompatibilidade(catalogo, casas);
+  }, [modoPreBatalha, catalogo, casas]);
+
   const [selectedCatalogoIds, setSelectedCatalogoIds] = useState<string[]>(() =>
     casasEscolhidas.map((c) => c.catalogo_casa_id),
   );
+  const [syncPreBatalha, setSyncPreBatalha] = useState(false);
+
+  useEffect(() => {
+    if (!modoPreBatalha || listagemOnly || catalogoRankeado.length === 0) return;
+    const ids = catalogoRankeado.map((m) => m.id);
+    const savedSorted = [...casasEscolhidas.map((c) => c.catalogo_casa_id)].sort().join(',');
+    const targetSorted = [...ids].sort().join(',');
+    if (savedSorted === targetSorted && casasEscolhidas.length === ids.length) return;
+
+    let cancelado = false;
+    setSyncPreBatalha(true);
+    void (async () => {
+      const result = await saveCasasEscolhidasEtapa5(processoId, ids, { limiteMaximo: null });
+      if (cancelado) return;
+      setSyncPreBatalha(false);
+      if (!result.ok) {
+        alert(result.error);
+        return;
+      }
+      setSelectedCatalogoIds(ids);
+      router.refresh();
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [
+    modoPreBatalha,
+    listagemOnly,
+    catalogoRankeado,
+    casasEscolhidas,
+    processoId,
+    router,
+  ]);
+
   const toggleCatalogoSelected = (id: string) => {
+    if (modoPreBatalha) return;
     setSelectedCatalogoIds((prev) => {
       if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (prev.length >= selectedLimit) return prev;
+      if (selectedLimit != null && prev.length >= selectedLimit) return prev;
       return [...prev, id];
     });
   };
@@ -205,6 +288,20 @@ export function Etapa4Casas(props: {
 
   // --- Seção 3: batalha de casas (cada casa do catálogo vs cada anúncio da listagem) ---
   const escolhidasComDados = useMemo(() => {
+    if (modoPreBatalha && catalogoRankeado.length > 0) {
+      return catalogoRankeado
+        .map((mod, idx) => {
+          const ce = casasEscolhidas.find((c) => c.catalogo_casa_id === mod.id);
+          if (!ce) return null;
+          return {
+            ...ce,
+            ordem: idx + 1,
+            catalogoRow: mod,
+          };
+        })
+        .filter((ce) => ce != null);
+    }
+
     return casasEscolhidas
       .map((ce, idx) => ({
         ...ce,
@@ -212,7 +309,7 @@ export function Etapa4Casas(props: {
         catalogoRow: catalogo.find((c) => c.id === ce.catalogo_casa_id) || null,
       }))
       .filter((ce) => ce.catalogoRow !== null);
-  }, [casasEscolhidas, catalogo]);
+  }, [casasEscolhidas, catalogo, modoPreBatalha, catalogoRankeado]);
 
   const batalhaByKey = useMemo(() => {
     const map = new Map<
@@ -430,7 +527,7 @@ export function Etapa4Casas(props: {
       vagas: number | null;
       area_m2?: number | null;
     };
-    if (modoPreBatalha || dados.designId != null || dados.idade != null) {
+    if (dados.designId != null || dados.idade != null) {
       const T = notaTamanhoM2(listing.area_casa_m2, cat.area_m2 ?? null);
       const A = notaAmenidades(listing);
       const Q = notaQuartos(cat.quartos, listing.quartos);
@@ -445,13 +542,25 @@ export function Etapa4Casas(props: {
   };
 
   const calcNotaFinal = (notaAtrib: number, notaPreco: number, notaProduto: number): number =>
-    modoPreBatalha
-      ? notaFinalPreBatalha(notaAtrib, notaProduto)
-      : notaFinalBatalha(notaAtrib, notaPreco, notaProduto);
+    notaFinalBatalha(notaAtrib, notaPreco, notaProduto);
 
   /** Cores por modelo (seções de colunas na tabela) */
-  const CORES_POR_MODELO = ['bg-sky-50', 'bg-emerald-50', 'bg-amber-50'] as const;
-  const CORES_HEADER_POR_MODELO = ['bg-sky-100', 'bg-emerald-100', 'bg-amber-100'] as const;
+  const CORES_POR_MODELO = [
+    'bg-sky-50',
+    'bg-emerald-50',
+    'bg-amber-50',
+    'bg-violet-50',
+    'bg-rose-50',
+    'bg-cyan-50',
+  ] as const;
+  const CORES_HEADER_POR_MODELO = [
+    'bg-sky-100',
+    'bg-emerald-100',
+    'bg-amber-100',
+    'bg-violet-100',
+    'bg-rose-100',
+    'bg-cyan-100',
+  ] as const;
 
   /** Ranking por modelo: pontuação total = soma das notas finais. Desempate: Atributos do Lote > Preço > Produto. */
   const rankingPorModelo = useMemo(() => {
@@ -490,7 +599,7 @@ export function Etapa4Casas(props: {
     scores.sort((a, b) => {
       if (b.pontuacaoTotal !== a.pontuacaoTotal) return b.pontuacaoTotal - a.pontuacaoTotal;
       if (b.sumAtributos !== a.sumAtributos) return b.sumAtributos - a.sumAtributos;
-      if (!modoPreBatalha && b.sumPreco !== a.sumPreco) return b.sumPreco - a.sumPreco;
+      if (b.sumPreco !== a.sumPreco) return b.sumPreco - a.sumPreco;
       return b.sumProduto - a.sumProduto;
     });
     return scores;
@@ -502,10 +611,7 @@ export function Etapa4Casas(props: {
     reformaChecklistByListingId,
     produtoDadosByKey,
     custoConstrucaoByCasaEscolhidaId,
-    modoPreBatalha,
   ]);
-
-  /** Ranking das casas pela nota final (média entre os modelos). Só entram listagens com Atributos do Lote preenchido. */
   const rankingBatalha = useMemo(() => {
     if (escolhidasComDados.length === 0) return [];
     const scores: { casa: CasaRow; notaMedia: number }[] = [];
@@ -521,7 +627,7 @@ export function Etapa4Casas(props: {
         if (
           atributosLoteByKey[key] !== undefined ||
           batalhaByKey.get(key)?.nota_localizacao != null ||
-          (!modoPreBatalha && reformaChecklistByListingId[c.id] !== undefined) ||
+          reformaChecklistByListingId[c.id] !== undefined ||
           produtoDadosByKey[key] !== undefined
         ) {
           soma += notaFinal;
@@ -540,14 +646,12 @@ export function Etapa4Casas(props: {
     reformaChecklistByListingId,
     produtoDadosByKey,
     custoConstrucaoByCasaEscolhidaId,
-    modoPreBatalha,
   ]);
 
   /** Ranking final por pontuação total = soma das notas finais de cada modelo (para Seção 5). */
   // Mantido apenas se necessário futuramente; atualmente o ranking final detalhado foi removido.
 
   const handleSalvarBatalha = async () => {
-    if (modoPreBatalha) return;
     const rows: BatalhaCasaRow[] = [];
     for (const ce of escolhidasComDados) {
       for (const anuncio of casas) {
@@ -678,6 +782,9 @@ export function Etapa4Casas(props: {
           estado: state,
           condominio: condominio.trim() || undefined,
           processoId,
+          ...(listagemOnly && condominioInicial.trim()
+            ? { condominioVinculo: condominioInicial.trim() }
+            : {}),
         }),
       });
       const data = await res.json();
@@ -693,8 +800,10 @@ export function Etapa4Casas(props: {
           inserted: data.inserted ?? 0,
           updated: data.updated ?? 0,
           despublicados: data.despublicados ?? 0,
+          itemCount: data.itemCount ?? 0,
         });
         router.refresh();
+        onMutate?.();
       } else {
         setZapError('Resposta inesperada da API (dados não salvos).');
       }
@@ -740,9 +849,10 @@ export function Etapa4Casas(props: {
     setLoading(false);
     if (result.ok) {
       router.refresh();
+      onMutate?.();
       setCidadeManual(cidadeInicial);
       setEstadoManual(estadoInicial);
-      setCondominioManual('');
+      setCondominioManual(condominioInicial.trim());
       setEnderecoManual('');
       setQuartos('');
       setBanheiros('');
@@ -760,14 +870,20 @@ export function Etapa4Casas(props: {
 
   const handleStatusChange = async (casaId: string, status: 'a_venda' | 'despublicado') => {
     const result = await updateCasaStatus(casaId, status);
-    if (result.ok) router.refresh();
+    if (result.ok) {
+      router.refresh();
+      onMutate?.();
+    }
   };
 
   const handleValidarStatusCasasManuais = async () => {
     setValidandoStatus(true);
     const result = await validarStatusCasasManuais(processoId);
     setValidandoStatus(false);
-    if (result.ok) router.refresh();
+    if (result.ok) {
+      router.refresh();
+      onMutate?.();
+    }
   };
 
   const labelCasa = (c: CasaRow) =>
@@ -779,7 +895,11 @@ export function Etapa4Casas(props: {
       <div className="p-3">
         {escolhidasComDados.length === 0 ? (
           <p className="text-sm italic text-stone-500">
-            Selecione até 3 modelos e confirme para habilitar a batalha.
+            {modoPreBatalha
+              ? syncPreBatalha
+                ? 'Ranqueando modelos por compatibilidade com a listagem…'
+                : 'Aguardando listagem e catálogo para ranquear os modelos.'
+              : 'Selecione modelos e confirme para habilitar a batalha.'}
           </p>
         ) : rankingPorModelo.length === 0 ? (
           <p className="text-sm italic text-stone-500">
@@ -977,59 +1097,93 @@ export function Etapa4Casas(props: {
       )}
       <div className={resultadoPortalTargetId ? 'space-y-8 p-4 sm:p-6' : 'mt-6 space-y-8'}>
         {/* Bloco Varrer ZAP */}
-        <section className="space-y-3 rounded-xl border border-stone-200 bg-stone-50 p-4">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <input
-              type="text"
-              placeholder="Cidade"
-              value={cidade}
-              onChange={(e) => setCidade(e.target.value)}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
-            />
-            <input
-              type="text"
-              placeholder="Estado (ex.: SP)"
-              value={estado}
-              onChange={(e) => setEstado(e.target.value)}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
-              maxLength={2}
-            />
-            <input
-              type="text"
-              placeholder="Condomínio (opcional)"
-              value={condominio}
-              onChange={(e) => setCondominio(e.target.value)}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
-            />
+        <section className={`space-y-3 rounded-xl border border-stone-200 bg-stone-50 ${listagemOnly ? 'p-3' : 'p-4'}`}>
+          <div className={`grid sm:grid-cols-3 ${listagemOnly ? 'gap-2' : 'gap-3'}`}>
+            <label className="grid gap-1">
+              <span className={campoLabelClass}>Cidade</span>
+              <input
+                type="text"
+                placeholder="Ex.: Salto"
+                value={cidade}
+                onChange={(e) => setCidade(e.target.value)}
+                disabled={readOnly}
+                className={campoInputClass}
+              />
+            </label>
+            <label className="grid gap-1">
+              <span className={campoLabelClass}>Estado</span>
+              <input
+                type="text"
+                placeholder="Ex.: SP"
+                value={estado}
+                onChange={(e) => setEstado(e.target.value)}
+                disabled={readOnly}
+                className={campoInputClass}
+                maxLength={2}
+              />
+            </label>
+            <label className="grid gap-1">
+              <span className={campoLabelClass}>Condomínio</span>
+              <input
+                type="text"
+                placeholder={listagemOnly ? 'Nome do condomínio' : 'Condomínio (opcional)'}
+                value={condominio}
+                onChange={(e) => setCondominio(e.target.value)}
+                disabled={readOnly}
+                className={campoInputClass}
+              />
+            </label>
           </div>
+          {listagemOnly &&
+          condominioInicial.trim() &&
+          condominio.trim().toLowerCase() !== condominioInicial.trim().toLowerCase() ? (
+            <p className={`${campoTexto} text-stone-500`}>
+              Termo na ZAP para &quot;{condominioInicial.trim()}&quot; — ajuste se necessário.
+            </p>
+          ) : null}
           {zapLoading ? (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+            <p className={`rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700 ${campoTexto}`}>
               Buscando imóveis no ZAP via Apify… pode levar até 4 minutos. Não feche a página.
             </p>
           ) : null}
           {zapError ? (
             <div
-              className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+              className={`rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 ${campoTexto}`}
               role="alert"
             >
               <strong>Erro ao varrer ZAP:</strong> {zapError}
             </div>
           ) : null}
           {zapResult ? (
-            <p className="text-sm text-green-700">
-              Inseridos: {zapResult.inserted}, atualizados: {zapResult.updated}, marcados
-              despublicados: {zapResult.despublicados}.
-            </p>
+            zapResult.itemCount === 0 ? (
+              <p
+                className={`rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 ${campoTexto}`}
+              >
+                Nenhum imóvel encontrado na ZAP com estes filtros (casas/sobrados acima de R$
+                4.000.000). Confira se o termo do condomínio corresponde ao bairro/loteamento na
+                ZAP ou cadastre manualmente.
+              </p>
+            ) : (
+              <p className={`${campoTexto} text-green-700`}>
+                {zapResult.itemCount} {zapResult.itemCount === 1 ? 'imóvel' : 'imóveis'} na ZAP —
+                inseridos: {zapResult.inserted}, atualizados: {zapResult.updated}, marcados
+                despublicados: {zapResult.despublicados}.
+              </p>
+            )
           ) : null}
           <button
             type="button"
             onClick={handleVarrerZap}
-            disabled={zapLoading}
-            className="btn-primary text-sm"
+            disabled={zapLoading || readOnly}
+            className={`btn-primary disabled:cursor-not-allowed disabled:opacity-60 ${
+              listagemOnly ? '!px-2.5 !py-1 !text-[11px] !font-normal' : 'text-sm'
+            }`}
           >
             {zapLoading ? 'Buscando…' : 'Buscar'}
           </button>
         </section>
+
+        {painelAposBuscar}
 
         {/* Alerta mensal: validar status das casas manuais */}
         {casasManuais.length > 0 && precisaAlertaValidacao && (
@@ -1054,8 +1208,8 @@ export function Etapa4Casas(props: {
             <button
               type="button"
               onClick={handleValidarStatusCasasManuais}
-              disabled={validandoStatus}
-              className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60"
+              disabled={validandoStatus || readOnly}
+              className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {validandoStatus ? 'Salvando…' : 'Validar status'}
             </button>
@@ -1068,107 +1222,135 @@ export function Etapa4Casas(props: {
             {modoPreBatalha ? (
               <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2">
                 <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-amber-300">
-                  Pré-batalha
+                  Pré Batalha
                 </span>
                 <span className="text-xs text-amber-900/90">
-                  Somente Produto e Atributos do Lote — notas locais, sem salvar no banco.
+                  Ranqueie todos os modelos Moní por compatibilidade com a listagem (alta → baixa)
+                  e aplique Atributos do Lote + Preço + Produto. Nota final = soma dos três eixos;
+                  desempate: Lote &gt; Preço &gt; Produto.
                 </span>
               </div>
             ) : null}
             {/* Bloco compacto: escolher 3 do catálogo para batalha — só no Step 2 (não listagemOnly) */}
             {!listagemOnly && catalogo.length > 0 && (
               <div className="border-b border-stone-200 bg-stone-50 px-4 py-3">
-                <p className="mb-2 text-sm font-medium text-stone-800">
-                  {modoPreBatalha
-                    ? 'Escolha até 3 modelos Moní para ranquear (produto + localização):'
-                    : 'Escolher até 3 modelos do catálogo para batalhar com a listagem abaixo:'}
-                </p>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  {catalogo.map((mod) => (
-                    <label
-                      key={mod.id}
-                      className="flex cursor-pointer items-center gap-1.5 text-sm"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedCatalogoIds.includes(mod.id)}
-                        onChange={() => toggleCatalogoSelected(mod.id)}
-                        disabled={
-                          !selectedCatalogoIds.includes(mod.id) &&
-                          selectedCatalogoIds.length >= selectedLimit
-                        }
-                        className="rounded"
-                      />
-                      <span>{mod.nome ?? mod.id.slice(0, 8)}</span>
-                      {mod.preco_venda_m2 != null && (
-                        <span className="text-xs text-stone-500">
-                          R$ {mod.preco_venda_m2.toLocaleString('pt-BR')}/m²
-                        </span>
-                      )}
-                    </label>
-                  ))}
-                  <span className="text-sm text-stone-500">
-                    {selectedCatalogoIds.length} / {selectedLimit} selecionados
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleConfirmEscolhidas}
-                    disabled={selectedCatalogoIds.length === 0}
-                    className="btn-primary text-sm disabled:pointer-events-none disabled:opacity-60"
-                  >
-                    Confirmar seleção
-                  </button>
-                  {escolhidasComDados.length > 0 && (
-                    <>
+                {modoPreBatalha ? (
+                  <>
+                    <p className="mb-2 text-sm font-medium text-stone-800">
+                      Modelos ranqueados por compatibilidade com a listagem (alta → baixa):
+                    </p>
+                    {syncPreBatalha ? (
+                      <p className="text-xs text-stone-500">Sincronizando ranking…</p>
+                    ) : (
+                      <ol className="space-y-1.5">
+                        {catalogoRankeado.map((mod, idx) => (
+                          <li
+                            key={mod.id}
+                            className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-stone-700"
+                          >
+                            <span className="font-semibold tabular-nums text-stone-500">
+                              {idx + 1}.
+                            </span>
+                            <span className="font-medium">{mod.nome ?? mod.id.slice(0, 8)}</span>
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900">
+                              {mod.scoreCompatibilidade}% · {labelCompatibilidade(mod.scoreCompatibilidade)}
+                            </span>
+                            {mod.preco_venda_m2 != null ? (
+                              <span className="text-xs text-stone-500">
+                                R$ {mod.preco_venda_m2.toLocaleString('pt-BR')}/m²
+                              </span>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="mb-2 text-sm font-medium text-stone-800">
+                      Escolher até 3 modelos do catálogo para batalhar com a listagem abaixo:
+                    </p>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      {catalogo.map((mod) => (
+                        <label
+                          key={mod.id}
+                          className="flex cursor-pointer items-center gap-1.5 text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedCatalogoIds.includes(mod.id)}
+                            onChange={() => toggleCatalogoSelected(mod.id)}
+                            disabled={
+                              !selectedCatalogoIds.includes(mod.id) &&
+                              selectedLimit != null &&
+                              selectedCatalogoIds.length >= selectedLimit
+                            }
+                            className="rounded"
+                          />
+                          <span>{mod.nome ?? mod.id.slice(0, 8)}</span>
+                          {mod.preco_venda_m2 != null && (
+                            <span className="text-xs text-stone-500">
+                              R$ {mod.preco_venda_m2.toLocaleString('pt-BR')}/m²
+                            </span>
+                          )}
+                        </label>
+                      ))}
+                      <span className="text-sm text-stone-500">
+                        {selectedCatalogoIds.length} / {selectedLimit} selecionados
+                      </span>
                       <button
                         type="button"
-                        onClick={handleSalvarBatalha}
-                        disabled={modoPreBatalha}
-                        title={
-                          modoPreBatalha
-                            ? 'Modo auxiliar pré-batalha: notas só nesta sessão. Use a etapa 6 para salvar a batalha completa.'
-                            : undefined
-                        }
-                        className="btn-primary text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={handleConfirmEscolhidas}
+                        disabled={selectedCatalogoIds.length === 0}
+                        className="btn-primary text-sm disabled:pointer-events-none disabled:opacity-60"
                       >
-                        Salvar batalha
+                        Confirmar seleção
                       </button>
-                      {!modoPreBatalha ? (
-                        <button
-                          type="button"
-                          onClick={handleGerarPdf}
-                          disabled={gerandoPdf || pdfRows.length === 0}
-                          className="btn-primary text-sm"
-                        >
-                          {gerandoPdf ? 'Gerando PDF…' : 'Gerar e guardar PDF'}
-                        </button>
-                      ) : null}
-                    </>
-                  )}
-                </div>
+                    </div>
+                  </>
+                )}
+                {escolhidasComDados.length > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleSalvarBatalha}
+                      className="btn-primary mt-3 text-sm"
+                    >
+                      Salvar batalha
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleGerarPdf}
+                      disabled={gerandoPdf || pdfRows.length === 0}
+                      className="btn-primary ml-2 mt-3 text-sm"
+                    >
+                      {gerandoPdf ? 'Gerando PDF…' : 'Gerar e guardar PDF'}
+                    </button>
+                  </>
+                )}
               </div>
             )}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-sm">
+              <table className={`w-full min-w-[900px] ${tabelaTexto}`}>
                 <thead>
                   <tr className="border-b border-stone-200 bg-stone-100">
-                    <th className="p-2 text-left">Cidade</th>
-                    <th className="p-2 text-left">Fotos</th>
-                    <th className="p-2 text-left">Status</th>
-                    <th className="p-2 text-left">Condomínio</th>
-                    <th className="p-2 text-left">Endereço</th>
-                    <th className="p-2 text-left">Quartos</th>
-                    <th className="p-2 text-left">Banheiros</th>
-                    <th className="p-2 text-left">Vagas</th>
-                    <th className="p-2 text-left">Piscina</th>
-                    <th className="p-2 text-left">Móveis planej.</th>
-                    <th className="p-2 text-left">Preço</th>
-                    <th className="p-2 text-left">m²</th>
-                    <th className="p-2 text-left">R$/m²</th>
-                    <th className="p-2 text-left">Estado</th>
-                    <th className="p-2 text-left">Data criação ZAP</th>
-                    <th className="p-2 text-left">Duração anúncio</th>
-                    <th className="p-2 text-left">Listing</th>
+                    <th className={tabelaTh}>Cidade</th>
+                    <th className={tabelaTh}>Fotos</th>
+                    <th className={tabelaTh}>Status</th>
+                    <th className={tabelaTh}>Condomínio</th>
+                    <th className={tabelaTh}>Endereço</th>
+                    <th className={tabelaTh}>Quartos</th>
+                    <th className={tabelaTh}>Banheiros</th>
+                    <th className={tabelaTh}>Vagas</th>
+                    <th className={tabelaTh}>Piscina</th>
+                    <th className={tabelaTh}>Móveis planej.</th>
+                    <th className={tabelaTh}>Preço</th>
+                    <th className={tabelaTh}>m²</th>
+                    <th className={tabelaTh}>R$/m²</th>
+                    <th className={tabelaTh}>Estado</th>
+                    <th className={tabelaTh}>Data criação ZAP</th>
+                    <th className={tabelaTh}>Duração anúncio</th>
+                    <th className={tabelaTh}>Listing</th>
                     {!listagemOnly &&
                       escolhidasComDados.map((ce, idx) => {
                         const cat = ce.catalogoRow as { nome: string | null };
@@ -1176,7 +1358,7 @@ export function Etapa4Casas(props: {
                         return (
                           <th
                             key={ce.id}
-                            colSpan={modoPreBatalha ? 3 : 4}
+                            colSpan={4}
                             className={`border-l border-stone-200 p-2 text-center ${bg} text-stone-800`}
                             title={`Modelo ${ce.ordem}: ${cat.nome ?? ''}`}
                           >
@@ -1193,15 +1375,13 @@ export function Etapa4Casas(props: {
                         const bg = CORES_HEADER_POR_MODELO[idx % CORES_HEADER_POR_MODELO.length];
                         return (
                           <React.Fragment key={ce.id}>
-                            {!modoPreBatalha ? (
-                              <th
-                                className={`border-l border-stone-200 p-1 px-2 text-center ${bg} min-w-[70px] text-xs font-medium`}
-                              >
-                                Nota Preço
-                              </th>
-                            ) : null}
                             <th
-                              className={`min-w-[70px] p-1 px-2 text-center text-xs font-medium ${bg} ${modoPreBatalha ? 'border-l border-stone-200' : ''}`}
+                              className={`border-l border-stone-200 p-1 px-2 text-center ${bg} min-w-[70px] text-xs font-medium`}
+                            >
+                              Nota Preço
+                            </th>
+                            <th
+                              className={`min-w-[70px] p-1 px-2 text-center text-xs font-medium ${bg}`}
                             >
                               Nota Produto
                             </th>
@@ -1225,8 +1405,8 @@ export function Etapa4Casas(props: {
                 <tbody>
                   {casasPaginated.map((c) => (
                     <tr key={c.id} className="border-b border-stone-100 hover:bg-stone-50">
-                      <td className="p-2">{c.cidade ?? '—'}</td>
-                      <td className="p-2">
+                      <td className={tabelaTd}>{c.cidade ?? '—'}</td>
+                      <td className={tabelaTd}>
                         {c.foto_url ? (
                           <a
                             href={c.foto_url}
@@ -1240,14 +1420,15 @@ export function Etapa4Casas(props: {
                           '—'
                         )}
                       </td>
-                      <td className="p-2">
+                      <td className={tabelaTd}>
                         {c.manual ? (
                           <select
                             value={c.status ?? 'a_venda'}
                             onChange={(e) =>
                               handleStatusChange(c.id, e.target.value as 'a_venda' | 'despublicado')
                             }
-                            className="rounded border border-stone-300 px-2 py-1 text-sm"
+                            disabled={readOnly}
+                            className={`rounded border border-stone-300 ${campoPadding} ${campoTexto} disabled:cursor-not-allowed disabled:opacity-60`}
                           >
                             <option value="a_venda">À venda</option>
                             <option value="despublicado">Despublicado</option>
@@ -1258,28 +1439,31 @@ export function Etapa4Casas(props: {
                           'a venda'
                         )}
                       </td>
-                      <td className="p-2">{c.condominio ?? '—'}</td>
+                      <td className={tabelaTd}>{c.condominio ?? '—'}</td>
                       <td
-                        className="max-w-[120px] truncate p-2"
+                        className={`${tabelaTd} max-w-[120px] truncate`}
                         title={c.localizacao_condominio ?? undefined}
                       >
                         {c.localizacao_condominio ?? '—'}
                       </td>
-                      <td className="p-2">{c.quartos ?? '—'}</td>
-                      <td className="p-2">{c.banheiros ?? '—'}</td>
-                      <td className="p-2">{c.vagas ?? '—'}</td>
-                      <td className="p-2">{c.piscina ? 'sim' : 'não'}</td>
-                      <td className="p-2">{c.marcenaria ? 'sim' : 'não'}</td>
-                      <td className="p-2">
-                        {c.preco != null ? `R$ ${c.preco.toLocaleString('pt-BR')}` : '—'}
+                      <td className={tabelaTd}>{c.quartos ?? '—'}</td>
+                      <td className={tabelaTd}>{c.banheiros ?? '—'}</td>
+                      <td className={tabelaTd}>{c.vagas ?? '—'}</td>
+                      <td className={tabelaTd}>{c.piscina ? 'sim' : 'não'}</td>
+                      <td className={tabelaTd}>{c.marcenaria ? 'sim' : 'não'}</td>
+                      <td className={tabelaTd}>
+                        <span className="inline-flex flex-wrap items-center gap-1.5">
+                          {c.preco != null ? `R$ ${c.preco.toLocaleString('pt-BR')}` : '—'}
+                          <BadgeFaixaMercado faixa={c.faixa} />
+                        </span>
                       </td>
-                      <td className="p-2">{c.area_casa_m2 ?? '—'}</td>
-                      <td className="p-2">
+                      <td className={tabelaTd}>{c.area_casa_m2 ?? '—'}</td>
+                      <td className={tabelaTd}>
                         {c.preco_m2 != null ? `R$ ${c.preco_m2.toLocaleString('pt-BR')}` : '—'}
                       </td>
-                      <td className="p-2">{c.estado ?? '—'}</td>
-                      <td className="p-2">{c.data_publicacao ?? '—'}</td>
-                      <td className="p-2">
+                      <td className={tabelaTd}>{c.estado ?? '—'}</td>
+                      <td className={tabelaTd}>{c.data_publicacao ?? '—'}</td>
+                      <td className={tabelaTd}>
                         {(() => {
                           const pub = c.data_publicacao ? new Date(c.data_publicacao) : null;
                           if (!pub || isNaN(pub.getTime())) return '—';
@@ -1301,7 +1485,7 @@ export function Etapa4Casas(props: {
                           return `${dias} dias`;
                         })()}
                       </td>
-                      <td className="p-2">
+                      <td className={tabelaTd}>
                         {c.link ? (
                           <a
                             href={c.link}
@@ -1353,7 +1537,6 @@ export function Etapa4Casas(props: {
                           const custoModelo = custoConstrucaoByCasaEscolhidaId[ce.id];
                           return (
                             <React.Fragment key={ce.id}>
-                              {!modoPreBatalha ? (
                               <td
                                 className={`p-1 px-2 text-center ${borderLeft} ${bg} relative min-w-[70px]`}
                               >
@@ -1481,9 +1664,8 @@ export function Etapa4Casas(props: {
                                   </>
                                 )}
                               </td>
-                              ) : null}
                               <td
-                                className={`p-1 px-2 text-center ${modoPreBatalha ? `${borderLeft} ${bg}` : bg} relative min-w-[70px]`}
+                                className={`p-1 px-2 text-center ${bg} relative min-w-[70px]`}
                               >
                                 <div className="flex items-center justify-center gap-0.5">
                                   <button
@@ -1498,7 +1680,7 @@ export function Etapa4Casas(props: {
                                   >
                                     {notaProduto}
                                   </button>
-                                  {!modoPreBatalha && !produtoManualPreenchido && (
+                                  {!produtoManualPreenchido && (
                                     <span
                                       className="text-[10px] font-bold leading-none text-amber-600"
                                       title="Nota automática (quartos/banheiros/vagas). Preencha design e idade para refinar."
@@ -1705,7 +1887,9 @@ export function Etapa4Casas(props: {
           </section>
         )}
         {casas.length > ROWS_PER_PAGE && (
-          <div className="mt-3 flex items-center justify-between rounded-lg border border-stone-200 bg-stone-50 px-4 py-2 text-sm">
+          <div
+            className={`mt-3 flex items-center justify-between rounded-lg border border-stone-200 bg-stone-50 ${listagemOnly ? 'px-3 py-1.5 text-[11px]' : 'px-4 py-2 text-sm'}`}
+          >
             <span className="text-stone-600">
               Página {pageCasas} de {totalPages} ({casas.length} casas)
             </span>
@@ -1776,15 +1960,18 @@ export function Etapa4Casas(props: {
         )}
 
         {/* Adicionar casa manual — dropdown */}
+        {!readOnly ? (
         <div className="overflow-hidden rounded-xl border border-stone-200 bg-stone-50">
           <button
             type="button"
             onClick={() => setManualFormOpen((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 text-left font-medium text-stone-800 transition-colors hover:bg-stone-100"
+            className={`flex w-full items-center justify-between text-left text-stone-800 transition-colors hover:bg-stone-100 ${
+              listagemOnly ? 'px-3 py-1.5 text-[11px] font-medium' : 'px-4 py-3 font-medium'
+            }`}
             aria-expanded={manualFormOpen}
           >
             <span>Adicionar casa manualmente</span>
-            <span className="text-lg leading-none text-stone-500">
+            <span className={`leading-none text-stone-500 ${listagemOnly ? 'text-xs' : 'text-lg'}`}>
               {manualFormOpen ? '−' : '+'}
             </span>
           </button>
@@ -1824,7 +2011,8 @@ export function Etapa4Casas(props: {
                     type="text"
                     value={condominioManual}
                     onChange={(e) => setCondominioManual(e.target.value)}
-                    className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                    disabled={readOnly}
+                    className={`rounded-lg border border-stone-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60`}
                   />
                 </label>
                 <label className="grid gap-1 sm:col-span-2">
@@ -1963,7 +2151,37 @@ export function Etapa4Casas(props: {
             </form>
           )}
         </div>
+        ) : null}
       </div>
     </>
   );
+}
+
+function BadgeFaixaMercado({
+  faixa,
+}: {
+  faixa?: CasaRow['faixa'];
+}) {
+  if (faixa === 'premium') {
+    return (
+      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+        Premium
+      </span>
+    );
+  }
+  if (faixa === 'intermediaria') {
+    return (
+      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+        Intermediária
+      </span>
+    );
+  }
+  if (faixa === 'entrada') {
+    return (
+      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+        Entrada
+      </span>
+    );
+  }
+  return null;
 }

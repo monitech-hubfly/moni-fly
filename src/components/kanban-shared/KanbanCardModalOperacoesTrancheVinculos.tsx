@@ -8,7 +8,25 @@ import {
   salvarTrancheVinculoOperacoes,
   type TrancheVinculoListItem,
 } from '@/lib/actions/operacoes-tranche-vinculos';
-import { configTrancheVinculo } from '@/lib/operacoes/tranche-vinculos-config';
+import {
+  configTrancheVinculo,
+  OPERACOES_TRANCHE_VINCULOS,
+} from '@/lib/operacoes/tranche-vinculos-config';
+
+function itensTrancheVinculoPreset(): TrancheVinculoListItem[] {
+  return OPERACOES_TRANCHE_VINCULOS.map((cfg) => ({
+    index: cfg.index,
+    nome: cfg.nome,
+    status: 'pendente' as const,
+    pct_fisico_financeiro: null,
+    nfts_url: null,
+    evidencias_url: null,
+    concluido_em: null,
+    filhoCreditoObraId: null,
+    filhoFaseSlug: null,
+    filhoFaseNome: null,
+  }));
+}
 
 type SidebarProps = {
   cardId: string;
@@ -37,14 +55,19 @@ export function KanbanCardModalOperacoesTrancheVinculosSidebar({
     try {
       const res = await listarTrancheVinculosOperacoes(cardId);
       if (!res.ok) {
-        setErro(res.error);
-        setItems([]);
+        if (res.error === 'Faça login.' || res.error.includes('Funil Pré Obra')) {
+          setErro(res.error);
+          setItems([]);
+          return;
+        }
+        setErro(null);
+        setItems(itensTrancheVinculoPreset());
         return;
       }
       setItems(res.items);
     } catch {
-      setErro('Erro ao carregar vínculos.');
-      setItems([]);
+      setErro(null);
+      setItems(itensTrancheVinculoPreset());
     } finally {
       setLoading(false);
     }

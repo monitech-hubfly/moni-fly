@@ -92,12 +92,12 @@ export default async function Step5ComitePage({ searchParams }: PageProps) {
             {backLabel}
           </Link>
           <span className="text-stone-500">/</span>
-          <span className="font-medium text-stone-700">Step 5: Comitê</span>
+          <span className="font-medium text-stone-700">Comitê</span>
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-8">
         <div className="mb-6 print:hidden">
-          <h1 className="text-2xl font-bold text-moni-dark">Step 5: Comitê</h1>
+          <h1 className="text-2xl font-bold text-moni-dark">Comitê</h1>
           <p className="mt-1 text-sm text-stone-600">
             Apresentação do processo — {comiteData.processoCidade ?? '—'}
             {comiteData.processoEstado ? `, ${comiteData.processoEstado}` : ''}

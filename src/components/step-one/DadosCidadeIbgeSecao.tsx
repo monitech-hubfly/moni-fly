@@ -1,0 +1,123 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
+type DadosCidade = {
+  populacao: string | null;
+  pibPerCapita: string | null;
+  rendaMedia: string | null;
+  areaTerritorial: string | null;
+  densidade: string | null;
+};
+
+type Props = {
+  cidade: string;
+  estado: string | null;
+  /** Exibe título "Seção 1 — Dados da cidade" (padrão step-one legado). */
+  showHeading?: boolean;
+};
+
+export function DadosCidadeIbgeSecao({ cidade, estado, showHeading = true }: Props) {
+  const [dadosCidade, setDadosCidade] = useState<DadosCidade | null>(null);
+  const [loadingDados, setLoadingDados] = useState(true);
+  const [errorDados, setErrorDados] = useState('');
+
+  useEffect(() => {
+    if (!cidade.trim()) {
+      setLoadingDados(false);
+      setDadosCidade(null);
+      return;
+    }
+    setLoadingDados(true);
+    setErrorDados('');
+    const params = new URLSearchParams({ cidade: cidade.trim() });
+    if (estado?.trim()) params.set('estado', estado.trim());
+    fetch(`/api/etapa1/dados-cidade?${params.toString()}`)
+      .then(async (res) => {
+        const data = (await res.json()) as DadosCidade & { error?: string };
+        if (!res.ok || data.error) {
+          setErrorDados(data.error ?? 'Erro ao carregar dados da cidade.');
+          setDadosCidade(null);
+          return;
+        }
+        setDadosCidade({
+          populacao: data.populacao ?? null,
+          pibPerCapita: data.pibPerCapita ?? null,
+          rendaMedia: data.rendaMedia ?? null,
+          areaTerritorial: data.areaTerritorial ?? null,
+          densidade: data.densidade ?? null,
+        });
+      })
+      .catch(() => {
+        setErrorDados('Erro ao carregar dados da cidade.');
+        setDadosCidade(null);
+      })
+      .finally(() => setLoadingDados(false));
+  }, [cidade, estado]);
+
+  if (!cidade.trim()) {
+    return (
+      <p className="text-sm italic text-stone-500">
+        Informe cidade e estado no processo para carregar os indicadores IBGE.
+      </p>
+    );
+  }
+
+  const compact = !showHeading;
+  const labelClass = compact
+    ? 'text-[9px] font-medium uppercase tracking-wide text-stone-500'
+    : 'text-xs font-medium uppercase text-stone-500';
+  const valueClass = compact
+    ? 'mt-0.5 text-[11px] font-medium leading-snug text-stone-700'
+    : 'mt-1 text-xl font-semibold text-stone-800';
+  const cardClass = compact
+    ? 'rounded-lg border border-stone-200 bg-white p-1.5 shadow-sm'
+    : 'rounded-lg border border-stone-200 bg-white p-3 shadow-sm';
+  const sectionClass = compact
+    ? 'rounded-xl border border-stone-200 bg-stone-50/80 p-3'
+    : 'rounded-xl border border-stone-200 bg-stone-50/80 p-4';
+  const gridClass = compact
+    ? `grid gap-2 sm:grid-cols-2 lg:grid-cols-5 ${showHeading ? 'mt-4' : 'mt-1'}`
+    : `grid gap-3 sm:grid-cols-2 lg:grid-cols-5 ${showHeading ? 'mt-4' : 'mt-1'}`;
+
+  return (
+    <section className={sectionClass}>
+      {showHeading ? (
+        <h2 className="text-lg font-semibold text-stone-800">Seção 1 — Dados da cidade</h2>
+      ) : null}
+      {errorDados ? <p className={`text-sm text-red-600 ${showHeading ? 'mt-3' : ''}`}>{errorDados}</p> : null}
+      <div className={gridClass}>
+        <div className={cardClass}>
+          <p className={labelClass}>População</p>
+          <p className={valueClass}>
+            {loadingDados ? 'Carregando...' : dadosCidade?.populacao?.trim() || 'Dado não disponível'}
+          </p>
+        </div>
+        <div className={cardClass}>
+          <p className={labelClass}>PIB per capita</p>
+          <p className={valueClass}>
+            {loadingDados ? 'Carregando...' : dadosCidade?.pibPerCapita?.trim() || 'Dado não disponível'}
+          </p>
+        </div>
+        <div className={cardClass}>
+          <p className={labelClass}>Renda média domiciliar</p>
+          <p className={valueClass}>
+            {loadingDados ? 'Carregando...' : dadosCidade?.rendaMedia?.trim() || 'Dado não disponível'}
+          </p>
+        </div>
+        <div className={cardClass}>
+          <p className={labelClass}>Área territorial</p>
+          <p className={valueClass}>
+            {loadingDados ? 'Carregando...' : dadosCidade?.areaTerritorial?.trim() || 'Dado não disponível'}
+          </p>
+        </div>
+        <div className={cardClass}>
+          <p className={labelClass}>Densidade demográfica</p>
+          <p className={valueClass}>
+            {loadingDados ? 'Carregando...' : dadosCidade?.densidade?.trim() || 'Dado não disponível'}
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}

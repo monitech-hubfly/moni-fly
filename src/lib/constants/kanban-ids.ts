@@ -135,25 +135,36 @@ export const FASE_SLUGS = {
   PL_PAGAMENTOS:                'pl_pagamentos',
   CONTABILIDADE_CONCLUIDO:   'contabilidade_concluido',
   JURIDICO_CONCLUIDO:        'juridico_concluido',
-  CAPITAL_CONCLUIDO:         'capital_concluido',
-  CAPITAL_NAO_ELEGIVEL:      'capital_nao_elegivel',
+  // Funil Moní Capital (KANBAN_IDS.MONI_CAPITAL) — fluxo ordem 1–8
+  CAPITAL_RECEBIMENTO:            'capital_recebimento',
+  CAPITAL_ABERTURA_SPE:           'capital_abertura_spe',
+  CAPITAL_CADASTRO_PLATAFORMA:    'capital_cadastro_plataforma',
+  CAPITAL_MATERIAIS_PROJETO:      'capital_materiais_projeto',
+  CAPITAL_INFORMACOES_OBRIG:      'capital_informacoes_obrigatorias',
+  CAPITAL_FORMALIZACAO:           'capital_formalizacao',
+  CAPITAL_CONCLUIDO:              'capital_concluido',
+  CAPITAL_NAO_ELEGIVEL:           'capital_nao_elegivel',
   PROJETOS_LOCAIS_CONCLUIDO: 'projetos_locais_concluido',
   PROJETOS_LEGAIS_CONCLUIDO: 'projetos_legais_concluido',
   OPERACOES_ENTREGUE:        'operacoes_entregue',
   // Gates
   STEP_5:             'step_5',
-  // Funil Step One (KANBAN_IDS.STEP_ONE) — fluxo ordem 1–10 (PROD)
+  // Funil Step One (KANBAN_IDS.STEP_ONE) — fluxo ordem 1–13 (PROD)
+  ONBOARDING:           'onboarding',
   DADOS_CANDIDATO:      'dados_candidato',
   DADOS_CIDADE:         'dados_cidade',
+  MAPA_COMPETIDORES:    'mapa_competidores',
   DADOS_CONDOMINIOS:    'dados_condominios',
   LOTES_DISPONIVEIS:    'lotes_disponiveis',
-  MAPA_COMPETIDORES:    'mapa_competidores',
+  BATALHA:              'batalha', // coluna «Pré Batalha»
+  /** @deprecated Slug legado — fase absorvida por `batalha`. */
   PRE_BATALHA:          'pre_batalha',
-  ESCOLHA:              'escolha',
+  CONFIGURADOR_CASAS:   'configurador_casas',
   BCA:                  'bca',
   /** Slug legado renomeado — valor canônico PROD: `bca`. */
   BCA_BATALHA_CASAS:    'bca',
-  BATALHA:              'batalha',
+  BATALHA_CASAS:        'batalha_casas',
+  ESCOLHA:              'escolha',
   HIPOTESES:            'hipoteses',
 } as const
 

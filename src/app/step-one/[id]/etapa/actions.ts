@@ -2,6 +2,8 @@
 
 import { createHash } from 'node:crypto';
 import { getPublicAppUrl } from '@/lib/app-url';
+import { normalizeAccessRole } from '@/lib/authz';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { buscarMunicipioIbge } from '@/lib/ibge';
 import type { MunicipioIbge } from '@/lib/ibge';
@@ -50,7 +52,17 @@ async function resolveStepOneKanbanCardIds(
   return [...ids];
 }
 
-/** Pré-preenche Atributos do Lote a partir do checklist da fase lotes_disponiveis (Step One). */
+function loteDisponivelParaAtributosBatalha(lote: import('@/lib/kanban/lotes-disponiveis-condominio').LinhaLoteDisponivel): AtributosLoteRespostas {
+  const atributos: AtributosLoteRespostas = {};
+  if (lote.vista_privilegiada === 'true') atributos.vista = true;
+  if (lote.perto_area_verde === 'true') atributos.area_verde = true;
+  if (lote.muro === 'true') atributos.muro = true;
+  if (lote.perto_area_convivencia === 'true') atributos.area_convivencia = true;
+  if (lote.perto_lixeira === 'true') atributos.lixeira = true;
+  return atributos;
+}
+
+/** Pré-preenche Atributos do Lote a partir da fase lotes_disponiveis (Step One). */
 export async function getAtributosLoteFromStepOneChecklist(
   processoId: string,
 ): Promise<{ ok: true; atributos: AtributosLoteRespostas } | { ok: false; error: string }> {
@@ -69,6 +81,7 @@ export async function getAtributosLoteFromStepOneChecklist(
   if (!processo) return { ok: false, error: 'Processo não encontrado.' };
 
   const cardIds = await resolveStepOneKanbanCardIds(supabase, processoId);
+  if (cardIds.length === 0) return { ok: true, atributos: {} };
 
   const { data: fase } = await supabase
     .from('kanban_fases')
@@ -80,16 +93,38 @@ export async function getAtributosLoteFromStepOneChecklist(
 
   const { data: itens, error: errItens } = await supabase
     .from('kanban_fase_checklist_itens')
-    .select('id, ordem')
-    .eq('fase_id', faseId)
-    .gte('ordem', 8)
-    .lte('ordem', 12);
+    .select('id, ordem, tipo')
+    .eq('fase_id', faseId);
   if (errItens) return { ok: false, error: errItens.message };
 
-  const itemRows = (itens ?? []) as { id: string; ordem: number }[];
-  if (itemRows.length === 0) return { ok: true, atributos: {} };
+  const itemRows = (itens ?? []) as { id: string; ordem: number; tipo: string }[];
+  const usaLotesPorCondominio = itemRows.some((i) => i.tipo === 'lotes_condominio');
 
-  const itemIds = itemRows.map((i) => i.id);
+  if (usaLotesPorCondominio) {
+    const { carregarLotesCondominioCard } = await import('@/lib/actions/kanban-lotes-disponiveis');
+    for (const cardId of cardIds) {
+      const loaded = await carregarLotesCondominioCard(cardId);
+      if (!loaded.ok) continue;
+      for (const linha of loaded.linhas) {
+        const escolhido = linha.lote_escolhido_id?.trim()
+          ? (linha.lotes_disponiveis ?? []).find((l) => l.lote_id === linha.lote_escolhido_id)
+          : null;
+        const lotesPrioridade = escolhido
+          ? [escolhido]
+          : (linha.lotes_disponiveis ?? []);
+        for (const lote of lotesPrioridade) {
+          const atributos = loteDisponivelParaAtributosBatalha(lote);
+          if (Object.keys(atributos).length > 0) return { ok: true, atributos };
+        }
+      }
+    }
+    return { ok: true, atributos: {} };
+  }
+
+  const legacyItens = itemRows.filter((i) => i.ordem >= 8 && i.ordem <= 12);
+  if (legacyItens.length === 0) return { ok: true, atributos: {} };
+
+  const itemIds = legacyItens.map((i) => i.id);
   const { data: respostas, error: errResp } = await supabase
     .from('kanban_fase_checklist_respostas')
     .select('item_id, valor')
@@ -103,7 +138,7 @@ export async function getAtributosLoteFromStepOneChecklist(
   }
 
   const atributos: AtributosLoteRespostas = {};
-  for (const item of itemRows) {
+  for (const item of legacyItens) {
     const atributoId = CHECKLIST_ORDEM_TO_ATRIBUTO[item.ordem];
     if (!atributoId) continue;
     if (valorPorItem.get(item.id) === 'true') {
@@ -548,12 +583,9 @@ export async function addCasaListing(
     link?: string;
   },
 ): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
-  const { error } = await supabase.from('listings_casas').insert({
+  const access = await verifyProcessoCasasAccess(processoId);
+  if (!access.ok) return { ok: false, error: access.error };
+  const { error } = await access.supabase.from('listings_casas').insert({
     processo_id: processoId,
     manual: true,
     cidade: data.cidade || null,
@@ -634,8 +666,40 @@ export async function updateCasaStatus(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
+
+  let processoId: string | null = null;
+  const { data: casa } = await supabase
+    .from('listings_casas')
+    .select('processo_id')
+    .eq('id', casaId)
+    .maybeSingle();
+  processoId = (casa as { processo_id?: string } | null)?.processo_id ?? null;
+
+  if (!processoId) {
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+    const accessRole = normalizeAccessRole((profile as { role?: string } | null)?.role);
+    if (accessRole === 'admin' || accessRole === 'team') {
+      try {
+        const admin = createAdminClient();
+        const { data: casaAdmin } = await admin
+          .from('listings_casas')
+          .select('processo_id')
+          .eq('id', casaId)
+          .maybeSingle();
+        processoId = (casaAdmin as { processo_id?: string } | null)?.processo_id ?? null;
+      } catch {
+        /* fallback abaixo */
+      }
+    }
+  }
+
+  if (!processoId) return { ok: false, error: 'Casa não encontrada.' };
+
+  const access = await verifyProcessoCasasAccess(processoId);
+  if (!access.ok) return { ok: false, error: access.error };
+
   const today = new Date().toISOString().slice(0, 10);
-  const { error } = await supabase
+  const { error } = await access.supabase
     .from('listings_casas')
     .update({
       status,
@@ -648,17 +712,13 @@ export async function updateCasaStatus(
 
 /** Marca que o franqueado validou o status das casas manuais hoje (dispensa alerta mensal). */
 export async function validarStatusCasasManuais(processoId: string): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const access = await verifyProcessoCasasAccess(processoId);
+  if (!access.ok) return { ok: false, error: access.error };
   const today = new Date().toISOString().slice(0, 10);
-  const { error } = await supabase
+  const { error } = await access.supabase
     .from('processo_step_one')
     .update({ ultima_validacao_casas_manuais_em: today })
-    .eq('id', processoId)
-    .eq('user_id', user.id);
+    .eq('id', processoId);
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
@@ -805,10 +865,11 @@ export async function getCustosConstrucaoEscolhaChecklist(
   return out;
 }
 
-/** Salva até 3 casas do catálogo Moní escolhidas para batalha na Etapa 5 (limpa escolhas e batalhas anteriores). */
+/** Salva modelos do catálogo Moní para batalha na Etapa 5 (limpa escolhas e batalhas anteriores). */
 export async function saveCasasEscolhidasEtapa5(
   processoId: string,
   catalogoCasaIds: string[],
+  opts?: { limiteMaximo?: number | null },
 ): Promise<ActionResult> {
   const supabase = await createClient();
   const {
@@ -818,10 +879,14 @@ export async function saveCasasEscolhidasEtapa5(
 
   const ids = Array.from(new Set(catalogoCasaIds)).filter(Boolean);
   if (ids.length === 0) {
-    return { ok: false, error: 'Selecione pelo menos uma casa do catálogo.' };
+    return { ok: false, error: 'Nenhum modelo do catálogo para a batalha.' };
   }
-  if (ids.length > 3) {
-    return { ok: false, error: 'Selecione no máximo 3 casas do catálogo para a batalha.' };
+  const limite = opts?.limiteMaximo === undefined ? 3 : opts.limiteMaximo;
+  if (limite != null && ids.length > limite) {
+    return {
+      ok: false,
+      error: `Selecione no máximo ${limite} modelos do catálogo para a batalha.`,
+    };
   }
 
   const { error: delEscolhidas } = await supabase

@@ -133,13 +133,16 @@ export function isAdminOnlyPath(pathname: string): boolean {
 /** Link público compartilhável do manual BCA (modo leitura, sem Hub). */
 export const BCA_PUBLIC_LEITURA_PATH = '/treinamento-bca/leitura' as const;
 
+/** Página pública do manual BCA — sem sidebar, header ou dados do Hub Fly. */
+export function isBcaPublicLeituraPagePath(pathname: string): boolean {
+  return pathname === BCA_PUBLIC_LEITURA_PATH || pathname.startsWith(`${BCA_PUBLIC_LEITURA_PATH}/`);
+}
+
 /**
  * Único conteúdo do portal acessível sem login: manual BCA em leitura + iframe do embed.
  */
 export function isBcaPublicLeituraAccessPath(pathname: string): boolean {
-  if (pathname === BCA_PUBLIC_LEITURA_PATH || pathname.startsWith(`${BCA_PUBLIC_LEITURA_PATH}/`)) {
-    return true;
-  }
+  if (isBcaPublicLeituraPagePath(pathname)) return true;
   return pathname === '/embed' || pathname.startsWith('/embed/');
 }
 

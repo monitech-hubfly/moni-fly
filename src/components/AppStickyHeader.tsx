@@ -3,16 +3,17 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { getStickyRouteTitle } from '@/lib/app-sticky-route-title';
+import { getStickyRouteBreadcrumbs } from '@/lib/app-sticky-route-title';
 
 type Props = {
   user: { id: string; email?: string };
+  userRole?: string | null;
 };
 
-export function AppStickyHeader({ user }: Props) {
+export function AppStickyHeader({ user, userRole }: Props) {
   const pathname = usePathname() ?? '/';
   const router = useRouter();
-  const title = getStickyRouteTitle(pathname);
+  const breadcrumbs = getStickyRouteBreadcrumbs(pathname, userRole);
   const isSirene = pathname.startsWith('/sirene');
 
   const handleSignOut = async () => {
@@ -41,13 +42,25 @@ export function AppStickyHeader({ user }: Props) {
 
   return (
     <header className={barClass} style={borderStyle}>
-      <div className="flex min-w-0 flex-1 items-center gap-3">
-        <Link href="/" className={`shrink-0 ${linkClass}`}>
-          ← Hub Fly
-        </Link>
-        <span className={sepClass}>/</span>
-        <h1 className={`min-w-0 truncate ${titleClass}`}>{title}</h1>
-      </div>
+      <nav className="flex min-w-0 flex-1 items-center gap-2" aria-label="Navegação">
+        {breadcrumbs.map((crumb, index) => {
+          const isFirst = index === 0;
+          const isLast = index === breadcrumbs.length - 1;
+          return (
+            <span key={`${crumb.label}-${index}`} className="flex min-w-0 items-center gap-2">
+              {index > 0 ? <span className={sepClass}>/</span> : null}
+              {crumb.href && !isLast ? (
+                <Link href={crumb.href} className={`shrink-0 truncate ${linkClass}`}>
+                  {isFirst ? '← ' : ''}
+                  {crumb.label}
+                </Link>
+              ) : (
+                <h1 className={`min-w-0 truncate ${titleClass}`}>{crumb.label}</h1>
+              )}
+            </span>
+          );
+        })}
+      </nav>
       <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"

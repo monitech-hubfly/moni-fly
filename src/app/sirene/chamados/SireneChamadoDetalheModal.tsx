@@ -22,7 +22,7 @@ import {
   KanbanAtividadeFormFields,
   type AtividadeFormDraft,
 } from '@/components/kanban-shared/KanbanAtividadeFormFields';
-import { responsaveisFiltradosPorTimesIds } from '@/lib/times-responsaveis';
+import { responsaveisFiltradosPorTimesIds, timesOpcoesReceberChamado } from '@/lib/times-responsaveis';
 import {
   filtrarSubAtividadesPorConclusao,
   isSubAtividadeConcluida,
@@ -138,13 +138,14 @@ export function SireneChamadoDetalheModal({
     }
   }, [highlightTopicoId, topicos]);
 
+  const timesChamadoOpcoes = useMemo(() => timesOpcoesReceberChamado(times), [times]);
   const kanbanTimesForm = useMemo(
-    () => times.map((t) => ({ id: t.id, nome: t.nome, ordem: 0 })),
-    [times],
+    () => timesChamadoOpcoes.map((t) => ({ id: t.id, nome: t.nome, ordem: 0 })),
+    [timesChamadoOpcoes],
   );
   const responsaveisNovaAtiv = useMemo(
-    () => responsaveisFiltradosPorTimesIds(novaAtivDraft.timesIds, kanbanTimesForm, responsaveis),
-    [responsaveis, novaAtivDraft.timesIds, kanbanTimesForm],
+    () => responsaveisFiltradosPorTimesIds(novaAtivDraft.timesIds, timesChamadoOpcoes, responsaveis),
+    [responsaveis, novaAtivDraft.timesIds, timesChamadoOpcoes],
   );
 
   return (

@@ -20,11 +20,38 @@ import {
 } from '@/lib/condominios';
 import { KanbanCardModalCondominio } from '@/components/kanban-shared/KanbanCardModalCondominio';
 import { PesquisaCondominioProspect } from '@/components/kanban-shared/PesquisaCondominioProspect';
+import { LotesCondominioDisponiveis } from '@/components/kanban-shared/LotesCondominioDisponiveis';
 import { TabelaCondominiosProspect } from '@/components/kanban-shared/TabelaCondominiosProspect';
 import { sincronizarLoteChecklistComCadastro } from '@/lib/actions/kanban-lotes-condominio';
 import { CondominioLotesAnexados } from '@/components/kanban-shared/CondominioLotesAnexados';
-import { isDadosCidadeFaseSlug, isLotesDisponiveisFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { DadosCidadeIbgeChecklist } from '@/components/kanban-shared/DadosCidadeIbgeChecklist';
+import { MapaPracaChecklist } from '@/components/kanban-shared/MapaPracaChecklist';
+import { MapaCompetidoresChecklist } from '@/components/kanban-shared/MapaCompetidoresChecklist';
+import { ChecklistAreaAtuacaoSelect } from '@/components/kanban-shared/ChecklistAreaAtuacaoSelect';
+import { DadosCidadePracaTabs } from '@/components/kanban-shared/DadosCidadePracaTabs';
+import { isDadosCandidatoFaseSlug, isDadosCidadeFaseSlug, isLotesDisponiveisFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import {
+  isLabelDadosCandidatoRede,
+  valorDadosCandidatoFromRede,
+  type RedeDadosCandidatoSource,
+} from '@/lib/kanban/dados-candidato-rede';
 import { ChecklistDocumentDiffModal } from '@/components/kanban-shared/ChecklistDocumentDiffModal';
+import { parseAreaAtuacao, parCidadeEstadoValidoNaArea } from '@/lib/rede-area-atuacao';
+import { sincronizarPracaChecklistComProcesso } from '@/lib/actions/kanban-dados-cidade-praca';
+import {
+  CHECKLIST_ITENS_OCULTOS_MULTI_PRACA,
+  CHECKLIST_LABEL_CIDADE,
+  CHECKLIST_LABEL_ESTADO,
+  chavePracaCidade,
+  inferirChaveLegadoPraca,
+  mergeArquivoMultiPraca,
+  mergeValorMultiPraca,
+  ordenarItensChecklistDadosCidade,
+  parseChavePracaCidade,
+  resolverArquivoMultiPraca,
+  resolverValorMultiPraca,
+  type PracaCidade,
+} from '@/lib/kanban/dados-cidade-praca-multi';
 
 export type CondominioChecklistContext = {
   origem: 'nativo' | 'legado';
@@ -47,6 +74,12 @@ type Props = {
   /** Quando true e não há itens de fase, não mostra mensagem vazia (ex.: Checklist Legal no mesmo bloco). */
   ocultarVazio?: boolean;
   condominioContext?: CondominioChecklistContext;
+  /** `processo_step_one.id` — necessário para listagem ZAP na fase Mapa de Competidores. */
+  processoId?: string | null;
+  /** Área de atuação da rede vinculada ao card (`UF - Cidade; …`). */
+  areaAtuacao?: string | null;
+  /** Dados do franqueado na rede — auto-preenche Nome, E-mail, Telefone e Idade em Dados do Candidato. */
+  redeFranqueado?: RedeDadosCandidatoSource | null;
 };
 
 type EstadoResposta = {
@@ -64,11 +97,38 @@ export function FaseChecklistCard({
   isAdmin,
   ocultarVazio = false,
   condominioContext,
+  processoId = null,
+  areaAtuacao = null,
+  redeFranqueado = null,
 }: Props) {
   const [itens, setItens] = useState<FaseChecklistItem[] | null>(null);
   const [respostas, setRespostas] = useState<Map<string, EstadoResposta>>(new Map());
   const [carregando, setCarregando] = useState(true);
+  const [pracaReloadKey, setPracaReloadKey] = useState(0);
+  const [abaPracaAtiva, setAbaPracaAtiva] = useState('');
   const [diffModal, setDiffModal] = useState<{ open: boolean; lines: string[] }>({ open: false, lines: [] });
+  const redeSyncFeitoRef = useRef('');
+
+  const areasAtuacao = parseAreaAtuacao(areaAtuacao);
+  const multiPracaAtivo = isDadosCidadeFaseSlug(faseSlug) && areasAtuacao.length >= 1;
+  const itemEstadoId = itens?.find((i) => i.label.trim() === CHECKLIST_LABEL_ESTADO)?.id ?? null;
+  const itemCidadeId = itens?.find((i) => i.label.trim() === CHECKLIST_LABEL_CIDADE)?.id ?? null;
+  const estadoChecklistValor = itemEstadoId ? (respostas.get(itemEstadoId)?.valor ?? '') : '';
+  const cidadeChecklistValor = itemCidadeId ? (respostas.get(itemCidadeId)?.valor ?? '') : '';
+  const chaveLegadoPraca = inferirChaveLegadoPraca(areasAtuacao, cidadeChecklistValor, estadoChecklistValor);
+  const pracaAtiva = parseChavePracaCidade(abaPracaAtiva) ?? areasAtuacao[0] ?? null;
+
+  useEffect(() => {
+    if (!multiPracaAtivo || areasAtuacao.length === 0) return;
+    const chaves = areasAtuacao.map(chavePracaCidade);
+    if (abaPracaAtiva && chaves.includes(abaPracaAtiva)) return;
+    const inicial = chaveLegadoPraca && chaves.includes(chaveLegadoPraca) ? chaveLegadoPraca : chaves[0];
+    setAbaPracaAtiva(inicial);
+  }, [multiPracaAtivo, areasAtuacao, abaPracaAtiva, chaveLegadoPraca]);
+
+  useEffect(() => {
+    redeSyncFeitoRef.current = '';
+  }, [cardId, faseId]);
 
   useEffect(() => {
     if (!faseId || !cardId) {
@@ -99,6 +159,9 @@ export function FaseChecklistCard({
         if (cancelado) return;
 
         const itemRows = (itensData ?? []) as FaseChecklistItem[];
+        const itensOrdenados = isDadosCidadeFaseSlug(faseSlug)
+          ? ordenarItensChecklistDadosCidade(itemRows)
+          : itemRows;
         const respRows = (respostasData ?? []) as FaseChecklistResposta[];
 
         if (itensError || respostasError) {
@@ -108,11 +171,11 @@ export function FaseChecklistCard({
           return;
         }
 
-        setItens(itemRows);
+        setItens(itensOrdenados);
         const map = new Map<string, EstadoResposta>();
         const respPorItem = new Map<string, FaseChecklistResposta>();
         for (const r of respRows) respPorItem.set(r.item_id, r);
-        for (const it of itemRows) {
+        for (const it of itensOrdenados) {
           const resp = respPorItem.get(it.id);
           map.set(it.id, {
             valor: resp?.valor ?? '',
@@ -134,7 +197,34 @@ export function FaseChecklistCard({
     return () => {
       cancelado = true;
     };
-  }, [faseId, cardId]);
+  }, [faseId, cardId, faseSlug]);
+
+  useEffect(() => {
+    if (carregando || !itens?.length) return;
+    if (!isDadosCandidatoFaseSlug(faseSlug) || !redeFranqueado) return;
+
+    const syncKey = `${cardId}:${faseId}`;
+    if (redeSyncFeitoRef.current === syncKey) return;
+
+    const pendencias: { itemId: string; valor: string }[] = [];
+    for (const item of itens) {
+      if (!isLabelDadosCandidatoRede(item.label)) continue;
+      const fromRede = valorDadosCandidatoFromRede(item.label, redeFranqueado);
+      if (!fromRede) continue;
+      const atual = respostas.get(item.id)?.valor?.trim() ?? '';
+      if (!atual) pendencias.push({ itemId: item.id, valor: fromRede });
+    }
+
+    redeSyncFeitoRef.current = syncKey;
+    if (pendencias.length === 0) return;
+
+    void (async () => {
+      for (const p of pendencias) {
+        setResposta(p.itemId, { valor: p.valor });
+        await salvar(p.itemId, p.valor);
+      }
+    })();
+  }, [carregando, faseSlug, cardId, faseId, itens, redeFranqueado, respostas]);
 
   function setResposta(itemId: string, patch: Partial<EstadoResposta>) {
     setRespostas((prev) => {
@@ -143,26 +233,142 @@ export function FaseChecklistCard({
     });
   }
 
-  async function salvar(itemId: string, valor?: string, arquivo_path?: string | null): Promise<ActionResult> {
+  async function syncPracaSeValido(cidade: string, uf: string) {
+    const pid = processoId?.trim();
+    const estado = uf.trim().toUpperCase().slice(0, 2);
+    if (!pid || !parCidadeEstadoValidoNaArea(areasAtuacao, cidade, estado)) return;
+    const sync = await sincronizarPracaChecklistComProcesso({ processoId: pid, cidade, estado });
+    if (sync.ok) setPracaReloadKey((k) => k + 1);
+  }
+
+  async function tentarSyncPracaComProcesso(itemIdSalvo: string, valorSalvo?: string) {
+    if (!itemCidadeId || !itemEstadoId) return;
+    const cidade =
+      itemIdSalvo === itemCidadeId
+        ? String(valorSalvo ?? '').trim()
+        : String(respostas.get(itemCidadeId)?.valor ?? '').trim();
+    const estadoRaw =
+      itemIdSalvo === itemEstadoId
+        ? String(valorSalvo ?? '').trim()
+        : String(respostas.get(itemEstadoId)?.valor ?? '').trim();
+    await syncPracaSeValido(cidade, estadoRaw);
+  }
+
+  async function salvarCidadeComEstado(cidade: string, uf: string) {
+    if (!itemCidadeId || !itemEstadoId) return;
+    setResposta(itemCidadeId, { valor: cidade });
+    setResposta(itemEstadoId, { valor: uf });
+    const r1 = await salvar(itemCidadeId, cidade);
+    if (!r1.ok) return;
+    const r2 = await salvar(itemEstadoId, uf);
+    if (!r2.ok) return;
+    await syncPracaSeValido(cidade, uf);
+  }
+
+  async function salvarEstadoComValidacao(uf: string) {
+    if (!itemEstadoId || !itemCidadeId) return;
+    setResposta(itemEstadoId, { valor: uf });
+    await salvar(itemEstadoId, uf);
+    const cidadeAtual = String(respostas.get(itemCidadeId)?.valor ?? '').trim();
+    if (cidadeAtual && !parCidadeEstadoValidoNaArea(areasAtuacao, cidadeAtual, uf)) {
+      setResposta(itemCidadeId, { valor: '' });
+      await salvar(itemCidadeId, '');
+    }
+  }
+
+  function getEstadoRespostaScoped(itemId: string, chave: string): EstadoResposta {
+    const raw = respostas.get(itemId) ?? { valor: '', arquivo_path: null, salvando: false, erro: null };
+    if (!multiPracaAtivo) return raw;
+    return {
+      ...raw,
+      valor: resolverValorMultiPraca(raw.valor, chave, chaveLegadoPraca),
+      arquivo_path: resolverArquivoMultiPraca(raw.arquivo_path, chave, chaveLegadoPraca),
+    };
+  }
+
+  function getEstadoRespostaItem(item: FaseChecklistItem, chave?: string): EstadoResposta {
+    const chaveUse = chave ?? abaPracaAtiva;
+    const base =
+      multiPracaAtivo && chaveUse
+        ? getEstadoRespostaScoped(item.id, chaveUse)
+        : (respostas.get(item.id) ?? { valor: '', arquivo_path: null, salvando: false, erro: null });
+
+    if (
+      isDadosCandidatoFaseSlug(faseSlug) &&
+      redeFranqueado &&
+      isLabelDadosCandidatoRede(item.label) &&
+      !base.valor.trim()
+    ) {
+      const fromRede = valorDadosCandidatoFromRede(item.label, redeFranqueado);
+      if (fromRede) return { ...base, valor: fromRede };
+    }
+    return base;
+  }
+
+  async function salvar(
+    itemId: string,
+    valor?: string,
+    arquivo_path?: string | null,
+    chavePraca?: string,
+  ): Promise<ActionResult> {
+    const chave = chavePraca ?? abaPracaAtiva;
+    const rawAtual = respostas.get(itemId);
+    let valorFinal = valor ?? rawAtual?.valor ?? null;
+    let arquivoFinal =
+      arquivo_path !== undefined ? arquivo_path : (rawAtual?.arquivo_path ?? null);
+
+    if (multiPracaAtivo && chave) {
+      if (valor !== undefined) {
+        valorFinal = mergeValorMultiPraca(rawAtual?.valor, chave, valor, chaveLegadoPraca);
+      } else if (valorFinal !== null && valorFinal !== undefined) {
+        valorFinal = mergeValorMultiPraca(
+          rawAtual?.valor,
+          chave,
+          resolverValorMultiPraca(rawAtual?.valor, chave, chaveLegadoPraca),
+          chaveLegadoPraca,
+        );
+      }
+      if (arquivo_path !== undefined) {
+        arquivoFinal = mergeArquivoMultiPraca(rawAtual?.arquivo_path, chave, arquivo_path, chaveLegadoPraca);
+      }
+    }
+
     setResposta(itemId, { salvando: true, erro: null });
     const res = await upsertFaseChecklistResposta({
       item_id: itemId,
       card_id: cardId,
-      valor: valor ?? respostas.get(itemId)?.valor ?? null,
-      arquivo_path: arquivo_path !== undefined ? arquivo_path : (respostas.get(itemId)?.arquivo_path ?? null),
+      valor: valorFinal,
+      arquivo_path: arquivoFinal,
     });
     let erroFinal = res.ok ? null : res.error;
     if (res.ok && isLotesDisponiveisFaseSlug(faseSlug) && condominioContext) {
-      const sync = await sincronizarLoteChecklistComCadastro({
-        cardId,
-        origem: condominioContext.origem,
-        basePath: condominioContext.basePath,
-      });
-      if (!sync.ok) erroFinal = sync.error;
-      else condominioContext.onSalvo();
+      const itensLotes = itens?.filter((i) => i.tipo !== 'lotes_condominio') ?? [];
+      const usaChecklistLegado = itensLotes.some(
+        (i) => i.tipo === 'condominio' || i.label.trim() === 'Quadra' || i.label.trim() === 'Lote',
+      );
+      if (usaChecklistLegado) {
+        const sync = await sincronizarLoteChecklistComCadastro({
+          cardId,
+          origem: condominioContext.origem,
+          basePath: condominioContext.basePath,
+        });
+        if (!sync.ok) erroFinal = sync.error;
+        else condominioContext.onSalvo();
+      }
     }
-    setResposta(itemId, { salvando: false, erro: erroFinal });
-    return res.ok && !erroFinal ? { ok: true } : { ok: false, error: erroFinal ?? res.error };
+    if (res.ok && !erroFinal && isDadosCidadeFaseSlug(faseSlug) && !multiPracaAtivo) {
+      const label = itens?.find((i) => i.id === itemId)?.label.trim();
+      if (label === CHECKLIST_LABEL_CIDADE || label === CHECKLIST_LABEL_ESTADO) {
+        await tentarSyncPracaComProcesso(itemId, valor);
+      }
+    }
+    setResposta(itemId, {
+      salvando: false,
+      erro: erroFinal,
+      valor: String(valorFinal ?? ''),
+      arquivo_path: arquivoFinal,
+    });
+    return res.ok && !erroFinal ? { ok: true } : { ok: false, error: erroFinal ?? (!res.ok ? res.error : 'Erro ao salvar') };
   }
 
   async function compararAposAssinado(itemId: string) {
@@ -207,39 +413,118 @@ export function FaseChecklistCard({
   }
 
   const itensFiltrados = isFrank ? itens.filter((it) => it.visivel_candidato) : itens;
+  const itensDadosCidade = multiPracaAtivo
+    ? itensFiltrados.filter((it) => !CHECKLIST_ITENS_OCULTOS_MULTI_PRACA.has(it.label.trim()))
+    : itensFiltrados;
+
+  function resolverPracaSessao(chavePraca?: string): PracaCidade | null {
+    if (multiPracaAtivo) {
+      const chave = chavePraca ?? abaPracaAtiva;
+      return parseChavePracaCidade(chave) ?? pracaAtiva;
+    }
+    const uf = estadoChecklistValor.trim().toUpperCase();
+    const cidade = cidadeChecklistValor.trim();
+    if (cidade && uf.length === 2) return { uf, cidade };
+    return null;
+  }
+
+  function renderItemField(item: FaseChecklistItem, chavePraca?: string) {
+    const chave = chavePraca ?? abaPracaAtiva;
+    const praca = resolverPracaSessao(chave);
+    const itemKey = multiPracaAtivo ? `${item.id}-${chave}` : item.id;
+    return (
+      <div key={itemKey} className="kanban-fase-checklist-item">
+        <ItemField
+          item={item}
+        faseSlug={faseSlug}
+        estado={getEstadoRespostaItem(item, chave)}
+        cardId={cardId}
+        isAdmin={isAdmin}
+        processoId={processoId}
+        pracaReloadKey={pracaReloadKey}
+        pracaCidade={praca}
+        areasAtuacao={areasAtuacao}
+        estadoChecklistValor={estadoChecklistValor}
+        onCidadeComUfSelected={(cidade, uf) => void salvarCidadeComEstado(cidade, uf)}
+        condominioContext={condominioContext}
+        onChange={(valor) => {
+          if (multiPracaAtivo && chave) {
+            const raw = respostas.get(item.id)?.valor;
+            setResposta(item.id, {
+              valor: mergeValorMultiPraca(raw, chave, valor, chaveLegadoPraca),
+            });
+            return;
+          }
+          setResposta(item.id, { valor });
+        }}
+        onBlur={(valor) => {
+          if (
+            !multiPracaAtivo &&
+            isDadosCidadeFaseSlug(faseSlug) &&
+            item.label.trim() === CHECKLIST_LABEL_ESTADO
+          ) {
+            void salvarEstadoComValidacao(valor);
+            return;
+          }
+          void salvar(item.id, valor, undefined, chave);
+        }}
+        onArquivo={async (path) => {
+          if (multiPracaAtivo && chave) {
+            const raw = respostas.get(item.id)?.arquivo_path;
+            const merged = mergeArquivoMultiPraca(raw, chave, path, chaveLegadoPraca);
+            setResposta(item.id, { arquivo_path: merged });
+            const res = await salvar(item.id, undefined, path, chave);
+            if (res.ok && item.tipo === 'anexo_template') await compararAposAssinado(item.id);
+            return;
+          }
+          setResposta(item.id, { arquivo_path: path });
+          const res = await salvar(item.id, undefined, path);
+          if (res.ok && item.tipo === 'anexo_template') await compararAposAssinado(item.id);
+        }}
+        onChecklistValor={async (valor) => {
+          if (multiPracaAtivo && chave) {
+            setResposta(item.id, {
+              valor: mergeValorMultiPraca(respostas.get(item.id)?.valor, chave, valor, chaveLegadoPraca),
+            });
+          } else {
+            setResposta(item.id, { valor });
+          }
+          await salvar(item.id, valor, undefined, chave);
+        }}
+        />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-4">
+    <div className="kanban-fase-checklist-list">
       <ChecklistDocumentDiffModal
         open={diffModal.open}
         diferencas={diffModal.lines}
         onClose={() => setDiffModal({ open: false, lines: [] })}
       />
-      {itensFiltrados.map((item) => (
-        <ItemField
-          key={item.id}
-          item={item}
-          faseSlug={faseSlug}
-          estado={respostas.get(item.id) ?? { valor: '', arquivo_path: null, salvando: false, erro: null }}
-          cardId={cardId}
-          isAdmin={isAdmin}
-          condominioContext={condominioContext}
-          onChange={(valor) => setResposta(item.id, { valor })}
-          onBlur={(valor) => void salvar(item.id, valor)}
-          onArquivo={async (path) => {
-            setResposta(item.id, { arquivo_path: path });
-            const res = await salvar(item.id, undefined, path);
-            if (res.ok && item.tipo === 'anexo_template') {
-              await compararAposAssinado(item.id);
-            }
-          }}
-          onChecklistValor={async (valor) => {
-            setResposta(item.id, { valor });
-            await salvar(item.id, valor);
-          }}
-        />
-      ))}
-      {isLotesDisponiveisFaseSlug(faseSlug) && condominioContext ? (
+      {multiPracaAtivo && pracaAtiva ? (
+        <>
+          {areasAtuacao.length === 0 ? (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              Cadastre a área de atuação do franqueado em Rede de Franqueados e vincule este card ao franqueado.
+            </p>
+          ) : (
+            <DadosCidadePracaTabs
+              pracas={areasAtuacao}
+              abaAtiva={abaPracaAtiva}
+              onAbaChange={setAbaPracaAtiva}
+            >
+              {itensDadosCidade.map((item) => renderItemField(item, abaPracaAtiva))}
+            </DadosCidadePracaTabs>
+          )}
+        </>
+      ) : (
+        itensFiltrados.map((item) => renderItemField(item))
+      )}
+      {isLotesDisponiveisFaseSlug(faseSlug) &&
+      condominioContext &&
+      itensFiltrados.every((i) => i.tipo !== 'lotes_condominio') ? (
         <CondominioLotesAnexados
           condominioId={condominioContext.condominioId}
           cardIdAtual={cardId}
@@ -255,6 +540,12 @@ type ItemFieldProps = {
   estado: EstadoResposta;
   cardId: string;
   isAdmin: boolean;
+  processoId?: string | null;
+  pracaReloadKey?: number;
+  pracaCidade?: PracaCidade | null;
+  areasAtuacao: { uf: string; cidade: string }[];
+  estadoChecklistValor: string;
+  onCidadeComUfSelected: (cidade: string, uf: string) => void;
   condominioContext?: CondominioChecklistContext;
   onChange: (valor: string) => void;
   onBlur: (valor: string) => void;
@@ -268,6 +559,12 @@ function ItemField({
   estado,
   cardId,
   isAdmin,
+  processoId,
+  pracaReloadKey = 0,
+  pracaCidade = null,
+  areasAtuacao,
+  estadoChecklistValor,
+  onCidadeComUfSelected,
   condominioContext,
   onChange,
   onBlur,
@@ -458,7 +755,7 @@ function ItemField({
               }}
             >
               {baixandoModelo ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-              Baixar modelo
+              Baixar template
             </button>
           )}
           <button
@@ -537,7 +834,81 @@ function ItemField({
 
   if (item.tipo === 'pesquisa_condominio') {
     return (
-      <PesquisaCondominioProspect cardId={cardId} itemLabel={item.label} obrigatorio={item.obrigatorio} />
+      <PesquisaCondominioProspect
+        cardId={cardId}
+        processoId={processoId}
+        itemLabel={item.label}
+        obrigatorio={item.obrigatorio}
+      />
+    );
+  }
+
+  if (item.tipo === 'lotes_condominio') {
+    return (
+      <LotesCondominioDisponiveis cardId={cardId} itemLabel={item.label} obrigatorio={item.obrigatorio} />
+    );
+  }
+
+  if (item.tipo === 'listagem_casas_zap') {
+    const pid = processoId?.trim();
+    const podeEditar = condominioContext?.podeEditar ?? isAdmin;
+    return (
+      <MapaCompetidoresChecklist
+        cardId={cardId}
+        processoId={pid ?? ''}
+        itemLabel={item.label}
+        podeEditar={podeEditar}
+      />
+    );
+  }
+
+  if (item.tipo === 'dados_cidade_ibge') {
+    return (
+      <DadosCidadeIbgeChecklist
+        processoId={processoId?.trim() ?? ''}
+        cidade={pracaCidade?.cidade}
+        estado={pracaCidade?.uf ?? null}
+        itemLabel={item.label}
+        obrigatorio={item.obrigatorio}
+        reloadKey={pracaReloadKey}
+      />
+    );
+  }
+
+  if (item.tipo === 'mapa_praca') {
+    return (
+      <MapaPracaChecklist
+        processoId={processoId?.trim() ?? ''}
+        cidade={pracaCidade?.cidade}
+        estado={pracaCidade?.uf ?? null}
+        itemLabel={item.label}
+        obrigatorio={item.obrigatorio}
+        reloadKey={pracaReloadKey}
+      />
+    );
+  }
+
+  if (
+    isDadosCidadeFaseSlug(faseSlug) &&
+    !pracaCidade &&
+    (item.label.trim() === CHECKLIST_LABEL_CIDADE || item.label.trim() === CHECKLIST_LABEL_ESTADO)
+  ) {
+    const podeEditar = condominioContext?.podeEditar ?? isAdmin;
+    return (
+      <ChecklistAreaAtuacaoSelect
+        modo={item.label.trim() === CHECKLIST_LABEL_ESTADO ? 'estado' : 'cidade'}
+        label={item.label}
+        obrigatorio={item.obrigatorio}
+        areas={areasAtuacao}
+        valor={estado.valor}
+        estadoReferencia={estadoChecklistValor}
+        salvando={estado.salvando}
+        erro={estado.erro}
+        podeEditar={podeEditar}
+        onChange={onChange}
+        onBlur={onBlur}
+        onSelectCidadeComUf={(cidade, uf) => onCidadeComUfSelected(cidade, uf)}
+      />
     );
   }
 
@@ -550,7 +921,15 @@ function ItemField({
           </p>
         );
       }
-      return <TabelaCondominiosProspect item={item} estado={estado} onChange={onChange} onBlur={onBlur} />;
+      return (
+        <TabelaCondominiosProspect
+          item={item}
+          estado={estado}
+          onChange={onChange}
+          onBlur={onBlur}
+          pracaCidade={pracaCidade}
+        />
+      );
     }
     const modoVinculado = Boolean(condominioContext && item.label.trim() === 'Dados do cadastro');
     return (

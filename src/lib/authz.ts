@@ -1,5 +1,10 @@
 export type AccessRole = 'admin' | 'team' | 'frank' | 'pending' | 'blocked';
 
+import {
+  REDE_FRANQUEADOS_CADASTROS_FULL_ACCESS_EMAILS,
+  REDE_FRANQUEADOS_CADASTROS_FULL_ACCESS_TIMES,
+} from '@/lib/times-responsaveis';
+
 export function normalizeAccessRole(role: string | null | undefined): AccessRole {
   const r = String(role ?? '')
     .trim()
@@ -27,6 +32,61 @@ export function isStrictAdminRole(role: string | null | undefined): boolean {
 export function isRedeStaffRole(role: string | null | undefined): boolean {
   const access = normalizeAccessRole(role);
   return access === 'admin' || access === 'team';
+}
+
+export function normalizeDepartamentoMoni(departamento: string | null | undefined): string {
+  return String(departamento ?? '')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .trim();
+}
+
+const REDE_FRANQUEADOS_CADASTROS_FULL_ACCESS_DEPTS = new Set([
+  'administrativo',
+  'controladoria',
+  'adm',
+  /** Legado em `profiles.departamento` (ex.: seed 084). */
+  'contabilidade',
+  'financeiro',
+]);
+
+const REDE_FRANQUEADOS_CADASTROS_FULL_ACCESS_EMAILS_SET = new Set(
+  REDE_FRANQUEADOS_CADASTROS_FULL_ACCESS_EMAILS.map((e) => e.toLowerCase()),
+);
+
+function perfilMoniTemDepartamentoRedeCompleto(valor: string | null | undefined): boolean {
+  const n = normalizeDepartamentoMoni(valor);
+  if (!n) return false;
+  if (REDE_FRANQUEADOS_CADASTROS_FULL_ACCESS_DEPTS.has(n)) return true;
+  for (const time of REDE_FRANQUEADOS_CADASTROS_FULL_ACCESS_TIMES) {
+    const canon = normalizeDepartamentoMoni(time);
+    if (canon && n.includes(canon)) return true;
+  }
+  if (n.includes('contabilidade')) return true;
+  if (n.includes('financeiro')) return true;
+  return false;
+}
+
+/**
+ * Dados completos em /rede-franqueados (colunas sensíveis, import CSV, duplicatas, etc.):
+ * admin; time Administrativo / Controladoria (`departamento`, `time` ou e-mail do catálogo).
+ */
+export function canAccessRedeFranqueadosCadastrosCompletos(
+  role: string | null | undefined,
+  departamento?: string | null,
+  time?: string | null,
+  email?: string | null,
+): boolean {
+  if (isAdminRole(role)) return true;
+  if (normalizeAccessRole(role) !== 'team') return false;
+  const em = String(email ?? '')
+    .trim()
+    .toLowerCase();
+  if (em && REDE_FRANQUEADOS_CADASTROS_FULL_ACCESS_EMAILS_SET.has(em)) return true;
+  return (
+    perfilMoniTemDepartamentoRedeCompleto(departamento) || perfilMoniTemDepartamentoRedeCompleto(time)
+  );
 }
 
 /** Aba Condomínios em /rede-franqueados: admin, team (edição) e frank (somente leitura). */

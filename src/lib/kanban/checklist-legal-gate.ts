@@ -1,4 +1,5 @@
-import { KANBAN_IDS, FASE_SLUGS } from '@/lib/constants/kanban-ids';
+import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
+import { resolverProcessoStepOneIdDoCard } from '@/lib/kanban/card-sync-group';
 import { isPortfolioKanbanRef } from '@/lib/kanban/portfolio-paralelas';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
@@ -36,19 +37,30 @@ export async function resolverCondominioIdDoCard(
 
   const { data: card } = await db
     .from('kanban_cards')
-    .select('condominio_id, projeto_id')
+    .select('condominio_id, projeto_id, rede_franqueado_id, titulo')
     .eq('id', cid)
     .maybeSingle();
 
-  const direct = String((card as { condominio_id?: string | null } | null)?.condominio_id ?? '').trim();
+  const row = card as {
+    condominio_id?: string | null;
+    projeto_id?: string | null;
+    rede_franqueado_id?: string | null;
+    titulo?: string | null;
+  } | null;
+
+  const direct = String(row?.condominio_id ?? '').trim();
   if (direct) return direct;
 
-  const projetoId = String((card as { projeto_id?: string | null } | null)?.projeto_id ?? '').trim();
-  if (projetoId) {
+  const processoId = await resolverProcessoStepOneIdDoCard(db, {
+    cardProjetoId: row?.projeto_id,
+    redeFranqueadoId: row?.rede_franqueado_id,
+    cardTitulo: row?.titulo,
+  });
+  if (processoId) {
     const { data: proc } = await db
       .from('processo_step_one')
       .select('condominio_id')
-      .eq('id', projetoId)
+      .eq('id', processoId)
       .maybeSingle();
     const fromProc = String((proc as { condominio_id?: string | null } | null)?.condominio_id ?? '').trim();
     if (fromProc) return fromProc;
@@ -62,7 +74,7 @@ export async function resolverCondominioIdDoCard(
   return String((procDirect as { condominio_id?: string | null } | null)?.condominio_id ?? '').trim() || null;
 }
 
-/** Gate: exige checklist legal concluído para condomínio em movimentos de acoplamento / step_5. */
+/** Gate: exige checklist legal concluído ao sair da fase Check Legal e Crédito no Funil Portfólio. */
 export async function verificarGateChecklistLegalAcoplamento(
   cardId: string,
   novaFaseId: string,
@@ -91,21 +103,13 @@ export async function verificarGateChecklistLegalAcoplamento(
 
   const kanbanId = String((card as { kanban_id?: string }).kanban_id ?? '').trim();
   const slugAtual = String((faseAtualRow as { slug?: string } | null)?.slug ?? '').trim();
-  const slugDest = String((faseDestRow as { slug?: string } | null)?.slug ?? '').trim();
   const ordemAtual = Number((faseAtualRow as { ordem?: number } | null)?.ordem ?? 0);
   const ordemDest = Number((faseDestRow as { ordem?: number } | null)?.ordem ?? 0);
 
-  let exigir = false;
-
-  if (isPortfolioKanbanRef(kanbanId)) {
-    if (slugDest === FASE_SLUGS.STEP_5) exigir = true;
-    if (slugAtual === FASE_SLUGS.STEP_4 && slugDest === FASE_SLUGS.ACOPLAMENTO) exigir = true;
-  }
-
-  if (kanbanId === KANBAN_IDS.ACOPLAMENTO) {
-    if (slugDest === FASE_SLUGS.ACOPLAMENTO_REPROVADO) return { ok: true };
-    if (ordemDest > ordemAtual) exigir = true;
-  }
+  const exigir =
+    isPortfolioKanbanRef(kanbanId) &&
+    slugAtual === FASE_SLUGS.STEP_4 &&
+    ordemDest > ordemAtual;
 
   if (!exigir) return { ok: true };
 

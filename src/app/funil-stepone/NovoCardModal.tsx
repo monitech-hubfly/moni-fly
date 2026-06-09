@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { SearchableSelect } from '@/components/SearchableSelect';
 
 type Fase = {
   id: string;
@@ -192,23 +193,24 @@ export function NovoCardModal({
               <label className="block text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
                 Franqueado <span className="text-red-500">*</span>
               </label>
-              <select
+              <SearchableSelect
                 value={franqueadoRedeId}
-                onChange={(e) => {
-                  const selected = franqueados.find((f) => f.id === e.target.value);
-                  setFranqueadoRedeId(e.target.value);
+                onChange={(id) => {
+                  const selected = franqueados.find((f) => f.id === id);
+                  setFranqueadoRedeId(id);
                   setFranqueadoNome(selected?.nome_completo ?? '');
                 }}
                 disabled={loading}
-                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
-              >
-                <option value="">Selecione o franqueado</option>
-                {franqueados.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.n_franquia} — {f.nome_completo}
-                  </option>
-                ))}
-              </select>
+                placeholder="Selecione o franqueado"
+                searchPlaceholder="Buscar por FK ou nome"
+                size="md"
+                className="mt-1"
+                triggerClassName="rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                options={franqueados.map((f) => ({
+                  value: f.id,
+                  label: `${f.n_franquia} — ${f.nome_completo}`,
+                }))}
+              />
             </div>
 
             <div>
@@ -258,15 +260,19 @@ export function NovoCardModal({
                 <label className="block text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
                   Origem do card
                 </label>
-                <select
+                <SearchableSelect
                   value={tipoOrigem}
-                  onChange={(e) => setTipoOrigem(e.target.value as TipoOrigemNovoCard)}
+                  onChange={(v) => setTipoOrigem(v as TipoOrigemNovoCard)}
                   disabled={loading}
-                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
-                >
-                  <option value="via_step_one">Via Step One</option>
-                  <option value="hipotese_direta">Hipótese direta</option>
-                </select>
+                  size="md"
+                  className="mt-1"
+                  emptyOption={null}
+                  triggerClassName="rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                  options={[
+                    { value: 'via_step_one', label: 'Via Step One' },
+                    { value: 'hipotese_direta', label: 'Hipótese direta' },
+                  ]}
+                />
                 <p className="mt-1 text-xs text-stone-500">
                   Informativo para o time. &ldquo;Via Step One&rdquo; é o fluxo padrão.
                 </p>
@@ -278,25 +284,18 @@ export function NovoCardModal({
               <label htmlFor="fase" className="block text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
                 Fase inicial <span className="text-red-500">*</span>
               </label>
-              <select
+              <SearchableSelect
                 id="fase"
                 value={faseId}
-                onChange={(e) => setFaseId(e.target.value)}
-                required
+                onChange={setFaseId}
                 disabled={loading}
-                className="mt-1 w-full px-4 py-2 text-sm focus:outline-none disabled:bg-stone-50"
-                style={{
-                  border: '0.5px solid var(--moni-border-default)',
-                  borderRadius: 'var(--moni-radius-md)',
-                }}
-              >
-                <option value="">Selecione a fase</option>
-                {fases.map((fase) => (
-                  <option key={fase.id} value={fase.id}>
-                    {fase.nome}
-                  </option>
-                ))}
-              </select>
+                placeholder="Selecione a fase"
+                searchPlaceholder="Buscar fase"
+                size="md"
+                className="mt-1"
+                triggerClassName="w-full px-4 py-2 text-sm disabled:bg-stone-50 border-[0.5px] border-[var(--moni-border-default)] rounded-[var(--moni-radius-md)]"
+                options={fases.map((fase) => ({ value: fase.id, label: fase.nome }))}
+              />
             </div>
 
             {/* Preview do Título Automático */}
