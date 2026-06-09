@@ -18,6 +18,7 @@ import {
   montarTituloCardSync,
   escolherTituloExibicaoCard,
   extrairNumeroFranquiaDoTitulo,
+  parseCamposDoTituloCard,
 } from '@/lib/kanban/card-sync-group';
 import {
   runKanbanCardSelectWithSlaFallback,
@@ -108,6 +109,212 @@ async function enrichCardsDatasFromProcesso(
       byProcessoId.get(String(c.id ?? '').trim()) ??
       (c.projeto_id ? byProcessoId.get(String(c.projeto_id).trim()) : undefined);
     return coalesceDatasCardBrief(c, null, proc);
+  });
+}
+
+type ProcessoCamposRow = {
+  nome_condominio?: string | null;
+  quadra?: string | null;
+  lote?: string | null;
+  quadra_lote?: string | null;
+};
+
+function coalesceTextoCampo(...vals: unknown[]): string | null {
+  for (const v of vals) {
+    const s = String(v ?? '').trim();
+    if (s) return s;
+  }
+  return null;
+}
+
+async function fetchCamposAncestraisPorCard(
+  supabase: SupabaseClient,
+  cards: Array<Record<string, unknown>>,
+): Promise<Map<string, Record<string, unknown>>> {
+  type Row = Record<string, unknown>;
+  const byId = new Map<string, Row>();
+
+  for (const c of cards) {
+    const id = String(c.id ?? '').trim();
+    if (id) byId.set(id, c);
+  }
+
+  let frontier = [
+    ...new Set(
+      cards
+        .map((c) => String((c as { origem_card_id?: string | null }).origem_card_id ?? '').trim())
+        .filter((id) => id && !byId.has(id)),
+    ),
+  ];
+
+  for (let depth = 0; depth < 32 && frontier.length > 0; depth++) {
+    const { data } = await supabase
+      .from('kanban_cards')
+      .select('id, titulo, nome_condominio, quadra, lote, rede_franqueado_id, origem_card_id, data_followup, data_reuniao')
+      .in('id', frontier);
+
+    const next: string[] = [];
+    for (const row of (data ?? []) as Row[]) {
+      const id = String(row.id ?? '').trim();
+      if (!id) continue;
+      byId.set(id, row);
+      const origem = String(row.origem_card_id ?? '').trim();
+      if (origem && !byId.has(origem)) next.push(origem);
+    }
+    frontier = [...new Set(next)];
+  }
+
+  return byId;
+}
+
+function partesTituloCard(t: string): number {
+  return t.split(' - ').map((p) => p.trim()).filter(Boolean).length;
+}
+
+function mesclarCamposDeFonte(
+  dest: Record<string, unknown>,
+  fonte: Record<string, unknown>,
+): Record<string, unknown> {
+  const tituloDest = String(dest.titulo ?? '').trim();
+  const tituloFonte = String(fonte.titulo ?? '').trim();
+  const parsedFonte = parseCamposDoTituloCard(tituloFonte);
+
+  return {
+    ...dest,
+    titulo: partesTituloCard(tituloFonte) > partesTituloCard(tituloDest) ? tituloFonte : tituloDest,
+    nome_condominio:
+      coalesceTextoCampo(dest.nome_condominio, fonte.nome_condominio, parsedFonte.nomeCondominio) ??
+      dest.nome_condominio,
+    quadra:
+      coalesceTextoCampo(dest.quadra, fonte.quadra, parsedFonte.quadra) ?? dest.quadra,
+    lote: coalesceTextoCampo(dest.lote, fonte.lote, parsedFonte.lote) ?? dest.lote,
+    rede_franqueado_id:
+      coalesceTextoCampo(dest.rede_franqueado_id, fonte.rede_franqueado_id) ??
+      dest.rede_franqueado_id,
+    data_followup: dest.data_followup ?? fonte.data_followup,
+    data_reuniao: dest.data_reuniao ?? fonte.data_reuniao,
+  };
+}
+
+function mesclarCamposComAncestrais(
+  card: Record<string, unknown>,
+  byId: Map<string, Record<string, unknown>>,
+): Record<string, unknown> {
+  let merged: Record<string, unknown> = { ...card };
+  let cur = String((card as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+
+  for (let depth = 0; depth < 32 && cur; depth++) {
+    const pai = byId.get(cur);
+    if (!pai) break;
+    merged = mesclarCamposDeFonte(merged, pai);
+    cur = String(pai.origem_card_id ?? '').trim();
+  }
+
+  return merged;
+}
+
+function mesclarCamposComProjetoIrmaos(
+  card: Record<string, unknown>,
+  porProjeto: Map<string, Record<string, unknown>>,
+): Record<string, unknown> {
+  const pid = String((card as { projeto_id?: string | null }).projeto_id ?? '').trim();
+  if (!pid) return card;
+  const fonte = porProjeto.get(pid);
+  if (!fonte) return card;
+  return mesclarCamposDeFonte(card, fonte);
+}
+
+async function fetchCamposIrmaosPorProjeto(
+  supabase: SupabaseClient,
+  cards: Array<Record<string, unknown>>,
+): Promise<Map<string, Record<string, unknown>>> {
+  const projetoIds = [
+    ...new Set(
+      cards
+        .map((c) => String((c as { projeto_id?: string | null }).projeto_id ?? '').trim())
+        .filter(Boolean),
+    ),
+  ];
+  const out = new Map<string, Record<string, unknown>>();
+  if (projetoIds.length === 0) return out;
+
+  const chunkSize = 100;
+  const rows: Record<string, unknown>[] = [];
+  for (let i = 0; i < projetoIds.length; i += chunkSize) {
+    const chunk = projetoIds.slice(i, i + chunkSize);
+    const { data } = await supabase
+      .from('kanban_cards')
+      .select(
+        'id, projeto_id, titulo, nome_condominio, quadra, lote, rede_franqueado_id, data_followup, data_reuniao',
+      )
+      .in('projeto_id', chunk);
+    rows.push(...((data ?? []) as Record<string, unknown>[]));
+  }
+
+  for (const pid of projetoIds) {
+    const siblings = rows.filter((r) => String(r.projeto_id ?? '').trim() === pid);
+    let agg: Record<string, unknown> = {};
+    for (const sib of siblings) {
+      agg = mesclarCamposDeFonte(agg, sib);
+    }
+    if (Object.keys(agg).length > 0) out.set(pid, agg);
+  }
+
+  return out;
+}
+
+async function fetchProcessoCamposPorIds(
+  supabase: SupabaseClient,
+  ids: string[],
+): Promise<Map<string, ProcessoCamposRow>> {
+  const out = new Map<string, ProcessoCamposRow>();
+  const uniq = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+  if (uniq.length === 0) return out;
+
+  const chunkSize = 200;
+  for (let i = 0; i < uniq.length; i += chunkSize) {
+    const chunk = uniq.slice(i, i + chunkSize);
+    const { data } = await supabase
+      .from('processo_step_one')
+      .select('id, nome_condominio, quadra, lote, quadra_lote')
+      .in('id', chunk);
+    for (const row of data ?? []) {
+      const id = String((row as { id?: string }).id ?? '').trim();
+      if (id) out.set(id, row as ProcessoCamposRow);
+    }
+  }
+  return out;
+}
+
+async function enrichCardsFollowupFromAtividades(
+  supabase: SupabaseClient,
+  cards: KanbanCardBrief[],
+): Promise<KanbanCardBrief[]> {
+  const cardIds = cards.filter((c) => !c.data_followup).map((c) => c.id).filter(Boolean);
+  if (cardIds.length === 0) return cards;
+
+  const { data } = await supabase
+    .from('kanban_atividades')
+    .select('card_id, data_vencimento, status')
+    .in('card_id', cardIds)
+    .not('data_vencimento', 'is', null);
+
+  const maxPorCard = new Map<string, string>();
+  for (const row of data ?? []) {
+    const cid = String((row as { card_id?: string }).card_id ?? '').trim();
+    const dv = dataIsoParaInput((row as { data_vencimento?: unknown }).data_vencimento);
+    const status = String((row as { status?: string }).status ?? '').trim();
+    if (!cid || !dv || status === 'concluida' || status === 'cancelada') continue;
+    const atual = maxPorCard.get(cid);
+    if (!atual || dv > atual) maxPorCard.set(cid, dv);
+  }
+
+  if (maxPorCard.size === 0) return cards;
+
+  return cards.map((c) => {
+    const df = maxPorCard.get(c.id);
+    if (!df || c.data_followup) return c;
+    return { ...c, data_followup: df };
   });
 }
 
@@ -612,11 +819,56 @@ export async function fetchKanbanBoardSnapshot(
     }
   }
 
+  const processoIdsCampos = new Set<string>();
+  for (const c of allNativeCards) {
+    const id = String(c.id ?? '').trim();
+    const pid = String(c.projeto_id ?? '').trim();
+    if (id) processoIdsCampos.add(id);
+    if (pid) processoIdsCampos.add(pid);
+  }
+  const processoCamposMap = await fetchProcessoCamposPorIds(supabase, [...processoIdsCampos]);
+
+  const cardsNativosRaw = [
+    ...((cardsRaw ?? []) as Record<string, unknown>[]),
+    ...((conclRaw ?? []) as Record<string, unknown>[]),
+    ...((arquivRaw ?? []) as Record<string, unknown>[]),
+  ];
+  const [ancestraisMap, irmaosProjetoMap] = await Promise.all([
+    fetchCamposAncestraisPorCard(supabase, cardsNativosRaw),
+    fetchCamposIrmaosPorProjeto(supabase, cardsNativosRaw),
+  ]);
+
   const mapNativo = (c: Record<string, unknown>): KanbanCardBrief => {
-    const fid = String(c.franqueado_id ?? '');
-    const redeId = String((c as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '').trim();
-    const cardId = String(c.id ?? '');
-    const tituloRaw = String(c.titulo ?? '');
+    const cMerged = mesclarCamposComProjetoIrmaos(
+      mesclarCamposComAncestrais(c, ancestraisMap),
+      irmaosProjetoMap,
+    );
+    const fid = String(cMerged.franqueado_id ?? '');
+    const redeId = String((cMerged as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '').trim();
+    const cardId = String(cMerged.id ?? '');
+    const tituloRaw = String(cMerged.titulo ?? '');
+    const proc =
+      processoCamposMap.get(cardId) ??
+      (cMerged.projeto_id ? processoCamposMap.get(String(cMerged.projeto_id)) : undefined);
+    const parsedTitulo = parseCamposDoTituloCard(tituloRaw);
+    const quadraLoteProc = String(proc?.quadra_lote ?? '').trim();
+    const nomeCondominio = coalesceTextoCampo(
+      (cMerged as { nome_condominio?: string | null }).nome_condominio,
+      proc?.nome_condominio,
+      parsedTitulo.nomeCondominio,
+    );
+    const quadra = coalesceTextoCampo(
+      (cMerged as { quadra?: string | null }).quadra,
+      proc?.quadra,
+      parsedTitulo.quadra,
+      quadraLoteProc ? quadraLoteProc.split('/')[0] : null,
+    );
+    const lote = coalesceTextoCampo(
+      (cMerged as { lote?: string | null }).lote,
+      proc?.lote,
+      parsedTitulo.lote,
+      quadraLoteProc ? quadraLoteProc.split('/')[1] : null,
+    );
     const nFranquiaCard = redeId
       ? nFranquiaByRedeId.get(redeId)
       : nFranquiaPorCardId.get(cardId) ?? extrairNumeroFranquiaDoTitulo(tituloRaw);
@@ -625,50 +877,50 @@ export async function fetchKanbanBoardSnapshot(
       nomeFranqueado: redeId
         ? redeNomeDiretoMap.get(redeId)
         : franqueadoNomePorCardId.get(cardId),
-      nomeCondominio: (c as { nome_condominio?: string | null }).nome_condominio,
-      quadra: (c as { quadra?: string | null }).quadra,
-      lote: (c as { lote?: string | null }).lote,
+      nomeCondominio,
+      quadra,
+      lote,
       tituloFallback: tituloRaw,
     });
     return {
-      id: String(c.id),
+      id: String(cMerged.id),
       titulo: escolherTituloExibicaoCard(tituloRaw, tituloCalc, nFranquiaCard),
-      status: String(c.status ?? ''),
-      created_at: String(c.created_at ?? ''),
-      fase_id: String(c.fase_id ?? ''),
-      ordem_coluna: Number((c as { ordem_coluna?: number | null }).ordem_coluna ?? 0),
+      status: String(cMerged.status ?? ''),
+      created_at: String(cMerged.created_at ?? ''),
+      fase_id: String(cMerged.fase_id ?? ''),
+      ordem_coluna: Number((cMerged as { ordem_coluna?: number | null }).ordem_coluna ?? 0),
       kanban_id: kanbanIdStr,
-      projeto_id: (c as { projeto_id?: string | null }).projeto_id ?? null,
+      projeto_id: (cMerged as { projeto_id?: string | null }).projeto_id ?? null,
       franqueado_id: fid,
-      arquivado: Boolean((c as { arquivado?: boolean | null }).arquivado),
-      motivo_arquivamento: (c as { motivo_arquivamento?: string | null }).motivo_arquivamento ?? null,
-      concluido: Boolean((c as { concluido?: boolean | null }).concluido),
+      arquivado: Boolean((cMerged as { arquivado?: boolean | null }).arquivado),
+      motivo_arquivamento: (cMerged as { motivo_arquivamento?: string | null }).motivo_arquivamento ?? null,
+      concluido: Boolean((cMerged as { concluido?: boolean | null }).concluido),
       concluido_em:
-        (c as { concluido_em?: string | null }).concluido_em != null
-          ? String((c as { concluido_em?: string | null }).concluido_em)
+        (cMerged as { concluido_em?: string | null }).concluido_em != null
+          ? String((cMerged as { concluido_em?: string | null }).concluido_em)
           : null,
       origem: 'nativo',
-      data_reuniao: dataIsoParaInput(c.data_reuniao),
-      data_followup: dataIsoParaInput(c.data_followup),
-      acoplamento_concluido: Boolean((c as { acoplamento_concluido?: boolean | null }).acoplamento_concluido),
+      data_reuniao: dataIsoParaInput(cMerged.data_reuniao),
+      data_followup: dataIsoParaInput(cMerged.data_followup),
+      acoplamento_concluido: Boolean((cMerged as { acoplamento_concluido?: boolean | null }).acoplamento_concluido),
       acoplamento_filho_fase_nome:
-        (c as { acoplamento_filho_fase_nome?: string | null }).acoplamento_filho_fase_nome ?? null,
+        (cMerged as { acoplamento_filho_fase_nome?: string | null }).acoplamento_filho_fase_nome ?? null,
       acoplamento_filho_fase_slug:
-        (c as { acoplamento_filho_fase_slug?: string | null }).acoplamento_filho_fase_slug ?? null,
-      credito_terreno_ok: Boolean((c as { credito_terreno_ok?: boolean | null }).credito_terreno_ok),
-      contabilidade_ok: Boolean((c as { contabilidade_ok?: boolean | null }).contabilidade_ok),
-      capital_ok: Boolean((c as { capital_ok?: boolean | null }).capital_ok),
-      juridico_ok: Boolean((c as { juridico_ok?: boolean | null }).juridico_ok),
-      credito_obra_ok: Boolean((c as { credito_obra_ok?: boolean | null }).credito_obra_ok),
-      alvara_url: (c as { alvara_url?: string | null }).alvara_url ?? null,
-      docs_terreno_url: (c as { docs_terreno_url?: string | null }).docs_terreno_url ?? null,
+        (cMerged as { acoplamento_filho_fase_slug?: string | null }).acoplamento_filho_fase_slug ?? null,
+      credito_terreno_ok: Boolean((cMerged as { credito_terreno_ok?: boolean | null }).credito_terreno_ok),
+      contabilidade_ok: Boolean((cMerged as { contabilidade_ok?: boolean | null }).contabilidade_ok),
+      capital_ok: Boolean((cMerged as { capital_ok?: boolean | null }).capital_ok),
+      juridico_ok: Boolean((cMerged as { juridico_ok?: boolean | null }).juridico_ok),
+      credito_obra_ok: Boolean((cMerged as { credito_obra_ok?: boolean | null }).credito_obra_ok),
+      alvara_url: (cMerged as { alvara_url?: string | null }).alvara_url ?? null,
+      docs_terreno_url: (cMerged as { docs_terreno_url?: string | null }).docs_terreno_url ?? null,
       sla_iniciado_em:
-        (c as { sla_iniciado_em?: string | null }).sla_iniciado_em != null
-          ? String((c as { sla_iniciado_em?: string | null }).sla_iniciado_em)
+        (cMerged as { sla_iniciado_em?: string | null }).sla_iniciado_em != null
+          ? String((cMerged as { sla_iniciado_em?: string | null }).sla_iniciado_em)
           : null,
       entered_fase_at:
-        (c as { entered_fase_at?: string | null }).entered_fase_at != null
-          ? String((c as { entered_fase_at?: string | null }).entered_fase_at)
+        (cMerged as { entered_fase_at?: string | null }).entered_fase_at != null
+          ? String((cMerged as { entered_fase_at?: string | null }).entered_fase_at)
           : null,
       profiles: redeNomeDiretoMap.has(redeId)
         ? { full_name: redeNomeDiretoMap.get(redeId) ?? null }
@@ -723,6 +975,10 @@ export async function fetchKanbanBoardSnapshot(
   cardsNativo = await enrichCardsDatasFromProcesso(supabase, cardsNativo);
   cardsConcluidos = await enrichCardsDatasFromProcesso(supabase, cardsConcluidos);
   cardsArquivadosNativo = await enrichCardsDatasFromProcesso(supabase, cardsArquivadosNativo);
+
+  cardsNativo = await enrichCardsFollowupFromAtividades(supabase, cardsNativo);
+  cardsConcluidos = await enrichCardsFollowupFromAtividades(supabase, cardsConcluidos);
+  cardsArquivadosNativo = await enrichCardsFollowupFromAtividades(supabase, cardsArquivadosNativo);
 
   const idsComLinhaNativa = new Set([
     ...cardsNativo.map((c) => c.id),

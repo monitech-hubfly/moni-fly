@@ -10,6 +10,22 @@ export function extrairNumeroFranquiaDoTitulo(titulo: string): string {
   return i >= 0 ? t.slice(0, i).trim() : t;
 }
 
+/** Extrai condomínio/quadra/lote de títulos `FK#### - …`. */
+export function parseCamposDoTituloCard(titulo: string): {
+  nomeCondominio?: string;
+  quadra?: string;
+  lote?: string;
+} {
+  const parts = titulo
+    .split(' - ')
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length < 2 || !/^FK\d+/i.test(parts[0] ?? '')) return {};
+  if (parts.length === 2) return { nomeCondominio: parts[1] };
+  if (parts.length === 3) return { nomeCondominio: parts[1], quadra: parts[2] };
+  return { nomeCondominio: parts[1], quadra: parts[2], lote: parts[3] };
+}
+
 /** Remove o segmento do nome do franqueado em títulos legados `FK - Nome - …`. */
 function tituloFallbackSemFranqueado(fb: string, nFranquia: string | null | undefined): string {
   const t = fb.trim();
@@ -389,15 +405,17 @@ export function montarTituloCardSync(params: {
   return tituloFallbackSemFranqueado(fb, params.nFranquia);
 }
 
-/** Prefere o título calculado (FK + condomínio/quadra/lote, sem nome do franqueado). */
+/** Prefere o título mais completo (FK + condomínio + quadra + lote). */
 export function escolherTituloExibicaoCard(
   tituloAtual: string | null | undefined,
   tituloCalculado: string | null | undefined,
   nFranquia?: string | null,
 ): string {
   const calc = String(tituloCalculado ?? '').trim();
-  if (calc) return calc;
   const atual = tituloFallbackSemFranqueado(String(tituloAtual ?? ''), nFranquia);
+  const partes = (t: string) => t.split(' - ').map((p) => p.trim()).filter(Boolean).length;
+  if (atual && calc && partes(atual) > partes(calc)) return atual;
+  if (calc) return calc;
   return atual || '(sem título)';
 }
 
