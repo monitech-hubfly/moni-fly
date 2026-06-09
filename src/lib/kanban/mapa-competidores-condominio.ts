@@ -10,7 +10,10 @@ export function normalizarNomeCondominioMapa(valor: string): string {
     .replace(/\p{M}/gu, '');
 }
 
-export function casaMapaPertenceCondominio(casa: CasaRow, nomeCondominio: string): boolean {
+export function casaMapaPertenceCondominio(
+  casa: Pick<CasaRow, 'condominio'>,
+  nomeCondominio: string,
+): boolean {
   const alvo = normalizarNomeCondominioMapa(nomeCondominio);
   if (!alvo) return false;
   const cnd = normalizarNomeCondominioMapa(casa.condominio ?? '');
