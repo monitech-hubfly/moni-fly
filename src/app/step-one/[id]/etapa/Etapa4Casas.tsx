@@ -71,6 +71,7 @@ export type CasaRow = {
   data_despublicado?: string | null;
   link: string | null;
   manual?: boolean | null;
+  faixa?: 'entrada' | 'intermediaria' | 'premium';
 };
 
 export function Etapa4Casas(props: {
@@ -110,6 +111,8 @@ export function Etapa4Casas(props: {
   onMutate?: () => void;
   /** Pré-preenche o condomínio na varredura ZAP e no cadastro manual (sessão por condomínio no funil). */
   condominioInicial?: string;
+  /** Conteúdo entre o botão Buscar e a tabela (ex.: resumo de faixas no checklist). */
+  painelAposBuscar?: React.ReactNode;
   modoPreBatalha?: boolean;
   /** URL do PDF Score & Batalha já armazenado na etapa 7 (etapa 6). */
   pdfScoreBatalhaUrl?: string | null;
@@ -129,6 +132,7 @@ export function Etapa4Casas(props: {
     readOnly = false,
     onMutate,
     condominioInicial = '',
+    painelAposBuscar,
     modoPreBatalha = false,
     pdfScoreBatalhaUrl = null,
     custosConstrucaoChecklist = {},
@@ -1111,6 +1115,8 @@ export function Etapa4Casas(props: {
           </button>
         </section>
 
+        {painelAposBuscar}
+
         {/* Alerta mensal: validar status das casas manuais */}
         {casasManuais.length > 0 && precisaAlertaValidacao && (
           <div
@@ -1352,7 +1358,10 @@ export function Etapa4Casas(props: {
                       <td className={tabelaTd}>{c.piscina ? 'sim' : 'não'}</td>
                       <td className={tabelaTd}>{c.marcenaria ? 'sim' : 'não'}</td>
                       <td className={tabelaTd}>
-                        {c.preco != null ? `R$ ${c.preco.toLocaleString('pt-BR')}` : '—'}
+                        <span className="inline-flex flex-wrap items-center gap-1.5">
+                          {c.preco != null ? `R$ ${c.preco.toLocaleString('pt-BR')}` : '—'}
+                          <BadgeFaixaMercado faixa={c.faixa} />
+                        </span>
                       </td>
                       <td className={tabelaTd}>{c.area_casa_m2 ?? '—'}</td>
                       <td className={tabelaTd}>
@@ -2054,4 +2063,33 @@ export function Etapa4Casas(props: {
       </div>
     </>
   );
+}
+
+function BadgeFaixaMercado({
+  faixa,
+}: {
+  faixa?: CasaRow['faixa'];
+}) {
+  if (faixa === 'premium') {
+    return (
+      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+        Premium
+      </span>
+    );
+  }
+  if (faixa === 'intermediaria') {
+    return (
+      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+        Intermediária
+      </span>
+    );
+  }
+  if (faixa === 'entrada') {
+    return (
+      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+        Entrada
+      </span>
+    );
+  }
+  return null;
 }

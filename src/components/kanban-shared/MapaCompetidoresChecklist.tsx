@@ -14,8 +14,10 @@ import {
   type LinhaProspectCondominio,
 } from '@/lib/kanban/condominio-prospect-pesquisa';
 import {
-  filtrarCasasMapaPorCondominio,
+  filtrarCasasPorCondominio,
+  classificarFaixasMercado,
   linhaMapaCompetidoresCompleta,
+  resumoFaixasMercado,
 } from '@/lib/kanban/mapa-competidores-condominio';
 
 type Props = {
@@ -111,10 +113,78 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
     [linhas, rowIdAtivo],
   );
 
-  const casasCondominioAtivo = useMemo(() => {
+  const casasDoCondominio = useMemo(() => {
     if (!linhaAtiva?.condominio?.trim()) return [];
-    return filtrarCasasMapaPorCondominio(casas, linhaAtiva.condominio);
+    return filtrarCasasPorCondominio(casas, linhaAtiva.condominio);
   }, [casas, linhaAtiva]);
+
+  const casasComFaixa = useMemo(
+    () => classificarFaixasMercado(casasDoCondominio),
+    [casasDoCondominio],
+  );
+
+  const resumoFaixas = useMemo(
+    () => resumoFaixasMercado(casasDoCondominio),
+    [casasDoCondominio],
+  );
+
+  const painelFaixasMercado =
+    resumoFaixas && casasDoCondominio.length > 0 ? (
+      <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+        <p className="mb-2 text-xs font-medium text-gray-500">
+          Distribuição de mercado — mínimo R$ 4MM (busca ZAP)
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-md bg-gray-100 p-2 text-center">
+            <p className="text-xs font-medium text-gray-500">Entrada</p>
+            <p className="text-sm font-semibold text-gray-700">
+              {resumoFaixas.entrada.quantidade} casas
+            </p>
+            <p className="text-xs text-gray-400">
+              até{' '}
+              {resumoFaixas.entrada.corteMax.toLocaleString('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+                maximumFractionDigits: 0,
+              })}
+            </p>
+          </div>
+          <div className="rounded-md bg-blue-50 p-2 text-center">
+            <p className="text-xs font-medium text-blue-600">Intermediária</p>
+            <p className="text-sm font-semibold text-blue-700">
+              {resumoFaixas.intermediaria.quantidade} casas
+            </p>
+            <p className="text-xs text-blue-400">
+              {resumoFaixas.intermediaria.corteMin.toLocaleString('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+                maximumFractionDigits: 0,
+              })}{' '}
+              –{' '}
+              {resumoFaixas.intermediaria.corteMax.toLocaleString('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+                maximumFractionDigits: 0,
+              })}
+            </p>
+          </div>
+          <div className="rounded-md bg-amber-50 p-2 text-center">
+            <p className="text-xs font-medium text-amber-700">Premium</p>
+            <p className="text-sm font-semibold text-amber-800">
+              {resumoFaixas.premium.quantidade} casas
+            </p>
+            <p className="text-xs text-amber-500">
+              acima de{' '}
+              {resumoFaixas.premium.corteMin.toLocaleString('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+                maximumFractionDigits: 0,
+              })}
+            </p>
+          </div>
+        </div>
+      </div>
+    ) : null;
 
   if (carregandoInicial) {
     return (
@@ -169,8 +239,8 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
               <div className="flex flex-wrap items-center gap-2">
                 <BadgeConclusao completa={linhaMapaCompetidoresCompleta(linhaAtiva, casas)} />
                 <span className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                  {casasCondominioAtivo.length}{' '}
-                  {casasCondominioAtivo.length === 1 ? 'listagem' : 'listagens'} neste condomínio
+                  {casasDoCondominio.length}{' '}
+                  {casasDoCondominio.length === 1 ? 'listagem' : 'listagens'} neste condomínio
                 </span>
               </div>
               <div className="space-y-2">
@@ -184,7 +254,7 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
                     listagemOnly
                     readOnly={!podeEditar}
                     processoId={dadosMapa.processoId}
-                    casas={casasCondominioAtivo}
+                    casas={casasComFaixa}
                     cidadeInicial={dadosMapa.cidadeInicial}
                     estadoInicial={dadosMapa.estadoInicial}
                     ultimaValidacaoCasasManuaisEm={dadosMapa.ultimaValidacaoCasasManuaisEm}
@@ -192,6 +262,7 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
                     catalogo={[]}
                     batalhasIniciais={[]}
                     condominioInicial={linhaAtiva.condominio.trim()}
+                    painelAposBuscar={painelFaixasMercado}
                     onMutate={recarregar}
                   />
                 </div>
