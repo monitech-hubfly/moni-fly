@@ -83,7 +83,8 @@ import {
   hipotesesOrdemMinima,
   montarChipsParalelas,
 } from '@/lib/kanban/kanban-paralelas-chips';
-import { isDadosCondominiosFaseSlug, isHipotesesFaseSlug, isStepOneFaseDesdeDadosCondominios } from '@/lib/kanban/stepone-fase-slugs';
+import { isDadosCondominiosFaseSlug, isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { kanbanExibeSecaoCondominioSidebar } from '@/lib/kanban/kanban-secao-condominio';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCreditoObraDocumentacao';
 import {
@@ -2995,8 +2996,13 @@ export function KanbanCardModal({
   const isFaseHipoteses = isHipotesesFaseSlug(faseSlugHipoteses);
   const isFaseDadosCondominios =
     !isLegado && kanbanNome === 'Funil Step One' && isDadosCondominiosFaseSlug(faseSlugHipoteses);
-  const exibirSecaoCondominioSidebar =
-    !isLegado && kanbanNome === 'Funil Step One' && isStepOneFaseDesdeDadosCondominios(faseAtual, fases);
+  const exibirSecaoCondominioSidebar = kanbanExibeSecaoCondominioSidebar({
+    isLegado,
+    kanbanId: card.kanban_id,
+    kanbanNome,
+    faseAtual,
+    fases,
+  });
   const exibirEnviarHipotesePortfolio =
     !isLegado && kanbanNome === 'Funil Step One' && isFaseHipoteses;
 
