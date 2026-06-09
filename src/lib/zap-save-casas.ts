@@ -1,5 +1,6 @@
 import { mapZapItemToCasa, type ZapListingItem } from '@/lib/apify-zap';
 import { normalizeAccessRole } from '@/lib/authz';
+import { casaMapaPertenceCondominio } from '@/lib/kanban/mapa-competidores-condominio';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -79,7 +80,7 @@ export async function applyZapCasasUpdate(
 
   const { data: existing } = await supabase
     .from('listings_casas')
-    .select('id, link, manual')
+    .select('id, link, manual, condominio')
     .eq('processo_id', processoId);
 
   let despublicados = 0;
@@ -88,6 +89,10 @@ export async function applyZapCasasUpdate(
     if (row.manual) continue;
     const link = row.link as string | null;
     if (!link || linksFromZap.has(link)) continue;
+    // Mapa por condomínio: só despublica listagens da sessão atual, não de outras abas.
+    if (vinculo && !casaMapaPertenceCondominio({ condominio: row.condominio ?? null }, vinculo)) {
+      continue;
+    }
     const { error: upErr } = await supabase
       .from('listings_casas')
       .update({ status: 'despublicado', data_despublicado: now })
