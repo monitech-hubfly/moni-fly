@@ -171,6 +171,18 @@ export function loteDisponivelCompleto(lote: LinhaLoteDisponivel): boolean {
   return CHAVES_LOTE_OBRIGATORIAS.every((chave) => Boolean(String(lote[chave] ?? '').trim()));
 }
 
+export function loteEscolhidoNaLinha(
+  linha: LinhaProspectCondominio,
+): LinhaLoteDisponivel | null {
+  const escolhidoId = linha.lote_escolhido_id?.trim();
+  if (!escolhidoId) return null;
+  return linha.lotes_disponiveis?.find((l) => l.lote_id === escolhidoId) ?? null;
+}
+
+export function linhaTemLoteEscolhido(linha: LinhaProspectCondominio): boolean {
+  return loteEscolhidoNaLinha(linha) != null;
+}
+
 /** Pelo menos um lote com todos os campos obrigatórios na sessão do condomínio. */
 export function sessaoLotesCondominioCompleta(lotes: LinhaLoteDisponivel[] | undefined): boolean {
   if (!lotes?.length) return false;
@@ -178,7 +190,10 @@ export function sessaoLotesCondominioCompleta(lotes: LinhaLoteDisponivel[] | und
 }
 
 export function linhaLotesCondominioCompleta(linha: LinhaProspectCondominio): boolean {
-  return sessaoLotesCondominioCompleta(linha.lotes_disponiveis);
+  if (!sessaoLotesCondominioCompleta(linha.lotes_disponiveis)) return false;
+  const escolhido = loteEscolhidoNaLinha(linha);
+  if (!escolhido) return false;
+  return loteDisponivelCompleto(escolhido);
 }
 
 export function todasSessoesLotesCompletas(linhas: LinhaProspectCondominio[]): boolean {

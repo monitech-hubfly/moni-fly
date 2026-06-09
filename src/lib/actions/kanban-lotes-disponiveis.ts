@@ -257,7 +257,14 @@ async function persistirLotesLinha(input: {
       const idx = linhas.findIndex((l) => l.row_id === input.rowId);
       if (idx < 0) return linhas;
       const atual = normalizarLinhaProspect(linhas[idx]);
-      const merged = atualizarLotesPreenchidosEm({ ...atual, lotes_disponiveis: lotesNorm });
+      const escolhidoId = atual.lote_escolhido_id?.trim() ?? null;
+      const escolhidoValido =
+        escolhidoId && lotesNorm.some((l) => l.lote_id === escolhidoId) ? escolhidoId : null;
+      const merged = atualizarLotesPreenchidosEm({
+        ...atual,
+        lotes_disponiveis: lotesNorm,
+        lote_escolhido_id: escolhidoValido,
+      });
       const novas = [...linhas];
       novas[idx] = merged;
       return novas;
@@ -340,6 +347,68 @@ export async function salvarCampoLoteCondominio(input: {
     ctxSalvar,
     condominioId: linha.condominio_id,
   });
+}
+
+export async function salvarLoteEscolhidoCondominio(input: {
+  cardId: string;
+  rowId: string;
+  loteId: string | null;
+}): Promise<KanbanLotesDisponiveisResult> {
+  const cardId = String(input.cardId ?? '').trim();
+  const rowId = String(input.rowId ?? '').trim();
+  const loteId = input.loteId?.trim() || null;
+  if (!cardId || !rowId) return { ok: false, error: 'Card e condomínio são obrigatórios.' };
+
+  const ctxSalvar = await carregarContextoSalvar(cardId);
+  if (!ctxSalvar.ok) return ctxSalvar;
+
+  const linha = ctxSalvar.linhas.find((l) => l.row_id === rowId);
+  if (!linha) return { ok: false, error: 'Condomínio não encontrado na tabela de prospects.' };
+
+  if (loteId && !(linha.lotes_disponiveis ?? []).some((l) => l.lote_id === loteId)) {
+    return { ok: false, error: 'Lote não encontrado neste condomínio.' };
+  }
+
+  const supabase = await createClient();
+  const json = atualizarLinhaNaTabelaMultiPraca(
+    ctxSalvar.valorRaw,
+    ctxSalvar.ctx.chaveLegado,
+    rowId,
+    (linhas) => {
+      const idx = linhas.findIndex((l) => l.row_id === rowId);
+      if (idx < 0) return linhas;
+      const atual = normalizarLinhaProspect(linhas[idx]);
+      const merged = atualizarLotesPreenchidosEm({ ...atual, lote_escolhido_id: loteId });
+      const novas = [...linhas];
+      novas[idx] = merged;
+      return novas;
+    },
+  );
+
+  const saveTabela = await upsertChecklistValor(
+    supabase,
+    ctxSalvar.tabelaItemId,
+    cardId,
+    json,
+    ctxSalvar.userId,
+  );
+  if (!saveTabela.ok) return saveTabela;
+
+  if (ctxSalvar.lotesItemId) {
+    const todasLinhas = parseLinhasTabelaTodasPracas(json, ctxSalvar.ctx.chaveLegado);
+    const valorLotes = todasSessoesLotesCompletas(todasLinhas) ? 'true' : '';
+    const saveLotes = await upsertChecklistValor(
+      supabase,
+      ctxSalvar.lotesItemId,
+      cardId,
+      valorLotes,
+      ctxSalvar.userId,
+    );
+    if (!saveLotes.ok) return saveLotes;
+  }
+
+  revalidatePath('/rede-franqueados');
+  return { ok: true };
 }
 
 export type CarregarLotesCondominioResult =

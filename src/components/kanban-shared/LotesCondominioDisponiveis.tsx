@@ -7,6 +7,7 @@ import { KanbanFaseSecaoTabs } from '@/components/kanban-shared/KanbanFaseSecaoT
 import {
   carregarLotesCondominioCard,
   salvarCampoLoteCondominio,
+  salvarLoteEscolhidoCondominio,
   salvarLotesCondominioDisponivel,
 } from '@/lib/actions/kanban-lotes-disponiveis';
 import {
@@ -16,6 +17,7 @@ import {
 import {
   criarLoteDisponivelVazio,
   linhaLotesCondominioCompleta,
+  linhaTemLoteEscolhido,
   loteDisponivelCompleto,
   LOTES_DISPONIVEIS_CAMPOS,
   LOTES_DISPONIVEIS_CHECKBOXES,
@@ -108,13 +110,41 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
     setErroSalvar(null);
   }, [rowIdAtivo, linhas]);
 
-  function aplicarLotesSalvosLocal(rowId: string, lotes: LinhaLoteDisponivel[]) {
+  function aplicarLotesSalvosLocal(
+    rowId: string,
+    lotes: LinhaLoteDisponivel[],
+    loteEscolhidoId?: string | null,
+  ) {
     setLinhas((prev) =>
       prev.map((l) => {
         if (l.row_id !== rowId) return l;
-        return { ...l, lotes_disponiveis: lotes };
+        const escolhidoId = loteEscolhidoId !== undefined ? loteEscolhidoId : l.lote_escolhido_id;
+        const escolhidoValido =
+          escolhidoId && lotes.some((lot) => lot.lote_id === escolhidoId) ? escolhidoId : null;
+        return {
+          ...l,
+          lotes_disponiveis: lotes,
+          lote_escolhido_id: escolhidoValido,
+        };
       }),
     );
+  }
+
+  async function marcarLoteEscolhido(loteId: string) {
+    if (!linhaAtiva) return;
+    setSalvando(true);
+    setErroSalvar(null);
+    const res = await salvarLoteEscolhidoCondominio({
+      cardId,
+      rowId: linhaAtiva.row_id,
+      loteId,
+    });
+    setSalvando(false);
+    if (!res.ok) {
+      setErroSalvar(res.error);
+      return;
+    }
+    aplicarLotesSalvosLocal(linhaAtiva.row_id, rascunhoLotes, loteId);
   }
 
   async function persistirLotes(lotes: LinhaLoteDisponivel[]) {
@@ -200,9 +230,11 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
     () =>
       rascunhoLotes.map((l) => ({
         id: l.lote_id,
-        label: `${rotuloLoteDisponivel(l)}${loteDisponivelCompleto(l) ? ' ✓' : ''}`,
+        label: `${rotuloLoteDisponivel(l)}${loteDisponivelCompleto(l) ? ' ✓' : ''}${
+          linhaAtiva?.lote_escolhido_id === l.lote_id ? ' ★' : ''
+        }`,
       })),
-    [rascunhoLotes],
+    [rascunhoLotes, linhaAtiva?.lote_escolhido_id],
   );
 
   const loteAtivo = rascunhoLotes.find((l) => l.lote_id === loteIdAtivo) ?? rascunhoLotes[0] ?? null;
@@ -216,7 +248,8 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
           {salvando ? <Loader2 size={10} className="ml-1 inline animate-spin" /> : null}
         </span>
         <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-          Para cada condomínio da Tabela de Condomínios, cadastre um ou mais lotes disponíveis.
+          Para cada condomínio da Tabela de Condomínios, cadastre os lotes e marque{' '}
+          <strong>1 lote escolhido</strong> para seguir no funil.
         </p>
       </div>
 
@@ -245,6 +278,11 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <BadgeConclusao completa={linhaLotesCondominioCompleta(linhaAtiva)} />
+                {!linhaTemLoteEscolhido(linhaAtiva) ? (
+                  <span className="text-[11px] font-medium text-amber-700">
+                    Marque o lote escolhido abaixo
+                  </span>
+                ) : null}
                 {linhaAtiva.lotes_preenchidos_em ? (
                   <span className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
                     Atualizado em{' '}
@@ -268,6 +306,23 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
                       className="rounded-lg border p-3 space-y-3"
                       style={{ borderColor: 'var(--moni-border-default)', background: 'var(--moni-surface-50)' }}
                     >
+                      <label
+                        className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium ${
+                          linhaAtiva.lote_escolhido_id === loteAtivo.lote_id
+                            ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                            : 'border-stone-200 bg-white text-stone-700'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name={`lote-escolhido-${linhaAtiva.row_id}`}
+                          checked={linhaAtiva.lote_escolhido_id === loteAtivo.lote_id}
+                          onChange={() => void marcarLoteEscolhido(loteAtivo.lote_id)}
+                          className="h-4 w-4 shrink-0 border-stone-300 text-emerald-600"
+                        />
+                        Lote escolhido para seguir
+                      </label>
+
                       <div className="flex items-center justify-between gap-2">
                         <h4 className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-secondary)' }}>
                           Dados do lote

@@ -299,6 +299,8 @@ export type LinhaProspectCondominio = {
   pesquisa_preenchida_em?: string | null;
   lotes_disponiveis?: LinhaLoteDisponivel[];
   lotes_preenchidos_em?: string | null;
+  /** `lote_id` do lote marcado como escolhido nesta sessão (obrigatório para concluir a fase). */
+  lote_escolhido_id?: string | null;
 };
 
 /** @deprecated Use FAIXA_CONDOMINIO_CAMPOS agrupados por secao. */
@@ -629,6 +631,12 @@ export function normalizarLinhaProspect(raw: unknown, fallbackIndex = 0): LinhaP
     linha.lotes_preenchidos_em = o.lotes_preenchidos_em.trim();
   } else if (o.lotes_preenchidos_em === null) {
     linha.lotes_preenchidos_em = null;
+  }
+
+  if (typeof o.lote_escolhido_id === 'string' && o.lote_escolhido_id.trim()) {
+    linha.lote_escolhido_id = o.lote_escolhido_id.trim();
+  } else if (o.lote_escolhido_id === null) {
+    linha.lote_escolhido_id = null;
   }
 
   return aplicarMigracaoLegadoEstrutura(linha, o);

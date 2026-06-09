@@ -323,10 +323,9 @@ export function notaFinalBatalha(
   return clampNota(notaAtributos + notaPreco + notaProduto);
 }
 
-/** Pré-batalha (etapa 5): média de Atributos do Lote + Produto, sem eixo Preço. */
+/** @deprecated Pré-batalha usa as mesmas regras da batalha completa — preferir `notaFinalBatalha`. */
 export function notaFinalPreBatalha(notaAtributos: number, notaProduto: number): number {
-  const v = (notaAtributos + notaProduto) / 2;
-  return clampNota(Math.round(v * 10) / 10);
+  return notaFinalBatalha(notaAtributos, 0, notaProduto);
 }
 
 function clampNota(n: number): number {

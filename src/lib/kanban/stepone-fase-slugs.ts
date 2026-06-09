@@ -9,8 +9,8 @@ export const STEPONE_FASE_SLUGS = {
   ONBOARDING: FASE_SLUGS.ONBOARDING,
   DADOS_CANDIDATO: FASE_SLUGS.DADOS_CANDIDATO,
   DADOS_CIDADE: FASE_SLUGS.DADOS_CIDADE,
-  DADOS_CONDOMINIOS: FASE_SLUGS.DADOS_CONDOMINIOS,
   MAPA_COMPETIDORES: FASE_SLUGS.MAPA_COMPETIDORES,
+  DADOS_CONDOMINIOS: FASE_SLUGS.DADOS_CONDOMINIOS,
   LOTES_DISPONIVEIS: FASE_SLUGS.LOTES_DISPONIVEIS,
   PRE_BATALHA: FASE_SLUGS.PRE_BATALHA,
   ESCOLHA: FASE_SLUGS.ESCOLHA,
@@ -169,16 +169,25 @@ export function isBatalhaFaseSlug(slug: string | null | undefined): boolean {
   return slugMatchesStepOneFase(slug, BATALHA_FASE_SLUGS);
 }
 
-/** Funil Step One: fase Dados dos Condomínios em diante (ordem ≥ fase dados_condominios). */
+/** Funil Step One: fases com condomínio no card (a partir da primeira entre Mapa e Dados dos Condomínios). */
 export function isStepOneFaseDesdeDadosCondominios(
   faseAtual: { slug?: string | null; ordem?: number } | null | undefined,
   fases: KanbanFase[],
 ): boolean {
   if (!faseAtual) return false;
   const dadosCond = fases.find((f) => isDadosCondominiosFaseSlug(f.slug));
-  if (!dadosCond) return isDadosCondominiosFaseSlug(faseAtual.slug);
-  if (typeof faseAtual.ordem === 'number' && typeof dadosCond.ordem === 'number') {
-    return faseAtual.ordem >= dadosCond.ordem;
+  const mapa = fases.find((f) => isMapaCompetidoresFaseSlug(f.slug));
+  const ordensGate = [dadosCond?.ordem, mapa?.ordem].filter(
+    (o): o is number => typeof o === 'number',
+  );
+  const ordemGate = ordensGate.length > 0 ? Math.min(...ordensGate) : undefined;
+  if (!dadosCond && !mapa) {
+    return (
+      isDadosCondominiosFaseSlug(faseAtual.slug) || isMapaCompetidoresFaseSlug(faseAtual.slug)
+    );
+  }
+  if (typeof faseAtual.ordem === 'number' && typeof ordemGate === 'number') {
+    return faseAtual.ordem >= ordemGate;
   }
   return (
     isDadosCondominiosFaseSlug(faseAtual.slug) ||

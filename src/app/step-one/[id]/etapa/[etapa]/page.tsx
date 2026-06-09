@@ -450,20 +450,16 @@ export default async function EtapaPage({ params, searchParams }: PageProps) {
             <>
               <div className="flex flex-wrap items-center gap-3">
                 <h1 className="text-xl font-bold text-moni-dark">
-                  Etapa {etapaDisplayNum} — {etapaInfo.nome}
+                  Etapa {etapaDisplayNum} —{' '}
+                  {modoPreBatalha ? 'Batalha das Casas' : etapaInfo.nome}
                 </h1>
-                {modoPreBatalha ? (
-                  <span className="rounded-full bg-amber-100 px-3 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-amber-300">
-                    Pré-batalha
-                  </span>
-                ) : null}
               </div>
               <p className="mt-2 text-stone-600">{etapaInfo.descricao}</p>
               {modoPreBatalha ? (
                 <p className="mt-2 text-sm text-amber-900/90">
-                  Ranqueie candidatos Moní só com Produto e Atributos do Lote (sem Preço/reforma).
-                  As notas ficam apenas nesta sessão — use a batalha completa na etapa 6 para
-                  salvar.
+                  Ranqueie candidatos Moní com Atributos do Lote, Preço (checklist de reforma) e
+                  Produto (7 sub-itens). Nota final = soma dos três eixos; desempate: Lote &gt;
+                  Preço &gt; Produto.
                 </p>
               ) : null}
               <div className="mt-6 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">

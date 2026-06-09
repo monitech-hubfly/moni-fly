@@ -106,7 +106,13 @@ export async function getAtributosLoteFromStepOneChecklist(
       const loaded = await carregarLotesCondominioCard(cardId);
       if (!loaded.ok) continue;
       for (const linha of loaded.linhas) {
-        for (const lote of linha.lotes_disponiveis ?? []) {
+        const escolhido = linha.lote_escolhido_id?.trim()
+          ? (linha.lotes_disponiveis ?? []).find((l) => l.lote_id === linha.lote_escolhido_id)
+          : null;
+        const lotesPrioridade = escolhido
+          ? [escolhido]
+          : (linha.lotes_disponiveis ?? []);
+        for (const lote of lotesPrioridade) {
           const atributos = loteDisponivelParaAtributosBatalha(lote);
           if (Object.keys(atributos).length > 0) return { ok: true, atributos };
         }

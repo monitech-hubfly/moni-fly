@@ -23,7 +23,6 @@ import {
   ATRIBUTOS_LOTE,
   notaAtributosLote,
   notaFinalBatalha,
-  notaFinalPreBatalha,
   type AtributosLoteRespostas,
   CATEGORIAS_REFORMA,
   valorInvestimento,
@@ -470,7 +469,7 @@ export function Etapa4Casas(props: {
       vagas: number | null;
       area_m2?: number | null;
     };
-    if (modoPreBatalha || dados.designId != null || dados.idade != null) {
+    if (dados.designId != null || dados.idade != null) {
       const T = notaTamanhoM2(listing.area_casa_m2, cat.area_m2 ?? null);
       const A = notaAmenidades(listing);
       const Q = notaQuartos(cat.quartos, listing.quartos);
@@ -485,9 +484,7 @@ export function Etapa4Casas(props: {
   };
 
   const calcNotaFinal = (notaAtrib: number, notaPreco: number, notaProduto: number): number =>
-    modoPreBatalha
-      ? notaFinalPreBatalha(notaAtrib, notaProduto)
-      : notaFinalBatalha(notaAtrib, notaPreco, notaProduto);
+    notaFinalBatalha(notaAtrib, notaPreco, notaProduto);
 
   /** Cores por modelo (seções de colunas na tabela) */
   const CORES_POR_MODELO = ['bg-sky-50', 'bg-emerald-50', 'bg-amber-50'] as const;
@@ -530,7 +527,7 @@ export function Etapa4Casas(props: {
     scores.sort((a, b) => {
       if (b.pontuacaoTotal !== a.pontuacaoTotal) return b.pontuacaoTotal - a.pontuacaoTotal;
       if (b.sumAtributos !== a.sumAtributos) return b.sumAtributos - a.sumAtributos;
-      if (!modoPreBatalha && b.sumPreco !== a.sumPreco) return b.sumPreco - a.sumPreco;
+      if (b.sumPreco !== a.sumPreco) return b.sumPreco - a.sumPreco;
       return b.sumProduto - a.sumProduto;
     });
     return scores;
@@ -542,10 +539,7 @@ export function Etapa4Casas(props: {
     reformaChecklistByListingId,
     produtoDadosByKey,
     custoConstrucaoByCasaEscolhidaId,
-    modoPreBatalha,
   ]);
-
-  /** Ranking das casas pela nota final (média entre os modelos). Só entram listagens com Atributos do Lote preenchido. */
   const rankingBatalha = useMemo(() => {
     if (escolhidasComDados.length === 0) return [];
     const scores: { casa: CasaRow; notaMedia: number }[] = [];
@@ -561,7 +555,7 @@ export function Etapa4Casas(props: {
         if (
           atributosLoteByKey[key] !== undefined ||
           batalhaByKey.get(key)?.nota_localizacao != null ||
-          (!modoPreBatalha && reformaChecklistByListingId[c.id] !== undefined) ||
+          reformaChecklistByListingId[c.id] !== undefined ||
           produtoDadosByKey[key] !== undefined
         ) {
           soma += notaFinal;
@@ -580,14 +574,12 @@ export function Etapa4Casas(props: {
     reformaChecklistByListingId,
     produtoDadosByKey,
     custoConstrucaoByCasaEscolhidaId,
-    modoPreBatalha,
   ]);
 
   /** Ranking final por pontuação total = soma das notas finais de cada modelo (para Seção 5). */
   // Mantido apenas se necessário futuramente; atualmente o ranking final detalhado foi removido.
 
   const handleSalvarBatalha = async () => {
-    if (modoPreBatalha) return;
     const rows: BatalhaCasaRow[] = [];
     for (const ce of escolhidasComDados) {
       for (const anuncio of casas) {
@@ -1154,10 +1146,11 @@ export function Etapa4Casas(props: {
             {modoPreBatalha ? (
               <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2">
                 <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-amber-300">
-                  Pré-batalha
+                  Batalha das Casas
                 </span>
                 <span className="text-xs text-amber-900/90">
-                  Somente Produto e Atributos do Lote — notas locais, sem salvar no banco.
+                  Atributos do Lote + Preço + Produto. Nota final = soma dos três eixos; desempate:
+                  Lote &gt; Preço &gt; Produto.
                 </span>
               </div>
             ) : null}
@@ -1165,9 +1158,7 @@ export function Etapa4Casas(props: {
             {!listagemOnly && catalogo.length > 0 && (
               <div className="border-b border-stone-200 bg-stone-50 px-4 py-3">
                 <p className="mb-2 text-sm font-medium text-stone-800">
-                  {modoPreBatalha
-                    ? 'Escolha até 3 modelos Moní para ranquear (produto + localização):'
-                    : 'Escolher até 3 modelos do catálogo para batalhar com a listagem abaixo:'}
+                  Escolher até 3 modelos do catálogo para batalhar com a listagem abaixo:
                 </p>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                   {catalogo.map((mod) => (
@@ -1209,26 +1200,18 @@ export function Etapa4Casas(props: {
                       <button
                         type="button"
                         onClick={handleSalvarBatalha}
-                        disabled={modoPreBatalha}
-                        title={
-                          modoPreBatalha
-                            ? 'Modo auxiliar pré-batalha: notas só nesta sessão. Use a etapa 6 para salvar a batalha completa.'
-                            : undefined
-                        }
-                        className="btn-primary text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                        className="btn-primary text-sm"
                       >
                         Salvar batalha
                       </button>
-                      {!modoPreBatalha ? (
-                        <button
-                          type="button"
-                          onClick={handleGerarPdf}
-                          disabled={gerandoPdf || pdfRows.length === 0}
-                          className="btn-primary text-sm"
-                        >
-                          {gerandoPdf ? 'Gerando PDF…' : 'Gerar e guardar PDF'}
-                        </button>
-                      ) : null}
+                      <button
+                        type="button"
+                        onClick={handleGerarPdf}
+                        disabled={gerandoPdf || pdfRows.length === 0}
+                        className="btn-primary text-sm"
+                      >
+                        {gerandoPdf ? 'Gerando PDF…' : 'Gerar e guardar PDF'}
+                      </button>
                     </>
                   )}
                 </div>
@@ -1262,7 +1245,7 @@ export function Etapa4Casas(props: {
                         return (
                           <th
                             key={ce.id}
-                            colSpan={modoPreBatalha ? 3 : 4}
+                            colSpan={4}
                             className={`border-l border-stone-200 p-2 text-center ${bg} text-stone-800`}
                             title={`Modelo ${ce.ordem}: ${cat.nome ?? ''}`}
                           >
@@ -1279,15 +1262,13 @@ export function Etapa4Casas(props: {
                         const bg = CORES_HEADER_POR_MODELO[idx % CORES_HEADER_POR_MODELO.length];
                         return (
                           <React.Fragment key={ce.id}>
-                            {!modoPreBatalha ? (
-                              <th
-                                className={`border-l border-stone-200 p-1 px-2 text-center ${bg} min-w-[70px] text-xs font-medium`}
-                              >
-                                Nota Preço
-                              </th>
-                            ) : null}
                             <th
-                              className={`min-w-[70px] p-1 px-2 text-center text-xs font-medium ${bg} ${modoPreBatalha ? 'border-l border-stone-200' : ''}`}
+                              className={`border-l border-stone-200 p-1 px-2 text-center ${bg} min-w-[70px] text-xs font-medium`}
+                            >
+                              Nota Preço
+                            </th>
+                            <th
+                              className={`min-w-[70px] p-1 px-2 text-center text-xs font-medium ${bg}`}
                             >
                               Nota Produto
                             </th>
@@ -1443,7 +1424,6 @@ export function Etapa4Casas(props: {
                           const custoModelo = custoConstrucaoByCasaEscolhidaId[ce.id];
                           return (
                             <React.Fragment key={ce.id}>
-                              {!modoPreBatalha ? (
                               <td
                                 className={`p-1 px-2 text-center ${borderLeft} ${bg} relative min-w-[70px]`}
                               >
@@ -1571,9 +1551,8 @@ export function Etapa4Casas(props: {
                                   </>
                                 )}
                               </td>
-                              ) : null}
                               <td
-                                className={`p-1 px-2 text-center ${modoPreBatalha ? `${borderLeft} ${bg}` : bg} relative min-w-[70px]`}
+                                className={`p-1 px-2 text-center ${bg} relative min-w-[70px]`}
                               >
                                 <div className="flex items-center justify-center gap-0.5">
                                   <button
@@ -1588,7 +1567,7 @@ export function Etapa4Casas(props: {
                                   >
                                     {notaProduto}
                                   </button>
-                                  {!modoPreBatalha && !produtoManualPreenchido && (
+                                  {!produtoManualPreenchido && (
                                     <span
                                       className="text-[10px] font-bold leading-none text-amber-600"
                                       title="Nota automática (quartos/banheiros/vagas). Preencha design e idade para refinar."
