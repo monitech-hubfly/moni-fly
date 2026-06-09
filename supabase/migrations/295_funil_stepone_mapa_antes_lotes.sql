@@ -24,8 +24,7 @@ BEGIN
     WHEN 'lotes_disponiveis' THEN 5
     WHEN 'stepone_lotes' THEN 5
     ELSE ordem
-  END,
-  updated_at = now()
+  END
   WHERE kanban_id = v_kanban_id
     AND slug IN ('mapa_competidores', 'stepone_mapa', 'lotes_disponiveis', 'stepone_lotes')
     AND COALESCE(ativo, true) = true;
