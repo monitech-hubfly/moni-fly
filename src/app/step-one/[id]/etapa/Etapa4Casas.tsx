@@ -40,6 +40,10 @@ import {
   type ChecklistReforma,
 } from './REGRAS_BATALHA';
 import { resolverTermoBuscaZap } from '@/lib/zap-condominio-busca';
+import {
+  labelCompatibilidade,
+  ordenarCatalogoPorCompatibilidade,
+} from '@/lib/kanban/pre-batalha-compatibilidade';
 
 type ProdutoDadosBatalha = {
   designId?: string;
@@ -220,15 +224,55 @@ export function Etapa4Casas(props: {
   }, [casas, pageCasas]);
   useEffect(() => setPageCasas(1), [casas.length]);
 
-  // --- Seção 2: escolha de até 3 casas do catálogo para batalha ---
-  const selectedLimit = 3;
+  // --- Seção 2: escolha de modelos do catálogo (Pré Batalha: ranking por compatibilidade) ---
+  const selectedLimit = modoPreBatalha ? null : 3;
+  const catalogoRankeado = useMemo(() => {
+    if (!modoPreBatalha || catalogo.length === 0) return [];
+    return ordenarCatalogoPorCompatibilidade(catalogo, casas);
+  }, [modoPreBatalha, catalogo, casas]);
+
   const [selectedCatalogoIds, setSelectedCatalogoIds] = useState<string[]>(() =>
     casasEscolhidas.map((c) => c.catalogo_casa_id),
   );
+  const [syncPreBatalha, setSyncPreBatalha] = useState(false);
+
+  useEffect(() => {
+    if (!modoPreBatalha || listagemOnly || catalogoRankeado.length === 0) return;
+    const ids = catalogoRankeado.map((m) => m.id);
+    const savedSorted = [...casasEscolhidas.map((c) => c.catalogo_casa_id)].sort().join(',');
+    const targetSorted = [...ids].sort().join(',');
+    if (savedSorted === targetSorted && casasEscolhidas.length === ids.length) return;
+
+    let cancelado = false;
+    setSyncPreBatalha(true);
+    void (async () => {
+      const result = await saveCasasEscolhidasEtapa5(processoId, ids, { limiteMaximo: null });
+      if (cancelado) return;
+      setSyncPreBatalha(false);
+      if (!result.ok) {
+        alert(result.error);
+        return;
+      }
+      setSelectedCatalogoIds(ids);
+      router.refresh();
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [
+    modoPreBatalha,
+    listagemOnly,
+    catalogoRankeado,
+    casasEscolhidas,
+    processoId,
+    router,
+  ]);
+
   const toggleCatalogoSelected = (id: string) => {
+    if (modoPreBatalha) return;
     setSelectedCatalogoIds((prev) => {
       if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (prev.length >= selectedLimit) return prev;
+      if (selectedLimit != null && prev.length >= selectedLimit) return prev;
       return [...prev, id];
     });
   };
@@ -244,6 +288,20 @@ export function Etapa4Casas(props: {
 
   // --- Seção 3: batalha de casas (cada casa do catálogo vs cada anúncio da listagem) ---
   const escolhidasComDados = useMemo(() => {
+    if (modoPreBatalha && catalogoRankeado.length > 0) {
+      return catalogoRankeado
+        .map((mod, idx) => {
+          const ce = casasEscolhidas.find((c) => c.catalogo_casa_id === mod.id);
+          if (!ce) return null;
+          return {
+            ...ce,
+            ordem: idx + 1,
+            catalogoRow: mod,
+          };
+        })
+        .filter((ce) => ce != null);
+    }
+
     return casasEscolhidas
       .map((ce, idx) => ({
         ...ce,
@@ -251,7 +309,7 @@ export function Etapa4Casas(props: {
         catalogoRow: catalogo.find((c) => c.id === ce.catalogo_casa_id) || null,
       }))
       .filter((ce) => ce.catalogoRow !== null);
-  }, [casasEscolhidas, catalogo]);
+  }, [casasEscolhidas, catalogo, modoPreBatalha, catalogoRankeado]);
 
   const batalhaByKey = useMemo(() => {
     const map = new Map<
@@ -487,8 +545,22 @@ export function Etapa4Casas(props: {
     notaFinalBatalha(notaAtrib, notaPreco, notaProduto);
 
   /** Cores por modelo (seções de colunas na tabela) */
-  const CORES_POR_MODELO = ['bg-sky-50', 'bg-emerald-50', 'bg-amber-50'] as const;
-  const CORES_HEADER_POR_MODELO = ['bg-sky-100', 'bg-emerald-100', 'bg-amber-100'] as const;
+  const CORES_POR_MODELO = [
+    'bg-sky-50',
+    'bg-emerald-50',
+    'bg-amber-50',
+    'bg-violet-50',
+    'bg-rose-50',
+    'bg-cyan-50',
+  ] as const;
+  const CORES_HEADER_POR_MODELO = [
+    'bg-sky-100',
+    'bg-emerald-100',
+    'bg-amber-100',
+    'bg-violet-100',
+    'bg-rose-100',
+    'bg-cyan-100',
+  ] as const;
 
   /** Ranking por modelo: pontuação total = soma das notas finais. Desempate: Atributos do Lote > Preço > Produto. */
   const rankingPorModelo = useMemo(() => {
@@ -823,7 +895,11 @@ export function Etapa4Casas(props: {
       <div className="p-3">
         {escolhidasComDados.length === 0 ? (
           <p className="text-sm italic text-stone-500">
-            Selecione até 3 modelos e confirme para habilitar a batalha.
+            {modoPreBatalha
+              ? syncPreBatalha
+                ? 'Ranqueando modelos por compatibilidade com a listagem…'
+                : 'Aguardando listagem e catálogo para ranquear os modelos.'
+              : 'Selecione modelos e confirme para habilitar a batalha.'}
           </p>
         ) : rankingPorModelo.length === 0 ? (
           <p className="text-sm italic text-stone-500">
@@ -1146,75 +1222,112 @@ export function Etapa4Casas(props: {
             {modoPreBatalha ? (
               <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2">
                 <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-amber-300">
-                  Batalha das Casas
+                  Pré Batalha
                 </span>
                 <span className="text-xs text-amber-900/90">
-                  Atributos do Lote + Preço + Produto. Nota final = soma dos três eixos; desempate:
-                  Lote &gt; Preço &gt; Produto.
+                  Ranqueie todos os modelos Moní por compatibilidade com a listagem (alta → baixa)
+                  e aplique Atributos do Lote + Preço + Produto. Nota final = soma dos três eixos;
+                  desempate: Lote &gt; Preço &gt; Produto.
                 </span>
               </div>
             ) : null}
             {/* Bloco compacto: escolher 3 do catálogo para batalha — só no Step 2 (não listagemOnly) */}
             {!listagemOnly && catalogo.length > 0 && (
               <div className="border-b border-stone-200 bg-stone-50 px-4 py-3">
-                <p className="mb-2 text-sm font-medium text-stone-800">
-                  Escolher até 3 modelos do catálogo para batalhar com a listagem abaixo:
-                </p>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  {catalogo.map((mod) => (
-                    <label
-                      key={mod.id}
-                      className="flex cursor-pointer items-center gap-1.5 text-sm"
+                {modoPreBatalha ? (
+                  <>
+                    <p className="mb-2 text-sm font-medium text-stone-800">
+                      Modelos ranqueados por compatibilidade com a listagem (alta → baixa):
+                    </p>
+                    {syncPreBatalha ? (
+                      <p className="text-xs text-stone-500">Sincronizando ranking…</p>
+                    ) : (
+                      <ol className="space-y-1.5">
+                        {catalogoRankeado.map((mod, idx) => (
+                          <li
+                            key={mod.id}
+                            className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-stone-700"
+                          >
+                            <span className="font-semibold tabular-nums text-stone-500">
+                              {idx + 1}.
+                            </span>
+                            <span className="font-medium">{mod.nome ?? mod.id.slice(0, 8)}</span>
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900">
+                              {mod.scoreCompatibilidade}% · {labelCompatibilidade(mod.scoreCompatibilidade)}
+                            </span>
+                            {mod.preco_venda_m2 != null ? (
+                              <span className="text-xs text-stone-500">
+                                R$ {mod.preco_venda_m2.toLocaleString('pt-BR')}/m²
+                              </span>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="mb-2 text-sm font-medium text-stone-800">
+                      Escolher até 3 modelos do catálogo para batalhar com a listagem abaixo:
+                    </p>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      {catalogo.map((mod) => (
+                        <label
+                          key={mod.id}
+                          className="flex cursor-pointer items-center gap-1.5 text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedCatalogoIds.includes(mod.id)}
+                            onChange={() => toggleCatalogoSelected(mod.id)}
+                            disabled={
+                              !selectedCatalogoIds.includes(mod.id) &&
+                              selectedLimit != null &&
+                              selectedCatalogoIds.length >= selectedLimit
+                            }
+                            className="rounded"
+                          />
+                          <span>{mod.nome ?? mod.id.slice(0, 8)}</span>
+                          {mod.preco_venda_m2 != null && (
+                            <span className="text-xs text-stone-500">
+                              R$ {mod.preco_venda_m2.toLocaleString('pt-BR')}/m²
+                            </span>
+                          )}
+                        </label>
+                      ))}
+                      <span className="text-sm text-stone-500">
+                        {selectedCatalogoIds.length} / {selectedLimit} selecionados
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleConfirmEscolhidas}
+                        disabled={selectedCatalogoIds.length === 0}
+                        className="btn-primary text-sm disabled:pointer-events-none disabled:opacity-60"
+                      >
+                        Confirmar seleção
+                      </button>
+                    </div>
+                  </>
+                )}
+                {escolhidasComDados.length > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleSalvarBatalha}
+                      className="btn-primary mt-3 text-sm"
                     >
-                      <input
-                        type="checkbox"
-                        checked={selectedCatalogoIds.includes(mod.id)}
-                        onChange={() => toggleCatalogoSelected(mod.id)}
-                        disabled={
-                          !selectedCatalogoIds.includes(mod.id) &&
-                          selectedCatalogoIds.length >= selectedLimit
-                        }
-                        className="rounded"
-                      />
-                      <span>{mod.nome ?? mod.id.slice(0, 8)}</span>
-                      {mod.preco_venda_m2 != null && (
-                        <span className="text-xs text-stone-500">
-                          R$ {mod.preco_venda_m2.toLocaleString('pt-BR')}/m²
-                        </span>
-                      )}
-                    </label>
-                  ))}
-                  <span className="text-sm text-stone-500">
-                    {selectedCatalogoIds.length} / {selectedLimit} selecionados
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleConfirmEscolhidas}
-                    disabled={selectedCatalogoIds.length === 0}
-                    className="btn-primary text-sm disabled:pointer-events-none disabled:opacity-60"
-                  >
-                    Confirmar seleção
-                  </button>
-                  {escolhidasComDados.length > 0 && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={handleSalvarBatalha}
-                        className="btn-primary text-sm"
-                      >
-                        Salvar batalha
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleGerarPdf}
-                        disabled={gerandoPdf || pdfRows.length === 0}
-                        className="btn-primary text-sm"
-                      >
-                        {gerandoPdf ? 'Gerando PDF…' : 'Gerar e guardar PDF'}
-                      </button>
-                    </>
-                  )}
-                </div>
+                      Salvar batalha
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleGerarPdf}
+                      disabled={gerandoPdf || pdfRows.length === 0}
+                      className="btn-primary ml-2 mt-3 text-sm"
+                    >
+                      {gerandoPdf ? 'Gerando PDF…' : 'Gerar e guardar PDF'}
+                    </button>
+                  </>
+                )}
               </div>
             )}
             <div className="overflow-x-auto">

@@ -190,6 +190,10 @@ export function KanbanAtividadeFormFields({
             <p className="rounded border border-stone-200 bg-stone-50 p-2 text-stone-500">
               Selecione ao menos um time.
             </p>
+          ) : responsaveisOpcoes.length === 0 ? (
+            <p className="rounded border border-stone-200 bg-stone-50 p-2 text-stone-500">
+              Nenhum responsável encontrado para os times selecionados.
+            </p>
           ) : (
             <div className={listBoxClass}>
               {responsaveisOpcoes.map((p) => {

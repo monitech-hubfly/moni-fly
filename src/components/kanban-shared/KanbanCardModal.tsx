@@ -2688,18 +2688,18 @@ export function KanbanCardModal({
 
   const responsaveisNovaAtividade = useMemo(
     () =>
-      responsaveisFiltradosPorTimesIds(novaInteracao.atividade.timesIds, kanbanTimes, responsaveisOpcoes),
-    [novaInteracao.atividade.timesIds, kanbanTimes, responsaveisOpcoes],
+      responsaveisFiltradosPorTimesIds(novaInteracao.atividade.timesIds, timesChamadoOpcoes, responsaveisOpcoes),
+    [novaInteracao.atividade.timesIds, timesChamadoOpcoes, responsaveisOpcoes],
   );
 
   const responsaveisSubNova = useMemo(
-    () => responsaveisFiltradosPorTimesIds(subNovaDraft.timesIds, kanbanTimes, responsaveisOpcoes),
-    [subNovaDraft.timesIds, kanbanTimes, responsaveisOpcoes],
+    () => responsaveisFiltradosPorTimesIds(subNovaDraft.timesIds, timesChamadoOpcoes, responsaveisOpcoes),
+    [subNovaDraft.timesIds, timesChamadoOpcoes, responsaveisOpcoes],
   );
 
   const responsaveisSubEdicao = useMemo(
-    () => responsaveisFiltradosPorTimesIds(editSubDraft.timesIds, kanbanTimes, responsaveisOpcoes),
-    [editSubDraft.timesIds, kanbanTimes, responsaveisOpcoes],
+    () => responsaveisFiltradosPorTimesIds(editSubDraft.timesIds, timesChamadoOpcoes, responsaveisOpcoes),
+    [editSubDraft.timesIds, timesChamadoOpcoes, responsaveisOpcoes],
   );
 
   const inferidoHdmSubNova = useMemo(() => {

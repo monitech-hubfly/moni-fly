@@ -865,10 +865,11 @@ export async function getCustosConstrucaoEscolhaChecklist(
   return out;
 }
 
-/** Salva até 3 casas do catálogo Moní escolhidas para batalha na Etapa 5 (limpa escolhas e batalhas anteriores). */
+/** Salva modelos do catálogo Moní para batalha na Etapa 5 (limpa escolhas e batalhas anteriores). */
 export async function saveCasasEscolhidasEtapa5(
   processoId: string,
   catalogoCasaIds: string[],
+  opts?: { limiteMaximo?: number | null },
 ): Promise<ActionResult> {
   const supabase = await createClient();
   const {
@@ -878,10 +879,14 @@ export async function saveCasasEscolhidasEtapa5(
 
   const ids = Array.from(new Set(catalogoCasaIds)).filter(Boolean);
   if (ids.length === 0) {
-    return { ok: false, error: 'Selecione pelo menos uma casa do catálogo.' };
+    return { ok: false, error: 'Nenhum modelo do catálogo para a batalha.' };
   }
-  if (ids.length > 3) {
-    return { ok: false, error: 'Selecione no máximo 3 casas do catálogo para a batalha.' };
+  const limite = opts?.limiteMaximo === undefined ? 3 : opts.limiteMaximo;
+  if (limite != null && ids.length > limite) {
+    return {
+      ok: false,
+      error: `Selecione no máximo ${limite} modelos do catálogo para a batalha.`,
+    };
   }
 
   const { error: delEscolhidas } = await supabase

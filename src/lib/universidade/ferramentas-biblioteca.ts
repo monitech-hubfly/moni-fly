@@ -96,7 +96,7 @@ A **batalha de casas** compara o produto Moní contra cada concorrente relevante
 
 ## Fluxo resumido
 
-Mapa → BCA → Batalha das Casas → Escolha → Batalha → Tese de vendas.
+Mapa → Pré Batalha → Configurador de casas → BCA → Batalha de Casas → Escolha → Nova Hipótese.
 
 ## Meta operacional
 

@@ -28,7 +28,9 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
   const [atividade, setAtividade] = useState<AtividadeFormDraft>({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
   const [atividadeAberta, setAtividadeAberta] = useState(false);
   const [kanbanTimes, setKanbanTimes] = useState<{ id: string; nome: string }[]>([]);
-  const [responsaveisOpcoes, setResponsaveisOpcoes] = useState<{ id: string; nome: string }[]>([]);
+  const [responsaveisOpcoes, setResponsaveisOpcoes] = useState<
+    { id: string; nome: string; email?: string | null }[]
+  >([]);
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [uploaderNome, setUploaderNome] = useState('Usuário');
   const [loading, setLoading] = useState(false);
@@ -61,6 +63,9 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
           .map((p) => ({
             id: String(p.id),
             nome: String(p.full_name ?? p.email ?? p.id).trim(),
+            email: String(p.email ?? '')
+              .trim()
+              .toLowerCase() || null,
           }))
           .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
       );
@@ -69,8 +74,8 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
 
   const timesChips = useMemo(() => timesOpcoesReceberChamado(kanbanTimes), [kanbanTimes]);
   const responsaveisFiltrados = useMemo(
-    () => responsaveisFiltradosPorTimesIds(atividade.timesIds, kanbanTimes, responsaveisOpcoes),
-    [atividade.timesIds, kanbanTimes, responsaveisOpcoes],
+    () => responsaveisFiltradosPorTimesIds(atividade.timesIds, timesChips, responsaveisOpcoes),
+    [atividade.timesIds, timesChips, responsaveisOpcoes],
   );
 
   useEffect(() => {

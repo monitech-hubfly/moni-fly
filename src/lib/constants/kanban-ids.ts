@@ -149,19 +149,22 @@ export const FASE_SLUGS = {
   OPERACOES_ENTREGUE:        'operacoes_entregue',
   // Gates
   STEP_5:             'step_5',
-  // Funil Step One (KANBAN_IDS.STEP_ONE) — fluxo ordem 1–11 (PROD)
+  // Funil Step One (KANBAN_IDS.STEP_ONE) — fluxo ordem 1–13 (PROD)
   ONBOARDING:           'onboarding',
   DADOS_CANDIDATO:      'dados_candidato',
   DADOS_CIDADE:         'dados_cidade',
   MAPA_COMPETIDORES:    'mapa_competidores',
   DADOS_CONDOMINIOS:    'dados_condominios',
   LOTES_DISPONIVEIS:    'lotes_disponiveis',
+  BATALHA:              'batalha', // coluna «Pré Batalha»
+  /** @deprecated Slug legado — fase absorvida por `batalha`. */
+  PRE_BATALHA:          'pre_batalha',
+  CONFIGURADOR_CASAS:   'configurador_casas',
   BCA:                  'bca',
-  PRE_BATALHA:          'pre_batalha', // coluna «Batalha das Casas»
-  ESCOLHA:              'escolha',
   /** Slug legado renomeado — valor canônico PROD: `bca`. */
   BCA_BATALHA_CASAS:    'bca',
-  BATALHA:              'batalha',
+  BATALHA_CASAS:        'batalha_casas',
+  ESCOLHA:              'escolha',
   HIPOTESES:            'hipoteses',
 } as const
 

@@ -359,20 +359,12 @@ export function responsaveisFiltradosPorTimesNomes(
   timesNomes: readonly string[],
   profileOpts: readonly PerfilNomeRow[],
 ): PerfilNomeRow[] {
-  const allowedNomes = responsaveisNomesPorTimes(timesNomes);
+  const normalizedTimes = timesNomes.map(normalizarNomeTimeMoni).filter(Boolean);
+  const allowedNomes = responsaveisNomesPorTimes(normalizedTimes);
   if (allowedNomes.length === 0) return [];
   const allowedNorm = new Set(allowedNomes.map((n) => normMoniNome(n)));
-  const allowedEmails = new Set<string>();
-  for (const nome of allowedNomes) {
-    const em = resolverEmailMoniPorNomeOuApelido(nome);
-    if (em) allowedEmails.add(em);
-  }
-  return profileOpts.filter((p) => {
-    const n = p.nome.trim();
-    if (n && allowedNorm.has(normMoniNome(n))) return true;
-    const em = (p.email ?? '').trim().toLowerCase();
-    return em.length > 0 && allowedEmails.has(em);
-  });
+  const catalog = responsaveisFiltroOpcoesComCatalogoMoni(profileOpts);
+  return catalog.filter((p) => allowedNorm.has(normMoniNome(p.nome)));
 }
 
 /** Nome do time a partir do UUID em `kanban_times` ou id sintético `MONI_TIME_FILTRO_PREFIX`. */
@@ -399,7 +391,9 @@ export function nomesKanbanTimesFromIds(
   const seen = new Set<string>();
   const out: string[] = [];
   for (const id of timesIds) {
-    const nome = resolveKanbanTimeNomeFromId(id, kanbanTimes);
+    const raw = resolveKanbanTimeNomeFromId(id, kanbanTimes);
+    if (!raw) continue;
+    const nome = normalizarNomeTimeMoni(raw);
     if (!nome || seen.has(nome)) continue;
     seen.add(nome);
     out.push(nome);
@@ -420,6 +414,18 @@ const TIMES_SET = new Set<string>(TIMES_MONI);
 
 export function isTimeMoni(t: string): boolean {
   return TIMES_SET.has(t);
+}
+
+/** Mapeia nome vindo de `kanban_times` (ou legado) para o nome canônico do catálogo Moní. */
+export function normalizarNomeTimeMoni(nome: string): string {
+  const t = String(nome ?? '').trim();
+  if (!t) return t;
+  if (TIMES_SET.has(t)) return t;
+  const norm = normMoniNome(t);
+  for (const cat of TIMES_MONI) {
+    if (normMoniNome(cat) === norm) return cat;
+  }
+  return t;
 }
 
 export function responsaveisDoTimeMoni(time: string): string[] {

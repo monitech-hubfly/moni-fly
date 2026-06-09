@@ -3023,7 +3023,7 @@ export async function enviarHipoteseAoPortfolio(
     (cardRow as { kanban_fases?: { slug?: string } | null }).kanban_fases?.slug ?? '',
   ).trim();
   if (!isHipotesesFaseSlug(faseSlug)) {
-    return { ok: false, error: 'Card não está na fase de Hipóteses.' };
+    return { ok: false, error: 'Card não está na fase Nova Hipótese.' };
   }
 
   const franqueadoId = String((cardRow as { franqueado_id?: string }).franqueado_id ?? '').trim();
