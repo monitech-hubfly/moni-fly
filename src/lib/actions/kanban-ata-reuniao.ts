@@ -9,6 +9,25 @@ import { createClient } from '@/lib/supabase/server';
 
 export type KanbanAtaActionResult = { ok: true } | { ok: false; error: string };
 
+async function espelharDataFollowupEmProcesso(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  cardId: string,
+  valor: string | null,
+): Promise<void> {
+  const { data: card } = await supabase
+    .from('kanban_cards')
+    .select('projeto_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  const ids = new Set<string>([cardId]);
+  const pid = String((card as { projeto_id?: string | null } | null)?.projeto_id ?? '').trim();
+  if (pid) ids.add(pid);
+  await supabase
+    .from('processo_step_one')
+    .update({ data_followup: valor, updated_at: new Date().toISOString() } as never)
+    .in('id', [...ids]);
+}
+
 function parseConteudo(raw: unknown): ConteudoAtaReuniao {
   const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
   const acoesRaw = Array.isArray(o.acoes) ? o.acoes : [];
@@ -165,6 +184,7 @@ export async function salvarDataFollowupCard(input: {
     }
     const sync = await propagarCamposKanbanCards(admin, cardId, { data_followup: valor });
     if (!sync.ok) return { ok: false, error: sync.error };
+    await espelharDataFollowupEmProcesso(admin as unknown as Awaited<ReturnType<typeof createClient>>, cardId, valor);
   } else {
     const q =
       input.origem === 'nativo'
@@ -173,6 +193,9 @@ export async function salvarDataFollowupCard(input: {
 
     const { error } = await q;
     if (error) return { ok: false, error: error.message };
+    if (input.origem === 'nativo') {
+      await espelharDataFollowupEmProcesso(supabase, cardId, valor);
+    }
   }
 
   revalidatePath(input.basePath?.trim() || '/');

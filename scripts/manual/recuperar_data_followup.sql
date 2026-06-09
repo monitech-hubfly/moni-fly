@@ -31,7 +31,17 @@ FROM public.kanban_cards
 WHERE data_followup IS NOT NULL;
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- PASSO 1 — Copiar de outro card do mesmo franqueado (rede_franqueado_id)
+-- PASSO 1 — processo_step_one → kanban_cards (mesmo id ou projeto_id)
+-- ══════════════════════════════════════════════════════════════════════════════
+UPDATE public.kanban_cards k
+SET data_followup = p.data_followup, updated_at = now()
+FROM public.processo_step_one p
+WHERE k.data_followup IS NULL
+  AND p.data_followup IS NOT NULL
+  AND (k.id = p.id OR (k.projeto_id IS NOT NULL AND k.projeto_id = p.id));
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- PASSO 2 — Copiar de outro card do mesmo franqueado (rede_franqueado_id)
 -- ══════════════════════════════════════════════════════════════════════════════
 UPDATE public.kanban_cards dest
 SET
@@ -53,7 +63,7 @@ WHERE dest.data_followup IS NULL
   AND dest.rede_franqueado_id = src.rede_franqueado_id;
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- PASSO 2 — Espelhar em processo_step_one
+-- PASSO 3 — Espelhar em processo_step_one
 -- ══════════════════════════════════════════════════════════════════════════════
 UPDATE public.processo_step_one p
 SET
@@ -71,7 +81,7 @@ WHERE p.data_followup IS NULL
   );
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- PASSO 3 — Fallback: prazos de ações nas atas (yyyy-mm-dd)
+-- PASSO 4 — Fallback: prazos de ações nas atas (yyyy-mm-dd)
 -- ══════════════════════════════════════════════════════════════════════════════
 WITH prazos_ata AS (
   SELECT
@@ -102,7 +112,7 @@ WHERE c.id = p.card_id
   AND p.data_followup IS NOT NULL;
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- PASSO 4 — Conferência
+-- PASSO 5 — Conferência
 -- ══════════════════════════════════════════════════════════════════════════════
 SELECT
   k.nome AS kanban,

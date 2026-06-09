@@ -56,6 +56,61 @@ function dataIsoParaInput(v: unknown): string | null {
   return dataIsoInputValida(s) ? s : null;
 }
 
+/** Preenche datas ausentes no card nativo a partir do legado (view processo) ou processo_step_one. */
+function coalesceDatasCardBrief(
+  card: KanbanCardBrief,
+  legado?: KanbanCardBrief | null,
+  processo?: { data_followup?: unknown; data_reuniao?: unknown } | null,
+): KanbanCardBrief {
+  const df =
+    card.data_followup ??
+    legado?.data_followup ??
+    (processo ? dataIsoParaInput(processo.data_followup) : null);
+  const dr =
+    card.data_reuniao ??
+    legado?.data_reuniao ??
+    (processo ? dataIsoParaInput(processo.data_reuniao) : null);
+  if (df === card.data_followup && dr === card.data_reuniao) return card;
+  return { ...card, data_followup: df ?? null, data_reuniao: dr ?? null };
+}
+
+async function enrichCardsDatasFromProcesso(
+  supabase: SupabaseClient,
+  cards: KanbanCardBrief[],
+): Promise<KanbanCardBrief[]> {
+  const processoIds = new Set<string>();
+  for (const c of cards) {
+    if (c.data_followup && c.data_reuniao) continue;
+    const id = String(c.id ?? '').trim();
+    if (id) processoIds.add(id);
+    const pid = String(c.projeto_id ?? '').trim();
+    if (pid) processoIds.add(pid);
+  }
+  const ids = [...processoIds];
+  if (ids.length === 0) return cards;
+
+  const { data } = await supabase
+    .from('processo_step_one')
+    .select('id, data_followup, data_reuniao')
+    .in('id', ids);
+
+  const byProcessoId = new Map<
+    string,
+    { data_followup?: unknown; data_reuniao?: unknown }
+  >();
+  for (const row of data ?? []) {
+    const id = String((row as { id?: string }).id ?? '').trim();
+    if (id) byProcessoId.set(id, row as { data_followup?: unknown; data_reuniao?: unknown });
+  }
+
+  return cards.map((c) => {
+    const proc =
+      byProcessoId.get(String(c.id ?? '').trim()) ??
+      (c.projeto_id ? byProcessoId.get(String(c.projeto_id).trim()) : undefined);
+    return coalesceDatasCardBrief(c, null, proc);
+  });
+}
+
 /** Resolve kanban ativo pelo UUID canônico (PROD) ou fallback em `kanbans.nome`. */
 async function resolveKanbanAtivo(
   supabase: SupabaseClient,
@@ -656,6 +711,18 @@ export async function fetchKanbanBoardSnapshot(
     etapaPorProcesso,
     slugParaFaseId,
   );
+
+  const legadoPorId = new Map(cardsLegadoReconciliados.map((c) => [c.id, c]));
+  const mesclarDatasLegado = (lista: KanbanCardBrief[]) =>
+    lista.map((c) => coalesceDatasCardBrief(c, legadoPorId.get(c.id)));
+
+  cardsNativo = mesclarDatasLegado(cardsNativo);
+  cardsConcluidos = mesclarDatasLegado(cardsConcluidos);
+  cardsArquivadosNativo = mesclarDatasLegado(cardsArquivadosNativo);
+
+  cardsNativo = await enrichCardsDatasFromProcesso(supabase, cardsNativo);
+  cardsConcluidos = await enrichCardsDatasFromProcesso(supabase, cardsConcluidos);
+  cardsArquivadosNativo = await enrichCardsDatasFromProcesso(supabase, cardsArquivadosNativo);
 
   const idsComLinhaNativa = new Set([
     ...cardsNativo.map((c) => c.id),
