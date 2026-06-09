@@ -834,7 +834,12 @@ function ItemField({
 
   if (item.tipo === 'pesquisa_condominio') {
     return (
-      <PesquisaCondominioProspect cardId={cardId} itemLabel={item.label} obrigatorio={item.obrigatorio} />
+      <PesquisaCondominioProspect
+        cardId={cardId}
+        processoId={processoId}
+        itemLabel={item.label}
+        obrigatorio={item.obrigatorio}
+      />
     );
   }
 

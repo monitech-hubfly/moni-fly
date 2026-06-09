@@ -8,6 +8,11 @@ import {
   carregarProspectsCondominioCard,
   salvarPesquisaCondominioProspect,
 } from '@/lib/actions/kanban-condominio-pesquisa';
+import { carregarMapaCompetidoresChecklist } from '@/lib/actions/kanban-mapa-competidores';
+import type { CasaRow } from '@/app/step-one/[id]/etapa/Etapa4Casas';
+import {
+  sugestoesPrecoMapaPorCondominio,
+} from '@/lib/kanban/mapa-competidores-condominio';
 import {
   CARACTERIZACAO_GLOBAL_CAMPOS,
   CHAVES_TODAS_GLOBAL,
@@ -18,6 +23,7 @@ import {
   faixaCondominioCompleta,
   prospectsOrdenadosPorTicketCasas,
   linhaSessaoCondominioCompleta,
+  mesclarRespostasFaixaCondominio,
   normalizarLinhaProspect,
   valorFaixaCondominio,
   type ChaveGlobalCondominio,
@@ -28,9 +34,12 @@ import {
 
 type Props = {
   cardId: string;
+  processoId?: string | null;
   itemLabel: string;
   obrigatorio?: boolean;
 };
+
+const CAMPOS_SUGESTAO_MAPA: ChaveFaixaCondominio[] = ['q_casas_faixas_preco', 'q_casas_preco_m2'];
 
 const inputClass =
   'w-full rounded-md border px-3 py-1.5 text-sm outline-none focus:ring-1' +
@@ -40,8 +49,9 @@ const inputClass =
 type RascunhoGlobal = Partial<Record<ChaveGlobalCondominio, string>>;
 type RascunhoFaixas = Partial<Record<FaixaCondominioId, Partial<Record<ChaveFaixaCondominio, string>>>>;
 
-export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: Props) {
+export function PesquisaCondominioProspect({ cardId, processoId, itemLabel, obrigatorio }: Props) {
   const [linhas, setLinhas] = useState<LinhaProspectCondominio[]>([]);
+  const [casasMapa, setCasasMapa] = useState<CasaRow[]>([]);
   const [rowIdAtivo, setRowIdAtivo] = useState<string | null>(null);
   const [faixaAtiva, setFaixaAtiva] = useState<FaixaCondominioId>('premium');
   const [carregandoInicial, setCarregandoInicial] = useState(true);
@@ -51,6 +61,7 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
   const [rascunhoGlobal, setRascunhoGlobal] = useState<RascunhoGlobal>({});
   const [rascunhoFaixas, setRascunhoFaixas] = useState<RascunhoFaixas>({});
   const rowIdRascunhoRef = useRef<string | null>(null);
+  const sugestoesMapaAplicadasRef = useRef<Set<string>>(new Set());
 
   const recarregar = useCallback(async (opts?: { silencioso?: boolean }) => {
     if (!opts?.silencioso) setCarregandoInicial(true);
@@ -75,7 +86,25 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
 
   useEffect(() => {
     rowIdRascunhoRef.current = null;
+    sugestoesMapaAplicadasRef.current = new Set();
   }, [cardId]);
+
+  useEffect(() => {
+    const pid = processoId?.trim();
+    if (!pid) {
+      setCasasMapa([]);
+      return;
+    }
+    let cancelado = false;
+    void (async () => {
+      const res = await carregarMapaCompetidoresChecklist(pid, cardId);
+      if (cancelado) return;
+      setCasasMapa(res.ok ? res.casas : []);
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [cardId, processoId]);
 
   useEffect(() => {
     void recarregar();
@@ -126,6 +155,62 @@ export function PesquisaCondominioProspect({ cardId, itemLabel, obrigatorio }: P
     setFaixaAtiva('premium');
     setErroSalvar(null);
   }, [rowIdAtivo, linhas]);
+
+  useEffect(() => {
+    if (!linhaAtiva?.condominio?.trim() || casasMapa.length === 0) return;
+
+    const sugestoes = sugestoesPrecoMapaPorCondominio(casasMapa, linhaAtiva.condominio);
+    if (Object.keys(sugestoes).length === 0) return;
+
+    let cancelado = false;
+    void (async () => {
+      for (const { id: faixaId } of FAIXAS_CONDOMINIO) {
+        const sug = sugestoes[faixaId];
+        if (!sug) continue;
+
+        const campos: Partial<Record<ChaveFaixaCondominio, string>> = {};
+        for (const chave of CAMPOS_SUGESTAO_MAPA) {
+          const refKey = `${linhaAtiva.row_id}:${faixaId}:${chave}`;
+          if (sugestoesMapaAplicadasRef.current.has(refKey)) continue;
+          if (valorFaixaCondominio(linhaAtiva, faixaId, chave)) {
+            sugestoesMapaAplicadasRef.current.add(refKey);
+            continue;
+          }
+          if (chave === 'q_casas_faixas_preco') {
+            campos.q_casas_faixas_preco = sug.q_casas_faixas_preco;
+          } else if (chave === 'q_casas_preco_m2') {
+            campos.q_casas_preco_m2 = sug.q_casas_preco_m2;
+          }
+          sugestoesMapaAplicadasRef.current.add(refKey);
+        }
+        if (Object.keys(campos).length === 0) continue;
+
+        const res = await salvarPesquisaCondominioProspect({
+          cardId,
+          rowId: linhaAtiva.row_id,
+          faixaId,
+          faixaRespostas: campos,
+        });
+        if (cancelado || !res.ok) continue;
+
+        setRascunhoFaixas((prev) => ({
+          ...prev,
+          [faixaId]: { ...prev[faixaId], ...campos },
+        }));
+        setLinhas((prev) =>
+          prev.map((l) => {
+            if (l.row_id !== linhaAtiva.row_id) return l;
+            const merged = mesclarRespostasFaixaCondominio(l, faixaId, campos);
+            return atualizarPesquisaPreenchidaEm(merged);
+          }),
+        );
+      }
+    })();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [cardId, casasMapa, linhaAtiva]);
 
   function aplicarLinhaSalvaLocal(linha: LinhaProspectCondominio) {
     setLinhas((prev) =>
