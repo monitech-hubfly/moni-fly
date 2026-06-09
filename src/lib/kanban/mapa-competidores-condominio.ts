@@ -51,57 +51,78 @@ export function linhaMapaCompetidoresCompleta(
   return filtrarCasasMapaPorCondominio(casas, nome).length > 0;
 }
 
-/** Classifica cada casa em faixa por tercis de VGV dentro do condomínio. */
-export function classificarFaixasMercado<T extends { preco: number | null }>(
-  casas: T[],
-): (T & { faixa: 'entrada' | 'intermediaria' | 'premium' })[] {
-  const comPreco = casas.filter((c) => c.preco != null);
-  if (comPreco.length === 0) {
-    return casas.map((c) => ({ ...c, faixa: 'entrada' as const }));
-  }
+/** Classifica cada casa em faixa por tercis de VGV (universo ≥ R$ 4MM na busca ZAP). */
+export type FaixaMercado =
+  | 'entrada'
+  | 'intermediaria'
+  | 'premium'
+  | 'premium_plus'
+  | 'premium_plus2'
+  | 'premium_plus3';
 
+const LIMITE_PREMIUM_PLUS = 10_000_000;
+const LIMITE_PREMIUM_PLUS2 = 15_000_000;
+const LIMITE_PREMIUM_PLUS3 = 20_000_000;
+
+function calcularCortes(casas: { preco: number | null }[]): { corte1: number; corte2: number } {
+  const comPreco = casas.filter((c) => c.preco != null);
+  if (comPreco.length < 3) return { corte1: 0, corte2: 0 };
   const ordenado = [...comPreco].sort((a, b) => (a.preco ?? 0) - (b.preco ?? 0));
   const n = ordenado.length;
-  const corte1 = ordenado[Math.floor(n / 3)].preco ?? 0;
-  const corte2 = ordenado[Math.floor((2 * n) / 3)].preco ?? 0;
-
-  return casas.map((c) => {
-    const preco = c.preco ?? 0;
-    const faixa =
-      preco <= corte1 ? 'entrada' : preco <= corte2 ? 'intermediaria' : 'premium';
-    return { ...c, faixa };
-  });
+  return {
+    corte1: ordenado[Math.floor(n / 3)].preco ?? 0,
+    corte2: ordenado[Math.floor((2 * n) / 3)].preco ?? 0,
+  };
 }
 
-/** Calcula resumo das faixas: cortes de VGV e contagem por faixa. */
+function resolverFaixa(preco: number, corte1: number, corte2: number): FaixaMercado {
+  if (preco >= LIMITE_PREMIUM_PLUS3) return 'premium_plus3';
+  if (preco >= LIMITE_PREMIUM_PLUS2) return 'premium_plus2';
+  if (preco >= LIMITE_PREMIUM_PLUS) return 'premium_plus';
+  if (preco <= corte1) return 'entrada';
+  if (preco <= corte2) return 'intermediaria';
+  return 'premium';
+}
+
+export function classificarFaixasMercado<T extends { preco: number | null }>(
+  casas: T[],
+): (T & { faixa: FaixaMercado })[] {
+  const { corte1, corte2 } = calcularCortes(casas);
+  return casas.map((c) => ({
+    ...c,
+    faixa: resolverFaixa(c.preco ?? 0, corte1, corte2),
+  }));
+}
+
+/** Calcula resumo das faixas: cortes de tercis + contagem por faixa. */
 export function resumoFaixasMercado(casas: { preco: number | null }[]): {
+  corte1: number;
+  corte2: number;
   entrada: { corteMax: number; quantidade: number };
   intermediaria: { corteMin: number; corteMax: number; quantidade: number };
-  premium: { corteMin: number; quantidade: number };
+  premium: { corteMin: number; corteMax: number; quantidade: number };
+  premium_plus: { quantidade: number };
+  premium_plus2: { quantidade: number };
+  premium_plus3: { quantidade: number };
 } | null {
   const comPreco = casas.filter((c) => c.preco != null);
   if (comPreco.length === 0) return null;
-
-  const ordenado = [...comPreco].sort((a, b) => (a.preco ?? 0) - (b.preco ?? 0));
-  const n = ordenado.length;
-  const corte1 = ordenado[Math.floor(n / 3)].preco ?? 0;
-  const corte2 = ordenado[Math.floor((2 * n) / 3)].preco ?? 0;
-
+  const { corte1, corte2 } = calcularCortes(casas);
+  const faixas = comPreco.map((c) => resolverFaixa(c.preco ?? 0, corte1, corte2));
+  const count = (f: FaixaMercado) => faixas.filter((x) => x === f).length;
   return {
-    entrada: {
-      corteMax: corte1,
-      quantidade: comPreco.filter((c) => (c.preco ?? 0) <= corte1).length,
-    },
-    intermediaria: {
-      corteMin: corte1,
-      corteMax: corte2,
-      quantidade: comPreco.filter((c) => (c.preco ?? 0) > corte1 && (c.preco ?? 0) <= corte2)
-        .length,
-    },
+    corte1,
+    corte2,
+    entrada: { corteMax: corte1, quantidade: count('entrada') },
+    intermediaria: { corteMin: corte1, corteMax: corte2, quantidade: count('intermediaria') },
     premium: {
       corteMin: corte2,
-      quantidade: comPreco.filter((c) => (c.preco ?? 0) > corte2).length,
+      corteMax: LIMITE_PREMIUM_PLUS,
+      quantidade: count('premium'),
     },
+    premium_plus: { quantidade: count('premium_plus') },
+    premium_plus2: { quantidade: count('premium_plus2') },
+    premium_plus3: { quantidade: count('premium_plus3') },
   };
 }
 
