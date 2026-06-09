@@ -1,7 +1,7 @@
 'use client';
 
 import type React from 'react';
-import { Archive, ChevronRight, MessageCircle, X } from 'lucide-react';
+import { Archive, CheckSquare, ChevronRight, Info, MessageCircle, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -29,6 +29,7 @@ import {
   arquivarChamado,
   arquivarTopico,
   atualizarChamadoPainelUnificado,
+  getTopicosBatchPorInteracaoIds,
   getTopicosChamado,
   getTopicosPorInteracaoId,
 } from '../actions';
@@ -42,6 +43,7 @@ import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import { MencaoContentEditable } from '@/components/kanban-shared/MencaoContentEditable';
 import { ModalNovoChamado } from '../ModalNovoChamado';
 import { SireneChamadoDetalheModal } from './SireneChamadoDetalheModal';
+import { SireneModalHoras } from './SireneModalHoras';
 import type { EditLinhaDraft, EditSireneDraft } from './SireneChamadoEdicaoForms';
 import {
   ATIVIDADE_FORM_DRAFT_VAZIO,
@@ -172,7 +174,11 @@ function temResponsavel(row: InteracaoSireneRow): boolean {
   return txt.length > 0;
 }
 
-function textoResponsavelPainel(row: InteracaoSireneRow, nomePorUserId: Map<string, string>): string {
+function textoResponsavelPainel(
+  row: InteracaoSireneRow,
+  nomePorUserId: Map<string, string>,
+  topicos?: TopicoChamadoLinha[],
+): string {
   const ids = [
     ...new Set([...(row.responsaveis_ids ?? []), ...(row.responsavel_id ? [row.responsavel_id] : [])]),
   ].filter(Boolean) as string[];
@@ -182,7 +188,19 @@ function textoResponsavelPainel(row: InteracaoSireneRow, nomePorUserId: Map<stri
   if (row.responsavel_id) {
     return (row.responsavel_nome ?? '').trim() || '—';
   }
-  return row.responsavel_nome_texto ?? 'Sem responsável';
+  const txt = (row.responsavel_nome_texto ?? '').trim();
+  if (txt) return txt;
+  const topicoRef =
+    topicos?.find((t) => (t.responsaveis_ids.length > 0 || t.responsavel_id) && t.prazo_status && t.prazo_status !== 'aceito') ??
+    topicos?.find((t) => t.responsaveis_ids.length > 0 || t.responsavel_id != null);
+  if (topicoRef) {
+    const ids = topicoRef.responsaveis_ids.length > 0
+      ? topicoRef.responsaveis_ids
+      : topicoRef.responsavel_id ? [topicoRef.responsavel_id] : [];
+    const nomes = ids.map((id) => nomePorUserId.get(id)).filter(Boolean);
+    if (nomes.length) return nomes.join(', ');
+  }
+  return 'Sem responsável';
 }
 
 function subGrupoFluxo(row: InteracaoSireneRow): 'a_fazer' | 'em_andamento' | 'aguardando' | 'concluido' {
@@ -330,6 +348,8 @@ export function InteracoesLista({
   const searchParams = useSearchParams();
   void _filtroTipoChamado;
   const [highlightTopicoId, setHighlightTopicoId] = useState<number | null>(null);
+  const highlightIdRef = useRef<number | null>(null);
+  const skipHorasModalRef = useRef(false);
   const [modalNovoAberto, setModalNovoAberto] = useState(false);
   const [editingSireneCid, setEditingSireneCid] = useState<number | null>(null);
   const [editSireneDraft, setEditSireneDraft] = useState<EditSireneDraft | null>(null);
@@ -377,6 +397,15 @@ export function InteracoesLista({
   const [salvandoArquivarTopico, setSalvandoArquivarTopico] = useState(false);
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
   const [podeArquivar, setPodeArquivar] = useState(false);
+  const [detalheExpandido, setDetalheExpandido] = useState<Record<string, boolean>>({});
+  const [atividadesExpandido, setAtividadesExpandido] = useState<Record<string, boolean>>({});
+  const [horasModalChamado, setHorasModalChamado] = useState<{ chamadoId: number; titulo: string } | null>(null);
+  const [statusPendente, setStatusPendente] = useState<{ rowId: string; status: string } | null>(null);
+  const [subStatusPendente, setSubStatusPendente] = useState<{
+    row: InteracaoSireneRow;
+    topicoId: number;
+    status: SubInteracaoStatusDb;
+  } | null>(null);
 
   useEffect(() => {
     const interacaoId = searchParams.get('interacao')?.trim();
@@ -390,6 +419,23 @@ export function InteracoesLista({
     if (subGrupoFluxo(row) === 'concluido') {
       setApplied((a) => (a.mostrarConcluidas ? a : { ...a, mostrarConcluidas: true }));
     }
+    setDetalheRow(row);
+    void carregarTopicosSeNecessario(row, true);
+  }, [interacoes, searchParams]);
+
+  useEffect(() => {
+    const idRaw = searchParams.get('id')?.trim();
+    if (!idRaw) return;
+    const idNum = Number(idRaw);
+    if (!Number.isFinite(idNum)) return;
+    if (highlightIdRef.current === idNum) return;
+    const row = interacoes.find((r) => r.sirene_chamado_id === idNum);
+    if (!row) return;
+    highlightIdRef.current = idNum;
+    if (subGrupoFluxo(row) === 'concluido') {
+      setApplied((a) => (a.mostrarConcluidas ? a : { ...a, mostrarConcluidas: true }));
+    }
+    setVerTodas(true);
     setDetalheRow(row);
     void carregarTopicosSeNecessario(row, true);
   }, [interacoes, searchParams]);
@@ -432,15 +478,20 @@ export function InteracoesLista({
   }, [interacoes]);
 
   useEffect(() => {
-    for (const iid of painelTopicosPrefetch.iids) {
-      const key = `i:${iid}`;
-      void (async () => {
-        setTopicosLoading((l) => ({ ...l, [key]: true }));
-        const res = await getTopicosPorInteracaoId(iid);
-        setTopicosLoading((l) => ({ ...l, [key]: false }));
-        if (res.ok) setTopicosPorAlvo((m) => ({ ...m, [key]: res.topicos }));
-      })();
-    }
+    const iids = painelTopicosPrefetch.iids;
+    if (iids.length === 0) return;
+    const loadingOn = Object.fromEntries(iids.map((id) => [`i:${id}`, true]));
+    setTopicosLoading((l) => ({ ...l, ...loadingOn }));
+    void getTopicosBatchPorInteracaoIds(iids).then((res) => {
+      const loadingOff = Object.fromEntries(iids.map((id) => [`i:${id}`, false]));
+      setTopicosLoading((l) => ({ ...l, ...loadingOff }));
+      if (res.ok) {
+        const novos = Object.fromEntries(
+          Object.entries(res.porInteracao).map(([iid, t]) => [`i:${iid}`, t]),
+        );
+        setTopicosPorAlvo((m) => ({ ...m, ...novos }));
+      }
+    });
   }, [painelTopicosPrefetch]);
 
   useEffect(() => {
@@ -644,6 +695,17 @@ export function InteracoesLista({
 
 
   function onStatusChange(id: string, novo: StatusInteracaoDb) {
+    const rowForHoras = linhas.find((r) => r.id === id);
+    if (
+      rowForHoras &&
+      rowForHoras.sirene_chamado_id != null &&
+      (novo === 'concluida' || novo === 'em_andamento')
+    ) {
+      setStatusPendente({ rowId: id, status: novo });
+      setHorasModalChamado({ chamadoId: rowForHoras.sirene_chamado_id, titulo: rowForHoras.titulo });
+      return;
+    }
+
     setMsgErro(null);
     if (novo === 'em_andamento') {
       setMsgErro('O status em andamento é definido automaticamente pelas atividades.');
@@ -900,6 +962,16 @@ export function InteracoesLista({
     status: SubInteracaoStatusDb,
   ) {
     setMsgErro(null);
+    if (
+      !skipHorasModalRef.current &&
+      row.sirene_chamado_id != null &&
+      (status === 'concluido' || status === 'em_andamento')
+    ) {
+      setStatusPendente({ rowId: row.id, status: 'manter' });
+      setHorasModalChamado({ chamadoId: row.sirene_chamado_id, titulo: row.titulo });
+      setSubStatusPendente({ row, topicoId, status });
+      return;
+    }
     const res = await atualizarStatusSubInteracao(String(topicoId), status, '/sirene/chamados', true);
     if (!res.ok) {
       setMsgErro(res.error);
@@ -1315,6 +1387,15 @@ export function InteracoesLista({
                   const hrefCard = row.card_id ? rotaCardOrigem(row.kanban_nome, row.card_id) : null;
                   const sel = statusDbParaSelect(row.atividade_status);
                   const idsResp = [...new Set([...(row.responsaveis_ids ?? []), ...(row.responsavel_id ? [row.responsavel_id] : [])])];
+                  const rankRow = rankChamadoPainelUnificado({
+                    frank_id: row.frank_id,
+                    franqueado_nome: row.franqueado_nome,
+                    trava: row.trava,
+                    te_trata: row.te_trata,
+                    data_vencimento: row.data_vencimento,
+                    atividade_status: row.atividade_status,
+                    criado_em: row.criado_em,
+                  });
 
                   const ccid = row.card_id;
                   const cnt = ccid ? comentariosCount(ccid) : 0;
@@ -1325,111 +1406,189 @@ export function InteracoesLista({
 
                   return (
                     <li key={row.id} className="border-b border-[color:var(--moni-border-default)] last:border-b-0">
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        className="flex cursor-pointer flex-col gap-2 px-3 py-3 transition-colors hover:bg-[var(--moni-surface-50)] sm:flex-row sm:flex-wrap sm:items-start sm:gap-x-3 sm:gap-y-2"
-                        onClick={() => abrirDetalheChamado(row)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            abrirDetalheChamado(row);
-                          }
-                        }}
-                      >
-                        <div className="flex min-w-0 flex-1 items-start gap-2">
-                          <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--moni-text-tertiary)]" aria-hidden />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              {row.trava ? (
-                                <span className="rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-800">
-                                  Trava
-                                </span>
-                              ) : null}
-                              {(row.numero ?? row.sirene_numero) != null ? (
-                                <span className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[color:var(--moni-text-secondary)]">
-                                  {formatChamadoNumero(row.numero ?? row.sirene_numero)}
-                                </span>
-                              ) : null}
-                              {row.sirene_arquivado ? (
-                                <span className="rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[color:var(--moni-text-tertiary)]">
-                                  Arquivado
-                                </span>
-                              ) : null}
-                              <span className="font-medium text-[color:var(--moni-text-primary)]">{row.titulo}</span>
-                              <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase ${tipoB.className}`}>
-                                {tipoB.label}
-                              </span>
-                              {qtdAtividades > 0 ? (
-                                <span className="text-[10px] text-[color:var(--moni-text-tertiary)]">
-                                  {qtdAtividades} atividade{qtdAtividades === 1 ? '' : 's'}
-                                </span>
-                              ) : null}
-                            </div>
-                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[color:var(--moni-text-tertiary)]">
-                              <span className="rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)]">
-                                {row.kanban_nome}
-                              </span>
-                              {ccid && hrefCard ? (
-                                <span className="text-[10px]">Card: {row.card_titulo?.trim() || '—'}</span>
-                              ) : null}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div
-                          className="flex flex-wrap items-center gap-2 sm:justify-end"
-                          onClick={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => e.stopPropagation()}
-                        >
-                          {ccid ? (
-                            <button
-                              type="button"
-                              onClick={() => toggleComentarios(row)}
-                              className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]"
-                              aria-expanded={Boolean(commentsOpenByRow[row.id])}
-                              aria-label={`Comentários do card (${cnt})`}
-                            >
-                              <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                              <span className="min-w-[1.1rem] text-center text-[10px] font-semibold tabular-nums">{cnt}</span>
-                            </button>
-                          ) : null}
-                          <div className="flex -space-x-1">
-                            {idsResp.slice(0, 4).map((uid) => (
-                              <span
-                                key={uid}
-                                title={nomePorUserId.get(uid) ?? uid}
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-100)] text-[9px] font-semibold text-[color:var(--moni-text-primary)]"
-                              >
-                                {iniciaisNome(nomePorUserId.get(uid) ?? '?')}
-                              </span>
-                            ))}
-                          </div>
-                          <SlaAtividadeBadge
-                            prazoIso={row.data_vencimento}
-                            status={sel === 'concluida' ? 'concluida' : sel}
-                            showOkText={false}
-                          />
-                          {sel === 'em_andamento' ? (
-                            <span className="min-w-[9.5rem] rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-2 py-1.5 text-center text-sm text-[color:var(--moni-text-secondary)]">
-                              Em andamento
-                            </span>
-                          ) : (
-                          <SelectMoni
-                            value={sel}
-                            disabled={pending}
-                            onChange={(e) => onStatusChange(row.id, e.target.value as StatusInteracaoDb)}
-                            className="min-w-[9.5rem]"
-                            aria-label="Status do chamado"
+                      <div className="px-3 py-2.5">
+                          {/* Linha 1: badges + título + tipo + prioridade */}
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            className="flex min-w-0 cursor-pointer items-center gap-2 hover:opacity-80"
+                            onClick={() => abrirDetalheChamado(row)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirDetalheChamado(row); } }}
                           >
-                            <option value="pendente">A fazer</option>
-                            <option value="concluida" disabled={temSubAberta}>
-                              Concluída
-                            </option>
-                          </SelectMoni>
-                          )}
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[color:var(--moni-text-tertiary)]" aria-hidden />
+                            {row.trava ? (
+                              <span className="shrink-0 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-800">Trava</span>
+                            ) : null}
+                            {(row.numero ?? row.sirene_numero) != null ? (
+                              <span className="shrink-0 rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[color:var(--moni-text-secondary)]">
+                                {formatChamadoNumero(row.numero ?? row.sirene_numero)}
+                              </span>
+                            ) : null}
+                            {row.sirene_arquivado ? (
+                              <span className="shrink-0 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[color:var(--moni-text-tertiary)]">Arquivado</span>
+                            ) : null}
+                            <span className="min-w-0 flex-1 truncate font-medium text-[color:var(--moni-text-primary)]">{row.titulo}</span>
+                            <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase ${tipoB.className}`}>{tipoB.label}</span>
+                            <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-bold ${
+                              rankRow.prioridade_label === 'P1' || rankRow.prioridade_label === 'P2'
+                                ? 'border-red-200 bg-red-50 text-red-800'
+                                : rankRow.prioridade_label === 'P3' || rankRow.prioridade_label === 'P4'
+                                ? 'border-amber-200 bg-amber-50 text-amber-800'
+                                : rankRow.prioridade_label === 'P5'
+                                ? 'border-green-200 bg-green-50 text-green-700'
+                                : 'border-[color:var(--moni-border-default)] bg-[var(--moni-surface-100)] text-[color:var(--moni-text-secondary)]'
+                            }`}>{rankRow.prioridade_label}</span>
+                            {row.origem === 'sirene' ? (
+                              <span className="shrink-0 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">Sirene</span>
+                            ) : row.origem === 'pastelaria' ? (
+                              <span className="shrink-0 rounded border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] font-medium text-orange-700">Pastelaria</span>
+                            ) : null}
+                          </div>
+
+                          {/* Linha 2: meta + ações */}
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            {/* meta chips */}
+                            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[color:var(--moni-text-tertiary)]">
+                              {row.sirene_abertura_responsavel_nome ? (
+                                <span className="flex items-center gap-1">
+                                  <span className="text-[color:var(--moni-text-tertiary)]">Aberto por</span>
+                                  <span className="text-[color:var(--moni-text-secondary)]">{row.sirene_abertura_responsavel_nome}</span>
+                                </span>
+                              ) : null}
+                              {row.franqueado_nome ? (
+                                <>
+                                  {row.sirene_abertura_responsavel_nome ? <span className="text-[color:var(--moni-border-default)]">·</span> : null}
+                                  <span className="text-[color:var(--moni-text-secondary)]">{row.franqueado_nome}</span>
+                                </>
+                              ) : null}
+                              {row.card_titulo ? (
+                                <>
+                                  <span className="text-[color:var(--moni-border-default)]">·</span>
+                                  <span className="truncate text-[color:var(--moni-text-tertiary)]">Card: {row.card_titulo.trim()}</span>
+                                </>
+                              ) : (
+                                <span className="text-[color:var(--moni-text-tertiary)]">{row.kanban_nome}</span>
+                              )}
+                            </div>
+
+                            {/* ações */}
+                            <div
+                              className="flex shrink-0 items-center gap-1.5"
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => e.stopPropagation()}
+                            >
+                              {/* expand detalhes */}
+                              <button
+                                type="button"
+                                onClick={() => setDetalheExpandido((s) => ({ ...s, [row.id]: !s[row.id] }))}
+                                className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]"
+                              >
+                                <Info className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                <span>Detalhes</span>
+                              </button>
+                              {/* expand atividades */}
+                              {qtdAtividades > 0 ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setAtividadesExpandido((s) => ({ ...s, [row.id]: !s[row.id] }))}
+                                  className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[10px] text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]"
+                                >
+                                  <CheckSquare className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                  <span>{qtdAtividades} atividade{qtdAtividades === 1 ? '' : 's'}</span>
+                                </button>
+                              ) : null}
+                              {/* comentários */}
+                              {ccid ? (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleComentarios(row)}
+                                  className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]"
+                                  aria-expanded={Boolean(commentsOpenByRow[row.id])}
+                                  aria-label={`Comentários do card (${cnt})`}
+                                >
+                                  <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                  <span className="min-w-[1rem] text-center text-[10px] font-semibold tabular-nums">{cnt}</span>
+                                </button>
+                              ) : null}
+                              {/* avatares responsáveis */}
+                              {idsResp.length > 0 ? (
+                                <div className="flex -space-x-1">
+                                  {idsResp.slice(0, 4).map((uid) => (
+                                    <span
+                                      key={uid}
+                                      title={nomePorUserId.get(uid) ?? uid}
+                                      className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-100)] text-[9px] font-semibold text-[color:var(--moni-text-primary)]"
+                                    >
+                                      {iniciaisNome(nomePorUserId.get(uid) ?? '?')}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
+                              <SlaAtividadeBadge
+                                prazoIso={row.data_vencimento}
+                                status={sel === 'concluida' ? 'concluida' : sel}
+                                showOkText={false}
+                              />
+                              {sel === 'em_andamento' ? (
+                                <span className="min-w-[8rem] rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-2 py-1 text-center text-xs text-[color:var(--moni-text-secondary)]">Em andamento</span>
+                              ) : (
+                                <SelectMoni
+                                  value={sel}
+                                  disabled={pending}
+                                  onChange={(e) => onStatusChange(row.id, e.target.value as StatusInteracaoDb)}
+                                  className="min-w-[8rem] text-xs"
+                                  aria-label="Status do chamado"
+                                >
+                                  <option value="pendente">A fazer</option>
+                                  <option value="concluida" disabled={temSubAberta}>Concluída</option>
+                                </SelectMoni>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Expansão: detalhes */}
+                          {detalheExpandido[row.id] ? (
+                            <div className="mt-2 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-3 py-2 text-[11px] text-[color:var(--moni-text-secondary)]">
+                              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                                {row.criado_em ? (
+                                  <span><span className="font-medium text-[color:var(--moni-text-primary)]">Aberto em</span> {new Date(row.criado_em).toLocaleDateString('pt-BR')}</span>
+                                ) : null}
+                                {row.card_titulo ? (
+                                  <span><span className="font-medium text-[color:var(--moni-text-primary)]">Card</span> {row.card_titulo.trim()}</span>
+                                ) : null}
+                                {row.kanban_nome ? (
+                                  <span><span className="font-medium text-[color:var(--moni-text-primary)]">Funil</span> {row.kanban_nome}</span>
+                                ) : null}
+                              </div>
+                              {row.descricao ? (
+                                <p className="mt-1.5 leading-relaxed text-[color:var(--moni-text-secondary)]">{row.descricao}</p>
+                              ) : null}
+                            </div>
+                          ) : null}
+
+                          {/* Expansão: atividades */}
+                          {atividadesExpandido[row.id] && subs.length > 0 ? (
+                            <div className="mt-2 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] px-3 py-1">
+                              {subs.map((s) => (
+                                <div key={s.id ?? (s as { topico_id?: number }).topico_id} className="flex items-center gap-2 border-b border-[color:var(--moni-border-default)] py-1.5 last:border-b-0 text-[11px]">
+                                  <span className={`h-2 w-2 shrink-0 rounded-full ${s.status === 'concluido' || s.status === 'aprovado' ? 'bg-green-500' : s.status === 'em_andamento' ? 'bg-amber-500' : 'bg-stone-400'}`} />
+                                  <span className="min-w-0 flex-1 truncate text-[color:var(--moni-text-primary)]">{(s as { titulo?: string }).titulo ?? (s as { tema?: string }).tema ?? s.descricao ?? '—'}</span>
+                                  {(s as { responsavel_nome?: string }).responsavel_nome ? (
+                                    <span
+                                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-100)] text-[8px] font-semibold text-[color:var(--moni-text-primary)]"
+                                      title={(s as { responsavel_nome?: string }).responsavel_nome}
+                                    >
+                                      {iniciaisNome((s as { responsavel_nome?: string }).responsavel_nome ?? '')}
+                                    </span>
+                                  ) : null}
+                                  {(s as { prazo?: string }).prazo ?? s.data_fim ? (
+                                    <span className="shrink-0 text-[10px] text-[color:var(--moni-text-tertiary)]">{new Date(((s as { prazo?: string }).prazo ?? s.data_fim)!).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
+                                  ) : null}
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
                         </div>
-                      </div>
 
                       {commentsOpenByRow[row.id] && ccid ? (
                         <div className="mt-3 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3">
@@ -1531,7 +1690,11 @@ export function InteracoesLista({
           }}
           topicos={topicosPorAlvo[topicosAlvoKey(detalheRowEff)] ?? []}
           topicosLoading={Boolean(topicosLoading[topicosAlvoKey(detalheRowEff)])}
-          textoResponsavel={textoResponsavelPainel(detalheRowEff, nomePorUserId)}
+          textoResponsavel={textoResponsavelPainel(
+            detalheRowEff,
+            nomePorUserId,
+            topicosPorAlvo[topicosAlvoKey(detalheRowEff)],
+          )}
           parseTimesNomes={parseTimesNomes}
           statusSelect={statusDbParaSelect(detalheRowEff.atividade_status)}
           temSubAberta={(topicosPorAlvo[topicosAlvoKey(detalheRowEff)] ?? []).some(
@@ -1735,6 +1898,32 @@ export function InteracoesLista({
             </div>
           </div>
         </div>
+      ) : null}
+
+      {horasModalChamado ? (
+        <SireneModalHoras
+          chamadoId={horasModalChamado.chamadoId}
+          titulo={horasModalChamado.titulo}
+          onClose={() => {
+            setHorasModalChamado(null);
+            setStatusPendente(null);
+          }}
+          onSaved={() => {
+            setHorasModalChamado(null);
+            if (subStatusPendente) {
+              skipHorasModalRef.current = true;
+              void handleSubStatusPainel(subStatusPendente.row, subStatusPendente.topicoId, subStatusPendente.status).finally(() => {
+                skipHorasModalRef.current = false;
+              });
+              setSubStatusPendente(null);
+            } else if (statusPendente) {
+              skipHorasModalRef.current = true;
+              void onStatusChange(statusPendente.rowId, statusPendente.status as StatusInteracaoDb);
+              skipHorasModalRef.current = false;
+            }
+            setStatusPendente(null);
+          }}
+        />
       ) : null}
     </div>
   );

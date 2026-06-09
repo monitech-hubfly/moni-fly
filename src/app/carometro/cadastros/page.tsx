@@ -922,11 +922,51 @@ export default function Page() {
     if (!responsavelEditando || salvandoResponsavel) return
     const nome = respNomeEdit.trim()
     if (!nome) return
+    const nomeAntigo = String(responsavelEditando.nome || '').trim()
+    const areaIdResp = responsavelEditando.area_id
     setSalvandoResponsavel(true)
     const updateData = { nome }
     if (hasProfileIdCol) updateData.profile_id = respProfileIdEdit || null
     const { error: e } = await supabase.from('area_pessoas').update(updateData).eq('id', responsavelEditando.id)
     if (!e) {
+      // Propagar renomeação para gantt_planejamento (case-insensitive, tolerante a espaços)
+      if (nomeAntigo && areaIdResp && nomeAntigo.toLowerCase() !== nome.toLowerCase()) {
+        try {
+          const { data: tarefasData } = await supabase
+            .from('tarefas')
+            .select('acoes(id)')
+            .eq('area_id', areaIdResp)
+          const acaoIds = (tarefasData || []).flatMap(t => (t.acoes || []).map(a => a.id)).filter(Boolean)
+          if (acaoIds.length > 0) {
+            const { data: gpRows } = await supabase
+              .from('gantt_planejamento')
+              .select('id, responsavel')
+              .in('acao_id', acaoIds)
+              .not('responsavel', 'is', null)
+            const aAtualizar = (gpRows || []).filter(row =>
+              String(row.responsavel || '').split(',').some(n => n.trim().toLowerCase() === nomeAntigo.toLowerCase())
+            )
+            if (aAtualizar.length > 0) {
+              const updates = aAtualizar.map(row => {
+                const novaString = String(row.responsavel || '')
+                  .split(',')
+                  .map(n => n.trim().toLowerCase() === nomeAntigo.toLowerCase() ? nome : n.trim())
+                  .join(', ')
+                return supabase.from('gantt_planejamento').update({ responsavel: novaString }).eq('id', row.id)
+              })
+              const resultados = await Promise.all(updates)
+              const erros = resultados.filter(r => r.error)
+              if (erros.length > 0) {
+                console.error('[salvarResponsavel] erros ao atualizar gantt_planejamento:', erros.map(r => r.error))
+                setError('Responsável atualizado. Alguns registros do Gantt podem precisar de ajuste manual.')
+              }
+            }
+          }
+        } catch (errGantt) {
+          console.error('[salvarResponsavel] erro ao propagar renomeação para gantt_planejamento:', errGantt)
+          setError('Responsável atualizado. Alguns registros do Gantt podem precisar de ajuste manual.')
+        }
+      }
       fecharResponsavelModal()
       await carregarResponsaveis()
     }
@@ -944,9 +984,52 @@ export default function Page() {
 
   async function executarExclusaoResponsavel(id) {
     setError(null)
+    const resp = responsaveis.find(r => r.id === id)
     const { error: e } = await supabase.from('area_pessoas').delete().eq('id', id)
-    if (e) setError(e.message)
-    else await carregarResponsaveis()
+    if (e) {
+      setError(e.message)
+    } else {
+      // Remover nome do responsável excluído de gantt_planejamento (case-insensitive)
+      if (resp?.nome && resp?.area_id) {
+        const nomeExcluido = String(resp.nome).trim()
+        const areaIdResp = resp.area_id
+        try {
+          const { data: tarefasData } = await supabase
+            .from('tarefas')
+            .select('acoes(id)')
+            .eq('area_id', areaIdResp)
+          const acaoIds = (tarefasData || []).flatMap(t => (t.acoes || []).map(a => a.id)).filter(Boolean)
+          if (acaoIds.length > 0) {
+            const { data: gpRows } = await supabase
+              .from('gantt_planejamento')
+              .select('id, responsavel')
+              .in('acao_id', acaoIds)
+              .not('responsavel', 'is', null)
+            const aAtualizar = (gpRows || []).filter(row =>
+              String(row.responsavel || '').split(',').some(n => n.trim().toLowerCase() === nomeExcluido.toLowerCase())
+            )
+            if (aAtualizar.length > 0) {
+              const updates = aAtualizar.map(row => {
+                const novaString = String(row.responsavel || '')
+                  .split(',')
+                  .map(n => n.trim())
+                  .filter(n => n.toLowerCase() !== nomeExcluido.toLowerCase())
+                  .join(', ')
+                return supabase.from('gantt_planejamento').update({ responsavel: novaString }).eq('id', row.id)
+              })
+              const resultados = await Promise.all(updates)
+              const erros = resultados.filter(r => r.error)
+              if (erros.length > 0) {
+                console.error('[executarExclusaoResponsavel] erros ao atualizar gantt_planejamento:', erros.map(r => r.error))
+              }
+            }
+          }
+        } catch (errGantt) {
+          console.error('[executarExclusaoResponsavel] erro ao propagar exclusão para gantt_planejamento:', errGantt)
+        }
+      }
+      await carregarResponsaveis()
+    }
   }
 
   return (

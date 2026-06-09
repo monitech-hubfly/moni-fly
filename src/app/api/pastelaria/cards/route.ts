@@ -135,6 +135,13 @@ export async function POST(req: Request) {
 
     const body = (await req.json()) as CreatePastelariaCardBody;
 
+    if (body.source !== 'sirene' && body.source !== 'kanban') {
+      return NextResponse.json(
+        { error: 'Criação manual desativada. Chamados chegam via Sirene.' },
+        { status: 403 },
+      );
+    }
+
     const nome = body?.nome?.trim();
 
     const semanaOrigem = body?.semana_origem?.trim();

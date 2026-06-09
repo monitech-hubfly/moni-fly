@@ -19,7 +19,7 @@ export default async function SirenePage({
 
   const params = await searchParams;
 
-  const filtroTipoParam: DashboardFiltroTipo = params.tipo === 'pasteis' ? 'pasteis' : 'todos';
+  const filtroTipoParam: DashboardFiltroTipo = 'todos';
 
 
 
@@ -104,6 +104,8 @@ export default async function SirenePage({
         top_franqueados={result.top_franqueados}
 
         top_temas={result.top_temas}
+
+        chamados_destaque={result.chamados_destaque}
 
         filtroTipo={filtroTipoParam}
 

@@ -68,6 +68,18 @@ type Props = {
   abertos_por_funil: PessoaMetrica[];
   top_franqueados: AbertosGrupo[];
   top_temas: TopTema[];
+  chamados_destaque: Array<{
+    id: number;
+    numero: number;
+    titulo: string;
+    prioridade: string | null;
+    trava: boolean;
+    status: string;
+    frank_nome: string | null;
+    responsavel_nome: string | null;
+    dias_aberto: number;
+    origem: string;
+  }>;
   filtroTipo: DashboardFiltroTipo;
 };
 
@@ -384,6 +396,146 @@ function TopTemasCard({ items }: { items: TopTema[] }) {
   );
 }
 
+function ChamadosDestaqueSection({
+  chamados,
+}: {
+  chamados: Array<{
+    id: number;
+    numero: number;
+    titulo: string;
+    prioridade: string | null;
+    trava: boolean;
+    status: string;
+    frank_nome: string | null;
+    responsavel_nome: string | null;
+    dias_aberto: number;
+    origem: string;
+  }>;
+}) {
+  const [filtros, setFiltros] = useState({
+    prioridade: '',
+    responsavel: '',
+    trava: '',
+    status: '',
+    ordem: 'oldest' as 'oldest' | 'newest' | 'pri',
+  });
+
+  const responsaveis = useMemo(
+    () => [...new Set(chamados.map((c) => c.responsavel_nome).filter(Boolean))],
+    [chamados],
+  );
+
+  const filtered = useMemo(() => {
+    let list = [...chamados];
+    if (filtros.prioridade) list = list.filter((c) => c.prioridade === filtros.prioridade);
+    if (filtros.responsavel) list = list.filter((c) => c.responsavel_nome === filtros.responsavel);
+    if (filtros.trava === 'sim') list = list.filter((c) => c.trava);
+    if (filtros.trava === 'nao') list = list.filter((c) => !c.trava);
+    if (filtros.status) list = list.filter((c) => c.status === filtros.status);
+    if (filtros.ordem === 'oldest') list.sort((a, b) => b.dias_aberto - a.dias_aberto);
+    else if (filtros.ordem === 'newest') list.sort((a, b) => a.dias_aberto - b.dias_aberto);
+    else if (filtros.ordem === 'pri') {
+      const ord: Record<string, number> = { P1: 1, P2: 2, P3: 3, P4: 4, P5: 5, P6: 6 };
+      list.sort((a, b) => (ord[a.prioridade ?? 'P6'] ?? 6) - (ord[b.prioridade ?? 'P6'] ?? 6));
+    }
+    return list;
+  }, [chamados, filtros]);
+
+  const priLabel: Record<string, string> = {
+    P1: 'P1', P2: 'P2', P3: 'P3', P4: 'P4', P5: 'P5', P6: 'P6',
+  };
+  const priClasses: Record<string, string> = {
+    P1: 'border-red-200 bg-red-50 text-red-800',
+    P2: 'border-red-200 bg-red-50 text-red-800',
+    P3: 'border-amber-200 bg-amber-50 text-amber-800',
+    P4: 'border-amber-200 bg-amber-50 text-amber-800',
+    P5: 'border-green-200 bg-green-50 text-green-700',
+    P6: 'border-[color:var(--moni-border-default)] bg-[var(--moni-surface-100)] text-[color:var(--moni-text-secondary)]',
+  };
+
+  function ageClass(dias: number) {
+    if (dias >= 14) return 'border-red-200 bg-red-50 text-red-800';
+    if (dias >= 7) return 'border-amber-200 bg-amber-50 text-amber-800';
+    return 'border-[color:var(--moni-border-default)] bg-[var(--moni-surface-100)] text-[color:var(--moni-text-secondary)]';
+  }
+
+  const selectClass = "rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-1 text-xs text-[color:var(--moni-text-secondary)]";
+
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="text-xs text-[color:var(--moni-text-tertiary)]">Prioridade</span>
+        <select className={selectClass} value={filtros.prioridade} onChange={(e) => setFiltros((f) => ({ ...f, prioridade: e.target.value }))}>
+          <option value="">Todas</option>
+          <option value="P1">P1 — Franqueado + trava + atrasado</option>
+          <option value="P2">P2 — Trava + atrasado</option>
+          <option value="P3">P3 — Franqueado + trava</option>
+          <option value="P4">P4 — Só trava</option>
+          <option value="P5">P5 — Franqueado (sem trava)</option>
+          <option value="P6">P6 — Demais</option>
+        </select>
+        {responsaveis.length > 0 && (
+          <>
+            <span className="text-xs text-[color:var(--moni-text-tertiary)]">Responsável</span>
+            <select className={selectClass} value={filtros.responsavel} onChange={(e) => setFiltros((f) => ({ ...f, responsavel: e.target.value }))}>
+              <option value="">Todos</option>
+              {responsaveis.map((r) => <option key={r} value={r ?? ''}>{r}</option>)}
+            </select>
+          </>
+        )}
+        <span className="text-xs text-[color:var(--moni-text-tertiary)]">Ordenar por</span>
+        <select className={selectClass} value={filtros.ordem} onChange={(e) => setFiltros((f) => ({ ...f, ordem: e.target.value as typeof f.ordem }))}>
+          <option value="oldest">Mais antigo</option>
+          <option value="newest">Mais recente</option>
+          <option value="pri">Prioridade</option>
+        </select>
+        <span className="text-xs text-[color:var(--moni-text-tertiary)]">Trava</span>
+        <select className={selectClass} value={filtros.trava} onChange={(e) => setFiltros((f) => ({ ...f, trava: e.target.value }))}>
+          <option value="">Todos</option>
+          <option value="sim">Com trava</option>
+          <option value="nao">Sem trava</option>
+        </select>
+        <span className="text-xs text-[color:var(--moni-text-tertiary)]">Status</span>
+        <select className={selectClass} value={filtros.status} onChange={(e) => setFiltros((f) => ({ ...f, status: e.target.value }))}>
+          <option value="">Todos</option>
+          <option value="nao_iniciado">Não iniciado</option>
+          <option value="em_andamento">Em andamento</option>
+        </select>
+        <span className="ml-auto text-xs text-[color:var(--moni-text-tertiary)]">{filtered.length} chamado{filtered.length !== 1 ? 's' : ''}</span>
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="py-6 text-center text-sm text-[color:var(--moni-text-tertiary)]">Nenhum chamado com os filtros atuais.</p>
+      ) : (
+        <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)]">
+          {filtered.map((c, i) => (
+            <div key={c.id} className={`flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm ${i < filtered.length - 1 ? 'border-b border-[color:var(--moni-border-default)]' : ''}`}>
+              {c.trava ? (
+                <span className="shrink-0 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-800">Trava</span>
+              ) : null}
+              <span className="shrink-0 rounded bg-[var(--moni-surface-100)] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[color:var(--moni-text-secondary)]">
+                #{String(c.numero).padStart(4, '0')}
+              </span>
+              <span className="min-w-0 flex-1 truncate font-medium text-[color:var(--moni-text-primary)]">{c.titulo}</span>
+              {c.prioridade ? (
+                <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium ${priClasses[c.prioridade] ?? priClasses.baixa}`}>
+                  {priLabel[c.prioridade] ?? c.prioridade}
+                </span>
+              ) : null}
+              {c.frank_nome ? (
+                <span className="shrink-0 text-[11px] text-[color:var(--moni-text-tertiary)]">{c.frank_nome}</span>
+              ) : null}
+              <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium ${ageClass(c.dias_aberto)}`}>
+                {c.dias_aberto === 0 ? '0d' : `${c.dias_aberto}d`}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function DashboardSirene({
   emAberto,
   emAndamento,
@@ -408,6 +560,7 @@ export function DashboardSirene({
   abertos_por_funil,
   top_franqueados,
   top_temas,
+  chamados_destaque,
   filtroTipo,
 }: Props) {
   const router = useRouter();
@@ -456,17 +609,6 @@ export function DashboardSirene({
       className="min-h-screen text-[color:var(--moni-text-primary)]"
       style={{ background: 'var(--moni-surface-50)' }}
     >
-      <div className="mb-6 flex items-center gap-2">
-        <span className="text-sm font-medium text-[color:var(--moni-text-tertiary)]">Tipo:</span>
-        <select
-          value={filtroTipo}
-          onChange={(e) => setFiltroTipo(e.target.value as DashboardFiltroTipo)}
-          className="rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-3 py-1.5 text-sm text-[color:var(--moni-text-secondary)]"
-        >
-          <option value="todos">Todos</option>
-          <option value="pasteis">Pastéis</option>
-        </select>
-      </div>
 
       <DashboardSection title="Análise de chamados">
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -720,6 +862,10 @@ export function DashboardSirene({
             getTertiary={(row) => row.com_trava ?? 0}
           />
         </div>
+      </DashboardSection>
+
+      <DashboardSection title="Chamados em destaque">
+        <ChamadosDestaqueSection chamados={chamados_destaque} />
       </DashboardSection>
     </div>
   );

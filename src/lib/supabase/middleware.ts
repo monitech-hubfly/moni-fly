@@ -113,6 +113,9 @@ export async function updateSession(request: NextRequest) {
     if (isAnonymousAllowedPath(pathname)) {
       return response;
     }
+    if (pathname === '/') {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
     return redirectToBcaPublicLeitura(request);
   }
 

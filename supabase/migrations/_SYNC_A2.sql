@@ -1,4 +1,4 @@
-﻿-- ObservaÃ§Ãµes do formulÃ¡rio inicial (abertura do processo/card no Painel)
+-- ObservaÃ§Ãµes do formulÃ¡rio inicial (abertura do processo/card no Painel)
 ALTER TABLE public.processo_step_one
   ADD COLUMN IF NOT EXISTS observacoes TEXT;
 

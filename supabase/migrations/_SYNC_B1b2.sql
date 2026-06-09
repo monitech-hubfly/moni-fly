@@ -1,4 +1,4 @@
-﻿GRANT SELECT ON public.v_atividades_unificadas TO authenticated, anon;
+GRANT SELECT ON public.v_atividades_unificadas TO authenticated, anon;
 GRANT SELECT ON public.v_processo_como_kanban_cards TO authenticated, anon;
 -- Migration 114: Renomear kanbans, aparar fases e corrigir nomes de fases
 -- Banco DEV: bgaadvfucnrkpimaszjv.supabase.co

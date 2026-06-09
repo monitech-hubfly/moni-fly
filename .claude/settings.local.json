@@ -34,7 +34,25 @@
       "PowerShell(cmdkey *)",
       "Bash(python *)",
       "Bash(git checkout *)",
-      "Bash(git merge *)"
+      "Bash(git merge *)",
+      "PowerShell(if \\(Test-Path \"prod_dump.sql\"\\) { $size = \\(Get-Item \"prod_dump.sql\"\\).Length; echo \"Arquivo existe: $size bytes\" } else { echo \"Arquivo não existe\" })",
+      "PowerShell(supabase db *)",
+      "PowerShell(docker --version 2>&1)",
+      "PowerShell($pwd_path = \\(Get-Location\\).Path; docker run --rm -v \"${pwd_path}:/output\" -e \"PGPASSWORD=Monicasa/07\" public.ecr.aws/supabase/postgres:17.6.1.084 pg_dump -h db.aydryzoxqnwnbybvgiug.supabase.co -p 5432 -U postgres -d postgres -f /output/prod_dump.sql 2>&1)",
+      "PowerShell([System.Net.Dns]::GetHostAddresses\\(\"db.aydryzoxqnwnbybvgiug.supabase.co\"\\) | ForEach-Object { \"$\\($_.AddressFamily\\): $\\($_.IPAddressToString\\)\" })",
+      "PowerShell([System.Net.Dns]::GetHostAddresses\\(\"aws-0-sa-east-1.pooler.supabase.com\"\\) | ForEach-Object { \"$\\($_.AddressFamily\\): $\\($_.IPAddressToString\\)\" })",
+      "PowerShell($pwd_path = \\(Get-Location\\).Path; docker run --rm -v \"${pwd_path}:/output\" -e \"PGPASSWORD=Monicasa/07\" public.ecr.aws/supabase/postgres:17.6.1.084 pg_dump -h aws-0-sa-east-1.pooler.supabase.com -p 5432 -U \"postgres.aydryzoxqnwnbybvgiug\" -d postgres --no-owner --no-acl -f /output/prod_dump.sql 2>&1)",
+      "PowerShell(winget install *)",
+      "PowerShell(npm *)",
+      "PowerShell(supabase status *)",
+      "PowerShell(node db_migrate.mjs 2>&1)",
+      "PowerShell(supabase migration *)",
+      "PowerShell(node db_push_remaining_tmp.mjs 2>&1)",
+      "PowerShell(node db_copy_tmp.mjs 2>&1)",
+      "PowerShell(node db_fix_profile_tmp.mjs 2>&1)",
+      "PowerShell(node db_copy_tables_tmp.mjs 2>&1)",
+      "PowerShell(Remove-Item *)",
+      "PowerShell(psql *)"
     ]
   }
 }

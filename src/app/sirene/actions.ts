@@ -350,6 +350,7 @@ export type TopicoPainelLinha = {
   tipo: SubInteracaoTipoDb;
   times_ids: string[];
   responsaveis_ids: string[];
+  responsavel_id: string | null;
   data_inicio: string | null;
   data_fim: string | null;
   trava: boolean;
@@ -370,7 +371,7 @@ type GetTopicosPainelResult =
   | { ok: false; error: string };
 
 const TOPICOS_PAINEL_SELECT =
-  'id, ordem, nome, descricao, descricao_detalhe, time_responsavel, tipo, times_ids, responsaveis_ids, data_inicio, data_fim, status, trava, pastel, historico, resolucao_time, motivo_reprovacao, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em';
+  'id, ordem, nome, descricao, descricao_detalhe, time_responsavel, tipo, times_ids, responsaveis_ids, responsavel_id, data_inicio, data_fim, status, trava, pastel, historico, resolucao_time, motivo_reprovacao, prazo_proposto, prazo_status, prazo_abridor_id, prazo_proposto_por, prazo_negociacao_expira_em';
 
 function mapRowsToTopicosPainel(rows: Record<string, unknown>[]): TopicoPainelLinha[] {
   return rows.map((r) => {
@@ -401,6 +402,7 @@ function mapRowsToTopicosPainel(rows: Record<string, unknown>[]): TopicoPainelLi
       tipo,
       times_ids: ti,
       responsaveis_ids: ri,
+      responsavel_id: (r as { responsavel_id?: string | null }).responsavel_id ?? null,
       data_inicio: di != null && typeof di === 'string' ? di : null,
       data_fim: df != null && typeof df === 'string' ? df : null,
       trava: (r as { trava?: boolean }).trava ?? false,
@@ -490,6 +492,36 @@ export async function getTopicosPorInteracaoId(interacaoId: string): Promise<Get
   if (error) return { ok: false, error: error.message };
   const rows = (data ?? []) as Record<string, unknown>[];
   return { ok: true, topicos: mapRowsToTopicosPainel(rows) };
+}
+
+/** Tópicos de múltiplas interações em uma única query (evita N+1 no painel). */
+export async function getTopicosBatchPorInteracaoIds(
+  interacaoIds: string[],
+): Promise<{ ok: true; porInteracao: Record<string, TopicoPainelLinha[]> } | { ok: false; error: string }> {
+  if (interacaoIds.length === 0) return { ok: true, porInteracao: {} };
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const { data, error } = await supabase
+    .from('sirene_topicos')
+    .select(`${TOPICOS_PAINEL_SELECT}, interacao_id`)
+    .in('interacao_id', interacaoIds)
+    .eq('arquivado', false)
+    .order('ordem', { ascending: true });
+
+  if (error) return { ok: false, error: error.message };
+
+  const porInteracao: Record<string, TopicoPainelLinha[]> = {};
+  for (const row of (data ?? []) as Record<string, unknown>[]) {
+    const iid = String((row as { interacao_id?: string }).interacao_id ?? '');
+    if (!iid) continue;
+    if (!porInteracao[iid]) porInteracao[iid] = [];
+    porInteracao[iid].push(mapRowsToTopicosPainel([row])[0]);
+  }
+  return { ok: true, porInteracao };
 }
 
 export type TopicoInput = {
@@ -3068,6 +3100,18 @@ export async function getDashboardData(
       abertos_por_funil: DashboardPessoaMetrica[];
       top_franqueados: Array<{ nome: string; count: number }>;
       top_temas: Array<{ tema: string; count: number }>;
+      chamados_destaque: Array<{
+        id: number;
+        numero: number;
+        titulo: string;
+        prioridade: string | null;
+        trava: boolean;
+        status: string;
+        frank_nome: string | null;
+        responsavel_nome: string | null;
+        dias_aberto: number;
+        origem: string;
+      }>;
     }
   | { ok: false; error: string }
 > {
@@ -3292,6 +3336,63 @@ export async function getDashboardData(
     abertos_por_funil: abertosAgg.abertos_por_funil,
     top_franqueados,
     top_temas,
+    chamados_destaque: (() => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      function calcPrioridade(c: {
+        frank_nome?: string | null;
+        trava?: boolean | null;
+        te_trata?: boolean | null;
+        data_vencimento?: string | null;
+      }): string {
+        const hasFrank = (c.frank_nome ?? '').trim() !== '';
+        const trava = Boolean(c.trava) || c.te_trata === true;
+        let due: Date | null = null;
+        if (c.data_vencimento) {
+          const head = String(c.data_vencimento).slice(0, 10);
+          if (/^\d{4}-\d{2}-\d{2}$/.test(head)) {
+            const [y, m, d] = head.split('-').map(Number);
+            due = new Date(y!, m! - 1, d!);
+          }
+        }
+        const overdue = due != null && due < today;
+        if (hasFrank && trava && overdue) return 'P1';
+        if (trava && overdue) return 'P2';
+        if (hasFrank && trava) return 'P3';
+        if (trava) return 'P4';
+        if (hasFrank) return 'P5';
+        return 'P6';
+      }
+
+      return list
+        .filter((c) => c.status === 'nao_iniciado' || c.status === 'em_andamento')
+        .map((c) => {
+          const dataAbertura = c.data_abertura ? new Date(String(c.data_abertura)) : null;
+          const diasAberto =
+            dataAbertura && Number.isFinite(dataAbertura.getTime())
+              ? Math.floor((Date.now() - dataAbertura.getTime()) / (1000 * 60 * 60 * 24))
+              : 0;
+          return {
+            id: Number(c.id),
+            numero: Number(c.numero),
+            titulo: String(c.incendio ?? '').trim() || '(sem título)',
+            prioridade: calcPrioridade(c),
+            trava: Boolean(c.trava),
+            status: String(c.status ?? ''),
+            frank_nome: c.frank_nome != null ? String(c.frank_nome) : null,
+            responsavel_nome: null,
+            dias_aberto: diasAberto,
+            origem: 'sirene',
+          };
+        })
+        .sort((a, b) => {
+          const ord: Record<string, number> = { P1: 1, P2: 2, P3: 3, P4: 4, P5: 5, P6: 6 };
+          const diff = (ord[a.prioridade ?? 'P6'] ?? 6) - (ord[b.prioridade ?? 'P6'] ?? 6);
+          if (diff !== 0) return diff;
+          return b.dias_aberto - a.dias_aberto;
+        });
+    })(),
   };
 }
 
