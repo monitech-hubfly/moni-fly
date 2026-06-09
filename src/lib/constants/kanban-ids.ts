@@ -156,9 +156,9 @@ export const FASE_SLUGS = {
   MAPA_COMPETIDORES:    'mapa_competidores',
   DADOS_CONDOMINIOS:    'dados_condominios',
   LOTES_DISPONIVEIS:    'lotes_disponiveis',
+  BCA:                  'bca',
   PRE_BATALHA:          'pre_batalha', // coluna «Batalha das Casas»
   ESCOLHA:              'escolha',
-  BCA:                  'bca',
   /** Slug legado renomeado — valor canônico PROD: `bca`. */
   BCA_BATALHA_CASAS:    'bca',
   BATALHA:              'batalha',
