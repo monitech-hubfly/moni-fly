@@ -72,8 +72,8 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
 
   const timesChips = useMemo(() => timesOpcoesReceberChamado(kanbanTimes), [kanbanTimes]);
   const responsaveisFiltrados = useMemo(
-    () => responsaveisFiltradosPorTimesIds(atividade.timesIds, timesChips, responsaveisOpcoes),
-    [atividade.timesIds, timesChips, responsaveisOpcoes],
+    () => responsaveisFiltradosPorTimesIds(atividades[0]?.timesIds ?? [], timesChips, responsaveisOpcoes),
+    [atividades, timesChips, responsaveisOpcoes],
   );
 
   useEffect(() => {
