@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/client';
 import { KanbanFaseSecaoTabs } from '@/components/kanban-shared/KanbanFaseSecaoTabs';
 import {
   carregarLotesCondominioCard,
-  salvarCampoLoteCondominio,
   salvarLoteEscolhidoCondominio,
   salvarLotesCondominioDisponivel,
 } from '@/lib/actions/kanban-lotes-disponiveis';
@@ -50,6 +49,34 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
   const [uploadLoteId, setUploadLoteId] = useState<string | null>(null);
   const [rascunhoLotes, setRascunhoLotes] = useState<LinhaLoteDisponivel[]>([]);
   const rowIdRascunhoRef = useRef<string | null>(null);
+  const rascunhoLotesRef = useRef<LinhaLoteDisponivel[]>([]);
+  const linhasRef = useRef<LinhaProspectCondominio[]>([]);
+  const saveChainRef = useRef(Promise.resolve());
+
+  useEffect(() => {
+    rascunhoLotesRef.current = rascunhoLotes;
+  }, [rascunhoLotes]);
+
+  useEffect(() => {
+    linhasRef.current = linhas;
+  }, [linhas]);
+
+  function enfileirarPersistirRascunho(rowId: string) {
+    saveChainRef.current = saveChainRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        const lotes = rascunhoLotesRef.current;
+        setSalvando(true);
+        setErroSalvar(null);
+        const res = await salvarLotesCondominioDisponivel({ cardId, rowId, lotes });
+        setSalvando(false);
+        if (!res.ok) {
+          setErroSalvar(res.error);
+          return;
+        }
+        aplicarLotesSalvosLocal(rowId, lotes);
+      });
+  }
 
   const recarregar = useCallback(async (opts?: { silencioso?: boolean }) => {
     if (!opts?.silencioso) setCarregandoInicial(true);
@@ -164,28 +191,15 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
     aplicarLotesSalvosLocal(linhaAtiva.row_id, lotes);
   }
 
-  async function salvarCampoBlur(loteId: string, chave: ChaveLoteDisponivel, valor: string) {
-    if (!linhaAtiva) return;
-    const lote = rascunhoLotes.find((l) => l.lote_id === loteId);
-    if (!lote) return;
-    const atual = String(lote[chave] ?? '').trim();
-    if (valor.trim() === atual) return;
-
-    setErroSalvar(null);
-    const res = await salvarCampoLoteCondominio({
-      cardId,
-      rowId: linhaAtiva.row_id,
-      loteId,
-      chave,
-      valor,
-    });
-    if (!res.ok) {
-      setErroSalvar(res.error);
-      return;
-    }
-    const novos = rascunhoLotes.map((l) => (l.lote_id === loteId ? { ...l, [chave]: valor } : l));
-    setRascunhoLotes(novos);
-    aplicarLotesSalvosLocal(linhaAtiva.row_id, novos);
+  function salvarCampoBlur(loteId: string, chave: ChaveLoteDisponivel, valor: string) {
+    const rowId = rowIdAtivo;
+    if (!rowId) return;
+    const linha = linhasRef.current.find((l) => l.row_id === rowId);
+    if (!linha) return;
+    const lotePersistido = linha.lotes_disponiveis?.find((l) => l.lote_id === loteId);
+    const atualPersistido = String(lotePersistido?.[chave] ?? '').trim();
+    if (valor.trim() === atualPersistido) return;
+    enfileirarPersistirRascunho(rowId);
   }
 
   async function adicionarLote() {
@@ -219,8 +233,12 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
         setErroSalvar(error.message);
         return;
       }
-      setRascunhoLotes((prev) => prev.map((l) => (l.lote_id === loteId ? { ...l, fotos_path: path } : l)));
-      await salvarCampoBlur(loteId, 'fotos_path', path);
+      setRascunhoLotes((prev) => {
+        const next = prev.map((l) => (l.lote_id === loteId ? { ...l, fotos_path: path } : l));
+        rascunhoLotesRef.current = next;
+        return next;
+      });
+      salvarCampoBlur(loteId, 'fotos_path', path);
     } finally {
       setUploadLoteId(null);
     }
@@ -397,11 +415,15 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
                                 value={valor}
                                 placeholder={campo.placeholder ?? ''}
                                 onChange={(e) =>
-                                  setRascunhoLotes((prev) =>
-                                    prev.map((l) =>
-                                      l.lote_id === loteAtivo.lote_id ? { ...l, [campo.chave]: e.target.value } : l,
-                                    ),
-                                  )
+                                  setRascunhoLotes((prev) => {
+                                    const next = prev.map((l) =>
+                                      l.lote_id === loteAtivo.lote_id
+                                        ? { ...l, [campo.chave]: e.target.value }
+                                        : l,
+                                    );
+                                    rascunhoLotesRef.current = next;
+                                    return next;
+                                  })
                                 }
                                 onBlur={(e) => void salvarCampoBlur(loteAtivo.lote_id, campo.chave, e.target.value)}
                               />
@@ -422,11 +444,15 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
                               value={valor}
                               placeholder={campo.placeholder ?? ''}
                               onChange={(e) =>
-                                setRascunhoLotes((prev) =>
-                                  prev.map((l) =>
-                                    l.lote_id === loteAtivo.lote_id ? { ...l, [campo.chave]: e.target.value } : l,
-                                  ),
-                                )
+                                setRascunhoLotes((prev) => {
+                                  const next = prev.map((l) =>
+                                    l.lote_id === loteAtivo.lote_id
+                                      ? { ...l, [campo.chave]: e.target.value }
+                                      : l,
+                                  );
+                                  rascunhoLotesRef.current = next;
+                                  return next;
+                                })
                               }
                               onBlur={(e) => void salvarCampoBlur(loteAtivo.lote_id, campo.chave, e.target.value)}
                             />
@@ -459,11 +485,13 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
                                   checked={valor === 'true'}
                                   onChange={(e) => {
                                     const v = e.target.checked ? 'true' : 'false';
-                                    setRascunhoLotes((prev) =>
-                                      prev.map((l) =>
+                                    setRascunhoLotes((prev) => {
+                                      const next = prev.map((l) =>
                                         l.lote_id === loteAtivo.lote_id ? { ...l, [campo.chave]: v } : l,
-                                      ),
-                                    );
+                                      );
+                                      rascunhoLotesRef.current = next;
+                                      return next;
+                                    });
                                     void salvarCampoBlur(loteAtivo.lote_id, campo.chave, v);
                                   }}
                                 />
