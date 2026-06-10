@@ -20,6 +20,14 @@ import {
   resumoFaixasMercado,
 } from '@/lib/kanban/mapa-competidores-condominio';
 
+function fmtMoeda(valor: number): string {
+  return valor.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 0,
+  });
+}
+
 type Props = {
   cardId: string;
   processoId: string;
@@ -140,49 +148,67 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
             <p className="text-sm font-semibold text-gray-700">
               {resumoFaixas.entrada.quantidade} casas
             </p>
-            <p className="text-xs text-gray-400">
-              até{' '}
-              {resumoFaixas.entrada.corteMax.toLocaleString('pt-BR', {
-                style: 'currency',
-                currency: 'BRL',
-                maximumFractionDigits: 0,
-              })}
+            <p className="text-xs text-gray-400">até {fmtMoeda(resumoFaixas.entrada.corteMax)}</p>
+          </div>
+          <div className="rounded-md bg-amber-50 p-2 text-center">
+            <p className="text-xs font-medium text-amber-700">Intermediária</p>
+            <p className="text-sm font-semibold text-amber-800">
+              {resumoFaixas.intermediaria.quantidade} casas
+            </p>
+            <p className="text-xs text-amber-500">
+              {fmtMoeda(resumoFaixas.intermediaria.corteMin)} –{' '}
+              {fmtMoeda(resumoFaixas.intermediaria.corteMax)}
             </p>
           </div>
           <div className="rounded-md bg-blue-50 p-2 text-center">
-            <p className="text-xs font-medium text-blue-600">Intermediária</p>
+            <p className="text-xs font-medium text-blue-600">Premium</p>
             <p className="text-sm font-semibold text-blue-700">
-              {resumoFaixas.intermediaria.quantidade} casas
-            </p>
-            <p className="text-xs text-blue-400">
-              {resumoFaixas.intermediaria.corteMin.toLocaleString('pt-BR', {
-                style: 'currency',
-                currency: 'BRL',
-                maximumFractionDigits: 0,
-              })}{' '}
-              –{' '}
-              {resumoFaixas.intermediaria.corteMax.toLocaleString('pt-BR', {
-                style: 'currency',
-                currency: 'BRL',
-                maximumFractionDigits: 0,
-              })}
-            </p>
-          </div>
-          <div className="rounded-md bg-amber-50 p-2 text-center">
-            <p className="text-xs font-medium text-amber-700">Premium</p>
-            <p className="text-sm font-semibold text-amber-800">
               {resumoFaixas.premium.quantidade} casas
             </p>
-            <p className="text-xs text-amber-500">
-              acima de{' '}
-              {resumoFaixas.premium.corteMin.toLocaleString('pt-BR', {
-                style: 'currency',
-                currency: 'BRL',
-                maximumFractionDigits: 0,
-              })}
+            <p className="text-xs text-blue-400">
+              {resumoFaixas.premium.quantidade > 0 ? (
+                <>
+                  {fmtMoeda(resumoFaixas.premium.corteMin)} – {fmtMoeda(resumoFaixas.premium.corteMax)}
+                </>
+              ) : (
+                <>acima de {fmtMoeda(resumoFaixas.corte2)} (&lt; R$ 10MM)</>
+              )}
             </p>
           </div>
         </div>
+        {(resumoFaixas.premium_plus.quantidade > 0 ||
+          resumoFaixas.premium_plus2.quantidade > 0 ||
+          resumoFaixas.premium_plus3.quantidade > 0) && (
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            {resumoFaixas.premium_plus.quantidade > 0 ? (
+              <div className="rounded-md bg-indigo-50 p-2 text-center">
+                <p className="text-xs font-medium text-indigo-700">Premium+</p>
+                <p className="text-sm font-semibold text-indigo-800">
+                  {resumoFaixas.premium_plus.quantidade} casas
+                </p>
+                <p className="text-xs text-indigo-500">≥ {fmtMoeda(10_000_000)}</p>
+              </div>
+            ) : null}
+            {resumoFaixas.premium_plus2.quantidade > 0 ? (
+              <div className="rounded-md bg-violet-50 p-2 text-center">
+                <p className="text-xs font-medium text-violet-700">Premium++</p>
+                <p className="text-sm font-semibold text-violet-800">
+                  {resumoFaixas.premium_plus2.quantidade} casas
+                </p>
+                <p className="text-xs text-violet-500">≥ {fmtMoeda(15_000_000)}</p>
+              </div>
+            ) : null}
+            {resumoFaixas.premium_plus3.quantidade > 0 ? (
+              <div className="rounded-md bg-purple-50 p-2 text-center">
+                <p className="text-xs font-medium text-purple-700">Premium+++</p>
+                <p className="text-sm font-semibold text-purple-800">
+                  {resumoFaixas.premium_plus3.quantidade} casas
+                </p>
+                <p className="text-xs text-purple-500">≥ {fmtMoeda(20_000_000)}</p>
+              </div>
+            ) : null}
+          </div>
+        )}
       </div>
     ) : null;
 

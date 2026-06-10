@@ -44,6 +44,10 @@ import {
   labelCompatibilidade,
   ordenarCatalogoPorCompatibilidade,
 } from '@/lib/kanban/pre-batalha-compatibilidade';
+import {
+  ordenarCasasPorFaixaMercado,
+  type FaixaMercado,
+} from '@/lib/kanban/mapa-competidores-condominio';
 
 type ProdutoDadosBatalha = {
   designId?: string;
@@ -74,7 +78,7 @@ export type CasaRow = {
   data_despublicado?: string | null;
   link: string | null;
   manual?: boolean | null;
-  faixa?: 'entrada' | 'intermediaria' | 'premium';
+  faixa?: FaixaMercado;
 };
 
 export function Etapa4Casas(props: {
@@ -216,13 +220,26 @@ export function Etapa4Casas(props: {
   const tabelaTd = listagemOnly ? 'px-1.5 py-1' : 'p-2';
 
   const ROWS_PER_PAGE = 15;
-  const totalPages = Math.max(1, Math.ceil(casas.length / ROWS_PER_PAGE));
+  const casasExibicao = useMemo(() => {
+    if (!listagemOnly) return casas;
+    if (!casas.some((c) => c.preco != null)) return casas;
+    return ordenarCasasPorFaixaMercado(casas);
+  }, [casas, listagemOnly]);
+  const contagemPorFaixa = useMemo(() => {
+    if (!listagemOnly) return null;
+    const m = new Map<FaixaMercado, number>();
+    for (const c of casasExibicao) {
+      if (c.faixa) m.set(c.faixa, (m.get(c.faixa) ?? 0) + 1);
+    }
+    return m;
+  }, [casasExibicao, listagemOnly]);
+  const totalPages = Math.max(1, Math.ceil(casasExibicao.length / ROWS_PER_PAGE));
   const [pageCasas, setPageCasas] = useState(1);
   const casasPaginated = useMemo(() => {
     const start = (pageCasas - 1) * ROWS_PER_PAGE;
-    return casas.slice(start, start + ROWS_PER_PAGE);
-  }, [casas, pageCasas]);
-  useEffect(() => setPageCasas(1), [casas.length]);
+    return casasExibicao.slice(start, start + ROWS_PER_PAGE);
+  }, [casasExibicao, pageCasas]);
+  useEffect(() => setPageCasas(1), [casasExibicao.length]);
 
   // --- Seção 2: escolha de modelos do catálogo (Pré Batalha: ranking por compatibilidade) ---
   const selectedLimit = modoPreBatalha ? null : 3;
@@ -1403,8 +1420,35 @@ export function Etapa4Casas(props: {
                   )}
                 </thead>
                 <tbody>
-                  {casasPaginated.map((c) => (
-                    <tr key={c.id} className="border-b border-stone-100 hover:bg-stone-50">
+                  {casasPaginated.map((c, idx) => {
+                    const prevFaixa = idx > 0 ? casasPaginated[idx - 1]?.faixa : undefined;
+                    const showFaixaHeader =
+                      listagemOnly && c.faixa != null && (idx === 0 || c.faixa !== prevFaixa);
+                    const qtdFaixa =
+                      showFaixaHeader && c.faixa && contagemPorFaixa
+                        ? (contagemPorFaixa.get(c.faixa) ?? 0)
+                        : 0;
+                    const colCountListagem = 17;
+                    const colCountBatalha =
+                      colCountListagem + escolhidasComDados.length * 4;
+                    return (
+                    <React.Fragment key={c.id}>
+                    {showFaixaHeader ? (
+                      <tr className="border-b border-stone-200 bg-stone-50/90">
+                        <td
+                          colSpan={listagemOnly ? colCountListagem : colCountBatalha}
+                          className={`${tabelaTd} py-1.5`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <BadgeFaixaMercado faixa={c.faixa} />
+                            <span className="font-medium text-stone-600">
+                              {qtdFaixa} {qtdFaixa === 1 ? 'casa' : 'casas'}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                    <tr className="border-b border-stone-100 hover:bg-stone-50">
                       <td className={tabelaTd}>{c.cidade ?? '—'}</td>
                       <td className={tabelaTd}>
                         {c.foto_url ? (
@@ -1880,18 +1924,20 @@ export function Etapa4Casas(props: {
                           );
                         })}
                     </tr>
-                  ))}
+                    </React.Fragment>
+                  );
+                  })}
                 </tbody>
               </table>
             </div>
           </section>
         )}
-        {casas.length > ROWS_PER_PAGE && (
+        {casasExibicao.length > ROWS_PER_PAGE && (
           <div
             className={`mt-3 flex items-center justify-between rounded-lg border border-stone-200 bg-stone-50 ${listagemOnly ? 'px-3 py-1.5 text-[11px]' : 'px-4 py-2 text-sm'}`}
           >
             <span className="text-stone-600">
-              Página {pageCasas} de {totalPages} ({casas.length} casas)
+              Página {pageCasas} de {totalPages} ({casasExibicao.length} casas)
             </span>
             <div className="flex gap-2">
               <button
@@ -2157,21 +2203,38 @@ export function Etapa4Casas(props: {
   );
 }
 
-function BadgeFaixaMercado({
-  faixa,
-}: {
-  faixa?: CasaRow['faixa'];
-}) {
+function BadgeFaixaMercado({ faixa }: { faixa?: CasaRow['faixa'] }) {
+  if (faixa === 'premium_plus3') {
+    return (
+      <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-900">
+        Premium+++
+      </span>
+    );
+  }
+  if (faixa === 'premium_plus2') {
+    return (
+      <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800">
+        Premium++
+      </span>
+    );
+  }
+  if (faixa === 'premium_plus') {
+    return (
+      <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-800">
+        Premium+
+      </span>
+    );
+  }
   if (faixa === 'premium') {
     return (
-      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
         Premium
       </span>
     );
   }
   if (faixa === 'intermediaria') {
     return (
-      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
         Intermediária
       </span>
     );

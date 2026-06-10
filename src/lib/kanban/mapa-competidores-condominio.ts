@@ -94,6 +94,33 @@ export function classificarFaixasMercado<T extends { preco: number | null }>(
   }));
 }
 
+export const ORDEM_FAIXAS_MERCADO: FaixaMercado[] = [
+  'entrada',
+  'intermediaria',
+  'premium',
+  'premium_plus',
+  'premium_plus2',
+  'premium_plus3',
+];
+
+function ordemFaixaMercado(f: FaixaMercado | undefined): number {
+  if (!f) return ORDEM_FAIXAS_MERCADO.length;
+  const idx = ORDEM_FAIXAS_MERCADO.indexOf(f);
+  return idx === -1 ? ORDEM_FAIXAS_MERCADO.length : idx;
+}
+
+/** Agrupa por faixa (Entrada → … → Premium+++) e ordena por preço decrescente dentro de cada faixa. */
+export function ordenarCasasPorFaixaMercado<T extends { preco: number | null }>(
+  casas: T[],
+): (T & { faixa: FaixaMercado })[] {
+  const comFaixa = classificarFaixasMercado(casas);
+  return [...comFaixa].sort((a, b) => {
+    const diff = ordemFaixaMercado(a.faixa) - ordemFaixaMercado(b.faixa);
+    if (diff !== 0) return diff;
+    return (b.preco ?? 0) - (a.preco ?? 0);
+  });
+}
+
 /** Calcula resumo das faixas: cortes de tercis + contagem por faixa. */
 export function resumoFaixasMercado(casas: { preco: number | null }[]): {
   corte1: number;
