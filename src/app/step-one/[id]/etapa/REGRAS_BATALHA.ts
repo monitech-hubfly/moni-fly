@@ -344,6 +344,57 @@ export function notaAmenidades(listing: {
   return clampNota(sum);
 }
 
+export type CatalogoProdutoRef = {
+  quartos: number | null;
+  banheiros: number | null;
+  vagas: number | null;
+  area_m2?: number | null;
+};
+
+export type AnuncioProdutoRef = {
+  quartos: number | null;
+  banheiros: number | null;
+  vagas: number | null;
+  area_casa_m2: number | null;
+  piscina?: boolean | null;
+  marcenaria?: boolean | null;
+};
+
+export type ProdutoDadosPar = {
+  designId?: string;
+  idade?: number | null;
+  banheiros?: number | null;
+  vagas?: number | null;
+};
+
+/**
+ * Nota Produto modelo × anúncio.
+ * Com design ou idade: 7 sub-itens via `notaProdutoMedia`.
+ * Caso contrário: média (T + Q + B + V) / 4.
+ */
+export function notaProdutoContraAnuncio(
+  catalogo: CatalogoProdutoRef,
+  anuncio: AnuncioProdutoRef,
+  dados?: ProdutoDadosPar | null,
+): number {
+  const banheirosAnuncio = dados?.banheiros ?? anuncio.banheiros;
+  const vagasAnuncio = dados?.vagas ?? anuncio.vagas;
+  const T = notaTamanhoM2(anuncio.area_casa_m2, catalogo.area_m2 ?? null);
+  const Q = notaQuartos(catalogo.quartos, anuncio.quartos);
+  const B = notaBanheiros(catalogo.banheiros, banheirosAnuncio);
+  const V = notaVagas(catalogo.vagas, vagasAnuncio);
+
+  if (dados?.designId != null || dados?.idade != null) {
+    const A = notaAmenidades(anuncio);
+    const designOpt = DESIGN_OPCOES.find((o) => o.id === dados?.designId);
+    const D = designOpt?.nota ?? 0;
+    const I = notaIdade(dados?.idade ?? null);
+    return notaProdutoMedia(T, A, Q, B, V, D, I);
+  }
+
+  return clampNota(Math.round(((T + Q + B + V) / 4) * 10) / 10);
+}
+
 /** Nota final Produto = média simples dos 7 sub-itens (T, A, Q, B, V, D, I) */
 export function notaProdutoMedia(
   tamanho: number,

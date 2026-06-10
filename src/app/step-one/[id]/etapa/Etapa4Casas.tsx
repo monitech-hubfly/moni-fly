@@ -42,8 +42,11 @@ import {
 } from './REGRAS_BATALHA';
 import { resolverTermoBuscaZap } from '@/lib/zap-condominio-busca';
 import {
-  labelCompatibilidade,
-  ordenarCatalogoPorCompatibilidade,
+  calcularRankingModelos,
+  badgeCompatibilidade,
+  formatPrecoAnuncio,
+  type CatalogoItem,
+  type ResultadoRankingModelo,
 } from '@/lib/kanban/pre-batalha-compatibilidade';
 import {
   ordenarCasasPorFaixaMercado,
@@ -81,6 +84,10 @@ export type CasaRow = {
   manual?: boolean | null;
   faixa?: FaixaMercado;
 };
+
+function atributosLoteRespostasVazio(resp: AtributosLoteRespostas): boolean {
+  return !ATRIBUTOS_LOTE.some((a) => resp[a.id] === true);
+}
 
 export function Etapa4Casas(props: {
   processoId: string;
@@ -155,6 +162,7 @@ export function Etapa4Casas(props: {
     return diffDays > 30;
   }, [casasManuais.length, ultimaValidacaoCasasManuaisEm]);
   const router = useRouter();
+  const stepOneAtributosCacheRef = useRef<AtributosLoteRespostas | null | undefined>(undefined);
   const [cidade, setCidade] = useState(cidadeInicial);
   const [estado, setEstado] = useState(estadoInicial);
   const [condominio, setCondominio] = useState(() =>
@@ -244,10 +252,107 @@ export function Etapa4Casas(props: {
 
   // --- Seção 2: escolha de modelos do catálogo (Pré Batalha: ranking por compatibilidade) ---
   const selectedLimit = modoPreBatalha ? null : 3;
-  const catalogoRankeado = useMemo(() => {
-    if (!modoPreBatalha || catalogo.length === 0) return [];
-    return ordenarCatalogoPorCompatibilidade(catalogo, casas);
-  }, [modoPreBatalha, catalogo, casas]);
+
+  const [rankingPreBatalha, setRankingPreBatalha] = useState<ResultadoRankingModelo[]>([]);
+  const [carregandoRankingPreBatalha, setCarregandoRankingPreBatalha] = useState(false);
+  const [atributosLotePreBatalha, setAtributosLotePreBatalha] = useState<AtributosLoteRespostas>(
+    {},
+  );
+  const [catalogoPreBatalha, setCatalogoPreBatalha] = useState<CatalogoItem[]>([]);
+  const [rankingCardsExpandidos, setRankingCardsExpandidos] = useState<Set<string>>(new Set());
+
+  const casasIdsKey = useMemo(() => casas.map((c) => c.id).sort().join(','), [casas]);
+
+  const atributosLoteVazio = useMemo(
+    () => !ATRIBUTOS_LOTE.some((a) => atributosLotePreBatalha[a.id] === true),
+    [atributosLotePreBatalha],
+  );
+
+  const catalogoAtivoPreBatalha =
+    catalogoPreBatalha.length > 0 ? catalogoPreBatalha : (catalogo as CatalogoItem[]);
+
+  /** Pré Batalha: carrega atributos do lote, catálogo ativo e calcula ranking ao montar. */
+  useEffect(() => {
+    if (!modoPreBatalha || listagemOnly) return;
+
+    let cancelado = false;
+    setCarregandoRankingPreBatalha(true);
+
+    void (async () => {
+      try {
+        const result = await getAtributosLoteFromStepOneChecklist(processoId);
+        if (cancelado) return;
+
+        const atributos = result.ok ? result.atributos : {};
+        stepOneAtributosCacheRef.current = atributos;
+        setAtributosLotePreBatalha(atributos);
+
+        const supabase = createClient();
+        const { data: catRows } = await supabase
+          .from('catalogo_casas')
+          .select(
+            'id, nome, quartos, banheiros, vagas, preco_venda_m2, area_m2, preco_venda, topografia',
+          )
+          .eq('ativo', true);
+        if (cancelado) return;
+
+        const cat: CatalogoItem[] =
+          catRows && catRows.length > 0 ? (catRows as CatalogoItem[]) : (catalogo as CatalogoItem[]);
+        setCatalogoPreBatalha(cat);
+
+        if (casas.length === 0 || cat.length === 0) {
+          setRankingPreBatalha([]);
+          return;
+        }
+
+        const atributosParaRanking = atributosLoteRespostasVazio(atributos) ? {} : atributos;
+        const ranking = calcularRankingModelos(
+          casas.map((c) => ({
+            id: c.id,
+            condominio: c.condominio,
+            quartos: c.quartos,
+            banheiros: c.banheiros,
+            vagas: c.vagas,
+            preco: c.preco,
+            area_casa_m2: c.area_casa_m2,
+            piscina: c.piscina,
+            marcenaria: c.marcenaria,
+          })),
+          cat,
+          atributosParaRanking,
+        );
+        if (!cancelado) setRankingPreBatalha(ranking);
+      } finally {
+        if (!cancelado) setCarregandoRankingPreBatalha(false);
+      }
+    })();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [modoPreBatalha, listagemOnly, processoId, casasIdsKey, catalogo]);
+
+  const rankingPreBatalhaIdsKey = useMemo(
+    () => rankingPreBatalha.map((r) => r.catalogoId).join(','),
+    [rankingPreBatalha],
+  );
+
+  useEffect(() => {
+    if (rankingPreBatalha[0]) {
+      setRankingCardsExpandidos(new Set([rankingPreBatalha[0].catalogoId]));
+    } else {
+      setRankingCardsExpandidos(new Set());
+    }
+  }, [rankingPreBatalhaIdsKey]);
+
+  const toggleRankingCard = (catalogoId: string) => {
+    setRankingCardsExpandidos((prev) => {
+      const next = new Set(prev);
+      if (next.has(catalogoId)) next.delete(catalogoId);
+      else next.add(catalogoId);
+      return next;
+    });
+  };
 
   const [selectedCatalogoIds, setSelectedCatalogoIds] = useState<string[]>(() =>
     casasEscolhidas.map((c) => c.catalogo_casa_id),
@@ -255,8 +360,8 @@ export function Etapa4Casas(props: {
   const [syncPreBatalha, setSyncPreBatalha] = useState(false);
 
   useEffect(() => {
-    if (!modoPreBatalha || listagemOnly || catalogoRankeado.length === 0) return;
-    const ids = catalogoRankeado.map((m) => m.id);
+    if (!modoPreBatalha || listagemOnly || rankingPreBatalha.length === 0) return;
+    const ids = rankingPreBatalha.map((m) => m.catalogoId);
     const savedSorted = [...casasEscolhidas.map((c) => c.catalogo_casa_id)].sort().join(',');
     const targetSorted = [...ids].sort().join(',');
     if (savedSorted === targetSorted && casasEscolhidas.length === ids.length) return;
@@ -280,7 +385,7 @@ export function Etapa4Casas(props: {
   }, [
     modoPreBatalha,
     listagemOnly,
-    catalogoRankeado,
+    rankingPreBatalha,
     casasEscolhidas,
     processoId,
     router,
@@ -306,15 +411,18 @@ export function Etapa4Casas(props: {
 
   // --- Seção 3: batalha de casas (cada casa do catálogo vs cada anúncio da listagem) ---
   const escolhidasComDados = useMemo(() => {
-    if (modoPreBatalha && catalogoRankeado.length > 0) {
-      return catalogoRankeado
-        .map((mod, idx) => {
-          const ce = casasEscolhidas.find((c) => c.catalogo_casa_id === mod.id);
+    if (modoPreBatalha && rankingPreBatalha.length > 0) {
+      return rankingPreBatalha
+        .map((item, idx) => {
+          const ce = casasEscolhidas.find((c) => c.catalogo_casa_id === item.catalogoId);
           if (!ce) return null;
+          const catalogoRow =
+            catalogoAtivoPreBatalha.find((c) => c.id === item.catalogoId) ?? null;
+          if (!catalogoRow) return null;
           return {
             ...ce,
             ordem: idx + 1,
-            catalogoRow: mod,
+            catalogoRow,
           };
         })
         .filter((ce) => ce != null);
@@ -327,7 +435,7 @@ export function Etapa4Casas(props: {
         catalogoRow: catalogo.find((c) => c.id === ce.catalogo_casa_id) || null,
       }))
       .filter((ce) => ce.catalogoRow !== null);
-  }, [casasEscolhidas, catalogo, modoPreBatalha, catalogoRankeado]);
+  }, [casasEscolhidas, catalogo, catalogoAtivoPreBatalha, modoPreBatalha, rankingPreBatalha]);
 
   const batalhaByKey = useMemo(() => {
     const map = new Map<
@@ -429,7 +537,6 @@ export function Etapa4Casas(props: {
   };
 
   const [openAtributosKey, setOpenAtributosKey] = useState<string | null>(null);
-  const stepOneAtributosCacheRef = useRef<AtributosLoteRespostas | null | undefined>(undefined);
   const [prefillingAtributosKey, setPrefillingAtributosKey] = useState<string | null>(null);
 
   const handleOpenAtributosLote = async (key: string) => {
@@ -459,37 +566,31 @@ export function Etapa4Casas(props: {
     }
   };
 
-  /** Pré Batalha: carrega atributos do lote escolhido (Lotes Disponíveis) para cada par modelo×anúncio. */
+  /** Pré Batalha: aplica atributos do lote escolhido a cada par modelo×anúncio. */
   useEffect(() => {
-    if (!modoPreBatalha || listagemOnly || escolhidasComDados.length === 0 || casas.length === 0) return;
+    if (!modoPreBatalha || listagemOnly || atributosLoteVazio) return;
+    if (escolhidasComDados.length === 0 || casas.length === 0) return;
 
-    let cancelado = false;
-    void (async () => {
-      const result = await getAtributosLoteFromStepOneChecklist(processoId);
-      if (cancelado || !result.ok) return;
-
-      const prefill = result.atributos;
-      stepOneAtributosCacheRef.current = prefill;
-      if (Object.keys(prefill).length === 0) return;
-
-      setAtributosLoteByKey((prev) => {
-        const next = { ...prev };
-        for (const ce of escolhidasComDados) {
-          for (const c of casas) {
-            const key = `${ce.id}__${c.id}`;
-            if (isAtributosLoteEmpty(next[key])) {
-              next[key] = { ...prefill };
-            }
+    setAtributosLoteByKey((prev) => {
+      const next = { ...prev };
+      for (const ce of escolhidasComDados) {
+        for (const c of casas) {
+          const key = `${ce.id}__${c.id}`;
+          if (isAtributosLoteEmpty(next[key])) {
+            next[key] = { ...atributosLotePreBatalha };
           }
         }
-        return next;
-      });
-    })();
-
-    return () => {
-      cancelado = true;
-    };
-  }, [modoPreBatalha, listagemOnly, processoId, escolhidasComDados, casas]);
+      }
+      return next;
+    });
+  }, [
+    modoPreBatalha,
+    listagemOnly,
+    atributosLotePreBatalha,
+    atributosLoteVazio,
+    escolhidasComDados,
+    casas,
+  ]);
 
   /** Checklist de reforma: um por listagem (listing_id). Alimenta os 4 sub-itens de Preço. */
   const [reformaChecklistByListingId, setReformaChecklistByListingId] = useState<
@@ -946,9 +1047,13 @@ export function Etapa4Casas(props: {
         {escolhidasComDados.length === 0 ? (
           <p className="text-sm italic text-stone-500">
             {modoPreBatalha
-              ? syncPreBatalha
-                ? 'Ranqueando modelos por compatibilidade com a listagem…'
-                : 'Aguardando listagem e catálogo para ranquear os modelos.'
+              ? carregandoRankingPreBatalha
+                ? 'Calculando ranking dos modelos…'
+                : syncPreBatalha
+                  ? 'Sincronizando modelos ranqueados…'
+                  : casas.length === 0
+                    ? 'Nenhum anúncio ZAP encontrado. Execute a varredura no Mapa de Competidores primeiro.'
+                    : 'Aguardando catálogo para ranquear os modelos.'
               : 'Selecione modelos e confirme para habilitar a batalha.'}
           </p>
         ) : rankingPorModelo.length === 0 ? (
@@ -1267,6 +1372,14 @@ export function Etapa4Casas(props: {
         )}
 
         {/* Seção 1 — Listagem (+ opcional: escolha dos 3 modelos e batalha) */}
+        {modoPreBatalha && !listagemOnly && casas.length === 0 ? (
+          <div
+            className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+            role="status"
+          >
+            Nenhum anúncio ZAP encontrado. Execute a varredura no Mapa de Competidores primeiro.
+          </div>
+        ) : null}
         {casas.length > 0 && (
           <section className="overflow-hidden rounded-xl border border-stone-200">
             {modoPreBatalha ? (
@@ -1281,103 +1394,100 @@ export function Etapa4Casas(props: {
                 </span>
               </div>
             ) : null}
-            {/* Bloco compacto: escolher 3 do catálogo para batalha — só no Step 2 (não listagemOnly) */}
-            {!listagemOnly && catalogo.length > 0 && (
-              <div className="border-b border-stone-200 bg-stone-50 px-4 py-3">
-                {modoPreBatalha ? (
-                  <>
-                    <p className="mb-2 text-sm font-medium text-stone-800">
-                      Modelos ranqueados por compatibilidade com a listagem (alta → baixa):
-                    </p>
-                    {syncPreBatalha ? (
-                      <p className="text-xs text-stone-500">Sincronizando ranking…</p>
-                    ) : (
-                      <ol className="space-y-1.5">
-                        {catalogoRankeado.map((mod, idx) => (
-                          <li
-                            key={mod.id}
-                            className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-stone-700"
-                          >
-                            <span className="font-semibold tabular-nums text-stone-500">
-                              {idx + 1}.
-                            </span>
-                            <span className="font-medium">{mod.nome ?? mod.id.slice(0, 8)}</span>
-                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900">
-                              {mod.scoreCompatibilidade}% · {labelCompatibilidade(mod.scoreCompatibilidade)}
-                            </span>
-                            {mod.preco_venda_m2 != null ? (
-                              <span className="text-xs text-stone-500">
-                                R$ {mod.preco_venda_m2.toLocaleString('pt-BR')}/m²
-                              </span>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ol>
-                    )}
-                  </>
+            {modoPreBatalha && !listagemOnly ? (
+              <div className="border-b border-stone-200 bg-stone-50 px-4 py-4">
+                {atributosLoteVazio ? (
+                  <p
+                    className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+                    role="status"
+                  >
+                    Atributos do lote não preenchidos — nota de localização zerada. Preencha a fase
+                    Lotes Disponíveis.
+                  </p>
+                ) : null}
+                {carregandoRankingPreBatalha ? (
+                  <div className="flex items-center gap-2 text-sm text-stone-500">
+                    <span
+                      className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-stone-300 border-t-amber-600"
+                      aria-hidden
+                    />
+                    Calculando ranking…
+                  </div>
+                ) : syncPreBatalha ? (
+                  <p className="text-sm text-stone-500">Sincronizando ranking…</p>
+                ) : rankingPreBatalha.length === 0 ? (
+                  <p className="text-sm text-stone-500">Nenhum modelo no catálogo ativo.</p>
                 ) : (
-                  <>
-                    <p className="mb-2 text-sm font-medium text-stone-800">
-                      Escolher até 3 modelos do catálogo para batalhar com a listagem abaixo:
-                    </p>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                      {catalogo.map((mod) => (
-                        <label
-                          key={mod.id}
-                          className="flex cursor-pointer items-center gap-1.5 text-sm"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedCatalogoIds.includes(mod.id)}
-                            onChange={() => toggleCatalogoSelected(mod.id)}
-                            disabled={
-                              !selectedCatalogoIds.includes(mod.id) &&
-                              selectedLimit != null &&
-                              selectedCatalogoIds.length >= selectedLimit
-                            }
-                            className="rounded"
-                          />
-                          <span>{mod.nome ?? mod.id.slice(0, 8)}</span>
-                          {mod.preco_venda_m2 != null && (
-                            <span className="text-xs text-stone-500">
-                              R$ {mod.preco_venda_m2.toLocaleString('pt-BR')}/m²
-                            </span>
-                          )}
-                        </label>
-                      ))}
-                      <span className="text-sm text-stone-500">
-                        {selectedCatalogoIds.length} / {selectedLimit} selecionados
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleConfirmEscolhidas}
-                        disabled={selectedCatalogoIds.length === 0}
-                        className="btn-primary text-sm disabled:pointer-events-none disabled:opacity-60"
-                      >
-                        Confirmar seleção
-                      </button>
-                    </div>
-                  </>
+                  <PreBatalhaRankingCards
+                    ranking={rankingPreBatalha}
+                    expandedIds={rankingCardsExpandidos}
+                    onToggle={toggleRankingCard}
+                  />
                 )}
-                {escolhidasComDados.length > 0 && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={handleSalvarBatalha}
-                      className="btn-primary mt-3 text-sm"
+              </div>
+            ) : null}
+            {/* Escolher 3 do catálogo — Step 2 clássico (não Pré Batalha) */}
+            {!listagemOnly && !modoPreBatalha && catalogo.length > 0 && (
+              <div className="border-b border-stone-200 bg-stone-50 px-4 py-3">
+                <p className="mb-2 text-sm font-medium text-stone-800">
+                  Escolher até 3 modelos do catálogo para batalhar com a listagem abaixo:
+                </p>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  {catalogo.map((mod) => (
+                    <label
+                      key={mod.id}
+                      className="flex cursor-pointer items-center gap-1.5 text-sm"
                     >
-                      Salvar batalha
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleGerarPdf}
-                      disabled={gerandoPdf || pdfRows.length === 0}
-                      className="btn-primary ml-2 mt-3 text-sm"
-                    >
-                      {gerandoPdf ? 'Gerando PDF…' : 'Gerar e guardar PDF'}
-                    </button>
-                  </>
-                )}
+                      <input
+                        type="checkbox"
+                        checked={selectedCatalogoIds.includes(mod.id)}
+                        onChange={() => toggleCatalogoSelected(mod.id)}
+                        disabled={
+                          !selectedCatalogoIds.includes(mod.id) &&
+                          selectedLimit != null &&
+                          selectedCatalogoIds.length >= selectedLimit
+                        }
+                        className="rounded"
+                      />
+                      <span>{mod.nome ?? mod.id.slice(0, 8)}</span>
+                      {mod.preco_venda_m2 != null && (
+                        <span className="text-xs text-stone-500">
+                          R$ {mod.preco_venda_m2.toLocaleString('pt-BR')}/m²
+                        </span>
+                      )}
+                    </label>
+                  ))}
+                  <span className="text-sm text-stone-500">
+                    {selectedCatalogoIds.length} / {selectedLimit} selecionados
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleConfirmEscolhidas}
+                    disabled={selectedCatalogoIds.length === 0}
+                    className="btn-primary text-sm disabled:pointer-events-none disabled:opacity-60"
+                  >
+                    Confirmar seleção
+                  </button>
+                </div>
+              </div>
+            )}
+            {!listagemOnly && escolhidasComDados.length > 0 && (
+              <div className="border-b border-stone-200 bg-stone-50 px-4 py-3">
+                <button
+                  type="button"
+                  onClick={handleSalvarBatalha}
+                  className="btn-primary text-sm"
+                >
+                  Salvar batalha
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGerarPdf}
+                  disabled={gerandoPdf || pdfRows.length === 0}
+                  className="btn-primary ml-2 text-sm"
+                >
+                  {gerandoPdf ? 'Gerando PDF…' : 'Gerar e guardar PDF'}
+                </button>
               </div>
             )}
             <div className="overflow-x-auto">
@@ -2282,4 +2392,133 @@ function BadgeFaixaMercado({ faixa }: { faixa?: CasaRow['faixa'] }) {
     );
   }
   return null;
+}
+
+function PreBatalhaRankingCards({
+  ranking,
+  expandedIds,
+  onToggle,
+}: {
+  ranking: ResultadoRankingModelo[];
+  expandedIds: Set<string>;
+  onToggle: (catalogoId: string) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-700">
+        Ranking de modelos Moní
+      </h3>
+      <div className="space-y-2">
+        {ranking.map((item, idx) => {
+          const posicao = idx + 1;
+          const expandido = expandedIds.has(item.catalogoId);
+          const compat = badgeCompatibilidade(item.notaFinal);
+          const destaque = posicao === 1;
+
+          return (
+            <article
+              key={item.catalogoId}
+              className={`overflow-hidden rounded-xl border bg-white shadow-sm ${
+                destaque ? 'border-amber-300 ring-1 ring-amber-200' : 'border-stone-200'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => onToggle(item.catalogoId)}
+                aria-expanded={expandido}
+                className="flex w-full flex-col gap-2 px-4 py-3 text-left transition-colors hover:bg-stone-50"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`inline-flex h-7 min-w-[2rem] items-center justify-center rounded-md px-1.5 text-xs font-bold tabular-nums ${
+                      destaque
+                        ? 'bg-amber-500 text-white'
+                        : 'bg-stone-200 text-stone-700'
+                    }`}
+                  >
+                    #{posicao}
+                  </span>
+                  <span className="font-semibold text-stone-900">{item.modelo}</span>
+                  {item.topografia !== '—' ? (
+                    <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-stone-600 ring-1 ring-stone-200">
+                      {item.topografia}
+                    </span>
+                  ) : null}
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${compat.className}`}
+                  >
+                    {compat.label}
+                  </span>
+                  <span className="ml-auto text-stone-400" aria-hidden>
+                    {expandido ? '▾' : '▸'}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-stone-600">
+                  <span>
+                    <span className="font-medium text-stone-500">Lote:</span> {item.notaLote}
+                  </span>
+                  <span className="text-stone-300">|</span>
+                  <span>
+                    <span className="font-medium text-stone-500">Produto:</span>{' '}
+                    {item.notaProdutoMedia}
+                  </span>
+                  <span className="text-stone-300">|</span>
+                  <span>
+                    <span className="font-medium text-stone-500">Final:</span>{' '}
+                    <span className="font-semibold text-stone-800">{item.notaFinal}</span>
+                  </span>
+                </div>
+              </button>
+
+              {expandido ? (
+                <div className="border-t border-stone-100 bg-stone-50/80 px-4 py-3">
+                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
+                    Anúncios mais ameaçadores
+                  </h4>
+                  {item.anunciosAmeacadores.length === 0 ? (
+                    <p className="text-xs italic text-stone-500">Nenhum anúncio na listagem.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {item.anunciosAmeacadores.map((anuncio) => (
+                        <li
+                          key={anuncio.id}
+                          className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"
+                        >
+                          <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+                            <span className="font-medium text-stone-800">{anuncio.condominio}</span>
+                            <span className="text-xs font-medium text-stone-600">
+                              {formatPrecoAnuncio(anuncio.preco)}
+                            </span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                            <span>
+                              Nota produto:{' '}
+                              <span
+                                className={`font-semibold tabular-nums ${
+                                  anuncio.notaProduto <= -1
+                                    ? 'text-red-700'
+                                    : 'text-stone-700'
+                                }`}
+                              >
+                                {anuncio.notaProduto}
+                              </span>
+                            </span>
+                            {anuncio.notaProduto <= -1 ? (
+                              <span className="rounded bg-red-50 px-1.5 py-0.5 text-[11px] font-medium text-red-800 ring-1 ring-red-200">
+                                ⚠ Concorrente direto
+                              </span>
+                            ) : null}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
