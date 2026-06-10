@@ -695,17 +695,6 @@ export function InteracoesLista({
 
 
   function onStatusChange(id: string, novo: StatusInteracaoDb) {
-    const rowForHoras = linhas.find((r) => r.id === id);
-    if (
-      rowForHoras &&
-      rowForHoras.sirene_chamado_id != null &&
-      (novo === 'concluida' || novo === 'em_andamento')
-    ) {
-      setStatusPendente({ rowId: id, status: novo });
-      setHorasModalChamado({ chamadoId: rowForHoras.sirene_chamado_id, titulo: rowForHoras.titulo });
-      return;
-    }
-
     setMsgErro(null);
     if (novo === 'em_andamento') {
       setMsgErro('O status em andamento é definido automaticamente pelas atividades.');
