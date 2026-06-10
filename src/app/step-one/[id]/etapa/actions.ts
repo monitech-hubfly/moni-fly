@@ -19,6 +19,12 @@ import {
   parseAtributosLoteRespostas,
 } from './REGRAS_BATALHA';
 import { LOTES_DISPONIVEIS_CHECKBOXES } from '@/lib/kanban/lotes-disponiveis-condominio';
+import {
+  PRE_BATALHA_CHECKLIST_LABEL_APLICADA,
+  PRE_BATALHA_CHECKLIST_LABEL_RANKING,
+  formatRankingInicialChecklistPreBatalha,
+  type RankingInicialChecklistItem,
+} from '@/lib/kanban/pre-batalha-checklist';
 
 export type SaveEtapa1Result = { ok: true } | { ok: false; error: string };
 
@@ -153,35 +159,7 @@ export async function getAtributosLoteFromStepOneChecklist(
   return { ok: true, atributos };
 }
 
-export const PRE_BATALHA_CHECKLIST_LABEL_APLICADA =
-  'Pré-batalha aplicada (Produto + Localização)';
-
-export const PRE_BATALHA_CHECKLIST_LABEL_RANKING =
-  'Ranking inicial — casas candidatas confirmadas';
-
 const BATALHA_FASE_SLUGS = [FASE_SLUGS.BATALHA, 'stepone_batalha', FASE_SLUGS.PRE_BATALHA] as const;
-
-export type RankingInicialChecklistItem = {
-  modelo: string;
-  topografia: string;
-  notaFinal: number;
-};
-
-/** Formato checklist: "1º Gal/plano (Final: 2.3) | 2º Sol/aclive (Final: 1.8)" */
-export function formatRankingInicialChecklistPreBatalha(
-  ranking: RankingInicialChecklistItem[],
-): string {
-  return ranking
-    .slice(0, 5)
-    .map((item, idx) => {
-      const palavra = item.modelo.trim().split(/\s+/)[0] || item.modelo.trim();
-      const abrev = palavra.length <= 4 ? palavra : palavra.slice(0, 3);
-      const topoRaw = item.topografia.trim().toLowerCase();
-      const topoSlug = topoRaw === '—' || !topoRaw ? '—' : topoRaw;
-      return `${idx + 1}º ${abrev}/${topoSlug} (Final: ${item.notaFinal})`;
-    })
-    .join(' | ');
-}
 
 async function resolveStepOneKanbanCardId(
   supabase: Awaited<ReturnType<typeof createClient>>,
