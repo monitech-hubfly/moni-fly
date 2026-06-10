@@ -103,6 +103,19 @@ export const ORDEM_FAIXAS_MERCADO: FaixaMercado[] = [
   'premium_plus3',
 ];
 
+export const LABEL_FAIXA_MERCADO: Record<FaixaMercado, string> = {
+  entrada: 'Entrada',
+  intermediaria: 'Intermediária',
+  premium: 'Premium',
+  premium_plus: 'Premium+',
+  premium_plus2: 'Premium++',
+  premium_plus3: 'Premium+++',
+};
+
+export function labelFaixaMercado(faixa: FaixaMercado): string {
+  return LABEL_FAIXA_MERCADO[faixa] ?? faixa;
+}
+
 function ordemFaixaMercado(f: FaixaMercado | undefined): number {
   if (!f) return ORDEM_FAIXAS_MERCADO.length;
   const idx = ORDEM_FAIXAS_MERCADO.indexOf(f);

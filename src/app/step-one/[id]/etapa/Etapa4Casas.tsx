@@ -43,12 +43,19 @@ import {
 } from './REGRAS_BATALHA';
 import { resolverTermoBuscaZap } from '@/lib/zap-condominio-busca';
 import {
-  calcularRankingModelos,
+  calcularRankingPreBatalhaPorFaixas,
+  flattenRankingPreBatalhaPorFaixas,
   badgeCompatibilidade,
   formatPrecoAnuncio,
+  resolverTopografiaLote,
   type CatalogoItem,
   type ResultadoRankingModelo,
+  type RankingPorFaixaMercado,
 } from '@/lib/kanban/pre-batalha-compatibilidade';
+import {
+  PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING,
+  rankingGruposFromPorFaixas,
+} from '@/lib/kanban/pre-batalha-checklist';
 import {
   ordenarCasasPorFaixaMercado,
   type FaixaMercado,
@@ -255,7 +262,9 @@ export function Etapa4Casas(props: {
   // --- Seção 2: escolha de modelos do catálogo (Pré Batalha: ranking por compatibilidade) ---
   const selectedLimit = modoPreBatalha ? null : 3;
 
-  const [rankingPreBatalha, setRankingPreBatalha] = useState<ResultadoRankingModelo[]>([]);
+  const [rankingPorFaixaPreBatalha, setRankingPorFaixaPreBatalha] = useState<
+    RankingPorFaixaMercado[]
+  >([]);
   const [carregandoRankingPreBatalha, setCarregandoRankingPreBatalha] = useState(false);
   const [atributosLotePreBatalha, setAtributosLotePreBatalha] = useState<AtributosLoteRespostas>(
     {},
@@ -270,8 +279,18 @@ export function Etapa4Casas(props: {
     [atributosLotePreBatalha],
   );
 
+  const topografiaLotePreBatalha = useMemo(
+    () => resolverTopografiaLote(atributosLotePreBatalha),
+    [atributosLotePreBatalha],
+  );
+
   const catalogoAtivoPreBatalha =
     catalogoPreBatalha.length > 0 ? catalogoPreBatalha : (catalogo as CatalogoItem[]);
+
+  const rankingPreBatalha = useMemo(
+    () => flattenRankingPreBatalhaPorFaixas(rankingPorFaixaPreBatalha),
+    [rankingPorFaixaPreBatalha],
+  );
 
   /** Pré Batalha: carrega atributos do lote, catálogo ativo e calcula ranking ao montar. */
   useEffect(() => {
@@ -293,7 +312,7 @@ export function Etapa4Casas(props: {
         const { data: catRows } = await supabase
           .from('catalogo_casas')
           .select(
-            'id, nome, quartos, banheiros, vagas, preco_venda_m2, area_m2, preco_venda, topografia',
+            'id, nome, quartos, banheiros, vagas, preco_custo, preco_custo_m2, preco_venda_m2, area_m2, preco_venda, topografia',
           )
           .eq('ativo', true);
         if (cancelado) return;
@@ -303,12 +322,12 @@ export function Etapa4Casas(props: {
         setCatalogoPreBatalha(cat);
 
         if (casas.length === 0 || cat.length === 0) {
-          setRankingPreBatalha([]);
+          setRankingPorFaixaPreBatalha([]);
           return;
         }
 
         const atributosParaRanking = atributosLoteRespostasVazio(atributos) ? {} : atributos;
-        const ranking = calcularRankingModelos(
+        const grupos = calcularRankingPreBatalhaPorFaixas(
           casas.map((c) => ({
             id: c.id,
             condominio: c.condominio,
@@ -323,7 +342,7 @@ export function Etapa4Casas(props: {
           cat,
           atributosParaRanking,
         );
-        if (!cancelado) setRankingPreBatalha(ranking);
+        if (!cancelado) setRankingPorFaixaPreBatalha(grupos);
       } finally {
         if (!cancelado) setCarregandoRankingPreBatalha(false);
       }
@@ -347,10 +366,10 @@ export function Etapa4Casas(props: {
     }
   }, [rankingPreBatalhaIdsKey]);
 
-  /** Pré Batalha: auto-marca checklist do kanban após ranking calculado (uma vez). */
+  /** Pré Batalha: auto-marca checklist do kanban após ranking calculado. */
   useEffect(() => {
     autoMarcadoChecklistPreBatalhaRef.current = false;
-  }, [processoId]);
+  }, [processoId, rankingPreBatalhaIdsKey, rankingPorFaixaPreBatalha.length]);
 
   useEffect(() => {
     if (!modoPreBatalha || listagemOnly || carregandoRankingPreBatalha) return;
@@ -361,11 +380,8 @@ export function Etapa4Casas(props: {
 
     void autoMarcarChecklistPosRankingPreBatalha(
       processoId,
-      rankingPreBatalha.map((item) => ({
-        modelo: item.modelo,
-        topografia: item.topografia,
-        notaFinal: item.notaFinal,
-      })),
+      rankingGruposFromPorFaixas(rankingPorFaixaPreBatalha),
+      { forceAtualizarRanking: true },
     ).then((res) => {
       if (!res.ok) {
         console.warn('[pre-batalha] Falha ao auto-marcar checklist:', res.error);
@@ -378,6 +394,7 @@ export function Etapa4Casas(props: {
     carregandoRankingPreBatalha,
     rankingPreBatalhaIdsKey,
     processoId,
+    rankingPorFaixaPreBatalha,
     rankingPreBatalha,
   ]);
 
@@ -1424,9 +1441,8 @@ export function Etapa4Casas(props: {
                   Pré Batalha
                 </span>
                 <span className="text-xs text-amber-900/90">
-                  Ranqueie todos os modelos Moní por compatibilidade com a listagem (alta → baixa)
-                  e aplique Atributos do Lote + Preço + Produto. Nota final = soma dos três eixos;
-                  desempate: Lote &gt; Preço &gt; Produto.
+                  Ranking por faixa do mapa: Preço (INC + Kit Moní) + Produto + Lote vs. cada anúncio.
+                  Desempate: Lote &gt; Preço &gt; Produto.
                 </span>
               </div>
             ) : null}
@@ -1451,14 +1467,32 @@ export function Etapa4Casas(props: {
                   </div>
                 ) : syncPreBatalha ? (
                   <p className="text-sm text-stone-500">Sincronizando ranking…</p>
-                ) : rankingPreBatalha.length === 0 ? (
+                ) : rankingPorFaixaPreBatalha.length === 0 ? (
                   <p className="text-sm text-stone-500">Nenhum modelo no catálogo ativo.</p>
                 ) : (
-                  <PreBatalhaRankingCards
-                    ranking={rankingPreBatalha}
-                    expandedIds={rankingCardsExpandidos}
-                    onToggle={toggleRankingCard}
-                  />
+                  <>
+                    <p
+                      className="mb-3 whitespace-pre-line rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs leading-relaxed text-amber-950"
+                      role="note"
+                    >
+                      {PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING}
+                    </p>
+                    {topografiaLotePreBatalha ? (
+                      <p className="mb-3 text-xs font-medium text-stone-700">
+                        Filtro ativo: topografia{' '}
+                        <span className="text-amber-900">{topografiaLotePreBatalha}</span> —{' '}
+                        {rankingPreBatalha.length}{' '}
+                        {rankingPreBatalha.length === 1 ? 'modelo' : 'modelos'} em{' '}
+                        {rankingPorFaixaPreBatalha.length}{' '}
+                        {rankingPorFaixaPreBatalha.length === 1 ? 'faixa' : 'faixas'}.
+                      </p>
+                    ) : null}
+                    <PreBatalhaRankingPorFaixa
+                      grupos={rankingPorFaixaPreBatalha}
+                      expandedIds={rankingCardsExpandidos}
+                      onToggle={toggleRankingCard}
+                    />
+                  </>
                 )}
               </div>
             ) : null}
@@ -2430,131 +2464,176 @@ function BadgeFaixaMercado({ faixa }: { faixa?: CasaRow['faixa'] }) {
   return null;
 }
 
-function PreBatalhaRankingCards({
-  ranking,
+function PreBatalhaRankingPorFaixa({
+  grupos,
   expandedIds,
   onToggle,
 }: {
-  ranking: ResultadoRankingModelo[];
+  grupos: RankingPorFaixaMercado[];
   expandedIds: Set<string>;
   onToggle: (catalogoId: string) => void;
 }) {
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-700">
-        Ranking de modelos Moní
-      </h3>
-      <div className="space-y-2">
-        {ranking.map((item, idx) => {
-          const posicao = idx + 1;
-          const expandido = expandedIds.has(item.catalogoId);
-          const compat = badgeCompatibilidade(item.notaFinal);
-          const destaque = posicao === 1;
-
-          return (
-            <article
-              key={item.catalogoId}
-              className={`overflow-hidden rounded-xl border bg-white shadow-sm ${
-                destaque ? 'border-amber-300 ring-1 ring-amber-200' : 'border-stone-200'
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => onToggle(item.catalogoId)}
-                aria-expanded={expandido}
-                className="flex w-full flex-col gap-2 px-4 py-3 text-left transition-colors hover:bg-stone-50"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className={`inline-flex h-7 min-w-[2rem] items-center justify-center rounded-md px-1.5 text-xs font-bold tabular-nums ${
-                      destaque
-                        ? 'bg-amber-500 text-white'
-                        : 'bg-stone-200 text-stone-700'
-                    }`}
-                  >
-                    #{posicao}
-                  </span>
-                  <span className="font-semibold text-stone-900">{item.modelo}</span>
-                  {item.topografia !== '—' ? (
-                    <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-stone-600 ring-1 ring-stone-200">
-                      {item.topografia}
-                    </span>
-                  ) : null}
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${compat.className}`}
-                  >
-                    {compat.label}
-                  </span>
-                  <span className="ml-auto text-stone-400" aria-hidden>
-                    {expandido ? '▾' : '▸'}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-stone-600">
-                  <span>
-                    <span className="font-medium text-stone-500">Lote:</span> {item.notaLote}
-                  </span>
-                  <span className="text-stone-300">|</span>
-                  <span>
-                    <span className="font-medium text-stone-500">Produto:</span>{' '}
-                    {item.notaProdutoMedia}
-                  </span>
-                  <span className="text-stone-300">|</span>
-                  <span>
-                    <span className="font-medium text-stone-500">Final:</span>{' '}
-                    <span className="font-semibold text-stone-800">{item.notaFinal}</span>
-                  </span>
-                </div>
-              </button>
-
-              {expandido ? (
-                <div className="border-t border-stone-100 bg-stone-50/80 px-4 py-3">
-                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
-                    Anúncios mais ameaçadores
-                  </h4>
-                  {item.anunciosAmeacadores.length === 0 ? (
-                    <p className="text-xs italic text-stone-500">Nenhum anúncio na listagem.</p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {item.anunciosAmeacadores.map((anuncio) => (
-                        <li
-                          key={anuncio.id}
-                          className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"
-                        >
-                          <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
-                            <span className="font-medium text-stone-800">{anuncio.condominio}</span>
-                            <span className="text-xs font-medium text-stone-600">
-                              {formatPrecoAnuncio(anuncio.preco)}
-                            </span>
-                          </div>
-                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-stone-500">
-                            <span>
-                              Nota produto:{' '}
-                              <span
-                                className={`font-semibold tabular-nums ${
-                                  anuncio.notaProduto <= -1
-                                    ? 'text-red-700'
-                                    : 'text-stone-700'
-                                }`}
-                              >
-                                {anuncio.notaProduto}
-                              </span>
-                            </span>
-                            {anuncio.notaProduto <= -1 ? (
-                              <span className="rounded bg-red-50 px-1.5 py-0.5 text-[11px] font-medium text-red-800 ring-1 ring-red-200">
-                                ⚠ Concorrente direto
-                              </span>
-                            ) : null}
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              ) : null}
-            </article>
-          );
-        })}
-      </div>
+    <div className="space-y-6">
+      {grupos.map((grupo) => (
+        <section key={grupo.faixa} className="space-y-3">
+          <div className="flex flex-wrap items-baseline gap-2 border-b border-stone-200 pb-2">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-700">
+              Faixa {grupo.faixaLabel}
+            </h3>
+            <span className="text-xs text-stone-500">
+              {grupo.quantidadeAnuncios}{' '}
+              {grupo.quantidadeAnuncios === 1 ? 'anúncio' : 'anúncios'} ·{' '}
+              {grupo.ranking.length} {grupo.ranking.length === 1 ? 'modelo' : 'modelos'}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {grupo.ranking.map((item, idx) => (
+              <PreBatalhaRankingCard
+                key={`${grupo.faixa}-${item.catalogoId}`}
+                item={item}
+                posicao={idx + 1}
+                expandido={expandedIds.has(item.catalogoId)}
+                onToggle={() => onToggle(item.catalogoId)}
+                destaque={idx === 0}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
     </div>
+  );
+}
+
+function PreBatalhaRankingCard({
+  item,
+  posicao,
+  expandido,
+  onToggle,
+  destaque,
+}: {
+  item: ResultadoRankingModelo;
+  posicao: number;
+  expandido: boolean;
+  onToggle: () => void;
+  destaque: boolean;
+}) {
+  const compat = badgeCompatibilidade(item.notaFinal);
+
+  return (
+    <article
+      className={`overflow-hidden rounded-xl border bg-white shadow-sm ${
+        destaque ? 'border-amber-300 ring-1 ring-amber-200' : 'border-stone-200'
+      }`}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expandido}
+        className="flex w-full flex-col gap-2 px-4 py-3 text-left transition-colors hover:bg-stone-50"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className={`inline-flex h-7 min-w-[2rem] items-center justify-center rounded-md px-1.5 text-xs font-bold tabular-nums ${
+              destaque ? 'bg-amber-500 text-white' : 'bg-stone-200 text-stone-700'
+            }`}
+          >
+            #{posicao}
+          </span>
+          <span className="font-semibold text-stone-900">{item.modelo}</span>
+          {item.topografia !== '—' ? (
+            <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-stone-600 ring-1 ring-stone-200">
+              {item.topografia}
+            </span>
+          ) : null}
+          <span
+            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${compat.className}`}
+          >
+            {compat.label}
+          </span>
+          <span className="ml-auto text-stone-400" aria-hidden>
+            {expandido ? '▾' : '▸'}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-stone-600">
+          {item.precoIncKitMoni != null && item.precoIncKitMoni > 0 ? (
+            <>
+              <span>
+                <span className="font-medium text-stone-500">INC+Kit:</span>{' '}
+                {formatPrecoAnuncio(item.precoIncKitMoni)}
+              </span>
+              <span className="text-stone-300">|</span>
+            </>
+          ) : null}
+          <span>
+            <span className="font-medium text-stone-500">Lote:</span> {item.notaLote}
+          </span>
+          <span className="text-stone-300">|</span>
+          <span>
+            <span className="font-medium text-stone-500">Preço:</span> {item.notaPrecoMedia}
+          </span>
+          <span className="text-stone-300">|</span>
+          <span>
+            <span className="font-medium text-stone-500">Produto:</span> {item.notaProdutoMedia}
+          </span>
+          <span className="text-stone-300">|</span>
+          <span>
+            <span className="font-medium text-stone-500">Final:</span>{' '}
+            <span className="font-semibold text-stone-800">{item.notaFinal}</span>
+          </span>
+        </div>
+      </button>
+
+      {expandido ? (
+        <div className="border-t border-stone-100 bg-stone-50/80 px-4 py-3">
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
+            Anúncios mais ameaçadores (faixa)
+          </h4>
+          {item.anunciosAmeacadores.length === 0 ? (
+            <p className="text-xs italic text-stone-500">Nenhum anúncio na listagem.</p>
+          ) : (
+            <ul className="space-y-2">
+              {item.anunciosAmeacadores.map((anuncio) => (
+                <li
+                  key={anuncio.id}
+                  className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+                    <span className="font-medium text-stone-800">{anuncio.condominio}</span>
+                    <span className="text-xs font-medium text-stone-600">
+                      {formatPrecoAnuncio(anuncio.preco)}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                    <span>
+                      Preço:{' '}
+                      <span className="font-semibold tabular-nums text-stone-700">
+                        {anuncio.notaPreco}
+                      </span>
+                    </span>
+                    <span className="text-stone-300">|</span>
+                    <span>
+                      Produto:{' '}
+                      <span
+                        className={`font-semibold tabular-nums ${
+                          anuncio.notaProduto <= -1 ? 'text-red-700' : 'text-stone-700'
+                        }`}
+                      >
+                        {anuncio.notaProduto}
+                      </span>
+                    </span>
+                    {anuncio.notaProduto <= -1 || anuncio.notaPreco <= -1 ? (
+                      <span className="rounded bg-red-50 px-1.5 py-0.5 text-[11px] font-medium text-red-800 ring-1 ring-red-200">
+                        ⚠ Concorrente direto
+                      </span>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
+    </article>
   );
 }

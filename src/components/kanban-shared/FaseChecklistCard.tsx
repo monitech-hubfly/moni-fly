@@ -33,6 +33,7 @@ import { isDadosCandidatoFaseSlug, isDadosCidadeFaseSlug, isLotesDisponiveisFase
 import {
   PRE_BATALHA_CHECKLIST_LABEL_APLICADA,
   PRE_BATALHA_CHECKLIST_LABEL_RANKING,
+  PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING,
 } from '@/lib/kanban/pre-batalha-checklist';
 import { sincronizarChecklistPreBatalhaKanban } from '@/app/step-one/[id]/etapa/actions';
 import {
@@ -245,15 +246,6 @@ export function FaseChecklistCard({
       (i) => i.label.trim() === PRE_BATALHA_CHECKLIST_LABEL_APLICADA,
     );
     const itemRanking = itens.find((i) => i.label.trim() === PRE_BATALHA_CHECKLIST_LABEL_RANKING);
-    const aplicadaOk = itemAplicada
-      ? respostas.get(itemAplicada.id)?.valor?.trim() === 'true'
-      : true;
-    const rankingOk = itemRanking ? !!respostas.get(itemRanking.id)?.valor?.trim() : true;
-
-    if (aplicadaOk && rankingOk) {
-      preBatalhaSyncFeitoRef.current = syncKey;
-      return;
-    }
 
     preBatalhaSyncFeitoRef.current = syncKey;
 
@@ -696,17 +688,37 @@ function ItemField({
   }
 
   if (item.tipo === 'texto_longo') {
+    const isRankingPreBatalha =
+      isPreBatalhaFaseSlug(faseSlug) &&
+      item.label.trim() === PRE_BATALHA_CHECKLIST_LABEL_RANKING;
     return (
       <div>
         {labelEl}
+        {isRankingPreBatalha ? (
+          <p
+            className="mb-2 whitespace-pre-line rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-950"
+            role="note"
+          >
+            {PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING}
+          </p>
+        ) : null}
         <textarea
-          rows={3}
-          className={inputClass + ' resize-none'}
-          placeholder={item.placeholder ?? ''}
+          rows={isRankingPreBatalha ? Math.max(6, Math.min(estado.valor.split('\n').length + 1, 16)) : 3}
+          className={inputClass + ' resize-y'}
+          placeholder={
+            isRankingPreBatalha
+              ? 'Preenchido automaticamente com todos os modelos compatíveis…'
+              : (item.placeholder ?? '')
+          }
           value={estado.valor}
           onChange={(e) => onChange(e.target.value)}
           onBlur={(e) => onBlur(e.target.value)}
         />
+        {isRankingPreBatalha ? (
+          <p className="mt-1 text-[11px] italic" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Lista gerada automaticamente; pode ser atualizada ao reabrir o card nesta fase.
+          </p>
+        ) : null}
         {erroEl}
       </div>
     );

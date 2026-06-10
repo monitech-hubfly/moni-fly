@@ -163,10 +163,20 @@ export function valorInvestimento(checklist: ChecklistReforma): number {
 }
 
 export type CatalogoPrecoRef = {
+  preco_custo?: number | null;
+  preco_custo_m2?: number | null;
   preco_venda?: number | null;
   preco_venda_m2?: number | null;
   area_m2?: number | null;
 };
+
+/** Preço de incorporação (preco_custo ou preco_custo_m2 × área). */
+export function getValorPrecoCusto(cat: CatalogoPrecoRef): number | null {
+  if (cat.preco_custo != null && Number.isFinite(cat.preco_custo)) return cat.preco_custo;
+  if (cat.preco_custo_m2 != null && cat.area_m2 != null && cat.area_m2 > 0)
+    return cat.preco_custo_m2 * cat.area_m2;
+  return null;
+}
 
 /** Valor de venda do catálogo (preco_venda ou preco_venda_m2 × área). */
 export function getValorNossaCatalogo(cat: CatalogoPrecoRef): number | null {
@@ -174,6 +184,33 @@ export function getValorNossaCatalogo(cat: CatalogoPrecoRef): number | null {
   if (cat.preco_venda_m2 != null && cat.area_m2 != null && cat.area_m2 > 0)
     return cat.preco_venda_m2 * cat.area_m2;
   return null;
+}
+
+/**
+ * Preço Moní Pré Batalha: incorporação (preco_custo) + kit Moní (preco_venda − preco_custo).
+ * Se só houver preco_venda, usa o VGV do catálogo.
+ */
+export function getPrecoIncMaisKitMoni(cat: CatalogoPrecoRef): number | null {
+  const inc = getValorPrecoCusto(cat);
+  const venda = getValorNossaCatalogo(cat);
+  if (inc != null && inc > 0 && venda != null && venda > 0) {
+    return inc + Math.max(0, venda - inc);
+  }
+  if (venda != null && venda > 0) return venda;
+  if (inc != null && inc > 0) return inc;
+  return null;
+}
+
+/** Nota Preço Pré Batalha: compara VGV Moní (INC + Kit) vs. preço do anúncio ZAP. */
+export function notaPrecoPreBatalhaContraAnuncio(
+  valorMoniIncKit: number | null,
+  valorListing: number | null,
+): number {
+  if (valorMoniIncKit == null || valorMoniIncKit <= 0 || valorListing == null || valorListing <= 0) {
+    return 0;
+  }
+  const diffPerc = (valorListing - valorMoniIncKit) / valorMoniIncKit;
+  return notaPrecoPorPercentual(diffPerc);
 }
 
 /** Valor de referência para D (distância): custo de construção se preenchido, senão catálogo. */
