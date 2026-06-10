@@ -10,13 +10,13 @@ type Props = {
   onSaved: () => void;
 };
 
-type Unidade = 'horas' | 'minutos';
+type Unidade = 'h' | 'min';
 type Celula = { valor: number; unidade: Unidade };
 type GridSemana = { seg: Celula; ter: Celula; qua: Celula; qui: Celula; sex: Celula };
 
 const DIAS = ['seg', 'ter', 'qua', 'qui', 'sex'] as const;
 const DIAS_LABEL: Record<string, string> = { seg: 'Seg', ter: 'Ter', qua: 'Qua', qui: 'Qui', sex: 'Sex' };
-const CELULA_VAZIA: Celula = { valor: 0, unidade: 'horas' };
+const CELULA_VAZIA: Celula = { valor: 0, unidade: 'h' };
 
 function getSemanas(n = 20): string[] {
   const semanas: string[] = [];
@@ -54,7 +54,7 @@ function formatDia(d: Date): string {
 function totalEmHoras(grid: GridSemana): number {
   return DIAS.reduce((acc, d) => {
     const c = grid[d];
-    return acc + (c.unidade === 'minutos' ? c.valor / 60 : c.valor);
+    return acc + (c.unidade === 'min' ? c.valor / 60 : c.valor);
   }, 0);
 }
 
@@ -91,7 +91,7 @@ export function SireneModalHoras({ chamadoId, titulo, onClose, onSaved }: Props)
       const cardRes = await garantirPastelariaCardParaChamado(chamadoId, titulo);
       if (!cardRes.ok) { setErro(cardRes.error); setSaving(false); return; }
 
-      const toHoras = (c: Celula) => c.unidade === 'minutos' ? c.valor / 60 : c.valor;
+      const toHoras = (c: Celula) => c.unidade === 'min' ? c.valor / 60 : c.valor;
 
       const res = await salvarHorasChamadoSirene(cardRes.cardId, semanaLabel, {
         seg: toHoras(grid.seg), ter: toHoras(grid.ter), qua: toHoras(grid.qua),
@@ -158,8 +158,8 @@ export function SireneModalHoras({ chamadoId, titulo, onClose, onSaved }: Props)
                   onChange={(e) => setCelula(d, 'unidade', e.target.value as Unidade)}
                   className={selectClass}
                 >
-                  <option value="horas">horas</option>
-                  <option value="minutos">minutos</option>
+                  <option value="h">horas</option>
+                  <option value="min">minutos</option>
                 </select>
                 <span className="text-[11px] font-medium text-[color:var(--moni-text-secondary)]">{DIAS_LABEL[d]}</span>
                 <span className="text-[10px] text-[color:var(--moni-text-tertiary)]">{formatDia(dias[i]!)}</span>

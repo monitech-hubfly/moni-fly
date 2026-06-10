@@ -70,7 +70,7 @@ export async function salvarHorasChamadoSirene(
           qua_unidade: horas.qua_unidade,
           qui_unidade: horas.qui_unidade,
           sex_unidade: horas.sex_unidade,
-          unidade: 'horas',
+          unidade: 'h',
         },
         { onConflict: 'card_id,semana' },
       );
