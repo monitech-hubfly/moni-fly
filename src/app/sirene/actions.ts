@@ -1770,6 +1770,7 @@ export async function concluirChamadoCriador(
   const legadoAguardando = chamado.status === 'aguardando_aprovacao_criador';
   if (
     chamado.status !== 'em_andamento' &&
+    chamado.status !== 'nao_iniciado' &&
     !legadoAguardando
   ) {
     return { ok: false, error: 'Chamado não está em andamento.' };
