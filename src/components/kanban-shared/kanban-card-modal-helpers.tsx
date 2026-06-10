@@ -583,6 +583,10 @@ export function textoResumidoAcaoHistorico(acao: string, detalhe: Record<string,
       return `Tag adicionada: ${String(d.tag_nome ?? '').trim() || '—'}`;
     case 'tag_removida':
       return `Tag removida: ${String(d.tag_nome ?? '').trim() || '—'}`;
+    case 'sla_justificado': {
+      const fase = String(d.fase_nome ?? '').trim();
+      return fase ? `Justificativa de quebra de SLA (${fase})` : 'Justificativa de quebra de SLA registrada';
+    }
     case 'campo_alterado': {
       const desc = String(d.descricao ?? '').trim();
       if (desc) return desc;

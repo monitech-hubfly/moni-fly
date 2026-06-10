@@ -3622,6 +3622,8 @@ export async function moverCardParaFase(input: {
   kanbanNome?: string;
   /** Obrigatório ao mover para Reprovado no Funil Acoplamento. */
   motivoReprovacaoAcoplamento?: string;
+  /** Obrigatório ao sair de fase com SLA vencido no Funil Loteadores (Dados do Loteador / Fechar Contrato). */
+  justificativaSlaQuebra?: string;
 }): Promise<ActionResult> {
   const supabase = await createClient();
   const {
@@ -3651,6 +3653,13 @@ export async function moverCardParaFase(input: {
 
   const gateChecklistLegal = await verificarGateChecklistLegalPortfolio(cardId, novaFaseId);
   if (!gateChecklistLegal.ok) return gateChecklistLegal;
+
+  const { verificarGateJustificativaSlaLoteadores } = await import('@/lib/actions/kanban-sla-justificativa');
+  const gateSlaJustificativa = await verificarGateJustificativaSlaLoteadores(
+    cardId,
+    input.justificativaSlaQuebra,
+  );
+  if (!gateSlaJustificativa.ok) return gateSlaJustificativa;
 
   const { data: cardKanban } = await supabase
     .from('kanban_cards')

@@ -75,6 +75,7 @@ export async function moverCardKanbanDrag(input: {
   basePath: string;
   kanbanNome?: string;
   motivoReprovacaoAcoplamento?: string;
+  justificativaSlaQuebra?: string;
 }): Promise<ActionResult> {
   const supabase = await createClient();
   const {
@@ -106,6 +107,7 @@ export async function moverCardKanbanDrag(input: {
       basePath: input.basePath,
       kanbanNome: input.kanbanNome,
       motivoReprovacaoAcoplamento: input.motivoReprovacaoAcoplamento,
+      justificativaSlaQuebra: input.justificativaSlaQuebra,
     });
     if (!res.ok) return res;
     const ordem = await allocNextOrdemColunaKanban(supabase, toFaseId);
