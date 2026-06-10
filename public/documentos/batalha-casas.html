@@ -447,25 +447,32 @@
     <section id="sec-4" class="page-section" aria-labelledby="lbl-4">
       <div class="section-label" id="lbl-4">Eixo: Atributos do Lote</div>
 
-      <p style="font-size:14px;color:var(--cinza);line-height:1.65;margin-bottom:16px;">Para cada par <strong>modelo × anúncio</strong>, marque SIM/NÃO nos 5 atributos. A nota é a <strong>soma</strong> dos scores dos itens marcados SIM, com clamp em +2 (mesmo que a soma bruta chegue a +4).</p>
+      <p style="font-size:14px;color:var(--cinza);line-height:1.65;margin-bottom:16px;">Para cada par <strong>modelo × anúncio</strong>, marque SIM/NÃO nos atributos aplicáveis. A nota é a <strong>soma</strong> dos scores dos itens marcados SIM, com clamp em +2 (mesmo que a soma bruta ultrapasse).</p>
 
       <table class="data-table">
         <thead>
           <tr><th>Atributo</th><th>Se SIM</th><th>Interpretação</th></tr>
         </thead>
         <tbody>
-          <tr><td>Vista privilegiada</td><td class="nota-pos">+2</td><td>Lote com vista relevante vs. referência do anúncio</td></tr>
-          <tr><td>Perto de área verde</td><td class="nota-pos">+2</td><td>Proximidade de área verde / parque interno</td></tr>
-          <tr><td>Muro</td><td class="nota-neu">0</td><td>Presença de muro (neutro na soma)</td></tr>
+          <tr><td>Vista privilegiada</td><td class="nota-pos">+2</td><td>Lote com vista relevante</td></tr>
+          <tr><td>Terreno plano</td><td class="nota-neu">0</td><td>Topografia plana</td></tr>
+          <tr><td>Terreno aclive / declive</td><td class="nota-neu">0</td><td>Topografia inclinada</td></tr>
+          <tr><td>Fundo / frente de mata</td><td class="nota-pos">+2</td><td>Contato com mata preservada</td></tr>
+          <tr><td>Perto de área verde</td><td class="nota-pos">+1</td><td>Proximidade de área verde / parque</td></tr>
+          <tr><td>Perto / fundo / frente de lago</td><td class="nota-pos">+1 a +2</td><td>Conforme proximidade ou frente/fundo</td></tr>
           <tr><td>Perto de área de convivência</td><td class="nota-neg">-2</td><td>Barulho / fluxo — desvantagem de privacidade</td></tr>
-          <tr><td>Perto de lixeira</td><td class="nota-neg">-1</td><td>Impacto de odor e circulação</td></tr>
+          <tr><td>Perto de lixeira</td><td class="nota-neg">-2</td><td>Impacto de odor e circulação</td></tr>
+          <tr><td>Perto de portaria</td><td class="nota-neu">0</td><td>Neutro na soma</td></tr>
+          <tr><td>Muro com rodovia</td><td class="nota-neg">-2</td><td>Divisa com via de tráfego</td></tr>
+          <tr><td>Muro com comunidade</td><td class="nota-neg">-2</td><td>Divisa com área comunitária externa</td></tr>
+          <tr><td>Muro com vegetação</td><td class="nota-neg">-1</td><td>Divisa com vegetação (impacto menor)</td></tr>
         </tbody>
       </table>
 
       <p style="font-size:13px;font-weight:600;color:var(--verde);margin:18px 0 10px;">Pré-preenchimento — Lotes Disponíveis</p>
       <div class="aviso-box info">
         <span>ℹ️</span>
-        <p>Ao abrir o popover <strong>Atributos do Lote</strong> na batalha, o Hub lê o checklist da fase <strong>Lotes Disponíveis</strong> (itens Vista privilegiada, Perto de área verde, Muro, Perto de área de convivência, Perto de lixeira) e sugere os SIM/NÃO — <strong>mesmo valor para todos os pares modelo × anúncio</strong>. Revise sempre com visita ao lote; o pré-preenchimento não substitui evidência.</p>
+        <p>Ao abrir o popover <strong>Atributos do Lote</strong> na batalha, o Hub lê os checkboxes da sessão <strong>Lotes Disponíveis</strong> (Dados dos Condomínios) e sugere os SIM/NÃO — <strong>mesmo valor para todos os pares modelo × anúncio</strong>. Revise sempre com visita ao lote. Respostas legadas com checkbox genérico «Muro» não são convertidas automaticamente.</p>
       </div>
 
       <div class="aviso-box">
