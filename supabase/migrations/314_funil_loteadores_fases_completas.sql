@@ -50,19 +50,31 @@ BEGIN
       AND kf.slug = v_phase.slug;
 
     IF NOT FOUND THEN
-      INSERT INTO public.kanban_fases (
-        kanban_id, nome, slug, ordem, sla_dias, ativo, instrucoes, materiais
-      )
-      VALUES (
-        v_kanban_id,
-        v_phase.nome,
-        v_phase.slug,
-        v_phase.ordem,
-        v_phase.sla_dias,
-        true,
-        NULL,
-        '[]'::jsonb
-      );
+      UPDATE public.kanban_fases AS kf
+      SET
+        nome = v_phase.nome,
+        ordem = v_phase.ordem,
+        slug = v_phase.slug,
+        sla_dias = COALESCE(v_phase.sla_dias, kf.sla_dias),
+        ativo = true
+      WHERE kf.kanban_id = v_kanban_id
+        AND lower(btrim(kf.nome)) = lower(btrim(v_phase.nome));
+
+      IF NOT FOUND THEN
+        INSERT INTO public.kanban_fases (
+          kanban_id, nome, slug, ordem, sla_dias, ativo, instrucoes, materiais
+        )
+        VALUES (
+          v_kanban_id,
+          v_phase.nome,
+          v_phase.slug,
+          v_phase.ordem,
+          v_phase.sla_dias,
+          true,
+          NULL,
+          '[]'::jsonb
+        );
+      END IF;
     END IF;
 
     v_count := v_count + 1;

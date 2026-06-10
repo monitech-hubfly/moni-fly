@@ -82,6 +82,10 @@ export const FASE_SLUGS = {
   APROVACAO_CONDOMINIO: 'aprovacao_condominio',
   /** Fase do Funil Portfólio — dispara bastão para Funil Acoplamento. */
   ACOPLAMENTO: 'acoplamento',
+  /** Funil Loteadores — fase Acoplamento (mesmas regras de esteira que Portfólio). */
+  LOTEADORES_ACOPLAMENTO: 'acoplamento_moni_inc',
+  /** Funil Loteadores — gate de esteira Acoplamento antes do Comitê. */
+  LOTEADORES_COMITE: 'comite_moni_inc',
   /** Funil Acoplamento — gate Gbox/Acoplamento antes de avançar. */
   MODELAGEM_CASA_GBOX: 'modelagem_casa_gbox',
   APROVACAO_PREFEITURA: 'aprovacao_prefeitura',

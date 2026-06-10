@@ -76,7 +76,7 @@ import {
 } from '@/lib/actions/credito-obra-abertura-automatica';
 import { aplicarDataEnvioCreditoObraNoPreObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import { CreditoObraAberturaAutorizacaoModal } from './CreditoObraAberturaAutorizacaoModal';
-import { isPortfolioKanbanRef } from '@/lib/kanban/portfolio-paralelas';
+import { isPortfolioKanbanRef, isLoteadoresKanbanRef } from '@/lib/kanban/portfolio-paralelas';
 import {
   enrichCardsParalelasContext,
   flagsParalelasFromCard,
@@ -2064,7 +2064,10 @@ export function KanbanCardModal({
       alert('Esta é a última fase do funil.');
       return;
     }
-    if (isPortfolioKanbanRef(null, String(kanbanNome)) && origem !== 'legado') {
+    if (
+      (isPortfolioKanbanRef(null, String(kanbanNome)) || isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome))) &&
+      origem !== 'legado'
+    ) {
       const gate = await verificarGatePortfolioStep5(card.id, proximaFase.id);
       if (!gate.ok) {
         setGateStep5Toast(gate.error ?? 'Não é possível avançar para o Comitê.');

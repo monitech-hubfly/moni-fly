@@ -21,9 +21,11 @@ import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { calcularDataEnvioCreditoObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import {
   deveValidarGatePortfolioStep5,
+  deveValidarGateLoteadoresComite,
   deveVerificarCapital,
   gatePortfolioStep5Liberado,
   listarEsteirasParalelasPendentes,
+  mensagemGateLoteadoresComite,
   mensagemGatePortfolioStep5,
   PORTFOLIO_KANBAN_NOME,
   type PortfolioParalelasFlags,
@@ -3560,6 +3562,13 @@ async function obterGatePortfolioStep5(
   const kn = row.kanbans;
   const knNode = Array.isArray(kn) ? kn[0] : kn;
   const kanbanNome = String(knNode?.nome ?? kanbanNomeHint ?? '').trim();
+
+  if (deveValidarGateLoteadoresComite(novaFaseSlug, row.kanban_id, kanbanNome)) {
+    if (!Boolean(row.acoplamento_concluido)) {
+      return { ok: false, error: mensagemGateLoteadoresComite() };
+    }
+    return { ok: true };
+  }
 
   if (!deveValidarGatePortfolioStep5(novaFaseSlug, row.kanban_id, kanbanNome)) {
     return { ok: true };

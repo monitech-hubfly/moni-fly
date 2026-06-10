@@ -94,6 +94,28 @@ export function isPortfolioKanbanRef(kanbanId: string | null | undefined, kanban
   return String(kanbanId ?? '').trim() === KANBAN_IDS.PORTFOLIO;
 }
 
+export const LOTEADORES_KANBAN_NOME = 'Funil Loteadores' as const;
+
+export function isLoteadoresKanbanRef(kanbanId: string | null | undefined, kanbanNome?: string | null): boolean {
+  if (String(kanbanNome ?? '').trim() === LOTEADORES_KANBAN_NOME) return true;
+  return String(kanbanId ?? '').trim() === KANBAN_IDS.LOTEADORES;
+}
+
+export function deveValidarGateLoteadoresComite(
+  novaFaseSlug: string | null | undefined,
+  kanbanId: string | null | undefined,
+  kanbanNome?: string | null,
+): boolean {
+  return (
+    String(novaFaseSlug ?? '').trim() === FASE_SLUGS.LOTEADORES_COMITE &&
+    isLoteadoresKanbanRef(kanbanId, kanbanNome)
+  );
+}
+
+export function mensagemGateLoteadoresComite(): string {
+  return 'Não é possível avançar para o Comitê. Esteira pendente: Acoplamento.';
+}
+
 export function listarEsteirasParalelasPendentes(
   flags: PortfolioParalelasFlags,
   opts?: GatePortfolioStep5Opts,
@@ -127,6 +149,47 @@ export function deveValidarGatePortfolioStep5(
   return (
     String(novaFaseSlug ?? '').trim() === FASE_SLUGS.STEP_5 && isPortfolioKanbanRef(kanbanId, kanbanNome)
   );
+}
+
+/** Card pai no Funil Portfólio / Loteadores (ou filho com origem nesses funis). */
+export async function resolverCardPaiParaAcoplamento(
+  supabase: SupabaseHistoricoClient,
+  cardId: string,
+): Promise<string | null> {
+  const portfolioId = await resolverCardPaiPortfolioParaAcoplamento(supabase, cardId);
+  if (portfolioId) return portfolioId;
+
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return null;
+
+  const { data: card, error } = await supabase
+    .from('kanban_cards')
+    .select('id, kanban_id, origem_card_id')
+    .eq('id', cid)
+    .maybeSingle();
+
+  if (!error && card?.id) {
+    const kanbanId = String((card as { kanban_id?: string | null }).kanban_id ?? '').trim();
+    if (kanbanId === KANBAN_IDS.LOTEADORES) return cid;
+
+    const origemId = String((card as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
+    if (origemId) {
+      const { data: origem } = await supabase
+        .from('kanban_cards')
+        .select('kanban_id')
+        .eq('id', origemId)
+        .maybeSingle();
+
+      if (
+        String((origem as { kanban_id?: string | null } | null)?.kanban_id ?? '').trim() ===
+        KANBAN_IDS.LOTEADORES
+      ) {
+        return origemId;
+      }
+    }
+  }
+
+  return null;
 }
 
 /** Card pai no Funil Portfólio (ou card de Operações com origem no Portfólio). */
@@ -178,18 +241,19 @@ export async function resolverCardPaiPortfolioParaAcoplamento(
   return null;
 }
 
-/** Bastão automático: só ao mover para a fase Portfólio `acoplamento` (card pai no Funil Portfólio). */
+/** Bastão automático: fase Acoplamento no Funil Portfólio ou Funil Loteadores. */
 export function deveDispararBastaoAcoplamentoAutomatico(
   novaFaseSlug: string,
   kanbanPaiId: string | null | undefined,
 ): boolean {
-  return (
-    String(novaFaseSlug ?? '').trim() === FASE_SLUGS.ACOPLAMENTO &&
-    String(kanbanPaiId ?? '').trim() === KANBAN_IDS.PORTFOLIO
-  );
+  const slug = String(novaFaseSlug ?? '').trim();
+  const kid = String(kanbanPaiId ?? '').trim();
+  if (slug === FASE_SLUGS.ACOPLAMENTO && kid === KANBAN_IDS.PORTFOLIO) return true;
+  if (slug === FASE_SLUGS.LOTEADORES_ACOPLAMENTO && kid === KANBAN_IDS.LOTEADORES) return true;
+  return false;
 }
 
 export function kanbanPermiteAbrirFunilAcoplamentoManual(kanbanId: string | null | undefined): boolean {
   const id = String(kanbanId ?? '').trim();
-  return id === KANBAN_IDS.PORTFOLIO || id === KANBAN_IDS.OPERACOES;
+  return id === KANBAN_IDS.PORTFOLIO || id === KANBAN_IDS.LOTEADORES || id === KANBAN_IDS.OPERACOES;
 }
