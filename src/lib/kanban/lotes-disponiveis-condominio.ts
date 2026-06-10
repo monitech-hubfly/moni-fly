@@ -1,4 +1,8 @@
-import type { CondominioLoteAtributos, CondominioLoteColunaAtributo } from '@/lib/condominios-lotes';
+import {
+  isColunaAtributoCondominioLote,
+  type CondominioLoteAtributos,
+  type CondominioLoteColunaAtributo,
+} from '@/lib/condominios-lotes';
 import type { LinhaProspectCondominio } from '@/lib/kanban/condominio-prospect-pesquisa';
 import { linhaProspectTemNome } from '@/lib/kanban/condominio-prospect-pesquisa';
 
@@ -22,6 +26,21 @@ export const LOTES_DISPONIVEIS_CHECKBOXES = [
 ] as const;
 
 export type ChaveLoteCheckbox = (typeof LOTES_DISPONIVEIS_CHECKBOXES)[number]['chave'];
+
+/** Topografia: mutuamente exclusivos (plano / aclive / declive). */
+export const CHAVES_TOPOGRAFIA_LOTE = ['plano', 'aclive', 'declive'] as const satisfies readonly ChaveLoteCheckbox[];
+
+export function isChaveTopografiaLote(chave: ChaveLoteCheckbox): boolean {
+  return (CHAVES_TOPOGRAFIA_LOTE as readonly string[]).includes(chave);
+}
+
+export const LOTES_DISPONIVEIS_CHECKBOXES_TOPOGRAFIA = LOTES_DISPONIVEIS_CHECKBOXES.filter((c) =>
+  isChaveTopografiaLote(c.chave),
+);
+
+export const LOTES_DISPONIVEIS_CHECKBOXES_LOCALIZACAO = LOTES_DISPONIVEIS_CHECKBOXES.filter(
+  (c) => !isChaveTopografiaLote(c.chave),
+);
 
 /** Aliases de chaves legadas no JSON de `lotes_disponiveis` → id canônico (ATRIBUTOS_LOTE). */
 const LEGACY_CHAVE_ALIASES: Partial<Record<ChaveLoteCheckbox, readonly string[]>> = {
@@ -54,6 +73,32 @@ export const CHAVE_LOTE_PARA_COLUNA_DB = {
   muro_comunidade: 'muro_comunidade',
   muro_vegetacao: 'muro_vegetacao',
 } as const satisfies Record<ChaveLoteCheckbox, CondominioLoteColunaAtributo>;
+
+let mapeamentoAtributosLoteVerificado = false;
+
+/**
+ * Em dev/diagnóstico: alerta se algum id de LOTES_DISPONIVEIS_CHECKBOXES não tiver
+ * coluna correspondente em `condominios_lotes` via CHAVE_LOTE_PARA_COLUNA_DB.
+ */
+export function verificarMapeamentoAtributosLote(): void {
+  if (mapeamentoAtributosLoteVerificado) return;
+  mapeamentoAtributosLoteVerificado = true;
+
+  for (const { chave } of LOTES_DISPONIVEIS_CHECKBOXES) {
+    const coluna = CHAVE_LOTE_PARA_COLUNA_DB[chave];
+    if (!coluna) {
+      console.warn(
+        `[lotes-disponiveis] Atributo "${chave}" sem mapeamento em CHAVE_LOTE_PARA_COLUNA_DB.`,
+      );
+      continue;
+    }
+    if (!isColunaAtributoCondominioLote(coluna)) {
+      console.warn(
+        `[lotes-disponiveis] Atributo "${chave}" mapeado para coluna "${coluna}" inexistente em condominios_lotes — adicione migration ou JSONB de extras.`,
+      );
+    }
+  }
+}
 
 export type ChaveLoteDisponivel =
   | ChaveLoteCheckbox
@@ -136,10 +181,24 @@ export function loteDisponivelParaAtributosBoolean(
 
 /** Converte atributos canônicos (ATRIBUTOS_LOTE) → colunas de `condominios_lotes`. */
 export function loteDisponivelParaCondominioLoteDb(lote: LinhaLoteDisponivel): CondominioLoteAtributos {
+  verificarMapeamentoAtributosLote();
   const attrs = loteDisponivelParaAtributosBoolean(lote);
   const out: CondominioLoteAtributos = {};
   for (const { chave } of LOTES_DISPONIVEIS_CHECKBOXES) {
-    out[CHAVE_LOTE_PARA_COLUNA_DB[chave]] = attrs[chave];
+    const coluna = CHAVE_LOTE_PARA_COLUNA_DB[chave];
+    if (!coluna) {
+      console.warn(
+        `[lotes-disponiveis] Atributo "${chave}" sem coluna em condominios_lotes — valor ignorado na sync.`,
+      );
+      continue;
+    }
+    if (!isColunaAtributoCondominioLote(coluna)) {
+      console.warn(
+        `[lotes-disponiveis] Coluna "${coluna}" (chave "${chave}") não reconhecida em condominios_lotes — valor ignorado na sync.`,
+      );
+      continue;
+    }
+    out[coluna] = attrs[chave];
   }
   return out;
 }

@@ -21,6 +21,36 @@ export type CondominioLoteColunaAtributo =
   | 'muro_comunidade'
   | 'muro_vegetacao';
 
+/** Colunas boolean existentes em `condominios_lotes` (migrations 260, 283, 288, 318). */
+export const COLUNAS_ATRIBUTO_CONDOMINIOS_LOTES = [
+  'vista_privilegiada',
+  'terreno_plano',
+  'terreno_aclive',
+  'terreno_aclive_acentuado',
+  'terreno_declive',
+  'terreno_declive_acentuado',
+  'fundo_mata',
+  'frente_mata',
+  'perto_area_verde',
+  'perto_lago',
+  'fundo_lago',
+  'frente_lago',
+  'perto_area_convivencia',
+  'perto_lixeira',
+  'perto_portaria',
+  'muro_rodovia',
+  'muro_comunidade',
+  'muro_vegetacao',
+] as const satisfies readonly CondominioLoteColunaAtributo[];
+
+const COLUNAS_ATRIBUTO_CONDOMINIOS_LOTES_SET = new Set<string>(COLUNAS_ATRIBUTO_CONDOMINIOS_LOTES);
+
+export function isColunaAtributoCondominioLote(
+  coluna: string,
+): coluna is CondominioLoteColunaAtributo {
+  return COLUNAS_ATRIBUTO_CONDOMINIOS_LOTES_SET.has(coluna);
+}
+
 export type CondominioLoteAtributos = Partial<Record<CondominioLoteColunaAtributo, boolean>>;
 
 export type CondominioLoteRow = {

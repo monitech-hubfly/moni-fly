@@ -11,6 +11,7 @@ import {
   saveBatalhaCasasEtapa5,
   saveScoreBatalhaPdfUrl,
   getAtributosLoteFromStepOneChecklist,
+  autoMarcarChecklistPosRankingPreBatalha,
   type BatalhaCasaRow,
 } from './actions';
 import {
@@ -163,6 +164,7 @@ export function Etapa4Casas(props: {
   }, [casasManuais.length, ultimaValidacaoCasasManuaisEm]);
   const router = useRouter();
   const stepOneAtributosCacheRef = useRef<AtributosLoteRespostas | null | undefined>(undefined);
+  const autoMarcadoChecklistPreBatalhaRef = useRef(false);
   const [cidade, setCidade] = useState(cidadeInicial);
   const [estado, setEstado] = useState(estadoInicial);
   const [condominio, setCondominio] = useState(() =>
@@ -344,6 +346,40 @@ export function Etapa4Casas(props: {
       setRankingCardsExpandidos(new Set());
     }
   }, [rankingPreBatalhaIdsKey]);
+
+  /** Pré Batalha: auto-marca checklist do kanban após ranking calculado (uma vez). */
+  useEffect(() => {
+    autoMarcadoChecklistPreBatalhaRef.current = false;
+  }, [processoId]);
+
+  useEffect(() => {
+    if (!modoPreBatalha || listagemOnly || carregandoRankingPreBatalha) return;
+    if (rankingPreBatalha.length === 0) return;
+    if (autoMarcadoChecklistPreBatalhaRef.current) return;
+
+    autoMarcadoChecklistPreBatalhaRef.current = true;
+
+    void autoMarcarChecklistPosRankingPreBatalha(
+      processoId,
+      rankingPreBatalha.map((item) => ({
+        modelo: item.modelo,
+        topografia: item.topografia,
+        notaFinal: item.notaFinal,
+      })),
+    ).then((res) => {
+      if (!res.ok) {
+        console.warn('[pre-batalha] Falha ao auto-marcar checklist:', res.error);
+        autoMarcadoChecklistPreBatalhaRef.current = false;
+      }
+    });
+  }, [
+    modoPreBatalha,
+    listagemOnly,
+    carregandoRankingPreBatalha,
+    rankingPreBatalhaIdsKey,
+    processoId,
+    rankingPreBatalha,
+  ]);
 
   const toggleRankingCard = (catalogoId: string) => {
     setRankingCardsExpandidos((prev) => {

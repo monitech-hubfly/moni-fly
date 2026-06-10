@@ -16,6 +16,8 @@ import {
   loteDisponivelParaCondominioLoteDb,
   normalizarLinhaLote,
   todasSessoesLotesCompletas,
+  verificarMapeamentoAtributosLote,
+  LOTES_DISPONIVEIS_CHECKBOXES,
   type LinhaLoteDisponivel,
 } from '@/lib/kanban/lotes-disponiveis-condominio';
 import { normalizarLinhaProspect, type LinhaProspectCondominio } from '@/lib/kanban/condominio-prospect-pesquisa';
@@ -137,6 +139,7 @@ async function sincronizarLotesComCadastro(
   lotes: LinhaLoteDisponivel[],
   userId: string,
 ): Promise<LinhaLoteDisponivel[]> {
+  verificarMapeamentoAtributosLote();
   const atualizados = lotes.map((l) => ({ ...l }));
 
   for (const lote of atualizados) {
@@ -339,6 +342,11 @@ export async function salvarCampoLoteCondominio(input: {
   if (idx < 0) return { ok: false, error: 'Lote não encontrado.' };
 
   lotes[idx] = { ...lotes[idx], [input.chave]: input.valor };
+
+  // Atributos checkbox → sync em condominios_lotes via loteDisponivelParaCondominioLoteDb + CHAVE_LOTE_PARA_COLUNA_DB
+  if (LOTES_DISPONIVEIS_CHECKBOXES.some((c) => c.chave === input.chave)) {
+    verificarMapeamentoAtributosLote();
+  }
 
   return persistirLotesLinha({
     cardId: input.cardId,

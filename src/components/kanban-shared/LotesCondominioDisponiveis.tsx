@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { KanbanFaseSecaoTabs } from '@/components/kanban-shared/KanbanFaseSecaoTabs';
 import {
   carregarLotesCondominioCard,
+  salvarCampoLoteCondominio,
   salvarLoteEscolhidoCondominio,
   salvarLotesCondominioDisponivel,
 } from '@/lib/actions/kanban-lotes-disponiveis';
@@ -19,13 +20,14 @@ import {
   linhaTemLoteEscolhido,
   loteDisponivelCompleto,
   LOTES_DISPONIVEIS_CAMPOS,
-  LOTES_DISPONIVEIS_CHECKBOXES,
+  LOTES_DISPONIVEIS_CHECKBOXES_LOCALIZACAO,
+  LOTES_DISPONIVEIS_CHECKBOXES_TOPOGRAFIA,
+  CHAVES_TOPOGRAFIA_LOTE,
   rotuloLoteDisponivel,
+  type ChaveLoteCheckbox,
   type ChaveLoteDisponivel,
   type LinhaLoteDisponivel,
 } from '@/lib/kanban/lotes-disponiveis-condominio';
-
-const LINHAS_GRID_ATRIBUTOS_LOTE = Math.ceil(LOTES_DISPONIVEIS_CHECKBOXES.length / 2);
 
 type Props = {
   cardId: string;
@@ -200,6 +202,88 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
     const atualPersistido = String(lotePersistido?.[chave] ?? '').trim();
     if (valor.trim() === atualPersistido) return;
     enfileirarPersistirRascunho(rowId);
+  }
+
+  function aplicarCheckboxSalvoLocal(
+    rowId: string,
+    loteId: string,
+    updates: Partial<Record<ChaveLoteCheckbox, string>>,
+  ) {
+    const patchLote = (l: LinhaLoteDisponivel) =>
+      l.lote_id === loteId ? { ...l, ...updates } : l;
+
+    setLinhas((prev) =>
+      prev.map((linha) =>
+        linha.row_id !== rowId
+          ? linha
+          : { ...linha, lotes_disponiveis: (linha.lotes_disponiveis ?? []).map(patchLote) },
+      ),
+    );
+    if (rowIdRascunhoRef.current === rowId) {
+      setRascunhoLotes((prev) => {
+        const next = prev.map(patchLote);
+        rascunhoLotesRef.current = next;
+        return next;
+      });
+    }
+  }
+
+  function enfileirarSalvarCheckbox(
+    rowId: string,
+    loteId: string,
+    chave: ChaveLoteCheckbox,
+    checked: boolean,
+  ) {
+    const valor = checked ? 'true' : 'false';
+    saveChainRef.current = saveChainRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        setSalvando(true);
+        setErroSalvar(null);
+        const res = await salvarCampoLoteCondominio({
+          cardId,
+          rowId,
+          loteId,
+          chave,
+          valor,
+        });
+        setSalvando(false);
+        if (!res.ok) {
+          setErroSalvar(res.error);
+          return;
+        }
+        aplicarCheckboxSalvoLocal(rowId, loteId, { [chave]: valor });
+      });
+  }
+
+  function handleSalvarCheckbox(loteId: string, chave: ChaveLoteCheckbox, checked: boolean) {
+    const rowId = rowIdAtivo;
+    if (!rowId) return;
+
+    const isTopografia = (CHAVES_TOPOGRAFIA_LOTE as readonly string[]).includes(chave);
+    const updates: Partial<Record<ChaveLoteCheckbox, string>> = {};
+
+    if (isTopografia) {
+      for (const k of CHAVES_TOPOGRAFIA_LOTE) {
+        updates[k] = k === chave && checked ? 'true' : 'false';
+      }
+    } else {
+      updates[chave] = checked ? 'true' : 'false';
+    }
+
+    setRascunhoLotes((prev) => {
+      const next = prev.map((l) => (l.lote_id === loteId ? { ...l, ...updates } : l));
+      rascunhoLotesRef.current = next;
+      return next;
+    });
+
+    if (isTopografia) {
+      for (const k of CHAVES_TOPOGRAFIA_LOTE) {
+        enfileirarSalvarCheckbox(rowId, loteId, k, k === chave && checked);
+      }
+    } else {
+      enfileirarSalvarCheckbox(rowId, loteId, chave, checked);
+    }
   }
 
   async function adicionarLote() {
@@ -460,45 +544,77 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
                         );
                       })}
 
-                      <div>
+                      <div className="space-y-4">
                         <p
-                          className="mb-2 text-xs font-medium"
+                          className="text-xs font-medium"
                           style={{ color: 'var(--moni-text-primary)' }}
                         >
                           Atributos do lote
                         </p>
+
                         <div
-                          className="grid grid-flow-col grid-cols-2 gap-x-4 gap-y-1.5"
-                          style={{ gridTemplateRows: `repeat(${LINHAS_GRID_ATRIBUTOS_LOTE}, minmax(0, auto))` }}
+                          className="rounded-md border px-3 py-2.5 space-y-2"
+                          style={{ borderColor: 'var(--moni-border-default)', background: 'white' }}
                         >
-                          {LOTES_DISPONIVEIS_CHECKBOXES.map((campo) => {
-                            const valor = String(loteAtivo[campo.chave] ?? '');
-                            return (
+                          <h5
+                            className="text-[11px] font-semibold uppercase tracking-wide"
+                            style={{ color: 'var(--moni-text-secondary)' }}
+                          >
+                            Topografia
+                          </h5>
+                          <p className="text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                            Selecione apenas uma opção
+                          </p>
+                          <div className="space-y-1.5">
+                            {LOTES_DISPONIVEIS_CHECKBOXES_TOPOGRAFIA.map(({ chave, label }) => (
                               <label
-                                key={campo.chave}
+                                key={chave}
                                 className="flex cursor-pointer items-center gap-2 text-sm"
                                 style={{ color: 'var(--moni-text-primary)' }}
                               >
                                 <input
                                   type="checkbox"
                                   className="h-4 w-4 shrink-0 rounded"
-                                  checked={valor === 'true'}
-                                  onChange={(e) => {
-                                    const v = e.target.checked ? 'true' : 'false';
-                                    setRascunhoLotes((prev) => {
-                                      const next = prev.map((l) =>
-                                        l.lote_id === loteAtivo.lote_id ? { ...l, [campo.chave]: v } : l,
-                                      );
-                                      rascunhoLotesRef.current = next;
-                                      return next;
-                                    });
-                                    void salvarCampoBlur(loteAtivo.lote_id, campo.chave, v);
-                                  }}
+                                  checked={loteAtivo[chave] === 'true'}
+                                  onChange={(e) =>
+                                    handleSalvarCheckbox(loteAtivo.lote_id, chave, e.target.checked)
+                                  }
                                 />
-                                {campo.label}
+                                {label}
                               </label>
-                            );
-                          })}
+                            ))}
+                          </div>
+                        </div>
+
+                        <div
+                          className="rounded-md border px-3 py-2.5 space-y-2"
+                          style={{ borderColor: 'var(--moni-border-default)', background: 'white' }}
+                        >
+                          <h5
+                            className="text-[11px] font-semibold uppercase tracking-wide"
+                            style={{ color: 'var(--moni-text-secondary)' }}
+                          >
+                            Localização
+                          </h5>
+                          <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2">
+                            {LOTES_DISPONIVEIS_CHECKBOXES_LOCALIZACAO.map(({ chave, label }) => (
+                              <label
+                                key={chave}
+                                className="flex cursor-pointer items-center gap-2 text-sm"
+                                style={{ color: 'var(--moni-text-primary)' }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="h-4 w-4 shrink-0 rounded"
+                                  checked={loteAtivo[chave] === 'true'}
+                                  onChange={(e) =>
+                                    handleSalvarCheckbox(loteAtivo.lote_id, chave, e.target.checked)
+                                  }
+                                />
+                                {label}
+                              </label>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </section>

@@ -153,6 +153,178 @@ export async function getAtributosLoteFromStepOneChecklist(
   return { ok: true, atributos };
 }
 
+export const PRE_BATALHA_CHECKLIST_LABEL_APLICADA =
+  'Pré-batalha aplicada (Produto + Localização)';
+
+export const PRE_BATALHA_CHECKLIST_LABEL_RANKING =
+  'Ranking inicial — casas candidatas confirmadas';
+
+const BATALHA_FASE_SLUGS = [FASE_SLUGS.BATALHA, 'stepone_batalha', FASE_SLUGS.PRE_BATALHA] as const;
+
+export type RankingInicialChecklistItem = {
+  modelo: string;
+  topografia: string;
+  notaFinal: number;
+};
+
+/** Formato checklist: "1º Gal/plano (Final: 2.3) | 2º Sol/aclive (Final: 1.8)" */
+export function formatRankingInicialChecklistPreBatalha(
+  ranking: RankingInicialChecklistItem[],
+): string {
+  return ranking
+    .slice(0, 5)
+    .map((item, idx) => {
+      const palavra = item.modelo.trim().split(/\s+/)[0] || item.modelo.trim();
+      const abrev = palavra.length <= 4 ? palavra : palavra.slice(0, 3);
+      const topoRaw = item.topografia.trim().toLowerCase();
+      const topoSlug = topoRaw === '—' || !topoRaw ? '—' : topoRaw;
+      return `${idx + 1}º ${abrev}/${topoSlug} (Final: ${item.notaFinal})`;
+    })
+    .join(' | ');
+}
+
+async function resolveStepOneKanbanCardId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  processoId: string,
+): Promise<string> {
+  const { data: cardNativo } = await supabase
+    .from('kanban_cards')
+    .select('id')
+    .eq('projeto_id', processoId)
+    .eq('kanban_id', KANBAN_IDS.STEP_ONE)
+    .limit(1)
+    .maybeSingle();
+  if (cardNativo?.id) return cardNativo.id as string;
+
+  const { data: cardLegado } = await supabase
+    .from('kanban_cards')
+    .select('id')
+    .eq('id', processoId)
+    .maybeSingle();
+  return (cardLegado?.id as string | undefined) ?? processoId;
+}
+
+async function buscarFaseBatalhaId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from('kanban_fases')
+    .select('id, slug')
+    .eq('kanban_id', KANBAN_IDS.STEP_ONE)
+    .in('slug', [...BATALHA_FASE_SLUGS]);
+  if (!data?.length) return null;
+  for (const slug of BATALHA_FASE_SLUGS) {
+    const hit = (data as { id: string; slug: string }[]).find((f) => f.slug === slug);
+    if (hit) return hit.id;
+  }
+  return (data[0] as { id: string }).id;
+}
+
+/**
+ * Após ranking Pré Batalha: marca checklist da fase batalha e preenche resumo do ranking.
+ * Idempotente — checkbox só se ainda não marcado; texto do ranking só se campo vazio.
+ */
+export async function autoMarcarChecklistPosRankingPreBatalha(
+  processoId: string,
+  ranking: RankingInicialChecklistItem[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (ranking.length === 0) return { ok: true };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const { data: processo } = await supabase
+    .from('processo_step_one')
+    .select('id')
+    .eq('id', processoId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (!processo) return { ok: false, error: 'Processo não encontrado.' };
+
+  const cardId = await resolveStepOneKanbanCardId(supabase, processoId);
+  const faseId = await buscarFaseBatalhaId(supabase);
+  if (!faseId) {
+    console.warn(
+      '[pre-batalha] Fase batalha não encontrada no Funil Step One — checklist não atualizado.',
+    );
+    return { ok: false, error: 'Fase Pré Batalha não encontrada no kanban.' };
+  }
+
+  const labels = [PRE_BATALHA_CHECKLIST_LABEL_APLICADA, PRE_BATALHA_CHECKLIST_LABEL_RANKING];
+  const { data: itens, error: errItens } = await supabase
+    .from('kanban_fase_checklist_itens')
+    .select('id, label, tipo')
+    .eq('fase_id', faseId)
+    .in('label', labels);
+  if (errItens) return { ok: false, error: errItens.message };
+
+  const itemPorLabel = new Map(
+    ((itens ?? []) as { id: string; label: string; tipo: string }[]).map((i) => [i.label, i]),
+  );
+
+  for (const label of labels) {
+    if (!itemPorLabel.has(label)) {
+      console.warn(
+        `[pre-batalha] Item de checklist "${label}" não encontrado na fase batalha (card ${cardId}).`,
+      );
+    }
+  }
+
+  const itemIds = [...itemPorLabel.values()].map((i) => i.id);
+  const valorPorItem = new Map<string, string>();
+  if (itemIds.length > 0) {
+    const { data: respostas } = await supabase
+      .from('kanban_fase_checklist_respostas')
+      .select('item_id, valor')
+      .eq('card_id', cardId)
+      .in('item_id', itemIds);
+    for (const r of (respostas ?? []) as { item_id: string; valor: string | null }[]) {
+      if (r.valor != null) valorPorItem.set(r.item_id, r.valor);
+    }
+  }
+
+  const now = new Date().toISOString();
+
+  async function upsertResposta(itemId: string, valor: string): Promise<{ ok: false; error: string } | null> {
+    const { error } = await supabase.from('kanban_fase_checklist_respostas').upsert(
+      {
+        item_id: itemId,
+        card_id: cardId,
+        valor,
+        preenchido_por: user!.id,
+        preenchido_em: now,
+      },
+      { onConflict: 'item_id,card_id' },
+    );
+    if (error) return { ok: false, error: error.message };
+    return null;
+  }
+
+  const itemAplicada = itemPorLabel.get(PRE_BATALHA_CHECKLIST_LABEL_APLICADA);
+  if (itemAplicada) {
+    const atual = valorPorItem.get(itemAplicada.id)?.trim();
+    if (atual !== 'true') {
+      const err = await upsertResposta(itemAplicada.id, 'true');
+      if (err) return err;
+    }
+  }
+
+  const itemRanking = itemPorLabel.get(PRE_BATALHA_CHECKLIST_LABEL_RANKING);
+  if (itemRanking) {
+    const atual = valorPorItem.get(itemRanking.id)?.trim();
+    if (!atual) {
+      const texto = formatRankingInicialChecklistPreBatalha(ranking);
+      const err = await upsertResposta(itemRanking.id, texto);
+      if (err) return err;
+    }
+  }
+
+  return { ok: true };
+}
+
 export async function saveEtapa1(
   processoId: string,
   data: { narrativa?: string; concluida?: boolean },
