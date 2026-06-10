@@ -24,7 +24,11 @@ export default async function TreinamentoBcaLeituraPublicaPage({ searchParams }:
   }
 
   return (
-    <Suspense fallback={<div className="px-4 py-6 text-sm text-stone-600">Carregando treinamento…</div>}>
+    <Suspense
+      fallback={
+        <div className="flex flex-1 items-center px-4 py-6 text-sm text-stone-600">Carregando treinamento…</div>
+      }
+    >
       <TreinamentoBcaSecaoClient secao="introducao" modoPublico usuarioLogado={usuarioLogado} />
     </Suspense>
   );

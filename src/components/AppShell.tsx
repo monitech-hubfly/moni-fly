@@ -21,7 +21,15 @@ export function AppShell({ user, userRole, children }: AppShellProps) {
 
   if (!user || pendingOnly || publicStandalone) {
     return (
-      <div className={publicStandalone ? 'flex min-h-[100dvh] flex-col' : undefined}>{children}</div>
+      <div
+        className={
+          publicStandalone
+            ? 'flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden'
+            : undefined
+        }
+      >
+        {children}
+      </div>
     );
   }
 
