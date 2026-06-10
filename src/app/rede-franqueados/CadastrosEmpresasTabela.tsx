@@ -20,6 +20,7 @@ type EmpresaDraft = {
   razao_social: string;
   cnpj: string;
   inscricao_municipal: string;
+  inscricao_estadual: string;
   status: FranqueadoEmpresaStatus;
   conta_banco: string;
   conta_agencia: string;
@@ -31,6 +32,7 @@ function emptyEmpresaDraft(): EmpresaDraft {
     razao_social: '',
     cnpj: '',
     inscricao_municipal: '',
+    inscricao_estadual: '',
     status: 'ativa',
     conta_banco: '',
     conta_agencia: '',
@@ -45,6 +47,7 @@ function empresaToDraft(
     razao_social: emp?.razao_social ?? '',
     cnpj: emp?.cnpj ?? '',
     inscricao_municipal: emp?.inscricao_municipal ?? '',
+    inscricao_estadual: emp?.inscricao_estadual ?? '',
     status: emp?.status ?? 'ativa',
     conta_banco: emp?.conta_banco ?? '',
     conta_agencia: emp?.conta_agencia ?? '',
@@ -57,6 +60,7 @@ function draftToUpsert(d: EmpresaDraft) {
     razao_social: d.razao_social.trim() || null,
     cnpj: d.cnpj.trim() || null,
     inscricao_municipal: d.inscricao_municipal.trim() || null,
+    inscricao_estadual: d.inscricao_estadual.trim() || null,
     status: d.status,
     conta_banco: d.conta_banco.trim() || null,
     conta_agencia: d.conta_agencia.trim() || null,
@@ -131,6 +135,7 @@ export function CadastrosEmpresasTabela({ linhas, buscaAtiva = false, totalSemBu
       razao_social: draftGest.razao_social.trim() || null,
       cnpj: draftGest.cnpj.trim() || null,
       inscricao_municipal: draftGest.inscricao_municipal.trim() || null,
+      inscricao_estadual: draftGest.inscricao_estadual.trim() || null,
       status: draftGest.status,
     });
     setSaving(false);
@@ -165,16 +170,16 @@ export function CadastrosEmpresasTabela({ linhas, buscaAtiva = false, totalSemBu
       ) : null}
 
       <div className="overflow-x-auto rounded-xl border border-stone-200/90 bg-white shadow-sm">
-        <table className="w-full min-w-[1400px] border-collapse text-left text-sm">
+        <table className="w-full min-w-[1560px] border-collapse text-left text-sm">
           <thead>
             <tr>
               <th colSpan={4} className={thGroup}>
                 Franqueado
               </th>
-              <th colSpan={5} className={`${thGroup} border-l border-stone-200`}>
+              <th colSpan={6} className={`${thGroup} border-l border-stone-200`}>
                 Incorporadora
               </th>
-              <th colSpan={4} className={`${thGroup} border-l border-stone-200`}>
+              <th colSpan={5} className={`${thGroup} border-l border-stone-200`}>
                 Gestora
               </th>
               <th
@@ -192,11 +197,13 @@ export function CadastrosEmpresasTabela({ linhas, buscaAtiva = false, totalSemBu
               <th className={`${redeTh} border-l border-stone-200`}>Razão social</th>
               <th className={redeTh}>CNPJ</th>
               <th className={redeTh}>Insc. municipal</th>
+              <th className={redeTh}>Insc. estadual</th>
               <th className={redeTh}>Status</th>
               <th className={redeTh}>Conta bancária</th>
               <th className={`${redeTh} border-l border-stone-200`}>Razão social</th>
               <th className={redeTh}>CNPJ</th>
               <th className={redeTh}>Insc. municipal</th>
+              <th className={redeTh}>Insc. estadual</th>
               <th className={redeTh}>Status</th>
             </tr>
           </thead>
@@ -261,6 +268,7 @@ export function CadastrosEmpresasTabela({ linhas, buscaAtiva = false, totalSemBu
                   </td>
                   <td className="px-3 py-2.5 text-stone-700">{inc?.cnpj?.trim() || '—'}</td>
                   <td className="px-3 py-2.5 text-stone-700">{inc?.inscricao_municipal?.trim() || '—'}</td>
+                  <td className="px-3 py-2.5 text-stone-700">{inc?.inscricao_estadual?.trim() || '—'}</td>
                   <td className="px-3 py-2.5">
                     {inc ? <StatusEmpresaBadge status={inc.status} /> : '—'}
                   </td>
@@ -272,6 +280,7 @@ export function CadastrosEmpresasTabela({ linhas, buscaAtiva = false, totalSemBu
                   </td>
                   <td className="px-3 py-2.5 text-stone-700">{ges?.cnpj?.trim() || '—'}</td>
                   <td className="px-3 py-2.5 text-stone-700">{ges?.inscricao_municipal?.trim() || '—'}</td>
+                  <td className="px-3 py-2.5 text-stone-700">{ges?.inscricao_estadual?.trim() || '—'}</td>
                   <td className="px-3 py-2.5">
                     {ges ? <StatusEmpresaBadge status={ges.status} /> : '—'}
                   </td>
@@ -388,6 +397,15 @@ function EmpresaEditCells({
           value={draft.inscricao_municipal}
           onChange={(e) => setDraft((d) => ({ ...d, inscricao_municipal: e.target.value }))}
           className={inputCls}
+        />
+      </td>
+      <td className={cell}>
+        <input
+          type="text"
+          value={draft.inscricao_estadual}
+          onChange={(e) => setDraft((d) => ({ ...d, inscricao_estadual: e.target.value }))}
+          className={inputCls}
+          placeholder="Opcional"
         />
       </td>
       <td className={cell}>
