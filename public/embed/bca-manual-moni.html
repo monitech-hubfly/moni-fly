@@ -7,6 +7,10 @@
   <script>
     try {
       if (window.self !== window.top) document.documentElement.classList.add('hub-embed');
+      var q = new URLSearchParams(window.location.search);
+      if (q.get('leitura') === '1' || q.get('modo') === 'leitura') {
+        document.documentElement.classList.add('modo-leitura');
+      }
     } catch (e) {}
   </script>
   <style>
