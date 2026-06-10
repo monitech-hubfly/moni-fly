@@ -15,7 +15,7 @@ export const ATRIBUTOS_LOTE = [
   { id: 'perto_lago', label: 'Perto do lago', nota: 1 },
   { id: 'fundo_lago', label: 'Fundo de lago', nota: 2 },
   { id: 'frente_lago', label: 'Frente de lago', nota: 2 },
-  { id: 'area_convivencia', label: 'Perto de área de convivência', nota: -2 },
+  { id: 'area_convivencia', label: 'Perto de área de convivência', nota: 1 },
   { id: 'lixeira', label: 'Perto de lixeira', nota: -2 },
   { id: 'portaria', label: 'Perto de portaria', nota: 0 },
   { id: 'muro_rodovia', label: 'Muro com rodovia', nota: -2 },
