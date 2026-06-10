@@ -13,11 +13,13 @@ import { applyZapLotesSave, verifyProcessoLotesAccess, type ZapLoteItem } from '
 import type { BcaInputs } from '@/lib/bca-calc';
 import { KANBAN_IDS, FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import {
+  ATRIBUTOS_LOTE,
   type AtributosLoteRespostas,
   type AtributosLoteIds,
   atributosRespostasFromLoteDisponivel,
   parseAtributosLoteRespostas,
 } from './REGRAS_BATALHA';
+import { calcularRankingModelos } from '@/lib/kanban/pre-batalha-compatibilidade';
 import { LOTES_DISPONIVEIS_CHECKBOXES } from '@/lib/kanban/lotes-disponiveis-condominio';
 import {
   PRE_BATALHA_CHECKLIST_LABEL_APLICADA,
@@ -71,22 +73,16 @@ async function resolveStepOneKanbanCardIds(
 /** Pré-preenche Atributos do Lote a partir da fase lotes_disponiveis (Step One). */
 export async function getAtributosLoteFromStepOneChecklist(
   processoId: string,
+  options?: { cardId?: string },
 ): Promise<{ ok: true; atributos: AtributosLoteRespostas } | { ok: false; error: string }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const access = await verifyProcessoCasasAccess(processoId);
+  if (!access.ok) return { ok: false, error: access.error };
+  const supabase = access.supabase;
 
-  const { data: processo } = await supabase
-    .from('processo_step_one')
-    .select('id')
-    .eq('id', processoId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  if (!processo) return { ok: false, error: 'Processo não encontrado.' };
-
-  const cardIds = await resolveStepOneKanbanCardIds(supabase, processoId);
+  const cardIdsSet = new Set(await resolveStepOneKanbanCardIds(supabase, processoId));
+  const hint = options?.cardId?.trim();
+  if (hint) cardIdsSet.add(hint);
+  const cardIds = [...cardIdsSet];
   if (cardIds.length === 0) return { ok: true, atributos: {} };
 
   const { data: fase } = await supabase
@@ -182,6 +178,28 @@ async function resolveStepOneKanbanCardId(
   return (cardLegado?.id as string | undefined) ?? processoId;
 }
 
+async function resolveKanbanCardIdForPreBatalha(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  processoId: string,
+  cardIdHint?: string,
+): Promise<string> {
+  const hint = cardIdHint?.trim();
+  if (hint) {
+    const { data: byHint } = await supabase
+      .from('kanban_cards')
+      .select('id, projeto_id')
+      .eq('id', hint)
+      .maybeSingle();
+    if (byHint?.id) {
+      const projetoId = String((byHint as { projeto_id?: string | null }).projeto_id ?? '').trim();
+      if (!projetoId || projetoId === processoId || String(byHint.id) === processoId) {
+        return String(byHint.id);
+      }
+    }
+  }
+  return resolveStepOneKanbanCardId(supabase, processoId);
+}
+
 async function buscarFaseBatalhaId(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<string | null> {
@@ -205,25 +223,22 @@ async function buscarFaseBatalhaId(
 export async function autoMarcarChecklistPosRankingPreBatalha(
   processoId: string,
   ranking: RankingInicialChecklistItem[],
+  options?: { cardId?: string; faseId?: string },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (ranking.length === 0) return { ok: true };
 
-  const supabase = await createClient();
+  const access = await verifyProcessoCasasAccess(processoId);
+  if (!access.ok) return { ok: false, error: access.error };
+  const supabase = access.supabase;
+
+  const authClient = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await authClient.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
 
-  const { data: processo } = await supabase
-    .from('processo_step_one')
-    .select('id')
-    .eq('id', processoId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  if (!processo) return { ok: false, error: 'Processo não encontrado.' };
-
-  const cardId = await resolveStepOneKanbanCardId(supabase, processoId);
-  const faseId = await buscarFaseBatalhaId(supabase);
+  const cardId = await resolveKanbanCardIdForPreBatalha(supabase, processoId, options?.cardId);
+  const faseId = options?.faseId?.trim() || (await buscarFaseBatalhaId(supabase));
   if (!faseId) {
     console.warn(
       '[pre-batalha] Fase batalha não encontrada no Funil Step One — checklist não atualizado.',
@@ -301,6 +316,97 @@ export async function autoMarcarChecklistPosRankingPreBatalha(
   }
 
   return { ok: true };
+}
+
+function atributosLoteRespostasVazio(resp: AtributosLoteRespostas): boolean {
+  return !ATRIBUTOS_LOTE.some((a) => resp[a.id] === true);
+}
+
+/**
+ * Calcula ranking Pré Batalha server-side e preenche checklist no modal Kanban.
+ * Disparado ao abrir a fase Pré Batalha — idempotente.
+ */
+export async function sincronizarChecklistPreBatalhaKanban(input: {
+  cardId: string;
+  processoId: string;
+  faseId?: string;
+}): Promise<{ ok: true; rankingCount: number } | { ok: false; error: string }> {
+  const cardId = input.cardId?.trim();
+  const processoId = input.processoId?.trim();
+  if (!cardId || !processoId) return { ok: false, error: 'Parâmetros inválidos.' };
+
+  const access = await verifyProcessoCasasAccess(processoId);
+  if (!access.ok) return { ok: false, error: access.error };
+  const supabase = access.supabase;
+
+  const { data: casasRows, error: errCasas } = await supabase
+    .from('listings_casas')
+    .select(
+      'id, condominio, quartos, banheiros, vagas, preco, area_casa_m2, piscina, marcenaria',
+    )
+    .eq('processo_id', processoId)
+    .order('created_at', { ascending: false });
+  if (errCasas) return { ok: false, error: errCasas.message };
+
+  const casas = casasRows ?? [];
+  if (casas.length === 0) return { ok: true, rankingCount: 0 };
+
+  const { data: catRows, error: errCat } = await supabase
+    .from('catalogo_casas')
+    .select(
+      'id, nome, quartos, banheiros, vagas, preco_venda_m2, area_m2, preco_venda, topografia',
+    )
+    .eq('ativo', true);
+  if (errCat) return { ok: false, error: errCat.message };
+
+  const catalogo = catRows ?? [];
+  if (catalogo.length === 0) return { ok: true, rankingCount: 0 };
+
+  const attrResult = await getAtributosLoteFromStepOneChecklist(processoId, { cardId });
+  const atributos = attrResult.ok ? attrResult.atributos : {};
+  const atributosParaRanking = atributosLoteRespostasVazio(atributos) ? {} : atributos;
+
+  const ranking = calcularRankingModelos(
+    (
+      casas as {
+        id: string;
+        condominio: string | null;
+        quartos: number | null;
+        banheiros: number | null;
+        vagas: number | null;
+        preco: number | null;
+        area_casa_m2: number | null;
+        piscina?: boolean | null;
+        marcenaria?: boolean | null;
+      }[]
+    ).map((c) => ({
+      id: c.id,
+      condominio: c.condominio,
+      quartos: c.quartos,
+      banheiros: c.banheiros,
+      vagas: c.vagas,
+      preco: c.preco,
+      area_casa_m2: c.area_casa_m2,
+      piscina: c.piscina,
+      marcenaria: c.marcenaria,
+    })),
+    catalogo,
+    atributosParaRanking,
+  );
+
+  if (ranking.length === 0) return { ok: true, rankingCount: 0 };
+
+  const mark = await autoMarcarChecklistPosRankingPreBatalha(
+    processoId,
+    ranking.map((item) => ({
+      modelo: item.modelo,
+      topografia: item.topografia,
+      notaFinal: item.notaFinal,
+    })),
+    { cardId, faseId: input.faseId },
+  );
+  if (!mark.ok) return mark;
+  return { ok: true, rankingCount: ranking.length };
 }
 
 export async function saveEtapa1(

@@ -29,7 +29,12 @@ import { MapaPracaChecklist } from '@/components/kanban-shared/MapaPracaChecklis
 import { MapaCompetidoresChecklist } from '@/components/kanban-shared/MapaCompetidoresChecklist';
 import { ChecklistAreaAtuacaoSelect } from '@/components/kanban-shared/ChecklistAreaAtuacaoSelect';
 import { DadosCidadePracaTabs } from '@/components/kanban-shared/DadosCidadePracaTabs';
-import { isDadosCandidatoFaseSlug, isDadosCidadeFaseSlug, isLotesDisponiveisFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { isDadosCandidatoFaseSlug, isDadosCidadeFaseSlug, isLotesDisponiveisFaseSlug, isPreBatalhaFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import {
+  PRE_BATALHA_CHECKLIST_LABEL_APLICADA,
+  PRE_BATALHA_CHECKLIST_LABEL_RANKING,
+} from '@/lib/kanban/pre-batalha-checklist';
+import { sincronizarChecklistPreBatalhaKanban } from '@/app/step-one/[id]/etapa/actions';
 import {
   isLabelDadosCandidatoRede,
   valorDadosCandidatoFromRede,
@@ -108,6 +113,7 @@ export function FaseChecklistCard({
   const [abaPracaAtiva, setAbaPracaAtiva] = useState('');
   const [diffModal, setDiffModal] = useState<{ open: boolean; lines: string[] }>({ open: false, lines: [] });
   const redeSyncFeitoRef = useRef('');
+  const preBatalhaSyncFeitoRef = useRef('');
 
   const areasAtuacao = parseAreaAtuacao(areaAtuacao);
   const multiPracaAtivo = isDadosCidadeFaseSlug(faseSlug) && areasAtuacao.length >= 1;
@@ -128,6 +134,7 @@ export function FaseChecklistCard({
 
   useEffect(() => {
     redeSyncFeitoRef.current = '';
+    preBatalhaSyncFeitoRef.current = '';
   }, [cardId, faseId]);
 
   useEffect(() => {
@@ -225,6 +232,66 @@ export function FaseChecklistCard({
       }
     })();
   }, [carregando, faseSlug, cardId, faseId, itens, redeFranqueado, respostas]);
+
+  /** Pré Batalha: calcula ranking e preenche checklist ao abrir o modal (idempotente). */
+  useEffect(() => {
+    if (carregando || !itens?.length) return;
+    if (!isPreBatalhaFaseSlug(faseSlug) || !processoId?.trim()) return;
+
+    const syncKey = `${cardId}:${faseId}:${processoId.trim()}`;
+    if (preBatalhaSyncFeitoRef.current === syncKey) return;
+
+    const itemAplicada = itens.find(
+      (i) => i.label.trim() === PRE_BATALHA_CHECKLIST_LABEL_APLICADA,
+    );
+    const itemRanking = itens.find((i) => i.label.trim() === PRE_BATALHA_CHECKLIST_LABEL_RANKING);
+    const aplicadaOk = itemAplicada
+      ? respostas.get(itemAplicada.id)?.valor?.trim() === 'true'
+      : true;
+    const rankingOk = itemRanking ? !!respostas.get(itemRanking.id)?.valor?.trim() : true;
+
+    if (aplicadaOk && rankingOk) {
+      preBatalhaSyncFeitoRef.current = syncKey;
+      return;
+    }
+
+    preBatalhaSyncFeitoRef.current = syncKey;
+
+    void (async () => {
+      const res = await sincronizarChecklistPreBatalhaKanban({
+        cardId,
+        processoId: processoId.trim(),
+        faseId,
+      });
+      if (!res.ok) {
+        console.warn('[pre-batalha] sync kanban:', res.error);
+        preBatalhaSyncFeitoRef.current = '';
+        return;
+      }
+      if (res.rankingCount === 0) return;
+
+      const itemIds = [itemAplicada?.id, itemRanking?.id].filter(Boolean) as string[];
+      if (itemIds.length === 0) return;
+
+      try {
+        const supabase = createClient();
+        const { data: rows } = await supabase
+          .from('kanban_fase_checklist_respostas')
+          .select('item_id, valor, arquivo_path')
+          .eq('card_id', cardId)
+          .in('item_id', itemIds);
+        for (const r of rows ?? []) {
+          const row = r as { item_id: string; valor: string | null; arquivo_path: string | null };
+          setResposta(row.item_id, {
+            valor: row.valor ?? '',
+            arquivo_path: row.arquivo_path ?? null,
+          });
+        }
+      } catch {
+        /* UI atualiza na próxima abertura do modal */
+      }
+    })();
+  }, [carregando, faseSlug, cardId, faseId, processoId, itens, respostas]);
 
   function setResposta(itemId: string, patch: Partial<EstadoResposta>) {
     setRespostas((prev) => {
