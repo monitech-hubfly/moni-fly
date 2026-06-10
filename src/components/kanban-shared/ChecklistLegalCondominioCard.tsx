@@ -18,6 +18,25 @@ import {
   type ChecklistLegalRespostas,
 } from '@/lib/checklist-legal/types';
 
+function mergePrefillCadastroRespostas(
+  respostas: ChecklistLegalRespostas,
+  prefill: Partial<ChecklistLegalRespostas>,
+): ChecklistLegalRespostas {
+  const next = { ...respostas };
+  for (const key of [
+    'cadastro_franqueado',
+    'cadastro_condominio',
+    'cadastro_quadra',
+    'cadastro_lote',
+    'cadastro_modelo_moni',
+  ] as const) {
+    const atual = String(next[key] ?? '').trim();
+    const sugerido = String(prefill[key] ?? '').trim();
+    if (!atual && sugerido) next[key] = sugerido;
+  }
+  return next;
+}
+
 type Props = {
   cardId: string;
   basePath?: string;
@@ -62,20 +81,17 @@ export function ChecklistLegalCondominioCard({
       condominioId?.trim() ||
       null;
     setCondominioIdResolvido(cid);
-    if (!cid) {
-      setStatus('ausente');
-      setLoading(false);
-      return;
-    }
+    const baseRespostas = r.record
+      ? { ...EMPTY_CHECKLIST_LEGAL_RESPOSTAS, ...r.record.respostas_json }
+      : { ...EMPTY_CHECKLIST_LEGAL_RESPOSTAS };
+    setRespostas(mergePrefillCadastroRespostas(baseRespostas, r.prefillCadastro ?? {}));
     if (r.record) {
-      setRespostas({ ...EMPTY_CHECKLIST_LEGAL_RESPOSTAS, ...r.record.respostas_json });
       setArquivos({ ...EMPTY_CHECKLIST_LEGAL_ARQUIVOS, ...r.record.arquivos_json });
       if (r.record.status === 'concluido') setStatus('concluido');
       else if (r.hasOwnDraft) setStatus('rascunho');
       else if (r.canonical) setStatus('revisao');
       else setStatus('rascunho');
     } else {
-      setRespostas(EMPTY_CHECKLIST_LEGAL_RESPOSTAS);
       setArquivos(EMPTY_CHECKLIST_LEGAL_ARQUIVOS);
       setStatus(r.canonical ? 'revisao' : 'ausente');
     }
@@ -164,16 +180,13 @@ export function ChecklistLegalCondominioCard({
     );
   }
 
-  if (!condominioIdResolvido && status === 'ausente' && !respostas.cadastro_condominio) {
-    const nomeLivre = String(nomeCondominioLegado ?? '').trim();
-    return (
-      <p className="text-xs text-stone-500">
-        {nomeLivre
-          ? `O condomínio "${nomeLivre}" ainda não está vinculado ao cadastro. Associe em Dados do Negócio (Rede → Condomínios) para habilitar o Checklist Legal.`
-          : 'Vincule um condomínio ao card para habilitar o Checklist Legal.'}
-      </p>
-    );
-  }
+  const avisoCondominioNaoVinculado = !condominioIdResolvido ? (
+    <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+      {String(nomeCondominioLegado ?? '').trim()
+        ? `O condomínio "${String(nomeCondominioLegado).trim()}" ainda não está vinculado ao cadastro. Você pode preencher o cadastro abaixo; para salvar o checklist, associe o condomínio em Dados do Negócio (Rede → Condomínios).`
+        : 'Vincule um condomínio ao card para salvar o Checklist Legal. Os campos de cadastro abaixo permanecem disponíveis para preenchimento.'}
+    </p>
+  ) : null;
 
   const statusLabel =
     status === 'concluido'
@@ -238,6 +251,8 @@ export function ChecklistLegalCondominioCard({
           uma nova versão.
         </p>
       ) : null}
+
+      {avisoCondominioNaoVinculado}
 
       {erro ? <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{erro}</div> : null}
 

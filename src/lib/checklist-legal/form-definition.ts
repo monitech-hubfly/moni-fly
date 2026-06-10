@@ -28,11 +28,11 @@ export const CHECKLIST_LEGAL_SECTIONS: ChecklistLegalSectionDef[] = [
     id: 'cadastro',
     title: '1. Cadastro acoplamento',
     fields: [
-      { key: 'cadastro_franqueado', label: 'Franqueado', type: 'text' },
-      { key: 'cadastro_condominio', label: 'Condomínio', type: 'text' },
-      { key: 'cadastro_quadra', label: 'Quadra', type: 'text' },
-      { key: 'cadastro_lote', label: 'Lote', type: 'text' },
-      { key: 'cadastro_modelo_moni', label: 'Modelo Moní', type: 'text' },
+      { key: 'cadastro_franqueado', label: 'Franqueado (opcional)', type: 'text', required: false },
+      { key: 'cadastro_condominio', label: 'Condomínio (opcional)', type: 'text', required: false },
+      { key: 'cadastro_quadra', label: 'Quadra (opcional)', type: 'text', required: false },
+      { key: 'cadastro_lote', label: 'Lote (opcional)', type: 'text', required: false },
+      { key: 'cadastro_modelo_moni', label: 'Modelo Moní (opcional)', type: 'text', required: false },
     ],
   },
   {

@@ -59,6 +59,46 @@ function mapRecord(row: Record<string, unknown>): ChecklistLegalCondominioRecord
   };
 }
 
+async function resolverPrefillCadastroDoCard(
+  db: Awaited<ReturnType<typeof createClient>>,
+  cardId: string,
+): Promise<Partial<ChecklistLegalRespostas>> {
+  const { data: cardMeta } = await db
+    .from('kanban_cards')
+    .select('quadra, lote, franqueado_id, nome_condominio, condominio_id')
+    .eq('id', cardId)
+    .maybeSingle();
+
+  const row = cardMeta as {
+    quadra?: string | null;
+    lote?: string | null;
+    franqueado_id?: string | null;
+    nome_condominio?: string | null;
+    condominio_id?: string | null;
+  } | null;
+
+  let franqueadoNome = '';
+  const franqId = String(row?.franqueado_id ?? '').trim();
+  if (franqId) {
+    const { data: franq } = await db.from('profiles').select('full_name').eq('id', franqId).maybeSingle();
+    franqueadoNome = String((franq as { full_name?: string | null } | null)?.full_name ?? '').trim();
+  }
+
+  let condominioNome = String(row?.nome_condominio ?? '').trim();
+  const condominioId = String(row?.condominio_id ?? '').trim();
+  if (!condominioNome && condominioId) {
+    const { data: cond } = await db.from('condominios').select('nome').eq('id', condominioId).maybeSingle();
+    condominioNome = String((cond as { nome?: string | null } | null)?.nome ?? '').trim();
+  }
+
+  return {
+    cadastro_franqueado: franqueadoNome,
+    cadastro_condominio: condominioNome,
+    cadastro_quadra: String(row?.quadra ?? '').trim(),
+    cadastro_lote: String(row?.lote ?? '').trim(),
+  };
+}
+
 export async function getChecklistLegalForKanbanCard(cardId: string): Promise<
   | {
       ok: true;
@@ -66,6 +106,7 @@ export async function getChecklistLegalForKanbanCard(cardId: string): Promise<
       canonical: ChecklistLegalCondominioRecord | null;
       hasOwnDraft: boolean;
       condominioId: string | null;
+      prefillCadastro: Partial<ChecklistLegalRespostas>;
     }
   | { ok: false; error: string }
 > {
@@ -75,9 +116,18 @@ export async function getChecklistLegalForKanbanCard(cardId: string): Promise<
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
 
-  const condominioId = await resolverCondominioIdDoCard(supabase, cardId);
+  const cid = String(cardId ?? '').trim();
+  const prefillCadastro = await resolverPrefillCadastroDoCard(supabase, cid);
+  const condominioId = await resolverCondominioIdDoCard(supabase, cid);
   if (!condominioId) {
-    return { ok: true, record: null, canonical: null, hasOwnDraft: false, condominioId: null };
+    return {
+      ok: true,
+      record: null,
+      canonical: null,
+      hasOwnDraft: false,
+      condominioId: null,
+      prefillCadastro,
+    };
   }
 
   const { data: canonicalRow } = await supabase
@@ -111,6 +161,7 @@ export async function getChecklistLegalForKanbanCard(cardId: string): Promise<
     canonical: canonicalRow ? mapRecord(canonicalRow as Record<string, unknown>) : null,
     hasOwnDraft: Boolean(draftForCard),
     condominioId,
+    prefillCadastro,
   };
 }
 
