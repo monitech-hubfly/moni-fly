@@ -1,8 +1,27 @@
 /** Lotes vinculados ao cadastro em `condominios_lotes`. */
 
-import type { ChaveLoteCheckbox } from '@/lib/kanban/lotes-disponiveis-condominio';
+/** Colunas boolean de atributos em `condominios_lotes` (nomenclatura legada no Postgres). */
+export type CondominioLoteColunaAtributo =
+  | 'vista_privilegiada'
+  | 'terreno_plano'
+  | 'terreno_aclive'
+  | 'terreno_aclive_acentuado'
+  | 'terreno_declive'
+  | 'terreno_declive_acentuado'
+  | 'fundo_mata'
+  | 'frente_mata'
+  | 'perto_area_verde'
+  | 'perto_lago'
+  | 'fundo_lago'
+  | 'frente_lago'
+  | 'perto_area_convivencia'
+  | 'perto_lixeira'
+  | 'perto_portaria'
+  | 'muro_rodovia'
+  | 'muro_comunidade'
+  | 'muro_vegetacao';
 
-export type CondominioLoteAtributos = Record<ChaveLoteCheckbox, boolean>;
+export type CondominioLoteAtributos = Partial<Record<CondominioLoteColunaAtributo, boolean>>;
 
 export type CondominioLoteRow = {
   id: string;
@@ -29,7 +48,7 @@ export type CondominioLotePatch = {
   fotos_path?: string | null;
   observacoes?: string | null;
   kanban_card_id?: string | null;
-} & Partial<CondominioLoteAtributos>;
+} & CondominioLoteAtributos;
 
 export function formatQuadraLote(quadra: string | null | undefined, lote: string | null | undefined): string {
   const q = (quadra ?? '').trim();

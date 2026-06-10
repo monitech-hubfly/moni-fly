@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Circle, Loader2 } from 'lucide-react';
-import { Etapa4Casas } from '@/app/step-one/[id]/etapa/Etapa4Casas';
+import { Etapa4CasasListagem } from '@/app/step-one/[id]/etapa/Etapa4CasasListagem';
 import { KanbanFaseSecaoTabs } from '@/components/kanban-shared/KanbanFaseSecaoTabs';
 import { carregarProspectsCondominioCard } from '@/lib/actions/kanban-condominio-pesquisa';
 import {
@@ -275,18 +275,14 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
                   <span className="ml-1 text-red-500">*</span>
                 </p>
                 <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
-                  <Etapa4Casas
+                  <Etapa4CasasListagem
                     key={`${linhaAtiva.row_id}-${dadosMapa.cidadeInicial}-${dadosMapa.estadoInicial}`}
-                    listagemOnly
                     readOnly={!podeEditar}
                     processoId={dadosMapa.processoId}
                     casas={casasComFaixa}
                     cidadeInicial={dadosMapa.cidadeInicial}
                     estadoInicial={dadosMapa.estadoInicial}
                     ultimaValidacaoCasasManuaisEm={dadosMapa.ultimaValidacaoCasasManuaisEm}
-                    casasEscolhidas={[]}
-                    catalogo={[]}
-                    batalhasIniciais={[]}
                     condominioInicial={linhaAtiva.condominio.trim()}
                     painelAposBuscar={painelFaixasMercado}
                     onMutate={recarregar}

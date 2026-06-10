@@ -13,7 +13,7 @@ import {
 } from '@/lib/kanban/dados-cidade-praca-multi';
 import {
   atualizarLotesPreenchidosEm,
-  loteDisponivelParaAtributosBoolean,
+  loteDisponivelParaCondominioLoteDb,
   normalizarLinhaLote,
   todasSessoesLotesCompletas,
   type LinhaLoteDisponivel,
@@ -154,7 +154,7 @@ async function sincronizarLotesComCadastro(
       fotos_path: lote.fotos_path.trim() || null,
       observacoes: lote.observacoes.trim() || null,
       kanban_card_id: null,
-      ...loteDisponivelParaAtributosBoolean(lote),
+      ...loteDisponivelParaCondominioLoteDb(lote),
     };
 
     const row = { ...patch, updated_at: new Date().toISOString(), criado_por: userId };

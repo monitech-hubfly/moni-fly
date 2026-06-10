@@ -1,26 +1,59 @@
+import type { CondominioLoteAtributos, CondominioLoteColunaAtributo } from '@/lib/condominios-lotes';
 import type { LinhaProspectCondominio } from '@/lib/kanban/condominio-prospect-pesquisa';
 import { linhaProspectTemNome } from '@/lib/kanban/condominio-prospect-pesquisa';
 
 export const LOTES_DISPONIVEIS_CHECKBOXES = [
-  { chave: 'vista_privilegiada', label: 'Vista privilegiada' },
-  { chave: 'terreno_plano', label: 'Terreno plano' },
-  { chave: 'terreno_aclive', label: 'Terreno aclive' },
-  { chave: 'terreno_aclive_acentuado', label: 'Terreno aclive acentuado' },
-  { chave: 'terreno_declive', label: 'Terreno declive' },
-  { chave: 'terreno_declive_acentuado', label: 'Terreno declive acentuado' },
-  { chave: 'fundo_mata', label: 'Fundo mata' },
-  { chave: 'frente_mata', label: 'Frente mata' },
-  { chave: 'perto_area_verde', label: 'Perto de área verde' },
+  { chave: 'vista', label: 'Vista privilegiada' },
+  { chave: 'plano', label: 'Terreno plano' },
+  { chave: 'aclive', label: 'Terreno aclive' },
+  { chave: 'declive', label: 'Terreno declive' },
+  { chave: 'fundo_mata', label: 'Fundo de mata' },
+  { chave: 'frente_mata', label: 'Frente de mata' },
+  { chave: 'area_verde', label: 'Perto de área verde' },
   { chave: 'perto_lago', label: 'Perto do lago' },
-  { chave: 'fundo_lago', label: 'Fundo lago' },
-  { chave: 'frente_lago', label: 'Frente lago' },
-  { chave: 'perto_area_convivencia', label: 'Perto de área de convivência' },
-  { chave: 'perto_lixeira', label: 'Perto de lixeira' },
-  { chave: 'perto_portaria', label: 'Perto da portaria' },
-  { chave: 'muro', label: 'Muro' },
+  { chave: 'fundo_lago', label: 'Fundo de lago' },
+  { chave: 'frente_lago', label: 'Frente de lago' },
+  { chave: 'area_convivencia', label: 'Perto de área de convivência' },
+  { chave: 'lixeira', label: 'Perto de lixeira' },
+  { chave: 'portaria', label: 'Perto de portaria' },
+  { chave: 'muro_rodovia', label: 'Muro com rodovia' },
+  { chave: 'muro_comunidade', label: 'Muro com comunidade' },
+  { chave: 'muro_vegetacao', label: 'Muro com vegetação' },
 ] as const;
 
 export type ChaveLoteCheckbox = (typeof LOTES_DISPONIVEIS_CHECKBOXES)[number]['chave'];
+
+/** Aliases de chaves legadas no JSON de `lotes_disponiveis` → id canônico (ATRIBUTOS_LOTE). */
+const LEGACY_CHAVE_ALIASES: Partial<Record<ChaveLoteCheckbox, readonly string[]>> = {
+  vista: ['vista_privilegiada'],
+  plano: ['terreno_plano'],
+  aclive: ['terreno_aclive', 'terreno_aclive_acentuado'],
+  declive: ['terreno_declive', 'terreno_declive_acentuado'],
+  area_verde: ['perto_area_verde'],
+  area_convivencia: ['perto_area_convivencia'],
+  lixeira: ['perto_lixeira'],
+  portaria: ['perto_portaria'],
+};
+
+/** Mapeia id canônico → coluna boolean em `condominios_lotes` (nomenclatura legada no Postgres). */
+export const CHAVE_LOTE_PARA_COLUNA_DB = {
+  vista: 'vista_privilegiada',
+  plano: 'terreno_plano',
+  aclive: 'terreno_aclive',
+  declive: 'terreno_declive',
+  fundo_mata: 'fundo_mata',
+  frente_mata: 'frente_mata',
+  area_verde: 'perto_area_verde',
+  perto_lago: 'perto_lago',
+  fundo_lago: 'fundo_lago',
+  frente_lago: 'frente_lago',
+  area_convivencia: 'perto_area_convivencia',
+  lixeira: 'perto_lixeira',
+  portaria: 'perto_portaria',
+  muro_rodovia: 'muro_rodovia',
+  muro_comunidade: 'muro_comunidade',
+  muro_vegetacao: 'muro_vegetacao',
+} as const satisfies Record<ChaveLoteCheckbox, CondominioLoteColunaAtributo>;
 
 export type ChaveLoteDisponivel =
   | ChaveLoteCheckbox
@@ -101,6 +134,16 @@ export function loteDisponivelParaAtributosBoolean(
   return out;
 }
 
+/** Converte atributos canônicos (ATRIBUTOS_LOTE) → colunas de `condominios_lotes`. */
+export function loteDisponivelParaCondominioLoteDb(lote: LinhaLoteDisponivel): CondominioLoteAtributos {
+  const attrs = loteDisponivelParaAtributosBoolean(lote);
+  const out: CondominioLoteAtributos = {};
+  for (const { chave } of LOTES_DISPONIVEIS_CHECKBOXES) {
+    out[CHAVE_LOTE_PARA_COLUNA_DB[chave]] = attrs[chave];
+  }
+  return out;
+}
+
 export function gerarLoteId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -120,11 +163,19 @@ function strField(o: Record<string, unknown>, k: string, fallback = ''): string 
 }
 
 function normalizarCheckbox(o: Record<string, unknown>, chave: ChaveLoteCheckbox): string {
-  return strField(o, chave, 'false') === 'true' ? 'true' : 'false';
+  if (strField(o, chave, 'false') === 'true') return 'true';
+  for (const leg of LEGACY_CHAVE_ALIASES[chave] ?? []) {
+    if (strField(o, leg, 'false') === 'true') return 'true';
+  }
+  return 'false';
 }
 
 export function normalizarLinhaLote(raw: unknown, fallbackIndex = 0): LinhaLoteDisponivel {
   const o = isRecord(raw) ? raw : {};
+  // TODO: migrar respostas legadas de 'vista_privilegiada' e 'muro' no ponto de leitura do banco.
+  if (isRecord(o) && String(o.muro ?? '') === 'true') {
+    void o.muro;
+  }
   const loteId =
     typeof o.lote_id === 'string' && o.lote_id.trim()
       ? o.lote_id.trim()

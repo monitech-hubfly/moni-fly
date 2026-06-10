@@ -14,21 +14,31 @@ import type { BcaInputs } from '@/lib/bca-calc';
 import { KANBAN_IDS, FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import {
   type AtributosLoteRespostas,
-  ATRIBUTOS_LOTE,
+  type AtributosLoteIds,
+  atributosRespostasFromLoteDisponivel,
+  parseAtributosLoteRespostas,
 } from './REGRAS_BATALHA';
+import { LOTES_DISPONIVEIS_CHECKBOXES } from '@/lib/kanban/lotes-disponiveis-condominio';
 
 export type SaveEtapa1Result = { ok: true } | { ok: false; error: string };
 
 /** Fase Lotes Disponíveis (Funil Step One) — PROD UUID; fallback se slug lookup falhar. */
 const STEP_ONE_LOTES_DISPONIVEIS_FASE_ID = 'a6afabd9-2409-49a7-ab11-d2df4d3784e7';
 
-/** Itens ordem 8–12 do checklist lotes_disponiveis → ids em REGRAS_BATALHA.ATRIBUTOS_LOTE. */
-const CHECKLIST_ORDEM_TO_ATRIBUTO: Record<number, (typeof ATRIBUTOS_LOTE)[number]['id']> = {
-  8: 'vista',
-  9: 'area_verde',
-  10: 'muro',
-  11: 'area_convivencia',
-  12: 'lixeira',
+/** Checklist legado (label) → id em ATRIBUTOS_LOTE; canônicos vêm de LOTES_DISPONIVEIS_CHECKBOXES. */
+const LEGACY_CHECKLIST_LABEL_ALIASES: Record<string, AtributosLoteIds> = {
+  'Terreno aclive acentuado': 'aclive',
+  'Terreno declive acentuado': 'declive',
+  'Fundo mata': 'fundo_mata',
+  'Frente mata': 'frente_mata',
+  'Fundo lago': 'fundo_lago',
+  'Frente lago': 'frente_lago',
+  'Perto da portaria': 'portaria',
+};
+
+const CHECKLIST_LABEL_TO_ATRIBUTO: Record<string, AtributosLoteIds> = {
+  ...Object.fromEntries(LOTES_DISPONIVEIS_CHECKBOXES.map(({ chave, label }) => [label, chave])),
+  ...LEGACY_CHECKLIST_LABEL_ALIASES,
 };
 
 /**
@@ -50,16 +60,6 @@ async function resolveStepOneKanbanCardIds(
     if (id) ids.add(id);
   }
   return [...ids];
-}
-
-function loteDisponivelParaAtributosBatalha(lote: import('@/lib/kanban/lotes-disponiveis-condominio').LinhaLoteDisponivel): AtributosLoteRespostas {
-  const atributos: AtributosLoteRespostas = {};
-  if (lote.vista_privilegiada === 'true') atributos.vista = true;
-  if (lote.perto_area_verde === 'true') atributos.area_verde = true;
-  if (lote.muro === 'true') atributos.muro = true;
-  if (lote.perto_area_convivencia === 'true') atributos.area_convivencia = true;
-  if (lote.perto_lixeira === 'true') atributos.lixeira = true;
-  return atributos;
 }
 
 /** Pré-preenche Atributos do Lote a partir da fase lotes_disponiveis (Step One). */
@@ -93,11 +93,11 @@ export async function getAtributosLoteFromStepOneChecklist(
 
   const { data: itens, error: errItens } = await supabase
     .from('kanban_fase_checklist_itens')
-    .select('id, ordem, tipo')
+    .select('id, ordem, tipo, label')
     .eq('fase_id', faseId);
   if (errItens) return { ok: false, error: errItens.message };
 
-  const itemRows = (itens ?? []) as { id: string; ordem: number; tipo: string }[];
+  const itemRows = (itens ?? []) as { id: string; ordem: number; tipo: string; label: string }[];
   const usaLotesPorCondominio = itemRows.some((i) => i.tipo === 'lotes_condominio');
 
   if (usaLotesPorCondominio) {
@@ -113,7 +113,7 @@ export async function getAtributosLoteFromStepOneChecklist(
           ? [escolhido]
           : (linha.lotes_disponiveis ?? []);
         for (const lote of lotesPrioridade) {
-          const atributos = loteDisponivelParaAtributosBatalha(lote);
+          const atributos = atributosRespostasFromLoteDisponivel(lote);
           if (Object.keys(atributos).length > 0) return { ok: true, atributos };
         }
       }
@@ -121,10 +121,11 @@ export async function getAtributosLoteFromStepOneChecklist(
     return { ok: true, atributos: {} };
   }
 
-  const legacyItens = itemRows.filter((i) => i.ordem >= 8 && i.ordem <= 12);
-  if (legacyItens.length === 0) return { ok: true, atributos: {} };
+  const legacyItens = itemRows.filter((i) => i.tipo === 'checkbox' && i.label.trim() in CHECKLIST_LABEL_TO_ATRIBUTO);
+  const legacyMuro = itemRows.find((i) => i.tipo === 'checkbox' && i.label.trim() === 'Muro');
+  if (legacyItens.length === 0 && !legacyMuro) return { ok: true, atributos: {} };
 
-  const itemIds = legacyItens.map((i) => i.id);
+  const itemIds = [...legacyItens.map((i) => i.id), ...(legacyMuro ? [legacyMuro.id] : [])];
   const { data: respostas, error: errResp } = await supabase
     .from('kanban_fase_checklist_respostas')
     .select('item_id, valor')
@@ -139,11 +140,14 @@ export async function getAtributosLoteFromStepOneChecklist(
 
   const atributos: AtributosLoteRespostas = {};
   for (const item of legacyItens) {
-    const atributoId = CHECKLIST_ORDEM_TO_ATRIBUTO[item.ordem];
+    const atributoId = CHECKLIST_LABEL_TO_ATRIBUTO[item.label.trim()];
     if (!atributoId) continue;
     if (valorPorItem.get(item.id) === 'true') {
       atributos[atributoId] = true;
     }
+  }
+  if (legacyMuro && valorPorItem.get(legacyMuro.id) === 'true') {
+    // TODO: migrar respostas legadas de muro
   }
 
   return { ok: true, atributos };

@@ -4,6 +4,11 @@
  * Nota final = Atributos do Lote + Preço + Produto (soma; cada critério -3 a +2).
  */
 
+import {
+  LOTES_DISPONIVEIS_CHECKBOXES,
+  type LinhaLoteDisponivel,
+} from '@/lib/kanban/lotes-disponiveis-condominio';
+
 export const ATRIBUTOS_LOTE = [
   { id: 'vista', label: 'Vista privilegiada', nota: 2 },
   { id: 'plano', label: 'Terreno plano', nota: 0 },
@@ -28,6 +33,15 @@ export type AtributosLoteIds = (typeof ATRIBUTOS_LOTE)[number]['id'];
 export type AtributosLoteRespostas = {
   [K in (typeof ATRIBUTOS_LOTE)[number]['id']]?: boolean;
 };
+
+/** Converte lote da fase Lotes Disponíveis → respostas para `notaAtributosLote()` (ids = ATRIBUTOS_LOTE). */
+export function atributosRespostasFromLoteDisponivel(lote: LinhaLoteDisponivel): AtributosLoteRespostas {
+  const out: AtributosLoteRespostas = {};
+  for (const { chave } of LOTES_DISPONIVEIS_CHECKBOXES) {
+    if (lote[chave] === 'true') out[chave] = true;
+  }
+  return out;
+}
 
 const ATRIBUTOS_LOTE_IDS = new Set<string>(ATRIBUTOS_LOTE.map((a) => a.id));
 

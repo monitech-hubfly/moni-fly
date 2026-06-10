@@ -22,6 +22,7 @@ import {
 import {
   ATRIBUTOS_LOTE,
   notaAtributosLote,
+  parseAtributosLoteRespostas,
   notaFinalBatalha,
   type AtributosLoteRespostas,
   CATEGORIAS_REFORMA,
@@ -366,7 +367,7 @@ export function Etapa4Casas(props: {
     batalhasIniciais.forEach((b) => {
       const key = `${b.casa_escolhida_id}__${b.listing_id}`;
       if (b.atributos_lote_json && typeof b.atributos_lote_json === 'object') {
-        obj[key] = b.atributos_lote_json as AtributosLoteRespostas;
+        obj[key] = parseAtributosLoteRespostas(b.atributos_lote_json);
       }
     });
     return obj;
@@ -408,10 +409,15 @@ export function Etapa4Casas(props: {
     return Math.round(media);
   };
 
-  /** Nota Atributos do Lote para um par (casa_escolhida, listing). Fallback para dado salvo se não houver respostas. */
+  const isAtributosLoteEmpty = (resp: AtributosLoteRespostas | undefined): boolean => {
+    if (resp === undefined) return true;
+    return !ATRIBUTOS_LOTE.some((a) => resp[a.id] === true);
+  };
+
+  /** Nota Atributos do Lote para um par (casa_escolhida, listing). Respostas usam ids de ATRIBUTOS_LOTE (= LOTES_DISPONIVEIS_CHECKBOXES). */
   const getNotaAtributosLote = (key: string): number => {
     const resp = atributosLoteByKey[key];
-    if (resp) return notaAtributosLote(resp);
+    if (resp && !isAtributosLoteEmpty(resp)) return notaAtributosLote(resp);
     return batalhaByKey.get(key)?.nota_localizacao ?? 0;
   };
 
@@ -425,11 +431,6 @@ export function Etapa4Casas(props: {
   const [openAtributosKey, setOpenAtributosKey] = useState<string | null>(null);
   const stepOneAtributosCacheRef = useRef<AtributosLoteRespostas | null | undefined>(undefined);
   const [prefillingAtributosKey, setPrefillingAtributosKey] = useState<string | null>(null);
-
-  const isAtributosLoteEmpty = (resp: AtributosLoteRespostas | undefined): boolean => {
-    if (resp === undefined) return true;
-    return !ATRIBUTOS_LOTE.some((a) => resp[a.id] === true);
-  };
 
   const handleOpenAtributosLote = async (key: string) => {
     if (openAtributosKey === key) {
@@ -457,6 +458,38 @@ export function Etapa4Casas(props: {
       setPrefillingAtributosKey(null);
     }
   };
+
+  /** Pré Batalha: carrega atributos do lote escolhido (Lotes Disponíveis) para cada par modelo×anúncio. */
+  useEffect(() => {
+    if (!modoPreBatalha || listagemOnly || escolhidasComDados.length === 0 || casas.length === 0) return;
+
+    let cancelado = false;
+    void (async () => {
+      const result = await getAtributosLoteFromStepOneChecklist(processoId);
+      if (cancelado || !result.ok) return;
+
+      const prefill = result.atributos;
+      stepOneAtributosCacheRef.current = prefill;
+      if (Object.keys(prefill).length === 0) return;
+
+      setAtributosLoteByKey((prev) => {
+        const next = { ...prev };
+        for (const ce of escolhidasComDados) {
+          for (const c of casas) {
+            const key = `${ce.id}__${c.id}`;
+            if (isAtributosLoteEmpty(next[key])) {
+              next[key] = { ...prefill };
+            }
+          }
+        }
+        return next;
+      });
+    })();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [modoPreBatalha, listagemOnly, processoId, escolhidasComDados, casas]);
 
   /** Checklist de reforma: um por listagem (listing_id). Alimenta os 4 sub-itens de Preço. */
   const [reformaChecklistByListingId, setReformaChecklistByListingId] = useState<
@@ -2161,6 +2194,7 @@ export function Etapa4Casas(props: {
                     maxLength={2}
                   />
                 </label>
+                {!listagemOnly ? (
                 <label className="grid gap-1 sm:col-span-2">
                   <span className="text-sm font-medium text-stone-700">Compat. Moní</span>
                   <input
@@ -2170,6 +2204,7 @@ export function Etapa4Casas(props: {
                     className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
                   />
                 </label>
+                ) : null}
                 <label className="grid gap-1">
                   <span className="text-sm font-medium text-stone-700">Data levant.</span>
                   <input

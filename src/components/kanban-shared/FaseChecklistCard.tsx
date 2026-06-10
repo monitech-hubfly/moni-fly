@@ -852,6 +852,7 @@ function ItemField({
   if (item.tipo === 'listagem_casas_zap') {
     const pid = processoId?.trim();
     const podeEditar = condominioContext?.podeEditar ?? isAdmin;
+    // Mapa de Competidores: só listagem ZAP + faixas (catálogo Moní fica na Pré Batalha).
     return (
       <MapaCompetidoresChecklist
         cardId={cardId}
