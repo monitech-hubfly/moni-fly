@@ -6,15 +6,45 @@
 
 export const ATRIBUTOS_LOTE = [
   { id: 'vista', label: 'Vista privilegiada', nota: 2 },
-  { id: 'area_verde', label: 'Perto de área verde', nota: 2 },
-  { id: 'muro', label: 'Muro', nota: 0 },
+  { id: 'plano', label: 'Terreno plano', nota: 0 },
+  { id: 'aclive', label: 'Terreno aclive', nota: 0 },
+  { id: 'declive', label: 'Terreno declive', nota: 0 },
+  { id: 'fundo_mata', label: 'Fundo de mata', nota: 2 },
+  { id: 'frente_mata', label: 'Frente de mata', nota: 2 },
+  { id: 'area_verde', label: 'Perto de área verde', nota: 1 },
+  { id: 'perto_lago', label: 'Perto do lago', nota: 1 },
+  { id: 'fundo_lago', label: 'Fundo de lago', nota: 2 },
+  { id: 'frente_lago', label: 'Frente de lago', nota: 2 },
   { id: 'area_convivencia', label: 'Perto de área de convivência', nota: -2 },
-  { id: 'lixeira', label: 'Perto de lixeira', nota: -1 },
+  { id: 'lixeira', label: 'Perto de lixeira', nota: -2 },
+  { id: 'portaria', label: 'Perto de portaria', nota: 0 },
+  { id: 'muro_rodovia', label: 'Muro com rodovia', nota: -2 },
+  { id: 'muro_comunidade', label: 'Muro com comunidade', nota: -2 },
+  { id: 'muro_vegetacao', label: 'Muro com vegetação', nota: -1 },
 ] as const;
 
 export type AtributosLoteIds = (typeof ATRIBUTOS_LOTE)[number]['id'];
 
-export type AtributosLoteRespostas = Partial<Record<AtributosLoteIds, boolean>>;
+export type AtributosLoteRespostas = {
+  [K in (typeof ATRIBUTOS_LOTE)[number]['id']]?: boolean;
+};
+
+const ATRIBUTOS_LOTE_IDS = new Set<string>(ATRIBUTOS_LOTE.map((a) => a.id));
+
+/** Lê `atributos_lote_json` persistido; descarta chaves desconhecidas e legado `muro`. */
+export function parseAtributosLoteRespostas(raw: unknown): AtributosLoteRespostas {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: AtributosLoteRespostas = {};
+  for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+    if (key === 'muro') {
+      // TODO: migrar respostas legadas de muro
+      continue;
+    }
+    if (!ATRIBUTOS_LOTE_IDS.has(key) || val !== true) continue;
+    out[key as AtributosLoteIds] = true;
+  }
+  return out;
+}
 
 export function notaAtributosLote(respostas: AtributosLoteRespostas): number {
   let sum = 0;
