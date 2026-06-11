@@ -86,6 +86,15 @@ export type RankingModeloPreBatalha = {
   notaFinal: number;
   precoIncKitMoni: number | null;
   anunciosAmeacadores: AnuncioAmeacadorPreBatalha[];
+  elegivel: boolean;
+  falhas: ('largura' | 'profundidade' | 'area')[];
+  largura_util: number | null;
+  profundidade_util: number | null;
+  area_util: number | null;
+  /** Dimensões do modelo — útil para exibir falhas de inelegíveis na UI. */
+  dimensao_x_m?: number | null;
+  dimensao_y_m?: number | null;
+  area_perimetro_m2?: number | null;
 };
 
 /** Alias usado na UI da Pré Batalha. */
@@ -158,21 +167,79 @@ export function verificarElegibilidadeCasa(
   return { elegivel: falhas.length === 0, largura_util, profundidade_util, area_util, falhas };
 }
 
-export type ModeloInelegivelGeometria = {
-  modelo: string;
-  topografia: string;
-  falhas: ('largura' | 'profundidade' | 'area')[];
-  largura_util: number | null;
-  profundidade_util: number | null;
-  area_util: number | null;
-  dimensao_x_m: number | null;
-  dimensao_y_m: number | null;
-  area_perimetro_m2: number | null;
-};
+function geoPadraoSemTerreno(): ResultadoElegibilidade {
+  return {
+    elegivel: true,
+    largura_util: null,
+    profundidade_util: null,
+    area_util: null,
+    falhas: [],
+  };
+}
+
+function geoModeloCatalogo(mod: CatalogoItem, terreno?: DadosTerreno): ResultadoElegibilidade {
+  if (!terrenoComDimensoesParaFiltrar(terreno)) return geoPadraoSemTerreno();
+  return verificarElegibilidadeCasa(terreno, dimsCasaFromCatalogo(mod));
+}
+
+function criarRankingModeloInelegivel(
+  mod: CatalogoItem,
+  geo: ResultadoElegibilidade,
+  faixa?: FaixaMercado,
+): RankingModeloPreBatalha {
+  const dims = dimsCasaFromCatalogo(mod);
+  return {
+    catalogoId: mod.id,
+    modelo: mod.nome?.trim() || mod.id.slice(0, 8),
+    topografia: labelTopografia(mod.topografia),
+    faixa,
+    notaLote: 0,
+    notaPrecoMedia: 0,
+    notaProdutoMedia: 0,
+    notaFinal: 0,
+    precoIncKitMoni: getPrecoIncMaisKitMoni(mod),
+    anunciosAmeacadores: [],
+    elegivel: false,
+    falhas: geo.falhas,
+    largura_util: geo.largura_util,
+    profundidade_util: geo.profundidade_util,
+    area_util: geo.area_util,
+    dimensao_x_m: dims.dimensao_x_m,
+    dimensao_y_m: dims.dimensao_y_m,
+    area_perimetro_m2: dims.area_perimetro_m2,
+  };
+}
+
+function camposGeometriaRanking(
+  mod: CatalogoItem,
+  terreno?: DadosTerreno,
+): Pick<
+  RankingModeloPreBatalha,
+  | 'elegivel'
+  | 'falhas'
+  | 'largura_util'
+  | 'profundidade_util'
+  | 'area_util'
+  | 'dimensao_x_m'
+  | 'dimensao_y_m'
+  | 'area_perimetro_m2'
+> {
+  const geo = geoModeloCatalogo(mod, terreno);
+  const dims = dimsCasaFromCatalogo(mod);
+  return {
+    elegivel: geo.elegivel,
+    falhas: geo.falhas,
+    largura_util: geo.largura_util,
+    profundidade_util: geo.profundidade_util,
+    area_util: geo.area_util,
+    dimensao_x_m: dims.dimensao_x_m,
+    dimensao_y_m: dims.dimensao_y_m,
+    area_perimetro_m2: dims.area_perimetro_m2,
+  };
+}
 
 export type ResultadoCalcularRankingModelos = {
   ranking: RankingModeloPreBatalha[];
-  inelegiveis: ModeloInelegivelGeometria[];
 };
 
 function terrenoComDimensoesParaFiltrar(terreno?: DadosTerreno): terreno is DadosTerreno {
@@ -191,37 +258,21 @@ function dimsCasaFromCatalogo(mod: CatalogoItem): {
   };
 }
 
-function listarInelegiveisGeometria(
-  catalogo: CatalogoItem[],
-  terreno: DadosTerreno,
-): ModeloInelegivelGeometria[] {
-  const inelegiveis: ModeloInelegivelGeometria[] = [];
-  for (const mod of catalogo) {
-    const dims = dimsCasaFromCatalogo(mod);
-    const result = verificarElegibilidadeCasa(terreno, dims);
-    if (result.elegivel) continue;
-    inelegiveis.push({
-      modelo: mod.nome?.trim() || mod.id.slice(0, 8),
-      topografia: labelTopografia(mod.topografia),
-      falhas: result.falhas,
-      largura_util: result.largura_util,
-      profundidade_util: result.profundidade_util,
-      area_util: result.area_util,
-      dimensao_x_m: dims.dimensao_x_m,
-      dimensao_y_m: dims.dimensao_y_m,
-      area_perimetro_m2: dims.area_perimetro_m2,
-    });
-  }
-  return inelegiveis;
-}
-
 function filtrarCatalogoElegivelGeometria(
   catalogo: CatalogoItem[],
   terreno: DadosTerreno,
 ): CatalogoItem[] {
-  return catalogo.filter((mod) =>
-    verificarElegibilidadeCasa(terreno, dimsCasaFromCatalogo(mod)).elegivel,
-  );
+  return catalogo.filter((mod) => geoModeloCatalogo(mod, terreno).elegivel);
+}
+
+function ordenarRankingComInelegiveisNoFinal(
+  ranking: RankingModeloPreBatalha[],
+): RankingModeloPreBatalha[] {
+  const elegiveis = ranking.filter((r) => r.elegivel).sort(compararRankingModelo);
+  const inelegiveis = ranking
+    .filter((r) => !r.elegivel)
+    .sort((a, b) => a.modelo.localeCompare(b.modelo, 'pt-BR'));
+  return [...elegiveis, ...inelegiveis];
 }
 
 const TOPOGRAFIA_LABEL: Record<string, string> = {
@@ -328,8 +379,20 @@ function rankearModelosContraAnuncios(
   notaLote: number,
   faixa: FaixaMercado | undefined,
   produtoDadosPorAnuncio: Record<string, ProdutoDadosPar | undefined>,
+  terreno?: DadosTerreno,
 ): RankingModeloPreBatalha[] {
   const rankings = catalogoFiltrado.map((mod) => {
+    const geoCampos = camposGeometriaRanking(mod, terreno);
+    if (!geoCampos.elegivel) {
+      return criarRankingModeloInelegivel(mod, {
+        elegivel: false,
+        falhas: geoCampos.falhas,
+        largura_util: geoCampos.largura_util,
+        profundidade_util: geoCampos.profundidade_util,
+        area_util: geoCampos.area_util,
+      }, faixa);
+    }
+
     const precoIncKitMoni = getPrecoIncMaisKitMoni(mod);
 
     const notasPorAnuncio: AnuncioAmeacadorPreBatalha[] = casasFaixa.map((c) => {
@@ -380,10 +443,11 @@ function rankearModelosContraAnuncios(
       notaFinal,
       precoIncKitMoni,
       anunciosAmeacadores,
+      ...geoCampos,
     };
   });
 
-  return rankings.sort(compararRankingModelo);
+  return ordenarRankingComInelegiveisNoFinal(rankings);
 }
 
 export type CalcularRankingModelosOpts = {
@@ -392,19 +456,6 @@ export type CalcularRankingModelosOpts = {
   /** Dimensões do lote + recuos do condomínio — filtra modelos que não cabem no terreno útil. */
   terreno?: DadosTerreno;
 };
-
-function prepararCatalogoComGeometria(
-  catalogoFiltrado: CatalogoItem[],
-  terreno?: DadosTerreno,
-): { catalogoParaRank: CatalogoItem[]; inelegiveis: ModeloInelegivelGeometria[] } {
-  if (!terrenoComDimensoesParaFiltrar(terreno)) {
-    return { catalogoParaRank: catalogoFiltrado, inelegiveis: [] };
-  }
-  return {
-    inelegiveis: listarInelegiveisGeometria(catalogoFiltrado, terreno),
-    catalogoParaRank: filtrarCatalogoElegivelGeometria(catalogoFiltrado, terreno),
-  };
-}
 
 /**
  * Ranqueia modelos por faixa de mercado do mapa de competidores.
@@ -423,12 +474,6 @@ export function calcularRankingPreBatalhaPorFaixas(
   const catalogoTopografia = filtrarCatalogoPorTopografia(catalogo, atributosLote);
   if (catalogoTopografia.length === 0) return [];
 
-  const { catalogoParaRank: catalogoFiltrado } = prepararCatalogoComGeometria(
-    catalogoTopografia,
-    opts?.terreno,
-  );
-  if (catalogoFiltrado.length === 0) return [];
-
   const casasComFaixa = classificarFaixasMercado(casas);
   const porFaixa = new Map<FaixaMercado, CasaRowPreBatalha[]>();
   for (const c of casasComFaixa) {
@@ -442,7 +487,7 @@ export function calcularRankingPreBatalhaPorFaixas(
     const casasFaixa = porFaixa.get(faixa);
     if (!casasFaixa?.length) continue;
 
-    const catalogoFaixa = filtrarCatalogoPorFaixaModelo(catalogoFiltrado, faixa);
+    const catalogoFaixa = filtrarCatalogoPorFaixaModelo(catalogoTopografia, faixa);
     if (catalogoFaixa.length === 0) continue;
 
     const ranking = rankearModelosContraAnuncios(
@@ -451,11 +496,15 @@ export function calcularRankingPreBatalhaPorFaixas(
       notaLote,
       faixa,
       produtoDadosPorAnuncio,
+      opts?.terreno,
     );
     if (ranking.length === 0) continue;
 
+    const catalogoFaixaElegivel = catalogoFaixa.filter(
+      (mod) => geoModeloCatalogo(mod, opts?.terreno).elegivel,
+    );
     const batalhas = gerarBatalhasModeloAnuncio(
-      catalogoFaixa,
+      catalogoFaixaElegivel,
       casasFaixa,
       notaLote,
       produtoDadosPorAnuncio,
@@ -481,6 +530,7 @@ export function flattenRankingPreBatalhaPorFaixas(
   const out: RankingModeloPreBatalha[] = [];
   for (const g of grupos) {
     for (const item of g.ranking) {
+      if (item.elegivel === false) continue;
       if (seen.has(item.catalogoId)) continue;
       seen.add(item.catalogoId);
       out.push(item);
@@ -491,6 +541,7 @@ export function flattenRankingPreBatalhaPorFaixas(
 
 /**
  * @deprecated Preferir `calcularRankingPreBatalhaPorFaixas`. Mantém compatibilidade agregando todas as faixas.
+ * Retorna elegíveis (com nota) primeiro e inelegíveis geométricos (nota zerada) no final, por nome.
  */
 export function calcularRankingModelos(
   casas: CasaRowPreBatalha[],
@@ -500,40 +551,51 @@ export function calcularRankingModelos(
   terrenoArg?: DadosTerreno,
 ): ResultadoCalcularRankingModelos {
   const terreno = terrenoArg ?? opts?.terreno;
-  const optsComTerreno = terreno ? { ...opts, terreno } : opts;
 
   if (casas.length === 0 || catalogo.length === 0) {
-    return { ranking: [], inelegiveis: [] };
+    return { ranking: [] };
   }
 
   const catalogoTopografia = filtrarCatalogoPorTopografia(catalogo, atributosLote);
   if (catalogoTopografia.length === 0) {
-    return { ranking: [], inelegiveis: [] };
+    return { ranking: [] };
   }
 
-  const { catalogoParaRank, inelegiveis } = prepararCatalogoComGeometria(catalogoTopografia, terreno);
-  if (catalogoParaRank.length === 0) {
-    return { ranking: [], inelegiveis };
+  const catalogoElegivel = terrenoComDimensoesParaFiltrar(terreno)
+    ? filtrarCatalogoElegivelGeometria(catalogoTopografia, terreno)
+    : catalogoTopografia;
+
+  const inelegiveis = terrenoComDimensoesParaFiltrar(terreno)
+    ? catalogoTopografia
+        .filter((mod) => !geoModeloCatalogo(mod, terreno).elegivel)
+        .map((mod) => criarRankingModeloInelegivel(mod, geoModeloCatalogo(mod, terreno)))
+        .sort((a, b) => a.modelo.localeCompare(b.modelo, 'pt-BR'))
+    : [];
+
+  let rankingElegiveis: RankingModeloPreBatalha[] = [];
+
+  if (catalogoElegivel.length > 0) {
+    const grupos = calcularRankingPreBatalhaPorFaixas(casas, catalogoElegivel, atributosLote, {
+      ...opts,
+      terreno: undefined,
+    });
+
+    if (grupos.length > 0) {
+      rankingElegiveis = flattenRankingPreBatalhaPorFaixas(grupos).filter((r) => r.elegivel);
+    } else {
+      const notaLote = notaAtributosLote(atributosLote);
+      rankingElegiveis = rankearModelosContraAnuncios(
+        catalogoElegivel,
+        casas,
+        notaLote,
+        undefined,
+        opts?.produtoDadosPorAnuncio ?? {},
+        terreno,
+      ).filter((r) => r.elegivel);
+    }
   }
 
-  const grupos = calcularRankingPreBatalhaPorFaixas(
-    casas,
-    catalogoParaRank,
-    atributosLote,
-    optsComTerreno,
-  );
-  if (grupos.length === 0 && casas.length > 0 && catalogoParaRank.length > 0) {
-    const notaLote = notaAtributosLote(atributosLote);
-    const ranking = rankearModelosContraAnuncios(
-      catalogoParaRank,
-      casas,
-      notaLote,
-      undefined,
-      opts?.produtoDadosPorAnuncio ?? {},
-    );
-    return { ranking, inelegiveis };
-  }
-  return { ranking: flattenRankingPreBatalhaPorFaixas(grupos), inelegiveis };
+  return { ranking: [...rankingElegiveis, ...inelegiveis] };
 }
 
 /** Rótulo de compatibilidade a partir da nota final Pré Batalha (não do score 0–100 legado). */

@@ -44,13 +44,11 @@ import {
 } from './REGRAS_BATALHA';
 import { resolverTermoBuscaZap } from '@/lib/zap-condominio-busca';
 import {
-  calcularRankingModelos,
   calcularRankingPreBatalhaPorFaixas,
   flattenRankingPreBatalhaPorFaixas,
   resolverTopografiaLote,
   type CatalogoItem,
   type DadosTerreno,
-  type ModeloInelegivelGeometria,
   type RankingPorFaixaMercado,
 } from '@/lib/kanban/pre-batalha-compatibilidade';
 import {
@@ -275,9 +273,6 @@ export function Etapa4Casas(props: {
   const [rankingPorFaixaPreBatalha, setRankingPorFaixaPreBatalha] = useState<
     RankingPorFaixaMercado[]
   >([]);
-  const [inelegiveisGeometriaPreBatalha, setInelegiveisGeometriaPreBatalha] = useState<
-    ModeloInelegivelGeometria[]
-  >([]);
   const [terrenoPreBatalha, setTerrenoPreBatalha] = useState<DadosTerreno | null>(null);
   const [carregandoRankingPreBatalha, setCarregandoRankingPreBatalha] = useState(false);
   const [atributosLotePreBatalha, setAtributosLotePreBatalha] = useState<AtributosLoteRespostas>(
@@ -353,7 +348,6 @@ export function Etapa4Casas(props: {
 
         if (casas.length === 0 || cat.length === 0) {
           setRankingPorFaixaPreBatalha([]);
-          setInelegiveisGeometriaPreBatalha([]);
           return;
         }
 
@@ -370,14 +364,6 @@ export function Etapa4Casas(props: {
           marcenaria: c.marcenaria,
         }));
 
-        const { inelegiveis } = calcularRankingModelos(
-          casasPreBatalha,
-          cat,
-          atributosParaRanking,
-          { terreno: terreno ?? undefined },
-          terreno ?? undefined,
-        );
-
         const grupos = calcularRankingPreBatalhaPorFaixas(
           casasPreBatalha,
           cat,
@@ -385,7 +371,6 @@ export function Etapa4Casas(props: {
           { terreno: terreno ?? undefined },
         );
         if (!cancelado) {
-          setInelegiveisGeometriaPreBatalha(inelegiveis);
           setRankingPorFaixaPreBatalha(grupos);
         }
       } finally {
@@ -1530,53 +1515,6 @@ export function Etapa4Casas(props: {
                       ) : null}
                       <PreBatalhaRankingLeaderboard grupos={rankingPorFaixaPreBatalha} />
                     </section>
-
-                    {inelegiveisGeometriaPreBatalha.length > 0 ? (
-                      <details className="mt-4 overflow-hidden rounded-lg border border-red-200 bg-red-50">
-                        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-red-900 hover:bg-red-100/60">
-                          ⚠ {inelegiveisGeometriaPreBatalha.length}{' '}
-                          {inelegiveisGeometriaPreBatalha.length === 1
-                            ? 'modelo não cabe'
-                            : 'modelos não cabem'}{' '}
-                          neste terreno
-                        </summary>
-                        <div className="space-y-3 border-t border-red-200 px-4 py-3">
-                          <h4 className="text-sm font-semibold text-red-900">
-                            Casas que não cabem neste terreno
-                          </h4>
-                          <ul className="space-y-3">
-                            {inelegiveisGeometriaPreBatalha.map((item, idx) => (
-                              <li
-                                key={`${item.modelo}-${item.topografia}-${idx}`}
-                                className="rounded-lg border border-red-200 bg-white px-3 py-2.5"
-                              >
-                                <div className="flex flex-wrap items-start justify-between gap-2">
-                                  <div>
-                                    <p className="text-sm font-medium text-stone-900">{item.modelo}</p>
-                                    {item.topografia ? (
-                                      <p className="text-xs text-stone-500">Topografia: {item.topografia}</p>
-                                    ) : null}
-                                  </div>
-                                  <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-800 ring-1 ring-red-200">
-                                    Não cabe
-                                  </span>
-                                </div>
-                                {item.falhas.length > 0 ? (
-                                  <ul className="mt-2 space-y-1 text-xs text-red-800">
-                                    {item.falhas.map((falha) => (
-                                      <li key={falha} className="flex gap-1.5">
-                                        <span aria-hidden>•</span>
-                                        <span>{formatFalhaInelegivelGeometria(item, falha)}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                ) : null}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </details>
-                    ) : null}
                   </>
                 )}
               </div>
@@ -2560,30 +2498,4 @@ function BadgeFaixaMercado({ faixa }: { faixa?: CasaRow['faixa'] }) {
     );
   }
   return null;
-}
-
-function formatFalhaInelegivelGeometria(
-  item: ModeloInelegivelGeometria,
-  falha: 'largura' | 'profundidade' | 'area',
-): string {
-  if (falha === 'largura') {
-    return `Largura útil ${item.largura_util?.toFixed(1) ?? '—'}m < ${item.dimensao_x_m ?? '—'}m necessário`;
-  }
-  if (falha === 'profundidade') {
-    return `Profundidade útil ${item.profundidade_util?.toFixed(1) ?? '—'}m < ${item.dimensao_y_m ?? '—'}m necessário`;
-  }
-  return `Área útil ${item.area_util?.toFixed(0) ?? '—'}m² < ${item.area_perimetro_m2 ?? '—'}m² necessário`;
-}
-
-function formatFalhaInelegivelGeometria(
-  item: ModeloInelegivelGeometria,
-  falha: 'largura' | 'profundidade' | 'area',
-): string {
-  if (falha === 'largura') {
-    return `Largura útil ${item.largura_util?.toFixed(1) ?? '—'}m < ${item.dimensao_x_m ?? '—'}m necessário`;
-  }
-  if (falha === 'profundidade') {
-    return `Profundidade útil ${item.profundidade_util?.toFixed(1) ?? '—'}m < ${item.dimensao_y_m ?? '—'}m necessário`;
-  }
-  return `Área útil ${item.area_util?.toFixed(0) ?? '—'}m² < ${item.area_perimetro_m2 ?? '—'}m² necessário`;
 }

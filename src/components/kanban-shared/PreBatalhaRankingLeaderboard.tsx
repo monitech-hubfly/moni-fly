@@ -15,6 +15,19 @@ function formatRank(posicao: number): string {
   return String(posicao).padStart(2, '0');
 }
 
+function mensagemFalhaGeometria(
+  item: ResultadoRankingModelo,
+  falha: 'largura' | 'profundidade' | 'area',
+): string {
+  if (falha === 'largura') {
+    return `Largura útil ${item.largura_util?.toFixed(1) ?? '—'}m < ${item.dimensao_x_m ?? '—'}m`;
+  }
+  if (falha === 'profundidade') {
+    return `Profundidade útil ${item.profundidade_util?.toFixed(1) ?? '—'}m < ${item.dimensao_y_m ?? '—'}m`;
+  }
+  return `Área útil ${item.area_util?.toFixed(0) ?? '—'}m² < ${item.area_perimetro_m2 ?? '—'}m²`;
+}
+
 function notaCellClass(nota: number): string {
   if (nota >= 1) return 'text-emerald-700';
   if (nota >= 0) return 'text-amber-800';
@@ -22,12 +35,13 @@ function notaCellClass(nota: number): string {
 }
 
 function PodiumTop3({ top3 }: { top3: ResultadoRankingModelo[] }) {
-  if (top3.length === 0) return null;
+  const elegiveis = top3.filter((item) => item.elegivel !== false);
+  if (elegiveis.length === 0) return null;
 
   const slots: { item: ResultadoRankingModelo; pos: number; height: string; trophy: string }[] = [];
-  if (top3[1]) slots.push({ item: top3[1], pos: 2, height: 'h-16', trophy: 'text-stone-400' });
-  if (top3[0]) slots.push({ item: top3[0], pos: 1, height: 'h-20', trophy: 'text-amber-500' });
-  if (top3[2]) slots.push({ item: top3[2], pos: 3, height: 'h-14', trophy: 'text-amber-700/80' });
+  if (elegiveis[1]) slots.push({ item: elegiveis[1], pos: 2, height: 'h-16', trophy: 'text-stone-400' });
+  if (elegiveis[0]) slots.push({ item: elegiveis[0], pos: 1, height: 'h-20', trophy: 'text-amber-500' });
+  if (elegiveis[2]) slots.push({ item: elegiveis[2], pos: 3, height: 'h-14', trophy: 'text-amber-700/80' });
 
   return (
     <div
@@ -129,6 +143,8 @@ function BatalhasTable({ batalhas }: { batalhas: BatalhaModeloAnuncioPreBatalha[
 }
 
 function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
+  let posicaoElegivel = 0;
+
   return (
     <div className="overflow-x-auto rounded-xl border border-stone-200/90 bg-white/80 shadow-inner backdrop-blur-sm">
       <table className="w-full min-w-[520px] border-collapse text-sm">
@@ -143,20 +159,25 @@ function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
           </tr>
         </thead>
         <tbody>
-          {ranking.map((item, idx) => {
-            const posicao = idx + 1;
-            const destaqueTop3 = posicao <= 3;
+          {ranking.map((item) => {
+            const inelegivel = item.elegivel === false;
+            const posicao = inelegivel ? null : ++posicaoElegivel;
+            const destaqueTop3 = posicao != null && posicao <= 3;
             const compat = badgeCompatibilidade(item.notaFinal);
 
             return (
               <tr
                 key={item.catalogoId}
                 className={`border-b border-stone-100 last:border-0 ${
-                  destaqueTop3 ? 'bg-amber-50/80' : 'bg-white/60 hover:bg-stone-50/90'
+                  inelegivel
+                    ? 'bg-white/40 opacity-60'
+                    : destaqueTop3
+                      ? 'bg-amber-50/80'
+                      : 'bg-white/60 hover:bg-stone-50/90'
                 }`}
               >
                 <td className="px-3 py-3 font-bold tabular-nums text-stone-700 sm:px-4">
-                  {formatRank(posicao)}
+                  {posicao != null ? formatRank(posicao) : '—'}
                 </td>
                 <td className="px-3 py-3 sm:px-4">
                   <div className="flex flex-wrap items-center gap-2">
@@ -166,38 +187,56 @@ function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
                         {item.topografia}
                       </span>
                     ) : null}
-                    <span
-                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${compat.className}`}
-                    >
-                      {compat.label}
-                    </span>
+                    {inelegivel ? (
+                      <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-800 ring-1 ring-red-200">
+                        Não cabe
+                      </span>
+                    ) : (
+                      <span
+                        className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${compat.className}`}
+                      >
+                        {compat.label}
+                      </span>
+                    )}
                   </div>
-                  {item.precoIncKitMoni != null && item.precoIncKitMoni > 0 ? (
+                  {!inelegivel && item.precoIncKitMoni != null && item.precoIncKitMoni > 0 ? (
                     <p className="mt-0.5 text-[11px] text-stone-500">
                       INC + Kit: {formatPrecoAnuncio(item.precoIncKitMoni)}
                     </p>
                   ) : null}
                 </td>
-                <td
-                  className={`px-3 py-3 text-center text-sm font-semibold tabular-nums sm:px-4 ${notaCellClass(item.notaLote)}`}
-                >
-                  {item.notaLote}
-                </td>
-                <td
-                  className={`px-3 py-3 text-center text-sm font-semibold tabular-nums sm:px-4 ${notaCellClass(item.notaPrecoMedia)}`}
-                >
-                  {item.notaPrecoMedia}
-                </td>
-                <td
-                  className={`px-3 py-3 text-center text-sm font-semibold tabular-nums sm:px-4 ${notaCellClass(item.notaProdutoMedia)}`}
-                >
-                  {item.notaProdutoMedia}
-                </td>
-                <td className="px-3 py-3 text-center sm:px-4">
-                  <span className="inline-flex min-w-[2.5rem] justify-center rounded-md bg-stone-900/5 px-2 py-1 text-sm font-bold tabular-nums text-stone-900">
-                    {item.notaFinal}
-                  </span>
-                </td>
+                {inelegivel ? (
+                  <td colSpan={4} className="px-3 py-3 sm:px-4">
+                    <ul className="space-y-1 text-xs text-red-800">
+                      {item.falhas.map((falha) => (
+                        <li key={falha}>{mensagemFalhaGeometria(item, falha)}</li>
+                      ))}
+                    </ul>
+                  </td>
+                ) : (
+                  <>
+                    <td
+                      className={`px-3 py-3 text-center text-sm font-semibold tabular-nums sm:px-4 ${notaCellClass(item.notaLote)}`}
+                    >
+                      {item.notaLote}
+                    </td>
+                    <td
+                      className={`px-3 py-3 text-center text-sm font-semibold tabular-nums sm:px-4 ${notaCellClass(item.notaPrecoMedia)}`}
+                    >
+                      {item.notaPrecoMedia}
+                    </td>
+                    <td
+                      className={`px-3 py-3 text-center text-sm font-semibold tabular-nums sm:px-4 ${notaCellClass(item.notaProdutoMedia)}`}
+                    >
+                      {item.notaProdutoMedia}
+                    </td>
+                    <td className="px-3 py-3 text-center sm:px-4">
+                      <span className="inline-flex min-w-[2.5rem] justify-center rounded-md bg-stone-900/5 px-2 py-1 text-sm font-bold tabular-nums text-stone-900">
+                        {item.notaFinal}
+                      </span>
+                    </td>
+                  </>
+                )}
               </tr>
             );
           })}
@@ -207,12 +246,16 @@ function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
   );
 }
 
-function linhaResumoRanking(item: ResultadoRankingModelo, idx: number): string {
+function linhaResumoRanking(item: ResultadoRankingModelo, posicaoElegivel: number | null): string {
+  if (item.elegivel === false) {
+    const falhas = item.falhas.map((f) => mensagemFalhaGeometria(item, f)).join('; ');
+    return `— ${item.modelo}${falhas ? ` — ${falhas}` : ''}`;
+  }
   const palavra = item.modelo.trim().split(/\s+/)[0] || item.modelo.trim();
   const abrev = palavra.length <= 4 ? palavra : palavra.slice(0, 3);
   const topoRaw = item.topografia.trim().toLowerCase();
   const topoSlug = topoRaw === '—' || !topoRaw ? '—' : topoRaw;
-  return `${idx + 1}º ${abrev}/${topoSlug} (Final: ${item.notaFinal} | L:${item.notaLote} P:${item.notaPrecoMedia} Prod:${item.notaProdutoMedia})`;
+  return `${posicaoElegivel}º ${abrev}/${topoSlug} (Final: ${item.notaFinal} | L:${item.notaLote} P:${item.notaPrecoMedia} Prod:${item.notaProdutoMedia})`;
 }
 
 function SubSecaoTabelaColapsavel({
@@ -265,16 +308,28 @@ function RankingResumoMinimizado({ ranking }: { ranking: ResultadoRankingModelo[
     return <p className="text-xs text-stone-500">Nenhum modelo ranqueado nesta faixa.</p>;
   }
 
+  let posicaoElegivel = 0;
+
   return (
     <ul className="space-y-1 text-xs leading-relaxed text-stone-700">
-      {ranking.map((item, idx) => (
-        <li
-          key={item.catalogoId}
-          className={`rounded-md px-2 py-1 ${idx < 3 ? 'bg-amber-50/90 font-medium text-stone-800' : 'bg-white/60'}`}
-        >
-          {linhaResumoRanking(item, idx)}
-        </li>
-      ))}
+      {ranking.map((item) => {
+        const inelegivel = item.elegivel === false;
+        const pos = inelegivel ? null : ++posicaoElegivel;
+        return (
+          <li
+            key={item.catalogoId}
+            className={`rounded-md px-2 py-1 ${
+              inelegivel
+                ? 'bg-red-50/60 opacity-60 text-stone-600'
+                : pos != null && pos <= 3
+                  ? 'bg-amber-50/90 font-medium text-stone-800'
+                  : 'bg-white/60'
+            }`}
+          >
+            {linhaResumoRanking(item, pos)}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -399,7 +454,7 @@ function FaixaPreBatalhaColapsavel({
             onToggle={() => setRankingAberto((v) => !v)}
             panelId={`${panelId}-ranking`}
           >
-            <PodiumTop3 top3={grupo.ranking.slice(0, 3)} />
+            <PodiumTop3 top3={grupo.ranking.filter((r) => r.elegivel !== false).slice(0, 3)} />
             <LeaderboardTable ranking={grupo.ranking} />
           </SubSecaoTabelaColapsavel>
         </div>

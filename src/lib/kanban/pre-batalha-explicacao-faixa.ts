@@ -171,8 +171,9 @@ export function gerarExplicacaoRankingFaixaPreBatalha(
   const { faixa, faixaLabel, quantidadeAnuncios, ranking, batalhas } = grupo;
   if (ranking.length === 0 && batalhas.length === 0) return [];
 
+  const rankingElegiveis = ranking.filter((r) => r.elegivel !== false);
   const elegiveis = modelosElegiveisFaixa(faixa);
-  const notaLote = ranking[0]?.notaLote ?? 0;
+  const notaLote = rankingElegiveis[0]?.notaLote ?? 0;
   const anunciosTxt =
     quantidadeAnuncios === 1 ? '1 anúncio' : `${quantidadeAnuncios} anúncios`;
   const batalhasTxt =
@@ -182,13 +183,13 @@ export function gerarExplicacaoRankingFaixaPreBatalha(
     `Faixa ${faixaLabel}: ${DESCRICAO_FAIXA[faixa]}. Foram considerados ${anunciosTxt} deste segmento no Mapa de Competidores.`,
     `Só entram modelos Moní autorizados para esta faixa: ${elegiveis.join(', ')}. Cada um foi comparado individualmente com todos os anúncios da faixa (${batalhasTxt} no total).`,
     `A nota final de cada modelo soma três critérios, de −3 a +2 cada: Lote (atributos do lote escolhido em Lotes Disponíveis), Preço (VGV Moní INC + Kit vs preço de cada anúncio) e Produto (quartos, banheiros, vagas e metragem vs cada anúncio). Preço e Produto entram como média dos confrontos da faixa. Todos partem com a mesma nota de Lote (${notaLote}), pois o lote é único para o projeto.`,
-    explicarLider(ranking),
+    explicarLider(rankingElegiveis),
   ];
 
-  const cauda = explicarCauda(ranking);
+  const cauda = explicarCauda(rankingElegiveis);
   if (cauda) paragrafos.push(cauda);
 
-  const compat = resumirCompatibilidade(ranking);
+  const compat = resumirCompatibilidade(rankingElegiveis);
   if (compat) paragrafos.push(compat);
 
   return paragrafos;
