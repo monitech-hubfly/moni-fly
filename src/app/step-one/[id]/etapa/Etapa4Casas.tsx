@@ -51,7 +51,6 @@ import {
 } from '@/lib/kanban/pre-batalha-compatibilidade';
 import {
   PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING,
-  rankingGruposFromPorFaixas,
 } from '@/lib/kanban/pre-batalha-checklist';
 import { PreBatalhaRankingLeaderboard } from '@/components/kanban-shared/PreBatalhaRankingLeaderboard';
 import {
@@ -369,7 +368,7 @@ export function Etapa4Casas(props: {
 
     void autoMarcarChecklistPosRankingPreBatalha(
       processoId,
-      rankingGruposFromPorFaixas(rankingPorFaixaPreBatalha),
+      rankingPorFaixaPreBatalha,
       { forceAtualizarRanking: true },
     ).then((res) => {
       if (!res.ok) {

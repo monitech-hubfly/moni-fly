@@ -36,6 +36,8 @@ import {
   PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING,
 } from '@/lib/kanban/pre-batalha-checklist';
 import { sincronizarChecklistPreBatalhaKanban } from '@/app/step-one/[id]/etapa/actions';
+import { PreBatalhaRankingLeaderboard } from '@/components/kanban-shared/PreBatalhaRankingLeaderboard';
+import type { RankingPorFaixaMercado } from '@/lib/kanban/pre-batalha-compatibilidade';
 import {
   isLabelDadosCandidatoRede,
   valorDadosCandidatoFromRede,
@@ -115,6 +117,7 @@ export function FaseChecklistCard({
   const [diffModal, setDiffModal] = useState<{ open: boolean; lines: string[] }>({ open: false, lines: [] });
   const redeSyncFeitoRef = useRef('');
   const preBatalhaSyncFeitoRef = useRef('');
+  const [preBatalhaGrupos, setPreBatalhaGrupos] = useState<RankingPorFaixaMercado[]>([]);
 
   const areasAtuacao = parseAreaAtuacao(areaAtuacao);
   const multiPracaAtivo = isDadosCidadeFaseSlug(faseSlug) && areasAtuacao.length >= 1;
@@ -259,6 +262,9 @@ export function FaseChecklistCard({
         console.warn('[pre-batalha] sync kanban:', res.error);
         preBatalhaSyncFeitoRef.current = '';
         return;
+      }
+      if (res.grupos.length > 0) {
+        setPreBatalhaGrupos(res.grupos);
       }
       if (res.rankingCount === 0) return;
 
@@ -504,6 +510,7 @@ export function FaseChecklistCard({
         pracaCidade={praca}
         areasAtuacao={areasAtuacao}
         estadoChecklistValor={estadoChecklistValor}
+        preBatalhaGrupos={preBatalhaGrupos}
         onCidadeComUfSelected={(cidade, uf) => void salvarCidadeComEstado(cidade, uf)}
         condominioContext={condominioContext}
         onChange={(valor) => {
@@ -604,6 +611,7 @@ type ItemFieldProps = {
   pracaCidade?: PracaCidade | null;
   areasAtuacao: { uf: string; cidade: string }[];
   estadoChecklistValor: string;
+  preBatalhaGrupos?: RankingPorFaixaMercado[];
   onCidadeComUfSelected: (cidade: string, uf: string) => void;
   condominioContext?: CondominioChecklistContext;
   onChange: (valor: string) => void;
@@ -623,6 +631,7 @@ function ItemField({
   pracaCidade = null,
   areasAtuacao,
   estadoChecklistValor,
+  preBatalhaGrupos = [],
   onCidadeComUfSelected,
   condominioContext,
   onChange,
@@ -701,6 +710,11 @@ function ItemField({
           >
             {PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING}
           </p>
+        ) : null}
+        {isRankingPreBatalha && preBatalhaGrupos.length > 0 ? (
+          <div className="mb-4">
+            <PreBatalhaRankingLeaderboard grupos={preBatalhaGrupos} />
+          </div>
         ) : null}
         <textarea
           rows={isRankingPreBatalha ? Math.max(6, Math.min(estado.valor.split('\n').length + 1, 16)) : 3}

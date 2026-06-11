@@ -56,6 +56,21 @@ export type AnuncioAmeacadorPreBatalha = {
   notaProduto: number;
 };
 
+/** Uma linha: modelo Moní × anúncio ZAP na faixa (notas por eixo). */
+export type BatalhaModeloAnuncioPreBatalha = {
+  catalogoId: string;
+  modelo: string;
+  topografia: string;
+  anuncioId: string;
+  condominio: string;
+  precoAnuncio: number;
+  precoIncKitMoni: number | null;
+  notaLote: number;
+  notaPreco: number;
+  notaProduto: number;
+  notaFinalLinha: number;
+};
+
 export type RankingModeloPreBatalha = {
   catalogoId: string;
   modelo: string;
@@ -76,6 +91,8 @@ export type RankingPorFaixaMercado = {
   faixa: FaixaMercado;
   faixaLabel: string;
   quantidadeAnuncios: number;
+  /** Todas as combinações modelo × anúncio da faixa. */
+  batalhas: BatalhaModeloAnuncioPreBatalha[];
   ranking: RankingModeloPreBatalha[];
 };
 
@@ -131,6 +148,50 @@ function compararRankingModelo(a: RankingModeloPreBatalha, b: RankingModeloPreBa
   if (b.notaPrecoMedia !== a.notaPrecoMedia) return b.notaPrecoMedia - a.notaPrecoMedia;
   if (b.notaProdutoMedia !== a.notaProdutoMedia) return b.notaProdutoMedia - a.notaProdutoMedia;
   return a.modelo.localeCompare(b.modelo, 'pt-BR');
+}
+
+function gerarBatalhasModeloAnuncio(
+  catalogoFiltrado: CatalogoItem[],
+  casasFaixa: CasaRowPreBatalha[],
+  notaLote: number,
+  produtoDadosPorAnuncio: Record<string, ProdutoDadosPar | undefined>,
+): BatalhaModeloAnuncioPreBatalha[] {
+  const notaLoteR = roundNota(notaLote);
+  const batalhas: BatalhaModeloAnuncioPreBatalha[] = [];
+
+  for (const mod of catalogoFiltrado) {
+    const precoIncKitMoni = getPrecoIncMaisKitMoni(mod);
+    const modelo = mod.nome?.trim() || mod.id.slice(0, 8);
+    const topografia = labelTopografia(mod.topografia);
+
+    for (const c of casasFaixa) {
+      const notaPreco = roundNota(
+        notaPrecoPreBatalhaContraAnuncio(precoIncKitMoni, c.preco),
+      );
+      const notaProduto = roundNota(
+        notaProdutoContraAnuncio(mod, c, produtoDadosPorAnuncio[c.id]),
+      );
+      batalhas.push({
+        catalogoId: mod.id,
+        modelo,
+        topografia,
+        anuncioId: c.id,
+        condominio: c.condominio?.trim() || '—',
+        precoAnuncio: c.preco ?? 0,
+        precoIncKitMoni,
+        notaLote: notaLoteR,
+        notaPreco,
+        notaProduto,
+        notaFinalLinha: roundNota(notaFinalBatalha(notaLoteR, notaPreco, notaProduto)),
+      });
+    }
+  }
+
+  return batalhas.sort(
+    (a, b) =>
+      a.modelo.localeCompare(b.modelo, 'pt-BR') ||
+      a.condominio.localeCompare(b.condominio, 'pt-BR'),
+  );
 }
 
 function rankearModelosContraAnuncios(
@@ -241,10 +302,18 @@ export function calcularRankingPreBatalhaPorFaixas(
     );
     if (ranking.length === 0) continue;
 
+    const batalhas = gerarBatalhasModeloAnuncio(
+      catalogoFiltrado,
+      casasFaixa,
+      notaLote,
+      produtoDadosPorAnuncio,
+    );
+
     grupos.push({
       faixa,
       faixaLabel: labelFaixaMercado(faixa),
       quantidadeAnuncios: casasFaixa.length,
+      batalhas,
       ranking,
     });
   }

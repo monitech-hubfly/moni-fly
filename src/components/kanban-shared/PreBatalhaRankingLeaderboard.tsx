@@ -4,6 +4,7 @@ import { Trophy } from 'lucide-react';
 import {
   badgeCompatibilidade,
   formatPrecoAnuncio,
+  type BatalhaModeloAnuncioPreBatalha,
   type RankingPorFaixaMercado,
   type ResultadoRankingModelo,
 } from '@/lib/kanban/pre-batalha-compatibilidade';
@@ -50,6 +51,80 @@ function PodiumTop3({ top3 }: { top3: ResultadoRankingModelo[] }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function BatalhasTable({ batalhas }: { batalhas: BatalhaModeloAnuncioPreBatalha[] }) {
+  if (batalhas.length === 0) return null;
+
+  return (
+    <div className="mb-6 overflow-x-auto rounded-xl border border-stone-200/90 bg-white/70 shadow-inner backdrop-blur-sm">
+      <p className="border-b border-stone-200 bg-stone-100/90 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-stone-600">
+        Batalhas — modelo × anúncio
+      </p>
+      <table className="w-full min-w-[640px] border-collapse text-sm">
+        <thead>
+          <tr className="border-b border-stone-200 bg-stone-50/90 text-[11px] font-semibold uppercase tracking-wider text-stone-600">
+            <th className="px-3 py-2 text-left sm:px-4">Modelo</th>
+            <th className="px-3 py-2 text-left sm:px-4">Anúncio</th>
+            <th className="px-3 py-2 text-right sm:px-4">Preço anúncio</th>
+            <th className="px-3 py-2 text-right sm:px-4">INC + Kit</th>
+            <th className="px-3 py-2 text-center sm:px-4">Lote</th>
+            <th className="px-3 py-2 text-center sm:px-4">Preço</th>
+            <th className="px-3 py-2 text-center sm:px-4">Produto</th>
+            <th className="px-3 py-2 text-center sm:px-4">Final</th>
+          </tr>
+        </thead>
+        <tbody>
+          {batalhas.map((b) => (
+            <tr
+              key={`${b.catalogoId}-${b.anuncioId}`}
+              className="border-b border-stone-100 last:border-0 bg-white/50 hover:bg-stone-50/90"
+            >
+              <td className="px-3 py-2.5 sm:px-4">
+                <span className="font-medium text-stone-900">{b.modelo}</span>
+                {b.topografia !== '—' ? (
+                  <span className="ml-1.5 rounded-full bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-600 ring-1 ring-stone-200">
+                    {b.topografia}
+                  </span>
+                ) : null}
+              </td>
+              <td className="max-w-[12rem] truncate px-3 py-2.5 text-stone-700 sm:px-4" title={b.condominio}>
+                {b.condominio}
+              </td>
+              <td className="px-3 py-2.5 text-right text-xs tabular-nums text-stone-600 sm:px-4">
+                {b.precoAnuncio > 0 ? formatPrecoAnuncio(b.precoAnuncio) : '—'}
+              </td>
+              <td className="px-3 py-2.5 text-right text-xs tabular-nums text-stone-600 sm:px-4">
+                {b.precoIncKitMoni != null && b.precoIncKitMoni > 0
+                  ? formatPrecoAnuncio(b.precoIncKitMoni)
+                  : '—'}
+              </td>
+              <td
+                className={`px-3 py-2.5 text-center text-sm font-semibold tabular-nums sm:px-4 ${notaCellClass(b.notaLote)}`}
+              >
+                {b.notaLote}
+              </td>
+              <td
+                className={`px-3 py-2.5 text-center text-sm font-semibold tabular-nums sm:px-4 ${notaCellClass(b.notaPreco)}`}
+              >
+                {b.notaPreco}
+              </td>
+              <td
+                className={`px-3 py-2.5 text-center text-sm font-semibold tabular-nums sm:px-4 ${notaCellClass(b.notaProduto)}`}
+              >
+                {b.notaProduto}
+              </td>
+              <td className="px-3 py-2.5 text-center sm:px-4">
+                <span className="inline-flex min-w-[2rem] justify-center rounded-md bg-stone-900/5 px-1.5 py-0.5 text-xs font-bold tabular-nums text-stone-900">
+                  {b.notaFinalLinha}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -158,11 +233,18 @@ export function PreBatalhaRankingLeaderboard({ grupos }: Props) {
             <p className="mt-1 text-xs text-stone-500">
               {grupo.quantidadeAnuncios}{' '}
               {grupo.quantidadeAnuncios === 1 ? 'anúncio' : 'anúncios'} ·{' '}
+              {grupo.batalhas.length}{' '}
+              {grupo.batalhas.length === 1 ? 'batalha' : 'batalhas'} ·{' '}
               {grupo.ranking.length}{' '}
               {grupo.ranking.length === 1 ? 'modelo ranqueado' : 'modelos ranqueados'}
             </p>
           </header>
 
+          <BatalhasTable batalhas={grupo.batalhas} />
+
+          <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-wider text-stone-500">
+            Ranking agregado
+          </p>
           <PodiumTop3 top3={grupo.ranking.slice(0, 3)} />
           <LeaderboardTable ranking={grupo.ranking} />
         </section>

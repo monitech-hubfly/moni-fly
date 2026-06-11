@@ -82,6 +82,70 @@ export function formatRankingInicialChecklistPreBatalha(
   return blocos.join('\n').trim();
 }
 
+function formatPrecoChecklist(preco: number): string {
+  if (!Number.isFinite(preco) || preco <= 0) return '—';
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 0,
+  }).format(preco);
+}
+
+function formatLinhaBatalhaPreBatalha(
+  b: RankingPorFaixaMercado['batalhas'][number],
+): string {
+  const palavra = b.modelo.trim().split(/\s+/)[0] || b.modelo.trim();
+  const abrev = palavra.length <= 4 ? palavra : palavra.slice(0, 3);
+  const topoRaw = b.topografia.trim().toLowerCase();
+  const topoSlug = topoRaw === '—' || !topoRaw ? '—' : topoRaw;
+  const precoAnuncio = formatPrecoChecklist(b.precoAnuncio);
+  const precoMoni =
+    b.precoIncKitMoni != null && b.precoIncKitMoni > 0
+      ? formatPrecoChecklist(b.precoIncKitMoni)
+      : '—';
+  return `${abrev}/${topoSlug} vs ${b.condominio} (Anúncio: ${precoAnuncio} | Moní: ${precoMoni}) → L:${b.notaLote} P:${b.notaPreco} Prod:${b.notaProduto} (Final:${b.notaFinalLinha})`;
+}
+
+/**
+ * Checklist completo: batalhas modelo × anúncio por faixa, depois ranking agregado.
+ */
+export function formatPreBatalhaChecklistCompleto(grupos: RankingPorFaixaMercado[]): string {
+  const blocos: string[] = [];
+
+  for (const g of grupos) {
+    if (g.batalhas.length === 0 && g.ranking.length === 0) continue;
+
+    blocos.push(
+      `[${g.faixaLabel} — ${g.quantidadeAnuncios} ${g.quantidadeAnuncios === 1 ? 'anúncio' : 'anúncios'}]`,
+    );
+    blocos.push('');
+    blocos.push('— Batalhas (modelo × anúncio) —');
+    for (const b of g.batalhas) {
+      blocos.push(formatLinhaBatalhaPreBatalha(b));
+    }
+    blocos.push('');
+    blocos.push('— Ranking agregado —');
+    g.ranking.forEach((item, idx) => {
+      blocos.push(
+        formatLinhaRankingPreBatalha(
+          {
+            modelo: item.modelo,
+            topografia: item.topografia,
+            notaFinal: item.notaFinal,
+            notaLote: item.notaLote,
+            notaPreco: item.notaPrecoMedia,
+            notaProduto: item.notaProdutoMedia,
+          },
+          idx,
+        ),
+      );
+    });
+    blocos.push('');
+  }
+
+  return blocos.join('\n').trim();
+}
+
 /** Converte lista plana legada em um único grupo (retrocompat). */
 export function rankingGrupoUnicoFromItens(
   itens: RankingInicialChecklistItem[],

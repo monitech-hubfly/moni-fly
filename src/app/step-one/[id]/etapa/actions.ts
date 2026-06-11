@@ -27,10 +27,9 @@ import { LOTES_DISPONIVEIS_CHECKBOXES } from '@/lib/kanban/lotes-disponiveis-con
 import {
   PRE_BATALHA_CHECKLIST_LABEL_APLICADA,
   PRE_BATALHA_CHECKLIST_LABEL_RANKING,
-  formatRankingInicialChecklistPreBatalha,
-  rankingGruposFromPorFaixas,
-  type RankingInicialGrupoFaixa,
+  formatPreBatalhaChecklistCompleto,
 } from '@/lib/kanban/pre-batalha-checklist';
+import type { RankingPorFaixaMercado } from '@/lib/kanban/pre-batalha-compatibilidade';
 
 export type SaveEtapa1Result = { ok: true } | { ok: false; error: string };
 
@@ -226,10 +225,10 @@ async function buscarFaseBatalhaId(
  */
 export async function autoMarcarChecklistPosRankingPreBatalha(
   processoId: string,
-  rankingGrupos: RankingInicialGrupoFaixa[],
+  gruposRanking: RankingPorFaixaMercado[],
   options?: { cardId?: string; faseId?: string; forceAtualizarRanking?: boolean },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const totalItens = rankingGrupos.reduce((s, g) => s + g.itens.length, 0);
+  const totalItens = gruposRanking.reduce((s, g) => s + g.ranking.length, 0);
   if (totalItens === 0) return { ok: true };
 
   const access = await verifyProcessoCasasAccess(processoId);
@@ -313,7 +312,7 @@ export async function autoMarcarChecklistPosRankingPreBatalha(
   const itemRanking = itemPorLabel.get(PRE_BATALHA_CHECKLIST_LABEL_RANKING);
   if (itemRanking) {
     const atual = valorPorItem.get(itemRanking.id)?.trim();
-    const texto = formatRankingInicialChecklistPreBatalha(rankingGrupos);
+    const texto = formatPreBatalhaChecklistCompleto(gruposRanking);
     if ((!atual || options?.forceAtualizarRanking) && atual !== texto) {
       const err = await upsertResposta(itemRanking.id, texto);
       if (err) return err;
@@ -335,7 +334,10 @@ export async function sincronizarChecklistPreBatalhaKanban(input: {
   cardId: string;
   processoId: string;
   faseId?: string;
-}): Promise<{ ok: true; rankingCount: number } | { ok: false; error: string }> {
+}): Promise<
+  | { ok: true; rankingCount: number; grupos: RankingPorFaixaMercado[] }
+  | { ok: false; error: string }
+> {
   const cardId = input.cardId?.trim();
   const processoId = input.processoId?.trim();
   if (!cardId || !processoId) return { ok: false, error: 'Parâmetros inválidos.' };
@@ -354,7 +356,7 @@ export async function sincronizarChecklistPreBatalhaKanban(input: {
   if (errCasas) return { ok: false, error: errCasas.message };
 
   const casas = casasRows ?? [];
-  if (casas.length === 0) return { ok: true, rankingCount: 0 };
+  if (casas.length === 0) return { ok: true, rankingCount: 0, grupos: [] };
 
   const { data: catRows, error: errCat } = await supabase
     .from('catalogo_casas')
@@ -365,7 +367,7 @@ export async function sincronizarChecklistPreBatalhaKanban(input: {
   if (errCat) return { ok: false, error: errCat.message };
 
   const catalogo = catRows ?? [];
-  if (catalogo.length === 0) return { ok: true, rankingCount: 0 };
+  if (catalogo.length === 0) return { ok: true, rankingCount: 0, grupos: [] };
 
   const attrResult = await getAtributosLoteFromStepOneChecklist(processoId, { cardId });
   const atributos = attrResult.ok ? attrResult.atributos : {};
@@ -399,19 +401,18 @@ export async function sincronizarChecklistPreBatalhaKanban(input: {
     atributosParaRanking,
   );
 
-  if (gruposRanking.length === 0) return { ok: true, rankingCount: 0 };
-
-  const rankingGrupos = rankingGruposFromPorFaixas(gruposRanking);
+  if (gruposRanking.length === 0) return { ok: true, rankingCount: 0, grupos: [] };
 
   const mark = await autoMarcarChecklistPosRankingPreBatalha(
     processoId,
-    rankingGrupos,
+    gruposRanking,
     { cardId, faseId: input.faseId, forceAtualizarRanking: true },
   );
   if (!mark.ok) return mark;
   return {
     ok: true,
     rankingCount: flattenRankingPreBatalhaPorFaixas(gruposRanking).length,
+    grupos: gruposRanking,
   };
 }
 
