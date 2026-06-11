@@ -5,6 +5,10 @@ import {
   type PracaCidade,
 } from '@/lib/kanban/dados-cidade-praca-multi';
 import { parseLinhasProspectCondominio } from '@/lib/kanban/condominio-prospect-pesquisa';
+import {
+  parseConfiguradorCasasValores,
+  parseValorMonetarioConfigurador,
+} from '@/lib/kanban/configurador-casas-ranking';
 
 export type ResumoChecklistSubLinha = {
   prefixo: string;
@@ -117,10 +121,28 @@ export function resumoChecklistItem(
     item.tipo === 'dados_cidade_ibge' ||
     item.tipo === 'mapa_praca' ||
     item.tipo === 'listagem_casas_zap' ||
+    item.tipo === 'configurador_casas_ranking' ||
     item.tipo === 'pesquisa_condominio' ||
     item.tipo === 'lotes_condominio' ||
     item.tipo === 'condominio'
   ) {
+    if (item.tipo === 'configurador_casas_ranking' && v) {
+      const parsed = parseConfiguradorCasasValores(v);
+      let modelosComValor = 0;
+      let celulas = 0;
+      for (const faixas of Object.values(parsed.valores)) {
+        const vals = Object.values(faixas ?? {});
+        const preenchidas = vals.filter((x) => parseValorMonetarioConfigurador(x) != null);
+        if (preenchidas.length > 0) modelosComValor++;
+        celulas += preenchidas.length;
+      }
+      return {
+        label: item.label,
+        valorExibicao:
+          celulas > 0 ? `${modelosComValor} modelo(s) · ${celulas} custo(s)` : 'Pendente',
+        preenchido: celulas > 0,
+      };
+    }
     return {
       label: item.label,
       valorExibicao: v || arquivo ? 'Preenchido' : 'Pendente',

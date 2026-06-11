@@ -38,6 +38,7 @@ import { sincronizarChecklistPreBatalhaKanban } from '@/app/step-one/[id]/etapa/
 import { syncSpeFromFaseChecklistKanban } from '@/app/rede-franqueados/franqueado-spe-actions';
 import { isFaseAberturaSpeSlug } from '@/lib/kanban/fase-spe-slugs';
 import { PreBatalhaRankingLeaderboard } from '@/components/kanban-shared/PreBatalhaRankingLeaderboard';
+import { ConfiguradorCasasRankingChecklist } from '@/components/kanban-shared/ConfiguradorCasasRankingChecklist';
 import type { RankingPorFaixaMercado } from '@/lib/kanban/pre-batalha-compatibilidade';
 import {
   isLabelDadosCandidatoRede,
@@ -959,6 +960,25 @@ function ItemField({
         processoId={pid ?? ''}
         itemLabel={item.label}
         podeEditar={podeEditar}
+      />
+    );
+  }
+
+  if (item.tipo === 'configurador_casas_ranking') {
+    const podeEditar = condominioContext?.podeEditar ?? isAdmin;
+    return (
+      <ConfiguradorCasasRankingChecklist
+        cardId={cardId}
+        processoId={processoId}
+        itemLabel={item.label}
+        obrigatorio={item.obrigatorio}
+        valorInicial={estado.valor}
+        podeEditar={podeEditar}
+        salvando={estado.salvando}
+        onSave={async (valor) => {
+          onChange(valor);
+          await onBlur(valor);
+        }}
       />
     );
   }

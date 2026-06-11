@@ -458,13 +458,11 @@ function atributosLoteRespostasVazio(resp: AtributosLoteRespostas): boolean {
 }
 
 /**
- * Calcula ranking Pré Batalha server-side e preenche checklist no modal Kanban.
- * Disparado ao abrir a fase Pré Batalha — idempotente.
+ * Calcula grupos de ranking Pré Batalha (somente leitura — não grava checklist).
  */
-export async function sincronizarChecklistPreBatalhaKanban(input: {
+export async function carregarGruposPreBatalhaKanban(input: {
   cardId: string;
   processoId: string;
-  faseId?: string;
 }): Promise<
   | { ok: true; rankingCount: number; grupos: RankingPorFaixaMercado[] }
   | { ok: false; error: string }
@@ -536,17 +534,36 @@ export async function sincronizarChecklistPreBatalhaKanban(input: {
 
   if (gruposRanking.length === 0) return { ok: true, rankingCount: 0, grupos: [] };
 
-  const mark = await autoMarcarChecklistPosRankingPreBatalha(
-    processoId,
-    gruposRanking,
-    { cardId, faseId: input.faseId, forceAtualizarRanking: true },
-  );
-  if (!mark.ok) return mark;
   return {
     ok: true,
     rankingCount: flattenRankingPreBatalhaPorFaixas(gruposRanking).length,
     grupos: gruposRanking,
   };
+}
+
+/**
+ * Calcula ranking Pré Batalha server-side e preenche checklist no modal Kanban.
+ * Disparado ao abrir a fase Pré Batalha — idempotente.
+ */
+export async function sincronizarChecklistPreBatalhaKanban(input: {
+  cardId: string;
+  processoId: string;
+  faseId?: string;
+}): Promise<
+  | { ok: true; rankingCount: number; grupos: RankingPorFaixaMercado[] }
+  | { ok: false; error: string }
+> {
+  const loaded = await carregarGruposPreBatalhaKanban(input);
+  if (!loaded.ok) return loaded;
+  if (loaded.grupos.length === 0) return loaded;
+
+  const mark = await autoMarcarChecklistPosRankingPreBatalha(
+    input.processoId.trim(),
+    loaded.grupos,
+    { cardId: input.cardId.trim(), faseId: input.faseId, forceAtualizarRanking: true },
+  );
+  if (!mark.ok) return mark;
+  return loaded;
 }
 
 export async function saveEtapa1(

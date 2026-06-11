@@ -27,6 +27,7 @@ export type FaseChecklistItem = {
     | 'listagem_casas_zap'
     | 'dados_cidade_ibge'
     | 'mapa_praca'
+    | 'configurador_casas_ranking'
     | 'url';
   obrigatorio: boolean;
   visivel_candidato: boolean;
