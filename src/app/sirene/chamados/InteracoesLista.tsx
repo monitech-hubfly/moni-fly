@@ -999,8 +999,7 @@ export function InteracoesLista({
     if (willOpen) {
       comentarioAtivoCardIdRef.current = commentKey;
     }
-    if (willOpen && !commentsFetchedByCard[commentKey]) {
-      setCommentsFetchedByCard((f) => ({ ...f, [commentKey]: true }));
+    if (willOpen) {
       setCommentsLoading((l) => ({ ...l, [commentKey]: true }));
       if (cid) {
         void listarComentariosCardSirene(cid).then((res) => {
@@ -1756,7 +1755,7 @@ export function InteracoesLista({
               atividade_status: detalheRowEff.atividade_status,
               criado_em: detalheRowEff.criado_em,
             });
-            return rank != null ? `P${rank}` : null;
+            return rank != null ? rank.prioridade_label : null;
           })()}
           textoResponsavel={textoResponsavelPainel(
             detalheRowEff,

@@ -1269,7 +1269,14 @@ export async function atualizarStatusSubInteracao(
       concluido: 'Concluído',
       aprovado: 'Aprovado',
     };
-    const todos = await todosResponsaveisDoChamado(supabase, interacaoId);
+    const todosResp = await todosResponsaveisDoChamado(supabase, interacaoId);
+    const { data: interacaoCriador } = await supabase
+      .from('kanban_atividades')
+      .select('criado_por')
+      .eq('id', interacaoId)
+      .maybeSingle();
+    const criadorId = (interacaoCriador as { criado_por?: string | null } | null)?.criado_por ?? null;
+    const todos = criadorId ? [...new Set([...todosResp, criadorId])] : todosResp;
     const cardId = String((interacaoRow as { card_id?: string }).card_id ?? '');
     await notificarEventoChamado(interacaoId, {
       userIds: todos,

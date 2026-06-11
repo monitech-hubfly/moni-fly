@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { Archive, ChevronRight, Pencil, User, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Archive, ChevronRight, MessageCircle, Pencil, User, X } from 'lucide-react';
 import Link from 'next/link';
 import type { InteracaoSireneRow } from './InteracoesLista';
 import {
@@ -27,6 +27,14 @@ import {
   isSubAtividadeConcluida,
 } from '@/components/kanban-shared/SubInteracaoLista';
 import { PrazoNegociacaoPanel } from '@/components/kanban-shared/PrazoNegociacaoPanel';
+import {
+  listarComentariosCardSirene,
+  listarComentariosSireneChamado,
+  publicarComentarioCardSirene,
+  publicarComentarioSireneChamado,
+  type ComentarioCardSireneRow,
+} from './actions';
+import { MencaoContentEditable } from '@/components/kanban-shared/MencaoContentEditable';
 import type { TopicoPainelLinha } from '../actions';
 
 const selectClass =
@@ -209,6 +217,84 @@ export function SireneChamadoDetalheModal({
 
   const prioridadeBadge = badgePrioridade(row.sirene_prioridade);
   const ehCriador = Boolean(currentUserId && row.criado_por && row.criado_por === currentUserId);
+
+  const commentKey = row.card_id ?? (row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : null);
+  const [comentarios, setComentarios] = useState<ComentarioCardSireneRow[]>([]);
+  const [comentariosLoading, setComentariosLoading] = useState(false);
+  const [comentariosFetched, setComentariosFetched] = useState(false);
+  const [novoComentario, setNovoComentario] = useState('');
+  const [salvandoComentario, setSalvandoComentario] = useState(false);
+  const [comentariosAbertos, setComentariosAbertos] = useState(false);
+  const [erroComentario, setErroComentario] = useState<string | null>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+
+  function abrirComentarios() {
+    setComentariosAbertos(true);
+    if (!comentariosFetched) {
+      setComentariosFetched(true);
+      setComentariosLoading(true);
+      const cid = row.card_id;
+      const scid = row.sirene_chamado_id;
+      if (cid) {
+        void listarComentariosCardSirene(cid).then((res) => {
+          setComentariosLoading(false);
+          if (res.ok) setComentarios(res.items);
+        });
+      } else if (scid != null) {
+        void listarComentariosSireneChamado(scid).then((res) => {
+          setComentariosLoading(false);
+          if (res.ok) setComentarios(res.items);
+        });
+      }
+    }
+  }
+
+  async function publicarComentarioModal() {
+    const html = editorRef.current?.innerHTML.trim() ?? '';
+    if (!html) return;
+    setSalvandoComentario(true);
+    setErroComentario(null);
+    try {
+      const referenciaPath = row.sirene_chamado_id != null
+        ? `/sirene/chamados?interacao=${encodeURIComponent(row.id)}`
+        : '/sirene/chamados';
+      let res: { ok: boolean; error?: string };
+      if (row.card_id) {
+        res = await publicarComentarioCardSirene(row.card_id, html, {
+          referenciaPath,
+          contextoTitulo: row.titulo || row.card_titulo || 'Chamado',
+        });
+      } else if (row.sirene_chamado_id != null) {
+        res = await publicarComentarioSireneChamado(row.sirene_chamado_id, html, {
+          referenciaPath,
+          contextoTitulo: row.titulo || 'Chamado',
+        });
+      } else {
+        setErroComentario('Não foi possível identificar o chamado.');
+        return;
+      }
+      if (!res.ok) { setErroComentario(res.error ?? 'Erro'); return; }
+      if (editorRef.current) editorRef.current.innerHTML = '';
+      setNovoComentario('');
+      // Recarrega comentários
+      setComentariosLoading(true);
+      const cid = row.card_id;
+      const scid = row.sirene_chamado_id;
+      if (cid) {
+        void listarComentariosCardSirene(cid).then((res2) => {
+          setComentariosLoading(false);
+          if (res2.ok) setComentarios(res2.items);
+        });
+      } else if (scid != null) {
+        void listarComentariosSireneChamado(scid).then((res2) => {
+          setComentariosLoading(false);
+          if (res2.ok) setComentarios(res2.items);
+        });
+      }
+    } finally {
+      setSalvandoComentario(false);
+    }
+  }
 
   return (
     <div
@@ -500,6 +586,69 @@ export function SireneChamadoDetalheModal({
               </p>
             )}
           </section>
+
+          {commentKey ? (
+            <section>
+              <div className="mb-2 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={abrirComentarios}
+                  className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)] hover:text-[color:var(--moni-text-primary)]"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  Comentários {comentarios.length > 0 ? `(${comentarios.length})` : ''}
+                  {!comentariosAbertos ? <ChevronRight className="h-3 w-3" /> : <ChevronRight className="h-3 w-3 rotate-90" />}
+                </button>
+              </div>
+              {comentariosAbertos ? (
+                <div className="rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3">
+                  {comentariosLoading ? (
+                    <p className="text-xs text-[color:var(--moni-text-tertiary)]">Carregando…</p>
+                  ) : comentarios.length > 0 ? (
+                    <ul className="mb-3 max-h-48 space-y-2 overflow-y-auto">
+                      {[...comentarios]
+                        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                        .map((c) => (
+                          <li key={c.id} className="flex gap-2 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-2 py-2">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] text-[10px] font-semibold text-[color:var(--moni-text-secondary)]">
+                              {iniciaisNome(c.autor_nome ?? '')}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs leading-snug">
+                                <span className="font-medium text-[color:var(--moni-text-primary)]">{(c.autor_nome ?? '—').trim() || '—'}</span>
+                                {c.created_at ? <span className="ml-1 tabular-nums text-[color:var(--moni-text-tertiary)]">{new Date(c.created_at).toLocaleString('pt-BR')}</span> : null}
+                              </p>
+                              <p className="mt-1 whitespace-pre-wrap text-sm text-[color:var(--moni-text-primary)]">{c.texto}</p>
+                            </div>
+                          </li>
+                        ))}
+                    </ul>
+                  ) : (
+                    <p className="mb-3 text-xs text-[color:var(--moni-text-tertiary)]">Nenhum comentário ainda.</p>
+                  )}
+                  <div className="flex flex-col gap-2">
+                    <div className="overflow-visible rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)]">
+                      <MencaoContentEditable
+                        editorRef={editorRef}
+                        onInput={(html) => setNovoComentario(html)}
+                        className="min-h-[60px] w-full p-2 text-sm text-[color:var(--moni-text-primary)] focus:outline-none empty:before:text-[color:var(--moni-text-tertiary)] empty:before:content-[attr(data-placeholder)]"
+                        placeholder="Escreva um comentário… Use @ para mencionar"
+                      />
+                    </div>
+                    {erroComentario ? <p className="text-xs text-red-600">{erroComentario}</p> : null}
+                    <button
+                      type="button"
+                      disabled={salvandoComentario}
+                      onClick={() => void publicarComentarioModal()}
+                      className="self-end rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
+                    >
+                      {salvandoComentario ? '…' : 'Publicar'}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
 
           {podeEditar && !editando ? (
             <ChamadoAtividadeCollapsibleSection
