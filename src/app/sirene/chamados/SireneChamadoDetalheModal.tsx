@@ -454,7 +454,7 @@ export function SireneChamadoDetalheModal({
                     Editar
                   </button>
                 ) : null}
-                {podeArquivar && !row.sirene_arquivado && onArquivar ? (
+                {podeArquivar && ehCriador && !row.sirene_arquivado && onArquivar ? (
                   <button
                     type="button"
                     onClick={onArquivar}

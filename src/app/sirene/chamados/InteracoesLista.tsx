@@ -579,12 +579,10 @@ export function InteracoesLista({
     const q = norm(applied.busca);
     return (row: InteracaoSireneRow, ocultarConcluidasPorPadrao: boolean) => {
       if (row.origem === 'sirene' && row.sirene_arquivado && !podeArquivar) return false;
-      if (
-        row.origem === 'sirene' &&
-        row.sirene_arquivado &&
-        podeArquivar &&
-        !mostrarArquivados
-      ) {
+      if (row.origem === 'sirene' && row.sirene_arquivado && podeArquivar && !mostrarArquivados) {
+        return false;
+      }
+      if (row.origem === 'sirene' && !row.sirene_arquivado && podeArquivar && mostrarArquivados) {
         return false;
       }
 
@@ -1388,6 +1386,15 @@ export function InteracoesLista({
               Mostrar arquivados
             </label>
           ) : null}
+          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-[color:var(--moni-text-secondary)]">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-[color:var(--moni-border-default)]"
+              checked={applied.mostrarConcluidas}
+              onChange={(e) => setApplied((a) => ({ ...a, mostrarConcluidas: e.target.checked }))}
+            />
+            Mostrar concluídos
+          </label>
         </div>
         <button
           type="button"
