@@ -179,7 +179,6 @@ export function gerarExplicacaoRankingFaixaPreBatalha(
   const paragrafos: string[] = [
     `Faixa ${faixaLabel}: ${DESCRICAO_FAIXA[faixa]}. Foram considerados ${anunciosTxt} deste segmento no Mapa de Competidores.`,
     `Só entram modelos Moní autorizados para esta faixa: ${elegiveis.join(', ')}. Cada um foi comparado individualmente com todos os anúncios da faixa (${batalhasTxt} no total).`,
-    `Entre os elegíveis, a ordem prioriza quantos atributos do lote cada casa compartilha no catálogo; depois desempata pela média de Preço (VGV INC + Kit vs anúncios) e Produto (quartos, banheiros, vagas, metragem). Modelos com topografia incompatível ou que não cabem no terreno aparecem ao final, sem pontuação.`,
     explicarLider(rankingElegiveis),
   ];
 

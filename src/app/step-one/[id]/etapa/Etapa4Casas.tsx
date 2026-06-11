@@ -51,6 +51,7 @@ import {
   type RankingPorFaixaMercado,
 } from '@/lib/kanban/pre-batalha-compatibilidade';
 import {
+  PRE_BATALHA_INSTRUCOES_FASE,
   PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING,
 } from '@/lib/kanban/pre-batalha-checklist';
 import { PreBatalhaRankingLeaderboard } from '@/components/kanban-shared/PreBatalhaRankingLeaderboard';
@@ -1440,6 +1441,12 @@ export function Etapa4Casas(props: {
                   <p className="text-sm text-stone-500">Nenhum modelo no catálogo ativo.</p>
                 ) : (
                   <>
+                    <p
+                      className="mb-3 whitespace-pre-line rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-xs leading-relaxed text-stone-800"
+                      role="note"
+                    >
+                      {PRE_BATALHA_INSTRUCOES_FASE}
+                    </p>
                     <p
                       className="mb-3 whitespace-pre-line rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs leading-relaxed text-amber-950"
                       role="note"

@@ -705,6 +705,21 @@ export function formatPrecoAnuncio(preco: number): string {
   });
 }
 
+/** Ex.: `Liz/plano` — nome abreviado + topografia (padrão em rankings). */
+export function formatModeloTopografia(
+  modelo: string,
+  topografia: string,
+  options?: { abreviar?: boolean },
+): string {
+  const abreviar = options?.abreviar !== false;
+  const nomeCompleto = modelo.trim();
+  const palavra = nomeCompleto.split(/\s+/)[0] || nomeCompleto;
+  const nome = abreviar ? (palavra.length <= 4 ? palavra : palavra.slice(0, 3)) : nomeCompleto;
+  const topoRaw = topografia.trim().toLowerCase();
+  const topoSlug = topoRaw === '—' || !topoRaw ? '—' : topoRaw;
+  return `${nome}/${topoSlug}`;
+}
+
 // --- Legado: score 0–100 (mapa / UI antiga) — preferir `calcularRankingPreBatalhaPorFaixas`. ---
 
 export type ModeloCatalogoCompat = {

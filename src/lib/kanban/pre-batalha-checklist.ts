@@ -1,10 +1,10 @@
 /** Labels de checklist da fase Pré Batalha (Funil Step One, slug `batalha`). */
 
-import type { RankingPorFaixaMercado } from '@/lib/kanban/pre-batalha-compatibilidade';
+import { formatModeloTopografia, type RankingPorFaixaMercado } from '@/lib/kanban/pre-batalha-compatibilidade';
 import { formatExplicacaoRankingFaixaChecklist } from '@/lib/kanban/pre-batalha-explicacao-faixa';
 
 export const PRE_BATALHA_CHECKLIST_LABEL_APLICADA =
-  'Pré-batalha aplicada (Produto + Localização)';
+  'Pré-batalha aplicada (Lote + Preço + Produto)';
 
 export const PRE_BATALHA_CHECKLIST_LABEL_RANKING =
   'Ranking inicial — casas candidatas confirmadas';
@@ -26,10 +26,13 @@ export type RankingInicialGrupoFaixa = {
   itens: RankingInicialChecklistItem[];
 };
 
-/** Texto fixo exibido em Instruções da fase (Kanban) na Pré Batalha. */
-export const PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING = `Por que este ranking?
+/** Instruções principais da fase Pré Batalha (Kanban `kanban_fases.instrucoes`). */
+export const PRE_BATALHA_INSTRUCOES_FASE = `Com o mapa de competidores preenchido e os atributos do lote definidos em Lotes Disponíveis, o sistema ranqueia automaticamente todos os modelos Moní do catálogo, separados por faixa de mercado (Entrada, Intermediária, Premium, Premium+, etc.).
 
-Com o Mapa de Competidores preenchido e os atributos do lote em Lotes Disponíveis, o sistema ranqueia todos os modelos Moní do catálogo, separados por faixa de mercado (Entrada, Intermediária, Premium, etc.).
+Em cada faixa, cada modelo elegível batalha contra todos os anúncios daquela faixa nos eixos Preço e Produto.`;
+
+/** Texto fixo exibido após as instruções da fase (Kanban) na Pré Batalha. */
+export const PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING = `Por que este ranking?
 
 Cada modelo só aparece nas faixas em que é elegível (ex.: Lu/Isa/Val só Entrada; Liz/Ivy/Mia/Cissa/Sol Entrada e Intermediária; Eva/Gal Premium e Premium+; Lena Premium+ em diante).
 
@@ -38,7 +41,7 @@ Ordem entre modelos elegíveis:
 2. Topografia — modelos com topografia diferente do lote vão ao final, sem pontuação
 3. Desempate: média de Preço (VGV INC + Kit Moní vs anúncios) e depois Produto (quartos, banheiros, vagas, metragem)
 
-Em cada faixa, cada modelo elegível batalha contra todos os anúncios daquela faixa nos eixos Preço e Produto. A nota final ainda soma Lote + Preço + Produto para indicar compatibilidade geral.`;
+A nota final (Lote + Preço + Produto) resume o encaixe frente aos anúncios da faixa; a posição no ranking segue a hierarquia acima, não apenas essa soma.`;
 
 export function rankingGruposFromPorFaixas(
   grupos: RankingPorFaixaMercado[],
@@ -60,17 +63,14 @@ export function rankingGruposFromPorFaixas(
 }
 
 function formatLinhaRankingPreBatalha(item: RankingInicialChecklistItem, idx: number): string {
-  const palavra = item.modelo.trim().split(/\s+/)[0] || item.modelo.trim();
-  const abrev = palavra.length <= 4 ? palavra : palavra.slice(0, 3);
-  const topoRaw = item.topografia.trim().toLowerCase();
-  const topoSlug = topoRaw === '—' || !topoRaw ? '—' : topoRaw;
+  const rotulo = formatModeloTopografia(item.modelo, item.topografia);
   const detalhe =
     item.matchScore != null && item.totalAtributosLote != null
       ? ` | Lote:${item.matchScore}/${item.totalAtributosLote} P:${item.notaPreco ?? '—'} Prod:${item.notaProduto ?? '—'}`
       : item.notaLote != null && item.notaPreco != null && item.notaProduto != null
         ? ` | L:${item.notaLote} P:${item.notaPreco} Prod:${item.notaProduto}`
         : '';
-  return `${idx + 1}º ${abrev}/${topoSlug} (Final: ${item.notaFinal}${detalhe})`;
+  return `${idx + 1}º ${rotulo} (Final: ${item.notaFinal}${detalhe})`;
 }
 
 /** Formato checklist — seções por faixa, uma linha por modelo. */
@@ -103,16 +103,13 @@ function formatPrecoChecklist(preco: number): string {
 function formatLinhaBatalhaPreBatalha(
   b: RankingPorFaixaMercado['batalhas'][number],
 ): string {
-  const palavra = b.modelo.trim().split(/\s+/)[0] || b.modelo.trim();
-  const abrev = palavra.length <= 4 ? palavra : palavra.slice(0, 3);
-  const topoRaw = b.topografia.trim().toLowerCase();
-  const topoSlug = topoRaw === '—' || !topoRaw ? '—' : topoRaw;
+  const rotulo = formatModeloTopografia(b.modelo, b.topografia);
   const precoAnuncio = formatPrecoChecklist(b.precoAnuncio);
   const precoMoni =
     b.precoIncKitMoni != null && b.precoIncKitMoni > 0
       ? formatPrecoChecklist(b.precoIncKitMoni)
       : '—';
-  return `${abrev}/${topoSlug} vs ${b.condominio} (Anúncio: ${precoAnuncio} | Moní: ${precoMoni}) → L:${b.notaLote} P:${b.notaPreco} Prod:${b.notaProduto} (Final:${b.notaFinalLinha})`;
+  return `${rotulo} vs ${b.condominio} (Anúncio: ${precoAnuncio} | Moní: ${precoMoni}) → L:${b.notaLote} P:${b.notaPreco} Prod:${b.notaProduto} (Final:${b.notaFinalLinha})`;
 }
 
 /**

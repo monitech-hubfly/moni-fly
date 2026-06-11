@@ -4,6 +4,7 @@ import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight, Trophy } from 'lucide-react';
 import {
   badgeCompatibilidade,
+  formatModeloTopografia,
   formatPrecoAnuncio,
   type AnuncioAmeacadorPreBatalha,
   type BatalhaModeloAnuncioPreBatalha,
@@ -86,7 +87,7 @@ function PodiumTop3({ top3 }: { top3: ResultadoRankingModelo[] }) {
               {formatRank(pos)}
             </span>
             <span className="mt-0.5 line-clamp-2 text-xs font-semibold leading-tight text-stone-800">
-              {item.modelo}
+              {formatModeloTopografia(item.modelo, item.topografia)}
             </span>
             <span className="mt-0.5 text-[11px] font-bold tabular-nums text-amber-900">
               {formatMatchLote(item)} atrib.
@@ -123,12 +124,9 @@ function BatalhasTable({ batalhas }: { batalhas: BatalhaModeloAnuncioPreBatalha[
               className="border-b border-stone-100 last:border-0 bg-white/50 hover:bg-stone-50/90"
             >
               <td className="px-3 py-2.5 sm:px-4">
-                <span className="font-medium text-stone-900">{b.modelo}</span>
-                {b.topografia !== '—' ? (
-                  <span className="ml-1.5 rounded-full bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-600 ring-1 ring-stone-200">
-                    {b.topografia}
-                  </span>
-                ) : null}
+                <span className="font-medium text-stone-900">
+                  {formatModeloTopografia(b.modelo, b.topografia)}
+                </span>
               </td>
               <td className="max-w-[12rem] truncate px-3 py-2.5 text-stone-700 sm:px-4" title={b.condominio}>
                 {b.condominio}
@@ -288,12 +286,9 @@ function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
                   </td>
                   <td className="px-3 py-3 sm:px-4">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium text-stone-900">{item.modelo}</span>
-                      {item.topografia !== '—' ? (
-                        <span className="rounded-full bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-600 ring-1 ring-stone-200">
-                          {item.topografia}
-                        </span>
-                      ) : null}
+                      <span className="font-medium text-stone-900">
+                        {formatModeloTopografia(item.modelo, item.topografia)}
+                      </span>
                       <BadgeTopografiaCompat topoCompativel={item.topoCompativel} />
                       {inelegivel && falhasGeometria.length > 0 ? (
                         <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-800 ring-1 ring-red-200">
@@ -370,15 +365,12 @@ function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
 }
 
 function linhaResumoRanking(item: ResultadoRankingModelo, posicaoElegivel: number | null): string {
+  const rotulo = formatModeloTopografia(item.modelo, item.topografia);
   if (item.elegivel === false) {
     const falhas = item.falhas.map((f) => mensagemFalhaRanking(item, f)).join('; ');
-    return `— ${item.modelo}${falhas ? ` — ${falhas}` : ''}`;
+    return `— ${rotulo}${falhas ? ` — ${falhas}` : ''}`;
   }
-  const palavra = item.modelo.trim().split(/\s+/)[0] || item.modelo.trim();
-  const abrev = palavra.length <= 4 ? palavra : palavra.slice(0, 3);
-  const topoRaw = item.topografia.trim().toLowerCase();
-  const topoSlug = topoRaw === '—' || !topoRaw ? '—' : topoRaw;
-  return `${posicaoElegivel}º ${abrev}/${topoSlug} (${linhaNotasRanking(item)} | Final: ${item.notaFinal})`;
+  return `${posicaoElegivel}º ${rotulo} (${linhaNotasRanking(item)} | Final: ${item.notaFinal})`;
 }
 
 function SubSecaoTabelaColapsavel({
@@ -426,34 +418,47 @@ function SubSecaoTabelaColapsavel({
   );
 }
 
+const LIMITE_RESUMO_RANKING = 3;
+
 function RankingResumoMinimizado({ ranking }: { ranking: ResultadoRankingModelo[] }) {
   if (ranking.length === 0) {
     return <p className="text-xs text-stone-500">Nenhum modelo ranqueado nesta faixa.</p>;
   }
 
+  const elegiveis = ranking.filter((item) => item.elegivel !== false);
+  const exibir = elegiveis.slice(0, LIMITE_RESUMO_RANKING);
+  const elegiveisOcultos = Math.max(0, elegiveis.length - exibir.length);
+  const inelegiveis = ranking.length - elegiveis.length;
+
   let posicaoElegivel = 0;
 
   return (
-    <ul className="space-y-1 text-xs leading-relaxed text-stone-700">
-      {ranking.map((item) => {
-        const inelegivel = item.elegivel === false;
-        const pos = inelegivel ? null : ++posicaoElegivel;
-        return (
-          <li
-            key={item.catalogoId}
-            className={`rounded-md px-2 py-1 ${
-              inelegivel
-                ? 'bg-red-50/60 opacity-60 text-stone-600'
-                : pos != null && pos <= 3
-                  ? 'bg-amber-50/90 font-medium text-stone-800'
-                  : 'bg-white/60'
-            }`}
-          >
-            {linhaResumoRanking(item, pos)}
-          </li>
-        );
-      })}
-    </ul>
+    <div>
+      <ul className="space-y-1 text-xs leading-relaxed text-stone-700">
+        {exibir.map((item) => {
+          const pos = ++posicaoElegivel;
+          return (
+            <li
+              key={item.catalogoId}
+              className={`rounded-md px-2 py-1 ${
+                pos <= 3 ? 'bg-amber-50/90 font-medium text-stone-800' : 'bg-white/60'
+              }`}
+            >
+              {linhaResumoRanking(item, pos)}
+            </li>
+          );
+        })}
+      </ul>
+      {elegiveisOcultos > 0 || inelegiveis > 0 ? (
+        <p className="mt-1.5 px-2 text-[11px] text-stone-500">
+          {elegiveisOcultos > 0 && inelegiveis > 0
+            ? `+ ${elegiveisOcultos} ${elegiveisOcultos === 1 ? 'modelo' : 'modelos'} e ${inelegiveis} incompatíveis — expandir para ver`
+            : elegiveisOcultos > 0
+              ? `+ ${elegiveisOcultos} ${elegiveisOcultos === 1 ? 'modelo' : 'modelos'} — expandir para ver`
+              : `${inelegiveis} ${inelegiveis === 1 ? 'modelo incompatível' : 'modelos incompatíveis'} — expandir para ver`}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
