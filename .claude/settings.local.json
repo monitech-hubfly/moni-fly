@@ -52,7 +52,15 @@
       "PowerShell(node db_fix_profile_tmp.mjs 2>&1)",
       "PowerShell(node db_copy_tables_tmp.mjs 2>&1)",
       "PowerShell(Remove-Item *)",
-      "PowerShell(psql *)"
+      "PowerShell(psql *)",
+      "PowerShell(node _tmp_*)",
+      "PowerShell(git status*)",
+      "PowerShell(git branch*)",
+      "PowerShell(git pull *)",
+      "PowerShell(git add *)",
+      "PowerShell(git commit *)",
+      "PowerShell(git push *)",
+      "PowerShell(npx tsc --noEmit*)"
     ]
   }
 }

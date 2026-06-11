@@ -129,5 +129,16 @@ function rotaPorNomeKanban(nome: string): string {
   if (n.includes('step one') || n.includes('step-one')) return '/step-one';
   if (n.includes('acoplamento')) return '/acoplamento';
   if (n.includes('novos franqueados')) return '/novos-franqueados';
-  return '/';
+  if (n.includes('operações') || n.includes('operacoes')) return '/operacoes';
+  if (n.includes('jurídico') || n.includes('juridico')) return '/juridico';
+  if (n.includes('homologações') || n.includes('homologacoes')) return '/homologacoes';
+  if (n.includes('crédito obra') || n.includes('credito obra')) return '/credito-obra';
+  if (n.includes('contabilidade')) return '/contabilidade';
+  if (n.includes('contratações') || n.includes('contratacoes')) return '/contratacoes';
+  if (n.includes('modelo virtual')) return '/modelo-virtual';
+  if (n.includes('capital')) return '/moni-capital';
+  if (n.includes('produto')) return '/produto';
+  if (n.includes('projeto legal') || n.includes('projetos legais') || n.includes('projetos locais')) return '/projetos';
+  if (n.includes('loteadores')) return '/loteadores';
+  return '/sirene/chamados';
 }

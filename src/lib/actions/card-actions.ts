@@ -1210,7 +1210,7 @@ export async function atualizarStatusSubInteracao(
 
   const { data: antes } = await supabase
     .from('sirene_topicos')
-    .select('status, interacao_id, chamado_id')
+    .select('status, interacao_id, chamado_id, responsavel_id, responsaveis_ids')
     .eq('id', idNum)
     .maybeSingle();
   if (!antes) return { ok: false, error: 'Atividade não encontrada.' };
@@ -1218,8 +1218,16 @@ export async function atualizarStatusSubInteracao(
   const interacaoId = String((antes as { interacao_id?: string }).interacao_id ?? '');
   const chamadoIdRaw = (antes as { chamado_id?: number | null }).chamado_id;
 
-  const bloqueio = await assertEditableFromSirene(supabase, interacaoId, viaSirene);
-  if (bloqueio) return bloqueio;
+  // Allow status update if user is the responsible for this tópico
+  const topicoResponsavelId = (antes as { responsavel_id?: string | null }).responsavel_id ?? null;
+  const topicoResponsaveisIds = (antes as { responsaveis_ids?: string[] }).responsaveis_ids ?? [];
+  const isResponsavel =
+    topicoResponsavelId === user.id ||
+    topicoResponsaveisIds.includes(user.id);
+  if (!isResponsavel) {
+    const bloqueio = await assertEditableFromSirene(supabase, interacaoId, viaSirene);
+    if (bloqueio) return bloqueio;
+  }
 
   const { error } = await supabase
     .from('sirene_topicos')
