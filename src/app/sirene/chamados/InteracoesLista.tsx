@@ -586,6 +586,9 @@ export function InteracoesLista({
         return false;
       }
 
+      // Mostrar concluídos exclusivo: se marcado, mostra só concluídos; se desmarcado, oculta concluídos por padrão
+      if (applied.mostrarConcluidas && subGrupoFluxo(row) !== 'concluido') return false;
+
       if (!verTodas && currentUserId) {
         const ids = row.responsaveis_ids ?? [];
         const mine =
