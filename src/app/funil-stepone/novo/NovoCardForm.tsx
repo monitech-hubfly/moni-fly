@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { criarCardFunilStepOne } from '@/lib/actions/card-actions';
 import { SearchableSelect } from '@/components/SearchableSelect';
 
 type Fase = {
@@ -76,34 +77,26 @@ export function NovoCardForm({
 
     setLoading(true);
     try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error('Não autenticado');
-
       const cardList = criarPorArea ? areas : [areas[0] || ''];
 
       for (const area of cardList) {
         const titulo = selectedFranqueado
           ? buildTitulo(selectedFranqueado, area, criarPorArea)
           : area;
-        const { error } = await supabase.from('kanban_cards').insert({
-          kanban_id: kanbanId,
-          fase_id: faseId,
-          franqueado_id: user.id,
-          rede_franqueado_id: selectedFranqueadoId || null,
+        const res = await criarCardFunilStepOne({
+          faseId,
+          redeFranqueadoId: selectedFranqueadoId,
           titulo,
-          status: 'ativo',
+          cidade: area.trim() || undefined,
         });
-        if (error) throw error;
+        if (!res.ok) throw new Error(res.error);
       }
 
       router.push('/funil-stepone');
       router.refresh();
     } catch (err) {
       console.error('Erro ao criar card:', err);
-      alert('Erro ao criar card. Tente novamente.');
+      alert(err instanceof Error ? err.message : 'Erro ao criar card. Tente novamente.');
     } finally {
       setLoading(false);
     }

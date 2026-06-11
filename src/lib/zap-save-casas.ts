@@ -46,7 +46,7 @@ export async function verifyProcessoCasasAccess(
   const { data: card } = await supabase
     .from('kanban_cards')
     .select('id')
-    .eq('projeto_id', pid)
+    .or(`processo_step_one_id.eq.${pid},projeto_id.eq.${pid}`)
     .eq('franqueado_id', user.id)
     .limit(1)
     .maybeSingle();

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { SearchableSelect } from '@/components/SearchableSelect';
+import { criarCardFunilStepOne } from '@/lib/actions/card-actions';
 
 type Fase = {
   id: string;
@@ -91,59 +92,29 @@ export function NovoCardModal({
 
     setLoading(true);
     try {
-      const supabase = createClient();
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error('Não autenticado');
-
       const nFranquiaSelected = franqueados.find((f) => f.id === franqueadoRedeId)?.n_franquia ?? '';
       const partes = [nFranquiaSelected, nomeCondominio.trim(), quadra.trim(), lote.trim()].filter(Boolean);
       const tituloAuto = partes.join(' - ');
 
-      const insertPayload: Record<string, unknown> = {
-        kanban_id: kanbanId,
-        fase_id: faseId,
-        franqueado_id: user.id,
-        rede_franqueado_id: franqueadoRedeId || null,
+      const res = await criarCardFunilStepOne({
+        faseId,
+        redeFranqueadoId: franqueadoRedeId,
         titulo: tituloAuto,
-        status: 'ativo',
-      };
-      if (showTipoOrigem && isAdmin && tipoOrigem === 'hipotese_direta') {
-        insertPayload.origem_tipo = 'hipotese_direta';
-      }
+        nomeCondominio: nomeCondominio.trim() || undefined,
+        quadra: quadra.trim() || undefined,
+        lote: lote.trim() || undefined,
+        ...(showTipoOrigem && isAdmin && tipoOrigem === 'hipotese_direta'
+          ? { origemTipo: 'hipotese_direta' as const }
+          : {}),
+      });
 
-      const { error } = await supabase.from('kanban_cards').insert(insertPayload);
-
-      if (error) throw error;
-
-      if (nomeCondominio.trim() || quadra.trim() || lote.trim()) {
-        const { data: cardCriado } = await supabase
-          .from('kanban_cards')
-          .select('id')
-          .eq('kanban_id', kanbanId)
-          .eq('titulo', tituloAuto)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (cardCriado) {
-          await supabase
-            .from('kanban_cards')
-            .update({
-              nome_condominio: nomeCondominio.trim() || null,
-              quadra: quadra.trim() || null,
-              lote: lote.trim() || null,
-            })
-            .eq('id', (cardCriado as { id: string }).id);
-        }
-      }
+      if (!res.ok) throw new Error(res.error);
 
       router.refresh();
       onClose();
     } catch (err) {
       console.error('Erro ao criar card:', err);
-      alert('Erro ao criar card. Tente novamente.');
+      alert(err instanceof Error ? err.message : 'Erro ao criar card. Tente novamente.');
     } finally {
       setLoading(false);
     }

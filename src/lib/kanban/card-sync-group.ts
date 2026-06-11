@@ -68,11 +68,22 @@ async function resolveProcessoIdByNumeroFranquia(db: SyncDb, num: string): Promi
 export async function resolverProcessoStepOneIdDoCard(
   db: SyncDb,
   params: {
+    cardProcessoStepOneId?: string | null;
     cardProjetoId?: string | null;
     redeFranqueadoId?: string | null;
     cardTitulo?: string | null;
   },
 ): Promise<string | null> {
+  const processoStepOneId = String(params.cardProcessoStepOneId ?? '').trim();
+  if (processoStepOneId) {
+    const { data: byCol } = await db
+      .from('processo_step_one')
+      .select('id')
+      .eq('id', processoStepOneId)
+      .maybeSingle();
+    if (byCol?.id) return String(byCol.id);
+  }
+
   const projetoId = String(params.cardProjetoId ?? '').trim();
   if (projetoId) {
     const { data: byProjeto } = await db.from('processo_step_one').select('id').eq('id', projetoId).maybeSingle();
@@ -124,12 +135,18 @@ async function resolverProcessoIdDoCard(db: SyncDb, cardId: string): Promise<str
 
   const { data: card } = await db
     .from('kanban_cards')
-    .select('projeto_id, rede_franqueado_id, titulo')
+    .select('projeto_id, processo_step_one_id, rede_franqueado_id, titulo')
     .eq('id', cid)
     .maybeSingle();
-  const row = card as { projeto_id?: string | null; rede_franqueado_id?: string | null; titulo?: string | null } | null;
+  const row = card as {
+    projeto_id?: string | null;
+    processo_step_one_id?: string | null;
+    rede_franqueado_id?: string | null;
+    titulo?: string | null;
+  } | null;
 
   const resolved = await resolverProcessoStepOneIdDoCard(db, {
+    cardProcessoStepOneId: row?.processo_step_one_id,
     cardProjetoId: row?.projeto_id,
     redeFranqueadoId: row?.rede_franqueado_id,
     cardTitulo: row?.titulo,

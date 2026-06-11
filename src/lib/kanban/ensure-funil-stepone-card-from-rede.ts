@@ -1,6 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { montarTituloCardSync } from '@/lib/kanban/card-sync-group';
+import {
+  criarEVincularProcessoStepOneAoCard,
+} from '@/lib/kanban/processo-step-one-card';
 
 import { ONBOARDING_FASE_SLUGS } from '@/lib/kanban/stepone-fase-slugs';
 
@@ -151,6 +154,19 @@ export async function ensureFunilStepOneCardFromRede(
     return { ok: false, error: 'Insert do card não retornou id.' };
   }
 
+  const cardId = String(inserido.id);
+
+  const processoRes = await criarEVincularProcessoStepOneAoCard(db, {
+    cardId,
+    userId: franqueadoUserId,
+    titulo,
+    redeFranqueadoId,
+    numeroFranquia: titulo.match(/^FK\d+/i)?.[0] ?? null,
+  });
+  if (!processoRes.ok) {
+    return { ok: false, error: `Card criado, mas falha ao vincular processo: ${processoRes.error}` };
+  }
+
   if (inserido.rede_franqueado_id == null) {
     return {
       ok: false,
@@ -161,7 +177,7 @@ export async function ensureFunilStepOneCardFromRede(
   return {
     ok: true,
     created: true,
-    cardId: String(inserido.id),
+    cardId,
   };
 }
 

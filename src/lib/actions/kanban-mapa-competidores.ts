@@ -5,6 +5,10 @@ import { normalizeAccessRole } from '@/lib/authz';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import { resolverProcessoStepOneIdDoCard } from '@/lib/kanban/card-sync-group';
 import {
+  criarEVincularProcessoStepOneAoCard,
+  vincularProcessoStepOneAoCard,
+} from '@/lib/kanban/processo-step-one-card';
+import {
   CHECKLIST_LABEL_CIDADE,
   CHECKLIST_LABEL_ESTADO,
   inferirChaveLegadoPraca,
@@ -132,8 +136,8 @@ async function resolverPracaCard(
 type SupabaseDb = Awaited<ReturnType<typeof createClient>>;
 
 /**
- * Garante `processo_step_one` para cards nativos do Kanban sem `projeto_id`.
- * Cria registro mínimo, vincula `kanban_cards.projeto_id` e devolve o id do processo.
+ * Garante `processo_step_one` para cards nativos do Kanban sem vínculo.
+ * Cria registro mínimo e preenche `kanban_cards.processo_step_one_id`.
  */
 export async function ensureProcessoStepOneForKanbanCard(
   cardId: string,
@@ -156,7 +160,9 @@ export async function ensureProcessoStepOneForKanbanCard(
 
   const { data: card, error: errCard } = await admin
     .from('kanban_cards')
-    .select('id, projeto_id, franqueado_id, rede_franqueado_id, titulo, condominio_id')
+    .select(
+      'id, processo_step_one_id, projeto_id, franqueado_id, rede_franqueado_id, titulo, condominio_id, nome_condominio, quadra, lote',
+    )
     .eq('id', cid)
     .maybeSingle();
 
@@ -165,11 +171,15 @@ export async function ensureProcessoStepOneForKanbanCard(
 
   const row = card as {
     id: string;
+    processo_step_one_id?: string | null;
     projeto_id?: string | null;
     franqueado_id?: string | null;
     rede_franqueado_id?: string | null;
     titulo?: string | null;
     condominio_id?: string | null;
+    nome_condominio?: string | null;
+    quadra?: string | null;
+    lote?: string | null;
   };
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
@@ -179,29 +189,30 @@ export async function ensureProcessoStepOneForKanbanCard(
     return { ok: false, error: 'Sem permissão para este card.' };
   }
 
+  const direto = String(row.processo_step_one_id ?? '').trim();
+  if (direto) return { ok: true, processoId: direto };
+
   const existente = await resolverProcessoStepOneIdDoCard(admin, {
+    cardProcessoStepOneId: row.processo_step_one_id,
     cardProjetoId: row.projeto_id,
     redeFranqueadoId: row.rede_franqueado_id,
     cardTitulo: row.titulo,
   });
 
   if (existente) {
-    if (!String(row.projeto_id ?? '').trim()) {
-      await admin
-        .from('kanban_cards')
-        .update({ projeto_id: existente, updated_at: new Date().toISOString() })
-        .eq('id', cid);
-    }
+    const link = await vincularProcessoStepOneAoCard(admin, cid, existente, {
+      nomeCondominio: row.nome_condominio,
+      quadra: row.quadra,
+      lote: row.lote,
+    });
+    if (!link.ok) return link;
     return { ok: true, processoId: existente };
   }
 
   const praca = await resolverPracaCard(admin, cid);
-  const cidade = praca?.cidade?.trim() || 'A definir';
-  const estado = praca?.uf?.trim().toUpperCase().slice(0, 2) || null;
-
-  let nomeCondominio: string | null = null;
+  let nomeCondominio = row.nome_condominio?.trim() || null;
   const condominioId = String(row.condominio_id ?? '').trim() || null;
-  if (condominioId) {
+  if (!nomeCondominio && condominioId) {
     const { data: condRow } = await admin
       .from('condominios')
       .select('nome')
@@ -210,37 +221,20 @@ export async function ensureProcessoStepOneForKanbanCard(
     nomeCondominio = (condRow as { nome?: string | null } | null)?.nome?.trim() || null;
   }
 
-  const userId = franqueadoId || user.id;
-  const now = new Date().toISOString();
+  const criado = await criarEVincularProcessoStepOneAoCard(admin, {
+    cardId: cid,
+    userId: franqueadoId || user.id,
+    titulo: row.titulo ?? undefined,
+    cidade: praca?.cidade ?? undefined,
+    estado: praca?.uf ?? undefined,
+    nomeCondominio,
+    quadra: row.quadra,
+    lote: row.lote,
+    redeFranqueadoId: row.rede_franqueado_id,
+  });
 
-  const { data: novo, error: errInsert } = await admin
-    .from('processo_step_one')
-    .insert({
-      user_id: userId,
-      cidade,
-      estado,
-      status: 'em_andamento',
-      etapa_atual: 1,
-      updated_at: now,
-      nome_condominio: nomeCondominio,
-      condominio_id: condominioId,
-    })
-    .select('id')
-    .single();
-
-  if (errInsert || !novo?.id) {
-    return { ok: false, error: errInsert?.message ?? 'Falha ao criar processo Step One.' };
-  }
-
-  const processoId = String((novo as { id: string }).id);
-  const { error: errLink } = await admin
-    .from('kanban_cards')
-    .update({ projeto_id: processoId, updated_at: now })
-    .eq('id', cid);
-
-  if (errLink) return { ok: false, error: errLink.message };
-
-  return { ok: true, processoId };
+  if (!criado.ok) return criado;
+  return { ok: true, processoId: criado.processoId };
 }
 
 async function resolverProcessoIdParaMapa(
@@ -259,10 +253,11 @@ async function resolverProcessoIdParaMapa(
   } else if (cardId?.trim()) {
     const { data: cardRow } = await supabase
       .from('kanban_cards')
-      .select('projeto_id')
+      .select('processo_step_one_id, projeto_id')
       .eq('id', cardId.trim())
       .maybeSingle();
-    const projetoId = String((cardRow as { projeto_id?: string | null } | null)?.projeto_id ?? '').trim();
+    const row = cardRow as { processo_step_one_id?: string | null; projeto_id?: string | null } | null;
+    const projetoId = String(row?.processo_step_one_id ?? row?.projeto_id ?? '').trim();
     if (!projetoId) {
       const ensured = await ensureProcessoStepOneForKanbanCard(cardId.trim());
       if (ensured.ok) pid = ensured.processoId;

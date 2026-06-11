@@ -337,9 +337,11 @@ async function resolveProcessoNativo(
   cardTitulo: string,
   cardProjetoId?: string | null,
   redeFranqueadoId?: string | null,
+  cardProcessoStepOneId?: string | null,
 ): Promise<ProcessoModalNegocioPreObra | null> {
   const { resolverProcessoStepOneIdDoCard } = await import('@/lib/kanban/card-sync-group');
   const processoId = await resolverProcessoStepOneIdDoCard(supabase, {
+    cardProcessoStepOneId,
     cardProjetoId,
     redeFranqueadoId,
     cardTitulo,
@@ -526,11 +528,12 @@ export async function fetchKanbanCardModalDetalhes(
     cardId: string;
     cardTitulo: string;
     redeFranqueadoId: string | null;
-    /** `kanban_cards.projeto_id` — Step One nativo aponta para `processo_step_one`. */
+    /** `kanban_cards.projeto_id` — Portfolio; Step One usa `processo_step_one_id`. */
     cardProjetoId?: string | null;
+    cardProcessoStepOneId?: string | null;
   },
 ): Promise<KanbanCardModalDetalhes> {
-  const { origem, cardId, cardTitulo, redeFranqueadoId, cardProjetoId } = params;
+  const { origem, cardId, cardTitulo, redeFranqueadoId, cardProjetoId, cardProcessoStepOneId } = params;
 
   if (origem === 'legado') {
     const processo = await fetchProcessoById(supabase, cardId);
@@ -562,7 +565,13 @@ export async function fetchKanbanCardModalDetalhes(
     const { data } = await supabase.from('rede_franqueados').select(REDE_SELECT).eq('id', redeFranqueadoId).maybeSingle();
     rede = mapRede((data as Record<string, unknown> | null) ?? null);
   }
-  const processo = await resolveProcessoNativo(supabase, cardTitulo, cardProjetoId, redeFranqueadoId);
+  const processo = await resolveProcessoNativo(
+    supabase,
+    cardTitulo,
+    cardProjetoId,
+    redeFranqueadoId,
+    cardProcessoStepOneId,
+  );
   const redeIdContrato = rede?.id ?? redeFranqueadoId;
   const empresas = await fetchEmpresasForCard(supabase, redeIdContrato, cardId);
   return { rede, processo, redeIdContrato, empresas };

@@ -1879,6 +1879,118 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
   return { ok: true };
 }
 
+export type CriarCardFunilStepOneInput = {
+  faseId: string;
+  redeFranqueadoId: string;
+  titulo: string;
+  /** Praça/cidade (formulário `/funil-stepone/novo` com área de atuação). */
+  cidade?: string;
+  estado?: string;
+  nomeCondominio?: string;
+  quadra?: string;
+  lote?: string;
+  origemTipo?: 'hipotese_direta';
+};
+
+export type CriarCardFunilStepOneResult =
+  | { ok: true; cardId: string; processoId: string }
+  | { ok: false; error: string };
+
+/** Card manual no Funil Step One — cria `kanban_cards` + `processo_step_one` vinculado. */
+export async function criarCardFunilStepOne(
+  input: CriarCardFunilStepOneInput,
+): Promise<CriarCardFunilStepOneResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para criar o card.' };
+
+  const titulo = (input.titulo ?? '').trim();
+  if (!titulo) return { ok: false, error: 'Informe o título do card.' };
+
+  const faseId = (input.faseId ?? '').trim();
+  const redeFranqueadoId = (input.redeFranqueadoId ?? '').trim();
+  if (!faseId || !redeFranqueadoId) {
+    return { ok: false, error: 'Franqueado e fase são obrigatórios.' };
+  }
+
+  const { data: kb, error: kbErr } = await supabase
+    .from('kanbans')
+    .select('id')
+    .eq('nome', 'Funil Step One')
+    .eq('ativo', true)
+    .maybeSingle();
+  if (kbErr) return { ok: false, error: kbErr.message };
+  const kanbanId = String((kb as { id?: string } | null)?.id ?? '').trim();
+  if (!kanbanId) return { ok: false, error: 'Kanban Funil Step One não encontrado.' };
+
+  const { data: faseRow, error: faseErr } = await supabase
+    .from('kanban_fases')
+    .select('id')
+    .eq('id', faseId)
+    .eq('kanban_id', kanbanId)
+    .eq('ativo', true)
+    .maybeSingle();
+  if (faseErr) return { ok: false, error: faseErr.message };
+  if (!faseRow) return { ok: false, error: 'Fase inválida para o Funil Step One.' };
+
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return { ok: false, error: 'Serviço indisponível.' };
+  }
+
+  const insertPayload: Record<string, unknown> = {
+    kanban_id: kanbanId,
+    fase_id: faseId,
+    franqueado_id: user.id,
+    rede_franqueado_id: redeFranqueadoId,
+    titulo,
+    status: 'ativo',
+    nome_condominio: input.nomeCondominio?.trim() || null,
+    quadra: input.quadra?.trim() || null,
+    lote: input.lote?.trim() || null,
+  };
+  if (input.origemTipo === 'hipotese_direta') {
+    insertPayload.origem_tipo = 'hipotese_direta';
+  }
+
+  const { data: cardRow, error: errCard } = await admin
+    .from('kanban_cards')
+    .insert(insertPayload)
+    .select('id')
+    .single();
+
+  if (errCard || !cardRow?.id) {
+    return { ok: false, error: errCard?.message ?? 'Erro ao criar card.' };
+  }
+
+  const cardId = String((cardRow as { id: string }).id);
+
+  const { criarEVincularProcessoStepOneAoCard } = await import('@/lib/kanban/processo-step-one-card');
+  const processoRes = await criarEVincularProcessoStepOneAoCard(admin, {
+    cardId,
+    userId: user.id,
+    titulo,
+    cidade: input.cidade,
+    estado: input.estado,
+    nomeCondominio: input.nomeCondominio,
+    quadra: input.quadra,
+    lote: input.lote,
+    redeFranqueadoId,
+  });
+
+  if (!processoRes.ok) {
+    return { ok: false, error: `Card criado, mas falha ao vincular processo: ${processoRes.error}` };
+  }
+
+  revalidatePath('/funil-stepone');
+  revalidatePath('/');
+  return { ok: true, cardId, processoId: processoRes.processoId };
+}
+
 export type CardArquivadoListRow = {
   id: string;
   titulo: string;

@@ -252,6 +252,7 @@ type Card = {
   arquivado?: boolean;
   /** FK em `projeto_negocio` — esteiras paralelas do mesmo negócio. */
   projeto_id?: string | null;
+  processo_step_one_id?: string | null;
   acoplamento_concluido?: boolean;
   acoplamento_filho_fase_nome?: string | null;
   acoplamento_filho_fase_slug?: string | null;
@@ -874,6 +875,7 @@ export function KanbanCardModal({
         data_reuniao?: string | null;
         data_followup?: string | null;
         projeto_id?: string | null;
+        processo_step_one_id?: string | null;
         acoplamento_concluido?: boolean;
         acoplamento_filho_fase_nome?: string | null;
         acoplamento_filho_fase_slug?: string | null;
@@ -974,7 +976,7 @@ export function KanbanCardModal({
       } else {
         setLegadoCronologiaMoves([]);
         const cardSelectBase =
-          'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, projeto_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url';
+          'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url';
         const cardSelectWithSla = `${cardSelectBase}, sla_iniciado_em, entered_fase_at, sla_justificativa, sla_justificativa_em`;
         let cardRes = await supabase.from('kanban_cards').select(cardSelectWithSla).eq('id', cardId).single();
         if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
@@ -1017,6 +1019,10 @@ export function KanbanCardModal({
           data_followup: (cardData as { data_followup?: string | null }).data_followup ?? null,
           projeto_id: (() => {
             const pid = (cardData as { projeto_id?: string | null }).projeto_id;
+            return pid != null && String(pid).trim() !== '' ? String(pid) : null;
+          })(),
+          processo_step_one_id: (() => {
+            const pid = (cardData as { processo_step_one_id?: string | null }).processo_step_one_id;
             return pid != null && String(pid).trim() !== '' ? String(pid) : null;
           })(),
           acoplamento_concluido: Boolean(
@@ -1233,6 +1239,7 @@ export function KanbanCardModal({
               ? cardParaEstado.rede_franqueado_id ?? nativeRedeFranqueadoId
               : null,
           cardProjetoId: loaded.projeto_id ?? null,
+          cardProcessoStepOneId: loaded.processo_step_one_id ?? null,
         });
         setModalDetalhes(det);
         setPreObraDraft(preObraDraftFromProcesso(det.processo));
