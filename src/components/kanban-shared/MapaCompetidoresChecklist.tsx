@@ -30,7 +30,7 @@ function fmtMoeda(valor: number): string {
 
 type Props = {
   cardId: string;
-  processoId: string;
+  processoId?: string | null;
   itemLabel: string;
   podeEditar: boolean;
 };
@@ -49,14 +49,8 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
 
   useEffect(() => {
     const cid = cardId?.trim();
-    const pid = processoId?.trim();
     if (!cid) {
       setErroCarregar('Card inválido.');
-      setCarregandoInicial(false);
-      return;
-    }
-    if (!pid) {
-      setErroCarregar('Processo Step One não vinculado a este card.');
       setCarregandoInicial(false);
       return;
     }
@@ -68,7 +62,7 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
       try {
         const [prospectsRes, mapaRes] = await Promise.all([
           carregarProspectsCondominioCard(cid),
-          carregarMapaCompetidoresChecklist(pid, cid),
+          carregarMapaCompetidoresChecklist(processoId, cid),
         ]);
         if (cancelado) return;
 
@@ -278,6 +272,7 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
                   <Etapa4CasasListagem
                     key={`${linhaAtiva.row_id}-${dadosMapa.cidadeInicial}-${dadosMapa.estadoInicial}`}
                     readOnly={!podeEditar}
+                    cardId={cardId}
                     processoId={dadosMapa.processoId}
                     casas={casasComFaixa}
                     cidadeInicial={dadosMapa.cidadeInicial}

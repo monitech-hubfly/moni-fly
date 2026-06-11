@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { ensureProcessoStepOneForKanbanCard } from '@/lib/actions/kanban-mapa-competidores';
 import { fetchZapCasasWithFallback } from '@/lib/zap-fetch-casas';
 import { applyZapCasasUpdate, verifyProcessoCasasAccess } from '@/lib/zap-save-casas';
 
@@ -7,8 +8,8 @@ export const maxDuration = 300;
 
 /**
  * POST /api/apify-zap
- * Body: { cidade, estado, condominio?, processoId? }
- * Com processoId: busca + grava no banco e devolve só contagens (evita payload > 1 MB no cliente).
+ * Body: { cidade, estado, condominio?, processoId?, cardId? }
+ * Com processoId (ou cardId para criar/vincular processo): busca + grava no banco.
  * Sem processoId: devolve items (uso em etapas server-side).
  */
 export async function POST(request: Request) {
@@ -25,6 +26,7 @@ export async function POST(request: Request) {
 
     const processoId =
       typeof body?.processoId === 'string' ? body.processoId.trim() || undefined : undefined;
+    const cardId = typeof body?.cardId === 'string' ? body.cardId.trim() || undefined : undefined;
 
     if (!cidade || !estado) {
       return NextResponse.json(
@@ -45,15 +47,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: result.error }, { status: 200 });
     }
 
-    if (processoId) {
-      const access = await verifyProcessoCasasAccess(processoId);
+    let effectiveProcessoId = processoId;
+    if (!effectiveProcessoId && cardId) {
+      const ensured = await ensureProcessoStepOneForKanbanCard(cardId);
+      if (!ensured.ok) {
+        return NextResponse.json({ ok: false, error: ensured.error }, { status: 200 });
+      }
+      effectiveProcessoId = ensured.processoId;
+    }
+
+    if (effectiveProcessoId) {
+      const access = await verifyProcessoCasasAccess(effectiveProcessoId);
       if (!access.ok) {
         return NextResponse.json({ ok: false, error: access.error }, { status: 200 });
       }
 
       const { inserted, updated, despublicados } = await applyZapCasasUpdate(
         access.supabase,
-        processoId,
+        effectiveProcessoId,
         result.items,
         cidade,
         estado,
@@ -63,6 +74,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         ok: true,
         saved: true,
+        processoId: effectiveProcessoId,
         inserted,
         updated,
         despublicados,

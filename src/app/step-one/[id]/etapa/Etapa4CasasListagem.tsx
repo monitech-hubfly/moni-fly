@@ -17,6 +17,7 @@ export type { CasaRow };
 
 type Props = {
   processoId: string;
+  cardId?: string;
   casas: CasaRow[];
   cidadeInicial: string;
   estadoInicial: string;
@@ -30,6 +31,7 @@ type Props = {
 /** Listagem ZAP + cadastro manual — usado no Mapa de Competidores (sem catálogo/batalha). */
 export function Etapa4CasasListagem({
   processoId,
+  cardId,
   casas,
   cidadeInicial,
   estadoInicial,
@@ -151,7 +153,8 @@ export function Etapa4CasasListagem({
           cidade: city,
           estado: state,
           condominio: condominio.trim() || undefined,
-          processoId,
+          processoId: processoId?.trim() || undefined,
+          cardId: cardId?.trim() || undefined,
           ...(condominioInicial.trim() ? { condominioVinculo: condominioInicial.trim() } : {}),
         }),
       });

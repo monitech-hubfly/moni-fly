@@ -1,7 +1,9 @@
 'use server';
 
 import type { CasaRow } from '@/app/step-one/[id]/etapa/Etapa4Casas';
+import { normalizeAccessRole } from '@/lib/authz';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
+import { resolverProcessoStepOneIdDoCard } from '@/lib/kanban/card-sync-group';
 import {
   CHECKLIST_LABEL_CIDADE,
   CHECKLIST_LABEL_ESTADO,
@@ -10,6 +12,8 @@ import {
   type PracaCidade,
 } from '@/lib/kanban/dados-cidade-praca-multi';
 import { parseAreaAtuacao } from '@/lib/rede-area-atuacao';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
 import { verifyProcessoCasasAccess } from '@/lib/zap-save-casas';
 
 const DADOS_CIDADE_SLUGS = [FASE_SLUGS.DADOS_CIDADE, 'stepone_dados_cidade'] as const;
@@ -125,6 +129,149 @@ async function resolverPracaCard(
   return areas[0] ?? null;
 }
 
+type SupabaseDb = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * Garante `processo_step_one` para cards nativos do Kanban sem `projeto_id`.
+ * Cria registro mínimo, vincula `kanban_cards.projeto_id` e devolve o id do processo.
+ */
+export async function ensureProcessoStepOneForKanbanCard(
+  cardId: string,
+): Promise<{ ok: true; processoId: string } | { ok: false; error: string }> {
+  const cid = cardId.trim();
+  if (!cid) return { ok: false, error: 'Card inválido.' };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return { ok: false, error: 'Serviço indisponível.' };
+  }
+
+  const { data: card, error: errCard } = await admin
+    .from('kanban_cards')
+    .select('id, projeto_id, franqueado_id, rede_franqueado_id, titulo, condominio_id')
+    .eq('id', cid)
+    .maybeSingle();
+
+  if (errCard) return { ok: false, error: errCard.message };
+  if (!card) return { ok: false, error: 'Card não encontrado.' };
+
+  const row = card as {
+    id: string;
+    projeto_id?: string | null;
+    franqueado_id?: string | null;
+    rede_franqueado_id?: string | null;
+    titulo?: string | null;
+    condominio_id?: string | null;
+  };
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+  const accessRole = normalizeAccessRole((profile as { role?: string } | null)?.role);
+  const franqueadoId = String(row.franqueado_id ?? '').trim();
+  if (accessRole !== 'admin' && accessRole !== 'team' && franqueadoId !== user.id) {
+    return { ok: false, error: 'Sem permissão para este card.' };
+  }
+
+  const existente = await resolverProcessoStepOneIdDoCard(admin, {
+    cardProjetoId: row.projeto_id,
+    redeFranqueadoId: row.rede_franqueado_id,
+    cardTitulo: row.titulo,
+  });
+
+  if (existente) {
+    if (!String(row.projeto_id ?? '').trim()) {
+      await admin
+        .from('kanban_cards')
+        .update({ projeto_id: existente, updated_at: new Date().toISOString() })
+        .eq('id', cid);
+    }
+    return { ok: true, processoId: existente };
+  }
+
+  const praca = await resolverPracaCard(admin, cid);
+  const cidade = praca?.cidade?.trim() || 'A definir';
+  const estado = praca?.uf?.trim().toUpperCase().slice(0, 2) || null;
+
+  let nomeCondominio: string | null = null;
+  const condominioId = String(row.condominio_id ?? '').trim() || null;
+  if (condominioId) {
+    const { data: condRow } = await admin
+      .from('condominios')
+      .select('nome')
+      .eq('id', condominioId)
+      .maybeSingle();
+    nomeCondominio = (condRow as { nome?: string | null } | null)?.nome?.trim() || null;
+  }
+
+  const userId = franqueadoId || user.id;
+  const now = new Date().toISOString();
+
+  const { data: novo, error: errInsert } = await admin
+    .from('processo_step_one')
+    .insert({
+      user_id: userId,
+      cidade,
+      estado,
+      status: 'em_andamento',
+      etapa_atual: 1,
+      updated_at: now,
+      nome_condominio: nomeCondominio,
+      condominio_id: condominioId,
+    })
+    .select('id')
+    .single();
+
+  if (errInsert || !novo?.id) {
+    return { ok: false, error: errInsert?.message ?? 'Falha ao criar processo Step One.' };
+  }
+
+  const processoId = String((novo as { id: string }).id);
+  const { error: errLink } = await admin
+    .from('kanban_cards')
+    .update({ projeto_id: processoId, updated_at: now })
+    .eq('id', cid);
+
+  if (errLink) return { ok: false, error: errLink.message };
+
+  return { ok: true, processoId };
+}
+
+async function resolverProcessoIdParaMapa(
+  processoId: string | null | undefined,
+  cardId: string | undefined,
+  supabase: SupabaseDb,
+): Promise<{ ok: true; processoId: string } | { ok: false; error: string }> {
+  let pid = String(processoId ?? '').trim();
+
+  if (!pid) {
+    const cid = cardId?.trim();
+    if (!cid) return { ok: false, error: 'Processo Step One não vinculado.' };
+    const ensured = await ensureProcessoStepOneForKanbanCard(cid);
+    if (!ensured.ok) return ensured;
+    pid = ensured.processoId;
+  } else if (cardId?.trim()) {
+    const { data: cardRow } = await supabase
+      .from('kanban_cards')
+      .select('projeto_id')
+      .eq('id', cardId.trim())
+      .maybeSingle();
+    const projetoId = String((cardRow as { projeto_id?: string | null } | null)?.projeto_id ?? '').trim();
+    if (!projetoId) {
+      const ensured = await ensureProcessoStepOneForKanbanCard(cardId.trim());
+      if (ensured.ok) pid = ensured.processoId;
+    }
+  }
+
+  return { ok: true, processoId: pid };
+}
+
 export type MapaCompetidoresChecklistData =
   | {
       ok: true;
@@ -137,12 +284,14 @@ export type MapaCompetidoresChecklistData =
   | { ok: false; error: string };
 
 export async function carregarMapaCompetidoresChecklist(
-  processoId: string,
+  processoId: string | null | undefined,
   cardId?: string,
 ): Promise<MapaCompetidoresChecklistData> {
-  const pid = String(processoId ?? '').trim();
-  if (!pid) return { ok: false, error: 'Processo Step One não vinculado.' };
+  const supabase = await createClient();
+  const resolved = await resolverProcessoIdParaMapa(processoId, cardId, supabase);
+  if (!resolved.ok) return { ok: false, error: resolved.error };
 
+  const pid = resolved.processoId;
   const access = await verifyProcessoCasasAccess(pid);
   if (!access.ok) return { ok: false, error: access.error };
 
