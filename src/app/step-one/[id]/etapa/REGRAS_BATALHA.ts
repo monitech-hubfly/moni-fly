@@ -326,6 +326,17 @@ export function calcularNotaTamanho(areaAnuncio: number, areaMoni: number): Nota
   return { nota, sugestaoAnexo };
 }
 
+/** diff_pct anúncio vs Moní+anexo abaixo de 1% → sem penalização de tamanho. */
+export function penalizacaoTamanhoEliminada(
+  areaAnuncio: number,
+  areaMoni: number,
+  m2Anexo: number,
+): boolean {
+  const areaMoniComAnexo = areaMoni + m2Anexo;
+  if (areaMoniComAnexo <= 0) return false;
+  return (areaAnuncio - areaMoniComAnexo) / areaMoniComAnexo < 0.01;
+}
+
 /** Produto: tamanho m² — diferença % anúncio vs nossa casa. Nossa maior = positivo. */
 export function notaTamanhoM2(areaAnuncio: number | null, areaNossa: number | null): number {
   if (areaAnuncio == null || areaNossa == null || areaNossa === 0) return 0;

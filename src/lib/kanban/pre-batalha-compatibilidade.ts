@@ -9,6 +9,8 @@ import {
   notaPrecoPreBatalhaContraAnuncio,
   calcularNotaProdutoCompleta,
   getPrecoIncMaisKitMoni,
+  M2_POR_MODULO_ANEXO,
+  penalizacaoTamanhoEliminada,
   type AtributosLoteRespostas,
   type NotaTamanhoResult,
   type ProdutoDadosPar,
@@ -64,6 +66,15 @@ export type AnuncioAmeacadorPreBatalha = {
   sugestaoAnexo?: NotaTamanhoResult['sugestaoAnexo'];
 };
 
+/** Sugestão de anexo única por modelo — cobre o concorrente mais desafiador em m². */
+export interface SugestaoAnexoConsolidada {
+  m2Recomendado: number;
+  anexosRecomendados: number;
+  anunciosPenalizados: number;
+  anunciosEliminados: number;
+  totalAnuncios: number;
+}
+
 /** Uma linha: modelo Moní × anúncio ZAP na faixa (notas por eixo). */
 export type BatalhaModeloAnuncioPreBatalha = {
   catalogoId: string;
@@ -90,6 +101,7 @@ export type RankingModeloPreBatalha = {
   notaFinal: number;
   precoIncKitMoni: number | null;
   anunciosAmeacadores: AnuncioAmeacadorPreBatalha[];
+  sugestaoAnexoConsolidada: SugestaoAnexoConsolidada | null;
   elegivel: boolean;
   falhas: ('largura' | 'profundidade' | 'area')[];
   largura_util: number | null;
@@ -203,6 +215,7 @@ function criarRankingModeloInelegivel(
     notaFinal: 0,
     precoIncKitMoni: getPrecoIncMaisKitMoni(mod),
     anunciosAmeacadores: [],
+    sugestaoAnexoConsolidada: null,
     elegivel: false,
     falhas: geo.falhas,
     largura_util: geo.largura_util,
@@ -376,6 +389,36 @@ function gerarBatalhasModeloAnuncio(
   );
 }
 
+function consolidarSugestaoAnexoPorModelo(
+  notasPorAnuncio: AnuncioAmeacadorPreBatalha[],
+  areaMoni: number | null | undefined,
+): SugestaoAnexoConsolidada | null {
+  const penalizados = notasPorAnuncio.filter((a) => a.sugestaoAnexo != null);
+  if (penalizados.length === 0) return null;
+
+  const m2Recomendado = Math.max(...penalizados.map((a) => a.sugestaoAnexo!.m2Anexo));
+  const anexosRecomendados = m2Recomendado / M2_POR_MODULO_ANEXO;
+
+  let anunciosEliminados = 0;
+  if (areaMoni != null && areaMoni > 0) {
+    for (const a of penalizados) {
+      const areaAnuncio = a.areaAnuncioM2;
+      if (areaAnuncio == null) continue;
+      if (penalizacaoTamanhoEliminada(areaAnuncio, areaMoni, m2Recomendado)) {
+        anunciosEliminados++;
+      }
+    }
+  }
+
+  return {
+    m2Recomendado,
+    anexosRecomendados,
+    anunciosPenalizados: penalizados.length,
+    anunciosEliminados,
+    totalAnuncios: notasPorAnuncio.length,
+  };
+}
+
 function rankearModelosContraAnuncios(
   catalogoFiltrado: CatalogoItem[],
   casasFaixa: CasaRowPreBatalha[],
@@ -438,6 +481,11 @@ function rankearModelosContraAnuncios(
       )
       .slice(0, 3);
 
+    const sugestaoAnexoConsolidada = consolidarSugestaoAnexoPorModelo(
+      notasPorAnuncio,
+      mod.area_m2,
+    );
+
     return {
       catalogoId: mod.id,
       modelo: mod.nome?.trim() || mod.id.slice(0, 8),
@@ -449,6 +497,7 @@ function rankearModelosContraAnuncios(
       notaFinal,
       precoIncKitMoni,
       anunciosAmeacadores,
+      sugestaoAnexoConsolidada,
       ...geoCampos,
     };
   });

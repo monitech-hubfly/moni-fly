@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight, Trophy } from 'lucide-react';
 import {
   badgeCompatibilidade,
   formatPrecoAnuncio,
+  type AnuncioAmeacadorPreBatalha,
   type BatalhaModeloAnuncioPreBatalha,
   type RankingPorFaixaMercado,
   type ResultadoRankingModelo,
@@ -142,6 +143,85 @@ function BatalhasTable({ batalhas }: { batalhas: BatalhaModeloAnuncioPreBatalha[
   );
 }
 
+function formatAreaM2(valor: number | null | undefined): string {
+  if (valor == null || !Number.isFinite(valor)) return '—';
+  return String(Math.round(valor));
+}
+
+function SugestaoAnexoResumoConsolidada({
+  consolidada,
+}: {
+  consolidada: NonNullable<ResultadoRankingModelo['sugestaoAnexoConsolidada']>;
+}) {
+  return (
+    <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+      <p className="mb-1 font-semibold">📐 Sugestão de anexo</p>
+      <p>
+        Adicionar <strong>+{consolidada.m2Recomendado}m²</strong> de anexo (
+        {consolidada.anexosRecomendados}x módulo de 20m²) elimina a penalização de tamanho em{' '}
+        <strong>{consolidada.anunciosEliminados}</strong> de {consolidada.anunciosPenalizados}{' '}
+        anúncios penalizantes.
+      </p>
+    </div>
+  );
+}
+
+function SugestaoAnexoTamanho({ anuncio }: { anuncio: AnuncioAmeacadorPreBatalha }) {
+  const sug = anuncio.sugestaoAnexo;
+  if (!sug) return null;
+
+  return (
+    <div className="mt-1 rounded border border-amber-100 bg-amber-50 px-2 py-1 text-xs text-amber-800">
+      Tamanho: anúncio {formatAreaM2(anuncio.areaAnuncioM2)}m² vs Moní{' '}
+      {formatAreaM2(anuncio.areaMoniM2)}m² — <strong>+{sug.m2Anexo}m²</strong> de anexo (
+      {sug.anexosNecessarios}x 20m²) eleva para {Math.round(sug.areaMoniComAnexo)}m²
+      {sug.penalizacaoEliminada ? ' ✓ penalização eliminada' : ' (reduz penalização)'}
+    </div>
+  );
+}
+
+function DetalheModeloPreBatalha({ item }: { item: ResultadoRankingModelo }) {
+  const temResumo = item.sugestaoAnexoConsolidada != null;
+  const temAmeacadores = item.anunciosAmeacadores.length > 0;
+  if (!temResumo && !temAmeacadores) return null;
+
+  return (
+    <div className="space-y-2">
+      {temResumo ? (
+        <SugestaoAnexoResumoConsolidada consolidada={item.sugestaoAnexoConsolidada!} />
+      ) : null}
+      {temAmeacadores ? (
+        <ListaAnunciosAmeacadores anuncios={item.anunciosAmeacadores} />
+      ) : null}
+    </div>
+  );
+}
+
+function ListaAnunciosAmeacadores({ anuncios }: { anuncios: AnuncioAmeacadorPreBatalha[] }) {
+  if (anuncios.length === 0) return null;
+
+  return (
+    <div className="space-y-2 border-t border-stone-100 pt-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+        Anúncios mais ameaçadores
+      </p>
+      <ul className="space-y-2">
+        {anuncios.map((anuncio) => (
+          <li key={anuncio.id} className="rounded-md border border-stone-100 bg-stone-50/80 px-2 py-1.5">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-xs">
+              <span className="font-medium text-stone-800">{anuncio.condominio}</span>
+              <span className="tabular-nums text-stone-600">
+                Preço {anuncio.notaPreco} · Produto {anuncio.notaProduto}
+              </span>
+            </div>
+            <SugestaoAnexoTamanho anuncio={anuncio} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
   let posicaoElegivel = 0;
 
@@ -166,78 +246,87 @@ function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
             const compat = badgeCompatibilidade(item.notaFinal);
 
             return (
-              <tr
-                key={item.catalogoId}
-                className={`border-b border-stone-100 last:border-0 ${
-                  inelegivel
-                    ? 'bg-white/40 opacity-60'
-                    : destaqueTop3
-                      ? 'bg-amber-50/80'
-                      : 'bg-white/60 hover:bg-stone-50/90'
-                }`}
-              >
-                <td className="px-3 py-3 font-bold tabular-nums text-stone-700 sm:px-4">
-                  {posicao != null ? formatRank(posicao) : '—'}
-                </td>
-                <td className="px-3 py-3 sm:px-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium text-stone-900">{item.modelo}</span>
-                    {item.topografia !== '—' ? (
-                      <span className="rounded-full bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-600 ring-1 ring-stone-200">
-                        {item.topografia}
-                      </span>
-                    ) : null}
-                    {inelegivel ? (
-                      <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-800 ring-1 ring-red-200">
-                        Não cabe
-                      </span>
-                    ) : (
-                      <span
-                        className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${compat.className}`}
-                      >
-                        {compat.label}
-                      </span>
-                    )}
-                  </div>
-                  {!inelegivel && item.precoIncKitMoni != null && item.precoIncKitMoni > 0 ? (
-                    <p className="mt-0.5 text-[11px] text-stone-500">
-                      INC + Kit: {formatPrecoAnuncio(item.precoIncKitMoni)}
-                    </p>
-                  ) : null}
-                </td>
-                {inelegivel ? (
-                  <td colSpan={4} className="px-3 py-3 sm:px-4">
-                    <ul className="space-y-1 text-xs text-red-800">
-                      {item.falhas.map((falha) => (
-                        <li key={falha}>{mensagemFalhaGeometria(item, falha)}</li>
-                      ))}
-                    </ul>
+              <Fragment key={item.catalogoId}>
+                <tr
+                  className={`border-b border-stone-100 ${
+                    inelegivel
+                      ? 'bg-white/40 opacity-60'
+                      : destaqueTop3
+                        ? 'bg-amber-50/80'
+                        : 'bg-white/60 hover:bg-stone-50/90'
+                  }`}
+                >
+                  <td className="px-3 py-3 font-bold tabular-nums text-stone-700 sm:px-4">
+                    {posicao != null ? formatRank(posicao) : '—'}
                   </td>
-                ) : (
-                  <>
-                    <td
-                      className={`px-3 py-3 text-center text-sm font-semibold tabular-nums sm:px-4 ${notaCellClass(item.notaLote)}`}
-                    >
-                      {item.notaLote}
+                  <td className="px-3 py-3 sm:px-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-stone-900">{item.modelo}</span>
+                      {item.topografia !== '—' ? (
+                        <span className="rounded-full bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-600 ring-1 ring-stone-200">
+                          {item.topografia}
+                        </span>
+                      ) : null}
+                      {inelegivel ? (
+                        <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-800 ring-1 ring-red-200">
+                          Não cabe
+                        </span>
+                      ) : (
+                        <span
+                          className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${compat.className}`}
+                        >
+                          {compat.label}
+                        </span>
+                      )}
+                    </div>
+                    {!inelegivel && item.precoIncKitMoni != null && item.precoIncKitMoni > 0 ? (
+                      <p className="mt-0.5 text-[11px] text-stone-500">
+                        INC + Kit: {formatPrecoAnuncio(item.precoIncKitMoni)}
+                      </p>
+                    ) : null}
+                  </td>
+                  {inelegivel ? (
+                    <td colSpan={4} className="px-3 py-3 sm:px-4">
+                      <ul className="space-y-1 text-xs text-red-800">
+                        {item.falhas.map((falha) => (
+                          <li key={falha}>{mensagemFalhaGeometria(item, falha)}</li>
+                        ))}
+                      </ul>
                     </td>
-                    <td
-                      className={`px-3 py-3 text-center text-sm font-semibold tabular-nums sm:px-4 ${notaCellClass(item.notaPrecoMedia)}`}
-                    >
-                      {item.notaPrecoMedia}
+                  ) : (
+                    <>
+                      <td
+                        className={`px-3 py-3 text-center text-sm font-semibold tabular-nums sm:px-4 ${notaCellClass(item.notaLote)}`}
+                      >
+                        {item.notaLote}
+                      </td>
+                      <td
+                        className={`px-3 py-3 text-center text-sm font-semibold tabular-nums sm:px-4 ${notaCellClass(item.notaPrecoMedia)}`}
+                      >
+                        {item.notaPrecoMedia}
+                      </td>
+                      <td
+                        className={`px-3 py-3 text-center text-sm font-semibold tabular-nums sm:px-4 ${notaCellClass(item.notaProdutoMedia)}`}
+                      >
+                        {item.notaProdutoMedia}
+                      </td>
+                      <td className="px-3 py-3 text-center sm:px-4">
+                        <span className="inline-flex min-w-[2.5rem] justify-center rounded-md bg-stone-900/5 px-2 py-1 text-sm font-bold tabular-nums text-stone-900">
+                          {item.notaFinal}
+                        </span>
+                      </td>
+                    </>
+                  )}
+                </tr>
+                {!inelegivel &&
+                (item.sugestaoAnexoConsolidada != null || item.anunciosAmeacadores.length > 0) ? (
+                  <tr key={`${item.catalogoId}-detalhe`} className="border-b border-stone-100 bg-white/40">
+                    <td colSpan={6} className="px-3 pb-3 pt-0 sm:px-4">
+                      <DetalheModeloPreBatalha item={item} />
                     </td>
-                    <td
-                      className={`px-3 py-3 text-center text-sm font-semibold tabular-nums sm:px-4 ${notaCellClass(item.notaProdutoMedia)}`}
-                    >
-                      {item.notaProdutoMedia}
-                    </td>
-                    <td className="px-3 py-3 text-center sm:px-4">
-                      <span className="inline-flex min-w-[2.5rem] justify-center rounded-md bg-stone-900/5 px-2 py-1 text-sm font-bold tabular-nums text-stone-900">
-                        {item.notaFinal}
-                      </span>
-                    </td>
-                  </>
-                )}
-              </tr>
+                  </tr>
+                ) : null}
+              </Fragment>
             );
           })}
         </tbody>
