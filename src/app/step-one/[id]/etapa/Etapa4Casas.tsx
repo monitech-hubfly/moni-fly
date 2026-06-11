@@ -45,17 +45,15 @@ import { resolverTermoBuscaZap } from '@/lib/zap-condominio-busca';
 import {
   calcularRankingPreBatalhaPorFaixas,
   flattenRankingPreBatalhaPorFaixas,
-  badgeCompatibilidade,
-  formatPrecoAnuncio,
   resolverTopografiaLote,
   type CatalogoItem,
-  type ResultadoRankingModelo,
   type RankingPorFaixaMercado,
 } from '@/lib/kanban/pre-batalha-compatibilidade';
 import {
   PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING,
   rankingGruposFromPorFaixas,
 } from '@/lib/kanban/pre-batalha-checklist';
+import { PreBatalhaRankingLeaderboard } from '@/components/kanban-shared/PreBatalhaRankingLeaderboard';
 import {
   ordenarCasasPorFaixaMercado,
   type FaixaMercado,
@@ -270,7 +268,6 @@ export function Etapa4Casas(props: {
     {},
   );
   const [catalogoPreBatalha, setCatalogoPreBatalha] = useState<CatalogoItem[]>([]);
-  const [rankingCardsExpandidos, setRankingCardsExpandidos] = useState<Set<string>>(new Set());
 
   const casasIdsKey = useMemo(() => casas.map((c) => c.id).sort().join(','), [casas]);
 
@@ -358,14 +355,6 @@ export function Etapa4Casas(props: {
     [rankingPreBatalha],
   );
 
-  useEffect(() => {
-    if (rankingPreBatalha[0]) {
-      setRankingCardsExpandidos(new Set([rankingPreBatalha[0].catalogoId]));
-    } else {
-      setRankingCardsExpandidos(new Set());
-    }
-  }, [rankingPreBatalhaIdsKey]);
-
   /** Pré Batalha: auto-marca checklist do kanban após ranking calculado. */
   useEffect(() => {
     autoMarcadoChecklistPreBatalhaRef.current = false;
@@ -397,15 +386,6 @@ export function Etapa4Casas(props: {
     rankingPorFaixaPreBatalha,
     rankingPreBatalha,
   ]);
-
-  const toggleRankingCard = (catalogoId: string) => {
-    setRankingCardsExpandidos((prev) => {
-      const next = new Set(prev);
-      if (next.has(catalogoId)) next.delete(catalogoId);
-      else next.add(catalogoId);
-      return next;
-    });
-  };
 
   const [selectedCatalogoIds, setSelectedCatalogoIds] = useState<string[]>(() =>
     casasEscolhidas.map((c) => c.catalogo_casa_id),
@@ -1487,11 +1467,7 @@ export function Etapa4Casas(props: {
                         {rankingPorFaixaPreBatalha.length === 1 ? 'faixa' : 'faixas'}.
                       </p>
                     ) : null}
-                    <PreBatalhaRankingPorFaixa
-                      grupos={rankingPorFaixaPreBatalha}
-                      expandedIds={rankingCardsExpandidos}
-                      onToggle={toggleRankingCard}
-                    />
+                    <PreBatalhaRankingLeaderboard grupos={rankingPorFaixaPreBatalha} />
                   </>
                 )}
               </div>
@@ -2462,178 +2438,4 @@ function BadgeFaixaMercado({ faixa }: { faixa?: CasaRow['faixa'] }) {
     );
   }
   return null;
-}
-
-function PreBatalhaRankingPorFaixa({
-  grupos,
-  expandedIds,
-  onToggle,
-}: {
-  grupos: RankingPorFaixaMercado[];
-  expandedIds: Set<string>;
-  onToggle: (catalogoId: string) => void;
-}) {
-  return (
-    <div className="space-y-6">
-      {grupos.map((grupo) => (
-        <section key={grupo.faixa} className="space-y-3">
-          <div className="flex flex-wrap items-baseline gap-2 border-b border-stone-200 pb-2">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-700">
-              Faixa {grupo.faixaLabel}
-            </h3>
-            <span className="text-xs text-stone-500">
-              {grupo.quantidadeAnuncios}{' '}
-              {grupo.quantidadeAnuncios === 1 ? 'anúncio' : 'anúncios'} ·{' '}
-              {grupo.ranking.length} {grupo.ranking.length === 1 ? 'modelo' : 'modelos'}
-            </span>
-          </div>
-          <div className="space-y-2">
-            {grupo.ranking.map((item, idx) => (
-              <PreBatalhaRankingCard
-                key={`${grupo.faixa}-${item.catalogoId}`}
-                item={item}
-                posicao={idx + 1}
-                expandido={expandedIds.has(item.catalogoId)}
-                onToggle={() => onToggle(item.catalogoId)}
-                destaque={idx === 0}
-              />
-            ))}
-          </div>
-        </section>
-      ))}
-    </div>
-  );
-}
-
-function PreBatalhaRankingCard({
-  item,
-  posicao,
-  expandido,
-  onToggle,
-  destaque,
-}: {
-  item: ResultadoRankingModelo;
-  posicao: number;
-  expandido: boolean;
-  onToggle: () => void;
-  destaque: boolean;
-}) {
-  const compat = badgeCompatibilidade(item.notaFinal);
-
-  return (
-    <article
-      className={`overflow-hidden rounded-xl border bg-white shadow-sm ${
-        destaque ? 'border-amber-300 ring-1 ring-amber-200' : 'border-stone-200'
-      }`}
-    >
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={expandido}
-        className="flex w-full flex-col gap-2 px-4 py-3 text-left transition-colors hover:bg-stone-50"
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={`inline-flex h-7 min-w-[2rem] items-center justify-center rounded-md px-1.5 text-xs font-bold tabular-nums ${
-              destaque ? 'bg-amber-500 text-white' : 'bg-stone-200 text-stone-700'
-            }`}
-          >
-            #{posicao}
-          </span>
-          <span className="font-semibold text-stone-900">{item.modelo}</span>
-          {item.topografia !== '—' ? (
-            <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-stone-600 ring-1 ring-stone-200">
-              {item.topografia}
-            </span>
-          ) : null}
-          <span
-            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${compat.className}`}
-          >
-            {compat.label}
-          </span>
-          <span className="ml-auto text-stone-400" aria-hidden>
-            {expandido ? '▾' : '▸'}
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-stone-600">
-          {item.precoIncKitMoni != null && item.precoIncKitMoni > 0 ? (
-            <>
-              <span>
-                <span className="font-medium text-stone-500">INC+Kit:</span>{' '}
-                {formatPrecoAnuncio(item.precoIncKitMoni)}
-              </span>
-              <span className="text-stone-300">|</span>
-            </>
-          ) : null}
-          <span>
-            <span className="font-medium text-stone-500">Lote:</span> {item.notaLote}
-          </span>
-          <span className="text-stone-300">|</span>
-          <span>
-            <span className="font-medium text-stone-500">Preço:</span> {item.notaPrecoMedia}
-          </span>
-          <span className="text-stone-300">|</span>
-          <span>
-            <span className="font-medium text-stone-500">Produto:</span> {item.notaProdutoMedia}
-          </span>
-          <span className="text-stone-300">|</span>
-          <span>
-            <span className="font-medium text-stone-500">Final:</span>{' '}
-            <span className="font-semibold text-stone-800">{item.notaFinal}</span>
-          </span>
-        </div>
-      </button>
-
-      {expandido ? (
-        <div className="border-t border-stone-100 bg-stone-50/80 px-4 py-3">
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
-            Anúncios mais ameaçadores (faixa)
-          </h4>
-          {item.anunciosAmeacadores.length === 0 ? (
-            <p className="text-xs italic text-stone-500">Nenhum anúncio na listagem.</p>
-          ) : (
-            <ul className="space-y-2">
-              {item.anunciosAmeacadores.map((anuncio) => (
-                <li
-                  key={anuncio.id}
-                  className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"
-                >
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
-                    <span className="font-medium text-stone-800">{anuncio.condominio}</span>
-                    <span className="text-xs font-medium text-stone-600">
-                      {formatPrecoAnuncio(anuncio.preco)}
-                    </span>
-                  </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-stone-500">
-                    <span>
-                      Preço:{' '}
-                      <span className="font-semibold tabular-nums text-stone-700">
-                        {anuncio.notaPreco}
-                      </span>
-                    </span>
-                    <span className="text-stone-300">|</span>
-                    <span>
-                      Produto:{' '}
-                      <span
-                        className={`font-semibold tabular-nums ${
-                          anuncio.notaProduto <= -1 ? 'text-red-700' : 'text-stone-700'
-                        }`}
-                      >
-                        {anuncio.notaProduto}
-                      </span>
-                    </span>
-                    {anuncio.notaProduto <= -1 || anuncio.notaPreco <= -1 ? (
-                      <span className="rounded bg-red-50 px-1.5 py-0.5 text-[11px] font-medium text-red-800 ring-1 ring-red-200">
-                        ⚠ Concorrente direto
-                      </span>
-                    ) : null}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      ) : null}
-    </article>
-  );
 }
