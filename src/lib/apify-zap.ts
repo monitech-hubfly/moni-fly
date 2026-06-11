@@ -291,6 +291,8 @@ export async function runZapScraperWithUrl(
           };
         }
         const itemList = Array.isArray(items) ? items : [];
+        console.log('[ZAP DEBUG] items recebidos:', itemList.length);
+        console.log('[ZAP DEBUG] primeiro item:', JSON.stringify(itemList[0] ?? null, null, 2));
         console.log('[APIFY-ZAP] quantidade de itens retornados pelo dataset:', itemList.length);
         console.log('[APIFY-ZAP] primeiro item completo:', itemList[0] ?? '(nenhum)');
         return {
@@ -472,6 +474,9 @@ export function mapZapItemToCasa(
 
   const dataLevantamento = item.createdAt ?? null;
 
+  const link = item.url || null;
+  if (!link) console.log('[ZAP DEBUG] item sem link descartado:', item);
+
   return {
     cidade: cidadeNorm,
     estado: estadoNorm,
@@ -486,7 +491,7 @@ export function mapZapItemToCasa(
     preco: priceNum,
     area_casa_m2: areaNum,
     preco_m2: precoM2,
-    link: item.url || null,
+    link,
     foto_url: fotoUrl || null,
     data_publicacao: dataLevantamento,
   };
