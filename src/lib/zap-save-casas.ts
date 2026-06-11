@@ -6,6 +6,30 @@ import { createClient } from '@/lib/supabase/server';
 
 type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
 
+/** Cliente com bypass de RLS para escrita em `listings_casas` após autorização explícita. */
+function supabaseWriteClientForProcesso():
+  | { ok: true; supabase: SupabaseServer }
+  | { ok: false; error: string } {
+  try {
+    const admin = createAdminClient();
+    return { ok: true, supabase: admin as unknown as SupabaseServer };
+  } catch {
+    return { ok: false, error: 'Serviço indisponível.' };
+  }
+}
+
+async function processoStepOneExists(
+  supabase: SupabaseServer,
+  pid: string,
+): Promise<boolean> {
+  const { data: processo } = await supabase
+    .from('processo_step_one')
+    .select('id')
+    .eq('id', pid)
+    .maybeSingle();
+  return Boolean(processo);
+}
+
 export async function verifyProcessoCasasAccess(
   processoId: string,
 ): Promise<
@@ -27,8 +51,9 @@ export async function verifyProcessoCasasAccess(
   if (accessRole === 'admin' || accessRole === 'team') {
     try {
       const admin = createAdminClient();
-      const { data: processo } = await admin.from('processo_step_one').select('id').eq('id', pid).maybeSingle();
-      if (!processo) return { ok: false, error: 'Processo não encontrado.' };
+      if (!(await processoStepOneExists(admin as unknown as SupabaseServer, pid))) {
+        return { ok: false, error: 'Processo não encontrado.' };
+      }
       return { ok: true, supabase: admin as unknown as SupabaseServer };
     } catch {
       return { ok: false, error: 'Serviço indisponível.' };
@@ -41,18 +66,32 @@ export async function verifyProcessoCasasAccess(
     .eq('id', pid)
     .eq('user_id', user.id)
     .maybeSingle();
-  if (processo) return { ok: true, supabase };
 
-  const { data: card } = await supabase
-    .from('kanban_cards')
-    .select('id')
-    .or(`processo_step_one_id.eq.${pid},projeto_id.eq.${pid}`)
-    .eq('franqueado_id', user.id)
-    .limit(1)
-    .maybeSingle();
-  if (card) return { ok: true, supabase };
+  let authorized = Boolean(processo);
 
-  return { ok: false, error: 'Processo não encontrado.' };
+  if (!authorized) {
+    const { data: card } = await supabase
+      .from('kanban_cards')
+      .select('id')
+      .or(`processo_step_one_id.eq.${pid},projeto_id.eq.${pid}`)
+      .eq('franqueado_id', user.id)
+      .limit(1)
+      .maybeSingle();
+    authorized = Boolean(card);
+  }
+
+  if (!authorized) return { ok: false, error: 'Processo não encontrado.' };
+
+  const writeClient = supabaseWriteClientForProcesso();
+  if (!writeClient.ok) return writeClient;
+
+  if (!(await processoStepOneExists(writeClient.supabase, pid))) {
+    return { ok: false, error: 'Processo não encontrado.' };
+  }
+
+  // RLS de listings_casas exige processo_step_one.user_id = auth.uid(); cards do Funil
+  // podem ter processo vinculado com outro user_id — admin após checagem de permissão.
+  return { ok: true, supabase: writeClient.supabase };
 }
 
 /**
