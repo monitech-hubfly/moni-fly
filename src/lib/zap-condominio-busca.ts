@@ -3,10 +3,9 @@
  * e compara nomes diferentes que se referem ao mesmo empreendimento/bairro.
  */
 
-const ZAP_BUSCA_ALIASES: Record<string, string> = {
-  'artesano galleria': 'Loteamento Artesano',
-  'artesano galeria': 'Loteamento Artesano',
-};
+const ZAP_BUSCA_ALIASES: Record<string, string> = {};
+// Aliases removidos — o termo digitado pelo usuário vai verbatim ao Apify.
+// O campo já está marcado como @deprecated no resolverTermoBuscaZap.
 
 function chaveNome(nome: string): string {
   return nome

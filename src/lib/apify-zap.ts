@@ -286,7 +286,6 @@ export async function runZapScraperWithUrl(
       runStatus = statusData.data.status;
       if (runStatus === 'SUCCEEDED') {
         const defaultDatasetId = statusData.data.defaultDatasetId;
-        console.log('[APIFY-ZAP] defaultDatasetId:', defaultDatasetId ?? '(ausente)');
         if (!defaultDatasetId) {
           return {
             ok: false,
@@ -299,12 +298,6 @@ export async function runZapScraperWithUrl(
         );
         const datasetText = await datasetRes.text();
         if (!datasetRes.ok) {
-          console.log(
-            '[APIFY-ZAP] dataset/items status:',
-            datasetRes.status,
-            '| body:',
-            datasetText.slice(0, 200),
-          );
           return {
             ok: false,
             error: `Falha ao obter itens do dataset: ${datasetRes.status}. Resposta: ${datasetText.slice(0, 200)}`,
@@ -322,7 +315,6 @@ export async function runZapScraperWithUrl(
           };
         }
         const itemList = Array.isArray(items) ? items : [];
-        console.log('[APIFY-ZAP] quantidade de itens retornados pelo dataset:', itemList.length);
         return {
           ok: true,
           items: itemList,
