@@ -109,6 +109,8 @@ export function buildZapSearchUrl(cidade: string, estado: string, condominio?: s
 
 export type ZapListingItem = {
   url?: string;
+  /** Actor fatihtahta/zap-imoveis-scraper */
+  listingUrl?: string;
   title?: string;
   price?: string;
   location?: string;
@@ -291,8 +293,6 @@ export async function runZapScraperWithUrl(
           };
         }
         const itemList = Array.isArray(items) ? items : [];
-        console.log('[ZAP DEBUG] items recebidos:', itemList.length);
-        console.log('[ZAP DEBUG] primeiro item:', JSON.stringify(itemList[0] ?? null, null, 2));
         console.log('[APIFY-ZAP] quantidade de itens retornados pelo dataset:', itemList.length);
         console.log('[APIFY-ZAP] primeiro item completo:', itemList[0] ?? '(nenhum)');
         return {
@@ -474,8 +474,7 @@ export function mapZapItemToCasa(
 
   const dataLevantamento = item.createdAt ?? null;
 
-  const link = item.url || null;
-  if (!link) console.log('[ZAP DEBUG] item sem link descartado:', item);
+  const link = item.url || item.listingUrl || null;
 
   return {
     cidade: cidadeNorm,

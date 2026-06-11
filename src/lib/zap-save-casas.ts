@@ -107,17 +107,13 @@ export async function applyZapCasasUpdate(
   opts?: { condominioVinculo?: string },
 ): Promise<{ inserted: number; updated: number; despublicados: number }> {
   const itemsList = items ?? [];
-  console.log('[ZAP DEBUG] items recebidos:', itemsList.length);
-  console.log('[ZAP DEBUG] primeiro item:', JSON.stringify(itemsList[0] ?? null, null, 2));
-
   const cidadeNorm = cidade.trim();
   const estadoNorm = estado.trim().slice(0, 2).toUpperCase();
   const vinculo = opts?.condominioVinculo?.trim() || null;
   const mapped = itemsList
-    .filter((i) => i?.url)
+    .filter((i) => i?.url || i?.listingUrl)
     .map((i) => mapZapItemToCasa(i as ZapListingItem, cidadeNorm, estadoNorm));
   const validos = mapped.filter((r) => r.link);
-  console.log('[ZAP DEBUG] itens válidos após filtro:', validos.length);
   const rows = validos.map((r) => (vinculo ? { ...r, condominio: vinculo } : r));
 
   const linksFromZap = new Set(rows.map((r) => r.link as string));
