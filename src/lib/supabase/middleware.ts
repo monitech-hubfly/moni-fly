@@ -59,9 +59,15 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
+  const getUserWithTimeout = Promise.race([
+    supabase.auth.getUser(),
+    new Promise<{ data: { user: null } }>((resolve) =>
+      setTimeout(() => resolve({ data: { user: null } }), 3000),
+    ),
+  ]);
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUserWithTimeout;
 
   // APIs: só renova cookies de sessão; autorização fica nos handlers / RLS.
   if (pathname.startsWith('/api')) {
@@ -135,11 +141,13 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (!profileRow) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, cargo')
-      .eq('id', user.id)
-      .maybeSingle();
+    const profileWithTimeout = await Promise.race([
+      supabase.from('profiles').select('role, cargo').eq('id', user.id).maybeSingle(),
+      new Promise<{ data: null }>((resolve) =>
+        setTimeout(() => resolve({ data: null }), 3000),
+      ),
+    ]);
+    const { data: profile } = profileWithTimeout;
     profileRow = profile as { role?: string | null; cargo?: string | null } | null;
     // Cache the profile in a cookie for 5 minutes
     if (profileRow) {
