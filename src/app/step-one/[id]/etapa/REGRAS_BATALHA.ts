@@ -283,16 +283,53 @@ export function notaPrecoPonderada(
   return clampNota(Math.round(v * 10) / 10);
 }
 
+/** Módulo opcional de anexo (m²) — sugerido quando anúncio é maior que o modelo Moní. */
+export const M2_POR_MODULO_ANEXO = 20;
+
+export interface NotaTamanhoResult {
+  nota: number;
+  sugestaoAnexo?: {
+    anexosNecessarios: number;
+    m2Anexo: number;
+    areaMoniComAnexo: number;
+    penalizacaoEliminada: boolean;
+  };
+}
+
+export function calcularNotaTamanho(areaAnuncio: number, areaMoni: number): NotaTamanhoResult {
+  const diffPct = (areaAnuncio - areaMoni) / areaMoni;
+
+  let nota: number;
+  if (diffPct >= 0.5) nota = -3;
+  else if (diffPct >= 0.2) nota = -2;
+  else if (diffPct >= 0.01) nota = -1;
+  else if (diffPct >= -0.2) nota = 0;
+  else if (diffPct >= -0.5) nota = 1;
+  else nota = 2;
+
+  let sugestaoAnexo: NotaTamanhoResult['sugestaoAnexo'];
+  if (nota < 0) {
+    const areaAlvo = areaAnuncio / 1.01;
+    const diffM2 = Math.max(0, areaAlvo - areaMoni);
+    const anexosNecessarios = Math.ceil(diffM2 / M2_POR_MODULO_ANEXO);
+    const m2Anexo = anexosNecessarios * M2_POR_MODULO_ANEXO;
+    const areaMoniComAnexo = areaMoni + m2Anexo;
+    const novaDiffPct = (areaAnuncio - areaMoniComAnexo) / areaMoniComAnexo;
+    sugestaoAnexo = {
+      anexosNecessarios,
+      m2Anexo,
+      areaMoniComAnexo,
+      penalizacaoEliminada: novaDiffPct < 0.01,
+    };
+  }
+
+  return { nota, sugestaoAnexo };
+}
+
 /** Produto: tamanho m² — diferença % anúncio vs nossa casa. Nossa maior = positivo. */
 export function notaTamanhoM2(areaAnuncio: number | null, areaNossa: number | null): number {
   if (areaAnuncio == null || areaNossa == null || areaNossa === 0) return 0;
-  const diffPerc = (areaAnuncio - areaNossa) / areaNossa;
-  if (diffPerc >= 0.5) return -3;
-  if (diffPerc >= 0.2) return -2;
-  if (diffPerc >= 0.01) return -1;
-  if (diffPerc > -0.01) return 0;
-  if (diffPerc > -0.2) return 1;
-  return 2;
+  return calcularNotaTamanho(areaAnuncio, areaNossa).nota;
 }
 
 /** Quartos: fallback 4 se modelo sem valor. Anúncio com menos = positivo. */
@@ -404,6 +441,77 @@ export type ProdutoDadosPar = {
   vagas?: number | null;
 };
 
+export type NotaProdutoCompletaResult = {
+  nota: number;
+  sugestaoAnexo?: NotaTamanhoResult['sugestaoAnexo'];
+  subnotas?: {
+    tamanho: number;
+    amenidades: number;
+    quartos: number;
+    banheiros: number;
+    vagas: number;
+    design: number;
+    idade: number;
+  };
+};
+
+function notaTamanhoFromAreas(
+  areaAnuncio: number | null,
+  areaMoni: number | null,
+): NotaTamanhoResult {
+  if (areaAnuncio == null || areaMoni == null || areaMoni === 0) return { nota: 0 };
+  return calcularNotaTamanho(areaAnuncio, areaMoni);
+}
+
+/** Nota Produto modelo × anúncio com sub-notas e sugestão de anexo (quando T < 0). */
+export function calcularNotaProdutoCompleta(
+  catalogo: CatalogoProdutoRef,
+  anuncio: AnuncioProdutoRef,
+  dados?: ProdutoDadosPar | null,
+): NotaProdutoCompletaResult {
+  const banheirosAnuncio = dados?.banheiros ?? anuncio.banheiros;
+  const vagasAnuncio = dados?.vagas ?? anuncio.vagas;
+  const tResult = notaTamanhoFromAreas(anuncio.area_casa_m2, catalogo.area_m2 ?? null);
+  const T = tResult.nota;
+  const Q = notaQuartos(catalogo.quartos, anuncio.quartos);
+  const B = notaBanheiros(catalogo.banheiros, banheirosAnuncio);
+  const V = notaVagas(catalogo.vagas, vagasAnuncio);
+
+  if (dados?.designId != null || dados?.idade != null) {
+    const A = notaAmenidades(anuncio);
+    const designOpt = DESIGN_OPCOES.find((o) => o.id === dados?.designId);
+    const D = designOpt?.nota ?? 0;
+    const I = notaIdade(dados?.idade ?? null);
+    return {
+      nota: notaProdutoMedia(T, A, Q, B, V, D, I),
+      sugestaoAnexo: tResult.sugestaoAnexo,
+      subnotas: {
+        tamanho: T,
+        amenidades: A,
+        quartos: Q,
+        banheiros: B,
+        vagas: V,
+        design: D,
+        idade: I,
+      },
+    };
+  }
+
+  return {
+    nota: clampNota(Math.round(((T + Q + B + V) / 4) * 10) / 10),
+    sugestaoAnexo: tResult.sugestaoAnexo,
+    subnotas: {
+      tamanho: T,
+      amenidades: 0,
+      quartos: Q,
+      banheiros: B,
+      vagas: V,
+      design: 0,
+      idade: 0,
+    },
+  };
+}
+
 /**
  * Nota Produto modelo × anúncio.
  * Com design ou idade: 7 sub-itens via `notaProdutoMedia`.
@@ -414,22 +522,7 @@ export function notaProdutoContraAnuncio(
   anuncio: AnuncioProdutoRef,
   dados?: ProdutoDadosPar | null,
 ): number {
-  const banheirosAnuncio = dados?.banheiros ?? anuncio.banheiros;
-  const vagasAnuncio = dados?.vagas ?? anuncio.vagas;
-  const T = notaTamanhoM2(anuncio.area_casa_m2, catalogo.area_m2 ?? null);
-  const Q = notaQuartos(catalogo.quartos, anuncio.quartos);
-  const B = notaBanheiros(catalogo.banheiros, banheirosAnuncio);
-  const V = notaVagas(catalogo.vagas, vagasAnuncio);
-
-  if (dados?.designId != null || dados?.idade != null) {
-    const A = notaAmenidades(anuncio);
-    const designOpt = DESIGN_OPCOES.find((o) => o.id === dados?.designId);
-    const D = designOpt?.nota ?? 0;
-    const I = notaIdade(dados?.idade ?? null);
-    return notaProdutoMedia(T, A, Q, B, V, D, I);
-  }
-
-  return clampNota(Math.round(((T + Q + B + V) / 4) * 10) / 10);
+  return calcularNotaProdutoCompleta(catalogo, anuncio, dados).nota;
 }
 
 /** Nota final Produto = média simples dos 7 sub-itens (T, A, Q, B, V, D, I) */

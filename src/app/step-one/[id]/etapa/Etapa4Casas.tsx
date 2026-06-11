@@ -31,14 +31,13 @@ import {
   valorInvestimento,
   calcularNotaPrecoComChecklist,
   type CatalogoPrecoRef,
-  notaTamanhoM2,
   notaQuartos,
   notaBanheiros,
   notaVagas,
   DESIGN_OPCOES,
-  notaIdade,
   notaAmenidades,
-  notaProdutoMedia,
+  calcularNotaProdutoCompleta,
+  type NotaProdutoCompletaResult,
   QUARTOS_PADRAO_NOSSA,
   type ChecklistReforma,
 } from './REGRAS_BATALHA';
@@ -547,14 +546,6 @@ export function Etapa4Casas(props: {
     return obj;
   });
 
-  const diffToScore = (diff: number): number => {
-    if (diff <= -2) return -2;
-    if (diff === -1) return -1;
-    if (diff === 0) return 0;
-    if (diff === 1) return 1;
-    return 2;
-  };
-
   const calcularNotaPreco = (precoM2Casa: number | null, precoM2Anuncio: number | null): number => {
     if (precoM2Casa == null || precoM2Casa === 0 || precoM2Anuncio == null) return 0;
     const diffPerc = (precoM2Anuncio - precoM2Casa) / precoM2Casa;
@@ -563,24 +554,6 @@ export function Etapa4Casas(props: {
     if (Math.abs(diffPerc) < 0.05) return 0;
     if (diffPerc < 0.1) return 1;
     return 2;
-  };
-
-  const calcularNotaProduto = (
-    base: { quartos: number | null; banheiros: number | null; vagas: number | null },
-    anuncio: CasaRow,
-  ): number => {
-    const campos: Array<'quartos' | 'banheiros' | 'vagas'> = ['quartos', 'banheiros', 'vagas'];
-    const notas: number[] = [];
-    for (const campo of campos) {
-      const baseVal = base[campo];
-      const anuncioVal = anuncio[campo];
-      if (baseVal == null || anuncioVal == null) continue;
-      const diff = Number(baseVal) - Number(anuncioVal);
-      notas.push(diffToScore(diff));
-    }
-    if (notas.length === 0) return 0;
-    const media = notas.reduce((sum, n) => sum + n, 0) / notas.length;
-    return Math.round(media);
   };
 
   const isAtributosLoteEmpty = (resp: AtributosLoteRespostas | undefined): boolean => {
@@ -735,8 +708,11 @@ export function Etapa4Casas(props: {
     return calcularNotaPreco(cat.preco_venda_m2, listing.preco_m2);
   };
 
-  /** Nota Produto: se houver design ou idade preenchidos, usa 7 sub-itens; senão fórmula antiga (quartos/banheiros/vagas). */
-  const getNotaProdutoCompleta = (ce: (typeof escolhidasComDados)[0], listing: CasaRow): number => {
+  /** Nota Produto com sub-notas e sugestão de anexo (T < 0). */
+  const getNotaProdutoCompletaDetalhe = (
+    ce: (typeof escolhidasComDados)[0],
+    listing: CasaRow,
+  ): NotaProdutoCompletaResult => {
     const key = `${ce.id}__${listing.id}`;
     const dados = produtoDadosByKey[key] ?? {};
     const cat = ce.catalogoRow as {
@@ -745,19 +721,11 @@ export function Etapa4Casas(props: {
       vagas: number | null;
       area_m2?: number | null;
     };
-    if (dados.designId != null || dados.idade != null) {
-      const T = notaTamanhoM2(listing.area_casa_m2, cat.area_m2 ?? null);
-      const A = notaAmenidades(listing);
-      const Q = notaQuartos(cat.quartos, listing.quartos);
-      const B = notaBanheiros(cat.banheiros, getBanheirosAnuncio(listing, dados));
-      const V = notaVagas(cat.vagas, getVagasAnuncio(listing, dados));
-      const designOpt = DESIGN_OPCOES.find((o) => o.id === dados.designId);
-      const D = designOpt?.nota ?? 0;
-      const I = notaIdade(dados.idade ?? null);
-      return notaProdutoMedia(T, A, Q, B, V, D, I);
-    }
-    return calcularNotaProduto(cat, listing);
+    return calcularNotaProdutoCompleta(cat, listing, dados);
   };
+
+  const getNotaProdutoCompleta = (ce: (typeof escolhidasComDados)[0], listing: CasaRow): number =>
+    getNotaProdutoCompletaDetalhe(ce, listing).nota;
 
   const calcNotaFinal = (notaAtrib: number, notaPreco: number, notaProduto: number): number =>
     notaFinalBatalha(notaAtrib, notaPreco, notaProduto);
@@ -920,35 +888,22 @@ export function Etapa4Casas(props: {
         const prodDados = produtoDadosByKey[key];
         let produtoDados: Record<string, unknown> | null = null;
         if (prodDados) {
-          const cat = ce.catalogoRow as {
-            area_m2?: number | null;
-            quartos: number | null;
-            banheiros: number | null;
-            vagas: number | null;
-          };
-          const banheirosAnuncio = getBanheirosAnuncio(anuncio, prodDados);
-          const vagasAnuncio = getVagasAnuncio(anuncio, prodDados);
-          const T = notaTamanhoM2(anuncio.area_casa_m2, cat.area_m2 ?? null);
-          const A = notaAmenidades(anuncio);
-          const Q = notaQuartos(cat.quartos, anuncio.quartos);
-          const B = notaBanheiros(cat.banheiros, banheirosAnuncio);
-          const V = notaVagas(cat.vagas, vagasAnuncio);
-          const designOpt = DESIGN_OPCOES.find((o) => o.id === prodDados.designId);
-          const D = designOpt?.nota ?? 0;
-          const I = notaIdade(prodDados.idade ?? null);
+          const produtoCalc = getNotaProdutoCompletaDetalhe(ce, anuncio);
+          const sub = produtoCalc.subnotas;
           produtoDados = {
             designId: prodDados.designId,
             idade: prodDados.idade,
             ...(prodDados.banheiros != null && { banheiros: prodDados.banheiros }),
             ...(prodDados.vagas != null && { vagas: prodDados.vagas }),
-            nota_tamanho: T,
-            nota_quartos: Q,
-            nota_banheiros: B,
-            nota_vagas: V,
-            nota_amenidades: A,
-            nota_design: D,
-            nota_idade: I,
+            nota_tamanho: sub?.tamanho ?? 0,
+            nota_quartos: sub?.quartos ?? 0,
+            nota_banheiros: sub?.banheiros ?? 0,
+            nota_vagas: sub?.vagas ?? 0,
+            nota_amenidades: sub?.amenidades ?? 0,
+            nota_design: sub?.design ?? 0,
+            nota_idade: sub?.idade ?? 0,
             nota_produto: notaProduto,
+            ...(produtoCalc.sugestaoAnexo && { sugestao_anexo: produtoCalc.sugestaoAnexo }),
           };
         }
         rows.push({
@@ -1798,6 +1753,7 @@ export function Etapa4Casas(props: {
                           const notaAtrib = getNotaAtributosLote(key);
                           const notaPreco = getNotaPrecoCompleta(ce, c);
                           const notaProduto = getNotaProdutoCompleta(ce, c);
+                          const produtoCalc = getNotaProdutoCompletaDetalhe(ce, c);
                           const notaFinal = calcNotaFinal(notaAtrib, notaPreco, notaProduto);
                           const bg = CORES_POR_MODELO[idx % CORES_POR_MODELO.length];
                           const borderLeft = 'border-l border-stone-200';
@@ -1997,10 +1953,22 @@ export function Etapa4Casas(props: {
                                       </p>
                                       <div className="space-y-1.5 text-xs">
                                         <p>
-                                          Tamanho m²: auto (
-                                          {notaTamanhoM2(c.area_casa_m2, catProduto.area_m2 ?? null)}
-                                          )
+                                          Tamanho m²: auto ({produtoCalc.subnotas?.tamanho ?? 0})
                                         </p>
+                                        {produtoCalc.sugestaoAnexo ? (
+                                          <p className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-950">
+                                            Sugestão: {produtoCalc.sugestaoAnexo.anexosNecessarios}{' '}
+                                            {produtoCalc.sugestaoAnexo.anexosNecessarios === 1
+                                              ? 'anexo'
+                                              : 'anexos'}{' '}
+                                            de 20 m² (+{produtoCalc.sugestaoAnexo.m2Anexo} m² →{' '}
+                                            {produtoCalc.sugestaoAnexo.areaMoniComAnexo.toFixed(0)}{' '}
+                                            m² total)
+                                            {produtoCalc.sugestaoAnexo.penalizacaoEliminada
+                                              ? ' — elimina a penalização de tamanho'
+                                              : null}
+                                          </p>
+                                        ) : null}
                                         <p>
                                           Quartos: anúncio {c.quartos ?? '—'} → auto ({notaQ})
                                         </p>

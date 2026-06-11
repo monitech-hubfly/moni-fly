@@ -7,9 +7,10 @@ import {
   notaAtributosLote,
   notaFinalBatalha,
   notaPrecoPreBatalhaContraAnuncio,
-  notaProdutoContraAnuncio,
+  calcularNotaProdutoCompleta,
   getPrecoIncMaisKitMoni,
   type AtributosLoteRespostas,
+  type NotaTamanhoResult,
   type ProdutoDadosPar,
 } from '@/app/step-one/[id]/etapa/REGRAS_BATALHA';
 import { CHAVES_TOPOGRAFIA_LOTE } from '@/lib/kanban/lotes-disponiveis-condominio';
@@ -58,6 +59,9 @@ export type AnuncioAmeacadorPreBatalha = {
   preco: number;
   notaPreco: number;
   notaProduto: number;
+  areaAnuncioM2?: number | null;
+  areaMoniM2?: number | null;
+  sugestaoAnexo?: NotaTamanhoResult['sugestaoAnexo'];
 };
 
 /** Uma linha: modelo Moní × anúncio ZAP na faixa (notas por eixo). */
@@ -347,9 +351,8 @@ function gerarBatalhasModeloAnuncio(
       const notaPreco = roundNota(
         notaPrecoPreBatalhaContraAnuncio(precoIncKitMoni, c.preco),
       );
-      const notaProduto = roundNota(
-        notaProdutoContraAnuncio(mod, c, produtoDadosPorAnuncio[c.id]),
-      );
+      const produtoCalc = calcularNotaProdutoCompleta(mod, c, produtoDadosPorAnuncio[c.id]);
+      const notaProduto = roundNota(produtoCalc.nota);
       batalhas.push({
         catalogoId: mod.id,
         modelo,
@@ -398,13 +401,16 @@ function rankearModelosContraAnuncios(
     const notasPorAnuncio: AnuncioAmeacadorPreBatalha[] = casasFaixa.map((c) => {
       const dados = produtoDadosPorAnuncio[c.id];
       const notaPreco = notaPrecoPreBatalhaContraAnuncio(precoIncKitMoni, c.preco);
-      const notaProduto = notaProdutoContraAnuncio(mod, c, dados);
+      const produtoCalc = calcularNotaProdutoCompleta(mod, c, dados);
       return {
         id: c.id,
         condominio: c.condominio?.trim() || '—',
         preco: c.preco ?? 0,
         notaPreco: roundNota(notaPreco),
-        notaProduto: roundNota(notaProduto),
+        notaProduto: roundNota(produtoCalc.nota),
+        areaAnuncioM2: c.area_casa_m2,
+        areaMoniM2: mod.area_m2 ?? null,
+        sugestaoAnexo: produtoCalc.sugestaoAnexo,
       };
     });
 
