@@ -203,6 +203,9 @@ export async function runZapScraperWithUrl(
   const actorId = (process.env.APIFY_ACTOR_ZAP_ID || DEFAULT_ACTOR_ID).replace(/\//g, '~');
   const runPayload = {
     startUrls: [{ url: startUrl }],
+    // maxItems: 1 — limite temporário para conservar saldo Apify (Free plan).
+    // Quando o saldo renovar, remover esta linha ou aumentar para o valor desejado (ex: 300).
+    maxItems: 1,
     proxyConfiguration: {
       useApifyProxy: true,
       apifyProxyGroups: ['RESIDENTIAL'],
