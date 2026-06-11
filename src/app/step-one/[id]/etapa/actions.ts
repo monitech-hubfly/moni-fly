@@ -18,11 +18,13 @@ import {
   type AtributosLoteIds,
   atributosRespostasFromLoteDisponivel,
   parseAtributosLoteRespostas,
+  CATALOGO_CASAS_SELECT_PRE_BATALHA,
 } from './REGRAS_BATALHA';
 import {
   calcularRankingModelos,
   calcularRankingPreBatalhaPorFaixas,
   flattenRankingPreBatalhaPorFaixas,
+  type CatalogoItem,
   type DadosTerreno,
   type RankingPorFaixaMercado,
 } from '@/lib/kanban/pre-batalha-compatibilidade';
@@ -489,13 +491,11 @@ export async function sincronizarChecklistPreBatalhaKanban(input: {
 
   const { data: catRows, error: errCat } = await supabase
     .from('catalogo_casas')
-    .select(
-      'id, nome, quartos, banheiros, vagas, preco_custo, preco_custo_m2, preco_venda_m2, area_m2, preco_venda, topografia, dimensao_x_m, dimensao_y_m, area_perimetro_m2',
-    )
+    .select(CATALOGO_CASAS_SELECT_PRE_BATALHA as '*')
     .eq('ativo', true);
   if (errCat) return { ok: false, error: errCat.message };
 
-  const catalogo = catRows ?? [];
+  const catalogo = (catRows ?? []) as unknown as CatalogoItem[];
   if (catalogo.length === 0) return { ok: true, rankingCount: 0, grupos: [] };
 
   const attrResult = await getAtributosLoteFromStepOneChecklist(processoId, { cardId });

@@ -40,6 +40,7 @@ import {
   type NotaProdutoCompletaResult,
   QUARTOS_PADRAO_NOSSA,
   type ChecklistReforma,
+  CATALOGO_CASAS_SELECT_PRE_BATALHA,
 } from './REGRAS_BATALHA';
 import {
   calcularRankingPreBatalhaPorFaixas,
@@ -332,9 +333,7 @@ export function Etapa4Casas(props: {
         const supabase = createClient();
         const { data: catRows } = await supabase
           .from('catalogo_casas')
-          .select(
-            'id, nome, quartos, banheiros, vagas, preco_custo, preco_custo_m2, preco_venda_m2, area_m2, preco_venda, topografia, dimensao_x_m, dimensao_y_m, area_perimetro_m2',
-          )
+          .select(CATALOGO_CASAS_SELECT_PRE_BATALHA as '*')
           .eq('ativo', true);
         if (cancelado) return;
 
@@ -1410,8 +1409,9 @@ export function Etapa4Casas(props: {
                   Pré Batalha
                 </span>
                 <span className="text-xs text-amber-900/90">
-                  Ranking por faixa do mapa: Preço (INC + Kit Moní) + Produto + Lote vs. cada anúncio.
-                  Desempate: Lote &gt; Preço &gt; Produto.
+                  Ranking por faixa: match de atributos do lote + topografia, depois Preço (INC + Kit
+                  Moní) e Produto vs. cada anúncio. Desempate: Lote (atributos) &gt; Preço &gt;
+                  Produto.
                 </span>
               </div>
             ) : null}
@@ -1448,8 +1448,9 @@ export function Etapa4Casas(props: {
                     </p>
                     {topografiaLotePreBatalha ? (
                       <p className="mb-3 text-xs font-medium text-stone-700">
-                        Filtro ativo: topografia{' '}
-                        <span className="text-amber-900">{topografiaLotePreBatalha}</span> —{' '}
+                        Topografia do lote:{' '}
+                        <span className="text-amber-900">{topografiaLotePreBatalha}</span> — modelos
+                        incompatíveis aparecem ao final do ranking.{' '}
                         {rankingPreBatalha.length}{' '}
                         {rankingPreBatalha.length === 1 ? 'modelo' : 'modelos'} em{' '}
                         {rankingPorFaixaPreBatalha.length}{' '}

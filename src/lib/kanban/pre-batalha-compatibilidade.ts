@@ -1,6 +1,7 @@
 /**
  * Ranking Pré Batalha: modelos Moní vs. listagem ZAP por faixa de mercado.
- * Nota final = Lote + Preço (INC + Kit Moní) + Produto — desempate: Lote > Preço > Produto.
+ * Ordenação elegíveis: match atributos lote (DESC) → Preço (DESC) → Produto (DESC).
+ * Topografia incompatível ou geometria inelegível → final do ranking, sem pontuação.
  */
 
 import {
@@ -9,9 +10,12 @@ import {
   notaPrecoPreBatalhaContraAnuncio,
   calcularNotaProdutoCompleta,
   getPrecoIncMaisKitMoni,
+  calcularMatchScoreAtributosLote,
+  contarAtributosLoteMarcados,
   M2_POR_MODULO_ANEXO,
   penalizacaoTamanhoEliminada,
   type AtributosLoteRespostas,
+  type CatalogoComAtributosLote,
   type NotaTamanhoResult,
   type ProdutoDadosPar,
 } from '@/app/step-one/[id]/etapa/REGRAS_BATALHA';
@@ -38,7 +42,7 @@ export type CasaRowPreBatalha = {
 };
 
 /** Modelo Moní (`catalogo_casas`). */
-export type CatalogoItem = {
+export type CatalogoItem = CatalogoComAtributosLote & {
   id: string;
   nome: string | null;
   topografia?: string | null;
@@ -102,8 +106,11 @@ export type RankingModeloPreBatalha = {
   precoIncKitMoni: number | null;
   anunciosAmeacadores: AnuncioAmeacadorPreBatalha[];
   sugestaoAnexoConsolidada: SugestaoAnexoConsolidada | null;
+  matchScore: number;
+  totalAtributosLote: number;
+  topoCompativel: boolean;
   elegivel: boolean;
-  falhas: ('largura' | 'profundidade' | 'area')[];
+  falhas: ('largura' | 'profundidade' | 'area' | 'topografia')[];
   largura_util: number | null;
   profundidade_util: number | null;
   area_util: number | null;
@@ -198,12 +205,30 @@ function geoModeloCatalogo(mod: CatalogoItem, terreno?: DadosTerreno): Resultado
   return verificarElegibilidadeCasa(terreno, dimsCasaFromCatalogo(mod));
 }
 
+function topoCompativelComLote(
+  mod: CatalogoItem,
+  atributosLote: AtributosLoteRespostas,
+): boolean {
+  const topografiaLote = resolverTopografiaLote(atributosLote);
+  if (!topografiaLote) return true;
+  return normalizeTopografiaCatalogo(mod.topografia) === topografiaLote;
+}
+
 function criarRankingModeloInelegivel(
   mod: CatalogoItem,
   geo: ResultadoElegibilidade,
-  faixa?: FaixaMercado,
+  faixa: FaixaMercado | undefined,
+  extras: {
+    topoCompativel: boolean;
+    matchScore: number;
+    totalAtributosLote: number;
+    falhas?: RankingModeloPreBatalha['falhas'];
+  },
 ): RankingModeloPreBatalha {
   const dims = dimsCasaFromCatalogo(mod);
+  const falhas =
+    extras.falhas ??
+    (geo.elegivel ? [] : geo.falhas);
   return {
     catalogoId: mod.id,
     modelo: mod.nome?.trim() || mod.id.slice(0, 8),
@@ -216,8 +241,11 @@ function criarRankingModeloInelegivel(
     precoIncKitMoni: getPrecoIncMaisKitMoni(mod),
     anunciosAmeacadores: [],
     sugestaoAnexoConsolidada: null,
+    matchScore: extras.matchScore,
+    totalAtributosLote: extras.totalAtributosLote,
+    topoCompativel: extras.topoCompativel,
     elegivel: false,
-    falhas: geo.falhas,
+    falhas,
     largura_util: geo.largura_util,
     profundidade_util: geo.profundidade_util,
     area_util: geo.area_util,
@@ -230,25 +258,15 @@ function criarRankingModeloInelegivel(
 function camposGeometriaRanking(
   mod: CatalogoItem,
   terreno?: DadosTerreno,
-): Pick<
-  RankingModeloPreBatalha,
-  | 'elegivel'
-  | 'falhas'
-  | 'largura_util'
-  | 'profundidade_util'
-  | 'area_util'
-  | 'dimensao_x_m'
-  | 'dimensao_y_m'
-  | 'area_perimetro_m2'
-> {
+): ResultadoElegibilidade & {
+  dimensao_x_m: number | null;
+  dimensao_y_m: number | null;
+  area_perimetro_m2: number | null;
+} {
   const geo = geoModeloCatalogo(mod, terreno);
   const dims = dimsCasaFromCatalogo(mod);
   return {
-    elegivel: geo.elegivel,
-    falhas: geo.falhas,
-    largura_util: geo.largura_util,
-    profundidade_util: geo.profundidade_util,
-    area_util: geo.area_util,
+    ...geo,
     dimensao_x_m: dims.dimensao_x_m,
     dimensao_y_m: dims.dimensao_y_m,
     area_perimetro_m2: dims.area_perimetro_m2,
@@ -327,20 +345,8 @@ function roundNota(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
-function filtrarCatalogoPorTopografia(
-  catalogo: CatalogoItem[],
-  atributosLote: AtributosLoteRespostas,
-): CatalogoItem[] {
-  const topografiaLote = resolverTopografiaLote(atributosLote);
-  if (!topografiaLote) return catalogo;
-  return catalogo.filter(
-    (mod) => normalizeTopografiaCatalogo(mod.topografia) === topografiaLote,
-  );
-}
-
 function compararRankingModelo(a: RankingModeloPreBatalha, b: RankingModeloPreBatalha): number {
-  if (b.notaFinal !== a.notaFinal) return b.notaFinal - a.notaFinal;
-  if (b.notaLote !== a.notaLote) return b.notaLote - a.notaLote;
+  if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
   if (b.notaPrecoMedia !== a.notaPrecoMedia) return b.notaPrecoMedia - a.notaPrecoMedia;
   if (b.notaProdutoMedia !== a.notaProdutoMedia) return b.notaProdutoMedia - a.notaProdutoMedia;
   return a.modelo.localeCompare(b.modelo, 'pt-BR');
@@ -425,18 +431,42 @@ function rankearModelosContraAnuncios(
   notaLote: number,
   faixa: FaixaMercado | undefined,
   produtoDadosPorAnuncio: Record<string, ProdutoDadosPar | undefined>,
+  atributosLote: AtributosLoteRespostas,
   terreno?: DadosTerreno,
 ): RankingModeloPreBatalha[] {
+  const totalAtributosLote = contarAtributosLoteMarcados(atributosLote);
+
   const rankings = catalogoFiltrado.map((mod) => {
+    const matchScore = calcularMatchScoreAtributosLote(atributosLote, mod);
+    const topoOk = topoCompativelComLote(mod, atributosLote);
+
+    if (!topoOk) {
+      return criarRankingModeloInelegivel(mod, geoPadraoSemTerreno(), faixa, {
+        topoCompativel: false,
+        matchScore: 0,
+        totalAtributosLote,
+        falhas: ['topografia'],
+      });
+    }
+
     const geoCampos = camposGeometriaRanking(mod, terreno);
     if (!geoCampos.elegivel) {
-      return criarRankingModeloInelegivel(mod, {
-        elegivel: false,
-        falhas: geoCampos.falhas,
-        largura_util: geoCampos.largura_util,
-        profundidade_util: geoCampos.profundidade_util,
-        area_util: geoCampos.area_util,
-      }, faixa);
+      return criarRankingModeloInelegivel(
+        mod,
+        {
+          elegivel: false,
+          falhas: geoCampos.falhas,
+          largura_util: geoCampos.largura_util,
+          profundidade_util: geoCampos.profundidade_util,
+          area_util: geoCampos.area_util,
+        },
+        faixa,
+        {
+          topoCompativel: true,
+          matchScore,
+          totalAtributosLote,
+        },
+      );
     }
 
     const precoIncKitMoni = getPrecoIncMaisKitMoni(mod);
@@ -498,6 +528,9 @@ function rankearModelosContraAnuncios(
       precoIncKitMoni,
       anunciosAmeacadores,
       sugestaoAnexoConsolidada,
+      matchScore,
+      totalAtributosLote,
+      topoCompativel: true,
       ...geoCampos,
     };
   });
@@ -526,8 +559,6 @@ export function calcularRankingPreBatalhaPorFaixas(
 
   const notaLote = notaAtributosLote(atributosLote);
   const produtoDadosPorAnuncio = opts?.produtoDadosPorAnuncio ?? {};
-  const catalogoTopografia = filtrarCatalogoPorTopografia(catalogo, atributosLote);
-  if (catalogoTopografia.length === 0) return [];
 
   const casasComFaixa = classificarFaixasMercado(casas);
   const porFaixa = new Map<FaixaMercado, CasaRowPreBatalha[]>();
@@ -542,7 +573,7 @@ export function calcularRankingPreBatalhaPorFaixas(
     const casasFaixa = porFaixa.get(faixa);
     if (!casasFaixa?.length) continue;
 
-    const catalogoFaixa = filtrarCatalogoPorFaixaModelo(catalogoTopografia, faixa);
+    const catalogoFaixa = filtrarCatalogoPorFaixaModelo(catalogo, faixa);
     if (catalogoFaixa.length === 0) continue;
 
     const ranking = rankearModelosContraAnuncios(
@@ -551,12 +582,15 @@ export function calcularRankingPreBatalhaPorFaixas(
       notaLote,
       faixa,
       produtoDadosPorAnuncio,
+      atributosLote,
       opts?.terreno,
     );
     if (ranking.length === 0) continue;
 
     const catalogoFaixaElegivel = catalogoFaixa.filter(
-      (mod) => geoModeloCatalogo(mod, opts?.terreno).elegivel,
+      (mod) =>
+        topoCompativelComLote(mod, atributosLote) &&
+        geoModeloCatalogo(mod, opts?.terreno).elegivel,
     );
     const batalhas = gerarBatalhasModeloAnuncio(
       catalogoFaixaElegivel,
@@ -611,46 +645,22 @@ export function calcularRankingModelos(
     return { ranking: [] };
   }
 
-  const catalogoTopografia = filtrarCatalogoPorTopografia(catalogo, atributosLote);
-  if (catalogoTopografia.length === 0) {
-    return { ranking: [] };
-  }
+  const grupos = calcularRankingPreBatalhaPorFaixas(casas, catalogo, atributosLote, {
+    ...opts,
+    terreno,
+  });
 
-  const catalogoElegivel = terrenoComDimensoesParaFiltrar(terreno)
-    ? filtrarCatalogoElegivelGeometria(catalogoTopografia, terreno)
-    : catalogoTopografia;
-
-  const inelegiveis = terrenoComDimensoesParaFiltrar(terreno)
-    ? catalogoTopografia
-        .filter((mod) => !geoModeloCatalogo(mod, terreno).elegivel)
-        .map((mod) => criarRankingModeloInelegivel(mod, geoModeloCatalogo(mod, terreno)))
-        .sort((a, b) => a.modelo.localeCompare(b.modelo, 'pt-BR'))
-    : [];
-
-  let rankingElegiveis: RankingModeloPreBatalha[] = [];
-
-  if (catalogoElegivel.length > 0) {
-    const grupos = calcularRankingPreBatalhaPorFaixas(casas, catalogoElegivel, atributosLote, {
-      ...opts,
-      terreno: undefined,
-    });
-
-    if (grupos.length > 0) {
-      rankingElegiveis = flattenRankingPreBatalhaPorFaixas(grupos).filter((r) => r.elegivel);
-    } else {
-      const notaLote = notaAtributosLote(atributosLote);
-      rankingElegiveis = rankearModelosContraAnuncios(
-        catalogoElegivel,
-        casas,
-        notaLote,
-        undefined,
-        opts?.produtoDadosPorAnuncio ?? {},
-        terreno,
-      ).filter((r) => r.elegivel);
+  const seen = new Set<string>();
+  const ranking: RankingModeloPreBatalha[] = [];
+  for (const g of grupos) {
+    for (const item of g.ranking) {
+      if (seen.has(item.catalogoId)) continue;
+      seen.add(item.catalogoId);
+      ranking.push(item);
     }
   }
 
-  return { ranking: [...rankingElegiveis, ...inelegiveis] };
+  return { ranking: ordenarRankingComInelegiveisNoFinal(ranking) };
 }
 
 /** Rótulo de compatibilidade a partir da nota final Pré Batalha (não do score 0–100 legado). */

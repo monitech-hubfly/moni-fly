@@ -16,10 +16,13 @@ function formatRank(posicao: number): string {
   return String(posicao).padStart(2, '0');
 }
 
-function mensagemFalhaGeometria(
+function mensagemFalhaRanking(
   item: ResultadoRankingModelo,
-  falha: 'largura' | 'profundidade' | 'area',
+  falha: 'largura' | 'profundidade' | 'area' | 'topografia',
 ): string {
+  if (falha === 'topografia') {
+    return 'Topografia do modelo incompatível com o lote escolhido';
+  }
   if (falha === 'largura') {
     return `Largura útil ${item.largura_util?.toFixed(1) ?? '—'}m < ${item.dimensao_x_m ?? '—'}m`;
   }
@@ -27,6 +30,29 @@ function mensagemFalhaGeometria(
     return `Profundidade útil ${item.profundidade_util?.toFixed(1) ?? '—'}m < ${item.dimensao_y_m ?? '—'}m`;
   }
   return `Área útil ${item.area_util?.toFixed(0) ?? '—'}m² < ${item.area_perimetro_m2 ?? '—'}m²`;
+}
+
+function formatMatchLote(item: ResultadoRankingModelo): string {
+  return `${item.matchScore}/${item.totalAtributosLote}`;
+}
+
+function linhaNotasRanking(item: ResultadoRankingModelo): string {
+  return `Lote: ${formatMatchLote(item)} | Preço: ${item.notaPrecoMedia} | Produto: ${item.notaProdutoMedia}`;
+}
+
+function BadgeTopografiaCompat({ topoCompativel }: { topoCompativel: boolean }) {
+  if (topoCompativel) {
+    return (
+      <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 ring-1 ring-emerald-300">
+        ✓ Topografia compatível
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-800 ring-1 ring-red-300">
+      ✗ Topografia incompatível
+    </span>
+  );
 }
 
 function notaCellClass(nota: number): string {
@@ -63,7 +89,7 @@ function PodiumTop3({ top3 }: { top3: ResultadoRankingModelo[] }) {
               {item.modelo}
             </span>
             <span className="mt-0.5 text-[11px] font-bold tabular-nums text-amber-900">
-              {item.notaFinal}
+              {formatMatchLote(item)} atrib.
             </span>
           </div>
         ))}
@@ -232,7 +258,7 @@ function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
           <tr className="border-b border-stone-200 bg-stone-100/90 text-[11px] font-semibold uppercase tracking-wider text-stone-600">
             <th className="px-3 py-2.5 text-left sm:px-4">Rank</th>
             <th className="px-3 py-2.5 text-left sm:px-4">Modelo</th>
-            <th className="px-3 py-2.5 text-center sm:px-4">Lote</th>
+            <th className="px-3 py-2.5 text-center sm:px-4">Match lote</th>
             <th className="px-3 py-2.5 text-center sm:px-4">Preço</th>
             <th className="px-3 py-2.5 text-center sm:px-4">Produto</th>
             <th className="px-3 py-2.5 text-center sm:px-4">Nota final</th>
@@ -244,6 +270,7 @@ function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
             const posicao = inelegivel ? null : ++posicaoElegivel;
             const destaqueTop3 = posicao != null && posicao <= 3;
             const compat = badgeCompatibilidade(item.notaFinal);
+            const falhasGeometria = item.falhas.filter((f) => f !== 'topografia');
 
             return (
               <Fragment key={item.catalogoId}>
@@ -267,38 +294,45 @@ function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
                           {item.topografia}
                         </span>
                       ) : null}
-                      {inelegivel ? (
+                      <BadgeTopografiaCompat topoCompativel={item.topoCompativel} />
+                      {inelegivel && falhasGeometria.length > 0 ? (
                         <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-800 ring-1 ring-red-200">
                           Não cabe
                         </span>
-                      ) : (
+                      ) : !inelegivel ? (
                         <span
                           className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${compat.className}`}
                         >
                           {compat.label}
                         </span>
-                      )}
+                      ) : null}
                     </div>
-                    {!inelegivel && item.precoIncKitMoni != null && item.precoIncKitMoni > 0 ? (
-                      <p className="mt-0.5 text-[11px] text-stone-500">
-                        INC + Kit: {formatPrecoAnuncio(item.precoIncKitMoni)}
-                      </p>
+                    {!inelegivel ? (
+                      <>
+                        <p className="mt-0.5 text-[11px] font-medium text-stone-700">
+                          Lote: {formatMatchLote(item)} atributos
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-stone-500">{linhaNotasRanking(item)}</p>
+                        {item.precoIncKitMoni != null && item.precoIncKitMoni > 0 ? (
+                          <p className="mt-0.5 text-[11px] text-stone-500">
+                            INC + Kit: {formatPrecoAnuncio(item.precoIncKitMoni)}
+                          </p>
+                        ) : null}
+                      </>
                     ) : null}
                   </td>
                   {inelegivel ? (
                     <td colSpan={4} className="px-3 py-3 sm:px-4">
                       <ul className="space-y-1 text-xs text-red-800">
                         {item.falhas.map((falha) => (
-                          <li key={falha}>{mensagemFalhaGeometria(item, falha)}</li>
+                          <li key={falha}>{mensagemFalhaRanking(item, falha)}</li>
                         ))}
                       </ul>
                     </td>
                   ) : (
                     <>
-                      <td
-                        className={`px-3 py-3 text-center text-sm font-semibold tabular-nums sm:px-4 ${notaCellClass(item.notaLote)}`}
-                      >
-                        {item.notaLote}
+                      <td className="px-3 py-3 text-center text-sm font-semibold tabular-nums sm:px-4 text-stone-800">
+                        {formatMatchLote(item)}
                       </td>
                       <td
                         className={`px-3 py-3 text-center text-sm font-semibold tabular-nums sm:px-4 ${notaCellClass(item.notaPrecoMedia)}`}
@@ -337,14 +371,14 @@ function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
 
 function linhaResumoRanking(item: ResultadoRankingModelo, posicaoElegivel: number | null): string {
   if (item.elegivel === false) {
-    const falhas = item.falhas.map((f) => mensagemFalhaGeometria(item, f)).join('; ');
+    const falhas = item.falhas.map((f) => mensagemFalhaRanking(item, f)).join('; ');
     return `— ${item.modelo}${falhas ? ` — ${falhas}` : ''}`;
   }
   const palavra = item.modelo.trim().split(/\s+/)[0] || item.modelo.trim();
   const abrev = palavra.length <= 4 ? palavra : palavra.slice(0, 3);
   const topoRaw = item.topografia.trim().toLowerCase();
   const topoSlug = topoRaw === '—' || !topoRaw ? '—' : topoRaw;
-  return `${posicaoElegivel}º ${abrev}/${topoSlug} (Final: ${item.notaFinal} | L:${item.notaLote} P:${item.notaPrecoMedia} Prod:${item.notaProdutoMedia})`;
+  return `${posicaoElegivel}º ${abrev}/${topoSlug} (${linhaNotasRanking(item)} | Final: ${item.notaFinal})`;
 }
 
 function SubSecaoTabelaColapsavel({

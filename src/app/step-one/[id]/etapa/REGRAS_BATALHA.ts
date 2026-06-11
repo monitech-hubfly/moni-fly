@@ -68,6 +68,56 @@ export function notaAtributosLote(respostas: AtributosLoteRespostas): number {
   return clampNota(sum);
 }
 
+/** Campo booleano em `catalogo_casas` correspondente a cada id de ATRIBUTOS_LOTE. */
+export const MAP_ATRIBUTO_LOTE_CATALOGO = {
+  vista: 'attr_vista_privilegiada',
+  plano: 'attr_terreno_plano',
+  aclive: 'attr_terreno_aclive',
+  declive: 'attr_terreno_declive',
+  fundo_mata: 'attr_fundo_mata',
+  frente_mata: 'attr_frente_mata',
+  area_verde: 'attr_area_verde',
+  perto_lago: 'attr_perto_lago',
+  fundo_lago: 'attr_fundo_lago',
+  frente_lago: 'attr_frente_lago',
+  area_convivencia: 'attr_area_convivencia',
+  lixeira: 'attr_perto_lixeira',
+  portaria: 'attr_perto_portaria',
+  muro_rodovia: 'attr_muro_rodovia',
+  muro_comunidade: 'attr_muro_comunidade',
+  muro_vegetacao: 'attr_muro_vegetacao',
+} as const satisfies Record<AtributosLoteIds, string>;
+
+export type CatalogoAttrCampo = (typeof MAP_ATRIBUTO_LOTE_CATALOGO)[AtributosLoteIds];
+
+export type CatalogoComAtributosLote = Partial<Record<CatalogoAttrCampo, boolean | null>>;
+
+/** Colunas attr_* para SELECT em `catalogo_casas`. */
+export const CATALOGO_CASAS_SELECT_ATTRS = Object.values(MAP_ATRIBUTO_LOTE_CATALOGO).join(', ');
+
+/** SELECT completo do catálogo para ranking Pré Batalha (inclui attr_*). */
+export const CATALOGO_CASAS_SELECT_PRE_BATALHA =
+  'id, nome, quartos, banheiros, vagas, preco_custo, preco_custo_m2, preco_venda_m2, area_m2, preco_venda, topografia, dimensao_x_m, dimensao_y_m, area_perimetro_m2, ' +
+  CATALOGO_CASAS_SELECT_ATTRS;
+
+export function contarAtributosLoteMarcados(atributosLote: AtributosLoteRespostas): number {
+  return ATRIBUTOS_LOTE.reduce((n, a) => n + (atributosLote[a.id] === true ? 1 : 0), 0);
+}
+
+/** Quantidade de atributos do lote (true) que a casa também possui no catálogo. */
+export function calcularMatchScoreAtributosLote(
+  atributosLote: AtributosLoteRespostas,
+  catalogo: CatalogoComAtributosLote,
+): number {
+  let score = 0;
+  for (const a of ATRIBUTOS_LOTE) {
+    if (atributosLote[a.id] !== true) continue;
+    const campo = MAP_ATRIBUTO_LOTE_CATALOGO[a.id];
+    if (catalogo[campo] === true) score += 1;
+  }
+  return score;
+}
+
 /** Faixas percentuais para critério Preço (Distância Nominal e Preço Nominal): -3 a +2 */
 export function notaPrecoPorPercentual(diffPerc: number): number {
   if (diffPerc <= -0.5) return -3;

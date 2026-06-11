@@ -13,6 +13,8 @@ export type RankingInicialChecklistItem = {
   modelo: string;
   topografia: string;
   notaFinal: number;
+  matchScore?: number;
+  totalAtributosLote?: number;
   notaLote?: number;
   notaPreco?: number;
   notaProduto?: number;
@@ -27,16 +29,16 @@ export type RankingInicialGrupoFaixa = {
 /** Texto fixo exibido em Instruções da fase (Kanban) na Pré Batalha. */
 export const PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING = `Por que este ranking?
 
-Com o Mapa de Competidores preenchido e a topografia do lote definida em Lotes Disponíveis, o sistema ranqueia todos os modelos Moní compatíveis com o lote, separados por faixa de mercado (Entrada, Intermediária, Premium, etc.).
+Com o Mapa de Competidores preenchido e os atributos do lote em Lotes Disponíveis, o sistema ranqueia todos os modelos Moní do catálogo, separados por faixa de mercado (Entrada, Intermediária, Premium, etc.).
 
 Cada modelo só aparece nas faixas em que é elegível (ex.: Lu/Isa/Val só Entrada; Liz/Ivy/Mia/Cissa/Sol Entrada e Intermediária; Eva/Gal Premium e Premium+; Lena Premium+ em diante).
 
-Em cada faixa, cada modelo elegível batalha contra todos os anúncios daquela faixa nos três eixos:
-• Lote — atributos de localização do lote escolhido
-• Preço — VGV Moní (preço INC + Kit Moní do catálogo) vs. preço de cada anúncio
-• Produto — quartos, banheiros, vagas e metragem vs. cada anúncio
+Ordem entre modelos elegíveis:
+1. Match de atributos do lote — quantos atributos marcados no lote a casa também possui no catálogo (vista, mata, lago, etc.)
+2. Topografia — modelos com topografia diferente do lote vão ao final, sem pontuação
+3. Desempate: média de Preço (VGV INC + Kit Moní vs anúncios) e depois Produto (quartos, banheiros, vagas, metragem)
 
-Nota final = Lote + Preço + Produto (médias na faixa). Quanto maior, melhor o encaixe. Todos os modelos elegíveis aparecem em cada faixa com anúncios. Desempate: Lote > Preço > Produto.`;
+Em cada faixa, cada modelo elegível batalha contra todos os anúncios daquela faixa nos eixos Preço e Produto. A nota final ainda soma Lote + Preço + Produto para indicar compatibilidade geral.`;
 
 export function rankingGruposFromPorFaixas(
   grupos: RankingPorFaixaMercado[],
@@ -48,6 +50,8 @@ export function rankingGruposFromPorFaixas(
       modelo: r.modelo,
       topografia: r.topografia,
       notaFinal: r.notaFinal,
+      matchScore: r.matchScore,
+      totalAtributosLote: r.totalAtributosLote,
       notaLote: r.notaLote,
       notaPreco: r.notaPrecoMedia,
       notaProduto: r.notaProdutoMedia,
@@ -61,9 +65,11 @@ function formatLinhaRankingPreBatalha(item: RankingInicialChecklistItem, idx: nu
   const topoRaw = item.topografia.trim().toLowerCase();
   const topoSlug = topoRaw === '—' || !topoRaw ? '—' : topoRaw;
   const detalhe =
-    item.notaLote != null && item.notaPreco != null && item.notaProduto != null
-      ? ` | L:${item.notaLote} P:${item.notaPreco} Prod:${item.notaProduto}`
-      : '';
+    item.matchScore != null && item.totalAtributosLote != null
+      ? ` | Lote:${item.matchScore}/${item.totalAtributosLote} P:${item.notaPreco ?? '—'} Prod:${item.notaProduto ?? '—'}`
+      : item.notaLote != null && item.notaPreco != null && item.notaProduto != null
+        ? ` | L:${item.notaLote} P:${item.notaPreco} Prod:${item.notaProduto}`
+        : '';
   return `${idx + 1}º ${abrev}/${topoSlug} (Final: ${item.notaFinal}${detalhe})`;
 }
 

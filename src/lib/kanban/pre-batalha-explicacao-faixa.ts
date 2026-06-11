@@ -48,9 +48,14 @@ function modelosElegiveisFaixa(faixa: FaixaMercado): string[] {
     .map((slug) => NOME_MODELO[slug]);
 }
 
+function notaLoteRanking(item: RankingModeloPreBatalha): number {
+  if (item.totalAtributosLote <= 0) return item.matchScore;
+  return item.matchScore / item.totalAtributosLote;
+}
+
 function eixoMaisForte(item: RankingModeloPreBatalha): EixoNota {
   const eixos: { eixo: EixoNota; v: number }[] = [
-    { eixo: 'Lote', v: item.notaLote },
+    { eixo: 'Lote', v: notaLoteRanking(item) },
     { eixo: 'Preço', v: item.notaPrecoMedia },
     { eixo: 'Produto', v: item.notaProdutoMedia },
   ];
@@ -60,7 +65,7 @@ function eixoMaisForte(item: RankingModeloPreBatalha): EixoNota {
 
 function eixoMaisFraco(item: RankingModeloPreBatalha): EixoNota {
   const eixos: { eixo: EixoNota; v: number }[] = [
-    { eixo: 'Lote', v: item.notaLote },
+    { eixo: 'Lote', v: notaLoteRanking(item) },
     { eixo: 'Preço', v: item.notaPrecoMedia },
     { eixo: 'Produto', v: item.notaProdutoMedia },
   ];
@@ -68,12 +73,18 @@ function eixoMaisFraco(item: RankingModeloPreBatalha): EixoNota {
   return eixos[0]!.eixo;
 }
 
-function textoEixo(eixo: EixoNota, nota: number): string {
+function textoEixo(eixo: EixoNota, item: RankingModeloPreBatalha): string {
   if (eixo === 'Lote') {
-    if (nota >= 1.5) return 'o lote escolhido agrega valor (vista, área verde, lago etc.)';
-    if (nota >= 0) return 'o lote tem atributos neutros ou levemente positivos';
-    return 'o lote tem atributos que reduzem a atratividade (ex.: proximidade de lixeira, muro com rodovia)';
+    if (item.matchScore >= item.totalAtributosLote && item.totalAtributosLote > 0) {
+      return 'a casa coincide com todos os atributos marcados no lote (vista, mata, lago etc.)';
+    }
+    if (item.matchScore > 0) {
+      return `a casa coincide com ${item.matchScore} de ${item.totalAtributosLote} atributos do lote`;
+    }
+    return 'a casa não compartilha atributos de localização com o lote escolhido';
   }
+  const nota =
+    eixo === 'Preço' ? item.notaPrecoMedia : item.notaProdutoMedia;
   if (eixo === 'Preço') {
     if (nota >= 0.5) return 'o VGV Moní (INC + Kit) tende a ficar abaixo ou alinhado aos anúncios desta faixa';
     if (nota >= 0) return 'o preço Moní está próximo da média dos anúncios';
@@ -88,15 +99,14 @@ function motivoDesempate(
   primeiro: RankingModeloPreBatalha,
   segundo: RankingModeloPreBatalha,
 ): string | null {
-  if (primeiro.notaFinal !== segundo.notaFinal) return null;
-  if (primeiro.notaLote !== segundo.notaLote) {
-    return `empate na nota final (${primeiro.notaFinal}); ${primeiro.modelo} fica à frente porque a nota de Lote (${primeiro.notaLote}) supera a de ${segundo.modelo} (${segundo.notaLote})`;
+  if (primeiro.matchScore !== segundo.matchScore) {
+    return `${primeiro.modelo} fica à frente pelo match de atributos do lote (${primeiro.matchScore}/${primeiro.totalAtributosLote} vs ${segundo.matchScore}/${segundo.totalAtributosLote} de ${segundo.modelo})`;
   }
   if (primeiro.notaPrecoMedia !== segundo.notaPrecoMedia) {
-    return `empate na nota final (${primeiro.notaFinal}); ${primeiro.modelo} fica à frente pela média de Preço (${primeiro.notaPrecoMedia} vs ${segundo.notaPrecoMedia})`;
+    return `${primeiro.modelo} fica à frente pela média de Preço (${primeiro.notaPrecoMedia} vs ${segundo.notaPrecoMedia})`;
   }
   if (primeiro.notaProdutoMedia !== segundo.notaProdutoMedia) {
-    return `empate na nota final (${primeiro.notaFinal}); ${primeiro.modelo} fica à frente pela média de Produto (${primeiro.notaProdutoMedia} vs ${segundo.notaProdutoMedia})`;
+    return `${primeiro.modelo} fica à frente pela média de Produto (${primeiro.notaProdutoMedia} vs ${segundo.notaProdutoMedia})`;
   }
   return null;
 }
@@ -108,23 +118,17 @@ function explicarLider(ranking: RankingModeloPreBatalha[]): string {
   const segundo = ranking[1];
   const compat = labelCompatibilidade(lider.notaFinal);
   const forte = eixoMaisForte(lider);
-  const notaForte =
-    forte === 'Lote'
-      ? lider.notaLote
-      : forte === 'Preço'
-        ? lider.notaPrecoMedia
-        : lider.notaProdutoMedia;
 
-  let texto = `${lider.modelo} lidera com nota final ${lider.notaFinal} (compatibilidade ${compat}). `;
-  texto += `Seu principal diferencial nesta faixa é ${forte.toLowerCase()}: ${textoEixo(forte, notaForte)}. `;
-  texto += `Notas parciais — Lote: ${lider.notaLote}, Preço: ${lider.notaPrecoMedia}, Produto: ${lider.notaProdutoMedia}.`;
+  let texto = `${lider.modelo} lidera com match de ${lider.matchScore}/${lider.totalAtributosLote} atributos do lote (nota final ${lider.notaFinal}, compatibilidade ${compat}). `;
+  texto += `Seu principal diferencial nesta faixa é ${forte.toLowerCase()}: ${textoEixo(forte, lider)}. `;
+  texto += `Notas parciais — Lote: ${lider.matchScore}/${lider.totalAtributosLote}, Preço: ${lider.notaPrecoMedia}, Produto: ${lider.notaProdutoMedia}.`;
 
   if (segundo) {
     const desempate = motivoDesempate(lider, segundo);
     if (desempate) {
       texto += ` ${desempate}.`;
-    } else if (lider.notaFinal > segundo.notaFinal) {
-      texto += ` Fica ${(lider.notaFinal - segundo.notaFinal).toFixed(1).replace(/\.0$/, '')} ponto(s) acima de ${segundo.modelo} (${segundo.notaFinal}).`;
+    } else if (lider.matchScore > segundo.matchScore) {
+      texto += ` Fica à frente de ${segundo.modelo} pelo match de atributos (${lider.matchScore}/${lider.totalAtributosLote} vs ${segundo.matchScore}/${segundo.totalAtributosLote}).`;
     }
   }
 
@@ -138,16 +142,10 @@ function explicarCauda(ranking: RankingModeloPreBatalha[]): string | null {
   if (ultimo.catalogoId === lider.catalogoId) return null;
 
   const fraco = eixoMaisFraco(ultimo);
-  const notaFraca =
-    fraco === 'Lote'
-      ? ultimo.notaLote
-      : fraco === 'Preço'
-        ? ultimo.notaPrecoMedia
-        : ultimo.notaProdutoMedia;
 
-  if (ultimo.notaFinal >= lider.notaFinal) return null;
+  if (ultimo.matchScore >= lider.matchScore && ultimo.notaFinal >= lider.notaFinal) return null;
 
-  return `${ultimo.modelo} aparece por último (${ultimo.notaFinal}) principalmente porque ${textoEixo(fraco, notaFraca)} — eixo ${fraco.toLowerCase()} com nota ${notaFraca}.`;
+  return `${ultimo.modelo} aparece por último entre os elegíveis (match ${ultimo.matchScore}/${ultimo.totalAtributosLote}, final ${ultimo.notaFinal}) principalmente porque ${textoEixo(fraco, ultimo)}.`;
 }
 
 function resumirCompatibilidade(ranking: RankingModeloPreBatalha[]): string {
@@ -173,7 +171,6 @@ export function gerarExplicacaoRankingFaixaPreBatalha(
 
   const rankingElegiveis = ranking.filter((r) => r.elegivel !== false);
   const elegiveis = modelosElegiveisFaixa(faixa);
-  const notaLote = rankingElegiveis[0]?.notaLote ?? 0;
   const anunciosTxt =
     quantidadeAnuncios === 1 ? '1 anúncio' : `${quantidadeAnuncios} anúncios`;
   const batalhasTxt =
@@ -182,7 +179,7 @@ export function gerarExplicacaoRankingFaixaPreBatalha(
   const paragrafos: string[] = [
     `Faixa ${faixaLabel}: ${DESCRICAO_FAIXA[faixa]}. Foram considerados ${anunciosTxt} deste segmento no Mapa de Competidores.`,
     `Só entram modelos Moní autorizados para esta faixa: ${elegiveis.join(', ')}. Cada um foi comparado individualmente com todos os anúncios da faixa (${batalhasTxt} no total).`,
-    `A nota final de cada modelo soma três critérios, de −3 a +2 cada: Lote (atributos do lote escolhido em Lotes Disponíveis), Preço (VGV Moní INC + Kit vs preço de cada anúncio) e Produto (quartos, banheiros, vagas e metragem vs cada anúncio). Preço e Produto entram como média dos confrontos da faixa. Todos partem com a mesma nota de Lote (${notaLote}), pois o lote é único para o projeto.`,
+    `Entre os elegíveis, a ordem prioriza quantos atributos do lote cada casa compartilha no catálogo; depois desempata pela média de Preço (VGV INC + Kit vs anúncios) e Produto (quartos, banheiros, vagas, metragem). Modelos com topografia incompatível ou que não cabem no terreno aparecem ao final, sem pontuação.`,
     explicarLider(rankingElegiveis),
   ];
 
