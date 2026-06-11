@@ -363,6 +363,26 @@ export async function publicarComentarioCardSirene(
     autorId: user.id,
   });
 
+  try {
+    const admin = createAdminClient();
+    const { data: ka } = await admin
+      .from('kanban_atividades')
+      .select('criado_por, id, titulo')
+      .eq('card_id', cid)
+      .eq('origem', 'sirene')
+      .maybeSingle();
+    if (ka?.criado_por && ka.criado_por !== user.id) {
+      const { notificarAlertasKanbanAtividade } = await import('@/lib/kanban/chamados-notificacoes');
+      await notificarAlertasKanbanAtividade({
+        userIds: [ka.criado_por],
+        tipo: 'kanban_atividade_atualizada',
+        mensagem: `Novo comentário em: ${String((ka as {titulo?: string}).titulo ?? 'Chamado')}`,
+        interacaoId: ka.id,
+        basePath: `/sirene/chamados?interacao=${encodeURIComponent(ka.id)}`,
+      });
+    }
+  } catch {}
+
   revalidatePath('/sirene/chamados');
   revalidatePath('/');
   return { ok: true };
@@ -424,9 +444,17 @@ export async function publicarComentarioSireneChamado(
   const { plain, mencoesIds } = await resolverMencoesSirene(raw);
   if (!plain) return { ok: false, error: 'Digite o comentário.' };
 
+  const { data: autorProfile } = await supabase
+    .from('profiles')
+    .select('full_name')
+    .eq('id', user.id)
+    .maybeSingle();
+  const autorNome = String((autorProfile as {full_name?: string | null} | null)?.full_name ?? '').trim() || null;
+
   const { error } = await supabase.from('kanban_card_comentarios').insert({
     sirene_chamado_id: sireneChamadoId,
     autor_id: user.id,
+    autor_nome: autorNome,
     conteudo: conteudoPersistivelComentario(raw, plain),
   });
 
@@ -439,6 +467,25 @@ export async function publicarComentarioSireneChamado(
     contextoTitulo: opcoes?.contextoTitulo?.trim() || 'Comentário no chamado',
     autorId: user.id,
   });
+
+  try {
+    const admin = createAdminClient();
+    const { data: ka } = await admin
+      .from('kanban_atividades')
+      .select('criado_por, id, titulo')
+      .eq('sirene_chamado_id', sireneChamadoId)
+      .maybeSingle();
+    if (ka?.criado_por && ka.criado_por !== user.id) {
+      const { notificarAlertasKanbanAtividade } = await import('@/lib/kanban/chamados-notificacoes');
+      await notificarAlertasKanbanAtividade({
+        userIds: [ka.criado_por],
+        tipo: 'kanban_atividade_atualizada',
+        mensagem: `Novo comentário em: ${String((ka as {titulo?: string}).titulo ?? 'Chamado')}`,
+        interacaoId: ka.id,
+        basePath: `/sirene/chamados?interacao=${encodeURIComponent(ka.id)}`,
+      });
+    }
+  } catch {}
 
   revalidatePath('/sirene/chamados');
   revalidatePath('/');

@@ -585,7 +585,10 @@ export function InteracoesLista({
 
       if (!verTodas && currentUserId) {
         const ids = row.responsaveis_ids ?? [];
-        const mine = ids.includes(currentUserId) || row.responsavel_id === currentUserId;
+        const mine =
+          ids.includes(currentUserId) ||
+          row.responsavel_id === currentUserId ||
+          row.criado_por === currentUserId;
         if (!mine) return false;
       } else if (!verTodas && !currentUserId) {
         return false;
