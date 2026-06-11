@@ -383,8 +383,6 @@ export async function publicarComentarioCardSirene(
     }
   } catch {}
 
-  revalidatePath('/sirene/chamados');
-  revalidatePath('/');
   return { ok: true };
 }
 
@@ -487,7 +485,5 @@ export async function publicarComentarioSireneChamado(
     }
   } catch {}
 
-  revalidatePath('/sirene/chamados');
-  revalidatePath('/');
   return { ok: true };
 }

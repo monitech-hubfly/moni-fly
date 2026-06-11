@@ -419,6 +419,24 @@ export default async function SireneChamadosPage({
       }
     }
 
+    // Contagem de comentários para chamados Sirene diretos (card_id = null)
+    const sireneIdsParaContar = [...new Set(
+      interacoes
+        .filter((i) => i.sirene_chamado_id != null && i.card_id == null)
+        .map((i) => i.sirene_chamado_id as number)
+    )];
+    if (sireneIdsParaContar.length > 0) {
+      const { data: scComentRows } = await admin
+        .from('kanban_card_comentarios')
+        .select('sirene_chamado_id')
+        .in('sirene_chamado_id', sireneIdsParaContar);
+      for (const r of scComentRows ?? []) {
+        const scid = (r as { sirene_chamado_id: number }).sirene_chamado_id;
+        const key = `sirene-${scid}`;
+        comentariosCountByCardId[key] = (comentariosCountByCardId[key] ?? 0) + 1;
+      }
+    }
+
     const { data: timesRows } = await admin.from('kanban_times').select('id, nome').order('nome');
     const times = (timesRows ?? []).map((t) => ({
       id: String((t as { id: string }).id),

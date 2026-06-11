@@ -184,8 +184,12 @@ function textoResponsavelPainel(
   topicos?: TopicoChamadoLinha[],
 ): string {
   // For Sirene chamados, show who opened it as the primary responsible
-  if (row.origem === 'sirene' && row.sirene_abertura_responsavel_nome) {
-    return row.sirene_abertura_responsavel_nome;
+  if (row.origem === 'sirene') {
+    if (row.criado_por) {
+      const nome = nomePorUserId.get(row.criado_por);
+      if (nome) return nome;
+    }
+    if (row.sirene_abertura_responsavel_nome) return row.sirene_abertura_responsavel_nome;
   }
   const ids = [
     ...new Set([...(row.responsaveis_ids ?? []), ...(row.responsavel_id ? [row.responsavel_id] : [])]),
@@ -1488,15 +1492,20 @@ export function InteracoesLista({
                           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
                             {/* meta chips */}
                             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[color:var(--moni-text-tertiary)]">
-                              {row.sirene_abertura_responsavel_nome ? (
-                                <span className="flex items-center gap-1">
-                                  <span className="text-[color:var(--moni-text-tertiary)]">Aberto por</span>
-                                  <span className="text-[color:var(--moni-text-secondary)]">{row.sirene_abertura_responsavel_nome}</span>
-                                </span>
-                              ) : null}
+                              {row.origem === 'sirene' ? (() => {
+                                const nomeAberto = (row.criado_por ? nomePorUserId.get(row.criado_por) : null)
+                                  ?? row.sirene_abertura_responsavel_nome
+                                  ?? null;
+                                return nomeAberto ? (
+                                  <span className="flex items-center gap-1">
+                                    <span className="text-[color:var(--moni-text-tertiary)]">Aberto por</span>
+                                    <span className="text-[color:var(--moni-text-secondary)]">{nomeAberto}</span>
+                                  </span>
+                                ) : null;
+                              })() : null}
                               {row.franqueado_nome ? (
                                 <>
-                                  {row.sirene_abertura_responsavel_nome ? <span className="text-[color:var(--moni-border-default)]">·</span> : null}
+                                  {((row.criado_por ? nomePorUserId.get(row.criado_por) : null) ?? row.sirene_abertura_responsavel_nome) ? <span className="text-[color:var(--moni-border-default)]">·</span> : null}
                                   <span className="text-[color:var(--moni-text-secondary)]">{row.franqueado_nome}</span>
                                 </>
                               ) : null}

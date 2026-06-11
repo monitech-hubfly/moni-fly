@@ -240,11 +240,7 @@ export function SireneChamadoDetalheModal({
               <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase ${badgeTipo.className}`}>
                 {badgeTipo.label}
               </span>
-              {prioridadeBadge ? (
-                <span className={`rounded border px-1.5 py-0.5 text-[10px] font-bold ${prioridadeBadge.className}`}>
-                  {prioridadeBadge.label}
-                </span>
-              ) : rankLabel ? (
+              {rankLabel ? (
                 <span className={`rounded border px-1.5 py-0.5 text-[10px] font-bold ${
                   rankLabel === 'P1' || rankLabel === 'P2' ? 'border-red-200 bg-red-50 text-red-800'
                   : rankLabel === 'P3' || rankLabel === 'P4' ? 'border-amber-200 bg-amber-50 text-amber-800'
