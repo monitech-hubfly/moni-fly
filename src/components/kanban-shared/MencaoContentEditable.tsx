@@ -81,8 +81,10 @@ export function MencaoContentEditable({
       }
       const inicio = antes.length - match[0].length;
       const query = match[1];
-      setPosicaoAt(inicio);
-      setIndiceSelecionado(0);
+      setPosicaoAt((prev) => {
+        if (prev !== inicio) setIndiceSelecionado(0);
+        return inicio;
+      });
       setAnchor(atualizarAnchor(el));
       queryRef.current = query;
 

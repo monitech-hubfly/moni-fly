@@ -98,6 +98,7 @@ export type InteracaoSireneRow = {
   /** Chamado Sirene arquivado (admin/team pode exibir com toggle). */
   sirene_arquivado?: boolean;
   criado_por?: string | null;
+  sirene_prioridade?: string | null;
 };
 type TimeOpt = { id: string; nome: string };
 type RespOpt = { id: string; nome: string; email?: string | null };
@@ -1048,6 +1049,7 @@ export function InteracoesLista({
       }
       setNovoComentarioPorCard((m) => ({ ...m, [commentKey]: '' }));
       if (comentarioEditorRef.current) comentarioEditorRef.current.innerHTML = '';
+      setCountPatch((c) => ({ ...c, [commentKey]: (c[commentKey] ?? comentariosCount(commentKey)) + 1 }));
       setCommentsFetchedByCard((f) => ({ ...f, [commentKey]: false }));
       void toggleComentarios(row);
       void toggleComentarios(row);
@@ -1058,10 +1060,10 @@ export function InteracoesLista({
     }
   }
 
-  function comentariosCount(cardId: string | null): number {
-    if (!cardId) return 0;
-    if (countPatch[cardId] != null) return countPatch[cardId]!;
-    return comentariosCountByCardId[cardId] ?? 0;
+  function comentariosCount(commentKey: string | null): number {
+    if (!commentKey) return 0;
+    if (countPatch[commentKey] != null) return countPatch[commentKey]!;
+    return comentariosCountByCardId[commentKey] ?? 0;
   }
 
   function iniciaisNome(nome: string): string {
@@ -1422,7 +1424,8 @@ export function InteracoesLista({
                   });
 
                   const ccid = row.card_id;
-                  const cnt = ccid ? comentariosCount(ccid) : 0;
+                  const commentKey = ccid ?? (row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : null);
+                  const cnt = comentariosCount(commentKey);
                   const alvoK = topicosAlvoKey(row);
                   const subs = topicosPorAlvo[alvoK] ?? [];
                   const temSubAberta = subs.some((s) => s.status !== 'concluido' && s.status !== 'aprovado');
@@ -1721,6 +1724,7 @@ export function InteracoesLista({
           }}
           topicos={topicosPorAlvo[topicosAlvoKey(detalheRowEff)] ?? []}
           topicosLoading={Boolean(topicosLoading[topicosAlvoKey(detalheRowEff)])}
+          nomePorUserId={nomePorUserId}
           textoResponsavel={textoResponsavelPainel(
             detalheRowEff,
             nomePorUserId,
