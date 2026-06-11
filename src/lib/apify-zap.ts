@@ -109,8 +109,12 @@ export function buildZapSearchUrl(cidade: string, estado: string, condominio?: s
 
 export type ZapListingItem = {
   url?: string;
-  /** Actor fatihtahta/zap-imoveis-scraper */
+  /** Actor fatihtahta/zap-imoveis-scraper e variantes */
   listingUrl?: string;
+  link?: string;
+  href?: string;
+  pageUrl?: string;
+  canonicalUrl?: string;
   title?: string;
   price?: string;
   location?: string;
@@ -124,6 +128,31 @@ export type ZapListingItem = {
   listing?: Record<string, unknown>;
   createdAt?: string; // data do levantamento (Apify)
 };
+
+function strUrl(val: unknown): string | null {
+  if (typeof val !== 'string') return null;
+  const s = val.trim();
+  return s || null;
+}
+
+/** URL do anúncio — cobre nomes de campo usados por Apify/glue-api. */
+export function resolveZapItemUrl(item: ZapListingItem | null | undefined): string | null {
+  if (!item) return null;
+  const listing = item.listing;
+  const listingUrl =
+    listing && typeof listing === 'object'
+      ? strUrl((listing as Record<string, unknown>).url)
+      : null;
+  return (
+    strUrl(item.url) ??
+    strUrl(item.listingUrl) ??
+    strUrl(item.link) ??
+    strUrl(item.href) ??
+    strUrl(item.pageUrl) ??
+    strUrl(item.canonicalUrl) ??
+    listingUrl
+  );
+}
 
 /** Debug temporário: para inspecionar token, URL e resposta do Apify no console do navegador (F12). */
 export type ZapRunDebug = {
@@ -294,7 +323,6 @@ export async function runZapScraperWithUrl(
         }
         const itemList = Array.isArray(items) ? items : [];
         console.log('[APIFY-ZAP] quantidade de itens retornados pelo dataset:', itemList.length);
-        console.log('[APIFY-ZAP] primeiro item completo:', itemList[0] ?? '(nenhum)');
         return {
           ok: true,
           items: itemList,
@@ -474,7 +502,7 @@ export function mapZapItemToCasa(
 
   const dataLevantamento = item.createdAt ?? null;
 
-  const link = item.url || item.listingUrl || null;
+  const link = resolveZapItemUrl(item);
 
   return {
     cidade: cidadeNorm,
