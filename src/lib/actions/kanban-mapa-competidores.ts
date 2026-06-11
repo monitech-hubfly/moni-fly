@@ -154,6 +154,17 @@ export async function resolverProcessoIdViaRedeFranqueado(
   ).trim();
   if (!redeId) return null;
 
+  const { data: redeRow } = await supabase
+    .from('rede_franqueados')
+    .select('processo_id')
+    .eq('id', redeId)
+    .maybeSingle();
+
+  const redeProcessoId = String(
+    (redeRow as { processo_id?: string | null } | null)?.processo_id ?? '',
+  ).trim();
+  if (redeProcessoId) return redeProcessoId;
+
   const { data: processo } = await supabase
     .from('processo_step_one')
     .select('id, cidade, estado')

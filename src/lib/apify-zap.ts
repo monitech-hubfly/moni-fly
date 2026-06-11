@@ -129,31 +129,6 @@ export type ZapListingItem = {
   createdAt?: string; // data do levantamento (Apify)
 };
 
-function strUrl(val: unknown): string | null {
-  if (typeof val !== 'string') return null;
-  const s = val.trim();
-  return s || null;
-}
-
-/** URL do anúncio — cobre nomes de campo usados por Apify/glue-api. */
-export function resolveZapItemUrl(item: ZapListingItem | null | undefined): string | null {
-  if (!item) return null;
-  const listing = item.listing;
-  const listingUrl =
-    listing && typeof listing === 'object'
-      ? strUrl((listing as Record<string, unknown>).url)
-      : null;
-  return (
-    strUrl(item.url) ??
-    strUrl(item.listingUrl) ??
-    strUrl(item.link) ??
-    strUrl(item.href) ??
-    strUrl(item.pageUrl) ??
-    strUrl(item.canonicalUrl) ??
-    listingUrl
-  );
-}
-
 /** Debug temporário: para inspecionar token, URL e resposta do Apify no console do navegador (F12). */
 export type ZapRunDebug = {
   tokenPresent: boolean;
@@ -233,8 +208,8 @@ export async function runZapScraperWithUrl(
   const actorId = (process.env.APIFY_ACTOR_ZAP_ID || DEFAULT_ACTOR_ID).replace(/\//g, '~');
   const runPayload = {
     startUrls: [{ url: startUrl }],
-    maxItems: 5,
-    // Limite temporário para conservar saldo (era 1, subiu para 5 para garantir retorno com filtros rígidos)
+    // maxItems removido do runPayload — sem limite explícito,
+    // o actor retorna até o padrão dele (~300)
     proxyConfiguration: {
       useApifyProxy: true,
       apifyProxyGroups: ['RESIDENTIAL'],
@@ -494,7 +469,20 @@ export function mapZapItemToCasa(
 
   const dataLevantamento = item.createdAt ?? null;
 
-  const link = resolveZapItemUrl(item);
+  const listingNestedUrl =
+    item.listing &&
+    typeof item.listing === 'object' &&
+    typeof (item.listing as Record<string, unknown>).url === 'string'
+      ? (item.listing as Record<string, unknown>).url
+      : null;
+  const link =
+    item.url ||
+    item.listingUrl ||
+    item.link ||
+    item.pageUrl ||
+    item.canonicalUrl ||
+    (typeof listingNestedUrl === 'string' ? listingNestedUrl : null) ||
+    null;
 
   return {
     cidade: cidadeNorm,

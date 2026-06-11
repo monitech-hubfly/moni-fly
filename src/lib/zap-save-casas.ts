@@ -1,4 +1,4 @@
-import { mapZapItemToCasa, resolveZapItemUrl, type ZapListingItem } from '@/lib/apify-zap';
+import { mapZapItemToCasa, type ZapListingItem } from '@/lib/apify-zap';
 import { normalizeAccessRole } from '@/lib/authz';
 import { casaMapaPertenceCondominio } from '@/lib/kanban/mapa-competidores-condominio';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -111,7 +111,10 @@ export async function applyZapCasasUpdate(
   const estadoNorm = estado.trim().slice(0, 2).toUpperCase();
   const vinculo = opts?.condominioVinculo?.trim() || null;
   const mapped = itemsList
-    .filter((i) => resolveZapItemUrl(i))
+    .filter(
+      (i) =>
+        i?.url || i?.listingUrl || i?.link || i?.pageUrl || i?.canonicalUrl,
+    )
     .map((i) => mapZapItemToCasa(i as ZapListingItem, cidadeNorm, estadoNorm));
   const validos = mapped.filter((r) => r.link);
   const rows = validos.map((r) => (vinculo ? { ...r, condominio: vinculo } : r));
