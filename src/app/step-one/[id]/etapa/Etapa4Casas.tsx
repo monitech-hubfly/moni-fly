@@ -41,7 +41,6 @@ import {
   QUARTOS_PADRAO_NOSSA,
   type ChecklistReforma,
 } from './REGRAS_BATALHA';
-import { resolverTermoBuscaZap } from '@/lib/zap-condominio-busca';
 import {
   calcularRankingPreBatalhaPorFaixas,
   flattenRankingPreBatalhaPorFaixas,
@@ -181,9 +180,7 @@ export function Etapa4Casas(props: {
   const autoMarcadoChecklistPreBatalhaRef = useRef(false);
   const [cidade, setCidade] = useState(cidadeInicial);
   const [estado, setEstado] = useState(estadoInicial);
-  const [condominio, setCondominio] = useState(() =>
-    listagemOnly ? resolverTermoBuscaZap(condominioInicial) : condominioInicial,
-  );
+  const [condominio, setCondominio] = useState(condominioInicial);
   const [zapError, setZapError] = useState('');
   const [zapLoading, setZapLoading] = useState(false);
   const [zapResult, setZapResult] = useState<{
@@ -230,9 +227,9 @@ export function Etapa4Casas(props: {
 
   useEffect(() => {
     const c = condominioInicial.trim();
-    setCondominio(listagemOnly ? resolverTermoBuscaZap(c) : c);
+    setCondominio(c);
     setCondominioManual(c);
-  }, [condominioInicial, listagemOnly]);
+  }, [condominioInicial]);
 
   const campoTexto = listagemOnly ? 'text-[11px] leading-tight' : 'text-sm';
   const campoPadding = listagemOnly ? 'px-2 py-1' : 'px-3 py-2';

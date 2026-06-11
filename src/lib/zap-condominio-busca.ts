@@ -38,7 +38,8 @@ function tokensSignificativos(nome: string): string[] {
 }
 
 /**
- * Termo sugerido para busca na ZAP a partir do nome do condomínio na tabela de prospects.
+ * @deprecated Não use para sobrescrever o campo Condomínio na UI — o termo digitado vai verbatim ao Apify.
+ * Mantido só para aliases explícitos em fluxos legados (ex.: Artesano Galleria).
  */
 export function resolverTermoBuscaZap(nomeProspect: string): string {
   const bruto = nomeProspect.trim();
@@ -46,14 +47,6 @@ export function resolverTermoBuscaZap(nomeProspect: string): string {
 
   const alias = ZAP_BUSCA_ALIASES[chaveNome(bruto)];
   if (alias) return alias;
-
-  if (/^loteamento\s+/i.test(bruto)) return bruto;
-
-  const tokens = tokensSignificativos(bruto);
-  if (tokens.length === 1) {
-    const t = tokens[0];
-    return `Loteamento ${t.charAt(0).toUpperCase()}${t.slice(1)}`;
-  }
 
   return bruto;
 }

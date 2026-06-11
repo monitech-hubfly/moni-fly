@@ -17,14 +17,14 @@ function slugify(s: string): string {
     .replace(/[^a-z0-9-]/g, '');
 }
 
-/**
- * Slug do condomínio como a ZAP usa: "Loteamento X" vira "lot-x".
- */
 function condominioSlug(nome: string): string {
   const t = nome.trim();
   if (!t) return '';
-  const match = t.match(/^loteamento\s+(.+)$/i);
-  if (match) return 'lot-' + slugify(match[1]);
+  if (/loteamento/i.test(t)) {
+    const match = t.match(/loteamento\s+(.+)$/i);
+    const suffix = match?.[1]?.trim() || t.replace(/\bloteamento\b/gi, '').trim();
+    return suffix ? `lot-${slugify(suffix)}` : slugify(t);
+  }
   return slugify(t);
 }
 
@@ -87,23 +87,22 @@ function buildOndeParam(cidade: string, estado: string, condominio?: string): st
   return encodeURIComponent(ondeRaw);
 }
 
-/**
- * Monta a URL de busca ZAP igual à que retorna resultados na ZAP (Sobrados + Casa + Casa de condomínio):
- * - path: /venda/sobrados/{uf}+{cidade}++{condominio}
- * - onde: parâmetro que o Actor do Apify usa para extrair location filters (obrigatório para não dar 0 resultados)
- * - tipos + preço mínimo: R$ 4.000.000
- */
 const ZAP_TIPOS = 'sobrado_residencial%2Ccondominio_residencial%2Ccasa_residencial';
 
+/**
+ * Monta a URL de busca ZAP (Sobrados + Casa + Casa de condomínio).
+ * `condominio` entra verbatim no parâmetro `onde`; só o segmento do path usa slug (`genesis-ii`, `lot-artesano`).
+ */
 export function buildZapSearchUrl(cidade: string, estado: string, condominio?: string): string {
   const uf = estado.replace(/\s/g, '').slice(0, 2).toLowerCase();
   const citySlug = slugify(cidade || '');
   if (!citySlug || !uf) {
     return '';
   }
-  const condSlug = condominio ? condominioSlug(condominio) : '';
+  const condNome = condominio?.trim() || '';
+  const condSlug = condNome ? condominioSlug(condNome) : '';
   const pathSegment = condSlug ? `${uf}+${citySlug}++${condSlug}` : `${uf}+${citySlug}`;
-  const onde = buildOndeParam(cidade.trim(), estado, condominio?.trim());
+  const onde = buildOndeParam(cidade.trim(), estado, condNome || undefined);
   const base = `https://www.zapimoveis.com.br/venda/casas/${pathSegment}/?transacao=venda&onde=${onde}&tipos=${ZAP_TIPOS}&precoMinimo=4000000`;
   return base;
 }

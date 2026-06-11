@@ -7,7 +7,6 @@ import {
   updateCasaStatus,
   validarStatusCasasManuais,
 } from './actions';
-import { resolverTermoBuscaZap } from '@/lib/zap-condominio-busca';
 import {
   ordenarCasasPorFaixaMercado,
   type FaixaMercado,
@@ -53,9 +52,7 @@ export function Etapa4CasasListagem({
 
   const [cidade, setCidade] = useState(cidadeInicial);
   const [estado, setEstado] = useState(estadoInicial);
-  const [condominio, setCondominio] = useState(() =>
-    resolverTermoBuscaZap(condominioInicial),
-  );
+  const [condominio, setCondominio] = useState(condominioInicial);
   const [zapError, setZapError] = useState('');
   const [zapLoading, setZapLoading] = useState(false);
   const [zapResult, setZapResult] = useState<{
@@ -100,7 +97,7 @@ export function Etapa4CasasListagem({
 
   useEffect(() => {
     const c = condominioInicial.trim();
-    setCondominio(resolverTermoBuscaZap(c));
+    setCondominio(c);
     setCondominioManual(c);
   }, [condominioInicial]);
 
