@@ -135,7 +135,7 @@ async function resolverPracaCard(
 
 type SupabaseDb = Awaited<ReturnType<typeof createClient>>;
 
-/** Processo Step One em andamento vinculado à rede do card (`origem_rede_franqueados_id`). */
+/** Processo Step One do card (hierarquia canônica via `resolverProcessoStepOneIdDoCard`). */
 export async function resolverProcessoIdViaRedeFranqueado(
   supabase: SupabaseDb,
   cardId: string,
@@ -145,37 +145,25 @@ export async function resolverProcessoIdViaRedeFranqueado(
 
   const { data: card } = await supabase
     .from('kanban_cards')
-    .select('rede_franqueado_id')
+    .select('processo_step_one_id, projeto_id, rede_franqueado_id, titulo')
     .eq('id', cid)
     .maybeSingle();
 
-  const redeId = String(
-    (card as { rede_franqueado_id?: string | null } | null)?.rede_franqueado_id ?? '',
-  ).trim();
-  if (!redeId) return null;
+  if (!card) return null;
 
-  const { data: redeRow } = await supabase
-    .from('rede_franqueados')
-    .select('processo_id')
-    .eq('id', redeId)
-    .maybeSingle();
+  const row = card as {
+    processo_step_one_id?: string | null;
+    projeto_id?: string | null;
+    rede_franqueado_id?: string | null;
+    titulo?: string | null;
+  };
 
-  const redeProcessoId = String(
-    (redeRow as { processo_id?: string | null } | null)?.processo_id ?? '',
-  ).trim();
-  if (redeProcessoId) return redeProcessoId;
-
-  const { data: processo } = await supabase
-    .from('processo_step_one')
-    .select('id, cidade, estado')
-    .eq('origem_rede_franqueados_id', redeId)
-    .eq('status', 'em_andamento')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const pid = String((processo as { id?: string } | null)?.id ?? '').trim();
-  return pid || null;
+  return resolverProcessoStepOneIdDoCard(supabase, {
+    cardProcessoStepOneId: row.processo_step_one_id,
+    cardProjetoId: row.projeto_id,
+    redeFranqueadoId: row.rede_franqueado_id,
+    cardTitulo: row.titulo,
+  });
 }
 
 /**
