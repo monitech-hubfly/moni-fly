@@ -433,7 +433,7 @@ export type LoteEscolhidoContexto = {
 };
 
 /** Primeiro lote marcado como escolhido entre as linhas de condomínio do card. */
-export function encontrarLoteEscolhidoCard(
+function encontrarLoteEscolhidoCard(
   linhas: LinhaProspectCondominio[],
 ): LoteEscolhidoContexto | null {
   for (const linha of linhas) {
