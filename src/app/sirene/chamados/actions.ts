@@ -367,3 +367,80 @@ export async function publicarComentarioCardSirene(
   revalidatePath('/');
   return { ok: true };
 }
+
+export async function listarComentariosSireneChamado(
+  sireneChamadoId: number,
+): Promise<{ ok: true; items: ComentarioCardSireneRow[] } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const { data: rows, error } = await supabase
+    .from('kanban_card_comentarios')
+    .select('id, conteudo, created_at, autor_id')
+    .eq('sirene_chamado_id', sireneChamadoId)
+    .order('created_at', { ascending: true })
+    .limit(100);
+
+  if (error) return { ok: false, error: error.message };
+
+  const autorIds = [...new Set((rows ?? []).map((r) => r.autor_id).filter(Boolean))] as string[];
+  let nomes = new Map<string, string>();
+  if (autorIds.length > 0) {
+    const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', autorIds);
+    nomes = new Map(
+      (profs ?? []).map((p) => [
+        String((p as { id: string }).id),
+        String((p as { full_name?: string | null }).full_name ?? '').trim() || '—',
+      ]),
+    );
+  }
+
+  const items: ComentarioCardSireneRow[] = (rows ?? []).map((r) => ({
+    id: String((r as { id: string }).id),
+    texto: htmlComentarioParaTextoPlano(String((r as { conteudo?: string }).conteudo ?? '')),
+    created_at: String((r as { created_at?: string }).created_at ?? ''),
+    autor_nome: r.autor_id ? nomes.get(String(r.autor_id)) ?? null : null,
+  }));
+
+  return { ok: true, items };
+}
+
+export async function publicarComentarioSireneChamado(
+  sireneChamadoId: number,
+  conteudo: string,
+  opcoes?: {
+    referenciaPath?: string;
+    contextoTitulo?: string;
+  },
+): Promise<AtualizarStatusInteracaoResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const raw = String(conteudo ?? '').trim();
+  if (!raw) return { ok: false, error: 'Digite o comentário.' };
+
+  const { plain, mencoesIds } = await resolverMencoesSirene(raw);
+  if (!plain) return { ok: false, error: 'Digite o comentário.' };
+
+  const { error } = await supabase.from('kanban_card_comentarios').insert({
+    sirene_chamado_id: sireneChamadoId,
+    autor_id: user.id,
+    conteudo: conteudoPersistivelComentario(raw, plain),
+  });
+
+  if (error) return { ok: false, error: error.message };
+
+  await notificarMencoesSirene({
+    mencoesIds,
+    plain,
+    referenciaPath: opcoes?.referenciaPath?.trim() || `/sirene/chamados?interacao=`,
+    contextoTitulo: opcoes?.contextoTitulo?.trim() || 'Comentário no chamado',
+    autorId: user.id,
+  });
+
+  revalidatePath('/sirene/chamados');
+  revalidatePath('/');
+  return { ok: true };
+}

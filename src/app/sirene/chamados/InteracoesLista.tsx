@@ -22,6 +22,9 @@ import {
   atualizarStatusInteracaoSirene,
   listarComentariosCardSirene,
   publicarComentarioCardSirene,
+  listarComentariosSireneChamado,
+  publicarComentarioSireneChamado,
+  type AtualizarStatusInteracaoResult,
   type ComentarioCardSireneRow,
   type StatusInteracaoDb,
 } from './actions';
@@ -179,6 +182,10 @@ function textoResponsavelPainel(
   nomePorUserId: Map<string, string>,
   topicos?: TopicoChamadoLinha[],
 ): string {
+  // For Sirene chamados, show who opened it as the primary responsible
+  if (row.origem === 'sirene' && row.sirene_abertura_responsavel_nome) {
+    return row.sirene_abertura_responsavel_nome;
+  }
   const ids = [
     ...new Set([...(row.responsaveis_ids ?? []), ...(row.responsavel_id ? [row.responsavel_id] : [])]),
   ].filter(Boolean) as string[];
@@ -975,51 +982,76 @@ export function InteracoesLista({
 
   function toggleComentarios(row: InteracaoSireneRow) {
     const cid = row.card_id;
-    if (!cid) return;
+    const scid = row.sirene_chamado_id;
+    // Use sirene_chamado_id as fallback key for direct Sirene chamados
+    const commentKey = cid ?? (scid != null ? `sirene-${scid}` : null);
+    if (!commentKey) return;
     const willOpen = !commentsOpenByRow[row.id];
     setCommentsOpenByRow((p) => ({ ...p, [row.id]: willOpen }));
     if (willOpen) {
-      comentarioAtivoCardIdRef.current = cid;
+      comentarioAtivoCardIdRef.current = commentKey;
     }
-    if (willOpen && !commentsFetchedByCard[cid]) {
-      setCommentsFetchedByCard((f) => ({ ...f, [cid]: true }));
-      setCommentsLoading((l) => ({ ...l, [cid]: true }));
-      void listarComentariosCardSirene(cid).then((res) => {
-        setCommentsLoading((l) => ({ ...l, [cid]: false }));
-        if (res.ok) setCommentsByCardId((c) => ({ ...c, [cid]: res.items }));
-        else setMsgErro(res.error);
-      });
+    if (willOpen && !commentsFetchedByCard[commentKey]) {
+      setCommentsFetchedByCard((f) => ({ ...f, [commentKey]: true }));
+      setCommentsLoading((l) => ({ ...l, [commentKey]: true }));
+      if (cid) {
+        void listarComentariosCardSirene(cid).then((res) => {
+          setCommentsLoading((l) => ({ ...l, [commentKey]: false }));
+          if (res.ok) setCommentsByCardId((c) => ({ ...c, [commentKey]: res.items }));
+          else setMsgErro(res.error);
+        });
+      } else if (scid != null) {
+        void listarComentariosSireneChamado(scid).then((res) => {
+          setCommentsLoading((l) => ({ ...l, [commentKey]: false }));
+          if (res.ok) setCommentsByCardId((c) => ({ ...c, [commentKey]: res.items }));
+          else setMsgErro(res.error);
+        });
+      }
     }
   }
 
-  async function publicarComentario(cardId: string, row: InteracaoSireneRow) {
+  async function publicarComentario(commentKey: string, row: InteracaoSireneRow) {
     const html =
-      comentarioAtivoCardIdRef.current === cardId && comentarioEditorRef.current
+      comentarioAtivoCardIdRef.current === commentKey && comentarioEditorRef.current
         ? comentarioEditorRef.current.innerHTML.trim()
-        : (novoComentarioPorCard[cardId] ?? '').trim();
+        : (novoComentarioPorCard[commentKey] ?? '').trim();
     if (!html) return;
-    setSalvandoComentario((s) => ({ ...s, [cardId]: true }));
+    setSalvandoComentario((s) => ({ ...s, [commentKey]: true }));
     setMsgErro(null);
     try {
       const referenciaPath =
         row.sirene_chamado_id != null
-          ? `/sirene/${row.sirene_chamado_id}`
+          ? `/sirene/chamados?interacao=${encodeURIComponent(row.id)}`
           : '/sirene/chamados';
-      const res = await publicarComentarioCardSirene(cardId, html, {
-        referenciaPath,
-        contextoTitulo: row.titulo || row.card_titulo || 'Chamado',
-      });
+      let res: AtualizarStatusInteracaoResult;
+      if (row.card_id) {
+        res = await publicarComentarioCardSirene(row.card_id, html, {
+          referenciaPath,
+          contextoTitulo: row.titulo || row.card_titulo || 'Chamado',
+        });
+      } else if (row.sirene_chamado_id != null) {
+        res = await publicarComentarioSireneChamado(row.sirene_chamado_id, html, {
+          referenciaPath,
+          contextoTitulo: row.titulo || 'Chamado',
+        });
+      } else {
+        setMsgErro('Não foi possível identificar o chamado.');
+        setSalvandoComentario((s) => ({ ...s, [commentKey]: false }));
+        return;
+      }
       if (!res.ok) {
         setMsgErro(res.error);
         return;
       }
-      setNovoComentarioPorCard((m) => ({ ...m, [cardId]: '' }));
+      setNovoComentarioPorCard((m) => ({ ...m, [commentKey]: '' }));
       if (comentarioEditorRef.current) comentarioEditorRef.current.innerHTML = '';
-      setCountPatch((c) => ({ ...c, [cardId]: (c[cardId] ?? comentariosCountByCardId[cardId] ?? 0) + 1 }));
-      const list = await listarComentariosCardSirene(cardId);
-      if (list.ok) setCommentsByCardId((c) => ({ ...c, [cardId]: list.items }));
+      setCommentsFetchedByCard((f) => ({ ...f, [commentKey]: false }));
+      void toggleComentarios(row);
+      void toggleComentarios(row);
+    } catch (e) {
+      setMsgErro(String(e));
     } finally {
-      setSalvandoComentario((s) => ({ ...s, [cardId]: false }));
+      setSalvandoComentario((s) => ({ ...s, [commentKey]: false }));
     }
   }
 
@@ -1487,18 +1519,22 @@ export function InteracoesLista({
                                 </button>
                               ) : null}
                               {/* comentários */}
-                              {ccid ? (
-                                <button
-                                  type="button"
-                                  onClick={() => toggleComentarios(row)}
-                                  className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]"
-                                  aria-expanded={Boolean(commentsOpenByRow[row.id])}
-                                  aria-label={`Comentários do card (${cnt})`}
-                                >
-                                  <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                                  <span className="min-w-[1rem] text-center text-[10px] font-semibold tabular-nums">{cnt}</span>
-                                </button>
-                              ) : null}
+                              {(() => {
+                                const commentKey = ccid ?? (row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : null);
+                                if (!commentKey) return null;
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleComentarios(row)}
+                                    className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]"
+                                    aria-expanded={Boolean(commentsOpenByRow[row.id])}
+                                    aria-label={`Comentários do chamado (${cnt})`}
+                                  >
+                                    <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                    <span className="min-w-[1rem] text-center text-[10px] font-semibold tabular-nums">{cnt}</span>
+                                  </button>
+                                );
+                              })()}
                               {/* avatares responsáveis */}
                               {idsResp.length > 0 ? (
                                 <div className="flex -space-x-1">
@@ -1579,16 +1615,18 @@ export function InteracoesLista({
                           ) : null}
                         </div>
 
-                      {commentsOpenByRow[row.id] && ccid ? (
+                      {commentsOpenByRow[row.id] && (() => {
+                        const commentKey = ccid ?? (row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : null);
+                        return commentKey ? (
                         <div className="mt-3 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3">
                           <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
-                            Comentários do card
+                            Comentários
                           </p>
-                          {commentsLoading[ccid] ? (
+                          {commentsLoading[commentKey] ? (
                             <p className="text-xs text-[color:var(--moni-text-tertiary)]">Carregando…</p>
                           ) : (
                             <ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm">
-                              {[...(commentsByCardId[ccid] ?? [])]
+                              {[...(commentsByCardId[commentKey] ?? [])]
                                 .sort(
                                   (a, b) =>
                                     new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
@@ -1628,13 +1666,13 @@ export function InteracoesLista({
                             <div
                               className="overflow-visible rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)]"
                               onFocus={() => {
-                                comentarioAtivoCardIdRef.current = ccid;
+                                comentarioAtivoCardIdRef.current = commentKey;
                               }}
                             >
                               <MencaoContentEditable
                                 editorRef={comentarioEditorRef}
                                 onInput={(html) =>
-                                  setNovoComentarioPorCard((m) => ({ ...m, [ccid]: html }))
+                                  setNovoComentarioPorCard((m) => ({ ...m, [commentKey]: html }))
                                 }
                                 className="min-h-[72px] w-full p-2 text-sm text-[color:var(--moni-text-primary)] focus:outline-none empty:before:text-[color:var(--moni-text-tertiary)] empty:before:content-[attr(data-placeholder)]"
                                 placeholder="Escreva um comentário… Use @ para mencionar"
@@ -1642,15 +1680,16 @@ export function InteracoesLista({
                             </div>
                             <button
                               type="button"
-                              disabled={Boolean(salvandoComentario[ccid])}
-                              onClick={() => void publicarComentario(ccid, row)}
+                              disabled={Boolean(salvandoComentario[commentKey])}
+                              onClick={() => void publicarComentario(commentKey, row)}
                               className="self-end shrink-0 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
                             >
-                              {salvandoComentario[ccid] ? '…' : 'Publicar'}
+                              {salvandoComentario[commentKey] ? '…' : 'Publicar'}
                             </button>
                           </div>
                         </div>
-                      ) : null}
+                        ) : null;
+                      })()}
 
                     </li>
                   );

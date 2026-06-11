@@ -141,6 +141,9 @@ export async function updateSession(request: NextRequest) {
     if (roleLogin === 'frank') {
       return NextResponse.redirect(new URL('/portal-frank', request.url));
     }
+    if (rawRoleLogin === 'team') {
+      return NextResponse.redirect(new URL('/carometro/todo', request.url));
+    }
     return NextResponse.redirect(new URL('/rede-franqueados', request.url));
   }
   const rawProfileRole = String(profileRow?.role ?? '').trim().toLowerCase();
