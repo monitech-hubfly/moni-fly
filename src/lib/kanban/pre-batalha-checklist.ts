@@ -28,7 +28,9 @@ export const PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING = `Por que este ranking?
 
 Com o Mapa de Competidores preenchido e a topografia do lote definida em Lotes Disponíveis, o sistema ranqueia todos os modelos Moní compatíveis com o lote, separados por faixa de mercado (Entrada, Intermediária, Premium, etc.).
 
-Em cada faixa, cada modelo batalha contra todos os anúncios daquela faixa nos três eixos:
+Cada modelo só aparece nas faixas em que é elegível (ex.: Lu/Isa/Val só Entrada; Liz/Ivy/Mia/Cissa/Sol Entrada e Intermediária; Eva/Gal Premium e Premium+; Lena Premium+ em diante).
+
+Em cada faixa, cada modelo elegível batalha contra todos os anúncios daquela faixa nos três eixos:
 • Lote — atributos de localização do lote escolhido
 • Preço — VGV Moní (preço INC + Kit Moní do catálogo) vs. preço de cada anúncio
 • Produto — quartos, banheiros, vagas e metragem vs. cada anúncio

@@ -27,6 +27,8 @@ import {
   uploadRedeFranqueadoAssinado,
 } from '../actions';
 import { RedeDocsSecaoColapsavel, RedeDocsSubsecaoColapsavel } from './rede-docs-secao-colapsavel';
+import type { FranqueadoSpeRow } from '@/lib/franqueado-spe';
+import { RedeFranqueadoSpeSection } from './RedeFranqueadoSpeSection';
 
 function nomeDoPath(path: string) {
   const parts = path.split('/').filter(Boolean);
@@ -52,6 +54,7 @@ type Props = {
   justificativaNumeroFranquia: string | null;
   franqueadoDocs: RedeFranqueadoDocsRow;
   empresaDocs: RedeEmpresaDocsRow;
+  spes?: FranqueadoSpeRow[];
 };
 
 function DocUploadCard({
@@ -194,6 +197,7 @@ export function RedeFranqueadoDetalheDocs({
   justificativaNumeroFranquia,
   franqueadoDocs,
   empresaDocs,
+  spes = [],
 }: Props) {
   const router = useRouter();
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
@@ -355,6 +359,7 @@ export function RedeFranqueadoDetalheDocs({
               </div>
             </RedeDocsSubsecaoColapsavel>
           ))}
+          <RedeFranqueadoSpeSection redeId={redeId} spes={spes} />
         </div>
         </RedeDocsSecaoColapsavel>
       </div>

@@ -9,6 +9,7 @@ import { RedeLoteadoresTabelaComBusca } from './RedeLoteadoresTabelaComBusca';
 import { CadastrosEmpresasTabelaComBusca } from './CadastrosEmpresasTabelaComBusca';
 import { CondominiosTabelaComBusca } from './CondominiosTabelaComBusca';
 import type { FranqueadoEmpresaRow } from '@/lib/franqueado-empresas';
+import type { FranqueadoSpeRow } from '@/lib/franqueado-spe';
 import type { CondominioRow } from '@/lib/condominios';
 import { CriarCardsDesdeRedeButton } from './CriarCardsDesdeRedeButton';
 import { ImportarRedeCSVButton } from './ImportarRedeCSVButton';
@@ -28,7 +29,9 @@ type Props = {
   loteadoresRows: RedeLoteadorRow[] | null;
   showStaffTabs: boolean;
   empresasRows: FranqueadoEmpresaRow[] | null;
+  spesRows?: FranqueadoSpeRow[];
   empresasLoadError: boolean;
+  spesLoadError?: boolean;
   condominiosRows: CondominioRow[] | null;
   showCondominiosTab: boolean;
   canManageCondominios: boolean;
@@ -44,7 +47,9 @@ export function RedeFranqueadosPageTabs({
   loteadoresRows,
   showStaffTabs,
   empresasRows,
+  spesRows = [],
   empresasLoadError,
+  spesLoadError = false,
   condominiosRows,
   showCondominiosTab,
   canManageCondominios,
@@ -141,7 +146,9 @@ export function RedeFranqueadosPageTabs({
             <CadastrosEmpresasTabelaComBusca
               redeRows={rows}
               empresasRows={empresasRows ?? []}
+              spesRows={spesRows}
               empresasLoadError={empresasLoadError}
+              spesLoadError={spesLoadError}
             />
           </section>
         ) : null}

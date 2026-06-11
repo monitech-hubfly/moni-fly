@@ -5,6 +5,7 @@ import { normalizeAccessRole } from '@/lib/authz';
 import { pickRedeEmpresaDocsFromRow } from '@/lib/rede-documentos-empresas';
 import { pickRedeFranqueadoDocsFromRow } from '@/lib/rede-documentos-franqueado';
 import { fetchRedeFranqueadoDetalheForPage } from '@/lib/rede-franqueados';
+import { fetchFranqueadoSpeRows } from '@/lib/franqueado-spe';
 import { RedeFranqueadoDetalheDocs } from './RedeFranqueadoDetalheDocs';
 import { RedeFranqueadoDetalheDocsFranqueado } from './RedeFranqueadoDetalheDocsFranqueado';
 
@@ -35,9 +36,11 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
     if (!own) redirect('/portal-frank/rede');
   }
 
-  const { row, error: loadError } = await fetchRedeFranqueadoDetalheForPage(supabase, id, {
-    staffUseAdminFallback: staff,
-  });
+  const [{ row, error: loadError }, spesRows] = await Promise.all([
+    fetchRedeFranqueadoDetalheForPage(supabase, id, { staffUseAdminFallback: staff }),
+    staff ? fetchFranqueadoSpeRows(supabase) : Promise.resolve(null),
+  ]);
+  const spesDoFranqueado = (spesRows ?? []).filter((s) => s.rede_franqueado_id === id);
 
   if (loadError && !row) {
     return (
@@ -91,6 +94,7 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
               justificativaNumeroFranquia={justificativaNumeroFranquia}
               franqueadoDocs={franqueadoDocs}
               empresaDocs={empresaDocs}
+              spes={spesDoFranqueado}
             />
           ) : (
             <RedeFranqueadoDetalheDocsFranqueado

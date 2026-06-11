@@ -19,6 +19,7 @@ import {
   ORDEM_FAIXAS_MERCADO,
   type FaixaMercado,
 } from '@/lib/kanban/mapa-competidores-condominio';
+import { filtrarCatalogoPorFaixaModelo } from '@/lib/kanban/modelo-faixa-elegibilidade';
 
 /** Anúncio ZAP (`listings_casas`). */
 export type CasaRowPreBatalha = {
@@ -293,8 +294,11 @@ export function calcularRankingPreBatalhaPorFaixas(
     const casasFaixa = porFaixa.get(faixa);
     if (!casasFaixa?.length) continue;
 
+    const catalogoFaixa = filtrarCatalogoPorFaixaModelo(catalogoFiltrado, faixa);
+    if (catalogoFaixa.length === 0) continue;
+
     const ranking = rankearModelosContraAnuncios(
-      catalogoFiltrado,
+      catalogoFaixa,
       casasFaixa,
       notaLote,
       faixa,
@@ -303,7 +307,7 @@ export function calcularRankingPreBatalhaPorFaixas(
     if (ranking.length === 0) continue;
 
     const batalhas = gerarBatalhasModeloAnuncio(
-      catalogoFiltrado,
+      catalogoFaixa,
       casasFaixa,
       notaLote,
       produtoDadosPorAnuncio,

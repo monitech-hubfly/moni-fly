@@ -5,36 +5,55 @@ import { Search } from 'lucide-react';
 import {
   buildCadastrosEmpresasLinhas,
   cadastroEmpresasLinhaMatchesBusca,
-  type CadastroEmpresasLinha,
   type FranqueadoEmpresaRow,
 } from '@/lib/franqueado-empresas';
+import {
+  buildCadastrosEmpresasLinhasComSpe,
+  speMatchesBusca,
+  type FranqueadoSpeRow,
+} from '@/lib/franqueado-spe';
 import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
 import { CadastrosEmpresasTabela } from './CadastrosEmpresasTabela';
 
 type Props = {
   redeRows: RedeFranqueadoRowDb[];
   empresasRows: FranqueadoEmpresaRow[];
+  spesRows?: FranqueadoSpeRow[];
   empresasLoadError?: boolean;
+  spesLoadError?: boolean;
 };
 
-export function CadastrosEmpresasTabelaComBusca({ redeRows, empresasRows, empresasLoadError }: Props) {
+export function CadastrosEmpresasTabelaComBusca({
+  redeRows,
+  empresasRows,
+  spesRows = [],
+  empresasLoadError,
+  spesLoadError,
+}: Props) {
   const [busca, setBusca] = useState('');
 
-  const todasLinhas = useMemo(
+  const baseLinhas = useMemo(
     () => buildCadastrosEmpresasLinhas(redeRows, empresasRows),
     [redeRows, empresasRows],
+  );
+
+  const todasLinhas = useMemo(
+    () => buildCadastrosEmpresasLinhasComSpe(redeRows, baseLinhas, spesRows),
+    [redeRows, baseLinhas, spesRows],
   );
 
   const linhasFiltradas = useMemo(() => {
     const q = busca.trim();
     if (!q) return todasLinhas;
-    return todasLinhas.filter((l) => cadastroEmpresasLinhaMatchesBusca(l, q));
+    return todasLinhas.filter(
+      (l) => cadastroEmpresasLinhaMatchesBusca(l, q) || l.spes.some((s) => speMatchesBusca(s, q)),
+    );
   }, [todasLinhas, busca]);
 
-  if (empresasLoadError) {
+  if (empresasLoadError || spesLoadError) {
     return (
       <p className="text-sm text-red-600">
-        Erro ao carregar cadastros de empresa. Confira se a migration 207 foi aplicada no Supabase.
+        Erro ao carregar cadastros de empresa/SPE. Confira se as migrations 207 e 320 foram aplicadas no Supabase.
       </p>
     );
   }

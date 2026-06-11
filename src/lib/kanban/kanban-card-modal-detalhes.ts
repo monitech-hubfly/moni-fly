@@ -348,10 +348,17 @@ async function resolveProcessoNativo(
   return fetchProcessoById(supabase, processoId);
 }
 
+export type CardEmpresasModalDetalhe = {
+  incorporadora: import('@/lib/franqueado-empresas').FranqueadoEmpresaRow | null;
+  gestora: import('@/lib/franqueado-empresas').FranqueadoEmpresaRow | null;
+  spe: import('@/lib/franqueado-spe').FranqueadoSpeRow | null;
+};
+
 export type KanbanCardModalDetalhes = {
   rede: RedeFranqueadoModalRow | null;
   processo: ProcessoModalNegocioPreObra | null;
   redeIdContrato: string | null;
+  empresas: CardEmpresasModalDetalhe | null;
 };
 
 /** Formulário pré-obra (texto livre + datas ISO yyyy-mm-dd). */
@@ -412,6 +419,103 @@ export function displayOrDash(v: string | null | undefined): string {
   return s.length > 0 ? s : '—';
 }
 
+function mapFranqueadoEmpresaRow(r: Record<string, unknown>): import('@/lib/franqueado-empresas').FranqueadoEmpresaRow {
+  const statusRaw = String(r.status ?? 'ativa').trim();
+  const status =
+    statusRaw === 'inativa' || statusRaw === 'em_abertura'
+      ? statusRaw
+      : ('ativa' as const);
+  const tipo = String(r.tipo ?? '').trim() === 'gestora' ? ('gestora' as const) : ('incorporadora' as const);
+  return {
+    id: String(r.id),
+    rede_franqueado_id: String(r.rede_franqueado_id),
+    tipo,
+    razao_social: (r.razao_social as string | null) ?? null,
+    cnpj: (r.cnpj as string | null) ?? null,
+    inscricao_municipal: (r.inscricao_municipal as string | null) ?? null,
+    inscricao_estadual: (r.inscricao_estadual as string | null) ?? null,
+    data_abertura: (r.data_abertura as string | null) ?? null,
+    status,
+    conta_banco: (r.conta_banco as string | null) ?? null,
+    conta_agencia: (r.conta_agencia as string | null) ?? null,
+    conta_numero: (r.conta_numero as string | null) ?? null,
+    conta_tipo: (r.conta_tipo as string | null) ?? null,
+    observacoes: (r.observacoes as string | null) ?? null,
+  };
+}
+
+function mapFranqueadoSpeRow(r: Record<string, unknown>): import('@/lib/franqueado-spe').FranqueadoSpeRow {
+  const statusRaw = String(r.status ?? 'em_abertura').trim();
+  const status =
+    statusRaw === 'ativa' || statusRaw === 'inativa'
+      ? statusRaw
+      : ('em_abertura' as const);
+  return {
+    id: String(r.id),
+    rede_franqueado_id: String(r.rede_franqueado_id),
+    kanban_card_id: (r.kanban_card_id as string | null) ?? null,
+    nome_projeto: (r.nome_projeto as string | null) ?? null,
+    razao_social: (r.razao_social as string | null) ?? null,
+    cnpj: (r.cnpj as string | null) ?? null,
+    inscricao_municipal: (r.inscricao_municipal as string | null) ?? null,
+    inscricao_estadual: (r.inscricao_estadual as string | null) ?? null,
+    status,
+    conta_banco: (r.conta_banco as string | null) ?? null,
+    conta_agencia: (r.conta_agencia as string | null) ?? null,
+    conta_numero: (r.conta_numero as string | null) ?? null,
+    conta_tipo: (r.conta_tipo as string | null) ?? null,
+    observacoes: (r.observacoes as string | null) ?? null,
+    anexo_contrato_social_path: (r.anexo_contrato_social_path as string | null) ?? null,
+    anexo_contrato_social_justificativa: (r.anexo_contrato_social_justificativa as string | null) ?? null,
+    anexo_cnpj_path: (r.anexo_cnpj_path as string | null) ?? null,
+    anexo_cnpj_justificativa: (r.anexo_cnpj_justificativa as string | null) ?? null,
+    anexo_inscricao_municipal_path: (r.anexo_inscricao_municipal_path as string | null) ?? null,
+    anexo_inscricao_municipal_justificativa:
+      (r.anexo_inscricao_municipal_justificativa as string | null) ?? null,
+    anexo_certidao_junta_path: (r.anexo_certidao_junta_path as string | null) ?? null,
+    anexo_certidao_junta_justificativa: (r.anexo_certidao_junta_justificativa as string | null) ?? null,
+    anexo_conta_bancaria_path: (r.anexo_conta_bancaria_path as string | null) ?? null,
+    anexo_conta_bancaria_justificativa: (r.anexo_conta_bancaria_justificativa as string | null) ?? null,
+    anexo_inscricao_estadual_path: (r.anexo_inscricao_estadual_path as string | null) ?? null,
+  };
+}
+
+async function fetchEmpresasForCard(
+  supabase: SupabaseClient,
+  redeFranqueadoId: string | null,
+  cardId: string,
+): Promise<CardEmpresasModalDetalhe | null> {
+  const redeId = redeFranqueadoId?.trim();
+  if (!redeId) return null;
+
+  const [{ data: empresas }, { data: speByCard }, { data: cardRow }] = await Promise.all([
+    supabase.from('franqueado_empresas').select('*').eq('rede_franqueado_id', redeId),
+    supabase.from('franqueado_spe').select('*').eq('kanban_card_id', cardId).maybeSingle(),
+    supabase.from('kanban_cards').select('franqueado_spe_id').eq('id', cardId).maybeSingle(),
+  ]);
+
+  let incorporadora: import('@/lib/franqueado-empresas').FranqueadoEmpresaRow | null = null;
+  let gestora: import('@/lib/franqueado-empresas').FranqueadoEmpresaRow | null = null;
+  for (const row of empresas ?? []) {
+    const e = mapFranqueadoEmpresaRow(row as Record<string, unknown>);
+    if (e.tipo === 'incorporadora') incorporadora = e;
+    else gestora = e;
+  }
+
+  let spe: import('@/lib/franqueado-spe').FranqueadoSpeRow | null = null;
+  if (speByCard) {
+    spe = mapFranqueadoSpeRow(speByCard as Record<string, unknown>);
+  } else {
+    const speId = (cardRow as { franqueado_spe_id?: string | null } | null)?.franqueado_spe_id;
+    if (speId) {
+      const { data: speRow } = await supabase.from('franqueado_spe').select('*').eq('id', speId).maybeSingle();
+      if (speRow) spe = mapFranqueadoSpeRow(speRow as Record<string, unknown>);
+    }
+  }
+
+  return { incorporadora, gestora, spe };
+}
+
 /**
  * Carrega rede + processo para o painel esquerdo do `KanbanCardModal`.
  */
@@ -448,7 +552,9 @@ export async function fetchKanbanCardModalDetalhes(
         .maybeSingle();
       rede = mapRede((data as Record<string, unknown> | null) ?? null);
     }
-    return { rede, processo, redeIdContrato: rede?.id ?? null };
+    const redeIdContrato = rede?.id ?? null;
+    const empresas = await fetchEmpresasForCard(supabase, redeIdContrato, cardId);
+    return { rede, processo, redeIdContrato, empresas };
   }
 
   let rede: RedeFranqueadoModalRow | null = null;
@@ -457,5 +563,7 @@ export async function fetchKanbanCardModalDetalhes(
     rede = mapRede((data as Record<string, unknown> | null) ?? null);
   }
   const processo = await resolveProcessoNativo(supabase, cardTitulo, cardProjetoId, redeFranqueadoId);
-  return { rede, processo, redeIdContrato: rede?.id ?? null };
+  const redeIdContrato = rede?.id ?? redeFranqueadoId;
+  const empresas = await fetchEmpresasForCard(supabase, redeIdContrato, cardId);
+  return { rede, processo, redeIdContrato, empresas };
 }

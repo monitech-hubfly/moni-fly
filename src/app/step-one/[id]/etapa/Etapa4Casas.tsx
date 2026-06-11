@@ -57,6 +57,15 @@ import {
   ordenarCasasPorFaixaMercado,
   type FaixaMercado,
 } from '@/lib/kanban/mapa-competidores-condominio';
+import { modeloElegivelParaFaixa } from '@/lib/kanban/modelo-faixa-elegibilidade';
+
+function parBatalhaElegivelFaixa(
+  nomeModelo: string | null | undefined,
+  faixaAnuncio: FaixaMercado | undefined,
+): boolean {
+  if (!faixaAnuncio) return true;
+  return modeloElegivelParaFaixa(nomeModelo, faixaAnuncio);
+}
 
 type ProdutoDadosBatalha = {
   designId?: string;
@@ -607,6 +616,7 @@ export function Etapa4Casas(props: {
       const next = { ...prev };
       for (const ce of escolhidasComDados) {
         for (const c of casas) {
+          if (!parBatalhaElegivelFaixa(ce.catalogoRow?.nome, c.faixa)) continue;
           const key = `${ce.id}__${c.id}`;
           if (isAtributosLoteEmpty(next[key])) {
             next[key] = { ...atributosLotePreBatalha };
@@ -761,6 +771,7 @@ export function Etapa4Casas(props: {
       let sumPreco = 0;
       let sumProduto = 0;
       for (const c of casas) {
+        if (!parBatalhaElegivelFaixa(ce.catalogoRow?.nome, c.faixa)) continue;
         const key = `${ce.id}__${c.id}`;
         const notaAtrib = getNotaAtributosLote(key);
         const notaPreco = getNotaPrecoCompleta(ce, c);
@@ -802,6 +813,7 @@ export function Etapa4Casas(props: {
       let soma = 0;
       let count = 0;
       for (const ce of escolhidasComDados) {
+        if (!parBatalhaElegivelFaixa(ce.catalogoRow?.nome, c.faixa)) continue;
         const key = `${ce.id}__${c.id}`;
         const notaAtrib = getNotaAtributosLote(key);
         const notaPreco = getNotaPrecoCompleta(ce, c);
@@ -838,6 +850,7 @@ export function Etapa4Casas(props: {
     const rows: BatalhaCasaRow[] = [];
     for (const ce of escolhidasComDados) {
       for (const anuncio of casas) {
+        if (!parBatalhaElegivelFaixa(ce.catalogoRow?.nome, anuncio.faixa)) continue;
         const key = `${ce.id}__${anuncio.id}`;
         const respostas = atributosLoteByKey[key];
         const temReforma = reformaChecklistByListingId[anuncio.id] !== undefined;
@@ -1733,6 +1746,19 @@ export function Etapa4Casas(props: {
                       </td>
                       {!listagemOnly &&
                         escolhidasComDados.map((ce, idx) => {
+                          const elegivel = parBatalhaElegivelFaixa(ce.catalogoRow?.nome, c.faixa);
+                          if (!elegivel) {
+                            return (
+                              <td
+                                key={ce.id}
+                                colSpan={4}
+                                className="border-l border-stone-200 bg-stone-100/80 p-1 text-center text-[10px] text-stone-400"
+                                title="Modelo não elegível para a faixa deste anúncio"
+                              >
+                                —
+                              </td>
+                            );
+                          }
                           const key = `${ce.id}__${c.id}`;
                           const notaAtrib = getNotaAtributosLote(key);
                           const notaPreco = getNotaPrecoCompleta(ce, c);

@@ -3,13 +3,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Check, FileText, Loader2, Pencil, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, FileText, Loader2, Pencil, X } from 'lucide-react';
 import {
   FRANQUEADO_EMPRESA_STATUS_LABEL,
   formatContaBancariaEmpresa,
-  type CadastroEmpresasLinha,
   type FranqueadoEmpresaStatus,
 } from '@/lib/franqueado-empresas';
+import { speResumoColapsado, type CadastroEmpresasLinhaComSpe } from '@/lib/franqueado-spe';
 import { upsertFranqueadoEmpresa } from './franqueado-empresas-actions';
 import { redeAlertError, redeAlertSuccess, redeTh } from './rede-ui';
 
@@ -41,7 +41,7 @@ function emptyEmpresaDraft(): EmpresaDraft {
 }
 
 function empresaToDraft(
-  emp: CadastroEmpresasLinha['incorporadora'],
+  emp: CadastroEmpresasLinhaComSpe['incorporadora'],
 ): EmpresaDraft {
   return {
     razao_social: emp?.razao_social ?? '',
@@ -84,13 +84,14 @@ function StatusEmpresaBadge({ status }: { status: FranqueadoEmpresaStatus }) {
 }
 
 type Props = {
-  linhas: CadastroEmpresasLinha[];
+  linhas: CadastroEmpresasLinhaComSpe[];
   buscaAtiva?: boolean;
   totalSemBusca?: number;
 };
 
 export function CadastrosEmpresasTabela({ linhas, buscaAtiva = false, totalSemBusca }: Props) {
   const router = useRouter();
+  const [speColunasExpandidas, setSpeColunasExpandidas] = useState(false);
   const [page, setPage] = useState(1);
   const [editingRedeId, setEditingRedeId] = useState<string | null>(null);
   const [draftIncorp, setDraftIncorp] = useState<EmpresaDraft>(emptyEmpresaDraft());
@@ -115,7 +116,7 @@ export function CadastrosEmpresasTabela({ linhas, buscaAtiva = false, totalSemBu
     setMsg(null);
   };
 
-  const beginEdit = (linha: CadastroEmpresasLinha) => {
+  const beginEdit = (linha: CadastroEmpresasLinhaComSpe) => {
     setMsg(null);
     setEditingRedeId(linha.redeId);
     setDraftIncorp(empresaToDraft(linha.incorporadora));
@@ -183,6 +184,24 @@ export function CadastrosEmpresasTabela({ linhas, buscaAtiva = false, totalSemBu
                 Gestora
               </th>
               <th
+                colSpan={speColunasExpandidas ? 5 : 1}
+                className={`${thGroup} border-l border-stone-200`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setSpeColunasExpandidas((v) => !v)}
+                  className="inline-flex items-center gap-1 hover:text-stone-900"
+                  title={speColunasExpandidas ? 'Minimizar colunas SPE' : 'Expandir colunas SPE'}
+                >
+                  {speColunasExpandidas ? (
+                    <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
+                  ) : (
+                    <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                  )}
+                  SPE
+                </button>
+              </th>
+              <th
                 rowSpan={2}
                 className="sticky right-0 z-30 w-24 min-w-[6rem] border-l border-stone-200 bg-stone-50 align-bottom px-1 py-2"
               >
@@ -205,6 +224,17 @@ export function CadastrosEmpresasTabela({ linhas, buscaAtiva = false, totalSemBu
               <th className={redeTh}>Insc. municipal</th>
               <th className={redeTh}>Insc. estadual</th>
               <th className={redeTh}>Status</th>
+              {speColunasExpandidas ? (
+                <>
+                  <th className={`${redeTh} border-l border-stone-200`}>Razão social</th>
+                  <th className={redeTh}>Insc. municipal</th>
+                  <th className={redeTh}>Insc. estadual</th>
+                  <th className={redeTh}>Status</th>
+                  <th className={redeTh}>Conta bancária</th>
+                </>
+              ) : (
+                <th className={`${redeTh} border-l border-stone-200`}>Resumo</th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -227,6 +257,15 @@ export function CadastrosEmpresasTabela({ linhas, buscaAtiva = false, totalSemBu
                       borderLeft
                     />
                     <EmpresaEditCells draft={draftGest} setDraft={setDraftGest} borderLeft />
+                    {speColunasExpandidas ? (
+                      <td colSpan={5} className="border-l border-stone-100 px-3 py-2.5 text-xs text-stone-500">
+                        Edite SPEs em Documentos das Empresas
+                      </td>
+                    ) : (
+                      <td className="border-l border-stone-100 px-3 py-2.5 text-stone-600">
+                        {speResumoColapsado(linha.spes)}
+                      </td>
+                    )}
                     <td className="sticky right-0 border-l border-stone-200 bg-stone-50 px-1 py-2 align-middle">
                       <div className="flex flex-col items-center gap-1">
                         <button
@@ -284,6 +323,43 @@ export function CadastrosEmpresasTabela({ linhas, buscaAtiva = false, totalSemBu
                   <td className="px-3 py-2.5">
                     {ges ? <StatusEmpresaBadge status={ges.status} /> : '—'}
                   </td>
+                  {speColunasExpandidas ? (
+                    linha.spes.length === 0 ? (
+                      <>
+                        <td colSpan={5} className="border-l border-stone-100 px-3 py-2.5 text-stone-500">
+                          —
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="border-l border-stone-100 px-3 py-2.5 text-stone-700">
+                          {linha.spes[0]?.razao_social?.trim() || linha.spes[0]?.nome_projeto?.trim() || '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-stone-700">
+                          {linha.spes[0]?.inscricao_municipal?.trim() || '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-stone-700">
+                          {linha.spes[0]?.inscricao_estadual?.trim() || '—'}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {linha.spes[0] ? <StatusEmpresaBadge status={linha.spes[0].status} /> : '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-stone-700">
+                          {linha.spes[0]
+                            ? formatContaBancariaEmpresa(
+                                linha.spes[0].conta_banco,
+                                linha.spes[0].conta_agencia,
+                                linha.spes[0].conta_numero,
+                              )
+                            : '—'}
+                        </td>
+                      </>
+                    )
+                  ) : (
+                    <td className="border-l border-stone-100 px-3 py-2.5 text-stone-700">
+                      {speResumoColapsado(linha.spes)}
+                    </td>
+                  )}
                   <td className="sticky right-0 border-l border-stone-200 bg-white px-1 py-2 align-middle group-hover:bg-stone-50/90">
                     <div className="flex flex-col items-center justify-center gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
                       <Link

@@ -36,6 +36,8 @@ import {
   PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING,
 } from '@/lib/kanban/pre-batalha-checklist';
 import { sincronizarChecklistPreBatalhaKanban } from '@/app/step-one/[id]/etapa/actions';
+import { syncSpeFromFaseChecklistKanban } from '@/app/rede-franqueados/franqueado-spe-actions';
+import { isFaseAberturaSpeSlug } from '@/lib/kanban/fase-spe-slugs';
 import { PreBatalhaRankingLeaderboard } from '@/components/kanban-shared/PreBatalhaRankingLeaderboard';
 import type { RankingPorFaixaMercado } from '@/lib/kanban/pre-batalha-compatibilidade';
 import {
@@ -426,6 +428,20 @@ export function FaseChecklistCard({
       if (label === CHECKLIST_LABEL_CIDADE || label === CHECKLIST_LABEL_ESTADO) {
         await tentarSyncPracaComProcesso(itemId, valor);
       }
+    }
+    if (res.ok && !erroFinal && processoId?.trim() && isFaseAberturaSpeSlug(faseSlug) && itens?.length) {
+      const checklistItens = itens.map((i) => ({
+        label: i.label,
+        valor: String(
+          i.id === itemId ? (valorFinal ?? '') : (respostas.get(i.id)?.valor ?? ''),
+        ),
+      }));
+      void syncSpeFromFaseChecklistKanban({
+        cardId,
+        processoId: processoId.trim(),
+        faseSlug: faseSlug ?? '',
+        itens: checklistItens,
+      });
     }
     setResposta(itemId, {
       salvando: false,

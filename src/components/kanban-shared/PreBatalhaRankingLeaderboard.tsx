@@ -1,6 +1,7 @@
 'use client';
 
-import { Trophy } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, ChevronRight, Trophy } from 'lucide-react';
 import {
   badgeCompatibilidade,
   formatPrecoAnuncio,
@@ -208,26 +209,59 @@ function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
   );
 }
 
-type Props = {
-  grupos: RankingPorFaixaMercado[];
-};
+function linhaResumoRanking(item: ResultadoRankingModelo, idx: number): string {
+  const palavra = item.modelo.trim().split(/\s+/)[0] || item.modelo.trim();
+  const abrev = palavra.length <= 4 ? palavra : palavra.slice(0, 3);
+  const topoRaw = item.topografia.trim().toLowerCase();
+  const topoSlug = topoRaw === '—' || !topoRaw ? '—' : topoRaw;
+  return `${idx + 1}º ${abrev}/${topoSlug} (Final: ${item.notaFinal} | L:${item.notaLote} P:${item.notaPrecoMedia} Prod:${item.notaProdutoMedia})`;
+}
 
-/** Leaderboard Pré Batalha — uma tabela ranqueada por faixa do mapa de competidores. */
-export function PreBatalhaRankingLeaderboard({ grupos }: Props) {
-  if (grupos.length === 0) return null;
+function RankingResumoMinimizado({ ranking }: { ranking: ResultadoRankingModelo[] }) {
+  if (ranking.length === 0) {
+    return <p className="text-xs text-stone-500">Nenhum modelo ranqueado nesta faixa.</p>;
+  }
 
   return (
-    <div className="space-y-8">
-      {grupos.map((grupo) => (
-        <section
-          key={grupo.faixa}
-          className="overflow-hidden rounded-2xl border border-stone-300/70 bg-gradient-to-b from-stone-200/40 via-stone-50/90 to-white p-4 shadow-lg backdrop-blur-md sm:p-5"
+    <ul className="space-y-1 text-xs leading-relaxed text-stone-700">
+      {ranking.map((item, idx) => (
+        <li
+          key={item.catalogoId}
+          className={`rounded-md px-2 py-1 ${idx < 3 ? 'bg-amber-50/90 font-medium text-stone-800' : 'bg-white/60'}`}
         >
-          <header className="mb-4 border-b border-stone-200/80 pb-3 text-center">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-stone-500">
+          {linhaResumoRanking(item, idx)}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function FaixaPreBatalhaColapsavel({
+  grupo,
+  expandida,
+  onToggle,
+}: {
+  grupo: RankingPorFaixaMercado;
+  expandida: boolean;
+  onToggle: () => void;
+}) {
+  const panelId = `pre-batalha-faixa-${grupo.faixa}`;
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-stone-300/70 bg-gradient-to-b from-stone-200/40 via-stone-50/90 to-white shadow-lg backdrop-blur-md">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expandida}
+        aria-controls={panelId}
+        className="flex w-full flex-col gap-2 px-4 py-3 text-left transition hover:bg-stone-100/40 sm:px-5 sm:py-4"
+      >
+        <div className="flex w-full items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-500">
               Mapa de competidores
             </p>
-            <h3 className="mt-1 text-base font-bold uppercase tracking-wide text-stone-800 sm:text-lg">
+            <h3 className="mt-0.5 text-base font-bold uppercase tracking-wide text-stone-800 sm:text-lg">
               Faixa {grupo.faixaLabel}
             </h3>
             <p className="mt-1 text-xs text-stone-500">
@@ -236,19 +270,101 @@ export function PreBatalhaRankingLeaderboard({ grupos }: Props) {
               {grupo.batalhas.length}{' '}
               {grupo.batalhas.length === 1 ? 'batalha' : 'batalhas'} ·{' '}
               {grupo.ranking.length}{' '}
-              {grupo.ranking.length === 1 ? 'modelo ranqueado' : 'modelos ranqueados'}
+              {grupo.ranking.length === 1 ? 'modelo' : 'modelos'}
             </p>
-          </header>
+          </div>
+          <span className="flex shrink-0 items-center gap-1.5 pt-1 text-[11px] font-medium text-stone-600">
+            {expandida ? (
+              <>
+                <ChevronDown className="h-5 w-5" aria-hidden />
+                <span className="hidden sm:inline">Recolher</span>
+              </>
+            ) : (
+              <>
+                <ChevronRight className="h-5 w-5" aria-hidden />
+                <span className="hidden sm:inline">Expandir</span>
+              </>
+            )}
+          </span>
+        </div>
 
+        {!expandida ? (
+          <div className="w-full border-t border-stone-200/80 pt-3">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-stone-500">
+              Ranking agregado
+            </p>
+            <RankingResumoMinimizado ranking={grupo.ranking} />
+          </div>
+        ) : null}
+      </button>
+
+      {expandida ? (
+        <div id={panelId} className="border-t border-stone-200/80 px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
           <BatalhasTable batalhas={grupo.batalhas} />
-
           <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-wider text-stone-500">
             Ranking agregado
           </p>
           <PodiumTop3 top3={grupo.ranking.slice(0, 3)} />
           <LeaderboardTable ranking={grupo.ranking} />
-        </section>
-      ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+type Props = {
+  grupos: RankingPorFaixaMercado[];
+};
+
+/** Leaderboard Pré Batalha — faixas colapsáveis (resumo) com opção de expandir listas completas. */
+export function PreBatalhaRankingLeaderboard({ grupos }: Props) {
+  const [expandidas, setExpandidas] = useState<Set<string>>(() => new Set());
+
+  if (grupos.length === 0) return null;
+
+  const toggleFaixa = (faixa: string) => {
+    setExpandidas((prev) => {
+      const next = new Set(prev);
+      if (next.has(faixa)) next.delete(faixa);
+      else next.add(faixa);
+      return next;
+    });
+  };
+
+  const expandirTodas = () => setExpandidas(new Set(grupos.map((g) => g.faixa)));
+  const recolherTodas = () => setExpandidas(new Set());
+
+  return (
+    <div className="space-y-4">
+      {grupos.length > 1 ? (
+        <div className="flex flex-wrap justify-end gap-2">
+          <button
+            type="button"
+            onClick={expandirTodas}
+            className="rounded-md border border-stone-200 bg-white px-2.5 py-1 text-[11px] font-medium text-stone-600 hover:bg-stone-50"
+          >
+            Expandir todas
+          </button>
+          <button
+            type="button"
+            onClick={recolherTodas}
+            className="rounded-md border border-stone-200 bg-white px-2.5 py-1 text-[11px] font-medium text-stone-600 hover:bg-stone-50"
+          >
+            Recolher todas
+          </button>
+        </div>
+      ) : null}
+
+      <div className="space-y-4">
+        {grupos.map((grupo) => (
+          <FaixaPreBatalhaColapsavel
+            key={grupo.faixa}
+            grupo={grupo}
+            expandida={expandidas.has(grupo.faixa)}
+            onToggle={() => toggleFaixa(grupo.faixa)}
+          />
+        ))}
+      </div>
     </div>
   );
 }

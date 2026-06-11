@@ -107,6 +107,7 @@ import {
   type KanbanCardModalDetalhes,
   type PreObraDraftKanban,
 } from '@/lib/kanban/kanban-card-modal-detalhes';
+import { KanbanCardModalEmpresas } from '@/components/kanban-shared/KanbanCardModalEmpresas';
 import {
   ATIVIDADE_FORM_DRAFT_VAZIO,
   KanbanAtividadeFormFields,
@@ -446,6 +447,7 @@ export function KanbanCardModal({
     franqueado: false,
     condominio: false,
     novoNegocio: false,
+    dadosEmpresas: false,
     preObra: false,
     obra: false,
     documentacaoCreditoObra: true,
@@ -569,6 +571,7 @@ export function KanbanCardModal({
     rede: null,
     processo: null,
     redeIdContrato: null,
+    empresas: null,
   });
   const [preObraDraft, setPreObraDraft] = useState<PreObraDraftKanban>(() => preObraDraftFromProcesso(null));
   const [salvandoPreObra, setSalvandoPreObra] = useState(false);
@@ -628,7 +631,7 @@ export function KanbanCardModal({
     setFiltros(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT);
     setFiltrosDraft(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT);
     setFiltrosOpen(false);
-    setModalDetalhes({ rede: null, processo: null, redeIdContrato: null });
+    setModalDetalhes({ rede: null, processo: null, redeIdContrato: null, empresas: null });
     setPreObraDraft(preObraDraftFromProcesso(null));
     setCreditoObraAbertura(null);
     setCreditoObraAberturaPending(false);
@@ -1233,7 +1236,7 @@ export function KanbanCardModal({
         setModalDetalhes(det);
         setPreObraDraft(preObraDraftFromProcesso(det.processo));
       } catch {
-        setModalDetalhes({ rede: null, processo: null, redeIdContrato: null });
+        setModalDetalhes({ rede: null, processo: null, redeIdContrato: null, empresas: null });
         setPreObraDraft(preObraDraftFromProcesso(null));
       }
 
@@ -5999,6 +6002,19 @@ export function KanbanCardModal({
                   </>
                 )}
               </div>,
+            )}
+            {secaoHead(
+              'dadosEmpresas',
+              'Dados das Empresas',
+              <KanbanCardModalEmpresas
+                cardId={card.id}
+                redeFranqueadoId={modalDetalhes.redeIdContrato ?? card?.rede_franqueado_id ?? null}
+                incorporadora={modalDetalhes.empresas?.incorporadora ?? null}
+                gestora={modalDetalhes.empresas?.gestora ?? null}
+                spe={modalDetalhes.empresas?.spe ?? null}
+                podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                onSalvo={() => void loadCard({ silencioso: true })}
+              />,
             )}
             {secaoHead(
               'preObra',

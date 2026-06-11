@@ -398,6 +398,7 @@ export type SecaoEsquerdaId =
   | 'franqueado'
   | 'condominio'
   | 'novoNegocio'
+  | 'dadosEmpresas'
   | 'preObra'
   | 'obra'
   | 'documentacaoCreditoObra'
