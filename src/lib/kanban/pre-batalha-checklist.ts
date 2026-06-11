@@ -1,6 +1,7 @@
 /** Labels de checklist da fase Pré Batalha (Funil Step One, slug `batalha`). */
 
 import type { RankingPorFaixaMercado } from '@/lib/kanban/pre-batalha-compatibilidade';
+import { formatExplicacaoRankingFaixaChecklist } from '@/lib/kanban/pre-batalha-explicacao-faixa';
 
 export const PRE_BATALHA_CHECKLIST_LABEL_APLICADA =
   'Pré-batalha aplicada (Produto + Localização)';
@@ -121,6 +122,11 @@ export function formatPreBatalhaChecklistCompleto(grupos: RankingPorFaixaMercado
       `[${g.faixaLabel} — ${g.quantidadeAnuncios} ${g.quantidadeAnuncios === 1 ? 'anúncio' : 'anúncios'}]`,
     );
     blocos.push('');
+    const explicacao = formatExplicacaoRankingFaixaChecklist(g);
+    if (explicacao) {
+      blocos.push(explicacao);
+      blocos.push('');
+    }
     blocos.push('— Batalhas (modelo × anúncio) —');
     for (const b of g.batalhas) {
       blocos.push(formatLinhaBatalhaPreBatalha(b));

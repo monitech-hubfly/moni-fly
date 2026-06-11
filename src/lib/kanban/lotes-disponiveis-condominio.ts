@@ -104,6 +104,10 @@ export type ChaveLoteDisponivel =
   | ChaveLoteCheckbox
   | 'quadra'
   | 'lote'
+  | 'dimensao_frente_m'
+  | 'dimensao_fundo_m'
+  | 'dimensao_lado_direito_m'
+  | 'dimensao_lado_esquerdo_m'
   | 'area_m2'
   | 'valor'
   | 'situacao_documental'
@@ -121,6 +125,30 @@ export type CampoLoteDisponivel = {
 export const LOTES_DISPONIVEIS_CAMPOS: CampoLoteDisponivel[] = [
   { chave: 'quadra', label: 'Quadra', tipo: 'texto', obrigatorio: true, placeholder: 'Ex.: 12' },
   { chave: 'lote', label: 'Lote', tipo: 'texto', obrigatorio: true, placeholder: 'Ex.: 34' },
+  {
+    chave: 'dimensao_frente_m',
+    label: 'Dimensão Frente Lote (m)',
+    tipo: 'numero',
+    placeholder: 'Ex.: 12,5',
+  },
+  {
+    chave: 'dimensao_fundo_m',
+    label: 'Dimensão Fundo Lote (m)',
+    tipo: 'numero',
+    placeholder: 'Ex.: 25',
+  },
+  {
+    chave: 'dimensao_lado_direito_m',
+    label: 'Dimensão Lado Direito Lote (m)',
+    tipo: 'numero',
+    placeholder: 'Ex.: 30',
+  },
+  {
+    chave: 'dimensao_lado_esquerdo_m',
+    label: 'Dimensão Lado Esquerdo Lote (m)',
+    tipo: 'numero',
+    placeholder: 'Ex.: 28',
+  },
   { chave: 'area_m2', label: 'Área m²', tipo: 'numero', obrigatorio: true },
   { chave: 'valor', label: 'Valor do lote (R$)', tipo: 'numero', obrigatorio: true },
   { chave: 'situacao_documental', label: 'Situação documental', tipo: 'texto', obrigatorio: true },
@@ -141,6 +169,10 @@ export type LinhaLoteDisponivel = {
   lote_id: string;
   quadra: string;
   lote: string;
+  dimensao_frente_m: string;
+  dimensao_fundo_m: string;
+  dimensao_lado_direito_m: string;
+  dimensao_lado_esquerdo_m: string;
   area_m2: string;
   valor: string;
   situacao_documental: string;
@@ -160,6 +192,10 @@ function checkboxDefaults(): Record<ChaveLoteCheckbox, string> {
 export const LOTE_DISPONIVEL_VAZIO: Omit<LinhaLoteDisponivel, 'lote_id'> = {
   quadra: '',
   lote: '',
+  dimensao_frente_m: '',
+  dimensao_fundo_m: '',
+  dimensao_lado_direito_m: '',
+  dimensao_lado_esquerdo_m: '',
   area_m2: '',
   valor: '',
   situacao_documental: '',
@@ -249,6 +285,10 @@ export function normalizarLinhaLote(raw: unknown, fallbackIndex = 0): LinhaLoteD
     lote_id: loteId,
     quadra: strField(o, 'quadra'),
     lote: strField(o, 'lote'),
+    dimensao_frente_m: strField(o, 'dimensao_frente_m'),
+    dimensao_fundo_m: strField(o, 'dimensao_fundo_m'),
+    dimensao_lado_direito_m: strField(o, 'dimensao_lado_direito_m'),
+    dimensao_lado_esquerdo_m: strField(o, 'dimensao_lado_esquerdo_m'),
     area_m2: strField(o, 'area_m2'),
     valor: strField(o, 'valor'),
     situacao_documental: strField(o, 'situacao_documental'),

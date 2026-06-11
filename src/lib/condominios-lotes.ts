@@ -58,6 +58,10 @@ export type CondominioLoteRow = {
   condominio_id: string;
   quadra: string | null;
   lote: string | null;
+  dimensao_frente_m: number | null;
+  dimensao_fundo_m: number | null;
+  dimensao_lado_direito_m: number | null;
+  dimensao_lado_esquerdo_m: number | null;
   area_m2: number | null;
   valor: number | null;
   situacao_documental: string | null;
@@ -72,6 +76,10 @@ export type CondominioLotePatch = {
   condominio_id: string;
   quadra?: string | null;
   lote?: string | null;
+  dimensao_frente_m?: number | null;
+  dimensao_fundo_m?: number | null;
+  dimensao_lado_direito_m?: number | null;
+  dimensao_lado_esquerdo_m?: number | null;
   area_m2?: number | null;
   valor?: number | null;
   situacao_documental?: string | null;

@@ -38,6 +38,10 @@ export type ChaveGlobalCondominio =
   | 'q_casas_caracteristicas_elogiadas'
   | 'mapa_condominio_path'
   | 'volume_velocidade_compra'
+  | 'recuo_frontal_m'
+  | 'recuo_fundo_m'
+  | 'recuo_lateral_m'
+  | 'recuo_diferenca_esquina_muros'
   | 'tamanho_lote_padrao'
   | 'q_lotes_total_disponiveis'
   | 'q_lotes_tamanho_medio'
@@ -70,7 +74,7 @@ export type ChaveLinhaProspectCondominio = ChaveGlobalCondominio | ChaveFaixaCon
 export type CampoGlobalCondominio = {
   chave: ChaveGlobalCondominio;
   label: string;
-  tipo: 'texto' | 'texto_longo' | 'anexo';
+  tipo: 'texto' | 'texto_longo' | 'anexo' | 'numero';
   placeholder?: string;
   grupo: 'caracterizacao' | 'lotes';
   obrigatorio?: boolean;
@@ -141,6 +145,34 @@ export const CARACTERIZACAO_GLOBAL_CAMPOS: CampoGlobalCondominio[] = [
     tipo: 'texto_longo',
     grupo: 'caracterizacao',
     obrigatorio: true,
+  },
+  {
+    chave: 'recuo_frontal_m',
+    label: 'Recuo frontal',
+    tipo: 'numero',
+    placeholder: 'Metros (decimal)',
+    grupo: 'caracterizacao',
+  },
+  {
+    chave: 'recuo_fundo_m',
+    label: 'Recuo de fundo',
+    tipo: 'numero',
+    placeholder: 'Metros (decimal)',
+    grupo: 'caracterizacao',
+  },
+  {
+    chave: 'recuo_lateral_m',
+    label: 'Recuo lateral',
+    tipo: 'numero',
+    placeholder: 'Metros (decimal)',
+    grupo: 'caracterizacao',
+  },
+  {
+    chave: 'recuo_diferenca_esquina_muros',
+    label:
+      'Há diferença no padrão de recuo para lotes de esquina? Lotes junto aos muros do condomínio?',
+    tipo: 'texto_longo',
+    grupo: 'caracterizacao',
   },
 ];
 
@@ -290,6 +322,10 @@ export type LinhaProspectCondominio = {
   q_casas_caracteristicas_elogiadas?: string;
   mapa_condominio_path?: string;
   volume_velocidade_compra?: string;
+  recuo_frontal_m?: string;
+  recuo_fundo_m?: string;
+  recuo_lateral_m?: string;
+  recuo_diferenca_esquina_muros?: string;
   tamanho_lote_padrao?: string;
   q_lotes_total_disponiveis?: string;
   q_lotes_tamanho_medio?: string;

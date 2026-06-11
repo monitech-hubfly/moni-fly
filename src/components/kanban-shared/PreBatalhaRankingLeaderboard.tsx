@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight, Trophy } from 'lucide-react';
 import {
   badgeCompatibilidade,
@@ -9,6 +9,7 @@ import {
   type RankingPorFaixaMercado,
   type ResultadoRankingModelo,
 } from '@/lib/kanban/pre-batalha-compatibilidade';
+import { gerarExplicacaoRankingFaixaPreBatalha } from '@/lib/kanban/pre-batalha-explicacao-faixa';
 
 function formatRank(posicao: number): string {
   return String(posicao).padStart(2, '0');
@@ -60,10 +61,7 @@ function BatalhasTable({ batalhas }: { batalhas: BatalhaModeloAnuncioPreBatalha[
   if (batalhas.length === 0) return null;
 
   return (
-    <div className="mb-6 overflow-x-auto rounded-xl border border-stone-200/90 bg-white/70 shadow-inner backdrop-blur-sm">
-      <p className="border-b border-stone-200 bg-stone-100/90 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-stone-600">
-        Batalhas — modelo × anúncio
-      </p>
+    <div className="overflow-x-auto">
       <table className="w-full min-w-[640px] border-collapse text-sm">
         <thead>
           <tr className="border-b border-stone-200 bg-stone-50/90 text-[11px] font-semibold uppercase tracking-wider text-stone-600">
@@ -217,6 +215,51 @@ function linhaResumoRanking(item: ResultadoRankingModelo, idx: number): string {
   return `${idx + 1}º ${abrev}/${topoSlug} (Final: ${item.notaFinal} | L:${item.notaLote} P:${item.notaPrecoMedia} Prod:${item.notaProdutoMedia})`;
 }
 
+function SubSecaoTabelaColapsavel({
+  titulo,
+  resumo,
+  expandida,
+  onToggle,
+  panelId,
+  children,
+}: {
+  titulo: string;
+  resumo: ReactNode;
+  expandida: boolean;
+  onToggle: () => void;
+  panelId: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-stone-200/90 bg-white/70 shadow-inner backdrop-blur-sm">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expandida}
+        aria-controls={panelId}
+        className="flex w-full items-start justify-between gap-3 border-b border-stone-200 bg-stone-100/90 px-3 py-2.5 text-left transition hover:bg-stone-100"
+      >
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-600">{titulo}</p>
+          {!expandida ? <div className="mt-1.5">{resumo}</div> : null}
+        </div>
+        <span className="flex shrink-0 items-center gap-1 pt-0.5 text-[11px] font-medium text-stone-500">
+          {expandida ? (
+            <ChevronDown className="h-4 w-4" aria-hidden />
+          ) : (
+            <ChevronRight className="h-4 w-4" aria-hidden />
+          )}
+        </span>
+      </button>
+      {expandida ? (
+        <div id={panelId} className="p-1 sm:p-2">
+          {children}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function RankingResumoMinimizado({ ranking }: { ranking: ResultadoRankingModelo[] }) {
   if (ranking.length === 0) {
     return <p className="text-xs text-stone-500">Nenhum modelo ranqueado nesta faixa.</p>;
@@ -236,6 +279,27 @@ function RankingResumoMinimizado({ ranking }: { ranking: ResultadoRankingModelo[
   );
 }
 
+function ExplicacaoFaixaPreBatalha({ grupo }: { grupo: RankingPorFaixaMercado }) {
+  const paragrafos = gerarExplicacaoRankingFaixaPreBatalha(grupo);
+  if (paragrafos.length === 0) return null;
+
+  return (
+    <div
+      className="mx-4 mb-3 rounded-lg border border-sky-200/90 bg-sky-50/90 px-3 py-3 text-xs leading-relaxed text-sky-950 sm:mx-5"
+      role="note"
+    >
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-sky-800">
+        Por que este ranking nesta faixa?
+      </p>
+      {paragrafos.map((paragrafo, idx) => (
+        <p key={idx} className={idx > 0 ? 'mt-2' : undefined}>
+          {paragrafo}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 function FaixaPreBatalhaColapsavel({
   grupo,
   expandida,
@@ -246,6 +310,15 @@ function FaixaPreBatalhaColapsavel({
   onToggle: () => void;
 }) {
   const panelId = `pre-batalha-faixa-${grupo.faixa}`;
+  const [batalhasAbertas, setBatalhasAbertas] = useState(false);
+  const [rankingAberto, setRankingAberto] = useState(false);
+
+  useEffect(() => {
+    if (!expandida) {
+      setBatalhasAbertas(false);
+      setRankingAberto(false);
+    }
+  }, [expandida]);
 
   return (
     <section className="overflow-hidden rounded-2xl border border-stone-300/70 bg-gradient-to-b from-stone-200/40 via-stone-50/90 to-white shadow-lg backdrop-blur-md">
@@ -298,14 +371,37 @@ function FaixaPreBatalhaColapsavel({
         ) : null}
       </button>
 
+      <ExplicacaoFaixaPreBatalha grupo={grupo} />
+
       {expandida ? (
-        <div id={panelId} className="border-t border-stone-200/80 px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
-          <BatalhasTable batalhas={grupo.batalhas} />
-          <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-wider text-stone-500">
-            Ranking agregado
-          </p>
-          <PodiumTop3 top3={grupo.ranking.slice(0, 3)} />
-          <LeaderboardTable ranking={grupo.ranking} />
+        <div id={panelId} className="space-y-4 border-t border-stone-200/80 px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
+          {grupo.batalhas.length > 0 ? (
+            <SubSecaoTabelaColapsavel
+              titulo="Batalhas — modelo × anúncio"
+              resumo={
+                <p className="text-xs text-stone-500">
+                  {grupo.batalhas.length}{' '}
+                  {grupo.batalhas.length === 1 ? 'batalha' : 'batalhas'} — clique para ver a lista
+                </p>
+              }
+              expandida={batalhasAbertas}
+              onToggle={() => setBatalhasAbertas((v) => !v)}
+              panelId={`${panelId}-batalhas`}
+            >
+              <BatalhasTable batalhas={grupo.batalhas} />
+            </SubSecaoTabelaColapsavel>
+          ) : null}
+
+          <SubSecaoTabelaColapsavel
+            titulo="Ranking agregado"
+            resumo={<RankingResumoMinimizado ranking={grupo.ranking} />}
+            expandida={rankingAberto}
+            onToggle={() => setRankingAberto((v) => !v)}
+            panelId={`${panelId}-ranking`}
+          >
+            <PodiumTop3 top3={grupo.ranking.slice(0, 3)} />
+            <LeaderboardTable ranking={grupo.ranking} />
+          </SubSecaoTabelaColapsavel>
         </div>
       ) : null}
     </section>

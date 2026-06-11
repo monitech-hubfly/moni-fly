@@ -358,9 +358,17 @@ export function PesquisaCondominioProspect({ cardId, processoId, itemLabel, obri
                 {camposCaracterizacao.map((campo) => (
                   <CampoTexto
                     key={campo.chave}
-                    label={campo.label}
+                    label={
+                      campo.tipo === 'numero' ? `${campo.label} (m)` : campo.label
+                    }
                     placeholder={campo.placeholder}
-                    tipo={campo.tipo === 'texto_longo' ? 'texto_longo' : 'texto'}
+                    tipo={
+                      campo.tipo === 'texto_longo'
+                        ? 'texto_longo'
+                        : campo.tipo === 'numero'
+                          ? 'numero'
+                          : 'texto'
+                    }
                     obrigatorio={campo.obrigatorio}
                     valor={rascunhoGlobal[campo.chave] ?? ''}
                     inputClass={inputClass}
@@ -504,7 +512,7 @@ function CampoTexto({
 }: {
   label: string;
   placeholder?: string;
-  tipo: 'texto' | 'texto_longo';
+  tipo: 'texto' | 'texto_longo' | 'numero';
   valor: string;
   inputClass: string;
   obrigatorio?: boolean;
@@ -534,8 +542,10 @@ function CampoTexto({
       ) : (
         <input
           type="text"
+          inputMode={tipo === 'numero' ? 'decimal' : undefined}
           className={inputClass}
           value={valor}
+          placeholder={tipo === 'numero' ? placeholder ?? 'Ex.: 5,5' : undefined}
           onChange={(e) => onChange(e.target.value)}
           onBlur={(e) => onBlur(e.target.value)}
         />
