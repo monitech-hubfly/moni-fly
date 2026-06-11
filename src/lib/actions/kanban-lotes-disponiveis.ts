@@ -427,6 +427,33 @@ export type CarregarLotesCondominioResult =
   | { ok: true; linhas: LinhaProspectCondominio[] }
   | { ok: false; error: string };
 
+export type LoteEscolhidoContexto = {
+  lote: LinhaLoteDisponivel;
+  linha: LinhaProspectCondominio;
+};
+
+/** Primeiro lote marcado como escolhido entre as linhas de condomínio do card. */
+export function encontrarLoteEscolhidoCard(
+  linhas: LinhaProspectCondominio[],
+): LoteEscolhidoContexto | null {
+  for (const linha of linhas) {
+    const escolhidoId = linha.lote_escolhido_id?.trim();
+    if (!escolhidoId) continue;
+    const lote = (linha.lotes_disponiveis ?? []).find((l) => l.lote_id === escolhidoId);
+    if (lote) return { lote, linha };
+  }
+  return null;
+}
+
+export async function carregarLoteEscolhidoCard(cardId: string): Promise<
+  | { ok: true; ctx: LoteEscolhidoContexto | null }
+  | { ok: false; error: string }
+> {
+  const res = await carregarLotesCondominioCard(cardId);
+  if (!res.ok) return res;
+  return { ok: true, ctx: encontrarLoteEscolhidoCard(res.linhas) };
+}
+
 export async function carregarLotesCondominioCard(cardId: string): Promise<CarregarLotesCondominioResult> {
   const res = await carregarProspectsCondominioCard(cardId);
   if (!res.ok) return res;

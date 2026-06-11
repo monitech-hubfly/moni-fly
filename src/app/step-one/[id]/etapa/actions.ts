@@ -20,16 +20,20 @@ import {
   parseAtributosLoteRespostas,
 } from './REGRAS_BATALHA';
 import {
+  calcularRankingModelos,
   calcularRankingPreBatalhaPorFaixas,
   flattenRankingPreBatalhaPorFaixas,
+  type DadosTerreno,
+  type RankingPorFaixaMercado,
 } from '@/lib/kanban/pre-batalha-compatibilidade';
 import { LOTES_DISPONIVEIS_CHECKBOXES } from '@/lib/kanban/lotes-disponiveis-condominio';
+import { parseDecimalInput } from '@/lib/condominios';
+import type { LinhaProspectCondominio } from '@/lib/kanban/condominio-prospect-pesquisa';
 import {
   PRE_BATALHA_CHECKLIST_LABEL_APLICADA,
   PRE_BATALHA_CHECKLIST_LABEL_RANKING,
   formatPreBatalhaChecklistCompleto,
 } from '@/lib/kanban/pre-batalha-checklist';
-import type { RankingPorFaixaMercado } from '@/lib/kanban/pre-batalha-compatibilidade';
 
 export type SaveEtapa1Result = { ok: true } | { ok: false; error: string };
 
@@ -156,6 +160,131 @@ export async function getAtributosLoteFromStepOneChecklist(
   }
 
   return { ok: true, atributos };
+}
+
+function parseNumeroTerreno(valor: string | number | null | undefined): number | null {
+  if (typeof valor === 'number') return Number.isFinite(valor) ? valor : null;
+  const t = String(valor ?? '').trim();
+  if (!t) return null;
+  return parseDecimalInput(t) ?? (Number.isFinite(Number(t)) ? Number(t) : null);
+}
+
+function recuosFromLinhaProspect(linha: LinhaProspectCondominio | null): {
+  recuo_frontal_m: number | null;
+  recuo_fundo_m: number | null;
+  recuo_lateral_m: number | null;
+} {
+  return {
+    recuo_frontal_m: parseNumeroTerreno(linha?.recuo_frontal_m),
+    recuo_fundo_m: parseNumeroTerreno(linha?.recuo_fundo_m),
+    recuo_lateral_m: parseNumeroTerreno(linha?.recuo_lateral_m),
+  };
+}
+
+async function buscarRecuosCondominioDb(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  condominioId: string | null,
+  linha: LinhaProspectCondominio | null,
+): Promise<{
+  recuo_frontal_m: number | null;
+  recuo_fundo_m: number | null;
+  recuo_lateral_m: number | null;
+}> {
+  const fallback = recuosFromLinhaProspect(linha);
+  const id = condominioId?.trim();
+  if (!id) return fallback;
+
+  const { data, error } = await supabase
+    .from('condominios')
+    .select('recuo_frontal_m, recuo_fundo_m, recuo_lateral_m')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error || !data) return fallback;
+
+  const row = data as {
+    recuo_frontal_m?: number | null;
+    recuo_fundo_m?: number | null;
+    recuo_lateral_m?: number | null;
+  };
+
+  return {
+    recuo_frontal_m: row.recuo_frontal_m ?? fallback.recuo_frontal_m,
+    recuo_fundo_m: row.recuo_fundo_m ?? fallback.recuo_fundo_m,
+    recuo_lateral_m: row.recuo_lateral_m ?? fallback.recuo_lateral_m,
+  };
+}
+
+/** Lote escolhido + recuos do condomínio para elegibilidade geométrica na Pré Batalha. */
+export async function getDadosTerrenoFromStepOneChecklist(
+  processoId: string,
+  options?: { cardId?: string },
+): Promise<{ ok: true; terreno: DadosTerreno } | { ok: false; error: string }> {
+  const access = await verifyProcessoCasasAccess(processoId);
+  if (!access.ok) return { ok: false, error: access.error };
+  const supabase = access.supabase;
+
+  const cardIdsSet = new Set(await resolveStepOneKanbanCardIds(supabase, processoId));
+  const hint = options?.cardId?.trim();
+  if (hint) cardIdsSet.add(hint);
+  const cardIds = [...cardIdsSet];
+
+  const terrenoVazio: DadosTerreno = {
+    dimensao_frente_m: null,
+    dimensao_lado_esquerdo_m: null,
+    recuo_frontal_m: null,
+    recuo_fundo_m: null,
+    recuo_lateral_m: null,
+  };
+
+  if (cardIds.length === 0) return { ok: true, terreno: terrenoVazio };
+
+  const { carregarLoteEscolhidoCard } = await import('@/lib/actions/kanban-lotes-disponiveis');
+
+  for (const cardId of cardIds) {
+    const loaded = await carregarLoteEscolhidoCard(cardId);
+    if (!loaded.ok || !loaded.ctx) continue;
+
+    const { lote, linha } = loaded.ctx;
+    let dimensao_frente_m = parseNumeroTerreno(lote.dimensao_frente_m);
+    let dimensao_lado_esquerdo_m = parseNumeroTerreno(lote.dimensao_lado_esquerdo_m);
+    let condominioId = linha.condominio_id?.trim() || null;
+
+    if (lote.cadastro_lote_id?.trim()) {
+      const { data: rowLote } = await supabase
+        .from('condominios_lotes')
+        .select('dimensao_frente_m, dimensao_lado_esquerdo_m, condominio_id')
+        .eq('id', lote.cadastro_lote_id.trim())
+        .maybeSingle();
+
+      if (rowLote) {
+        const db = rowLote as {
+          dimensao_frente_m?: number | null;
+          dimensao_lado_esquerdo_m?: number | null;
+          condominio_id?: string | null;
+        };
+        dimensao_frente_m = dimensao_frente_m ?? parseNumeroTerreno(db.dimensao_frente_m);
+        dimensao_lado_esquerdo_m =
+          dimensao_lado_esquerdo_m ?? parseNumeroTerreno(db.dimensao_lado_esquerdo_m);
+        condominioId = condominioId ?? db.condominio_id?.trim() ?? null;
+      }
+    }
+
+    const recuos = await buscarRecuosCondominioDb(supabase, condominioId, linha);
+
+    return {
+      ok: true,
+      terreno: {
+        dimensao_frente_m,
+        dimensao_lado_esquerdo_m,
+        recuo_frontal_m: recuos.recuo_frontal_m,
+        recuo_fundo_m: recuos.recuo_fundo_m,
+        recuo_lateral_m: recuos.recuo_lateral_m,
+      },
+    };
+  }
+
+  return { ok: true, terreno: terrenoVazio };
 }
 
 const BATALHA_FASE_SLUGS = [FASE_SLUGS.BATALHA, 'stepone_batalha', FASE_SLUGS.PRE_BATALHA] as const;
@@ -361,7 +490,7 @@ export async function sincronizarChecklistPreBatalhaKanban(input: {
   const { data: catRows, error: errCat } = await supabase
     .from('catalogo_casas')
     .select(
-      'id, nome, quartos, banheiros, vagas, preco_custo, preco_custo_m2, preco_venda_m2, area_m2, preco_venda, topografia',
+      'id, nome, quartos, banheiros, vagas, preco_custo, preco_custo_m2, preco_venda_m2, area_m2, preco_venda, topografia, dimensao_x_m, dimensao_y_m, area_perimetro_m2',
     )
     .eq('ativo', true);
   if (errCat) return { ok: false, error: errCat.message };
@@ -372,6 +501,9 @@ export async function sincronizarChecklistPreBatalhaKanban(input: {
   const attrResult = await getAtributosLoteFromStepOneChecklist(processoId, { cardId });
   const atributos = attrResult.ok ? attrResult.atributos : {};
   const atributosParaRanking = atributosLoteRespostasVazio(atributos) ? {} : atributos;
+
+  const terrenoResult = await getDadosTerrenoFromStepOneChecklist(processoId, { cardId });
+  const terreno = terrenoResult.ok ? terrenoResult.terreno : undefined;
 
   const gruposRanking = calcularRankingPreBatalhaPorFaixas(
     (
@@ -399,6 +531,7 @@ export async function sincronizarChecklistPreBatalhaKanban(input: {
     })),
     catalogo,
     atributosParaRanking,
+    { terreno },
   );
 
   if (gruposRanking.length === 0) return { ok: true, rankingCount: 0, grupos: [] };
