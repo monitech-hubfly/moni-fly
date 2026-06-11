@@ -77,6 +77,7 @@ type Props = {
   highlightTopicoId?: number | null;
   sessionEhAdmin?: boolean;
   onRecarregarTopicos?: () => void;
+  rankLabel?: string | null;
 };
 
 function iniciaisNome(nome: string): string {
@@ -169,6 +170,7 @@ export function SireneChamadoDetalheModal({
   highlightTopicoId = null,
   sessionEhAdmin = false,
   onRecarregarTopicos,
+  rankLabel,
 }: Props) {
   const ccid = row.card_id;
   const hrefCard = ccid ? rotaCardOrigem(row.kanban_nome, ccid) : null;
@@ -242,6 +244,15 @@ export function SireneChamadoDetalheModal({
                 <span className={`rounded border px-1.5 py-0.5 text-[10px] font-bold ${prioridadeBadge.className}`}>
                   {prioridadeBadge.label}
                 </span>
+              ) : rankLabel ? (
+                <span className={`rounded border px-1.5 py-0.5 text-[10px] font-bold ${
+                  rankLabel === 'P1' || rankLabel === 'P2' ? 'border-red-200 bg-red-50 text-red-800'
+                  : rankLabel === 'P3' || rankLabel === 'P4' ? 'border-amber-200 bg-amber-50 text-amber-800'
+                  : rankLabel === 'P5' ? 'border-green-200 bg-green-50 text-green-700'
+                  : 'border-[color:var(--moni-border-default)] bg-[var(--moni-surface-100)] text-[color:var(--moni-text-secondary)]'
+                }`}>
+                  {rankLabel}
+                </span>
               ) : null}
             </div>
             <h2 id="sirene-chamado-detalhe-titulo" className="mt-1 text-base font-semibold text-[color:var(--moni-text-primary)]">
@@ -311,7 +322,7 @@ export function SireneChamadoDetalheModal({
 
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <span className="text-[color:var(--moni-text-tertiary)]">
-                  Resp.: <span className="font-medium text-[color:var(--moni-text-primary)]">{textoResponsavel}</span>
+                  Aberto por: <span className="font-medium text-[color:var(--moni-text-primary)]">{textoResponsavel}</span>
                 </span>
                 {row.data_vencimento ? (
                   <span className="text-[color:var(--moni-text-tertiary)]">

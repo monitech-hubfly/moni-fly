@@ -1050,9 +1050,21 @@ export function InteracoesLista({
       setNovoComentarioPorCard((m) => ({ ...m, [commentKey]: '' }));
       if (comentarioEditorRef.current) comentarioEditorRef.current.innerHTML = '';
       setCountPatch((c) => ({ ...c, [commentKey]: (c[commentKey] ?? comentariosCount(commentKey)) + 1 }));
-      setCommentsFetchedByCard((f) => ({ ...f, [commentKey]: false }));
-      void toggleComentarios(row);
-      void toggleComentarios(row);
+      // Recarrega comentários direto sem fechar o painel
+      setCommentsLoading((l) => ({ ...l, [commentKey]: true }));
+      const cid = row.card_id;
+      const scid = row.sirene_chamado_id;
+      if (cid) {
+        void listarComentariosCardSirene(cid).then((res) => {
+          setCommentsLoading((l) => ({ ...l, [commentKey]: false }));
+          if (res.ok) setCommentsByCardId((c) => ({ ...c, [commentKey]: res.items }));
+        });
+      } else if (scid != null) {
+        void listarComentariosSireneChamado(scid).then((res) => {
+          setCommentsLoading((l) => ({ ...l, [commentKey]: false }));
+          if (res.ok) setCommentsByCardId((c) => ({ ...c, [commentKey]: res.items }));
+        });
+      }
     } catch (e) {
       setMsgErro(String(e));
     } finally {
@@ -1725,6 +1737,18 @@ export function InteracoesLista({
           topicos={topicosPorAlvo[topicosAlvoKey(detalheRowEff)] ?? []}
           topicosLoading={Boolean(topicosLoading[topicosAlvoKey(detalheRowEff)])}
           nomePorUserId={nomePorUserId}
+          rankLabel={(() => {
+            const rank = rankChamadoPainelUnificado({
+              frank_id: detalheRowEff.frank_id,
+              franqueado_nome: detalheRowEff.franqueado_nome,
+              trava: detalheRowEff.trava,
+              te_trata: detalheRowEff.te_trata,
+              data_vencimento: detalheRowEff.data_vencimento,
+              atividade_status: detalheRowEff.atividade_status,
+              criado_em: detalheRowEff.criado_em,
+            });
+            return rank != null ? `P${rank}` : null;
+          })()}
           textoResponsavel={textoResponsavelPainel(
             detalheRowEff,
             nomePorUserId,
