@@ -24,7 +24,7 @@ export type RankingInicialGrupoFaixa = {
   itens: RankingInicialChecklistItem[];
 };
 
-/** Texto fixo exibido acima do campo de ranking (Kanban e etapa Pré Batalha). */
+/** Texto fixo exibido em Instruções da fase (Kanban) na Pré Batalha. */
 export const PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING = `Por que este ranking?
 
 Com o Mapa de Competidores preenchido e a topografia do lote definida em Lotes Disponíveis, o sistema ranqueia todos os modelos Moní compatíveis com o lote, separados por faixa de mercado (Entrada, Intermediária, Premium, etc.).

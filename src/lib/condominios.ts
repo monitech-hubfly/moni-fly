@@ -16,6 +16,9 @@ export type CondominioRow = {
   estimativa_casas_vendidas_ano: number | null;
   extrato_como_eram_casas: string | null;
   extrato_tempo_venda: string | null;
+  recuo_frontal_m: number | null;
+  recuo_fundo_m: number | null;
+  recuo_lateral_m: number | null;
   criado_por?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -123,6 +126,9 @@ function mapRow(r: Record<string, unknown>): CondominioRow {
     estimativa_casas_vendidas_ano: parseIntegerField(r.estimativa_casas_vendidas_ano),
     extrato_como_eram_casas: ((r.extrato_como_eram_casas as string | null) ?? null)?.trim() || null,
     extrato_tempo_venda: ((r.extrato_tempo_venda as string | null) ?? null)?.trim() || null,
+    recuo_frontal_m: parseNumericField(r.recuo_frontal_m),
+    recuo_fundo_m: parseNumericField(r.recuo_fundo_m),
+    recuo_lateral_m: parseNumericField(r.recuo_lateral_m),
     criado_por: (r.criado_por as string | null) ?? null,
     created_at: (r.created_at as string | null) ?? null,
     updated_at: (r.updated_at as string | null) ?? null,

@@ -9,9 +9,11 @@ import {
   todasPesquisasProspectCompletas,
   type ChaveGlobalCondominio,
   type ChaveFaixaCondominio,
+  type ChaveRecuoCondominioDb,
   type FaixaCondominioId,
   type LinhaProspectCondominio,
 } from '@/lib/kanban/condominio-prospect-pesquisa';
+import { decimalInputFromValue } from '@/lib/condominios';
 import {
   atualizarLinhaNaTabelaMultiPraca,
   CHECKLIST_LABEL_CIDADE,
@@ -144,6 +146,55 @@ async function buscarContextoPracaCard(
   return { areas, chaveLegado: inferirChaveLegadoPraca(areas, cidadeVal, estadoVal) };
 }
 
+async function enriquecerRecuosCondominioDb(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  linhas: LinhaProspectCondominio[],
+): Promise<LinhaProspectCondominio[]> {
+  const ids = [
+    ...new Set(
+      linhas.map((l) => l.condominio_id?.trim()).filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  if (ids.length === 0) return linhas;
+
+  const { data, error } = await supabase
+    .from('condominios')
+    .select('id, recuo_frontal_m, recuo_fundo_m, recuo_lateral_m')
+    .in('id', ids);
+
+  if (error || !data?.length) return linhas;
+
+  const porId = new Map(
+    (data as {
+      id: string;
+      recuo_frontal_m?: number | null;
+      recuo_fundo_m?: number | null;
+      recuo_lateral_m?: number | null;
+    }[]).map((row) => [row.id, row]),
+  );
+
+  return linhas.map((linha) => {
+    const condominioId = linha.condominio_id?.trim();
+    if (!condominioId) return linha;
+    const db = porId.get(condominioId);
+    if (!db) return linha;
+
+    return {
+      ...linha,
+      recuo_frontal_m:
+        db.recuo_frontal_m != null
+          ? decimalInputFromValue(db.recuo_frontal_m)
+          : linha.recuo_frontal_m,
+      recuo_fundo_m:
+        db.recuo_fundo_m != null ? decimalInputFromValue(db.recuo_fundo_m) : linha.recuo_fundo_m,
+      recuo_lateral_m:
+        db.recuo_lateral_m != null
+          ? decimalInputFromValue(db.recuo_lateral_m)
+          : linha.recuo_lateral_m,
+    };
+  });
+}
+
 export async function carregarProspectsCondominioCard(cardId: string): Promise<CarregarProspectsCondominioResult> {
   const supabase = await createClient();
   const {
@@ -181,7 +232,8 @@ export async function carregarProspectsCondominioCard(cardId: string): Promise<C
 
   const valor = await buscarValorChecklist(supabase, tabelaItemId, cardIdTrim);
   const ctx = await buscarContextoPracaCard(supabase, cardIdTrim, faseCidadeId);
-  const linhas = parseLinhasTabelaTodasPracas(valor, ctx.chaveLegado);
+  const linhasRaw = parseLinhasTabelaTodasPracas(valor, ctx.chaveLegado);
+  const linhas = await enriquecerRecuosCondominioDb(supabase, linhasRaw);
 
   return { ok: true, linhas, tabelaItemId, pesquisaItemId };
 }
@@ -261,4 +313,53 @@ export async function salvarPesquisaCondominioProspect(input: {
   }
 
   return { ok: true };
+}
+
+/** Persiste recuo no cadastro central (`condominios`) e espelha na linha da tabela de prospects. */
+export async function salvarCampoCondominio(input: {
+  cardId: string;
+  rowId: string;
+  condominioId: string;
+  chave: ChaveRecuoCondominioDb;
+  valor: number | null;
+}): Promise<KanbanCondominioPesquisaResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  const rowId = String(input.rowId ?? '').trim();
+  const condominioId = String(input.condominioId ?? '').trim();
+  if (!cardId || !rowId || !condominioId) {
+    return { ok: false, error: 'Condomínio não vinculado ao cadastro.' };
+  }
+
+  const { data: existente, error: errExist } = await supabase
+    .from('condominios')
+    .select('id')
+    .eq('id', condominioId)
+    .maybeSingle();
+  if (errExist || !existente) return { ok: false, error: 'Condomínio não encontrado no cadastro.' };
+
+  const valorDb =
+    input.valor == null || Number.isNaN(input.valor) ? null : Math.max(0, input.valor);
+
+  const { error: errUpdate } = await supabase
+    .from('condominios')
+    .update({
+      [input.chave]: valorDb,
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq('id', condominioId);
+
+  if (errUpdate) return { ok: false, error: errUpdate.message };
+
+  const valorStr = valorDb != null ? decimalInputFromValue(valorDb) : '';
+  return salvarPesquisaCondominioProspect({
+    cardId,
+    rowId,
+    respostas: { [input.chave]: valorStr },
+  });
 }

@@ -11,8 +11,8 @@ import {
 import { snapshotCondominioChecklist } from '@/lib/condominios-checklist';
 import {
   condominioRowMatchesBusca,
+  fetchCondominiosRows,
   normalizarParaBuscaCondominio,
-  ordenarCondominiosPorNome,
   type CondominioRow,
 } from '@/lib/condominios';
 import {
@@ -71,28 +71,8 @@ export function KanbanCardModalCondominio({
     setLoadingLista(true);
     try {
       const supabase = createClient();
-      const { data, error } = await supabase.from('condominios').select('*').order('nome', { ascending: true });
-      if (error) throw error;
-      const rows = ordenarCondominiosPorNome(
-        (data ?? []).map((r) => ({
-          id: String((r as { id: string }).id),
-          nome: String((r as { nome?: string }).nome ?? '').trim(),
-          endereco: (r as { endereco?: string | null }).endereco ?? null,
-          numero: (r as { numero?: string | null }).numero ?? null,
-          cep: (r as { cep?: string | null }).cep ?? null,
-          cidade: (r as { cidade?: string | null }).cidade ?? null,
-          estado: (r as { estado?: string | null }).estado ?? null,
-          ticket_medio_lote: (r as { ticket_medio_lote?: number | null }).ticket_medio_lote ?? null,
-          ticket_medio_casas: (r as { ticket_medio_casas?: number | null }).ticket_medio_casas ?? null,
-          ticket_medio_casas_rsm2:
-            (r as { ticket_medio_casas_rsm2?: number | null }).ticket_medio_casas_rsm2 ?? null,
-          estimativa_casas_vendidas_ano:
-            (r as { estimativa_casas_vendidas_ano?: number | null }).estimativa_casas_vendidas_ano ?? null,
-          extrato_como_eram_casas: (r as { extrato_como_eram_casas?: string | null }).extrato_como_eram_casas ?? null,
-          extrato_tempo_venda: (r as { extrato_tempo_venda?: string | null }).extrato_tempo_venda ?? null,
-        })),
-      );
-      setLista(rows);
+      const rows = await fetchCondominiosRows(supabase);
+      setLista(rows ?? []);
     } catch {
       setLista([]);
     } finally {
@@ -112,24 +92,8 @@ export function KanbanCardModalCondominio({
         return;
       }
       const supabase = createClient();
-      const { data } = await supabase.from('condominios').select('*').eq('id', id).maybeSingle();
-      if (data) {
-        setCondominioRow({
-          id: String(data.id),
-          nome: String(data.nome ?? '').trim(),
-          endereco: data.endereco ?? null,
-          numero: data.numero ?? null,
-          cep: data.cep ?? null,
-          cidade: data.cidade ?? null,
-          estado: data.estado ?? null,
-          ticket_medio_lote: data.ticket_medio_lote ?? null,
-          ticket_medio_casas: data.ticket_medio_casas ?? null,
-          ticket_medio_casas_rsm2: data.ticket_medio_casas_rsm2 ?? null,
-          estimativa_casas_vendidas_ano: data.estimativa_casas_vendidas_ano ?? null,
-          extrato_como_eram_casas: data.extrato_como_eram_casas ?? null,
-          extrato_tempo_venda: data.extrato_tempo_venda ?? null,
-        });
-      }
+      const rows = await fetchCondominiosRows(supabase);
+      setCondominioRow(rows?.find((r) => r.id === id) ?? null);
     },
     [lista],
   );

@@ -88,7 +88,8 @@ import {
   hipotesesOrdemMinima,
   montarChipsParalelas,
 } from '@/lib/kanban/kanban-paralelas-chips';
-import { isDadosCondominiosFaseSlug, isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { isDadosCondominiosFaseSlug, isHipotesesFaseSlug, isPreBatalhaFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING } from '@/lib/kanban/pre-batalha-checklist';
 import { kanbanExibeSecaoCondominioSidebar } from '@/lib/kanban/kanban-secao-condominio';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCreditoObraDocumentacao';
@@ -4736,9 +4737,11 @@ export function KanbanCardModal({
                 ) : (
                   <>
                     {(() => {
+                      const isPreBatalha = isPreBatalhaFaseSlug(faseAtual.slug);
                       const txt = (faseAtual.instrucoes ?? '').trim();
                       const mats = faseAtual.materiais ?? [];
-                      const tem = txt.length > 0 || mats.length > 0;
+                      const tem =
+                        isPreBatalha || txt.length > 0 || mats.length > 0;
                       if (!tem) {
                         return (
                           <p className="text-sm italic text-stone-400">
@@ -4748,6 +4751,14 @@ export function KanbanCardModal({
                       }
                       return (
                         <div className="space-y-3">
+                          {isPreBatalha ? (
+                            <div
+                              className="whitespace-pre-line rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-relaxed text-amber-950"
+                              role="note"
+                            >
+                              {PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING}
+                            </div>
+                          ) : null}
                           {txt ? (
                             <div
                               className="whitespace-pre-wrap text-sm leading-relaxed text-stone-800"

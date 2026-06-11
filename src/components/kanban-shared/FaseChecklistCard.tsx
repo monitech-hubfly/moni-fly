@@ -33,7 +33,6 @@ import { isDadosCandidatoFaseSlug, isDadosCidadeFaseSlug, isLotesDisponiveisFase
 import {
   PRE_BATALHA_CHECKLIST_LABEL_APLICADA,
   PRE_BATALHA_CHECKLIST_LABEL_RANKING,
-  PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING,
 } from '@/lib/kanban/pre-batalha-checklist';
 import { sincronizarChecklistPreBatalhaKanban } from '@/app/step-one/[id]/etapa/actions';
 import { syncSpeFromFaseChecklistKanban } from '@/app/rede-franqueados/franqueado-spe-actions';
@@ -719,14 +718,6 @@ function ItemField({
     return (
       <div>
         {labelEl}
-        {isRankingPreBatalha ? (
-          <p
-            className="mb-2 whitespace-pre-line rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-950"
-            role="note"
-          >
-            {PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING}
-          </p>
-        ) : null}
         {isRankingPreBatalha && preBatalhaGrupos.length > 0 ? (
           <div className="mb-4">
             <PreBatalhaRankingLeaderboard grupos={preBatalhaGrupos} />

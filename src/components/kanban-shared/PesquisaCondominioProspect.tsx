@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { KanbanFaseSecaoTabs } from '@/components/kanban-shared/KanbanFaseSecaoTabs';
 import {
   carregarProspectsCondominioCard,
+  salvarCampoCondominio,
   salvarPesquisaCondominioProspect,
 } from '@/lib/actions/kanban-condominio-pesquisa';
 import { carregarMapaCompetidoresChecklist } from '@/lib/actions/kanban-mapa-competidores';
@@ -15,6 +16,7 @@ import {
 } from '@/lib/kanban/mapa-competidores-condominio';
 import {
   CARACTERIZACAO_GLOBAL_CAMPOS,
+  CHAVES_RECUO_CONDOMINIO,
   CHAVES_TODAS_GLOBAL,
   FAIXA_CONDOMINIO_CAMPOS,
   FAIXAS_CONDOMINIO,
@@ -28,6 +30,7 @@ import {
   valorFaixaCondominio,
   type ChaveGlobalCondominio,
   type ChaveFaixaCondominio,
+  type ChaveRecuoCondominioDb,
   type FaixaCondominioId,
   type LinhaProspectCondominio,
 } from '@/lib/kanban/condominio-prospect-pesquisa';
@@ -218,6 +221,44 @@ export function PesquisaCondominioProspect({ cardId, processoId, itemLabel, obri
     );
   }
 
+  async function salvarCampoRecuoCondominio(chave: ChaveRecuoCondominioDb, raw: string) {
+    if (!linhaAtiva) return;
+    const condominioId = linhaAtiva.condominio_id?.trim();
+    if (!condominioId) {
+      setErroSalvar('Vincule o condomínio ao cadastro na Tabela de Condomínios antes de informar recuos.');
+      return;
+    }
+
+    const t = raw.trim();
+    const valorNum = t === '' ? null : Number.parseFloat(t.replace(',', '.'));
+    const valor = valorNum != null && Number.isFinite(valorNum) ? valorNum : null;
+
+    const atualStr = (linhaAtiva[chave] ?? '').trim();
+    const novoStr = valor != null ? String(valor) : '';
+    if (novoStr === atualStr || (atualStr && valor != null && Number.parseFloat(atualStr) === valor)) {
+      return;
+    }
+
+    setErroSalvar(null);
+    const res = await salvarCampoCondominio({
+      cardId,
+      rowId: linhaAtiva.row_id,
+      condominioId,
+      chave,
+      valor,
+    });
+    if (!res.ok) {
+      setErroSalvar(res.error);
+      return;
+    }
+
+    const valorLinha = valor != null ? String(valor) : '';
+    setRascunhoGlobal((prev) => ({ ...prev, [chave]: valorLinha }));
+    aplicarLinhaSalvaLocal(
+      normalizarLinhaProspect({ ...linhaAtiva, [chave]: valorLinha, row_id: linhaAtiva.row_id }),
+    );
+  }
+
   async function salvarCampoGlobal(chave: ChaveGlobalCondominio, valor: string) {
     if (!linhaAtiva) return;
     const atual = linhaAtiva[chave] ?? '';
@@ -283,7 +324,9 @@ export function PesquisaCondominioProspect({ cardId, processoId, itemLabel, obri
     }
   }
 
-  const camposCaracterizacao = CARACTERIZACAO_GLOBAL_CAMPOS.filter((c) => c.tipo !== 'anexo');
+  const camposCaracterizacao = CARACTERIZACAO_GLOBAL_CAMPOS.filter(
+    (c) => c.tipo !== 'anexo' && !CHAVES_RECUO_CONDOMINIO.includes(c.chave as ChaveRecuoCondominioDb),
+  );
   const campoMapa = CARACTERIZACAO_GLOBAL_CAMPOS.find((c) => c.chave === 'mapa_condominio_path');
   const camposLotesGlobal = LOTES_GLOBAL_CAMPOS;
 
@@ -358,9 +401,7 @@ export function PesquisaCondominioProspect({ cardId, processoId, itemLabel, obri
                 {camposCaracterizacao.map((campo) => (
                   <CampoTexto
                     key={campo.chave}
-                    label={
-                      campo.tipo === 'numero' ? `${campo.label} (m)` : campo.label
-                    }
+                    label={campo.label}
                     placeholder={campo.placeholder}
                     tipo={
                       campo.tipo === 'texto_longo'
@@ -376,6 +417,68 @@ export function PesquisaCondominioProspect({ cardId, processoId, itemLabel, obri
                     onBlur={(v) => void salvarCampoGlobal(campo.chave, v)}
                   />
                 ))}
+
+                <div>
+                  <h5
+                    className="text-xs font-semibold"
+                    style={{ color: 'var(--moni-text-secondary)' }}
+                  >
+                    Recuos obrigatórios do condomínio
+                  </h5>
+                  {!linhaAtiva.condominio_id?.trim() ? (
+                    <p className="mt-1 text-[11px] italic" style={{ color: 'var(--moni-text-tertiary)' }}>
+                      Confirme o condomínio na Tabela de Condomínios (fase Dados da Cidade) para salvar recuos no
+                      cadastro.
+                    </p>
+                  ) : null}
+                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <label className="grid gap-1">
+                      <span className="text-xs text-gray-500">Recuo frontal (m)</span>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        className={inputClass}
+                        value={rascunhoGlobal.recuo_frontal_m ?? ''}
+                        disabled={!linhaAtiva.condominio_id?.trim()}
+                        onChange={(e) =>
+                          setRascunhoGlobal((prev) => ({ ...prev, recuo_frontal_m: e.target.value }))
+                        }
+                        onBlur={(e) => void salvarCampoRecuoCondominio('recuo_frontal_m', e.target.value)}
+                      />
+                    </label>
+                    <label className="grid gap-1">
+                      <span className="text-xs text-gray-500">Recuo de fundo (m)</span>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        className={inputClass}
+                        value={rascunhoGlobal.recuo_fundo_m ?? ''}
+                        disabled={!linhaAtiva.condominio_id?.trim()}
+                        onChange={(e) =>
+                          setRascunhoGlobal((prev) => ({ ...prev, recuo_fundo_m: e.target.value }))
+                        }
+                        onBlur={(e) => void salvarCampoRecuoCondominio('recuo_fundo_m', e.target.value)}
+                      />
+                    </label>
+                    <label className="grid gap-1">
+                      <span className="text-xs text-gray-500">Recuo lateral (m) — ambos os lados</span>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        className={inputClass}
+                        value={rascunhoGlobal.recuo_lateral_m ?? ''}
+                        disabled={!linhaAtiva.condominio_id?.trim()}
+                        onChange={(e) =>
+                          setRascunhoGlobal((prev) => ({ ...prev, recuo_lateral_m: e.target.value }))
+                        }
+                        onBlur={(e) => void salvarCampoRecuoCondominio('recuo_lateral_m', e.target.value)}
+                      />
+                    </label>
+                  </div>
+                </div>
                 {campoMapa ? (
                   <div>
                     <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--moni-text-primary)' }}>

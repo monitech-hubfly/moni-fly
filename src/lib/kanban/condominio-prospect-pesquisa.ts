@@ -283,6 +283,14 @@ export const GLOBAL_CONDOMINIO_CAMPOS: CampoGlobalCondominio[] = [
 
 export const CHAVES_TODAS_GLOBAL: ChaveGlobalCondominio[] = GLOBAL_CONDOMINIO_CAMPOS.map((c) => c.chave);
 
+export const CHAVES_RECUO_CONDOMINIO = [
+  'recuo_frontal_m',
+  'recuo_fundo_m',
+  'recuo_lateral_m',
+] as const satisfies readonly ChaveGlobalCondominio[];
+
+export type ChaveRecuoCondominioDb = (typeof CHAVES_RECUO_CONDOMINIO)[number];
+
 export const CHAVES_GLOBAL_OBRIGATORIAS: ChaveGlobalCondominio[] = GLOBAL_CONDOMINIO_CAMPOS.filter(
   (c) => c.obrigatorio,
 ).map((c) => c.chave);
@@ -588,6 +596,9 @@ export function linhaProspectDeCondominioRow(
     ticket_casas: decimalInputFromValue(row.ticket_medio_casas),
     ticket_m2: decimalInputFromValue(row.ticket_medio_casas_rsm2),
     estimativa_giro: integerInputFromValue(row.estimativa_casas_vendidas_ano),
+    recuo_frontal_m: decimalInputFromValue(row.recuo_frontal_m),
+    recuo_fundo_m: decimalInputFromValue(row.recuo_fundo_m),
+    recuo_lateral_m: decimalInputFromValue(row.recuo_lateral_m),
     cadastro_confirmado_em: null,
     cadastro_snapshot: null,
     cadastro_carregado_snapshot: null,
