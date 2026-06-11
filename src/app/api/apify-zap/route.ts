@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
-import { ensureProcessoStepOneForKanbanCard } from '@/lib/actions/kanban-mapa-competidores';
+import {
+  ensureProcessoStepOneForKanbanCard,
+  resolverProcessoIdViaRedeFranqueado,
+} from '@/lib/actions/kanban-mapa-competidores';
+import { createClient } from '@/lib/supabase/server';
 import { fetchZapCasasWithFallback } from '@/lib/zap-fetch-casas';
 import { applyZapCasasUpdate, verifyProcessoCasasAccess } from '@/lib/zap-save-casas';
 
@@ -49,11 +53,17 @@ export async function POST(request: Request) {
 
     let effectiveProcessoId = processoId;
     if (!effectiveProcessoId && cardId) {
-      const ensured = await ensureProcessoStepOneForKanbanCard(cardId);
-      if (!ensured.ok) {
-        return NextResponse.json({ ok: false, error: ensured.error }, { status: 200 });
+      const supabase = await createClient();
+      const viaRede = await resolverProcessoIdViaRedeFranqueado(supabase, cardId);
+      if (viaRede) {
+        effectiveProcessoId = viaRede;
+      } else {
+        const ensured = await ensureProcessoStepOneForKanbanCard(cardId);
+        if (!ensured.ok) {
+          return NextResponse.json({ ok: false, error: ensured.error }, { status: 200 });
+        }
+        effectiveProcessoId = ensured.processoId;
       }
-      effectiveProcessoId = ensured.processoId;
     }
 
     if (effectiveProcessoId) {

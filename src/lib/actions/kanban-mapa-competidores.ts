@@ -135,6 +135,38 @@ async function resolverPracaCard(
 
 type SupabaseDb = Awaited<ReturnType<typeof createClient>>;
 
+/** Processo Step One em andamento vinculado à rede do card (`origem_rede_franqueados_id`). */
+export async function resolverProcessoIdViaRedeFranqueado(
+  supabase: SupabaseDb,
+  cardId: string,
+): Promise<string | null> {
+  const cid = cardId.trim();
+  if (!cid) return null;
+
+  const { data: card } = await supabase
+    .from('kanban_cards')
+    .select('rede_franqueado_id')
+    .eq('id', cid)
+    .maybeSingle();
+
+  const redeId = String(
+    (card as { rede_franqueado_id?: string | null } | null)?.rede_franqueado_id ?? '',
+  ).trim();
+  if (!redeId) return null;
+
+  const { data: processo } = await supabase
+    .from('processo_step_one')
+    .select('id, cidade, estado')
+    .eq('origem_rede_franqueados_id', redeId)
+    .eq('status', 'em_andamento')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const pid = String((processo as { id?: string } | null)?.id ?? '').trim();
+  return pid || null;
+}
+
 /**
  * Garante `processo_step_one` para cards nativos do Kanban sem vínculo.
  * Cria registro mínimo e preenche `kanban_cards.processo_step_one_id`.
@@ -243,6 +275,11 @@ async function resolverProcessoIdParaMapa(
   supabase: SupabaseDb,
 ): Promise<{ ok: true; processoId: string } | { ok: false; error: string }> {
   let pid = String(processoId ?? '').trim();
+
+  if (!pid && cardId?.trim()) {
+    const viaRede = await resolverProcessoIdViaRedeFranqueado(supabase, cardId.trim());
+    if (viaRede) pid = viaRede;
+  }
 
   if (!pid) {
     const cid = cardId?.trim();
