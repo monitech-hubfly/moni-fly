@@ -119,12 +119,38 @@ export async function updateSession(request: NextRequest) {
     return redirectToBcaPublicLeitura(request);
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, cargo')
-    .eq('id', user.id)
-    .maybeSingle();
-  const profileRow = profile as { role?: string | null; cargo?: string | null } | null;
+  // Try to read role from cache cookie first (avoids DB round-trip on every request)
+  const PROFILE_CACHE_COOKIE = 'moni_profile_cache';
+  const cachedProfile = request.cookies.get(PROFILE_CACHE_COOKIE)?.value;
+  let profileRow: { role?: string | null; cargo?: string | null } | null = null;
+  let profileFromCache = false;
+
+  if (cachedProfile) {
+    try {
+      profileRow = JSON.parse(cachedProfile) as { role?: string | null; cargo?: string | null };
+      profileFromCache = true;
+    } catch {
+      profileRow = null;
+    }
+  }
+
+  if (!profileRow) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, cargo')
+      .eq('id', user.id)
+      .maybeSingle();
+    profileRow = profile as { role?: string | null; cargo?: string | null } | null;
+    // Cache the profile in a cookie for 5 minutes
+    if (profileRow) {
+      response.cookies.set(PROFILE_CACHE_COOKIE, JSON.stringify(profileRow), {
+        maxAge: 300,
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+      });
+    }
+  }
 
   if (isAuthPage && user) {
     if (!profileRow) {
