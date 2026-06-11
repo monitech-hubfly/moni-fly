@@ -1457,7 +1457,7 @@ export function InteracoesLista({
                   const qtdAtividades = subs.length;
 
                   return (
-                    <li key={row.id} className="border-b border-[color:var(--moni-border-default)] last:border-b-0">
+                    <li key={row.id} className={`border-b border-[color:var(--moni-border-default)] last:border-b-0 ${row.sirene_arquivado ? 'bg-amber-50/40' : ''}`}>
                       <div className="px-3 py-2.5">
                           {/* Linha 1: badges + título + tipo + prioridade */}
                           <div
@@ -1477,7 +1477,7 @@ export function InteracoesLista({
                               </span>
                             ) : null}
                             {row.sirene_arquivado ? (
-                              <span className="shrink-0 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[color:var(--moni-text-tertiary)]">Arquivado</span>
+                              <span className="shrink-0 rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-700">Arquivado</span>
                             ) : null}
                             <span className="min-w-0 flex-1 truncate font-medium text-[color:var(--moni-text-primary)]">{row.titulo}</span>
                             <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase ${tipoB.className}`}>{tipoB.label}</span>
