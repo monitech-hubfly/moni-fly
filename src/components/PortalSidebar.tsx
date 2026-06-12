@@ -26,7 +26,7 @@ function getInicialNome(fullName: string | null | undefined): string {
 
 type NavItem = { href: string; label: string };
 const REDE_FRANQUEADOS_SUBITENS: NavItem[] = [
-  { href: '/rede-franqueados', label: 'Rede de Franqueados' },
+  { href: '/rede-franqueados', label: 'Rede Casa Moní' },
   { href: '/comunidade', label: 'Comunidade' },
   { href: '/rede', label: 'Rede de Contatos' },
 ];
@@ -248,7 +248,7 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
   const redeFranqueadosNavSubitens = useMemo((): NavItem[] => {
     if (!user?.id) return filterRedeFranqueadosSubitensParaProd(REDE_FRANQUEADOS_SUBITENS, showDevNav);
     if (resolvedRole === 'frank') {
-      return [{ href: '/portal-frank/rede', label: 'Rede de Franqueados' }];
+      return [{ href: '/portal-frank/rede', label: 'Rede Casa Moní' }];
     }
     return filterRedeFranqueadosSubitensParaProd(REDE_FRANQUEADOS_SUBITENS, showDevNav);
   }, [user?.id, resolvedRole, showDevNav]);
@@ -361,7 +361,7 @@ export function PortalSidebar({ user, userRole }: PortalSidebarProps) {
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
         {renderMacro(
           'rede',
-          'Rede de Franqueados',
+          'Rede Casa Moní',
           isRedeFranqueadosActive(pathname ?? ''),
           redeFranqueadosOpen,
           setRedeFranqueadosOpen,
