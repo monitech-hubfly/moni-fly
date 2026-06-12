@@ -39,6 +39,8 @@ import { syncSpeFromFaseChecklistKanban } from '@/app/rede-franqueados/franquead
 import { isFaseAberturaSpeSlug } from '@/lib/kanban/fase-spe-slugs';
 import { PreBatalhaRankingLeaderboard } from '@/components/kanban-shared/PreBatalhaRankingLeaderboard';
 import { ConfiguradorCasasRankingChecklist } from '@/components/kanban-shared/ConfiguradorCasasRankingChecklist';
+import { BcaChecklistWidget } from '@/components/kanban-shared/BcaChecklistWidget';
+import { BcaCondominioChecklist } from '@/components/kanban-shared/BcaCondominioChecklist';
 import type { RankingPorFaixaMercado } from '@/lib/kanban/pre-batalha-compatibilidade';
 import {
   isLabelDadosCandidatoRede,
@@ -979,6 +981,37 @@ function ItemField({
           onChange(valor);
           await onBlur(valor);
         }}
+      />
+    );
+  }
+
+  if (item.tipo === 'bca_condominio') {
+    const pid = processoId?.trim() ?? '';
+    if (!pid) {
+      return (
+        <p className="text-xs italic" style={{ color: 'var(--moni-text-tertiary)' }}>
+          Vincule um processo Step One ao card para montar o BCA por condomínio.
+        </p>
+      );
+    }
+    return (
+      <BcaCondominioChecklist
+        cardId={cardId}
+        processoId={pid}
+        itemLabel={item.label}
+        obrigatorio={item.obrigatorio}
+      />
+    );
+  }
+
+  if (item.tipo === 'bca_simulador') {
+    const podeEditar = condominioContext?.podeEditar ?? isAdmin;
+    return (
+      <BcaChecklistWidget
+        cardId={cardId}
+        processoId={processoId}
+        itemLabel={item.label}
+        podeEditar={podeEditar}
       />
     );
   }

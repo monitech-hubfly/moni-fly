@@ -2090,7 +2090,7 @@ export function KanbanCardModal({
 
   async function handleAvancarFase() {
     if (!card || !faseAtual) return;
-    if (!pode('mover_fase')) {
+    if (!podeMoverFaseCard) {
       alert('Sem permissão para mover de fase.');
       return;
     }
@@ -2175,7 +2175,7 @@ export function KanbanCardModal({
 
   async function handleRetrocederFase() {
     if (!card || !faseAtual) return;
-    if (!pode('mover_fase')) {
+    if (!podeMoverFaseCard) {
       alert('Sem permissão para mover de fase.');
       return;
     }
@@ -3000,6 +3000,16 @@ export function KanbanCardModal({
       rlArch === 'team' ||
       rlArch === 'supervisor' ||
       rlArch === 'consultor');
+  /** Mesmo critério ampliado de Arquivar — evita ocultar Movimentação quando `permissoes_perfil` não carregou. */
+  const podeMoverFaseCard =
+    !ocultarGestaoCard &&
+    (pode('mover_fase') ||
+      isAdmin ||
+      modalSessao.ehAdminOuTeam ||
+      rlArch === 'admin' ||
+      rlArch === 'team' ||
+      rlArch === 'supervisor' ||
+      rlArch === 'consultor');
   const exibirBlocoArquivar =
     podeArquivarCardPerm &&
     !cardNativoConcluido &&
@@ -3021,7 +3031,7 @@ export function KanbanCardModal({
 
   const mostrarColunaAcoesLateral =
     !ocultarGestaoCard &&
-    (pode('mover_fase') || pode('finalizar_cards') || podeArquivarCardPerm);
+    (podeMoverFaseCard || pode('finalizar_cards') || podeArquivarCardPerm);
   const ehFunilOperacoes =
     card.kanban_id === KANBAN_IDS.OPERACOES ||
     kanbanNome === 'Funil Pré Obra e Obra' ||
@@ -5512,7 +5522,7 @@ export function KanbanCardModal({
               </PainelLateralSecao>
             ) : null}
 
-            {pode('mover_fase') ? (
+            {podeMoverFaseCard ? (
               <PainelLateralSecao titulo="Movimentação">
                 {gateStep5Toast ? (
                   <p
