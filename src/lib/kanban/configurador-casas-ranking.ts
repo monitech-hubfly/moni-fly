@@ -1,6 +1,5 @@
-import {
-  type RankingPorFaixaMercado,
-} from '@/lib/kanban/pre-batalha-compatibilidade';
+import type { RankingPorFaixaMercado } from '@/lib/kanban/pre-batalha-compatibilidade';
+import { modeloElegivelParaFaixa } from '@/lib/kanban/modelo-faixa-elegibilidade';
 import {
   labelFaixaMercado,
   ORDEM_FAIXAS_MERCADO,
@@ -14,12 +13,11 @@ export type ColocacaoFaixaConfigurador = {
 };
 
 export type CasaConfiguradorRanking = {
-  /** Chave estável por nome do modelo (sem topografia). */
+  /** Chave estável: `catalogoId|topografia`. */
   chave: string;
   catalogoId: string;
-  catalogoIds: string[];
   modelo: string;
-  topografias: string[];
+  topografia: string;
   rotulo: string;
   colocacoesTop3: ColocacaoFaixaConfigurador[];
   colocacoesOutras: ColocacaoFaixaConfigurador[];
@@ -46,13 +44,19 @@ export function chaveModeloConfigurador(catalogoId: string, topografia: string):
   return `${catalogoId}|${topografia.trim().toLowerCase()}`;
 }
 
-/** Chave agregada do checklist — uma linha por nome de modelo. */
+/** Chave legada agregada por nome de modelo (sem topografia). */
 export function chaveCasaConfiguradorLista(modelo: string): string {
   return modelo
     .trim()
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
+}
+
+function rotuloModeloTopografia(modelo: string, topografia: string): string {
+  const nome = modelo.trim();
+  const topo = topografia.trim().toLowerCase() || '—';
+  return `${nome}/${topo}`;
 }
 
 function formatDescricaoColocacoes(colocacoes: ColocacaoFaixaConfigurador[]): string {
@@ -83,13 +87,17 @@ function compareCasasPorColocacoes(a: CasaConfiguradorRanking, b: CasaConfigurad
     if (cb !== ca) return cb - ca;
   }
   if (a.melhorPosicao !== b.melhorPosicao) return a.melhorPosicao - b.melhorPosicao;
+  const cmpRotulo = a.rotulo.localeCompare(b.rotulo, 'pt-BR', { sensitivity: 'base' });
+  if (cmpRotulo !== 0) return cmpRotulo;
   return a.modelo.localeCompare(b.modelo, 'pt-BR', { sensitivity: 'base' });
 }
 
+/** Linhas visíveis com a tabela minimizada (top 3 do ranking). */
+export const CONFIGURADOR_CASAS_LINHAS_MINIMIZADO = 3;
+
 /**
- * Agrega modelos únicos (nome, sem topografia) da Pré Batalha.
+ * Agrega combinações modelo × topografia da Pré Batalha (uma linha por par).
  * Ordenação: mais 1º → mais 2º → mais 3º → mais 4º → …
- * Destaque no pódio (1º–3º); demais colocações permanecem na lista.
  */
 export function agregarCasasConfiguradorDePreBatalha(grupos: RankingPorFaixaMercado[]): {
   casas: CasaConfiguradorRanking[];
@@ -99,9 +107,8 @@ export function agregarCasasConfiguradorDePreBatalha(grupos: RankingPorFaixaMerc
 
   type Acc = {
     catalogoId: string;
-    catalogoIds: Set<string>;
     modelo: string;
-    topografias: Set<string>;
+    topografia: string;
     colocacoes: ColocacaoFaixaConfigurador[];
     faixasComColocacao: Set<FaixaMercado>;
     contagemPorPosicao: Record<number, number>;
@@ -115,23 +122,21 @@ export function agregarCasasConfiguradorDePreBatalha(grupos: RankingPorFaixaMerc
     for (let i = 0; i < grupo.ranking.length; i++) {
       const item = grupo.ranking[i];
       const pos = i + 1;
-      const modeloKey = chaveCasaConfiguradorLista(item.modelo);
-      let acc = map.get(modeloKey);
+      const topo = item.topografia?.trim() || '—';
+      const chavePar = chaveModeloConfigurador(item.catalogoId, topo);
+      let acc = map.get(chavePar);
       if (!acc) {
         acc = {
           catalogoId: item.catalogoId,
-          catalogoIds: new Set([item.catalogoId]),
           modelo: item.modelo.trim(),
-          topografias: new Set(),
+          topografia: topo,
           colocacoes: [],
           faixasComColocacao: new Set(),
           contagemPorPosicao: {},
           melhorPosicao: 99,
         };
-        map.set(modeloKey, acc);
+        map.set(chavePar, acc);
       }
-      acc.catalogoIds.add(item.catalogoId);
-      if (item.topografia?.trim()) acc.topografias.add(item.topografia.trim());
 
       if (item.elegivel === false) continue;
 
@@ -158,14 +163,14 @@ export function agregarCasasConfiguradorDePreBatalha(grupos: RankingPorFaixaMerc
         const pos = Number(posStr);
         if (pos >= 4) demaisColocacoes += n;
       }
-      const chave = chaveCasaConfiguradorLista(acc.modelo);
+      const chave = chaveModeloConfigurador(acc.catalogoId, acc.topografia);
+      const rotulo = rotuloModeloTopografia(acc.modelo, acc.topografia);
       return {
         chave,
         catalogoId: acc.catalogoId,
-        catalogoIds: [...acc.catalogoIds],
         modelo: acc.modelo,
-        topografias: [...acc.topografias],
-        rotulo: acc.modelo,
+        topografia: acc.topografia,
+        rotulo,
         colocacoesTop3,
         colocacoesOutras,
         descricaoColocacoes: formatDescricaoColocacoes(acc.colocacoes),
@@ -183,7 +188,7 @@ export function agregarCasasConfiguradorDePreBatalha(grupos: RankingPorFaixaMerc
   return { casas, faixasAtivas };
 }
 
-/** Mescla valores legados (`uuid|topografia`) para chaves agregadas por modelo. */
+/** Mescla valores legados (por modelo ou `uuid|topografia`) para chaves atuais. */
 export function mesclarValoresConfiguradorPorModelo(
   valores: ConfiguradorCasasValoresJson,
   casas: CasaConfiguradorRanking[],
@@ -196,10 +201,16 @@ export function mesclarValoresConfiguradorPorModelo(
     const direto = valores.valores[casa.chave];
     if (direto) Object.assign(dest, direto);
 
+    const chaveModelo = chaveCasaConfiguradorLista(casa.modelo);
+    const legadoModelo = valores.valores[chaveModelo];
+    if (legadoModelo) Object.assign(dest, legadoModelo);
+
     for (const [oldKey, faixas] of Object.entries(valores.valores)) {
       if (!oldKey.includes('|')) continue;
-      const [catId] = oldKey.split('|');
-      if (casa.catalogoIds.includes(catId)) Object.assign(dest, faixas);
+      const [catId, topoRaw] = oldKey.split('|');
+      if (catId === casa.catalogoId && topoRaw === casa.topografia.trim().toLowerCase()) {
+        Object.assign(dest, faixas);
+      }
     }
 
     if (Object.keys(dest).length > 0) merged[casa.chave] = dest;
@@ -244,16 +255,20 @@ export function resolverCustoConfigurador(
 ): number | null {
   if (!faixa) return null;
 
-  if (modeloNome?.trim()) {
-    const chaveLista = chaveCasaConfiguradorLista(modeloNome);
-    const rawLista = custos.valores[chaveLista]?.[faixa];
-    const vLista = parseValorMonetarioConfigurador(rawLista);
-    if (vLista != null) return vLista;
-  }
+  if (modeloNome?.trim() && !modeloElegivelParaFaixa(modeloNome, faixa)) return null;
 
   const chave = chaveModeloConfigurador(catalogoId, topografia ?? '');
   const raw = custos.valores[chave]?.[faixa];
-  return parseValorMonetarioConfigurador(raw);
+  const v = parseValorMonetarioConfigurador(raw);
+  if (v != null) return v;
+
+  if (modeloNome?.trim()) {
+    const chaveLista = chaveCasaConfiguradorLista(modeloNome);
+    const rawLista = custos.valores[chaveLista]?.[faixa];
+    return parseValorMonetarioConfigurador(rawLista);
+  }
+
+  return null;
 }
 
 /** Destaque visual por pódio (1º–3º) sem ocultar demais colocações. */

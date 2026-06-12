@@ -10,7 +10,7 @@ import {
 import { pendenciasDocsEmpresasRede } from '@/lib/rede-documentos-empresas';
 import { pendenciasDocsFranquiaRede } from '@/lib/rede-documentos-franquia';
 import { pendenciasDocsFranqueadoRede } from '@/lib/rede-documentos-franqueado';
-import { ocultarRegionalEAtuacaoNaVisaoFranqueado } from '@/lib/rede-visibilidade-franqueado';
+import { filtrarLinhasParaGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
 import { MapBrazilCidadesAtuacao } from './MapBrazilCidadesAtuacao';
 import { RedeCidadeBarRow } from './rede-cidade-bar-row';
 import { RedeCrescimentoMensalChart } from './rede-crescimento-mensal-chart';
@@ -206,46 +206,48 @@ export function RedeDashboard({
     return rows.filter((r) => isEmOperacao(norm(r.status_franquia)));
   }, [rows, filtro, visaoFranqueado]);
 
-  /** Na visão do franqueado, a franquia FK0000 não entra em agregados de regional nem de área de atuação. */
-  const linhasRegionalAtuacaoCharts = useMemo(() => {
-    if (!visaoFranqueado) return filteredRows;
-    return filteredRows.filter((r) => !ocultarRegionalEAtuacaoNaVisaoFranqueado(r.n_franquia));
-  }, [filteredRows, visaoFranqueado]);
+  /** FK0000 (Casa Moní) não entra em nenhum gráfico da aba Visão geral. */
+  const linhasGraficos = useMemo(
+    () => filtrarLinhasParaGraficosVisaoGeral(filteredRows),
+    [filteredRows],
+  );
 
   const total = filteredRows.length;
+  const totalGraficos = linhasGraficos.length;
 
   const operacao = filteredRows.filter((r) => isEmOperacao(norm(r.status_franquia))).length;
+  const operacaoGraficos = linhasGraficos.filter((r) => isEmOperacao(norm(r.status_franquia))).length;
   const encerradas = filteredRows.filter((r) => isOperacaoEncerrada(norm(r.status_franquia))).length;
 
   const incompletos = filteredRows
     .map((r) => ({ r, missing: modoAggregado ? missingFieldsFrank(r) : missingFields(r) }))
     .filter((x) => x.missing.length > 0);
 
-  const pagantes = filteredRows.filter((r) => isRedeClassificacaoPagante(r.classificacao_franqueado)).length;
-  const beta = filteredRows.filter((r) => isRedeClassificacaoBeta(r.classificacao_franqueado)).length;
+  const pagantes = linhasGraficos.filter((r) => isRedeClassificacaoPagante(r.classificacao_franqueado)).length;
+  const beta = linhasGraficos.filter((r) => isRedeClassificacaoBeta(r.classificacao_franqueado)).length;
   const maxClassificacao = Math.max(pagantes, beta, 1);
 
   const statusByClass = {
     pagante: {
-      emOperacao: filteredRows.filter(
+      emOperacao: linhasGraficos.filter(
         (r) => isRedeClassificacaoPagante(r.classificacao_franqueado) && isEmOperacao(norm(r.status_franquia)),
       ).length,
-      encerrada: filteredRows.filter(
+      encerrada: linhasGraficos.filter(
         (r) => isRedeClassificacaoPagante(r.classificacao_franqueado) && isOperacaoEncerrada(norm(r.status_franquia)),
       ).length,
     },
     beta: {
-      emOperacao: filteredRows.filter(
+      emOperacao: linhasGraficos.filter(
         (r) => isRedeClassificacaoBeta(r.classificacao_franqueado) && isEmOperacao(norm(r.status_franquia)),
       ).length,
-      encerrada: filteredRows.filter(
+      encerrada: linhasGraficos.filter(
         (r) => isRedeClassificacaoBeta(r.classificacao_franqueado) && isOperacaoEncerrada(norm(r.status_franquia)),
       ).length,
     },
   };
 
   const porRegional = new Map<string, number>();
-  for (const r of linhasRegionalAtuacaoCharts) {
+  for (const r of linhasGraficos) {
     const k = norm(r.regional) || 'Sem regional';
     porRegional.set(k, (porRegional.get(k) ?? 0) + 1);
   }
@@ -253,7 +255,7 @@ export function RedeDashboard({
   const maxRegional = regionalArr[0]?.[1] ?? 0;
 
   const porEstado = new Map<string, number>();
-  for (const r of filteredRows) {
+  for (const r of linhasGraficos) {
     const k = norm(r.estado_casa_frank) || 'Sem estado';
     porEstado.set(k, (porEstado.get(k) ?? 0) + 1);
   }
@@ -262,7 +264,7 @@ export function RedeDashboard({
 
   const porEstadoAtuacao = new Map<string, number>();
   const porCidadeAtuacao = new Map<string, number>();
-  for (const r of linhasRegionalAtuacaoCharts) {
+  for (const r of linhasGraficos) {
     const areas = parseAreaAtuacao(r.area_atuacao);
     for (const { uf, cidade } of areas) {
       if (uf) porEstadoAtuacao.set(uf, (porEstadoAtuacao.get(uf) ?? 0) + 1);
@@ -282,7 +284,7 @@ export function RedeDashboard({
 
   const porMes = new Map<string, number>();
   const rowsPorMes = new Map<string, RedeFranqueadoRowDb[]>();
-  for (const r of filteredRows) {
+  for (const r of linhasGraficos) {
     const d = norm(r.data_ass_contrato);
     if (!d) continue;
     const k = monthKey(d);
@@ -295,14 +297,14 @@ export function RedeDashboard({
   const mesArr = [...porMes.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 
   const rowsPorRegional = new Map<string, RedeFranqueadoRowDb[]>();
-  for (const r of linhasRegionalAtuacaoCharts) {
+  for (const r of linhasGraficos) {
     const k = norm(r.regional) || 'Sem regional';
     const list = rowsPorRegional.get(k) ?? [];
     list.push(r);
     rowsPorRegional.set(k, list);
   }
   const rowsPorEstado = new Map<string, RedeFranqueadoRowDb[]>();
-  for (const r of filteredRows) {
+  for (const r of linhasGraficos) {
     const k = norm(r.estado_casa_frank) || 'Sem estado';
     const list = rowsPorEstado.get(k) ?? [];
     list.push(r);
@@ -310,7 +312,7 @@ export function RedeDashboard({
   }
   const rowsPorEstadoAtuacao = new Map<string, RedeFranqueadoRowDb[]>();
   const rowsPorCidadeAtuacao = new Map<string, RedeFranqueadoRowDb[]>();
-  for (const r of linhasRegionalAtuacaoCharts) {
+  for (const r of linhasGraficos) {
     const areas = parseAreaAtuacao(r.area_atuacao);
     for (const { uf, cidade } of areas) {
       if (uf) {
@@ -326,15 +328,18 @@ export function RedeDashboard({
       }
     }
   }
-  const rowsEmOperacao = useMemo(() => filteredRows.filter((r) => isEmOperacao(norm(r.status_franquia))), [filteredRows]);
+  const rowsEmOperacao = useMemo(
+    () => linhasGraficos.filter((r) => isEmOperacao(norm(r.status_franquia))),
+    [linhasGraficos],
+  );
   const rowsEncerradas = useMemo(() => filteredRows.filter((r) => isOperacaoEncerrada(norm(r.status_franquia))), [filteredRows]);
   const rowsPagante = useMemo(
-    () => filteredRows.filter((r) => isRedeClassificacaoPagante(r.classificacao_franqueado)),
-    [filteredRows],
+    () => linhasGraficos.filter((r) => isRedeClassificacaoPagante(r.classificacao_franqueado)),
+    [linhasGraficos],
   );
   const rowsBeta = useMemo(
-    () => filteredRows.filter((r) => isRedeClassificacaoBeta(r.classificacao_franqueado)),
-    [filteredRows],
+    () => linhasGraficos.filter((r) => isRedeClassificacaoBeta(r.classificacao_franqueado)),
+    [linhasGraficos],
   );
 
   const mesStatsExibicao = useMemo(() => {
@@ -491,15 +496,15 @@ export function RedeDashboard({
           <RedeVisaoRegionalClassificacao
             regionalArr={regionalArr}
             maxRegional={maxRegional}
-            operacao={operacao}
-            total={total}
+            operacao={operacaoGraficos}
+            total={totalGraficos}
             modoAggregado={modoAggregado}
             rowsPorRegional={rowsPorRegional}
             rowsEmOperacao={rowsEmOperacao}
             pagantes={pagantes}
             beta={beta}
             maxClassificacao={maxClassificacao}
-            totalClass={total}
+            totalClass={totalGraficos}
             rowsPagante={rowsPagante}
             rowsBeta={rowsBeta}
             statusByClass={statusByClass}
@@ -549,7 +554,7 @@ export function RedeDashboard({
           </div>
         </div>
         <MapBrazilCidadesAtuacao
-          rows={linhasRegionalAtuacaoCharts}
+          rows={linhasGraficos}
           filtroEstado={filtroEstadoCidadeAtuacao}
           onUfClick={
             modoAggregado

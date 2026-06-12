@@ -1,18 +1,20 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ExternalLink, Loader2 } from 'lucide-react';
+import { ExternalLink, Loader2, ChevronsDown, ChevronsUp } from 'lucide-react';
 import { carregarConfiguradorCasasChecklist } from '@/lib/actions/kanban-configurador-casas';
 import {
   labelFaixaMercado,
   ORDEM_FAIXAS_MERCADO,
   type FaixaMercado,
 } from '@/lib/kanban/mapa-competidores-condominio';
+import { modeloElegivelParaFaixa } from '@/lib/kanban/modelo-faixa-elegibilidade';
 import {
   parseConfiguradorCasasValores,
   serializeConfiguradorCasasValores,
   mesclarValoresConfiguradorPorModelo,
   classeDestaquePodioConfigurador,
+  CONFIGURADOR_CASAS_LINHAS_MINIMIZADO,
   type CasaConfiguradorRanking,
 } from '@/lib/kanban/configurador-casas-ranking';
 import { stepOneConfiguradorCasasHref } from '@/lib/kanban/stepone-fase-slugs';
@@ -43,11 +45,19 @@ export function ConfiguradorCasasRankingChecklist({
   const [casas, setCasas] = useState<CasaConfiguradorRanking[]>([]);
   const [faixasAtivas, setFaixasAtivas] = useState<FaixaMercado[]>([]);
   const [valores, setValores] = useState(() => parseConfiguradorCasasValores(valorInicial));
+  const [tabelaExpandida, setTabelaExpandida] = useState(false);
 
   const faixasColunas = useMemo(
     () => ORDEM_FAIXAS_MERCADO.filter((f) => faixasAtivas.includes(f)),
     [faixasAtivas],
   );
+
+  const casasVisiveis = useMemo(() => {
+    if (tabelaExpandida || casas.length <= CONFIGURADOR_CASAS_LINHAS_MINIMIZADO) return casas;
+    return casas.slice(0, CONFIGURADOR_CASAS_LINHAS_MINIMIZADO);
+  }, [casas, tabelaExpandida]);
+
+  const ocultasCount = Math.max(0, casas.length - CONFIGURADOR_CASAS_LINHAS_MINIMIZADO);
 
   const recarregar = useCallback(async () => {
     const pid = processoId?.trim();
@@ -121,9 +131,10 @@ export function ConfiguradorCasasRankingChecklist({
             {salvando && <Loader2 size={10} className="ml-1 inline animate-spin" />}
           </p>
           <p className="mt-0.5 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-            Cada modelo aparece uma vez (independente da topografia), ordenado por quantidade de 1º,
-            2º, 3º, 4º… na Pré Batalha. O pódio (🥇🥈🥉) tem destaque; as demais colocações
-            permanecem na lista.
+            Uma linha por modelo e topografia, ordenada por quantidade de 1º, 2º, 3º, 4º… na Pré
+            Batalha. Só é possível informar custo nas faixas em que o modelo pode ser ranqueado
+            (regra por nome do modelo, independente da topografia). A tabela abre com as{' '}
+            {CONFIGURADOR_CASAS_LINHAS_MINIMIZADO} primeiras linhas — expanda para ver todas.
           </p>
         </div>
         <a
@@ -158,6 +169,7 @@ export function ConfiguradorCasasRankingChecklist({
           antes de configurar as casas.
         </p>
       ) : (
+        <div className="space-y-2">
         <div className="overflow-x-auto rounded-lg border border-stone-200">
           <table className="w-full min-w-[720px] border-collapse text-sm">
             <thead>
@@ -190,7 +202,7 @@ export function ConfiguradorCasasRankingChecklist({
               </tr>
             </thead>
             <tbody>
-              {casas.map((casa, idx) => {
+              {casasVisiveis.map((casa, idx) => {
                 const rowBg = classeDestaquePodioConfigurador(casa);
                 const stickyBg =
                   casa.primeiros > 0
@@ -209,12 +221,10 @@ export function ConfiguradorCasasRankingChecklist({
                     {String(idx + 1).padStart(2, '0')}
                   </td>
                   <td className={`sticky left-8 z-[1] px-3 py-2 font-medium text-stone-900 ${stickyBg}`}>
-                    {casa.rotulo}
-                    {casa.topografias.length > 1 ? (
-                      <span className="mt-0.5 block text-[10px] font-normal text-stone-500">
-                        Topografias: {casa.topografias.join(', ')}
-                      </span>
-                    ) : null}
+                    {casa.modelo}
+                    <span className="mt-0.5 block text-[10px] font-normal capitalize text-stone-500">
+                      {casa.topografia}
+                    </span>
                   </td>
                   <td className="px-3 py-2 text-xs text-stone-700">
                     {casa.colocacoesTop3.length > 0 ? (
@@ -256,6 +266,18 @@ export function ConfiguradorCasasRankingChecklist({
                     {casa.demaisColocacoes || '—'}
                   </td>
                   {faixasColunas.map((faixa) => {
+                    const elegivelFaixa = modeloElegivelParaFaixa(casa.modelo, faixa);
+                    if (!elegivelFaixa) {
+                      return (
+                        <td
+                          key={faixa}
+                          className="px-2 py-1.5 text-center text-xs text-stone-400"
+                          title="Modelo não ranqueável nesta faixa"
+                        >
+                          —
+                        </td>
+                      );
+                    }
                     const colocou = casa.faixasComColocacao.includes(faixa);
                     return (
                       <td key={faixa} className="px-2 py-1.5">
@@ -264,7 +286,7 @@ export function ConfiguradorCasasRankingChecklist({
                           inputMode="decimal"
                           className={
                             inputClass +
-                            (colocou ? '' : ' opacity-50') +
+                            (colocou ? '' : ' opacity-60') +
                             (!podeEditar ? ' cursor-not-allowed bg-stone-50' : '')
                           }
                           placeholder="0,00"
@@ -297,6 +319,28 @@ export function ConfiguradorCasasRankingChecklist({
               })}
             </tbody>
           </table>
+        </div>
+        {ocultasCount > 0 ? (
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={() => setTabelaExpandida((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-stone-300 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-50"
+            >
+              {tabelaExpandida ? (
+                <>
+                  <ChevronsUp size={14} aria-hidden />
+                  Minimizar tabela
+                </>
+              ) : (
+                <>
+                  <ChevronsDown size={14} aria-hidden />
+                  Mostrar todas ({casas.length} linhas — +{ocultasCount} ocultas)
+                </>
+              )}
+            </button>
+          </div>
+        ) : null}
         </div>
       )}
     </div>

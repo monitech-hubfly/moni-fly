@@ -15,6 +15,13 @@ import {
   isFrankAllowedPath,
   isTeamAllowedPath,
 } from '@/lib/access-matrix';
+import { isLiveLimitedRelease } from '@/lib/release-scope';
+
+const HUB_FLY_HOME_TODO_PATH = '/carometro/todo';
+
+function shouldUseTodoAsHubFlyHome(accessRole: ReturnType<typeof normalizeAccessRole>): boolean {
+  return (accessRole === 'team' || accessRole === 'admin') && !isLiveLimitedRelease();
+}
 
 function redirectToBcaPublicLeitura(request: NextRequest) {
   return NextResponse.redirect(new URL(BCA_PUBLIC_LEITURA_PATH, request.url));
@@ -175,8 +182,8 @@ export async function updateSession(request: NextRequest) {
     if (roleLogin === 'frank') {
       return NextResponse.redirect(new URL('/portal-frank', request.url));
     }
-    if (rawRoleLogin === 'team') {
-      return NextResponse.redirect(new URL('/carometro/todo', request.url));
+    if (shouldUseTodoAsHubFlyHome(roleLogin)) {
+      return NextResponse.redirect(new URL(HUB_FLY_HOME_TODO_PATH, request.url));
     }
     return NextResponse.redirect(new URL('/rede-franqueados', request.url));
   }
@@ -237,6 +244,10 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
     return response;
+  }
+
+  if (pathname === '/' && shouldUseTodoAsHubFlyHome(accessRole)) {
+    return NextResponse.redirect(new URL(HUB_FLY_HOME_TODO_PATH, request.url));
   }
 
   // Franqueado: apenas rotas sob /portal-frank (login/cadastro públicos tratados acima).

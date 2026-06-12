@@ -8,6 +8,7 @@ export type StickyBreadcrumb = { href?: string; label: string };
 const PREFIX_TITLE: { prefix: string; title: string }[] = [
   { prefix: '/portal-frank/rede', title: 'Rede de Franqueados' },
   { prefix: '/portal-frank', title: 'Portal Fly' },
+  { prefix: '/carometro/todo', title: 'TO DO' },
   { prefix: '/rede-franqueados', title: 'Rede de Franqueados' },
   { prefix: '/dashboard-novos-negocios', title: 'Dashboard Novos Negócios' },
   { prefix: '/loteadores', title: 'Funil Loteadores' },
