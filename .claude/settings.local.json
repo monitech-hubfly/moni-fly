@@ -60,7 +60,8 @@
       "PowerShell(git add *)",
       "PowerShell(git commit *)",
       "PowerShell(git push *)",
-      "PowerShell(npx tsc --noEmit*)"
+      "PowerShell(npx tsc --noEmit*)",
+      "PowerShell(npx tsc --noEmit 2>&1; Write-Host \"EXIT:$LASTEXITCODE\")"
     ]
   }
 }
