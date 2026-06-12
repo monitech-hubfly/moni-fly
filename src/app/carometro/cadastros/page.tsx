@@ -883,11 +883,19 @@ export default function Page() {
     setLoadingResponsaveis(true)
     const { data: comProfile, error: errProfile } = await supabase
       .from('area_pessoas')
-      .select('id, nome, area_id, ativo, profile_id, areas(nome), profiles(full_name, email)')
+      .select('id, nome, area_id, ativo, profile_id, areas(nome)')
       .order('nome')
-    if (!errProfile) {
+    if (!errProfile && comProfile !== null) {
       setHasProfileIdCol(true)
-      setResponsaveis(comProfile || [])
+      // Enriquecer com dados do profile via join em memória
+      // Busca profiles direto para garantir dados atualizados (independente do state)
+      const { data: profilesData } = await supabase.from('profiles').select('id, full_name, email').order('full_name')
+      const profilesMap = new Map((profilesData || []).map(p => [p.id, p]))
+      const enriched = (comProfile || []).map(r => ({
+        ...r,
+        profiles: r.profile_id ? (profilesMap.get(r.profile_id) ? { full_name: profilesMap.get(r.profile_id)?.full_name, email: profilesMap.get(r.profile_id)?.email } : null) : null
+      }))
+      setResponsaveis(enriched)
     } else {
       setHasProfileIdCol(false)
       const { data: semProfile } = await supabase
