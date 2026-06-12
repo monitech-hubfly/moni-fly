@@ -90,11 +90,14 @@ export function BcaChecklistWidget({ cardId, processoId, itemLabel, podeEditar }
         return;
       }
       const linhas = prospectsOrdenadosPorTicketCasas(prospectsRes.linhas);
-      const tabs = linhas.map((p) => ({
-        id: p.row_id,
-        label: p.condominio.trim(),
-        nome: p.condominio.trim(),
-      }));
+      const tabs = linhas.map((p) => {
+        const nome = String(p.condominio ?? '').trim() || 'Condomínio';
+        return {
+          id: p.row_id,
+          label: nome,
+          nome,
+        };
+      });
       setProspectTabs(tabs);
       setCatalogo(bcaRes.catalogo);
       setCenarios(bcaRes.cenarios);
@@ -103,8 +106,12 @@ export function BcaChecklistWidget({ cardId, processoId, itemLabel, podeEditar }
         if (atual && tabs.some((t) => t.id === atual)) return atual;
         return tabs[0]?.id ?? '';
       });
-    } catch {
-      setErro('Falha ao carregar simulador BCA.');
+    } catch (e) {
+      setErro(
+        e instanceof Error
+          ? e.message
+          : 'Falha ao carregar simulador BCA. Verifique migrations 328–330 no Supabase.',
+      );
     } finally {
       setCarregando(false);
     }
@@ -234,7 +241,7 @@ export function BcaChecklistWidget({ cardId, processoId, itemLabel, podeEditar }
   async function handleSelectModelo(cat: CatalogoCasaBca, faixa: FaixaMercado) {
     if (!cenarioAtivo || !podeEditar) return;
     const topo = cat.topografia ?? '';
-    const custo = resolverCustoConfigurador(custosConfigurador, cat.id, topo, faixa);
+    const custo = resolverCustoConfigurador(custosConfigurador, cat.id, topo, faixa, cat.nome);
     const patch: Parameters<typeof salvarBcaCenario>[0]['patch'] = {
       catalogo_casa_id: cat.id,
       topografia: topo,
@@ -409,6 +416,7 @@ export function BcaChecklistWidget({ cardId, processoId, itemLabel, podeEditar }
                           cenarioAtivo.catalogo_casa_id,
                           cenarioAtivo.topografia,
                           faixa,
+                          cenarioAtivo.inputs?.nome_casa,
                         );
                         const patch: Parameters<typeof salvarBcaCenario>[0]['patch'] = {
                           faixa_mercado: faixa,

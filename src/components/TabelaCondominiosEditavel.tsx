@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Loader2, Pencil, Trash2, X } from 'lucide-react';
+import { usePaginaTabela } from '@/lib/use-pagina-tabela';
 import {
   decimalInputFromValue,
   formatCidadeEstadoCondominio,
@@ -98,6 +99,8 @@ type Props = {
   canEdit?: boolean;
   buscaAtiva?: boolean;
   totalSemBusca?: number;
+  buscaResetKey?: string;
+  solicitarCriacao?: number;
 };
 
 export function TabelaCondominiosEditavel({
@@ -105,9 +108,15 @@ export function TabelaCondominiosEditavel({
   canEdit = true,
   buscaAtiva = false,
   totalSemBusca,
+  buscaResetKey = '',
+  solicitarCriacao = 0,
 }: Props) {
   const router = useRouter();
-  const [page, setPage] = useState(1);
+  const { page: safePage, setPage, totalPages, start } = usePaginaTabela(
+    rows.length,
+    PER_PAGE,
+    buscaResetKey,
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState<Draft>(emptyDraft());
@@ -116,14 +125,7 @@ export function TabelaCondominiosEditavel({
 
   const rowsOrdenadas = useMemo(() => ordenarCondominiosPorNome(rows), [rows]);
   const totalGeral = totalSemBusca ?? rows.length;
-  const totalPages = Math.max(1, Math.ceil(rowsOrdenadas.length / PER_PAGE));
-  const safePage = Math.min(Math.max(1, page), totalPages);
-  const start = (safePage - 1) * PER_PAGE;
   const pageRows = useMemo(() => rowsOrdenadas.slice(start, start + PER_PAGE), [rowsOrdenadas, start]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [rowsOrdenadas]);
 
   const cancelEdit = () => {
     setEditingId(null);
@@ -147,6 +149,11 @@ export function TabelaCondominiosEditavel({
     setCreating(true);
     setDraft(emptyDraft());
   };
+
+  useEffect(() => {
+    if (solicitarCriacao > 0) beginCreate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tick externo da toolbar
+  }, [solicitarCriacao]);
 
   const save = async () => {
     setSaving(true);
@@ -189,23 +196,12 @@ export function TabelaCondominiosEditavel({
 
   if (rowsOrdenadas.length === 0 && !creating) {
     return (
-      <div className="space-y-4">
-        <div className="rounded-xl border border-stone-200 bg-stone-50 p-6 text-center text-sm text-stone-600">
-          <p className="font-medium">
-            {buscaAtiva && totalGeral > 0
-              ? 'Nenhum condomínio encontrado para esta pesquisa.'
-              : 'Nenhum condomínio cadastrado.'}
-          </p>
-        </div>
-        {canEdit ? (
-          <button
-            type="button"
-            onClick={beginCreate}
-            className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-800 hover:bg-stone-50"
-          >
-            Adicionar condomínio
-          </button>
-        ) : null}
+      <div className="rounded-xl border border-stone-200 bg-stone-50 p-6 text-center text-sm text-stone-600">
+        <p className="font-medium">
+          {buscaAtiva && totalGeral > 0
+            ? 'Nenhum condomínio encontrado para esta pesquisa.'
+            : 'Nenhum condomínio cadastrado.'}
+        </p>
       </div>
     );
   }
@@ -215,18 +211,6 @@ export function TabelaCondominiosEditavel({
       {msg ? (
         <div className={msg.tipo === 'ok' ? redeAlertSuccess : redeAlertError} role="status">
           {msg.texto}
-        </div>
-      ) : null}
-
-      {canEdit && !emEdicao ? (
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={beginCreate}
-            className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-800 hover:bg-stone-50"
-          >
-            Adicionar condomínio
-          </button>
         </div>
       ) : null}
 

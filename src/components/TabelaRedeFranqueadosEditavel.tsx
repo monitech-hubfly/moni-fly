@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { usePaginaTabela } from '@/lib/use-pagina-tabela';
 import { useRouter } from 'next/navigation';
 import { Check, FileText, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
@@ -172,6 +173,7 @@ type Props = {
   totalSemBusca?: number;
   /** Indica que há texto na busca (distinto de tabela vazia). */
   buscaAtiva?: boolean;
+  buscaResetKey?: string;
 };
 
 function toInputDate(val: string | null | undefined): string {
@@ -198,9 +200,9 @@ export function TabelaRedeFranqueadosEditavel({
   maskSensitiveColumns = false,
   totalSemBusca,
   buscaAtiva = false,
+  buscaResetKey = '',
 }: Props) {
   const router = useRouter();
-  const [page, setPage] = useState(1);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<Record<RedeFranqueadoDbKey, string>>>({});
   const [saving, setSaving] = useState(false);
@@ -215,18 +217,15 @@ export function TabelaRedeFranqueadosEditavel({
 
   const rowsOrdenadas = useMemo(() => ordenarRedePorNFranquia(rows), [rows]);
   const totalGeral = totalSemBusca ?? rows.length;
-
-  const totalPages = Math.max(1, Math.ceil(rowsOrdenadas.length / PER_PAGE));
-  const safePage = Math.min(Math.max(1, page), totalPages);
-  const start = (safePage - 1) * PER_PAGE;
+  const { page: safePage, setPage, totalPages, start } = usePaginaTabela(
+    rowsOrdenadas.length,
+    PER_PAGE,
+    buscaResetKey,
+  );
   const pageRows = useMemo(
     () => rowsOrdenadas.slice(start, start + PER_PAGE),
     [rowsOrdenadas, start],
   );
-
-  useEffect(() => {
-    setPage(1);
-  }, [rowsOrdenadas]);
 
   useEffect(() => {
     if (!canEditRows && editingId) {

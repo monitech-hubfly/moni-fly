@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
 import type { RedeLoteadorRow } from '@/lib/rede-loteadores';
 import { RedeDashboard } from './RedeDashboard';
@@ -8,13 +8,28 @@ import { RedeFranqueadosTabelaComBusca } from './RedeFranqueadosTabelaComBusca';
 import { RedeLoteadoresTabelaComBusca } from './RedeLoteadoresTabelaComBusca';
 import { CadastrosEmpresasTabelaComBusca } from './CadastrosEmpresasTabelaComBusca';
 import { CondominiosTabelaComBusca } from './CondominiosTabelaComBusca';
-import type { FranqueadoEmpresaRow } from '@/lib/franqueado-empresas';
-import type { FranqueadoSpeRow } from '@/lib/franqueado-spe';
+import { buildCadastrosEmpresasLinhas, type FranqueadoEmpresaRow } from '@/lib/franqueado-empresas';
+import { buildCadastrosEmpresasLinhasComSpe, type FranqueadoSpeRow } from '@/lib/franqueado-spe';
 import type { CondominioRow } from '@/lib/condominios';
-import { CriarCardsDesdeRedeButton } from './CriarCardsDesdeRedeButton';
 import { ImportarRedeCSVButton } from './ImportarRedeCSVButton';
+import { ImportarEntidadeCSVButton } from './ImportarEntidadeCSVButton';
 import { ExportarRedeCSVButton } from './ExportarRedeCSVButton';
+import { ExportarEntidadeCSVButton } from './ExportarEntidadeCSVButton';
 import { NovoFranqueadoModal } from './NovoFranqueadoModal';
+import { NovoRegistroToolbarButton } from './NovoRegistroToolbarButton';
+import {
+  importarRedeLoteadoresCSV,
+  atualizarRedeLoteadoresCSV,
+  importarCondominiosCSV,
+  atualizarCondominiosCSV,
+  importarCadastrosEmpresasCSV,
+  atualizarCadastrosEmpresasCSV,
+} from './rede-tabelas-csv-actions';
+import {
+  csvCadastrosEmpresas,
+  csvCondominios,
+  csvRedeLoteadores,
+} from '@/lib/rede-tabelas-csv-export';
 
 type TabId = 'visao' | 'franqueados' | 'loteadores' | 'empresas' | 'condominios';
 
@@ -37,8 +52,6 @@ type Props = {
   canManageCondominios: boolean;
   canManageFranqueados: boolean;
   maskSensitiveColumns: boolean;
-  linhasSemCard: number;
-  linhasSemFunil: number;
   showDashboard: boolean;
 };
 
@@ -55,8 +68,6 @@ export function RedeFranqueadosPageTabs({
   canManageCondominios,
   canManageFranqueados,
   maskSensitiveColumns,
-  linhasSemCard,
-  linhasSemFunil,
   showDashboard,
 }: Props) {
   const tabs = [
@@ -68,6 +79,13 @@ export function RedeFranqueadosPageTabs({
 
   const defaultTab: TabId = showDashboard ? 'visao' : 'franqueados';
   const [activeTab, setActiveTab] = useState<TabId>(defaultTab);
+  const [loteadorCreateTick, setLoteadorCreateTick] = useState(0);
+  const [condominioCreateTick, setCondominioCreateTick] = useState(0);
+
+  const linhasEmpresasExport = useMemo(() => {
+    const base = buildCadastrosEmpresasLinhas(rows, empresasRows ?? []);
+    return buildCadastrosEmpresasLinhasComSpe(rows, base, spesRows);
+  }, [rows, empresasRows, spesRows]);
 
   const resolvedTab = tabs.some((t) => t.id === activeTab) ? activeTab : defaultTab;
 
@@ -120,7 +138,6 @@ export function RedeFranqueadosPageTabs({
               {canManageFranqueados ? (
                 <>
                   <ImportarRedeCSVButton />
-                  <CriarCardsDesdeRedeButton linhasSemCard={linhasSemCard} linhasSemFunil={linhasSemFunil} />
                   <NovoFranqueadoModal />
                 </>
               ) : null}
@@ -136,7 +153,27 @@ export function RedeFranqueadosPageTabs({
                 Erro ao carregar loteadores. Confira se a migration 207 foi aplicada no Supabase.
               </p>
             ) : (
-              <RedeLoteadoresTabelaComBusca rows={loteadoresRows} />
+              <RedeLoteadoresTabelaComBusca
+                rows={loteadoresRows}
+                solicitarCriacao={loteadorCreateTick}
+              >
+                <ImportarEntidadeCSVButton
+                  templateHref="/templates/rede-loteadores-template.csv"
+                  importar={importarRedeLoteadoresCSV}
+                  atualizar={atualizarRedeLoteadoresCSV}
+                  tituloImportar="Adiciona loteadores novos"
+                  tituloAtualizar="Atualiza pelo id, CNPJ ou nome; células vazias não apagam dados"
+                />
+                <NovoRegistroToolbarButton
+                  label="Novo Loteador"
+                  onClick={() => setLoteadorCreateTick((n) => n + 1)}
+                />
+                <ExportarEntidadeCSVButton
+                  filenamePrefix="rede-loteadores"
+                  disabled={loteadoresRows.length === 0}
+                  gerarCsv={() => csvRedeLoteadores(loteadoresRows)}
+                />
+              </RedeLoteadoresTabelaComBusca>
             )}
           </section>
         ) : null}
@@ -149,7 +186,21 @@ export function RedeFranqueadosPageTabs({
               spesRows={spesRows}
               empresasLoadError={empresasLoadError}
               spesLoadError={spesLoadError}
-            />
+            >
+              <ImportarEntidadeCSVButton
+                templateHref="/templates/cadastros-empresas-template.csv"
+                importar={importarCadastrosEmpresasCSV}
+                atualizar={atualizarCadastrosEmpresasCSV}
+                tituloImportar="Importa/atualiza incorporadora e gestora pelo Nº de Franquia"
+                tituloAtualizar="Atualiza pelo Nº de Franquia; células vazias não apagam dados"
+              />
+              <NovoFranqueadoModal />
+              <ExportarEntidadeCSVButton
+                filenamePrefix="cadastros-empresas"
+                disabled={linhasEmpresasExport.length === 0}
+                gerarCsv={() => csvCadastrosEmpresas(linhasEmpresasExport)}
+              />
+            </CadastrosEmpresasTabelaComBusca>
           </section>
         ) : null}
 
@@ -160,7 +211,32 @@ export function RedeFranqueadosPageTabs({
                 Erro ao carregar condomínios. Confira se a migration 208 foi aplicada no Supabase.
               </p>
             ) : (
-              <CondominiosTabelaComBusca rows={condominiosRows} canEdit={canManageCondominios} />
+              <CondominiosTabelaComBusca
+                rows={condominiosRows}
+                canEdit={canManageCondominios}
+                solicitarCriacao={condominioCreateTick}
+              >
+                {canManageCondominios ? (
+                  <>
+                    <ImportarEntidadeCSVButton
+                      templateHref="/templates/condominios-template.csv"
+                      importar={importarCondominiosCSV}
+                      atualizar={atualizarCondominiosCSV}
+                      tituloImportar="Adiciona condomínios novos"
+                      tituloAtualizar="Atualiza pelo id ou nome; células vazias não apagam dados"
+                    />
+                    <NovoRegistroToolbarButton
+                      label="Novo Condomínio"
+                      onClick={() => setCondominioCreateTick((n) => n + 1)}
+                    />
+                  </>
+                ) : null}
+                <ExportarEntidadeCSVButton
+                  filenamePrefix="condominios"
+                  disabled={condominiosRows.length === 0}
+                  gerarCsv={() => csvCondominios(condominiosRows)}
+                />
+              </CondominiosTabelaComBusca>
             )}
           </section>
         ) : null}

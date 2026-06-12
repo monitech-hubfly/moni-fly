@@ -1,0 +1,2 @@
+n_franquia,nome_completo,inc_razao_social,inc_cnpj,inc_inscricao_municipal,inc_inscricao_estadual,inc_status,inc_conta_banco,inc_conta_agencia,inc_conta_numero,gest_razao_social,gest_cnpj,gest_inscricao_municipal,gest_inscricao_estadual,gest_status
+FK0001,Ana Souza,Incorporadora Exemplo LTDA,12.345.678/0001-90,1.234.567-8,123456789,Ativa,Banco X,1234,56789-0,Gestora Exemplo LTDA,98.765.432/0001-10,9.876.543-2,987654321,Ativa

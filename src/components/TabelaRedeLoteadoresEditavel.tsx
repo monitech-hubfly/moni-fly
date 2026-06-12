@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Archive, Check, Loader2, Pencil, X } from 'lucide-react';
+import { Archive, Check, ClipboardList, Loader2, Pencil, X } from 'lucide-react';
+import { RedeLoteadorFichaModal } from '@/components/RedeLoteadorFichaModal';
+import { usePaginaTabela } from '@/lib/use-pagina-tabela';
 import {
   REDE_LOTEADOR_STATUS_LABEL,
   ordenarRedeLoteadoresPorNome,
@@ -109,27 +111,33 @@ type Props = {
   rows: RedeLoteadorRow[];
   buscaAtiva?: boolean;
   totalSemBusca?: number;
+  buscaResetKey?: string;
+  solicitarCriacao?: number;
 };
 
-export function TabelaRedeLoteadoresEditavel({ rows, buscaAtiva = false, totalSemBusca }: Props) {
+export function TabelaRedeLoteadoresEditavel({
+  rows,
+  buscaAtiva = false,
+  totalSemBusca,
+  buscaResetKey = '',
+  solicitarCriacao = 0,
+}: Props) {
   const router = useRouter();
-  const [page, setPage] = useState(1);
+  const { page: safePage, setPage, totalPages, start } = usePaginaTabela(
+    rows.length,
+    PER_PAGE,
+    buscaResetKey,
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
+  const [fichaRow, setFichaRow] = useState<RedeLoteadorRow | null>(null);
 
   const rowsOrdenadas = useMemo(() => ordenarRedeLoteadoresPorNome(rows), [rows]);
   const totalGeral = totalSemBusca ?? rows.length;
-  const totalPages = Math.max(1, Math.ceil(rowsOrdenadas.length / PER_PAGE));
-  const safePage = Math.min(Math.max(1, page), totalPages);
-  const start = (safePage - 1) * PER_PAGE;
   const pageRows = useMemo(() => rowsOrdenadas.slice(start, start + PER_PAGE), [rowsOrdenadas, start]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [rowsOrdenadas]);
 
   const cancelEdit = () => {
     setEditingId(null);
@@ -151,6 +159,11 @@ export function TabelaRedeLoteadoresEditavel({ rows, buscaAtiva = false, totalSe
     setCreating(true);
     setDraft(emptyDraft());
   };
+
+  useEffect(() => {
+    if (solicitarCriacao > 0) beginCreate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tick externo da toolbar
+  }, [solicitarCriacao]);
 
   const save = async () => {
     setSaving(true);
@@ -193,21 +206,12 @@ export function TabelaRedeLoteadoresEditavel({ rows, buscaAtiva = false, totalSe
 
   if (rowsOrdenadas.length === 0 && !creating) {
     return (
-      <div className="space-y-4">
-        <div className="rounded-xl border border-stone-200 bg-stone-50 p-6 text-center text-sm text-stone-600">
-          <p className="font-medium">
-            {buscaAtiva && totalGeral > 0
-              ? 'Nenhum loteador encontrado para esta pesquisa.'
-              : 'Nenhum loteador cadastrado.'}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={beginCreate}
-          className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-800 hover:bg-stone-50"
-        >
-          Adicionar loteador
-        </button>
+      <div className="rounded-xl border border-stone-200 bg-stone-50 p-6 text-center text-sm text-stone-600">
+        <p className="font-medium">
+          {buscaAtiva && totalGeral > 0
+            ? 'Nenhum loteador encontrado para esta pesquisa.'
+            : 'Nenhum loteador cadastrado.'}
+        </p>
       </div>
     );
   }
@@ -217,18 +221,6 @@ export function TabelaRedeLoteadoresEditavel({ rows, buscaAtiva = false, totalSe
       {msg ? (
         <div className={msg.tipo === 'ok' ? redeAlertSuccess : redeAlertError} role="status">
           {msg.texto}
-        </div>
-      ) : null}
-
-      {!emEdicao ? (
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={beginCreate}
-            className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-800 hover:bg-stone-50"
-          >
-            Adicionar loteador
-          </button>
         </div>
       ) : null}
 
@@ -253,6 +245,9 @@ export function TabelaRedeLoteadoresEditavel({ rows, buscaAtiva = false, totalSe
               </th>
               <th className={redeTh} scope="col">
                 Status
+              </th>
+              <th className={`${redeTh} w-16 text-center`} scope="col">
+                Ficha
               </th>
               <th
                 className="sticky right-0 z-20 w-28 min-w-[7rem] border-l border-stone-200 bg-stone-50 px-1 py-2 text-center"
@@ -297,6 +292,18 @@ export function TabelaRedeLoteadoresEditavel({ rows, buscaAtiva = false, totalSe
                   </td>
                   <td className="px-3 py-2.5">
                     <StatusBadge status={r.status} />
+                  </td>
+                  <td className="px-2 py-2.5 text-center align-middle">
+                    <button
+                      type="button"
+                      title="Abrir ficha completa"
+                      onClick={() => setFichaRow(r)}
+                      disabled={emEdicao}
+                      className="inline-flex rounded-md p-1.5 text-stone-600 hover:bg-stone-200/80 disabled:opacity-50"
+                    >
+                      <ClipboardList className="h-4 w-4" />
+                      <span className="sr-only">Ficha</span>
+                    </button>
                   </td>
                   <td className="sticky right-0 z-10 border-l border-stone-200 bg-white px-1 py-2 align-middle group-hover:bg-stone-50/90">
                     <div className="flex items-center justify-center gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
@@ -374,6 +381,8 @@ export function TabelaRedeLoteadoresEditavel({ rows, buscaAtiva = false, totalSe
           </nav>
         ) : null}
       </div>
+
+      {fichaRow ? <RedeLoteadorFichaModal row={fichaRow} onClose={() => setFichaRow(null)} /> : null}
     </div>
   );
 }
@@ -471,6 +480,7 @@ function LoteadorEditRow({
           ))}
         </select>
       </td>
+      <td className="px-2 py-2 text-center text-stone-400">—</td>
       <td className="sticky right-0 border-l border-stone-200 bg-stone-50 px-1 py-2 align-middle">
         <div className="flex items-center justify-center gap-1">
           <button

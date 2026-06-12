@@ -1,5 +1,4 @@
 import {
-  formatModeloTopografia,
   type RankingPorFaixaMercado,
 } from '@/lib/kanban/pre-batalha-compatibilidade';
 import {
@@ -11,20 +10,29 @@ import {
 export type ColocacaoFaixaConfigurador = {
   faixa: FaixaMercado;
   faixaLabel: string;
-  posicao: 1 | 2 | 3;
+  posicao: number;
 };
 
 export type CasaConfiguradorRanking = {
+  /** Chave estável por nome do modelo (sem topografia). */
   chave: string;
   catalogoId: string;
+  catalogoIds: string[];
   modelo: string;
-  topografia: string;
+  topografias: string[];
   rotulo: string;
   colocacoesTop3: ColocacaoFaixaConfigurador[];
+  colocacoesOutras: ColocacaoFaixaConfigurador[];
   descricaoColocacoes: string;
+  faixasComColocacao: FaixaMercado[];
   primeiros: number;
   segundos: number;
   terceiros: number;
+  /** Soma de colocações a partir do 4º lugar (elegíveis). */
+  demaisColocacoes: number;
+  /** Contagem por posição absoluta no ranking (1-based, só elegíveis). */
+  contagemPorPosicao: Record<number, number>;
+  melhorPosicao: number;
 };
 
 export type ConfiguradorCasasValoresJson = {
@@ -33,8 +41,18 @@ export type ConfiguradorCasasValoresJson = {
   valores: Record<string, Partial<Record<FaixaMercado, string>>>;
 };
 
+/** Chave legada BCA / custo por catálogo × topografia. */
 export function chaveModeloConfigurador(catalogoId: string, topografia: string): string {
   return `${catalogoId}|${topografia.trim().toLowerCase()}`;
+}
+
+/** Chave agregada do checklist — uma linha por nome de modelo. */
+export function chaveCasaConfiguradorLista(modelo: string): string {
+  return modelo
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 }
 
 function formatDescricaoColocacoes(colocacoes: ColocacaoFaixaConfigurador[]): string {
@@ -50,9 +68,28 @@ function formatDescricaoColocacoes(colocacoes: ColocacaoFaixaConfigurador[]): st
     .join(', ');
 }
 
+function compareCasasPorColocacoes(a: CasaConfiguradorRanking, b: CasaConfiguradorRanking): number {
+  const posicoes = new Set<number>([
+    ...Object.keys(a.contagemPorPosicao).map(Number),
+    ...Object.keys(b.contagemPorPosicao).map(Number),
+    1,
+    2,
+    3,
+  ]);
+  const maxPos = Math.max(...posicoes, 1);
+  for (let pos = 1; pos <= maxPos; pos++) {
+    const ca = a.contagemPorPosicao[pos] ?? 0;
+    const cb = b.contagemPorPosicao[pos] ?? 0;
+    if (cb !== ca) return cb - ca;
+  }
+  if (a.melhorPosicao !== b.melhorPosicao) return a.melhorPosicao - b.melhorPosicao;
+  return a.modelo.localeCompare(b.modelo, 'pt-BR', { sensitivity: 'base' });
+}
+
 /**
- * Agrega modelos únicos da Pré Batalha, ordenados por pódios (1º → 2º → 3º).
- * Inclui todos os elegíveis em alguma faixa; a descrição cita só faixas com top 3.
+ * Agrega modelos únicos (nome, sem topografia) da Pré Batalha.
+ * Ordenação: mais 1º → mais 2º → mais 3º → mais 4º → …
+ * Destaque no pódio (1º–3º); demais colocações permanecem na lista.
  */
 export function agregarCasasConfiguradorDePreBatalha(grupos: RankingPorFaixaMercado[]): {
   casas: CasaConfiguradorRanking[];
@@ -62,73 +99,113 @@ export function agregarCasasConfiguradorDePreBatalha(grupos: RankingPorFaixaMerc
 
   type Acc = {
     catalogoId: string;
+    catalogoIds: Set<string>;
     modelo: string;
-    topografia: string;
-    colocacoesTop3: ColocacaoFaixaConfigurador[];
-    primeiros: number;
-    segundos: number;
-    terceiros: number;
+    topografias: Set<string>;
+    colocacoes: ColocacaoFaixaConfigurador[];
+    faixasComColocacao: Set<FaixaMercado>;
+    contagemPorPosicao: Record<number, number>;
     melhorPosicao: number;
   };
 
   const map = new Map<string, Acc>();
 
   for (const grupo of grupos) {
-    const elegiveis = grupo.ranking.filter((r) => r.elegivel !== false);
-    for (let i = 0; i < elegiveis.length; i++) {
-      const item = elegiveis[i];
+    const faixaLabel = grupo.faixaLabel || labelFaixaMercado(grupo.faixa);
+    for (let i = 0; i < grupo.ranking.length; i++) {
+      const item = grupo.ranking[i];
       const pos = i + 1;
-      const chave = chaveModeloConfigurador(item.catalogoId, item.topografia);
-      let acc = map.get(chave);
+      const modeloKey = chaveCasaConfiguradorLista(item.modelo);
+      let acc = map.get(modeloKey);
       if (!acc) {
         acc = {
           catalogoId: item.catalogoId,
-          modelo: item.modelo,
-          topografia: item.topografia,
-          colocacoesTop3: [],
-          primeiros: 0,
-          segundos: 0,
-          terceiros: 0,
+          catalogoIds: new Set([item.catalogoId]),
+          modelo: item.modelo.trim(),
+          topografias: new Set(),
+          colocacoes: [],
+          faixasComColocacao: new Set(),
+          contagemPorPosicao: {},
           melhorPosicao: 99,
         };
-        map.set(chave, acc);
+        map.set(modeloKey, acc);
       }
+      acc.catalogoIds.add(item.catalogoId);
+      if (item.topografia?.trim()) acc.topografias.add(item.topografia.trim());
+
+      if (item.elegivel === false) continue;
+
+      acc.faixasComColocacao.add(grupo.faixa);
       if (pos < acc.melhorPosicao) acc.melhorPosicao = pos;
-      if (pos > 3) continue;
-      const posTop: 1 | 2 | 3 = pos as 1 | 2 | 3;
-      acc.colocacoesTop3.push({
+      acc.contagemPorPosicao[pos] = (acc.contagemPorPosicao[pos] ?? 0) + 1;
+      acc.colocacoes.push({
         faixa: grupo.faixa,
-        faixaLabel: grupo.faixaLabel || labelFaixaMercado(grupo.faixa),
-        posicao: posTop,
+        faixaLabel,
+        posicao: pos,
       });
-      if (posTop === 1) acc.primeiros++;
-      else if (posTop === 2) acc.segundos++;
-      else acc.terceiros++;
     }
   }
 
   const casas = [...map.values()]
-    .sort((a, b) => {
-      if (b.primeiros !== a.primeiros) return b.primeiros - a.primeiros;
-      if (b.segundos !== a.segundos) return b.segundos - a.segundos;
-      if (b.terceiros !== a.terceiros) return b.terceiros - a.terceiros;
-      if (a.melhorPosicao !== b.melhorPosicao) return a.melhorPosicao - b.melhorPosicao;
-      return a.modelo.localeCompare(b.modelo, 'pt-BR');
+    .map((acc) => {
+      const colocacoesTop3 = acc.colocacoes.filter((c) => c.posicao <= 3);
+      const colocacoesOutras = acc.colocacoes.filter((c) => c.posicao > 3);
+      const primeiros = acc.contagemPorPosicao[1] ?? 0;
+      const segundos = acc.contagemPorPosicao[2] ?? 0;
+      const terceiros = acc.contagemPorPosicao[3] ?? 0;
+      let demaisColocacoes = 0;
+      for (const [posStr, n] of Object.entries(acc.contagemPorPosicao)) {
+        const pos = Number(posStr);
+        if (pos >= 4) demaisColocacoes += n;
+      }
+      const chave = chaveCasaConfiguradorLista(acc.modelo);
+      return {
+        chave,
+        catalogoId: acc.catalogoId,
+        catalogoIds: [...acc.catalogoIds],
+        modelo: acc.modelo,
+        topografias: [...acc.topografias],
+        rotulo: acc.modelo,
+        colocacoesTop3,
+        colocacoesOutras,
+        descricaoColocacoes: formatDescricaoColocacoes(acc.colocacoes),
+        faixasComColocacao: [...acc.faixasComColocacao],
+        primeiros,
+        segundos,
+        terceiros,
+        demaisColocacoes,
+        contagemPorPosicao: acc.contagemPorPosicao,
+        melhorPosicao: acc.melhorPosicao === 99 ? 999 : acc.melhorPosicao,
+      } satisfies CasaConfiguradorRanking;
     })
-    .map((acc) => ({
-      chave: chaveModeloConfigurador(acc.catalogoId, acc.topografia),
-      catalogoId: acc.catalogoId,
-      modelo: acc.modelo,
-      topografia: acc.topografia,
-      rotulo: formatModeloTopografia(acc.modelo, acc.topografia),
-      colocacoesTop3: acc.colocacoesTop3,
-      descricaoColocacoes: formatDescricaoColocacoes(acc.colocacoesTop3),
-      primeiros: acc.primeiros,
-      segundos: acc.segundos,
-      terceiros: acc.terceiros,
-    }));
+    .sort(compareCasasPorColocacoes);
 
   return { casas, faixasAtivas };
+}
+
+/** Mescla valores legados (`uuid|topografia`) para chaves agregadas por modelo. */
+export function mesclarValoresConfiguradorPorModelo(
+  valores: ConfiguradorCasasValoresJson,
+  casas: CasaConfiguradorRanking[],
+): ConfiguradorCasasValoresJson {
+  const merged: Record<string, Partial<Record<FaixaMercado, string>>> = {};
+
+  for (const casa of casas) {
+    const dest = { ...(merged[casa.chave] ?? {}) };
+
+    const direto = valores.valores[casa.chave];
+    if (direto) Object.assign(dest, direto);
+
+    for (const [oldKey, faixas] of Object.entries(valores.valores)) {
+      if (!oldKey.includes('|')) continue;
+      const [catId] = oldKey.split('|');
+      if (casa.catalogoIds.includes(catId)) Object.assign(dest, faixas);
+    }
+
+    if (Object.keys(dest).length > 0) merged[casa.chave] = dest;
+  }
+
+  return { v: 1, valores: merged };
 }
 
 export function parseConfiguradorCasasValores(raw: string | null | undefined): ConfiguradorCasasValoresJson {
@@ -163,9 +240,26 @@ export function resolverCustoConfigurador(
   catalogoId: string,
   topografia: string | null | undefined,
   faixa: FaixaMercado | null | undefined,
+  modeloNome?: string | null,
 ): number | null {
   if (!faixa) return null;
+
+  if (modeloNome?.trim()) {
+    const chaveLista = chaveCasaConfiguradorLista(modeloNome);
+    const rawLista = custos.valores[chaveLista]?.[faixa];
+    const vLista = parseValorMonetarioConfigurador(rawLista);
+    if (vLista != null) return vLista;
+  }
+
   const chave = chaveModeloConfigurador(catalogoId, topografia ?? '');
   const raw = custos.valores[chave]?.[faixa];
   return parseValorMonetarioConfigurador(raw);
+}
+
+/** Destaque visual por pódio (1º–3º) sem ocultar demais colocações. */
+export function classeDestaquePodioConfigurador(casa: CasaConfiguradorRanking): string {
+  if (casa.primeiros > 0) return 'bg-amber-50/90';
+  if (casa.segundos > 0) return 'bg-stone-50/95';
+  if (casa.terceiros > 0) return 'bg-orange-50/50';
+  return 'bg-white';
 }

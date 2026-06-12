@@ -12,6 +12,17 @@ import { verifyProcessoCasasAccess } from '@/lib/zap-save-casas';
 import { KANBAN_IDS, FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import { createClient } from '@/lib/supabase/server';
 
+type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
+
+/** Autoriza pelo processo e usa cliente autenticado (RLS), não service role — evita 403 em tabelas sem GRANT. */
+async function supabaseAposAutorizarBca(
+  processoId: string,
+): Promise<{ ok: true; supabase: SupabaseServer } | { ok: false; error: string }> {
+  const access = await verifyProcessoCasasAccess(processoId.trim());
+  if (!access.ok) return access;
+  return { ok: true, supabase: await createClient() };
+}
+
 export type BcaCenarioRow = {
   id: string;
   card_id: string;
@@ -123,11 +134,11 @@ export async function carregarBcaChecklistData(
   const pid = processoId.trim();
   if (!cid || !pid) return { ok: false, error: 'Card ou processo inválido.' };
 
-  const access = await verifyProcessoCasasAccess(pid);
-  if (!access.ok) return { ok: false, error: access.error };
-  const supabase = access.supabase;
+  const auth = await supabaseAposAutorizarBca(pid);
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const supabase = auth.supabase;
 
-  const [{ data: catRows }, { data: cenRows }, custosConfigurador] = await Promise.all([
+  const [catRes, cenRes, custosConfigurador] = await Promise.all([
     supabase
       .from('catalogo_casas')
       .select('id, nome, topografia, area_m2, largura_m, profundidade_m, quartos, banheiros, vagas')
@@ -142,8 +153,21 @@ export async function carregarBcaChecklistData(
     carregarCustosConfiguradorPorCard(cid),
   ]);
 
-  const catalogo = (catRows ?? []) as CatalogoCasaBca[];
-  const cenarios = (cenRows ?? []).map((r) => rowToBcaCenario(r as Record<string, unknown>));
+  if (catRes.error) return { ok: false, error: catRes.error.message };
+  if (cenRes.error) {
+    const msg = cenRes.error.message ?? '';
+    if (msg.includes('bca_cenarios') || msg.includes('schema cache')) {
+      return {
+        ok: false,
+        error:
+          'Tabela bca_cenarios não encontrada. Aplique as migrations 328–330 no Supabase DEV.',
+      };
+    }
+    return { ok: false, error: msg };
+  }
+
+  const catalogo = (catRes.data ?? []) as CatalogoCasaBca[];
+  const cenarios = (cenRes.data ?? []).map((r) => rowToBcaCenario(r as Record<string, unknown>));
 
   return { ok: true, catalogo, cenarios, custosConfigurador };
 }
@@ -155,9 +179,9 @@ export async function criarBcaCenario(input: {
   condominioNome: string;
   ordem: number;
 }): Promise<{ ok: true; cenario: BcaCenarioRow } | { ok: false; error: string }> {
-  const access = await verifyProcessoCasasAccess(input.processoId.trim());
-  if (!access.ok) return { ok: false, error: access.error };
-  const supabase = access.supabase;
+  const auth = await supabaseAposAutorizarBca(input.processoId.trim());
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const supabase = auth.supabase;
 
   const defaults: Partial<BcaInputs> = {
     ...BCA_DEFAULTS,
@@ -191,9 +215,9 @@ export async function salvarBcaCenario(input: {
     faixa_mercado?: FaixaMercado | null;
   };
 }): Promise<{ ok: true; cenario: BcaCenarioRow } | { ok: false; error: string }> {
-  const access = await verifyProcessoCasasAccess(input.processoId.trim());
-  if (!access.ok) return { ok: false, error: access.error };
-  const supabase = access.supabase;
+  const auth = await supabaseAposAutorizarBca(input.processoId.trim());
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const supabase = auth.supabase;
 
   const { data: existing } = await supabase
     .from('bca_cenarios')
@@ -247,9 +271,9 @@ export async function confirmarBcaCenario(
   cenarioId: string,
   processoId: string,
 ): Promise<{ ok: true; cenario: BcaCenarioRow } | { ok: false; error: string }> {
-  const access = await verifyProcessoCasasAccess(processoId.trim());
-  if (!access.ok) return { ok: false, error: access.error };
-  const supabase = access.supabase;
+  const auth = await supabaseAposAutorizarBca(processoId.trim());
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const supabase = auth.supabase;
 
   const { data, error } = await supabase
     .from('bca_cenarios')
@@ -376,33 +400,68 @@ export async function carregarBcaCondominioChecklistData(
   const pid = processoId.trim();
   if (!cid || !pid) return { ok: false, error: 'Card ou processo inválido.' };
 
-  const access = await verifyProcessoCasasAccess(pid);
-  if (!access.ok) return { ok: false, error: access.error };
-  const supabase = access.supabase;
+  const auth = await supabaseAposAutorizarBca(pid);
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const supabase = auth.supabase;
 
-  const [{ data: catRows, error: catErr }, { data: cenRows, error: cenErr }] = await Promise.all([
-    supabase
-      .from('catalogo_casas')
-      .select(
-        'id, nome, area_m2, largura_m, profundidade_m, quartos, suites, banheiros, vagas, custo_projetos_padrao, mes_inicio_obra_padrao, fluxo_obra_json',
-      )
-      .eq('ativo', true)
-      .order('nome', { ascending: true }),
-    supabase
-      .from('bca_cenarios')
-      .select('*')
-      .eq('card_id', cid)
-      .order('prospect_row_id', { ascending: true })
-      .order('ordem', { ascending: true }),
-  ]);
+  const selectCatalogoCompleto =
+    'id, nome, area_m2, largura_m, profundidade_m, quartos, suites, banheiros, vagas, custo_projetos_padrao, mes_inicio_obra_padrao, fluxo_obra_json';
+  const selectCatalogoBasico =
+    'id, nome, area_m2, largura_m, profundidade_m, quartos, suites, banheiros, vagas';
 
-  if (catErr) return { ok: false, error: catErr.message };
-  if (cenErr) return { ok: false, error: cenErr.message };
+  const catResCompleto = await supabase
+    .from('catalogo_casas')
+    .select(selectCatalogoCompleto)
+    .eq('ativo', true)
+    .order('nome', { ascending: true });
+
+  const catRes = catResCompleto.error
+    ? await supabase
+        .from('catalogo_casas')
+        .select(selectCatalogoBasico)
+        .eq('ativo', true)
+        .order('nome', { ascending: true })
+    : catResCompleto;
+
+  const cenRes = await supabase
+    .from('bca_cenarios')
+    .select('*')
+    .eq('card_id', cid)
+    .order('prospect_row_id', { ascending: true })
+    .order('ordem', { ascending: true });
+
+  if (catRes.error) return { ok: false, error: catRes.error.message };
+  if (cenRes.error) {
+    const msg = cenRes.error.message ?? '';
+    if (msg.includes('bca_cenarios') || msg.includes('schema cache')) {
+      return {
+        ok: false,
+        error:
+          'Tabela bca_cenarios não encontrada. Aplique as migrations 328–330 no Supabase DEV.',
+      };
+    }
+    return { ok: false, error: msg };
+  }
+
+  const catalogo = ((catRes.data ?? []) as Record<string, unknown>[]).map((row) => ({
+    id: String(row.id),
+    nome: (row.nome as string | null) ?? null,
+    area_m2: numOrNull(row.area_m2),
+    largura_m: numOrNull(row.largura_m),
+    profundidade_m: numOrNull(row.profundidade_m),
+    quartos: numOrNull(row.quartos),
+    suites: numOrNull(row.suites),
+    banheiros: numOrNull(row.banheiros),
+    vagas: numOrNull(row.vagas),
+    custo_projetos_padrao: numOrNull(row.custo_projetos_padrao),
+    mes_inicio_obra_padrao: numOrNull(row.mes_inicio_obra_padrao),
+    fluxo_obra_json: (row.fluxo_obra_json as Record<string, unknown> | null) ?? null,
+  })) satisfies CatalogoCasaBcaCondominio[];
 
   return {
     ok: true,
-    catalogo: (catRows ?? []) as CatalogoCasaBcaCondominio[],
-    cenarios: (cenRows ?? []).map((r) => rowToBcaCondominioCenario(r as Record<string, unknown>)),
+    catalogo,
+    cenarios: (cenRes.data ?? []).map((r) => rowToBcaCondominioCenario(r as Record<string, unknown>)),
   };
 }
 
@@ -414,9 +473,9 @@ export async function criarBcaCondominioCenario(input: {
   ordem: number;
   label: string;
 }): Promise<{ ok: true; cenario: BcaCondominioCenario } | { ok: false; error: string }> {
-  const access = await verifyProcessoCasasAccess(input.processoId.trim());
-  if (!access.ok) return { ok: false, error: access.error };
-  const supabase = access.supabase;
+  const auth = await supabaseAposAutorizarBca(input.processoId.trim());
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const supabase = auth.supabase;
 
   const { data, error } = await supabase
     .from('bca_cenarios')
@@ -468,9 +527,9 @@ export async function salvarBcaCondominioCenario(input: {
   processoId: string;
   patch: BcaCondominioCenarioPatch;
 }): Promise<{ ok: true; cenario: BcaCondominioCenario } | { ok: false; error: string }> {
-  const access = await verifyProcessoCasasAccess(input.processoId.trim());
-  if (!access.ok) return { ok: false, error: access.error };
-  const supabase = access.supabase;
+  const auth = await supabaseAposAutorizarBca(input.processoId.trim());
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const supabase = auth.supabase;
 
   const updateRow: Record<string, unknown> = {
     ...input.patch,
@@ -492,9 +551,9 @@ export async function confirmarBcaCondominioCenario(
   cenarioId: string,
   processoId: string,
 ): Promise<{ ok: true; cenario: BcaCondominioCenario } | { ok: false; error: string }> {
-  const access = await verifyProcessoCasasAccess(processoId.trim());
-  if (!access.ok) return { ok: false, error: access.error };
-  const supabase = access.supabase;
+  const auth = await supabaseAposAutorizarBca(processoId.trim());
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const supabase = auth.supabase;
 
   const { data, error } = await supabase
     .from('bca_cenarios')

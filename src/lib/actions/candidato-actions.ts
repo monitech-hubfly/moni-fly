@@ -30,6 +30,7 @@ export type FaseChecklistItem = {
     | 'configurador_casas_ranking'
     | 'bca_simulador'
     | 'bca_condominio'
+    | 'rede_loteador'
     | 'url';
   obrigatorio: boolean;
   visivel_candidato: boolean;

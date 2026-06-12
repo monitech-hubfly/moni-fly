@@ -28,7 +28,9 @@ import {
 } from '../actions';
 import { RedeDocsSecaoColapsavel, RedeDocsSubsecaoColapsavel } from './rede-docs-secao-colapsavel';
 import type { FranqueadoSpeRow } from '@/lib/franqueado-spe';
+import type { FranqueadoEmpresaExtraRow } from '@/lib/franqueado-empresa-extra';
 import { RedeFranqueadoSpeSection } from './RedeFranqueadoSpeSection';
+import { RedeFranqueadoEmpresasExtrasSection } from './RedeFranqueadoEmpresasExtrasSection';
 
 function nomeDoPath(path: string) {
   const parts = path.split('/').filter(Boolean);
@@ -55,6 +57,8 @@ type Props = {
   franqueadoDocs: RedeFranqueadoDocsRow;
   empresaDocs: RedeEmpresaDocsRow;
   spes?: FranqueadoSpeRow[];
+  empresasExtras?: FranqueadoEmpresaExtraRow[];
+  permiteCriarSpeEEmpresa?: boolean;
 };
 
 function DocUploadCard({
@@ -198,6 +202,8 @@ export function RedeFranqueadoDetalheDocs({
   franqueadoDocs,
   empresaDocs,
   spes = [],
+  empresasExtras = [],
+  permiteCriarSpeEEmpresa = false,
 }: Props) {
   const router = useRouter();
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
@@ -359,7 +365,12 @@ export function RedeFranqueadoDetalheDocs({
               </div>
             </RedeDocsSubsecaoColapsavel>
           ))}
-          <RedeFranqueadoSpeSection redeId={redeId} spes={spes} />
+          <RedeFranqueadoEmpresasExtrasSection
+            redeId={redeId}
+            empresas={empresasExtras}
+            permiteCriar={permiteCriarSpeEEmpresa}
+          />
+          <RedeFranqueadoSpeSection redeId={redeId} spes={spes} permiteCriar={permiteCriarSpeEEmpresa} />
         </div>
         </RedeDocsSecaoColapsavel>
       </div>

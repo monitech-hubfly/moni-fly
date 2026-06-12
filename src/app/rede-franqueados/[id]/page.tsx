@@ -6,6 +6,8 @@ import { pickRedeEmpresaDocsFromRow } from '@/lib/rede-documentos-empresas';
 import { pickRedeFranqueadoDocsFromRow } from '@/lib/rede-documentos-franqueado';
 import { fetchRedeFranqueadoDetalheForPage } from '@/lib/rede-franqueados';
 import { fetchFranqueadoSpeRows } from '@/lib/franqueado-spe';
+import { fetchFranqueadoEmpresasExtrasRows } from '@/lib/franqueado-empresa-extra';
+import { isFranquiaCasaMoniFk0000 } from '@/lib/franquia-casa-moni-fk0000';
 import { RedeFranqueadoDetalheDocs } from './RedeFranqueadoDetalheDocs';
 import { RedeFranqueadoDetalheDocsFranqueado } from './RedeFranqueadoDetalheDocsFranqueado';
 
@@ -36,9 +38,10 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
     if (!own) redirect('/portal-frank/rede');
   }
 
-  const [{ row, error: loadError }, spesRows] = await Promise.all([
+  const [{ row, error: loadError }, spesRows, empresasExtrasRows] = await Promise.all([
     fetchRedeFranqueadoDetalheForPage(supabase, id, { staffUseAdminFallback: staff }),
     staff ? fetchFranqueadoSpeRows(supabase) : Promise.resolve(null),
+    staff ? fetchFranqueadoEmpresasExtrasRows(supabase, id) : Promise.resolve(null),
   ]);
   const spesDoFranqueado = (spesRows ?? []).filter((s) => s.rede_franqueado_id === id);
 
@@ -59,8 +62,10 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
 
   if (!row) notFound();
 
-  const nome = String(row.nome_completo ?? '').trim() || 'Franqueado';
   const nfr = String(row.n_franquia ?? '').trim();
+  const permiteCriarSpeEEmpresa = isFranquiaCasaMoniFk0000(nfr);
+
+  const nome = String(row.nome_completo ?? '').trim() || 'Franqueado';
   const pathCof = row.anexo_cof_path ?? null;
   const pathContrato = row.anexo_contrato_path ?? null;
   const pathNumeroFranquia = row.anexo_numero_franquia_path ?? null;
@@ -95,6 +100,8 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
               franqueadoDocs={franqueadoDocs}
               empresaDocs={empresaDocs}
               spes={spesDoFranqueado}
+              empresasExtras={empresasExtrasRows ?? []}
+              permiteCriarSpeEEmpresa={permiteCriarSpeEEmpresa}
             />
           ) : (
             <RedeFranqueadoDetalheDocsFranqueado

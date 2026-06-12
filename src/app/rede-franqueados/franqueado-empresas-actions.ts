@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { normalizeAccessRole } from '@/lib/authz';
+import { isFranquiaCasaMoniFk0000 } from '@/lib/franquia-casa-moni-fk0000';
 import type {
   FranqueadoEmpresaTipo,
   FranqueadoEmpresaUpsertDados,
@@ -52,7 +53,52 @@ function cleanDados(dados: FranqueadoEmpresaUpsertDados): Record<string, unknown
   return out;
 }
 
-/** Cria ou atualiza linha em `franqueado_empresas` (unique por rede + tipo). */
+async function assertFranquiaCasaMoniFk0000(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  redeFranqueadoId: string,
+): Promise<Ok | Err> {
+  const { data, error } = await supabase
+    .from('rede_franqueados')
+    .select('n_franquia')
+    .eq('id', redeFranqueadoId.trim())
+    .maybeSingle();
+  if (error || !data) return { ok: false, error: 'Franqueado não encontrado.' };
+  if (!isFranquiaCasaMoniFk0000((data as { n_franquia?: string | null }).n_franquia)) {
+    return { ok: false, error: 'Disponível apenas para a franquia FK0000 (Casa Moní).' };
+  }
+  return { ok: true, mensagem: '' };
+}
+
+async function upsertEmpresaPorRedeETipo(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  redeId: string,
+  tipo: FranqueadoEmpresaTipo,
+  patch: Record<string, unknown>,
+): Promise<Err | null> {
+  const { data: existing } = await supabase
+    .from('franqueado_empresas')
+    .select('id')
+    .eq('rede_franqueado_id', redeId)
+    .eq('tipo', tipo)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await supabase
+      .from('franqueado_empresas')
+      .update(patch as never)
+      .eq('id', (existing as { id: string }).id);
+    return error ? { ok: false, error: error.message } : null;
+  }
+
+  const { error } = await supabase.from('franqueado_empresas').insert({
+    rede_franqueado_id: redeId,
+    tipo,
+    ...patch,
+  } as never);
+  return error ? { ok: false, error: error.message } : null;
+}
+
+/** Cria ou atualiza linha em `franqueado_empresas` (incorporadora/gestora — uma de cada por rede). */
 export async function upsertFranqueadoEmpresa(
   redeFranqueadoId: string,
   tipo: FranqueadoEmpresaTipo,
@@ -69,32 +115,113 @@ export async function upsertFranqueadoEmpresa(
 
   let row: Record<string, unknown>;
   try {
-    row = {
-      rede_franqueado_id: redeId,
-      tipo,
-      ...cleanDados(dados),
-    };
+    row = cleanDados(dados);
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Dados inválidos.' };
   }
 
-  const { error } = await gate.supabase
-    .from('franqueado_empresas')
-    .upsert(row as never, { onConflict: 'rede_franqueado_id,tipo' });
-
-  if (error) {
-    if (/franqueado_empresas|schema cache|relation/i.test(error.message ?? '')) {
+  const err = await upsertEmpresaPorRedeETipo(gate.supabase, redeId, tipo, row);
+  if (err) {
+    if (/franqueado_empresas|schema cache|relation/i.test(err.error ?? '')) {
       return {
         ok: false,
         error:
           'Tabela franqueado_empresas ainda não existe no banco. Execute a migration 207 no Supabase.',
       };
     }
-    return { ok: false, error: error.message };
+    return err;
   }
 
   revalidatePath('/rede-franqueados');
   revalidatePath(`/rede-franqueados/${redeId}`);
   const label = tipo === 'incorporadora' ? 'Incorporadora' : 'Gestora';
   return { ok: true, mensagem: `Cadastro ${label} salvo.` };
+}
+
+type OkComId = { ok: true; mensagem: string; empresaId?: string };
+
+/** Cria empresa adicional (tipo `empresa`) — somente FK0000. */
+export async function criarFranqueadoEmpresaExtra(
+  redeFranqueadoId: string,
+  nome?: string | null,
+): Promise<OkComId | Err> {
+  const gate = await requireFranqueadoEmpresasStaff();
+  if (!gate.ok) return gate;
+
+  const redeId = redeFranqueadoId.trim();
+  if (!redeId) return { ok: false, error: 'Franqueado inválido.' };
+
+  const fk = await assertFranquiaCasaMoniFk0000(gate.supabase, redeId);
+  if (!fk.ok) return fk;
+
+  const { data, error } = await gate.supabase
+    .from('franqueado_empresas')
+    .insert({
+      rede_franqueado_id: redeId,
+      tipo: 'empresa',
+      nome: nome?.trim() || null,
+      status: 'em_abertura',
+    } as never)
+    .select('id')
+    .single();
+
+  if (error) {
+    return {
+      ok: false,
+      error: /franqueado_empresas|schema cache|relation|tipo_check/i.test(error.message ?? '')
+        ? 'Migration 333 pendente: tipo empresa em franqueado_empresas.'
+        : error.message,
+    };
+  }
+
+  revalidatePath('/rede-franqueados');
+  revalidatePath(`/rede-franqueados/${redeId}`);
+  return { ok: true, mensagem: 'Empresa criada.', empresaId: String((data as { id: string }).id) };
+}
+
+export type FranqueadoEmpresaExtraUpsertDados = FranqueadoEmpresaUpsertDados & {
+  nome?: string | null;
+};
+
+/** Atualiza cadastro de empresa adicional (tipo `empresa`) — somente FK0000. */
+export async function upsertFranqueadoEmpresaExtra(
+  empresaId: string,
+  dados: FranqueadoEmpresaExtraUpsertDados,
+): Promise<Ok | Err> {
+  const gate = await requireFranqueadoEmpresasStaff();
+  if (!gate.ok) return gate;
+
+  const id = empresaId.trim();
+  if (!id) return { ok: false, error: 'Empresa inválida.' };
+
+  const { data: atual, error: leErr } = await gate.supabase
+    .from('franqueado_empresas')
+    .select('rede_franqueado_id, tipo')
+    .eq('id', id)
+    .maybeSingle();
+  if (leErr || !atual) return { ok: false, error: 'Empresa não encontrada.' };
+  if ((atual as { tipo: string }).tipo !== 'empresa') {
+    return { ok: false, error: 'Somente empresas adicionais podem ser editadas aqui.' };
+  }
+
+  const redeId = String((atual as { rede_franqueado_id: string }).rede_franqueado_id);
+  const fk = await assertFranquiaCasaMoniFk0000(gate.supabase, redeId);
+  if (!fk.ok) return fk;
+
+  let patch: Record<string, unknown>;
+  try {
+    patch = cleanDados(dados);
+    if (dados.nome !== undefined) {
+      patch.nome = dados.nome === '' ? null : dados.nome;
+    }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Dados inválidos.' };
+  }
+
+  const { error } = await gate.supabase.from('franqueado_empresas').update(patch as never).eq('id', id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath('/rede-franqueados');
+  revalidatePath(`/rede-franqueados/${redeId}`);
+  return { ok: true, mensagem: 'Empresa salva.' };
 }

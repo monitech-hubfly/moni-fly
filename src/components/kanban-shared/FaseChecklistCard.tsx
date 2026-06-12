@@ -39,8 +39,8 @@ import { syncSpeFromFaseChecklistKanban } from '@/app/rede-franqueados/franquead
 import { isFaseAberturaSpeSlug } from '@/lib/kanban/fase-spe-slugs';
 import { PreBatalhaRankingLeaderboard } from '@/components/kanban-shared/PreBatalhaRankingLeaderboard';
 import { ConfiguradorCasasRankingChecklist } from '@/components/kanban-shared/ConfiguradorCasasRankingChecklist';
-import { BcaChecklistWidget } from '@/components/kanban-shared/BcaChecklistWidget';
 import { BcaCondominioChecklist } from '@/components/kanban-shared/BcaCondominioChecklist';
+import { RedeLoteadorChecklist } from '@/components/kanban-shared/RedeLoteadorChecklist';
 import type { RankingPorFaixaMercado } from '@/lib/kanban/pre-batalha-compatibilidade';
 import {
   isLabelDadosCandidatoRede,
@@ -985,7 +985,7 @@ function ItemField({
     );
   }
 
-  if (item.tipo === 'bca_condominio') {
+  if (item.tipo === 'bca_condominio' || item.tipo === 'bca_simulador') {
     const pid = processoId?.trim() ?? '';
     if (!pid) {
       return (
@@ -1004,14 +1004,13 @@ function ItemField({
     );
   }
 
-  if (item.tipo === 'bca_simulador') {
-    const podeEditar = condominioContext?.podeEditar ?? isAdmin;
+  if (item.tipo === 'rede_loteador') {
     return (
-      <BcaChecklistWidget
+      <RedeLoteadorChecklist
         cardId={cardId}
-        processoId={processoId}
+        itemId={item.id}
         itemLabel={item.label}
-        podeEditar={podeEditar}
+        onSalvo={(redeLoteadorId) => void onChecklistValor(redeLoteadorId)}
       />
     );
   }

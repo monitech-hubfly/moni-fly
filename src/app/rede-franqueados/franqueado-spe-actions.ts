@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { normalizeAccessRole } from '@/lib/authz';
+import { isFranquiaCasaMoniFk0000 } from '@/lib/franquia-casa-moni-fk0000';
 import type { FranqueadoSpeStatus, FranqueadoSpeUpsertDados } from '@/lib/franqueado-spe';
 import {
   FRANQUEADO_SPE_DOC_SLOTS,
@@ -65,15 +66,29 @@ function revalidateSpePaths(redeId: string) {
   revalidatePath(`/rede-franqueados/${redeId}`);
 }
 
-/** Cria SPE vazia para o franqueado (um projeto). */
+/** Cria SPE vazia para o franqueado (um projeto). Por padrão, somente FK0000 (Casa Moní). */
 export async function criarFranqueadoSpe(
   redeFranqueadoId: string,
   nomeProjeto?: string | null,
+  opts?: { allowAnyFranquia?: boolean },
 ): Promise<Ok | Err> {
   const gate = await requireSpeStaff();
   if (!gate.ok) return gate;
   const redeId = redeFranqueadoId.trim();
   if (!redeId) return { ok: false, error: 'Franqueado inválido.' };
+
+  const { data: redeRow, error: redeErr } = await gate.supabase
+    .from('rede_franqueados')
+    .select('n_franquia')
+    .eq('id', redeId)
+    .maybeSingle();
+  if (redeErr || !redeRow) return { ok: false, error: 'Franqueado não encontrado.' };
+  if (
+    !opts?.allowAnyFranquia &&
+    !isFranquiaCasaMoniFk0000((redeRow as { n_franquia?: string | null }).n_franquia)
+  ) {
+    return { ok: false, error: 'Nova SPE disponível apenas para a franquia FK0000 (Casa Moní).' };
+  }
 
   const { data, error } = await gate.supabase
     .from('franqueado_spe')
@@ -237,7 +252,7 @@ export async function salvarSpeDoCard(input: {
   let speId = input.speId?.trim() || '';
 
   if (!speId) {
-    const criar = await criarFranqueadoSpe(redeId, input.dados.nome_projeto);
+    const criar = await criarFranqueadoSpe(redeId, input.dados.nome_projeto, { allowAnyFranquia: true });
     if (!criar.ok) return criar;
     speId = criar.speId ?? '';
     if (!speId) return { ok: false, error: 'Falha ao criar SPE.' };

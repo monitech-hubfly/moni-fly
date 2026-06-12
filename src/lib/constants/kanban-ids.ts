@@ -84,6 +84,8 @@ export const FASE_SLUGS = {
   ACOPLAMENTO: 'acoplamento',
   /** Funil Loteadores — fase Acoplamento (mesmas regras de esteira que Portfólio). */
   LOTEADORES_ACOPLAMENTO: 'acoplamento_moni_inc',
+  /** Funil Loteadores — fase Dados do Loteador (cadastro rede_loteadores). */
+  LOTEADORES_DADOS_LOTEADOR: 'dados_loteador_moni_inc',
   /** Funil Loteadores — gate de esteira Acoplamento antes do Comitê. */
   LOTEADORES_COMITE: 'comite_moni_inc',
   /** Funil Acoplamento — gate Gbox/Acoplamento antes de avançar. */
