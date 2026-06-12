@@ -31,6 +31,8 @@ export type KanbanBoardProps = {
   currentUserId?: string | null;
   /** Exibe o atalho “+ Novo card” (`?novo=true`) quando `pode('criar_cards')`. */
   mostrarLinkNovoCard?: boolean;
+  /** Quando informado, substitui `usePermissoes` (evita botão oculto se a matriz ainda não carregou). */
+  podeCriarCards?: boolean;
   kanbanNome?: KanbanNomeDisplay | string;
   kanbanId: string;
 };
@@ -45,6 +47,7 @@ export function KanbanBoard({
   cardQueryParam,
   currentUserId = null,
   mostrarLinkNovoCard = false,
+  podeCriarCards: podeCriarCardsProp,
   kanbanNome,
   kanbanId,
 }: KanbanBoardProps) {
@@ -153,7 +156,7 @@ export function KanbanBoard({
   const podeMoverCards = pode('mover_fase');
 
   const nAtivos = countKanbanBoardFiltrosAtivos(filtros);
-  const podeCriarCards = pode('criar_cards');
+  const podeCriarCards = podeCriarCardsProp ?? pode('criar_cards');
 
   return (
     <div className="min-w-0 space-y-3">

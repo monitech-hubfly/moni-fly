@@ -137,6 +137,7 @@ export function redeLoteadorFichaDraftToPatch(d: RedeLoteadorFichaDraft): RedeLo
     cnpj: t(d.cnpj),
     cidade: t(d.cidade),
     estado: t(d.estado),
+    condominio_estado: t(d.estado),
     contato_nome: t(d.contato_nome),
     contato_telefone: t(d.contato_telefone),
     contato_email: t(d.contato_email),

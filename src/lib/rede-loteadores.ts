@@ -44,6 +44,8 @@ export type RedeLoteadorRow = {
   /** Campo livre (Grupo 4) */
   campo_livre: string | null;
   anexo_material_extra: string | null;
+  condominio_estado: string | null;
+  ultima_atualizacao_por: string | null;
   criado_por?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -146,6 +148,9 @@ function mapRow(r: Record<string, unknown>): RedeLoteadorRow {
     anexo_tabela_precos: (r.anexo_tabela_precos as string | null) ?? null,
     campo_livre: (r.campo_livre as string | null) ?? null,
     anexo_material_extra: (r.anexo_material_extra as string | null) ?? null,
+    condominio_estado:
+      (r.condominio_estado as string | null) ?? (r.estado as string | null) ?? null,
+    ultima_atualizacao_por: (r.ultima_atualizacao_por as string | null) ?? null,
     criado_por: (r.criado_por as string | null) ?? null,
     created_at: (r.created_at as string | null) ?? null,
     updated_at: (r.updated_at as string | null) ?? null,
@@ -165,6 +170,7 @@ export type RedeLoteadorPatch = {
   cnpj?: string | null;
   cidade?: string | null;
   estado?: string | null;
+  condominio_estado?: string | null;
   contato_nome?: string | null;
   contato_telefone?: string | null;
   contato_email?: string | null;
@@ -195,4 +201,5 @@ export type RedeLoteadorPatch = {
   anexo_tabela_precos?: string | null;
   campo_livre?: string | null;
   anexo_material_extra?: string | null;
+  ultima_atualizacao_por?: string | null;
 };

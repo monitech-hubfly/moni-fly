@@ -4370,7 +4370,9 @@ export async function listarFaseChecklistItens(faseId: string): Promise<FaseChec
   const supabase = await createClient();
   const { data } = await supabase
     .from('kanban_fase_checklist_itens')
-    .select('id, fase_id, ordem, label, tipo, obrigatorio, visivel_candidato, template_storage_path, placeholder')
+    .select(
+      'id, fase_id, ordem, label, tipo, obrigatorio, visivel_candidato, template_storage_path, placeholder, campo_slug, config_json',
+    )
     .eq('fase_id', faseId)
     .order('ordem', { ascending: true });
   return (data ?? []) as FaseChecklistItem[];
@@ -4399,7 +4401,7 @@ export async function upsertFaseChecklistResposta(input: {
 
   const { data: itemRow } = await supabase
     .from('kanban_fase_checklist_itens')
-    .select('label')
+    .select('label, campo_slug, fase_id')
     .eq('id', input.item_id)
     .maybeSingle();
 
@@ -4415,6 +4417,12 @@ export async function upsertFaseChecklistResposta(input: {
     { onConflict: 'item_id,card_id' },
   );
   if (error) return { ok: false, error: error.message };
+
+  const campoSlug = String((itemRow as { campo_slug?: string | null } | null)?.campo_slug ?? '').trim();
+  if (campoSlug && ['preco_atratividade', 'produto_atratividade', 'showroom_interesse', 'linhas_receita'].includes(campoSlug)) {
+    const { atualizarScoreLoteadorR1 } = await import('@/lib/actions/loteador-externo-actions');
+    await atualizarScoreLoteadorR1(input.card_id);
+  }
 
   const { isChecklistItemSyncGboxAcoplamento, sincronizarLinksGboxAcoplamento } = await import(
     '@/lib/kanban/links-bca-acoplamento-sync'

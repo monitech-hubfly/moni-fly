@@ -41,6 +41,8 @@ import { PreBatalhaRankingLeaderboard } from '@/components/kanban-shared/PreBata
 import { ConfiguradorCasasRankingChecklist } from '@/components/kanban-shared/ConfiguradorCasasRankingChecklist';
 import { BcaCondominioChecklist } from '@/components/kanban-shared/BcaCondominioChecklist';
 import { RedeLoteadorChecklist } from '@/components/kanban-shared/RedeLoteadorChecklist';
+import { CatalogCasaChecklistSelect } from '@/components/kanban-shared/CatalogCasaChecklistSelect';
+import { UsuarioChecklistSelect } from '@/components/kanban-shared/UsuarioChecklistSelect';
 import type { RankingPorFaixaMercado } from '@/lib/kanban/pre-batalha-compatibilidade';
 import {
   isLabelDadosCandidatoRede,
@@ -92,6 +94,8 @@ type Props = {
   areaAtuacao?: string | null;
   /** Dados do franqueado na rede — auto-preenche Nome, E-mail, Telefone e Idade em Dados do Candidato. */
   redeFranqueado?: RedeDadosCandidatoSource | null;
+  /** Funil Loteadores: oculta widget legado `rede_loteador` (painel persistente). */
+  ocultarRedeLoteadorChecklist?: boolean;
 };
 
 type EstadoResposta = {
@@ -112,6 +116,7 @@ export function FaseChecklistCard({
   processoId = null,
   areaAtuacao = null,
   redeFranqueado = null,
+  ocultarRedeLoteadorChecklist = false,
 }: Props) {
   const [itens, setItens] = useState<FaseChecklistItem[] | null>(null);
   const [respostas, setRespostas] = useState<Map<string, EstadoResposta>>(new Map());
@@ -155,7 +160,7 @@ export function FaseChecklistCard({
       try {
         const supabase = createClient();
         const checklistItemCols =
-          'id, fase_id, ordem, label, tipo, obrigatorio, visivel_candidato, template_storage_path, placeholder';
+          'id, fase_id, ordem, label, tipo, obrigatorio, visivel_candidato, template_storage_path, placeholder, campo_slug, config_json';
         const checklistRespCols = 'id, item_id, card_id, valor, arquivo_path, preenchido_por, preenchido_em';
 
         const [{ data: itensData, error: itensError }, { data: respostasData, error: respostasError }] =
@@ -495,7 +500,9 @@ export function FaseChecklistCard({
     );
   }
 
-  const itensFiltrados = isFrank ? itens.filter((it) => it.visivel_candidato) : itens;
+  const itensFiltrados = (isFrank ? itens.filter((it) => it.visivel_candidato) : itens).filter(
+    (it) => !(ocultarRedeLoteadorChecklist && it.tipo === 'rede_loteador'),
+  );
   const itensDadosCidade = multiPracaAtivo
     ? itensFiltrados.filter((it) => !CHECKLIST_ITENS_OCULTOS_MULTI_PRACA.has(it.label.trim()))
     : itensFiltrados;
@@ -689,6 +696,20 @@ function ItemField({
     setUploading(false);
     if (error) return;
     await onArquivo(path);
+  }
+
+  async function handleUploadMultiplo(file: File, pathsAtuais: string[]) {
+    setUploading(true);
+    const supabase = createClient();
+    const ext = file.name.split('.').pop() ?? 'bin';
+    const path = `respostas/${cardId}/${item.id}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from('documentos-templates').upload(path, file, { upsert: true });
+    setUploading(false);
+    if (error) return;
+    const next = [...pathsAtuais, path];
+    const payload = JSON.stringify(next);
+    onChange(payload);
+    await onChecklistValor(payload);
   }
 
   if (item.tipo === 'checkbox') {
@@ -1110,6 +1131,198 @@ function ItemField({
         />
         {erroEl}
       </div>
+    );
+  }
+
+  if (item.tipo === 'select') {
+    const opcoes = Array.isArray(item.config_json?.opcoes)
+      ? (item.config_json!.opcoes as string[])
+      : [];
+    return (
+      <div>
+        {labelEl}
+        <select
+          className={inputClass}
+          value={estado.valor}
+          onChange={(e) => {
+            onChange(e.target.value);
+            void onChecklistValor(e.target.value);
+          }}
+        >
+          <option value="">Selecione…</option>
+          {opcoes.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+        {erroEl}
+      </div>
+    );
+  }
+
+  if (item.tipo === 'calculado') {
+    return (
+      <div>
+        {labelEl}
+        <div
+          className="rounded-md border px-3 py-2 text-sm font-medium"
+          style={{
+            borderColor: 'var(--moni-border-default)',
+            background: 'var(--moni-surface-100)',
+            color: 'var(--moni-text-primary)',
+          }}
+        >
+          {estado.valor || '—'}
+        </div>
+      </div>
+    );
+  }
+
+  if (item.tipo === 'cnpj') {
+    return (
+      <div>
+        {labelEl}
+        <input
+          type="text"
+          className={inputClass}
+          placeholder="00.000.000/0000-00"
+          value={estado.valor}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={(e) => onBlur(e.target.value)}
+        />
+        {erroEl}
+      </div>
+    );
+  }
+
+  if (item.tipo === 'catalog_casa') {
+    return (
+      <CatalogCasaChecklistSelect
+        label={item.label}
+        obrigatorio={item.obrigatorio}
+        value={estado.valor}
+        salvando={estado.salvando}
+        onChange={(v) => {
+          onChange(v);
+          void onChecklistValor(v);
+        }}
+      />
+    );
+  }
+
+  if (item.tipo === 'faixa_moeda' || item.tipo === 'faixa_numero') {
+    let min = '';
+    let max = '';
+    try {
+      const parsed = JSON.parse(estado.valor || '{}') as { min?: string; max?: string };
+      min = String(parsed.min ?? '');
+      max = String(parsed.max ?? '');
+    } catch {
+      min = '';
+      max = '';
+    }
+    const persist = (nextMin: string, nextMax: string) => {
+      const payload = JSON.stringify({ min: nextMin, max: nextMax });
+      onChange(payload);
+      void onChecklistValor(payload);
+    };
+    const inputMode = item.tipo === 'faixa_moeda' ? 'decimal' : 'numeric';
+    return (
+      <div>
+        {labelEl}
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            type={inputMode}
+            className={inputClass}
+            placeholder="Mínimo"
+            value={min}
+            onChange={(e) => persist(e.target.value, max)}
+          />
+          <input
+            type={inputMode}
+            className={inputClass}
+            placeholder="Máximo"
+            value={max}
+            onChange={(e) => persist(min, e.target.value)}
+          />
+        </div>
+        {erroEl}
+      </div>
+    );
+  }
+
+  if (item.tipo === 'anexo_multiplo') {
+    let paths: string[] = [];
+    try {
+      paths = JSON.parse(estado.valor || '[]') as string[];
+      if (!Array.isArray(paths)) paths = [];
+    } catch {
+      paths = estado.valor ? [estado.valor] : [];
+    }
+    return (
+      <div>
+        {labelEl}
+        <div className="space-y-2">
+          {paths.map((p, idx) => (
+            <div key={`${p}-${idx}`} className="flex items-center gap-2 text-xs text-stone-600">
+              <span className="truncate">{p}</span>
+              <button
+                type="button"
+                className="text-red-600 hover:underline"
+                onClick={() => {
+                  const next = paths.filter((_, i) => i !== idx);
+                  const payload = JSON.stringify(next);
+                  onChange(payload);
+                  void onChecklistValor(payload);
+                }}
+              >
+                Remover
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            disabled={uploading}
+            onClick={() => inputFileRef.current?.click()}
+            className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs"
+            style={{
+              borderColor: 'var(--moni-border-default)',
+              color: 'var(--moni-text-secondary)',
+              background: 'var(--moni-surface-100)',
+            }}
+          >
+            {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+            Adicionar arquivo
+          </button>
+          <input
+            ref={inputFileRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void handleUploadMultiplo(file, paths);
+              e.target.value = '';
+            }}
+          />
+        </div>
+        {erroEl}
+      </div>
+    );
+  }
+
+  if (item.tipo === 'usuario') {
+    return (
+      <UsuarioChecklistSelect
+        label={item.label}
+        obrigatorio={item.obrigatorio}
+        value={estado.valor}
+        salvando={estado.salvando}
+        onChange={(v) => {
+          onChange(v);
+          void onChecklistValor(v);
+        }}
+      />
     );
   }
 

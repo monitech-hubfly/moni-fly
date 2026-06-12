@@ -3,6 +3,7 @@ import { calcularSlaKanbanCard } from '@/lib/kanban/kanban-card-sla';
 
 /** Fases do Funil Loteadores em que a quebra de SLA exige justificativa antes de avançar. */
 export const LOTEADORES_FASES_JUSTIFICATIVA_SLA = [
+  'viabilidade_moni_inc',
   'dados_loteador_moni_inc',
   'fechar_contrato_moni_inc',
 ] as const;

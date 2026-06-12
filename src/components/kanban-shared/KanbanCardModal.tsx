@@ -223,6 +223,7 @@ import { ChecklistCard } from './ChecklistCard';
 import { ChecklistLegalCondominioCard } from './ChecklistLegalCondominioCard';
 import { ChecklistCreditoSection } from '@/app/steps-viabilidade/ChecklistCreditoSection';
 import { FaseChecklistCard } from './FaseChecklistCard';
+import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
 import {
   buildLegadoFaseTimeline,
@@ -2973,6 +2974,8 @@ export function KanbanCardModal({
     isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome)) &&
     faseLoteadoresExigeJustificativaSla(faseSlugAtual) &&
     slaCard.status === 'atrasado';
+  const exibirDadosLoteadorPersistente =
+    !isLegado && isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome));
   const slaJustificativaRegistrada = String(card.sla_justificativa ?? '').trim();
   const exibirSecaoDocumentacaoCreditoObra =
     !isLegado &&
@@ -4859,6 +4862,16 @@ export function KanbanCardModal({
                       </p>
                     ) : null}
 
+                    {exibirDadosLoteadorPersistente ? (
+                      <DadosLoteadorPersistentPanel
+                        cardId={card.id}
+                        onSalvo={() => {
+                          void loadCard({ silencioso: true });
+                          router.refresh();
+                        }}
+                      />
+                    ) : null}
+
                     <FaseChecklistCard
                       faseId={faseChecklistFaseId}
                       faseSlug={faseSlugAtual}
@@ -4867,6 +4880,7 @@ export function KanbanCardModal({
                       isAdmin={isAdmin}
                       processoId={processoIdChecklists}
                       areaAtuacao={modalDetalhes.rede?.area_atuacao}
+                      ocultarRedeLoteadorChecklist={exibirDadosLoteadorPersistente}
                       redeFranqueado={
                         modalDetalhes.rede
                           ? {

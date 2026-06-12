@@ -9,6 +9,7 @@ import { PainelPerformance } from '@/components/kanban-shared/PainelPerformance'
 import type { KanbanCardBrief, KanbanFase } from '@/components/kanban-shared/types';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
 import { KANBAN_NOME_FUNIL_LOTEADORES } from '@/lib/kanban/funil-loteadores';
+import { carregarPermissoesUsuario } from '@/lib/permissoes-load';
 
 export const dynamic = 'force-dynamic';
 
@@ -169,6 +170,9 @@ export default async function FunilMoniIncPage({
   const cardsConcluidos = conclRaw?.map((c) => mapCard(c)) || [];
 
   const isAdmin = role === 'admin' || role === 'consultor' || role === 'supervisor' || role === 'team';
+  const permissoes = await carregarPermissoesUsuario(supabase, user.id);
+  const podeCriarCards = isAdmin && permissoes.pode('criar_cards');
+  const exibirNovoCard = podeCriarCards && Boolean(primeiraFaseContatoId);
 
   return (
     <KanbanWrapper
@@ -197,7 +201,8 @@ export default async function FunilMoniIncPage({
               userRole={role}
               columnAccent="var(--moni-kanban-stepone)"
               currentUserId={user.id}
-              mostrarLinkNovoCard={Boolean(primeiraFaseContatoId)}
+              mostrarLinkNovoCard={exibirNovoCard}
+              podeCriarCards={podeCriarCards}
               kanbanId={kanban.id}
             />
           </main>

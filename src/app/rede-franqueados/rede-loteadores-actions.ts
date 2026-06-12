@@ -40,6 +40,7 @@ function cleanPatch(patch: RedeLoteadorPatch): Record<string, unknown> {
   set('cnpj', patch.cnpj);
   set('cidade', patch.cidade);
   set('estado', patch.estado);
+  set('condominio_estado', patch.condominio_estado);
   set('contato_nome', patch.contato_nome);
   set('contato_telefone', patch.contato_telefone);
   set('contato_email', patch.contato_email);
@@ -117,6 +118,7 @@ export async function atualizarRedeLoteador(id: string, patch: RedeLoteadorPatch
   if (Object.keys(row).length === 0) return { ok: false, error: 'Nada para atualizar.' };
 
   row.updated_at = new Date().toISOString();
+  row.ultima_atualizacao_por = gate.userId;
 
   const { error } = await gate.supabase.from('rede_loteadores').update(row as never).eq('id', id);
   if (error) return { ok: false, error: error.message };

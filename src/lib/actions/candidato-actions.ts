@@ -16,10 +16,18 @@ export type FaseChecklistItem = {
     | 'telefone'
     | 'numero'
     | 'anexo'
+    | 'anexo_multiplo'
     | 'anexo_template'
     | 'checkbox'
     | 'data'
     | 'hora'
+    | 'select'
+    | 'usuario'
+    | 'cnpj'
+    | 'catalog_casa'
+    | 'calculado'
+    | 'faixa_moeda'
+    | 'faixa_numero'
     | 'tabela'
     | 'condominio'
     | 'pesquisa_condominio'
@@ -36,6 +44,8 @@ export type FaseChecklistItem = {
   visivel_candidato: boolean;
   template_storage_path: string | null;
   placeholder: string | null;
+  campo_slug?: string | null;
+  config_json?: Record<string, unknown> | null;
 };
 
 export type CandidatoActionResult = { ok: true } | { ok: false; error: string };

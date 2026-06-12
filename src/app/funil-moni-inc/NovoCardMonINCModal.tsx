@@ -10,11 +10,13 @@ export function NovoCardMonINCModal({
   faseId,
   kanbanId: _kanbanId,
   isAdmin: _isAdmin,
+  basePath = '/funil-moni-inc',
   onClose,
 }: {
   faseId: string;
   kanbanId: string;
   isAdmin: boolean;
+  basePath?: string;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -40,7 +42,7 @@ export function NovoCardMonINCModal({
         titulo: t,
         kanban_nome: KANBAN_NOME_FUNIL_LOTEADORES,
         fase_id: faseId,
-        basePath: '/funil-moni-inc',
+        basePath,
       });
       if (!res.ok) {
         setErro(res.error);

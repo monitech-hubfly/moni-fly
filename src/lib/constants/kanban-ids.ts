@@ -84,8 +84,16 @@ export const FASE_SLUGS = {
   ACOPLAMENTO: 'acoplamento',
   /** Funil Loteadores — fase Acoplamento (mesmas regras de esteira que Portfólio). */
   LOTEADORES_ACOPLAMENTO: 'acoplamento_moni_inc',
-  /** Funil Loteadores — fase Dados do Loteador (cadastro rede_loteadores). */
+  /** Funil Loteadores — fase Dados do Loteador (legado; pode estar renomeada «Viabilidade»). */
   LOTEADORES_DADOS_LOTEADOR: 'dados_loteador_moni_inc',
+  /** Funil Loteadores — fase Viabilidade (slug preferido; ver LOTEADORES_VIABILIDADE_SLUGS). */
+  LOTEADORES_VIABILIDADE: 'viabilidade_moni_inc',
+  /** Funil Loteadores — Execução do Material. */
+  LOTEADORES_EXECUCAO_MATERIAL: 'execucao_material_moni_inc',
+  /** Funil Loteadores — Batalha de Casas (estrutura futura). */
+  LOTEADORES_BATALHA_CASAS: 'batalha_casas_moni_inc',
+  /** Funil Loteadores — Revisões. */
+  LOTEADORES_REVISOES: 'revisoes_moni_inc',
   /** Funil Loteadores — gate de esteira Acoplamento antes do Comitê. */
   LOTEADORES_COMITE: 'comite_moni_inc',
   /** Funil Loteadores — diligência antes de Moní Capital. */

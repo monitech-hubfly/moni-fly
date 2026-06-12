@@ -169,6 +169,7 @@ export function isPortalFrankAuthAccessPath(pathname: string): boolean {
 function isExternalTokenAccessPath(pathname: string): boolean {
   return (
     pathname.startsWith('/formulario-candidato/') ||
+    pathname.startsWith('/loteador/') ||
     pathname.startsWith('/public/forms/') ||
     pathname.startsWith('/api/public/') ||
     pathname.startsWith('/api/candidato/') ||
