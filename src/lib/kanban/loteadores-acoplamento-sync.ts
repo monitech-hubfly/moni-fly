@@ -1,14 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import {
-  CHECKLIST_LABEL_ACOPLAMENTO,
-  CHECKLIST_LABEL_GBOX,
-} from '@/lib/kanban/links-bca-acoplamento-sync';
-import {
   LOTEADORES_ACOPLAMENTO_MIRROR_VIABILIDADE,
   LOTEADORES_VIABILIDADE_FASE_SLUGS_ORDEM,
   type LoteadorAcoplamentoSyncValor,
 } from '@/lib/kanban/loteadores-acoplamento';
+
+/** Labels do checklist da esteira Acoplamento (Modelagem Casa Gbox). */
+const CHECKLIST_LABEL_GBOX = 'Gbox';
+const CHECKLIST_LABEL_ACOPLAMENTO = 'Acoplamento';
 
 function normLabel(label: string | null | undefined): string {
   return String(label ?? '')
