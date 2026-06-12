@@ -156,3 +156,16 @@ export function parseValorMonetarioConfigurador(raw: string | null | undefined):
     : parseFloat(s.replace(/[^\d.-]/g, ''));
   return Number.isFinite(v) ? v : null;
 }
+
+/** Custo do configurador (fase Configurador de Casas) para modelo × faixa. */
+export function resolverCustoConfigurador(
+  custos: ConfiguradorCasasValoresJson,
+  catalogoId: string,
+  topografia: string | null | undefined,
+  faixa: FaixaMercado | null | undefined,
+): number | null {
+  if (!faixa) return null;
+  const chave = chaveModeloConfigurador(catalogoId, topografia ?? '');
+  const raw = custos.valores[chave]?.[faixa];
+  return parseValorMonetarioConfigurador(raw);
+}

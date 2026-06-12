@@ -28,6 +28,8 @@ export type FaseChecklistItem = {
     | 'dados_cidade_ibge'
     | 'mapa_praca'
     | 'configurador_casas_ranking'
+    | 'bca_simulador'
+    | 'bca_condominio'
     | 'url';
   obrigatorio: boolean;
   visivel_candidato: boolean;

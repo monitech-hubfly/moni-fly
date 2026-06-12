@@ -199,6 +199,8 @@ export function FormularioCandidatoForm({
           item.tipo === 'lotes_condominio' ||
           item.tipo === 'listagem_casas_zap' ||
           item.tipo === 'configurador_casas_ranking' ||
+          item.tipo === 'bca_simulador' ||
+          item.tipo === 'bca_condominio' ||
           item.tipo === 'dados_cidade_ibge' ||
           item.tipo === 'mapa_praca'
         ) {
