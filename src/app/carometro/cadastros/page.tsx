@@ -929,6 +929,50 @@ export default function Page() {
     if (hasProfileIdCol) updateData.profile_id = respProfileIdEdit || null
     const { error: e } = await supabase.from('area_pessoas').update(updateData).eq('id', responsavelEditando.id)
     if (!e) {
+      // Propagar vínculo de profile: se um profile foi vinculado, atualizar responsavel para full_name
+      if (hasProfileIdCol && respProfileIdEdit) {
+        try {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', respProfileIdEdit)
+            .maybeSingle()
+          const fullName = (profileData as { full_name?: string } | null)?.full_name?.trim()
+          if (fullName && fullName.toLowerCase() !== nomeAntigo.toLowerCase()) {
+            const { data: tarefasDataP } = await supabase
+              .from('tarefas')
+              .select('acoes(id)')
+              .eq('area_id', areaIdResp)
+            const acaoIdsP = (tarefasDataP || []).flatMap((t: any) => (t.acoes || []).map((a: any) => a.id)).filter(Boolean)
+            if (acaoIdsP.length > 0) {
+              const { data: gpRowsP } = await supabase
+                .from('gantt_planejamento')
+                .select('id, responsavel')
+                .in('acao_id', acaoIdsP)
+                .not('responsavel', 'is', null)
+              const aAtualizar = (gpRowsP || []).filter((row: any) =>
+                String(row.responsavel || '').split(',').some((n: string) => n.trim().toLowerCase() === nomeAntigo.toLowerCase())
+              )
+              if (aAtualizar.length > 0) {
+                const updates = aAtualizar.map((row: any) => {
+                  const novaString = String(row.responsavel || '')
+                    .split(',')
+                    .map((n: string) => n.trim().toLowerCase() === nomeAntigo.toLowerCase() ? fullName : n.trim())
+                    .join(', ')
+                  return supabase.from('gantt_planejamento').update({ responsavel: novaString }).eq('id', row.id)
+                })
+                const resultados = await Promise.all(updates)
+                const erros = resultados.filter((r: any) => r.error)
+                if (erros.length > 0) {
+                  console.error('[salvarResponsavel] erros ao propagar profile para gantt:', erros.map((r: any) => r.error))
+                }
+              }
+            }
+          }
+        } catch (errProfile) {
+          console.error('[salvarResponsavel] erro ao propagar profile para gantt_planejamento:', errProfile)
+        }
+      }
       // Propagar renomeação para gantt_planejamento (case-insensitive, tolerante a espaços)
       if (nomeAntigo && areaIdResp && nomeAntigo.toLowerCase() !== nome.toLowerCase()) {
         try {

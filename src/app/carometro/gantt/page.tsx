@@ -1448,6 +1448,7 @@ export default function Page() {
   /** Ids em `area_pessoas` da área atual; o texto salvo em `gantt_planejamento.responsavel` é a junção dos nomes. */
   const [addResponsavelPessoaIds, setAddResponsavelPessoaIds] = useState([])
   const [areaPessoasLista, setAreaPessoasLista] = useState([])
+  const [allProfiles, setAllProfiles] = useState([])
   const [filtroResponsavelId, setFiltroResponsavelId] = useState('')
   /** Tabela `area_pessoas` ausente no PostgREST — lista/cadastro de responsáveis não funciona até rodar o SQL. */
   const [areaPessoasTabelaAusente, setAreaPessoasTabelaAusente] = useState(false)
@@ -1641,7 +1642,7 @@ export default function Page() {
     }
     const { data, error } = await supabase
       .from('area_pessoas')
-      .select('id, nome')
+      .select('id, nome, profile_id, profiles(full_name)')
       .eq('area_id', areaId)
       .eq('ativo', true)
       .order('ordem')
@@ -1652,7 +1653,47 @@ export default function Page() {
       return
     }
     setAreaPessoasTabelaAusente(false)
-    setAreaPessoasLista(data || [])
+    // Deduplica: se dois registros têm o mesmo profile_id, mantém só o primeiro
+    const deduplicados = []
+    const profileIdsVistos = new Set()
+    const nomesVistos = new Set()
+    for (const p of (data || [])) {
+      const pf = (p.profiles as { full_name?: string } | null)?.full_name || null
+      const profileFullName = pf || null
+      if (p.profile_id) {
+        if (profileIdsVistos.has(p.profile_id)) continue
+        profileIdsVistos.add(p.profile_id)
+      } else {
+        const nomeNorm = String(p.nome || '').trim().toLowerCase()
+        if (nomesVistos.has(nomeNorm)) continue
+        nomesVistos.add(nomeNorm)
+      }
+      deduplicados.push({ ...p, profile_full_name: profileFullName })
+    }
+    setAreaPessoasLista(deduplicados)
+  }
+
+  async function carregarProfiles() {
+    const { data } = await supabase.from('profiles').select('id, full_name, email').order('full_name')
+    setAllProfiles(data || [])
+  }
+
+  async function ocultarPessoaGantt(pessoaId) {
+    await supabase.from('area_pessoas').update({ ativo: false }).eq('id', pessoaId)
+    await carregarAreaPessoas()
+  }
+
+  async function adicionarProfileNaArea(profileId) {
+    if (!areaId) return
+    const profile = allProfiles.find(p => p.id === profileId)
+    if (!profile) return
+    const ordem = areaPessoasLista.length
+    const { error } = await supabase
+      .from('area_pessoas')
+      .insert({ area_id: areaId, nome: profile.full_name || profile.email, profile_id: profileId, ordem, ativo: true })
+      .select('id')
+      .single()
+    if (!error) await carregarAreaPessoas()
   }
 
   /** Cadastro inline na lista de responsáveis (tabela `area_pessoas` por área). */
@@ -1951,7 +1992,7 @@ export default function Page() {
     carregarTarefas()
   }, [areaId])
   useEffect(() => { carregarMetasObjetivos() }, [areaId])
-  useEffect(() => { carregarAreaPessoas() }, [areaId])
+  useEffect(() => { carregarAreaPessoas(); void carregarProfiles() }, [areaId])
   useEffect(() => { setFiltroResponsavelId('') }, [areaId])
   useEffect(() => { setAddResponsavelPessoaIds([]) }, [areaId])
 
@@ -3105,9 +3146,12 @@ export default function Page() {
     const semanas = addSemanasSelecionadas.slice().sort((a, b) => a - b)
     if (semanas.length === 0) { setError('Selecione ao menos uma semana.'); return }
     const nomesResp = addResponsavelPessoaIds
-      .map(pid => areaPessoasLista.find(p => p.id === pid)?.nome)
+      .map(pid => {
+        const p = areaPessoasLista.find(p => p.id === pid)
+        return p ? (p.profile_full_name || p.nome) : null
+      })
       .filter(Boolean)
-    const responsavelStr = nomesResp.length ? nomesResp.join(', ') : null
+    const responsavelStr = nomesResp.length ? nomesResp[0] : null
     const fnAlvo = isAreaFranqueado
       ? normalizeFranqueadoNome(
           franqueadosAtivos.find(f => String(f.id) === String(acoplamentoFranqueadoId || ''))?.nome
@@ -10158,10 +10202,11 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                   valueIds={addResponsavelPessoaIds}
                   onChange={setAddResponsavelPessoaIds}
                   disabled={salvandoAdd}
-                  onAdicionarPessoa={areaPessoasTabelaAusente ? undefined : adicionarPessoaPlanejamento}
-                  salvandoNovaPessoa={salvandoPessoaGantt}
-                  showClosedHint={Boolean(areaPessoasTabelaAusente)}
                   emptyHint={areaPessoasTabelaAusente ? 'Configure area_pessoas no Supabase (aviso acima).' : ''}
+                  profiles={allProfiles}
+                  onAdicionarProfile={adicionarProfileNaArea}
+                  onOcultarPessoa={ocultarPessoaGantt}
+                  salvandoNovaPessoa={salvandoPessoaGantt}
                 />
               </div>
 
