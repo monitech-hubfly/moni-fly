@@ -396,6 +396,7 @@ export type ComentarioCardRow = {
 export type SecaoEsquerdaId =
   | 'cronologia'
   | 'franqueado'
+  | 'loteador'
   | 'condominio'
   | 'novoNegocio'
   | 'dadosEmpresas'

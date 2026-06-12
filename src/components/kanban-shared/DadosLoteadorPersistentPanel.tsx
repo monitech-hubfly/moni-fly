@@ -2,14 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import {
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Copy,
-  ExternalLink,
-  Loader2,
-} from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { RedeLoteadorFichaForm } from '@/components/RedeLoteadorFichaForm';
 import {
   carregarRedeLoteadorChecklistData,
@@ -30,10 +23,17 @@ import { createClient } from '@/lib/supabase/client';
 
 type Props = {
   cardId: string;
+  /** `sidebar`: corpo para a coluna esquerda do card (sem accordion próprio). */
+  variant?: 'standalone' | 'sidebar';
   onSalvo?: (redeLoteadorId: string) => void;
 };
 
-export function DadosLoteadorPersistentPanel({ cardId, onSalvo }: Props) {
+export function DadosLoteadorPersistentPanel({
+  cardId,
+  variant = 'standalone',
+  onSalvo,
+}: Props) {
+  const isSidebar = variant === 'sidebar';
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -76,7 +76,7 @@ export function DadosLoteadorPersistentPanel({ cardId, onSalvo }: Props) {
 
     if (r.loteador?.updated_at) setUltimaAtualizacao(r.loteador.updated_at);
 
-    const ultimaPor = (r.loteador as { ultima_atualizacao_por?: string | null } | null)?.ultima_atualizacao_por;
+    const ultimaPor = r.loteador?.ultima_atualizacao_por ?? null;
     if (ultimaPor) {
       const supabase = createClient();
       const { data: prof } = await supabase.from('profiles').select('full_name').eq('id', ultimaPor).maybeSingle();
@@ -171,6 +171,159 @@ export function DadosLoteadorPersistentPanel({ cardId, onSalvo }: Props) {
     }
   };
 
+  const resumoStats = (
+    <div className={`flex flex-wrap gap-x-3 gap-y-1 ${isSidebar ? 'text-[10px] text-stone-500' : 'text-xs'}`}>
+      <span>{stats.percentual}% preenchido</span>
+      <span>{stats.preenchidos} preenchidos</span>
+      <span>{stats.pendentes} pendentes</span>
+      <span>Atualizado: {fmtData(ultimaAtualizacao)}</span>
+      {responsavelUltima ? <span>Por: {responsavelUltima}</span> : null}
+    </div>
+  );
+
+  const corpo = loading ? (
+    <div className={`flex items-center gap-2 py-3 ${isSidebar ? 'text-[11px]' : 'text-sm'} text-stone-500`}>
+      <Loader2 className="h-4 w-4 animate-spin" />
+      Carregando…
+    </div>
+  ) : (
+    <div className={isSidebar ? 'space-y-3' : 'space-y-4'}>
+      {isSidebar ? resumoStats : null}
+
+      {linkExterno ? (
+        <div
+          className={`flex flex-wrap items-center gap-2 rounded-md border border-stone-200 bg-white px-2 py-1.5 ${isSidebar ? 'text-[10px]' : 'text-xs'}`}
+        >
+          <ExternalLink className="h-3 w-3 shrink-0 text-stone-500" />
+          <span className="min-w-0 flex-1 truncate text-stone-600">{linkExterno}</span>
+          <button
+            type="button"
+            onClick={() => void copiarLink()}
+            className="inline-flex items-center gap-0.5 rounded border border-stone-200 px-1.5 py-0.5 hover:bg-stone-50"
+          >
+            <Copy className="h-3 w-3" />
+            {copiado ? 'Ok' : 'Copiar'}
+          </button>
+          <a
+            href={linkExterno}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[#0c2633] underline-offset-2 hover:underline"
+          >
+            Abrir
+          </a>
+        </div>
+      ) : null}
+
+      {!isSidebar ? (
+        <p className="text-xs text-stone-500">
+          Sincronizado com{' '}
+          <Link href="/rede-franqueados?tab=loteadores" className="underline-offset-2 hover:underline">
+            Rede de Loteadores
+          </Link>
+          .
+        </p>
+      ) : null}
+
+      {vinculadoId ? (
+        <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-800">
+          <Check className="h-3 w-3" />
+          Loteador vinculado
+        </span>
+      ) : null}
+
+      {erro ? (
+        <div
+          className={`rounded border border-red-200 bg-red-50 px-2 py-1.5 ${isSidebar ? 'text-[11px]' : 'text-sm'} text-red-800`}
+          role="alert"
+        >
+          {erro}
+        </div>
+      ) : null}
+      {msg ? (
+        <div
+          className={`rounded border border-green-200 bg-green-50 px-2 py-1.5 ${isSidebar ? 'text-[11px]' : 'text-sm'} text-green-900`}
+          role="status"
+        >
+          {msg}
+        </div>
+      ) : null}
+
+      <fieldset className="space-y-1.5">
+        <legend className={`font-semibold uppercase tracking-wide text-stone-500 ${isSidebar ? 'text-[10px]' : 'text-xs'}`}>
+          Vincular loteador
+        </legend>
+        <div className={`flex flex-wrap gap-3 ${isSidebar ? 'text-[11px]' : 'text-sm'}`}>
+          <label className="flex cursor-pointer items-center gap-1.5 text-stone-800">
+            <input
+              type="radio"
+              name={`modo-loteador-${cardId}`}
+              checked={modo === 'novo'}
+              onChange={() => onModoChange('novo')}
+            />
+            Novo
+          </label>
+          <label className="flex cursor-pointer items-center gap-1.5 text-stone-800">
+            <input
+              type="radio"
+              name={`modo-loteador-${cardId}`}
+              checked={modo === 'existente'}
+              onChange={() => onModoChange('existente')}
+            />
+            Existente
+          </label>
+        </div>
+      </fieldset>
+
+      {modo === 'existente' ? (
+        <div className="space-y-1.5">
+          <input
+            type="search"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Filtrar…"
+            className={`w-full rounded-md border border-stone-300 px-2 py-1.5 ${isSidebar ? 'text-[11px]' : 'text-sm'}`}
+          />
+          <select
+            value={selecionadoId}
+            onChange={(e) => void onSelecionarExistente(e.target.value)}
+            className={`w-full rounded-md border border-stone-300 px-2 py-1.5 ${isSidebar ? 'text-[11px]' : 'text-sm'}`}
+          >
+            <option value="">Selecione…</option>
+            {opcoesFiltradas.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.nome}
+                {o.cidade || o.estado ? ` — ${[o.cidade, o.estado].filter(Boolean).join('/')}` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+
+      <RedeLoteadorFichaForm
+        draft={draft}
+        onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
+        showStatus={false}
+        layout={isSidebar ? 'sidebar' : 'default'}
+        sectionIdPrefix={`loteador-${cardId}`}
+      />
+
+      <button
+        type="button"
+        disabled={saving}
+        onClick={() => void salvar()}
+        className={`inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#0c2633] font-medium text-white hover:bg-[#0c2633]/90 disabled:opacity-60 ${isSidebar ? 'px-3 py-1.5 text-[11px]' : 'px-4 py-2 text-sm'}`}
+      >
+        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+        Salvar dados do loteador
+      </button>
+    </div>
+  );
+
+  if (isSidebar) {
+    return <div className="min-w-0">{corpo}</div>;
+  }
+
   return (
     <div
       className="rounded-lg"
@@ -193,16 +346,10 @@ export function DadosLoteadorPersistentPanel({ cardId, onSalvo }: Props) {
           <p className="text-sm font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
             Dados do Loteador
           </p>
-          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
-            <span>{stats.percentual}% preenchido</span>
-            <span>{stats.preenchidos} campos preenchidos</span>
-            <span>{stats.pendentes} pendentes</span>
-            <span>Última atualização: {fmtData(ultimaAtualizacao)}</span>
-            {responsavelUltima ? <span>Responsável: {responsavelUltima}</span> : null}
-          </div>
+          {resumoStats}
         </div>
         {vinculadoId ? (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-800">
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-800">
             <Check className="h-3 w-3" />
             Vinculado
           </span>
@@ -211,118 +358,7 @@ export function DadosLoteadorPersistentPanel({ cardId, onSalvo }: Props) {
 
       {expanded ? (
         <div className="border-t px-4 pb-4 pt-3" style={{ borderColor: 'var(--moni-border-default)' }}>
-          {loading ? (
-            <div className="flex items-center gap-2 py-4 text-sm text-stone-500">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Carregando…
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {linkExterno ? (
-                <div className="flex flex-wrap items-center gap-2 rounded-md border border-stone-200 bg-white px-3 py-2 text-xs">
-                  <ExternalLink className="h-3.5 w-3.5 text-stone-500" />
-                  <span className="truncate text-stone-600">{linkExterno}</span>
-                  <button
-                    type="button"
-                    onClick={() => void copiarLink()}
-                    className="inline-flex items-center gap-1 rounded border border-stone-200 px-2 py-0.5 hover:bg-stone-50"
-                  >
-                    <Copy className="h-3 w-3" />
-                    {copiado ? 'Copiado' : 'Copiar'}
-                  </button>
-                  <a
-                    href={linkExterno}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[#0c2633] underline-offset-2 hover:underline"
-                  >
-                    Abrir
-                  </a>
-                </div>
-              ) : null}
-
-              <p className="text-xs text-stone-500">
-                Dados centralizados — não duplicar nas fases. Sincronizado com{' '}
-                <Link href="/rede-franqueados?tab=loteadores" className="underline-offset-2 hover:underline">
-                  Rede de Loteadores
-                </Link>
-                .
-              </p>
-
-              {erro ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">
-                  {erro}
-                </div>
-              ) : null}
-              {msg ? (
-                <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900" role="status">
-                  {msg}
-                </div>
-              ) : null}
-
-              <fieldset className="space-y-2">
-                <legend className="text-xs font-semibold uppercase tracking-wide text-stone-500">Modo de cadastro</legend>
-                <div className="flex flex-wrap gap-4">
-                  <label className="flex cursor-pointer items-center gap-2 text-sm text-stone-800">
-                    <input
-                      type="radio"
-                      name={`modo-loteador-persistente-${cardId}`}
-                      checked={modo === 'novo'}
-                      onChange={() => onModoChange('novo')}
-                    />
-                    Cadastrar novo
-                  </label>
-                  <label className="flex cursor-pointer items-center gap-2 text-sm text-stone-800">
-                    <input
-                      type="radio"
-                      name={`modo-loteador-persistente-${cardId}`}
-                      checked={modo === 'existente'}
-                      onChange={() => onModoChange('existente')}
-                    />
-                    Selecionar existente
-                  </label>
-                </div>
-              </fieldset>
-
-              {modo === 'existente' ? (
-                <div className="space-y-2">
-                  <label className="block text-xs font-medium text-stone-600">Loteador na rede</label>
-                  <input
-                    type="search"
-                    value={busca}
-                    onChange={(e) => setBusca(e.target.value)}
-                    placeholder="Filtrar por nome ou cidade…"
-                    className="w-full max-w-md rounded-md border border-stone-300 px-3 py-2 text-sm"
-                  />
-                  <select
-                    value={selecionadoId}
-                    onChange={(e) => void onSelecionarExistente(e.target.value)}
-                    className="w-full max-w-md rounded-md border border-stone-300 px-3 py-2 text-sm"
-                  >
-                    <option value="">Selecione…</option>
-                    {opcoesFiltradas.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.nome}
-                        {o.cidade || o.estado ? ` — ${[o.cidade, o.estado].filter(Boolean).join('/')}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : null}
-
-              <RedeLoteadorFichaForm draft={draft} onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))} />
-
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => void salvar()}
-                className="inline-flex items-center gap-2 rounded-md bg-[#0c2633] px-4 py-2 text-sm font-medium text-white hover:bg-[#0c2633]/90 disabled:opacity-60"
-              >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Salvar dados do loteador
-              </button>
-            </div>
-          )}
+          {corpo}
         </div>
       ) : null}
     </div>

@@ -66,6 +66,24 @@ import {
   resolverValorMultiPraca,
   type PracaCidade,
 } from '@/lib/kanban/dados-cidade-praca-multi';
+import {
+  isChecklistItemOcultoUi,
+  isLoteadoresPrimeiroContatoFaseSlug,
+  LOTEADORES_PRIMEIRO_CONTATO_CAMPOS,
+  horarioReuniaoPadraoDoCard,
+} from '@/lib/kanban/loteadores-primeiro-contato';
+import { isChecklistItemVisivelPorCondicao } from '@/lib/kanban/loteadores-r1-conceito';
+import {
+  isChecklistItemReadonly,
+  isLoteadoresAcoplamentoFaseSlug,
+} from '@/lib/kanban/loteadores-acoplamento';
+import { carregarFontesSyncAcoplamentoLoteador } from '@/lib/kanban/loteadores-acoplamento-sync';
+import {
+  isLoteadoresExecucaoMaterialFaseSlug,
+  LOTEADORES_EXECUCAO_MATERIAL_CAMPOS,
+} from '@/lib/kanban/loteadores-execucao-material';
+import { carregarLinkAcoplamentoExecucaoMaterial } from '@/lib/kanban/loteadores-execucao-material-sync';
+import { salvarDataReuniaoCard, salvarHoraReuniaoCard } from '@/lib/actions/kanban-ata-reuniao';
 
 export type CondominioChecklistContext = {
   origem: 'nativo' | 'legado';
@@ -96,6 +114,15 @@ type Props = {
   redeFranqueado?: RedeDadosCandidatoSource | null;
   /** Funil Loteadores: oculta widget legado `rede_loteador` (painel persistente). */
   ocultarRedeLoteadorChecklist?: boolean;
+  /** Primeiro Contato (Loteadores): sync data/horário com campos do card. */
+  cardReuniaoSync?: {
+    origem: 'nativo' | 'legado';
+    basePath: string;
+    dataReuniao: string;
+    horaReuniao: string;
+    onDataReuniaoChange: (v: string) => void;
+    onHoraReuniaoChange: (v: string) => void;
+  } | null;
 };
 
 type EstadoResposta = {
@@ -117,6 +144,7 @@ export function FaseChecklistCard({
   areaAtuacao = null,
   redeFranqueado = null,
   ocultarRedeLoteadorChecklist = false,
+  cardReuniaoSync = null,
 }: Props) {
   const [itens, setItens] = useState<FaseChecklistItem[] | null>(null);
   const [respostas, setRespostas] = useState<Map<string, EstadoResposta>>(new Map());
@@ -126,6 +154,9 @@ export function FaseChecklistCard({
   const [diffModal, setDiffModal] = useState<{ open: boolean; lines: string[] }>({ open: false, lines: [] });
   const redeSyncFeitoRef = useRef('');
   const preBatalhaSyncFeitoRef = useRef('');
+  const reuniaoSyncFeitoRef = useRef('');
+  const acoplamentoSyncFeitoRef = useRef('');
+  const execucaoMaterialSyncFeitoRef = useRef('');
   const [preBatalhaGrupos, setPreBatalhaGrupos] = useState<RankingPorFaixaMercado[]>([]);
 
   const areasAtuacao = parseAreaAtuacao(areaAtuacao);
@@ -148,6 +179,9 @@ export function FaseChecklistCard({
   useEffect(() => {
     redeSyncFeitoRef.current = '';
     preBatalhaSyncFeitoRef.current = '';
+    reuniaoSyncFeitoRef.current = '';
+    acoplamentoSyncFeitoRef.current = '';
+    execucaoMaterialSyncFeitoRef.current = '';
   }, [cardId, faseId]);
 
   useEffect(() => {
@@ -245,6 +279,110 @@ export function FaseChecklistCard({
       }
     })();
   }, [carregando, faseSlug, cardId, faseId, itens, redeFranqueado, respostas]);
+
+  /** Primeiro Contato (Loteadores): preenche data/horário a partir do card quando vazios. */
+  useEffect(() => {
+    if (carregando || !itens?.length) return;
+    if (!isLoteadoresPrimeiroContatoFaseSlug(faseSlug) || !cardReuniaoSync) return;
+
+    const syncKey = `${cardId}:${faseId}:${cardReuniaoSync.dataReuniao}:${cardReuniaoSync.horaReuniao}`;
+    if (reuniaoSyncFeitoRef.current === syncKey) return;
+
+    const itemData = itens.find((i) => i.campo_slug === LOTEADORES_PRIMEIRO_CONTATO_CAMPOS.dataReuniao);
+    const itemHora = itens.find((i) => i.campo_slug === LOTEADORES_PRIMEIRO_CONTATO_CAMPOS.horarioReuniao);
+    const pendencias: { itemId: string; valor: string; syncCard?: 'data' | 'hora' }[] = [];
+
+    if (itemData) {
+      const atual = respostas.get(itemData.id)?.valor?.trim() ?? '';
+      const doCard = cardReuniaoSync.dataReuniao.trim();
+      if (!atual && doCard) pendencias.push({ itemId: itemData.id, valor: doCard, syncCard: 'data' });
+    }
+    if (itemHora) {
+      const atual = respostas.get(itemHora.id)?.valor?.trim() ?? '';
+      if (!atual) {
+        const padrao = horarioReuniaoPadraoDoCard(cardReuniaoSync.horaReuniao);
+        pendencias.push({ itemId: itemHora.id, valor: padrao, syncCard: 'hora' });
+      }
+    }
+
+    reuniaoSyncFeitoRef.current = syncKey;
+    if (pendencias.length === 0) return;
+
+    void (async () => {
+      for (const p of pendencias) {
+        setResposta(p.itemId, { valor: p.valor });
+        await salvar(p.itemId, p.valor);
+      }
+    })();
+  }, [carregando, faseSlug, cardId, faseId, itens, respostas, cardReuniaoSync]);
+
+  /** Acoplamento (Loteadores): espelha Viabilidade + links da esteira Acoplamento. */
+  useEffect(() => {
+    if (carregando || !itens?.length) return;
+    if (!isLoteadoresAcoplamentoFaseSlug(faseSlug)) return;
+
+    const syncKey = `${cardId}:${faseId}`;
+    if (acoplamentoSyncFeitoRef.current === syncKey) return;
+    acoplamentoSyncFeitoRef.current = syncKey;
+
+    void (async () => {
+      try {
+        const supabase = createClient();
+        const fontes = await carregarFontesSyncAcoplamentoLoteador(supabase, cardId, faseId);
+        if (fontes.size === 0) return;
+
+        for (const item of itens) {
+          const slug = String(item.campo_slug ?? '').trim();
+          if (!slug) continue;
+          const fonte = fontes.get(slug);
+          if (!fonte) continue;
+
+          const atual = respostas.get(item.id);
+          const valorNovo = fonte.valor;
+          const arquivoNovo = fonte.arquivo_path;
+          const valorAtual = String(atual?.valor ?? '');
+          const arquivoAtual = atual?.arquivo_path ?? null;
+          if (valorAtual === valorNovo && String(arquivoAtual ?? '') === String(arquivoNovo ?? '')) continue;
+
+          setResposta(item.id, { valor: valorNovo, arquivo_path: arquivoNovo });
+          await salvar(item.id, valorNovo, arquivoNovo);
+        }
+      } catch {
+        acoplamentoSyncFeitoRef.current = '';
+      }
+    })();
+  }, [carregando, faseSlug, cardId, faseId, itens, respostas]);
+
+  /** Execução do Material (Loteadores): espelha link Acoplamentos da fase anterior. */
+  useEffect(() => {
+    if (carregando || !itens?.length) return;
+    if (!isLoteadoresExecucaoMaterialFaseSlug(faseSlug)) return;
+
+    const syncKey = `${cardId}:${faseId}`;
+    if (execucaoMaterialSyncFeitoRef.current === syncKey) return;
+    execucaoMaterialSyncFeitoRef.current = syncKey;
+
+    void (async () => {
+      try {
+        const supabase = createClient();
+        const linkAcop = await carregarLinkAcoplamentoExecucaoMaterial(supabase, cardId, faseId);
+        if (!linkAcop) return;
+
+        const itemAcop = itens.find(
+          (i) => i.campo_slug === LOTEADORES_EXECUCAO_MATERIAL_CAMPOS.acoplamento,
+        );
+        if (!itemAcop) return;
+
+        const atual = respostas.get(itemAcop.id);
+        if (String(atual?.valor ?? '').trim() === linkAcop) return;
+
+        setResposta(itemAcop.id, { valor: linkAcop, arquivo_path: null });
+        await salvar(itemAcop.id, linkAcop, null);
+      } catch {
+        execucaoMaterialSyncFeitoRef.current = '';
+      }
+    })();
+  }, [carregando, faseSlug, cardId, faseId, itens, respostas]);
 
   /** Pré Batalha: calcula ranking e preenche checklist ao abrir o modal (idempotente). */
   useEffect(() => {
@@ -450,6 +588,36 @@ export function FaseChecklistCard({
         itens: checklistItens,
       });
     }
+    if (
+      res.ok &&
+      !erroFinal &&
+      isLoteadoresPrimeiroContatoFaseSlug(faseSlug) &&
+      cardReuniaoSync &&
+      itens?.length
+    ) {
+      const itemSalvo = itens.find((i) => i.id === itemId);
+      const slug = itemSalvo?.campo_slug ?? '';
+      const valorStr = String(valorFinal ?? '').trim();
+      if (slug === LOTEADORES_PRIMEIRO_CONTATO_CAMPOS.dataReuniao) {
+        const resData = await salvarDataReuniaoCard({
+          cardId,
+          origem: cardReuniaoSync.origem,
+          dataReuniao: valorStr,
+          basePath: cardReuniaoSync.basePath,
+        });
+        if (!resData.ok) erroFinal = resData.error;
+        else cardReuniaoSync.onDataReuniaoChange(valorStr ? valorStr.slice(0, 10) : '');
+      } else if (slug === LOTEADORES_PRIMEIRO_CONTATO_CAMPOS.horarioReuniao && valorStr) {
+        const resHora = await salvarHoraReuniaoCard({
+          cardId,
+          origem: cardReuniaoSync.origem,
+          horaReuniao: valorStr,
+          basePath: cardReuniaoSync.basePath,
+        });
+        if (!resHora.ok) erroFinal = resHora.error;
+        else cardReuniaoSync.onHoraReuniaoChange(valorStr);
+      }
+    }
     setResposta(itemId, {
       salvando: false,
       erro: erroFinal,
@@ -500,9 +668,10 @@ export function FaseChecklistCard({
     );
   }
 
-  const itensFiltrados = (isFrank ? itens.filter((it) => it.visivel_candidato) : itens).filter(
-    (it) => !(ocultarRedeLoteadorChecklist && it.tipo === 'rede_loteador'),
-  );
+  const itensFiltrados = (isFrank ? itens.filter((it) => it.visivel_candidato) : itens)
+    .filter((it) => !isChecklistItemOcultoUi(it))
+    .filter((it) => isChecklistItemVisivelPorCondicao(it, itens, respostas))
+    .filter((it) => !(ocultarRedeLoteadorChecklist && it.tipo === 'rede_loteador'));
   const itensDadosCidade = multiPracaAtivo
     ? itensFiltrados.filter((it) => !CHECKLIST_ITENS_OCULTOS_MULTI_PRACA.has(it.label.trim()))
     : itensFiltrados;
@@ -527,6 +696,7 @@ export function FaseChecklistCard({
         <ItemField
           item={item}
         faseSlug={faseSlug}
+        readonly={isChecklistItemReadonly(item)}
         estado={getEstadoRespostaItem(item, chave)}
         cardId={cardId}
         isAdmin={isAdmin}
@@ -643,6 +813,7 @@ type ItemFieldProps = {
   onBlur: (valor: string) => void;
   onArquivo: (path: string) => void | Promise<void>;
   onChecklistValor: (valor: string) => void | Promise<void>;
+  readonly?: boolean;
 };
 
 function ItemField({
@@ -663,9 +834,11 @@ function ItemField({
   onBlur,
   onArquivo,
   onChecklistValor,
+  readonly = false,
 }: ItemFieldProps) {
   const inputFileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [draftLinkAnexo, setDraftLinkAnexo] = useState('');
   const [baixandoModelo, setBaixandoModelo] = useState(false);
   const [erroModelo, setErroModelo] = useState<string | null>(null);
 
@@ -681,6 +854,13 @@ function ItemField({
     'w-full rounded-md border px-3 py-1.5 text-sm outline-none focus:ring-1' +
     ' bg-white border-[var(--moni-border-default)] text-[var(--moni-text-primary)]' +
     ' focus:ring-[var(--moni-primary-500)] focus:border-[var(--moni-primary-500)]';
+  const inputClassUse =
+    readonly ? `${inputClass} cursor-not-allowed bg-stone-50 opacity-90` : inputClass;
+  const hintEspelhado = readonly ? (
+    <p className="mt-0.5 text-[11px] italic" style={{ color: 'var(--moni-text-tertiary)' }}>
+      Preenchido automaticamente (somente leitura).
+    </p>
+  ) : null;
 
   const erroEl =
     estado.erro || erroModelo ? (
@@ -749,16 +929,18 @@ function ItemField({
         ) : null}
         <textarea
           rows={isRankingPreBatalha ? Math.max(6, Math.min(estado.valor.split('\n').length + 1, 16)) : 3}
-          className={inputClass + ' resize-y'}
+          className={inputClassUse + ' resize-y'}
           placeholder={
             isRankingPreBatalha
               ? 'Preenchido automaticamente com todos os modelos compatíveis…'
               : (item.placeholder ?? '')
           }
           value={estado.valor}
+          readOnly={readonly}
           onChange={(e) => onChange(e.target.value)}
           onBlur={(e) => onBlur(e.target.value)}
         />
+        {hintEspelhado}
         {isRankingPreBatalha ? (
           <p className="mt-1 text-[11px] italic" style={{ color: 'var(--moni-text-tertiary)' }}>
             Lista gerada automaticamente; pode ser atualizada ao reabrir o card nesta fase.
@@ -802,6 +984,17 @@ function ItemField({
   }
 
   if (item.tipo === 'anexo') {
+    if (readonly) {
+      const nomeArquivo =
+        estado.arquivo_path?.split('/').pop() ?? (estado.valor ? estado.valor.split('/').pop() : null);
+      return (
+        <div>
+          {labelEl}
+          <p className="text-sm text-stone-700">{nomeArquivo ?? '—'}</p>
+          {hintEspelhado}
+        </div>
+      );
+    }
     return (
       <div>
         {labelEl}
@@ -1118,17 +1311,40 @@ function ItemField({
   }
 
   if (item.tipo === 'url') {
+    if (readonly) {
+      const href = estado.valor.trim();
+      return (
+        <div>
+          {labelEl}
+          {href ? (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-[var(--moni-primary-600)] underline-offset-2 hover:underline"
+            >
+              {href}
+            </a>
+          ) : (
+            <p className="text-sm text-stone-500">—</p>
+          )}
+          {hintEspelhado}
+        </div>
+      );
+    }
     return (
       <div>
         {labelEl}
         <input
           type="url"
-          className={inputClass}
+          className={inputClassUse}
           placeholder={item.placeholder ?? 'https://…'}
           value={estado.valor}
+          readOnly={readonly}
           onChange={(e) => onChange(e.target.value)}
           onBlur={(e) => onBlur(e.target.value)}
         />
+        {hintEspelhado}
         {erroEl}
       </div>
     );
@@ -1253,6 +1469,7 @@ function ItemField({
   }
 
   if (item.tipo === 'anexo_multiplo') {
+    const permiteLink = item.config_json?.permite_link === true;
     let paths: string[] = [];
     try {
       paths = JSON.parse(estado.valor || '[]') as string[];
@@ -1260,16 +1477,69 @@ function ItemField({
     } catch {
       paths = estado.valor ? [estado.valor] : [];
     }
+
+    function rotuloAnexoMultiplo(p: string): string {
+      const s = String(p ?? '').trim();
+      if (/^https?:\/\//i.test(s)) return s;
+      return s.split('/').pop() ?? s;
+    }
+
+    function adicionarLinkAnexo() {
+      const link = draftLinkAnexo.trim();
+      if (!link) return;
+      if (!/^https?:\/\//i.test(link)) return;
+      if (paths.includes(link)) {
+        setDraftLinkAnexo('');
+        return;
+      }
+      const next = [...paths, link];
+      const payload = JSON.stringify(next);
+      onChange(payload);
+      void onChecklistValor(payload);
+      setDraftLinkAnexo('');
+    }
+
+    if (readonly) {
+      return (
+        <div>
+          {labelEl}
+          {paths.length > 0 ? (
+            <ul className="space-y-1 text-xs text-stone-600">
+              {paths.map((p, idx) => (
+                <li key={`${p}-${idx}`} className="truncate">
+                  {/^https?:\/\//i.test(p) ? (
+                    <a href={p} target="_blank" rel="noopener noreferrer" className="text-[var(--moni-primary-600)] underline-offset-2 hover:underline">
+                      {p}
+                    </a>
+                  ) : (
+                    rotuloAnexoMultiplo(p)
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-stone-500">—</p>
+          )}
+          {hintEspelhado}
+        </div>
+      );
+    }
     return (
       <div>
         {labelEl}
         <div className="space-y-2">
           {paths.map((p, idx) => (
             <div key={`${p}-${idx}`} className="flex items-center gap-2 text-xs text-stone-600">
-              <span className="truncate">{p}</span>
+              {/^https?:\/\//i.test(p) ? (
+                <a href={p} target="_blank" rel="noopener noreferrer" className="truncate text-[var(--moni-primary-600)] underline-offset-2 hover:underline">
+                  {p}
+                </a>
+              ) : (
+                <span className="truncate">{rotuloAnexoMultiplo(p)}</span>
+              )}
               <button
                 type="button"
-                className="text-red-600 hover:underline"
+                className="shrink-0 text-red-600 hover:underline"
                 onClick={() => {
                   const next = paths.filter((_, i) => i !== idx);
                   const payload = JSON.stringify(next);
@@ -1281,6 +1551,35 @@ function ItemField({
               </button>
             </div>
           ))}
+          {permiteLink ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="url"
+                className={inputClassUse + ' min-w-[12rem] flex-1'}
+                placeholder="https://…"
+                value={draftLinkAnexo}
+                onChange={(e) => setDraftLinkAnexo(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    adicionarLinkAnexo();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => adicionarLinkAnexo()}
+                className="flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs"
+                style={{
+                  borderColor: 'var(--moni-border-default)',
+                  color: 'var(--moni-text-secondary)',
+                  background: 'var(--moni-surface-100)',
+                }}
+              >
+                + link
+              </button>
+            </div>
+          ) : null}
           <button
             type="button"
             disabled={uploading}
@@ -1293,7 +1592,7 @@ function ItemField({
             }}
           >
             {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
-            Adicionar arquivo
+            + anexo
           </button>
           <input
             ref={inputFileRef}
@@ -1329,18 +1628,25 @@ function ItemField({
   // texto_curto | email | telefone | numero
   const inputType =
     item.tipo === 'email' ? 'email' : item.tipo === 'telefone' ? 'tel' : item.tipo === 'numero' ? 'number' : 'text';
+  const numeroStep =
+    item.tipo === 'numero'
+      ? String(item.config_json?.step ?? (item.config_json?.decimal ? 'any' : '1'))
+      : undefined;
 
   return (
     <div>
       {labelEl}
       <input
         type={inputType}
-        className={inputClass}
+        className={inputClassUse}
         placeholder={item.placeholder ?? ''}
         value={estado.valor}
+        step={numeroStep}
+        readOnly={readonly}
         onChange={(e) => onChange(e.target.value)}
         onBlur={(e) => onBlur(e.target.value)}
       />
+      {hintEspelhado}
       {erroEl}
     </div>
   );

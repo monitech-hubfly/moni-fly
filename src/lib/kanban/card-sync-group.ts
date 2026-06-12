@@ -167,6 +167,7 @@ export const KANBAN_CARD_CAMPOS_SYNC = [
   'lote',
   'data_reuniao',
   'data_followup',
+  'hora_reuniao',
 ] as const;
 
 export type KanbanCardCamposSync = Partial<
@@ -256,6 +257,7 @@ const KANBAN_CAMPOS_ANTI_NULL_SYNC = new Set<string>([
   'rede_franqueado_id',
   'data_followup',
   'data_reuniao',
+  'hora_reuniao',
 ]);
 
 function omitNullStickyKanbanFields(patch: Record<string, string | null>): Record<string, string | null> {
@@ -636,6 +638,7 @@ const CAMPOS_COALESCE_GRUPO_SYNC = new Set<string>([
   'titulo',
   'data_reuniao',
   'data_followup',
+  'hora_reuniao',
 ]);
 
 /** Campos compartilhados canônicos para o modal (leitura). */

@@ -10,6 +10,7 @@ import {
   LOTEADORES_R1_CALCULADO_SLUGS,
   LOTEADORES_R1_SCORE_SLUGS,
 } from '@/lib/kanban/loteadores-score-r1';
+import { formatInteresseLoteadorR1 } from '@/lib/kanban/loteadores-r1-conceito';
 import {
   emptyRedeLoteadorFichaDraft,
   redeLoteadorFichaDraftToPatch,
@@ -327,9 +328,11 @@ export async function atualizarScoreLoteadorR1(cardId: string): Promise<void> {
 
   const score = calcularScoreLoteadorR1(input);
   const classificacao = classificarLoteadorR1(score);
+  const interesse = formatInteresseLoteadorR1(score, classificacao);
   const now = new Date().toISOString();
 
   for (const u of [
+    { slug: 'interesse_loteador', valor: interesse },
     { slug: 'score_loteador', valor: String(score) },
     { slug: 'classificacao_loteador', valor: classificacao },
   ]) {

@@ -244,3 +244,52 @@ export async function salvarDataReuniaoCard(input: {
   revalidatePath(input.basePath?.trim() || '/');
   return { ok: true };
 }
+
+function horaReuniaoInputValida(raw: string): string | null {
+  const v = String(raw ?? '').trim();
+  if (!v) return null;
+  if (!/^\d{2}:\d{2}$/.test(v)) return null;
+  const [hh, mm] = v.split(':').map(Number);
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+  return v;
+}
+
+export async function salvarHoraReuniaoCard(input: {
+  cardId: string;
+  origem: 'nativo' | 'legado';
+  horaReuniao: string;
+  basePath?: string;
+}): Promise<KanbanAtaActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const raw = String(input.horaReuniao ?? '').trim();
+  const valor = raw ? horaReuniaoInputValida(raw) : null;
+  if (raw && !valor) return { ok: false, error: 'Horário inválido. Use o formato HH:MM.' };
+
+  if (input.origem === 'nativo' && valor) {
+    let admin: ReturnType<typeof createAdminClient>;
+    try {
+      admin = createAdminClient();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { ok: false, error: msg };
+    }
+    const sync = await propagarCamposKanbanCards(admin, cardId, { hora_reuniao: valor });
+    if (!sync.ok) return { ok: false, error: sync.error };
+  } else if (input.origem === 'nativo') {
+    const { error } = await supabase.from('kanban_cards').update({ hora_reuniao: valor }).eq('id', cardId);
+    if (error) return { ok: false, error: error.message };
+  } else {
+    return { ok: false, error: 'Horário de reunião disponível apenas em cards nativos.' };
+  }
+
+  revalidatePath(input.basePath?.trim() || '/');
+  return { ok: true };
+}

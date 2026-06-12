@@ -448,6 +448,7 @@ export function KanbanCardModal({
   const [secaoAberta, setSecaoAberta] = useState<Record<SecaoEsquerdaId, boolean>>({
     cronologia: false,
     franqueado: false,
+    loteador: false,
     condominio: false,
     novoNegocio: false,
     dadosEmpresas: false,
@@ -514,6 +515,7 @@ export function KanbanCardModal({
   const [hipotesePortfolioOk, setHipotesePortfolioOk] = useState<string | null>(null);
   const [enviandoHipotesePortfolio, setEnviandoHipotesePortfolio] = useState(false);
   const [dataReuniao, setDataReuniao] = useState('');
+  const [horaReuniao, setHoraReuniao] = useState('');
   const [dataFollowup, setDataFollowup] = useState('');
   const [interacoes, setInteracoes] = useState<InteracaoModal[]>([]);
   const [erroCarregarChamados, setErroCarregarChamados] = useState<string | null>(null);
@@ -706,6 +708,7 @@ export function KanbanCardModal({
     setEmailAssunto('');
     setEmailMensagem('');
     setDataReuniao('');
+    setHoraReuniao('');
     setDataFollowup('');
   }, [cardId]);
 
@@ -875,6 +878,7 @@ export function KanbanCardModal({
         processo_meta?: Card['processo_meta'];
         data_reuniao?: string | null;
         data_followup?: string | null;
+        hora_reuniao?: string | null;
         projeto_id?: string | null;
         processo_step_one_id?: string | null;
         acoplamento_concluido?: boolean;
@@ -977,7 +981,7 @@ export function KanbanCardModal({
       } else {
         setLegadoCronologiaMoves([]);
         const cardSelectBase =
-          'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url';
+          'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, hora_reuniao, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url';
         const cardSelectWithSla = `${cardSelectBase}, sla_iniciado_em, entered_fase_at, sla_justificativa, sla_justificativa_em`;
         let cardRes = await supabase.from('kanban_cards').select(cardSelectWithSla).eq('id', cardId).single();
         if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
@@ -1018,6 +1022,7 @@ export function KanbanCardModal({
             (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? null,
           data_reuniao: (cardData as { data_reuniao?: string | null }).data_reuniao ?? null,
           data_followup: (cardData as { data_followup?: string | null }).data_followup ?? null,
+          hora_reuniao: (cardData as { hora_reuniao?: string | null }).hora_reuniao ?? null,
           projeto_id: (() => {
             const pid = (cardData as { projeto_id?: string | null }).projeto_id;
             return pid != null && String(pid).trim() !== '' ? String(pid) : null;
@@ -1176,6 +1181,9 @@ export function KanbanCardModal({
             if (c.data_followup !== undefined) {
               loaded = { ...loaded, data_followup: c.data_followup };
             }
+            if (c.hora_reuniao !== undefined) {
+              loaded = { ...loaded, hora_reuniao: c.hora_reuniao };
+            }
           }
         }
       } catch {
@@ -1221,6 +1229,9 @@ export function KanbanCardModal({
       setCard(cardParaEstado);
       const dr = loaded.data_reuniao ? String(loaded.data_reuniao).slice(0, 10) : '';
       setDataReuniao(dr && dataIsoInputValida(dr) ? dr : '');
+      setHoraReuniao(
+        loaded.hora_reuniao ? String(loaded.hora_reuniao).trim().slice(0, 5) : '',
+      );
       setDataFollowup(loaded.data_followup ? String(loaded.data_followup).slice(0, 10) : '');
 
       // Carregar tags
@@ -4862,16 +4873,6 @@ export function KanbanCardModal({
                       </p>
                     ) : null}
 
-                    {exibirDadosLoteadorPersistente ? (
-                      <DadosLoteadorPersistentPanel
-                        cardId={card.id}
-                        onSalvo={() => {
-                          void loadCard({ silencioso: true });
-                          router.refresh();
-                        }}
-                      />
-                    ) : null}
-
                     <FaseChecklistCard
                       faseId={faseChecklistFaseId}
                       faseSlug={faseSlugAtual}
@@ -4881,6 +4882,19 @@ export function KanbanCardModal({
                       processoId={processoIdChecklists}
                       areaAtuacao={modalDetalhes.rede?.area_atuacao}
                       ocultarRedeLoteadorChecklist={exibirDadosLoteadorPersistente}
+                      cardReuniaoSync={
+                        exibirDadosLoteadorPersistente &&
+                        faseSlugAtual === 'primeiro_contato_moni_inc'
+                          ? {
+                              origem,
+                              basePath,
+                              dataReuniao,
+                              horaReuniao,
+                              onDataReuniaoChange: setDataReuniao,
+                              onHoraReuniaoChange: setHoraReuniao,
+                            }
+                          : null
+                      }
                       redeFranqueado={
                         modalDetalhes.rede
                           ? {
@@ -5724,7 +5738,20 @@ export function KanbanCardModal({
                 </div>
               </div>,
             )}
-            {secaoHead(
+            {exibirDadosLoteadorPersistente
+              ? secaoHead(
+                  'loteador',
+                  'Dados do Loteador',
+                  <DadosLoteadorPersistentPanel
+                    cardId={card.id}
+                    variant="sidebar"
+                    onSalvo={() => {
+                      void loadCard({ silencioso: true });
+                      router.refresh();
+                    }}
+                  />,
+                )
+              : secaoHead(
               'franqueado',
               'Dados do Franqueado',
               <div className="space-y-2">
