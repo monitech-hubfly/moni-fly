@@ -4456,7 +4456,7 @@ export default function Page() {
     if (prev?.id) {
       const { error } = await supabase
         .from('indicador_lancamentos')
-        .update({ valor: trimmed, periodo_id: periodoId, semana: posicaoRelativa })
+        .update({ valor: trimmed, periodo_id: periodoId, semana: posicaoRelativa, semana_ano: semanaIsoNum })
         .eq('id', prev.id)
       if (!error) {
         void registrarLog({
@@ -4478,7 +4478,7 @@ export default function Page() {
 
     let ins = await supabase
       .from('indicador_lancamentos')
-      .insert({ indicador_id: indicadorId, valor: trimmed, periodo_id: periodoId, semana: posicaoRelativa })
+      .insert({ indicador_id: indicadorId, valor: trimmed, periodo_id: periodoId, semana: posicaoRelativa, semana_ano: semanaIsoNum })
       .select('id')
       .single()
     if (!ins.error && ins.data?.id) {
@@ -4507,7 +4507,7 @@ export default function Page() {
       if (existente?.id) {
         let { error: errUp } = await supabase
           .from('indicador_lancamentos')
-          .update({ valor: trimmed, periodo_id: periodoId, semana: posicaoRelativa })
+          .update({ valor: trimmed, periodo_id: periodoId, semana: posicaoRelativa, semana_ano: semanaIsoNum })
           .eq('id', existente.id)
         if (!errUp) {
           void registrarLog({
@@ -4992,31 +4992,36 @@ export default function Page() {
 
     /** Um único bloco visual: faixa azul + cabeçalho de colunas + todas as linhas (várias metas), sem repetir por meta. */
     const montarBlocoIndicadoresUnificado = () => {
-      const indicadoresOrdenados = []
-      const indicadorIdJaIncluso = new Set()
-      const pushIndUnico = ind => {
-        if (!ind?.id || indicadorIdJaIncluso.has(ind.id)) return
-        indicadorIdJaIncluso.add(ind.id)
-        indicadoresOrdenados.push(ind)
-      }
+      // Agrupa indicadores por meta, mantendo a ordem das metas
+      const gruposPorMeta = [] // [{ meta, indicadores: [] }]
       const metaJaVista = new Set()
+      const indicadorIdJaIncluso = new Set()
+
+      const pushGrupo = (keyObj) => {
+        if (!keyObj || keyObj === '_sem' || metaJaVista.has(keyObj)) return
+        const lista = (indicadoresPorObjetivo[keyObj] || []).filter(ind => {
+          if (!ind?.id || indicadorIdJaIncluso.has(ind.id)) return false
+          indicadorIdJaIncluso.add(ind.id)
+          return true
+        })
+        if (!lista.length) return
+        metaJaVista.add(keyObj)
+        const meta = metaById.get(String(keyObj))
+        gruposPorMeta.push({ meta, indicadores: lista })
+      }
+
       linhas.forEach(l => {
         if (l.tipo !== 'objetivo' || !l.objetivoId || l.objetivoId === '_sem') return
-        // Importante: indicadores devem aparecer mesmo se a meta estiver concluída ou não vier na lista `metasObjetivos`.
         const oc = metaIdCanonica(metasObjetivos, l.objetivoId)
-        const keyObj = oc || l.objetivoId
-        if (!keyObj || keyObj === '_sem' || metaJaVista.has(keyObj)) return
-        metaJaVista.add(keyObj)
-        const lista = indicadoresPorObjetivo[keyObj]
-        if (lista?.length) lista.forEach(pushIndUnico)
+        pushGrupo(oc || l.objetivoId)
       })
       ;(metasObjetivos || []).forEach(m => {
-        if (!m?.id || metaJaVista.has(m.id)) return
-        metaJaVista.add(m.id)
-        const lista = indicadoresPorObjetivo[m.id]
-        if (lista?.length) lista.forEach(pushIndUnico)
+        if (m?.id) pushGrupo(m.id)
       })
-      if (indicadoresOrdenados.length === 0) return
+
+      if (gruposPorMeta.length === 0) return
+
+      // Cabeçalho principal INDICADORES
       tableRows.push(
         <tr key="ind-bloco-caption" className="gantt-tr gantt-tr--ind-caption" role="row">
           <td colSpan={nColunas} className="gantt-td-ind-caption">
@@ -5024,12 +5029,10 @@ export default function Page() {
           </td>
         </tr>
       )
+
+      // Subheader de colunas
       tableRows.push(
-        <tr
-          key="ind-bloco-subh"
-          className="gantt-tr gantt-tr--ind-subhdr"
-          role="row"
-        >
+        <tr key="ind-bloco-subh" className="gantt-tr gantt-tr--ind-subhdr" role="row">
           <td className="gantt-th gantt-th--atividade gantt-th--indicadores-col gantt-td-subhdr">Indicador</td>
           <td className="gantt-th gantt-th--responsavel gantt-td-subhdr">Responsável</td>
           {semanas.map(s => (
@@ -5037,11 +5040,7 @@ export default function Page() {
               key={s}
               className={`gantt-th gantt-th-week gantt-td-subhdr${semanaAtual != null && Number(s) === Number(semanaAtual) ? ' gantt-th-week--atual gantt-col-semana-atual' : ''}`}
               title={`Semana ${s}`}
-              style={
-                semanaAtual != null && Number(s) === Number(semanaAtual)
-                  ? GANTT_BORDA_SEMANA_ATUAL_HDR
-                  : undefined
-              }
+              style={semanaAtual != null && Number(s) === Number(semanaAtual) ? GANTT_BORDA_SEMANA_ATUAL_HDR : undefined}
             >
               {s}
             </td>
@@ -5049,7 +5048,30 @@ export default function Page() {
           <td className="gantt-th gantt-th--acoes gantt-td-subhdr">Ações</td>
         </tr>
       )
-      indicadoresOrdenados.forEach(ind => pushLinhaIndicador(ind))
+
+      // Para cada grupo: linha com nome da meta + linhas de indicadores
+      gruposPorMeta.forEach(({ meta, indicadores }, gi) => {
+        const nomeMetaDisplay = meta?.nome?.trim() || meta?.descricao?.trim() || 'Meta'
+        tableRows.push(
+          <tr key={`ind-meta-hdr-${meta?.id || gi}`} role="row">
+            <td
+              colSpan={nColunas}
+              style={{
+                background: '#0e3a4e',
+                color: 'rgba(245,242,238,0.85)',
+                fontSize: 11,
+                fontWeight: 600,
+                padding: '5px 14px',
+                borderBottom: '0.5px solid #3e7490',
+                letterSpacing: '0.04em',
+              }}
+            >
+              {nomeMetaDisplay}
+            </td>
+          </tr>
+        )
+        indicadores.forEach(ind => pushLinhaIndicador(ind))
+      })
     }
     const metaById = new Map((metasObjetivos || []).filter(m => m?.id).map(m => [String(m.id), m]))
     let acaoBefore = 0
@@ -6750,6 +6772,26 @@ export default function Page() {
           font-size: 12px;
           font-weight: 600;
           letter-spacing: 0.02em;
+        }
+        .gantt-page-moni .gantt-tr--ind-caption td,
+        .gantt-page-moni .gantt-td-ind-caption {
+          background: #0C2633;
+          color: #F5F2EE;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          padding: 7px 12px;
+          border-bottom: 1.5px solid #3e7490;
+        }
+        .gantt-page-moni .gantt-tr--ind-subhdr td,
+        .gantt-page-moni .gantt-td-subhdr {
+          background: #0e3a4e;
+          color: rgba(245,242,238,0.75);
+          font-size: 11px;
+          font-weight: 600;
+          padding: 6px 8px;
+          border-bottom: 1px solid #3e7490;
         }
         .gantt-page-moni .gantt-shell-row--grupo .gantt-nome-comportamento {
           font-size: 13px;
