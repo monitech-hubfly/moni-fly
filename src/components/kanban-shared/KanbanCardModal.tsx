@@ -79,7 +79,6 @@ import { CreditoObraAberturaAutorizacaoModal } from './CreditoObraAberturaAutori
 import { isPortfolioKanbanRef, isLoteadoresKanbanRef } from '@/lib/kanban/portfolio-paralelas';
 import {
   cardLoteadoresPrecisaJustificativaSla,
-  faseLoteadoresExigeJustificativaSla,
 } from '@/lib/kanban/loteadores-sla-justificativa';
 import { salvarJustificativaSlaLoteadores } from '@/lib/actions/kanban-sla-justificativa';
 import {
@@ -2165,9 +2164,11 @@ export function KanbanCardModal({
       isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome)) &&
       cardLoteadoresPrecisaJustificativaSla({
         kanbanId: card.kanban_id,
+        kanbanNome: String(kanbanNome),
         faseSlug: faseAtual.slug,
         slaStatus: slaCard.status,
         slaJustificativa: card.sla_justificativa,
+        sla_dias: faseAtual.sla_dias,
       })
     ) {
       setSlaJustificativaDraft('');
@@ -2982,9 +2983,14 @@ export function KanbanCardModal({
   });
   const exibirSecaoJustificativaSla =
     !isLegado &&
-    isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome)) &&
-    faseLoteadoresExigeJustificativaSla(faseSlugAtual) &&
-    slaCard.status === 'atrasado';
+    cardLoteadoresPrecisaJustificativaSla({
+      kanbanId: card.kanban_id,
+      kanbanNome: String(kanbanNome),
+      faseSlug: faseSlugAtual,
+      slaStatus: slaCard.status,
+      slaJustificativa: card.sla_justificativa,
+      sla_dias: faseAtual?.sla_dias,
+    });
   const exibirDadosLoteadorPersistente =
     !isLegado && isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome));
   const slaJustificativaRegistrada = String(card.sla_justificativa ?? '').trim();

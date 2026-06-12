@@ -96,7 +96,7 @@ BEGIN
     );
   END IF;
 
-  -- 3. Materiais visuais para apresentação
+  -- 3. Link da Apresentação
   v_item_id := NULL;
   SELECT id INTO v_item_id
   FROM public.kanban_fase_checklist_itens
@@ -106,7 +106,7 @@ BEGIN
   IF v_item_id IS NOT NULL THEN
     UPDATE public.kanban_fase_checklist_itens
     SET ordem = 3,
-        label = 'Materiais visuais para apresentação',
+        label = 'Link da Apresentação',
         tipo = 'url',
         obrigatorio = false,
         visivel_candidato = true,
@@ -116,7 +116,7 @@ BEGIN
     INSERT INTO public.kanban_fase_checklist_itens (
       fase_id, ordem, label, tipo, obrigatorio, visivel_candidato, campo_slug, config_json
     ) VALUES (
-      v_fase_id, 3, 'Materiais visuais para apresentação', 'url', false, true,
+      v_fase_id, 3, 'Link da Apresentação', 'url', false, true,
       'materiais_visuais_apresentacao', '{}'::jsonb
     );
   END IF;

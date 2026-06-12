@@ -68,17 +68,39 @@ import {
 } from '@/lib/kanban/dados-cidade-praca-multi';
 import {
   isChecklistItemOcultoUi,
+  isLoteadoresPrimeiroContatoCampoVisivel,
   isLoteadoresPrimeiroContatoFaseSlug,
   LOTEADORES_PRIMEIRO_CONTATO_CAMPOS,
   horarioReuniaoPadraoDoCard,
 } from '@/lib/kanban/loteadores-primeiro-contato';
-import { isChecklistItemVisivelPorCondicao } from '@/lib/kanban/loteadores-r1-conceito';
+import { isChecklistItemVisivelPorCondicao, isLoteadoresR1ConceitoCampoVisivel, isLoteadoresR1ConceitoFaseSlug } from '@/lib/kanban/loteadores-r1-conceito';
+import {
+  isLoteadoresComiteCampoVisivel,
+  isLoteadoresComiteFaseSlug,
+} from '@/lib/kanban/loteadores-comite';
+import {
+  isLoteadoresRevisoesCampoVisivel,
+  isLoteadoresRevisoesFaseSlug,
+} from '@/lib/kanban/loteadores-revisoes';
+import {
+  isLoteadoresR3AjustesFinaisCampoVisivel,
+  isLoteadoresR3AjustesFinaisFaseSlug,
+} from '@/lib/kanban/loteadores-r3-ajustes-finais';
+import {
+  isLoteadoresContratoCampoVisivel,
+  isLoteadoresContratoFaseSlug,
+} from '@/lib/kanban/loteadores-contrato';
+import {
+  isLoteadoresR2PlanoTeoricoCampoVisivel,
+  isLoteadoresR2PlanoTeoricoFaseSlug,
+} from '@/lib/kanban/loteadores-r2-plano-teorico';
 import {
   isChecklistItemReadonly,
   isLoteadoresAcoplamentoFaseSlug,
 } from '@/lib/kanban/loteadores-acoplamento';
 import { carregarFontesSyncAcoplamentoLoteador } from '@/lib/kanban/loteadores-acoplamento-sync';
 import {
+  isLoteadoresExecucaoMaterialCampoVisivel,
   isLoteadoresExecucaoMaterialFaseSlug,
   LOTEADORES_EXECUCAO_MATERIAL_CAMPOS,
 } from '@/lib/kanban/loteadores-execucao-material';
@@ -670,6 +692,14 @@ export function FaseChecklistCard({
 
   const itensFiltrados = (isFrank ? itens.filter((it) => it.visivel_candidato) : itens)
     .filter((it) => !isChecklistItemOcultoUi(it))
+    .filter((it) => !isLoteadoresPrimeiroContatoFaseSlug(faseSlug) || isLoteadoresPrimeiroContatoCampoVisivel(it))
+    .filter((it) => !isLoteadoresR1ConceitoFaseSlug(faseSlug) || isLoteadoresR1ConceitoCampoVisivel(it))
+    .filter((it) => !isLoteadoresExecucaoMaterialFaseSlug(faseSlug) || isLoteadoresExecucaoMaterialCampoVisivel(it))
+    .filter((it) => !isLoteadoresR2PlanoTeoricoFaseSlug(faseSlug) || isLoteadoresR2PlanoTeoricoCampoVisivel(it))
+    .filter((it) => !(ocultarRedeLoteadorChecklist && isLoteadoresComiteFaseSlug(faseSlug)) || isLoteadoresComiteCampoVisivel(it))
+    .filter((it) => !(ocultarRedeLoteadorChecklist && isLoteadoresRevisoesFaseSlug(faseSlug)) || isLoteadoresRevisoesCampoVisivel(it))
+    .filter((it) => !(ocultarRedeLoteadorChecklist && isLoteadoresR3AjustesFinaisFaseSlug(faseSlug)) || isLoteadoresR3AjustesFinaisCampoVisivel(it))
+    .filter((it) => !(ocultarRedeLoteadorChecklist && isLoteadoresContratoFaseSlug(faseSlug)) || isLoteadoresContratoCampoVisivel(it))
     .filter((it) => isChecklistItemVisivelPorCondicao(it, itens, respostas))
     .filter((it) => !(ocultarRedeLoteadorChecklist && it.tipo === 'rede_loteador'));
   const itensDadosCidade = multiPracaAtivo

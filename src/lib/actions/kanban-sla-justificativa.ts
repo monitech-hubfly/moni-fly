@@ -6,6 +6,7 @@ import {
   MSG_GATE_JUSTIFICATIVA_SLA_LOTEADORES,
   calcularSlaCardLoteadores,
   cardLoteadoresPrecisaJustificativaSla,
+  deveExibirSecaoQuebraSlaLoteadores,
   faseLoteadoresExigeJustificativaSla,
 } from '@/lib/kanban/loteadores-sla-justificativa';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -76,6 +77,7 @@ export async function cardPrecisaJustificativaSlaQuebrado(cardId: string): Promi
     faseSlug: fase.slug,
     slaStatus: sla.status,
     slaJustificativa: card.sla_justificativa,
+    sla_dias: fase.sla_dias,
   });
 }
 
@@ -114,7 +116,12 @@ export async function salvarJustificativaSlaLoteadores(input: {
     docs_terreno_url: card.docs_terreno_url,
     sla_dias: fase.sla_dias,
   });
-  if (sla.status !== 'atrasado') {
+  if (!deveExibirSecaoQuebraSlaLoteadores({
+    kanbanId: card.kanban_id,
+    faseSlug: fase.slug,
+    slaStatus: sla.status,
+    sla_dias: fase.sla_dias,
+  })) {
     return { ok: false, error: 'Justificativa só é necessária quando o SLA está vencido.' };
   }
 
@@ -176,6 +183,7 @@ export async function verificarGateJustificativaSlaLoteadores(
     faseSlug: fase.slug,
     slaStatus: sla.status,
     slaJustificativa: card.sla_justificativa,
+    sla_dias: fase.sla_dias,
   });
   if (!precisa) return { ok: true };
 

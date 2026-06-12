@@ -227,6 +227,7 @@ export function KanbanColumn({
                 faseSlug: fromSlug,
                 slaStatus: slaOrigem.status,
                 slaJustificativa: payload.sla_justificativa,
+                sla_dias: payload.fromFaseSlaDias ?? null,
               })
             ) {
               const motivo = window.prompt(

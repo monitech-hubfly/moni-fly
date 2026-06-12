@@ -29,18 +29,24 @@ const SHOWROOM: Record<string, number> = {
   Não: 0,
 };
 
-/** Linhas de receita — peso máx. 20 */
+/** Linhas de receita — peso máx. 20 (select legado ou texto livre preenchido). */
 const LINHAS_RECEITA: Record<string, number> = {
   'Identificou oportunidades': 20,
   'Poucas oportunidades': 10,
   'Nenhuma oportunidade': 0,
 };
 
+function scoreLinhasReceita(valor: string | null | undefined): number {
+  const t = String(valor ?? '').trim();
+  if (!t) return 0;
+  return LINHAS_RECEITA[t] ?? 20;
+}
+
 export function calcularScoreLoteadorR1(input: LoteadorR1ScoreInput): number {
   const preco = PRECO[String(input.preco_atratividade ?? '').trim()] ?? 0;
   const produto = PRODUTO[String(input.produto_atratividade ?? '').trim()] ?? 0;
   const showroom = SHOWROOM[String(input.showroom_interesse ?? '').trim()] ?? 0;
-  const linhas = LINHAS_RECEITA[String(input.linhas_receita ?? '').trim()] ?? 0;
+  const linhas = scoreLinhasReceita(input.linhas_receita);
   return Math.min(100, Math.max(0, preco + produto + showroom + linhas));
 }
 

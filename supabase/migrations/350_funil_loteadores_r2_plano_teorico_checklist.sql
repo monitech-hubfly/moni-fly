@@ -12,8 +12,6 @@ $instr$;
     'casa_showroom',
     'concorda_gadgets',
     'forma_pagamento',
-    'loteador_de_acordo',
-    'motivo_nao_acordo',
     'adendos_observacoes'
   ];
 BEGIN
@@ -121,63 +119,6 @@ BEGIN
     );
   END IF;
 
-  -- Parceria: loteador de acordo
-  v_item_id := NULL;
-  SELECT id INTO v_item_id
-  FROM public.kanban_fase_checklist_itens
-  WHERE fase_id = v_fase_id AND campo_slug = 'loteador_de_acordo'
-  LIMIT 1;
-
-  IF v_item_id IS NOT NULL THEN
-    UPDATE public.kanban_fase_checklist_itens
-    SET ordem = 4, label = 'Loteador está de acordo?', tipo = 'select', obrigatorio = false,
-        visivel_candidato = true,
-        config_json = '{"opcoes":["Sim","Não"]}'::jsonb
-    WHERE id = v_item_id;
-  ELSE
-    INSERT INTO public.kanban_fase_checklist_itens (
-      fase_id, ordem, label, tipo, obrigatorio, visivel_candidato, campo_slug, config_json
-    ) VALUES (
-      v_fase_id, 4, 'Loteador está de acordo?', 'select', false, true, 'loteador_de_acordo',
-      '{"opcoes":["Sim","Não"]}'::jsonb
-    );
-  END IF;
-
-  -- Parceria: se não, por quê?
-  v_item_id := NULL;
-  SELECT id INTO v_item_id
-  FROM public.kanban_fase_checklist_itens
-  WHERE fase_id = v_fase_id AND campo_slug = 'motivo_nao_acordo'
-  LIMIT 1;
-
-  IF v_item_id IS NOT NULL THEN
-    UPDATE public.kanban_fase_checklist_itens
-    SET ordem = 5, label = 'Se não, por quê?', tipo = 'texto_curto', obrigatorio = false,
-        visivel_candidato = true,
-        config_json = '{"visible_when":{"campo_slug":"loteador_de_acordo","valor":"Não"}}'::jsonb
-    WHERE id = v_item_id;
-  ELSE
-    SELECT id INTO v_item_id
-    FROM public.kanban_fase_checklist_itens
-    WHERE fase_id = v_fase_id AND campo_slug = 'ajustes_solicitados'
-    LIMIT 1;
-
-    IF v_item_id IS NOT NULL THEN
-      UPDATE public.kanban_fase_checklist_itens
-      SET ordem = 5, label = 'Se não, por quê?', tipo = 'texto_curto', obrigatorio = false,
-          visivel_candidato = true, campo_slug = 'motivo_nao_acordo',
-          config_json = '{"visible_when":{"campo_slug":"loteador_de_acordo","valor":"Não"}}'::jsonb
-      WHERE id = v_item_id;
-    ELSE
-      INSERT INTO public.kanban_fase_checklist_itens (
-        fase_id, ordem, label, tipo, obrigatorio, visivel_candidato, campo_slug, config_json
-      ) VALUES (
-        v_fase_id, 5, 'Se não, por quê?', 'texto_curto', false, true, 'motivo_nao_acordo',
-        '{"visible_when":{"campo_slug":"loteador_de_acordo","valor":"Não"}}'::jsonb
-      );
-    END IF;
-  END IF;
-
   -- Parceria: adendos
   v_item_id := NULL;
   SELECT id INTO v_item_id
@@ -187,7 +128,7 @@ BEGIN
 
   IF v_item_id IS NOT NULL THEN
     UPDATE public.kanban_fase_checklist_itens
-    SET ordem = 6, label = 'Adendos / observações', tipo = 'texto_longo', obrigatorio = false,
+    SET ordem = 4, label = 'Adendos / observações', tipo = 'texto_longo', obrigatorio = false,
         visivel_candidato = true, config_json = COALESCE(config_json, '{}'::jsonb) - 'oculto_ui'
     WHERE id = v_item_id;
   ELSE
@@ -198,7 +139,7 @@ BEGIN
 
     IF v_item_id IS NOT NULL THEN
       UPDATE public.kanban_fase_checklist_itens
-      SET ordem = 6, label = 'Adendos / observações', tipo = 'texto_longo', obrigatorio = false,
+      SET ordem = 4, label = 'Adendos / observações', tipo = 'texto_longo', obrigatorio = false,
           visivel_candidato = true, campo_slug = 'adendos_observacoes',
           config_json = COALESCE(config_json, '{}'::jsonb) - 'oculto_ui'
       WHERE id = v_item_id;
@@ -206,7 +147,7 @@ BEGIN
       INSERT INTO public.kanban_fase_checklist_itens (
         fase_id, ordem, label, tipo, obrigatorio, visivel_candidato, campo_slug, config_json
       ) VALUES (
-        v_fase_id, 6, 'Adendos / observações', 'texto_longo', false, true, 'adendos_observacoes', '{}'::jsonb
+        v_fase_id, 4, 'Adendos / observações', 'texto_longo', false, true, 'adendos_observacoes', '{}'::jsonb
       );
     END IF;
   END IF;

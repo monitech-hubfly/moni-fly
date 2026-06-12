@@ -14,8 +14,43 @@ export const LOTEADORES_R1_CONCEITO_CAMPOS = {
 
 export const LOTEADORES_R1_CONCEITO_CAMPOS_VISIVEIS = Object.values(LOTEADORES_R1_CONCEITO_CAMPOS);
 
+/** Slugs legados removidos da UI (migration 341). */
+export const LOTEADORES_R1_CONCEITO_CAMPOS_REMOVIDOS = [
+  'restricoes',
+  'oportunidades',
+  'comentarios',
+  'score_loteador',
+  'classificacao_loteador',
+] as const;
+
 export function isLoteadoresR1ConceitoFaseSlug(slug: string | null | undefined): boolean {
   return String(slug ?? '').trim() === LOTEADORES_R1_CONCEITO_FASE_SLUG;
+}
+
+export function isLoteadoresR1ConceitoCampoVisivel(item: {
+  campo_slug?: string | null;
+  label?: string | null;
+}): boolean {
+  const slug = String(item.campo_slug ?? '').trim();
+  if (slug) {
+    return (LOTEADORES_R1_CONCEITO_CAMPOS_VISIVEIS as readonly string[]).includes(slug);
+  }
+  const label = String(item.label ?? '').trim();
+  return (
+    label === 'Interesse do loteador' ||
+    label === 'Preço' ||
+    label === 'Preço — atratividade' ||
+    label === 'Produto' ||
+    label === 'Produto — atratividade' ||
+    label === 'Previsão de showroom' ||
+    label === 'Showroom — interesse' ||
+    label === 'Se sim, qual?' ||
+    label === 'Showroom — descrição' ||
+    label === 'Linhas de receita para o loteador' ||
+    label === 'Linhas de receita' ||
+    label === 'Como é a casa que vende lá?' ||
+    label === 'Casa que vende'
+  );
 }
 
 export function formatInteresseLoteadorR1(score: number, classificacao: string): string {

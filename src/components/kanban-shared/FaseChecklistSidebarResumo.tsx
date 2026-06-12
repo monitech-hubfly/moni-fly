@@ -10,6 +10,39 @@ import {
   ordenarItensChecklistDadosCidade,
 } from '@/lib/kanban/dados-cidade-praca-multi';
 import { isDadosCidadeFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import {
+  isChecklistItemOcultoUi,
+  isLoteadoresPrimeiroContatoCampoVisivel,
+  isLoteadoresPrimeiroContatoFaseSlug,
+} from '@/lib/kanban/loteadores-primeiro-contato';
+import {
+  isLoteadoresExecucaoMaterialCampoVisivel,
+  isLoteadoresExecucaoMaterialFaseSlug,
+} from '@/lib/kanban/loteadores-execucao-material';
+import {
+  isLoteadoresComiteCampoVisivel,
+  isLoteadoresComiteFaseSlug,
+} from '@/lib/kanban/loteadores-comite';
+import {
+  isLoteadoresRevisoesCampoVisivel,
+  isLoteadoresRevisoesFaseSlug,
+} from '@/lib/kanban/loteadores-revisoes';
+import {
+  isLoteadoresR3AjustesFinaisCampoVisivel,
+  isLoteadoresR3AjustesFinaisFaseSlug,
+} from '@/lib/kanban/loteadores-r3-ajustes-finais';
+import {
+  isLoteadoresContratoCampoVisivel,
+  isLoteadoresContratoFaseSlug,
+} from '@/lib/kanban/loteadores-contrato';
+import {
+  isLoteadoresR2PlanoTeoricoCampoVisivel,
+  isLoteadoresR2PlanoTeoricoFaseSlug,
+} from '@/lib/kanban/loteadores-r2-plano-teorico';
+import {
+  isLoteadoresR1ConceitoCampoVisivel,
+  isLoteadoresR1ConceitoFaseSlug,
+} from '@/lib/kanban/loteadores-r1-conceito';
 import { resumoChecklistItem } from '@/lib/kanban/fase-checklist-resumo-display';
 import { parseAreaAtuacao } from '@/lib/rede-area-atuacao';
 
@@ -69,7 +102,7 @@ export function FaseChecklistSidebarResumo({
       try {
         const supabase = createClient();
         const itemCols =
-          'id, fase_id, ordem, label, tipo, obrigatorio, visivel_candidato, template_storage_path, placeholder';
+          'id, fase_id, ordem, label, tipo, obrigatorio, visivel_candidato, template_storage_path, placeholder, campo_slug, config_json';
         const respCols = 'id, item_id, card_id, valor, arquivo_path';
 
         const [{ data: itensData }, { data: respostasData }] = await Promise.all([
@@ -86,6 +119,32 @@ export function FaseChecklistSidebarResumo({
         const itensPorFase = new Map<string, FaseChecklistItem[]>();
         for (const item of itens) {
           if (isFrank && !item.visivel_candidato) continue;
+          if (isChecklistItemOcultoUi(item)) continue;
+          const slug = faseSlugPorId.get(item.fase_id) ?? '';
+          if (isLoteadoresPrimeiroContatoFaseSlug(slug) && !isLoteadoresPrimeiroContatoCampoVisivel(item)) {
+            continue;
+          }
+          if (isLoteadoresR1ConceitoFaseSlug(slug) && !isLoteadoresR1ConceitoCampoVisivel(item)) {
+            continue;
+          }
+          if (isLoteadoresExecucaoMaterialFaseSlug(slug) && !isLoteadoresExecucaoMaterialCampoVisivel(item)) {
+            continue;
+          }
+          if (isLoteadoresR2PlanoTeoricoFaseSlug(slug) && !isLoteadoresR2PlanoTeoricoCampoVisivel(item)) {
+            continue;
+          }
+          if (isLoteadoresComiteFaseSlug(slug) && !isLoteadoresComiteCampoVisivel(item)) {
+            continue;
+          }
+          if (isLoteadoresRevisoesFaseSlug(slug) && !isLoteadoresRevisoesCampoVisivel(item)) {
+            continue;
+          }
+          if (isLoteadoresR3AjustesFinaisFaseSlug(slug) && !isLoteadoresR3AjustesFinaisCampoVisivel(item)) {
+            continue;
+          }
+          if (isLoteadoresContratoFaseSlug(slug) && !isLoteadoresContratoCampoVisivel(item)) {
+            continue;
+          }
           const list = itensPorFase.get(item.fase_id) ?? [];
           list.push(item);
           itensPorFase.set(item.fase_id, list);

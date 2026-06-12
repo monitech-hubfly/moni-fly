@@ -59,12 +59,12 @@ BEGIN
     INSERT INTO public.kanban_fase_checklist_itens (
       fase_id, ordem, label, tipo, obrigatorio, visivel_candidato, campo_slug, config_json
     ) VALUES (
-      v_fase_id, 1, 'Lote escolhido para showroom — Quadra', 'numero', false, true,
+      v_fase_id, 1, 'Quadra escolhida para showroom — Quadra', 'numero', false, true,
       'lote_showroom_quadra', v_readonly || '{"decimal":true,"step":"any","sync_from":{"origem":"viabilidade"}}'::jsonb
     );
   ELSE
     UPDATE public.kanban_fase_checklist_itens SET
-      ordem = 1, label = 'Lote escolhido para showroom — Quadra', tipo = 'numero',
+      ordem = 1, label = 'Quadra escolhida para showroom — Quadra', tipo = 'numero',
       config_json = v_readonly || '{"decimal":true,"step":"any","sync_from":{"origem":"viabilidade"}}'::jsonb
     WHERE id = v_item_id;
   END IF;

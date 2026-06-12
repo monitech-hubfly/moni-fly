@@ -1,4 +1,5 @@
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { KANBAN_NOME_FUNIL_LOTEADORES } from '@/lib/kanban/funil-loteadores';
 import { calcularSlaKanbanCard } from '@/lib/kanban/kanban-card-sla';
 
 /** Fases do Funil Loteadores em que a quebra de SLA exige justificativa antes de avançar. */
@@ -17,15 +18,38 @@ export function faseLoteadoresExigeJustificativaSla(
   return (LOTEADORES_FASES_JUSTIFICATIVA_SLA as readonly string[]).includes(s);
 }
 
+function isLoteadoresKanban(kanbanId?: string | null, kanbanNome?: string | null): boolean {
+  if (String(kanbanNome ?? '').trim() === KANBAN_NOME_FUNIL_LOTEADORES) return true;
+  return String(kanbanId ?? '').trim() === KANBAN_IDS.LOTEADORES;
+}
+
+function faseLoteadoresTemSlaConfigurado(sla_dias?: number | null): boolean {
+  return sla_dias != null && sla_dias > 0;
+}
+
+/** Banner «Quebra de SLA» no modal — somente com SLA da fase vencido. */
+export function deveExibirSecaoQuebraSlaLoteadores(input: {
+  kanbanId?: string | null;
+  kanbanNome?: string | null;
+  faseSlug?: string | null;
+  slaStatus: 'ok' | 'atencao' | 'atrasado';
+  sla_dias?: number | null;
+}): boolean {
+  if (!isLoteadoresKanban(input.kanbanId, input.kanbanNome)) return false;
+  if (!faseLoteadoresExigeJustificativaSla(input.faseSlug)) return false;
+  if (!faseLoteadoresTemSlaConfigurado(input.sla_dias)) return false;
+  return input.slaStatus === 'atrasado';
+}
+
 export function cardLoteadoresPrecisaJustificativaSla(input: {
   kanbanId?: string | null;
+  kanbanNome?: string | null;
   faseSlug?: string | null;
   slaStatus: 'ok' | 'atencao' | 'atrasado';
   slaJustificativa?: string | null;
+  sla_dias?: number | null;
 }): boolean {
-  if (String(input.kanbanId ?? '') !== KANBAN_IDS.LOTEADORES) return false;
-  if (!faseLoteadoresExigeJustificativaSla(input.faseSlug)) return false;
-  if (input.slaStatus !== 'atrasado') return false;
+  if (!deveExibirSecaoQuebraSlaLoteadores(input)) return false;
   return !String(input.slaJustificativa ?? '').trim();
 }
 
