@@ -88,6 +88,8 @@ export const FASE_SLUGS = {
   LOTEADORES_DADOS_LOTEADOR: 'dados_loteador_moni_inc',
   /** Funil Loteadores — gate de esteira Acoplamento antes do Comitê. */
   LOTEADORES_COMITE: 'comite_moni_inc',
+  /** Funil Loteadores — diligência antes de Moní Capital. */
+  LOTEADORES_DILIGENCIA: 'diligencia_moni_inc',
   /** Funil Acoplamento — gate Gbox/Acoplamento antes de avançar. */
   MODELAGEM_CASA_GBOX: 'modelagem_casa_gbox',
   APROVACAO_PREFEITURA: 'aprovacao_prefeitura',

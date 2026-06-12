@@ -49,8 +49,9 @@ BEGIN
       ('R3: Ajustes Finais nas Propostas', 'r3_ajustes_finais_moni_inc', 7, 2),
       ('Abertura SPE', 'abertura_spe_moni_inc', 8, 3),
       ('Fechar Contrato', 'fechar_contrato_moni_inc', 9, 5),
-      ('Moní Capital', 'moni_capital_moni_inc', 10, NULL::integer),
-      ('Contrato de Parceria', 'contrato_parceria_moni_inc', 11, NULL::integer)
+      ('Diligência', 'diligencia_moni_inc', 10, 10),
+      ('Moní Capital', 'moni_capital_moni_inc', 11, NULL::integer),
+      ('Contrato de Parceria', 'contrato_parceria_moni_inc', 12, NULL::integer)
     ) AS t(nome, slug, ordem, sla_dias)
   LOOP
     UPDATE public.kanban_fases AS kf
@@ -114,6 +115,7 @@ DECLARE
     'r3_ajustes_finais_moni_inc',
     'abertura_spe_moni_inc',
     'fechar_contrato_moni_inc',
+    'diligencia_moni_inc',
     'moni_capital_moni_inc',
     'contrato_parceria_moni_inc'
   ];
@@ -147,8 +149,9 @@ BEGIN
       ('R3: Ajustes Finais nas Propostas', 'r3_ajustes_finais_moni_inc', 7, 2),
       ('Abertura SPE', 'abertura_spe_moni_inc', 8, 3),
       ('Fechar Contrato', 'fechar_contrato_moni_inc', 9, 5),
-      ('Moní Capital', 'moni_capital_moni_inc', 10, NULL::integer),
-      ('Contrato de Parceria', 'contrato_parceria_moni_inc', 11, NULL::integer)
+      ('Diligência', 'diligencia_moni_inc', 10, 10),
+      ('Moní Capital', 'moni_capital_moni_inc', 11, NULL::integer),
+      ('Contrato de Parceria', 'contrato_parceria_moni_inc', 12, NULL::integer)
     ) AS t(nome, slug, ordem, sla_dias)
   LOOP
     SELECT kf.id
