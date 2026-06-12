@@ -15,11 +15,13 @@ import {
   type FranqueadoSpeRow,
 } from '@/lib/franqueado-spe';
 import { upsertFranqueadoEmpresa } from './franqueado-empresas-actions';
-import { upsertFranqueadoSpe } from './franqueado-spe-actions';
+import { criarFranqueadoSpe, upsertFranqueadoSpe } from './franqueado-spe-actions';
+import { isFranquiaCasaMoniFk0000 } from '@/lib/franquia-casa-moni-fk0000';
 import { redeAlertError, redeAlertSuccess, redeTh } from './rede-ui';
 import { usePaginaTabela } from '@/lib/use-pagina-tabela';
 
 const PER_PAGE = 15;
+const NOVA_SPE_DRAFT_KEY = '__nova__';
 const inputCls = 'w-full min-w-0 rounded-md border border-stone-300 px-2 py-1 text-sm';
 
 type EmpresaDraft = {
@@ -72,6 +74,18 @@ function speToDraft(spe: FranqueadoSpeRow): EmpresaDraft {
     conta_agencia: spe.conta_agencia ?? '',
     conta_numero: spe.conta_numero ?? '',
   };
+}
+
+function draftSpeTemDados(d: EmpresaDraft): boolean {
+  return !!(
+    d.razao_social.trim() ||
+    d.cnpj.trim() ||
+    d.inscricao_municipal.trim() ||
+    d.inscricao_estadual.trim() ||
+    d.conta_banco.trim() ||
+    d.conta_agencia.trim() ||
+    d.conta_numero.trim()
+  );
 }
 
 function draftToUpsert(d: EmpresaDraft) {
@@ -150,8 +164,11 @@ export function CadastrosEmpresasTabela({
     for (const spe of linha.spes) {
       spesDraft[spe.id] = speToDraft(spe);
     }
+    if (linha.spes.length === 0 && isFranquiaCasaMoniFk0000(linha.n_franquia)) {
+      spesDraft[NOVA_SPE_DRAFT_KEY] = emptyEmpresaDraft();
+    }
     setDraftSpes(spesDraft);
-    if (linha.spes.length > 0) setSpeColunasExpandidas(true);
+    setSpeColunasExpandidas(true);
   };
 
   const patchSpeDraft = (speId: string, updater: React.SetStateAction<EmpresaDraft>) => {
@@ -184,6 +201,28 @@ export function CadastrosEmpresasTabela({
       return;
     }
     for (const [speId, draftSpe] of Object.entries(draftSpes)) {
+      if (speId === NOVA_SPE_DRAFT_KEY) {
+        if (!draftSpeTemDados(draftSpe)) continue;
+        const criar = await criarFranqueadoSpe(redeId, draftSpe.razao_social.trim() || null);
+        if (!criar.ok) {
+          setSaving(false);
+          setMsg({ tipo: 'erro', texto: criar.error });
+          return;
+        }
+        const newSpeId = criar.speId;
+        if (!newSpeId) {
+          setSaving(false);
+          setMsg({ tipo: 'erro', texto: 'Falha ao criar SPE.' });
+          return;
+        }
+        const rSpe = await upsertFranqueadoSpe(newSpeId, draftToUpsert(draftSpe));
+        if (!rSpe.ok) {
+          setSaving(false);
+          setMsg({ tipo: 'erro', texto: rSpe.error });
+          return;
+        }
+        continue;
+      }
       const rSpe = await upsertFranqueadoSpe(speId, draftToUpsert(draftSpe));
       if (!rSpe.ok) {
         setSaving(false);
@@ -327,12 +366,18 @@ export function CadastrosEmpresasTabela({
                           setDraft={(updater) => patchSpeDraft(spe.id, updater)}
                           borderLeft={speIdx === 0}
                         />
+                      ) : isFranquiaCasaMoniFk0000(linha.n_franquia) ? (
+                        <SpeEditCells
+                          draft={draftSpes[NOVA_SPE_DRAFT_KEY] ?? emptyEmpresaDraft()}
+                          setDraft={(updater) => patchSpeDraft(NOVA_SPE_DRAFT_KEY, updater)}
+                          borderLeft
+                        />
                       ) : (
                         <td
                           colSpan={5}
                           className="border-l border-stone-100 px-3 py-2.5 text-xs italic text-stone-500"
                         >
-                          Nenhuma SPE cadastrada — crie em Documentos das Empresas
+                          Nenhuma SPE — cadastre em Documentos das Empresas (FK0000)
                         </td>
                       )
                     ) : speIdx === 0 ? (

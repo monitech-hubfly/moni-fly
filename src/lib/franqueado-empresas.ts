@@ -96,7 +96,7 @@ export function buildCadastrosEmpresasLinhas(
   for (const e of empresas) {
     const cur = porRede.get(e.rede_franqueado_id) ?? {};
     if (e.tipo === 'incorporadora') cur.incorporadora = e;
-    else cur.gestora = e;
+    else if (e.tipo === 'gestora') cur.gestora = e;
     porRede.set(e.rede_franqueado_id, cur);
   }
 

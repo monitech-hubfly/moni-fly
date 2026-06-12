@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Archive, Check, ClipboardList, Loader2, Pencil, X } from 'lucide-react';
 import { RedeLoteadorFichaModal } from '@/components/RedeLoteadorFichaModal';
@@ -112,6 +112,7 @@ type Props = {
   buscaAtiva?: boolean;
   totalSemBusca?: number;
   buscaResetKey?: string;
+  solicitarCriacao?: number;
 };
 
 export function TabelaRedeLoteadoresEditavel({
@@ -119,6 +120,7 @@ export function TabelaRedeLoteadoresEditavel({
   buscaAtiva = false,
   totalSemBusca,
   buscaResetKey = '',
+  solicitarCriacao = 0,
 }: Props) {
   const router = useRouter();
   const { page: safePage, setPage, totalPages, start } = usePaginaTabela(
@@ -157,6 +159,11 @@ export function TabelaRedeLoteadoresEditavel({
     setCreating(true);
     setDraft(emptyDraft());
   };
+
+  useEffect(() => {
+    if (solicitarCriacao > 0) beginCreate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tick externo da toolbar
+  }, [solicitarCriacao]);
 
   const save = async () => {
     setSaving(true);
@@ -199,21 +206,12 @@ export function TabelaRedeLoteadoresEditavel({
 
   if (rowsOrdenadas.length === 0 && !creating) {
     return (
-      <div className="space-y-4">
-        <div className="rounded-xl border border-stone-200 bg-stone-50 p-6 text-center text-sm text-stone-600">
-          <p className="font-medium">
-            {buscaAtiva && totalGeral > 0
-              ? 'Nenhum loteador encontrado para esta pesquisa.'
-              : 'Nenhum loteador cadastrado.'}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={beginCreate}
-          className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-800 hover:bg-stone-50"
-        >
-          Adicionar loteador
-        </button>
+      <div className="rounded-xl border border-stone-200 bg-stone-50 p-6 text-center text-sm text-stone-600">
+        <p className="font-medium">
+          {buscaAtiva && totalGeral > 0
+            ? 'Nenhum loteador encontrado para esta pesquisa.'
+            : 'Nenhum loteador cadastrado.'}
+        </p>
       </div>
     );
   }
@@ -223,18 +221,6 @@ export function TabelaRedeLoteadoresEditavel({
       {msg ? (
         <div className={msg.tipo === 'ok' ? redeAlertSuccess : redeAlertError} role="status">
           {msg.texto}
-        </div>
-      ) : null}
-
-      {!emEdicao ? (
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={beginCreate}
-            className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-800 hover:bg-stone-50"
-          >
-            Adicionar loteador
-          </button>
         </div>
       ) : null}
 

@@ -16,7 +16,7 @@ import { fetchRedeLoteadoresRows } from '@/lib/rede-loteadores';
 
 import { fetchCondominiosRows } from '@/lib/condominios';
 
-import { contarLinhasSemCard, contarRedeSemCardFunil, normalizarStatusEmProcessoRede } from './actions';
+import { normalizarStatusEmProcessoRede } from './actions';
 
 import { RedeFranqueadosPageTabs } from './RedeFranqueadosPageTabs';
 
@@ -76,14 +76,10 @@ export default async function RedeFranqueadosPage() {
 
 
 
-  const [rows, countResult, funilCountResult, loteadoresRows, empresasResult, spesResult, condominiosRows] =
+  const [rows, loteadoresRows, empresasResult, spesResult, condominiosRows] =
     await Promise.all([
 
     fetchRedeFranqueadosRows(supabase),
-
-    canManage ? contarLinhasSemCard() : Promise.resolve({ ok: true as const, total: 0 }),
-
-    canManage ? contarRedeSemCardFunil() : Promise.resolve({ ok: true as const, total: 0 }),
 
     showStaffTabs ? fetchRedeLoteadoresRows(supabase) : Promise.resolve(null),
 
@@ -94,9 +90,6 @@ export default async function RedeFranqueadosPage() {
     showCondominiosTab ? fetchCondominiosRows(supabase) : Promise.resolve(null),
 
   ]);
-
-  const linhasSemCard = countResult.ok ? countResult.total : 0;
-  const linhasSemFunil = funilCountResult.ok ? funilCountResult.total : 0;
 
   const empresasLoadError = showStaffTabs && empresasResult === null;
   const spesLoadError = showStaffTabs && spesResult === null;
@@ -154,9 +147,6 @@ export default async function RedeFranqueadosPage() {
             canManageFranqueados={canManage}
 
             maskSensitiveColumns={maskSensitiveColumns}
-
-            linhasSemCard={linhasSemCard}
-            linhasSemFunil={linhasSemFunil}
 
             showDashboard={rows.length > 0}
 
