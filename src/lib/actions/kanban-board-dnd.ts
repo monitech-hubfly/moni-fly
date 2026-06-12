@@ -197,14 +197,17 @@ export async function reordenarCardKanbanDrag(input: {
     if (!row) return { ok: false, error: 'Card não encontrado.' };
     const r = row as { fase_id?: string | null; arquivado?: boolean | null; concluido?: boolean | null };
     if (String(r.fase_id ?? '') !== faseId) return { ok: false, error: 'Card não está nesta fase.' };
-    if (r.arquivado || r.concluido) return { ok: false, error: 'Card arquivado ou concluído não pode ser reordenado.' };
 
-    const { data: allRows } = await supabase
-      .from('kanban_cards')
-      .select('id')
-      .eq('fase_id', faseId)
-      .eq('arquivado', false)
-      .eq('concluido', false)
+    let ordemQuery = supabase.from('kanban_cards').select('id').eq('fase_id', faseId);
+    if (Boolean(r.arquivado)) {
+      ordemQuery = ordemQuery.eq('arquivado', true);
+    } else if (Boolean(r.concluido)) {
+      ordemQuery = ordemQuery.eq('concluido', true).eq('arquivado', false);
+    } else {
+      ordemQuery = ordemQuery.eq('arquivado', false).eq('concluido', false);
+    }
+
+    const { data: allRows } = await ordemQuery
       .order('ordem_coluna', { ascending: true })
       .order('created_at', { ascending: false })
       .order('id', { ascending: true });

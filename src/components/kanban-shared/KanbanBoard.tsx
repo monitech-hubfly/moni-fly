@@ -33,6 +33,8 @@ export type KanbanBoardProps = {
   mostrarLinkNovoCard?: boolean;
   /** Quando informado, substitui `usePermissoes` (evita botão oculto se a matriz ainda não carregou). */
   podeCriarCards?: boolean;
+  /** Quando informado, substitui heurística de `mover_fase` + role. */
+  podeMoverCards?: boolean;
   kanbanNome?: KanbanNomeDisplay | string;
   kanbanId: string;
 };
@@ -48,6 +50,7 @@ export function KanbanBoard({
   currentUserId = null,
   mostrarLinkNovoCard = false,
   podeCriarCards: podeCriarCardsProp,
+  podeMoverCards: podeMoverCardsProp,
   kanbanNome,
   kanbanId,
 }: KanbanBoardProps) {
@@ -153,7 +156,13 @@ export function KanbanBoard({
     return m;
   }, [fases, cardsFiltrados]);
 
-  const podeMoverCards = pode('mover_fase');
+  const podeMoverCards =
+    podeMoverCardsProp ??
+    (pode('mover_fase') ||
+      userRole === 'admin' ||
+      userRole === 'team' ||
+      userRole === 'supervisor' ||
+      userRole === 'consultor');
 
   const nAtivos = countKanbanBoardFiltrosAtivos(filtros);
   const podeCriarCards = podeCriarCardsProp ?? pode('criar_cards');

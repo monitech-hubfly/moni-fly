@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useMemo, useRef, useState, useTransition, type DragEvent } from 'react';
 import {
   calcularSlaKanbanCard,
@@ -91,10 +92,6 @@ function cardConcluidoVisual(card: KanbanCardBrief): boolean {
   return card.origem !== 'legado' && Boolean(card.concluido);
 }
 
-function cardDraggable(card: KanbanCardBrief): boolean {
-  return !cardArquivadoVisual(card) && !cardConcluidoVisual(card);
-}
-
 function parseDragPayload(raw: string): DragPayload | null {
   if (!raw) return null;
   try {
@@ -159,7 +156,7 @@ export function KanbanColumn({
     setDragOverCardId(null);
   };
 
-  const handleCardDragOver = (e: DragEvent<HTMLButtonElement>, cardId: string) => {
+  const handleCardDragOver = (e: DragEvent<HTMLElement>, cardId: string) => {
     if (!dndAtivo) return;
     e.preventDefault();
     e.stopPropagation();
@@ -290,6 +287,40 @@ export function KanbanColumn({
     executarDrop(payload, beforeCardId);
   };
 
+  const handleReorder = (
+    card: KanbanCardBrief,
+    dir: 'up' | 'down',
+    cardIndex: number,
+    vizinhoAcimaId: string | undefined,
+  ) => {
+    if (!dndAtivo || pending) return;
+    let beforeCardId: string | null;
+    if (dir === 'up') {
+      if (!vizinhoAcimaId) return;
+      beforeCardId = vizinhoAcimaId;
+    } else {
+      if (cardIndex >= cards.length - 1) return;
+      beforeCardId = cardIndex + 2 < cards.length ? cards[cardIndex + 2]?.id ?? null : null;
+    }
+    startTransition(() => {
+      void (async () => {
+        const res = await reordenarCardKanbanDrag({
+          cardId: card.id,
+          faseId: fase.id,
+          faseSlug: faseSlug || null,
+          beforeCardId,
+          origem: card.origem === 'legado' ? 'legado' : 'nativo',
+          basePath,
+        });
+        if (!res.ok) {
+          alert(res.error ?? 'Não foi possível reordenar o card.');
+          return;
+        }
+        router.refresh();
+      })();
+    });
+  };
+
   return (
     <div
       className="moni-kanban-column w-80 shrink-0 overflow-hidden rounded-xl bg-white shadow-sm"
@@ -335,7 +366,9 @@ export function KanbanColumn({
         onDragLeave={handleDragLeaveColumn}
         onDrop={(e) => handleDrop(e, null)}
       >
-        {cards.map((card) => {
+        {cards.map((card, i) => {
+          const vizinhoAcimaId = i > 0 ? cards[i - 1]?.id : undefined;
+          const vizinhoAbaixoId = i < cards.length - 1 ? cards[i + 1]?.id : undefined;
           const faseSlugCard = fase.slug ?? '';
           const aguardandoDoc =
             card.origem !== 'legado' &&
@@ -358,7 +391,7 @@ export function KanbanColumn({
           const motivo = (card.motivo_arquivamento ?? '').trim();
           const opacidadeCard = arquivado || concluido ? 'opacity-60' : '';
           const paddingTitulo = arquivado || concluido ? 'pr-20' : '';
-          const podeArrastar = dndAtivo && cardDraggable(card);
+          const podeArrastar = dndAtivo;
           const insertBeforeThis =
             dragOverCardId === card.id && dragInsertBefore && dndAtivo;
 
@@ -388,8 +421,7 @@ export function KanbanColumn({
                   style={{ background: 'var(--moni-navy-500)' }}
                 />
               ) : null}
-              <button
-                type="button"
+              <div
                 draggable={podeArrastar}
                 onDragStart={(e) => {
                   if (!podeArrastar) {
@@ -434,12 +466,8 @@ export function KanbanColumn({
                   if (!payload) return;
                   const rect = e.currentTarget.getBoundingClientRect();
                   const before = e.clientY < rect.top + rect.height / 2;
-                  const beforeCardId = before ? card.id : cards[cards.indexOf(card) + 1]?.id ?? null;
+                  const beforeCardId = before ? card.id : cards[i + 1]?.id ?? null;
                   executarDrop(payload, beforeCardId);
-                }}
-                onClick={() => {
-                  if (suppressClickRef.current) return;
-                  router.push(hrefAbrirCard(basePath, card.id, cardQueryParam, card.origem));
                 }}
                 className={`relative block w-full p-3 text-left shadow-sm transition hover:shadow-md ${opacidadeCard} ${
                   pending ? 'pointer-events-none opacity-70' : ''
@@ -456,6 +484,48 @@ export function KanbanColumn({
                   background: 'var(--moni-surface-0)',
                 }}
               >
+                {dndAtivo ? (
+                  <div className="absolute left-2 top-2 z-10 flex flex-col gap-0">
+                    <button
+                      type="button"
+                      disabled={!vizinhoAcimaId || pending}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleReorder(card, 'up', i, vizinhoAcimaId);
+                      }}
+                      className="rounded p-0.5 text-stone-400 hover:bg-stone-200 hover:text-stone-700 disabled:pointer-events-none disabled:opacity-30"
+                      title="Mover para cima na coluna"
+                      aria-label="Mover card para cima na coluna"
+                    >
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!vizinhoAbaixoId || pending}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleReorder(card, 'down', i, vizinhoAcimaId);
+                      }}
+                      className="rounded p-0.5 text-stone-400 hover:bg-stone-200 hover:text-stone-700 disabled:pointer-events-none disabled:opacity-30"
+                      title="Mover para baixo na coluna"
+                      aria-label="Mover card para baixo na coluna"
+                    >
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (suppressClickRef.current) return;
+                    router.push(hrefAbrirCard(basePath, card.id, cardQueryParam, card.origem));
+                  }}
+                  className={`block w-full text-left ${dndAtivo ? 'pl-7' : ''}`}
+                >
                 {arquivado ? (
                   <span
                     className="absolute right-2 top-2 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
@@ -517,7 +587,13 @@ export function KanbanColumn({
                 {!arquivado && !concluido && !aguardandoDoc && sla.label && sla.status !== 'ok' ? (
                   <p className={`mt-1 text-xs ${sla.classe}`}>{sla.label}</p>
                 ) : null}
-              </button>
+                </button>
+                {dndAtivo ? (
+                  <p className="mt-2 border-t border-stone-100 pt-2 text-[10px] text-stone-400">
+                    Arraste para mudar de fase. Setas para ordem na coluna.
+                  </p>
+                ) : null}
+              </div>
             </div>
           );
         })}
