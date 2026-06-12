@@ -110,30 +110,37 @@ export function BcaCondominioChecklist({
       return;
     }
     setErroCarregar(null);
-    const [prosRes, bcaRes] = await Promise.all([
-      carregarProspectsCondominioCard(cid),
-      carregarBcaCondominioChecklistData(cid, pid),
-    ]);
-    if (!prosRes.ok) {
-      setErroCarregar(prosRes.error);
-      setLinhas([]);
+    try {
+      const [prosRes, bcaRes] = await Promise.all([
+        carregarProspectsCondominioCard(cid),
+        carregarBcaCondominioChecklistData(cid, pid),
+      ]);
+      if (!prosRes.ok) {
+        setErroCarregar(prosRes.error);
+        setLinhas([]);
+        setCarregandoInicial(false);
+        return;
+      }
+      if (!bcaRes.ok) {
+        setErroCarregar(bcaRes.error);
+        setCarregandoInicial(false);
+        return;
+      }
+      const ordenadas = prospectsOrdenadosPorTicketCasas(prosRes.linhas);
+      setLinhas(ordenadas.map((l) => ({ row_id: l.row_id, condominio: l.condominio })));
+      setCatalogo(bcaRes.catalogo);
+      setCenarios(bcaRes.cenarios);
+      setRowIdAtivo((atual) => {
+        if (atual && ordenadas.some((l) => l.row_id === atual)) return atual;
+        return ordenadas[0]?.row_id ?? null;
+      });
+    } catch (e) {
+      setErroCarregar(
+        e instanceof Error ? e.message : 'Falha ao carregar o BCA. Verifique migrations 328–330.',
+      );
+    } finally {
       setCarregandoInicial(false);
-      return;
     }
-    if (!bcaRes.ok) {
-      setErroCarregar(bcaRes.error);
-      setCarregandoInicial(false);
-      return;
-    }
-    const ordenadas = prospectsOrdenadosPorTicketCasas(prosRes.linhas);
-    setLinhas(ordenadas.map((l) => ({ row_id: l.row_id, condominio: l.condominio })));
-    setCatalogo(bcaRes.catalogo);
-    setCenarios(bcaRes.cenarios);
-    setRowIdAtivo((atual) => {
-      if (atual && ordenadas.some((l) => l.row_id === atual)) return atual;
-      return ordenadas[0]?.row_id ?? null;
-    });
-    setCarregandoInicial(false);
   }, [cid, pid]);
 
   useEffect(() => {

@@ -124,10 +124,18 @@ export function resumoChecklistItem(
     item.tipo === 'configurador_casas_ranking' ||
     item.tipo === 'bca_simulador' ||
     item.tipo === 'bca_condominio' ||
+    item.tipo === 'rede_loteador' ||
     item.tipo === 'pesquisa_condominio' ||
     item.tipo === 'lotes_condominio' ||
     item.tipo === 'condominio'
   ) {
+    if (item.tipo === 'rede_loteador' && v) {
+      return {
+        label: item.label,
+        valorExibicao: 'Loteador vinculado à Rede de Loteadores',
+        preenchido: true,
+      };
+    }
     if (item.tipo === 'configurador_casas_ranking' && v) {
       const parsed = parseConfiguradorCasasValores(v);
       let modelosComValor = 0;

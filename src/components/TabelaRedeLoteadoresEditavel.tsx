@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Archive, Check, Loader2, Pencil, X } from 'lucide-react';
+import { Archive, Check, ClipboardList, Loader2, Pencil, X } from 'lucide-react';
+import { RedeLoteadorFichaModal } from '@/components/RedeLoteadorFichaModal';
 import {
   REDE_LOTEADOR_STATUS_LABEL,
   ordenarRedeLoteadoresPorNome,
@@ -119,6 +120,7 @@ export function TabelaRedeLoteadoresEditavel({ rows, buscaAtiva = false, totalSe
   const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
+  const [fichaRow, setFichaRow] = useState<RedeLoteadorRow | null>(null);
 
   const rowsOrdenadas = useMemo(() => ordenarRedeLoteadoresPorNome(rows), [rows]);
   const totalGeral = totalSemBusca ?? rows.length;
@@ -254,6 +256,9 @@ export function TabelaRedeLoteadoresEditavel({ rows, buscaAtiva = false, totalSe
               <th className={redeTh} scope="col">
                 Status
               </th>
+              <th className={`${redeTh} w-16 text-center`} scope="col">
+                Ficha
+              </th>
               <th
                 className="sticky right-0 z-20 w-28 min-w-[7rem] border-l border-stone-200 bg-stone-50 px-1 py-2 text-center"
                 scope="col"
@@ -297,6 +302,18 @@ export function TabelaRedeLoteadoresEditavel({ rows, buscaAtiva = false, totalSe
                   </td>
                   <td className="px-3 py-2.5">
                     <StatusBadge status={r.status} />
+                  </td>
+                  <td className="px-2 py-2.5 text-center align-middle">
+                    <button
+                      type="button"
+                      title="Abrir ficha completa"
+                      onClick={() => setFichaRow(r)}
+                      disabled={emEdicao}
+                      className="inline-flex rounded-md p-1.5 text-stone-600 hover:bg-stone-200/80 disabled:opacity-50"
+                    >
+                      <ClipboardList className="h-4 w-4" />
+                      <span className="sr-only">Ficha</span>
+                    </button>
                   </td>
                   <td className="sticky right-0 z-10 border-l border-stone-200 bg-white px-1 py-2 align-middle group-hover:bg-stone-50/90">
                     <div className="flex items-center justify-center gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
@@ -374,6 +391,8 @@ export function TabelaRedeLoteadoresEditavel({ rows, buscaAtiva = false, totalSe
           </nav>
         ) : null}
       </div>
+
+      {fichaRow ? <RedeLoteadorFichaModal row={fichaRow} onClose={() => setFichaRow(null)} /> : null}
     </div>
   );
 }
@@ -471,6 +490,7 @@ function LoteadorEditRow({
           ))}
         </select>
       </td>
+      <td className="px-2 py-2 text-center text-stone-400">—</td>
       <td className="sticky right-0 border-l border-stone-200 bg-stone-50 px-1 py-2 align-middle">
         <div className="flex items-center justify-center gap-1">
           <button

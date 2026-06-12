@@ -11,6 +11,8 @@ import {
 import {
   parseConfiguradorCasasValores,
   serializeConfiguradorCasasValores,
+  mesclarValoresConfiguradorPorModelo,
+  classeDestaquePodioConfigurador,
   type CasaConfiguradorRanking,
 } from '@/lib/kanban/configurador-casas-ranking';
 import { stepOneConfiguradorCasasHref } from '@/lib/kanban/stepone-fase-slugs';
@@ -68,11 +70,11 @@ export function ConfiguradorCasasRankingChecklist({
     setCasas(res.casas);
     setFaixasAtivas(res.faixasAtivas);
     setValores((prev) => {
-      const merged = { ...res.valores.valores };
-      for (const [chave, faixas] of Object.entries(prev.valores)) {
-        merged[chave] = { ...merged[chave], ...faixas };
-      }
-      return { v: 1, valores: merged };
+      const base = mesclarValoresConfiguradorPorModelo(
+        { v: 1, valores: { ...res.valores.valores, ...prev.valores } },
+        res.casas,
+      );
+      return base;
     });
     setCarregando(false);
   }, [cardId, processoId]);
@@ -119,8 +121,9 @@ export function ConfiguradorCasasRankingChecklist({
             {salvando && <Loader2 size={10} className="ml-1 inline animate-spin" />}
           </p>
           <p className="mt-0.5 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-            Modelos únicos da Pré Batalha, ordenados por pódios (1º → 2º → 3º). Preencha o custo
-            do configurador Moní em cada faixa aplicável.
+            Cada modelo aparece uma vez (independente da topografia), ordenado por quantidade de 1º,
+            2º, 3º, 4º… na Pré Batalha. O pódio (🥇🥈🥉) tem destaque; as demais colocações
+            permanecem na lista.
           </p>
         </div>
         <a
@@ -163,7 +166,7 @@ export function ConfiguradorCasasRankingChecklist({
                 <th className="sticky left-8 z-10 min-w-[7rem] bg-stone-50/95 px-3 py-2 text-left">
                   Modelo
                 </th>
-                <th className="min-w-[10rem] px-3 py-2 text-left">Faixas (até 3º)</th>
+                <th className="min-w-[12rem] px-3 py-2 text-left">Colocações por faixa</th>
                 <th className="px-3 py-2 text-center" title="1º lugares">
                   🥇
                 </th>
@@ -172,6 +175,9 @@ export function ConfiguradorCasasRankingChecklist({
                 </th>
                 <th className="px-3 py-2 text-center" title="3º lugares">
                   🥉
+                </th>
+                <th className="px-3 py-2 text-center" title="Colocações a partir do 4º">
+                  4º+
                 </th>
                 {faixasColunas.map((faixa) => (
                   <th key={faixa} className="min-w-[6.5rem] px-2 py-2 text-right">
@@ -184,18 +190,59 @@ export function ConfiguradorCasasRankingChecklist({
               </tr>
             </thead>
             <tbody>
-              {casas.map((casa, idx) => (
+              {casas.map((casa, idx) => {
+                const rowBg = classeDestaquePodioConfigurador(casa);
+                const stickyBg =
+                  casa.primeiros > 0
+                    ? 'bg-amber-50/90'
+                    : casa.segundos > 0
+                      ? 'bg-stone-50/95'
+                      : casa.terceiros > 0
+                        ? 'bg-orange-50/50'
+                        : 'bg-white';
+                return (
                 <tr
                   key={casa.chave}
-                  className="border-b border-stone-100 last:border-0 bg-white hover:bg-stone-50/80"
+                  className={`border-b border-stone-100 last:border-0 hover:bg-stone-50/80 ${rowBg}`}
                 >
-                  <td className="sticky left-0 z-[1] bg-white px-3 py-2 text-xs tabular-nums text-stone-500">
+                  <td className={`sticky left-0 z-[1] px-3 py-2 text-xs tabular-nums text-stone-500 ${stickyBg}`}>
                     {String(idx + 1).padStart(2, '0')}
                   </td>
-                  <td className="sticky left-8 z-[1] bg-white px-3 py-2 font-medium text-stone-900">
+                  <td className={`sticky left-8 z-[1] px-3 py-2 font-medium text-stone-900 ${stickyBg}`}>
                     {casa.rotulo}
+                    {casa.topografias.length > 1 ? (
+                      <span className="mt-0.5 block text-[10px] font-normal text-stone-500">
+                        Topografias: {casa.topografias.join(', ')}
+                      </span>
+                    ) : null}
                   </td>
-                  <td className="px-3 py-2 text-xs text-stone-700">{casa.descricaoColocacoes}</td>
+                  <td className="px-3 py-2 text-xs text-stone-700">
+                    {casa.colocacoesTop3.length > 0 ? (
+                      <span className="font-medium text-stone-800">
+                        {casa.colocacoesTop3
+                          .sort((a, b) => a.posicao - b.posicao)
+                          .map((c) => `${c.faixaLabel} (${c.posicao}º)`)
+                          .join(', ')}
+                      </span>
+                    ) : null}
+                    {casa.colocacoesOutras.length > 0 ? (
+                      <span
+                        className={
+                          casa.colocacoesTop3.length > 0
+                            ? 'mt-1 block text-stone-600'
+                            : 'text-stone-700'
+                        }
+                      >
+                        {casa.colocacoesOutras
+                          .sort((a, b) => a.posicao - b.posicao)
+                          .map((c) => `${c.faixaLabel} (${c.posicao}º)`)
+                          .join(', ')}
+                      </span>
+                    ) : null}
+                    {casa.colocacoesTop3.length === 0 && casa.colocacoesOutras.length === 0
+                      ? '—'
+                      : null}
+                  </td>
                   <td className="px-3 py-2 text-center text-xs font-semibold tabular-nums text-amber-700">
                     {casa.primeiros || '—'}
                   </td>
@@ -205,8 +252,11 @@ export function ConfiguradorCasasRankingChecklist({
                   <td className="px-3 py-2 text-center text-xs font-semibold tabular-nums text-amber-900/70">
                     {casa.terceiros || '—'}
                   </td>
+                  <td className="px-3 py-2 text-center text-xs tabular-nums text-stone-600">
+                    {casa.demaisColocacoes || '—'}
+                  </td>
                   {faixasColunas.map((faixa) => {
-                    const colocou = casa.colocacoesTop3.some((c) => c.faixa === faixa);
+                    const colocou = casa.faixasComColocacao.includes(faixa);
                     return (
                       <td key={faixa} className="px-2 py-1.5">
                         <input
@@ -214,7 +264,7 @@ export function ConfiguradorCasasRankingChecklist({
                           inputMode="decimal"
                           className={
                             inputClass +
-                            (colocou ? '' : ' opacity-60') +
+                            (colocou ? '' : ' opacity-50') +
                             (!podeEditar ? ' cursor-not-allowed bg-stone-50' : '')
                           }
                           placeholder="0,00"
@@ -243,7 +293,8 @@ export function ConfiguradorCasasRankingChecklist({
                     );
                   })}
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </div>
