@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Check, ChevronLeft, ChevronRight, FileText, Loader2, Pencil, X } from 'lucide-react';
@@ -9,9 +9,15 @@ import {
   formatContaBancariaEmpresa,
   type FranqueadoEmpresaStatus,
 } from '@/lib/franqueado-empresas';
-import { speResumoColapsado, type CadastroEmpresasLinhaComSpe } from '@/lib/franqueado-spe';
+import {
+  speResumoColapsado,
+  type CadastroEmpresasLinhaComSpe,
+  type FranqueadoSpeRow,
+} from '@/lib/franqueado-spe';
 import { upsertFranqueadoEmpresa } from './franqueado-empresas-actions';
+import { upsertFranqueadoSpe } from './franqueado-spe-actions';
 import { redeAlertError, redeAlertSuccess, redeTh } from './rede-ui';
+import { usePaginaTabela } from '@/lib/use-pagina-tabela';
 
 const PER_PAGE = 15;
 const inputCls = 'w-full min-w-0 rounded-md border border-stone-300 px-2 py-1 text-sm';
@@ -55,6 +61,19 @@ function empresaToDraft(
   };
 }
 
+function speToDraft(spe: FranqueadoSpeRow): EmpresaDraft {
+  return {
+    razao_social: spe.razao_social ?? '',
+    cnpj: spe.cnpj ?? '',
+    inscricao_municipal: spe.inscricao_municipal ?? '',
+    inscricao_estadual: spe.inscricao_estadual ?? '',
+    status: spe.status ?? 'em_abertura',
+    conta_banco: spe.conta_banco ?? '',
+    conta_agencia: spe.conta_agencia ?? '',
+    conta_numero: spe.conta_numero ?? '',
+  };
+}
+
 function draftToUpsert(d: EmpresaDraft) {
   return {
     razao_social: d.razao_social.trim() || null,
@@ -87,32 +106,38 @@ type Props = {
   linhas: CadastroEmpresasLinhaComSpe[];
   buscaAtiva?: boolean;
   totalSemBusca?: number;
+  /** Altera quando o filtro de busca muda — reseta paginação para 1. */
+  buscaResetKey?: string;
 };
 
-export function CadastrosEmpresasTabela({ linhas, buscaAtiva = false, totalSemBusca }: Props) {
+export function CadastrosEmpresasTabela({
+  linhas,
+  buscaAtiva = false,
+  totalSemBusca,
+  buscaResetKey = '',
+}: Props) {
   const router = useRouter();
   const [speColunasExpandidas, setSpeColunasExpandidas] = useState(false);
-  const [page, setPage] = useState(1);
+  const { page: safePage, setPage, totalPages, start } = usePaginaTabela(
+    linhas.length,
+    PER_PAGE,
+    buscaResetKey,
+  );
   const [editingRedeId, setEditingRedeId] = useState<string | null>(null);
   const [draftIncorp, setDraftIncorp] = useState<EmpresaDraft>(emptyEmpresaDraft());
   const [draftGest, setDraftGest] = useState<EmpresaDraft>(emptyEmpresaDraft());
+  const [draftSpes, setDraftSpes] = useState<Record<string, EmpresaDraft>>({});
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
 
   const totalGeral = totalSemBusca ?? linhas.length;
-  const totalPages = Math.max(1, Math.ceil(linhas.length / PER_PAGE));
-  const safePage = Math.min(Math.max(1, page), totalPages);
-  const start = (safePage - 1) * PER_PAGE;
   const pageRows = useMemo(() => linhas.slice(start, start + PER_PAGE), [linhas, start]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [linhas]);
 
   const cancelEdit = () => {
     setEditingRedeId(null);
     setDraftIncorp(emptyEmpresaDraft());
     setDraftGest(emptyEmpresaDraft());
+    setDraftSpes({});
     setMsg(null);
   };
 
@@ -121,6 +146,20 @@ export function CadastrosEmpresasTabela({ linhas, buscaAtiva = false, totalSemBu
     setEditingRedeId(linha.redeId);
     setDraftIncorp(empresaToDraft(linha.incorporadora));
     setDraftGest(empresaToDraft(linha.gestora));
+    const spesDraft: Record<string, EmpresaDraft> = {};
+    for (const spe of linha.spes) {
+      spesDraft[spe.id] = speToDraft(spe);
+    }
+    setDraftSpes(spesDraft);
+    if (linha.spes.length > 0) setSpeColunasExpandidas(true);
+  };
+
+  const patchSpeDraft = (speId: string, updater: React.SetStateAction<EmpresaDraft>) => {
+    setDraftSpes((prev) => {
+      const atual = prev[speId] ?? emptyEmpresaDraft();
+      const next = typeof updater === 'function' ? updater(atual) : updater;
+      return { ...prev, [speId]: next };
+    });
   };
 
   const save = async (redeId: string) => {
@@ -139,11 +178,20 @@ export function CadastrosEmpresasTabela({ linhas, buscaAtiva = false, totalSemBu
       inscricao_estadual: draftGest.inscricao_estadual.trim() || null,
       status: draftGest.status,
     });
-    setSaving(false);
     if (!r2.ok) {
+      setSaving(false);
       setMsg({ tipo: 'erro', texto: r2.error });
       return;
     }
+    for (const [speId, draftSpe] of Object.entries(draftSpes)) {
+      const rSpe = await upsertFranqueadoSpe(speId, draftToUpsert(draftSpe));
+      if (!rSpe.ok) {
+        setSaving(false);
+        setMsg({ tipo: 'erro', texto: rSpe.error });
+        return;
+      }
+    }
+    setSaving(false);
     setMsg({ tipo: 'ok', texto: 'Cadastros de empresa salvos.' });
     cancelEdit();
     router.refresh();
@@ -238,65 +286,95 @@ export function CadastrosEmpresasTabela({ linhas, buscaAtiva = false, totalSemBu
             </tr>
           </thead>
           <tbody>
-            {pageRows.map((linha) => {
+            {pageRows.flatMap((linha) => {
               const isEditing = editingRedeId === linha.redeId;
               const inc = linha.incorporadora;
               const ges = linha.gestora;
 
               if (isEditing) {
-                return (
-                  <tr key={linha.redeId} className="border-b border-stone-200 bg-stone-50/90 align-top">
-                    <td className="px-3 py-2 font-medium text-stone-900">{linha.n_franquia ?? '—'}</td>
-                    <td className="px-3 py-2 text-stone-700">{linha.modalidade?.trim() || '—'}</td>
-                    <td className="px-3 py-2 text-stone-700">{linha.nome_completo?.trim() || '—'}</td>
-                    <td className="px-3 py-2 text-stone-700">{linha.status_franquia?.trim() || '—'}</td>
-                    <EmpresaEditCells
-                      draft={draftIncorp}
-                      setDraft={setDraftIncorp}
-                      showConta
-                      borderLeft
-                    />
-                    <EmpresaEditCells draft={draftGest} setDraft={setDraftGest} borderLeft />
-                    {speColunasExpandidas ? (
-                      <td colSpan={5} className="border-l border-stone-100 px-3 py-2.5 text-xs text-stone-500">
-                        Edite SPEs em Documentos das Empresas
-                      </td>
+                const speEditRows = linha.spes.length > 0 ? linha.spes : [null];
+                return speEditRows.map((spe, speIdx) => (
+                  <tr
+                    key={spe?.id ?? `${linha.redeId}-sem-spe`}
+                    className="border-b border-stone-200 bg-stone-50/90 align-top"
+                  >
+                    {speIdx === 0 ? (
+                      <>
+                        <td className="px-3 py-2 font-medium text-stone-900">{linha.n_franquia ?? '—'}</td>
+                        <td className="px-3 py-2 text-stone-700">{linha.modalidade?.trim() || '—'}</td>
+                        <td className="px-3 py-2 text-stone-700">{linha.nome_completo?.trim() || '—'}</td>
+                        <td className="px-3 py-2 text-stone-700">{linha.status_franquia?.trim() || '—'}</td>
+                        <EmpresaEditCells
+                          draft={draftIncorp}
+                          setDraft={setDraftIncorp}
+                          showConta
+                          borderLeft
+                        />
+                        <EmpresaEditCells draft={draftGest} setDraft={setDraftGest} borderLeft />
+                      </>
                     ) : (
+                      <td
+                        colSpan={15}
+                        className="px-3 py-2 text-right text-[11px] font-medium text-stone-500"
+                      >
+                        {spe?.nome_projeto?.trim() || spe?.razao_social?.trim() || `SPE ${speIdx + 1}`}
+                      </td>
+                    )}
+                    {speColunasExpandidas ? (
+                      spe ? (
+                        <SpeEditCells
+                          draft={draftSpes[spe.id] ?? emptyEmpresaDraft()}
+                          setDraft={(updater) => patchSpeDraft(spe.id, updater)}
+                          borderLeft={speIdx === 0}
+                        />
+                      ) : (
+                        <td
+                          colSpan={5}
+                          className="border-l border-stone-100 px-3 py-2.5 text-xs italic text-stone-500"
+                        >
+                          Nenhuma SPE cadastrada — crie em Documentos das Empresas
+                        </td>
+                      )
+                    ) : speIdx === 0 ? (
                       <td className="border-l border-stone-100 px-3 py-2.5 text-stone-600">
                         {speResumoColapsado(linha.spes)}
                       </td>
+                    ) : null}
+                    {speIdx === 0 ? (
+                      <td className="sticky right-0 border-l border-stone-200 bg-stone-50 px-1 py-2 align-middle">
+                        <div className="flex flex-col items-center gap-1">
+                          <button
+                            type="button"
+                            title="Salvar"
+                            disabled={saving}
+                            onClick={() => void save(linha.redeId)}
+                            className="rounded-md bg-moni-primary p-1.5 text-white hover:opacity-90 disabled:opacity-50"
+                          >
+                            {saving ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Check className="h-4 w-4" />
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            title="Cancelar"
+                            disabled={saving}
+                            onClick={cancelEdit}
+                            className="rounded-md border border-stone-300 bg-white p-1.5 text-stone-700 hover:bg-stone-100"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    ) : (
+                      <td className="sticky right-0 border-l border-stone-200 bg-stone-50" />
                     )}
-                    <td className="sticky right-0 border-l border-stone-200 bg-stone-50 px-1 py-2 align-middle">
-                      <div className="flex flex-col items-center gap-1">
-                        <button
-                          type="button"
-                          title="Salvar"
-                          disabled={saving}
-                          onClick={() => void save(linha.redeId)}
-                          className="rounded-md bg-moni-primary p-1.5 text-white hover:opacity-90 disabled:opacity-50"
-                        >
-                          {saving ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Check className="h-4 w-4" />
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          title="Cancelar"
-                          disabled={saving}
-                          onClick={cancelEdit}
-                          className="rounded-md border border-stone-300 bg-white p-1.5 text-stone-700 hover:bg-stone-100"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
                   </tr>
-                );
+                ));
               }
 
-              return (
+              return [
                 <tr key={linha.redeId} className="group border-b border-stone-100 align-top hover:bg-stone-50/70">
                   <td className="px-3 py-2.5 font-medium text-stone-900">{linha.n_franquia ?? '—'}</td>
                   <td className="px-3 py-2.5 text-stone-700">{linha.modalidade?.trim() || '—'}</td>
@@ -382,8 +460,8 @@ export function CadastrosEmpresasTabela({ linhas, buscaAtiva = false, totalSemBu
                       </button>
                     </div>
                   </td>
-                </tr>
-              );
+                </tr>,
+              ];
             })}
           </tbody>
         </table>
@@ -433,6 +511,89 @@ export function CadastrosEmpresasTabela({ linhas, buscaAtiva = false, totalSemBu
         ) : null}
       </div>
     </div>
+  );
+}
+
+/** Colunas SPE expandidas: razão social, inscrições, status e conta (mesmos tipos da incorporadora). */
+function SpeEditCells({
+  draft,
+  setDraft,
+  borderLeft = false,
+}: {
+  draft: EmpresaDraft;
+  setDraft: React.Dispatch<React.SetStateAction<EmpresaDraft>>;
+  borderLeft?: boolean;
+}) {
+  const cell = borderLeft ? 'border-l border-stone-200 px-2 py-2' : 'px-2 py-2';
+  return (
+    <>
+      <td className={cell}>
+        <input
+          type="text"
+          value={draft.razao_social}
+          onChange={(e) => setDraft((d) => ({ ...d, razao_social: e.target.value }))}
+          className={inputCls}
+          placeholder="Razão social"
+        />
+      </td>
+      <td className={cell}>
+        <input
+          type="text"
+          value={draft.inscricao_municipal}
+          onChange={(e) => setDraft((d) => ({ ...d, inscricao_municipal: e.target.value }))}
+          className={inputCls}
+        />
+      </td>
+      <td className={cell}>
+        <input
+          type="text"
+          value={draft.inscricao_estadual}
+          onChange={(e) => setDraft((d) => ({ ...d, inscricao_estadual: e.target.value }))}
+          className={inputCls}
+          placeholder="Opcional"
+        />
+      </td>
+      <td className={cell}>
+        <select
+          value={draft.status}
+          onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as FranqueadoEmpresaStatus }))}
+          className={inputCls}
+        >
+          {(Object.keys(FRANQUEADO_EMPRESA_STATUS_LABEL) as FranqueadoEmpresaStatus[]).map((s) => (
+            <option key={s} value={s}>
+              {FRANQUEADO_EMPRESA_STATUS_LABEL[s]}
+            </option>
+          ))}
+        </select>
+      </td>
+      <td className={cell}>
+        <div className="space-y-1">
+          <input
+            type="text"
+            value={draft.conta_banco}
+            onChange={(e) => setDraft((d) => ({ ...d, conta_banco: e.target.value }))}
+            className={inputCls}
+            placeholder="Banco"
+          />
+          <div className="flex gap-1">
+            <input
+              type="text"
+              value={draft.conta_agencia}
+              onChange={(e) => setDraft((d) => ({ ...d, conta_agencia: e.target.value }))}
+              className={inputCls}
+              placeholder="Agência"
+            />
+            <input
+              type="text"
+              value={draft.conta_numero}
+              onChange={(e) => setDraft((d) => ({ ...d, conta_numero: e.target.value }))}
+              className={inputCls}
+              placeholder="Conta"
+            />
+          </div>
+        </div>
+      </td>
+    </>
   );
 }
 

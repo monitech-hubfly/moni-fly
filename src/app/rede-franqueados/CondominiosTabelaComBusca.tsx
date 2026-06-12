@@ -44,6 +44,7 @@ export function CondominiosTabelaComBusca({ rows, canEdit = true }: Props) {
         canEdit={canEdit}
         totalSemBusca={rows.length}
         buscaAtiva={busca.trim().length > 0}
+        buscaResetKey={busca}
       />
     </div>
   );

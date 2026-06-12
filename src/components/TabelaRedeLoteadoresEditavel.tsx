@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Archive, Check, ClipboardList, Loader2, Pencil, X } from 'lucide-react';
 import { RedeLoteadorFichaModal } from '@/components/RedeLoteadorFichaModal';
+import { usePaginaTabela } from '@/lib/use-pagina-tabela';
 import {
   REDE_LOTEADOR_STATUS_LABEL,
   ordenarRedeLoteadoresPorNome,
@@ -110,11 +111,21 @@ type Props = {
   rows: RedeLoteadorRow[];
   buscaAtiva?: boolean;
   totalSemBusca?: number;
+  buscaResetKey?: string;
 };
 
-export function TabelaRedeLoteadoresEditavel({ rows, buscaAtiva = false, totalSemBusca }: Props) {
+export function TabelaRedeLoteadoresEditavel({
+  rows,
+  buscaAtiva = false,
+  totalSemBusca,
+  buscaResetKey = '',
+}: Props) {
   const router = useRouter();
-  const [page, setPage] = useState(1);
+  const { page: safePage, setPage, totalPages, start } = usePaginaTabela(
+    rows.length,
+    PER_PAGE,
+    buscaResetKey,
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState<Draft>(emptyDraft());
@@ -124,14 +135,7 @@ export function TabelaRedeLoteadoresEditavel({ rows, buscaAtiva = false, totalSe
 
   const rowsOrdenadas = useMemo(() => ordenarRedeLoteadoresPorNome(rows), [rows]);
   const totalGeral = totalSemBusca ?? rows.length;
-  const totalPages = Math.max(1, Math.ceil(rowsOrdenadas.length / PER_PAGE));
-  const safePage = Math.min(Math.max(1, page), totalPages);
-  const start = (safePage - 1) * PER_PAGE;
   const pageRows = useMemo(() => rowsOrdenadas.slice(start, start + PER_PAGE), [rowsOrdenadas, start]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [rowsOrdenadas]);
 
   const cancelEdit = () => {
     setEditingId(null);

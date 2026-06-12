@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { RedeFranqueadoRowPortalFrank } from '@/lib/rede-franqueados';
+import { usePaginaTabela } from '@/lib/use-pagina-tabela';
 import { RedeFranqueadoCellClamp } from '@/components/RedeFranqueadoCellClamp';
 import {
   COLUNAS_REDE_FRANQUEADOS,
@@ -43,15 +44,8 @@ function textoCelulaPortalFrank(r: RedeFranqueadoRowPortalFrank, k: (typeof FRAN
 }
 
 export function TabelaRedePortalFrank({ rows }: Props) {
-  const [page, setPage] = useState(1);
+  const { page: safePage, setPage, totalPages, start } = usePaginaTabela(rows.length, PER_PAGE);
 
-  useEffect(() => {
-    setPage(1);
-  }, [rows]);
-
-  const totalPages = Math.max(1, Math.ceil(rows.length / PER_PAGE));
-  const safePage = Math.min(Math.max(1, page), totalPages);
-  const start = (safePage - 1) * PER_PAGE;
   const pageRows = useMemo(() => rows.slice(start, start + PER_PAGE), [rows, start]);
 
   if (rows.length === 0) {

@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Loader2, Pencil, Trash2, X } from 'lucide-react';
+import { usePaginaTabela } from '@/lib/use-pagina-tabela';
 import {
   decimalInputFromValue,
   formatCidadeEstadoCondominio,
@@ -98,6 +99,7 @@ type Props = {
   canEdit?: boolean;
   buscaAtiva?: boolean;
   totalSemBusca?: number;
+  buscaResetKey?: string;
 };
 
 export function TabelaCondominiosEditavel({
@@ -105,9 +107,14 @@ export function TabelaCondominiosEditavel({
   canEdit = true,
   buscaAtiva = false,
   totalSemBusca,
+  buscaResetKey = '',
 }: Props) {
   const router = useRouter();
-  const [page, setPage] = useState(1);
+  const { page: safePage, setPage, totalPages, start } = usePaginaTabela(
+    rows.length,
+    PER_PAGE,
+    buscaResetKey,
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState<Draft>(emptyDraft());
@@ -116,14 +123,7 @@ export function TabelaCondominiosEditavel({
 
   const rowsOrdenadas = useMemo(() => ordenarCondominiosPorNome(rows), [rows]);
   const totalGeral = totalSemBusca ?? rows.length;
-  const totalPages = Math.max(1, Math.ceil(rowsOrdenadas.length / PER_PAGE));
-  const safePage = Math.min(Math.max(1, page), totalPages);
-  const start = (safePage - 1) * PER_PAGE;
   const pageRows = useMemo(() => rowsOrdenadas.slice(start, start + PER_PAGE), [rowsOrdenadas, start]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [rowsOrdenadas]);
 
   const cancelEdit = () => {
     setEditingId(null);

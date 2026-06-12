@@ -78,6 +78,7 @@ export function CadastrosEmpresasTabelaComBusca({
         linhas={linhasFiltradas}
         totalSemBusca={todasLinhas.length}
         buscaAtiva={busca.trim().length > 0}
+        buscaResetKey={busca}
       />
     </div>
   );
