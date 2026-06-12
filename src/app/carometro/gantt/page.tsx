@@ -1642,7 +1642,7 @@ export default function Page() {
     }
     const { data, error } = await supabase
       .from('area_pessoas')
-      .select('id, nome, profile_id, profiles(full_name)')
+      .select('id, nome, profile_id')
       .eq('area_id', areaId)
       .eq('ativo', true)
       .order('ordem')
@@ -1658,8 +1658,7 @@ export default function Page() {
     const profileIdsVistos = new Set()
     const nomesVistos = new Set()
     for (const p of (data || [])) {
-      const pf = (p.profiles as { full_name?: string } | null)?.full_name || null
-      const profileFullName = pf || null
+      const profileFullName = null
       if (p.profile_id) {
         if (profileIdsVistos.has(p.profile_id)) continue
         profileIdsVistos.add(p.profile_id)
@@ -1668,7 +1667,10 @@ export default function Page() {
         if (nomesVistos.has(nomeNorm)) continue
         nomesVistos.add(nomeNorm)
       }
-      deduplicados.push({ ...p, profile_full_name: profileFullName })
+      deduplicados.push({
+        ...p,
+        profile_full_name: allProfiles.find(pr => pr.id === p.profile_id)?.full_name || null
+      })
     }
     setAreaPessoasLista(deduplicados)
   }
