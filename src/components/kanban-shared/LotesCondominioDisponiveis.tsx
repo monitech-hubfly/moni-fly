@@ -20,13 +20,14 @@ import {
   linhaTemLoteEscolhido,
   loteDisponivelCompleto,
   LOTES_DISPONIVEIS_CAMPOS,
-  LOTES_DISPONIVEIS_CHECKBOXES,
+  LOTES_DISPONIVEIS_CHECKBOXES_LOCALIZACAO,
+  LOTES_DISPONIVEIS_CHECKBOXES_TOPOGRAFIA,
+  CHAVES_TOPOGRAFIA_LOTE,
   rotuloLoteDisponivel,
+  type ChaveLoteCheckbox,
   type ChaveLoteDisponivel,
   type LinhaLoteDisponivel,
 } from '@/lib/kanban/lotes-disponiveis-condominio';
-
-const LINHAS_GRID_ATRIBUTOS_LOTE = Math.ceil(LOTES_DISPONIVEIS_CHECKBOXES.length / 2);
 
 type Props = {
   cardId: string;
@@ -50,6 +51,34 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
   const [uploadLoteId, setUploadLoteId] = useState<string | null>(null);
   const [rascunhoLotes, setRascunhoLotes] = useState<LinhaLoteDisponivel[]>([]);
   const rowIdRascunhoRef = useRef<string | null>(null);
+  const rascunhoLotesRef = useRef<LinhaLoteDisponivel[]>([]);
+  const linhasRef = useRef<LinhaProspectCondominio[]>([]);
+  const saveChainRef = useRef(Promise.resolve());
+
+  useEffect(() => {
+    rascunhoLotesRef.current = rascunhoLotes;
+  }, [rascunhoLotes]);
+
+  useEffect(() => {
+    linhasRef.current = linhas;
+  }, [linhas]);
+
+  function enfileirarPersistirRascunho(rowId: string) {
+    saveChainRef.current = saveChainRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        const lotes = rascunhoLotesRef.current;
+        setSalvando(true);
+        setErroSalvar(null);
+        const res = await salvarLotesCondominioDisponivel({ cardId, rowId, lotes });
+        setSalvando(false);
+        if (!res.ok) {
+          setErroSalvar(res.error);
+          return;
+        }
+        aplicarLotesSalvosLocal(rowId, lotes);
+      });
+  }
 
   const recarregar = useCallback(async (opts?: { silencioso?: boolean }) => {
     if (!opts?.silencioso) setCarregandoInicial(true);
@@ -164,28 +193,97 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
     aplicarLotesSalvosLocal(linhaAtiva.row_id, lotes);
   }
 
-  async function salvarCampoBlur(loteId: string, chave: ChaveLoteDisponivel, valor: string) {
-    if (!linhaAtiva) return;
-    const lote = rascunhoLotes.find((l) => l.lote_id === loteId);
-    if (!lote) return;
-    const atual = String(lote[chave] ?? '').trim();
-    if (valor.trim() === atual) return;
+  function salvarCampoBlur(loteId: string, chave: ChaveLoteDisponivel, valor: string) {
+    const rowId = rowIdAtivo;
+    if (!rowId) return;
+    const linha = linhasRef.current.find((l) => l.row_id === rowId);
+    if (!linha) return;
+    const lotePersistido = linha.lotes_disponiveis?.find((l) => l.lote_id === loteId);
+    const atualPersistido = String(lotePersistido?.[chave] ?? '').trim();
+    if (valor.trim() === atualPersistido) return;
+    enfileirarPersistirRascunho(rowId);
+  }
 
-    setErroSalvar(null);
-    const res = await salvarCampoLoteCondominio({
-      cardId,
-      rowId: linhaAtiva.row_id,
-      loteId,
-      chave,
-      valor,
-    });
-    if (!res.ok) {
-      setErroSalvar(res.error);
-      return;
+  function aplicarCheckboxSalvoLocal(
+    rowId: string,
+    loteId: string,
+    updates: Partial<Record<ChaveLoteCheckbox, string>>,
+  ) {
+    const patchLote = (l: LinhaLoteDisponivel) =>
+      l.lote_id === loteId ? { ...l, ...updates } : l;
+
+    setLinhas((prev) =>
+      prev.map((linha) =>
+        linha.row_id !== rowId
+          ? linha
+          : { ...linha, lotes_disponiveis: (linha.lotes_disponiveis ?? []).map(patchLote) },
+      ),
+    );
+    if (rowIdRascunhoRef.current === rowId) {
+      setRascunhoLotes((prev) => {
+        const next = prev.map(patchLote);
+        rascunhoLotesRef.current = next;
+        return next;
+      });
     }
-    const novos = rascunhoLotes.map((l) => (l.lote_id === loteId ? { ...l, [chave]: valor } : l));
-    setRascunhoLotes(novos);
-    aplicarLotesSalvosLocal(linhaAtiva.row_id, novos);
+  }
+
+  function enfileirarSalvarCheckbox(
+    rowId: string,
+    loteId: string,
+    chave: ChaveLoteCheckbox,
+    checked: boolean,
+  ) {
+    const valor = checked ? 'true' : 'false';
+    saveChainRef.current = saveChainRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        setSalvando(true);
+        setErroSalvar(null);
+        const res = await salvarCampoLoteCondominio({
+          cardId,
+          rowId,
+          loteId,
+          chave,
+          valor,
+        });
+        setSalvando(false);
+        if (!res.ok) {
+          setErroSalvar(res.error);
+          return;
+        }
+        aplicarCheckboxSalvoLocal(rowId, loteId, { [chave]: valor });
+      });
+  }
+
+  function handleSalvarCheckbox(loteId: string, chave: ChaveLoteCheckbox, checked: boolean) {
+    const rowId = rowIdAtivo;
+    if (!rowId) return;
+
+    const isTopografia = (CHAVES_TOPOGRAFIA_LOTE as readonly string[]).includes(chave);
+    const updates: Partial<Record<ChaveLoteCheckbox, string>> = {};
+
+    if (isTopografia) {
+      for (const k of CHAVES_TOPOGRAFIA_LOTE) {
+        updates[k] = k === chave && checked ? 'true' : 'false';
+      }
+    } else {
+      updates[chave] = checked ? 'true' : 'false';
+    }
+
+    setRascunhoLotes((prev) => {
+      const next = prev.map((l) => (l.lote_id === loteId ? { ...l, ...updates } : l));
+      rascunhoLotesRef.current = next;
+      return next;
+    });
+
+    if (isTopografia) {
+      for (const k of CHAVES_TOPOGRAFIA_LOTE) {
+        enfileirarSalvarCheckbox(rowId, loteId, k, k === chave && checked);
+      }
+    } else {
+      enfileirarSalvarCheckbox(rowId, loteId, chave, checked);
+    }
   }
 
   async function adicionarLote() {
@@ -219,8 +317,12 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
         setErroSalvar(error.message);
         return;
       }
-      setRascunhoLotes((prev) => prev.map((l) => (l.lote_id === loteId ? { ...l, fotos_path: path } : l)));
-      await salvarCampoBlur(loteId, 'fotos_path', path);
+      setRascunhoLotes((prev) => {
+        const next = prev.map((l) => (l.lote_id === loteId ? { ...l, fotos_path: path } : l));
+        rascunhoLotesRef.current = next;
+        return next;
+      });
+      salvarCampoBlur(loteId, 'fotos_path', path);
     } finally {
       setUploadLoteId(null);
     }
@@ -397,11 +499,15 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
                                 value={valor}
                                 placeholder={campo.placeholder ?? ''}
                                 onChange={(e) =>
-                                  setRascunhoLotes((prev) =>
-                                    prev.map((l) =>
-                                      l.lote_id === loteAtivo.lote_id ? { ...l, [campo.chave]: e.target.value } : l,
-                                    ),
-                                  )
+                                  setRascunhoLotes((prev) => {
+                                    const next = prev.map((l) =>
+                                      l.lote_id === loteAtivo.lote_id
+                                        ? { ...l, [campo.chave]: e.target.value }
+                                        : l,
+                                    );
+                                    rascunhoLotesRef.current = next;
+                                    return next;
+                                  })
                                 }
                                 onBlur={(e) => void salvarCampoBlur(loteAtivo.lote_id, campo.chave, e.target.value)}
                               />
@@ -422,11 +528,15 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
                               value={valor}
                               placeholder={campo.placeholder ?? ''}
                               onChange={(e) =>
-                                setRascunhoLotes((prev) =>
-                                  prev.map((l) =>
-                                    l.lote_id === loteAtivo.lote_id ? { ...l, [campo.chave]: e.target.value } : l,
-                                  ),
-                                )
+                                setRascunhoLotes((prev) => {
+                                  const next = prev.map((l) =>
+                                    l.lote_id === loteAtivo.lote_id
+                                      ? { ...l, [campo.chave]: e.target.value }
+                                      : l,
+                                  );
+                                  rascunhoLotesRef.current = next;
+                                  return next;
+                                })
                               }
                               onBlur={(e) => void salvarCampoBlur(loteAtivo.lote_id, campo.chave, e.target.value)}
                             />
@@ -434,43 +544,77 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
                         );
                       })}
 
-                      <div>
+                      <div className="space-y-4">
                         <p
-                          className="mb-2 text-xs font-medium"
+                          className="text-xs font-medium"
                           style={{ color: 'var(--moni-text-primary)' }}
                         >
                           Atributos do lote
                         </p>
+
                         <div
-                          className="grid grid-flow-col grid-cols-2 gap-x-4 gap-y-1.5"
-                          style={{ gridTemplateRows: `repeat(${LINHAS_GRID_ATRIBUTOS_LOTE}, minmax(0, auto))` }}
+                          className="rounded-md border px-3 py-2.5 space-y-2"
+                          style={{ borderColor: 'var(--moni-border-default)', background: 'white' }}
                         >
-                          {LOTES_DISPONIVEIS_CHECKBOXES.map((campo) => {
-                            const valor = String(loteAtivo[campo.chave] ?? '');
-                            return (
+                          <h5
+                            className="text-[11px] font-semibold uppercase tracking-wide"
+                            style={{ color: 'var(--moni-text-secondary)' }}
+                          >
+                            Topografia
+                          </h5>
+                          <p className="text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                            Selecione apenas uma opção
+                          </p>
+                          <div className="space-y-1.5">
+                            {LOTES_DISPONIVEIS_CHECKBOXES_TOPOGRAFIA.map(({ chave, label }) => (
                               <label
-                                key={campo.chave}
+                                key={chave}
                                 className="flex cursor-pointer items-center gap-2 text-sm"
                                 style={{ color: 'var(--moni-text-primary)' }}
                               >
                                 <input
                                   type="checkbox"
                                   className="h-4 w-4 shrink-0 rounded"
-                                  checked={valor === 'true'}
-                                  onChange={(e) => {
-                                    const v = e.target.checked ? 'true' : 'false';
-                                    setRascunhoLotes((prev) =>
-                                      prev.map((l) =>
-                                        l.lote_id === loteAtivo.lote_id ? { ...l, [campo.chave]: v } : l,
-                                      ),
-                                    );
-                                    void salvarCampoBlur(loteAtivo.lote_id, campo.chave, v);
-                                  }}
+                                  checked={loteAtivo[chave] === 'true'}
+                                  onChange={(e) =>
+                                    handleSalvarCheckbox(loteAtivo.lote_id, chave, e.target.checked)
+                                  }
                                 />
-                                {campo.label}
+                                {label}
                               </label>
-                            );
-                          })}
+                            ))}
+                          </div>
+                        </div>
+
+                        <div
+                          className="rounded-md border px-3 py-2.5 space-y-2"
+                          style={{ borderColor: 'var(--moni-border-default)', background: 'white' }}
+                        >
+                          <h5
+                            className="text-[11px] font-semibold uppercase tracking-wide"
+                            style={{ color: 'var(--moni-text-secondary)' }}
+                          >
+                            Localização
+                          </h5>
+                          <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2">
+                            {LOTES_DISPONIVEIS_CHECKBOXES_LOCALIZACAO.map(({ chave, label }) => (
+                              <label
+                                key={chave}
+                                className="flex cursor-pointer items-center gap-2 text-sm"
+                                style={{ color: 'var(--moni-text-primary)' }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="h-4 w-4 shrink-0 rounded"
+                                  checked={loteAtivo[chave] === 'true'}
+                                  onChange={(e) =>
+                                    handleSalvarCheckbox(loteAtivo.lote_id, chave, e.target.checked)
+                                  }
+                                />
+                                {label}
+                              </label>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </section>

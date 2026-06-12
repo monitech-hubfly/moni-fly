@@ -204,6 +204,18 @@ export async function sincronizarTagAcoplamentoPaiAoVincularCards(
   ) {
     paiPortfolioId = b;
     filhoAcoplamento = cardA;
+  } else if (
+    String(cardA.kanban_id ?? '') === KANBAN_IDS.LOTEADORES &&
+    String(cardB.kanban_id ?? '') === KANBAN_IDS.ACOPLAMENTO
+  ) {
+    paiPortfolioId = a;
+    filhoAcoplamento = cardB;
+  } else if (
+    String(cardB.kanban_id ?? '') === KANBAN_IDS.LOTEADORES &&
+    String(cardA.kanban_id ?? '') === KANBAN_IDS.ACOPLAMENTO
+  ) {
+    paiPortfolioId = b;
+    filhoAcoplamento = cardA;
   }
 
   if (!paiPortfolioId || !filhoAcoplamento?.id) return;

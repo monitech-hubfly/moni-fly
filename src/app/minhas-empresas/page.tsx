@@ -61,6 +61,12 @@ function EmpresaCard({
           <dd className="mt-0.5 text-stone-800">{empresa.inscricao_municipal?.trim() || '—'}</dd>
         </div>
         <div>
+          <dt className="text-xs font-medium uppercase tracking-wide text-stone-500">
+            Inscrição estadual
+          </dt>
+          <dd className="mt-0.5 text-stone-800">{empresa.inscricao_estadual?.trim() || '—'}</dd>
+        </div>
+        <div>
           <dt className="text-xs font-medium uppercase tracking-wide text-stone-500">Status</dt>
           <dd className="mt-0.5 text-stone-800">
             {FRANQUEADO_EMPRESA_STATUS_LABEL[empresa.status] ?? empresa.status}

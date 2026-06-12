@@ -17,7 +17,7 @@ import { notificarTimeAcoplamentoNovoProjeto } from '@/lib/kanban/acoplamento-no
 import { inserirKanbanCardVinculo } from '@/lib/kanban/kanban-card-vinculos';
 import {
   deveDispararBastaoAcoplamentoAutomatico,
-  resolverCardPaiPortfolioParaAcoplamento,
+  resolverCardPaiParaAcoplamento,
 } from '@/lib/kanban/portfolio-paralelas';
 import { reconciliarFranqueadoNoSyncGroup, resolverTituloCardKanban } from '@/lib/kanban/card-sync-group';
 
@@ -606,6 +606,9 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     [FASE_SLUGS.ACOPLAMENTO]: [
       { kanbanDestinoId: KANBAN_IDS.ACOPLAMENTO, faseDestinoSlug: 'modelagem_terreno' },
     ],
+    [FASE_SLUGS.LOTEADORES_ACOPLAMENTO]: [
+      { kanbanDestinoId: KANBAN_IDS.ACOPLAMENTO, faseDestinoSlug: 'modelagem_terreno' },
+    ],
     [FASE_SLUGS.STEP_7]: [
       { kanbanDestinoId: KANBAN_IDS.CONTABILIDADE, faseDestinoSlug: 'contabilidade_spe' },
     ],
@@ -1131,12 +1134,15 @@ export async function abrirFunilAcoplamentoManualDoCard(
     return { ok: false, error: `Serviço indisponível: ${msg}` };
   }
 
-  const paiPortfolioId = await resolverCardPaiPortfolioParaAcoplamento(db, cardId);
-  if (!paiPortfolioId) {
-    return { ok: false, error: 'Card não pertence ao Funil Portfólio (nem é filho com origem no Portfólio).' };
+  const paiId = await resolverCardPaiParaAcoplamento(db, cardId);
+  if (!paiId) {
+    return {
+      ok: false,
+      error: 'Card não pertence ao Funil Portfólio ou Funil Loteadores (nem é filho com origem nesses funis).',
+    };
   }
 
-  const shadowPai = await garantirShadowKanbanCardLegadoPorId(db, paiPortfolioId);
+  const shadowPai = await garantirShadowKanbanCardLegadoPorId(db, paiId);
   if (!shadowPai.ok) return { ok: false, error: shadowPai.error };
 
   const destino = DESTINOS_ESTEIRA_MANUAL.acoplamento;
@@ -1144,11 +1150,11 @@ export async function abrirFunilAcoplamentoManualDoCard(
   const { data: paiRow, error: errPai } = await db
     .from('kanban_cards')
     .select('id, titulo, kanban_id, projeto_id, rede_franqueado_id, fase_id')
-    .eq('id', paiPortfolioId)
+    .eq('id', paiId)
     .maybeSingle();
 
   if (errPai) return { ok: false, error: errPai.message };
-  if (!paiRow?.id) return { ok: false, error: 'Card do Portfólio não encontrado.' };
+  if (!paiRow?.id) return { ok: false, error: 'Card pai não encontrado.' };
 
   const pai = paiRow as {
     id: string;
@@ -1169,7 +1175,7 @@ export async function abrirFunilAcoplamentoManualDoCard(
   const { data: existente } = await db
     .from('kanban_cards')
     .select('id')
-    .eq('origem_card_id', paiPortfolioId)
+    .eq('origem_card_id', paiId)
     .eq('kanban_id', destino.kanbanDestinoId)
     .limit(1)
     .maybeSingle();
@@ -1190,7 +1196,7 @@ export async function abrirFunilAcoplamentoManualDoCard(
       filhoId,
       faseSlugExistente || destino.faseDestinoSlug,
     );
-    const healFranq = await reconciliarFranqueadoNoSyncGroup(db, paiPortfolioId);
+    const healFranq = await reconciliarFranqueadoNoSyncGroup(db, paiId);
     if (!healFranq.ok) return { ok: false, error: healFranq.error };
     const { data: kb } = await db.from('kanbans').select('nome').eq('id', destino.kanbanDestinoId).maybeSingle();
     revalidatePath(basePath?.trim() || '/');
@@ -1205,13 +1211,13 @@ export async function abrirFunilAcoplamentoManualDoCard(
 
   try {
     const filho = await criarCardFilho({
-      cardPaiId: paiPortfolioId,
+      cardPaiId: paiId,
       kanbanDestinoId: destino.kanbanDestinoId,
       faseDestinoSlug: destino.faseDestinoSlug,
       titulo: String(pai.titulo ?? '').trim() || 'Card',
       projetoId: pai.projeto_id ?? null,
       redeFranqueadoId: pai.rede_franqueado_id ?? null,
-      kanbanOrigemSlug: kanbanOrigemSlugPorId(KANBAN_IDS.PORTFOLIO),
+      kanbanOrigemSlug: kanbanOrigemSlugPorId(String(pai.kanban_id ?? '')),
       faseOrigemSlug,
     });
 
@@ -1221,7 +1227,7 @@ export async function abrirFunilAcoplamentoManualDoCard(
 
     await sincronizarTagAcoplamentoPaiDoFilho(String(filho.id), destino.faseDestinoSlug);
 
-    const healFranq = await reconciliarFranqueadoNoSyncGroup(db, paiPortfolioId);
+    const healFranq = await reconciliarFranqueadoNoSyncGroup(db, paiId);
     if (!healFranq.ok) return { ok: false, error: healFranq.error };
 
     const { data: kb } = await db.from('kanbans').select('nome').eq('id', destino.kanbanDestinoId).maybeSingle();

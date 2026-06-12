@@ -21,9 +21,11 @@ import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { calcularDataEnvioCreditoObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import {
   deveValidarGatePortfolioStep5,
+  deveValidarGateLoteadoresComite,
   deveVerificarCapital,
   gatePortfolioStep5Liberado,
   listarEsteirasParalelasPendentes,
+  mensagemGateLoteadoresComite,
   mensagemGatePortfolioStep5,
   PORTFOLIO_KANBAN_NOME,
   type PortfolioParalelasFlags,
@@ -1208,7 +1210,7 @@ export async function atualizarStatusSubInteracao(
 
   const { data: antes } = await supabase
     .from('sirene_topicos')
-    .select('status, interacao_id, chamado_id')
+    .select('status, interacao_id, chamado_id, responsavel_id, responsaveis_ids')
     .eq('id', idNum)
     .maybeSingle();
   if (!antes) return { ok: false, error: 'Atividade não encontrada.' };
@@ -1216,8 +1218,16 @@ export async function atualizarStatusSubInteracao(
   const interacaoId = String((antes as { interacao_id?: string }).interacao_id ?? '');
   const chamadoIdRaw = (antes as { chamado_id?: number | null }).chamado_id;
 
-  const bloqueio = await assertEditableFromSirene(supabase, interacaoId, viaSirene);
-  if (bloqueio) return bloqueio;
+  // Allow status update if user is the responsible for this tópico
+  const topicoResponsavelId = (antes as { responsavel_id?: string | null }).responsavel_id ?? null;
+  const topicoResponsaveisIds = (antes as { responsaveis_ids?: string[] }).responsaveis_ids ?? [];
+  const isResponsavel =
+    topicoResponsavelId === user.id ||
+    topicoResponsaveisIds.includes(user.id);
+  if (!isResponsavel) {
+    const bloqueio = await assertEditableFromSirene(supabase, interacaoId, viaSirene);
+    if (bloqueio) return bloqueio;
+  }
 
   const { error } = await supabase
     .from('sirene_topicos')
@@ -1259,7 +1269,14 @@ export async function atualizarStatusSubInteracao(
       concluido: 'Concluído',
       aprovado: 'Aprovado',
     };
-    const todos = await todosResponsaveisDoChamado(supabase, interacaoId);
+    const todosResp = await todosResponsaveisDoChamado(supabase, interacaoId);
+    const { data: interacaoCriador } = await supabase
+      .from('kanban_atividades')
+      .select('criado_por')
+      .eq('id', interacaoId)
+      .maybeSingle();
+    const criadorId = (interacaoCriador as { criado_por?: string | null } | null)?.criado_por ?? null;
+    const todos = criadorId ? [...new Set([...todosResp, criadorId])] : todosResp;
     const cardId = String((interacaoRow as { card_id?: string }).card_id ?? '');
     await notificarEventoChamado(interacaoId, {
       userIds: todos,
@@ -3561,6 +3578,13 @@ async function obterGatePortfolioStep5(
   const knNode = Array.isArray(kn) ? kn[0] : kn;
   const kanbanNome = String(knNode?.nome ?? kanbanNomeHint ?? '').trim();
 
+  if (deveValidarGateLoteadoresComite(novaFaseSlug, row.kanban_id, kanbanNome)) {
+    if (!Boolean(row.acoplamento_concluido)) {
+      return { ok: false, error: mensagemGateLoteadoresComite() };
+    }
+    return { ok: true };
+  }
+
   if (!deveValidarGatePortfolioStep5(novaFaseSlug, row.kanban_id, kanbanNome)) {
     return { ok: true };
   }
@@ -3613,6 +3637,8 @@ export async function moverCardParaFase(input: {
   kanbanNome?: string;
   /** Obrigatório ao mover para Reprovado no Funil Acoplamento. */
   motivoReprovacaoAcoplamento?: string;
+  /** Obrigatório ao sair de fase com SLA vencido no Funil Loteadores (Dados do Loteador / Fechar Contrato). */
+  justificativaSlaQuebra?: string;
 }): Promise<ActionResult> {
   const supabase = await createClient();
   const {
@@ -3642,6 +3668,13 @@ export async function moverCardParaFase(input: {
 
   const gateChecklistLegal = await verificarGateChecklistLegalPortfolio(cardId, novaFaseId);
   if (!gateChecklistLegal.ok) return gateChecklistLegal;
+
+  const { verificarGateJustificativaSlaLoteadores } = await import('@/lib/actions/kanban-sla-justificativa');
+  const gateSlaJustificativa = await verificarGateJustificativaSlaLoteadores(
+    cardId,
+    input.justificativaSlaQuebra,
+  );
+  if (!gateSlaJustificativa.ok) return gateSlaJustificativa;
 
   const { data: cardKanban } = await supabase
     .from('kanban_cards')

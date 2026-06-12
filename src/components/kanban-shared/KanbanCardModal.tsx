@@ -76,7 +76,12 @@ import {
 } from '@/lib/actions/credito-obra-abertura-automatica';
 import { aplicarDataEnvioCreditoObraNoPreObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import { CreditoObraAberturaAutorizacaoModal } from './CreditoObraAberturaAutorizacaoModal';
-import { isPortfolioKanbanRef } from '@/lib/kanban/portfolio-paralelas';
+import { isPortfolioKanbanRef, isLoteadoresKanbanRef } from '@/lib/kanban/portfolio-paralelas';
+import {
+  cardLoteadoresPrecisaJustificativaSla,
+  faseLoteadoresExigeJustificativaSla,
+} from '@/lib/kanban/loteadores-sla-justificativa';
+import { salvarJustificativaSlaLoteadores } from '@/lib/actions/kanban-sla-justificativa';
 import {
   enrichCardsParalelasContext,
   flagsParalelasFromCard,
@@ -102,6 +107,7 @@ import {
   type KanbanCardModalDetalhes,
   type PreObraDraftKanban,
 } from '@/lib/kanban/kanban-card-modal-detalhes';
+import { KanbanCardModalEmpresas } from '@/components/kanban-shared/KanbanCardModalEmpresas';
 import {
   ATIVIDADE_FORM_DRAFT_VAZIO,
   KanbanAtividadeFormFields,
@@ -257,6 +263,8 @@ type Card = {
   docs_terreno_url?: string | null;
   sla_iniciado_em?: string | null;
   entered_fase_at?: string | null;
+  sla_justificativa?: string | null;
+  sla_justificativa_em?: string | null;
   portfolio_vinculo_rotulo?: string | null;
   tem_filho_juridico?: boolean;
   tem_filho_acoplamento?: boolean;
@@ -439,6 +447,7 @@ export function KanbanCardModal({
     franqueado: false,
     condominio: false,
     novoNegocio: false,
+    dadosEmpresas: false,
     preObra: false,
     obra: false,
     documentacaoCreditoObra: true,
@@ -562,6 +571,7 @@ export function KanbanCardModal({
     rede: null,
     processo: null,
     redeIdContrato: null,
+    empresas: null,
   });
   const [preObraDraft, setPreObraDraft] = useState<PreObraDraftKanban>(() => preObraDraftFromProcesso(null));
   const [salvandoPreObra, setSalvandoPreObra] = useState(false);
@@ -588,6 +598,10 @@ export function KanbanCardModal({
   const [modalReprovacaoAcoplamento, setModalReprovacaoAcoplamento] = useState<KanbanFase | null>(null);
   const [motivoReprovacaoDraft, setMotivoReprovacaoDraft] = useState('');
   const [salvandoReprovacaoAcoplamento, setSalvandoReprovacaoAcoplamento] = useState(false);
+  const [modalJustificativaSla, setModalJustificativaSla] = useState<KanbanFase | null>(null);
+  const [slaJustificativaDraft, setSlaJustificativaDraft] = useState('');
+  const [salvandoJustificativaSla, setSalvandoJustificativaSla] = useState(false);
+  const [salvandoJustificativaSlaInline, setSalvandoJustificativaSlaInline] = useState(false);
   const [userRoleRaw, setUserRoleRaw] = useState('');
   const [modalAprovacaoFase, setModalAprovacaoFase] = useState<{
     fase: KanbanFase;
@@ -617,7 +631,7 @@ export function KanbanCardModal({
     setFiltros(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT);
     setFiltrosDraft(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT);
     setFiltrosOpen(false);
-    setModalDetalhes({ rede: null, processo: null, redeIdContrato: null });
+    setModalDetalhes({ rede: null, processo: null, redeIdContrato: null, empresas: null });
     setPreObraDraft(preObraDraftFromProcesso(null));
     setCreditoObraAbertura(null);
     setCreditoObraAberturaPending(false);
@@ -870,7 +884,9 @@ export function KanbanCardModal({
         alvara_url?: string | null;
         docs_terreno_url?: string | null;
         sla_iniciado_em?: string | null;
-  entered_fase_at?: string | null;
+        entered_fase_at?: string | null;
+        sla_justificativa?: string | null;
+        sla_justificativa_em?: string | null;
       };
 
       let loaded: LoadedShape | null = null;
@@ -958,8 +974,11 @@ export function KanbanCardModal({
         setLegadoCronologiaMoves([]);
         const cardSelectBase =
           'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, projeto_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url';
-        const cardSelectWithSla = `${cardSelectBase}, sla_iniciado_em, entered_fase_at`;
+        const cardSelectWithSla = `${cardSelectBase}, sla_iniciado_em, entered_fase_at, sla_justificativa, sla_justificativa_em`;
         let cardRes = await supabase.from('kanban_cards').select(cardSelectWithSla).eq('id', cardId).single();
+        if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
+          cardRes = await supabase.from('kanban_cards').select(`${cardSelectBase}, sla_iniciado_em, entered_fase_at`).eq('id', cardId).single();
+        }
         if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
           cardRes = await supabase.from('kanban_cards').select(cardSelectBase).eq('id', cardId).single();
         }
@@ -1024,6 +1043,14 @@ export function KanbanCardModal({
           entered_fase_at:
             (cardData as { entered_fase_at?: string | null }).entered_fase_at != null
               ? String((cardData as { entered_fase_at?: string | null }).entered_fase_at)
+              : null,
+          sla_justificativa:
+            (cardData as { sla_justificativa?: string | null }).sla_justificativa != null
+              ? String((cardData as { sla_justificativa?: string | null }).sla_justificativa)
+              : null,
+          sla_justificativa_em:
+            (cardData as { sla_justificativa_em?: string | null }).sla_justificativa_em != null
+              ? String((cardData as { sla_justificativa_em?: string | null }).sla_justificativa_em)
               : null,
         };
         nativeRedeFranqueadoId =
@@ -1209,7 +1236,7 @@ export function KanbanCardModal({
         setModalDetalhes(det);
         setPreObraDraft(preObraDraftFromProcesso(det.processo));
       } catch {
-        setModalDetalhes({ rede: null, processo: null, redeIdContrato: null });
+        setModalDetalhes({ rede: null, processo: null, redeIdContrato: null, empresas: null });
         setPreObraDraft(preObraDraftFromProcesso(null));
       }
 
@@ -2009,7 +2036,7 @@ export function KanbanCardModal({
 
   async function executarAvancarFase(
     proximaFase: KanbanFase,
-    opts?: { motivoReprovacaoAcoplamento?: string },
+    opts?: { motivoReprovacaoAcoplamento?: string; justificativaSlaQuebra?: string },
   ) {
     if (!card || !faseAtual) return;
     setMovendoFase(true);
@@ -2032,6 +2059,7 @@ export function KanbanCardModal({
           basePath,
           kanbanNome: typeof kanbanNome === 'string' ? kanbanNome : String(kanbanNome),
           motivoReprovacaoAcoplamento: opts?.motivoReprovacaoAcoplamento,
+          justificativaSlaQuebra: opts?.justificativaSlaQuebra,
         });
         if (!res.ok) {
           const msg = res.error ?? 'Erro ao avançar fase.';
@@ -2064,7 +2092,10 @@ export function KanbanCardModal({
       alert('Esta é a última fase do funil.');
       return;
     }
-    if (isPortfolioKanbanRef(null, String(kanbanNome)) && origem !== 'legado') {
+    if (
+      (isPortfolioKanbanRef(null, String(kanbanNome)) || isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome))) &&
+      origem !== 'legado'
+    ) {
       const gate = await verificarGatePortfolioStep5(card.id, proximaFase.id);
       if (!gate.ok) {
         setGateStep5Toast(gate.error ?? 'Não é possível avançar para o Comitê.');
@@ -2106,6 +2137,21 @@ export function KanbanCardModal({
     ) {
       setMotivoReprovacaoDraft('');
       setModalReprovacaoAcoplamento(proximaFase);
+      return;
+    }
+
+    if (
+      !isLegado &&
+      isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome)) &&
+      cardLoteadoresPrecisaJustificativaSla({
+        kanbanId: card.kanban_id,
+        faseSlug: faseAtual.slug,
+        slaStatus: slaCard.status,
+        slaJustificativa: card.sla_justificativa,
+      })
+    ) {
+      setSlaJustificativaDraft('');
+      setModalJustificativaSla(proximaFase);
       return;
     }
 
@@ -2914,6 +2960,12 @@ export function KanbanCardModal({
     docs_terreno_url: card.docs_terreno_url,
     sla_dias: faseAtual?.sla_dias,
   });
+  const exibirSecaoJustificativaSla =
+    !isLegado &&
+    isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome)) &&
+    faseLoteadoresExigeJustificativaSla(faseSlugAtual) &&
+    slaCard.status === 'atrasado';
+  const slaJustificativaRegistrada = String(card.sla_justificativa ?? '').trim();
   const exibirSecaoDocumentacaoCreditoObra =
     !isLegado &&
     kanbanNome === 'Funil Crédito Obra' &&
@@ -3504,6 +3556,71 @@ export function KanbanCardModal({
               <div className="mb-4">
                 <KanbanParalelasChips chips={chipsParalelasModal} compact={false} />
                   </div>
+            ) : null}
+
+            {exibirSecaoJustificativaSla ? (
+              <div
+                className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3"
+                role="region"
+                aria-label="Justificativa de quebra de SLA"
+              >
+                <p className="text-sm font-medium text-amber-900">Quebra de SLA</p>
+                <p className="mt-1 text-xs text-amber-800">
+                  O prazo desta fase venceu. Registre a justificativa antes de avançar o card.
+                </p>
+                {slaJustificativaRegistrada ? (
+                  <div className="mt-3 rounded-md border border-amber-200 bg-white px-3 py-2">
+                    <p className="text-xs font-medium text-stone-600">Justificativa registrada</p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-stone-800">{slaJustificativaRegistrada}</p>
+                    {card.sla_justificativa_em ? (
+                      <p className="mt-2 text-[11px] text-stone-500">
+                        {formatDataHoraHistorico(card.sla_justificativa_em)}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <>
+                    <label className="mt-3 block text-xs font-medium text-amber-900">
+                      Justificativa
+                      <textarea
+                        value={slaJustificativaDraft}
+                        onChange={(e) => setSlaJustificativaDraft(e.target.value)}
+                        rows={3}
+                        className="mt-1 w-full resize-none rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm text-stone-800 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                        placeholder="Descreva o motivo da quebra de SLA…"
+                        disabled={salvandoJustificativaSlaInline}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      disabled={salvandoJustificativaSlaInline || !slaJustificativaDraft.trim()}
+                      onClick={() => {
+                        const texto = slaJustificativaDraft.trim();
+                        if (!texto) return;
+                        setSalvandoJustificativaSlaInline(true);
+                        void salvarJustificativaSlaLoteadores({
+                          cardId: card.id,
+                          justificativa: texto,
+                          basePath,
+                        })
+                          .then((res) => {
+                            if (!res.ok) {
+                              alert(res.error ?? 'Não foi possível salvar a justificativa.');
+                              return;
+                            }
+                            setSlaJustificativaDraft('');
+                            void loadCard({ silencioso: true });
+                            router.refresh();
+                          })
+                          .finally(() => setSalvandoJustificativaSlaInline(false));
+                      }}
+                      className="mt-2 rounded-lg bg-amber-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                    >
+                      {salvandoJustificativaSlaInline ? 'Salvando…' : 'Salvar justificativa'}
+                    </button>
+                  </>
+                )}
+              </div>
             ) : null}
 
             {abaCentro === 'trancheVinculo' && trancheVinculoIndex != null ? (
@@ -5887,6 +6004,19 @@ export function KanbanCardModal({
               </div>,
             )}
             {secaoHead(
+              'dadosEmpresas',
+              'Dados das Empresas',
+              <KanbanCardModalEmpresas
+                cardId={card.id}
+                redeFranqueadoId={modalDetalhes.redeIdContrato ?? card?.rede_franqueado_id ?? null}
+                incorporadora={modalDetalhes.empresas?.incorporadora ?? null}
+                gestora={modalDetalhes.empresas?.gestora ?? null}
+                spe={modalDetalhes.empresas?.spe ?? null}
+                podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                onSalvo={() => void loadCard({ silencioso: true })}
+              />,
+            )}
+            {secaoHead(
               'preObra',
               'Dados Pré Obra',
               !proc ? (
@@ -6231,6 +6361,72 @@ export function KanbanCardModal({
               className="flex-1 rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700"
             >
               Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+
+    {modalJustificativaSla ? (
+      <div className="fixed inset-0 z-[225] flex items-center justify-center bg-black/50 p-4">
+        <div
+          className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="justificativa-sla-titulo"
+        >
+          <h3 id="justificativa-sla-titulo" className="text-base font-semibold text-stone-900">
+            Justificativa de quebra de SLA
+          </h3>
+          <p className="mt-2 text-sm text-stone-600">
+            O SLA da fase &ldquo;{faseAtual?.nome ?? 'atual'}&rdquo; está vencido. Informe a justificativa para avançar
+            para &ldquo;{modalJustificativaSla.nome}&rdquo;.
+          </p>
+          <label className="mt-4 block text-xs font-medium text-stone-600">
+            Justificativa
+            <textarea
+              value={slaJustificativaDraft}
+              onChange={(e) => setSlaJustificativaDraft(e.target.value)}
+              rows={4}
+              className="mt-1 w-full resize-none rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-800 focus:outline-none focus:ring-1 focus:ring-stone-400"
+              placeholder="Descreva o motivo…"
+              disabled={salvandoJustificativaSla}
+              autoFocus
+            />
+          </label>
+          <div className="mt-6 flex justify-end gap-2">
+            <button
+              type="button"
+              disabled={salvandoJustificativaSla}
+              onClick={() => {
+                setModalJustificativaSla(null);
+                setSlaJustificativaDraft('');
+              }}
+              className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={salvandoJustificativaSla}
+              onClick={() => {
+                const justificativa = slaJustificativaDraft.trim();
+                if (!justificativa) {
+                  alert('Informe a justificativa da quebra de SLA.');
+                  return;
+                }
+                const fase = modalJustificativaSla;
+                setSalvandoJustificativaSla(true);
+                void executarAvancarFase(fase, { justificativaSlaQuebra: justificativa })
+                  .then(() => {
+                    setModalJustificativaSla(null);
+                    setSlaJustificativaDraft('');
+                  })
+                  .finally(() => setSalvandoJustificativaSla(false));
+              }}
+              className="rounded-lg bg-stone-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {salvandoJustificativaSla ? 'Salvando…' : 'Confirmar e avançar'}
             </button>
           </div>
         </div>

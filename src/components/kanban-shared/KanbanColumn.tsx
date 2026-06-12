@@ -22,7 +22,11 @@ import {
   calcularCorDataTexto,
   labelRelativoData,
 } from '@/lib/kanban/kanban-card-datas';
-import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
+import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import {
+  cardLoteadoresPrecisaJustificativaSla,
+  faseLoteadoresExigeJustificativaSla,
+} from '@/lib/kanban/loteadores-sla-justificativa';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
 export type KanbanColumnProps = {
@@ -50,6 +54,14 @@ type DragPayload = {
   fromFaseId: string;
   fromFaseSlug: string;
   origem: KanbanDnDCardOrigem;
+  kanbanId?: string;
+  created_at?: string;
+  entered_fase_at?: string | null;
+  sla_iniciado_em?: string | null;
+  alvara_url?: string | null;
+  docs_terreno_url?: string | null;
+  sla_justificativa?: string | null;
+  fromFaseSlaDias?: number | null;
 };
 
 function hrefAbrirCard(
@@ -95,6 +107,14 @@ function parseDragPayload(raw: string): DragPayload | null {
       fromFaseId,
       fromFaseSlug: String(data.fromFaseSlug ?? '').trim(),
       origem: data.origem === 'legado' ? 'legado' : 'nativo',
+      kanbanId: data.kanbanId != null ? String(data.kanbanId) : undefined,
+      created_at: data.created_at != null ? String(data.created_at) : undefined,
+      entered_fase_at: data.entered_fase_at ?? null,
+      sla_iniciado_em: data.sla_iniciado_em ?? null,
+      alvara_url: data.alvara_url ?? null,
+      docs_terreno_url: data.docs_terreno_url ?? null,
+      sla_justificativa: data.sla_justificativa ?? null,
+      fromFaseSlaDias: data.fromFaseSlaDias ?? null,
     };
   } catch {
     return null;
@@ -171,6 +191,7 @@ export function KanbanColumn({
           }
         } else {
           let motivoParalisado: string | undefined;
+          let justificativaSla: string | undefined;
           const destSlug = (faseSlug || '').trim();
           if (destSlug === FASE_SLUGS.ACOPLAMENTO_REPROVADO && basePath.includes('funil-acoplamento')) {
             const motivo = window.prompt(
@@ -184,6 +205,42 @@ export function KanbanColumn({
             }
             motivoParalisado = m;
           }
+          const fromSlug = (payload.fromFaseSlug || '').trim();
+          if (
+            origem === 'nativo' &&
+            String(payload.kanbanId ?? kanbanId) === KANBAN_IDS.LOTEADORES &&
+            faseLoteadoresExigeJustificativaSla(fromSlug) &&
+            payload.created_at
+          ) {
+            const slaOrigem = calcularSlaKanbanCard({
+              created_at: payload.created_at,
+              entered_fase_at: payload.entered_fase_at,
+              sla_iniciado_em: payload.sla_iniciado_em,
+              faseSlug: fromSlug,
+              alvara_url: payload.alvara_url,
+              docs_terreno_url: payload.docs_terreno_url,
+              sla_dias: payload.fromFaseSlaDias ?? null,
+            });
+            if (
+              cardLoteadoresPrecisaJustificativaSla({
+                kanbanId: payload.kanbanId ?? kanbanId,
+                faseSlug: fromSlug,
+                slaStatus: slaOrigem.status,
+                slaJustificativa: payload.sla_justificativa,
+              })
+            ) {
+              const motivo = window.prompt(
+                'O SLA desta fase está vencido. Informe a justificativa da quebra de SLA antes de mover o card:',
+              );
+              if (motivo == null) return;
+              const m = motivo.trim();
+              if (!m) {
+                alert('Informe a justificativa da quebra de SLA.');
+                return;
+              }
+              justificativaSla = m;
+            }
+          }
           const resMove = await moverCardKanbanDrag({
             cardId: payload.cardId,
             toFaseId: fase.id,
@@ -193,6 +250,7 @@ export function KanbanColumn({
             basePath,
             kanbanNome: typeof kanbanNome === 'string' ? kanbanNome : undefined,
             motivoReprovacaoAcoplamento: motivoParalisado,
+            justificativaSlaQuebra: justificativaSla,
           });
           if (!resMove.ok) {
             alert(resMove.error ?? 'Não foi possível mover o card.');
@@ -346,6 +404,14 @@ export function KanbanColumn({
                       fromFaseId: fase.id,
                       fromFaseSlug: faseSlug,
                       origem: card.origem === 'legado' ? 'legado' : 'nativo',
+                      kanbanId: card.kanban_id ?? kanbanId,
+                      created_at: card.created_at,
+                      entered_fase_at: card.entered_fase_at ?? null,
+                      sla_iniciado_em: card.sla_iniciado_em ?? null,
+                      alvara_url: card.alvara_url ?? null,
+                      docs_terreno_url: card.docs_terreno_url ?? null,
+                      sla_justificativa: (card as { sla_justificativa?: string | null }).sla_justificativa ?? null,
+                      fromFaseSlaDias: fase.sla_dias ?? null,
                     } satisfies DragPayload),
                   );
                 }}

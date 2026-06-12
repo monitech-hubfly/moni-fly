@@ -145,6 +145,23 @@ export function montarChipsParalelas(
     return chips;
   }
 
+  if (kid === KANBAN_IDS.LOTEADORES) {
+    const chipAcoplamentoOpts = {
+      ...opts,
+      temFilhoAtivo: input.temFilhoAcoplamento,
+      filhoArquivado: input.filhoAcoplamentoArquivado,
+    };
+    const emAcoplamento =
+      slug === FASE_SLUGS.LOTEADORES_ACOPLAMENTO ||
+      input.temFilhoAcoplamento ||
+      input.filhoAcoplamentoArquivado ||
+      boolFlag(f.acoplamento_concluido);
+    if (emAcoplamento) {
+      pushChipAcoplamentoPortfolio(chips, f, chipAcoplamentoOpts);
+    }
+    return chips;
+  }
+
   if (kid === KANBAN_IDS.PORTFOLIO) {
     const emStep4OuAcoplamento = portfolioFaseStep4OuAcoplamento(slug);
     const chipAcoplamentoOpts = {

@@ -13,9 +13,11 @@ import {
 } from '@/lib/kanban/dados-cidade-praca-multi';
 import {
   atualizarLotesPreenchidosEm,
-  loteDisponivelParaAtributosBoolean,
+  loteDisponivelParaCondominioLoteDb,
   normalizarLinhaLote,
   todasSessoesLotesCompletas,
+  verificarMapeamentoAtributosLote,
+  LOTES_DISPONIVEIS_CHECKBOXES,
   type LinhaLoteDisponivel,
 } from '@/lib/kanban/lotes-disponiveis-condominio';
 import { normalizarLinhaProspect, type LinhaProspectCondominio } from '@/lib/kanban/condominio-prospect-pesquisa';
@@ -137,6 +139,7 @@ async function sincronizarLotesComCadastro(
   lotes: LinhaLoteDisponivel[],
   userId: string,
 ): Promise<LinhaLoteDisponivel[]> {
+  verificarMapeamentoAtributosLote();
   const atualizados = lotes.map((l) => ({ ...l }));
 
   for (const lote of atualizados) {
@@ -148,13 +151,17 @@ async function sincronizarLotesComCadastro(
       condominio_id: condominioId,
       quadra,
       lote: loteNum,
+      dimensao_frente_m: parseNumero(lote.dimensao_frente_m),
+      dimensao_fundo_m: parseNumero(lote.dimensao_fundo_m),
+      dimensao_lado_direito_m: parseNumero(lote.dimensao_lado_direito_m),
+      dimensao_lado_esquerdo_m: parseNumero(lote.dimensao_lado_esquerdo_m),
       area_m2: parseNumero(lote.area_m2),
       valor: parseNumero(lote.valor),
       situacao_documental: lote.situacao_documental.trim() || null,
       fotos_path: lote.fotos_path.trim() || null,
       observacoes: lote.observacoes.trim() || null,
       kanban_card_id: null,
-      ...loteDisponivelParaAtributosBoolean(lote),
+      ...loteDisponivelParaCondominioLoteDb(lote),
     };
 
     const row = { ...patch, updated_at: new Date().toISOString(), criado_por: userId };
@@ -340,6 +347,11 @@ export async function salvarCampoLoteCondominio(input: {
 
   lotes[idx] = { ...lotes[idx], [input.chave]: input.valor };
 
+  // Atributos checkbox → sync em condominios_lotes via loteDisponivelParaCondominioLoteDb + CHAVE_LOTE_PARA_COLUNA_DB
+  if (LOTES_DISPONIVEIS_CHECKBOXES.some((c) => c.chave === input.chave)) {
+    verificarMapeamentoAtributosLote();
+  }
+
   return persistirLotesLinha({
     cardId: input.cardId,
     rowId: input.rowId,
@@ -414,6 +426,33 @@ export async function salvarLoteEscolhidoCondominio(input: {
 export type CarregarLotesCondominioResult =
   | { ok: true; linhas: LinhaProspectCondominio[] }
   | { ok: false; error: string };
+
+export type LoteEscolhidoContexto = {
+  lote: LinhaLoteDisponivel;
+  linha: LinhaProspectCondominio;
+};
+
+/** Primeiro lote marcado como escolhido entre as linhas de condomínio do card. */
+export function encontrarLoteEscolhidoCard(
+  linhas: LinhaProspectCondominio[],
+): LoteEscolhidoContexto | null {
+  for (const linha of linhas) {
+    const escolhidoId = linha.lote_escolhido_id?.trim();
+    if (!escolhidoId) continue;
+    const lote = (linha.lotes_disponiveis ?? []).find((l) => l.lote_id === escolhidoId);
+    if (lote) return { lote, linha };
+  }
+  return null;
+}
+
+export async function carregarLoteEscolhidoCard(cardId: string): Promise<
+  | { ok: true; ctx: LoteEscolhidoContexto | null }
+  | { ok: false; error: string }
+> {
+  const res = await carregarLotesCondominioCard(cardId);
+  if (!res.ok) return res;
+  return { ok: true, ctx: encontrarLoteEscolhidoCard(res.linhas) };
+}
 
 export async function carregarLotesCondominioCard(cardId: string): Promise<CarregarLotesCondominioResult> {
   const res = await carregarProspectsCondominioCard(cardId);

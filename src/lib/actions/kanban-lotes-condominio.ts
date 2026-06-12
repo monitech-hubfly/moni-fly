@@ -5,7 +5,7 @@ import { parseCondominioChecklistSnapshot } from '@/lib/condominios-checklist';
 import type { CondominioLotePatch } from '@/lib/condominios-lotes';
 import { parseDecimalInput } from '@/lib/condominios';
 import { KANBAN_IDS, FASE_SLUGS } from '@/lib/constants/kanban-ids';
-import { LOTES_DISPONIVEIS_CHECKBOXES } from '@/lib/kanban/lotes-disponiveis-condominio';
+import { CHAVE_LOTE_PARA_COLUNA_DB, LOTES_DISPONIVEIS_CHECKBOXES } from '@/lib/kanban/lotes-disponiveis-condominio';
 import { createClient } from '@/lib/supabase/server';
 
 export type LotesCondominioActionResult = { ok: true } | { ok: false; error: string };
@@ -127,7 +127,7 @@ export async function sincronizarLoteChecklistComCadastro(input: {
   };
 
   for (const { chave, label } of LOTES_DISPONIVEIS_CHECKBOXES) {
-    patch[chave] = porLabel.get(label)?.valor === 'true';
+    patch[CHAVE_LOTE_PARA_COLUNA_DB[chave]] = porLabel.get(label)?.valor === 'true';
   }
 
   const { data: existente } = await supabase

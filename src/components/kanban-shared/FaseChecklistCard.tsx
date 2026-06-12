@@ -29,7 +29,17 @@ import { MapaPracaChecklist } from '@/components/kanban-shared/MapaPracaChecklis
 import { MapaCompetidoresChecklist } from '@/components/kanban-shared/MapaCompetidoresChecklist';
 import { ChecklistAreaAtuacaoSelect } from '@/components/kanban-shared/ChecklistAreaAtuacaoSelect';
 import { DadosCidadePracaTabs } from '@/components/kanban-shared/DadosCidadePracaTabs';
-import { isDadosCandidatoFaseSlug, isDadosCidadeFaseSlug, isLotesDisponiveisFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { isDadosCandidatoFaseSlug, isDadosCidadeFaseSlug, isLotesDisponiveisFaseSlug, isPreBatalhaFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import {
+  PRE_BATALHA_CHECKLIST_LABEL_APLICADA,
+  PRE_BATALHA_CHECKLIST_LABEL_RANKING,
+  PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING,
+} from '@/lib/kanban/pre-batalha-checklist';
+import { sincronizarChecklistPreBatalhaKanban } from '@/app/step-one/[id]/etapa/actions';
+import { syncSpeFromFaseChecklistKanban } from '@/app/rede-franqueados/franqueado-spe-actions';
+import { isFaseAberturaSpeSlug } from '@/lib/kanban/fase-spe-slugs';
+import { PreBatalhaRankingLeaderboard } from '@/components/kanban-shared/PreBatalhaRankingLeaderboard';
+import type { RankingPorFaixaMercado } from '@/lib/kanban/pre-batalha-compatibilidade';
 import {
   isLabelDadosCandidatoRede,
   valorDadosCandidatoFromRede,
@@ -108,6 +118,8 @@ export function FaseChecklistCard({
   const [abaPracaAtiva, setAbaPracaAtiva] = useState('');
   const [diffModal, setDiffModal] = useState<{ open: boolean; lines: string[] }>({ open: false, lines: [] });
   const redeSyncFeitoRef = useRef('');
+  const preBatalhaSyncFeitoRef = useRef('');
+  const [preBatalhaGrupos, setPreBatalhaGrupos] = useState<RankingPorFaixaMercado[]>([]);
 
   const areasAtuacao = parseAreaAtuacao(areaAtuacao);
   const multiPracaAtivo = isDadosCidadeFaseSlug(faseSlug) && areasAtuacao.length >= 1;
@@ -128,6 +140,7 @@ export function FaseChecklistCard({
 
   useEffect(() => {
     redeSyncFeitoRef.current = '';
+    preBatalhaSyncFeitoRef.current = '';
   }, [cardId, faseId]);
 
   useEffect(() => {
@@ -225,6 +238,60 @@ export function FaseChecklistCard({
       }
     })();
   }, [carregando, faseSlug, cardId, faseId, itens, redeFranqueado, respostas]);
+
+  /** Pré Batalha: calcula ranking e preenche checklist ao abrir o modal (idempotente). */
+  useEffect(() => {
+    if (carregando || !itens?.length) return;
+    if (!isPreBatalhaFaseSlug(faseSlug) || !processoId?.trim()) return;
+
+    const syncKey = `${cardId}:${faseId}:${processoId.trim()}`;
+    if (preBatalhaSyncFeitoRef.current === syncKey) return;
+
+    const itemAplicada = itens.find(
+      (i) => i.label.trim() === PRE_BATALHA_CHECKLIST_LABEL_APLICADA,
+    );
+    const itemRanking = itens.find((i) => i.label.trim() === PRE_BATALHA_CHECKLIST_LABEL_RANKING);
+
+    preBatalhaSyncFeitoRef.current = syncKey;
+
+    void (async () => {
+      const res = await sincronizarChecklistPreBatalhaKanban({
+        cardId,
+        processoId: processoId.trim(),
+        faseId,
+      });
+      if (!res.ok) {
+        console.warn('[pre-batalha] sync kanban:', res.error);
+        preBatalhaSyncFeitoRef.current = '';
+        return;
+      }
+      if (res.grupos.length > 0) {
+        setPreBatalhaGrupos(res.grupos);
+      }
+      if (res.rankingCount === 0) return;
+
+      const itemIds = [itemAplicada?.id, itemRanking?.id].filter(Boolean) as string[];
+      if (itemIds.length === 0) return;
+
+      try {
+        const supabase = createClient();
+        const { data: rows } = await supabase
+          .from('kanban_fase_checklist_respostas')
+          .select('item_id, valor, arquivo_path')
+          .eq('card_id', cardId)
+          .in('item_id', itemIds);
+        for (const r of rows ?? []) {
+          const row = r as { item_id: string; valor: string | null; arquivo_path: string | null };
+          setResposta(row.item_id, {
+            valor: row.valor ?? '',
+            arquivo_path: row.arquivo_path ?? null,
+          });
+        }
+      } catch {
+        /* UI atualiza na próxima abertura do modal */
+      }
+    })();
+  }, [carregando, faseSlug, cardId, faseId, processoId, itens, respostas]);
 
   function setResposta(itemId: string, patch: Partial<EstadoResposta>) {
     setRespostas((prev) => {
@@ -362,6 +429,20 @@ export function FaseChecklistCard({
         await tentarSyncPracaComProcesso(itemId, valor);
       }
     }
+    if (res.ok && !erroFinal && processoId?.trim() && isFaseAberturaSpeSlug(faseSlug) && itens?.length) {
+      const checklistItens = itens.map((i) => ({
+        label: i.label,
+        valor: String(
+          i.id === itemId ? (valorFinal ?? '') : (respostas.get(i.id)?.valor ?? ''),
+        ),
+      }));
+      void syncSpeFromFaseChecklistKanban({
+        cardId,
+        processoId: processoId.trim(),
+        faseSlug: faseSlug ?? '',
+        itens: checklistItens,
+      });
+    }
     setResposta(itemId, {
       salvando: false,
       erro: erroFinal,
@@ -445,6 +526,7 @@ export function FaseChecklistCard({
         pracaCidade={praca}
         areasAtuacao={areasAtuacao}
         estadoChecklistValor={estadoChecklistValor}
+        preBatalhaGrupos={preBatalhaGrupos}
         onCidadeComUfSelected={(cidade, uf) => void salvarCidadeComEstado(cidade, uf)}
         condominioContext={condominioContext}
         onChange={(valor) => {
@@ -545,6 +627,7 @@ type ItemFieldProps = {
   pracaCidade?: PracaCidade | null;
   areasAtuacao: { uf: string; cidade: string }[];
   estadoChecklistValor: string;
+  preBatalhaGrupos?: RankingPorFaixaMercado[];
   onCidadeComUfSelected: (cidade: string, uf: string) => void;
   condominioContext?: CondominioChecklistContext;
   onChange: (valor: string) => void;
@@ -564,6 +647,7 @@ function ItemField({
   pracaCidade = null,
   areasAtuacao,
   estadoChecklistValor,
+  preBatalhaGrupos = [],
   onCidadeComUfSelected,
   condominioContext,
   onChange,
@@ -629,17 +713,42 @@ function ItemField({
   }
 
   if (item.tipo === 'texto_longo') {
+    const isRankingPreBatalha =
+      isPreBatalhaFaseSlug(faseSlug) &&
+      item.label.trim() === PRE_BATALHA_CHECKLIST_LABEL_RANKING;
     return (
       <div>
         {labelEl}
+        {isRankingPreBatalha ? (
+          <p
+            className="mb-2 whitespace-pre-line rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-950"
+            role="note"
+          >
+            {PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING}
+          </p>
+        ) : null}
+        {isRankingPreBatalha && preBatalhaGrupos.length > 0 ? (
+          <div className="mb-4">
+            <PreBatalhaRankingLeaderboard grupos={preBatalhaGrupos} />
+          </div>
+        ) : null}
         <textarea
-          rows={3}
-          className={inputClass + ' resize-none'}
-          placeholder={item.placeholder ?? ''}
+          rows={isRankingPreBatalha ? Math.max(6, Math.min(estado.valor.split('\n').length + 1, 16)) : 3}
+          className={inputClass + ' resize-y'}
+          placeholder={
+            isRankingPreBatalha
+              ? 'Preenchido automaticamente com todos os modelos compatíveis…'
+              : (item.placeholder ?? '')
+          }
           value={estado.valor}
           onChange={(e) => onChange(e.target.value)}
           onBlur={(e) => onBlur(e.target.value)}
         />
+        {isRankingPreBatalha ? (
+          <p className="mt-1 text-[11px] italic" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Lista gerada automaticamente; pode ser atualizada ao reabrir o card nesta fase.
+          </p>
+        ) : null}
         {erroEl}
       </div>
     );
@@ -852,6 +961,7 @@ function ItemField({
   if (item.tipo === 'listagem_casas_zap') {
     const pid = processoId?.trim();
     const podeEditar = condominioContext?.podeEditar ?? isAdmin;
+    // Mapa de Competidores: só listagem ZAP + faixas (catálogo Moní fica na Pré Batalha).
     return (
       <MapaCompetidoresChecklist
         cardId={cardId}

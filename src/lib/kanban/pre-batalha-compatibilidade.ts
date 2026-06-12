@@ -1,4 +1,584 @@
-/** Score de compatibilidade do modelo Moní vs. listagens do mapa (Pré Batalha). */
+/**
+ * Ranking Pré Batalha: modelos Moní vs. listagem ZAP por faixa de mercado.
+ * Nota final = Lote + Preço (INC + Kit Moní) + Produto — desempate: Lote > Preço > Produto.
+ */
+
+import {
+  notaAtributosLote,
+  notaFinalBatalha,
+  notaPrecoPreBatalhaContraAnuncio,
+  notaProdutoContraAnuncio,
+  getPrecoIncMaisKitMoni,
+  type AtributosLoteRespostas,
+  type ProdutoDadosPar,
+} from '@/app/step-one/[id]/etapa/REGRAS_BATALHA';
+import { CHAVES_TOPOGRAFIA_LOTE } from '@/lib/kanban/lotes-disponiveis-condominio';
+import {
+  classificarFaixasMercado,
+  labelFaixaMercado,
+  ORDEM_FAIXAS_MERCADO,
+  type FaixaMercado,
+} from '@/lib/kanban/mapa-competidores-condominio';
+import { filtrarCatalogoPorFaixaModelo } from '@/lib/kanban/modelo-faixa-elegibilidade';
+
+/** Anúncio ZAP (`listings_casas`). */
+export type CasaRowPreBatalha = {
+  id: string;
+  condominio: string | null;
+  quartos: number | null;
+  banheiros: number | null;
+  vagas: number | null;
+  preco: number | null;
+  area_casa_m2: number | null;
+  piscina?: boolean | null;
+  marcenaria?: boolean | null;
+};
+
+/** Modelo Moní (`catalogo_casas`). */
+export type CatalogoItem = {
+  id: string;
+  nome: string | null;
+  topografia?: string | null;
+  area_m2?: number | null;
+  quartos: number | null;
+  banheiros: number | null;
+  vagas: number | null;
+  preco_custo?: number | null;
+  preco_custo_m2?: number | null;
+  preco_venda?: number | null;
+  preco_venda_m2?: number | null;
+  dimensao_x_m?: number | null;
+  dimensao_y_m?: number | null;
+  area_perimetro_m2?: number | null;
+};
+
+export type AnuncioAmeacadorPreBatalha = {
+  id: string;
+  condominio: string;
+  preco: number;
+  notaPreco: number;
+  notaProduto: number;
+};
+
+/** Uma linha: modelo Moní × anúncio ZAP na faixa (notas por eixo). */
+export type BatalhaModeloAnuncioPreBatalha = {
+  catalogoId: string;
+  modelo: string;
+  topografia: string;
+  anuncioId: string;
+  condominio: string;
+  precoAnuncio: number;
+  precoIncKitMoni: number | null;
+  notaLote: number;
+  notaPreco: number;
+  notaProduto: number;
+  notaFinalLinha: number;
+};
+
+export type RankingModeloPreBatalha = {
+  catalogoId: string;
+  modelo: string;
+  topografia: string;
+  faixa?: FaixaMercado;
+  notaLote: number;
+  notaPrecoMedia: number;
+  notaProdutoMedia: number;
+  notaFinal: number;
+  precoIncKitMoni: number | null;
+  anunciosAmeacadores: AnuncioAmeacadorPreBatalha[];
+};
+
+/** Alias usado na UI da Pré Batalha. */
+export type ResultadoRankingModelo = RankingModeloPreBatalha;
+
+export type RankingPorFaixaMercado = {
+  faixa: FaixaMercado;
+  faixaLabel: string;
+  quantidadeAnuncios: number;
+  /** Todas as combinações modelo × anúncio da faixa. */
+  batalhas: BatalhaModeloAnuncioPreBatalha[];
+  ranking: RankingModeloPreBatalha[];
+};
+
+/** Geometria do terreno: dimensões do lote + recuos do condomínio. */
+export interface DadosTerreno {
+  /** Do lote (`condominios_lotes`). */
+  dimensao_frente_m: number | null;
+  dimensao_lado_esquerdo_m: number | null;
+  /** Do condomínio (`condominios`) — recuo_lateral_m vale para esq. e dir. */
+  recuo_frontal_m: number | null;
+  recuo_fundo_m: number | null;
+  recuo_lateral_m: number | null;
+}
+
+export interface ResultadoElegibilidade {
+  elegivel: boolean;
+  largura_util: number | null;
+  profundidade_util: number | null;
+  area_util: number | null;
+  falhas: ('largura' | 'profundidade' | 'area')[];
+}
+
+/**
+ * Verifica se a casa cabe no terreno útil (após recuos do condomínio).
+ * Sem dimensões do lote → elegível (dados insuficientes para filtrar).
+ */
+export function verificarElegibilidadeCasa(
+  terreno: DadosTerreno,
+  casa: {
+    dimensao_x_m: number | null;
+    dimensao_y_m: number | null;
+    area_perimetro_m2: number | null;
+  },
+): ResultadoElegibilidade {
+  const { dimensao_frente_m: frente, dimensao_lado_esquerdo_m: lateral } = terreno;
+  const rFront = terreno.recuo_frontal_m ?? 0;
+  const rFundo = terreno.recuo_fundo_m ?? 0;
+  const rLat = terreno.recuo_lateral_m ?? 0;
+
+  if (!frente || !lateral) {
+    return {
+      elegivel: true,
+      largura_util: null,
+      profundidade_util: null,
+      area_util: null,
+      falhas: [],
+    };
+  }
+
+  const largura_util = frente - rLat * 2;
+  const profundidade_util = lateral - rFront - rFundo;
+  const area_util = largura_util * profundidade_util;
+
+  const falhas: ResultadoElegibilidade['falhas'] = [];
+  if (casa.dimensao_x_m != null && largura_util < casa.dimensao_x_m) falhas.push('largura');
+  if (casa.dimensao_y_m != null && profundidade_util < casa.dimensao_y_m) falhas.push('profundidade');
+  if (casa.area_perimetro_m2 != null && area_util < casa.area_perimetro_m2) falhas.push('area');
+
+  return { elegivel: falhas.length === 0, largura_util, profundidade_util, area_util, falhas };
+}
+
+export type ModeloInelegivelGeometria = {
+  modelo: string;
+  topografia: string;
+  falhas: ('largura' | 'profundidade' | 'area')[];
+  largura_util: number | null;
+  profundidade_util: number | null;
+  area_util: number | null;
+  dimensao_x_m: number | null;
+  dimensao_y_m: number | null;
+  area_perimetro_m2: number | null;
+};
+
+export type ResultadoCalcularRankingModelos = {
+  ranking: RankingModeloPreBatalha[];
+  inelegiveis: ModeloInelegivelGeometria[];
+};
+
+function terrenoComDimensoesParaFiltrar(terreno?: DadosTerreno): terreno is DadosTerreno {
+  return Boolean(terreno?.dimensao_frente_m && terreno?.dimensao_lado_esquerdo_m);
+}
+
+function dimsCasaFromCatalogo(mod: CatalogoItem): {
+  dimensao_x_m: number | null;
+  dimensao_y_m: number | null;
+  area_perimetro_m2: number | null;
+} {
+  return {
+    dimensao_x_m: mod.dimensao_x_m ?? null,
+    dimensao_y_m: mod.dimensao_y_m ?? null,
+    area_perimetro_m2: mod.area_perimetro_m2 ?? null,
+  };
+}
+
+function listarInelegiveisGeometria(
+  catalogo: CatalogoItem[],
+  terreno: DadosTerreno,
+): ModeloInelegivelGeometria[] {
+  const inelegiveis: ModeloInelegivelGeometria[] = [];
+  for (const mod of catalogo) {
+    const dims = dimsCasaFromCatalogo(mod);
+    const result = verificarElegibilidadeCasa(terreno, dims);
+    if (result.elegivel) continue;
+    inelegiveis.push({
+      modelo: mod.nome?.trim() || mod.id.slice(0, 8),
+      topografia: labelTopografia(mod.topografia),
+      falhas: result.falhas,
+      largura_util: result.largura_util,
+      profundidade_util: result.profundidade_util,
+      area_util: result.area_util,
+      dimensao_x_m: dims.dimensao_x_m,
+      dimensao_y_m: dims.dimensao_y_m,
+      area_perimetro_m2: dims.area_perimetro_m2,
+    });
+  }
+  return inelegiveis;
+}
+
+function filtrarCatalogoElegivelGeometria(
+  catalogo: CatalogoItem[],
+  terreno: DadosTerreno,
+): CatalogoItem[] {
+  return catalogo.filter((mod) =>
+    verificarElegibilidadeCasa(terreno, dimsCasaFromCatalogo(mod)).elegivel,
+  );
+}
+
+const TOPOGRAFIA_LABEL: Record<string, string> = {
+  aclive: 'Aclive',
+  declive: 'Declive',
+  plano: 'Plano',
+};
+
+export type TopografiaLote = (typeof CHAVES_TOPOGRAFIA_LOTE)[number];
+
+/** Topografia marcada no lote (plano / aclive / declive — mutuamente exclusivos). */
+export function resolverTopografiaLote(
+  atributosLote: AtributosLoteRespostas,
+): TopografiaLote | null {
+  for (const chave of CHAVES_TOPOGRAFIA_LOTE) {
+    if (atributosLote[chave] === true) return chave;
+  }
+  return null;
+}
+
+function normalizeTopografiaCatalogo(raw: string | null | undefined): TopografiaLote | null {
+  const t = String(raw ?? '').trim().toLowerCase();
+  if (t === 'plano' || t === 'aclive' || t === 'declive') return t;
+  return null;
+}
+
+function labelTopografia(raw: string | null | undefined): string {
+  const t = String(raw ?? '').trim().toLowerCase();
+  if (!t) return '—';
+  return TOPOGRAFIA_LABEL[t] ?? raw!.trim();
+}
+
+function roundNota(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 10) / 10;
+}
+
+function filtrarCatalogoPorTopografia(
+  catalogo: CatalogoItem[],
+  atributosLote: AtributosLoteRespostas,
+): CatalogoItem[] {
+  const topografiaLote = resolverTopografiaLote(atributosLote);
+  if (!topografiaLote) return catalogo;
+  return catalogo.filter(
+    (mod) => normalizeTopografiaCatalogo(mod.topografia) === topografiaLote,
+  );
+}
+
+function compararRankingModelo(a: RankingModeloPreBatalha, b: RankingModeloPreBatalha): number {
+  if (b.notaFinal !== a.notaFinal) return b.notaFinal - a.notaFinal;
+  if (b.notaLote !== a.notaLote) return b.notaLote - a.notaLote;
+  if (b.notaPrecoMedia !== a.notaPrecoMedia) return b.notaPrecoMedia - a.notaPrecoMedia;
+  if (b.notaProdutoMedia !== a.notaProdutoMedia) return b.notaProdutoMedia - a.notaProdutoMedia;
+  return a.modelo.localeCompare(b.modelo, 'pt-BR');
+}
+
+function gerarBatalhasModeloAnuncio(
+  catalogoFiltrado: CatalogoItem[],
+  casasFaixa: CasaRowPreBatalha[],
+  notaLote: number,
+  produtoDadosPorAnuncio: Record<string, ProdutoDadosPar | undefined>,
+): BatalhaModeloAnuncioPreBatalha[] {
+  const notaLoteR = roundNota(notaLote);
+  const batalhas: BatalhaModeloAnuncioPreBatalha[] = [];
+
+  for (const mod of catalogoFiltrado) {
+    const precoIncKitMoni = getPrecoIncMaisKitMoni(mod);
+    const modelo = mod.nome?.trim() || mod.id.slice(0, 8);
+    const topografia = labelTopografia(mod.topografia);
+
+    for (const c of casasFaixa) {
+      const notaPreco = roundNota(
+        notaPrecoPreBatalhaContraAnuncio(precoIncKitMoni, c.preco),
+      );
+      const notaProduto = roundNota(
+        notaProdutoContraAnuncio(mod, c, produtoDadosPorAnuncio[c.id]),
+      );
+      batalhas.push({
+        catalogoId: mod.id,
+        modelo,
+        topografia,
+        anuncioId: c.id,
+        condominio: c.condominio?.trim() || '—',
+        precoAnuncio: c.preco ?? 0,
+        precoIncKitMoni,
+        notaLote: notaLoteR,
+        notaPreco,
+        notaProduto,
+        notaFinalLinha: roundNota(notaFinalBatalha(notaLoteR, notaPreco, notaProduto)),
+      });
+    }
+  }
+
+  return batalhas.sort(
+    (a, b) =>
+      a.modelo.localeCompare(b.modelo, 'pt-BR') ||
+      a.condominio.localeCompare(b.condominio, 'pt-BR'),
+  );
+}
+
+function rankearModelosContraAnuncios(
+  catalogoFiltrado: CatalogoItem[],
+  casasFaixa: CasaRowPreBatalha[],
+  notaLote: number,
+  faixa: FaixaMercado | undefined,
+  produtoDadosPorAnuncio: Record<string, ProdutoDadosPar | undefined>,
+): RankingModeloPreBatalha[] {
+  const rankings = catalogoFiltrado.map((mod) => {
+    const precoIncKitMoni = getPrecoIncMaisKitMoni(mod);
+
+    const notasPorAnuncio: AnuncioAmeacadorPreBatalha[] = casasFaixa.map((c) => {
+      const dados = produtoDadosPorAnuncio[c.id];
+      const notaPreco = notaPrecoPreBatalhaContraAnuncio(precoIncKitMoni, c.preco);
+      const notaProduto = notaProdutoContraAnuncio(mod, c, dados);
+      return {
+        id: c.id,
+        condominio: c.condominio?.trim() || '—',
+        preco: c.preco ?? 0,
+        notaPreco: roundNota(notaPreco),
+        notaProduto: roundNota(notaProduto),
+      };
+    });
+
+    const notaPrecoMedia =
+      notasPorAnuncio.length > 0
+        ? roundNota(
+            notasPorAnuncio.reduce((s, a) => s + a.notaPreco, 0) / notasPorAnuncio.length,
+          )
+        : 0;
+
+    const notaProdutoMedia =
+      notasPorAnuncio.length > 0
+        ? roundNota(
+            notasPorAnuncio.reduce((s, a) => s + a.notaProduto, 0) / notasPorAnuncio.length,
+          )
+        : 0;
+
+    const notaFinal = roundNota(notaFinalBatalha(notaLote, notaPrecoMedia, notaProdutoMedia));
+
+    const anunciosAmeacadores = [...notasPorAnuncio]
+      .sort(
+        (a, b) =>
+          a.notaPreco + a.notaProduto - (b.notaPreco + b.notaProduto) ||
+          a.condominio.localeCompare(b.condominio, 'pt-BR'),
+      )
+      .slice(0, 3);
+
+    return {
+      catalogoId: mod.id,
+      modelo: mod.nome?.trim() || mod.id.slice(0, 8),
+      topografia: labelTopografia(mod.topografia),
+      faixa,
+      notaLote: roundNota(notaLote),
+      notaPrecoMedia,
+      notaProdutoMedia,
+      notaFinal,
+      precoIncKitMoni,
+      anunciosAmeacadores,
+    };
+  });
+
+  return rankings.sort(compararRankingModelo);
+}
+
+export type CalcularRankingModelosOpts = {
+  /** Design/idade (ou banheiros/vagas manuais) por anúncio — chave = listing id. */
+  produtoDadosPorAnuncio?: Record<string, ProdutoDadosPar | undefined>;
+  /** Dimensões do lote + recuos do condomínio — filtra modelos que não cabem no terreno útil. */
+  terreno?: DadosTerreno;
+};
+
+function prepararCatalogoComGeometria(
+  catalogoFiltrado: CatalogoItem[],
+  terreno?: DadosTerreno,
+): { catalogoParaRank: CatalogoItem[]; inelegiveis: ModeloInelegivelGeometria[] } {
+  if (!terrenoComDimensoesParaFiltrar(terreno)) {
+    return { catalogoParaRank: catalogoFiltrado, inelegiveis: [] };
+  }
+  return {
+    inelegiveis: listarInelegiveisGeometria(catalogoFiltrado, terreno),
+    catalogoParaRank: filtrarCatalogoElegivelGeometria(catalogoFiltrado, terreno),
+  };
+}
+
+/**
+ * Ranqueia modelos por faixa de mercado do mapa de competidores.
+ * Cada faixa batalha todos os anúncios daquela faixa (Preço INC+Kit + Produto + Lote).
+ */
+export function calcularRankingPreBatalhaPorFaixas(
+  casas: CasaRowPreBatalha[],
+  catalogo: CatalogoItem[],
+  atributosLote: AtributosLoteRespostas,
+  opts?: CalcularRankingModelosOpts,
+): RankingPorFaixaMercado[] {
+  if (casas.length === 0 || catalogo.length === 0) return [];
+
+  const notaLote = notaAtributosLote(atributosLote);
+  const produtoDadosPorAnuncio = opts?.produtoDadosPorAnuncio ?? {};
+  const catalogoTopografia = filtrarCatalogoPorTopografia(catalogo, atributosLote);
+  if (catalogoTopografia.length === 0) return [];
+
+  const { catalogoParaRank: catalogoFiltrado } = prepararCatalogoComGeometria(
+    catalogoTopografia,
+    opts?.terreno,
+  );
+  if (catalogoFiltrado.length === 0) return [];
+
+  const casasComFaixa = classificarFaixasMercado(casas);
+  const porFaixa = new Map<FaixaMercado, CasaRowPreBatalha[]>();
+  for (const c of casasComFaixa) {
+    const lista = porFaixa.get(c.faixa) ?? [];
+    lista.push(c);
+    porFaixa.set(c.faixa, lista);
+  }
+
+  const grupos: RankingPorFaixaMercado[] = [];
+  for (const faixa of ORDEM_FAIXAS_MERCADO) {
+    const casasFaixa = porFaixa.get(faixa);
+    if (!casasFaixa?.length) continue;
+
+    const catalogoFaixa = filtrarCatalogoPorFaixaModelo(catalogoFiltrado, faixa);
+    if (catalogoFaixa.length === 0) continue;
+
+    const ranking = rankearModelosContraAnuncios(
+      catalogoFaixa,
+      casasFaixa,
+      notaLote,
+      faixa,
+      produtoDadosPorAnuncio,
+    );
+    if (ranking.length === 0) continue;
+
+    const batalhas = gerarBatalhasModeloAnuncio(
+      catalogoFaixa,
+      casasFaixa,
+      notaLote,
+      produtoDadosPorAnuncio,
+    );
+
+    grupos.push({
+      faixa,
+      faixaLabel: labelFaixaMercado(faixa),
+      quantidadeAnuncios: casasFaixa.length,
+      batalhas,
+      ranking,
+    });
+  }
+
+  return grupos;
+}
+
+/** Lista plana (1ª ocorrência por modelo, ordem faixa → rank). */
+export function flattenRankingPreBatalhaPorFaixas(
+  grupos: RankingPorFaixaMercado[],
+): RankingModeloPreBatalha[] {
+  const seen = new Set<string>();
+  const out: RankingModeloPreBatalha[] = [];
+  for (const g of grupos) {
+    for (const item of g.ranking) {
+      if (seen.has(item.catalogoId)) continue;
+      seen.add(item.catalogoId);
+      out.push(item);
+    }
+  }
+  return out;
+}
+
+/**
+ * @deprecated Preferir `calcularRankingPreBatalhaPorFaixas`. Mantém compatibilidade agregando todas as faixas.
+ */
+export function calcularRankingModelos(
+  casas: CasaRowPreBatalha[],
+  catalogo: CatalogoItem[],
+  atributosLote: AtributosLoteRespostas,
+  opts?: CalcularRankingModelosOpts,
+  terrenoArg?: DadosTerreno,
+): ResultadoCalcularRankingModelos {
+  const terreno = terrenoArg ?? opts?.terreno;
+  const optsComTerreno = terreno ? { ...opts, terreno } : opts;
+
+  if (casas.length === 0 || catalogo.length === 0) {
+    return { ranking: [], inelegiveis: [] };
+  }
+
+  const catalogoTopografia = filtrarCatalogoPorTopografia(catalogo, atributosLote);
+  if (catalogoTopografia.length === 0) {
+    return { ranking: [], inelegiveis: [] };
+  }
+
+  const { catalogoParaRank, inelegiveis } = prepararCatalogoComGeometria(catalogoTopografia, terreno);
+  if (catalogoParaRank.length === 0) {
+    return { ranking: [], inelegiveis };
+  }
+
+  const grupos = calcularRankingPreBatalhaPorFaixas(
+    casas,
+    catalogoParaRank,
+    atributosLote,
+    optsComTerreno,
+  );
+  if (grupos.length === 0 && casas.length > 0 && catalogoParaRank.length > 0) {
+    const notaLote = notaAtributosLote(atributosLote);
+    const ranking = rankearModelosContraAnuncios(
+      catalogoParaRank,
+      casas,
+      notaLote,
+      undefined,
+      opts?.produtoDadosPorAnuncio ?? {},
+    );
+    return { ranking, inelegiveis };
+  }
+  return { ranking: flattenRankingPreBatalhaPorFaixas(grupos), inelegiveis };
+}
+
+/** Rótulo de compatibilidade a partir da nota final Pré Batalha (não do score 0–100 legado). */
+export function labelCompatibilidade(nota: number): string {
+  if (nota >= 1.5) return 'Alta';
+  if (nota >= 0) return 'Média';
+  return 'Baixa';
+}
+
+export type BadgeCompatibilidade = {
+  label: string;
+  className: string;
+};
+
+/** Classes Tailwind para badge Alta (verde) / Média (amarelo) / Baixa (vermelho). */
+export function badgeCompatibilidade(nota: number): BadgeCompatibilidade {
+  const label = labelCompatibilidade(nota);
+  if (label === 'Alta') {
+    return {
+      label,
+      className: 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-300',
+    };
+  }
+  if (label === 'Média') {
+    return {
+      label,
+      className: 'bg-amber-100 text-amber-900 ring-1 ring-amber-300',
+    };
+  }
+  return {
+    label,
+    className: 'bg-red-100 text-red-800 ring-1 ring-red-300',
+  };
+}
+
+export function formatPrecoAnuncio(preco: number): string {
+  if (!Number.isFinite(preco) || preco <= 0) return '—';
+  return preco.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 0,
+  });
+}
+
+// --- Legado: score 0–100 (mapa / UI antiga) — preferir `calcularRankingPreBatalhaPorFaixas`. ---
 
 export type ModeloCatalogoCompat = {
   id: string;
@@ -52,7 +632,7 @@ function notaPrecoRapida(precoM2Modelo: number | null, precoM2Listing: number | 
   return 2;
 }
 
-/** 0–100 — maior = melhor aderência ao mercado da listagem. */
+/** 0–100 — maior = melhor aderência ao mercado da listagem (legado). */
 export function scoreCompatibilidadeModelo(
   modelo: ModeloCatalogoCompat,
   casas: ListingCompat[],
@@ -86,7 +666,8 @@ export function ordenarCatalogoPorCompatibilidade<T extends ModeloCatalogoCompat
     });
 }
 
-export function labelCompatibilidade(score: number): string {
+/** Rótulo para score legado 0–100 (`scoreCompatibilidadeModelo`). */
+export function labelCompatibilidadeScore(score: number): string {
   if (score >= 75) return 'Alta';
   if (score >= 50) return 'Média';
   if (score >= 25) return 'Baixa';

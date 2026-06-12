@@ -13,22 +13,47 @@ import { applyZapLotesSave, verifyProcessoLotesAccess, type ZapLoteItem } from '
 import type { BcaInputs } from '@/lib/bca-calc';
 import { KANBAN_IDS, FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import {
-  type AtributosLoteRespostas,
   ATRIBUTOS_LOTE,
+  type AtributosLoteRespostas,
+  type AtributosLoteIds,
+  atributosRespostasFromLoteDisponivel,
+  parseAtributosLoteRespostas,
 } from './REGRAS_BATALHA';
+import {
+  calcularRankingModelos,
+  calcularRankingPreBatalhaPorFaixas,
+  flattenRankingPreBatalhaPorFaixas,
+  type DadosTerreno,
+  type RankingPorFaixaMercado,
+} from '@/lib/kanban/pre-batalha-compatibilidade';
+import { LOTES_DISPONIVEIS_CHECKBOXES } from '@/lib/kanban/lotes-disponiveis-condominio';
+import { parseDecimalInput } from '@/lib/condominios';
+import type { LinhaProspectCondominio } from '@/lib/kanban/condominio-prospect-pesquisa';
+import {
+  PRE_BATALHA_CHECKLIST_LABEL_APLICADA,
+  PRE_BATALHA_CHECKLIST_LABEL_RANKING,
+  formatPreBatalhaChecklistCompleto,
+} from '@/lib/kanban/pre-batalha-checklist';
 
 export type SaveEtapa1Result = { ok: true } | { ok: false; error: string };
 
 /** Fase Lotes Disponíveis (Funil Step One) — PROD UUID; fallback se slug lookup falhar. */
 const STEP_ONE_LOTES_DISPONIVEIS_FASE_ID = 'a6afabd9-2409-49a7-ab11-d2df4d3784e7';
 
-/** Itens ordem 8–12 do checklist lotes_disponiveis → ids em REGRAS_BATALHA.ATRIBUTOS_LOTE. */
-const CHECKLIST_ORDEM_TO_ATRIBUTO: Record<number, (typeof ATRIBUTOS_LOTE)[number]['id']> = {
-  8: 'vista',
-  9: 'area_verde',
-  10: 'muro',
-  11: 'area_convivencia',
-  12: 'lixeira',
+/** Checklist legado (label) → id em ATRIBUTOS_LOTE; canônicos vêm de LOTES_DISPONIVEIS_CHECKBOXES. */
+const LEGACY_CHECKLIST_LABEL_ALIASES: Record<string, AtributosLoteIds> = {
+  'Terreno aclive acentuado': 'aclive',
+  'Terreno declive acentuado': 'declive',
+  'Fundo mata': 'fundo_mata',
+  'Frente mata': 'frente_mata',
+  'Fundo lago': 'fundo_lago',
+  'Frente lago': 'frente_lago',
+  'Perto da portaria': 'portaria',
+};
+
+const CHECKLIST_LABEL_TO_ATRIBUTO: Record<string, AtributosLoteIds> = {
+  ...Object.fromEntries(LOTES_DISPONIVEIS_CHECKBOXES.map(({ chave, label }) => [label, chave])),
+  ...LEGACY_CHECKLIST_LABEL_ALIASES,
 };
 
 /**
@@ -52,35 +77,19 @@ async function resolveStepOneKanbanCardIds(
   return [...ids];
 }
 
-function loteDisponivelParaAtributosBatalha(lote: import('@/lib/kanban/lotes-disponiveis-condominio').LinhaLoteDisponivel): AtributosLoteRespostas {
-  const atributos: AtributosLoteRespostas = {};
-  if (lote.vista_privilegiada === 'true') atributos.vista = true;
-  if (lote.perto_area_verde === 'true') atributos.area_verde = true;
-  if (lote.muro === 'true') atributos.muro = true;
-  if (lote.perto_area_convivencia === 'true') atributos.area_convivencia = true;
-  if (lote.perto_lixeira === 'true') atributos.lixeira = true;
-  return atributos;
-}
-
 /** Pré-preenche Atributos do Lote a partir da fase lotes_disponiveis (Step One). */
 export async function getAtributosLoteFromStepOneChecklist(
   processoId: string,
+  options?: { cardId?: string },
 ): Promise<{ ok: true; atributos: AtributosLoteRespostas } | { ok: false; error: string }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Faça login.' };
+  const access = await verifyProcessoCasasAccess(processoId);
+  if (!access.ok) return { ok: false, error: access.error };
+  const supabase = access.supabase;
 
-  const { data: processo } = await supabase
-    .from('processo_step_one')
-    .select('id')
-    .eq('id', processoId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  if (!processo) return { ok: false, error: 'Processo não encontrado.' };
-
-  const cardIds = await resolveStepOneKanbanCardIds(supabase, processoId);
+  const cardIdsSet = new Set(await resolveStepOneKanbanCardIds(supabase, processoId));
+  const hint = options?.cardId?.trim();
+  if (hint) cardIdsSet.add(hint);
+  const cardIds = [...cardIdsSet];
   if (cardIds.length === 0) return { ok: true, atributos: {} };
 
   const { data: fase } = await supabase
@@ -93,11 +102,11 @@ export async function getAtributosLoteFromStepOneChecklist(
 
   const { data: itens, error: errItens } = await supabase
     .from('kanban_fase_checklist_itens')
-    .select('id, ordem, tipo')
+    .select('id, ordem, tipo, label')
     .eq('fase_id', faseId);
   if (errItens) return { ok: false, error: errItens.message };
 
-  const itemRows = (itens ?? []) as { id: string; ordem: number; tipo: string }[];
+  const itemRows = (itens ?? []) as { id: string; ordem: number; tipo: string; label: string }[];
   const usaLotesPorCondominio = itemRows.some((i) => i.tipo === 'lotes_condominio');
 
   if (usaLotesPorCondominio) {
@@ -113,7 +122,7 @@ export async function getAtributosLoteFromStepOneChecklist(
           ? [escolhido]
           : (linha.lotes_disponiveis ?? []);
         for (const lote of lotesPrioridade) {
-          const atributos = loteDisponivelParaAtributosBatalha(lote);
+          const atributos = atributosRespostasFromLoteDisponivel(lote);
           if (Object.keys(atributos).length > 0) return { ok: true, atributos };
         }
       }
@@ -121,10 +130,11 @@ export async function getAtributosLoteFromStepOneChecklist(
     return { ok: true, atributos: {} };
   }
 
-  const legacyItens = itemRows.filter((i) => i.ordem >= 8 && i.ordem <= 12);
-  if (legacyItens.length === 0) return { ok: true, atributos: {} };
+  const legacyItens = itemRows.filter((i) => i.tipo === 'checkbox' && i.label.trim() in CHECKLIST_LABEL_TO_ATRIBUTO);
+  const legacyMuro = itemRows.find((i) => i.tipo === 'checkbox' && i.label.trim() === 'Muro');
+  if (legacyItens.length === 0 && !legacyMuro) return { ok: true, atributos: {} };
 
-  const itemIds = legacyItens.map((i) => i.id);
+  const itemIds = [...legacyItens.map((i) => i.id), ...(legacyMuro ? [legacyMuro.id] : [])];
   const { data: respostas, error: errResp } = await supabase
     .from('kanban_fase_checklist_respostas')
     .select('item_id, valor')
@@ -139,14 +149,404 @@ export async function getAtributosLoteFromStepOneChecklist(
 
   const atributos: AtributosLoteRespostas = {};
   for (const item of legacyItens) {
-    const atributoId = CHECKLIST_ORDEM_TO_ATRIBUTO[item.ordem];
+    const atributoId = CHECKLIST_LABEL_TO_ATRIBUTO[item.label.trim()];
     if (!atributoId) continue;
     if (valorPorItem.get(item.id) === 'true') {
       atributos[atributoId] = true;
     }
   }
+  if (legacyMuro && valorPorItem.get(legacyMuro.id) === 'true') {
+    // TODO: migrar respostas legadas de muro
+  }
 
   return { ok: true, atributos };
+}
+
+function parseNumeroTerreno(valor: string | number | null | undefined): number | null {
+  if (typeof valor === 'number') return Number.isFinite(valor) ? valor : null;
+  const t = String(valor ?? '').trim();
+  if (!t) return null;
+  return parseDecimalInput(t) ?? (Number.isFinite(Number(t)) ? Number(t) : null);
+}
+
+function recuosFromLinhaProspect(linha: LinhaProspectCondominio | null): {
+  recuo_frontal_m: number | null;
+  recuo_fundo_m: number | null;
+  recuo_lateral_m: number | null;
+} {
+  return {
+    recuo_frontal_m: parseNumeroTerreno(linha?.recuo_frontal_m),
+    recuo_fundo_m: parseNumeroTerreno(linha?.recuo_fundo_m),
+    recuo_lateral_m: parseNumeroTerreno(linha?.recuo_lateral_m),
+  };
+}
+
+async function buscarRecuosCondominioDb(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  condominioId: string | null,
+  linha: LinhaProspectCondominio | null,
+): Promise<{
+  recuo_frontal_m: number | null;
+  recuo_fundo_m: number | null;
+  recuo_lateral_m: number | null;
+}> {
+  const fallback = recuosFromLinhaProspect(linha);
+  const id = condominioId?.trim();
+  if (!id) return fallback;
+
+  const { data, error } = await supabase
+    .from('condominios')
+    .select('recuo_frontal_m, recuo_fundo_m, recuo_lateral_m')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error || !data) return fallback;
+
+  const row = data as {
+    recuo_frontal_m?: number | null;
+    recuo_fundo_m?: number | null;
+    recuo_lateral_m?: number | null;
+  };
+
+  return {
+    recuo_frontal_m: row.recuo_frontal_m ?? fallback.recuo_frontal_m,
+    recuo_fundo_m: row.recuo_fundo_m ?? fallback.recuo_fundo_m,
+    recuo_lateral_m: row.recuo_lateral_m ?? fallback.recuo_lateral_m,
+  };
+}
+
+/** Lote escolhido + recuos do condomínio para elegibilidade geométrica na Pré Batalha. */
+export async function getDadosTerrenoFromStepOneChecklist(
+  processoId: string,
+  options?: { cardId?: string },
+): Promise<{ ok: true; terreno: DadosTerreno } | { ok: false; error: string }> {
+  const access = await verifyProcessoCasasAccess(processoId);
+  if (!access.ok) return { ok: false, error: access.error };
+  const supabase = access.supabase;
+
+  const cardIdsSet = new Set(await resolveStepOneKanbanCardIds(supabase, processoId));
+  const hint = options?.cardId?.trim();
+  if (hint) cardIdsSet.add(hint);
+  const cardIds = [...cardIdsSet];
+
+  const terrenoVazio: DadosTerreno = {
+    dimensao_frente_m: null,
+    dimensao_lado_esquerdo_m: null,
+    recuo_frontal_m: null,
+    recuo_fundo_m: null,
+    recuo_lateral_m: null,
+  };
+
+  if (cardIds.length === 0) return { ok: true, terreno: terrenoVazio };
+
+  const { carregarLoteEscolhidoCard } = await import('@/lib/actions/kanban-lotes-disponiveis');
+
+  for (const cardId of cardIds) {
+    const loaded = await carregarLoteEscolhidoCard(cardId);
+    if (!loaded.ok || !loaded.ctx) continue;
+
+    const { lote, linha } = loaded.ctx;
+    let dimensao_frente_m = parseNumeroTerreno(lote.dimensao_frente_m);
+    let dimensao_lado_esquerdo_m = parseNumeroTerreno(lote.dimensao_lado_esquerdo_m);
+    let condominioId = linha.condominio_id?.trim() || null;
+
+    if (lote.cadastro_lote_id?.trim()) {
+      const { data: rowLote } = await supabase
+        .from('condominios_lotes')
+        .select('dimensao_frente_m, dimensao_lado_esquerdo_m, condominio_id')
+        .eq('id', lote.cadastro_lote_id.trim())
+        .maybeSingle();
+
+      if (rowLote) {
+        const db = rowLote as {
+          dimensao_frente_m?: number | null;
+          dimensao_lado_esquerdo_m?: number | null;
+          condominio_id?: string | null;
+        };
+        dimensao_frente_m = dimensao_frente_m ?? parseNumeroTerreno(db.dimensao_frente_m);
+        dimensao_lado_esquerdo_m =
+          dimensao_lado_esquerdo_m ?? parseNumeroTerreno(db.dimensao_lado_esquerdo_m);
+        condominioId = condominioId ?? db.condominio_id?.trim() ?? null;
+      }
+    }
+
+    const recuos = await buscarRecuosCondominioDb(supabase, condominioId, linha);
+
+    return {
+      ok: true,
+      terreno: {
+        dimensao_frente_m,
+        dimensao_lado_esquerdo_m,
+        recuo_frontal_m: recuos.recuo_frontal_m,
+        recuo_fundo_m: recuos.recuo_fundo_m,
+        recuo_lateral_m: recuos.recuo_lateral_m,
+      },
+    };
+  }
+
+  return { ok: true, terreno: terrenoVazio };
+}
+
+const BATALHA_FASE_SLUGS = [FASE_SLUGS.BATALHA, 'stepone_batalha', FASE_SLUGS.PRE_BATALHA] as const;
+
+async function resolveStepOneKanbanCardId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  processoId: string,
+): Promise<string> {
+  const { data: cardNativo } = await supabase
+    .from('kanban_cards')
+    .select('id')
+    .eq('projeto_id', processoId)
+    .eq('kanban_id', KANBAN_IDS.STEP_ONE)
+    .limit(1)
+    .maybeSingle();
+  if (cardNativo?.id) return cardNativo.id as string;
+
+  const { data: cardLegado } = await supabase
+    .from('kanban_cards')
+    .select('id')
+    .eq('id', processoId)
+    .maybeSingle();
+  return (cardLegado?.id as string | undefined) ?? processoId;
+}
+
+async function resolveKanbanCardIdForPreBatalha(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  processoId: string,
+  cardIdHint?: string,
+): Promise<string> {
+  const hint = cardIdHint?.trim();
+  if (hint) {
+    const { data: byHint } = await supabase
+      .from('kanban_cards')
+      .select('id, projeto_id')
+      .eq('id', hint)
+      .maybeSingle();
+    if (byHint?.id) {
+      const projetoId = String((byHint as { projeto_id?: string | null }).projeto_id ?? '').trim();
+      if (!projetoId || projetoId === processoId || String(byHint.id) === processoId) {
+        return String(byHint.id);
+      }
+    }
+  }
+  return resolveStepOneKanbanCardId(supabase, processoId);
+}
+
+async function buscarFaseBatalhaId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from('kanban_fases')
+    .select('id, slug')
+    .eq('kanban_id', KANBAN_IDS.STEP_ONE)
+    .in('slug', [...BATALHA_FASE_SLUGS]);
+  if (!data?.length) return null;
+  for (const slug of BATALHA_FASE_SLUGS) {
+    const hit = (data as { id: string; slug: string }[]).find((f) => f.slug === slug);
+    if (hit) return hit.id;
+  }
+  return (data[0] as { id: string }).id;
+}
+
+/**
+ * Após ranking Pré Batalha: marca checklist da fase batalha e preenche resumo do ranking.
+ * Idempotente — checkbox só se ainda não marcado; texto do ranking só se campo vazio.
+ */
+export async function autoMarcarChecklistPosRankingPreBatalha(
+  processoId: string,
+  gruposRanking: RankingPorFaixaMercado[],
+  options?: { cardId?: string; faseId?: string; forceAtualizarRanking?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const totalItens = gruposRanking.reduce((s, g) => s + g.ranking.length, 0);
+  if (totalItens === 0) return { ok: true };
+
+  const access = await verifyProcessoCasasAccess(processoId);
+  if (!access.ok) return { ok: false, error: access.error };
+  const supabase = access.supabase;
+
+  const authClient = await createClient();
+  const {
+    data: { user },
+  } = await authClient.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const cardId = await resolveKanbanCardIdForPreBatalha(supabase, processoId, options?.cardId);
+  const faseId = options?.faseId?.trim() || (await buscarFaseBatalhaId(supabase));
+  if (!faseId) {
+    console.warn(
+      '[pre-batalha] Fase batalha não encontrada no Funil Step One — checklist não atualizado.',
+    );
+    return { ok: false, error: 'Fase Pré Batalha não encontrada no kanban.' };
+  }
+
+  const labels = [PRE_BATALHA_CHECKLIST_LABEL_APLICADA, PRE_BATALHA_CHECKLIST_LABEL_RANKING];
+  const { data: itens, error: errItens } = await supabase
+    .from('kanban_fase_checklist_itens')
+    .select('id, label, tipo')
+    .eq('fase_id', faseId)
+    .in('label', labels);
+  if (errItens) return { ok: false, error: errItens.message };
+
+  const itemPorLabel = new Map(
+    ((itens ?? []) as { id: string; label: string; tipo: string }[]).map((i) => [i.label, i]),
+  );
+
+  for (const label of labels) {
+    if (!itemPorLabel.has(label)) {
+      console.warn(
+        `[pre-batalha] Item de checklist "${label}" não encontrado na fase batalha (card ${cardId}).`,
+      );
+    }
+  }
+
+  const itemIds = [...itemPorLabel.values()].map((i) => i.id);
+  const valorPorItem = new Map<string, string>();
+  if (itemIds.length > 0) {
+    const { data: respostas } = await supabase
+      .from('kanban_fase_checklist_respostas')
+      .select('item_id, valor')
+      .eq('card_id', cardId)
+      .in('item_id', itemIds);
+    for (const r of (respostas ?? []) as { item_id: string; valor: string | null }[]) {
+      if (r.valor != null) valorPorItem.set(r.item_id, r.valor);
+    }
+  }
+
+  const now = new Date().toISOString();
+
+  async function upsertResposta(itemId: string, valor: string): Promise<{ ok: false; error: string } | null> {
+    const { error } = await supabase.from('kanban_fase_checklist_respostas').upsert(
+      {
+        item_id: itemId,
+        card_id: cardId,
+        valor,
+        preenchido_por: user!.id,
+        preenchido_em: now,
+      },
+      { onConflict: 'item_id,card_id' },
+    );
+    if (error) return { ok: false, error: error.message };
+    return null;
+  }
+
+  const itemAplicada = itemPorLabel.get(PRE_BATALHA_CHECKLIST_LABEL_APLICADA);
+  if (itemAplicada) {
+    const atual = valorPorItem.get(itemAplicada.id)?.trim();
+    if (atual !== 'true') {
+      const err = await upsertResposta(itemAplicada.id, 'true');
+      if (err) return err;
+    }
+  }
+
+  const itemRanking = itemPorLabel.get(PRE_BATALHA_CHECKLIST_LABEL_RANKING);
+  if (itemRanking) {
+    const atual = valorPorItem.get(itemRanking.id)?.trim();
+    const texto = formatPreBatalhaChecklistCompleto(gruposRanking);
+    if ((!atual || options?.forceAtualizarRanking) && atual !== texto) {
+      const err = await upsertResposta(itemRanking.id, texto);
+      if (err) return err;
+    }
+  }
+
+  return { ok: true };
+}
+
+function atributosLoteRespostasVazio(resp: AtributosLoteRespostas): boolean {
+  return !ATRIBUTOS_LOTE.some((a) => resp[a.id] === true);
+}
+
+/**
+ * Calcula ranking Pré Batalha server-side e preenche checklist no modal Kanban.
+ * Disparado ao abrir a fase Pré Batalha — idempotente.
+ */
+export async function sincronizarChecklistPreBatalhaKanban(input: {
+  cardId: string;
+  processoId: string;
+  faseId?: string;
+}): Promise<
+  | { ok: true; rankingCount: number; grupos: RankingPorFaixaMercado[] }
+  | { ok: false; error: string }
+> {
+  const cardId = input.cardId?.trim();
+  const processoId = input.processoId?.trim();
+  if (!cardId || !processoId) return { ok: false, error: 'Parâmetros inválidos.' };
+
+  const access = await verifyProcessoCasasAccess(processoId);
+  if (!access.ok) return { ok: false, error: access.error };
+  const supabase = access.supabase;
+
+  const { data: casasRows, error: errCasas } = await supabase
+    .from('listings_casas')
+    .select(
+      'id, condominio, quartos, banheiros, vagas, preco, area_casa_m2, piscina, marcenaria',
+    )
+    .eq('processo_id', processoId)
+    .order('created_at', { ascending: false });
+  if (errCasas) return { ok: false, error: errCasas.message };
+
+  const casas = casasRows ?? [];
+  if (casas.length === 0) return { ok: true, rankingCount: 0, grupos: [] };
+
+  const { data: catRows, error: errCat } = await supabase
+    .from('catalogo_casas')
+    .select(
+      'id, nome, quartos, banheiros, vagas, preco_custo, preco_custo_m2, preco_venda_m2, area_m2, preco_venda, topografia, dimensao_x_m, dimensao_y_m, area_perimetro_m2',
+    )
+    .eq('ativo', true);
+  if (errCat) return { ok: false, error: errCat.message };
+
+  const catalogo = catRows ?? [];
+  if (catalogo.length === 0) return { ok: true, rankingCount: 0, grupos: [] };
+
+  const attrResult = await getAtributosLoteFromStepOneChecklist(processoId, { cardId });
+  const atributos = attrResult.ok ? attrResult.atributos : {};
+  const atributosParaRanking = atributosLoteRespostasVazio(atributos) ? {} : atributos;
+
+  const terrenoResult = await getDadosTerrenoFromStepOneChecklist(processoId, { cardId });
+  const terreno = terrenoResult.ok ? terrenoResult.terreno : undefined;
+
+  const gruposRanking = calcularRankingPreBatalhaPorFaixas(
+    (
+      casas as {
+        id: string;
+        condominio: string | null;
+        quartos: number | null;
+        banheiros: number | null;
+        vagas: number | null;
+        preco: number | null;
+        area_casa_m2: number | null;
+        piscina?: boolean | null;
+        marcenaria?: boolean | null;
+      }[]
+    ).map((c) => ({
+      id: c.id,
+      condominio: c.condominio,
+      quartos: c.quartos,
+      banheiros: c.banheiros,
+      vagas: c.vagas,
+      preco: c.preco,
+      area_casa_m2: c.area_casa_m2,
+      piscina: c.piscina,
+      marcenaria: c.marcenaria,
+    })),
+    catalogo,
+    atributosParaRanking,
+    { terreno },
+  );
+
+  if (gruposRanking.length === 0) return { ok: true, rankingCount: 0, grupos: [] };
+
+  const mark = await autoMarcarChecklistPosRankingPreBatalha(
+    processoId,
+    gruposRanking,
+    { cardId, faseId: input.faseId, forceAtualizarRanking: true },
+  );
+  if (!mark.ok) return mark;
+  return {
+    ok: true,
+    rankingCount: flattenRankingPreBatalhaPorFaixas(gruposRanking).length,
+    grupos: gruposRanking,
+  };
 }
 
 export async function saveEtapa1(

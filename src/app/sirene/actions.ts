@@ -443,34 +443,35 @@ export async function getTopicosChamado(chamadoId: number): Promise<GetTopicosPa
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Faça login.' };
 
-  const { data: direct, error: directErr } = await supabase
-    .from('sirene_topicos')
-    .select(TOPICOS_PAINEL_SELECT)
-    .eq('chamado_id', chamadoId)
-    .eq('arquivado', false)
-    .order('ordem', { ascending: true });
+  const [directResult, kasResult] = await Promise.all([
+    supabase
+      .from('sirene_topicos')
+      .select(TOPICOS_PAINEL_SELECT)
+      .eq('chamado_id', chamadoId)
+      .eq('arquivado', false)
+      .order('ordem', { ascending: true }),
+    supabase
+      .from('kanban_atividades')
+      .select('id')
+      .eq('sirene_chamado_id', chamadoId),
+  ]);
 
-  if (directErr) return { ok: false, error: directErr.message };
-  if ((direct ?? []).length > 0) {
-    return { ok: true, topicos: mapRowsToTopicosPainel((direct ?? []) as Record<string, unknown>[]) };
+  if (directResult.error) return { ok: false, error: directResult.error.message };
+
+  let rows = (directResult.data ?? []) as Record<string, unknown>[];
+
+  if (!rows.length && (kasResult.data?.length ?? 0) > 0) {
+    const interacaoIds = kasResult.data!.map((ka) => String((ka as { id: string }).id));
+    const { data: rows2, error: err2 } = await supabase
+      .from('sirene_topicos')
+      .select(TOPICOS_PAINEL_SELECT)
+      .in('interacao_id', interacaoIds)
+      .eq('arquivado', false)
+      .order('ordem', { ascending: true });
+    if (err2) return { ok: false, error: err2.message };
+    rows = (rows2 ?? []) as Record<string, unknown>[];
   }
 
-  const { data: interacoes } = await supabase
-    .from('kanban_atividades')
-    .select('id')
-    .eq('sirene_chamado_id', chamadoId);
-  const interacaoIds = (interacoes ?? []).map((r) => String((r as { id: string }).id));
-  if (interacaoIds.length === 0) return { ok: true, topicos: [] };
-
-  const { data, error } = await supabase
-    .from('sirene_topicos')
-    .select(TOPICOS_PAINEL_SELECT)
-    .in('interacao_id', interacaoIds)
-    .eq('arquivado', false)
-    .order('ordem', { ascending: true });
-
-  if (error) return { ok: false, error: error.message };
-  const rows = (data ?? []) as Record<string, unknown>[];
   return { ok: true, topicos: mapRowsToTopicosPainel(rows) };
 }
 
@@ -1770,6 +1771,7 @@ export async function concluirChamadoCriador(
   const legadoAguardando = chamado.status === 'aguardando_aprovacao_criador';
   if (
     chamado.status !== 'em_andamento' &&
+    chamado.status !== 'nao_iniciado' &&
     !legadoAguardando
   ) {
     return { ok: false, error: 'Chamado não está em andamento.' };

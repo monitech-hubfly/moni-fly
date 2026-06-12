@@ -70,7 +70,7 @@ export function TreinamentoBcaSecaoClient({ secao, modoPublico = false, usuarioL
 
   if (modoPublico) {
     return (
-      <div className="flex min-h-[100dvh] flex-col bg-stone-100">
+      <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-stone-100">
         <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-stone-200 bg-white px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] md:px-4">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-stone-800">Treinamento BCA — modo leitura</p>
@@ -104,11 +104,11 @@ export function TreinamentoBcaSecaoClient({ secao, modoPublico = false, usuarioL
             )}
           </div>
         </header>
-        <main className="relative min-h-0 flex-1 overflow-hidden p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:p-3">
+        <main className="min-h-0 flex-1 overflow-hidden p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:p-3">
           <iframe
             title="Treinamento BCA — manual completo (leitura)"
             src={iframeSrc}
-            className="h-full min-h-[50vh] w-full flex-1 rounded-xl border border-stone-200 bg-white shadow-sm"
+            className="block h-full w-full min-h-0 rounded-xl border border-stone-200 bg-white shadow-sm"
             sandbox="allow-scripts allow-same-origin allow-forms"
           />
         </main>

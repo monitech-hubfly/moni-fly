@@ -22,6 +22,9 @@ import {
   atualizarStatusInteracaoSirene,
   listarComentariosCardSirene,
   publicarComentarioCardSirene,
+  listarComentariosSireneChamado,
+  publicarComentarioSireneChamado,
+  type AtualizarStatusInteracaoResult,
   type ComentarioCardSireneRow,
   type StatusInteracaoDb,
 } from './actions';
@@ -95,6 +98,7 @@ export type InteracaoSireneRow = {
   /** Chamado Sirene arquivado (admin/team pode exibir com toggle). */
   sirene_arquivado?: boolean;
   criado_por?: string | null;
+  sirene_prioridade?: string | null;
 };
 type TimeOpt = { id: string; nome: string };
 type RespOpt = { id: string; nome: string; email?: string | null };
@@ -179,6 +183,14 @@ function textoResponsavelPainel(
   nomePorUserId: Map<string, string>,
   topicos?: TopicoChamadoLinha[],
 ): string {
+  // For Sirene chamados, show who opened it as the primary responsible
+  if (row.origem === 'sirene') {
+    if (row.criado_por) {
+      const nome = nomePorUserId.get(row.criado_por);
+      if (nome) return nome;
+    }
+    if (row.sirene_abertura_responsavel_nome) return row.sirene_abertura_responsavel_nome;
+  }
   const ids = [
     ...new Set([...(row.responsaveis_ids ?? []), ...(row.responsavel_id ? [row.responsavel_id] : [])]),
   ].filter(Boolean) as string[];
@@ -567,18 +579,22 @@ export function InteracoesLista({
     const q = norm(applied.busca);
     return (row: InteracaoSireneRow, ocultarConcluidasPorPadrao: boolean) => {
       if (row.origem === 'sirene' && row.sirene_arquivado && !podeArquivar) return false;
-      if (
-        row.origem === 'sirene' &&
-        row.sirene_arquivado &&
-        podeArquivar &&
-        !mostrarArquivados
-      ) {
+      if (row.origem === 'sirene' && row.sirene_arquivado && podeArquivar && !mostrarArquivados) {
+        return false;
+      }
+      if (row.origem === 'sirene' && !row.sirene_arquivado && podeArquivar && mostrarArquivados) {
         return false;
       }
 
+      // Mostrar concluídos exclusivo: se marcado, mostra só concluídos; se desmarcado, oculta concluídos por padrão
+      if (applied.mostrarConcluidas && subGrupoFluxo(row) !== 'concluido') return false;
+
       if (!verTodas && currentUserId) {
         const ids = row.responsaveis_ids ?? [];
-        const mine = ids.includes(currentUserId) || row.responsavel_id === currentUserId;
+        const mine =
+          ids.includes(currentUserId) ||
+          row.responsavel_id === currentUserId ||
+          row.criado_por === currentUserId;
         if (!mine) return false;
       } else if (!verTodas && !currentUserId) {
         return false;
@@ -695,17 +711,6 @@ export function InteracoesLista({
 
 
   function onStatusChange(id: string, novo: StatusInteracaoDb) {
-    const rowForHoras = linhas.find((r) => r.id === id);
-    if (
-      rowForHoras &&
-      rowForHoras.sirene_chamado_id != null &&
-      (novo === 'concluida' || novo === 'em_andamento')
-    ) {
-      setStatusPendente({ rowId: id, status: novo });
-      setHorasModalChamado({ chamadoId: rowForHoras.sirene_chamado_id, titulo: rowForHoras.titulo });
-      return;
-    }
-
     setMsgErro(null);
     if (novo === 'em_andamento') {
       setMsgErro('O status em andamento é definido automaticamente pelas atividades.');
@@ -986,58 +991,95 @@ export function InteracoesLista({
 
   function toggleComentarios(row: InteracaoSireneRow) {
     const cid = row.card_id;
-    if (!cid) return;
+    const scid = row.sirene_chamado_id;
+    // Use sirene_chamado_id as fallback key for direct Sirene chamados
+    const commentKey = cid ?? (scid != null ? `sirene-${scid}` : null);
+    if (!commentKey) return;
     const willOpen = !commentsOpenByRow[row.id];
     setCommentsOpenByRow((p) => ({ ...p, [row.id]: willOpen }));
     if (willOpen) {
-      comentarioAtivoCardIdRef.current = cid;
+      comentarioAtivoCardIdRef.current = commentKey;
     }
-    if (willOpen && !commentsFetchedByCard[cid]) {
-      setCommentsFetchedByCard((f) => ({ ...f, [cid]: true }));
-      setCommentsLoading((l) => ({ ...l, [cid]: true }));
-      void listarComentariosCardSirene(cid).then((res) => {
-        setCommentsLoading((l) => ({ ...l, [cid]: false }));
-        if (res.ok) setCommentsByCardId((c) => ({ ...c, [cid]: res.items }));
-        else setMsgErro(res.error);
-      });
+    if (willOpen) {
+      setCommentsLoading((l) => ({ ...l, [commentKey]: true }));
+      if (cid) {
+        void listarComentariosCardSirene(cid).then((res) => {
+          setCommentsLoading((l) => ({ ...l, [commentKey]: false }));
+          if (res.ok) setCommentsByCardId((c) => ({ ...c, [commentKey]: res.items }));
+          else setMsgErro(res.error);
+        });
+      } else if (scid != null) {
+        void listarComentariosSireneChamado(scid).then((res) => {
+          setCommentsLoading((l) => ({ ...l, [commentKey]: false }));
+          if (res.ok) setCommentsByCardId((c) => ({ ...c, [commentKey]: res.items }));
+          else setMsgErro(res.error);
+        });
+      }
     }
   }
 
-  async function publicarComentario(cardId: string, row: InteracaoSireneRow) {
+  async function publicarComentario(commentKey: string, row: InteracaoSireneRow) {
     const html =
-      comentarioAtivoCardIdRef.current === cardId && comentarioEditorRef.current
+      comentarioAtivoCardIdRef.current === commentKey && comentarioEditorRef.current
         ? comentarioEditorRef.current.innerHTML.trim()
-        : (novoComentarioPorCard[cardId] ?? '').trim();
+        : (novoComentarioPorCard[commentKey] ?? '').trim();
     if (!html) return;
-    setSalvandoComentario((s) => ({ ...s, [cardId]: true }));
+    setSalvandoComentario((s) => ({ ...s, [commentKey]: true }));
     setMsgErro(null);
     try {
       const referenciaPath =
         row.sirene_chamado_id != null
-          ? `/sirene/${row.sirene_chamado_id}`
+          ? `/sirene/chamados?interacao=${encodeURIComponent(row.id)}`
           : '/sirene/chamados';
-      const res = await publicarComentarioCardSirene(cardId, html, {
-        referenciaPath,
-        contextoTitulo: row.titulo || row.card_titulo || 'Chamado',
-      });
+      let res: AtualizarStatusInteracaoResult;
+      if (row.card_id) {
+        res = await publicarComentarioCardSirene(row.card_id, html, {
+          referenciaPath,
+          contextoTitulo: row.titulo || row.card_titulo || 'Chamado',
+        });
+      } else if (row.sirene_chamado_id != null) {
+        res = await publicarComentarioSireneChamado(row.sirene_chamado_id, html, {
+          referenciaPath,
+          contextoTitulo: row.titulo || 'Chamado',
+        });
+      } else {
+        setMsgErro('Não foi possível identificar o chamado.');
+        setSalvandoComentario((s) => ({ ...s, [commentKey]: false }));
+        return;
+      }
       if (!res.ok) {
         setMsgErro(res.error);
         return;
       }
-      setNovoComentarioPorCard((m) => ({ ...m, [cardId]: '' }));
+      setNovoComentarioPorCard((m) => ({ ...m, [commentKey]: '' }));
       if (comentarioEditorRef.current) comentarioEditorRef.current.innerHTML = '';
-      setCountPatch((c) => ({ ...c, [cardId]: (c[cardId] ?? comentariosCountByCardId[cardId] ?? 0) + 1 }));
-      const list = await listarComentariosCardSirene(cardId);
-      if (list.ok) setCommentsByCardId((c) => ({ ...c, [cardId]: list.items }));
+      setCountPatch((c) => ({ ...c, [commentKey]: (c[commentKey] ?? comentariosCount(commentKey)) + 1 }));
+      // Recarrega comentários direto sem fechar o painel
+      setCommentsLoading((l) => ({ ...l, [commentKey]: true }));
+      const cid = row.card_id;
+      const scid = row.sirene_chamado_id;
+      if (cid) {
+        void listarComentariosCardSirene(cid).then((res) => {
+          setCommentsLoading((l) => ({ ...l, [commentKey]: false }));
+          if (res.ok) setCommentsByCardId((c) => ({ ...c, [commentKey]: res.items }));
+        });
+      } else if (scid != null) {
+        void listarComentariosSireneChamado(scid).then((res) => {
+          setCommentsLoading((l) => ({ ...l, [commentKey]: false }));
+          if (res.ok) setCommentsByCardId((c) => ({ ...c, [commentKey]: res.items }));
+        });
+      }
+    } catch (e) {
+      setMsgErro(String(e));
     } finally {
-      setSalvandoComentario((s) => ({ ...s, [cardId]: false }));
+      setSalvandoComentario((s) => ({ ...s, [commentKey]: false }));
     }
   }
 
-  function comentariosCount(cardId: string | null): number {
-    if (!cardId) return 0;
-    if (countPatch[cardId] != null) return countPatch[cardId]!;
-    return comentariosCountByCardId[cardId] ?? 0;
+  function comentariosCount(commentKey: string | null): number {
+    if (!commentKey) return 0;
+    if (countPatch[commentKey] != null) return countPatch[commentKey]!;
+    return comentariosCountByCardId[commentKey] ?? 0;
   }
 
   function iniciaisNome(nome: string): string {
@@ -1347,6 +1389,15 @@ export function InteracoesLista({
               Mostrar arquivados
             </label>
           ) : null}
+          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-[color:var(--moni-text-secondary)]">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-[color:var(--moni-border-default)]"
+              checked={applied.mostrarConcluidas}
+              onChange={(e) => setApplied((a) => ({ ...a, mostrarConcluidas: e.target.checked }))}
+            />
+            Mostrar concluídos
+          </label>
         </div>
         <button
           type="button"
@@ -1398,14 +1449,15 @@ export function InteracoesLista({
                   });
 
                   const ccid = row.card_id;
-                  const cnt = ccid ? comentariosCount(ccid) : 0;
+                  const commentKey = ccid ?? (row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : null);
+                  const cnt = comentariosCount(commentKey);
                   const alvoK = topicosAlvoKey(row);
                   const subs = topicosPorAlvo[alvoK] ?? [];
                   const temSubAberta = subs.some((s) => s.status !== 'concluido' && s.status !== 'aprovado');
                   const qtdAtividades = subs.length;
 
                   return (
-                    <li key={row.id} className="border-b border-[color:var(--moni-border-default)] last:border-b-0">
+                    <li key={row.id} className={`border-b border-[color:var(--moni-border-default)] last:border-b-0 ${row.sirene_arquivado ? 'bg-amber-50/40' : ''}`}>
                       <div className="px-3 py-2.5">
                           {/* Linha 1: badges + título + tipo + prioridade */}
                           <div
@@ -1425,7 +1477,7 @@ export function InteracoesLista({
                               </span>
                             ) : null}
                             {row.sirene_arquivado ? (
-                              <span className="shrink-0 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[color:var(--moni-text-tertiary)]">Arquivado</span>
+                              <span className="shrink-0 rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-700">Arquivado</span>
                             ) : null}
                             <span className="min-w-0 flex-1 truncate font-medium text-[color:var(--moni-text-primary)]">{row.titulo}</span>
                             <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase ${tipoB.className}`}>{tipoB.label}</span>
@@ -1449,15 +1501,20 @@ export function InteracoesLista({
                           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
                             {/* meta chips */}
                             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[color:var(--moni-text-tertiary)]">
-                              {row.sirene_abertura_responsavel_nome ? (
-                                <span className="flex items-center gap-1">
-                                  <span className="text-[color:var(--moni-text-tertiary)]">Aberto por</span>
-                                  <span className="text-[color:var(--moni-text-secondary)]">{row.sirene_abertura_responsavel_nome}</span>
-                                </span>
-                              ) : null}
+                              {row.origem === 'sirene' ? (() => {
+                                const nomeAberto = (row.criado_por ? nomePorUserId.get(row.criado_por) : null)
+                                  ?? row.sirene_abertura_responsavel_nome
+                                  ?? null;
+                                return nomeAberto ? (
+                                  <span className="flex items-center gap-1">
+                                    <span className="text-[color:var(--moni-text-tertiary)]">Aberto por</span>
+                                    <span className="text-[color:var(--moni-text-secondary)]">{nomeAberto}</span>
+                                  </span>
+                                ) : null;
+                              })() : null}
                               {row.franqueado_nome ? (
                                 <>
-                                  {row.sirene_abertura_responsavel_nome ? <span className="text-[color:var(--moni-border-default)]">·</span> : null}
+                                  {((row.criado_por ? nomePorUserId.get(row.criado_por) : null) ?? row.sirene_abertura_responsavel_nome) ? <span className="text-[color:var(--moni-border-default)]">·</span> : null}
                                   <span className="text-[color:var(--moni-text-secondary)]">{row.franqueado_nome}</span>
                                 </>
                               ) : null}
@@ -1498,18 +1555,22 @@ export function InteracoesLista({
                                 </button>
                               ) : null}
                               {/* comentários */}
-                              {ccid ? (
-                                <button
-                                  type="button"
-                                  onClick={() => toggleComentarios(row)}
-                                  className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]"
-                                  aria-expanded={Boolean(commentsOpenByRow[row.id])}
-                                  aria-label={`Comentários do card (${cnt})`}
-                                >
-                                  <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                                  <span className="min-w-[1rem] text-center text-[10px] font-semibold tabular-nums">{cnt}</span>
-                                </button>
-                              ) : null}
+                              {(() => {
+                                const commentKey = ccid ?? (row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : null);
+                                if (!commentKey) return null;
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleComentarios(row)}
+                                    className="inline-flex items-center gap-1 rounded border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)] px-1.5 py-0.5 text-[color:var(--moni-text-secondary)] hover:border-[color:var(--moni-border-strong)] hover:text-[color:var(--moni-text-primary)]"
+                                    aria-expanded={Boolean(commentsOpenByRow[row.id])}
+                                    aria-label={`Comentários do chamado (${cnt})`}
+                                  >
+                                    <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                    <span className="min-w-[1rem] text-center text-[10px] font-semibold tabular-nums">{cnt}</span>
+                                  </button>
+                                );
+                              })()}
                               {/* avatares responsáveis */}
                               {idsResp.length > 0 ? (
                                 <div className="flex -space-x-1">
@@ -1590,16 +1651,18 @@ export function InteracoesLista({
                           ) : null}
                         </div>
 
-                      {commentsOpenByRow[row.id] && ccid ? (
+                      {commentsOpenByRow[row.id] && (() => {
+                        const commentKey = ccid ?? (row.sirene_chamado_id != null ? `sirene-${row.sirene_chamado_id}` : null);
+                        return commentKey ? (
                         <div className="mt-3 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3">
                           <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--moni-text-tertiary)]">
-                            Comentários do card
+                            Comentários
                           </p>
-                          {commentsLoading[ccid] ? (
+                          {commentsLoading[commentKey] ? (
                             <p className="text-xs text-[color:var(--moni-text-tertiary)]">Carregando…</p>
                           ) : (
                             <ul className="mb-3 max-h-48 space-y-2 overflow-y-auto text-sm">
-                              {[...(commentsByCardId[ccid] ?? [])]
+                              {[...(commentsByCardId[commentKey] ?? [])]
                                 .sort(
                                   (a, b) =>
                                     new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
@@ -1639,13 +1702,13 @@ export function InteracoesLista({
                             <div
                               className="overflow-visible rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)]"
                               onFocus={() => {
-                                comentarioAtivoCardIdRef.current = ccid;
+                                comentarioAtivoCardIdRef.current = commentKey;
                               }}
                             >
                               <MencaoContentEditable
                                 editorRef={comentarioEditorRef}
                                 onInput={(html) =>
-                                  setNovoComentarioPorCard((m) => ({ ...m, [ccid]: html }))
+                                  setNovoComentarioPorCard((m) => ({ ...m, [commentKey]: html }))
                                 }
                                 className="min-h-[72px] w-full p-2 text-sm text-[color:var(--moni-text-primary)] focus:outline-none empty:before:text-[color:var(--moni-text-tertiary)] empty:before:content-[attr(data-placeholder)]"
                                 placeholder="Escreva um comentário… Use @ para mencionar"
@@ -1653,15 +1716,16 @@ export function InteracoesLista({
                             </div>
                             <button
                               type="button"
-                              disabled={Boolean(salvandoComentario[ccid])}
-                              onClick={() => void publicarComentario(ccid, row)}
+                              disabled={Boolean(salvandoComentario[commentKey])}
+                              onClick={() => void publicarComentario(commentKey, row)}
                               className="self-end shrink-0 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
                             >
-                              {salvandoComentario[ccid] ? '…' : 'Publicar'}
+                              {salvandoComentario[commentKey] ? '…' : 'Publicar'}
                             </button>
                           </div>
                         </div>
-                      ) : null}
+                        ) : null;
+                      })()}
 
                     </li>
                   );
@@ -1690,6 +1754,19 @@ export function InteracoesLista({
           }}
           topicos={topicosPorAlvo[topicosAlvoKey(detalheRowEff)] ?? []}
           topicosLoading={Boolean(topicosLoading[topicosAlvoKey(detalheRowEff)])}
+          nomePorUserId={nomePorUserId}
+          rankLabel={(() => {
+            const rank = rankChamadoPainelUnificado({
+              frank_id: detalheRowEff.frank_id,
+              franqueado_nome: detalheRowEff.franqueado_nome,
+              trava: detalheRowEff.trava,
+              te_trata: detalheRowEff.te_trata,
+              data_vencimento: detalheRowEff.data_vencimento,
+              atividade_status: detalheRowEff.atividade_status,
+              criado_em: detalheRowEff.criado_em,
+            });
+            return rank != null ? rank.prioridade_label : null;
+          })()}
           textoResponsavel={textoResponsavelPainel(
             detalheRowEff,
             nomePorUserId,

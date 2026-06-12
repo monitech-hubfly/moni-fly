@@ -407,8 +407,7 @@ export function PastelariaPage() {
             type="button"
             className="pastelaria-btn-novo"
             onClick={() => {
-              setNovoColunaDestino('mapped');
-              setNovoOpen(true);
+              showToast('Criação manual desativada. Chamados chegam via Sirene.', 'err');
             }}
             aria-label="Criar novo pastel"
           >
@@ -528,9 +527,8 @@ export function PastelariaPage() {
           onReclassificar={setReclassCard}
           onOpenHoras={(card) => void openHoras(card)}
           onOpenDetail={(card) => void openDetail(card)}
-          onAdd={(col) => {
-            setNovoColunaDestino(col === 'doing' ? 'doing' : 'mapped');
-            setNovoOpen(true);
+          onAdd={() => {
+            showToast('Criação manual desativada. Chamados chegam via Sirene.', 'err');
           }}
         />
       )}

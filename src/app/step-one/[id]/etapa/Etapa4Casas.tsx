@@ -11,6 +11,8 @@ import {
   saveBatalhaCasasEtapa5,
   saveScoreBatalhaPdfUrl,
   getAtributosLoteFromStepOneChecklist,
+  getDadosTerrenoFromStepOneChecklist,
+  autoMarcarChecklistPosRankingPreBatalha,
   type BatalhaCasaRow,
 } from './actions';
 import {
@@ -22,6 +24,7 @@ import {
 import {
   ATRIBUTOS_LOTE,
   notaAtributosLote,
+  parseAtributosLoteRespostas,
   notaFinalBatalha,
   type AtributosLoteRespostas,
   CATEGORIAS_REFORMA,
@@ -41,9 +44,32 @@ import {
 } from './REGRAS_BATALHA';
 import { resolverTermoBuscaZap } from '@/lib/zap-condominio-busca';
 import {
-  labelCompatibilidade,
-  ordenarCatalogoPorCompatibilidade,
+  calcularRankingModelos,
+  calcularRankingPreBatalhaPorFaixas,
+  flattenRankingPreBatalhaPorFaixas,
+  resolverTopografiaLote,
+  type CatalogoItem,
+  type DadosTerreno,
+  type ModeloInelegivelGeometria,
+  type RankingPorFaixaMercado,
 } from '@/lib/kanban/pre-batalha-compatibilidade';
+import {
+  PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING,
+} from '@/lib/kanban/pre-batalha-checklist';
+import { PreBatalhaRankingLeaderboard } from '@/components/kanban-shared/PreBatalhaRankingLeaderboard';
+import {
+  ordenarCasasPorFaixaMercado,
+  type FaixaMercado,
+} from '@/lib/kanban/mapa-competidores-condominio';
+import { modeloElegivelParaFaixa } from '@/lib/kanban/modelo-faixa-elegibilidade';
+
+function parBatalhaElegivelFaixa(
+  nomeModelo: string | null | undefined,
+  faixaAnuncio: FaixaMercado | undefined,
+): boolean {
+  if (!faixaAnuncio) return true;
+  return modeloElegivelParaFaixa(nomeModelo, faixaAnuncio);
+}
 
 type ProdutoDadosBatalha = {
   designId?: string;
@@ -74,8 +100,12 @@ export type CasaRow = {
   data_despublicado?: string | null;
   link: string | null;
   manual?: boolean | null;
-  faixa?: 'entrada' | 'intermediaria' | 'premium';
+  faixa?: FaixaMercado;
 };
+
+function atributosLoteRespostasVazio(resp: AtributosLoteRespostas): boolean {
+  return !ATRIBUTOS_LOTE.some((a) => resp[a.id] === true);
+}
 
 export function Etapa4Casas(props: {
   processoId: string;
@@ -150,6 +180,8 @@ export function Etapa4Casas(props: {
     return diffDays > 30;
   }, [casasManuais.length, ultimaValidacaoCasasManuaisEm]);
   const router = useRouter();
+  const stepOneAtributosCacheRef = useRef<AtributosLoteRespostas | null | undefined>(undefined);
+  const autoMarcadoChecklistPreBatalhaRef = useRef(false);
   const [cidade, setCidade] = useState(cidadeInicial);
   const [estado, setEstado] = useState(estadoInicial);
   const [condominio, setCondominio] = useState(() =>
@@ -216,20 +248,192 @@ export function Etapa4Casas(props: {
   const tabelaTd = listagemOnly ? 'px-1.5 py-1' : 'p-2';
 
   const ROWS_PER_PAGE = 15;
-  const totalPages = Math.max(1, Math.ceil(casas.length / ROWS_PER_PAGE));
+  const casasExibicao = useMemo(() => {
+    if (!listagemOnly) return casas;
+    if (!casas.some((c) => c.preco != null)) return casas;
+    return ordenarCasasPorFaixaMercado(casas);
+  }, [casas, listagemOnly]);
+  const contagemPorFaixa = useMemo(() => {
+    if (!listagemOnly) return null;
+    const m = new Map<FaixaMercado, number>();
+    for (const c of casasExibicao) {
+      if (c.faixa) m.set(c.faixa, (m.get(c.faixa) ?? 0) + 1);
+    }
+    return m;
+  }, [casasExibicao, listagemOnly]);
+  const totalPages = Math.max(1, Math.ceil(casasExibicao.length / ROWS_PER_PAGE));
   const [pageCasas, setPageCasas] = useState(1);
   const casasPaginated = useMemo(() => {
     const start = (pageCasas - 1) * ROWS_PER_PAGE;
-    return casas.slice(start, start + ROWS_PER_PAGE);
-  }, [casas, pageCasas]);
-  useEffect(() => setPageCasas(1), [casas.length]);
+    return casasExibicao.slice(start, start + ROWS_PER_PAGE);
+  }, [casasExibicao, pageCasas]);
+  useEffect(() => setPageCasas(1), [casasExibicao.length]);
 
   // --- Seção 2: escolha de modelos do catálogo (Pré Batalha: ranking por compatibilidade) ---
   const selectedLimit = modoPreBatalha ? null : 3;
-  const catalogoRankeado = useMemo(() => {
-    if (!modoPreBatalha || catalogo.length === 0) return [];
-    return ordenarCatalogoPorCompatibilidade(catalogo, casas);
-  }, [modoPreBatalha, catalogo, casas]);
+
+  const [rankingPorFaixaPreBatalha, setRankingPorFaixaPreBatalha] = useState<
+    RankingPorFaixaMercado[]
+  >([]);
+  const [inelegiveisGeometriaPreBatalha, setInelegiveisGeometriaPreBatalha] = useState<
+    ModeloInelegivelGeometria[]
+  >([]);
+  const [terrenoPreBatalha, setTerrenoPreBatalha] = useState<DadosTerreno | null>(null);
+  const [carregandoRankingPreBatalha, setCarregandoRankingPreBatalha] = useState(false);
+  const [atributosLotePreBatalha, setAtributosLotePreBatalha] = useState<AtributosLoteRespostas>(
+    {},
+  );
+  const [catalogoPreBatalha, setCatalogoPreBatalha] = useState<CatalogoItem[]>([]);
+
+  const casasIdsKey = useMemo(() => casas.map((c) => c.id).sort().join(','), [casas]);
+
+  const atributosLoteVazio = useMemo(
+    () => !ATRIBUTOS_LOTE.some((a) => atributosLotePreBatalha[a.id] === true),
+    [atributosLotePreBatalha],
+  );
+
+  const topografiaLotePreBatalha = useMemo(
+    () => resolverTopografiaLote(atributosLotePreBatalha),
+    [atributosLotePreBatalha],
+  );
+
+  const catalogoAtivoPreBatalha =
+    catalogoPreBatalha.length > 0 ? catalogoPreBatalha : (catalogo as CatalogoItem[]);
+
+  const rankingPreBatalha = useMemo(
+    () => flattenRankingPreBatalhaPorFaixas(rankingPorFaixaPreBatalha),
+    [rankingPorFaixaPreBatalha],
+  );
+
+  const terrenoFiltraGeometriaPreBatalha = useMemo(
+    () =>
+      Boolean(
+        terrenoPreBatalha?.dimensao_frente_m != null &&
+          terrenoPreBatalha?.dimensao_lado_esquerdo_m != null &&
+          terrenoPreBatalha.dimensao_frente_m > 0 &&
+          terrenoPreBatalha.dimensao_lado_esquerdo_m > 0,
+      ),
+    [terrenoPreBatalha],
+  );
+
+  /** Pré Batalha: carrega atributos do lote, catálogo ativo e calcula ranking ao montar. */
+  useEffect(() => {
+    if (!modoPreBatalha || listagemOnly) return;
+
+    let cancelado = false;
+    setCarregandoRankingPreBatalha(true);
+
+    void (async () => {
+      try {
+        const [result, terrenoResult] = await Promise.all([
+          getAtributosLoteFromStepOneChecklist(processoId),
+          getDadosTerrenoFromStepOneChecklist(processoId),
+        ]);
+        if (cancelado) return;
+
+        const atributos = result.ok ? result.atributos : {};
+        stepOneAtributosCacheRef.current = atributos;
+        setAtributosLotePreBatalha(atributos);
+
+        const terreno = terrenoResult.ok ? terrenoResult.terreno : null;
+        setTerrenoPreBatalha(terreno);
+
+        const supabase = createClient();
+        const { data: catRows } = await supabase
+          .from('catalogo_casas')
+          .select(
+            'id, nome, quartos, banheiros, vagas, preco_custo, preco_custo_m2, preco_venda_m2, area_m2, preco_venda, topografia, dimensao_x_m, dimensao_y_m, area_perimetro_m2',
+          )
+          .eq('ativo', true);
+        if (cancelado) return;
+
+        const cat: CatalogoItem[] =
+          catRows && catRows.length > 0 ? (catRows as CatalogoItem[]) : (catalogo as CatalogoItem[]);
+        setCatalogoPreBatalha(cat);
+
+        if (casas.length === 0 || cat.length === 0) {
+          setRankingPorFaixaPreBatalha([]);
+          setInelegiveisGeometriaPreBatalha([]);
+          return;
+        }
+
+        const atributosParaRanking = atributosLoteRespostasVazio(atributos) ? {} : atributos;
+        const casasPreBatalha = casas.map((c) => ({
+          id: c.id,
+          condominio: c.condominio,
+          quartos: c.quartos,
+          banheiros: c.banheiros,
+          vagas: c.vagas,
+          preco: c.preco,
+          area_casa_m2: c.area_casa_m2,
+          piscina: c.piscina,
+          marcenaria: c.marcenaria,
+        }));
+
+        const { inelegiveis } = calcularRankingModelos(
+          casasPreBatalha,
+          cat,
+          atributosParaRanking,
+          { terreno: terreno ?? undefined },
+          terreno ?? undefined,
+        );
+
+        const grupos = calcularRankingPreBatalhaPorFaixas(
+          casasPreBatalha,
+          cat,
+          atributosParaRanking,
+          { terreno: terreno ?? undefined },
+        );
+        if (!cancelado) {
+          setInelegiveisGeometriaPreBatalha(inelegiveis);
+          setRankingPorFaixaPreBatalha(grupos);
+        }
+      } finally {
+        if (!cancelado) setCarregandoRankingPreBatalha(false);
+      }
+    })();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [modoPreBatalha, listagemOnly, processoId, casasIdsKey, catalogo]);
+
+  const rankingPreBatalhaIdsKey = useMemo(
+    () => rankingPreBatalha.map((r) => r.catalogoId).join(','),
+    [rankingPreBatalha],
+  );
+
+  /** Pré Batalha: auto-marca checklist do kanban após ranking calculado. */
+  useEffect(() => {
+    autoMarcadoChecklistPreBatalhaRef.current = false;
+  }, [processoId, rankingPreBatalhaIdsKey, rankingPorFaixaPreBatalha.length]);
+
+  useEffect(() => {
+    if (!modoPreBatalha || listagemOnly || carregandoRankingPreBatalha) return;
+    if (rankingPreBatalha.length === 0) return;
+    if (autoMarcadoChecklistPreBatalhaRef.current) return;
+
+    autoMarcadoChecklistPreBatalhaRef.current = true;
+
+    void autoMarcarChecklistPosRankingPreBatalha(
+      processoId,
+      rankingPorFaixaPreBatalha,
+      { forceAtualizarRanking: true },
+    ).then((res) => {
+      if (!res.ok) {
+        console.warn('[pre-batalha] Falha ao auto-marcar checklist:', res.error);
+        autoMarcadoChecklistPreBatalhaRef.current = false;
+      }
+    });
+  }, [
+    modoPreBatalha,
+    listagemOnly,
+    carregandoRankingPreBatalha,
+    rankingPreBatalhaIdsKey,
+    processoId,
+    rankingPorFaixaPreBatalha,
+    rankingPreBatalha,
+  ]);
 
   const [selectedCatalogoIds, setSelectedCatalogoIds] = useState<string[]>(() =>
     casasEscolhidas.map((c) => c.catalogo_casa_id),
@@ -237,8 +441,8 @@ export function Etapa4Casas(props: {
   const [syncPreBatalha, setSyncPreBatalha] = useState(false);
 
   useEffect(() => {
-    if (!modoPreBatalha || listagemOnly || catalogoRankeado.length === 0) return;
-    const ids = catalogoRankeado.map((m) => m.id);
+    if (!modoPreBatalha || listagemOnly || rankingPreBatalha.length === 0) return;
+    const ids = rankingPreBatalha.map((m) => m.catalogoId);
     const savedSorted = [...casasEscolhidas.map((c) => c.catalogo_casa_id)].sort().join(',');
     const targetSorted = [...ids].sort().join(',');
     if (savedSorted === targetSorted && casasEscolhidas.length === ids.length) return;
@@ -262,7 +466,7 @@ export function Etapa4Casas(props: {
   }, [
     modoPreBatalha,
     listagemOnly,
-    catalogoRankeado,
+    rankingPreBatalha,
     casasEscolhidas,
     processoId,
     router,
@@ -288,15 +492,18 @@ export function Etapa4Casas(props: {
 
   // --- Seção 3: batalha de casas (cada casa do catálogo vs cada anúncio da listagem) ---
   const escolhidasComDados = useMemo(() => {
-    if (modoPreBatalha && catalogoRankeado.length > 0) {
-      return catalogoRankeado
-        .map((mod, idx) => {
-          const ce = casasEscolhidas.find((c) => c.catalogo_casa_id === mod.id);
+    if (modoPreBatalha && rankingPreBatalha.length > 0) {
+      return rankingPreBatalha
+        .map((item, idx) => {
+          const ce = casasEscolhidas.find((c) => c.catalogo_casa_id === item.catalogoId);
           if (!ce) return null;
+          const catalogoRow =
+            catalogoAtivoPreBatalha.find((c) => c.id === item.catalogoId) ?? null;
+          if (!catalogoRow) return null;
           return {
             ...ce,
             ordem: idx + 1,
-            catalogoRow: mod,
+            catalogoRow,
           };
         })
         .filter((ce) => ce != null);
@@ -309,7 +516,7 @@ export function Etapa4Casas(props: {
         catalogoRow: catalogo.find((c) => c.id === ce.catalogo_casa_id) || null,
       }))
       .filter((ce) => ce.catalogoRow !== null);
-  }, [casasEscolhidas, catalogo, modoPreBatalha, catalogoRankeado]);
+  }, [casasEscolhidas, catalogo, catalogoAtivoPreBatalha, modoPreBatalha, rankingPreBatalha]);
 
   const batalhaByKey = useMemo(() => {
     const map = new Map<
@@ -349,7 +556,7 @@ export function Etapa4Casas(props: {
     batalhasIniciais.forEach((b) => {
       const key = `${b.casa_escolhida_id}__${b.listing_id}`;
       if (b.atributos_lote_json && typeof b.atributos_lote_json === 'object') {
-        obj[key] = b.atributos_lote_json as AtributosLoteRespostas;
+        obj[key] = parseAtributosLoteRespostas(b.atributos_lote_json);
       }
     });
     return obj;
@@ -391,10 +598,15 @@ export function Etapa4Casas(props: {
     return Math.round(media);
   };
 
-  /** Nota Atributos do Lote para um par (casa_escolhida, listing). Fallback para dado salvo se não houver respostas. */
+  const isAtributosLoteEmpty = (resp: AtributosLoteRespostas | undefined): boolean => {
+    if (resp === undefined) return true;
+    return !ATRIBUTOS_LOTE.some((a) => resp[a.id] === true);
+  };
+
+  /** Nota Atributos do Lote para um par (casa_escolhida, listing). Respostas usam ids de ATRIBUTOS_LOTE (= LOTES_DISPONIVEIS_CHECKBOXES). */
   const getNotaAtributosLote = (key: string): number => {
     const resp = atributosLoteByKey[key];
-    if (resp) return notaAtributosLote(resp);
+    if (resp && !isAtributosLoteEmpty(resp)) return notaAtributosLote(resp);
     return batalhaByKey.get(key)?.nota_localizacao ?? 0;
   };
 
@@ -406,13 +618,7 @@ export function Etapa4Casas(props: {
   };
 
   const [openAtributosKey, setOpenAtributosKey] = useState<string | null>(null);
-  const stepOneAtributosCacheRef = useRef<AtributosLoteRespostas | null | undefined>(undefined);
   const [prefillingAtributosKey, setPrefillingAtributosKey] = useState<string | null>(null);
-
-  const isAtributosLoteEmpty = (resp: AtributosLoteRespostas | undefined): boolean => {
-    if (resp === undefined) return true;
-    return !ATRIBUTOS_LOTE.some((a) => resp[a.id] === true);
-  };
 
   const handleOpenAtributosLote = async (key: string) => {
     if (openAtributosKey === key) {
@@ -440,6 +646,33 @@ export function Etapa4Casas(props: {
       setPrefillingAtributosKey(null);
     }
   };
+
+  /** Pré Batalha: aplica atributos do lote escolhido a cada par modelo×anúncio. */
+  useEffect(() => {
+    if (!modoPreBatalha || listagemOnly || atributosLoteVazio) return;
+    if (escolhidasComDados.length === 0 || casas.length === 0) return;
+
+    setAtributosLoteByKey((prev) => {
+      const next = { ...prev };
+      for (const ce of escolhidasComDados) {
+        for (const c of casas) {
+          if (!parBatalhaElegivelFaixa(ce.catalogoRow?.nome, c.faixa)) continue;
+          const key = `${ce.id}__${c.id}`;
+          if (isAtributosLoteEmpty(next[key])) {
+            next[key] = { ...atributosLotePreBatalha };
+          }
+        }
+      }
+      return next;
+    });
+  }, [
+    modoPreBatalha,
+    listagemOnly,
+    atributosLotePreBatalha,
+    atributosLoteVazio,
+    escolhidasComDados,
+    casas,
+  ]);
 
   /** Checklist de reforma: um por listagem (listing_id). Alimenta os 4 sub-itens de Preço. */
   const [reformaChecklistByListingId, setReformaChecklistByListingId] = useState<
@@ -578,6 +811,7 @@ export function Etapa4Casas(props: {
       let sumPreco = 0;
       let sumProduto = 0;
       for (const c of casas) {
+        if (!parBatalhaElegivelFaixa(ce.catalogoRow?.nome, c.faixa)) continue;
         const key = `${ce.id}__${c.id}`;
         const notaAtrib = getNotaAtributosLote(key);
         const notaPreco = getNotaPrecoCompleta(ce, c);
@@ -619,6 +853,7 @@ export function Etapa4Casas(props: {
       let soma = 0;
       let count = 0;
       for (const ce of escolhidasComDados) {
+        if (!parBatalhaElegivelFaixa(ce.catalogoRow?.nome, c.faixa)) continue;
         const key = `${ce.id}__${c.id}`;
         const notaAtrib = getNotaAtributosLote(key);
         const notaPreco = getNotaPrecoCompleta(ce, c);
@@ -655,6 +890,7 @@ export function Etapa4Casas(props: {
     const rows: BatalhaCasaRow[] = [];
     for (const ce of escolhidasComDados) {
       for (const anuncio of casas) {
+        if (!parBatalhaElegivelFaixa(ce.catalogoRow?.nome, anuncio.faixa)) continue;
         const key = `${ce.id}__${anuncio.id}`;
         const respostas = atributosLoteByKey[key];
         const temReforma = reformaChecklistByListingId[anuncio.id] !== undefined;
@@ -896,9 +1132,13 @@ export function Etapa4Casas(props: {
         {escolhidasComDados.length === 0 ? (
           <p className="text-sm italic text-stone-500">
             {modoPreBatalha
-              ? syncPreBatalha
-                ? 'Ranqueando modelos por compatibilidade com a listagem…'
-                : 'Aguardando listagem e catálogo para ranquear os modelos.'
+              ? carregandoRankingPreBatalha
+                ? 'Calculando ranking dos modelos…'
+                : syncPreBatalha
+                  ? 'Sincronizando modelos ranqueados…'
+                  : casas.length === 0
+                    ? 'Nenhum anúncio ZAP encontrado. Execute a varredura no Mapa de Competidores primeiro.'
+                    : 'Aguardando catálogo para ranquear os modelos.'
               : 'Selecione modelos e confirme para habilitar a batalha.'}
           </p>
         ) : rankingPorModelo.length === 0 ? (
@@ -1217,6 +1457,14 @@ export function Etapa4Casas(props: {
         )}
 
         {/* Seção 1 — Listagem (+ opcional: escolha dos 3 modelos e batalha) */}
+        {modoPreBatalha && !listagemOnly && casas.length === 0 ? (
+          <div
+            className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+            role="status"
+          >
+            Nenhum anúncio ZAP encontrado. Execute a varredura no Mapa de Competidores primeiro.
+          </div>
+        ) : null}
         {casas.length > 0 && (
           <section className="overflow-hidden rounded-xl border border-stone-200">
             {modoPreBatalha ? (
@@ -1225,109 +1473,176 @@ export function Etapa4Casas(props: {
                   Pré Batalha
                 </span>
                 <span className="text-xs text-amber-900/90">
-                  Ranqueie todos os modelos Moní por compatibilidade com a listagem (alta → baixa)
-                  e aplique Atributos do Lote + Preço + Produto. Nota final = soma dos três eixos;
-                  desempate: Lote &gt; Preço &gt; Produto.
+                  Ranking por faixa do mapa: Preço (INC + Kit Moní) + Produto + Lote vs. cada anúncio.
+                  Desempate: Lote &gt; Preço &gt; Produto.
                 </span>
               </div>
             ) : null}
-            {/* Bloco compacto: escolher 3 do catálogo para batalha — só no Step 2 (não listagemOnly) */}
-            {!listagemOnly && catalogo.length > 0 && (
-              <div className="border-b border-stone-200 bg-stone-50 px-4 py-3">
-                {modoPreBatalha ? (
-                  <>
-                    <p className="mb-2 text-sm font-medium text-stone-800">
-                      Modelos ranqueados por compatibilidade com a listagem (alta → baixa):
-                    </p>
-                    {syncPreBatalha ? (
-                      <p className="text-xs text-stone-500">Sincronizando ranking…</p>
-                    ) : (
-                      <ol className="space-y-1.5">
-                        {catalogoRankeado.map((mod, idx) => (
-                          <li
-                            key={mod.id}
-                            className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-stone-700"
-                          >
-                            <span className="font-semibold tabular-nums text-stone-500">
-                              {idx + 1}.
-                            </span>
-                            <span className="font-medium">{mod.nome ?? mod.id.slice(0, 8)}</span>
-                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900">
-                              {mod.scoreCompatibilidade}% · {labelCompatibilidade(mod.scoreCompatibilidade)}
-                            </span>
-                            {mod.preco_venda_m2 != null ? (
-                              <span className="text-xs text-stone-500">
-                                R$ {mod.preco_venda_m2.toLocaleString('pt-BR')}/m²
-                              </span>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ol>
-                    )}
-                  </>
+            {modoPreBatalha && !listagemOnly ? (
+              <div className="border-b border-stone-200 bg-stone-50 px-4 py-4">
+                {atributosLoteVazio ? (
+                  <p
+                    className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+                    role="status"
+                  >
+                    Atributos do lote não preenchidos — nota de localização zerada. Preencha a fase
+                    Lotes Disponíveis.
+                  </p>
+                ) : null}
+                {carregandoRankingPreBatalha ? (
+                  <div className="flex items-center gap-2 text-sm text-stone-500">
+                    <span
+                      className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-stone-300 border-t-amber-600"
+                      aria-hidden
+                    />
+                    Calculando ranking…
+                  </div>
+                ) : syncPreBatalha ? (
+                  <p className="text-sm text-stone-500">Sincronizando ranking…</p>
+                ) : rankingPorFaixaPreBatalha.length === 0 ? (
+                  <p className="text-sm text-stone-500">Nenhum modelo no catálogo ativo.</p>
                 ) : (
                   <>
-                    <p className="mb-2 text-sm font-medium text-stone-800">
-                      Escolher até 3 modelos do catálogo para batalhar com a listagem abaixo:
+                    <p
+                      className="mb-3 whitespace-pre-line rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs leading-relaxed text-amber-950"
+                      role="note"
+                    >
+                      {PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING}
                     </p>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                      {catalogo.map((mod) => (
-                        <label
-                          key={mod.id}
-                          className="flex cursor-pointer items-center gap-1.5 text-sm"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedCatalogoIds.includes(mod.id)}
-                            onChange={() => toggleCatalogoSelected(mod.id)}
-                            disabled={
-                              !selectedCatalogoIds.includes(mod.id) &&
-                              selectedLimit != null &&
-                              selectedCatalogoIds.length >= selectedLimit
-                            }
-                            className="rounded"
-                          />
-                          <span>{mod.nome ?? mod.id.slice(0, 8)}</span>
-                          {mod.preco_venda_m2 != null && (
-                            <span className="text-xs text-stone-500">
-                              R$ {mod.preco_venda_m2.toLocaleString('pt-BR')}/m²
-                            </span>
-                          )}
-                        </label>
-                      ))}
-                      <span className="text-sm text-stone-500">
-                        {selectedCatalogoIds.length} / {selectedLimit} selecionados
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleConfirmEscolhidas}
-                        disabled={selectedCatalogoIds.length === 0}
-                        className="btn-primary text-sm disabled:pointer-events-none disabled:opacity-60"
-                      >
-                        Confirmar seleção
-                      </button>
-                    </div>
+                    {topografiaLotePreBatalha ? (
+                      <p className="mb-3 text-xs font-medium text-stone-700">
+                        Filtro ativo: topografia{' '}
+                        <span className="text-amber-900">{topografiaLotePreBatalha}</span> —{' '}
+                        {rankingPreBatalha.length}{' '}
+                        {rankingPreBatalha.length === 1 ? 'modelo' : 'modelos'} em{' '}
+                        {rankingPorFaixaPreBatalha.length}{' '}
+                        {rankingPorFaixaPreBatalha.length === 1 ? 'faixa' : 'faixas'}.
+                      </p>
+                    ) : null}
+
+                    <section className="space-y-3">
+                      <h4 className="text-sm font-semibold text-stone-800">Casas rankeadas</h4>
+                      {!terrenoFiltraGeometriaPreBatalha ? (
+                        <p className="rounded-lg border border-stone-200 bg-stone-100 px-3 py-2 text-xs text-stone-600">
+                          Preencha as dimensões do lote e os recuos do condomínio para filtrar casas
+                          que cabem no terreno.
+                        </p>
+                      ) : null}
+                      <PreBatalhaRankingLeaderboard grupos={rankingPorFaixaPreBatalha} />
+                    </section>
+
+                    {inelegiveisGeometriaPreBatalha.length > 0 ? (
+                      <details className="mt-4 overflow-hidden rounded-lg border border-red-200 bg-red-50">
+                        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-red-900 hover:bg-red-100/60">
+                          ⚠ {inelegiveisGeometriaPreBatalha.length}{' '}
+                          {inelegiveisGeometriaPreBatalha.length === 1
+                            ? 'modelo não cabe'
+                            : 'modelos não cabem'}{' '}
+                          neste terreno
+                        </summary>
+                        <div className="space-y-3 border-t border-red-200 px-4 py-3">
+                          <h4 className="text-sm font-semibold text-red-900">
+                            Casas que não cabem neste terreno
+                          </h4>
+                          <ul className="space-y-3">
+                            {inelegiveisGeometriaPreBatalha.map((item, idx) => (
+                              <li
+                                key={`${item.modelo}-${item.topografia}-${idx}`}
+                                className="rounded-lg border border-red-200 bg-white px-3 py-2.5"
+                              >
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <div>
+                                    <p className="text-sm font-medium text-stone-900">{item.modelo}</p>
+                                    {item.topografia ? (
+                                      <p className="text-xs text-stone-500">Topografia: {item.topografia}</p>
+                                    ) : null}
+                                  </div>
+                                  <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-800 ring-1 ring-red-200">
+                                    Não cabe
+                                  </span>
+                                </div>
+                                {item.falhas.length > 0 ? (
+                                  <ul className="mt-2 space-y-1 text-xs text-red-800">
+                                    {item.falhas.map((falha) => (
+                                      <li key={falha} className="flex gap-1.5">
+                                        <span aria-hidden>•</span>
+                                        <span>{formatFalhaInelegivelGeometria(item, falha)}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : null}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </details>
+                    ) : null}
                   </>
                 )}
-                {escolhidasComDados.length > 0 && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={handleSalvarBatalha}
-                      className="btn-primary mt-3 text-sm"
+              </div>
+            ) : null}
+            {/* Escolher 3 do catálogo — Step 2 clássico (não Pré Batalha) */}
+            {!listagemOnly && !modoPreBatalha && catalogo.length > 0 && (
+              <div className="border-b border-stone-200 bg-stone-50 px-4 py-3">
+                <p className="mb-2 text-sm font-medium text-stone-800">
+                  Escolher até 3 modelos do catálogo para batalhar com a listagem abaixo:
+                </p>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  {catalogo.map((mod) => (
+                    <label
+                      key={mod.id}
+                      className="flex cursor-pointer items-center gap-1.5 text-sm"
                     >
-                      Salvar batalha
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleGerarPdf}
-                      disabled={gerandoPdf || pdfRows.length === 0}
-                      className="btn-primary ml-2 mt-3 text-sm"
-                    >
-                      {gerandoPdf ? 'Gerando PDF…' : 'Gerar e guardar PDF'}
-                    </button>
-                  </>
-                )}
+                      <input
+                        type="checkbox"
+                        checked={selectedCatalogoIds.includes(mod.id)}
+                        onChange={() => toggleCatalogoSelected(mod.id)}
+                        disabled={
+                          !selectedCatalogoIds.includes(mod.id) &&
+                          selectedLimit != null &&
+                          selectedCatalogoIds.length >= selectedLimit
+                        }
+                        className="rounded"
+                      />
+                      <span>{mod.nome ?? mod.id.slice(0, 8)}</span>
+                      {mod.preco_venda_m2 != null && (
+                        <span className="text-xs text-stone-500">
+                          R$ {mod.preco_venda_m2.toLocaleString('pt-BR')}/m²
+                        </span>
+                      )}
+                    </label>
+                  ))}
+                  <span className="text-sm text-stone-500">
+                    {selectedCatalogoIds.length} / {selectedLimit} selecionados
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleConfirmEscolhidas}
+                    disabled={selectedCatalogoIds.length === 0}
+                    className="btn-primary text-sm disabled:pointer-events-none disabled:opacity-60"
+                  >
+                    Confirmar seleção
+                  </button>
+                </div>
+              </div>
+            )}
+            {!listagemOnly && escolhidasComDados.length > 0 && (
+              <div className="border-b border-stone-200 bg-stone-50 px-4 py-3">
+                <button
+                  type="button"
+                  onClick={handleSalvarBatalha}
+                  className="btn-primary text-sm"
+                >
+                  Salvar batalha
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGerarPdf}
+                  disabled={gerandoPdf || pdfRows.length === 0}
+                  className="btn-primary ml-2 text-sm"
+                >
+                  {gerandoPdf ? 'Gerando PDF…' : 'Gerar e guardar PDF'}
+                </button>
               </div>
             )}
             <div className="overflow-x-auto">
@@ -1403,8 +1718,35 @@ export function Etapa4Casas(props: {
                   )}
                 </thead>
                 <tbody>
-                  {casasPaginated.map((c) => (
-                    <tr key={c.id} className="border-b border-stone-100 hover:bg-stone-50">
+                  {casasPaginated.map((c, idx) => {
+                    const prevFaixa = idx > 0 ? casasPaginated[idx - 1]?.faixa : undefined;
+                    const showFaixaHeader =
+                      listagemOnly && c.faixa != null && (idx === 0 || c.faixa !== prevFaixa);
+                    const qtdFaixa =
+                      showFaixaHeader && c.faixa && contagemPorFaixa
+                        ? (contagemPorFaixa.get(c.faixa) ?? 0)
+                        : 0;
+                    const colCountListagem = 17;
+                    const colCountBatalha =
+                      colCountListagem + escolhidasComDados.length * 4;
+                    return (
+                    <React.Fragment key={c.id}>
+                    {showFaixaHeader ? (
+                      <tr className="border-b border-stone-200 bg-stone-50/90">
+                        <td
+                          colSpan={listagemOnly ? colCountListagem : colCountBatalha}
+                          className={`${tabelaTd} py-1.5`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <BadgeFaixaMercado faixa={c.faixa} />
+                            <span className="font-medium text-stone-600">
+                              {qtdFaixa} {qtdFaixa === 1 ? 'casa' : 'casas'}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                    <tr className="border-b border-stone-100 hover:bg-stone-50">
                       <td className={tabelaTd}>{c.cidade ?? '—'}</td>
                       <td className={tabelaTd}>
                         {c.foto_url ? (
@@ -1501,6 +1843,19 @@ export function Etapa4Casas(props: {
                       </td>
                       {!listagemOnly &&
                         escolhidasComDados.map((ce, idx) => {
+                          const elegivel = parBatalhaElegivelFaixa(ce.catalogoRow?.nome, c.faixa);
+                          if (!elegivel) {
+                            return (
+                              <td
+                                key={ce.id}
+                                colSpan={4}
+                                className="border-l border-stone-200 bg-stone-100/80 p-1 text-center text-[10px] text-stone-400"
+                                title="Modelo não elegível para a faixa deste anúncio"
+                              >
+                                —
+                              </td>
+                            );
+                          }
                           const key = `${ce.id}__${c.id}`;
                           const notaAtrib = getNotaAtributosLote(key);
                           const notaPreco = getNotaPrecoCompleta(ce, c);
@@ -1880,18 +2235,20 @@ export function Etapa4Casas(props: {
                           );
                         })}
                     </tr>
-                  ))}
+                    </React.Fragment>
+                  );
+                  })}
                 </tbody>
               </table>
             </div>
           </section>
         )}
-        {casas.length > ROWS_PER_PAGE && (
+        {casasExibicao.length > ROWS_PER_PAGE && (
           <div
             className={`mt-3 flex items-center justify-between rounded-lg border border-stone-200 bg-stone-50 ${listagemOnly ? 'px-3 py-1.5 text-[11px]' : 'px-4 py-2 text-sm'}`}
           >
             <span className="text-stone-600">
-              Página {pageCasas} de {totalPages} ({casas.length} casas)
+              Página {pageCasas} de {totalPages} ({casasExibicao.length} casas)
             </span>
             <div className="flex gap-2">
               <button
@@ -2115,6 +2472,7 @@ export function Etapa4Casas(props: {
                     maxLength={2}
                   />
                 </label>
+                {!listagemOnly ? (
                 <label className="grid gap-1 sm:col-span-2">
                   <span className="text-sm font-medium text-stone-700">Compat. Moní</span>
                   <input
@@ -2124,6 +2482,7 @@ export function Etapa4Casas(props: {
                     className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
                   />
                 </label>
+                ) : null}
                 <label className="grid gap-1">
                   <span className="text-sm font-medium text-stone-700">Data levant.</span>
                   <input
@@ -2157,21 +2516,38 @@ export function Etapa4Casas(props: {
   );
 }
 
-function BadgeFaixaMercado({
-  faixa,
-}: {
-  faixa?: CasaRow['faixa'];
-}) {
+function BadgeFaixaMercado({ faixa }: { faixa?: CasaRow['faixa'] }) {
+  if (faixa === 'premium_plus3') {
+    return (
+      <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-900">
+        Premium+++
+      </span>
+    );
+  }
+  if (faixa === 'premium_plus2') {
+    return (
+      <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800">
+        Premium++
+      </span>
+    );
+  }
+  if (faixa === 'premium_plus') {
+    return (
+      <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-800">
+        Premium+
+      </span>
+    );
+  }
   if (faixa === 'premium') {
     return (
-      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
         Premium
       </span>
     );
   }
   if (faixa === 'intermediaria') {
     return (
-      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
         Intermediária
       </span>
     );
@@ -2184,4 +2560,30 @@ function BadgeFaixaMercado({
     );
   }
   return null;
+}
+
+function formatFalhaInelegivelGeometria(
+  item: ModeloInelegivelGeometria,
+  falha: 'largura' | 'profundidade' | 'area',
+): string {
+  if (falha === 'largura') {
+    return `Largura útil ${item.largura_util?.toFixed(1) ?? '—'}m < ${item.dimensao_x_m ?? '—'}m necessário`;
+  }
+  if (falha === 'profundidade') {
+    return `Profundidade útil ${item.profundidade_util?.toFixed(1) ?? '—'}m < ${item.dimensao_y_m ?? '—'}m necessário`;
+  }
+  return `Área útil ${item.area_util?.toFixed(0) ?? '—'}m² < ${item.area_perimetro_m2 ?? '—'}m² necessário`;
+}
+
+function formatFalhaInelegivelGeometria(
+  item: ModeloInelegivelGeometria,
+  falha: 'largura' | 'profundidade' | 'area',
+): string {
+  if (falha === 'largura') {
+    return `Largura útil ${item.largura_util?.toFixed(1) ?? '—'}m < ${item.dimensao_x_m ?? '—'}m necessário`;
+  }
+  if (falha === 'profundidade') {
+    return `Profundidade útil ${item.profundidade_util?.toFixed(1) ?? '—'}m < ${item.dimensao_y_m ?? '—'}m necessário`;
+  }
+  return `Área útil ${item.area_util?.toFixed(0) ?? '—'}m² < ${item.area_perimetro_m2 ?? '—'}m² necessário`;
 }

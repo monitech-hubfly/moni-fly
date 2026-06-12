@@ -8,6 +8,7 @@ import {
 } from '@/lib/authz';
 
 import { fetchFranqueadoEmpresasRows } from '@/lib/franqueado-empresas';
+import { fetchFranqueadoSpeRows } from '@/lib/franqueado-spe';
 
 import { fetchRedeFranqueadosRows } from '@/lib/rede-franqueados';
 
@@ -75,7 +76,8 @@ export default async function RedeFranqueadosPage() {
 
 
 
-  const [rows, countResult, funilCountResult, loteadoresRows, empresasResult, condominiosRows] = await Promise.all([
+  const [rows, countResult, funilCountResult, loteadoresRows, empresasResult, spesResult, condominiosRows] =
+    await Promise.all([
 
     fetchRedeFranqueadosRows(supabase),
 
@@ -87,6 +89,8 @@ export default async function RedeFranqueadosPage() {
 
     showStaffTabs ? fetchFranqueadoEmpresasRows(supabase) : Promise.resolve(null),
 
+    showStaffTabs ? fetchFranqueadoSpeRows(supabase) : Promise.resolve(null),
+
     showCondominiosTab ? fetchCondominiosRows(supabase) : Promise.resolve(null),
 
   ]);
@@ -95,6 +99,7 @@ export default async function RedeFranqueadosPage() {
   const linhasSemFunil = funilCountResult.ok ? funilCountResult.total : 0;
 
   const empresasLoadError = showStaffTabs && empresasResult === null;
+  const spesLoadError = showStaffTabs && spesResult === null;
 
 
 
@@ -134,7 +139,11 @@ export default async function RedeFranqueadosPage() {
 
             empresasRows={empresasResult}
 
+            spesRows={spesResult ?? []}
+
             empresasLoadError={empresasLoadError}
+
+            spesLoadError={spesLoadError}
 
             condominiosRows={condominiosRows}
 

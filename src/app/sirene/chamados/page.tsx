@@ -156,13 +156,14 @@ export default async function SireneChamadosPage({
         hdm_responsavel: string | null;
         arquivado: boolean;
         te_trata: boolean | null;
+        prioridade: string | null;
       }
     >();
     if (sireneIds.length > 0) {
       const { data: scRows } = await admin
         .from('sirene_chamados')
         .select(
-          'id, frank_id, frank_nome, numero, tipo, time_abertura, abertura_responsavel_nome, hdm_responsavel, arquivado, te_trata',
+          'id, frank_id, frank_nome, numero, tipo, time_abertura, abertura_responsavel_nome, hdm_responsavel, arquivado, te_trata, prioridade',
         )
         .in('id', sireneIds);
       for (const s of scRows ?? []) {
@@ -179,6 +180,7 @@ export default async function SireneChamadosPage({
           hdm_responsavel: (s as { hdm_responsavel?: string | null }).hdm_responsavel ?? null,
           arquivado: Boolean((s as { arquivado?: boolean | null }).arquivado),
           te_trata: (s as { te_trata?: boolean | null }).te_trata ?? null,
+          prioridade: (s as { prioridade?: string | null }).prioridade ?? null,
         });
       }
     }
@@ -324,6 +326,7 @@ export default async function SireneChamadosPage({
           sirene_abertura_responsavel_nome:
             ka?.origem === 'sirene' && scMeta ? scMeta.abertura_responsavel_nome : null,
           sirene_hdm_responsavel: ka?.origem === 'sirene' && scMeta ? scMeta.hdm_responsavel : null,
+          sirene_prioridade: ka?.origem === 'sirene' && scMeta ? scMeta.prioridade : null,
           frank_id,
           te_trata: ka?.origem === 'sirene' && scMeta ? scMeta.te_trata : null,
           sirene_arquivado: ka?.origem === 'sirene' && scMeta ? scMeta.arquivado : false,
@@ -394,6 +397,7 @@ export default async function SireneChamadosPage({
         time_abertura_nome: null,
         sirene_abertura_responsavel_nome: null,
         sirene_hdm_responsavel: null,
+        sirene_prioridade: null,
         frank_id: null,
         te_trata: null,
         sirene_arquivado: false,
@@ -412,6 +416,24 @@ export default async function SireneChamadosPage({
           const cid = String((r as { card_id: string }).card_id);
           comentariosCountByCardId[cid] = (comentariosCountByCardId[cid] ?? 0) + 1;
         }
+      }
+    }
+
+    // Contagem de comentários para chamados Sirene diretos (card_id = null)
+    const sireneIdsParaContar = [...new Set(
+      interacoes
+        .filter((i) => i.sirene_chamado_id != null && i.card_id == null)
+        .map((i) => i.sirene_chamado_id as number)
+    )];
+    if (sireneIdsParaContar.length > 0) {
+      const { data: scComentRows } = await admin
+        .from('kanban_card_comentarios')
+        .select('sirene_chamado_id')
+        .in('sirene_chamado_id', sireneIdsParaContar);
+      for (const r of scComentRows ?? []) {
+        const scid = (r as { sirene_chamado_id: number }).sirene_chamado_id;
+        const key = `sirene-${scid}`;
+        comentariosCountByCardId[key] = (comentariosCountByCardId[key] ?? 0) + 1;
       }
     }
 
