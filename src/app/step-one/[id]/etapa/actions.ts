@@ -31,6 +31,7 @@ import {
 import { LOTES_DISPONIVEIS_CHECKBOXES } from '@/lib/kanban/lotes-disponiveis-condominio';
 import { parseDecimalInput } from '@/lib/condominios';
 import type { LinhaProspectCondominio } from '@/lib/kanban/condominio-prospect-pesquisa';
+import { carregarProspectsCondominioCard } from '@/lib/actions/kanban-condominio-pesquisa';
 import {
   PRE_BATALHA_CHECKLIST_LABEL_APLICADA,
   PRE_BATALHA_CHECKLIST_LABEL_RANKING,
@@ -77,6 +78,29 @@ async function resolveStepOneKanbanCardIds(
     if (id) ids.add(id);
   }
   return [...ids];
+}
+
+/** Carrega linhas da pesquisa Dados dos Condomínios (tipo predominante por faixa, etc.). */
+export async function getLinhasProspectCondominioStepOne(
+  processoId: string,
+  options?: { cardId?: string },
+): Promise<{ ok: true; linhas: LinhaProspectCondominio[] } | { ok: false; error: string }> {
+  const access = await verifyProcessoCasasAccess(processoId);
+  if (!access.ok) return { ok: false, error: access.error };
+  const supabase = access.supabase;
+
+  const cardIdsSet = new Set(await resolveStepOneKanbanCardIds(supabase, processoId));
+  const hint = options?.cardId?.trim();
+  if (hint) cardIdsSet.add(hint);
+
+  for (const cardId of cardIdsSet) {
+    const loaded = await carregarProspectsCondominioCard(cardId);
+    if (loaded.ok && loaded.linhas.length > 0) {
+      return { ok: true, linhas: loaded.linhas };
+    }
+  }
+
+  return { ok: true, linhas: [] };
 }
 
 /** Pré-preenche Atributos do Lote a partir da fase lotes_disponiveis (Step One). */
@@ -503,6 +527,9 @@ export async function carregarGruposPreBatalhaKanban(input: {
   const terrenoResult = await getDadosTerrenoFromStepOneChecklist(processoId, { cardId });
   const terreno = terrenoResult.ok ? terrenoResult.terreno : undefined;
 
+  const prospectsResult = await getLinhasProspectCondominioStepOne(processoId, { cardId });
+  const linhasProspect = prospectsResult.ok ? prospectsResult.linhas : [];
+
   const gruposRanking = calcularRankingPreBatalhaPorFaixas(
     (
       casas as {
@@ -529,7 +556,7 @@ export async function carregarGruposPreBatalhaKanban(input: {
     })),
     catalogo,
     atributosParaRanking,
-    { terreno },
+    { terreno, linhasProspect },
   );
 
   if (gruposRanking.length === 0) return { ok: true, rankingCount: 0, grupos: [] };

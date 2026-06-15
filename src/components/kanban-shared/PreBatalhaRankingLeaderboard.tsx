@@ -12,6 +12,7 @@ import {
   type ResultadoRankingModelo,
 } from '@/lib/kanban/pre-batalha-compatibilidade';
 import { gerarExplicacaoRankingFaixaPreBatalha } from '@/lib/kanban/pre-batalha-explicacao-faixa';
+import { formatNotaAn } from '@/app/step-one/[id]/etapa/REGRAS_BATALHA';
 
 function formatRank(posicao: number): string {
   return String(posicao).padStart(2, '0');
@@ -239,6 +240,11 @@ function ListaAnunciosAmeacadores({ anuncios }: { anuncios: AnuncioAmeacadorPreB
               </span>
             </div>
             <SugestaoAnexoTamanho anuncio={anuncio} />
+            {anuncio.notaAndares != null ? (
+              <p className="mt-1 text-[11px] tabular-nums text-stone-600">
+                {formatNotaAn(anuncio.notaAndares)}
+              </p>
+            ) : null}
             {anuncio.obsFlexivel && anuncio.obsFlexivel.length > 0 ? (
               <div className="mt-1 rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-800">
                 {anuncio.obsFlexivel.map((obs, i) => (

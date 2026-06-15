@@ -18,7 +18,13 @@ import {
   type CatalogoComAtributosLote,
   type NotaTamanhoResult,
   type ProdutoDadosPar,
+  type TipoCasaPredominanteFaixa,
 } from '@/app/step-one/[id]/etapa/REGRAS_BATALHA';
+import {
+  valorFaixaCondominio,
+  type FaixaCondominioId,
+  type LinhaProspectCondominio,
+} from '@/lib/kanban/condominio-prospect-pesquisa';
 import { CHAVES_TOPOGRAFIA_LOTE } from '@/lib/kanban/lotes-disponiveis-condominio';
 import {
   classificarFaixasMercado,
@@ -51,6 +57,8 @@ export type CatalogoItem = CatalogoComAtributosLote & {
   suites?: number | null;
   banheiros: number | null;
   vagas: number | null;
+  andares?: number | null;
+  rooftop?: boolean | string | null;
   quartos_flexivel?: boolean | null;
   suites_flexivel?: boolean | null;
   banheiros_flexivel?: boolean | null;
@@ -74,6 +82,7 @@ export type AnuncioAmeacadorPreBatalha = {
   areaMoniM2?: number | null;
   sugestaoAnexo?: NotaTamanhoResult['sugestaoAnexo'];
   obsFlexivel?: string[];
+  notaAndares?: number;
 };
 
 /** Sugestão de anexo única por modelo — cobre o concorrente mais desafiador em m². */
@@ -137,6 +146,41 @@ export type RankingPorFaixaMercado = {
   batalhas: BatalhaModeloAnuncioPreBatalha[];
   ranking: RankingModeloPreBatalha[];
 };
+
+/** Faixa de mercado ZAP → faixa de pesquisa do condomínio (Premium / Intermediária / Entrada). */
+export function faixaMercadoParaFaixaCondominio(faixa: FaixaMercado): FaixaCondominioId {
+  if (faixa === 'entrada') return 'entrada';
+  if (faixa === 'intermediaria') return 'intermediaria';
+  return 'premium';
+}
+
+function normalizarNomeCondominio(n: string): string {
+  return n.trim().toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+}
+
+/** Tipo predominante da faixa ativa a partir da linha do condomínio prospectado. */
+export function resolverTipoPredominanteFaixa(
+  linhas: LinhaProspectCondominio[] | undefined,
+  condominioAnuncio: string | null | undefined,
+  faixaMercado: FaixaMercado | undefined,
+): TipoCasaPredominanteFaixa | null {
+  if (!linhas?.length || !faixaMercado) return null;
+  const alvo = normalizarNomeCondominio(String(condominioAnuncio ?? ''));
+  if (!alvo) return null;
+  const linha = linhas.find((l) => normalizarNomeCondominio(l.condominio) === alvo);
+  if (!linha) return null;
+  const faixaId = faixaMercadoParaFaixaCondominio(faixaMercado);
+  const v = valorFaixaCondominio(linha, faixaId, 'q_casas_tipo_predominante');
+  return v === 'Sobrado' || v === 'Térrea' ? v : null;
+}
+
+function produtoDadosComTipo(
+  base: ProdutoDadosPar | undefined,
+  tipo: TipoCasaPredominanteFaixa | null,
+): ProdutoDadosPar | undefined {
+  if (!base && !tipo) return undefined;
+  return { ...base, tipoPredominante: tipo ?? base?.tipoPredominante ?? null };
+}
 
 /** Geometria do terreno: dimensões do lote + recuos do condomínio. */
 export interface DadosTerreno {
@@ -362,7 +406,9 @@ function gerarBatalhasModeloAnuncio(
   catalogoFiltrado: CatalogoItem[],
   casasFaixa: CasaRowPreBatalha[],
   notaLote: number,
+  faixa: FaixaMercado | undefined,
   produtoDadosPorAnuncio: Record<string, ProdutoDadosPar | undefined>,
+  linhasProspect?: LinhaProspectCondominio[],
 ): BatalhaModeloAnuncioPreBatalha[] {
   const notaLoteR = roundNota(notaLote);
   const batalhas: BatalhaModeloAnuncioPreBatalha[] = [];
@@ -376,7 +422,12 @@ function gerarBatalhasModeloAnuncio(
       const notaPreco = roundNota(
         notaPrecoPreBatalhaContraAnuncio(precoIncKitMoni, c.preco),
       );
-      const produtoCalc = calcularNotaProdutoCompleta(mod, c, produtoDadosPorAnuncio[c.id]);
+      const tipo = resolverTipoPredominanteFaixa(linhasProspect, c.condominio, faixa);
+      const produtoCalc = calcularNotaProdutoCompleta(
+        mod,
+        c,
+        produtoDadosComTipo(produtoDadosPorAnuncio[c.id], tipo),
+      );
       const notaProduto = roundNota(produtoCalc.nota);
       batalhas.push({
         catalogoId: mod.id,
@@ -439,6 +490,7 @@ function rankearModelosContraAnuncios(
   produtoDadosPorAnuncio: Record<string, ProdutoDadosPar | undefined>,
   atributosLote: AtributosLoteRespostas,
   terreno?: DadosTerreno,
+  linhasProspect?: LinhaProspectCondominio[],
 ): RankingModeloPreBatalha[] {
   const totalAtributosLote = contarAtributosLoteMarcados(atributosLote);
 
@@ -479,8 +531,13 @@ function rankearModelosContraAnuncios(
 
     const notasPorAnuncio: AnuncioAmeacadorPreBatalha[] = casasFaixa.map((c) => {
       const dados = produtoDadosPorAnuncio[c.id];
+      const tipo = resolverTipoPredominanteFaixa(linhasProspect, c.condominio, faixa);
+      const produtoCalc = calcularNotaProdutoCompleta(
+        mod,
+        c,
+        produtoDadosComTipo(dados, tipo),
+      );
       const notaPreco = notaPrecoPreBatalhaContraAnuncio(precoIncKitMoni, c.preco);
-      const produtoCalc = calcularNotaProdutoCompleta(mod, c, dados);
       return {
         id: c.id,
         condominio: c.condominio?.trim() || '—',
@@ -491,6 +548,7 @@ function rankearModelosContraAnuncios(
         areaMoniM2: mod.area_m2 ?? null,
         sugestaoAnexo: produtoCalc.sugestaoAnexo,
         obsFlexivel: produtoCalc.obsFlexivel,
+        notaAndares: produtoCalc.subnotas?.andares ?? 0,
       };
     });
 
@@ -550,6 +608,8 @@ export type CalcularRankingModelosOpts = {
   produtoDadosPorAnuncio?: Record<string, ProdutoDadosPar | undefined>;
   /** Dimensões do lote + recuos do condomínio — filtra modelos que não cabem no terreno útil. */
   terreno?: DadosTerreno;
+  /** Linhas da pesquisa Dados dos Condomínios — tipo predominante por faixa (critério An). */
+  linhasProspect?: LinhaProspectCondominio[];
 };
 
 /**
@@ -566,6 +626,7 @@ export function calcularRankingPreBatalhaPorFaixas(
 
   const notaLote = notaAtributosLote(atributosLote);
   const produtoDadosPorAnuncio = opts?.produtoDadosPorAnuncio ?? {};
+  const linhasProspect = opts?.linhasProspect;
 
   const casasComFaixa = classificarFaixasMercado(casas);
   const porFaixa = new Map<FaixaMercado, CasaRowPreBatalha[]>();
@@ -591,6 +652,7 @@ export function calcularRankingPreBatalhaPorFaixas(
       produtoDadosPorAnuncio,
       atributosLote,
       opts?.terreno,
+      linhasProspect,
     );
     if (ranking.length === 0) continue;
 
@@ -603,7 +665,9 @@ export function calcularRankingPreBatalhaPorFaixas(
       catalogoFaixaElegivel,
       casasFaixa,
       notaLote,
+      faixa,
       produtoDadosPorAnuncio,
+      linhasProspect,
     );
 
     grupos.push({

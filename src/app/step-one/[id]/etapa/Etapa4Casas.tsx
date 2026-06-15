@@ -12,6 +12,7 @@ import {
   saveScoreBatalhaPdfUrl,
   getAtributosLoteFromStepOneChecklist,
   getDadosTerrenoFromStepOneChecklist,
+  getLinhasProspectCondominioStepOne,
   autoMarcarChecklistPosRankingPreBatalha,
   type BatalhaCasaRow,
 } from './actions';
@@ -35,6 +36,7 @@ import {
   notaAmenidades,
   calcularNotaProdutoCompleta,
   type NotaProdutoCompletaResult,
+  formatNotaAn,
   QUARTOS_PADRAO_NOSSA,
   type ChecklistReforma,
   CATALOGO_CASAS_SELECT_PRE_BATALHA,
@@ -42,6 +44,7 @@ import {
 import {
   calcularRankingPreBatalhaPorFaixas,
   flattenRankingPreBatalhaPorFaixas,
+  resolverTipoPredominanteFaixa,
   resolverTopografiaLote,
   type CatalogoItem,
   type DadosTerreno,
@@ -57,6 +60,7 @@ import {
   type FaixaMercado,
 } from '@/lib/kanban/mapa-competidores-condominio';
 import { modeloElegivelParaFaixa } from '@/lib/kanban/modelo-faixa-elegibilidade';
+import type { LinhaProspectCondominio } from '@/lib/kanban/condominio-prospect-pesquisa';
 
 function parBatalhaElegivelFaixa(
   nomeModelo: string | null | undefined,
@@ -286,6 +290,9 @@ export function Etapa4Casas(props: {
     {},
   );
   const [catalogoPreBatalha, setCatalogoPreBatalha] = useState<CatalogoItem[]>([]);
+  const [linhasProspectCondominio, setLinhasProspectCondominio] = useState<
+    LinhaProspectCondominio[]
+  >([]);
 
   const casasIdsKey = useMemo(() => casas.map((c) => c.id).sort().join(','), [casas]);
 
@@ -327,11 +334,15 @@ export function Etapa4Casas(props: {
 
     void (async () => {
       try {
-        const [result, terrenoResult] = await Promise.all([
+        const [prospectsResult, result, terrenoResult] = await Promise.all([
+          getLinhasProspectCondominioStepOne(processoId),
           getAtributosLoteFromStepOneChecklist(processoId),
           getDadosTerrenoFromStepOneChecklist(processoId),
         ]);
         if (cancelado) return;
+
+        const linhasProspect = prospectsResult.ok ? prospectsResult.linhas : [];
+        setLinhasProspectCondominio(linhasProspect);
 
         const atributos = result.ok ? result.atributos : {};
         stepOneAtributosCacheRef.current = atributos;
@@ -373,7 +384,7 @@ export function Etapa4Casas(props: {
           casasPreBatalha,
           cat,
           atributosParaRanking,
-          { terreno: terreno ?? undefined },
+          { terreno: terreno ?? undefined, linhasProspect },
         );
         if (!cancelado) {
           setRankingPorFaixaPreBatalha(grupos);
@@ -387,6 +398,18 @@ export function Etapa4Casas(props: {
       cancelado = true;
     };
   }, [modoPreBatalha, listagemOnly, processoId, casasIdsKey, catalogo]);
+
+  /** Batalha de Casas: carrega prospects para critério Andares (An) na nota de Produto. */
+  useEffect(() => {
+    if (modoPreBatalha || listagemOnly) return;
+    let cancelado = false;
+    void getLinhasProspectCondominioStepOne(processoId).then((res) => {
+      if (!cancelado && res.ok) setLinhasProspectCondominio(res.linhas);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [modoPreBatalha, listagemOnly, processoId]);
 
   const rankingPreBatalhaIdsKey = useMemo(
     () => rankingPreBatalha.map((r) => r.catalogoId).join(','),
@@ -727,12 +750,22 @@ export function Etapa4Casas(props: {
       banheiros: number | null;
       vagas: number | null;
       area_m2?: number | null;
+      andares?: number | null;
+      rooftop?: boolean | string | null;
       quartos_flexivel?: boolean | null;
       suites_flexivel?: boolean | null;
       banheiros_flexivel?: boolean | null;
       assinatura?: boolean | null;
     };
-    return calcularNotaProdutoCompleta(cat, listing, dados);
+    const tipoPredominante = resolverTipoPredominanteFaixa(
+      linhasProspectCondominio,
+      listing.condominio,
+      listing.faixa,
+    );
+    return calcularNotaProdutoCompleta(cat, listing, {
+      ...dados,
+      tipoPredominante,
+    });
   };
 
   const getNotaProdutoCompleta = (ce: (typeof escolhidasComDados)[0], listing: CasaRow): number =>
@@ -809,6 +842,7 @@ export function Etapa4Casas(props: {
     reformaChecklistByListingId,
     produtoDadosByKey,
     custoConstrucaoByCasaEscolhidaId,
+    linhasProspectCondominio,
   ]);
   const rankingBatalha = useMemo(() => {
     if (escolhidasComDados.length === 0) return [];
@@ -845,6 +879,7 @@ export function Etapa4Casas(props: {
     reformaChecklistByListingId,
     produtoDadosByKey,
     custoConstrucaoByCasaEscolhidaId,
+    linhasProspectCondominio,
   ]);
 
   /** Ranking final por pontuação total = soma das notas finais de cada modelo (para Seção 5). */
@@ -913,6 +948,7 @@ export function Etapa4Casas(props: {
             nota_amenidades: sub?.amenidades ?? 0,
             nota_design: sub?.design ?? 0,
             nota_idade: sub?.idade ?? 0,
+            nota_andares: sub?.andares ?? 0,
             nota_produto: notaProduto,
             ...(produtoCalc.sugestaoAnexo && { sugestao_anexo: produtoCalc.sugestaoAnexo }),
           };
@@ -1209,7 +1245,7 @@ export function Etapa4Casas(props: {
         produtoSub,
       };
     });
-  }, [rankingBatalha, escolhidasComDados, batalhaFullByKey, atributosLoteByKey, batalhaByKey, reformaChecklistByListingId, produtoDadosByKey]);
+  }, [rankingBatalha, escolhidasComDados, batalhaFullByKey, atributosLoteByKey, batalhaByKey, reformaChecklistByListingId, produtoDadosByKey, linhasProspectCondominio]);
 
   const handleGerarPdf = () => {
     if (pdfRows.length === 0) return;
@@ -1806,6 +1842,9 @@ export function Etapa4Casas(props: {
                           const notaQ = produtoCalc.subnotas?.quartos ?? 0;
                           const notaB = produtoCalc.subnotas?.banheiros ?? 0;
                           const notaV = produtoCalc.subnotas?.vagas ?? 0;
+                          const notaAn = produtoCalc.subnotas?.andares ?? 0;
+                          const modoProdutoCompleto =
+                            prodDados.designId != null || prodDados.idade != null;
                           const refCustoEscolha = custosConstrucaoChecklist[ce.ordem];
                           const custoModelo = custoConstrucaoByCasaEscolhidaId[ce.id];
                           return (
@@ -1949,7 +1988,11 @@ export function Etapa4Casas(props: {
                                         setProdutoDadosByKey((p) => ({ ...p, [key]: {} }));
                                     }}
                                     className="min-w-[2rem] rounded border border-stone-300 bg-white px-1 py-0.5 text-xs hover:bg-stone-50"
-                                    title="Produto (7 sub-itens: tamanho, amenidades, quartos, banheiros, vagas, design, idade)"
+                                    title={
+                                      modoProdutoCompleto
+                                        ? 'Produto (8 sub-itens: tamanho, amenidades, quartos, banheiros, vagas, design, idade, andares)'
+                                        : 'Produto (5 sub-itens: tamanho, quartos, banheiros, vagas, andares)'
+                                    }
                                   >
                                     {notaProduto}
                                   </button>
@@ -1966,7 +2009,7 @@ export function Etapa4Casas(props: {
                                   <>
                                     <div className="absolute left-0 top-full z-30 mt-0.5 w-72 rounded-lg border border-stone-200 bg-white p-2 shadow-lg">
                                       <p className="mb-2 text-xs font-semibold text-stone-800">
-                                        Produto — 7 sub-itens
+                                        Produto — {modoProdutoCompleto ? '8' : '5'} sub-itens
                                       </p>
                                       <p className="mb-2 text-[11px] text-stone-500">
                                         Modelo (
@@ -1974,6 +2017,10 @@ export function Etapa4Casas(props: {
                                         {catProduto.quartos ?? QUARTOS_PADRAO_NOSSA} quartos,{' '}
                                         {catProduto.banheiros ?? '—'} banh.,{' '}
                                         {catProduto.vagas ?? '—'} vagas
+                                        {(ce.catalogoRow as { andares?: number | null }).andares !=
+                                        null
+                                          ? `, ${(ce.catalogoRow as { andares?: number | null }).andares} and.`
+                                          : ''}
                                       </p>
                                       <div className="space-y-1.5 text-xs">
                                         <p>
@@ -2037,49 +2084,54 @@ export function Etapa4Casas(props: {
                                           />
                                           <span className="text-stone-500">({notaV})</span>
                                         </label>
-                                        <p>Amenidades: auto ({notaAmenidades(c)})</p>
-                                        <label className="block">
-                                          <span className="text-stone-600">Design:</span>
-                                          <select
-                                            value={prodDados.designId ?? ''}
-                                            onChange={(e) =>
-                                              setProdutoDadosByKey((p) => ({
-                                                ...p,
-                                                [key]: {
-                                                  ...p[key],
-                                                  designId: e.target.value || undefined,
-                                                },
-                                              }))
-                                            }
-                                            className="ml-1 w-full rounded border border-stone-300 px-1 py-0.5"
-                                          >
-                                            <option value="">—</option>
-                                            {DESIGN_OPCOES.map((o) => (
-                                              <option key={o.id} value={o.id}>
-                                                {o.label}
-                                              </option>
-                                            ))}
-                                          </select>
-                                        </label>
-                                        <label className="block">
-                                          <span className="text-stone-600">Idade (anos):</span>
-                                          <input
-                                            type="number"
-                                            min={0}
-                                            value={prodDados.idade ?? ''}
-                                            onChange={(e) => {
-                                              const v =
-                                                e.target.value === ''
-                                                  ? null
-                                                  : Number(e.target.value);
-                                              setProdutoDadosByKey((p) => ({
-                                                ...p,
-                                                [key]: { ...p[key], idade: v },
-                                              }));
-                                            }}
-                                            className="ml-1 w-16 rounded border border-stone-300 px-1 py-0.5"
-                                          />
-                                        </label>
+                                        <p>{formatNotaAn(notaAn)}</p>
+                                        {modoProdutoCompleto ? (
+                                          <>
+                                            <p>Amenidades: auto ({notaAmenidades(c)})</p>
+                                            <label className="block">
+                                              <span className="text-stone-600">Design:</span>
+                                              <select
+                                                value={prodDados.designId ?? ''}
+                                                onChange={(e) =>
+                                                  setProdutoDadosByKey((p) => ({
+                                                    ...p,
+                                                    [key]: {
+                                                      ...p[key],
+                                                      designId: e.target.value || undefined,
+                                                    },
+                                                  }))
+                                                }
+                                                className="ml-1 w-full rounded border border-stone-300 px-1 py-0.5"
+                                              >
+                                                <option value="">—</option>
+                                                {DESIGN_OPCOES.map((o) => (
+                                                  <option key={o.id} value={o.id}>
+                                                    {o.label}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            </label>
+                                            <label className="block">
+                                              <span className="text-stone-600">Idade (anos):</span>
+                                              <input
+                                                type="number"
+                                                min={0}
+                                                value={prodDados.idade ?? ''}
+                                                onChange={(e) => {
+                                                  const v =
+                                                    e.target.value === ''
+                                                      ? null
+                                                      : Number(e.target.value);
+                                                  setProdutoDadosByKey((p) => ({
+                                                    ...p,
+                                                    [key]: { ...p[key], idade: v },
+                                                  }));
+                                                }}
+                                                className="ml-1 w-16 rounded border border-stone-300 px-1 py-0.5"
+                                              />
+                                            </label>
+                                          </>
+                                        ) : null}
                                       </div>
                                       <p className="mt-2 text-xs text-stone-600">
                                         Nota produto: {notaProduto}

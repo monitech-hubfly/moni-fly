@@ -97,7 +97,7 @@ export const CATALOGO_CASAS_SELECT_ATTRS = Object.values(MAP_ATRIBUTO_LOTE_CATAL
 
 /** SELECT completo do catálogo para ranking Pré Batalha (inclui attr_* + flexível). */
 export const CATALOGO_CASAS_SELECT_PRE_BATALHA =
-  'id, nome, quartos, suites, banheiros, vagas, quartos_flexivel, suites_flexivel, banheiros_flexivel, assinatura, preco_custo, preco_custo_m2, preco_venda_m2, area_m2, preco_venda, topografia, dimensao_x_m, dimensao_y_m, area_perimetro_m2, ' +
+  'id, nome, quartos, suites, banheiros, vagas, andares, rooftop, quartos_flexivel, suites_flexivel, banheiros_flexivel, assinatura, preco_custo, preco_custo_m2, preco_venda_m2, area_m2, preco_venda, topografia, dimensao_x_m, dimensao_y_m, area_perimetro_m2, ' +
   CATALOGO_CASAS_SELECT_ATTRS;
 
 export const OBS_FLEXIVEL_QUARTOS = '1 quarto adicional necessário para competir';
@@ -557,12 +557,18 @@ export function notaAmenidades(listing: {
   return clampNota(sum);
 }
 
+export type TipoCasaPredominanteFaixa = 'Sobrado' | 'Térrea';
+
+export type RooftopCatalogo = boolean | string | null;
+
 export type CatalogoProdutoRef = {
   quartos: number | null;
   banheiros: number | null;
   vagas: number | null;
   suites?: number | null;
   area_m2?: number | null;
+  andares?: number | null;
+  rooftop?: RooftopCatalogo;
   quartos_flexivel?: boolean | null;
   suites_flexivel?: boolean | null;
   banheiros_flexivel?: boolean | null;
@@ -584,6 +590,8 @@ export type ProdutoDadosPar = {
   idade?: number | null;
   banheiros?: number | null;
   vagas?: number | null;
+  /** Tipo predominante da faixa (Dados dos Condomínios) — critério Andares (An). */
+  tipoPredominante?: TipoCasaPredominanteFaixa | null;
 };
 
 export type NotaProdutoCompletaResult = {
@@ -599,8 +607,51 @@ export type NotaProdutoCompletaResult = {
     vagas: number;
     design: number;
     idade: number;
+    andares: number;
   };
 };
+
+export function normalizarRooftopCatalogo(raw: RooftopCatalogo): 'S' | 'N' | 'Integrado' | null {
+  if (raw === true || raw === 'S' || raw === 's' || raw === 'true') return 'S';
+  if (raw === false || raw === 'N' || raw === 'n' || raw === 'false') return 'N';
+  if (typeof raw === 'string' && raw.trim().toLowerCase() === 'integrado') return 'Integrado';
+  return null;
+}
+
+/** Nota Andares (An): depende do tipo predominante da faixa e de andares/rooftop do modelo Moní. */
+export function notaAndares(
+  tipoPredominante: string | null | undefined,
+  andaresMoni: number | null | undefined,
+  rooftop: RooftopCatalogo,
+): number {
+  const tipo = String(tipoPredominante ?? '').trim();
+  if (tipo !== 'Sobrado' && tipo !== 'Térrea') return 0;
+
+  const andares =
+    andaresMoni != null && Number.isFinite(Number(andaresMoni)) ? Number(andaresMoni) : null;
+  if (andares == null) return 0;
+
+  if (tipo === 'Sobrado') {
+    if (andares > 1) return 2;
+    if (andares === 1) {
+      const rt = normalizarRooftopCatalogo(rooftop);
+      if (rt === 'S') return -2;
+      if (rt === 'N') return -3;
+      if (rt === 'Integrado') return -1;
+      return 0;
+    }
+    return 0;
+  }
+
+  if (andares > 1) return -3;
+  if (andares === 1) return 2;
+  return 0;
+}
+
+export function formatNotaAn(n: number): string {
+  if (n > 0) return `An: +${n}`;
+  return `An: ${n}`;
+}
 
 function notaTamanhoFromAreas(
   areaAnuncio: number | null,
@@ -648,6 +699,7 @@ export function calcularNotaProdutoCompleta(
     bFlex,
     ...(suitesFlex ? [suitesFlex] : []),
   );
+  const An = notaAndares(dados?.tipoPredominante, catalogo.andares ?? null, catalogo.rooftop ?? null);
 
   if (dados?.designId != null || dados?.idade != null) {
     const A = notaAmenidades(anuncio);
@@ -655,7 +707,7 @@ export function calcularNotaProdutoCompleta(
     const D = designOpt?.nota ?? 0;
     const I = notaIdade(dados?.idade ?? null);
     return {
-      nota: notaProdutoMedia(T, A, Q, B, V, D, I),
+      nota: notaProdutoMedia(T, A, Q, B, V, D, I, An),
       obsFlexivel,
       sugestaoAnexo: tResult.sugestaoAnexo,
       subnotas: {
@@ -667,15 +719,13 @@ export function calcularNotaProdutoCompleta(
         vagas: V,
         design: D,
         idade: I,
+        andares: An,
       },
     };
   }
 
-  const partes = [T, Q, B, V];
-  if (suitesFlex != null) partes.push(suitesFlex.nota);
-
   return {
-    nota: clampNota(Math.round((partes.reduce((s, n) => s + n, 0) / partes.length) * 10) / 10),
+    nota: notaProdutoSimplificada(T, Q, B, V, An),
     obsFlexivel,
     sugestaoAnexo: tResult.sugestaoAnexo,
     subnotas: {
@@ -687,14 +737,15 @@ export function calcularNotaProdutoCompleta(
       vagas: V,
       design: 0,
       idade: 0,
+      andares: An,
     },
   };
 }
 
 /**
  * Nota Produto modelo × anúncio.
- * Com design ou idade: 7 sub-itens via `notaProdutoMedia`.
- * Caso contrário: média (T + Q + B + V) / 4.
+ * Com design ou idade: 8 sub-itens via `notaProdutoMedia`.
+ * Caso contrário: média (T + Q + B + V + An) / 5.
  */
 export function notaProdutoContraAnuncio(
   catalogo: CatalogoProdutoRef,
@@ -704,7 +755,19 @@ export function notaProdutoContraAnuncio(
   return calcularNotaProdutoCompleta(catalogo, anuncio, dados).nota;
 }
 
-/** Nota final Produto = média simples dos 7 sub-itens (T, A, Q, B, V, D, I) */
+/** Modo simplificado: (T + Q + B + V + An) / 5 */
+export function notaProdutoSimplificada(
+  tamanho: number,
+  quartos: number,
+  banheiros: number,
+  vagas: number,
+  andares: number,
+): number {
+  const v = (tamanho + quartos + banheiros + vagas + andares) / 5;
+  return clampNota(Math.round(v * 10) / 10);
+}
+
+/** Nota final Produto = média simples dos 8 sub-itens (T, A, Q, B, V, D, I, An) */
 export function notaProdutoMedia(
   tamanho: number,
   amenidades: number,
@@ -713,8 +776,10 @@ export function notaProdutoMedia(
   vagas: number,
   design: number,
   idade: number,
+  andares: number,
 ): number {
-  const v = (tamanho + amenidades + quartos + banheiros + vagas + design + idade) / 7;
+  const v =
+    (tamanho + amenidades + quartos + banheiros + vagas + design + idade + andares) / 8;
   return clampNota(Math.round(v * 10) / 10);
 }
 
