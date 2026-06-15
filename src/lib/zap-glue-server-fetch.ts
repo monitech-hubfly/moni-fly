@@ -161,8 +161,66 @@ export async function fetchZapLotesGluePage(
 const PAGE_SIZE = 24;
 const MAX_FROM = 500;
 
-/** Todas as casas (paginação). */
-export async function fetchAllZapCasas(opts: {
+const SUPABASE_ZAP_FUNCTION_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
+  ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/zap-search`
+  : null;
+
+function getSupabaseZapFunctionConfig(): { url: string; serviceRoleKey: string } | null {
+  const url = SUPABASE_ZAP_FUNCTION_URL;
+  const serviceRoleKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim();
+  if (!url || !serviceRoleKey) return null;
+  return { url, serviceRoleKey };
+}
+
+/** Uma página de casas via Edge Function Supabase (proxy glue-api). */
+async function fetchZapCasasEdgePage(
+  cidade: string,
+  estado: string,
+  condominio: string | undefined,
+  from: number,
+  cookie?: string,
+): Promise<ZapListingItem[]> {
+  const cfg = getSupabaseZapFunctionConfig();
+  if (!cfg) {
+    throw new Error('Edge Function zap-search não configurada.');
+  }
+
+  const res = await fetch(cfg.url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${cfg.serviceRoleKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      cidade,
+      estado,
+      condominio,
+      from,
+      ...(cookie ? { cookie } : {}),
+    }),
+  });
+
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`Edge zap-search ${res.status}: ${text.slice(0, 300)}`);
+  }
+
+  let data: Record<string, unknown>;
+  try {
+    data = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    throw new Error('Edge zap-search retornou JSON inválido.');
+  }
+
+  if (data.error != null && String(data.error).trim()) {
+    throw new Error(String(data.error));
+  }
+
+  const listings = extractListings(data);
+  return mapGlueApiListingsToItems(listings);
+}
+
+async function fetchAllZapCasasDirect(opts: {
   cidade: string;
   estado: string;
   condominio?: string;
@@ -171,22 +229,71 @@ export async function fetchAllZapCasas(opts: {
   const allItems: ZapListingItem[] = [];
   let from = 0;
 
-  try {
-    while (from < MAX_FROM) {
-      const page = await fetchZapCasasGluePage(
-        opts.cidade,
-        opts.estado,
-        opts.condominio,
-        from,
-        PAGE_SIZE,
-        opts.cookie,
-      );
-      if (page.length === 0) break;
-      allItems.push(...page);
-      if (page.length < PAGE_SIZE) break;
-      from += PAGE_SIZE;
+  while (from < MAX_FROM) {
+    const page = await fetchZapCasasGluePage(
+      opts.cidade,
+      opts.estado,
+      opts.condominio,
+      from,
+      PAGE_SIZE,
+      opts.cookie,
+    );
+    if (page.length === 0) break;
+    allItems.push(...page);
+    if (page.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return { ok: true, items: allItems };
+}
+
+async function fetchAllZapCasasViaEdge(opts: {
+  cidade: string;
+  estado: string;
+  condominio?: string;
+  cookie?: string;
+}): Promise<FetchZapListingsResult> {
+  const allItems: ZapListingItem[] = [];
+  let from = 0;
+
+  while (from < MAX_FROM) {
+    const page = await fetchZapCasasEdgePage(
+      opts.cidade,
+      opts.estado,
+      opts.condominio,
+      from,
+      opts.cookie,
+    );
+    if (page.length === 0) break;
+    allItems.push(...page);
+    if (page.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return { ok: true, items: allItems };
+}
+
+/** Todas as casas (paginação). Edge Function Supabase primeiro; fallback glue-api direta. */
+export async function fetchAllZapCasas(opts: {
+  cidade: string;
+  estado: string;
+  condominio?: string;
+  cookie?: string;
+}): Promise<FetchZapListingsResult> {
+  if (getSupabaseZapFunctionConfig()) {
+    try {
+      return await fetchAllZapCasasViaEdge(opts);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const direct = await fetchAllZapCasasDirect(opts).catch((directErr) => {
+        const directMessage = directErr instanceof Error ? directErr.message : String(directErr);
+        return { ok: false as const, error: `${message}. Glue direta: ${directMessage}` };
+      });
+      if (direct.ok) return direct;
+      return { ok: false, error: direct.ok ? message : direct.error };
     }
-    return { ok: true, items: allItems };
+  }
+
+  try {
+    return await fetchAllZapCasasDirect(opts);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, error: message };

@@ -1,7 +1,7 @@
 /**
  * Busca casas ZAP no servidor.
- * Com APIFY_API_TOKEN: usa Apify direto (glue-api bloqueia IP de datacenter com 403).
- * Sem token: tenta glue-api.
+ * Com APIFY_API_TOKEN: usa Apify direto, salvo ZAP_TRY_GLUE=true.
+ * Sem token: glue via Edge Function Supabase (fallback glue-api direta).
  */
 
 import { runZapScraper } from '@/lib/apify-zap';
@@ -58,7 +58,7 @@ export async function fetchZapCasasWithFallback(opts: {
   condominio?: string;
   cookie?: string;
 }): Promise<FetchZapCasasResult> {
-  const useGlueFirst = process.env.ZAP_TRY_GLUE === 'true';
+  const useGlueFirst = !hasApifyToken() || process.env.ZAP_TRY_GLUE === 'true';
 
   if (hasApifyToken() && !useGlueFirst) {
     return fetchViaApify(opts.cidade, opts.estado, opts.condominio);
