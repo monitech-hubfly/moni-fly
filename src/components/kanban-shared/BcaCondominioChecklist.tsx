@@ -75,11 +75,11 @@ function filtrarCenariosCondominio(
   rowId: string,
   condominioNome: string,
 ): BcaCondominioCenario[] {
-  const nome = condominioNome.trim();
+  const nome = String(condominioNome ?? '').trim();
   return cenarios.filter(
     (c) =>
       (rowId && c.prospect_row_id === rowId) ||
-      (nome && c.condominio_nome.trim() === nome),
+      (nome && String(c.condominio_nome ?? '').trim() === nome),
   );
 }
 
@@ -127,7 +127,12 @@ export function BcaCondominioChecklist({
         return;
       }
       const ordenadas = prospectsOrdenadosPorTicketCasas(prosRes.linhas);
-      setLinhas(ordenadas.map((l) => ({ row_id: l.row_id, condominio: l.condominio })));
+      setLinhas(
+        ordenadas.map((l) => ({
+          row_id: l.row_id,
+          condominio: String(l.condominio ?? '').trim() || 'Condomínio',
+        })),
+      );
       setCatalogo(bcaRes.catalogo);
       setCenarios(bcaRes.cenarios);
       setRowIdAtivo((atual) => {
@@ -175,7 +180,7 @@ export function BcaCondominioChecklist({
         );
         return {
           id: row.row_id,
-          label: `${row.condominio.trim()}${temCompleto ? ' ✓' : ''}`,
+          label: `${String(row.condominio ?? '').trim() || 'Condomínio'}${temCompleto ? ' ✓' : ''}`,
         };
       }),
     [linhas, cenarios],

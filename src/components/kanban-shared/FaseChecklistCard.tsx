@@ -40,6 +40,7 @@ import { isFaseAberturaSpeSlug } from '@/lib/kanban/fase-spe-slugs';
 import { PreBatalhaRankingLeaderboard } from '@/components/kanban-shared/PreBatalhaRankingLeaderboard';
 import { ConfiguradorCasasRankingChecklist } from '@/components/kanban-shared/ConfiguradorCasasRankingChecklist';
 import { BcaCondominioChecklist } from '@/components/kanban-shared/BcaCondominioChecklist';
+import { BcaChecklistWidget } from '@/components/kanban-shared/BcaChecklistWidget';
 import { RedeLoteadorChecklist } from '@/components/kanban-shared/RedeLoteadorChecklist';
 import { CatalogCasaChecklistSelect } from '@/components/kanban-shared/CatalogCasaChecklistSelect';
 import { UsuarioChecklistSelect } from '@/components/kanban-shared/UsuarioChecklistSelect';
@@ -1229,7 +1230,26 @@ function ItemField({
     );
   }
 
-  if (item.tipo === 'bca_condominio' || item.tipo === 'bca_simulador') {
+  if (item.tipo === 'bca_simulador') {
+    const pid = processoId?.trim() ?? '';
+    if (!pid) {
+      return (
+        <p className="text-xs italic" style={{ color: 'var(--moni-text-tertiary)' }}>
+          Vincule um processo Step One ao card para montar o BCA por condomínio.
+        </p>
+      );
+    }
+    return (
+      <BcaChecklistWidget
+        cardId={cardId}
+        processoId={pid}
+        itemLabel={item.label}
+        podeEditar={!readonly}
+      />
+    );
+  }
+
+  if (item.tipo === 'bca_condominio') {
     const pid = processoId?.trim() ?? '';
     if (!pid) {
       return (
