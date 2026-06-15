@@ -14,7 +14,9 @@
     "rede-franqueados:import": "node --env-file=.env.local scripts/import-rede-franqueados.mjs",
     "auth:set-password": "node scripts/set-user-password.mjs",
     "auth:check-env": "node scripts/check-supabase-env.mjs",
-    "auth:bootstrap-user": "node scripts/bootstrap-auth-user.mjs"
+    "auth:bootstrap-user": "node scripts/bootstrap-auth-user.mjs",
+    "db:check-dev": "node --env-file=.env.local scripts/check-dev-schema-paridade.mjs",
+    "db:sync-dev": "node --env-file=.env.local scripts/sync-dev-paridade-prod.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

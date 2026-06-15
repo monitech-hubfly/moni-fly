@@ -92,6 +92,34 @@ export async function criarProcessoStepOneMinimo(
   return { ok: true, processoId: String((novo as { id: string }).id) };
 }
 
+function isMissingProcessoStepOneColumnError(message: string): boolean {
+  return /processo_step_one_id.*schema cache|could not find.*processo_step_one_id/i.test(message);
+}
+
+/** Vincula processo à linha da rede quando a coluna do card ainda não existe no DEV. */
+async function vincularProcessoStepOneViaRede(
+  db: SupabaseClient,
+  redeFranqueadoId: string | undefined,
+  processoId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const rid = String(redeFranqueadoId ?? '').trim();
+  if (!rid) return { ok: false, error: 'rede_franqueado_id ausente.' };
+
+  const { error: redeErr } = await db
+    .from('rede_franqueados')
+    .update({ processo_id: processoId })
+    .eq('id', rid);
+  if (redeErr) return { ok: false, error: redeErr.message };
+
+  const { error: procErr } = await db
+    .from('processo_step_one')
+    .update({ origem_rede_franqueados_id: rid })
+    .eq('id', processoId);
+  if (procErr) return { ok: false, error: procErr.message };
+
+  return { ok: true };
+}
+
 /** Vincula `processo_step_one_id` (e campos espelhados) ao card nativo. */
 export async function vincularProcessoStepOneAoCard(
   db: SupabaseClient,
@@ -101,6 +129,7 @@ export async function vincularProcessoStepOneAoCard(
     nomeCondominio?: string | null;
     quadra?: string | null;
     lote?: string | null;
+    redeFranqueadoId?: string | null;
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const cid = cardId.trim();
@@ -116,8 +145,34 @@ export async function vincularProcessoStepOneAoCard(
   if (extras?.lote?.trim()) patch.lote = extras.lote.trim();
 
   const { error } = await db.from('kanban_cards').update(patch).eq('id', cid);
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
+  if (!error) return { ok: true };
+
+  if (!isMissingProcessoStepOneColumnError(error.message)) {
+    return { ok: false, error: error.message };
+  }
+
+  const patchSemProcesso = { ...patch };
+  delete patchSemProcesso.processo_step_one_id;
+  if (Object.keys(patchSemProcesso).length > 1) {
+    await db.from('kanban_cards').update(patchSemProcesso).eq('id', cid);
+  }
+
+  let redeId = String(extras?.redeFranqueadoId ?? '').trim();
+  if (!redeId) {
+    const { data: card } = await db
+      .from('kanban_cards')
+      .select('rede_franqueado_id')
+      .eq('id', cid)
+      .maybeSingle();
+    redeId = String(
+      (card as { rede_franqueado_id?: string | null } | null)?.rede_franqueado_id ?? '',
+    ).trim();
+  }
+
+  const viaRede = await vincularProcessoStepOneViaRede(db, redeId, pid);
+  if (viaRede.ok) return { ok: true };
+
+  return { ok: false, error: error.message };
 }
 
 /** Cria processo mínimo e vincula ao card (idempotente se já houver `processo_step_one_id`). */
@@ -130,15 +185,31 @@ export async function criarEVincularProcessoStepOneAoCard(
   const cid = params.cardId.trim();
   if (!cid) return { ok: false, error: 'Card inválido.' };
 
-  const { data: card } = await db
+  const { data: card, error: errSelect } = await db
     .from('kanban_cards')
-    .select('processo_step_one_id')
+    .select('processo_step_one_id, rede_franqueado_id')
     .eq('id', cid)
     .maybeSingle();
 
-  const existente = String(
-    (card as { processo_step_one_id?: string | null } | null)?.processo_step_one_id ?? '',
-  ).trim();
+  let existente = '';
+  if (!errSelect || !isMissingProcessoStepOneColumnError(errSelect.message)) {
+    existente = String(
+      (card as { processo_step_one_id?: string | null } | null)?.processo_step_one_id ?? '',
+    ).trim();
+  }
+
+  if (!existente) {
+    const { resolverProcessoStepOneIdDoCard } = await import('@/lib/kanban/card-sync-group');
+    const redeId =
+      String(params.redeFranqueadoId ?? '').trim() ||
+      String((card as { rede_franqueado_id?: string | null } | null)?.rede_franqueado_id ?? '').trim();
+    existente =
+      (await resolverProcessoStepOneIdDoCard(db, {
+        redeFranqueadoId: redeId,
+        cardTitulo: params.titulo,
+      })) ?? '';
+  }
+
   if (existente) {
     return { ok: true, processoId: existente, created: false };
   }
@@ -150,8 +221,17 @@ export async function criarEVincularProcessoStepOneAoCard(
     nomeCondominio: params.nomeCondominio,
     quadra: params.quadra,
     lote: params.lote,
+    redeFranqueadoId: params.redeFranqueadoId,
   });
-  if (!link.ok) return link;
+  if (!link.ok) {
+    if (params.redeFranqueadoId?.trim()) {
+      const viaRede = await vincularProcessoStepOneViaRede(db, params.redeFranqueadoId, criado.processoId);
+      if (viaRede.ok) {
+        return { ok: true, processoId: criado.processoId, created: true };
+      }
+    }
+    return link;
+  }
 
   return { ok: true, processoId: criado.processoId, created: true };
 }

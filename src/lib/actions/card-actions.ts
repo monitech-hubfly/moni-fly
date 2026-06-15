@@ -59,6 +59,7 @@ import {
   validarPrazoBombeiro,
 } from '@/lib/kanban/chamados-validacao';
 import type { FaseChecklistItem } from './candidato-actions';
+import { fetchFaseChecklistItens } from '@/lib/kanban/fase-checklist-select';
 import { executarBastaoDeVolta, executarBastoes } from '@/lib/actions/kanban-bastoes';
 import { sincronizarTagAcoplamentoPaiDoFilho } from '@/lib/kanban/acoplamento-tag-pai';
 import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-notify';
@@ -1896,6 +1897,12 @@ export type CriarCardFunilStepOneResult =
   | { ok: true; cardId: string; processoId: string }
   | { ok: false; error: string };
 
+const KANBAN_CARD_STAFF_ROLES = new Set(['admin', 'team', 'consultor', 'supervisor']);
+
+function isKanbanCardStaffRole(role: string | null | undefined): boolean {
+  return KANBAN_CARD_STAFF_ROLES.has(String(role ?? '').trim());
+}
+
 /** Card manual no Funil Step One — cria `kanban_cards` + `processo_step_one` vinculado. */
 export async function criarCardFunilStepOne(
   input: CriarCardFunilStepOneInput,
@@ -1914,6 +1921,13 @@ export async function criarCardFunilStepOne(
   if (!faseId || !redeFranqueadoId) {
     return { ok: false, error: 'Franqueado e fase são obrigatórios.' };
   }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+  const staff = isKanbanCardStaffRole((profile as { role?: string } | null)?.role);
 
   const { data: kb, error: kbErr } = await supabase
     .from('kanbans')
@@ -1935,11 +1949,11 @@ export async function criarCardFunilStepOne(
   if (faseErr) return { ok: false, error: faseErr.message };
   if (!faseRow) return { ok: false, error: 'Fase inválida para o Funil Step One.' };
 
-  let admin: ReturnType<typeof createAdminClient>;
+  let admin: ReturnType<typeof createAdminClient> | null = null;
   try {
     admin = createAdminClient();
   } catch {
-    return { ok: false, error: 'Serviço indisponível.' };
+    admin = null;
   }
 
   const insertPayload: Record<string, unknown> = {
@@ -1949,6 +1963,8 @@ export async function criarCardFunilStepOne(
     rede_franqueado_id: redeFranqueadoId,
     titulo,
     status: 'ativo',
+    concluido: false,
+    arquivado: false,
     nome_condominio: input.nomeCondominio?.trim() || null,
     quadra: input.quadra?.trim() || null,
     lote: input.lote?.trim() || null,
@@ -1957,20 +1973,33 @@ export async function criarCardFunilStepOne(
     insertPayload.origem_tipo = 'hipotese_direta';
   }
 
-  const { data: cardRow, error: errCard } = await admin
-    .from('kanban_cards')
-    .insert(insertPayload)
-    .select('id')
-    .single();
+  const insertClients = staff
+    ? [supabase, ...(admin ? [admin] : [])]
+    : [...(admin ? [admin] : []), supabase];
 
-  if (errCard || !cardRow?.id) {
-    return { ok: false, error: errCard?.message ?? 'Erro ao criar card.' };
+  let cardId = '';
+  let lastInsertError = 'Erro ao criar card.';
+  for (const client of insertClients) {
+    const { data: cardRow, error: errCard } = await client
+      .from('kanban_cards')
+      .insert(insertPayload)
+      .select('id')
+      .single();
+    if (!errCard && cardRow?.id) {
+      cardId = String((cardRow as { id: string }).id);
+      break;
+    }
+    lastInsertError = errCard?.message ?? lastInsertError;
+    if (errCard && !/permission denied|row-level security/i.test(errCard.message)) break;
   }
 
-  const cardId = String((cardRow as { id: string }).id);
+  if (!cardId) {
+    return { ok: false, error: lastInsertError };
+  }
 
+  const writeDb = admin ?? supabase;
   const { criarEVincularProcessoStepOneAoCard } = await import('@/lib/kanban/processo-step-one-card');
-  const processoRes = await criarEVincularProcessoStepOneAoCard(admin, {
+  let processoRes = await criarEVincularProcessoStepOneAoCard(writeDb, {
     cardId,
     userId: user.id,
     titulo,
@@ -1981,6 +2010,20 @@ export async function criarCardFunilStepOne(
     lote: input.lote,
     redeFranqueadoId,
   });
+
+  if (!processoRes.ok && writeDb !== supabase) {
+    processoRes = await criarEVincularProcessoStepOneAoCard(supabase, {
+      cardId,
+      userId: user.id,
+      titulo,
+      cidade: input.cidade,
+      estado: input.estado,
+      nomeCondominio: input.nomeCondominio,
+      quadra: input.quadra,
+      lote: input.lote,
+      redeFranqueadoId,
+    });
+  }
 
   if (!processoRes.ok) {
     return { ok: false, error: `Card criado, mas falha ao vincular processo: ${processoRes.error}` };
@@ -4368,14 +4411,8 @@ export type FaseChecklistResposta = {
 
 export async function listarFaseChecklistItens(faseId: string): Promise<FaseChecklistItem[]> {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from('kanban_fase_checklist_itens')
-    .select(
-      'id, fase_id, ordem, label, tipo, obrigatorio, visivel_candidato, template_storage_path, placeholder, campo_slug, config_json',
-    )
-    .eq('fase_id', faseId)
-    .order('ordem', { ascending: true });
-  return (data ?? []) as FaseChecklistItem[];
+  const { data } = await fetchFaseChecklistItens(supabase, faseId);
+  return data;
 }
 
 export async function listarFaseChecklistRespostas(cardId: string): Promise<FaseChecklistResposta[]> {

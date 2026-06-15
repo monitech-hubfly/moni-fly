@@ -16,7 +16,6 @@ export const KANBAN_CARD_SELECT_BASE = `
       lote,
       data_reuniao,
       data_followup,
-      hora_reuniao,
       acoplamento_concluido,
       acoplamento_filho_fase_nome,
       acoplamento_filho_fase_slug,

@@ -10,6 +10,7 @@ import {
   ordenarItensChecklistDadosCidade,
 } from '@/lib/kanban/dados-cidade-praca-multi';
 import { isDadosCidadeFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { fetchFaseChecklistItensIn } from '@/lib/kanban/fase-checklist-select';
 import {
   isChecklistItemOcultoUi,
   isLoteadoresPrimeiroContatoCampoVisivel,
@@ -101,18 +102,19 @@ export function FaseChecklistSidebarResumo({
       setCarregando(true);
       try {
         const supabase = createClient();
-        const itemCols =
-          'id, fase_id, ordem, label, tipo, obrigatorio, visivel_candidato, template_storage_path, placeholder, campo_slug, config_json';
         const respCols = 'id, item_id, card_id, valor, arquivo_path';
 
-        const [{ data: itensData }, { data: respostasData }] = await Promise.all([
-          supabase.from('kanban_fase_checklist_itens').select(itemCols).in('fase_id', faseIds).order('ordem'),
+        const [{ data: itens, error: itensError }, { data: respostasData }] = await Promise.all([
+          fetchFaseChecklistItensIn(supabase, faseIds),
           supabase.from('kanban_fase_checklist_respostas').select(respCols).eq('card_id', cardId),
         ]);
 
         if (cancelado) return;
+        if (itensError) {
+          setGrupos([]);
+          return;
+        }
 
-        const itens = (itensData ?? []) as FaseChecklistItem[];
         const respostas = (respostasData ?? []) as FaseChecklistResposta[];
         const respPorItem = new Map(respostas.map((r) => [r.item_id, r]));
 

@@ -29,6 +29,7 @@ import { MapaPracaChecklist } from '@/components/kanban-shared/MapaPracaChecklis
 import { MapaCompetidoresChecklist } from '@/components/kanban-shared/MapaCompetidoresChecklist';
 import { ChecklistAreaAtuacaoSelect } from '@/components/kanban-shared/ChecklistAreaAtuacaoSelect';
 import { DadosCidadePracaTabs } from '@/components/kanban-shared/DadosCidadePracaTabs';
+import { fetchFaseChecklistItens } from '@/lib/kanban/fase-checklist-select';
 import { isDadosCandidatoFaseSlug, isDadosCidadeFaseSlug, isLotesDisponiveisFaseSlug, isPreBatalhaFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import {
   PRE_BATALHA_CHECKLIST_LABEL_APLICADA,
@@ -216,17 +217,11 @@ export function FaseChecklistCard({
     void (async () => {
       try {
         const supabase = createClient();
-        const checklistItemCols =
-          'id, fase_id, ordem, label, tipo, obrigatorio, visivel_candidato, template_storage_path, placeholder, campo_slug, config_json';
         const checklistRespCols = 'id, item_id, card_id, valor, arquivo_path, preenchido_por, preenchido_em';
 
-        const [{ data: itensData, error: itensError }, { data: respostasData, error: respostasError }] =
+        const [{ data: itensOrdenadosRaw, error: itensError }, { data: respostasData, error: respostasError }] =
           await Promise.all([
-            supabase
-              .from('kanban_fase_checklist_itens')
-              .select(checklistItemCols)
-              .eq('fase_id', faseId)
-              .order('ordem', { ascending: true }),
+            fetchFaseChecklistItens(supabase, faseId),
             supabase
               .from('kanban_fase_checklist_respostas')
               .select(checklistRespCols)
@@ -235,7 +230,7 @@ export function FaseChecklistCard({
 
         if (cancelado) return;
 
-        const itemRows = (itensData ?? []) as FaseChecklistItem[];
+        const itemRows = itensOrdenadosRaw;
         const itensOrdenados = isDadosCidadeFaseSlug(faseSlug)
           ? ordenarItensChecklistDadosCidade(itemRows)
           : itemRows;

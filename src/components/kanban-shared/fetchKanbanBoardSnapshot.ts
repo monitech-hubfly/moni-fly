@@ -407,7 +407,16 @@ export async function fetchKanbanBoardSnapshot(
     viewQuery,
   ]);
 
-  const hasNativo = (nativeCountResult.count ?? 0) > 0;
+  /** Funis nativos: sempre tenta ler `kanban_cards` (count com RLS pode ser 0 mesmo com linhas). */
+  const kanbansSempreNativos = new Set([
+    'Funil Step One',
+    'Funil Portfólio',
+    'Funil Loteadores',
+    'Funil Acoplamento',
+    'Funil MonINC',
+  ]);
+  const hasNativo =
+    (nativeCountResult.count ?? 0) > 0 || kanbansSempreNativos.has(kanbanNomeDb);
   const rowsAll = (viewResult.data ?? []) as ViewLegadoRow[];
 
   const processoIdsAll = rowsAll.map((r) => String(r.id)).filter(Boolean);
@@ -548,10 +557,18 @@ export async function fetchKanbanBoardSnapshot(
         .select(select)
         .eq('kanban_id', kanban.id)
         .eq('status', 'ativo')
-        .eq('arquivado', arquivado)
-        .eq('concluido', concluido)
         .order('ordem_coluna', { ascending: true })
         .order('created_at', { ascending: false });
+      if (concluido) {
+        q = q.eq('concluido', true);
+      } else {
+        q = q.or('concluido.eq.false,concluido.is.null');
+      }
+      if (arquivado) {
+        q = q.eq('arquivado', true);
+      } else {
+        q = q.or('arquivado.eq.false,arquivado.is.null');
+      }
       if (userId && !veTodosCards) q = q.eq('franqueado_id', userId);
       const { data, error } = await q;
       return {
