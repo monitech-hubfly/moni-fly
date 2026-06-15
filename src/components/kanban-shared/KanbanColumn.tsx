@@ -588,11 +588,6 @@ export function KanbanColumn({
                   <p className={`mt-1 text-xs ${sla.classe}`}>{sla.label}</p>
                 ) : null}
                 </button>
-                {dndAtivo ? (
-                  <p className="mt-2 border-t border-stone-100 pt-2 text-[10px] text-stone-400">
-                    Arraste para mudar de fase. Setas para ordem na coluna.
-                  </p>
-                ) : null}
               </div>
             </div>
           );
