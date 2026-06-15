@@ -55,6 +55,7 @@ export type ChaveCaracterizacaoGlobal = ChaveGlobalCondominio;
 export type ChaveFaixaCondominio =
   | 'q_casas_em_construcao'
   | 'q_casas_como_sao'
+  | 'q_casas_tipo_predominante'
   | 'q_casas_prontas'
   | 'q_casas_faixas_preco'
   | 'q_casas_preco_m2'
@@ -86,8 +87,9 @@ export type CampoCaracterizacaoGlobal = CampoGlobalCondominio;
 export type CampoFaixaCondominio = {
   chave: ChaveFaixaCondominio;
   label: string;
-  tipo: 'texto' | 'texto_longo';
+  tipo: 'texto' | 'texto_longo' | 'selecao_unica';
   placeholder?: string;
+  opcoes?: string[];
   obrigatorio?: boolean;
 };
 
@@ -229,6 +231,13 @@ export const FAIXA_CONDOMINIO_CAMPOS: CampoFaixaCondominio[] = [
     placeholder: PLACEHOLDER_COMO_SAO_ESSAS_CASAS,
   },
   {
+    chave: 'q_casas_tipo_predominante',
+    label: 'Qual tipo de casa é predominante nessa faixa?',
+    tipo: 'selecao_unica',
+    opcoes: ['Térrea', 'Sobrado'],
+    obrigatorio: false,
+  },
+  {
     chave: 'q_casas_prontas',
     label: 'Quantas casas estão prontas?',
     tipo: 'texto',
@@ -351,7 +360,11 @@ export type LinhaProspectCondominio = {
 export type SecaoPesquisaCondominio = {
   id: string;
   titulo: string;
-  perguntas: { chave: ChaveFaixaCondominio; label: string; tipo: 'texto' | 'texto_longo' }[];
+  perguntas: {
+    chave: ChaveFaixaCondominio;
+    label: string;
+    tipo: 'texto' | 'texto_longo' | 'selecao_unica';
+  }[];
 };
 
 /** @deprecated Use FAIXA_CONDOMINIO_CAMPOS. */

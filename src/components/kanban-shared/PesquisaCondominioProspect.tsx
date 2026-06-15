@@ -556,24 +556,41 @@ export function PesquisaCondominioProspect({ cardId, processoId, itemLabel, obri
                   >
                     Liquidez e Valorização Exponencial
                   </h4>
-                  {FAIXA_CONDOMINIO_CAMPOS.map((campo) => (
-                    <CampoTexto
-                      key={campo.chave}
-                      label={campo.label}
-                      placeholder={campo.placeholder}
-                      tipo={campo.tipo}
-                      obrigatorio={campo.obrigatorio}
-                      valor={rascunhoFaixas[faixaAtiva]?.[campo.chave] ?? ''}
-                      inputClass={inputClass}
-                      onChange={(v) =>
-                        setRascunhoFaixas((prev) => ({
-                          ...prev,
-                          [faixaAtiva]: { ...prev[faixaAtiva], [campo.chave]: v },
-                        }))
-                      }
-                      onBlur={(v) => void salvarCampoFaixa(faixaAtiva, campo.chave, v)}
-                    />
-                  ))}
+                  {FAIXA_CONDOMINIO_CAMPOS.map((campo) =>
+                    campo.tipo === 'selecao_unica' ? (
+                      <CampoSelecaoUnica
+                        key={campo.chave}
+                        label={campo.label}
+                        opcoes={campo.opcoes ?? []}
+                        obrigatorio={campo.obrigatorio}
+                        valor={rascunhoFaixas[faixaAtiva]?.[campo.chave] ?? ''}
+                        onSelect={(opcao) => {
+                          setRascunhoFaixas((prev) => ({
+                            ...prev,
+                            [faixaAtiva]: { ...prev[faixaAtiva], [campo.chave]: opcao },
+                          }));
+                          void salvarCampoFaixa(faixaAtiva, campo.chave, opcao);
+                        }}
+                      />
+                    ) : (
+                      <CampoTexto
+                        key={campo.chave}
+                        label={campo.label}
+                        placeholder={campo.placeholder}
+                        tipo={campo.tipo}
+                        obrigatorio={campo.obrigatorio}
+                        valor={rascunhoFaixas[faixaAtiva]?.[campo.chave] ?? ''}
+                        inputClass={inputClass}
+                        onChange={(v) =>
+                          setRascunhoFaixas((prev) => ({
+                            ...prev,
+                            [faixaAtiva]: { ...prev[faixaAtiva], [campo.chave]: v },
+                          }))
+                        }
+                        onBlur={(v) => void salvarCampoFaixa(faixaAtiva, campo.chave, v)}
+                      />
+                    ),
+                  )}
                 </section>
               </KanbanFaseSecaoTabs>
             </div>
@@ -600,6 +617,45 @@ function BadgeConclusao({ completa }: { completa: boolean }) {
       <Circle size={10} />
       Sessão incompleta
     </span>
+  );
+}
+
+function CampoSelecaoUnica({
+  label,
+  opcoes,
+  valor,
+  obrigatorio,
+  onSelect,
+}: {
+  label: string;
+  opcoes: string[];
+  valor: string;
+  obrigatorio?: boolean;
+  onSelect: (opcao: string) => void;
+}) {
+  return (
+    <div>
+      <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+        {label}
+        {obrigatorio ? <span className="ml-1 text-red-500">*</span> : null}
+      </label>
+      <div className="flex flex-wrap gap-2">
+        {opcoes.map((opcao) => (
+          <button
+            key={opcao}
+            type="button"
+            onClick={() => onSelect(opcao)}
+            className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+              valor === opcao
+                ? 'border-moni-dark bg-moni-dark text-white'
+                : 'border-stone-300 bg-white text-stone-600 hover:border-moni-dark'
+            }`}
+          >
+            {opcao}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
