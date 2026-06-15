@@ -646,7 +646,10 @@ function responsavelStrParaIds(str, pessoas) {
   const nomes = t.split(',').map(s => s.trim()).filter(Boolean)
   const ids = []
   for (const n of nomes) {
-    const p = (pessoas || []).find(x => String(x.nome ?? '').trim().toLowerCase() === n.toLowerCase())
+    const p = (pessoas || []).find(x =>
+      String(x.nome ?? '').trim().toLowerCase() === n.toLowerCase() ||
+      String(x.profile_full_name ?? '').trim().toLowerCase() === n.toLowerCase()
+    )
     if (p?.id) ids.push(p.id)
   }
   return ids
@@ -3208,7 +3211,11 @@ export default function Page() {
       }
 
       const salvarPlanejamentoPorCasa = async (casaId) => {
-        const existente = planejamento.find(p =>
+        // Prioriza o registro que está sendo editado (addPlanejamentoEdicaoId) se for da mesma casa
+        const registroEditando = addPlanejamentoEdicaoId
+          ? planejamento.find(p => p.id === addPlanejamentoEdicaoId && String(p.casa_id || '') === String(casaId))
+          : null
+        const existente = registroEditando || planejamento.find(p =>
           p.acao_id === addAcaoId &&
           String(p.casa_id || '') === String(casaId) &&
           String(p.objetivo_id || '') === String(addObjetivoId || '')
@@ -3292,6 +3299,19 @@ export default function Page() {
             return
           }
         }
+        void registrarLog({
+          modulo: 'Planejamento',
+          area: areas.find((a) => a.id === areaId)?.nome ?? null,
+          entidade: 'gantt_planejamento',
+          entidade_id: addPlanejamentoEdicaoId,
+          operacao: 'UPDATE',
+          valor_novo: {
+            responsavel: responsavelStr,
+            semanas_selecionadas: semanas,
+            casas: casasAlvo
+          },
+          descricao: 'Atualizou planejamento no Gantt (área Casa)'
+        })
       } else {
         const { error: errEd } = await supabase
           .from('gantt_planejamento')
@@ -3432,9 +3452,12 @@ export default function Page() {
             String(p.portfolio_franqueado_id ?? '') === String(portfolioFranqueadoId ?? '')
         )
       } else {
+        // Áreas genéricas: mesma ação + mesmo objetivo + mesmo responsável = update
+        // Responsável diferente = nova linha (permite múltiplos responsáveis na mesma atividade)
         existenteNoPeriodo = planejamentoNaArea.find(p =>
           p.acao_id === addAcaoId &&
-          String(p.objetivo_id || '') === String(addObjetivoId || '')
+          String(p.objetivo_id || '') === String(addObjetivoId || '') &&
+          String(p.responsavel || '').toLowerCase() === String(responsavelStr || '').toLowerCase()
         )
       }
 
@@ -4256,13 +4279,18 @@ export default function Page() {
     setControladoriaNovoDescritivo('')
     setCasaSelecionada(regAlvo?.casa_id != null && regAlvo?.casa_id !== '' ? String(regAlvo.casa_id) : null)
     if (isAreaCasa && periodoId && l?.acaoId) {
-      const acaoId = l.acaoId
-      const casasJaNoPlano = planejamento
+      if (registroEspecifico?.casa_id) {
+        // Editando um registro específico — mostra só a casa desse registro
+        setCasasSelecionadas([String(registroEspecifico.casa_id)])
+      } else {
+        const acaoId = l.acaoId
+        const casasJaNoPlano = planejamento
           .filter(p => p.acao_id === acaoId)
-        .map(p => p.casa_id)
-        .filter(Boolean)
-        .map(x => String(x))
+          .map(p => p.casa_id)
+          .filter(Boolean)
+          .map(x => String(x))
         setCasasSelecionadas([...new Set(casasJaNoPlano)])
+      }
     } else {
       setCasasSelecionadas([])
     }
@@ -10779,8 +10807,12 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {modalSelecionarRegistro.rows.map((reg, idx) => {
+                  const casaNome = reg.casa_id
+                    ? (casas.find(c => String(c.id) === String(reg.casa_id))?.nome || String(reg.casa_id).slice(0, 8) + '…')
+                    : null
                   const franqueado = reg.franqueado_nome ||
-                    reg.casa_id || reg.adm_cnpj_id ||
+                    casaNome ||
+                    reg.adm_cnpj_id ||
                     reg.portfolio_franqueado_id ||
                     reg.comercial_candidato_id ||
                     reg.juridico_identificacao_id || '—'

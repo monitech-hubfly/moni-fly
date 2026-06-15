@@ -38,13 +38,22 @@ function nomePerfil(p: { full_name?: string | null; nome_completo?: string | nul
 function mapNomeParaProfile(
   nome: string,
   profiles: { id: string; full_name?: string | null; nome_completo?: string | null; email?: string | null }[],
+  areaPessoas?: { nome: string; profile_id?: string | null }[],
 ) {
   const n = nome.toLowerCase();
-  return profiles.find((p) => {
+  // Tenta match direto pelo full_name ou nome_completo
+  const direto = profiles.find((p) => {
     const fn = String(p.full_name ?? '').trim().toLowerCase();
     const nc = String(p.nome_completo ?? '').trim().toLowerCase();
     return fn === n || nc === n;
   });
+  if (direto) return direto;
+  // Tenta match pelo apelido em area_pessoas → profile_id
+  if (areaPessoas) {
+    const ap = areaPessoas.find(x => String(x.nome ?? '').trim().toLowerCase() === n && x.profile_id);
+    if (ap?.profile_id) return profiles.find(p => p.id === ap.profile_id) ?? null;
+  }
+  return undefined;
 }
 
 export function useStatusPreenchimentoData() {
@@ -102,6 +111,12 @@ export function useStatusPreenchimentoData() {
         email?: string | null;
       }[];
 
+      const { data: areaPessoasData } = await supabase
+        .from('area_pessoas')
+        .select('id, nome, area_id, profile_id')
+        .eq('ativo', true);
+      const areaPessoasList = (areaPessoasData || []) as { id: string; nome: string; area_id: string; profile_id?: string | null }[];
+
       const { data: ganttData, error: errGantt } = await supabase.from('gantt_planejamento').select(GANTT_SEL);
       if (errGantt) throw errGantt;
       const gantt = ganttData || [];
@@ -118,7 +133,8 @@ export function useStatusPreenchimentoData() {
         if (!responsaveisPorArea.has(areaId)) responsaveisPorArea.set(areaId, new Map());
         const map = responsaveisPorArea.get(areaId)!;
         for (const nome of nomes) {
-          const prof = mapNomeParaProfile(nome, profilesList);
+          const apDaArea = areaPessoasList.filter(ap => ap.area_id === areaId);
+          const prof = mapNomeParaProfile(nome, profilesList, apDaArea);
           if (prof) {
             map.set(prof.id, {
               usuarioId: prof.id,
