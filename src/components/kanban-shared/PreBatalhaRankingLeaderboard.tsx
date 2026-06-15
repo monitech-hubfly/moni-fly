@@ -239,6 +239,13 @@ function ListaAnunciosAmeacadores({ anuncios }: { anuncios: AnuncioAmeacadorPreB
               </span>
             </div>
             <SugestaoAnexoTamanho anuncio={anuncio} />
+            {anuncio.obsFlexivel && anuncio.obsFlexivel.length > 0 ? (
+              <div className="mt-1 rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-800">
+                {anuncio.obsFlexivel.map((obs, i) => (
+                  <p key={i}>⚡ {obs}</p>
+                ))}
+              </div>
+            ) : null}
           </li>
         ))}
       </ul>

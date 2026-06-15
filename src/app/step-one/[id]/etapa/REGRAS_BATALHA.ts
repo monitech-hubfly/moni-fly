@@ -95,10 +95,14 @@ export type CatalogoComAtributosLote = Partial<Record<CatalogoAttrCampo, boolean
 /** Colunas attr_* para SELECT em `catalogo_casas`. */
 export const CATALOGO_CASAS_SELECT_ATTRS = Object.values(MAP_ATRIBUTO_LOTE_CATALOGO).join(', ');
 
-/** SELECT completo do catálogo para ranking Pré Batalha (inclui attr_*). */
+/** SELECT completo do catálogo para ranking Pré Batalha (inclui attr_* + flexível). */
 export const CATALOGO_CASAS_SELECT_PRE_BATALHA =
-  'id, nome, quartos, banheiros, vagas, preco_custo, preco_custo_m2, preco_venda_m2, area_m2, preco_venda, topografia, dimensao_x_m, dimensao_y_m, area_perimetro_m2, ' +
+  'id, nome, quartos, suites, banheiros, vagas, quartos_flexivel, suites_flexivel, banheiros_flexivel, assinatura, preco_custo, preco_custo_m2, preco_venda_m2, area_m2, preco_venda, topografia, dimensao_x_m, dimensao_y_m, area_perimetro_m2, ' +
   CATALOGO_CASAS_SELECT_ATTRS;
+
+export const OBS_FLEXIVEL_QUARTOS = '1 quarto adicional necessário para competir';
+export const OBS_FLEXIVEL_SUITES = '1 suíte adicional necessária para competir';
+export const OBS_FLEXIVEL_BANHEIROS = '1 banheiro adicional necessário para competir';
 
 export function contarAtributosLoteMarcados(atributosLote: AtributosLoteRespostas): number {
   return ATRIBUTOS_LOTE.reduce((n, a) => n + (atributosLote[a.id] === true ? 1 : 0), 0);
@@ -430,6 +434,80 @@ export function notaBanheiros(
   return notaDiffContagem(banheirosNosso, banheirosAnuncio);
 }
 
+export function notaSuites(suitesNosso: number | null, suitesAnuncio: number | null): number {
+  return notaDiffContagem(suitesNosso, suitesAnuncio);
+}
+
+export type NotaCampoFlexResult = { nota: number; obs?: string };
+
+/** diff = moni − anúncio; se diff < 0 e flexível, recalcula com moni + 1 e registra obs. */
+function notaCampoComFlexivel(
+  nosso: number | null,
+  anuncio: number | null,
+  flexivel: boolean | null | undefined,
+  calcNota: (n: number | null, a: number | null) => number,
+  resolverNosso: (n: number | null) => number,
+  obsMsg: string,
+): NotaCampoFlexResult {
+  if (anuncio == null) return { nota: calcNota(nosso, anuncio) };
+  const nossoEf = resolverNosso(nosso);
+  const diff = nossoEf - anuncio;
+  const notaBase = calcNota(nosso, anuncio);
+  if (diff >= 0 || !flexivel) return { nota: notaBase };
+  return { nota: calcNota(nossoEf + 1, anuncio), obs: obsMsg };
+}
+
+export function notaQuartosComFlexivel(
+  quartosNosso: number | null,
+  quartosAnuncio: number | null,
+  flexivel?: boolean | null,
+): NotaCampoFlexResult {
+  return notaCampoComFlexivel(
+    quartosNosso,
+    quartosAnuncio,
+    flexivel,
+    notaQuartos,
+    (n) => n ?? QUARTOS_PADRAO_NOSSA,
+    OBS_FLEXIVEL_QUARTOS,
+  );
+}
+
+export function notaBanheirosComFlexivel(
+  banheirosNosso: number | null,
+  banheirosAnuncio: number | null,
+  flexivel?: boolean | null,
+): NotaCampoFlexResult {
+  if (banheirosNosso == null) {
+    return { nota: notaBanheiros(banheirosNosso, banheirosAnuncio) };
+  }
+  return notaCampoComFlexivel(
+    banheirosNosso,
+    banheirosAnuncio,
+    flexivel,
+    notaBanheiros,
+    (n) => n ?? 0,
+    OBS_FLEXIVEL_BANHEIROS,
+  );
+}
+
+export function notaSuitesComFlexivel(
+  suitesNosso: number | null,
+  suitesAnuncio: number | null,
+  flexivel?: boolean | null,
+): NotaCampoFlexResult {
+  if (suitesNosso == null) {
+    return { nota: notaSuites(suitesNosso, suitesAnuncio) };
+  }
+  return notaCampoComFlexivel(
+    suitesNosso,
+    suitesAnuncio,
+    flexivel,
+    notaSuites,
+    (n) => n ?? 0,
+    OBS_FLEXIVEL_SUITES,
+  );
+}
+
 export function notaVagas(vagasNosso: number | null, vagasAnuncio: number | null): number {
   return notaDiffContagem(vagasNosso, vagasAnuncio);
 }
@@ -483,13 +561,19 @@ export type CatalogoProdutoRef = {
   quartos: number | null;
   banheiros: number | null;
   vagas: number | null;
+  suites?: number | null;
   area_m2?: number | null;
+  quartos_flexivel?: boolean | null;
+  suites_flexivel?: boolean | null;
+  banheiros_flexivel?: boolean | null;
+  assinatura?: boolean | null;
 };
 
 export type AnuncioProdutoRef = {
   quartos: number | null;
   banheiros: number | null;
   vagas: number | null;
+  suites?: number | null;
   area_casa_m2: number | null;
   piscina?: boolean | null;
   marcenaria?: boolean | null;
@@ -504,11 +588,13 @@ export type ProdutoDadosPar = {
 
 export type NotaProdutoCompletaResult = {
   nota: number;
+  obsFlexivel: string[];
   sugestaoAnexo?: NotaTamanhoResult['sugestaoAnexo'];
   subnotas?: {
     tamanho: number;
     amenidades: number;
     quartos: number;
+    suites?: number;
     banheiros: number;
     vagas: number;
     design: number;
@@ -524,6 +610,10 @@ function notaTamanhoFromAreas(
   return calcularNotaTamanho(areaAnuncio, areaMoni);
 }
 
+function coletarObsFlexivel(...results: NotaCampoFlexResult[]): string[] {
+  return results.map((r) => r.obs).filter((o): o is string => Boolean(o));
+}
+
 /** Nota Produto modelo × anúncio com sub-notas e sugestão de anexo (quando T < 0). */
 export function calcularNotaProdutoCompleta(
   catalogo: CatalogoProdutoRef,
@@ -534,9 +624,30 @@ export function calcularNotaProdutoCompleta(
   const vagasAnuncio = dados?.vagas ?? anuncio.vagas;
   const tResult = notaTamanhoFromAreas(anuncio.area_casa_m2, catalogo.area_m2 ?? null);
   const T = tResult.nota;
-  const Q = notaQuartos(catalogo.quartos, anuncio.quartos);
-  const B = notaBanheiros(catalogo.banheiros, banheirosAnuncio);
+  const qFlex = notaQuartosComFlexivel(
+    catalogo.quartos,
+    anuncio.quartos,
+    catalogo.quartos_flexivel,
+  );
+  const bFlex = notaBanheirosComFlexivel(
+    catalogo.banheiros,
+    banheirosAnuncio,
+    catalogo.banheiros_flexivel,
+  );
+  const Q = qFlex.nota;
+  const B = bFlex.nota;
   const V = notaVagas(catalogo.vagas, vagasAnuncio);
+
+  const suitesAnuncio = anuncio.suites;
+  const suitesFlex =
+    catalogo.suites != null && suitesAnuncio != null
+      ? notaSuitesComFlexivel(catalogo.suites, suitesAnuncio, catalogo.suites_flexivel)
+      : null;
+  const obsFlexivel = coletarObsFlexivel(
+    qFlex,
+    bFlex,
+    ...(suitesFlex ? [suitesFlex] : []),
+  );
 
   if (dados?.designId != null || dados?.idade != null) {
     const A = notaAmenidades(anuncio);
@@ -545,11 +656,13 @@ export function calcularNotaProdutoCompleta(
     const I = notaIdade(dados?.idade ?? null);
     return {
       nota: notaProdutoMedia(T, A, Q, B, V, D, I),
+      obsFlexivel,
       sugestaoAnexo: tResult.sugestaoAnexo,
       subnotas: {
         tamanho: T,
         amenidades: A,
         quartos: Q,
+        ...(suitesFlex != null ? { suites: suitesFlex.nota } : {}),
         banheiros: B,
         vagas: V,
         design: D,
@@ -558,13 +671,18 @@ export function calcularNotaProdutoCompleta(
     };
   }
 
+  const partes = [T, Q, B, V];
+  if (suitesFlex != null) partes.push(suitesFlex.nota);
+
   return {
-    nota: clampNota(Math.round(((T + Q + B + V) / 4) * 10) / 10),
+    nota: clampNota(Math.round((partes.reduce((s, n) => s + n, 0) / partes.length) * 10) / 10),
+    obsFlexivel,
     sugestaoAnexo: tResult.sugestaoAnexo,
     subnotas: {
       tamanho: T,
       amenidades: 0,
       quartos: Q,
+      ...(suitesFlex != null ? { suites: suitesFlex.nota } : {}),
       banheiros: B,
       vagas: V,
       design: 0,

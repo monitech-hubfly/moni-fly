@@ -48,8 +48,13 @@ export type CatalogoItem = CatalogoComAtributosLote & {
   topografia?: string | null;
   area_m2?: number | null;
   quartos: number | null;
+  suites?: number | null;
   banheiros: number | null;
   vagas: number | null;
+  quartos_flexivel?: boolean | null;
+  suites_flexivel?: boolean | null;
+  banheiros_flexivel?: boolean | null;
+  assinatura?: boolean | null;
   preco_custo?: number | null;
   preco_custo_m2?: number | null;
   preco_venda?: number | null;
@@ -68,6 +73,7 @@ export type AnuncioAmeacadorPreBatalha = {
   areaAnuncioM2?: number | null;
   areaMoniM2?: number | null;
   sugestaoAnexo?: NotaTamanhoResult['sugestaoAnexo'];
+  obsFlexivel?: string[];
 };
 
 /** Sugestão de anexo única por modelo — cobre o concorrente mais desafiador em m². */
@@ -484,6 +490,7 @@ function rankearModelosContraAnuncios(
         areaAnuncioM2: c.area_casa_m2,
         areaMoniM2: mod.area_m2 ?? null,
         sugestaoAnexo: produtoCalc.sugestaoAnexo,
+        obsFlexivel: produtoCalc.obsFlexivel,
       };
     });
 
@@ -726,42 +733,46 @@ export type ModeloCatalogoCompat = {
   id: string;
   nome: string | null;
   quartos: number | null;
+  suites?: number | null;
   banheiros: number | null;
   vagas: number | null;
+  quartos_flexivel?: boolean | null;
+  suites_flexivel?: boolean | null;
+  banheiros_flexivel?: boolean | null;
   preco_venda_m2: number | null;
   area_m2?: number | null;
 };
 
 export type ListingCompat = {
   quartos: number | null;
+  suites?: number | null;
   banheiros: number | null;
   vagas: number | null;
   preco_m2: number | null;
   area_casa_m2: number | null;
 };
 
-function diffToScore(diff: number): number {
-  if (diff <= -2) return -2;
-  if (diff === -1) return -1;
-  if (diff === 0) return 0;
-  if (diff === 1) return 1;
-  return 2;
-}
-
 function notaProdutoRapida(
-  modelo: Pick<ModeloCatalogoCompat, 'quartos' | 'banheiros' | 'vagas'>,
+  modelo: Pick<
+    ModeloCatalogoCompat,
+    | 'quartos'
+    | 'suites'
+    | 'banheiros'
+    | 'vagas'
+    | 'quartos_flexivel'
+    | 'suites_flexivel'
+    | 'banheiros_flexivel'
+  >,
   listing: ListingCompat,
 ): number {
-  const campos: Array<'quartos' | 'banheiros' | 'vagas'> = ['quartos', 'banheiros', 'vagas'];
-  const notas: number[] = [];
-  for (const campo of campos) {
-    const baseVal = modelo[campo];
-    const anuncioVal = listing[campo];
-    if (baseVal == null || anuncioVal == null) continue;
-    notas.push(diffToScore(Number(baseVal) - Number(anuncioVal)));
-  }
-  if (notas.length === 0) return 0;
-  return Math.round(notas.reduce((s, n) => s + n, 0) / notas.length);
+  const calc = calcularNotaProdutoCompleta(modelo, {
+    quartos: listing.quartos,
+    suites: listing.suites ?? null,
+    banheiros: listing.banheiros,
+    vagas: listing.vagas,
+    area_casa_m2: listing.area_casa_m2,
+  });
+  return calc.nota;
 }
 
 function notaPrecoRapida(precoM2Modelo: number | null, precoM2Listing: number | null): number {

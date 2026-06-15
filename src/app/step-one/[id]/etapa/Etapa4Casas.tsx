@@ -31,9 +31,6 @@ import {
   valorInvestimento,
   calcularNotaPrecoComChecklist,
   type CatalogoPrecoRef,
-  notaQuartos,
-  notaBanheiros,
-  notaVagas,
   DESIGN_OPCOES,
   notaAmenidades,
   calcularNotaProdutoCompleta,
@@ -67,6 +64,18 @@ function parBatalhaElegivelFaixa(
 ): boolean {
   if (!faixaAnuncio) return true;
   return modeloElegivelParaFaixa(nomeModelo, faixaAnuncio);
+}
+
+/** Observações de quartos/banheiros/suítes flexíveis (+1) na Pré Batalha e Batalha de Casas. */
+export function ObsFlexivelBloco({ obsFlexivel }: { obsFlexivel: string[] }) {
+  if (!obsFlexivel?.length) return null;
+  return (
+    <div className="mt-1 rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-800">
+      {obsFlexivel.map((obs, i) => (
+        <p key={i}>⚡ {obs}</p>
+      ))}
+    </div>
+  );
 }
 
 type ProdutoDadosBatalha = {
@@ -714,9 +723,14 @@ export function Etapa4Casas(props: {
     const dados = produtoDadosByKey[key] ?? {};
     const cat = ce.catalogoRow as {
       quartos: number | null;
+      suites?: number | null;
       banheiros: number | null;
       vagas: number | null;
       area_m2?: number | null;
+      quartos_flexivel?: boolean | null;
+      suites_flexivel?: boolean | null;
+      banheiros_flexivel?: boolean | null;
+      assinatura?: boolean | null;
     };
     return calcularNotaProdutoCompleta(cat, listing, dados);
   };
@@ -1778,15 +1792,20 @@ export function Etapa4Casas(props: {
                           const catProduto = ce.catalogoRow as {
                             nome: string | null;
                             quartos: number | null;
+                            suites?: number | null;
                             banheiros: number | null;
                             vagas: number | null;
                             area_m2?: number | null;
+                            quartos_flexivel?: boolean | null;
+                            suites_flexivel?: boolean | null;
+                            banheiros_flexivel?: boolean | null;
+                            assinatura?: boolean | null;
                           };
                           const banheirosAnuncio = getBanheirosAnuncio(c, prodDados);
                           const vagasAnuncio = getVagasAnuncio(c, prodDados);
-                          const notaQ = notaQuartos(catProduto.quartos, c.quartos);
-                          const notaB = notaBanheiros(catProduto.banheiros, banheirosAnuncio);
-                          const notaV = notaVagas(catProduto.vagas, vagasAnuncio);
+                          const notaQ = produtoCalc.subnotas?.quartos ?? 0;
+                          const notaB = produtoCalc.subnotas?.banheiros ?? 0;
+                          const notaV = produtoCalc.subnotas?.vagas ?? 0;
                           const refCustoEscolha = custosConstrucaoChecklist[ce.ordem];
                           const custoModelo = custoConstrucaoByCasaEscolhidaId[ce.id];
                           return (
@@ -1974,6 +1993,7 @@ export function Etapa4Casas(props: {
                                               : null}
                                           </p>
                                         ) : null}
+                                        <ObsFlexivelBloco obsFlexivel={produtoCalc.obsFlexivel} />
                                         <p>
                                           Quartos: anúncio {c.quartos ?? '—'} → auto ({notaQ})
                                         </p>
