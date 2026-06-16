@@ -653,6 +653,35 @@ export function formatNotaAn(n: number): string {
   return `An: ${n}`;
 }
 
+/**
+ * Modelo incompatível com o tipo predominante da faixa (andares vs térrea/sobrado).
+ * Usado para reordenação prioritária no ranking Pré Batalha.
+ */
+export function modeloTipoAndarIncompativel(
+  tipoPredominante: string | null | undefined,
+  andaresMoni: number | null | undefined,
+): boolean {
+  const tipo = String(tipoPredominante ?? '').trim();
+  if (tipo !== 'Sobrado' && tipo !== 'Térrea') return false;
+
+  const andares =
+    andaresMoni != null && Number.isFinite(Number(andaresMoni)) ? Number(andaresMoni) : null;
+  if (andares == null) return false;
+
+  if (tipo === 'Térrea') return andares > 1;
+  return andares === 1;
+}
+
+/** Texto do badge vermelho quando o modelo é rebaixado por incompatibilidade de andares. */
+export function labelBadgeTipoAndarIncompativel(
+  tipoPredominante: string | null | undefined,
+): string | null {
+  const tipo = String(tipoPredominante ?? '').trim();
+  if (tipo === 'Térrea') return 'Não compatível — sobrado';
+  if (tipo === 'Sobrado') return 'Não compatível — térrea';
+  return null;
+}
+
 function notaTamanhoFromAreas(
   areaAnuncio: number | null,
   areaMoni: number | null,

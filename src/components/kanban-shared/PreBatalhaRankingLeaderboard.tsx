@@ -12,7 +12,7 @@ import {
   type ResultadoRankingModelo,
 } from '@/lib/kanban/pre-batalha-compatibilidade';
 import { gerarExplicacaoRankingFaixaPreBatalha } from '@/lib/kanban/pre-batalha-explicacao-faixa';
-import { formatNotaAn } from '@/app/step-one/[id]/etapa/REGRAS_BATALHA';
+import { formatNotaAn, labelBadgeTipoAndarIncompativel } from '@/app/step-one/[id]/etapa/REGRAS_BATALHA';
 
 function formatRank(posicao: number): string {
   return String(posicao).padStart(2, '0');
@@ -42,6 +42,17 @@ function linhaNotasRanking(item: ResultadoRankingModelo): string {
   return `Lote: ${formatMatchLote(item)} | Preço: ${item.notaPrecoMedia} | Produto: ${item.notaProdutoMedia}`;
 }
 
+function BadgeTipoAndarIncompativel({ item }: { item: ResultadoRankingModelo }) {
+  if (!item.tipoAndareIncompativel) return null;
+  const label = labelBadgeTipoAndarIncompativel(item.tipoPredominanteFaixa);
+  if (!label) return null;
+  return (
+    <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-800 ring-1 ring-red-200">
+      {label}
+    </span>
+  );
+}
+
 function BadgeTopografiaCompat({ topoCompativel }: { topoCompativel: boolean }) {
   if (topoCompativel) {
     return (
@@ -64,7 +75,9 @@ function notaCellClass(nota: number): string {
 }
 
 function PodiumTop3({ top3 }: { top3: ResultadoRankingModelo[] }) {
-  const elegiveis = top3.filter((item) => item.elegivel !== false);
+  const elegiveis = top3.filter(
+    (item) => item.elegivel !== false && !item.tipoAndareIncompativel,
+  );
   if (elegiveis.length === 0) return null;
 
   const slots: { item: ResultadoRankingModelo; pos: number; height: string; trophy: string }[] = [];
@@ -278,7 +291,8 @@ function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
         <tbody>
           {ranking.map((item) => {
             const inelegivel = item.elegivel === false;
-            const posicao = inelegivel ? null : ++posicaoElegivel;
+            const incompatAndar = item.tipoAndareIncompativel === true;
+            const posicao = inelegivel || incompatAndar ? null : ++posicaoElegivel;
             const destaqueTop3 = posicao != null && posicao <= 3;
             const compat = badgeCompatibilidade(item.notaFinal);
             const falhasGeometria = item.falhas.filter((f) => f !== 'topografia');
@@ -287,7 +301,7 @@ function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
               <Fragment key={item.catalogoId}>
                 <tr
                   className={`border-b border-stone-100 ${
-                    inelegivel
+                    inelegivel || incompatAndar
                       ? 'bg-white/40 opacity-60'
                       : destaqueTop3
                         ? 'bg-amber-50/80'
@@ -303,6 +317,7 @@ function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
                         {formatModeloTopografia(item.modelo, item.topografia)}
                       </span>
                       <BadgeTopografiaCompat topoCompativel={item.topoCompativel} />
+                      <BadgeTipoAndarIncompativel item={item} />
                       {inelegivel && falhasGeometria.length > 0 ? (
                         <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-800 ring-1 ring-red-200">
                           Não cabe
@@ -595,7 +610,11 @@ function FaixaPreBatalhaColapsavel({
             onToggle={() => setRankingAberto((v) => !v)}
             panelId={`${panelId}-ranking`}
           >
-            <PodiumTop3 top3={grupo.ranking.filter((r) => r.elegivel !== false).slice(0, 3)} />
+            <PodiumTop3
+              top3={grupo.ranking
+                .filter((r) => r.elegivel !== false && !r.tipoAndareIncompativel)
+                .slice(0, 3)}
+            />
             <LeaderboardTable ranking={grupo.ranking} />
           </SubSecaoTabelaColapsavel>
         </div>

@@ -14,6 +14,7 @@ import {
   contarAtributosLoteMarcados,
   M2_POR_MODULO_ANEXO,
   penalizacaoTamanhoEliminada,
+  modeloTipoAndarIncompativel,
   type AtributosLoteRespostas,
   type CatalogoComAtributosLote,
   type NotaTamanhoResult,
@@ -125,6 +126,10 @@ export type RankingModeloPreBatalha = {
   totalAtributosLote: number;
   topoCompativel: boolean;
   elegivel: boolean;
+  /** Modelo com andares incompatíveis com o tipo predominante da faixa (térrea/sobrado). */
+  tipoAndareIncompativel: boolean;
+  /** Tipo predominante usado na faixa — para badge na UI. */
+  tipoPredominanteFaixa?: TipoCasaPredominanteFaixa | null;
   falhas: ('largura' | 'profundidade' | 'area' | 'topografia')[];
   largura_util: number | null;
   profundidade_util: number | null;
@@ -180,6 +185,21 @@ function produtoDadosComTipo(
 ): ProdutoDadosPar | undefined {
   if (!base && !tipo) return undefined;
   return { ...base, tipoPredominante: tipo ?? base?.tipoPredominante ?? null };
+}
+
+/** Tipo predominante único da faixa (quando todos os anúncios concordam). */
+function resolverTipoPredominanteFaixaMercado(
+  linhas: LinhaProspectCondominio[] | undefined,
+  casasFaixa: CasaRowPreBatalha[],
+  faixa: FaixaMercado | undefined,
+): TipoCasaPredominanteFaixa | null {
+  const tipos = new Set<TipoCasaPredominanteFaixa>();
+  for (const c of casasFaixa) {
+    const t = resolverTipoPredominanteFaixa(linhas, c.condominio, faixa);
+    if (t) tipos.add(t);
+  }
+  if (tipos.size === 1) return [...tipos][0];
+  return null;
 }
 
 /** Geometria do terreno: dimensões do lote + recuos do condomínio. */
@@ -295,6 +315,7 @@ function criarRankingModeloInelegivel(
     totalAtributosLote: extras.totalAtributosLote,
     topoCompativel: extras.topoCompativel,
     elegivel: false,
+    tipoAndareIncompativel: false,
     falhas,
     largura_util: geo.largura_util,
     profundidade_util: geo.profundidade_util,
@@ -353,11 +374,16 @@ function filtrarCatalogoElegivelGeometria(
 function ordenarRankingComInelegiveisNoFinal(
   ranking: RankingModeloPreBatalha[],
 ): RankingModeloPreBatalha[] {
-  const elegiveis = ranking.filter((r) => r.elegivel).sort(compararRankingModelo);
+  const elegiveisCompat = ranking
+    .filter((r) => r.elegivel && !r.tipoAndareIncompativel)
+    .sort(compararRankingModelo);
+  const elegiveisIncompat = ranking
+    .filter((r) => r.elegivel && r.tipoAndareIncompativel)
+    .sort(compararRankingModelo);
   const inelegiveis = ranking
     .filter((r) => !r.elegivel)
     .sort((a, b) => a.modelo.localeCompare(b.modelo, 'pt-BR'));
-  return [...elegiveis, ...inelegiveis];
+  return [...elegiveisCompat, ...elegiveisIncompat, ...inelegiveis];
 }
 
 const TOPOGRAFIA_LABEL: Record<string, string> = {
@@ -493,6 +519,11 @@ function rankearModelosContraAnuncios(
   linhasProspect?: LinhaProspectCondominio[],
 ): RankingModeloPreBatalha[] {
   const totalAtributosLote = contarAtributosLoteMarcados(atributosLote);
+  const tipoPredominanteFaixa = resolverTipoPredominanteFaixaMercado(
+    linhasProspect,
+    casasFaixa,
+    faixa,
+  );
 
   const rankings = catalogoFiltrado.map((mod) => {
     const matchScore = calcularMatchScoreAtributosLote(atributosLote, mod);
@@ -526,6 +557,11 @@ function rankearModelosContraAnuncios(
         },
       );
     }
+
+    const tipoAndareIncompativel = modeloTipoAndarIncompativel(
+      tipoPredominanteFaixa,
+      mod.andares ?? null,
+    );
 
     const precoIncKitMoni = getPrecoIncMaisKitMoni(mod);
 
@@ -596,6 +632,8 @@ function rankearModelosContraAnuncios(
       matchScore,
       totalAtributosLote,
       topoCompativel: true,
+      tipoAndareIncompativel,
+      tipoPredominanteFaixa,
       ...geoCampos,
     };
   });
@@ -691,6 +729,7 @@ export function flattenRankingPreBatalhaPorFaixas(
   for (const g of grupos) {
     for (const item of g.ranking) {
       if (item.elegivel === false) continue;
+      if (item.tipoAndareIncompativel) continue;
       if (seen.has(item.catalogoId)) continue;
       seen.add(item.catalogoId);
       out.push(item);
