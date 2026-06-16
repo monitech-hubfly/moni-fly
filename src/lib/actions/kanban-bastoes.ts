@@ -1404,7 +1404,7 @@ export async function reativarFilhoAcoplamentoArquivadoSeNecessario(
     fase_id?: string | null;
   };
 
-  let faseOrigemSlug = FASE_SLUGS.ACOPLAMENTO;
+  let faseOrigemSlug: string = FASE_SLUGS.ACOPLAMENTO;
   const faseId = String(pai.fase_id ?? '').trim();
   if (faseId) {
     const { data: faseRow } = await db.from('kanban_fases').select('slug').eq('id', faseId).maybeSingle();
