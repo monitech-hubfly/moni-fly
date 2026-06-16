@@ -44,6 +44,16 @@ const FRASES_DESPUBLICADO = [
   'anuncio finalizado',
   'no longer available',
   'posting unavailable',
+  'imóvel indisponível',
+  'imovel indisponivel',
+  'anúncio não está mais ativo',
+  'anuncio nao esta mais ativo',
+  'não encontramos a página',
+  'nao encontramos a pagina',
+  'ops! não encontramos',
+  'ops! nao encontramos',
+  'listingnotfound',
+  'listing unavailable',
 ];
 
 const FRASES_A_VENDA = [
@@ -92,11 +102,32 @@ export function urlAnuncioPermitida(raw: string): boolean {
 }
 
 export function extrairIdListingUrl(url: string): string | null {
-  const m =
-    url.match(/-(\d+)\.html(?:\?|#|$)/i) ||
-    url.match(/\/(\d+)\.html(?:\?|#|$)/i) ||
-    url.match(/\/propriedades\/[^/]+-(\d+)/i);
-  return m?.[1] ?? null;
+  const patterns = [
+    /-id-(\d+)/i,
+    /[?&]id=(\d+)/i,
+    /-(\d+)\.html(?:\?|#|$)/i,
+    /\/(\d+)\.html(?:\?|#|$)/i,
+    /\/propriedades\/[^/]+-(\d+)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match?.[1]) return match[1];
+  }
+  return null;
+}
+
+export function normalizeLinkParaComparacao(link: string): string {
+  const trimmed = link.trim();
+  if (!trimmed) return '';
+  try {
+    const u = new URL(trimmed);
+    u.hash = '';
+    u.search = '';
+    const path = u.pathname.replace(/\/+$/, '') || '/';
+    return `${u.protocol}//${u.host.toLowerCase()}${path}`;
+  } catch {
+    return trimmed.toLowerCase().replace(/\/+$/, '').split('?')[0].split('#')[0];
+  }
 }
 
 export function isPaginaBloqueadaBot(html: string, statusHttp: number): boolean {
@@ -106,6 +137,7 @@ export function isPaginaBloqueadaBot(html: string, statusHttp: number): boolean 
     lower.includes('cloudflare') ||
     lower.includes('cf-challenge') ||
     lower.includes('performing security verification') ||
+    lower.includes('attention required') ||
     lower.includes('captcha') ||
     lower.includes('access denied')
   ) {
@@ -139,10 +171,28 @@ export function inferirStatusAnuncioPorHtml(
   }
 
   const idOrig = extrairIdListingUrl(origem);
-  if (idOrig && /imovelweb\.com\.br|vivareal\.com\.br|zapimoveis\.com\.br/i.test(origem)) {
+  const portalNavent = /imovelweb\.com\.br|vivareal\.com\.br|zapimoveis\.com\.br|olx\.com\.br/i.test(
+    origem,
+  );
+
+  if (portalNavent && /\/imovel\//i.test(origem) && !/\/imovel\//i.test(finalUrl)) {
+    return 'despublicado';
+  }
+
+  if (idOrig && portalNavent) {
     if (!finalUrl.includes(idOrig) && !html.includes(idOrig)) {
       return 'despublicado';
     }
+  }
+
+  if (
+    /"notFound"\s*:\s*true/i.test(html) ||
+    /"listingNotFound"\s*:\s*true/i.test(html) ||
+    /"__typename"\s*:\s*"NotFound"/i.test(html) ||
+    /"accountPublishabilityStatus"\s*:\s*"UNPUBLISHED"/i.test(html) ||
+    /"listingStatus"\s*:\s*"(INACTIVE|OFFLINE|DELETED|UNPUBLISHED)"/i.test(html)
+  ) {
+    return 'despublicado';
   }
 
   if (

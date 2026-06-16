@@ -1,13 +1,15 @@
 const APIFY_BASE = 'https://api.apify.com/v2';
-const CHEERIO_ACTOR_ID = 'apify~cheerio-scraper';
+const PUPPETEER_ACTOR_ID = 'apify~puppeteer-scraper';
 
 const PAGE_FUNCTION = `async function pageFunction(context) {
-  const { request, body } = context;
-  const status = context.response && context.response.statusCode ? context.response.statusCode : 200;
+  const { page, request, response } = context;
+  await page.waitForSelector('body', { timeout: 20000 }).catch(function() {});
+  const html = await page.content();
+  const status = response && typeof response.status === 'function' ? response.status() : 200;
   return {
     url: request.loadedUrl || request.url,
-    html: body,
-    status,
+    html: html,
+    status: status,
   };
 }`;
 
@@ -50,9 +52,19 @@ async function aguardarRunApify(
   return { ok: false, error: 'Timeout ao aguardar Apify.' };
 }
 
+function registrarPagina(
+  map: Map<string, PaginaAnuncioFetch>,
+  chave: string,
+  pagina: PaginaAnuncioFetch,
+): void {
+  const k = chave.trim();
+  if (!k) return;
+  map.set(k, pagina);
+}
+
 /**
- * Busca HTML de URLs de anúncio via Apify (proxy residencial BR).
- * Usado quando portais como ImovelWeb bloqueiam fetch direto (Cloudflare).
+ * Busca HTML de URLs de anúncio via Apify Puppeteer (proxy residencial BR).
+ * Usado quando portais como Viva Real / ImovelWeb bloqueiam fetch direto (Cloudflare).
  */
 export async function fetchPaginasAnuncioViaApify(
   urls: string[],
@@ -66,21 +78,26 @@ export async function fetchPaginasAnuncioViaApify(
   const unicas = [...new Set(urls.map((u) => u.trim()).filter(Boolean))].slice(0, limite);
   if (unicas.length === 0) return result;
 
-  const timeoutMs = opts?.timeoutMs ?? 120_000;
+  const timeoutMs = opts?.timeoutMs ?? 180_000;
   const runPayload = {
     startUrls: unicas.map((url) => ({ url })),
     pageFunction: PAGE_FUNCTION,
     maxRequestsPerCrawl: unicas.length,
-    maxConcurrency: 3,
+    maxConcurrency: 2,
     proxyConfiguration: {
       useApifyProxy: true,
       apifyProxyGroups: ['RESIDENTIAL'],
       apifyProxyCountry: 'BR',
     },
+    launchContext: {
+      launchOptions: {
+        headless: true,
+      },
+    },
   };
 
   try {
-    const runRes = await fetch(`${APIFY_BASE}/acts/${CHEERIO_ACTOR_ID}/runs?token=${token}`, {
+    const runRes = await fetch(`${APIFY_BASE}/acts/${PUPPETEER_ACTOR_ID}/runs?token=${token}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(runPayload),
@@ -112,8 +129,8 @@ export async function fetchPaginasAnuncioViaApify(
         url: item.url?.trim() || unicas[i] || '',
       };
       const requested = unicas[i];
-      if (requested) result.set(requested, fetchResult);
-      if (item.url) result.set(item.url.trim(), fetchResult);
+      if (requested) registrarPagina(result, requested, fetchResult);
+      if (item.url) registrarPagina(result, item.url, fetchResult);
     }
   } catch {
     return result;

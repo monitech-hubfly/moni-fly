@@ -1,7 +1,10 @@
 import { mapZapItemToCasa, type ZapListingItem } from '@/lib/apify-zap';
 import { fetchPaginasAnuncioViaApify } from '@/lib/listings/fetch-paginas-anuncio-apify';
 import {
+  extrairIdListingUrl,
   inferirStatusAnuncioPorHtml,
+  isPaginaBloqueadaBot,
+  normalizeLinkParaComparacao,
   verificarStatusLinkAnuncioDireto,
 } from '@/lib/listings/verificar-status-link-anuncio';
 import { normalizeAccessRole } from '@/lib/authz';
@@ -743,6 +746,38 @@ async function mapComConcorrencia<T, R>(
   return results;
 }
 
+function findPaginaAnuncioVerificacao(
+  link: string,
+  paginas: Map<string, { html: string; status: number; url: string }>,
+): { html: string; status: number; url: string } | undefined {
+  const trimmed = link.trim();
+  if (paginas.has(trimmed)) return paginas.get(trimmed);
+
+  const norm = normalizeLinkParaComparacao(trimmed);
+  if (paginas.has(norm)) return paginas.get(norm);
+
+  for (const [key, page] of paginas.entries()) {
+    if (normalizeLinkParaComparacao(key) === norm) return page;
+  }
+
+  const id = extrairIdListingUrl(trimmed);
+  if (!id) return undefined;
+
+  for (const page of paginas.values()) {
+    if (
+      page.url.includes(id) ||
+      page.url.includes(`id-${id}`) ||
+      page.html.includes(`"id":"${id}"`) ||
+      page.html.includes(`"listingId":"${id}"`) ||
+      page.html.includes(`-id-${id}`)
+    ) {
+      return page;
+    }
+  }
+
+  return undefined;
+}
+
 /**
  * Verifica links de casas manuais/importadas e atualiza status quando o anúncio
  * estiver indisponível (ou republicado). Grava `ultima_validacao_casas_manuais_em`.
@@ -844,9 +879,9 @@ export async function validarStatusLinksListingsCasas(
     const paginas = await fetchPaginasAnuncioViaApify(pendentesProxy.map((p) => p.link));
 
     for (const pendente of pendentesProxy) {
-      const page = paginas.get(pendente.link);
+      const page = findPaginaAnuncioVerificacao(pendente.link, paginas);
 
-      if (!page?.html) {
+      if (!page?.html || isPaginaBloqueadaBot(page.html, page.status)) {
         bloqueados++;
         indeterminados++;
         continue;
