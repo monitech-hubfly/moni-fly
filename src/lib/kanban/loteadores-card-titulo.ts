@@ -1,6 +1,8 @@
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { KANBAN_NOME_FUNIL_LOTEADORES } from '@/lib/kanban/funil-loteadores';
 import type { SupabaseClient } from '@supabase/supabase-js';
+
+type LoteadoresTituloDb = Pick<SupabaseClient, 'from'>;
 type TituloLoteadorParams = {
   nomeLoteador?: string | null;
   nomeCondominio?: string | null;
@@ -41,9 +43,16 @@ type CardTituloRow = {
   kanban_id?: string | null;
   titulo?: string | null;
   nome_condominio?: string | null;
+  condominio_id?: string | null;
   quadra?: string | null;
   lote?: string | null;
   rede_loteador_id?: string | null;
+};
+
+type TituloLoteadorOverrides = {
+  nomeCondominio?: string | null;
+  quadra?: string | null;
+  lote?: string | null;
 };
 
 type RedeLoteadorTituloRow = {
@@ -62,15 +71,16 @@ function coalesceTexto(...vals: unknown[]): string | null {
 
 /** Persiste `titulo` no card quando o kanban é Funil Loteadores. */
 export async function sincronizarTituloCardLoteadores(
-  db: SupabaseClient,
+  db: LoteadoresTituloDb,
   cardId: string,
+  overrides?: TituloLoteadorOverrides,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const cid = String(cardId ?? '').trim();
   if (!cid) return { ok: false, error: 'Card inválido.' };
 
   const { data: card, error: cardErr } = await db
     .from('kanban_cards')
-    .select('id, kanban_id, titulo, nome_condominio, quadra, lote, rede_loteador_id')
+    .select('id, kanban_id, titulo, nome_condominio, condominio_id, quadra, lote, rede_loteador_id')
     .eq('id', cid)
     .maybeSingle();
   if (cardErr) return { ok: false, error: cardErr.message };
@@ -82,7 +92,6 @@ export async function sincronizarTituloCardLoteadores(
 
   const redeLoteadorId = String(cardRow.rede_loteador_id ?? '').trim();
   let nomeLoteador: string | null = null;
-  let interlocutorNome: string | null = null;
   let condominioLoteador: string | null = null;
 
   if (redeLoteadorId) {
@@ -95,7 +104,6 @@ export async function sincronizarTituloCardLoteadores(
     if (rl) {
       const rlRow = rl as RedeLoteadorTituloRow;
       nomeLoteador = coalesceTexto(rlRow.nome);
-      interlocutorNome = coalesceTexto(rlRow.interlocutor_nome);
       condominioLoteador = coalesceTexto(rlRow.condominio_nome);
     }
   }
@@ -105,11 +113,20 @@ export async function sincronizarTituloCardLoteadores(
     nomeLoteador = tituloAtual.split(' - ')[0]?.trim() || tituloAtual || null;
   }
 
+  let nomeCondominioCard = coalesceTexto(overrides?.nomeCondominio, cardRow.nome_condominio, condominioLoteador);
+  if (!nomeCondominioCard) {
+    const condominioId = String(cardRow.condominio_id ?? '').trim();
+    if (condominioId) {
+      const { data: cond } = await db.from('condominios').select('nome').eq('id', condominioId).maybeSingle();
+      nomeCondominioCard = coalesceTexto((cond as { nome?: string | null } | null)?.nome);
+    }
+  }
+
   const titulo = montarTituloCardLoteadores({
     nomeLoteador,
-    nomeCondominio: coalesceTexto(cardRow.nome_condominio, condominioLoteador),
-    quadra: cardRow.quadra,
-    lote: cardRow.lote,
+    nomeCondominio: nomeCondominioCard,
+    quadra: coalesceTexto(overrides?.quadra, cardRow.quadra),
+    lote: coalesceTexto(overrides?.lote, cardRow.lote),
     tituloFallback: cardRow.titulo,
   });
   if (!titulo) return { ok: true };

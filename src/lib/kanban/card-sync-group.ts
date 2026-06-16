@@ -1,5 +1,6 @@
 import type { createAdminClient } from '@/lib/supabase/admin';
 import type { createClient } from '@/lib/supabase/server';
+import { isKanbanFunilLoteadoresRef, sincronizarTituloCardLoteadores } from '@/lib/kanban/loteadores-card-titulo';
 
 type SyncDb = Pick<Awaited<ReturnType<typeof createClient>>, 'from'>;
 
@@ -504,19 +505,22 @@ export async function propagarCamposKanbanCards(
     syncPatch.titulo !== undefined ||
     syncPatch.rede_franqueado_id !== undefined ||
     syncPatch.nome_condominio !== undefined ||
+    syncPatch.condominio_id !== undefined ||
     syncPatch.quadra !== undefined ||
     syncPatch.lote !== undefined;
 
   let tituloCanonico: string | null | undefined =
     syncPatch.titulo !== undefined ? syncPatch.titulo : undefined;
 
+  let isFunilLoteadores = false;
   if (precisaTitulo && tituloCanonico === undefined) {
     const { data: origemRow } = await db
       .from('kanban_cards')
-      .select('rede_franqueado_id, nome_condominio, quadra, lote, titulo')
+      .select('kanban_id, rede_franqueado_id, nome_condominio, quadra, lote, titulo')
       .eq('id', origem)
       .maybeSingle();
     const o = origemRow as {
+      kanban_id?: string | null;
       rede_franqueado_id?: string | null;
       nome_condominio?: string | null;
       quadra?: string | null;
@@ -524,13 +528,16 @@ export async function propagarCamposKanbanCards(
       titulo?: string | null;
     } | null;
 
-    tituloCanonico = await resolverTituloCardKanban(db, {
-      rede_franqueado_id: syncPatch.rede_franqueado_id ?? o?.rede_franqueado_id,
-      nome_condominio: syncPatch.nome_condominio ?? o?.nome_condominio,
-      quadra: syncPatch.quadra ?? o?.quadra,
-      lote: syncPatch.lote ?? o?.lote,
-      titulo: o?.titulo,
-    });
+    isFunilLoteadores = isKanbanFunilLoteadoresRef(o?.kanban_id);
+    if (!isFunilLoteadores) {
+      tituloCanonico = await resolverTituloCardKanban(db, {
+        rede_franqueado_id: syncPatch.rede_franqueado_id ?? o?.rede_franqueado_id,
+        nome_condominio: syncPatch.nome_condominio ?? o?.nome_condominio,
+        quadra: syncPatch.quadra ?? o?.quadra,
+        lote: syncPatch.lote ?? o?.lote,
+        titulo: o?.titulo,
+      });
+    }
   }
 
   for (const targetId of cardIds) {
@@ -545,6 +552,17 @@ export async function propagarCamposKanbanCards(
     const { error } = await db.from('kanban_cards').update(rowPatch as never).eq('id', targetId);
     if (error) return { ok: false, error: error.message };
     atualizados++;
+  }
+
+  if (isFunilLoteadores && precisaTitulo) {
+    for (const targetId of cardIds) {
+      const syncTitulo = await sincronizarTituloCardLoteadores(db, targetId, {
+        nomeCondominio: syncPatch.nome_condominio,
+        quadra: syncPatch.quadra,
+        lote: syncPatch.lote,
+      });
+      if (!syncTitulo.ok) return syncTitulo;
+    }
   }
 
   if (!options?.skipProcessoMirror) {

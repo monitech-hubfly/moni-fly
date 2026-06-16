@@ -891,6 +891,25 @@ export async function fetchKanbanBoardSnapshot(
     }
   }
 
+  const condominioNomePorId = new Map<string, string>();
+  if (isFunilLoteadores) {
+    const condominioIds = [
+      ...new Set(
+        cardsNativosRaw
+          .map((c) => String((c as { condominio_id?: string | null }).condominio_id ?? '').trim())
+          .filter(Boolean),
+      ),
+    ];
+    if (condominioIds.length > 0) {
+      const { data: condominioRows } = await supabase.from('condominios').select('id, nome').in('id', condominioIds);
+      for (const row of condominioRows ?? []) {
+        const id = String((row as { id?: string }).id ?? '').trim();
+        const nome = String((row as { nome?: string | null }).nome ?? '').trim();
+        if (id && nome) condominioNomePorId.set(id, nome);
+      }
+    }
+  }
+
   const mapNativo = (c: Record<string, unknown>): KanbanCardBrief => {
     const cMerged = mesclarCamposComProjetoIrmaos(
       mesclarCamposComAncestrais(c, ancestraisMap),
@@ -909,6 +928,9 @@ export async function fetchKanbanBoardSnapshot(
       (cMerged as { nome_condominio?: string | null }).nome_condominio,
       proc?.nome_condominio,
       parsedTitulo.nomeCondominio,
+      condominioNomePorId.get(
+        String((cMerged as { condominio_id?: string | null }).condominio_id ?? '').trim(),
+      ),
     );
     const quadra = coalesceTextoCampo(
       (cMerged as { quadra?: string | null }).quadra,
