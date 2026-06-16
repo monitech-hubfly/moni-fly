@@ -237,7 +237,8 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
         <span className="ml-1 text-red-500">*</span>
       </span>
       <p className="mb-2 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-        Para cada condomínio da Tabela de Condomínios, varra a ZAP e cadastre as casas do mapa de competidores.
+        Para cada condomínio da Tabela de Condomínios, varra a ZAP, importe por planilha ou cadastre
+        manualmente as casas do mapa de competidores.
       </p>
 
       {prospects.length === 0 ? (

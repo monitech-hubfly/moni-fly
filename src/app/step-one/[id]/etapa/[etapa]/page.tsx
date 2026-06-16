@@ -219,7 +219,7 @@ export default async function EtapaPage({ params, searchParams }: PageProps) {
     const { data } = await supabase
       .from('listings_casas')
       .select(
-        'id, cidade, foto_url, status, condominio, localizacao_condominio, quartos, banheiros, vagas, piscina, marcenaria, preco, area_casa_m2, preco_m2, estado, compatibilidade_moni, data_publicacao, data_despublicado, link, manual',
+        'id, cidade, foto_url, status, condominio, localizacao_condominio, quartos, banheiros, vagas, piscina, marcenaria, preco, area_casa_m2, preco_m2, estado, compatibilidade_moni, data_publicacao, data_despublicado, link, manual, importado',
       )
       .eq('processo_id', id)
       .order('created_at', { ascending: false });

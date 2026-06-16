@@ -1,8 +1,10 @@
 import { mapZapItemToCasa, type ZapListingItem } from '@/lib/apify-zap';
 import { normalizeAccessRole } from '@/lib/authz';
+import { parseDecimalInput, parseIntegerInput } from '@/lib/condominios';
 import { casaMapaPertenceCondominio } from '@/lib/kanban/mapa-competidores-condominio';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import * as XLSX from 'xlsx';
 
 type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
 
@@ -96,8 +98,15 @@ export async function verifyProcessoCasasAccess(
 
 /**
  * Aplica atualização ZAP na listagem de casas (upsert por link + despublicar ausentes).
- * Não altera registros manuais.
+ * Não altera registros manuais nem importados de planilha.
  */
+function listingProtegidoContraZap(row: {
+  manual?: boolean | null;
+  importado?: boolean | null;
+}): boolean {
+  return row.manual === true || row.importado === true;
+}
+
 export async function applyZapCasasUpdate(
   supabase: SupabaseServer,
   processoId: string,
@@ -123,13 +132,13 @@ export async function applyZapCasasUpdate(
 
   const { data: existing } = await supabase
     .from('listings_casas')
-    .select('id, link, manual, condominio')
+    .select('id, link, manual, importado, condominio')
     .eq('processo_id', processoId);
 
   let despublicados = 0;
   const now = new Date().toISOString().slice(0, 10);
   for (const row of existing ?? []) {
-    if (row.manual) continue;
+    if (listingProtegidoContraZap(row)) continue;
     const link = row.link as string | null;
     if (!link || linksFromZap.has(link)) continue;
     // Mapa por condomínio: só despublica listagens da sessão atual, não de outras abas.
@@ -145,7 +154,7 @@ export async function applyZapCasasUpdate(
 
   const existingByLink = new Map<string | null, { id: string }>();
   for (const row of existing ?? []) {
-    if (row.manual) continue;
+    if (listingProtegidoContraZap(row)) continue;
     if (row.link) existingByLink.set(row.link, { id: row.id });
   }
 
@@ -186,4 +195,314 @@ export async function applyZapCasasUpdate(
   }
 
   return { inserted, updated, despublicados };
+}
+
+export type PlanilhaCasaMappedRow = {
+  cidade: string | null;
+  quartos: number | null;
+  banheiros: number | null;
+  vagas: number | null;
+  preco: number;
+  area_casa_m2: number | null;
+  preco_m2: number | null;
+  piscina: boolean;
+  link: string | null;
+  localizacao_condominio: string | null;
+  foto_url: string | null;
+};
+
+export type PlanilhaCasasImportResult = {
+  inserted: number;
+  updated: number;
+  erros: string[];
+};
+
+type PlanilhaCasaField = keyof PlanilhaCasaMappedRow;
+
+/** Normaliza cabeçalho de coluna: minúsculas, sem acento, separadores unificados. */
+export function normalizePlanilhaHeaderKey(raw: string): string {
+  return String(raw ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/²/g, '2')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+const PLANILHA_COLUMN_ALIASES: Record<string, PlanilhaCasaField> = {
+  cidade: 'cidade',
+  city: 'cidade',
+  quartos: 'quartos',
+  bedrooms: 'quartos',
+  banheiros: 'banheiros',
+  bathrooms: 'banheiros',
+  vagas: 'vagas',
+  parking: 'vagas',
+  preco: 'preco',
+  price: 'preco',
+  valor: 'preco',
+  area: 'area_casa_m2',
+  m2: 'area_casa_m2',
+  area_casa_m2: 'area_casa_m2',
+  preco_m2: 'preco_m2',
+  r_m2: 'preco_m2',
+  piscina: 'piscina',
+  pool: 'piscina',
+  link: 'link',
+  url: 'link',
+  endereco: 'localizacao_condominio',
+  localizacao: 'localizacao_condominio',
+  localizacao_condominio: 'localizacao_condominio',
+  foto: 'foto_url',
+  foto_url: 'foto_url',
+  imagem: 'foto_url',
+};
+
+function resolvePlanilhaColumnField(header: string): PlanilhaCasaField | null {
+  const key = normalizePlanilhaHeaderKey(header);
+  return PLANILHA_COLUMN_ALIASES[key] ?? null;
+}
+
+function cellToString(val: unknown): string {
+  if (val == null) return '';
+  if (typeof val === 'number' && Number.isFinite(val)) return String(val);
+  return String(val).trim();
+}
+
+function parsePlanilhaBoolean(val: unknown): boolean | null {
+  if (val == null || val === '') return null;
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'number') return val !== 0;
+  const s = String(val).trim().toLowerCase();
+  if (['sim', 's', 'true', '1', 'yes'].includes(s)) return true;
+  if (['nao', 'n', 'false', '0', 'no'].includes(s)) return false;
+  return null;
+}
+
+function parsePlanilhaNumber(val: unknown): number | null {
+  if (val == null || val === '') return null;
+  if (typeof val === 'number' && Number.isFinite(val)) return val;
+  const s = cellToString(val);
+  if (!s) return null;
+  return parseDecimalInput(s) ?? (Number.isFinite(Number(s)) ? Number(s) : null);
+}
+
+function parsePlanilhaInteger(val: unknown): number | null {
+  if (val == null || val === '') return null;
+  if (typeof val === 'number' && Number.isFinite(val)) return Math.trunc(val);
+  return parseIntegerInput(cellToString(val));
+}
+
+/** Converte registro bruto (cabeçalho → valor) para campos de `listings_casas`. */
+export function mapPlanilhaRecordToCasaRow(
+  raw: Record<string, unknown>,
+): Partial<PlanilhaCasaMappedRow> | null {
+  const out: Partial<PlanilhaCasaMappedRow> = {};
+
+  for (const [header, val] of Object.entries(raw)) {
+    const field = resolvePlanilhaColumnField(header);
+    if (!field) continue;
+
+    switch (field) {
+      case 'cidade': {
+        const s = cellToString(val);
+        if (s) out.cidade = s;
+        break;
+      }
+      case 'quartos':
+      case 'banheiros':
+      case 'vagas':
+        out[field] = parsePlanilhaInteger(val);
+        break;
+      case 'preco': {
+        const n = parsePlanilhaNumber(val);
+        if (n != null) out.preco = n;
+        break;
+      }
+      case 'area_casa_m2':
+      case 'preco_m2': {
+        const n = parsePlanilhaNumber(val);
+        out[field] = n;
+        break;
+      }
+      case 'piscina': {
+        const b = parsePlanilhaBoolean(val);
+        if (b != null) out.piscina = b;
+        break;
+      }
+      case 'link':
+      case 'localizacao_condominio':
+      case 'foto_url': {
+        const s = cellToString(val);
+        if (s) out[field] = s;
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  if (out.preco == null || !Number.isFinite(out.preco) || out.preco <= 0) return null;
+  return out;
+}
+
+function parseCsvLine(line: string): string[] {
+  const cells: string[] = [];
+  let cur = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (ch === ',' && !inQuotes) {
+      cells.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += ch;
+  }
+  cells.push(cur);
+  return cells.map((c) => c.trim());
+}
+
+function parseCsvToRecords(text: string): Record<string, unknown>[] {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length < 2) return [];
+
+  const headers = parseCsvLine(lines[0]);
+  const records: Record<string, unknown>[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const cells = parseCsvLine(lines[i]);
+    if (cells.every((c) => !c.trim())) continue;
+    const rec: Record<string, unknown> = {};
+    headers.forEach((h, j) => {
+      rec[h] = cells[j] ?? '';
+    });
+    records.push(rec);
+  }
+
+  return records;
+}
+
+function parseXlsxToRecords(buffer: ArrayBuffer): Record<string, unknown>[] {
+  const wb = XLSX.read(buffer, { type: 'array' });
+  const sheetName = wb.SheetNames[0];
+  if (!sheetName) return [];
+  const sheet = wb.Sheets[sheetName];
+  return XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+}
+
+/** Lê .xlsx ou .csv e devolve linhas como objetos (cabeçalho da 1ª linha). */
+export function parsePlanilhaCasasFile(
+  buffer: ArrayBuffer,
+  filename: string,
+): Record<string, unknown>[] {
+  const lower = filename.toLowerCase();
+  if (lower.endsWith('.csv')) {
+    const text = new TextDecoder('utf-8').decode(buffer);
+    return parseCsvToRecords(text);
+  }
+  if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
+    return parseXlsxToRecords(buffer);
+  }
+  throw new Error('Formato não suportado. Use .xlsx ou .csv.');
+}
+
+/**
+ * Importa linhas de planilha em `listings_casas`.
+ * Upsert por `link` quando informado; senão insere novo registro.
+ */
+export async function applyPlanilhaCasasImport(
+  supabase: SupabaseServer,
+  processoId: string,
+  records: Record<string, unknown>[],
+  condominioVinculo: string,
+): Promise<PlanilhaCasasImportResult> {
+  const vinculo = condominioVinculo.trim();
+  if (!vinculo) {
+    return { inserted: 0, updated: 0, erros: ['condominioVinculo é obrigatório.'] };
+  }
+
+  const { data: existing, error: errExisting } = await supabase
+    .from('listings_casas')
+    .select('id, link')
+    .eq('processo_id', processoId);
+
+  if (errExisting) {
+    return { inserted: 0, updated: 0, erros: [errExisting.message] };
+  }
+
+  const existingByLink = new Map<string, { id: string }>();
+  for (const row of existing ?? []) {
+    const link = row.link as string | null;
+    if (link) existingByLink.set(link, { id: row.id as string });
+  }
+
+  let inserted = 0;
+  let updated = 0;
+  const erros: string[] = [];
+
+  for (let index = 0; index < records.length; index++) {
+    const raw = records[index];
+    const linha = index + 2;
+    const mapped = mapPlanilhaRecordToCasaRow(raw);
+    if (!mapped || mapped.preco == null) {
+      erros.push(`Linha ${linha}: ignorada (preço inválido ou ausente).`);
+      continue;
+    }
+
+    const link = mapped.link?.trim() || null;
+    const payload = {
+      processo_id: processoId,
+      manual: true,
+      importado: true,
+      status: 'a_venda' as const,
+      condominio: vinculo,
+      cidade: mapped.cidade ?? null,
+      quartos: mapped.quartos ?? null,
+      banheiros: mapped.banheiros ?? null,
+      vagas: mapped.vagas ?? null,
+      piscina: mapped.piscina ?? false,
+      preco: mapped.preco,
+      area_casa_m2: mapped.area_casa_m2 ?? null,
+      preco_m2: mapped.preco_m2 ?? null,
+      link,
+      localizacao_condominio: mapped.localizacao_condominio ?? null,
+      foto_url: mapped.foto_url ?? null,
+      data_despublicado: null,
+    };
+
+    const existingRow = link ? existingByLink.get(link) : null;
+    if (existingRow) {
+      const { error } = await supabase.from('listings_casas').update(payload).eq('id', existingRow.id);
+      if (error) erros.push(`Linha ${linha}: ${error.message}`);
+      else updated++;
+    } else {
+      const { data: insertedRow, error } = await supabase
+        .from('listings_casas')
+        .insert(payload)
+        .select('id')
+        .maybeSingle();
+      if (error) erros.push(`Linha ${linha}: ${error.message}`);
+      else {
+        inserted++;
+        if (link && insertedRow?.id) {
+          existingByLink.set(link, { id: insertedRow.id as string });
+        }
+      }
+    }
+  }
+
+  return { inserted, updated, erros };
 }

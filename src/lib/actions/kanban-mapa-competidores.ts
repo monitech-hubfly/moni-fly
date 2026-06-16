@@ -338,7 +338,7 @@ export async function carregarMapaCompetidoresChecklist(
   const { data: casasData, error: errCasas } = await access.supabase
     .from('listings_casas')
     .select(
-      'id, cidade, foto_url, status, condominio, localizacao_condominio, quartos, banheiros, vagas, piscina, marcenaria, preco, area_casa_m2, preco_m2, estado, compatibilidade_moni, data_publicacao, data_despublicado, link, manual',
+      'id, cidade, foto_url, status, condominio, localizacao_condominio, quartos, banheiros, vagas, piscina, marcenaria, preco, area_casa_m2, preco_m2, estado, compatibilidade_moni, data_publicacao, data_despublicado, link, manual, importado',
     )
     .eq('processo_id', pid)
     .order('created_at', { ascending: false });

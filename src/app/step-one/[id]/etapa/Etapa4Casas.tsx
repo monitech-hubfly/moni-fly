@@ -111,6 +111,7 @@ export type CasaRow = {
   data_despublicado?: string | null;
   link: string | null;
   manual?: boolean | null;
+  importado?: boolean | null;
   faixa?: FaixaMercado;
 };
 

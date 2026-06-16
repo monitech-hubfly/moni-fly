@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import * as XLSX from 'xlsx';
 import {
   addCasaListing,
   updateCasaStatus,
@@ -82,6 +83,15 @@ export function Etapa4CasasListagem({
   const [loading, setLoading] = useState(false);
   const [manualFormOpen, setManualFormOpen] = useState(false);
   const [validandoStatus, setValidandoStatus] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importando, setImportando] = useState(false);
+  const [importErro, setImportErro] = useState('');
+  const [resultadoImport, setResultadoImport] = useState<{
+    inserted: number;
+    updated: number;
+    erros: string[];
+  } | null>(null);
 
   const precoM2Auto = useMemo(() => {
     const p = preco ? parseFloat(String(preco).replace(/\D/g, '').replace(',', '.')) : NaN;
@@ -182,6 +192,73 @@ export function Etapa4CasasListagem({
       setZapError(err instanceof Error ? err.message : 'Falha ao chamar a API.');
     } finally {
       setZapLoading(false);
+    }
+  };
+
+  const baixarTemplate = () => {
+    const headers = [
+      'Condomínio',
+      'Preço',
+      'Quartos',
+      'Banheiros',
+      'Vagas',
+      'Área (m²)',
+      'Piscina',
+      'Link',
+      'Endereço',
+    ];
+    const exemplo = ['', '4500000', '4', '5', '4', '380', 'sim', 'https://exemplo.com/anuncio', 'Rua Exemplo, 100'];
+    const ws = XLSX.utils.aoa_to_sheet([headers, exemplo]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Casas');
+    XLSX.writeFile(wb, 'template-casas-mapa-competidores.xlsx');
+  };
+
+  const handleImportarPlanilha = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    const vinculo = condominioInicial.trim();
+    if (!vinculo) {
+      setImportErro('Condomínio da aba não definido.');
+      return;
+    }
+
+    setImportando(true);
+    setImportErro('');
+    setResultadoImport(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('arquivo', file);
+      formData.append('processoId', processoId.trim());
+      if (cardId?.trim()) formData.append('cardId', cardId.trim());
+      formData.append('condominioVinculo', vinculo);
+
+      const res = await fetch('/api/importar-casas-planilha', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (!data.ok) {
+        setImportErro(data.error ?? 'Erro ao importar planilha.');
+        return;
+      }
+
+      setResultadoImport({
+        inserted: data.inserted ?? 0,
+        updated: data.updated ?? 0,
+        erros: Array.isArray(data.erros) ? data.erros : [],
+      });
+      router.refresh();
+      onMutate?.();
+    } catch (err) {
+      setImportErro(err instanceof Error ? err.message : 'Falha ao importar planilha.');
+    } finally {
+      setImportando(false);
     }
   };
 
@@ -340,6 +417,54 @@ export function Etapa4CasasListagem({
         >
           {zapLoading ? 'Buscando…' : 'Buscar'}
         </button>
+
+        {!readOnly ? (
+          <div className="mt-4 border-t border-stone-200 pt-4">
+            <p className="mb-2 text-sm font-medium text-stone-700">Importar casas por planilha</p>
+            <p className="mb-3 text-xs text-stone-500">
+              Aceita .xlsx ou .csv com colunas: Condomínio, Preço, Quartos, Banheiros, Vagas, Área
+              (m²), Piscina, Link, Endereço.
+              <button
+                type="button"
+                className="ml-1 underline"
+                style={{ color: 'var(--moni-green-800)' }}
+                onClick={baixarTemplate}
+              >
+                Baixar template
+              </button>
+            </p>
+
+            <input
+              type="file"
+              accept=".xlsx,.csv"
+              ref={fileInputRef}
+              onChange={handleImportarPlanilha}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importando}
+              className="rounded-full border border-stone-300 bg-stone-100 px-4 py-2 text-sm text-stone-700 hover:bg-stone-200 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {importando ? 'Importando...' : '↑ Selecionar planilha'}
+            </button>
+
+            {importErro ? (
+              <p className="mt-2 text-xs text-red-600" role="alert">
+                {importErro}
+              </p>
+            ) : null}
+            {resultadoImport ? (
+              <p className="mt-2 text-xs text-stone-600">
+                {resultadoImport.inserted} inseridas · {resultadoImport.updated} atualizadas
+                {resultadoImport.erros.length > 0 ? (
+                  <span className="text-red-600"> · {resultadoImport.erros.length} erros</span>
+                ) : null}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       {painelAposBuscar}
@@ -382,6 +507,7 @@ export function Etapa4CasasListagem({
                   <th className={tabelaTh}>Cidade</th>
                   <th className={tabelaTh}>Fotos</th>
                   <th className={tabelaTh}>Status</th>
+                  <th className={tabelaTh}>Origem</th>
                   <th className={tabelaTh}>Condomínio</th>
                   <th className={tabelaTh}>Endereço</th>
                   <th className={tabelaTh}>Quartos</th>
@@ -405,7 +531,7 @@ export function Etapa4CasasListagem({
                     c.faixa != null && (idx === 0 || c.faixa !== prevFaixa);
                   const qtdFaixa =
                     showFaixaHeader && c.faixa ? (contagemPorFaixa.get(c.faixa) ?? 0) : 0;
-                  const colCountListagem = 17;
+                  const colCountListagem = 18;
                   return (
                     <React.Fragment key={c.id}>
                       {showFaixaHeader ? (
@@ -454,6 +580,9 @@ export function Etapa4CasasListagem({
                           ) : (
                             'a venda'
                           )}
+                        </td>
+                        <td className={tabelaTd}>
+                          <BadgeOrigemAnuncio casa={c} />
                         </td>
                         <td className={tabelaTd}>{c.condominio ?? '—'}</td>
                         <td
@@ -730,6 +859,28 @@ export function Etapa4CasasListagem({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function BadgeOrigemAnuncio({ casa }: { casa: CasaRow }) {
+  if (casa.importado) {
+    return (
+      <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 ring-1 ring-emerald-200">
+        Planilha
+      </span>
+    );
+  }
+  if (casa.manual) {
+    return (
+      <span className="rounded-full bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium text-stone-700 ring-1 ring-stone-200">
+        Manual
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-800 ring-1 ring-sky-200">
+      ZAP
+    </span>
   );
 }
 
