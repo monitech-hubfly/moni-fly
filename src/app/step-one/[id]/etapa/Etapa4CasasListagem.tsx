@@ -119,6 +119,8 @@ export function Etapa4CasasListagem({
   const tabelaTexto = 'text-[11px] leading-snug';
   const tabelaTh = 'px-1.5 py-1 text-left font-medium';
   const tabelaTd = 'px-1.5 py-1';
+  const btnAcaoMapaClass =
+    'btn-primary !px-2.5 !py-1 !text-[11px] !font-normal disabled:cursor-not-allowed disabled:opacity-60';
 
   const ROWS_PER_PAGE = 15;
   const casasExibicao = useMemo(() => {
@@ -430,7 +432,7 @@ export function Etapa4CasasListagem({
             type="button"
             onClick={handleVarrerZap}
             disabled={zapLoading || readOnly}
-            className="btn-primary !px-2.5 !py-1 !text-[11px] !font-normal disabled:cursor-not-allowed disabled:opacity-60"
+            className={btnAcaoMapaClass}
           >
             {zapLoading ? 'Buscando…' : 'Buscar'}
           </button>
@@ -443,30 +445,14 @@ export function Etapa4CasasListagem({
                 onChange={handleImportarPlanilha}
                 className="hidden"
               />
-              <button
-                type="button"
-                onClick={baixarTemplate}
-                className="rounded-md px-2 py-1 text-[11px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
-                style={{
-                  background: 'var(--moni-navy-800)',
-                  borderRadius: 'var(--moni-radius-md)',
-                  minHeight: '44px',
-                }}
-              >
+              <button type="button" onClick={baixarTemplate} className={btnAcaoMapaClass}>
                 Exportar template
               </button>
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={importando}
-                className="rounded-md border px-2 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-60"
-                style={{
-                  border: '0.5px solid var(--moni-border-default)',
-                  background: 'var(--moni-surface-100)',
-                  color: 'var(--moni-text-primary)',
-                  borderRadius: 'var(--moni-radius-md)',
-                  minHeight: '44px',
-                }}
+                className={btnAcaoMapaClass}
               >
                 {importando ? 'Importando…' : 'Importar planilha'}
               </button>
