@@ -2248,16 +2248,30 @@ export async function salvarDadosNegocioKanban(input: {
   });
   if (!dedicado.ok) return dedicado;
 
-  const upd = await updateProcessoNegocioCampos(supabase, dedicado.processoId, input.payload);
+  const payloadNegocio = { ...input.payload };
+  if (payloadNegocio.link_gbox !== undefined && payloadNegocio.link_mapa_competidores === undefined) {
+    payloadNegocio.link_mapa_competidores = payloadNegocio.link_gbox;
+  } else if (
+    payloadNegocio.link_mapa_competidores !== undefined &&
+    payloadNegocio.link_gbox === undefined
+  ) {
+    payloadNegocio.link_gbox = payloadNegocio.link_mapa_competidores;
+  }
+
+  const upd = await updateProcessoNegocioCampos(supabase, dedicado.processoId, payloadNegocio);
   if (!upd.ok) return upd;
 
-  if (input.payload.link_gbox !== undefined) {
+  const linkPlanilhaMapa =
+    payloadNegocio.link_gbox !== undefined
+      ? payloadNegocio.link_gbox
+      : payloadNegocio.link_mapa_competidores;
+  if (linkPlanilhaMapa !== undefined) {
     const { sincronizarGboxPainelParaPlanilhaMapaChecklist } = await import(
       '@/lib/kanban/gbox-planilha-mapa-sync'
     );
     const sync = await sincronizarGboxPainelParaPlanilhaMapaChecklist({
       cardId,
-      linkGbox: input.payload.link_gbox ?? null,
+      linkGbox: linkPlanilhaMapa ?? null,
       usuarioId: user.id,
     });
     if (!sync.ok) return sync;
@@ -4536,9 +4550,20 @@ export async function upsertFaseChecklistResposta(input: {
     '@/lib/kanban/gbox-planilha-mapa-sync'
   );
   if (isChecklistItemLinkPlanilhaMapa(itemLabel)) {
+    let processoId: string | null = null;
+    const { data: cardRow } = await supabase
+      .from('kanban_cards')
+      .select('processo_step_one_id')
+      .eq('id', input.card_id)
+      .maybeSingle();
+    processoId = String(
+      (cardRow as { processo_step_one_id?: string | null } | null)?.processo_step_one_id ?? '',
+    ).trim() || null;
+
     const sync = await sincronizarPlanilhaMapaChecklistParaGbox({
       cardId: input.card_id,
       valorChecklist: input.valor ?? null,
+      processoId,
     });
     if (!sync.ok) return sync;
   }

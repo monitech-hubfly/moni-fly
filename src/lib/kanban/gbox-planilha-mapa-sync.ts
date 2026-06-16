@@ -95,14 +95,18 @@ async function gravarPlanilhaMapaChecklist(
   return { ok: true };
 }
 
-async function gravarLinkGboxProcesso(
+async function gravarLinksPlanilhaMapaProcesso(
   db: SupabaseClient,
   processoId: string,
-  linkGbox: string | null,
+  link: string | null,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { error } = await db
     .from('processo_step_one')
-    .update({ link_gbox: linkGbox, updated_at: new Date().toISOString() } as never)
+    .update({
+      link_gbox: link,
+      link_mapa_competidores: link,
+      updated_at: new Date().toISOString(),
+    } as never)
     .eq('id', processoId);
 
   if (error) return { ok: false, error: error.message };
@@ -131,7 +135,7 @@ export async function sincronizarPlanilhaMapaChecklistParaGbox(params: {
   if (!processoId) return { ok: false, error: 'Sem processo vinculado.' };
 
   const linkGbox = normLink(params.valorChecklist);
-  const upd = await gravarLinkGboxProcesso(db, processoId, linkGbox);
+  const upd = await gravarLinksPlanilhaMapaProcesso(db, processoId, linkGbox);
   if (!upd.ok) return upd;
 
   return { ok: true, linkGbox };
@@ -196,28 +200,50 @@ export async function reconciliarGboxPlanilhaMapa(params: {
   if (!processoId) return { ok: false, error: 'Sem processo vinculado.' };
 
   const [{ data: proc }, checklist] = await Promise.all([
-    db.from('processo_step_one').select('link_gbox').eq('id', processoId).maybeSingle(),
+    db
+      .from('processo_step_one')
+      .select('link_gbox, link_mapa_competidores')
+      .eq('id', processoId)
+      .maybeSingle(),
     lerValorPlanilhaMapaChecklist(db, cardId),
   ]);
 
   const linkGbox = normLink((proc as { link_gbox?: string | null } | null)?.link_gbox);
+  const linkMapa = normLink(
+    (proc as { link_mapa_competidores?: string | null } | null)?.link_mapa_competidores,
+  );
   const valorChecklist = checklist.valor;
+  const canonicalPainel = linkGbox ?? linkMapa;
 
-  if (linkGbox === valorChecklist) {
-    return { ok: true, linkGbox, valorChecklist, alterado: false };
+  if (linkGbox === valorChecklist && linkMapa === valorChecklist && linkGbox === linkMapa) {
+    return { ok: true, linkGbox: canonicalPainel, valorChecklist, alterado: false };
   }
 
-  if (valorChecklist && !linkGbox) {
-    const upd = await gravarLinkGboxProcesso(db, processoId, valorChecklist);
+  if (linkGbox && !linkMapa) {
+    const upd = await gravarLinksPlanilhaMapaProcesso(db, processoId, linkGbox);
+    if (!upd.ok) return upd;
+    if (linkGbox === valorChecklist) {
+      return { ok: true, linkGbox, valorChecklist, alterado: true };
+    }
+  } else if (linkMapa && !linkGbox) {
+    const upd = await gravarLinksPlanilhaMapaProcesso(db, processoId, linkMapa);
+    if (!upd.ok) return upd;
+    if (linkMapa === valorChecklist) {
+      return { ok: true, linkGbox: linkMapa, valorChecklist, alterado: true };
+    }
+  }
+
+  if (valorChecklist && !canonicalPainel) {
+    const upd = await gravarLinksPlanilhaMapaProcesso(db, processoId, valorChecklist);
     if (!upd.ok) return upd;
     return { ok: true, linkGbox: valorChecklist, valorChecklist, alterado: true };
   }
 
-  if (linkGbox && !valorChecklist && checklist.itemId) {
-    const upd = await gravarPlanilhaMapaChecklist(db, cardId, checklist.itemId, linkGbox);
+  if (canonicalPainel && !valorChecklist && checklist.itemId) {
+    const upd = await gravarPlanilhaMapaChecklist(db, cardId, checklist.itemId, canonicalPainel);
     if (!upd.ok) return upd;
-    return { ok: true, linkGbox, valorChecklist: linkGbox, alterado: true };
+    return { ok: true, linkGbox: canonicalPainel, valorChecklist: canonicalPainel, alterado: true };
   }
 
-  return { ok: true, linkGbox, valorChecklist, alterado: false };
+  return { ok: true, linkGbox: canonicalPainel, valorChecklist, alterado: false };
 }

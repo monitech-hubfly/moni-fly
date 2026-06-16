@@ -61,6 +61,7 @@ import {
   verificarGateChecklistLegalPortfolio,
   gerarFormTokenCandidato,
   enviarEmailCard,
+  reconciliarGboxPlanilhaMapaChecklist,
   type SubInteracaoStatusDb,
 } from '@/lib/actions/card-actions';
 import { enviarHipoteseAoPortfolio } from '@/lib/actions/card-actions';
@@ -1240,7 +1241,7 @@ export function KanbanCardModal({
       }
 
       try {
-        const det = await fetchKanbanCardModalDetalhes(supabase, {
+        let det = await fetchKanbanCardModalDetalhes(supabase, {
           origem,
           cardId: loaded.id,
           cardTitulo: cardParaEstado.titulo,
@@ -1251,6 +1252,23 @@ export function KanbanCardModal({
           cardProjetoId: loaded.projeto_id ?? null,
           cardProcessoStepOneId: loaded.processo_step_one_id ?? null,
         });
+        if (origem === 'nativo' && det.processo?.id) {
+          const syncLinks = await reconciliarGboxPlanilhaMapaChecklist({
+            cardId: loaded.id,
+            processoId: det.processo.id,
+          });
+          if (syncLinks.ok && syncLinks.alterado) {
+            det = await fetchKanbanCardModalDetalhes(supabase, {
+              origem,
+              cardId: loaded.id,
+              cardTitulo: cardParaEstado.titulo,
+              redeFranqueadoId:
+                cardParaEstado.rede_franqueado_id ?? nativeRedeFranqueadoId ?? null,
+              cardProjetoId: loaded.projeto_id ?? null,
+              cardProcessoStepOneId: loaded.processo_step_one_id ?? null,
+            });
+          }
+        }
         setModalDetalhes(det);
         setPreObraDraft(preObraDraftFromProcesso(det.processo));
       } catch {
@@ -4840,7 +4858,13 @@ export function KanbanCardModal({
                       isFrank={portalFrank}
                       isAdmin={isAdmin}
                       processoId={processoIdChecklists}
-                      linkGboxProcesso={proc?.link_gbox ?? negocioDraft.link_gbox ?? null}
+                      linkGboxProcesso={
+                        proc?.link_gbox ??
+                        proc?.link_mapa_competidores ??
+                        negocioDraft.link_gbox ??
+                        negocioDraft.link_mapa_competidores ??
+                        null
+                      }
                       onLinkGboxEspelhado={() => void loadCard({ silencioso: true })}
                       areaAtuacao={modalDetalhes.rede?.area_atuacao}
                       ocultarRedeLoteadorChecklist={exibirDadosLoteadorPersistente}
