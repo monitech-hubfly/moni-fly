@@ -123,8 +123,8 @@ export type CampoLoteDisponivel = {
 };
 
 export const LOTES_DISPONIVEIS_CAMPOS: CampoLoteDisponivel[] = [
-  { chave: 'quadra', label: 'Quadra', tipo: 'texto', obrigatorio: true, placeholder: 'Ex.: 12' },
-  { chave: 'lote', label: 'Lote', tipo: 'texto', obrigatorio: true, placeholder: 'Ex.: 34' },
+  { chave: 'quadra', label: 'Quadra', tipo: 'texto', placeholder: 'Ex.: 12' },
+  { chave: 'lote', label: 'Lote', tipo: 'texto', placeholder: 'Ex.: 34' },
   {
     chave: 'dimensao_frente_m',
     label: 'Dimensão Frente Lote (m)',
@@ -149,10 +149,10 @@ export const LOTES_DISPONIVEIS_CAMPOS: CampoLoteDisponivel[] = [
     tipo: 'numero',
     placeholder: 'Ex.: 28',
   },
-  { chave: 'area_m2', label: 'Área m²', tipo: 'numero', obrigatorio: true },
-  { chave: 'valor', label: 'Valor do lote (R$)', tipo: 'numero', obrigatorio: true },
-  { chave: 'situacao_documental', label: 'Situação documental', tipo: 'texto', obrigatorio: true },
-  { chave: 'fotos_path', label: 'Fotos do lote', tipo: 'anexo', obrigatorio: true },
+  { chave: 'area_m2', label: 'Área m²', tipo: 'numero' },
+  { chave: 'valor', label: 'Valor do lote (R$)', tipo: 'numero' },
+  { chave: 'situacao_documental', label: 'Situação documental', tipo: 'texto' },
+  { chave: 'fotos_path', label: 'Fotos do lote', tipo: 'anexo' },
   ...LOTES_DISPONIVEIS_CHECKBOXES.map((c) => ({
     chave: c.chave,
     label: c.label,
@@ -333,17 +333,14 @@ export function linhaTemLoteEscolhido(linha: LinhaProspectCondominio): boolean {
   return loteEscolhidoNaLinha(linha) != null;
 }
 
-/** Pelo menos um lote com todos os campos obrigatórios na sessão do condomínio. */
+/** Pelo menos um lote cadastrado na sessão do condomínio. */
 export function sessaoLotesCondominioCompleta(lotes: LinhaLoteDisponivel[] | undefined): boolean {
-  if (!lotes?.length) return false;
-  return lotes.some(loteDisponivelCompleto);
+  return (lotes?.length ?? 0) > 0;
 }
 
 export function linhaLotesCondominioCompleta(linha: LinhaProspectCondominio): boolean {
   if (!sessaoLotesCondominioCompleta(linha.lotes_disponiveis)) return false;
-  const escolhido = loteEscolhidoNaLinha(linha);
-  if (!escolhido) return false;
-  return loteDisponivelCompleto(escolhido);
+  return linhaTemLoteEscolhido(linha);
 }
 
 export function todasSessoesLotesCompletas(linhas: LinhaProspectCondominio[]): boolean {

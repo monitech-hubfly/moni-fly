@@ -18,7 +18,6 @@ import {
   criarLoteDisponivelVazio,
   linhaLotesCondominioCompleta,
   linhaTemLoteEscolhido,
-  loteDisponivelCompleto,
   LOTES_DISPONIVEIS_CAMPOS,
   LOTES_DISPONIVEIS_CHECKBOXES_LOCALIZACAO,
   LOTES_DISPONIVEIS_CHECKBOXES_TOPOGRAFIA,
@@ -332,7 +331,7 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
     () =>
       rascunhoLotes.map((l) => ({
         id: l.lote_id,
-        label: `${rotuloLoteDisponivel(l)}${loteDisponivelCompleto(l) ? ' ✓' : ''}${
+        label: `${rotuloLoteDisponivel(l)}${
           linhaAtiva?.lote_escolhido_id === l.lote_id ? ' ★' : ''
         }`,
       })),
