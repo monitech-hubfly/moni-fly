@@ -3,6 +3,7 @@
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import {
   atualizarPesquisaPreenchidaEm,
+  filtrarRespostasFaixaAutopreenchimento,
   linhaSessaoCondominioCompleta,
   mesclarRespostasFaixaCondominio,
   normalizarLinhaProspect,
@@ -244,6 +245,8 @@ export async function salvarPesquisaCondominioProspect(input: {
   respostas?: Partial<Record<ChaveGlobalCondominio, string>>;
   faixaId?: FaixaCondominioId;
   faixaRespostas?: Partial<Record<ChaveFaixaCondominio, string>>;
+  /** Quando true, descarta campos proibidos de autopreenchimento (ex.: tempo de venda). */
+  autopreenchimento?: boolean;
 }): Promise<KanbanCondominioPesquisaResult> {
   const supabase = await createClient();
   const {
@@ -270,8 +273,11 @@ export async function salvarPesquisaCondominioProspect(input: {
   );
 
   if (input.faixaId && input.faixaRespostas) {
+    const faixaRespostas = input.autopreenchimento
+      ? filtrarRespostasFaixaAutopreenchimento(input.faixaRespostas)
+      : input.faixaRespostas;
     merged = atualizarPesquisaPreenchidaEm(
-      mesclarRespostasFaixaCondominio(merged, input.faixaId, input.faixaRespostas),
+      mesclarRespostasFaixaCondominio(merged, input.faixaId, faixaRespostas),
     );
   }
 

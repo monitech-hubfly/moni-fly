@@ -16,6 +16,7 @@ import {
 } from '@/lib/kanban/mapa-competidores-condominio';
 import {
   CARACTERIZACAO_GLOBAL_CAMPOS,
+  CHAVES_FAIXA_AUTOPREENCHIMENTO_MAPA,
   CHAVES_RECUO_CONDOMINIO,
   CHAVES_TODAS_GLOBAL,
   FAIXA_CONDOMINIO_CAMPOS,
@@ -23,6 +24,7 @@ import {
   LOTES_GLOBAL_CAMPOS,
   atualizarPesquisaPreenchidaEm,
   faixaCondominioCompleta,
+  filtrarRespostasFaixaAutopreenchimento,
   prospectsOrdenadosPorTicketCasas,
   linhaSessaoCondominioCompleta,
   mesclarRespostasFaixaCondominio,
@@ -44,8 +46,6 @@ type Props = {
   itemLabel: string;
   obrigatorio?: boolean;
 };
-
-const CAMPOS_SUGESTAO_MAPA: ChaveFaixaCondominio[] = ['q_casas_faixas_preco', 'q_casas_preco_m2'];
 
 const inputClass =
   'w-full rounded-md border px-3 py-1.5 text-sm outline-none focus:ring-1' +
@@ -175,7 +175,7 @@ export function PesquisaCondominioProspect({ cardId, processoId, itemLabel, obri
         if (!sug) continue;
 
         const campos: Partial<Record<ChaveFaixaCondominio, string>> = {};
-        for (const chave of CAMPOS_SUGESTAO_MAPA) {
+        for (const chave of CHAVES_FAIXA_AUTOPREENCHIMENTO_MAPA) {
           const refKey = `${linhaAtiva.row_id}:${faixaId}:${chave}`;
           if (sugestoesMapaAplicadasRef.current.has(refKey)) continue;
           const valorAtual = valorFaixaCondominio(linhaAtiva, faixaId, chave);
@@ -194,24 +194,26 @@ export function PesquisaCondominioProspect({ cardId, processoId, itemLabel, obri
           }
           sugestoesMapaAplicadasRef.current.add(refKey);
         }
-        if (Object.keys(campos).length === 0) continue;
+        const camposAutopreenchimento = filtrarRespostasFaixaAutopreenchimento(campos);
+        if (Object.keys(camposAutopreenchimento).length === 0) continue;
 
         const res = await salvarPesquisaCondominioProspect({
           cardId,
           rowId: linhaAtiva.row_id,
           faixaId,
-          faixaRespostas: campos,
+          faixaRespostas: camposAutopreenchimento,
+          autopreenchimento: true,
         });
         if (cancelado || !res.ok) continue;
 
         setRascunhoFaixas((prev) => ({
           ...prev,
-          [faixaId]: { ...prev[faixaId], ...campos },
+          [faixaId]: { ...prev[faixaId], ...camposAutopreenchimento },
         }));
         setLinhas((prev) =>
           prev.map((l) => {
             if (l.row_id !== linhaAtiva.row_id) return l;
-            const merged = mesclarRespostasFaixaCondominio(l, faixaId, campos);
+            const merged = mesclarRespostasFaixaCondominio(l, faixaId, camposAutopreenchimento);
             return atualizarPesquisaPreenchidaEm(merged);
           }),
         );

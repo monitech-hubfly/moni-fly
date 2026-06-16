@@ -294,6 +294,7 @@ export const FAIXA_CONDOMINIO_CAMPOS: CampoFaixaCondominio[] = [
     label: 'Qual o preço do m² de venda das casas?',
     tipo: 'texto',
   },
+  // Sempre manual — CHAVES_FAIXA_NUNCA_AUTOPREENCHER
   {
     chave: 'q_casas_tempo_venda',
     label: 'Quanto tempo leva, em média, para uma casa ser vendida depois de pronta?',
@@ -350,6 +351,35 @@ export const CHAVES_FAIXA_OBRIGATORIAS: ChaveFaixaCondominio[] = FAIXA_CONDOMINI
 
 /** @deprecated Use CHAVES_FAIXA_OBRIGATORIAS. */
 export const CHAVES_PESQUISA_OBRIGATORIAS: ChaveFaixaCondominio[] = CHAVES_FAIXA_OBRIGATORIAS;
+
+/** Campos de faixa preenchíveis automaticamente a partir do mapa ZAP / batalha. */
+export const CHAVES_FAIXA_AUTOPREENCHIMENTO_MAPA: readonly ChaveFaixaCondominio[] = [
+  'q_casas_faixas_preco',
+  'q_casas_preco_m2',
+];
+
+/** Campos de faixa sempre manuais — nunca autopreenchidos pelo sistema (qualquer faixa). */
+export const CHAVES_FAIXA_NUNCA_AUTOPREENCHER: readonly ChaveFaixaCondominio[] = [
+  'q_casas_tempo_venda',
+];
+
+export function chaveFaixaPermiteAutopreenchimento(chave: ChaveFaixaCondominio): boolean {
+  if ((CHAVES_FAIXA_NUNCA_AUTOPREENCHER as readonly string[]).includes(chave)) return false;
+  return (CHAVES_FAIXA_AUTOPREENCHIMENTO_MAPA as readonly string[]).includes(chave);
+}
+
+export function filtrarRespostasFaixaAutopreenchimento(
+  respostas: Partial<Record<ChaveFaixaCondominio, string>>,
+): Partial<Record<ChaveFaixaCondominio, string>> {
+  const out: Partial<Record<ChaveFaixaCondominio, string>> = {};
+  for (const [k, v] of Object.entries(respostas)) {
+    const chave = k as ChaveFaixaCondominio;
+    if (!chaveFaixaPermiteAutopreenchimento(chave)) continue;
+    const t = String(v ?? '').trim();
+    if (t) out[chave] = t;
+  }
+  return out;
+}
 
 export type DadosFaixaCondominio = Partial<Record<ChaveFaixaCondominio, string>>;
 

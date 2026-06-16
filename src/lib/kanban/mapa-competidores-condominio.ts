@@ -5,6 +5,7 @@ import type {
 } from '@/lib/kanban/condominio-prospect-pesquisa';
 import { condominiosMapaCompativeis } from '@/lib/zap-condominio-busca';
 
+/** Sugestões automáticas do mapa ZAP — só preço/faixa e R$/m² (tempo de venda é sempre manual). */
 export type SugestaoPrecoFaixaCondominio = {
   q_casas_faixas_preco: string;
   q_casas_preco_m2: string;
