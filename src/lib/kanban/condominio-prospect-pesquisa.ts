@@ -429,7 +429,7 @@ export type SecaoPesquisaCondominio = {
   perguntas: {
     chave: ChaveFaixaCondominio;
     label: string;
-    tipo: 'texto' | 'texto_longo' | 'selecao_unica';
+    tipo: CampoFaixaCondominio['tipo'];
   }[];
 };
 
