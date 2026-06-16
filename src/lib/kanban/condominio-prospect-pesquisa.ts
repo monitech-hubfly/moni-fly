@@ -643,20 +643,17 @@ export const COLUNAS_TABELA_PROSPECT = [
   {
     key: 'ticket_lote' as const,
     header: 'Ticket Médio lote R$',
-    type: 'text' as const,
-    placeholder: TICKET_MEDIO_FAIXA_PADRAO,
+    type: 'ticket_faixa' as const,
   },
   {
     key: 'ticket_casas' as const,
     header: 'Ticket Médio casas R$',
-    type: 'text' as const,
-    placeholder: TICKET_MEDIO_FAIXA_PADRAO,
+    type: 'ticket_faixa' as const,
   },
   {
     key: 'ticket_m2' as const,
     header: 'Ticket Médio casas R$/m²',
-    type: 'text' as const,
-    placeholder: TICKET_MEDIO_FAIXA_PADRAO,
+    type: 'ticket_faixa' as const,
   },
   {
     key: 'estimativa_giro' as const,

@@ -62,38 +62,45 @@ export type Poi = { lat: number; lon: number; name: string; category: PoiCategor
 
 export type Road = { name: string; coordinates: [number, number][] };
 
-type MapData = {
-  pois: Poi[];
-  roads: Road[];
-  bbox: { centerLat: number; centerLon: number };
-};
-
-async function fetchMapData(
+async function fetchMapCenter(
   cidade: string,
   estado: string | null,
-): Promise<{ data: MapData; warning?: string } | { error: string }> {
+): Promise<{ centerLat: number; centerLon: number } | { error: string }> {
+  const params = new URLSearchParams({ cidade: cidade.trim(), centerOnly: '1' });
+  if (estado?.trim()) params.set('estado', estado.trim());
+  const res = await fetch(`/api/etapa1/mapa-pois?${params.toString()}`);
+  const data = (await res.json()) as {
+    bbox?: { centerLat: number; centerLon: number };
+    error?: string;
+  };
+  if (!res.ok) {
+    return { error: data.error ?? 'Não foi possível localizar o município.' };
+  }
+  if (data.bbox?.centerLat == null || data.bbox?.centerLon == null) {
+    return { error: 'Não foi possível localizar o município.' };
+  }
+  return { centerLat: data.bbox.centerLat, centerLon: data.bbox.centerLon };
+}
+
+async function fetchMapPois(
+  cidade: string,
+  estado: string | null,
+): Promise<{ pois: Poi[]; roads: Road[]; warning?: string } | { error: string }> {
   const params = new URLSearchParams({ cidade: cidade.trim() });
   if (estado?.trim()) params.set('estado', estado.trim());
   const res = await fetch(`/api/etapa1/mapa-pois?${params.toString()}`);
   const data = (await res.json()) as {
     pois?: Poi[];
     roads?: Road[];
-    bbox?: { centerLat: number; centerLon: number };
     warning?: string;
     error?: string;
   };
   if (!res.ok) {
-    return { error: data.error ?? 'Erro ao carregar equipamentos.' };
-  }
-  if (!data.bbox?.centerLat || data.bbox?.centerLon == null) {
-    return { error: 'Resposta inválida do servidor.' };
+    return { error: data.error ?? 'Equipamentos urbanos temporariamente indisponíveis.' };
   }
   return {
-    data: {
-      pois: Array.isArray(data.pois) ? data.pois : [],
-      roads: Array.isArray(data.roads) ? data.roads : [],
-      bbox: { centerLat: data.bbox.centerLat, centerLon: data.bbox.centerLon },
-    },
+    pois: Array.isArray(data.pois) ? data.pois : [],
+    roads: Array.isArray(data.roads) ? data.roads : [],
     warning: data.warning,
   };
 }
@@ -241,7 +248,8 @@ export function MapaPraca({ cidade, estado }: { cidade: string; estado: string |
   const [allPois, setAllPois] = useState<Poi[]>([]);
   const [roads, setRoads] = useState<Road[]>([]);
   const [center, setCenter] = useState<{ lat: number; lon: number } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingCenter, setLoadingCenter] = useState(true);
+  const [loadingPois, setLoadingPois] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadWarning, setLoadWarning] = useState<string | null>(null);
   const [visibleCategories, setVisibleCategories] = useState<Set<PoiCategory>>(initialVisibleCategories);
@@ -258,32 +266,54 @@ export function MapaPraca({ cidade, estado }: { cidade: string; estado: string |
 
   useEffect(() => {
     if (!cidade.trim()) {
-      setLoading(false);
+      setLoadingCenter(false);
       return;
     }
-    setLoading(true);
+    let cancelled = false;
+
+    setLoadingCenter(true);
+    setLoadingPois(false);
     setLoadError(null);
     setLoadWarning(null);
-    fetchMapData(cidade, estado)
-      .then((result) => {
-        if ('error' in result) {
-          setLoadError(result.error);
-          setLoadWarning(null);
-          setAllPois([]);
-          setRoads([]);
-          setCenter(null);
-        } else {
-          setAllPois(result.data.pois);
-          setRoads(result.data.roads);
-          setCenter({ lat: result.data.bbox.centerLat, lon: result.data.bbox.centerLon });
-          setLoadWarning(result.warning ?? null);
+    setAllPois([]);
+    setRoads([]);
+    setCenter(null);
+
+    void fetchMapCenter(cidade, estado)
+      .then((centerResult) => {
+        if (cancelled) return;
+        if ('error' in centerResult) {
+          setLoadError(centerResult.error);
+          return;
         }
+        setCenter({ lat: centerResult.centerLat, lon: centerResult.centerLon });
+        setLoadingCenter(false);
+        setLoadingPois(true);
+
+        return fetchMapPois(cidade, estado).then((poiResult) => {
+          if (cancelled) return;
+          if ('error' in poiResult) {
+            setLoadWarning(poiResult.error);
+            return;
+          }
+          setAllPois(poiResult.pois);
+          setRoads(poiResult.roads);
+          setLoadWarning(poiResult.warning ?? null);
+        });
       })
       .catch(() => {
-        setLoadError('Erro de conexão ao carregar equipamentos.');
-        setCenter(null);
+        if (!cancelled) setLoadError('Erro de conexão ao carregar o mapa.');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingCenter(false);
+          setLoadingPois(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [cidade, estado]);
 
   return (
@@ -342,14 +372,17 @@ export function MapaPraca({ cidade, estado }: { cidade: string; estado: string |
         </div>
       </div>
 
-      {loading && <p className="text-sm text-stone-500">Carregando mapa e equipamentos…</p>}
+      {loadingCenter && <p className="text-sm text-stone-500">Localizando município…</p>}
+      {loadingPois && !loadError && (
+        <p className="text-sm text-stone-500">Carregando equipamentos urbanos…</p>
+      )}
       {loadError && <p className="text-sm text-red-600">{loadError}</p>}
       {loadWarning && !loadError && (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           {loadWarning}
         </p>
       )}
-      {!loading && !loadError && center && (
+      {!loadingCenter && !loadError && center && (
         <MapView
           cidade={cidade}
           estado={estado}

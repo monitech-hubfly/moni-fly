@@ -29,6 +29,7 @@ import { MapaPracaChecklist } from '@/components/kanban-shared/MapaPracaChecklis
 import { MapaCompetidoresChecklist } from '@/components/kanban-shared/MapaCompetidoresChecklist';
 import { ChecklistAreaAtuacaoSelect } from '@/components/kanban-shared/ChecklistAreaAtuacaoSelect';
 import { DadosCidadePracaTabs } from '@/components/kanban-shared/DadosCidadePracaTabs';
+import { PracaAtivaChip } from '@/components/kanban-shared/PracaAtivaChip';
 import { fetchFaseChecklistItens } from '@/lib/kanban/fase-checklist-select';
 import { isDadosCandidatoFaseSlug, isDadosCidadeFaseSlug, isLotesDisponiveisFaseSlug, isPreBatalhaFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import {
@@ -61,6 +62,7 @@ import {
   CHECKLIST_LABEL_ESTADO,
   chavePracaCidade,
   inferirChaveLegadoPraca,
+  labelPracaCidade,
   mergeArquivoMultiPraca,
   mergeValorMultiPraca,
   ordenarItensChecklistDadosCidade,
@@ -353,6 +355,7 @@ export function FaseChecklistCard({
         for (const item of itens) {
           const slug = String(item.campo_slug ?? '').trim();
           if (!slug) continue;
+          if (slug === 'link_gbox' || slug === 'link_acoplamento') continue;
           const fonte = fontes.get(slug);
           if (!fonte) continue;
 
@@ -784,6 +787,14 @@ export function FaseChecklistCard({
     );
   }
 
+  const pracaLegadoChecklist: PracaCidade | null =
+    !multiPracaAtivo &&
+    isDadosCidadeFaseSlug(faseSlug) &&
+    cidadeChecklistValor.trim() &&
+    estadoChecklistValor.trim().length === 2
+      ? { cidade: cidadeChecklistValor.trim(), uf: estadoChecklistValor.trim().toUpperCase() }
+      : null;
+
   return (
     <div className="kanban-fase-checklist-list">
       <ChecklistDocumentDiffModal
@@ -808,7 +819,12 @@ export function FaseChecklistCard({
           )}
         </>
       ) : (
-        itensFiltrados.map((item) => renderItemField(item))
+        <>
+          {pracaLegadoChecklist ? (
+            <PracaAtivaChip label={labelPracaCidade(pracaLegadoChecklist)} />
+          ) : null}
+          {itensFiltrados.map((item) => renderItemField(item))}
+        </>
       )}
       {isLotesDisponiveisFaseSlug(faseSlug) &&
       condominioContext &&

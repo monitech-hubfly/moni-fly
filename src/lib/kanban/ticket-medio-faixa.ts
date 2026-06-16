@@ -7,10 +7,46 @@ export const PLACEHOLDER_TICKET_MEDIO_FAIXA = TICKET_MEDIO_FAIXA_PADRAO;
 
 const FAIXA_REGEX = /entre\s+R\$\s*([\d.,\s]+?)\s+e\s+R\$\s*([\d.,\s]+)/i;
 
+function formatMoedaSemPrefixoFromNumber(n: number): string {
+  return new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
+}
+
 function valorMoedaSemPrefixo(valor: number): string {
   const fmt = formatCondominioMoeda(valor);
   if (fmt === '—') return '';
   return fmt.replace(/^R\$\s*/i, '').trim();
+}
+
+/** Apenas dígitos (centavos acumulados conforme o usuário digita). */
+export function extrairDigitosMoeda(raw: string): string {
+  return String(raw ?? '').replace(/\D/g, '');
+}
+
+/** Formata dígitos como moeda pt-BR — vírgula e ponto surgem automaticamente. */
+export function formatMoedaDigitosPtBr(digits: string): string {
+  const d = extrairDigitosMoeda(digits);
+  if (!d) return '';
+  const n = Number(d) / 100;
+  if (!Number.isFinite(n)) return '';
+  return formatMoedaSemPrefixoFromNumber(n);
+}
+
+export function parseTicketMedioFaixaPartes(raw: string): { min: string; max: string } {
+  const [minVal, maxVal] = parseTicketMedioFaixaNumeros(raw);
+  return {
+    min: minVal != null ? formatMoedaSemPrefixoFromNumber(minVal) : '',
+    max: maxVal != null ? formatMoedaSemPrefixoFromNumber(maxVal) : '',
+  };
+}
+
+export function montarTicketMedioFaixa(minFmt: string, maxFmt: string): string {
+  const min = minFmt.trim();
+  const max = maxFmt.trim();
+  if (!min && !max) return TICKET_MEDIO_FAIXA_PADRAO;
+  return `entre R$ ${min} e R$ ${max}`;
 }
 
 export function isTicketMedioFaixaVazio(raw: string): boolean {

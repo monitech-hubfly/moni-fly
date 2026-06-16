@@ -23,6 +23,7 @@ import {
   type LinhaProspectCondominio,
 } from '@/lib/kanban/condominio-prospect-pesquisa';
 import { ticketMedioFaixaPreenchido } from '@/lib/kanban/ticket-medio-faixa';
+import { TicketMedioFaixaInput } from '@/components/kanban-shared/TicketMedioFaixaInput';
 import type { PracaCidade } from '@/lib/kanban/dados-cidade-praca-multi';
 import {
   condominioRowMatchesBusca,
@@ -138,21 +139,21 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur, prac
     if (!ticketMedioFaixaPreenchido(linha.ticket_lote)) {
       setErroLinha((prev) => ({
         ...prev,
-        [linha.row_id]: 'Preencha Ticket Médio lote no formato entre R$ … e R$ …',
+        [linha.row_id]: 'Informe o ticket médio mínimo e máximo do lote.',
       }));
       return;
     }
     if (!ticketMedioFaixaPreenchido(linha.ticket_casas)) {
       setErroLinha((prev) => ({
         ...prev,
-        [linha.row_id]: 'Preencha Ticket Médio casas no formato entre R$ … e R$ …',
+        [linha.row_id]: 'Informe o ticket médio mínimo e máximo das casas.',
       }));
       return;
     }
     if (!ticketMedioFaixaPreenchido(linha.ticket_m2)) {
       setErroLinha((prev) => ({
         ...prev,
-        [linha.row_id]: 'Preencha Ticket Médio casas R$/m² no formato entre R$ … e R$ …',
+        [linha.row_id]: 'Informe o ticket médio mínimo e máximo (R$/m²).',
       }));
       return;
     }
@@ -233,7 +234,7 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur, prac
       </span>
       <p className="mb-2 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
         {item.placeholder ??
-          'Selecione condomínios do cadastro (Rede → Condomínios) ou cadastre novos. Tickets no formato entre R$ … e R$ …; confirme ou atualize o cadastro em cada linha.'}
+          'Selecione condomínios do cadastro (Rede → Condomínios) ou cadastre novos. Informe faixa de ticket (mín. e máx.); confirme ou atualize o cadastro em cada linha.'}
       </p>
       {!pracaCidade ? (
         <p className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -375,7 +376,7 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur, prac
                       key={col.key}
                       style={{
                         ...cellStyle,
-                        minWidth: col.type === 'textarea' ? 200 : col.placeholder ? 168 : undefined,
+                        minWidth: col.type === 'textarea' ? 200 : col.type === 'ticket_faixa' ? 220 : undefined,
                       }}
                     >
                       {col.type === 'textarea' ? (
@@ -386,6 +387,12 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur, prac
                           style={{ ...inputCellStyle, minHeight: 44, resize: 'vertical' }}
                           onChange={(e) => atualizarLinha(idx, { [col.key]: e.target.value })}
                           onBlur={(e) => atualizarLinha(idx, { [col.key]: e.target.value }, true)}
+                        />
+                      ) : col.type === 'ticket_faixa' ? (
+                        <TicketMedioFaixaInput
+                          value={linha[col.key] ?? ''}
+                          onChange={(v) => atualizarLinha(idx, { [col.key]: v })}
+                          onBlur={(v) => atualizarLinha(idx, { [col.key]: v }, true)}
                         />
                       ) : (
                         <input

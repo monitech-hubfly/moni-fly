@@ -43,7 +43,6 @@ import {
   excluirSubInteracao,
   finalizarCard,
   moverCardParaFase,
-  salvarLinksBcaAcoplamentoNegocio,
   verificarGatePortfolioStep5,
   listarTagsCard,
   listarTagsKanban,
@@ -2553,14 +2552,6 @@ export function KanbanCardModal({
     setSalvandoNegocio(true);
     try {
       if (pid && card) {
-        const syncLinks = await salvarLinksBcaAcoplamentoNegocio({
-          cardId: card.id,
-          linkGbox: negocioDraft.link_gbox?.trim() || null,
-          linkAcoplamento: negocioDraft.link_acoplamento?.trim() || null,
-          basePath,
-        });
-        if (!syncLinks.ok) throw new Error(syncLinks.error);
-
         const upd = await salvarDadosNegocioKanban({
           cardId: card.id,
           processoId: pid,
@@ -2571,9 +2562,9 @@ export function KanbanCardModal({
             produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
             link_pasta_drive: negocioDraft.link_pasta_drive || null,
             link_bca: negocioDraft.link_bca?.trim() || null,
-            link_gbox: (syncLinks.linkGbox ?? negocioDraft.link_gbox?.trim()) || null,
+            link_gbox: negocioDraft.link_gbox?.trim() || null,
             link_mapa_competidores: negocioDraft.link_mapa_competidores?.trim() || null,
-            link_acoplamento: (syncLinks.linkAcoplamento ?? negocioDraft.link_acoplamento?.trim()) || null,
+            link_acoplamento: negocioDraft.link_acoplamento?.trim() || null,
             link_apresentacao_comite: negocioDraft.link_apresentacao_comite?.trim() || null,
             link_moni_capital_seguro_garantia: negocioDraft.link_moni_capital_seguro_garantia?.trim() || null,
             comentario_moni_capital_seguro_garantia:
@@ -3146,36 +3137,6 @@ export function KanbanCardModal({
     return `https://${t}`;
   };
 
-  async function sincronizarLinkNegocioAoBlur(campo: 'gbox' | 'acoplamento', valor: string) {
-    if (!card?.id || !modalDetalhes.processo?.id) return;
-    const res = await salvarLinksBcaAcoplamentoNegocio({
-      cardId: card.id,
-      ...(campo === 'gbox' ? { linkGbox: valor } : { linkAcoplamento: valor }),
-      basePath,
-    });
-    if (!res.ok) {
-      alert(res.error);
-      return;
-    }
-    setNegocioDraft((d) => ({
-      ...d,
-      link_gbox: res.linkGbox ?? d.link_gbox,
-      link_acoplamento: res.linkAcoplamento ?? d.link_acoplamento,
-    }));
-    setModalDetalhes((prev) =>
-      prev.processo
-        ? {
-            ...prev,
-            processo: {
-              ...prev.processo,
-              link_gbox: res.linkGbox ?? prev.processo.link_gbox,
-              link_acoplamento: res.linkAcoplamento ?? prev.processo.link_acoplamento,
-            },
-          }
-        : prev,
-    );
-  }
-
   function renderNegocioLinkCampo(
     label: string,
     raw: string | null | undefined,
@@ -3356,7 +3317,6 @@ export function KanbanCardModal({
             ? {
                 value: negocioDraft.link_gbox,
                 onChange: (v) => setNegocioDraft((d) => ({ ...d, link_gbox: v })),
-                onBlur: (v) => void sincronizarLinkNegocioAoBlur('gbox', v),
               }
             : undefined,
         )}
@@ -3377,7 +3337,6 @@ export function KanbanCardModal({
             ? {
                 value: negocioDraft.link_acoplamento,
                 onChange: (v) => setNegocioDraft((d) => ({ ...d, link_acoplamento: v })),
-                onBlur: (v) => void sincronizarLinkNegocioAoBlur('acoplamento', v),
               }
             : undefined,
         )}

@@ -1,5 +1,7 @@
 'use client';
 
+import { PracaAtivaChip } from '@/components/kanban-shared/PracaAtivaChip';
+
 export type KanbanFaseSecaoTab = {
   id: string;
   label: string;
@@ -16,7 +18,16 @@ type Props = {
 
 /** Abas de seção no checklist de fase (cidades, condomínios, etc.). */
 export function KanbanFaseSecaoTabs({ tabs, abaAtiva, onAbaChange, ariaLabel, children }: Props) {
-  if (tabs.length <= 1) {
+  if (tabs.length === 1) {
+    return (
+      <div className="kanban-fase-checklist-list">
+        <PracaAtivaChip label={tabs[0].label} />
+        {children}
+      </div>
+    );
+  }
+
+  if (tabs.length === 0) {
     return <div className="kanban-fase-checklist-list">{children}</div>;
   }
 

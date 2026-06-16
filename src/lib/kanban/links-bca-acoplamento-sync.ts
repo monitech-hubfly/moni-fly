@@ -149,19 +149,6 @@ async function obterItensChecklistModelagemCasa(
   return { faseId, gboxItemId, acoplamentoItemId };
 }
 
-async function listarCardsAcoplamentoDoProcesso(
-  db: ReturnType<typeof createAdminClient>,
-  processoId: string,
-): Promise<string[]> {
-  const { data } = await db
-    .from('kanban_cards')
-    .select('id')
-    .eq('kanban_id', KANBAN_IDS.ACOPLAMENTO)
-    .eq('projeto_id', processoId);
-
-  return (data ?? []).map((r) => String((r as { id?: string }).id ?? '').trim()).filter(Boolean);
-}
-
 async function registrarHistoricoLinks(
   db: ReturnType<typeof createAdminClient>,
   cardIds: string[],
@@ -199,9 +186,41 @@ async function registrarHistoricoLinks(
   if (error) console.error('[links-gbox-acoplamento] historico:', error.message);
 }
 
+/** Lê Gbox/Acoplamento salvos manualmente no checklist Modelagem Casa+GBox do card. */
+export async function lerLinksGboxAcoplamentoChecklistCard(
+  db: ReturnType<typeof createAdminClient>,
+  cardId: string,
+): Promise<{ linkGbox: string | null; linkAcoplamento: string | null }> {
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return { linkGbox: null, linkAcoplamento: null };
+
+  const itens = await obterItensChecklistModelagemCasa(db);
+  if (!itens) return { linkGbox: null, linkAcoplamento: null };
+
+  const itemIds = [itens.gboxItemId, itens.acoplamentoItemId].filter(Boolean) as string[];
+  if (itemIds.length === 0) return { linkGbox: null, linkAcoplamento: null };
+
+  const { data: resps } = await db
+    .from('kanban_fase_checklist_respostas')
+    .select('item_id, valor')
+    .eq('card_id', cid)
+    .in('item_id', itemIds);
+
+  let linkGbox: string | null = null;
+  let linkAcoplamento: string | null = null;
+  for (const r of resps ?? []) {
+    const itemId = String((r as { item_id?: string }).item_id ?? '').trim();
+    const v = normLink((r as { valor?: string | null }).valor);
+    if (itens.gboxItemId && itemId === itens.gboxItemId) linkGbox = v;
+    if (itens.acoplamentoItemId && itemId === itens.acoplamentoItemId) linkAcoplamento = v;
+  }
+
+  return { linkGbox, linkAcoplamento };
+}
+
 /**
- * Sincroniza `link_gbox` / `link_acoplamento` no processo, checklist Modelagem Casa+GBox
- * e histórico em todos os cards vinculados.
+ * Grava `link_gbox` / `link_acoplamento` no processo (somente entrada manual no painel Dados do Negócio).
+ * Não propaga para checklist nem outros cards.
  */
 export async function sincronizarLinksGboxAcoplamento(params: {
   cardOrigemId: string;
@@ -255,48 +274,17 @@ export async function sincronizarLinksGboxAcoplamento(params: {
 
   if (errUpd) return { ok: false, error: errUpd.message };
 
-  const itens = await obterItensChecklistModelagemCasa(db);
-  const cardsAcoplamento = await listarCardsAcoplamentoDoProcesso(db, processoId);
-  const now = new Date().toISOString();
-
-  if (itens) {
-    for (const acopCardId of cardsAcoplamento) {
-      if (itens.gboxItemId) {
-        await db.from('kanban_fase_checklist_respostas').upsert(
-          {
-            item_id: itens.gboxItemId,
-            card_id: acopCardId,
-            valor: linkGbox,
-            preenchido_por: params.usuarioId,
-            preenchido_em: now,
-          } as never,
-          { onConflict: 'item_id,card_id' },
-        );
-      }
-      if (itens.acoplamentoItemId) {
-        await db.from('kanban_fase_checklist_respostas').upsert(
-          {
-            item_id: itens.acoplamentoItemId,
-            card_id: acopCardId,
-            valor: linkAcoplamento,
-            preenchido_por: params.usuarioId,
-            preenchido_em: now,
-          } as never,
-          { onConflict: 'item_id,card_id' },
-        );
-      }
-    }
+  if (params.origem === 'painel_negocio') {
+    const cardIdsHistorico = await listarCardIdsVinculadosAoProcesso(db, processoId);
+    await registrarHistoricoLinks(db, cardIdsHistorico, {
+      usuarioId: params.usuarioId,
+      usuarioNome: params.usuarioNome ?? null,
+      origem: params.origem,
+      cardOrigemId,
+      linkGbox,
+      linkAcoplamento,
+    });
   }
-
-  const cardIdsHistorico = await listarCardIdsVinculadosAoProcesso(db, processoId);
-  await registrarHistoricoLinks(db, cardIdsHistorico, {
-    usuarioId: params.usuarioId,
-    usuarioNome: params.usuarioNome ?? null,
-    origem: params.origem,
-    cardOrigemId,
-    linkGbox,
-    linkAcoplamento,
-  });
 
   return { ok: true, linkGbox, linkAcoplamento };
 }
@@ -366,13 +354,15 @@ export async function verificarGateAcoplamentoModelagemCasa(
     };
   }
 
-  const { data: proc } = await db
-    .from('processo_step_one')
-    .select('link_gbox, link_acoplamento')
-    .eq('id', processoId)
-    .maybeSingle();
+  const [{ linkGbox: gboxChecklist, linkAcoplamento: acopChecklist }, { data: proc }] = await Promise.all([
+    lerLinksGboxAcoplamentoChecklistCard(db, cid),
+    db.from('processo_step_one').select('link_gbox, link_acoplamento').eq('id', processoId).maybeSingle(),
+  ]);
 
-  if (!linkGboxAcoplamentoPreenchidos(proc?.link_gbox, proc?.link_acoplamento)) {
+  const linkGbox = normLink(gboxChecklist) ?? normLink(proc?.link_gbox);
+  const linkAcoplamento = normLink(acopChecklist) ?? normLink(proc?.link_acoplamento);
+
+  if (!linkGboxAcoplamentoPreenchidos(linkGbox, linkAcoplamento)) {
     return {
       ok: false,
       error:

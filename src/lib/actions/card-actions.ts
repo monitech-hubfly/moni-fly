@@ -4486,26 +4486,6 @@ export async function upsertFaseChecklistResposta(input: {
     await atualizarScoreLoteadorR1(input.card_id);
   }
 
-  const { isChecklistItemSyncGboxAcoplamento, sincronizarLinksGboxAcoplamento } = await import(
-    '@/lib/kanban/links-bca-acoplamento-sync'
-  );
-  const syncKey = isChecklistItemSyncGboxAcoplamento(
-    (itemRow as { label?: string | null } | null)?.label,
-  );
-  if (syncKey) {
-    const { data: prof } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
-    const sync = await sincronizarLinksGboxAcoplamento({
-      cardOrigemId: input.card_id,
-      origem: 'checklist',
-      usuarioId: user.id,
-      usuarioNome: String((prof as { full_name?: string | null } | null)?.full_name ?? '').trim() || null,
-      ...(syncKey === 'gbox' ? { linkGbox: input.valor } : { linkAcoplamento: input.valor }),
-    });
-    if (!sync.ok) return sync;
-    revalidatePath('/');
-    return { ok: true };
-  }
-
   return { ok: true };
 }
 
