@@ -549,6 +549,11 @@ export async function applyPlanilhaCasasImport(
   let updated = 0;
   const erros: string[] = [];
 
+  const probeImportado = await supabase.from('listings_casas').select('importado').limit(0);
+  const suportaColunaImportado = !(
+    probeImportado.error && isSupabaseMissingColumnError(probeImportado.error.message)
+  );
+
   for (let index = 0; index < records.length; index++) {
     const raw = records[index];
     const linha = index + 2;
@@ -559,10 +564,9 @@ export async function applyPlanilhaCasasImport(
     }
 
     const link = mapped.link?.trim() || null;
-    const payload = {
+    const payload: Record<string, unknown> = {
       processo_id: processoId,
       manual: true,
-      importado: true,
       status: 'a_venda' as const,
       condominio: vinculo,
       cidade: mapped.cidade ?? null,
@@ -579,6 +583,7 @@ export async function applyPlanilhaCasasImport(
       foto_url: mapped.foto_url ?? null,
       data_despublicado: null,
     };
+    if (suportaColunaImportado) payload.importado = true;
 
     const existingRow = link ? existingByLink.get(link) : null;
     if (existingRow) {

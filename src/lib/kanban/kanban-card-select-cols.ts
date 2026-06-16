@@ -38,7 +38,14 @@ export const KANBAN_CARD_SELECT_WITH_SLA = `${KANBAN_CARD_SELECT_BASE.trim()},
       entered_fase_at`;
 
 export function isSupabaseMissingColumnError(message: string | undefined): boolean {
-  return Boolean(message && /does not exist/i.test(message));
+  if (!message) return false;
+  const m = message.toLowerCase();
+  return (
+    m.includes('does not exist') ||
+    m.includes('schema cache') ||
+    m.includes('could not find') ||
+    m.includes('pgrst204')
+  );
 }
 
 export async function runKanbanCardSelectWithSlaFallback<T>(run: (select: string) => Promise<{
