@@ -1165,6 +1165,7 @@ export type ValidarStatusCasasManuaisResult =
       despublicados: number;
       republicados: number;
       indeterminados: number;
+      bloqueados: number;
       erros: string[];
     })
   | { ok: false; error: string };

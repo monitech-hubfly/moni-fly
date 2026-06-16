@@ -1,5 +1,14 @@
 export type StatusLinkAnuncio = 'a_venda' | 'despublicado' | 'indeterminado';
 
+export type VerificarLinkDiretoResult = {
+  status: StatusLinkAnuncio;
+  /** Portal bloqueou bot (Cloudflare etc.) — tentar Apify. */
+  bloqueado: boolean;
+  html: string;
+  statusHttp: number;
+  finalUrl: string;
+};
+
 const FRASES_DESPUBLICADO = [
   'não está mais disponível',
   'nao esta mais disponivel',
@@ -21,6 +30,20 @@ const FRASES_DESPUBLICADO = [
   'pagina nao encontrada',
   'ops! imóvel indisponível',
   'ops! imovel indisponivel',
+  'publicação finalizada',
+  'publicacao finalizada',
+  'publicação encerrada',
+  'publicacao encerrada',
+  'aviso não está disponível',
+  'aviso nao esta disponivel',
+  'imóvel vendido',
+  'imovel vendido',
+  'imóvel alugado',
+  'imovel alugado',
+  'anúncio finalizado',
+  'anuncio finalizado',
+  'no longer available',
+  'posting unavailable',
 ];
 
 const FRASES_A_VENDA = [
@@ -34,6 +57,8 @@ const FRASES_A_VENDA = [
   'imovel para comprar',
   'preço do imóvel',
   'preco do imovel',
+  'postingdetail',
+  'posting-card',
 ];
 
 const USER_AGENT =
@@ -66,21 +91,64 @@ export function urlAnuncioPermitida(raw: string): boolean {
   return true;
 }
 
+export function extrairIdListingUrl(url: string): string | null {
+  const m =
+    url.match(/-(\d+)\.html(?:\?|#|$)/i) ||
+    url.match(/\/(\d+)\.html(?:\?|#|$)/i) ||
+    url.match(/\/propriedades\/[^/]+-(\d+)/i);
+  return m?.[1] ?? null;
+}
+
+export function isPaginaBloqueadaBot(html: string, statusHttp: number): boolean {
+  const lower = html.toLowerCase();
+  if (
+    lower.includes('just a moment') ||
+    lower.includes('cloudflare') ||
+    lower.includes('cf-challenge') ||
+    lower.includes('performing security verification') ||
+    lower.includes('captcha') ||
+    lower.includes('access denied')
+  ) {
+    return true;
+  }
+  if ((statusHttp === 403 || statusHttp === 429 || statusHttp === 503) && html.length < 20_000) {
+    return true;
+  }
+  return false;
+}
+
 export function inferirStatusAnuncioPorHtml(
   html: string,
   statusHttp: number,
   finalUrl: string,
+  originalUrl?: string,
 ): StatusLinkAnuncio {
   if (statusHttp === 404 || statusHttp === 410) return 'despublicado';
 
   const lower = html.toLowerCase();
   const urlLower = finalUrl.toLowerCase();
+  const origem = originalUrl?.trim() || finalUrl;
 
   if (
     urlLower.includes('/404') ||
     urlLower.includes('not-found') ||
     urlLower.includes('nao-encontrado') ||
     urlLower.includes('nao-encontrada')
+  ) {
+    return 'despublicado';
+  }
+
+  const idOrig = extrairIdListingUrl(origem);
+  if (idOrig && /imovelweb\.com\.br|vivareal\.com\.br|zapimoveis\.com\.br/i.test(origem)) {
+    if (!finalUrl.includes(idOrig) && !html.includes(idOrig)) {
+      return 'despublicado';
+    }
+  }
+
+  if (
+    /"status"\s*:\s*"(OFFLINE|FINISHED|DELETED|UNPUBLISHED|INACTIVE)"/i.test(html) ||
+    /"postingStatus"\s*:\s*"(offline|finished|deleted|inactive)"/i.test(html) ||
+    /"postingState"\s*:\s*"(OFFLINE|FINISHED|DELETED)"/i.test(html)
   ) {
     return 'despublicado';
   }
@@ -100,9 +168,18 @@ export function inferirStatusAnuncioPorHtml(
   return 'indeterminado';
 }
 
-/** Acessa o link do anúncio e infere se ainda está publicado. */
-export async function verificarStatusLinkAnuncio(link: string): Promise<StatusLinkAnuncio> {
-  if (!urlAnuncioPermitida(link)) return 'indeterminado';
+/** Fetch direto (sem proxy) — pode ser bloqueado por Cloudflare. */
+export async function verificarStatusLinkAnuncioDireto(
+  link: string,
+): Promise<VerificarLinkDiretoResult> {
+  const vazio: VerificarLinkDiretoResult = {
+    status: 'indeterminado',
+    bloqueado: false,
+    html: '',
+    statusHttp: 0,
+    finalUrl: link,
+  };
+  if (!urlAnuncioPermitida(link)) return vazio;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12_000);
@@ -121,10 +198,34 @@ export async function verificarStatusLinkAnuncio(link: string): Promise<StatusLi
     });
 
     const html = (await res.text()).slice(0, 120_000);
-    return inferirStatusAnuncioPorHtml(html, res.status, res.url || link);
+    const finalUrl = res.url || link;
+
+    if (isPaginaBloqueadaBot(html, res.status)) {
+      return {
+        status: 'indeterminado',
+        bloqueado: true,
+        html,
+        statusHttp: res.status,
+        finalUrl,
+      };
+    }
+
+    return {
+      status: inferirStatusAnuncioPorHtml(html, res.status, finalUrl, link),
+      bloqueado: false,
+      html,
+      statusHttp: res.status,
+      finalUrl,
+    };
   } catch {
-    return 'indeterminado';
+    return vazio;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+/** Acessa o link do anúncio e infere se ainda está publicado. */
+export async function verificarStatusLinkAnuncio(link: string): Promise<StatusLinkAnuncio> {
+  const direct = await verificarStatusLinkAnuncioDireto(link);
+  return direct.status;
 }

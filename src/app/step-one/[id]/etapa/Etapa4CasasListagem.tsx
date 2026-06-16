@@ -371,6 +371,9 @@ export function Etapa4CasasListagem({
         result.despublicados > 0 ? `${result.despublicados} marcado(s) como despublicado` : null,
         result.republicados > 0 ? `${result.republicados} republicado(s)` : null,
         result.indeterminados > 0 ? `${result.indeterminados} indeterminado(s)` : null,
+        result.bloqueados > 0
+          ? `${result.bloqueados} bloqueado(s) pelo portal (tente novamente em instantes)`
+          : null,
       ].filter(Boolean);
       setValidacaoFeedback(partes.join(' · '));
       await sincronizarListagensAposMutacao();

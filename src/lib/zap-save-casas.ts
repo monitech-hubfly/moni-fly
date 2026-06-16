@@ -1,5 +1,9 @@
 import { mapZapItemToCasa, type ZapListingItem } from '@/lib/apify-zap';
-import { verificarStatusLinkAnuncio } from '@/lib/listings/verificar-status-link-anuncio';
+import { fetchPaginasAnuncioViaApify } from '@/lib/listings/fetch-paginas-anuncio-apify';
+import {
+  inferirStatusAnuncioPorHtml,
+  verificarStatusLinkAnuncioDireto,
+} from '@/lib/listings/verificar-status-link-anuncio';
 import { normalizeAccessRole } from '@/lib/authz';
 import { parseDecimalInput, parseIntegerInput } from '@/lib/condominios';
 import { isSupabaseMissingColumnError } from '@/lib/kanban/kanban-card-select-cols';
@@ -631,6 +635,7 @@ export type ValidarStatusLinksResult = {
   despublicados: number;
   republicados: number;
   indeterminados: number;
+  bloqueados: number;
   erros: string[];
 };
 
@@ -698,12 +703,14 @@ export async function validarStatusLinksListingsCasas(
   let despublicados = 0;
   let republicados = 0;
   let indeterminados = 0;
+  let bloqueados = 0;
   const erros: string[] = [];
 
-  await mapComConcorrencia(candidatas, 4, async (row) => {
-    const link = row.link!.trim();
+  type Candidata = (typeof candidatas)[number];
+  type Pendente = { row: Candidata; link: string; statusAtual: 'a_venda' | 'despublicado' };
+
+  async function aplicarStatus(row: Candidata, link: string, inferido: 'a_venda' | 'despublicado' | 'indeterminado') {
     const statusAtual = row.status === 'despublicado' ? 'despublicado' : 'a_venda';
-    const inferido = await verificarStatusLinkAnuncio(link);
 
     if (inferido === 'indeterminado') {
       indeterminados++;
@@ -728,7 +735,47 @@ export async function validarStatusLinksListingsCasas(
       if (error) erros.push(`${link}: ${error.message}`);
       else republicados++;
     }
+  }
+
+  const pendentesProxy: Pendente[] = [];
+
+  await mapComConcorrencia(candidatas, 4, async (row) => {
+    const link = row.link!.trim();
+    const direct = await verificarStatusLinkAnuncioDireto(link);
+
+    if (direct.bloqueado) {
+      pendentesProxy.push({
+        row,
+        link,
+        statusAtual: row.status === 'despublicado' ? 'despublicado' : 'a_venda',
+      });
+      return;
+    }
+
+    await aplicarStatus(row, link, direct.status);
   });
+
+  if (pendentesProxy.length > 0) {
+    const paginas = await fetchPaginasAnuncioViaApify(pendentesProxy.map((p) => p.link));
+
+    for (const pendente of pendentesProxy) {
+      const page = paginas.get(pendente.link);
+
+      if (!page?.html) {
+        bloqueados++;
+        indeterminados++;
+        continue;
+      }
+
+      const inferido = inferirStatusAnuncioPorHtml(
+        page.html,
+        page.status,
+        page.url,
+        pendente.link,
+      );
+      await aplicarStatus(pendente.row, pendente.link, inferido);
+    }
+  }
 
   const { error: procErr } = await supabase
     .from('processo_step_one')
@@ -741,6 +788,7 @@ export async function validarStatusLinksListingsCasas(
     despublicados,
     republicados,
     indeterminados,
+    bloqueados,
     erros,
   };
 }
