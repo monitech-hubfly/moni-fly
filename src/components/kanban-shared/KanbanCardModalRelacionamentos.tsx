@@ -26,6 +26,8 @@ import {
   type DestinoEsteiraManualKey,
 } from '@/lib/kanban/esteira-manual-destinos';
 import { kanbanPermiteAbrirFunilAcoplamentoManual } from '@/lib/kanban/portfolio-paralelas';
+import { fetchCardsProjetoEsteiras } from '@/lib/kanban/fetch-cards-projeto-esteiras';
+import { createClient } from '@/lib/supabase/client';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { MSG_CHAMADO_JURIDICO_JA_EXISTE } from '@/lib/constants/kanban-ids';
 import { KanbanCardModalProjetoTab } from './KanbanCardModalProjetoTab';
@@ -87,6 +89,9 @@ export function KanbanCardModalRelacionamentos({
     null,
   );
   const [abrindoChamadoJuridico, setAbrindoChamadoJuridico] = useState(false);
+  const [projetoPeerIds, setProjetoPeerIds] = useState<Set<string>>(new Set());
+
+  const pid = projetoId != null && String(projetoId).trim() !== '' ? String(projetoId).trim() : null;
 
   const tituloAtualLc = (cardTitulo || '').trim().toLowerCase();
   const destinosDisponiveis = useMemo(
@@ -133,6 +138,33 @@ export function KanbanCardModalRelacionamentos({
   useEffect(() => {
     void recarregar();
   }, [recarregar]);
+
+  useEffect(() => {
+    if (!pid || !cardId || disabled) {
+      setProjetoPeerIds(new Set());
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const supabase = createClient();
+        const list = await fetchCardsProjetoEsteiras(supabase, pid, cardId);
+        if (!cancelled) {
+          setProjetoPeerIds(new Set(list.map((row) => row.id)));
+        }
+      } catch {
+        if (!cancelled) setProjetoPeerIds(new Set());
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pid, cardId, disabled]);
+
+  const rowsVisiveis = useMemo(
+    () => (pid ? rows.filter((row) => !projetoPeerIds.has(row.card_id)) : rows),
+    [pid, rows, projetoPeerIds],
+  );
 
   useEffect(() => {
     if (modo !== 'vincular' || !podeGerenciar) {
@@ -290,7 +322,7 @@ export function KanbanCardModalRelacionamentos({
         </div>
       ) : null}
 
-      {projetoId != null && String(projetoId).trim() !== '' ? (
+      {projetoId != null && String(projetoId).trim() !== '' && rowsVisiveis.length > 0 ? (
         <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Vínculos manuais</p>
       ) : null}
 
@@ -299,11 +331,11 @@ export function KanbanCardModalRelacionamentos({
           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
           Carregando…
         </div>
-      ) : rows.length === 0 ? (
-        <p className="text-xs text-stone-500">Nenhum relacionamento</p>
+      ) : rowsVisiveis.length === 0 ? (
+        pid ? null : <p className="text-xs text-stone-500">Nenhum relacionamento</p>
       ) : (
         <ul className="list-none space-y-2">
-          {rows.map((row) => {
+          {rowsVisiveis.map((row) => {
             const href = hrefAbrirCardKanban(row.kanban_nome, row.card_id);
             const tituloDiferente = row.titulo.trim().toLowerCase() !== tituloAtualLc;
             return (
