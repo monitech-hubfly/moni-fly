@@ -1,8 +1,10 @@
+import { parseDecimalInput } from '@/lib/condominios';
 import {
   isColunaAtributoCondominioLote,
   type CondominioLoteAtributos,
   type CondominioLoteColunaAtributo,
 } from '@/lib/condominios-lotes';
+import { formatMoedaDigitosPtBr } from '@/lib/kanban/ticket-medio-faixa';
 import type { LinhaProspectCondominio } from '@/lib/kanban/condominio-prospect-pesquisa';
 import { linhaProspectTemNome } from '@/lib/kanban/condominio-prospect-pesquisa';
 
@@ -150,7 +152,7 @@ export const LOTES_DISPONIVEIS_CAMPOS: CampoLoteDisponivel[] = [
     placeholder: 'Ex.: 28',
   },
   { chave: 'area_m2', label: 'Área m²', tipo: 'numero' },
-  { chave: 'valor', label: 'Valor do lote (R$)', tipo: 'numero' },
+  { chave: 'valor', label: 'Valor do lote', tipo: 'numero', placeholder: '0,00' },
   { chave: 'situacao_documental', label: 'Situação documental', tipo: 'texto' },
   { chave: 'fotos_path', label: 'Fotos do lote', tipo: 'anexo' },
   ...LOTES_DISPONIVEIS_CHECKBOXES.map((c) => ({
@@ -263,6 +265,24 @@ function normalizarCheckbox(o: Record<string, unknown>, chave: ChaveLoteCheckbox
     if (strField(o, leg, 'false') === 'true') return 'true';
   }
   return 'false';
+}
+
+/** Valor do lote formatado para exibição no campo (sem prefixo R$). */
+export function formatValorLoteCampo(raw: string | null | undefined): string {
+  const t = String(raw ?? '')
+    .trim()
+    .replace(/^R\$\s*/i, '');
+  if (!t) return '';
+  const n = parseDecimalInput(t);
+  if (n != null) {
+    return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  return t;
+}
+
+/** Normaliza digitação do valor do lote (pontos e vírgulas automáticos). */
+export function normalizarValorLoteDigitacao(raw: string): string {
+  return formatMoedaDigitosPtBr(raw);
 }
 
 /** Lê paths de fotos: JSON array ou path único legado. */

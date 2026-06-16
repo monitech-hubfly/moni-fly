@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
-import { createPortal } from 'react-dom';
 import { CheckCircle2, Circle, Loader2, Plus, Trash2, Upload } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { KanbanFaseSecaoTabs } from '@/components/kanban-shared/KanbanFaseSecaoTabs';
@@ -23,6 +22,8 @@ import {
   LOTES_DISPONIVEIS_CHECKBOXES_LOCALIZACAO,
   LOTES_DISPONIVEIS_CHECKBOXES_TOPOGRAFIA,
   CHAVES_TOPOGRAFIA_LOTE,
+  formatValorLoteCampo,
+  normalizarValorLoteDigitacao,
   parseFotosLotePaths,
   rotuloArquivoFoto,
   rotuloLoteDisponivel,
@@ -59,10 +60,16 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
   const saveChainRef = useRef(Promise.resolve());
   const fotosInputRef = useRef<HTMLInputElement>(null);
   const fotosUploadLoteIdRef = useRef<string | null>(null);
+  const rowIdAtivoRef = useRef<string | null>(null);
+  const salvarFotosLoteRef = useRef<(loteId: string, files: File[]) => Promise<void>>(async () => {});
 
   useEffect(() => {
     rascunhoLotesRef.current = rascunhoLotes;
   }, [rascunhoLotes]);
+
+  useEffect(() => {
+    rowIdAtivoRef.current = rowIdAtivo;
+  }, [rowIdAtivo]);
 
   useEffect(() => {
     linhasRef.current = linhas;
@@ -181,21 +188,27 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
     aplicarLotesSalvosLocal(linhaAtiva.row_id, rascunhoLotes, loteId);
   }
 
-  async function persistirLotes(lotes: LinhaLoteDisponivel[]) {
-    if (!linhaAtiva) return;
+  async function persistirLotesParaRow(rowId: string, lotes: LinhaLoteDisponivel[]) {
     setSalvando(true);
     setErroSalvar(null);
     const res = await salvarLotesCondominioDisponivel({
       cardId,
-      rowId: linhaAtiva.row_id,
+      rowId,
       lotes,
     });
     setSalvando(false);
     if (!res.ok) {
       setErroSalvar(res.error);
-      return;
+      return false;
     }
-    aplicarLotesSalvosLocal(linhaAtiva.row_id, lotes);
+    aplicarLotesSalvosLocal(rowId, lotes);
+    return true;
+  }
+
+  async function persistirLotes(lotes: LinhaLoteDisponivel[]) {
+    const rowId = rowIdAtivoRef.current;
+    if (!rowId) return;
+    await persistirLotesParaRow(rowId, lotes);
   }
 
   function salvarCampoBlur(loteId: string, chave: ChaveLoteDisponivel, valor: string) {
@@ -319,16 +332,22 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
 
   function aplicarFotosLoteLocal(loteId: string, paths: string[]) {
     const serializado = serializarFotosLotePaths(paths);
-    setRascunhoLotes((prev) => {
-      const next = prev.map((l) => (l.lote_id === loteId ? { ...l, fotos_path: serializado } : l));
-      rascunhoLotesRef.current = next;
-      return next;
-    });
-    salvarCampoBlur(loteId, 'fotos_path', serializado);
+    const next = rascunhoLotesRef.current.map((l) =>
+      l.lote_id === loteId ? { ...l, fotos_path: serializado } : l,
+    );
+    rascunhoLotesRef.current = next;
+    setRascunhoLotes(next);
+    return next;
   }
 
   async function salvarFotosLote(loteId: string, files: File[]) {
-    if (!linhaAtiva || files.length === 0) return;
+    const rowId = rowIdAtivoRef.current;
+    if (!rowId) {
+      setErroSalvar('Selecione um condomínio antes de enviar fotos.');
+      return;
+    }
+    if (files.length === 0) return;
+
     setUploadLoteId(loteId);
     setErroSalvar(null);
     try {
@@ -336,34 +355,67 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
       const loteAtual = rascunhoLotesRef.current.find((l) => l.lote_id === loteId);
       const pathsAtuais = parseFotosLotePaths(loteAtual?.fotos_path);
       const novosPaths = [...pathsAtuais];
+      const baseTs = Date.now();
 
-      for (const file of files) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]!;
         const ext = file.name.split('.').pop() ?? 'bin';
-        const path = `respostas/${cardId}/lotes-disponiveis/${linhaAtiva.row_id}/${loteId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const path = `respostas/${cardId}/lotes-disponiveis/${rowId}/${loteId}/${baseTs}-${i}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
         const { error } = await supabase.storage.from('documentos-templates').upload(path, file, { upsert: true });
         if (error) {
           setErroSalvar(error.message);
           if (novosPaths.length > pathsAtuais.length) {
-            aplicarFotosLoteLocal(loteId, novosPaths);
+            const lotesComParcial = aplicarFotosLoteLocal(loteId, novosPaths);
+            await persistirLotesParaRow(rowId, lotesComParcial);
           }
           return;
         }
         novosPaths.push(path);
       }
 
-      aplicarFotosLoteLocal(loteId, novosPaths);
+      const lotesAtualizados = aplicarFotosLoteLocal(loteId, novosPaths);
+      const ok = await persistirLotesParaRow(rowId, lotesAtualizados);
+      if (!ok) {
+        setErroSalvar((atual) => atual ?? 'Fotos enviadas, mas não foi possível salvar no card.');
+      }
     } finally {
       setUploadLoteId(null);
     }
   }
 
+  salvarFotosLoteRef.current = salvarFotosLote;
+
+  useEffect(() => {
+    const input = fotosInputRef.current;
+    if (!input) return;
+    const onInputChange = () => {
+      const files = Array.from(input.files ?? []);
+      const loteId = fotosUploadLoteIdRef.current;
+      fotosUploadLoteIdRef.current = null;
+      input.value = '';
+      if (!loteId) {
+        if (files.length > 0) {
+          setErroSalvar('Não foi possível identificar o lote. Clique em Enviar fotos novamente.');
+        }
+        return;
+      }
+      if (files.length === 0) return;
+      void salvarFotosLoteRef.current(loteId, files);
+    };
+    input.addEventListener('change', onInputChange);
+    return () => input.removeEventListener('change', onInputChange);
+  }, [cardId]);
+
   function removerFotoLote(loteId: string, index: number) {
+    const rowId = rowIdAtivoRef.current;
+    if (!rowId) return;
     const loteAtual = rascunhoLotesRef.current.find((l) => l.lote_id === loteId);
     const paths = parseFotosLotePaths(loteAtual?.fotos_path);
-    aplicarFotosLoteLocal(
+    const lotesAtualizados = aplicarFotosLoteLocal(
       loteId,
       paths.filter((_, i) => i !== index),
     );
+    void persistirLotesParaRow(rowId, lotesAtualizados);
   }
 
   const tabsLotes = useMemo(
@@ -554,6 +606,64 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
                           );
                         }
 
+                        if (campo.chave === 'valor') {
+                          const valorFmt = formatValorLoteCampo(valor);
+                          return (
+                            <div key={campo.chave}>
+                              <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                                {campo.label}
+                                {campo.obrigatorio ? <span className="ml-1 text-red-500">*</span> : null}
+                              </label>
+                              <div
+                                className="flex w-full items-center overflow-hidden rounded-md border bg-white focus-within:border-[var(--moni-primary-500)] focus-within:ring-1 focus-within:ring-[var(--moni-primary-500)]"
+                                style={{
+                                  borderColor: 'var(--moni-border-default)',
+                                }}
+                              >
+                                <span
+                                  className="shrink-0 border-r px-3 py-1.5 text-sm font-medium"
+                                  style={{
+                                    borderColor: 'var(--moni-border-default)',
+                                    color: 'var(--moni-text-secondary)',
+                                    background: 'var(--moni-surface-50)',
+                                  }}
+                                >
+                                  R$
+                                </span>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  className="min-w-0 flex-1 border-0 bg-transparent px-3 py-1.5 text-sm outline-none focus:ring-0"
+                                  style={{ color: 'var(--moni-text-primary)' }}
+                                  value={valorFmt}
+                                  placeholder={campo.placeholder ?? '0,00'}
+                                  onChange={(e) => {
+                                    const fmt = normalizarValorLoteDigitacao(e.target.value);
+                                    setRascunhoLotes((prev) => {
+                                      const next = prev.map((l) =>
+                                        l.lote_id === loteAtivo.lote_id ? { ...l, valor: fmt } : l,
+                                      );
+                                      rascunhoLotesRef.current = next;
+                                      return next;
+                                    });
+                                  }}
+                                  onBlur={(e) => {
+                                    const fmt = normalizarValorLoteDigitacao(e.target.value);
+                                    setRascunhoLotes((prev) => {
+                                      const next = prev.map((l) =>
+                                        l.lote_id === loteAtivo.lote_id ? { ...l, valor: fmt } : l,
+                                      );
+                                      rascunhoLotesRef.current = next;
+                                      return next;
+                                    });
+                                    void salvarCampoBlur(loteAtivo.lote_id, 'valor', fmt);
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        }
+
                         if (campo.tipo === 'texto_longo') {
                           return (
                             <div key={campo.chave}>
@@ -709,27 +819,15 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
 
       {erroSalvar ? <p className="text-xs text-red-500">{erroSalvar}</p> : null}
 
-      {typeof document !== 'undefined'
-        ? createPortal(
-            <input
-              ref={fotosInputRef}
-              type="file"
-              accept="image/*,.pdf"
-              multiple
-              className="hidden"
-              tabIndex={-1}
-              aria-hidden
-              onChange={(e) => {
-                const files = Array.from(e.target.files ?? []);
-                const loteId = fotosUploadLoteIdRef.current;
-                if (files.length > 0 && loteId) void salvarFotosLote(loteId, files);
-                fotosUploadLoteIdRef.current = null;
-                e.target.value = '';
-              }}
-            />,
-            document.body,
-          )
-        : null}
+      <input
+        ref={fotosInputRef}
+        type="file"
+        accept="image/*,.pdf"
+        multiple
+        className="hidden"
+        tabIndex={-1}
+        aria-hidden
+      />
     </div>
   );
 }
