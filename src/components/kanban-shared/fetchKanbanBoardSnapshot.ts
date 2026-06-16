@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeAccessRole } from '@/lib/authz';
 import { KANBAN_ID_BY_NOME, KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { KANBAN_NOME_FUNIL_LOTEADORES } from '@/lib/kanban/funil-loteadores';
 import { prepareStepOneBoardSnapshot } from '@/lib/kanban/stepone-fase-slugs';
 import {
   augmentKanbanFasesComFasesDosCards,
@@ -20,6 +21,11 @@ import {
   extrairNumeroFranquiaDoTitulo,
   parseCamposDoTituloCard,
 } from '@/lib/kanban/card-sync-group';
+import {
+  isKanbanFunilLoteadoresRef,
+  montarTituloCardLoteadores,
+  subtituloCardLoteadores,
+} from '@/lib/kanban/loteadores-card-titulo';
 import {
   runKanbanCardSelectWithSlaFallback,
 } from '@/lib/kanban/kanban-card-select-cols';
@@ -387,6 +393,7 @@ export async function fetchKanbanBoardSnapshot(
   }
 
   const kanbanIdStr = String(kanban.id);
+  const isFunilLoteadores = isKanbanFunilLoteadoresRef(kanbanIdStr, kanbanNomeDb);
 
   let viewQuery = supabase
     .from('v_processo_como_kanban_cards')
@@ -855,6 +862,35 @@ export async function fetchKanbanBoardSnapshot(
     fetchCamposIrmaosPorProjeto(supabase, cardsNativosRaw),
   ]);
 
+  const loteadorPorId = new Map<
+    string,
+    { nome: string; interlocutor_nome: string | null; condominio_nome: string | null }
+  >();
+  if (isFunilLoteadores) {
+    const redeLoteadorIds = [
+      ...new Set(
+        cardsNativosRaw
+          .map((c) => String((c as { rede_loteador_id?: string | null }).rede_loteador_id ?? '').trim())
+          .filter(Boolean),
+      ),
+    ];
+    if (redeLoteadorIds.length > 0) {
+      const { data: loteadoresRows } = await supabase
+        .from('rede_loteadores')
+        .select('id, nome, interlocutor_nome, condominio_nome')
+        .in('id', redeLoteadorIds);
+      for (const row of loteadoresRows ?? []) {
+        const id = String((row as { id?: string }).id ?? '').trim();
+        if (!id) continue;
+        loteadorPorId.set(id, {
+          nome: String((row as { nome?: string | null }).nome ?? '').trim(),
+          interlocutor_nome: (row as { interlocutor_nome?: string | null }).interlocutor_nome ?? null,
+          condominio_nome: (row as { condominio_nome?: string | null }).condominio_nome ?? null,
+        });
+      }
+    }
+  }
+
   const mapNativo = (c: Record<string, unknown>): KanbanCardBrief => {
     const cMerged = mesclarCamposComProjetoIrmaos(
       mesclarCamposComAncestrais(c, ancestraisMap),
@@ -899,9 +935,38 @@ export async function fetchKanbanBoardSnapshot(
       lote,
       tituloFallback: tituloRaw,
     });
+
+    let tituloExibicao = escolherTituloExibicaoCard(tituloRaw, tituloCalc, nFranquiaCard);
+    let subtituloCard: string | null = null;
+    let profilesLinha: KanbanCardBrief['profiles'] = redeNomeDiretoMap.has(redeId)
+      ? { full_name: redeNomeDiretoMap.get(redeId) ?? null }
+      : franqueadoNomePorCardId.has(cardId)
+        ? { full_name: franqueadoNomePorCardId.get(cardId) ?? null }
+        : null;
+
+    if (isFunilLoteadores) {
+      const redeLoteadorId = String(
+        (cMerged as { rede_loteador_id?: string | null }).rede_loteador_id ?? '',
+      ).trim();
+      const rl = redeLoteadorId ? loteadorPorId.get(redeLoteadorId) : undefined;
+      const nomeLoteador = coalesceTextoCampo(rl?.nome, tituloRaw.split(' - ')[0]);
+      const nomeCondominioLoteador = coalesceTextoCampo(nomeCondominio, rl?.condominio_nome);
+      const tituloLoteador = montarTituloCardLoteadores({
+        nomeLoteador,
+        nomeCondominio: nomeCondominioLoteador,
+        quadra,
+        lote,
+        tituloFallback: tituloRaw,
+      });
+      tituloExibicao = tituloLoteador ?? tituloExibicao;
+      subtituloCard = subtituloCardLoteadores(rl?.interlocutor_nome);
+      profilesLinha = null;
+    }
+
     return {
       id: String(cMerged.id),
-      titulo: escolherTituloExibicaoCard(tituloRaw, tituloCalc, nFranquiaCard),
+      titulo: tituloExibicao,
+      subtitulo: subtituloCard,
       status: String(cMerged.status ?? ''),
       created_at: String(cMerged.created_at ?? ''),
       fase_id: String(cMerged.fase_id ?? ''),
@@ -939,11 +1004,7 @@ export async function fetchKanbanBoardSnapshot(
         (cMerged as { entered_fase_at?: string | null }).entered_fase_at != null
           ? String((cMerged as { entered_fase_at?: string | null }).entered_fase_at)
           : null,
-      profiles: redeNomeDiretoMap.has(redeId)
-        ? { full_name: redeNomeDiretoMap.get(redeId) ?? null }
-        : franqueadoNomePorCardId.has(cardId)
-          ? { full_name: franqueadoNomePorCardId.get(cardId) ?? null }
-          : null,
+      profiles: profilesLinha,
     };
   };
 

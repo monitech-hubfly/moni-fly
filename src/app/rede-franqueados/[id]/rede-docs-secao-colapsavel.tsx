@@ -10,6 +10,8 @@ type Props = {
   children?: React.ReactNode;
   /** Por padrão as seções iniciam recolhidas. */
   defaultOpen?: boolean;
+  /** Tipografia e padding reduzidos (ex.: sidebar do card no Funil Loteadores). */
+  compact?: boolean;
 };
 
 export function RedeDocsSecaoColapsavel({
@@ -18,6 +20,7 @@ export function RedeDocsSecaoColapsavel({
   vazio,
   children,
   defaultOpen = false,
+  compact = false,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
   const panelId = `rede-docs-panel-${sectionId}`;
@@ -27,27 +30,60 @@ export function RedeDocsSecaoColapsavel({
   }, [defaultOpen]);
 
   return (
-    <section className="rounded-xl border border-stone-200 bg-white shadow-sm">
+    <section
+      className={
+        compact
+          ? 'rounded-md border border-stone-200 bg-white'
+          : 'rounded-xl border border-stone-200 bg-white shadow-sm'
+      }
+    >
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
         aria-controls={panelId}
-        className="flex w-full items-center justify-between gap-3 rounded-xl px-5 py-4 text-left transition hover:bg-stone-50/80"
+        className={
+          compact
+            ? 'flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left transition hover:bg-stone-50/80'
+            : 'flex w-full items-center justify-between gap-3 rounded-xl px-5 py-4 text-left transition hover:bg-stone-50/80'
+        }
       >
-        <h2 className="text-base font-semibold text-stone-900">{titulo}</h2>
+        <h2
+          className={
+            compact
+              ? 'text-[11px] font-semibold leading-snug text-stone-700'
+              : 'text-base font-semibold text-stone-900'
+          }
+        >
+          {titulo}
+        </h2>
         {open ? (
-          <ChevronDown className="h-5 w-5 shrink-0 text-stone-500" aria-hidden />
+          <ChevronDown
+            className={compact ? 'h-3.5 w-3.5 shrink-0 text-stone-500' : 'h-5 w-5 shrink-0 text-stone-500'}
+            aria-hidden
+          />
         ) : (
-          <ChevronRight className="h-5 w-5 shrink-0 text-stone-500" aria-hidden />
+          <ChevronRight
+            className={compact ? 'h-3.5 w-3.5 shrink-0 text-stone-500' : 'h-5 w-5 shrink-0 text-stone-500'}
+            aria-hidden
+          />
         )}
       </button>
       {open ? (
-        <div id={panelId} className="border-t border-stone-100 px-5 pb-5 pt-3">
+        <div
+          id={panelId}
+          className={
+            compact
+              ? 'border-t border-stone-100 px-2.5 pb-2.5 pt-2'
+              : 'border-t border-stone-100 px-5 pb-5 pt-3'
+          }
+        >
           {vazio ? (
-            <p className="text-sm text-stone-500">Nenhum documento padrão cadastrado nesta seção ainda.</p>
+            <p className={compact ? 'text-[11px] text-stone-500' : 'text-sm text-stone-500'}>
+              Nenhum documento padrão cadastrado nesta seção ainda.
+            </p>
           ) : (
-            <div className="space-y-4">{children}</div>
+            <div className={compact ? 'space-y-2' : 'space-y-4'}>{children}</div>
           )}
         </div>
       ) : null}

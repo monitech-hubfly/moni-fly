@@ -58,6 +58,8 @@ export type KanbanCardBrief = {
   concluido_em?: string | null;
   /** `legado` quando o card veio de `processo_step_one` via view de compatibilidade. */
   origem?: 'legado' | 'nativo';
+  /** Linha secundária no card do board (ex.: interlocutor no Funil Loteadores). */
+  subtitulo?: string | null;
   profiles?: {
     full_name: string | null;
   } | null;

@@ -556,7 +556,9 @@ export function KanbanColumn({
                     {motivo}
                   </p>
                 ) : null}
-                {card.profiles?.full_name ? (
+                {card.subtitulo ? (
+                  <p className="mt-1 line-clamp-1 text-xs text-stone-500">{card.subtitulo}</p>
+                ) : card.profiles?.full_name ? (
                   <p className="mt-1 line-clamp-1 text-xs text-stone-500">{card.profiles.full_name}</p>
                 ) : null}
                 {card.data_reuniao || card.data_followup ? (

@@ -20,6 +20,7 @@ import {
 import { fetchRedeLoteadoresRows } from '@/lib/rede-loteadores';
 import { criarRedeLoteador, atualizarRedeLoteador } from '@/app/rede-franqueados/rede-loteadores-actions';
 import type { RedeLoteadorChecklistModo } from '@/lib/actions/kanban-rede-loteador-checklist';
+import { sincronizarTituloCardLoteadores } from '@/lib/kanban/loteadores-card-titulo';
 
 export type LoteadorExternoTokenInfo =
   | { ok: true; card_id: string; rede_loteador_id: string | null; expires_at: string | null }
@@ -266,11 +267,26 @@ export async function salvarRedeLoteadorPersistenteCard(input: {
     .update({ ultima_atualizacao_por: gate.userId, updated_at: now, condominio_estado: patch.estado ?? null })
     .eq('id', redeLoteadorId);
 
-  const { error: cardErr } = await gate.supabase
+  const { data: cardAtual } = await gate.supabase
     .from('kanban_cards')
-    .update({ rede_loteador_id: redeLoteadorId, updated_at: now })
-    .eq('id', cid);
+    .select('nome_condominio, quadra, lote')
+    .eq('id', cid)
+    .maybeSingle();
+
+  const patchCondominio = String(patch.condominio_nome ?? '').trim();
+  const updateCard: Record<string, unknown> = {
+    rede_loteador_id: redeLoteadorId,
+    updated_at: now,
+  };
+  if (patchCondominio && !String((cardAtual as { nome_condominio?: string | null } | null)?.nome_condominio ?? '').trim()) {
+    updateCard.nome_condominio = patchCondominio;
+  }
+
+  const { error: cardErr } = await gate.supabase.from('kanban_cards').update(updateCard).eq('id', cid);
   if (cardErr) return { ok: false, error: cardErr.message };
+
+  const syncTitulo = await sincronizarTituloCardLoteadores(gate.supabase, cid);
+  if (!syncTitulo.ok) return syncTitulo;
 
   revalidatePath('/loteadores');
   revalidatePath('/rede-franqueados');

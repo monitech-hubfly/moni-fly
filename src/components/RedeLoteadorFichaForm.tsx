@@ -158,6 +158,7 @@ export function RedeLoteadorFichaForm({
         titulo="Informações do Parceiro"
         sectionId={`${sectionIdPrefix}-parceiro`}
         defaultOpen={sidebar}
+        compact={sidebar}
       >
         <div className={gridCls}>
           <Field label="Nome do responsável / interlocutor da negociação" sidebar={sidebar}>
@@ -195,7 +196,11 @@ export function RedeLoteadorFichaForm({
         </div>
       </RedeDocsSecaoColapsavel>
 
-      <RedeDocsSecaoColapsavel titulo="Informações do Condomínio" sectionId={`${sectionIdPrefix}-condominio`}>
+      <RedeDocsSecaoColapsavel
+        titulo="Informações do Condomínio"
+        sectionId={`${sectionIdPrefix}-condominio`}
+        compact={sidebar}
+      >
         <div className={gridCls}>
           <Field label="Nome do condomínio" sidebar={sidebar}>
             <input
@@ -300,7 +305,11 @@ export function RedeLoteadorFichaForm({
         </div>
       </RedeDocsSecaoColapsavel>
 
-      <RedeDocsSecaoColapsavel titulo="Informações de venda e carteira" sectionId={`${sectionIdPrefix}-carteira`}>
+      <RedeDocsSecaoColapsavel
+        titulo="Informações de venda e carteira"
+        sectionId={`${sectionIdPrefix}-carteira`}
+        compact={sidebar}
+      >
         <div className={sidebar ? 'grid gap-2' : 'grid gap-3 sm:grid-cols-2'}>
           <Field label="Lotes disponíveis para venda" sidebar={sidebar}>
             <input
@@ -369,7 +378,11 @@ export function RedeLoteadorFichaForm({
         />
       </RedeDocsSecaoColapsavel>
 
-      <RedeDocsSecaoColapsavel titulo="Campo livre" sectionId={`${sectionIdPrefix}-livre`}>
+      <RedeDocsSecaoColapsavel
+        titulo="Campo livre"
+        sectionId={`${sectionIdPrefix}-livre`}
+        compact={sidebar}
+      >
         <Field
           label="Informações adicionais"
           hint="Ex.: poda de árvores, condomínios concorrentes, interlocutores a incluir, etc."

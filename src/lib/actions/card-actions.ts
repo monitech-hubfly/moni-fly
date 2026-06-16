@@ -17,6 +17,7 @@ import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
 import { isKanbanIdInterno } from '@/lib/kanban/filtrar-kanbans-internos';
 import { carregarPermissoesMap } from '@/lib/permissoes-load';
 import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { montarTituloCardLoteadores, isKanbanFunilLoteadoresRef } from '@/lib/kanban/loteadores-card-titulo';
 import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { calcularDataEnvioCreditoObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import {
@@ -1816,6 +1817,8 @@ export type CriarCardKanbanInput = {
   fase_id: string;
   /** Ex.: `/funil-moni-inc` para `revalidatePath`. */
   basePath?: string;
+  /** Funil Loteadores: nome do parceiro/loteador (1ª parte do título). */
+  nomeLoteador?: string;
   nomeCondominio?: string;
   quadra?: string;
   lote?: string;
@@ -1871,11 +1874,23 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
   const quadra = (input.quadra ?? '').trim() || null;
   const lote = (input.lote ?? '').trim() || null;
 
+  let tituloFinal = titulo;
+  if (isKanbanFunilLoteadoresRef(kanbanId, kanbanNome)) {
+    tituloFinal =
+      montarTituloCardLoteadores({
+        nomeLoteador: (input.nomeLoteador ?? '').trim() || titulo,
+        nomeCondominio,
+        quadra,
+        lote,
+        tituloFallback: titulo,
+      }) ?? titulo;
+  }
+
   const { error } = await supabase.from('kanban_cards').insert({
     kanban_id: kanbanId,
     fase_id: faseId,
     franqueado_id: user.id,
-    titulo,
+    titulo: tituloFinal,
     status: 'ativo',
     nome_condominio: nomeCondominio,
     quadra,

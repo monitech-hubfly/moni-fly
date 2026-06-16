@@ -59,6 +59,7 @@ export function NovoCardMonINCModal({
         kanban_nome: KANBAN_NOME_FUNIL_LOTEADORES,
         fase_id: faseId,
         basePath,
+        nomeLoteador: parceiro,
         nomeCondominio: nomeCondominio.trim() || undefined,
         quadra: quadra.trim() || undefined,
         lote: lote.trim() || undefined,

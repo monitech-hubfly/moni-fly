@@ -11,6 +11,7 @@ import {
 } from '@/lib/condominios';
 import { normalizeAccessRole } from '@/lib/authz';
 import { propagarCamposKanbanCards, propagarCamposProcesso } from '@/lib/kanban/card-sync-group';
+import { sincronizarTituloCardLoteadores } from '@/lib/kanban/loteadores-card-titulo';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -193,6 +194,8 @@ export async function vincularCondominioAoCard(input: {
       lote,
     });
     if (!sync.ok) return { ok: false, error: sync.error };
+    const syncTitulo = await sincronizarTituloCardLoteadores(admin, cardId);
+    if (!syncTitulo.ok) return { ok: false, error: syncTitulo.error };
   } else {
     const sync = await propagarCamposProcesso(admin, cardId, cardId, {
       condominio_id: condominioId,
@@ -303,6 +306,8 @@ export async function salvarQuadraLoteCard(input: {
     if (nome) patch.nome_condominio = nome;
     const sync = await propagarCamposKanbanCards(admin, cardId, patch);
     if (!sync.ok) return { ok: false, error: sync.error };
+    const syncTitulo = await sincronizarTituloCardLoteadores(admin, cardId);
+    if (!syncTitulo.ok) return { ok: false, error: syncTitulo.error };
   } else {
     const sync = await propagarCamposProcesso(admin, cardId, cardId, { quadra, lote });
     if (!sync.ok) return { ok: false, error: sync.error };

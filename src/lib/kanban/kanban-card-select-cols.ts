@@ -11,6 +11,7 @@ export const KANBAN_CARD_SELECT_BASE = `
       concluido,
       concluido_em,
       rede_franqueado_id,
+      rede_loteador_id,
       nome_condominio,
       quadra,
       lote,
