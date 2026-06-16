@@ -27,6 +27,8 @@ import {
   linhaSessaoCondominioCompleta,
   mesclarRespostasFaixaCondominio,
   normalizarLinhaProspect,
+  parseOpcoesTipoPredominante,
+  serializarOpcoesTipoPredominante,
   valorFaixaCondominio,
   type ChaveGlobalCondominio,
   type ChaveFaixaCondominio,
@@ -557,7 +559,22 @@ export function PesquisaCondominioProspect({ cardId, processoId, itemLabel, obri
                     Liquidez e Valorização Exponencial
                   </h4>
                   {FAIXA_CONDOMINIO_CAMPOS.map((campo) =>
-                    campo.tipo === 'selecao_unica' ? (
+                    campo.tipo === 'selecao_multipla' ? (
+                      <CampoSelecaoMultipla
+                        key={campo.chave}
+                        label={campo.label}
+                        opcoes={campo.opcoes ?? []}
+                        obrigatorio={campo.obrigatorio}
+                        valor={rascunhoFaixas[faixaAtiva]?.[campo.chave] ?? ''}
+                        onChange={(v) => {
+                          setRascunhoFaixas((prev) => ({
+                            ...prev,
+                            [faixaAtiva]: { ...prev[faixaAtiva], [campo.chave]: v },
+                          }));
+                          void salvarCampoFaixa(faixaAtiva, campo.chave, v);
+                        }}
+                      />
+                    ) : campo.tipo === 'selecao_unica' ? (
                       <CampoSelecaoUnica
                         key={campo.chave}
                         label={campo.label}
@@ -620,6 +637,58 @@ function BadgeConclusao({ completa }: { completa: boolean }) {
   );
 }
 
+function CampoSelecaoMultipla({
+  label,
+  opcoes,
+  valor,
+  obrigatorio,
+  onChange,
+}: {
+  label: string;
+  opcoes: string[];
+  valor: string;
+  obrigatorio?: boolean;
+  onChange: (valor: string) => void;
+}) {
+  const selecionados = useMemo(() => new Set(parseOpcoesTipoPredominante(valor)), [valor]);
+
+  const toggle = (opcao: string) => {
+    const next = new Set(selecionados);
+    if (next.has(opcao as 'Térrea' | 'Sobrado')) next.delete(opcao as 'Térrea' | 'Sobrado');
+    else next.add(opcao as 'Térrea' | 'Sobrado');
+    onChange(serializarOpcoesTipoPredominante(next));
+  };
+
+  return (
+    <div>
+      <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+        {label}
+        {obrigatorio ? <span className="ml-1 text-red-500">*</span> : null}
+      </label>
+      <p className="mb-2 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+        Pode marcar um ou os dois. Com ambos selecionados, o critério Andares (An) não entra no rank
+        na Pré Batalha e na Batalha.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {opcoes.map((opcao) => (
+          <button
+            key={opcao}
+            type="button"
+            onClick={() => toggle(opcao)}
+            className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+              selecionados.has(opcao as 'Térrea' | 'Sobrado')
+                ? 'border-moni-dark bg-moni-dark text-white'
+                : 'border-stone-300 bg-white text-stone-600 hover:border-moni-dark'
+            }`}
+          >
+            {opcao}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CampoSelecaoUnica({
   label,
   opcoes,
@@ -645,7 +714,7 @@ function CampoSelecaoUnica({
             key={opcao}
             type="button"
             onClick={() => onSelect(opcao)}
-            className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+            className={`rounded-full border px-3 py-1 text-xs transition-colors ${
               valor === opcao
                 ? 'border-moni-dark bg-moni-dark text-white'
                 : 'border-stone-300 bg-white text-stone-600 hover:border-moni-dark'

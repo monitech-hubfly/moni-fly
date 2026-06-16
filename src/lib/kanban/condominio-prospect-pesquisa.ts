@@ -89,10 +89,47 @@ export type CampoGlobalCondominio = {
 /** @deprecated Use CampoGlobalCondominio. */
 export type CampoCaracterizacaoGlobal = CampoGlobalCondominio;
 
+export type TipoCasaPredominanteOpcao = 'Sobrado' | 'Térrea';
+
+/** Valores múltiplos de tipo predominante na faixa (ex.: `Térrea|Sobrado`). */
+export const SEPARADOR_TIPOS_PREDOMINANTES = '|';
+
+export function parseOpcoesTipoPredominante(
+  valor: string | null | undefined,
+): TipoCasaPredominanteOpcao[] {
+  const raw = String(valor ?? '').trim();
+  if (!raw) return [];
+  const partes = raw.includes(SEPARADOR_TIPOS_PREDOMINANTES)
+    ? raw.split(SEPARADOR_TIPOS_PREDOMINANTES)
+    : raw.includes(',')
+      ? raw.split(',')
+      : [raw];
+  return partes
+    .map((p) => p.trim())
+    .filter((p): p is TipoCasaPredominanteOpcao => p === 'Sobrado' || p === 'Térrea');
+}
+
+/** Um único tipo → regra An ativa; zero ou ambos → critério ignorado no rank. */
+export function tipoPredominanteUnicoFaixa(
+  valor: string | null | undefined,
+): TipoCasaPredominanteOpcao | null {
+  const opcoes = parseOpcoesTipoPredominante(valor);
+  if (opcoes.length !== 1) return null;
+  return opcoes[0];
+}
+
+export function serializarOpcoesTipoPredominante(
+  opcoes: Iterable<TipoCasaPredominanteOpcao>,
+): string {
+  const unicos = [...new Set(opcoes)].filter((o) => o === 'Sobrado' || o === 'Térrea');
+  unicos.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  return unicos.join(SEPARADOR_TIPOS_PREDOMINANTES);
+}
+
 export type CampoFaixaCondominio = {
   chave: ChaveFaixaCondominio;
   label: string;
-  tipo: 'texto' | 'texto_longo' | 'selecao_unica';
+  tipo: 'texto' | 'texto_longo' | 'selecao_unica' | 'selecao_multipla';
   placeholder?: string;
   opcoes?: string[];
   obrigatorio?: boolean;
@@ -231,7 +268,7 @@ export const FAIXA_CONDOMINIO_CAMPOS: CampoFaixaCondominio[] = [
   {
     chave: 'q_casas_tipo_predominante',
     label: 'Qual tipo de casa é predominante nessa faixa?',
-    tipo: 'selecao_unica',
+    tipo: 'selecao_multipla',
     opcoes: ['Térrea', 'Sobrado'],
   },
   {

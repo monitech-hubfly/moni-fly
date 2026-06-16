@@ -23,6 +23,7 @@ import {
 } from '@/app/step-one/[id]/etapa/REGRAS_BATALHA';
 import {
   valorFaixaCondominio,
+  tipoPredominanteUnicoFaixa,
   type FaixaCondominioId,
   type LinhaProspectCondominio,
 } from '@/lib/kanban/condominio-prospect-pesquisa';
@@ -176,7 +177,7 @@ export function resolverTipoPredominanteFaixa(
   if (!linha) return null;
   const faixaId = faixaMercadoParaFaixaCondominio(faixaMercado);
   const v = valorFaixaCondominio(linha, faixaId, 'q_casas_tipo_predominante');
-  return v === 'Sobrado' || v === 'Térrea' ? v : null;
+  return tipoPredominanteUnicoFaixa(v);
 }
 
 function produtoDadosComTipo(
