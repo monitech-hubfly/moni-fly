@@ -5,6 +5,7 @@ import { Download, Upload, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import {
   upsertFaseChecklistResposta,
+  reconciliarGboxPlanilhaMapaChecklist,
   type ActionResult,
   type FaseChecklistItem,
   type FaseChecklistResposta,
@@ -31,7 +32,7 @@ import { ChecklistAreaAtuacaoSelect } from '@/components/kanban-shared/Checklist
 import { DadosCidadePracaTabs } from '@/components/kanban-shared/DadosCidadePracaTabs';
 import { PracaAtivaChip } from '@/components/kanban-shared/PracaAtivaChip';
 import { fetchFaseChecklistItens } from '@/lib/kanban/fase-checklist-select';
-import { isDadosCandidatoFaseSlug, isDadosCidadeFaseSlug, isLotesDisponiveisFaseSlug, isPreBatalhaFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { isDadosCandidatoFaseSlug, isDadosCidadeFaseSlug, isLotesDisponiveisFaseSlug, isMapaCompetidoresFaseSlug, isPreBatalhaFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import {
   PRE_BATALHA_CHECKLIST_LABEL_APLICADA,
   PRE_BATALHA_CHECKLIST_LABEL_RANKING,
@@ -110,6 +111,7 @@ import {
   LOTEADORES_EXECUCAO_MATERIAL_CAMPOS,
 } from '@/lib/kanban/loteadores-execucao-material';
 import { carregarLinkAcoplamentoExecucaoMaterial } from '@/lib/kanban/loteadores-execucao-material-sync';
+import { isChecklistItemLinkPlanilhaMapa } from '@/lib/kanban/gbox-planilha-mapa-sync';
 import { salvarDataReuniaoCard, salvarHoraReuniaoCard } from '@/lib/actions/kanban-ata-reuniao';
 
 export type CondominioChecklistContext = {
@@ -135,6 +137,10 @@ type Props = {
   condominioContext?: CondominioChecklistContext;
   /** `processo_step_one.id` — necessário para listagem ZAP na fase Mapa de Competidores. */
   processoId?: string | null;
+  /** Valor atual de `link_gbox` no processo — espelha checklist «Link planilha / mapa externo». */
+  linkGboxProcesso?: string | null;
+  /** Callback após espelhar Gbox a partir do checklist. */
+  onLinkGboxEspelhado?: () => void;
   /** Área de atuação da rede vinculada ao card (`UF - Cidade; …`). */
   areaAtuacao?: string | null;
   /** Dados do franqueado na rede — auto-preenche Nome, E-mail, Telefone e Idade em Dados do Candidato. */
@@ -168,6 +174,8 @@ export function FaseChecklistCard({
   ocultarVazio = false,
   condominioContext,
   processoId = null,
+  linkGboxProcesso = null,
+  onLinkGboxEspelhado,
   areaAtuacao = null,
   redeFranqueado = null,
   ocultarRedeLoteadorChecklist = false,
@@ -184,6 +192,7 @@ export function FaseChecklistCard({
   const reuniaoSyncFeitoRef = useRef('');
   const acoplamentoSyncFeitoRef = useRef('');
   const execucaoMaterialSyncFeitoRef = useRef('');
+  const gboxPlanilhaSyncFeitoRef = useRef('');
   const [preBatalhaGrupos, setPreBatalhaGrupos] = useState<RankingPorFaixaMercado[]>([]);
 
   const areasAtuacao = parseAreaAtuacao(areaAtuacao);
@@ -209,6 +218,7 @@ export function FaseChecklistCard({
     reuniaoSyncFeitoRef.current = '';
     acoplamentoSyncFeitoRef.current = '';
     execucaoMaterialSyncFeitoRef.current = '';
+    gboxPlanilhaSyncFeitoRef.current = '';
   }, [cardId, faseId]);
 
   useEffect(() => {
@@ -406,6 +416,51 @@ export function FaseChecklistCard({
     })();
   }, [carregando, faseSlug, cardId, faseId, itens, respostas]);
 
+  /** Mapa de Competidores: espelha Gbox ↔ «Link planilha / mapa externo» ao abrir a fase. */
+  useEffect(() => {
+    if (carregando || !itens?.length) return;
+    if (!isMapaCompetidoresFaseSlug(faseSlug) || !processoId?.trim()) return;
+
+    const itemPlanilha = itens.find((i) => isChecklistItemLinkPlanilhaMapa(i.label));
+    if (!itemPlanilha) return;
+
+    const syncKey = `${cardId}:${faseId}:${processoId.trim()}`;
+    if (gboxPlanilhaSyncFeitoRef.current === syncKey) return;
+    gboxPlanilhaSyncFeitoRef.current = syncKey;
+
+    void (async () => {
+      try {
+        const res = await reconciliarGboxPlanilhaMapaChecklist({
+          cardId,
+          processoId: processoId.trim(),
+        });
+        if (!res.ok || !res.alterado) return;
+
+        if (res.valorChecklist != null) {
+          setResposta(itemPlanilha.id, { valor: res.valorChecklist, arquivo_path: null });
+        }
+        if (res.linkGbox != null) onLinkGboxEspelhado?.();
+      } catch {
+        gboxPlanilhaSyncFeitoRef.current = '';
+      }
+    })();
+  }, [carregando, faseSlug, cardId, faseId, processoId, itens, onLinkGboxEspelhado]);
+
+  /** Mapa de Competidores: espelha alteração de Gbox no painel esquerdo para o checklist. */
+  useEffect(() => {
+    if (carregando || !itens?.length) return;
+    if (!isMapaCompetidoresFaseSlug(faseSlug)) return;
+
+    const itemPlanilha = itens.find((i) => isChecklistItemLinkPlanilhaMapa(i.label));
+    if (!itemPlanilha) return;
+
+    const valorPainel = String(linkGboxProcesso ?? '').trim();
+    const valorChecklist = String(respostas.get(itemPlanilha.id)?.valor ?? '').trim();
+    if (valorPainel === valorChecklist) return;
+
+    setResposta(itemPlanilha.id, { valor: valorPainel, arquivo_path: null });
+  }, [carregando, faseSlug, itens, linkGboxProcesso, respostas]);
+
   /** Pré Batalha: calcula ranking e preenche checklist ao abrir o modal (idempotente). */
   useEffect(() => {
     if (carregando || !itens?.length) return;
@@ -594,6 +649,12 @@ export function FaseChecklistCard({
       const label = itens?.find((i) => i.id === itemId)?.label.trim();
       if (label === CHECKLIST_LABEL_CIDADE || label === CHECKLIST_LABEL_ESTADO) {
         await tentarSyncPracaComProcesso(itemId, valor);
+      }
+    }
+    if (res.ok && !erroFinal) {
+      const labelSalvo = itens?.find((i) => i.id === itemId)?.label;
+      if (isChecklistItemLinkPlanilhaMapa(labelSalvo)) {
+        onLinkGboxEspelhado?.();
       }
     }
     if (res.ok && !erroFinal && processoId?.trim() && isFaseAberturaSpeSlug(faseSlug) && itens?.length) {

@@ -2218,6 +2218,18 @@ export async function salvarDadosNegocioKanban(input: {
   const upd = await updateProcessoNegocioCampos(supabase, pid, input.payload);
   if (!upd.ok) return upd;
 
+  if (input.payload.link_gbox !== undefined) {
+    const { sincronizarGboxPainelParaPlanilhaMapaChecklist } = await import(
+      '@/lib/kanban/gbox-planilha-mapa-sync'
+    );
+    const sync = await sincronizarGboxPainelParaPlanilhaMapaChecklist({
+      cardId,
+      linkGbox: input.payload.link_gbox ?? null,
+      usuarioId: user.id,
+    });
+    if (!sync.ok) return sync;
+  }
+
   revalidatePath(input.basePath?.trim() || '/');
   revalidatePath('/');
   return { ok: true };
@@ -4486,7 +4498,36 @@ export async function upsertFaseChecklistResposta(input: {
     await atualizarScoreLoteadorR1(input.card_id);
   }
 
+  const itemLabel = String((itemRow as { label?: string | null } | null)?.label ?? '');
+  const { isChecklistItemLinkPlanilhaMapa, sincronizarPlanilhaMapaChecklistParaGbox } = await import(
+    '@/lib/kanban/gbox-planilha-mapa-sync'
+  );
+  if (isChecklistItemLinkPlanilhaMapa(itemLabel)) {
+    const sync = await sincronizarPlanilhaMapaChecklistParaGbox({
+      cardId: input.card_id,
+      valorChecklist: input.valor ?? null,
+    });
+    if (!sync.ok) return sync;
+  }
+
   return { ok: true };
+}
+
+/** Espelha Gbox ↔ checklist «Link planilha / mapa externo» quando só um lado está preenchido. */
+export async function reconciliarGboxPlanilhaMapaChecklist(input: {
+  cardId: string;
+  processoId?: string | null;
+}): Promise<
+  | {
+      ok: true;
+      linkGbox: string | null;
+      valorChecklist: string | null;
+      alterado: boolean;
+    }
+  | { ok: false; error: string }
+> {
+  const { reconciliarGboxPlanilhaMapa } = await import('@/lib/kanban/gbox-planilha-mapa-sync');
+  return reconciliarGboxPlanilhaMapa(input);
 }
 
 /** Salva links Gbox/Acoplamento no processo e propaga a checklist + cards vinculados. */

@@ -4845,6 +4845,8 @@ export function KanbanCardModal({
                       isFrank={portalFrank}
                       isAdmin={isAdmin}
                       processoId={processoIdChecklists}
+                      linkGboxProcesso={proc?.link_gbox ?? negocioDraft.link_gbox ?? null}
+                      onLinkGboxEspelhado={() => void loadCard({ silencioso: true })}
                       areaAtuacao={modalDetalhes.rede?.area_atuacao}
                       ocultarRedeLoteadorChecklist={exibirDadosLoteadorPersistente}
                       cardReuniaoSync={
