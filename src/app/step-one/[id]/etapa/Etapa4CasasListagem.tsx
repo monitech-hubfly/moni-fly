@@ -336,17 +336,17 @@ export function Etapa4CasasListagem({
     <div className="space-y-4 p-3 sm:p-4">
       {!readOnly ? (
         <section
-          className="space-y-3 rounded-xl p-3"
+          className="space-y-2 rounded-xl p-2.5"
           style={{
             border: '0.5px solid var(--moni-border-default)',
             background: 'var(--moni-surface-50)',
             borderRadius: 'var(--moni-radius-lg)',
           }}
         >
-          <p className="text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+          <p className="text-xs font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
             Importar casas por planilha
           </p>
-          <p className="text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
+          <p className="text-[11px] leading-snug" style={{ color: 'var(--moni-text-secondary)' }}>
             Aceita .xlsx ou .csv com colunas: Condomínio, Preço, Quartos, Banheiros, Vagas, Área
             (m²), Piscina, Link, Endereço. As linhas serão vinculadas ao condomínio da aba ativa
             {condominioInicial.trim() ? ` («${condominioInicial.trim()}»)` : ''}.
@@ -363,7 +363,7 @@ export function Etapa4CasasListagem({
             <button
               type="button"
               onClick={baixarTemplate}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-lg px-3 py-1.5 text-[11px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
               style={{
                 minHeight: '44px',
                 background: 'var(--moni-navy-800)',
@@ -376,7 +376,7 @@ export function Etapa4CasasListagem({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={importando}
-              className="rounded-lg border px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-lg border px-3 py-1.5 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-60"
               style={{
                 minHeight: '44px',
                 border: '0.5px solid var(--moni-border-default)',
@@ -390,12 +390,12 @@ export function Etapa4CasasListagem({
           </div>
 
           {importErro ? (
-            <p className="text-xs text-red-600" role="alert">
+            <p className="text-[11px] text-red-600" role="alert">
               {importErro}
             </p>
           ) : null}
           {resultadoImport ? (
-            <p className="text-xs" style={{ color: 'var(--moni-text-secondary)' }}>
+            <p className="text-[11px]" style={{ color: 'var(--moni-text-secondary)' }}>
               Importação concluída — inseridos: {resultadoImport.inserted}, atualizados:{' '}
               {resultadoImport.updated}
               {resultadoImport.erros.length > 0
