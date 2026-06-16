@@ -104,6 +104,63 @@ async function registrarAtividadeBastaoCardFilho(
   if (errAtiv) throw new Error(errAtiv.message);
 }
 
+type CardFilhoExistenteRow = KanbanCardFilhoCriado & { arquivado?: boolean | null };
+
+/** Busca filho por `origem_card_id` ou, se ausente, por `kanban_card_vinculos`. */
+async function buscarCardFilhoExistente(
+  db: ReturnType<typeof createAdminClient>,
+  cardPaiId: string,
+  kanbanDestinoId: string,
+): Promise<CardFilhoExistenteRow | null> {
+  const pai = String(cardPaiId ?? '').trim();
+  const kid = String(kanbanDestinoId ?? '').trim();
+  if (!pai || !kid) return null;
+
+  const { data: porOrigem, error: errOrigem } = await db
+    .from('kanban_cards')
+    .select(CARD_FILHO_SELECT)
+    .eq('origem_card_id', pai)
+    .eq('kanban_id', kid)
+    .limit(1)
+    .maybeSingle();
+
+  if (errOrigem) throw new Error(errOrigem.message);
+  if (porOrigem?.id) return porOrigem as CardFilhoExistenteRow;
+
+  const { data: vinculos, error: errVinc } = await db
+    .from('kanban_card_vinculos')
+    .select('card_origem_id, card_destino_id')
+    .or(`card_origem_id.eq.${pai},card_destino_id.eq.${pai}`);
+
+  if (errVinc) throw new Error(errVinc.message);
+
+  const peerIds = new Set<string>();
+  for (const row of vinculos ?? []) {
+    const orig = String((row as { card_origem_id?: string | null }).card_origem_id ?? '').trim();
+    const dest = String((row as { card_destino_id?: string | null }).card_destino_id ?? '').trim();
+    if (orig === pai && dest && dest !== pai) peerIds.add(dest);
+    else if (dest === pai && orig && orig !== pai) peerIds.add(orig);
+  }
+
+  if (peerIds.size === 0) return null;
+
+  const { data: peers, error: errPeers } = await db
+    .from('kanban_cards')
+    .select(CARD_FILHO_SELECT)
+    .in('id', [...peerIds])
+    .eq('kanban_id', kid);
+
+  if (errPeers) throw new Error(errPeers.message);
+
+  const list = (peers ?? []) as CardFilhoExistenteRow[];
+  if (list.length === 0) return null;
+
+  const ativo = list.find((c) => !Boolean(c.arquivado));
+  if (ativo) return ativo;
+
+  return list[0] ?? null;
+}
+
 /**
  * Cria card filho no kanban de destino (bastão) com vínculo e atividade de auditoria.
  * Idempotente: se já existir filho ativo com `origem_card_id` = pai no mesmo kanban, retorna null.
@@ -134,16 +191,9 @@ export async function criarCardFilho(
     throw new Error(`Serviço indisponível: ${msg}`);
   }
 
-  const { data: existente, error: errExiste } = await db
-    .from('kanban_cards')
-    .select(CARD_FILHO_SELECT)
-    .eq('origem_card_id', cardPaiId)
-    .eq('kanban_id', kanbanDestinoId)
-    .limit(1)
-    .maybeSingle();
+  const existente = await buscarCardFilhoExistente(db, cardPaiId, kanbanDestinoId);
 
-  if (errExiste) throw new Error(errExiste.message);
-  if (existente?.id && !Boolean((existente as { arquivado?: boolean | null }).arquivado)) {
+  if (existente?.id && !Boolean(existente.arquivado)) {
     return null;
   }
 
@@ -224,6 +274,7 @@ export async function criarCardFilho(
         condominio_id: condominioId,
         franqueado_id: franqueadoId,
         status: 'ativo',
+        origem_card_id: cardPaiId,
         arquivado: false,
         arquivado_em: null,
         arquivado_por: null,
@@ -1116,15 +1167,9 @@ export async function dispararEsteiraManualDoCard(
     faseOrigemSlug = String((faseRow as { slug?: string | null } | null)?.slug ?? '').trim() || faseOrigemSlug;
   }
 
-  const { data: existente } = await db
-    .from('kanban_cards')
-    .select('id, arquivado')
-    .eq('origem_card_id', paiId)
-    .eq('kanban_id', destino.kanbanDestinoId)
-    .limit(1)
-    .maybeSingle();
+  const existente = await buscarCardFilhoExistente(db, paiId, destino.kanbanDestinoId);
 
-  if (existente?.id && !Boolean((existente as { arquivado?: boolean | null }).arquivado)) {
+  if (existente?.id && !Boolean(existente.arquivado)) {
     const { data: kb } = await db.from('kanbans').select('nome').eq('id', destino.kanbanDestinoId).maybeSingle();
     return {
       ok: true,
@@ -1239,15 +1284,9 @@ export async function abrirFunilAcoplamentoManualDoCard(
     faseOrigemSlug = String((faseRow as { slug?: string | null } | null)?.slug ?? '').trim() || faseOrigemSlug;
   }
 
-  const { data: existente } = await db
-    .from('kanban_cards')
-    .select('id, arquivado')
-    .eq('origem_card_id', paiId)
-    .eq('kanban_id', destino.kanbanDestinoId)
-    .limit(1)
-    .maybeSingle();
+  const existente = await buscarCardFilhoExistente(db, paiId, destino.kanbanDestinoId);
 
-  if (existente?.id && !Boolean((existente as { arquivado?: boolean | null }).arquivado)) {
+  if (existente?.id && !Boolean(existente.arquivado)) {
     const filhoId = String(existente.id);
     const { data: filhoFase } = await db
       .from('kanban_cards')
@@ -1307,6 +1346,94 @@ export async function abrirFunilAcoplamentoManualDoCard(
       kanbanNome: String((kb as { nome?: string | null } | null)?.nome ?? destino.label),
       jaExistia: false,
     };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+}
+
+/** Reativa filho arquivado no Funil Acoplamento quando o card pai já está na fase Acoplamento. */
+export async function reativarFilhoAcoplamentoArquivadoSeNecessario(
+  cardId: string,
+  basePath?: string,
+): Promise<
+  | { ok: true; reativado: boolean; cardFilhoId?: string }
+  | { ok: false; error: string }
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  let db: ReturnType<typeof createAdminClient>;
+  try {
+    db = createAdminClient();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+
+  const paiId = await resolverCardPaiParaAcoplamento(db, cardId);
+  if (!paiId) return { ok: true, reativado: false };
+
+  const existente = await buscarCardFilhoExistente(db, paiId, KANBAN_IDS.ACOPLAMENTO);
+  if (!existente?.id || !Boolean(existente.arquivado)) {
+    return {
+      ok: true,
+      reativado: false,
+      cardFilhoId: existente?.id ? String(existente.id) : undefined,
+    };
+  }
+
+  const { data: paiRow, error: errPai } = await db
+    .from('kanban_cards')
+    .select('id, titulo, kanban_id, projeto_id, rede_franqueado_id, fase_id')
+    .eq('id', paiId)
+    .maybeSingle();
+
+  if (errPai) return { ok: false, error: errPai.message };
+  if (!paiRow?.id) return { ok: true, reativado: false };
+
+  const pai = paiRow as {
+    id: string;
+    titulo?: string | null;
+    kanban_id?: string | null;
+    projeto_id?: string | null;
+    rede_franqueado_id?: string | null;
+    fase_id?: string | null;
+  };
+
+  let faseOrigemSlug = FASE_SLUGS.ACOPLAMENTO;
+  const faseId = String(pai.fase_id ?? '').trim();
+  if (faseId) {
+    const { data: faseRow } = await db.from('kanban_fases').select('slug').eq('id', faseId).maybeSingle();
+    faseOrigemSlug =
+      String((faseRow as { slug?: string | null } | null)?.slug ?? '').trim() || faseOrigemSlug;
+  }
+
+  const destino = DESTINOS_ESTEIRA_MANUAL.acoplamento;
+
+  try {
+    const filho = await criarCardFilho({
+      cardPaiId: paiId,
+      kanbanDestinoId: destino.kanbanDestinoId,
+      faseDestinoSlug: destino.faseDestinoSlug,
+      titulo: String(pai.titulo ?? '').trim() || 'Card',
+      projetoId: pai.projeto_id ?? null,
+      redeFranqueadoId: pai.rede_franqueado_id ?? null,
+      kanbanOrigemSlug: kanbanOrigemSlugPorId(String(pai.kanban_id ?? '')),
+      faseOrigemSlug,
+    });
+
+    if (!filho?.id) return { ok: true, reativado: false };
+
+    await sincronizarTagAcoplamentoPaiDoFilho(String(filho.id), destino.faseDestinoSlug);
+    revalidatePath(basePath?.trim() || '/');
+    revalidatePath('/');
+    revalidatePath('/funil-acoplamento');
+
+    return { ok: true, reativado: true, cardFilhoId: String(filho.id) };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, error: msg };

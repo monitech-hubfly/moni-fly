@@ -81,6 +81,7 @@ import {
   cardLoteadoresPrecisaJustificativaSla,
 } from '@/lib/kanban/loteadores-sla-justificativa';
 import { salvarJustificativaSlaLoteadores } from '@/lib/actions/kanban-sla-justificativa';
+import { reativarFilhoAcoplamentoArquivadoSeNecessario } from '@/lib/actions/kanban-bastoes';
 import {
   enrichCardsParalelasContext,
   flagsParalelasFromCard,
@@ -1150,6 +1151,42 @@ export function KanbanCardModal({
               ? enrichedRow.acoplamento_filho_fase_slug ?? null
               : enrichedRow.acoplamento_filho_fase_slug ?? cardParaEstado.acoplamento_filho_fase_slug,
           };
+        }
+
+        if (
+          isPortfolioKanbanRef(cardParaEstado.kanban_id, String(kanbanNome)) &&
+          String(loaded.etapa_slug ?? '').trim() === FASE_SLUGS.ACOPLAMENTO &&
+          cardParaEstado.filho_acoplamento_arquivado
+        ) {
+          try {
+            const reativacao = await reativarFilhoAcoplamentoArquivadoSeNecessario(
+              cardParaEstado.id,
+              basePath,
+            );
+            if (reativacao.ok && reativacao.reativado) {
+              const enrichedList2 = await enrichCardsParalelasContext(
+                supabase,
+                cardParaEstado.kanban_id,
+                [brief],
+              );
+              const enrichedRow2 = enrichedList2[0];
+              if (enrichedRow2) {
+                cardParaEstado = {
+                  ...cardParaEstado,
+                  tem_filho_acoplamento: enrichedRow2.tem_filho_acoplamento,
+                  filho_acoplamento_arquivado: enrichedRow2.filho_acoplamento_arquivado,
+                  acoplamento_filho_fase_nome:
+                    enrichedRow2.acoplamento_filho_fase_nome ??
+                    cardParaEstado.acoplamento_filho_fase_nome,
+                  acoplamento_filho_fase_slug:
+                    enrichedRow2.acoplamento_filho_fase_slug ??
+                    cardParaEstado.acoplamento_filho_fase_slug,
+                };
+              }
+            }
+          } catch {
+            /* mantém estado enriquecido original */
+          }
         }
       }
 
