@@ -195,8 +195,8 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
   );
 
   const resumoFaixas = useMemo(
-    () => resumoFaixasMercado(casasDoCondominio),
-    [casasDoCondominio],
+    () => resumoFaixasMercado(casasDoCondominio, { universoCortes: casas }),
+    [casasDoCondominio, casas],
   );
 
   const painelFaixasMercado =

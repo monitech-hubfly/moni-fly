@@ -30,6 +30,7 @@ import {
 import { CHAVES_TOPOGRAFIA_LOTE } from '@/lib/kanban/lotes-disponiveis-condominio';
 import {
   classificarFaixasMercado,
+  faixaMercadoParaFaixaCondominio,
   labelFaixaMercado,
   ORDEM_FAIXAS_MERCADO,
   type FaixaMercado,
@@ -153,12 +154,8 @@ export type RankingPorFaixaMercado = {
   ranking: RankingModeloPreBatalha[];
 };
 
-/** Faixa de mercado ZAP → faixa de pesquisa do condomínio (Premium / Intermediária / Entrada). */
-export function faixaMercadoParaFaixaCondominio(faixa: FaixaMercado): FaixaCondominioId {
-  if (faixa === 'entrada') return 'entrada';
-  if (faixa === 'intermediaria') return 'intermediaria';
-  return 'premium';
-}
+/** @deprecated Importe de `@/lib/kanban/mapa-competidores-condominio`. */
+export { faixaMercadoParaFaixaCondominio } from '@/lib/kanban/mapa-competidores-condominio';
 
 function normalizarNomeCondominio(n: string): string {
   return n.trim().toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');

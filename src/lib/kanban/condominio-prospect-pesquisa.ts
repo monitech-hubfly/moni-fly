@@ -27,6 +27,13 @@ export const PLACEHOLDER_COMO_SAO_ESSAS_CASAS =
 export const PLACEHOLDER_FAIXAS_PRECO_CASAS =
   'Produto a R$ [0.00]M está no centro do cluster. Os preços ficam entre R$ [0.00]M e R$ [0.00]M, todas próximas ao ticket do produto. O R$/m² oscila entre R$[00.000] e R$ [00.000].';
 
+/** Campo ainda não preenchido (vazio ou só o template placeholder). */
+export function valorFaixaPrecoConsideradoVazio(valor: string | null | undefined): boolean {
+  const t = String(valor ?? '').trim();
+  if (!t) return true;
+  return t === PLACEHOLDER_FAIXAS_PRECO_CASAS;
+}
+
 export const FAIXAS_CONDOMINIO: { id: FaixaCondominioId; label: string }[] = [
   { id: 'premium', label: 'Faixa Premium' },
   { id: 'intermediaria', label: 'Faixa Intermediária' },

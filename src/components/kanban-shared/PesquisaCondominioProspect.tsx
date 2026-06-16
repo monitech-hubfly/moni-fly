@@ -30,6 +30,7 @@ import {
   parseOpcoesTipoPredominante,
   serializarOpcoesTipoPredominante,
   valorFaixaCondominio,
+  valorFaixaPrecoConsideradoVazio,
   type ChaveGlobalCondominio,
   type ChaveFaixaCondominio,
   type ChaveRecuoCondominioDb,
@@ -177,7 +178,12 @@ export function PesquisaCondominioProspect({ cardId, processoId, itemLabel, obri
         for (const chave of CAMPOS_SUGESTAO_MAPA) {
           const refKey = `${linhaAtiva.row_id}:${faixaId}:${chave}`;
           if (sugestoesMapaAplicadasRef.current.has(refKey)) continue;
-          if (valorFaixaCondominio(linhaAtiva, faixaId, chave)) {
+          const valorAtual = valorFaixaCondominio(linhaAtiva, faixaId, chave);
+          const vazio =
+            chave === 'q_casas_faixas_preco'
+              ? valorFaixaPrecoConsideradoVazio(valorAtual)
+              : !valorAtual;
+          if (!vazio) {
             sugestoesMapaAplicadasRef.current.add(refKey);
             continue;
           }

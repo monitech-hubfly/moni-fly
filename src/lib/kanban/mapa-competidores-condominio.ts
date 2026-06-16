@@ -10,7 +10,12 @@ export type SugestaoPrecoFaixaCondominio = {
   q_casas_preco_m2: string;
 };
 
-type CasaMapaPreco = Pick<CasaRow, 'condominio' | 'preco' | 'preco_m2'>;
+type CasaMapaPreco = Pick<CasaRow, 'condominio' | 'preco' | 'preco_m2' | 'area_casa_m2'>;
+
+export type ClassificarFaixasMercadoOpts = {
+  /** Universo para calcular tercis (padrão: o próprio array). Use todas as casas do mapa ZAP. */
+  universoCortes?: { preco: number | null }[];
+};
 
 export function normalizarNomeCondominioMapa(valor: string): string {
   return valor
@@ -86,12 +91,21 @@ function resolverFaixa(preco: number, corte1: number, corte2: number): FaixaMerc
 
 export function classificarFaixasMercado<T extends { preco: number | null }>(
   casas: T[],
+  opts?: ClassificarFaixasMercadoOpts,
 ): (T & { faixa: FaixaMercado })[] {
-  const { corte1, corte2 } = calcularCortes(casas);
+  const base = opts?.universoCortes ?? casas;
+  const { corte1, corte2 } = calcularCortes(base);
   return casas.map((c) => ({
     ...c,
     faixa: resolverFaixa(c.preco ?? 0, corte1, corte2),
   }));
+}
+
+/** Faixa de mercado ZAP → faixa de pesquisa do condomínio (Premium / Intermediária / Entrada). */
+export function faixaMercadoParaFaixaCondominio(faixa: FaixaMercado): FaixaCondominioId {
+  if (faixa === 'entrada') return 'entrada';
+  if (faixa === 'intermediaria') return 'intermediaria';
+  return 'premium';
 }
 
 export const ORDEM_FAIXAS_MERCADO: FaixaMercado[] = [
@@ -179,7 +193,10 @@ function calcularStatsFaixa(
 }
 
 /** Calcula resumo das faixas: cortes de tercis + faixas reais de preço e R$/m² por anúncio. */
-export function resumoFaixasMercado(casas: CasaFaixaMercadoInput[]): {
+export function resumoFaixasMercado(
+  casas: CasaFaixaMercadoInput[],
+  opts?: ClassificarFaixasMercadoOpts,
+): {
   corte1: number;
   corte2: number;
   entrada: StatsFaixaMercado;
@@ -191,7 +208,8 @@ export function resumoFaixasMercado(casas: CasaFaixaMercadoInput[]): {
 } | null {
   const comPreco = casas.filter((c) => c.preco != null && c.preco > 0);
   if (comPreco.length === 0) return null;
-  const { corte1, corte2 } = calcularCortes(casas);
+  const baseCortes = opts?.universoCortes ?? casas;
+  const { corte1, corte2 } = calcularCortes(baseCortes);
   const comFaixa = comPreco.map((c) => ({
     ...c,
     faixa: resolverFaixa(c.preco ?? 0, corte1, corte2),
@@ -227,21 +245,34 @@ function formatMoedaInteira(preco: number): string {
   return preco.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 }
 
-const LABEL_FAIXA: Record<FaixaCondominioId, string> = {
-  premium: 'Premium',
-  intermediaria: 'Intermediária',
-  entrada: 'Entrada',
-};
+function formatTextoFaixasPrecoCasas(
+  medianaPreco: number,
+  minPreco: number,
+  maxPreco: number,
+  minM2: number | null,
+  maxM2: number | null,
+): string {
+  let texto = `Produto a ${formatVgvMilhoes(medianaPreco)} está no centro do cluster. Os preços ficam entre ${formatVgvMilhoes(minPreco)} e ${formatVgvMilhoes(maxPreco)}, todas próximas ao ticket do produto.`;
+  if (minM2 != null && maxM2 != null) {
+    texto += ` O R$/m² oscila entre ${formatMoedaInteira(minM2)} e ${formatMoedaInteira(maxM2)}.`;
+  }
+  return texto;
+}
 
-/** Textos sugeridos para pesquisa do condomínio a partir das listagens ZAP do mapa. */
+/** Textos sugeridos para pesquisa do condomínio a partir das listagens ZAP do mapa (mesmos tercis da batalha). */
 export function sugestoesPrecoFaixaCondominio(
   casas: CasaMapaPreco[],
   nomeCondominio: string,
   faixaId: FaixaCondominioId,
 ): SugestaoPrecoFaixaCondominio | null {
-  const doCondominio = filtrarCasasMapaPorCondominio(casas as CasaRow[], nomeCondominio);
-  const naFaixa = classificarFaixasMercado(doCondominio).filter((c) => c.faixa === faixaId);
-  const comPreco = naFaixa.filter((c) => c.preco != null && c.preco > 0);
+  const classificadas = classificarFaixasMercado(casas as CasaRow[], { universoCortes: casas });
+  const comPreco = classificadas.filter(
+    (c) =>
+      casaMapaPertenceCondominio(c, nomeCondominio) &&
+      faixaMercadoParaFaixaCondominio(c.faixa) === faixaId &&
+      c.preco != null &&
+      c.preco > 0,
+  );
   if (comPreco.length === 0) return null;
 
   const precos = comPreco.map((c) => c.preco!);
@@ -251,7 +282,7 @@ export function sugestoesPrecoFaixaCondominio(
   if (medianaPreco == null) return null;
 
   const precosM2 = comPreco
-    .map((c) => c.preco_m2)
+    .map((c) => precoM2Efetivo(c))
     .filter((v): v is number => v != null && v > 0);
   const minM2 = precosM2.length > 0 ? Math.min(...precosM2) : null;
   const maxM2 = precosM2.length > 0 ? Math.max(...precosM2) : null;
@@ -260,12 +291,14 @@ export function sugestoesPrecoFaixaCondominio(
 
   const n = comPreco.length;
   const listagens = n === 1 ? 'listagem' : 'listagens';
-  const faixaLabel = LABEL_FAIXA[faixaId];
 
-  let q_casas_faixas_preco = `${n} ${listagens} na faixa ${faixaLabel} (mapa ZAP). Mediana em ${formatVgvMilhoes(medianaPreco)}. Os preços ficam entre ${formatVgvMilhoes(minPreco)} e ${formatVgvMilhoes(maxPreco)}.`;
-  if (minM2 != null && maxM2 != null) {
-    q_casas_faixas_preco += ` O R$/m² oscila entre ${formatMoedaInteira(minM2)} e ${formatMoedaInteira(maxM2)}.`;
-  }
+  const q_casas_faixas_preco = formatTextoFaixasPrecoCasas(
+    medianaPreco,
+    minPreco,
+    maxPreco,
+    minM2,
+    maxM2,
+  );
 
   let q_casas_preco_m2 = '';
   if (minM2 != null && maxM2 != null && mediaM2 != null) {
