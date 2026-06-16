@@ -2213,9 +2213,42 @@ export async function salvarDadosNegocioKanban(input: {
 
   const pid = String(input.processoId ?? '').trim();
   const cardId = String(input.cardId ?? '').trim();
-  if (!pid || !cardId) return { ok: false, error: 'Processo ou card inválido.' };
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
 
-  const upd = await updateProcessoNegocioCampos(supabase, pid, input.payload);
+  const { data: cardRow } = await supabase
+    .from('kanban_cards')
+    .select('processo_step_one_id, rede_franqueado_id, titulo')
+    .eq('id', cardId)
+    .maybeSingle();
+
+  const card = cardRow as {
+    processo_step_one_id?: string | null;
+    rede_franqueado_id?: string | null;
+    titulo?: string | null;
+  } | null;
+
+  const redeId = String(card?.rede_franqueado_id ?? '').trim();
+  let redeProcessoId: string | null = null;
+  if (redeId) {
+    const { data: redeRow } = await supabase
+      .from('rede_franqueados')
+      .select('processo_id')
+      .eq('id', redeId)
+      .maybeSingle();
+    redeProcessoId = String((redeRow as { processo_id?: string | null } | null)?.processo_id ?? '').trim() || null;
+  }
+
+  const { garantirProcessoNegocioDedicadoAoCard } = await import('@/lib/kanban/processo-step-one-card');
+  const dedicado = await garantirProcessoNegocioDedicadoAoCard(supabase, cardId, {
+    userId: user.id,
+    processoIdAtual: String(card?.processo_step_one_id ?? '').trim() || pid,
+    redeProcessoId,
+    titulo: card?.titulo ?? undefined,
+    redeFranqueadoId: redeId || null,
+  });
+  if (!dedicado.ok) return dedicado;
+
+  const upd = await updateProcessoNegocioCampos(supabase, dedicado.processoId, input.payload);
   if (!upd.ok) return upd;
 
   if (input.payload.link_gbox !== undefined) {

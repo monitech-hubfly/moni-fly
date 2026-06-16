@@ -6,7 +6,6 @@ import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import { resolverProcessoStepOneIdDoCard } from '@/lib/kanban/card-sync-group';
 import {
   criarEVincularProcessoStepOneAoCard,
-  vincularProcessoStepOneAoCard,
 } from '@/lib/kanban/processo-step-one-card';
 import {
   CHECKLIST_LABEL_CIDADE,
@@ -223,23 +222,6 @@ export async function ensureProcessoStepOneForKanbanCard(
 
   const direto = String(row.processo_step_one_id ?? '').trim();
   if (direto) return { ok: true, processoId: direto };
-
-  const existente = await resolverProcessoStepOneIdDoCard(admin, {
-    cardProcessoStepOneId: row.processo_step_one_id,
-    cardProjetoId: row.projeto_id,
-    redeFranqueadoId: row.rede_franqueado_id,
-    cardTitulo: row.titulo,
-  });
-
-  if (existente) {
-    const link = await vincularProcessoStepOneAoCard(admin, cid, existente, {
-      nomeCondominio: row.nome_condominio,
-      quadra: row.quadra,
-      lote: row.lote,
-    });
-    if (!link.ok) return link;
-    return { ok: true, processoId: existente };
-  }
 
   const praca = await resolverPracaCard(admin, cid);
   let nomeCondominio = row.nome_condominio?.trim() || null;

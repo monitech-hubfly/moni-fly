@@ -421,6 +421,33 @@ export function displayOrDash(v: string | null | undefined): string {
   return s.length > 0 ? s : '—';
 }
 
+/**
+ * Oculta `tipo_aquisicao_terreno` quando veio do processo raiz da franquia ou de resolução indireta
+ * (sem `kanban_cards.processo_step_one_id` dedicado ao card).
+ */
+export function ocultarTipoNegociacaoHerdadoDoProcesso(
+  processo: ProcessoModalNegocioPreObra | null,
+  ctx: {
+    cardProcessoStepOneId?: string | null;
+    redeProcessoId?: string | null;
+  },
+): ProcessoModalNegocioPreObra | null {
+  if (!processo) return null;
+
+  const cardPid = String(ctx.cardProcessoStepOneId ?? '').trim();
+  const redePid = String(ctx.redeProcessoId ?? '').trim();
+  const procId = processo.id;
+
+  const vinculoDiretoAoCard = cardPid !== '' && cardPid === procId;
+  const processoRaizFranquia = redePid !== '' && procId === redePid;
+
+  if (vinculoDiretoAoCard && !processoRaizFranquia) {
+    return processo;
+  }
+
+  return { ...processo, tipo_aquisicao_terreno: null };
+}
+
 function mapFranqueadoEmpresaRow(r: Record<string, unknown>): import('@/lib/franqueado-empresas').FranqueadoEmpresaRow {
   const statusRaw = String(r.status ?? 'ativa').trim();
   const status =
@@ -565,13 +592,17 @@ export async function fetchKanbanCardModalDetalhes(
     const { data } = await supabase.from('rede_franqueados').select(REDE_SELECT).eq('id', redeFranqueadoId).maybeSingle();
     rede = mapRede((data as Record<string, unknown> | null) ?? null);
   }
-  const processo = await resolveProcessoNativo(
+  const processoRaw = await resolveProcessoNativo(
     supabase,
     cardTitulo,
     cardProjetoId,
     redeFranqueadoId,
     cardProcessoStepOneId,
   );
+  const processo = ocultarTipoNegociacaoHerdadoDoProcesso(processoRaw, {
+    cardProcessoStepOneId,
+    redeProcessoId: rede?.processo_id,
+  });
   const redeIdContrato = rede?.id ?? redeFranqueadoId;
   const empresas = await fetchEmpresasForCard(supabase, redeIdContrato, cardId);
   return { rede, processo, redeIdContrato, empresas };

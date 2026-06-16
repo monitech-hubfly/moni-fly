@@ -2548,39 +2548,34 @@ export function KanbanCardModal({
   }
 
   async function handleSalvarNegocio() {
-    const pid = modalDetalhes.processo?.id;
+    if (!card) return;
     setSalvandoNegocio(true);
     try {
-      if (pid && card) {
-        const upd = await salvarDadosNegocioKanban({
-          cardId: card.id,
-          processoId: pid,
-          payload: {
-            tipo_aquisicao_terreno: negocioDraft.tipo_aquisicao_terreno || null,
-            valor_terreno: negocioDraft.valor_terreno || null,
-            vgv_pretendido: negocioDraft.vgv_pretendido || null,
-            produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
-            link_pasta_drive: negocioDraft.link_pasta_drive || null,
-            link_bca: negocioDraft.link_bca?.trim() || null,
-            link_gbox: negocioDraft.link_gbox?.trim() || null,
-            link_mapa_competidores: negocioDraft.link_mapa_competidores?.trim() || null,
-            link_acoplamento: negocioDraft.link_acoplamento?.trim() || null,
-            link_apresentacao_comite: negocioDraft.link_apresentacao_comite?.trim() || null,
-            link_moni_capital_seguro_garantia: negocioDraft.link_moni_capital_seguro_garantia?.trim() || null,
-            comentario_moni_capital_seguro_garantia:
-              negocioDraft.comentario_moni_capital_seguro_garantia?.trim() || null,
-            link_moni_capital_gastos_aporte_inicial:
-              negocioDraft.link_moni_capital_gastos_aporte_inicial?.trim() || null,
-            comentario_moni_capital_gastos_aporte_inicial:
-              negocioDraft.comentario_moni_capital_gastos_aporte_inicial?.trim() || null,
-          },
-          basePath,
-        });
-        if (!upd.ok) throw new Error(upd.error);
-      } else {
-        alert('Sem processo vinculado para salvar dados do negócio.');
-        return;
-      }
+      const upd = await salvarDadosNegocioKanban({
+        cardId: card.id,
+        processoId: modalDetalhes.processo?.id ?? '',
+        payload: {
+          tipo_aquisicao_terreno: negocioDraft.tipo_aquisicao_terreno || null,
+          valor_terreno: negocioDraft.valor_terreno || null,
+          vgv_pretendido: negocioDraft.vgv_pretendido || null,
+          produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
+          link_pasta_drive: negocioDraft.link_pasta_drive || null,
+          link_bca: negocioDraft.link_bca?.trim() || null,
+          link_gbox: negocioDraft.link_gbox?.trim() || null,
+          link_mapa_competidores: negocioDraft.link_mapa_competidores?.trim() || null,
+          link_acoplamento: negocioDraft.link_acoplamento?.trim() || null,
+          link_apresentacao_comite: negocioDraft.link_apresentacao_comite?.trim() || null,
+          link_moni_capital_seguro_garantia: negocioDraft.link_moni_capital_seguro_garantia?.trim() || null,
+          comentario_moni_capital_seguro_garantia:
+            negocioDraft.comentario_moni_capital_seguro_garantia?.trim() || null,
+          link_moni_capital_gastos_aporte_inicial:
+            negocioDraft.link_moni_capital_gastos_aporte_inicial?.trim() || null,
+          comentario_moni_capital_gastos_aporte_inicial:
+            negocioDraft.comentario_moni_capital_gastos_aporte_inicial?.trim() || null,
+        },
+        basePath,
+      });
+      if (!upd.ok) throw new Error(upd.error);
 
       setEditandoNegocio(false);
       await loadCard();

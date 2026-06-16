@@ -198,18 +198,6 @@ export async function criarEVincularProcessoStepOneAoCard(
     ).trim();
   }
 
-  if (!existente) {
-    const { resolverProcessoStepOneIdDoCard } = await import('@/lib/kanban/card-sync-group');
-    const redeId =
-      String(params.redeFranqueadoId ?? '').trim() ||
-      String((card as { rede_franqueado_id?: string | null } | null)?.rede_franqueado_id ?? '').trim();
-    existente =
-      (await resolverProcessoStepOneIdDoCard(db, {
-        redeFranqueadoId: redeId,
-        cardTitulo: params.titulo,
-      })) ?? '';
-  }
-
   if (existente) {
     return { ok: true, processoId: existente, created: false };
   }
@@ -234,4 +222,79 @@ export async function criarEVincularProcessoStepOneAoCard(
   }
 
   return { ok: true, processoId: criado.processoId, created: true };
+}
+
+/**
+ * Garante processo dedicado ao card (não reutiliza o processo raiz da franquia em `rede_franqueados.processo_id`).
+ */
+export async function garantirProcessoNegocioDedicadoAoCard(
+  db: SupabaseClient,
+  cardId: string,
+  params: CriarProcessoStepOneMinimoInput & {
+    processoIdAtual?: string | null;
+    redeProcessoId?: string | null;
+  },
+): Promise<{ ok: true; processoId: string } | { ok: false; error: string }> {
+  const cid = cardId.trim();
+  if (!cid) return { ok: false, error: 'Card inválido.' };
+
+  const { data: card, error: errCard } = await db
+    .from('kanban_cards')
+    .select('processo_step_one_id, rede_franqueado_id, titulo')
+    .eq('id', cid)
+    .maybeSingle();
+  if (errCard) return { ok: false, error: errCard.message };
+
+  const cardRow = card as {
+    processo_step_one_id?: string | null;
+    rede_franqueado_id?: string | null;
+    titulo?: string | null;
+  } | null;
+
+  const cardPid = String(cardRow?.processo_step_one_id ?? '').trim();
+  const redeId =
+    String(params.redeFranqueadoId ?? '').trim() ||
+    String(cardRow?.rede_franqueado_id ?? '').trim();
+
+  let redeProcessoId = String(params.redeProcessoId ?? '').trim();
+  if (!redeProcessoId && redeId) {
+    const { data: rede } = await db
+      .from('rede_franqueados')
+      .select('processo_id')
+      .eq('id', redeId)
+      .maybeSingle();
+    redeProcessoId = String((rede as { processo_id?: string | null } | null)?.processo_id ?? '').trim();
+  }
+
+  const processoIdAtual = String(params.processoIdAtual ?? cardPid ?? '').trim();
+  const processoDedicado =
+    processoIdAtual !== '' && (redeProcessoId === '' || processoIdAtual !== redeProcessoId);
+
+  if (processoDedicado) {
+    if (cardPid !== processoIdAtual) {
+      const link = await vincularProcessoStepOneAoCard(db, cid, processoIdAtual, {
+        redeFranqueadoId: redeId || null,
+      });
+      if (!link.ok) return link;
+    }
+    return { ok: true, processoId: processoIdAtual };
+  }
+
+  const criado = await criarProcessoStepOneMinimo(db, {
+    ...params,
+    userId: params.userId,
+    titulo: params.titulo ?? cardRow?.titulo ?? undefined,
+    redeFranqueadoId: redeId || null,
+  });
+  if (!criado.ok) return criado;
+
+  const link = await vincularProcessoStepOneAoCard(db, cid, criado.processoId, {
+    nomeCondominio: params.nomeCondominio,
+    quadra: params.quadra,
+    lote: params.lote,
+    redeFranqueadoId: redeId || null,
+  });
+  if (!link.ok) return link;
+
+  return { ok: true, processoId: criado.processoId };
 }
