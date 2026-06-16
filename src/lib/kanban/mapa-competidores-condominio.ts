@@ -11,6 +11,38 @@ export type SugestaoPrecoFaixaCondominio = {
 };
 
 type CasaMapaPreco = Pick<CasaRow, 'condominio' | 'preco' | 'preco_m2'>;
+type CasaMercadoStats = Pick<CasaRow, 'preco' | 'preco_m2' | 'area_casa_m2'>;
+
+export type StatsFaixaResumo = {
+  quantidade: number;
+  precoMin: number | null;
+  precoMax: number | null;
+  precoM2Min: number | null;
+  precoM2Max: number | null;
+};
+
+function precoM2Efetivo(c: CasaMercadoStats): number | null {
+  if (c.preco_m2 != null && Number.isFinite(c.preco_m2) && c.preco_m2 > 0) return c.preco_m2;
+  if (c.preco != null && c.area_casa_m2 != null && c.area_casa_m2 > 0) {
+    return c.preco / c.area_casa_m2;
+  }
+  return null;
+}
+
+function statsListingsNaFaixa(casasNaFaixa: CasaMercadoStats[]): StatsFaixaResumo {
+  const comPreco = casasNaFaixa.filter((c) => c.preco != null && c.preco > 0);
+  const precos = comPreco.map((c) => c.preco!);
+  const pm2 = comPreco
+    .map(precoM2Efetivo)
+    .filter((v): v is number => v != null && v > 0 && Number.isFinite(v));
+  return {
+    quantidade: comPreco.length,
+    precoMin: precos.length ? Math.min(...precos) : null,
+    precoMax: precos.length ? Math.max(...precos) : null,
+    precoM2Min: pm2.length ? Math.min(...pm2) : null,
+    precoM2Max: pm2.length ? Math.max(...pm2) : null,
+  };
+}
 
 export function normalizarNomeCondominioMapa(valor: string): string {
   return valor
@@ -134,35 +166,34 @@ export function ordenarCasasPorFaixaMercado<T extends { preco: number | null }>(
   });
 }
 
-/** Calcula resumo das faixas: cortes de tercis + contagem por faixa. */
-export function resumoFaixasMercado(casas: { preco: number | null }[]): {
+/** Calcula resumo das faixas: contagem + min/máx de preço e R$/m² dos anúncios em cada faixa. */
+export function resumoFaixasMercado(casas: CasaMercadoStats[]): {
   corte1: number;
   corte2: number;
-  entrada: { corteMax: number; quantidade: number };
-  intermediaria: { corteMin: number; corteMax: number; quantidade: number };
-  premium: { corteMin: number; corteMax: number; quantidade: number };
-  premium_plus: { quantidade: number };
-  premium_plus2: { quantidade: number };
-  premium_plus3: { quantidade: number };
+  entrada: StatsFaixaResumo;
+  intermediaria: StatsFaixaResumo;
+  premium: StatsFaixaResumo;
+  premium_plus: StatsFaixaResumo;
+  premium_plus2: StatsFaixaResumo;
+  premium_plus3: StatsFaixaResumo;
 } | null {
   const comPreco = casas.filter((c) => c.preco != null);
   if (comPreco.length === 0) return null;
   const { corte1, corte2 } = calcularCortes(casas);
-  const faixas = comPreco.map((c) => resolverFaixa(c.preco ?? 0, corte1, corte2));
-  const count = (f: FaixaMercado) => faixas.filter((x) => x === f).length;
+  const classificadas = classificarFaixasMercado(comPreco);
+
+  const statsFaixa = (f: FaixaMercado) =>
+    statsListingsNaFaixa(classificadas.filter((c) => c.faixa === f));
+
   return {
     corte1,
     corte2,
-    entrada: { corteMax: corte1, quantidade: count('entrada') },
-    intermediaria: { corteMin: corte1, corteMax: corte2, quantidade: count('intermediaria') },
-    premium: {
-      corteMin: corte2,
-      corteMax: LIMITE_PREMIUM_PLUS,
-      quantidade: count('premium'),
-    },
-    premium_plus: { quantidade: count('premium_plus') },
-    premium_plus2: { quantidade: count('premium_plus2') },
-    premium_plus3: { quantidade: count('premium_plus3') },
+    entrada: statsFaixa('entrada'),
+    intermediaria: statsFaixa('intermediaria'),
+    premium: statsFaixa('premium'),
+    premium_plus: statsFaixa('premium_plus'),
+    premium_plus2: statsFaixa('premium_plus2'),
+    premium_plus3: statsFaixa('premium_plus3'),
   };
 }
 

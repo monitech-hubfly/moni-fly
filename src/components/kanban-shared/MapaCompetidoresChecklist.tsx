@@ -28,6 +28,58 @@ function fmtMoeda(valor: number): string {
   });
 }
 
+function fmtFaixaPreco(min: number | null, max: number | null): string | null {
+  if (min == null || max == null) return null;
+  if (min === max) return fmtMoeda(min);
+  return `${fmtMoeda(min)} – ${fmtMoeda(max)}`;
+}
+
+function fmtFaixaPrecoM2(min: number | null, max: number | null): string | null {
+  if (min == null || max == null) return null;
+  if (min === max) return `${fmtMoeda(min)}/m²`;
+  return `${fmtMoeda(min)}/m² – ${fmtMoeda(max)}/m²`;
+}
+
+type FaixaMercadoCardProps = {
+  label: string;
+  quantidade: number;
+  precoMin: number | null;
+  precoMax: number | null;
+  precoM2Min: number | null;
+  precoM2Max: number | null;
+  bgClass: string;
+  labelClass: string;
+  countClass: string;
+  priceClass: string;
+  priceM2Class: string;
+};
+
+function FaixaMercadoCard({
+  label,
+  quantidade,
+  precoMin,
+  precoMax,
+  precoM2Min,
+  precoM2Max,
+  bgClass,
+  labelClass,
+  countClass,
+  priceClass,
+  priceM2Class,
+}: FaixaMercadoCardProps) {
+  const faixaPreco = fmtFaixaPreco(precoMin, precoMax);
+  const faixaPrecoM2 = fmtFaixaPrecoM2(precoM2Min, precoM2Max);
+
+  return (
+    <div className={`rounded-md p-2 text-center ${bgClass}`}>
+      <p className={`text-xs font-medium ${labelClass}`}>{label}</p>
+      <p className={`text-sm font-semibold ${countClass}`}>{quantidade} casas</p>
+      {faixaPreco ? <p className={`text-xs ${priceClass}`}>{faixaPreco}</p> : null}
+      {faixaPrecoM2 ? <p className={`text-[11px] ${priceM2Class}`}>{faixaPrecoM2}</p> : null}
+    </div>
+  );
+}
+
 type Props = {
   cardId: string;
   processoId?: string | null;
@@ -167,69 +219,94 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
           Distribuição de mercado — mínimo R$ 4MM
         </p>
         <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-md bg-gray-100 p-2 text-center">
-            <p className="text-xs font-medium text-gray-500">Entrada</p>
-            <p className="text-sm font-semibold text-gray-700">
-              {resumoFaixas.entrada.quantidade} casas
-            </p>
-            <p className="text-xs text-gray-400">até {fmtMoeda(resumoFaixas.entrada.corteMax)}</p>
-          </div>
-          <div className="rounded-md bg-amber-50 p-2 text-center">
-            <p className="text-xs font-medium text-amber-700">Intermediária</p>
-            <p className="text-sm font-semibold text-amber-800">
-              {resumoFaixas.intermediaria.quantidade} casas
-            </p>
-            <p className="text-xs text-amber-500">
-              {fmtMoeda(resumoFaixas.intermediaria.corteMin)} –{' '}
-              {fmtMoeda(resumoFaixas.intermediaria.corteMax)}
-            </p>
-          </div>
-          <div className="rounded-md bg-blue-50 p-2 text-center">
-            <p className="text-xs font-medium text-blue-600">Premium</p>
-            <p className="text-sm font-semibold text-blue-700">
-              {resumoFaixas.premium.quantidade} casas
-            </p>
-            <p className="text-xs text-blue-400">
-              {resumoFaixas.premium.quantidade > 0 ? (
-                <>
-                  {fmtMoeda(resumoFaixas.premium.corteMin)} – {fmtMoeda(resumoFaixas.premium.corteMax)}
-                </>
-              ) : (
-                <>acima de {fmtMoeda(resumoFaixas.corte2)} (&lt; R$ 10MM)</>
-              )}
-            </p>
-          </div>
+          <FaixaMercadoCard
+            label="Entrada"
+            quantidade={resumoFaixas.entrada.quantidade}
+            precoMin={resumoFaixas.entrada.precoMin}
+            precoMax={resumoFaixas.entrada.precoMax}
+            precoM2Min={resumoFaixas.entrada.precoM2Min}
+            precoM2Max={resumoFaixas.entrada.precoM2Max}
+            bgClass="bg-gray-100"
+            labelClass="text-gray-500"
+            countClass="text-gray-700"
+            priceClass="text-gray-500"
+            priceM2Class="text-gray-400"
+          />
+          <FaixaMercadoCard
+            label="Intermediária"
+            quantidade={resumoFaixas.intermediaria.quantidade}
+            precoMin={resumoFaixas.intermediaria.precoMin}
+            precoMax={resumoFaixas.intermediaria.precoMax}
+            precoM2Min={resumoFaixas.intermediaria.precoM2Min}
+            precoM2Max={resumoFaixas.intermediaria.precoM2Max}
+            bgClass="bg-amber-50"
+            labelClass="text-amber-700"
+            countClass="text-amber-800"
+            priceClass="text-amber-600"
+            priceM2Class="text-amber-400"
+          />
+          <FaixaMercadoCard
+            label="Premium"
+            quantidade={resumoFaixas.premium.quantidade}
+            precoMin={resumoFaixas.premium.precoMin}
+            precoMax={resumoFaixas.premium.precoMax}
+            precoM2Min={resumoFaixas.premium.precoM2Min}
+            precoM2Max={resumoFaixas.premium.precoM2Max}
+            bgClass="bg-blue-50"
+            labelClass="text-blue-600"
+            countClass="text-blue-700"
+            priceClass="text-blue-500"
+            priceM2Class="text-blue-300"
+          />
         </div>
         {(resumoFaixas.premium_plus.quantidade > 0 ||
           resumoFaixas.premium_plus2.quantidade > 0 ||
           resumoFaixas.premium_plus3.quantidade > 0) && (
           <div className="mt-2 grid grid-cols-3 gap-2">
             {resumoFaixas.premium_plus.quantidade > 0 ? (
-              <div className="rounded-md bg-indigo-50 p-2 text-center">
-                <p className="text-xs font-medium text-indigo-700">Premium+</p>
-                <p className="text-sm font-semibold text-indigo-800">
-                  {resumoFaixas.premium_plus.quantidade} casas
-                </p>
-                <p className="text-xs text-indigo-500">≥ {fmtMoeda(10_000_000)}</p>
-              </div>
+              <FaixaMercadoCard
+                label="Premium+"
+                quantidade={resumoFaixas.premium_plus.quantidade}
+                precoMin={resumoFaixas.premium_plus.precoMin}
+                precoMax={resumoFaixas.premium_plus.precoMax}
+                precoM2Min={resumoFaixas.premium_plus.precoM2Min}
+                precoM2Max={resumoFaixas.premium_plus.precoM2Max}
+                bgClass="bg-indigo-50"
+                labelClass="text-indigo-700"
+                countClass="text-indigo-800"
+                priceClass="text-indigo-600"
+                priceM2Class="text-indigo-400"
+              />
             ) : null}
             {resumoFaixas.premium_plus2.quantidade > 0 ? (
-              <div className="rounded-md bg-violet-50 p-2 text-center">
-                <p className="text-xs font-medium text-violet-700">Premium++</p>
-                <p className="text-sm font-semibold text-violet-800">
-                  {resumoFaixas.premium_plus2.quantidade} casas
-                </p>
-                <p className="text-xs text-violet-500">≥ {fmtMoeda(15_000_000)}</p>
-              </div>
+              <FaixaMercadoCard
+                label="Premium++"
+                quantidade={resumoFaixas.premium_plus2.quantidade}
+                precoMin={resumoFaixas.premium_plus2.precoMin}
+                precoMax={resumoFaixas.premium_plus2.precoMax}
+                precoM2Min={resumoFaixas.premium_plus2.precoM2Min}
+                precoM2Max={resumoFaixas.premium_plus2.precoM2Max}
+                bgClass="bg-violet-50"
+                labelClass="text-violet-700"
+                countClass="text-violet-800"
+                priceClass="text-violet-600"
+                priceM2Class="text-violet-400"
+              />
             ) : null}
             {resumoFaixas.premium_plus3.quantidade > 0 ? (
-              <div className="rounded-md bg-purple-50 p-2 text-center">
-                <p className="text-xs font-medium text-purple-700">Premium+++</p>
-                <p className="text-sm font-semibold text-purple-800">
-                  {resumoFaixas.premium_plus3.quantidade} casas
-                </p>
-                <p className="text-xs text-purple-500">≥ {fmtMoeda(20_000_000)}</p>
-              </div>
+              <FaixaMercadoCard
+                label="Premium+++"
+                quantidade={resumoFaixas.premium_plus3.quantidade}
+                precoMin={resumoFaixas.premium_plus3.precoMin}
+                precoMax={resumoFaixas.premium_plus3.precoMax}
+                precoM2Min={resumoFaixas.premium_plus3.precoM2Min}
+                precoM2Max={resumoFaixas.premium_plus3.precoM2Max}
+                bgClass="bg-purple-50"
+                labelClass="text-purple-700"
+                countClass="text-purple-800"
+                priceClass="text-purple-600"
+                priceM2Class="text-purple-400"
+              />
             ) : null}
           </div>
         )}
