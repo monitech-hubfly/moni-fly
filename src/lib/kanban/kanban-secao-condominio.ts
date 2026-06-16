@@ -6,6 +6,7 @@ const KANBANS_SECAO_CONDOMINIO_TODAS_FASES = new Set<string>([
   KANBAN_IDS.PORTFOLIO,
   KANBAN_IDS.ACOPLAMENTO,
   KANBAN_IDS.OPERACOES,
+  KANBAN_IDS.LOTEADORES,
 ]);
 
 /** Exibe «Dados do Condomínio» no painel esquerdo do modal do card. */

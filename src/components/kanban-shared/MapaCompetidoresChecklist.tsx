@@ -266,8 +266,12 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
               </div>
               <div className="space-y-2">
                 <p className="text-xs font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
-                  Listagem de casas (ZAP)
+                  Listagem de casas — ZAP, planilha ou cadastro manual
                   <span className="ml-1 text-red-500">*</span>
+                </p>
+                <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                  Use «Buscar» para a ZAP, a seção «Importar casas por planilha» para .xlsx/.csv, ou
+                  o formulário manual no final da página.
                 </p>
                 <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
                   <Etapa4CasasListagem

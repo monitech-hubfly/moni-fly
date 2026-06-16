@@ -1816,6 +1816,9 @@ export type CriarCardKanbanInput = {
   fase_id: string;
   /** Ex.: `/funil-moni-inc` para `revalidatePath`. */
   basePath?: string;
+  nomeCondominio?: string;
+  quadra?: string;
+  lote?: string;
 };
 
 /** Card nativo no kanban (`franqueado_id` = utilizador autenticado). */
@@ -1864,12 +1867,19 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
     });
   }
 
+  const nomeCondominio = (input.nomeCondominio ?? '').trim() || null;
+  const quadra = (input.quadra ?? '').trim() || null;
+  const lote = (input.lote ?? '').trim() || null;
+
   const { error } = await supabase.from('kanban_cards').insert({
     kanban_id: kanbanId,
     fase_id: faseId,
     franqueado_id: user.id,
     titulo,
     status: 'ativo',
+    nome_condominio: nomeCondominio,
+    quadra,
+    lote,
     ...(projetoId ? { projeto_id: projetoId } : {}),
   } as never);
   if (error) return { ok: false, error: error.message };

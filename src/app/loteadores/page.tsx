@@ -1,5 +1,5 @@
 /**
- * Kanban **Funil Loteadores** (`kanbans.nome`): modal simplificado de novo card (nome only).
+ * Kanban **Funil Loteadores** (`kanbans.nome`): modal de novo card com condomínio/quadra/lote.
  */
 import { guardLoginRequired } from '@/lib/auth-guard';
 import { Suspense } from 'react';

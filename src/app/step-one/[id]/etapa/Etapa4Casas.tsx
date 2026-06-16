@@ -55,6 +55,7 @@ import {
   PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING,
 } from '@/lib/kanban/pre-batalha-checklist';
 import { PreBatalhaRankingLeaderboard } from '@/components/kanban-shared/PreBatalhaRankingLeaderboard';
+import { Etapa4CasasListagem } from './Etapa4CasasListagem';
 import {
   ordenarCasasPorFaixaMercado,
   type FaixaMercado,
@@ -1311,6 +1312,22 @@ export function Etapa4Casas(props: {
     mounted && resultadoPortalTargetId && typeof document !== 'undefined'
       ? document.getElementById(resultadoPortalTargetId)
       : null;
+
+  if (listagemOnly) {
+    return (
+      <Etapa4CasasListagem
+        processoId={processoId}
+        casas={casas}
+        cidadeInicial={cidadeInicial}
+        estadoInicial={estadoInicial}
+        ultimaValidacaoCasasManuaisEm={ultimaValidacaoCasasManuaisEm}
+        readOnly={readOnly}
+        condominioInicial={condominioInicial}
+        painelAposBuscar={painelAposBuscar}
+        onMutate={onMutate}
+      />
+    );
+  }
 
   return (
     <>
