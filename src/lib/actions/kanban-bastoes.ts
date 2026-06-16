@@ -78,11 +78,36 @@ export interface KanbanCardFilhoCriado {
 }
 
 const CARD_FILHO_SELECT =
-  'id, kanban_id, fase_id, titulo, origem_card_id, projeto_id, rede_franqueado_id, status, franqueado_id';
+  'id, kanban_id, fase_id, titulo, origem_card_id, projeto_id, rede_franqueado_id, status, franqueado_id, arquivado';
+
+async function registrarAtividadeBastaoCardFilho(
+  db: ReturnType<typeof createAdminClient>,
+  cardFilhoId: string,
+  tituloAtividade: string,
+  descricao: string,
+  criadoPor: string | null,
+): Promise<void> {
+  const { error: errAtiv } = await db.from('kanban_atividades').insert({
+    card_id: cardFilhoId,
+    titulo: tituloAtividade,
+    descricao,
+    tipo: 'atividade',
+    status: 'concluida',
+    prioridade: 'normal',
+    ordem: 0,
+    criado_por: criadoPor,
+    origem: 'nativo',
+    tema: 'bastao',
+    times_ids: [],
+  } as never);
+
+  if (errAtiv) throw new Error(errAtiv.message);
+}
 
 /**
  * Cria card filho no kanban de destino (bastão) com vínculo e atividade de auditoria.
- * Idempotente: se já existir filho com `origem_card_id` = pai no mesmo kanban, retorna null.
+ * Idempotente: se já existir filho ativo com `origem_card_id` = pai no mesmo kanban, retorna null.
+ * Se existir filho arquivado, desarquiva e reposiciona na fase de destino.
  */
 export async function criarCardFilho(
   params: CriarCardFilhoParams,
@@ -118,7 +143,9 @@ export async function criarCardFilho(
     .maybeSingle();
 
   if (errExiste) throw new Error(errExiste.message);
-  if (existente?.id) return null;
+  if (existente?.id && !Boolean((existente as { arquivado?: boolean | null }).arquivado)) {
+    return null;
+  }
 
   const { data: fase, error: errFase } = await db
     .from('kanban_fases')
@@ -178,6 +205,59 @@ export async function criarCardFilho(
   if (!franqueadoId) throw new Error('Card pai sem franqueado_id.');
 
   const faseId = String(fase.id);
+  const criadoPor = user?.id ?? null;
+  const origemLabel = `${params.kanbanOrigemSlug} / ${params.faseOrigemSlug}`;
+  const destinoLabel = faseDestinoSlug;
+
+  if (existente?.id) {
+    const filhoId = String(existente.id);
+    const { data: filhoReativado, error: errReativar } = await db
+      .from('kanban_cards')
+      .update({
+        fase_id: faseId,
+        titulo,
+        projeto_id: params.projetoId ?? null,
+        rede_franqueado_id: redeFranqueadoId,
+        nome_condominio: nomeCondominio,
+        quadra,
+        lote,
+        condominio_id: condominioId,
+        franqueado_id: franqueadoId,
+        status: 'ativo',
+        arquivado: false,
+        arquivado_em: null,
+        arquivado_por: null,
+        motivo_arquivamento: null,
+      } as never)
+      .eq('id', filhoId)
+      .select(CARD_FILHO_SELECT)
+      .single();
+
+    if (errReativar) throw new Error(errReativar.message);
+    if (!filhoReativado?.id) throw new Error('Não foi possível reativar o card filho arquivado.');
+
+    const healFranq = await reconciliarFranqueadoNoSyncGroup(db, cardPaiId);
+    if (!healFranq.ok) throw new Error(healFranq.error);
+
+    if (kanbanDestinoId === KANBAN_IDS.ACOPLAMENTO && faseDestinoSlug === 'modelagem_terreno') {
+      void notificarTimeAcoplamentoNovoProjeto({
+        cardFilhoId: filhoId,
+        tituloCard: titulo,
+        basePath: '/funil-acoplamento',
+        excluirUserId: criadoPor,
+      });
+    }
+
+    await registrarAtividadeBastaoCardFilho(
+      db,
+      filhoId,
+      `Card reativado por bastão automático (${origemLabel} → ${destinoLabel})`,
+      `Origem: card ${cardPaiId}. Card filho arquivado ${filhoId} desarquivado e reposicionado na fase ${faseDestinoSlug}.`,
+      criadoPor,
+    );
+
+    return filhoReativado as KanbanCardFilhoCriado;
+  }
 
   const { data: filho, error: errInsert } = await db
     .from('kanban_cards')
@@ -202,7 +282,6 @@ export async function criarCardFilho(
   if (!filho?.id) throw new Error('Não foi possível criar o card filho.');
 
   const cardFilhoId = String(filho.id);
-  const criadoPor = user?.id ?? null;
 
   const inserirVinculo = async (tipo: string) =>
     inserirKanbanCardVinculo(db, {
@@ -232,25 +311,13 @@ export async function criarCardFilho(
     });
   }
 
-  const origemLabel = `${params.kanbanOrigemSlug} / ${params.faseOrigemSlug}`;
-  const destinoLabel = faseDestinoSlug;
-  const tituloAtividade = `Card criado por bastão automático (${origemLabel} → ${destinoLabel})`;
-
-  const { error: errAtiv } = await db.from('kanban_atividades').insert({
-    card_id: cardFilhoId,
-    titulo: tituloAtividade,
-    descricao: `Origem: card ${cardPaiId}. Destino: kanban ${kanbanDestinoId}, fase ${faseDestinoSlug}.`,
-    tipo: 'atividade',
-    status: 'concluida',
-    prioridade: 'normal',
-    ordem: 0,
-    criado_por: criadoPor,
-    origem: 'nativo',
-    tema: 'bastao',
-    times_ids: [],
-  } as never);
-
-  if (errAtiv) throw new Error(errAtiv.message);
+  await registrarAtividadeBastaoCardFilho(
+    db,
+    cardFilhoId,
+    `Card criado por bastão automático (${origemLabel} → ${destinoLabel})`,
+    `Origem: card ${cardPaiId}. Destino: kanban ${kanbanDestinoId}, fase ${faseDestinoSlug}.`,
+    criadoPor,
+  );
 
   return filho as KanbanCardFilhoCriado;
 }
@@ -1051,13 +1118,13 @@ export async function dispararEsteiraManualDoCard(
 
   const { data: existente } = await db
     .from('kanban_cards')
-    .select('id')
+    .select('id, arquivado')
     .eq('origem_card_id', paiId)
     .eq('kanban_id', destino.kanbanDestinoId)
     .limit(1)
     .maybeSingle();
 
-  if (existente?.id) {
+  if (existente?.id && !Boolean((existente as { arquivado?: boolean | null }).arquivado)) {
     const { data: kb } = await db.from('kanbans').select('nome').eq('id', destino.kanbanDestinoId).maybeSingle();
     return {
       ok: true,
@@ -1174,13 +1241,13 @@ export async function abrirFunilAcoplamentoManualDoCard(
 
   const { data: existente } = await db
     .from('kanban_cards')
-    .select('id')
+    .select('id, arquivado')
     .eq('origem_card_id', paiId)
     .eq('kanban_id', destino.kanbanDestinoId)
     .limit(1)
     .maybeSingle();
 
-  if (existente?.id) {
+  if (existente?.id && !Boolean((existente as { arquivado?: boolean | null }).arquivado)) {
     const filhoId = String(existente.id);
     const { data: filhoFase } = await db
       .from('kanban_cards')
