@@ -38,6 +38,7 @@ export function CondominioCamposForm({ draft, onChange, readOnly = false, row }:
         <FieldView label="CEP" value={row.cep ?? ''} />
         <FieldView label="Endereço + Nº" value={formatEnderecoNumero(row.endereco, row.numero)} />
         <FieldView label="Cidade / Estado" value={formatCidadeEstadoCondominio(row.cidade, row.estado)} />
+        <FieldView label="Descrição breve" value={row.descricao_breve ?? ''} />
         <FieldView label="Ticket médio lote" value={formatCondominioMoeda(row.ticket_medio_lote)} />
         <FieldView label="Ticket médio casas" value={formatCondominioMoeda(row.ticket_medio_casas)} />
         <FieldView
@@ -113,6 +114,16 @@ export function CondominioCamposForm({ draft, onChange, readOnly = false, row }:
           className="mt-0.5"
           triggerClassName={inputCls.replace('mt-0.5 ', '')}
           options={UFS_BRASIL.map((uf) => ({ value: uf.sigla, label: uf.sigla }))}
+        />
+      </label>
+      <label className="col-span-2 block">
+        <span className="text-[11px] font-medium text-stone-500">Descrição breve</span>
+        <textarea
+          rows={2}
+          value={draft.descricao_breve}
+          onChange={(e) => onChange({ descricao_breve: e.target.value })}
+          className={inputCls}
+          placeholder="Resumo do condomínio…"
         />
       </label>
       <label className="block">

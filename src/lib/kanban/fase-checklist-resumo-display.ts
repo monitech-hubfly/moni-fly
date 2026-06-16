@@ -1,10 +1,18 @@
 import type { FaseChecklistItem } from '@/lib/actions/candidato-actions';
+import type { CasaRow } from '@/app/step-one/[id]/etapa/Etapa4Casas';
+import {
+  parseLinhasProspectCondominio,
+  prospectsOrdenadosPorTicketCasas,
+  type LinhaProspectCondominio,
+} from '@/lib/kanban/condominio-prospect-pesquisa';
+import {
+  filtrarCasasPorCondominio,
+} from '@/lib/kanban/mapa-competidores-condominio';
 import {
   isMultiPracaStoreJson,
   labelPracaCidade,
   type PracaCidade,
 } from '@/lib/kanban/dados-cidade-praca-multi';
-import { parseLinhasProspectCondominio } from '@/lib/kanban/condominio-prospect-pesquisa';
 import {
   parseConfiguradorCasasValores,
   parseValorMonetarioConfigurador,
@@ -58,11 +66,60 @@ function resumoMultiPraca(
   };
 }
 
+export type ResumoListagemCasasMapaOpts = {
+  casas: Pick<CasaRow, 'condominio'>[];
+  prospects: Pick<LinhaProspectCondominio, 'condominio'>[];
+};
+
+export function resumoListagemCasasMapa(
+  label: string,
+  data: ResumoListagemCasasMapaOpts,
+): ResumoChecklistLinha {
+  const prospects = prospectsOrdenadosPorTicketCasas(
+    data.prospects.filter((p) => p.condominio?.trim()) as LinhaProspectCondominio[],
+  );
+
+  if (prospects.length === 0) {
+    const total = data.casas.length;
+    return {
+      label,
+      valorExibicao: total > 0 ? `${total} listagem(ns)` : 'Pendente',
+      preenchido: total > 0,
+    };
+  }
+
+  const subLinhas = prospects.map((p) => {
+    const nome = p.condominio.trim();
+    const qtd = filtrarCasasPorCondominio(data.casas as CasaRow[], nome).length;
+    return {
+      prefixo: nome,
+      valor: qtd > 0 ? `${qtd} listagem(ns)` : 'Pendente',
+    };
+  });
+
+  const total = data.casas.length;
+  const preenchidos = subLinhas.filter((s) => s.valor !== 'Pendente').length;
+
+  return {
+    label,
+    valorExibicao:
+      total > 0
+        ? `${total} listagem(ns) · ${preenchidos}/${subLinhas.length} condomínio(s)`
+        : 'Pendente',
+    preenchido: total > 0 && preenchidos > 0,
+    subLinhas,
+  };
+}
+
 export function resumoChecklistItem(
   item: FaseChecklistItem,
   valor: string | null | undefined,
   arquivoPath: string | null | undefined,
-  opts?: { multiPraca?: boolean; areas?: PracaCidade[] },
+  opts?: {
+    multiPraca?: boolean;
+    areas?: PracaCidade[];
+    listagemCasasMapa?: ResumoListagemCasasMapaOpts;
+  },
 ): ResumoChecklistLinha {
   const v = String(valor ?? '').trim();
   const arquivo = String(arquivoPath ?? '').trim();
@@ -135,6 +192,16 @@ export function resumoChecklistItem(
         valorExibicao: 'Loteador vinculado à Rede de Loteadores',
         preenchido: true,
       };
+    }
+    if (item.tipo === 'mapa_praca') {
+      return {
+        label: item.label,
+        valorExibicao: 'Visualização interativa',
+        preenchido: true,
+      };
+    }
+    if (item.tipo === 'listagem_casas_zap' && opts?.listagemCasasMapa) {
+      return resumoListagemCasasMapa(item.label, opts.listagemCasasMapa);
     }
     if (item.tipo === 'configurador_casas_ranking' && v) {
       const parsed = parseConfiguradorCasasValores(v);

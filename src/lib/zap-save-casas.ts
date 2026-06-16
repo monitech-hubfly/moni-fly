@@ -287,6 +287,7 @@ export type PlanilhaCasaMappedRow = {
   area_casa_m2: number | null;
   preco_m2: number | null;
   piscina: boolean;
+  marcenaria: boolean;
   link: string | null;
   localizacao_condominio: string | null;
   foto_url: string | null;
@@ -331,6 +332,10 @@ const PLANILHA_COLUMN_ALIASES: Record<string, PlanilhaCasaField> = {
   r_m2: 'preco_m2',
   piscina: 'piscina',
   pool: 'piscina',
+  marcenaria: 'marcenaria',
+  moveis_planejados: 'marcenaria',
+  moveis_planejado: 'marcenaria',
+  movel_planejado: 'marcenaria',
   link: 'link',
   url: 'link',
   endereco: 'localizacao_condominio',
@@ -408,9 +413,10 @@ export function mapPlanilhaRecordToCasaRow(
         out[field] = n;
         break;
       }
-      case 'piscina': {
+      case 'piscina':
+      case 'marcenaria': {
         const b = parsePlanilhaBoolean(val);
-        if (b != null) out.piscina = b;
+        if (b != null) out[field] = b;
         break;
       }
       case 'link':
@@ -426,6 +432,15 @@ export function mapPlanilhaRecordToCasaRow(
   }
 
   if (out.preco == null || !Number.isFinite(out.preco) || out.preco <= 0) return null;
+
+  if (
+    (out.preco_m2 == null || !Number.isFinite(out.preco_m2)) &&
+    out.area_casa_m2 != null &&
+    out.area_casa_m2 > 0
+  ) {
+    out.preco_m2 = out.preco / out.area_casa_m2;
+  }
+
   return out;
 }
 
@@ -555,6 +570,7 @@ export async function applyPlanilhaCasasImport(
       banheiros: mapped.banheiros ?? null,
       vagas: mapped.vagas ?? null,
       piscina: mapped.piscina ?? false,
+      marcenaria: mapped.marcenaria ?? false,
       preco: mapped.preco,
       area_casa_m2: mapped.area_casa_m2 ?? null,
       preco_m2: mapped.preco_m2 ?? null,

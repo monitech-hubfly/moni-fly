@@ -46,6 +46,11 @@ import {
 } from '@/lib/kanban/loteadores-r1-conceito';
 import { resumoChecklistItem } from '@/lib/kanban/fase-checklist-resumo-display';
 import { parseAreaAtuacao } from '@/lib/rede-area-atuacao';
+import { carregarMapaCompetidoresChecklist } from '@/lib/actions/kanban-mapa-competidores';
+import { carregarProspectsCondominioCard } from '@/lib/actions/kanban-condominio-pesquisa';
+import { LISTINGS_CASAS_MUTATED_EVENT } from '@/lib/kanban/listings-casas-events';
+import type { CasaRow } from '@/app/step-one/[id]/etapa/Etapa4Casas';
+import type { LinhaProspectCondominio } from '@/lib/kanban/condominio-prospect-pesquisa';
 
 type Props = {
   cardId: string;
@@ -75,6 +80,18 @@ export function FaseChecklistSidebarResumo({
 }: Props) {
   const [grupos, setGrupos] = useState<GrupoFase[] | null>(null);
   const [carregando, setCarregando] = useState(false);
+  const [listagensMutatedTick, setListagensMutatedTick] = useState(0);
+
+  useEffect(() => {
+    const handler = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ cardId?: string | null }>).detail;
+      if (!detail?.cardId || detail.cardId === cardId) {
+        setListagensMutatedTick((t) => t + 1);
+      }
+    };
+    window.addEventListener(LISTINGS_CASAS_MUTATED_EVENT, handler);
+    return () => window.removeEventListener(LISTINGS_CASAS_MUTATED_EVENT, handler);
+  }, [cardId]);
 
   const areasAtuacao = useMemo(() => parseAreaAtuacao(areaAtuacao), [areaAtuacao]);
 
@@ -117,6 +134,25 @@ export function FaseChecklistSidebarResumo({
 
         const respostas = (respostasData ?? []) as FaseChecklistResposta[];
         const respPorItem = new Map(respostas.map((r) => [r.item_id, r]));
+
+        let listagemCasasMapa:
+          | { casas: Pick<CasaRow, 'condominio'>[]; prospects: Pick<LinhaProspectCondominio, 'condominio'>[] }
+          | undefined;
+
+        const precisaListagens = (itens ?? []).some((i) => i.tipo === 'listagem_casas_zap');
+        if (precisaListagens) {
+          const [mapaRes, prospectsRes] = await Promise.all([
+            carregarMapaCompetidoresChecklist(null, cardId),
+            carregarProspectsCondominioCard(cardId),
+          ]);
+          if (cancelado) return;
+          if (mapaRes.ok) {
+            listagemCasasMapa = {
+              casas: mapaRes.casas,
+              prospects: prospectsRes.ok ? prospectsRes.linhas : [],
+            };
+          }
+        }
 
         const itensPorFase = new Map<string, FaseChecklistItem[]>();
         for (const item of itens) {
@@ -171,6 +207,8 @@ export function FaseChecklistSidebarResumo({
             return resumoChecklistItem(item, resp?.valor, resp?.arquivo_path, {
               multiPraca,
               areas: multiPraca ? areasAtuacao : undefined,
+              listagemCasasMapa:
+                item.tipo === 'listagem_casas_zap' ? listagemCasasMapa : undefined,
             });
           });
 
@@ -193,7 +231,7 @@ export function FaseChecklistSidebarResumo({
     return () => {
       cancelado = true;
     };
-  }, [cardId, fasesVisitadas, faseSlugPorId, areasAtuacao, isFrank, refreshKey]);
+  }, [cardId, fasesVisitadas, faseSlugPorId, areasAtuacao, isFrank, refreshKey, listagensMutatedTick]);
 
   if (carregando && grupos === null) {
     return <p className="text-xs text-stone-400">Carregando checklist…</p>;

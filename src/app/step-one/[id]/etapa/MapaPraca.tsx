@@ -71,7 +71,7 @@ type MapData = {
 async function fetchMapData(
   cidade: string,
   estado: string | null,
-): Promise<{ data: MapData } | { error: string }> {
+): Promise<{ data: MapData; warning?: string } | { error: string }> {
   const params = new URLSearchParams({ cidade: cidade.trim() });
   if (estado?.trim()) params.set('estado', estado.trim());
   const res = await fetch(`/api/etapa1/mapa-pois?${params.toString()}`);
@@ -79,6 +79,7 @@ async function fetchMapData(
     pois?: Poi[];
     roads?: Road[];
     bbox?: { centerLat: number; centerLon: number };
+    warning?: string;
     error?: string;
   };
   if (!res.ok) {
@@ -93,6 +94,7 @@ async function fetchMapData(
       roads: Array.isArray(data.roads) ? data.roads : [],
       bbox: { centerLat: data.bbox.centerLat, centerLon: data.bbox.centerLon },
     },
+    warning: data.warning,
   };
 }
 
@@ -241,6 +243,7 @@ export function MapaPraca({ cidade, estado }: { cidade: string; estado: string |
   const [center, setCenter] = useState<{ lat: number; lon: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadWarning, setLoadWarning] = useState<string | null>(null);
   const [visibleCategories, setVisibleCategories] = useState<Set<PoiCategory>>(initialVisibleCategories);
   const [showRoads, setShowRoads] = useState(false);
 
@@ -260,10 +263,12 @@ export function MapaPraca({ cidade, estado }: { cidade: string; estado: string |
     }
     setLoading(true);
     setLoadError(null);
+    setLoadWarning(null);
     fetchMapData(cidade, estado)
       .then((result) => {
         if ('error' in result) {
           setLoadError(result.error);
+          setLoadWarning(null);
           setAllPois([]);
           setRoads([]);
           setCenter(null);
@@ -271,6 +276,7 @@ export function MapaPraca({ cidade, estado }: { cidade: string; estado: string |
           setAllPois(result.data.pois);
           setRoads(result.data.roads);
           setCenter({ lat: result.data.bbox.centerLat, lon: result.data.bbox.centerLon });
+          setLoadWarning(result.warning ?? null);
         }
       })
       .catch(() => {
@@ -338,6 +344,11 @@ export function MapaPraca({ cidade, estado }: { cidade: string; estado: string |
 
       {loading && <p className="text-sm text-stone-500">Carregando mapa e equipamentos…</p>}
       {loadError && <p className="text-sm text-red-600">{loadError}</p>}
+      {loadWarning && !loadError && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          {loadWarning}
+        </p>
+      )}
       {!loading && !loadError && center && (
         <MapView
           cidade={cidade}

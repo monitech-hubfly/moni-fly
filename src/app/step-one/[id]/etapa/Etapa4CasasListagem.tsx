@@ -12,6 +12,7 @@ import {
   ordenarCasasPorFaixaMercado,
   type FaixaMercado,
 } from '@/lib/kanban/mapa-competidores-condominio';
+import { notifyListingsCasasMutated } from '@/lib/kanban/listings-casas-events';
 import type { CasaRow } from './Etapa4Casas';
 
 export type { CasaRow };
@@ -183,6 +184,7 @@ export function Etapa4CasasListagem({
           despublicados: data.despublicados ?? 0,
           itemCount: data.itemCount ?? 0,
         });
+        notifyListingsCasasMutated(cardId);
         router.refresh();
         onMutate?.();
       } else {
@@ -203,11 +205,25 @@ export function Etapa4CasasListagem({
       'Banheiros',
       'Vagas',
       'Área (m²)',
+      'R$/m²',
       'Piscina',
+      'Móveis Planejados',
       'Link',
       'Endereço',
     ];
-    const exemplo = ['', '4500000', '4', '5', '4', '380', 'sim', 'https://exemplo.com/anuncio', 'Rua Exemplo, 100'];
+    const exemplo = [
+      '',
+      '4500000',
+      '4',
+      '5',
+      '4',
+      '380',
+      '11842',
+      'sim',
+      'sim',
+      'https://exemplo.com/anuncio',
+      'Rua Exemplo, 100',
+    ];
     const ws = XLSX.utils.aoa_to_sheet([headers, exemplo]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Casas');
@@ -253,6 +269,7 @@ export function Etapa4CasasListagem({
         updated: data.updated ?? 0,
         erros: Array.isArray(data.erros) ? data.erros : [],
       });
+      notifyListingsCasasMutated(cardId);
       router.refresh();
       onMutate?.();
     } catch (err) {
@@ -295,6 +312,7 @@ export function Etapa4CasasListagem({
     });
     setLoading(false);
     if (result.ok) {
+      notifyListingsCasasMutated(cardId);
       router.refresh();
       onMutate?.();
       setCidadeManual(cidadeInicial);
@@ -347,9 +365,7 @@ export function Etapa4CasasListagem({
             Importar casas por planilha
           </p>
           <p className="text-[11px] leading-snug" style={{ color: 'var(--moni-text-secondary)' }}>
-            Aceita .xlsx ou .csv com colunas: Condomínio, Preço, Quartos, Banheiros, Vagas, Área
-            (m²), Piscina, Link, Endereço. As linhas serão vinculadas ao condomínio da aba ativa
-            {condominioInicial.trim() ? ` («${condominioInicial.trim()}»)` : ''}.
+            Aceita .xlsx ou .csv.
           </p>
 
           <input
@@ -359,13 +375,12 @@ export function Etapa4CasasListagem({
             onChange={handleImportarPlanilha}
             className="hidden"
           />
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             <button
               type="button"
               onClick={baixarTemplate}
-              className="rounded-lg px-3 py-1.5 text-[11px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-md px-2 py-0.5 text-[10px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
               style={{
-                minHeight: '44px',
                 background: 'var(--moni-navy-800)',
                 borderRadius: 'var(--moni-radius-md)',
               }}
@@ -376,9 +391,8 @@ export function Etapa4CasasListagem({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={importando}
-              className="rounded-lg border px-3 py-1.5 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-md border px-2 py-0.5 text-[10px] font-medium disabled:cursor-not-allowed disabled:opacity-60"
               style={{
-                minHeight: '44px',
                 border: '0.5px solid var(--moni-border-default)',
                 background: 'var(--moni-surface-100)',
                 color: 'var(--moni-text-primary)',

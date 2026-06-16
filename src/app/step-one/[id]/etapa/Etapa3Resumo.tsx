@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { saveEtapa3, type ResumoCondominioRow, type ConclusaoEtapa3 } from './actions';
+import { PLACEHOLDER_TICKET_MEDIO_FAIXA } from '@/lib/kanban/ticket-medio-faixa';
 
 type Condominio = { id: string; nome: string; ordem: number };
 
@@ -121,8 +122,8 @@ export function Etapa3Resumo({
                       type="text"
                       value={resumo[c.id]?.ticket_lote ?? ''}
                       onChange={(e) => updateResumo(c.id, 'ticket_lote', e.target.value)}
-                      className="w-full max-w-[120px] rounded border border-stone-300 p-1.5 text-sm"
-                      placeholder="—"
+                      className="w-full min-w-[168px] rounded border border-stone-300 p-1.5 text-sm"
+                      placeholder={PLACEHOLDER_TICKET_MEDIO_FAIXA}
                     />
                   </td>
                   <td className="p-2">
@@ -130,8 +131,8 @@ export function Etapa3Resumo({
                       type="text"
                       value={resumo[c.id]?.ticket_casas ?? ''}
                       onChange={(e) => updateResumo(c.id, 'ticket_casas', e.target.value)}
-                      className="w-full max-w-[120px] rounded border border-stone-300 p-1.5 text-sm"
-                      placeholder="—"
+                      className="w-full min-w-[168px] rounded border border-stone-300 p-1.5 text-sm"
+                      placeholder={PLACEHOLDER_TICKET_MEDIO_FAIXA}
                     />
                   </td>
                   <td className="p-2">
@@ -139,8 +140,8 @@ export function Etapa3Resumo({
                       type="text"
                       value={resumo[c.id]?.ticket_casas_m2 ?? ''}
                       onChange={(e) => updateResumo(c.id, 'ticket_casas_m2', e.target.value)}
-                      className="w-full max-w-[120px] rounded border border-stone-300 p-1.5 text-sm"
-                      placeholder="—"
+                      className="w-full min-w-[168px] rounded border border-stone-300 p-1.5 text-sm"
+                      placeholder={PLACEHOLDER_TICKET_MEDIO_FAIXA}
                     />
                   </td>
                   <td className="p-2">

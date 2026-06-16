@@ -5,10 +5,10 @@ import { condominioFormDraftToPatch, type CondominioFormDraft } from '@/lib/cond
 import {
   condominioNomeJaExiste,
   fetchCondominiosRows,
-  parseDecimalInput,
   parseIntegerInput,
   type CondominioRow,
 } from '@/lib/condominios';
+import { parseTicketMedioFaixaParaCadastro } from '@/lib/kanban/ticket-medio-faixa';
 import { normalizeAccessRole } from '@/lib/authz';
 import { propagarCamposKanbanCards, propagarCamposProcesso } from '@/lib/kanban/card-sync-group';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -47,6 +47,7 @@ export async function sincronizarProspectComCadastro(input: {
   ticket_casas: string;
   ticket_m2: string;
   estimativa_giro?: string;
+  descricao_breve?: string;
   /** true = dados iguais ao cadastro (concordância); false = persistir alterações. */
   apenasConfirmar?: boolean;
   cidade?: string | null;
@@ -60,9 +61,10 @@ export async function sincronizarProspectComCadastro(input: {
 
   const patch = {
     nome,
-    ticket_medio_lote: parseDecimalInput(input.ticket_lote),
-    ticket_medio_casas: parseDecimalInput(input.ticket_casas),
-    ticket_medio_casas_rsm2: parseDecimalInput(input.ticket_m2),
+    descricao_breve: String(input.descricao_breve ?? '').trim() || null,
+    ticket_medio_lote: parseTicketMedioFaixaParaCadastro(input.ticket_lote),
+    ticket_medio_casas: parseTicketMedioFaixaParaCadastro(input.ticket_casas),
+    ticket_medio_casas_rsm2: parseTicketMedioFaixaParaCadastro(input.ticket_m2),
     estimativa_casas_vendidas_ano: parseIntegerInput(input.estimativa_giro ?? ''),
   };
   const cidadePraca = String(input.cidade ?? '').trim() || null;
@@ -94,6 +96,7 @@ export async function sincronizarProspectComCadastro(input: {
       .from('condominios')
       .update({
         nome: patch.nome,
+        descricao_breve: patch.descricao_breve,
         ticket_medio_lote: patch.ticket_medio_lote,
         ticket_medio_casas: patch.ticket_medio_casas,
         ticket_medio_casas_rsm2: patch.ticket_medio_casas_rsm2,
@@ -115,6 +118,7 @@ export async function sincronizarProspectComCadastro(input: {
     .from('condominios')
     .insert({
       nome: patch.nome,
+      descricao_breve: patch.descricao_breve,
       ticket_medio_lote: patch.ticket_medio_lote,
       ticket_medio_casas: patch.ticket_medio_casas,
       ticket_medio_casas_rsm2: patch.ticket_medio_casas_rsm2,
@@ -242,6 +246,7 @@ export async function cadastrarCondominioEVincularCard(input: {
     estimativa_casas_vendidas_ano: patch.estimativa_casas_vendidas_ano ?? null,
     extrato_como_eram_casas: patch.extrato_como_eram_casas ?? null,
     extrato_tempo_venda: patch.extrato_tempo_venda ?? null,
+    descricao_breve: patch.descricao_breve ?? null,
     criado_por: user.id,
     updated_at: new Date().toISOString(),
   };

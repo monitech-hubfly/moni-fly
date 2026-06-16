@@ -16,6 +16,7 @@ export type CondominioFormDraft = {
   cep: string;
   cidade: string;
   estado: string;
+  descricao_breve: string;
   ticket_medio_lote: string;
   ticket_medio_casas: string;
   ticket_medio_casas_rsm2: string;
@@ -32,6 +33,7 @@ export function emptyCondominioFormDraft(): CondominioFormDraft {
     cep: '',
     cidade: '',
     estado: '',
+    descricao_breve: '',
     ticket_medio_lote: '',
     ticket_medio_casas: '',
     ticket_medio_casas_rsm2: '',
@@ -49,6 +51,7 @@ export function condominioRowToFormDraft(r: CondominioRow): CondominioFormDraft 
     cep: r.cep ?? '',
     cidade: r.cidade ?? '',
     estado: r.estado ?? '',
+    descricao_breve: r.descricao_breve ?? '',
     ticket_medio_lote: decimalInputFromValue(r.ticket_medio_lote),
     ticket_medio_casas: decimalInputFromValue(r.ticket_medio_casas),
     ticket_medio_casas_rsm2: decimalInputFromValue(r.ticket_medio_casas_rsm2),
@@ -66,6 +69,7 @@ export function condominioFormDraftToPatch(d: CondominioFormDraft): CondominioPa
     cep: d.cep.trim() || null,
     cidade: d.cidade.trim() || null,
     estado: d.estado.trim() || null,
+    descricao_breve: d.descricao_breve.trim() || null,
     ticket_medio_lote: parseDecimalInput(d.ticket_medio_lote),
     ticket_medio_casas: parseDecimalInput(d.ticket_medio_casas),
     ticket_medio_casas_rsm2: parseDecimalInput(d.ticket_medio_casas_rsm2),

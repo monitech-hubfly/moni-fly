@@ -6,6 +6,12 @@ const OVERPASS_HEADERS = {
   'User-Agent': 'MoniFly/1.0 (viabilidade; +https://monitech.com.br)',
 } as const;
 
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+] as const;
+
 const POI_CATEGORIES = [
   { key: 'school', overpassTag: 'amenity=school' },
   { key: 'hospital', overpassTag: 'amenity=hospital' },
@@ -32,7 +38,12 @@ async function getBbox(
   const query = estado ? `${cidade}, ${estado}, Brazil` : `${cidade}, Brazil`;
   const res = await fetch(
     `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
-    { headers: { 'Accept-Language': 'pt-BR', 'User-Agent': 'MoniFly/1.0 (viabilidade; +https://monitech.com.br)' } },
+    {
+      headers: {
+        'Accept-Language': 'pt-BR',
+        'User-Agent': 'MoniFly/1.0 (viabilidade; +https://monitech.com.br)',
+      },
+    },
   );
   if (!res.ok) return null;
   const data = (await res.json()) as { boundingbox?: string[] }[];
@@ -51,22 +62,35 @@ type OverpassElement = {
 
 type OverpassResponse = { elements?: OverpassElement[]; remark?: string; error?: string };
 
-async function overpassQuery(query: string): Promise<OverpassResponse> {
-  const res = await fetch('https://overpass-api.de/api/interpreter', {
-    method: 'POST',
-    body: query,
-    headers: OVERPASS_HEADERS,
-  });
-  const text = await res.text();
-  let json: OverpassResponse;
+function parseOverpassBody(text: string, status: number): OverpassResponse | null {
+  const trimmed = text.trimStart();
+  if (!trimmed.startsWith('{')) return null;
   try {
-    json = JSON.parse(text) as OverpassResponse;
+    const json = JSON.parse(text) as OverpassResponse;
+    if (json.remark && !(json.elements?.length ?? 0)) return null;
+    if (!status.toString().startsWith('2') && !(json.elements?.length ?? 0)) return null;
+    return json;
   } catch {
-    throw new Error('Resposta inválida do Overpass.');
+    return null;
   }
-  if (json.remark) throw new Error(json.remark);
-  if (!res.ok) throw new Error(json.error ?? `Overpass ${res.status}`);
-  return json;
+}
+
+async function overpassQuery(query: string): Promise<OverpassResponse | null> {
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        body: query,
+        headers: OVERPASS_HEADERS,
+      });
+      const text = await res.text();
+      const json = parseOverpassBody(text, res.status);
+      if (json) return json;
+    } catch {
+      /* tenta próximo mirror */
+    }
+  }
+  return null;
 }
 
 function categoryFromTags(tags?: Record<string, string>): PoiCategory | null {
@@ -88,25 +112,9 @@ function categoryFromTags(tags?: Record<string, string>): PoiCategory | null {
   return null;
 }
 
-async function fetchAllPois(bbox: [number, number, number, number]): Promise<Poi[]> {
-  const [south, west, north, east] = bbox;
-  const query = `
-    [out:json][timeout:60];
-    (
-      node["amenity"~"^(school|hospital|clinic|bank|pharmacy)$"](${south},${west},${north},${east});
-      way["amenity"~"^(school|hospital|clinic|bank|pharmacy)$"](${south},${west},${north},${east});
-      node["shop"~"^(mall|supermarket)$"](${south},${west},${north},${east});
-      way["shop"~"^(mall|supermarket)$"](${south},${west},${north},${east});
-      node["leisure"="park"](${south},${west},${north},${east});
-      way["leisure"="park"](${south},${west},${north},${east});
-      node["place"="square"](${south},${west},${north},${east});
-      way["place"="square"](${south},${west},${north},${east});
-    );
-    out center;
-  `;
-  const json = await overpassQuery(query);
+function elementsToPois(elements: OverpassElement[] | undefined): Poi[] {
   const pois: Poi[] = [];
-  for (const el of json.elements ?? []) {
+  for (const el of elements ?? []) {
     const category = categoryFromTags(el.tags);
     if (!category) continue;
     let lat: number | undefined;
@@ -125,6 +133,65 @@ async function fetchAllPois(bbox: [number, number, number, number]): Promise<Poi
   return pois;
 }
 
+function buildPoiChunkQueries(bbox: [number, number, number, number]): string[] {
+  const [south, west, north, east] = bbox;
+  const box = `${south},${west},${north},${east}`;
+  return [
+    `[out:json][timeout:40];
+(
+  node["amenity"~"^(school|hospital|clinic|bank|pharmacy)$"](${box});
+  way["amenity"~"^(school|hospital|clinic|bank|pharmacy)$"](${box});
+);
+out center;`,
+    `[out:json][timeout:40];
+(
+  node["shop"~"^(mall|supermarket)$"](${box});
+  way["shop"~"^(mall|supermarket)$"](${box});
+);
+out center;`,
+    `[out:json][timeout:40];
+(
+  node["leisure"="park"](${box});
+  way["leisure"="park"](${box});
+  node["place"="square"](${box});
+  way["place"="square"](${box});
+);
+out center;`,
+  ];
+}
+
+async function fetchAllPois(
+  bbox: [number, number, number, number],
+): Promise<{ pois: Poi[]; warning?: string }> {
+  const queries = buildPoiChunkQueries(bbox);
+  const pois: Poi[] = [];
+  let failedChunks = 0;
+
+  for (const query of queries) {
+    const json = await overpassQuery(query);
+    if (!json) {
+      failedChunks += 1;
+      continue;
+    }
+    pois.push(...elementsToPois(json.elements));
+  }
+
+  if (pois.length === 0 && failedChunks === queries.length) {
+    return {
+      pois: [],
+      warning:
+        'Equipamentos urbanos temporariamente indisponíveis. O mapa da região continua disponível.',
+    };
+  }
+  if (failedChunks > 0) {
+    return {
+      pois,
+      warning: 'Alguns equipamentos urbanos não puderam ser carregados (dados parciais).',
+    };
+  }
+  return { pois };
+}
+
 type OverpassWayElement = {
   type: 'way';
   id: number;
@@ -139,12 +206,8 @@ async function fetchRoads(bbox: [number, number, number, number]): Promise<Road[
     way(${south},${west},${north},${east})["highway"~"^(primary|secondary|trunk|motorway)$"];
     out geom;
   `;
-  let json: OverpassResponse;
-  try {
-    json = await overpassQuery(query);
-  } catch {
-    return [];
-  }
+  const json = await overpassQuery(query);
+  if (!json) return [];
   const ways = (json.elements ?? []).filter(
     (el): el is OverpassWayElement => el.type === 'way' && Array.isArray((el as OverpassWayElement).geometry),
   );
@@ -180,7 +243,8 @@ export async function GET(request: Request) {
       );
     }
 
-    const [pois, roads] = await Promise.all([fetchAllPois(bbox), fetchRoads(bbox)]);
+    const { pois, warning: poisWarning } = await fetchAllPois(bbox);
+    const roads = await fetchRoads(bbox);
 
     const [south, west, north, east] = bbox;
     const centerLat = (south + north) / 2;
@@ -190,6 +254,7 @@ export async function GET(request: Request) {
       pois,
       roads,
       bbox: { south, west, north, east, centerLat, centerLon },
+      ...(poisWarning ? { warning: poisWarning } : {}),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Erro ao carregar equipamentos.';

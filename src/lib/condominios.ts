@@ -10,6 +10,7 @@ export type CondominioRow = {
   cep: string | null;
   cidade: string | null;
   estado: string | null;
+  descricao_breve: string | null;
   ticket_medio_lote: number | null;
   ticket_medio_casas: number | null;
   ticket_medio_casas_rsm2: number | null;
@@ -62,6 +63,7 @@ export function condominioRowMatchesBusca(row: CondominioRow, busca: string): bo
     row.cep,
     row.cidade,
     row.estado,
+    row.descricao_breve,
     numToSearch(row.ticket_medio_lote),
     numToSearch(row.ticket_medio_casas),
     numToSearch(row.ticket_medio_casas_rsm2),
@@ -120,6 +122,7 @@ function mapRow(r: Record<string, unknown>): CondominioRow {
     cep: (r.cep as string | null) ?? null,
     cidade: (r.cidade as string | null) ?? null,
     estado: (r.estado as string | null) ?? null,
+    descricao_breve: ((r.descricao_breve as string | null) ?? null)?.trim() || null,
     ticket_medio_lote: parseNumericField(r.ticket_medio_lote),
     ticket_medio_casas: parseNumericField(r.ticket_medio_casas),
     ticket_medio_casas_rsm2: parseNumericField(r.ticket_medio_casas_rsm2),
@@ -167,6 +170,7 @@ export type CondominioPatch = {
   cep?: string | null;
   cidade?: string | null;
   estado?: string | null;
+  descricao_breve?: string | null;
   ticket_medio_lote?: number | null;
   ticket_medio_casas?: number | null;
   ticket_medio_casas_rsm2?: number | null;

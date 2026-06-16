@@ -22,6 +22,7 @@ import {
   serializarLinhasProspectCondominio,
   type LinhaProspectCondominio,
 } from '@/lib/kanban/condominio-prospect-pesquisa';
+import { ticketMedioFaixaPreenchido } from '@/lib/kanban/ticket-medio-faixa';
 import type { PracaCidade } from '@/lib/kanban/dados-cidade-praca-multi';
 import {
   condominioRowMatchesBusca,
@@ -90,6 +91,7 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur, prac
       const merged = { ...l, ...patch };
       if (
         patch.condominio !== undefined ||
+        patch.descricao_breve !== undefined ||
         patch.ticket_lote !== undefined ||
         patch.ticket_casas !== undefined ||
         patch.ticket_m2 !== undefined ||
@@ -133,6 +135,28 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur, prac
     const linha = linhas[idx];
     if (!linha.condominio?.trim()) return;
 
+    if (!ticketMedioFaixaPreenchido(linha.ticket_lote)) {
+      setErroLinha((prev) => ({
+        ...prev,
+        [linha.row_id]: 'Preencha Ticket Médio lote no formato entre R$ … e R$ …',
+      }));
+      return;
+    }
+    if (!ticketMedioFaixaPreenchido(linha.ticket_casas)) {
+      setErroLinha((prev) => ({
+        ...prev,
+        [linha.row_id]: 'Preencha Ticket Médio casas no formato entre R$ … e R$ …',
+      }));
+      return;
+    }
+    if (!ticketMedioFaixaPreenchido(linha.ticket_m2)) {
+      setErroLinha((prev) => ({
+        ...prev,
+        [linha.row_id]: 'Preencha Ticket Médio casas R$/m² no formato entre R$ … e R$ …',
+      }));
+      return;
+    }
+
     const alterada = linhaProspectAlteradaDesdeCarregamento(linha);
     const apenasConfirmar = Boolean(linha.condominio_id) && !alterada;
 
@@ -143,6 +167,7 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur, prac
       const res = await sincronizarProspectComCadastro({
         condominioId: linha.condominio_id,
         nome: linha.condominio,
+        descricao_breve: linha.descricao_breve ?? '',
         ticket_lote: linha.ticket_lote,
         ticket_casas: linha.ticket_casas,
         ticket_m2: linha.ticket_m2,
@@ -208,7 +233,7 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur, prac
       </span>
       <p className="mb-2 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
         {item.placeholder ??
-          'Selecione condomínios do cadastro (Rede → Condomínios) ou cadastre novos. Preencha tickets e estimativa de giro; confirme ou atualize o cadastro em cada linha.'}
+          'Selecione condomínios do cadastro (Rede → Condomínios) ou cadastre novos. Tickets no formato entre R$ … e R$ …; confirme ou atualize o cadastro em cada linha.'}
       </p>
       {!pracaCidade ? (
         <p className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -346,15 +371,32 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur, prac
                     </div>
                   </td>
                   {COLUNAS_TABELA_PROSPECT.slice(1).map((col) => (
-                    <td key={col.key} style={cellStyle}>
-                      <input
-                        type={col.type}
-                        value={linha[col.key] ?? ''}
-                        placeholder={col.type === 'number' ? '0' : '—'}
-                        style={inputCellStyle}
-                        onChange={(e) => atualizarLinha(idx, { [col.key]: e.target.value })}
-                        onBlur={(e) => atualizarLinha(idx, { [col.key]: e.target.value }, true)}
-                      />
+                    <td
+                      key={col.key}
+                      style={{
+                        ...cellStyle,
+                        minWidth: col.type === 'textarea' ? 200 : col.placeholder ? 168 : undefined,
+                      }}
+                    >
+                      {col.type === 'textarea' ? (
+                        <textarea
+                          value={linha[col.key] ?? ''}
+                          placeholder={'placeholder' in col ? col.placeholder : undefined}
+                          rows={2}
+                          style={{ ...inputCellStyle, minHeight: 44, resize: 'vertical' }}
+                          onChange={(e) => atualizarLinha(idx, { [col.key]: e.target.value })}
+                          onBlur={(e) => atualizarLinha(idx, { [col.key]: e.target.value }, true)}
+                        />
+                      ) : (
+                        <input
+                          type={col.type}
+                          value={linha[col.key] ?? ''}
+                          placeholder={'placeholder' in col ? col.placeholder : col.type === 'number' ? '0' : '—'}
+                          style={inputCellStyle}
+                          onChange={(e) => atualizarLinha(idx, { [col.key]: e.target.value })}
+                          onBlur={(e) => atualizarLinha(idx, { [col.key]: e.target.value }, true)}
+                        />
+                      )}
                     </td>
                   ))}
                   <td style={{ ...cellStyle, padding: '6px 8px' }}>

@@ -48,10 +48,10 @@ import { UsuarioChecklistSelect } from '@/components/kanban-shared/UsuarioCheckl
 import type { RankingPorFaixaMercado } from '@/lib/kanban/pre-batalha-compatibilidade';
 import {
   isLabelDadosCandidatoRede,
-  obrigatorioEfetivoDadosCandidato,
   valorDadosCandidatoFromRede,
   type RedeDadosCandidatoSource,
 } from '@/lib/kanban/dados-candidato-rede';
+import { obrigatorioEfetivoChecklistItem } from '@/lib/kanban/checklist-obrigatorio-efetivo';
 import { ChecklistDocumentDiffModal } from '@/components/kanban-shared/ChecklistDocumentDiffModal';
 import { parseAreaAtuacao, parCidadeEstadoValidoNaArea } from '@/lib/rede-area-atuacao';
 import { sincronizarPracaChecklistComProcesso } from '@/lib/actions/kanban-dados-cidade-praca';
@@ -868,9 +868,7 @@ function ItemField({
   const [draftLinkAnexo, setDraftLinkAnexo] = useState('');
   const [baixandoModelo, setBaixandoModelo] = useState(false);
   const [erroModelo, setErroModelo] = useState<string | null>(null);
-  const obrigatorioItem = isDadosCandidatoFaseSlug(faseSlug)
-    ? obrigatorioEfetivoDadosCandidato(item)
-    : item.obrigatorio;
+  const obrigatorioItem = obrigatorioEfetivoChecklistItem(faseSlug ?? '', item);
 
   const labelEl = (
     <span className="mb-1 block text-xs font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
@@ -1708,6 +1706,7 @@ const COLUNAS_TABELA_CONDOMINIOS = [
   { key: 'endereco', header: 'Endereço + Nº' },
   { key: 'cep', header: 'CEP' },
   { key: 'cidade_estado', header: 'Cidade / Estado' },
+  { key: 'descricao_breve', header: 'Descrição breve' },
   { key: 'ticket_medio_lote', header: 'Ticket Médio Lote' },
   { key: 'ticket_medio_casas', header: 'Ticket Médio Casas' },
   { key: 'ticket_medio_casas_rsm2', header: 'Ticket Médio Casas (R$/m²)' },
@@ -1725,6 +1724,7 @@ function condominioRowToSnapshot(r: CondominioRow) {
     cep: r.cep,
     cidade: r.cidade,
     estado: r.estado,
+    descricao_breve: r.descricao_breve,
     ticket_medio_lote: r.ticket_medio_lote,
     ticket_medio_casas: r.ticket_medio_casas,
     ticket_medio_casas_rsm2: r.ticket_medio_casas_rsm2,
@@ -1749,6 +1749,8 @@ function celulaCondominio(row: CondominioRow, key: (typeof COLUNAS_TABELA_CONDOM
       return row.cep?.trim() || '—';
     case 'cidade_estado':
       return formatCidadeEstadoCondominio(row.cidade, row.estado);
+    case 'descricao_breve':
+      return row.descricao_breve?.trim() || '—';
     case 'ticket_medio_lote':
       return formatCondominioMoeda(row.ticket_medio_lote);
     case 'ticket_medio_casas':

@@ -8,6 +8,11 @@ import {
   parseLotesDisponiveisCondominio,
   type LinhaLoteDisponivel,
 } from '@/lib/kanban/lotes-disponiveis-condominio';
+import {
+  formatTicketMedioFaixaFromValor,
+  parseTicketMedioFaixaParaCadastro,
+  TICKET_MEDIO_FAIXA_PADRAO,
+} from '@/lib/kanban/ticket-medio-faixa';
 
 export type FaixaCondominioId = 'premium' | 'intermediaria' | 'entrada';
 
@@ -324,6 +329,7 @@ export type LinhaProspectCondominio = {
   row_id: string;
   condominio_id?: string | null;
   condominio: string;
+  descricao_breve?: string;
   ticket_lote: string;
   ticket_casas: string;
   ticket_m2: string;
@@ -382,6 +388,7 @@ export const PESQUISA_CONDOMINIO_SECOES: SecaoPesquisaCondominio[] = [
 
 export const CAMPOS_CADASTRO_LINHA_PROSPECT = [
   'condominio',
+  'descricao_breve',
   'ticket_lote',
   'ticket_casas',
   'ticket_m2',
@@ -395,9 +402,10 @@ export function criarFaixasVazias(): FaixasCondominioPorId {
 export const LINHA_PROSPECT_VAZIA: Omit<LinhaProspectCondominio, 'row_id'> = {
   condominio_id: null,
   condominio: '',
-  ticket_lote: '',
-  ticket_casas: '',
-  ticket_m2: '',
+  descricao_breve: '',
+  ticket_lote: TICKET_MEDIO_FAIXA_PADRAO,
+  ticket_casas: TICKET_MEDIO_FAIXA_PADRAO,
+  ticket_m2: TICKET_MEDIO_FAIXA_PADRAO,
   estimativa_giro: '',
   cadastro_confirmado_em: null,
   cadastro_snapshot: null,
@@ -543,6 +551,7 @@ function normalizarFaixas(raw: unknown, legado: Record<string, unknown>): Faixas
 export function snapshotCamposCadastroLinha(linha: LinhaProspectCondominio): string {
   return JSON.stringify({
     condominio: linha.condominio.trim(),
+    descricao_breve: (linha.descricao_breve ?? '').trim(),
     ticket_lote: linha.ticket_lote.trim(),
     ticket_casas: linha.ticket_casas.trim(),
     ticket_m2: linha.ticket_m2.trim(),
@@ -605,9 +614,10 @@ export function linhaProspectDeCondominioRow(
     row_id: rowId,
     condominio_id: row.id,
     condominio: row.nome,
-    ticket_lote: decimalInputFromValue(row.ticket_medio_lote),
-    ticket_casas: decimalInputFromValue(row.ticket_medio_casas),
-    ticket_m2: decimalInputFromValue(row.ticket_medio_casas_rsm2),
+    descricao_breve: row.descricao_breve ?? '',
+    ticket_lote: formatTicketMedioFaixaFromValor(row.ticket_medio_lote),
+    ticket_casas: formatTicketMedioFaixaFromValor(row.ticket_medio_casas),
+    ticket_m2: formatTicketMedioFaixaFromValor(row.ticket_medio_casas_rsm2),
     estimativa_giro: integerInputFromValue(row.estimativa_casas_vendidas_ano),
     recuo_frontal_m: decimalInputFromValue(row.recuo_frontal_m),
     recuo_fundo_m: decimalInputFromValue(row.recuo_fundo_m),
@@ -624,9 +634,30 @@ export function linhaProspectDeCondominioRow(
 
 export const COLUNAS_TABELA_PROSPECT = [
   { key: 'condominio' as const, header: 'Condomínio', type: 'text' as const },
-  { key: 'ticket_lote' as const, header: 'Ticket Médio lote R$', type: 'text' as const },
-  { key: 'ticket_casas' as const, header: 'Ticket Médio casas R$', type: 'text' as const },
-  { key: 'ticket_m2' as const, header: 'Ticket Médio casas R$/m²', type: 'text' as const },
+  {
+    key: 'descricao_breve' as const,
+    header: 'Descrição breve',
+    type: 'textarea' as const,
+    placeholder: 'Resumo do condomínio…',
+  },
+  {
+    key: 'ticket_lote' as const,
+    header: 'Ticket Médio lote R$',
+    type: 'text' as const,
+    placeholder: TICKET_MEDIO_FAIXA_PADRAO,
+  },
+  {
+    key: 'ticket_casas' as const,
+    header: 'Ticket Médio casas R$',
+    type: 'text' as const,
+    placeholder: TICKET_MEDIO_FAIXA_PADRAO,
+  },
+  {
+    key: 'ticket_m2' as const,
+    header: 'Ticket Médio casas R$/m²',
+    type: 'text' as const,
+    placeholder: TICKET_MEDIO_FAIXA_PADRAO,
+  },
   {
     key: 'estimativa_giro' as const,
     header: 'Estimativa de Casas Vendidas/Ano',
@@ -653,9 +684,10 @@ export function normalizarLinhaProspect(raw: unknown, fallbackIndex = 0): LinhaP
     condominio_id:
       typeof o.condominio_id === 'string' && o.condominio_id.trim() ? o.condominio_id.trim() : null,
     condominio: strField(o, 'condominio'),
-    ticket_lote: strField(o, 'ticket_lote'),
-    ticket_casas: strField(o, 'ticket_casas'),
-    ticket_m2: strField(o, 'ticket_m2'),
+    descricao_breve: strField(o, 'descricao_breve'),
+    ticket_lote: strField(o, 'ticket_lote') || TICKET_MEDIO_FAIXA_PADRAO,
+    ticket_casas: strField(o, 'ticket_casas') || TICKET_MEDIO_FAIXA_PADRAO,
+    ticket_m2: strField(o, 'ticket_m2') || TICKET_MEDIO_FAIXA_PADRAO,
     estimativa_giro: strField(o, 'estimativa_giro') || undefined,
     cadastro_confirmado_em:
       typeof o.cadastro_confirmado_em === 'string' && o.cadastro_confirmado_em.trim()
@@ -703,7 +735,7 @@ export function normalizarLinhaProspect(raw: unknown, fallbackIndex = 0): LinhaP
 }
 
 export function ticketCasasProspectNumerico(linha: LinhaProspectCondominio): number | null {
-  return parseDecimalInput(String(linha.ticket_casas ?? '').trim());
+  return parseTicketMedioFaixaParaCadastro(String(linha.ticket_casas ?? '').trim());
 }
 
 function normalizarNomeCondominioProspect(nome: string): string {

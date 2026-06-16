@@ -33,6 +33,7 @@ type Draft = {
   cep: string;
   cidade: string;
   estado: string;
+  descricao_breve: string;
   ticket_medio_lote: string;
   ticket_medio_casas: string;
   ticket_medio_casas_rsm2: string;
@@ -49,6 +50,7 @@ function emptyDraft(): Draft {
     cep: '',
     cidade: '',
     estado: '',
+    descricao_breve: '',
     ticket_medio_lote: '',
     ticket_medio_casas: '',
     ticket_medio_casas_rsm2: '',
@@ -66,6 +68,7 @@ function rowToDraft(r: CondominioRow): Draft {
     cep: r.cep ?? '',
     cidade: r.cidade ?? '',
     estado: r.estado ?? '',
+    descricao_breve: r.descricao_breve ?? '',
     ticket_medio_lote: decimalInputFromValue(r.ticket_medio_lote),
     ticket_medio_casas: decimalInputFromValue(r.ticket_medio_casas),
     ticket_medio_casas_rsm2: decimalInputFromValue(r.ticket_medio_casas_rsm2),
@@ -83,6 +86,7 @@ function draftToPatch(d: Draft) {
     cep: d.cep.trim() || null,
     cidade: d.cidade.trim() || null,
     estado: d.estado.trim() || null,
+    descricao_breve: d.descricao_breve.trim() || null,
     ticket_medio_lote: parseDecimalInput(d.ticket_medio_lote),
     ticket_medio_casas: parseDecimalInput(d.ticket_medio_casas),
     ticket_medio_casas_rsm2: parseDecimalInput(d.ticket_medio_casas_rsm2),
@@ -231,6 +235,9 @@ export function TabelaCondominiosEditavel({
                 Cidade / Estado
               </th>
               <th className={redeTh} scope="col">
+                Descrição breve
+              </th>
+              <th className={redeTh} scope="col">
                 Ticket Médio Lote
               </th>
               <th className={redeTh} scope="col">
@@ -289,6 +296,11 @@ export function TabelaCondominiosEditavel({
                   <td className="px-3 py-2.5 text-stone-700">{r.cep?.trim() || '—'}</td>
                   <td className="px-3 py-2.5 text-stone-700">
                     {formatCidadeEstadoCondominio(r.cidade, r.estado)}
+                  </td>
+                  <td className="max-w-[14rem] px-3 py-2.5 text-stone-700">
+                    <span className="line-clamp-3 text-xs" title={r.descricao_breve ?? ''}>
+                      {r.descricao_breve?.trim() || '—'}
+                    </span>
                   </td>
                   <td className="px-3 py-2.5 tabular-nums text-stone-700">
                     {formatCondominioMoeda(r.ticket_medio_lote)}
@@ -463,6 +475,15 @@ function CondominioEditRow({
             ))}
           </select>
         </div>
+      </td>
+      <td className="px-3 py-2">
+        <textarea
+          rows={2}
+          value={draft.descricao_breve}
+          onChange={(e) => setDraft((d) => ({ ...d, descricao_breve: e.target.value }))}
+          className={`${inputCls} min-w-[10rem]`}
+          placeholder="Resumo do condomínio…"
+        />
       </td>
       <td className="px-3 py-2">
         <input
