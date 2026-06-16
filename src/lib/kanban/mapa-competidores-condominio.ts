@@ -11,38 +11,6 @@ export type SugestaoPrecoFaixaCondominio = {
 };
 
 type CasaMapaPreco = Pick<CasaRow, 'condominio' | 'preco' | 'preco_m2'>;
-type CasaMercadoStats = Pick<CasaRow, 'preco' | 'preco_m2' | 'area_casa_m2'>;
-
-export type StatsFaixaResumo = {
-  quantidade: number;
-  precoMin: number | null;
-  precoMax: number | null;
-  precoM2Min: number | null;
-  precoM2Max: number | null;
-};
-
-function precoM2Efetivo(c: CasaMercadoStats): number | null {
-  if (c.preco_m2 != null && Number.isFinite(c.preco_m2) && c.preco_m2 > 0) return c.preco_m2;
-  if (c.preco != null && c.area_casa_m2 != null && c.area_casa_m2 > 0) {
-    return c.preco / c.area_casa_m2;
-  }
-  return null;
-}
-
-function statsListingsNaFaixa(casasNaFaixa: CasaMercadoStats[]): StatsFaixaResumo {
-  const comPreco = casasNaFaixa.filter((c) => c.preco != null && c.preco > 0);
-  const precos = comPreco.map((c) => c.preco!);
-  const pm2 = comPreco
-    .map(precoM2Efetivo)
-    .filter((v): v is number => v != null && v > 0 && Number.isFinite(v));
-  return {
-    quantidade: comPreco.length,
-    precoMin: precos.length ? Math.min(...precos) : null,
-    precoMax: precos.length ? Math.max(...precos) : null,
-    precoM2Min: pm2.length ? Math.min(...pm2) : null,
-    precoM2Max: pm2.length ? Math.max(...pm2) : null,
-  };
-}
 
 export function normalizarNomeCondominioMapa(valor: string): string {
   return valor
@@ -166,34 +134,78 @@ export function ordenarCasasPorFaixaMercado<T extends { preco: number | null }>(
   });
 }
 
-/** Calcula resumo das faixas: contagem + min/máx de preço e R$/m² dos anúncios em cada faixa. */
-export function resumoFaixasMercado(casas: CasaMercadoStats[]): {
+export type CasaFaixaMercadoInput = {
+  preco: number | null;
+  preco_m2?: number | null;
+  area_casa_m2?: number | null;
+};
+
+export type StatsFaixaMercado = {
+  quantidade: number;
+  precoMin: number | null;
+  precoMax: number | null;
+  precoM2Min: number | null;
+  precoM2Max: number | null;
+};
+
+/** R$/m² informado ou derivado de preço ÷ área (mesma regra da listagem de casas). */
+export function precoM2Efetivo(c: CasaFaixaMercadoInput): number | null {
+  if (c.preco_m2 != null && Number.isFinite(c.preco_m2) && c.preco_m2 > 0) return c.preco_m2;
+  if (c.preco != null && c.area_casa_m2 != null && c.area_casa_m2 > 0) {
+    return c.preco / c.area_casa_m2;
+  }
+  return null;
+}
+
+function calcularStatsFaixa(
+  casas: (CasaFaixaMercadoInput & { faixa: FaixaMercado })[],
+  faixa: FaixaMercado,
+): StatsFaixaMercado {
+  const naFaixa = casas.filter((c) => c.faixa === faixa);
+  if (naFaixa.length === 0) {
+    return { quantidade: 0, precoMin: null, precoMax: null, precoM2Min: null, precoM2Max: null };
+  }
+  const precos = naFaixa.map((c) => c.preco!);
+  const precosM2 = naFaixa
+    .map((c) => precoM2Efetivo(c))
+    .filter((v): v is number => v != null && v > 0);
+  return {
+    quantidade: naFaixa.length,
+    precoMin: Math.min(...precos),
+    precoMax: Math.max(...precos),
+    precoM2Min: precosM2.length > 0 ? Math.min(...precosM2) : null,
+    precoM2Max: precosM2.length > 0 ? Math.max(...precosM2) : null,
+  };
+}
+
+/** Calcula resumo das faixas: cortes de tercis + faixas reais de preço e R$/m² por anúncio. */
+export function resumoFaixasMercado(casas: CasaFaixaMercadoInput[]): {
   corte1: number;
   corte2: number;
-  entrada: StatsFaixaResumo;
-  intermediaria: StatsFaixaResumo;
-  premium: StatsFaixaResumo;
-  premium_plus: StatsFaixaResumo;
-  premium_plus2: StatsFaixaResumo;
-  premium_plus3: StatsFaixaResumo;
+  entrada: StatsFaixaMercado;
+  intermediaria: StatsFaixaMercado;
+  premium: StatsFaixaMercado;
+  premium_plus: StatsFaixaMercado;
+  premium_plus2: StatsFaixaMercado;
+  premium_plus3: StatsFaixaMercado;
 } | null {
-  const comPreco = casas.filter((c) => c.preco != null);
+  const comPreco = casas.filter((c) => c.preco != null && c.preco > 0);
   if (comPreco.length === 0) return null;
   const { corte1, corte2 } = calcularCortes(casas);
-  const classificadas = classificarFaixasMercado(comPreco);
-
-  const statsFaixa = (f: FaixaMercado) =>
-    statsListingsNaFaixa(classificadas.filter((c) => c.faixa === f));
-
+  const comFaixa = comPreco.map((c) => ({
+    ...c,
+    faixa: resolverFaixa(c.preco ?? 0, corte1, corte2),
+  }));
+  const stats = (f: FaixaMercado) => calcularStatsFaixa(comFaixa, f);
   return {
     corte1,
     corte2,
-    entrada: statsFaixa('entrada'),
-    intermediaria: statsFaixa('intermediaria'),
-    premium: statsFaixa('premium'),
-    premium_plus: statsFaixa('premium_plus'),
-    premium_plus2: statsFaixa('premium_plus2'),
-    premium_plus3: statsFaixa('premium_plus3'),
+    entrada: stats('entrada'),
+    intermediaria: stats('intermediaria'),
+    premium: stats('premium'),
+    premium_plus: stats('premium_plus'),
+    premium_plus2: stats('premium_plus2'),
+    premium_plus3: stats('premium_plus3'),
   };
 }
 
