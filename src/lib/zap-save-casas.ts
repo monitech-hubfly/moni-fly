@@ -198,7 +198,7 @@ export async function applyZapCasasUpdate(
   const validos = mapped.filter((r) => r.link);
   const rows = validos.map((r) => (vinculo ? { ...r, condominio: vinculo } : r));
 
-  const linksFromZap = new Set(rows.map((r) => r.link as string));
+  const linksFromZap = new Set(rows.map((r) => normalizeListingLink(r.link as string)));
 
   const existingFull = await supabase
     .from('listings_casas')
@@ -226,7 +226,7 @@ export async function applyZapCasasUpdate(
   for (const row of existing ?? []) {
     if (listingProtegidoContraZap(row)) continue;
     const link = row.link as string | null;
-    if (!link || linksFromZap.has(link)) continue;
+    if (!link || linksFromZap.has(normalizeListingLink(link))) continue;
     // Mapa por condomínio: só despublica listagens da sessão atual, não de outras abas.
     if (vinculo && !casaMapaPertenceCondominio({ condominio: row.condominio ?? null }, vinculo)) {
       continue;
@@ -238,15 +238,27 @@ export async function applyZapCasasUpdate(
     if (!upErr) despublicados++;
   }
 
-  const existingByLink = new Map<string | null, { id: string }>();
+  const existingByLink = new Map<string, { id: string }>();
+  const linksProtegidos = new Set<string>();
   for (const row of existing ?? []) {
-    if (listingProtegidoContraZap(row)) continue;
-    if (row.link) existingByLink.set(row.link, { id: row.id });
+    if (!row.link) continue;
+    const linkNorm = normalizeListingLink(row.link);
+    if (listingProtegidoContraZap(row)) {
+      linksProtegidos.add(linkNorm);
+      existingByLink.set(linkNorm, { id: row.id });
+      continue;
+    }
+    existingByLink.set(linkNorm, { id: row.id });
   }
 
   let inserted = 0;
   let updated = 0;
   for (const r of rows) {
+    const linkRaw = r.link as string | null;
+    if (!linkRaw) continue;
+    const linkNorm = normalizeListingLink(linkRaw);
+    if (linksProtegidos.has(linkNorm)) continue;
+
     const payload = {
       processo_id: processoId,
       manual: false,
@@ -263,11 +275,11 @@ export async function applyZapCasasUpdate(
       preco: r.preco,
       area_casa_m2: r.area_casa_m2,
       preco_m2: r.preco_m2,
-      link: r.link,
+      link: linkRaw,
       foto_url: r.foto_url,
       data_publicacao: r.data_publicacao,
     };
-    const existingRow = r.link ? existingByLink.get(r.link) : null;
+    const existingRow = existingByLink.get(linkNorm) ?? null;
     if (existingRow) {
       const { error: upErr } = await supabase
         .from('listings_casas')
@@ -318,6 +330,21 @@ export function normalizePlanilhaHeaderKey(raw: string): string {
     .replace(/^_+|_+$/g, '');
 }
 
+/** Normaliza URL de anúncio para upsert (http(s), host minúsculo, sem query/hash). */
+export function normalizeListingLink(link: string): string {
+  const trimmed = link.trim();
+  if (!trimmed) return '';
+  try {
+    const u = new URL(trimmed);
+    u.hash = '';
+    u.search = '';
+    const path = u.pathname.replace(/\/+$/, '') || '/';
+    return `${u.protocol}//${u.host.toLowerCase()}${path}`;
+  } catch {
+    return trimmed.toLowerCase().replace(/\/+$/, '');
+  }
+}
+
 const PLANILHA_COLUMN_ALIASES: Record<string, PlanilhaCasaField> = {
   cidade: 'cidade',
   city: 'cidade',
@@ -332,9 +359,20 @@ const PLANILHA_COLUMN_ALIASES: Record<string, PlanilhaCasaField> = {
   valor: 'preco',
   area: 'area_casa_m2',
   m2: 'area_casa_m2',
+  m_2: 'area_casa_m2',
   area_m2: 'area_casa_m2',
   area_m_2: 'area_casa_m2',
   area_casa_m2: 'area_casa_m2',
+  area_util: 'area_casa_m2',
+  area_total: 'area_casa_m2',
+  area_construida: 'area_casa_m2',
+  metragem: 'area_casa_m2',
+  metragem_privativa: 'area_casa_m2',
+  metragem_total: 'area_casa_m2',
+  tamanho: 'area_casa_m2',
+  tamanho_m2: 'area_casa_m2',
+  metros_quadrados: 'area_casa_m2',
+  m2_area: 'area_casa_m2',
   preco_m2: 'preco_m2',
   preco_m_2: 'preco_m2',
   r_m2: 'preco_m2',
@@ -381,9 +419,18 @@ function parsePlanilhaBoolean(val: unknown): boolean | null {
 function parsePlanilhaNumber(val: unknown): number | null {
   if (val == null || val === '') return null;
   if (typeof val === 'number' && Number.isFinite(val)) return val;
-  const s = cellToString(val);
+  let s = cellToString(val);
   if (!s) return null;
-  return parseDecimalInput(s) ?? (Number.isFinite(Number(s)) ? Number(s) : null);
+  s = s
+    .replace(/\s*m\s*[²2]?\b/gi, '')
+    .replace(/\bm²\b/gi, '')
+    .replace(/\bmetros?\s*quadrados?\b/gi, '')
+    .trim();
+  const fromDecimal = parseDecimalInput(s);
+  if (fromDecimal != null) return fromDecimal;
+  const compact = s.replace(/[^\d,.-]/g, '');
+  if (!compact) return null;
+  return parseDecimalInput(compact);
 }
 
 function parsePlanilhaInteger(val: unknown): number | null {
@@ -453,6 +500,65 @@ export function mapPlanilhaRecordToCasaRow(
   }
 
   return out;
+}
+
+function buildPlanilhaImportPayload(
+  mapped: Partial<PlanilhaCasaMappedRow>,
+  ctx: {
+    processoId: string;
+    vinculo: string;
+    cidadePadrao: string | null;
+    estadoPadrao: string | null;
+    suportaColunaImportado: boolean;
+    mode: 'insert' | 'update';
+  },
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    processo_id: ctx.processoId,
+    manual: true,
+    status: 'a_venda' as const,
+    condominio: ctx.vinculo,
+    preco: mapped.preco,
+    link: mapped.link?.trim() || null,
+    data_despublicado: null,
+  };
+
+  const setNullable = (
+    key: string,
+    value: string | number | boolean | null | undefined,
+    defaultInsert: string | number | boolean | null,
+  ) => {
+    if (value !== undefined && value !== null) {
+      payload[key] = value;
+    } else if (ctx.mode === 'insert') {
+      payload[key] = defaultInsert;
+    }
+  };
+
+  setNullable('cidade', mapped.cidade ?? ctx.cidadePadrao, ctx.cidadePadrao);
+  setNullable('estado', ctx.estadoPadrao, ctx.estadoPadrao);
+  setNullable('quartos', mapped.quartos, null);
+  setNullable('banheiros', mapped.banheiros, null);
+  setNullable('vagas', mapped.vagas, null);
+  setNullable('piscina', mapped.piscina, false);
+  setNullable('marcenaria', mapped.marcenaria, false);
+  setNullable('area_casa_m2', mapped.area_casa_m2, null);
+  setNullable('preco_m2', mapped.preco_m2, null);
+  setNullable('localizacao_condominio', mapped.localizacao_condominio, null);
+  setNullable('foto_url', mapped.foto_url, null);
+
+  if (ctx.suportaColunaImportado) payload.importado = true;
+
+  if (
+    (payload.preco_m2 == null || payload.preco_m2 === '') &&
+    payload.preco != null &&
+    payload.area_casa_m2 != null &&
+    Number(payload.area_casa_m2) > 0
+  ) {
+    payload.preco_m2 = Number(payload.preco) / Number(payload.area_casa_m2);
+  }
+
+  return payload;
 }
 
 function parseCsvLine(line: string): string[] {
@@ -557,7 +663,7 @@ export async function applyPlanilhaCasasImport(
   const existingByLink = new Map<string, { id: string }>();
   for (const row of existing ?? []) {
     const link = row.link as string | null;
-    if (link) existingByLink.set(link, { id: row.id as string });
+    if (link) existingByLink.set(normalizeListingLink(link), { id: row.id as string });
   }
 
   let inserted = 0;
@@ -579,38 +685,17 @@ export async function applyPlanilhaCasasImport(
     }
 
     const link = mapped.link?.trim() || null;
-    const payload: Record<string, unknown> = {
-      processo_id: processoId,
-      manual: true,
-      status: 'a_venda' as const,
-      condominio: vinculo,
-      cidade: mapped.cidade ?? cidadePadrao,
-      estado: estadoPadrao,
-      quartos: mapped.quartos ?? null,
-      banheiros: mapped.banheiros ?? null,
-      vagas: mapped.vagas ?? null,
-      piscina: mapped.piscina ?? false,
-      marcenaria: mapped.marcenaria ?? false,
-      preco: mapped.preco,
-      area_casa_m2: mapped.area_casa_m2 ?? null,
-      preco_m2: mapped.preco_m2 ?? null,
-      link,
-      localizacao_condominio: mapped.localizacao_condominio ?? null,
-      foto_url: mapped.foto_url ?? null,
-      data_despublicado: null,
-    };
-    if (suportaColunaImportado) payload.importado = true;
+    const linkNorm = link ? normalizeListingLink(link) : null;
+    const existingRow = linkNorm ? existingByLink.get(linkNorm) : null;
+    const payload = buildPlanilhaImportPayload(mapped, {
+      processoId,
+      vinculo,
+      cidadePadrao,
+      estadoPadrao,
+      suportaColunaImportado,
+      mode: existingRow ? 'update' : 'insert',
+    });
 
-    if (
-      (payload.preco_m2 == null || payload.preco_m2 === '') &&
-      payload.preco != null &&
-      payload.area_casa_m2 != null &&
-      Number(payload.area_casa_m2) > 0
-    ) {
-      payload.preco_m2 = Number(payload.preco) / Number(payload.area_casa_m2);
-    }
-
-    const existingRow = link ? existingByLink.get(link) : null;
     if (existingRow) {
       const saved = await persistListingCasa(supabase, 'update', payload, existingRow.id);
       if (!saved.ok) erros.push(`Linha ${linha}: ${saved.error}`);
@@ -621,7 +706,7 @@ export async function applyPlanilhaCasasImport(
       else {
         inserted++;
         if (link && saved.id) {
-          existingByLink.set(link, { id: saved.id });
+          existingByLink.set(normalizeListingLink(link), { id: saved.id });
         }
       }
     }
