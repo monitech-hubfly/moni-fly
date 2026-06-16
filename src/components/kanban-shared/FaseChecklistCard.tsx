@@ -111,7 +111,7 @@ import {
   LOTEADORES_EXECUCAO_MATERIAL_CAMPOS,
 } from '@/lib/kanban/loteadores-execucao-material';
 import { carregarLinkAcoplamentoExecucaoMaterial } from '@/lib/kanban/loteadores-execucao-material-sync';
-import { isChecklistItemLinkPlanilhaMapa } from '@/lib/kanban/gbox-planilha-mapa-sync';
+import { isChecklistItemLinkPlanilhaMapa } from '@/lib/kanban/gbox-planilha-mapa-labels';
 import { salvarDataReuniaoCard, salvarHoraReuniaoCard } from '@/lib/actions/kanban-ata-reuniao';
 
 export type CondominioChecklistContext = {

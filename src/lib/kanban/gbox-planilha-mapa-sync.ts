@@ -1,27 +1,21 @@
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import {
+  CHECKLIST_LABEL_LINK_PLANILHA_MAPA,
+  isChecklistItemLinkPlanilhaMapa,
+} from '@/lib/kanban/gbox-planilha-mapa-labels';
 import { resolverProcessoIdDoCard } from '@/lib/kanban/links-bca-acoplamento-sync';
 import { MAPA_COMPETIDORES_FASE_SLUGS } from '@/lib/kanban/stepone-fase-slugs';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import 'server-only';
 
-export const CHECKLIST_LABEL_LINK_PLANILHA_MAPA = 'Link planilha / mapa externo';
+export { CHECKLIST_LABEL_LINK_PLANILHA_MAPA, isChecklistItemLinkPlanilhaMapa };
 
 export type OrigemSyncGboxPlanilhaMapa = 'checklist' | 'painel_negocio';
-
-function normLabel(label: string | null | undefined): string {
-  return String(label ?? '')
-    .trim()
-    .toLowerCase();
-}
 
 function normLink(v: string | null | undefined): string | null {
   const s = String(v ?? '').trim();
   return s.length > 0 ? s : null;
-}
-
-export function isChecklistItemLinkPlanilhaMapa(label: string | null | undefined): boolean {
-  const n = normLabel(label);
-  return n === normLabel(CHECKLIST_LABEL_LINK_PLANILHA_MAPA) || n.startsWith('link planilha');
 }
 
 async function obterItemPlanilhaMapaChecklist(
