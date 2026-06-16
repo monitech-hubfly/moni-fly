@@ -1166,11 +1166,12 @@ export type ValidarStatusCasasManuaisResult =
       republicados: number;
       indeterminados: number;
       bloqueados: number;
+      apifyIndisponivel: boolean;
       erros: string[];
     })
   | { ok: false; error: string };
 
-/** Verifica links das casas manuais/importadas e atualiza status quando necessário. */
+/** Verifica links de todas as casas com URL e atualiza status quando necessário. */
 export async function validarStatusCasasManuais(
   processoId: string,
 ): Promise<ValidarStatusCasasManuaisResult> {

@@ -4,6 +4,18 @@ const PUPPETEER_ACTOR_ID = 'apify~puppeteer-scraper';
 const PAGE_FUNCTION = `async function pageFunction(context) {
   const { page, request, response } = context;
   await page.waitForSelector('body', { timeout: 20000 }).catch(function() {});
+  await page.waitForFunction(function() {
+    var html = document.documentElement.innerHTML.toLowerCase();
+    return html.indexOf('application/ld+json') >= 0
+      || html.indexOf('nao encontramos') >= 0
+      || html.indexOf('não encontramos') >= 0
+      || html.indexOf('postingnotfound') >= 0
+      || html.indexOf('aviso finalizado') >= 0
+      || html.indexOf('listingnotfound') >= 0
+      || html.indexOf('imovel indisponivel') >= 0
+      || html.indexOf('imóvel indisponível') >= 0;
+  }, { timeout: 12000 }).catch(function() {});
+  await new Promise(function(r) { setTimeout(r, 1500); });
   const html = await page.content();
   const status = response && typeof response.status === 'function' ? response.status() : 200;
   return {

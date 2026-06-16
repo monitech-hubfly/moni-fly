@@ -42,15 +42,18 @@ export function Etapa4CasasListagem({
   painelAposBuscar,
   onMutate,
 }: Props) {
-  const casasManuais = useMemo(() => casas.filter((c) => c.manual === true), [casas]);
+  const casasComLink = useMemo(
+    () => casas.filter((c) => typeof c.link === 'string' && c.link.trim().length > 0),
+    [casas],
+  );
   const precisaAlertaValidacao = useMemo(() => {
-    if (casasManuais.length === 0) return false;
+    if (casasComLink.length === 0) return false;
     if (!ultimaValidacaoCasasManuaisEm) return true;
     const ultima = new Date(ultimaValidacaoCasasManuaisEm);
     const hoje = new Date();
     const diffDays = Math.floor((hoje.getTime() - ultima.getTime()) / (1000 * 60 * 60 * 24));
     return diffDays > 30;
-  }, [casasManuais.length, ultimaValidacaoCasasManuaisEm]);
+  }, [casasComLink.length, ultimaValidacaoCasasManuaisEm]);
 
   const [cidade, setCidade] = useState(cidadeInicial);
   const [estado, setEstado] = useState(estadoInicial);
@@ -429,6 +432,9 @@ export function Etapa4CasasListagem({
         result.bloqueados > 0
           ? `${result.bloqueados} bloqueado(s) pelo portal (tente novamente em instantes)`
           : null,
+        result.apifyIndisponivel
+          ? 'ImovelWeb/Viva Real exigem APIFY_API_TOKEN no servidor — configure na Vercel'
+          : null,
       ].filter(Boolean);
       setValidacaoFeedback(partes.join(' · '));
       await sincronizarListagensAposMutacao();
@@ -579,7 +585,7 @@ export function Etapa4CasasListagem({
               >
                 {importando ? 'Importando…' : 'Importar planilha'}
               </button>
-              {casasManuais.length > 0 ? (
+              {casasComLink.length > 0 ? (
                 <button
                   type="button"
                   onClick={handleValidarStatusCasasManuais}
@@ -609,10 +615,10 @@ export function Etapa4CasasListagem({
             </>
           ) : null}
         </div>
-        {!readOnly && precisaAlertaValidacao && casasManuais.length > 0 ? (
+        {!readOnly && precisaAlertaValidacao && casasComLink.length > 0 ? (
           <p className={`${campoTexto}`} style={{ color: 'var(--moni-text-tertiary)' }} role="status">
-            Validação mensal pendente ({casasManuais.length}{' '}
-            {casasManuais.length === 1 ? 'casa' : 'casas'} manual/planilha).
+            Validação mensal pendente ({casasComLink.length}{' '}
+            {casasComLink.length === 1 ? 'link' : 'links'} com URL).
             {ultimaValidacaoCasasManuaisEm
               ? ` Última: ${new Date(ultimaValidacaoCasasManuaisEm).toLocaleDateString('pt-BR')}.`
               : ' Nenhuma validação registrada ainda.'}

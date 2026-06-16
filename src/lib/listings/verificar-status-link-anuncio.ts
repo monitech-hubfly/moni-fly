@@ -54,6 +54,23 @@ const FRASES_DESPUBLICADO = [
   'ops! nao encontramos',
   'listingnotfound',
   'listing unavailable',
+  'aviso finalizado',
+  'aviso excluído',
+  'aviso excluido',
+  'aviso encerrado',
+  'ops! o imóvel',
+  'ops! o imovel',
+  'não existe mais',
+  'nao existe mais',
+  'imóvel que você buscou',
+  'imovel que voce buscou',
+  'imóvel que voce buscou',
+  'este aviso não está',
+  'este aviso nao esta',
+  'publicacion finalizada',
+  'publicacion encerrada',
+  'postingnotfound',
+  'posting not found',
 ];
 
 const FRASES_A_VENDA = [
@@ -139,7 +156,10 @@ export function isPaginaBloqueadaBot(html: string, statusHttp: number): boolean 
     lower.includes('performing security verification') ||
     lower.includes('attention required') ||
     lower.includes('captcha') ||
-    lower.includes('access denied')
+    lower.includes('access denied') ||
+    lower.includes('datadome') ||
+    lower.includes('captcha-delivery') ||
+    lower.includes('please enable javascript')
   ) {
     return true;
   }
@@ -147,6 +167,29 @@ export function isPaginaBloqueadaBot(html: string, statusHttp: number): boolean 
     return true;
   }
   return false;
+}
+
+function isUrlDetalheAnuncioNavent(url: string): boolean {
+  const u = url.toLowerCase();
+  return (
+    /imovelweb\.com\.br\/propriedades\/[^/]+\.html/.test(u) ||
+    /vivareal\.com\.br\/imovel\/.+-id-\d+/.test(u) ||
+    /zapimoveis\.com\.br\/imovel\/.+-id-\d+/.test(u)
+  );
+}
+
+/** Anúncio ativo no Navent/ImovelWeb costuma trazer JSON-LD House/Apartment com offers e preço. */
+function temJsonLdImovelAtivo(html: string): boolean {
+  const lower = html.toLowerCase();
+  if (!lower.includes('application/ld+json')) return false;
+  const temTipoImovel =
+    /"@type"\s*:\s*"(house|apartment|singlefamilyresidence|residence)"/i.test(html) ||
+    lower.includes('"@type":"house"') ||
+    lower.includes('"@type":"apartment"');
+  const temPreco =
+    /"offers"/i.test(html) ||
+    (/"price"\s*:\s*\d+/i.test(html) && /"pricecurrency"\s*:\s*"brl"/i.test(html));
+  return temTipoImovel && temPreco;
 }
 
 export function inferirStatusAnuncioPorHtml(
@@ -179,8 +222,22 @@ export function inferirStatusAnuncioPorHtml(
     return 'despublicado';
   }
 
+  if (
+    /imovelweb\.com\.br/i.test(origem) &&
+    /\/propriedades\/[^/]+\.html/i.test(origem) &&
+    !/\/propriedades\/[^/]+\.html/i.test(finalUrl)
+  ) {
+    return 'despublicado';
+  }
+
   if (idOrig && portalNavent) {
-    if (!finalUrl.includes(idOrig) && !html.includes(idOrig)) {
+    const idNoHtml =
+      html.includes(idOrig) ||
+      html.includes(`"id":"${idOrig}"`) ||
+      html.includes(`"listingId":"${idOrig}"`) ||
+      html.includes(`"postingId":"${idOrig}"`) ||
+      html.includes(`-id-${idOrig}`);
+    if (!finalUrl.includes(idOrig) && !idNoHtml) {
       return 'despublicado';
     }
   }
@@ -188,9 +245,13 @@ export function inferirStatusAnuncioPorHtml(
   if (
     /"notFound"\s*:\s*true/i.test(html) ||
     /"listingNotFound"\s*:\s*true/i.test(html) ||
-    /"__typename"\s*:\s*"NotFound"/i.test(html) ||
+    /"postingNotFound"\s*:\s*true/i.test(html) ||
+    /"__typename"\s*:\s*"(NotFound|PostingNotFound)"/i.test(html) ||
     /"accountPublishabilityStatus"\s*:\s*"UNPUBLISHED"/i.test(html) ||
-    /"listingStatus"\s*:\s*"(INACTIVE|OFFLINE|DELETED|UNPUBLISHED)"/i.test(html)
+    /"listingStatus"\s*:\s*"(INACTIVE|OFFLINE|DELETED|UNPUBLISHED)"/i.test(html) ||
+    /"postingAvailability"\s*:\s*"UNAVAILABLE"/i.test(html) ||
+    /"publicationStatus"\s*:\s*"(FINISHED|UNPUBLISHED|INACTIVE)"/i.test(html) ||
+    /"isPublished"\s*:\s*false/i.test(html)
   ) {
     return 'despublicado';
   }
@@ -209,10 +270,13 @@ export function inferirStatusAnuncioPorHtml(
 
   if (statusHttp >= 200 && statusHttp < 400) {
     const sinaisAtivo =
-      FRASES_A_VENDA.some((f) => lower.includes(f)) ||
-      (lower.includes('application/ld+json') &&
-        (lower.includes('residence') || lower.includes('apartment') || lower.includes('house')));
+      FRASES_A_VENDA.some((f) => lower.includes(f)) || temJsonLdImovelAtivo(html);
     if (sinaisAtivo) return 'a_venda';
+
+    // ImovelWeb/Viva Real/ZAP: detalhe sem JSON-LD de imóvel ativo = aviso fora do ar
+    if (isUrlDetalheAnuncioNavent(origem) && portalNavent && !temJsonLdImovelAtivo(html)) {
+      return 'despublicado';
+    }
   }
 
   return 'indeterminado';

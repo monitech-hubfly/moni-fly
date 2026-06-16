@@ -1,10 +1,11 @@
 import { mapZapItemToCasa, type ZapListingItem } from '@/lib/apify-zap';
-import { fetchPaginasAnuncioViaApify } from '@/lib/listings/fetch-paginas-anuncio-apify';
+import { fetchPaginasAnuncioViaApify, apifyDisponivelParaFetchAnuncio } from '@/lib/listings/fetch-paginas-anuncio-apify';
 import {
   extrairIdListingUrl,
   inferirStatusAnuncioPorHtml,
   isPaginaBloqueadaBot,
   normalizeLinkParaComparacao,
+  urlAnuncioPermitida,
   verificarStatusLinkAnuncioDireto,
 } from '@/lib/listings/verificar-status-link-anuncio';
 import { normalizeAccessRole } from '@/lib/authz';
@@ -724,6 +725,8 @@ export type ValidarStatusLinksResult = {
   republicados: number;
   indeterminados: number;
   bloqueados: number;
+  /** Portais bloqueados e APIFY_API_TOKEN ausente no servidor. */
+  apifyIndisponivel: boolean;
   erros: string[];
 };
 
@@ -779,7 +782,7 @@ function findPaginaAnuncioVerificacao(
 }
 
 /**
- * Verifica links de casas manuais/importadas e atualiza status quando o anúncio
+ * Verifica links de todas as casas com URL e atualiza status quando o anúncio
  * estiver indisponível (ou republicado). Grava `ultima_validacao_casas_manuais_em`.
  */
 export async function validarStatusLinksListingsCasas(
@@ -812,9 +815,8 @@ export async function validarStatusLinksListingsCasas(
   const linksSet = linksFiltro && linksFiltro.length > 0 ? new Set(linksFiltro) : null;
 
   const candidatas = (rows ?? []).filter((row) => {
-    if (!listingProtegidoContraZap(row)) return false;
     const link = row.link?.trim();
-    if (!link) return false;
+    if (!link || !urlAnuncioPermitida(link)) return false;
     if (linksSet && !linksSet.has(link)) return false;
     return true;
   });
@@ -824,6 +826,7 @@ export async function validarStatusLinksListingsCasas(
   let republicados = 0;
   let indeterminados = 0;
   let bloqueados = 0;
+  let apifyIndisponivel = false;
   const erros: string[] = [];
 
   type Candidata = (typeof candidatas)[number];
@@ -876,24 +879,32 @@ export async function validarStatusLinksListingsCasas(
   });
 
   if (pendentesProxy.length > 0) {
-    const paginas = await fetchPaginasAnuncioViaApify(pendentesProxy.map((p) => p.link));
+    if (!apifyDisponivelParaFetchAnuncio()) {
+      apifyIndisponivel = true;
+      bloqueados += pendentesProxy.length;
+      indeterminados += pendentesProxy.length;
+    } else {
+      const paginas = await fetchPaginasAnuncioViaApify(pendentesProxy.map((p) => p.link), {
+        maxUrls: Math.min(pendentesProxy.length, 50),
+      });
 
-    for (const pendente of pendentesProxy) {
-      const page = findPaginaAnuncioVerificacao(pendente.link, paginas);
+      for (const pendente of pendentesProxy) {
+        const page = findPaginaAnuncioVerificacao(pendente.link, paginas);
 
-      if (!page?.html || isPaginaBloqueadaBot(page.html, page.status)) {
-        bloqueados++;
-        indeterminados++;
-        continue;
+        if (!page?.html || isPaginaBloqueadaBot(page.html, page.status)) {
+          bloqueados++;
+          indeterminados++;
+          continue;
+        }
+
+        const inferido = inferirStatusAnuncioPorHtml(
+          page.html,
+          page.status,
+          page.url,
+          pendente.link,
+        );
+        await aplicarStatus(pendente.row, pendente.link, inferido);
       }
-
-      const inferido = inferirStatusAnuncioPorHtml(
-        page.html,
-        page.status,
-        page.url,
-        pendente.link,
-      );
-      await aplicarStatus(pendente.row, pendente.link, inferido);
     }
   }
 
@@ -909,6 +920,7 @@ export async function validarStatusLinksListingsCasas(
     republicados,
     indeterminados,
     bloqueados,
+    apifyIndisponivel,
     erros,
   };
 }

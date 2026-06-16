@@ -183,15 +183,18 @@ export function Etapa4Casas(props: {
     pdfScoreBatalhaUrl = null,
     custosConstrucaoChecklist = {},
   } = props;
-  const casasManuais = useMemo(() => casas.filter((c) => c.manual === true), [casas]);
+  const casasComLink = useMemo(
+    () => casas.filter((c) => typeof c.link === 'string' && c.link.trim().length > 0),
+    [casas],
+  );
   const precisaAlertaValidacao = useMemo(() => {
-    if (casasManuais.length === 0) return false;
+    if (casasComLink.length === 0) return false;
     if (!ultimaValidacaoCasasManuaisEm) return true;
     const ultima = new Date(ultimaValidacaoCasasManuaisEm);
     const hoje = new Date();
     const diffDays = Math.floor((hoje.getTime() - ultima.getTime()) / (1000 * 60 * 60 * 24));
     return diffDays > 30;
-  }, [casasManuais.length, ultimaValidacaoCasasManuaisEm]);
+  }, [casasComLink.length, ultimaValidacaoCasasManuaisEm]);
   const router = useRouter();
   const stepOneAtributosCacheRef = useRef<AtributosLoteRespostas | null | undefined>(undefined);
   const autoMarcadoChecklistPreBatalhaRef = useRef(false);
@@ -1116,6 +1119,9 @@ export function Etapa4Casas(props: {
         result.bloqueados > 0
           ? `${result.bloqueados} bloqueado(s) pelo portal (tente novamente em instantes)`
           : null,
+        result.apifyIndisponivel
+          ? 'ImovelWeb/Viva Real exigem APIFY_API_TOKEN no servidor — configure na Vercel'
+          : null,
       ].filter(Boolean);
       setValidacaoFeedback(partes.join(' · '));
       router.refresh();
@@ -1444,15 +1450,16 @@ export function Etapa4Casas(props: {
         {painelAposBuscar}
 
         {/* Alerta mensal: validar status das casas manuais */}
-        {casasManuais.length > 0 && precisaAlertaValidacao && (
+        {casasComLink.length > 0 && precisaAlertaValidacao && (
           <div
             className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4"
             role="alert"
           >
             <p className="text-sm text-amber-900">
-              <strong>Validação mensal:</strong> Você tem {casasManuais.length} casa(s)
-              cadastrada(s) manualmente ou por planilha. O sistema pode acessar os links e marcar
-              como despublicado quando o anúncio não estiver mais no ar.
+              <strong>Validação mensal:</strong> Você tem {casasComLink.length}{' '}
+              {casasComLink.length === 1 ? 'link' : 'links'} de anúncio. O sistema acessa cada URL
+              e marca como despublicado quando o imóvel não estiver mais no ar (ImovelWeb, Viva Real,
+              ZAP etc.).
               {ultimaValidacaoCasasManuaisEm ? (
                 <>
                   {' '}

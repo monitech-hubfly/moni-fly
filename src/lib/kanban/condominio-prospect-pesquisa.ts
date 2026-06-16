@@ -125,7 +125,6 @@ export const CARACTERIZACAO_GLOBAL_CAMPOS: CampoGlobalCondominio[] = [
     label: 'Oferta Atual (Estoque)',
     tipo: 'texto_longo',
     grupo: 'caracterizacao',
-    obrigatorio: true,
   },
   {
     chave: 'q_casas_caracteristicas_buscadas',
@@ -151,7 +150,6 @@ export const CARACTERIZACAO_GLOBAL_CAMPOS: CampoGlobalCondominio[] = [
     label: 'Volume, velocidade e comportamento de compra do condomínio',
     tipo: 'texto_longo',
     grupo: 'caracterizacao',
-    obrigatorio: true,
   },
   {
     chave: 'recuo_frontal_m',
@@ -189,35 +187,30 @@ export const LOTES_GLOBAL_CAMPOS: CampoGlobalCondominio[] = [
     label: 'Tamanho lote padrão',
     tipo: 'texto',
     grupo: 'lotes',
-    obrigatorio: true,
   },
   {
     chave: 'q_lotes_total_disponiveis',
     label: 'Quantos lotes esse condomínio tem? Quantos estão disponíveis para venda?',
     tipo: 'texto',
     grupo: 'lotes',
-    obrigatorio: true,
   },
   {
     chave: 'q_lotes_tamanho_medio',
     label: 'Qual o tamanho médio dos lotes?',
     tipo: 'texto',
     grupo: 'lotes',
-    obrigatorio: true,
   },
   {
     chave: 'q_lotes_preco_m2',
     label: 'Qual o preço médio do m² de venda dos lotes?',
     tipo: 'texto',
     grupo: 'lotes',
-    obrigatorio: true,
   },
   {
     chave: 'q_lotes_area_maior_demanda',
     label: 'Qual a área onde os lotes são mais valorizados e tem maior demanda?',
     tipo: 'texto',
     grupo: 'lotes',
-    obrigatorio: true,
   },
 ];
 
@@ -240,13 +233,11 @@ export const FAIXA_CONDOMINIO_CAMPOS: CampoFaixaCondominio[] = [
     label: 'Qual tipo de casa é predominante nessa faixa?',
     tipo: 'selecao_unica',
     opcoes: ['Térrea', 'Sobrado'],
-    obrigatorio: false,
   },
   {
     chave: 'q_casas_prontas',
     label: 'Quantas casas estão prontas?',
     tipo: 'texto',
-    obrigatorio: true,
   },
   {
     chave: 'q_casas_faixas_preco',
@@ -258,32 +249,27 @@ export const FAIXA_CONDOMINIO_CAMPOS: CampoFaixaCondominio[] = [
     chave: 'q_casas_preco_m2',
     label: 'Qual o preço do m² de venda das casas?',
     tipo: 'texto',
-    obrigatorio: true,
   },
   {
     chave: 'q_casas_tempo_venda',
     label: 'Quanto tempo leva, em média, para uma casa ser vendida depois de pronta?',
     tipo: 'texto',
-    obrigatorio: true,
   },
   {
     chave: 'q_casas_vendidas_12m',
     label: 'Quantas casas foram vendidas nos últimos 12 meses?',
     tipo: 'texto',
-    obrigatorio: true,
   },
   {
     chave: 'q_casas_remanescentes_demora',
     label:
       'O que fez as casas remanescentes demorarem tanto para serem vendidas? (preço, acabamento, localização, etc.)',
     tipo: 'texto_longo',
-    obrigatorio: true,
   },
   {
     chave: 'q_locacao_valores',
     label: 'Qual valor das casas para locação? Dê alguns exemplos abaixo',
     tipo: 'texto_longo',
-    obrigatorio: true,
   },
 ];
 
