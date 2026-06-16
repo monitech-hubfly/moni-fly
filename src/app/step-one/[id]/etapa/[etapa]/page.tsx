@@ -14,6 +14,7 @@ import { IrParaStep3Button } from '../IrParaStep3Button';
 import { CancelarProcessoButtonEtapa } from '../CancelarProcessoButtonEtapa';
 import { getBcaInputs, getCustosConstrucaoEscolhaChecklist } from '../actions';
 import { isBatalhaCasasFaseSlug, isPreBatalhaFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { fetchListingsCasasPorProcesso } from '@/lib/zap-save-casas';
 
 interface PageProps {
   params: Promise<{ id: string; etapa: string }>;
@@ -216,14 +217,9 @@ export default async function EtapaPage({ params, searchParams }: PageProps) {
   let pdfScoreBatalhaUrl: string | null = null;
   let custosConstrucaoChecklist: Record<number, number | null> = {};
   if (etapaNum === 5 || etapaNum === 6) {
-    const { data } = await supabase
-      .from('listings_casas')
-      .select(
-        'id, cidade, foto_url, status, condominio, localizacao_condominio, quartos, banheiros, vagas, piscina, marcenaria, preco, area_casa_m2, preco_m2, estado, compatibilidade_moni, data_publicacao, data_despublicado, link, manual, importado',
-      )
-      .eq('processo_id', id)
-      .order('created_at', { ascending: false });
-    casas = (data ?? []) as CasaRow[];
+    const { data: casasRows, error: errCasas } = await fetchListingsCasasPorProcesso(supabase, id);
+    if (errCasas) throw new Error(errCasas);
+    casas = (casasRows ?? []) as CasaRow[];
     const { data: escolhidas } = await supabase
       .from('casas_escolhidas_etapa5')
       .select('id, catalogo_casa_id')

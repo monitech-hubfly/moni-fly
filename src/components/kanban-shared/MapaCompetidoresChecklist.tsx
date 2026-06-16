@@ -270,8 +270,9 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
                   <span className="ml-1 text-red-500">*</span>
                 </p>
                 <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                  Use «Buscar» para a ZAP, a seção «Importar casas por planilha» para .xlsx/.csv, ou
-                  o formulário manual no final da página.
+                  No bloco abaixo, use «Exportar template» para baixar o modelo .xlsx ou «Importar
+                  planilha» para carregar casas já levantadas. Também é possível buscar na ZAP ou
+                  cadastrar manualmente.
                 </p>
                 <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
                   <Etapa4CasasListagem

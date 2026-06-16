@@ -1,12 +1,77 @@
 import { mapZapItemToCasa, type ZapListingItem } from '@/lib/apify-zap';
 import { normalizeAccessRole } from '@/lib/authz';
 import { parseDecimalInput, parseIntegerInput } from '@/lib/condominios';
+import { isSupabaseMissingColumnError } from '@/lib/kanban/kanban-card-select-cols';
 import { casaMapaPertenceCondominio } from '@/lib/kanban/mapa-competidores-condominio';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import * as XLSX from 'xlsx';
 
 type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
+
+export const LISTINGS_CASAS_SELECT_MAPA =
+  'id, cidade, foto_url, status, condominio, localizacao_condominio, quartos, banheiros, vagas, piscina, marcenaria, preco, area_casa_m2, preco_m2, estado, compatibilidade_moni, data_publicacao, data_despublicado, link, manual';
+
+export const LISTINGS_CASAS_SELECT_MAPA_FULL = `${LISTINGS_CASAS_SELECT_MAPA}, importado`;
+
+/** Carrega listagens do processo; tolera ausência da coluna `importado` (migration 373). */
+export async function fetchListingsCasasPorProcesso(
+  supabase: SupabaseServer,
+  processoId: string,
+): Promise<{ data: Record<string, unknown>[]; error: string | null }> {
+  const withImportado = await supabase
+    .from('listings_casas')
+    .select(LISTINGS_CASAS_SELECT_MAPA_FULL)
+    .eq('processo_id', processoId)
+    .order('created_at', { ascending: false });
+  if (!withImportado.error) {
+    return { data: (withImportado.data ?? []) as Record<string, unknown>[], error: null };
+  }
+  if (!isSupabaseMissingColumnError(withImportado.error.message)) {
+    return { data: [], error: withImportado.error.message };
+  }
+  const base = await supabase
+    .from('listings_casas')
+    .select(LISTINGS_CASAS_SELECT_MAPA)
+    .eq('processo_id', processoId)
+    .order('created_at', { ascending: false });
+  if (base.error) return { data: [], error: base.error.message };
+  return { data: (base.data ?? []) as Record<string, unknown>[], error: null };
+}
+
+async function persistListingCasa(
+  supabase: SupabaseServer,
+  mode: 'insert' | 'update',
+  payload: Record<string, unknown>,
+  id?: string,
+): Promise<{ ok: true; id?: string } | { ok: false; error: string }> {
+  const run = async (row: Record<string, unknown>) => {
+    if (mode === 'update' && id) {
+      return supabase.from('listings_casas').update(row).eq('id', id);
+    }
+    return supabase.from('listings_casas').insert(row).select('id').maybeSingle();
+  };
+
+  let res = await run(payload);
+  if (!res.error) {
+    const insertedId =
+      mode === 'insert' && res.data && typeof res.data === 'object' && 'id' in res.data
+        ? String((res.data as { id?: string }).id ?? '')
+        : undefined;
+    return { ok: true, id: insertedId || id };
+  }
+  if (!isSupabaseMissingColumnError(res.error.message) || payload.importado === undefined) {
+    return { ok: false, error: res.error.message };
+  }
+  const { importado: _omit, ...semImportado } = payload;
+  res = await run(semImportado);
+  if (res.error) return { ok: false, error: res.error.message };
+  const insertedId =
+    mode === 'insert' && res.data && typeof res.data === 'object' && 'id' in res.data
+      ? String((res.data as { id?: string }).id ?? '')
+      : undefined;
+  return { ok: true, id: insertedId || id };
+}
 
 /** Cliente com bypass de RLS para escrita em `listings_casas` após autorização explícita. */
 function supabaseWriteClientForProcesso():
@@ -130,10 +195,26 @@ export async function applyZapCasasUpdate(
 
   const linksFromZap = new Set(rows.map((r) => r.link as string));
 
-  const { data: existing } = await supabase
+  const existingFull = await supabase
     .from('listings_casas')
     .select('id, link, manual, importado, condominio')
     .eq('processo_id', processoId);
+  let existing: Array<{
+    id: string;
+    link: string | null;
+    manual?: boolean | null;
+    importado?: boolean | null;
+    condominio?: string | null;
+  }> | null = (existingFull.data ?? null) as typeof existing;
+  if (existingFull.error && isSupabaseMissingColumnError(existingFull.error.message)) {
+    const fallback = await supabase
+      .from('listings_casas')
+      .select('id, link, manual, condominio')
+      .eq('processo_id', processoId);
+    existing = (fallback.data ?? null) as typeof existing;
+  } else if (existingFull.error) {
+    existing = [];
+  }
 
   let despublicados = 0;
   const now = new Date().toISOString().slice(0, 10);
@@ -485,20 +566,16 @@ export async function applyPlanilhaCasasImport(
 
     const existingRow = link ? existingByLink.get(link) : null;
     if (existingRow) {
-      const { error } = await supabase.from('listings_casas').update(payload).eq('id', existingRow.id);
-      if (error) erros.push(`Linha ${linha}: ${error.message}`);
+      const saved = await persistListingCasa(supabase, 'update', payload, existingRow.id);
+      if (!saved.ok) erros.push(`Linha ${linha}: ${saved.error}`);
       else updated++;
     } else {
-      const { data: insertedRow, error } = await supabase
-        .from('listings_casas')
-        .insert(payload)
-        .select('id')
-        .maybeSingle();
-      if (error) erros.push(`Linha ${linha}: ${error.message}`);
+      const saved = await persistListingCasa(supabase, 'insert', payload);
+      if (!saved.ok) erros.push(`Linha ${linha}: ${saved.error}`);
       else {
         inserted++;
-        if (link && insertedRow?.id) {
-          existingByLink.set(link, { id: insertedRow.id as string });
+        if (link && saved.id) {
+          existingByLink.set(link, { id: saved.id });
         }
       }
     }
