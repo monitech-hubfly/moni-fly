@@ -347,74 +347,6 @@ export function Etapa4CasasListagem({
 
   return (
     <div className="space-y-4 p-3 sm:p-4">
-      {!readOnly ? (
-        <section
-          className="space-y-2 rounded-xl p-2.5"
-          style={{
-            border: '0.5px solid var(--moni-border-default)',
-            background: 'var(--moni-surface-50)',
-            borderRadius: 'var(--moni-radius-lg)',
-          }}
-        >
-          <p className="text-xs font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-            Importar casas por planilha
-          </p>
-          <p className="text-[11px] leading-snug" style={{ color: 'var(--moni-text-secondary)' }}>
-            Aceita .xlsx ou .csv.
-          </p>
-
-          <input
-            type="file"
-            accept=".xlsx,.csv"
-            ref={fileInputRef}
-            onChange={handleImportarPlanilha}
-            className="hidden"
-          />
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              onClick={baixarTemplate}
-              className="rounded-md px-2 py-0.5 text-[10px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
-              style={{
-                background: 'var(--moni-navy-800)',
-                borderRadius: 'var(--moni-radius-md)',
-              }}
-            >
-              Exportar template
-            </button>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={importando}
-              className="rounded-md border px-2 py-0.5 text-[10px] font-medium disabled:cursor-not-allowed disabled:opacity-60"
-              style={{
-                border: '0.5px solid var(--moni-border-default)',
-                background: 'var(--moni-surface-100)',
-                color: 'var(--moni-text-primary)',
-                borderRadius: 'var(--moni-radius-md)',
-              }}
-            >
-              {importando ? 'Importando…' : 'Importar planilha'}
-            </button>
-          </div>
-
-          {importErro ? (
-            <p className="text-[11px] text-red-600" role="alert">
-              {importErro}
-            </p>
-          ) : null}
-          {resultadoImport ? (
-            <p className="text-[11px]" style={{ color: 'var(--moni-text-secondary)' }}>
-              Importação concluída — inseridos: {resultadoImport.inserted}, atualizados:{' '}
-              {resultadoImport.updated}
-              {resultadoImport.erros.length > 0
-                ? `. Avisos: ${resultadoImport.erros.slice(0, 3).join(' ')}`
-                : ''}
-            </p>
-          ) : null}
-        </section>
-      ) : null}
-
       <section className="space-y-3 rounded-xl border border-stone-200 bg-stone-50 p-3">
         <p className="text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
           Buscar na ZAP
@@ -493,14 +425,68 @@ export function Etapa4CasasListagem({
             </p>
           )
         ) : null}
-        <button
-          type="button"
-          onClick={handleVarrerZap}
-          disabled={zapLoading || readOnly}
-          className="btn-primary !px-2.5 !py-1 !text-[11px] !font-normal disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {zapLoading ? 'Buscando…' : 'Buscar'}
-        </button>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleVarrerZap}
+            disabled={zapLoading || readOnly}
+            className="btn-primary !px-2.5 !py-1 !text-[11px] !font-normal disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {zapLoading ? 'Buscando…' : 'Buscar'}
+          </button>
+          {!readOnly ? (
+            <>
+              <input
+                type="file"
+                accept=".xlsx,.csv"
+                ref={fileInputRef}
+                onChange={handleImportarPlanilha}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={baixarTemplate}
+                className="rounded-md px-2 py-1 text-[11px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+                style={{
+                  background: 'var(--moni-navy-800)',
+                  borderRadius: 'var(--moni-radius-md)',
+                  minHeight: '44px',
+                }}
+              >
+                Exportar template
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importando}
+                className="rounded-md border px-2 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-60"
+                style={{
+                  border: '0.5px solid var(--moni-border-default)',
+                  background: 'var(--moni-surface-100)',
+                  color: 'var(--moni-text-primary)',
+                  borderRadius: 'var(--moni-radius-md)',
+                  minHeight: '44px',
+                }}
+              >
+                {importando ? 'Importando…' : 'Importar planilha'}
+              </button>
+            </>
+          ) : null}
+        </div>
+        {!readOnly && importErro ? (
+          <p className="text-[11px] text-red-600" role="alert">
+            {importErro}
+          </p>
+        ) : null}
+        {!readOnly && resultadoImport ? (
+          <p className="text-[11px]" style={{ color: 'var(--moni-text-secondary)' }}>
+            Importação concluída — inseridos: {resultadoImport.inserted}, atualizados:{' '}
+            {resultadoImport.updated}
+            {resultadoImport.erros.length > 0
+              ? `. Avisos: ${resultadoImport.erros.slice(0, 3).join(' ')}`
+              : ''}
+          </p>
+        ) : null}
       </section>
 
       {painelAposBuscar}
