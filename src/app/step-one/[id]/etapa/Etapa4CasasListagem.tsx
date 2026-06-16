@@ -99,6 +99,16 @@ export function Etapa4CasasListagem({
   } | null>(null);
   const [validacaoFeedback, setValidacaoFeedback] = useState('');
 
+  const [linkZap, setLinkZap] = useState('');
+  const [mostrarCampoLink, setMostrarCampoLink] = useState(false);
+  const [zapLinkLoading, setZapLinkLoading] = useState(false);
+  const [zapLinkError, setZapLinkError] = useState('');
+  const [zapLinkResult, setZapLinkResult] = useState<{
+    inserted: number;
+    updated: number;
+    itemCount: number;
+  } | null>(null);
+
   const precoM2Auto = useMemo(() => {
     const p = preco ? parseFloat(String(preco).replace(/\D/g, '').replace(',', '.')) : NaN;
     const a = areaCasa ? parseFloat(areaCasa.replace(',', '.')) : NaN;
@@ -216,6 +226,51 @@ export function Etapa4CasasListagem({
       setZapError(err instanceof Error ? err.message : 'Falha ao chamar a API.');
     } finally {
       setZapLoading(false);
+    }
+  };
+
+  const handleBuscarPorLink = async () => {
+    setZapLinkError('');
+    setZapLinkResult(null);
+    setZapLinkLoading(true);
+
+    const url = linkZap.trim();
+    if (!url) {
+      setZapLinkError('Cole o link da pesquisa ZAP.');
+      setZapLinkLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/buscar-casas-por-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          linkZap: url,
+          processoId: processoId?.trim() || undefined,
+          cardId: cardId?.trim() || undefined,
+          ...(condominioInicial.trim() ? { condominioVinculo: condominioInicial.trim() } : {}),
+        }),
+      });
+      const data = await res.json();
+
+      if (!data.ok) {
+        setZapLinkError(data.error ?? 'Erro ao buscar pelo link.');
+        setZapLinkLoading(false);
+        return;
+      }
+
+      setZapLinkResult({
+        inserted: data.inserted ?? 0,
+        updated: data.updated ?? 0,
+        itemCount: data.itemCount ?? 0,
+      });
+      await sincronizarListagensAposMutacao();
+    } catch (err) {
+      setZapLinkError(err instanceof Error ? err.message : 'Falha ao chamar a API.');
+    } finally {
+      setZapLinkLoading(false);
     }
   };
 
@@ -462,6 +517,39 @@ export function Etapa4CasasListagem({
             </p>
           )
         ) : null}
+        {mostrarCampoLink ? (
+          <div className="space-y-1.5">
+            <label className="grid gap-1">
+              <span className={campoLabelClass}>Link da pesquisa ZAP</span>
+              <input
+                type="url"
+                placeholder="https://www.zapimoveis.com.br/venda/casas/..."
+                value={linkZap}
+                onChange={(e) => setLinkZap(e.target.value)}
+                disabled={readOnly || zapLinkLoading}
+                className={campoInputClass}
+              />
+            </label>
+            <p className={`${campoTexto} text-stone-400`}>
+              Faça a pesquisa na ZAP, copie a URL e cole aqui. Funciona sem Apify — usa conexão
+              direta com a ZAP.
+            </p>
+            {zapLinkError ? (
+              <p
+                className={`rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 ${campoTexto}`}
+                role="alert"
+              >
+                {zapLinkError}
+              </p>
+            ) : null}
+            {zapLinkResult ? (
+              <p className={`${campoTexto} text-green-700`}>
+                {zapLinkResult.itemCount} imóvel(is) encontrado(s) — inseridos:{' '}
+                {zapLinkResult.inserted}, atualizados: {zapLinkResult.updated}.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
@@ -499,6 +587,23 @@ export function Etapa4CasasListagem({
                   className={btnAcaoMapaClass}
                 >
                   {validandoStatus ? 'Validando…' : 'Validar status'}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setMostrarCampoLink((v) => !v)}
+                className={btnAcaoMapaClass}
+              >
+                {mostrarCampoLink ? 'Ocultar link' : 'Buscar por link ZAP'}
+              </button>
+              {mostrarCampoLink ? (
+                <button
+                  type="button"
+                  onClick={handleBuscarPorLink}
+                  disabled={!linkZap.trim() || zapLinkLoading || readOnly}
+                  className={btnAcaoMapaClass}
+                >
+                  {zapLinkLoading ? 'Buscando…' : 'Buscar link'}
                 </button>
               ) : null}
             </>
