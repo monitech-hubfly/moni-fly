@@ -8,7 +8,11 @@ import { createClient } from '@/lib/supabase/server';
 import { buscarMunicipioIbge } from '@/lib/ibge';
 import type { MunicipioIbge } from '@/lib/ibge';
 import { mapZapItemToCasa, type ZapListingItem } from '@/lib/apify-zap';
-import { applyZapCasasUpdate, verifyProcessoCasasAccess } from '@/lib/zap-save-casas';
+import {
+  applyZapCasasUpdate,
+  validarStatusLinksListingsCasas,
+  verifyProcessoCasasAccess,
+} from '@/lib/zap-save-casas';
 import { applyZapLotesSave, verifyProcessoLotesAccess, type ZapLoteItem } from '@/lib/zap-save-lotes';
 import type { BcaInputs } from '@/lib/bca-calc';
 import { KANBAN_IDS, FASE_SLUGS } from '@/lib/constants/kanban-ids';
@@ -1154,17 +1158,29 @@ export async function updateCasaStatus(
   return { ok: true };
 }
 
-/** Marca que o franqueado validou o status das casas manuais hoje (dispensa alerta mensal). */
-export async function validarStatusCasasManuais(processoId: string): Promise<ActionResult> {
+export type ValidarStatusCasasManuaisResult =
+  | ({
+      ok: true;
+      verificados: number;
+      despublicados: number;
+      republicados: number;
+      indeterminados: number;
+      erros: string[];
+    })
+  | { ok: false; error: string };
+
+/** Verifica links das casas manuais/importadas e atualiza status quando necessário. */
+export async function validarStatusCasasManuais(
+  processoId: string,
+): Promise<ValidarStatusCasasManuaisResult> {
   const access = await verifyProcessoCasasAccess(processoId);
   if (!access.ok) return { ok: false, error: access.error };
-  const today = new Date().toISOString().slice(0, 10);
-  const { error } = await access.supabase
-    .from('processo_step_one')
-    .update({ ultima_validacao_casas_manuais_em: today })
-    .eq('id', processoId);
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
+
+  const result = await validarStatusLinksListingsCasas(access.supabase, processoId);
+  if (result.erros.length > 0 && result.verificados === 0) {
+    return { ok: false, error: result.erros[0] ?? 'Falha ao validar status.' };
+  }
+  return { ok: true, ...result };
 }
 
 export type RunZapEtapa5Result = { ok: true; inserted: number } | { ok: false; error: string };

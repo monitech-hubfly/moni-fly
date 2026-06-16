@@ -1,4 +1,5 @@
 import { mapZapItemToCasa, type ZapListingItem } from '@/lib/apify-zap';
+import { verificarStatusLinkAnuncio } from '@/lib/listings/verificar-status-link-anuncio';
 import { normalizeAccessRole } from '@/lib/authz';
 import { parseDecimalInput, parseIntegerInput } from '@/lib/condominios';
 import { isSupabaseMissingColumnError } from '@/lib/kanban/kanban-card-select-cols';
@@ -327,9 +328,15 @@ const PLANILHA_COLUMN_ALIASES: Record<string, PlanilhaCasaField> = {
   valor: 'preco',
   area: 'area_casa_m2',
   m2: 'area_casa_m2',
+  area_m2: 'area_casa_m2',
+  area_m_2: 'area_casa_m2',
   area_casa_m2: 'area_casa_m2',
   preco_m2: 'preco_m2',
+  preco_m_2: 'preco_m2',
   r_m2: 'preco_m2',
+  r_m_2: 'preco_m2',
+  rs_m2: 'preco_m2',
+  preco_m: 'preco_m2',
   piscina: 'piscina',
   pool: 'piscina',
   marcenaria: 'marcenaria',
@@ -524,11 +531,15 @@ export async function applyPlanilhaCasasImport(
   processoId: string,
   records: Record<string, unknown>[],
   condominioVinculo: string,
+  opts?: { cidadePadrao?: string | null; estadoPadrao?: string | null },
 ): Promise<PlanilhaCasasImportResult> {
   const vinculo = condominioVinculo.trim();
   if (!vinculo) {
     return { inserted: 0, updated: 0, erros: ['condominioVinculo é obrigatório.'] };
   }
+
+  const cidadePadrao = String(opts?.cidadePadrao ?? '').trim() || null;
+  const estadoPadrao = String(opts?.estadoPadrao ?? '').trim().toUpperCase().slice(0, 2) || null;
 
   const { data: existing, error: errExisting } = await supabase
     .from('listings_casas')
@@ -569,7 +580,8 @@ export async function applyPlanilhaCasasImport(
       manual: true,
       status: 'a_venda' as const,
       condominio: vinculo,
-      cidade: mapped.cidade ?? null,
+      cidade: mapped.cidade ?? cidadePadrao,
+      estado: estadoPadrao,
       quartos: mapped.quartos ?? null,
       banheiros: mapped.banheiros ?? null,
       vagas: mapped.vagas ?? null,
@@ -584,6 +596,15 @@ export async function applyPlanilhaCasasImport(
       data_despublicado: null,
     };
     if (suportaColunaImportado) payload.importado = true;
+
+    if (
+      (payload.preco_m2 == null || payload.preco_m2 === '') &&
+      payload.preco != null &&
+      payload.area_casa_m2 != null &&
+      Number(payload.area_casa_m2) > 0
+    ) {
+      payload.preco_m2 = Number(payload.preco) / Number(payload.area_casa_m2);
+    }
 
     const existingRow = link ? existingByLink.get(link) : null;
     if (existingRow) {
@@ -603,4 +624,123 @@ export async function applyPlanilhaCasasImport(
   }
 
   return { inserted, updated, erros };
+}
+
+export type ValidarStatusLinksResult = {
+  verificados: number;
+  despublicados: number;
+  republicados: number;
+  indeterminados: number;
+  erros: string[];
+};
+
+async function mapComConcorrencia<T, R>(
+  items: T[],
+  limite: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limite, items.length) }, async () => {
+    while (true) {
+      const index = cursor++;
+      if (index >= items.length) break;
+      results[index] = await fn(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+/**
+ * Verifica links de casas manuais/importadas e atualiza status quando o anúncio
+ * estiver indisponível (ou republicado). Grava `ultima_validacao_casas_manuais_em`.
+ */
+export async function validarStatusLinksListingsCasas(
+  supabase: SupabaseServer,
+  processoId: string,
+  opts?: { apenasLinks?: string[] },
+): Promise<ValidarStatusLinksResult> {
+  const selectFull = await supabase
+    .from('listings_casas')
+    .select('id, link, status, manual, importado')
+    .eq('processo_id', processoId);
+
+  let rows: Array<{
+    id: string;
+    link: string | null;
+    status: string | null;
+    manual?: boolean | null;
+    importado?: boolean | null;
+  }> = (selectFull.data ?? []) as typeof rows;
+
+  if (selectFull.error && isSupabaseMissingColumnError(selectFull.error.message)) {
+    const fallback = await supabase
+      .from('listings_casas')
+      .select('id, link, status, manual')
+      .eq('processo_id', processoId);
+    rows = (fallback.data ?? []) as typeof rows;
+  }
+
+  const linksFiltro = opts?.apenasLinks?.map((l) => l.trim()).filter(Boolean);
+  const linksSet = linksFiltro && linksFiltro.length > 0 ? new Set(linksFiltro) : null;
+
+  const candidatas = (rows ?? []).filter((row) => {
+    if (!listingProtegidoContraZap(row)) return false;
+    const link = row.link?.trim();
+    if (!link) return false;
+    if (linksSet && !linksSet.has(link)) return false;
+    return true;
+  });
+
+  const hoje = new Date().toISOString().slice(0, 10);
+  let despublicados = 0;
+  let republicados = 0;
+  let indeterminados = 0;
+  const erros: string[] = [];
+
+  await mapComConcorrencia(candidatas, 4, async (row) => {
+    const link = row.link!.trim();
+    const statusAtual = row.status === 'despublicado' ? 'despublicado' : 'a_venda';
+    const inferido = await verificarStatusLinkAnuncio(link);
+
+    if (inferido === 'indeterminado') {
+      indeterminados++;
+      return;
+    }
+
+    if (inferido === 'despublicado' && statusAtual !== 'despublicado') {
+      const { error } = await supabase
+        .from('listings_casas')
+        .update({ status: 'despublicado', data_despublicado: hoje })
+        .eq('id', row.id);
+      if (error) erros.push(`${link}: ${error.message}`);
+      else despublicados++;
+      return;
+    }
+
+    if (inferido === 'a_venda' && statusAtual === 'despublicado') {
+      const { error } = await supabase
+        .from('listings_casas')
+        .update({ status: 'a_venda', data_despublicado: null })
+        .eq('id', row.id);
+      if (error) erros.push(`${link}: ${error.message}`);
+      else republicados++;
+    }
+  });
+
+  const { error: procErr } = await supabase
+    .from('processo_step_one')
+    .update({ ultima_validacao_casas_manuais_em: hoje })
+    .eq('id', processoId);
+  if (procErr) erros.push(procErr.message);
+
+  return {
+    verificados: candidatas.length,
+    despublicados,
+    republicados,
+    indeterminados,
+    erros,
+  };
 }

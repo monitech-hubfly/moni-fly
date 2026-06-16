@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/server';
 import {
   applyPlanilhaCasasImport,
   parsePlanilhaCasasFile,
+  validarStatusLinksListingsCasas,
   verifyProcessoCasasAccess,
 } from '@/lib/zap-save-casas';
 
@@ -109,7 +110,19 @@ export async function POST(request: Request) {
       effectiveProcessoId,
       records,
       condominioVinculo,
+      {
+        cidadePadrao:
+          typeof formData.get('cidadePadrao') === 'string'
+            ? String(formData.get('cidadePadrao')).trim()
+            : null,
+        estadoPadrao:
+          typeof formData.get('estadoPadrao') === 'string'
+            ? String(formData.get('estadoPadrao')).trim()
+            : null,
+      },
     );
+
+    const validacao = await validarStatusLinksListingsCasas(access.supabase, effectiveProcessoId);
 
     revalidatePath('/');
 
@@ -119,6 +132,7 @@ export async function POST(request: Request) {
       inserted,
       updated,
       erros,
+      validacao,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

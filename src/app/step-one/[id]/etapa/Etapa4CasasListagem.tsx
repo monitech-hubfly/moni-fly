@@ -90,7 +90,14 @@ export function Etapa4CasasListagem({
     inserted: number;
     updated: number;
     erros: string[];
+    validacao?: {
+      verificados: number;
+      despublicados: number;
+      republicados: number;
+      indeterminados: number;
+    };
   } | null>(null);
+  const [validacaoFeedback, setValidacaoFeedback] = useState('');
 
   const precoM2Auto = useMemo(() => {
     const p = preco ? parseFloat(String(preco).replace(/\D/g, '').replace(',', '.')) : NaN;
@@ -121,6 +128,18 @@ export function Etapa4CasasListagem({
   const tabelaTd = 'px-1.5 py-1';
   const btnAcaoMapaClass =
     'btn-primary !px-2.5 !py-1 !text-[11px] !font-normal disabled:cursor-not-allowed disabled:opacity-60';
+
+  function precoM2Exibicao(c: CasaRow): number | null {
+    if (c.preco_m2 != null && Number.isFinite(c.preco_m2)) return c.preco_m2;
+    if (c.preco != null && c.area_casa_m2 != null && c.area_casa_m2 > 0) {
+      return c.preco / c.area_casa_m2;
+    }
+    return null;
+  }
+
+  function cidadeExibicao(c: CasaRow): string {
+    return c.cidade?.trim() || cidadeInicial.trim() || '—';
+  }
 
   const ROWS_PER_PAGE = 15;
   const casasExibicao = useMemo(() => {
@@ -208,7 +227,7 @@ export function Etapa4CasasListagem({
       'Banheiros',
       'Vagas',
       'Área (m²)',
-      'R$/m²',
+      'Preço/m²',
       'Piscina',
       'Móveis Planejados',
       'Link',
@@ -254,6 +273,8 @@ export function Etapa4CasasListagem({
       formData.append('processoId', processoId.trim());
       if (cardId?.trim()) formData.append('cardId', cardId.trim());
       formData.append('condominioVinculo', vinculo);
+      if (cidadeInicial.trim()) formData.append('cidadePadrao', cidadeInicial.trim());
+      if (estadoInicial.trim()) formData.append('estadoPadrao', estadoInicial.trim());
 
       const res = await fetch('/api/importar-casas-planilha', {
         method: 'POST',
@@ -271,6 +292,7 @@ export function Etapa4CasasListagem({
         inserted: data.inserted ?? 0,
         updated: data.updated ?? 0,
         erros: Array.isArray(data.erros) ? data.erros : [],
+        validacao: data.validacao ?? undefined,
       });
       await sincronizarListagensAposMutacao();
     } catch (err) {
@@ -339,11 +361,21 @@ export function Etapa4CasasListagem({
   };
 
   const handleValidarStatusCasasManuais = async () => {
+    setValidacaoFeedback('');
     setValidandoStatus(true);
     const result = await validarStatusCasasManuais(processoId);
     setValidandoStatus(false);
     if (result.ok) {
+      const partes = [
+        `${result.verificados} link(s) verificado(s)`,
+        result.despublicados > 0 ? `${result.despublicados} marcado(s) como despublicado` : null,
+        result.republicados > 0 ? `${result.republicados} republicado(s)` : null,
+        result.indeterminados > 0 ? `${result.indeterminados} indeterminado(s)` : null,
+      ].filter(Boolean);
+      setValidacaoFeedback(partes.join(' · '));
       await sincronizarListagensAposMutacao();
+    } else {
+      setValidacaoFeedback(result.error);
     }
   };
 
@@ -468,6 +500,13 @@ export function Etapa4CasasListagem({
           <p className="text-[11px]" style={{ color: 'var(--moni-text-secondary)' }}>
             Importação concluída — inseridos: {resultadoImport.inserted}, atualizados:{' '}
             {resultadoImport.updated}
+            {resultadoImport.validacao
+              ? `. Status verificado em ${resultadoImport.validacao.verificados} link(s)${
+                  resultadoImport.validacao.despublicados > 0
+                    ? `; ${resultadoImport.validacao.despublicados} despublicado(s)`
+                    : ''
+                }`
+              : ''}
             {resultadoImport.erros.length > 0
               ? `. Avisos: ${resultadoImport.erros.slice(0, 3).join(' ')}`
               : ''}
@@ -498,7 +537,8 @@ export function Etapa4CasasListagem({
         >
           <p className="text-sm text-amber-900">
             <strong>Validação mensal:</strong> Você tem {casasManuais.length} casa(s) cadastrada(s)
-            manualmente. Confira se o status (à venda / despublicado) ainda está correto.
+            manualmente ou por planilha. O sistema pode acessar os links e marcar como despublicado
+            quando o anúncio não estiver mais no ar.
             {ultimaValidacaoCasasManuaisEm ? (
               <>
                 {' '}
@@ -515,10 +555,16 @@ export function Etapa4CasasListagem({
             disabled={validandoStatus || readOnly}
             className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {validandoStatus ? 'Salvando…' : 'Validar status'}
+            {validandoStatus ? 'Verificando links…' : 'Verificar links agora'}
           </button>
         </div>
       )}
+
+      {validacaoFeedback ? (
+        <p className="text-[11px]" style={{ color: 'var(--moni-text-secondary)' }} role="status">
+          {validacaoFeedback}
+        </p>
+      ) : null}
 
       {casas.length > 0 && (
         <section className="overflow-hidden rounded-xl border border-stone-200">
@@ -539,7 +585,7 @@ export function Etapa4CasasListagem({
                   <th className={tabelaTh}>Móveis planej.</th>
                   <th className={tabelaTh}>Preço</th>
                   <th className={tabelaTh}>m²</th>
-                  <th className={tabelaTh}>R$/m²</th>
+                  <th className={tabelaTh}>Preço/m²</th>
                   <th className={tabelaTh}>Estado</th>
                   <th className={tabelaTh}>Data criação ZAP</th>
                   <th className={tabelaTh}>Duração anúncio</th>
@@ -569,7 +615,7 @@ export function Etapa4CasasListagem({
                         </tr>
                       ) : null}
                       <tr className="border-b border-stone-100 hover:bg-stone-50">
-                        <td className={tabelaTd}>{c.cidade ?? '—'}</td>
+                        <td className={tabelaTd}>{cidadeExibicao(c)}</td>
                         <td className={tabelaTd}>
                           {c.foto_url ? (
                             <a
@@ -626,9 +672,12 @@ export function Etapa4CasasListagem({
                         </td>
                         <td className={tabelaTd}>{c.area_casa_m2 ?? '—'}</td>
                         <td className={tabelaTd}>
-                          {c.preco_m2 != null ? `R$ ${c.preco_m2.toLocaleString('pt-BR')}` : '—'}
+                          {(() => {
+                            const pm2 = precoM2Exibicao(c);
+                            return pm2 != null ? `R$ ${pm2.toLocaleString('pt-BR')}` : '—';
+                          })()}
                         </td>
-                        <td className={tabelaTd}>{c.estado ?? '—'}</td>
+                        <td className={tabelaTd}>{c.estado ?? estadoInicial ?? '—'}</td>
                         <td className={tabelaTd}>{c.data_publicacao ?? '—'}</td>
                         <td className={tabelaTd}>
                           {(() => {
@@ -833,7 +882,7 @@ export function Etapa4CasasListagem({
                   />
                 </label>
                 <label className="grid gap-1">
-                  <span className="text-sm font-medium text-stone-700">R$/m²</span>
+                  <span className="text-sm font-medium text-stone-700">Preço/m²</span>
                   <input
                     type="text"
                     value={precoM2Auto}

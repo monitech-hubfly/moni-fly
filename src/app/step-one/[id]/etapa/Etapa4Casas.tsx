@@ -234,6 +234,7 @@ export function Etapa4Casas(props: {
 
   const [manualFormOpen, setManualFormOpen] = useState(false);
   const [validandoStatus, setValidandoStatus] = useState(false);
+  const [validacaoFeedback, setValidacaoFeedback] = useState('');
 
   useEffect(() => {
     setCidade(cidadeInicial);
@@ -1102,12 +1103,22 @@ export function Etapa4Casas(props: {
   };
 
   const handleValidarStatusCasasManuais = async () => {
+    setValidacaoFeedback('');
     setValidandoStatus(true);
     const result = await validarStatusCasasManuais(processoId);
     setValidandoStatus(false);
     if (result.ok) {
+      const partes = [
+        `${result.verificados} link(s) verificado(s)`,
+        result.despublicados > 0 ? `${result.despublicados} marcado(s) como despublicado` : null,
+        result.republicados > 0 ? `${result.republicados} republicado(s)` : null,
+        result.indeterminados > 0 ? `${result.indeterminados} indeterminado(s)` : null,
+      ].filter(Boolean);
+      setValidacaoFeedback(partes.join(' · '));
       router.refresh();
       onMutate?.();
+    } else {
+      setValidacaoFeedback(result.error);
     }
   };
 
@@ -1438,8 +1449,8 @@ export function Etapa4Casas(props: {
           >
             <p className="text-sm text-amber-900">
               <strong>Validação mensal:</strong> Você tem {casasManuais.length} casa(s)
-              cadastrada(s) manualmente. Confira se o status (à venda / despublicado) ainda está
-              correto.
+              cadastrada(s) manualmente ou por planilha. O sistema pode acessar os links e marcar
+              como despublicado quando o anúncio não estiver mais no ar.
               {ultimaValidacaoCasasManuaisEm ? (
                 <>
                   {' '}
@@ -1456,10 +1467,16 @@ export function Etapa4Casas(props: {
               disabled={validandoStatus || readOnly}
               className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {validandoStatus ? 'Salvando…' : 'Validar status'}
+              {validandoStatus ? 'Verificando links…' : 'Verificar links agora'}
             </button>
           </div>
         )}
+
+        {validacaoFeedback ? (
+          <p className="text-[11px]" style={{ color: 'var(--moni-text-secondary)' }} role="status">
+            {validacaoFeedback}
+          </p>
+        ) : null}
 
         {/* Seção 1 — Listagem (+ opcional: escolha dos 3 modelos e batalha) */}
         {modoPreBatalha && !listagemOnly && casas.length === 0 ? (
