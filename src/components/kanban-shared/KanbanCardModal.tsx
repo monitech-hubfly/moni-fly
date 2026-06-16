@@ -1,6 +1,6 @@
 'use client';
 
-import type { ChangeEvent, ReactNode } from 'react';
+import type { ChangeEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -435,6 +435,7 @@ export function KanbanCardModal({
 }: KanbanCardModalProps) {
   const router = useRouter();
   const { pode } = usePermissoes();
+  const suprimirFecharBackdropAteRef = useRef(0);
   const ocultarGestaoCard = portalFrank === true;
   const [loading, setLoading] = useState(true);
   const [movendoFase, setMovendoFase] = useState(false);
@@ -758,7 +759,7 @@ export function KanbanCardModal({
         setFiltrosOpen(false);
       }
     };
-    const onDown = (e: MouseEvent) => {
+    const onDown = (e: globalThis.MouseEvent) => {
       const t = e.target as Node;
       if (filtrosPopoverRef.current?.contains(t)) return;
       if (filtrosBtnRef.current?.contains(t)) return;
@@ -772,6 +773,31 @@ export function KanbanCardModal({
       window.removeEventListener('mousedown', onDown);
     };
   }, [filtrosOpen, filtros]);
+
+  useEffect(() => {
+    let fileInputAtivado = false;
+    const marcarSupressao = () => {
+      suprimirFecharBackdropAteRef.current = Date.now() + 800;
+    };
+    const onDocClick = (e: globalThis.MouseEvent) => {
+      const alvo = e.target;
+      if (alvo instanceof HTMLInputElement && alvo.type === 'file') {
+        fileInputAtivado = true;
+        marcarSupressao();
+      }
+    };
+    const onWindowFocus = () => {
+      if (!fileInputAtivado) return;
+      fileInputAtivado = false;
+      marcarSupressao();
+    };
+    document.addEventListener('click', onDocClick, true);
+    window.addEventListener('focus', onWindowFocus);
+    return () => {
+      document.removeEventListener('click', onDocClick, true);
+      window.removeEventListener('focus', onWindowFocus);
+    };
+  }, []);
 
   useEffect(() => {
     if (fasesProp?.length) setFases(fasesProp);
@@ -3452,11 +3478,17 @@ export function KanbanCardModal({
     </div>
   );
 
+  function handleBackdropClick(e: ReactMouseEvent<HTMLDivElement>) {
+    if (e.target !== e.currentTarget) return;
+    if (Date.now() < suprimirFecharBackdropAteRef.current) return;
+    onClose();
+  }
+
   return (
     <>
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
+      onClick={handleBackdropClick}
       role="presentation"
     >
       <div

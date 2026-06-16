@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { CheckCircle2, Circle, Loader2, Plus, Trash2, Upload } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { KanbanFaseSecaoTabs } from '@/components/kanban-shared/KanbanFaseSecaoTabs';
@@ -53,6 +54,8 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
   const rascunhoLotesRef = useRef<LinhaLoteDisponivel[]>([]);
   const linhasRef = useRef<LinhaProspectCondominio[]>([]);
   const saveChainRef = useRef(Promise.resolve());
+  const fotosInputRef = useRef<HTMLInputElement>(null);
+  const fotosUploadLoteIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     rascunhoLotesRef.current = rascunhoLotes;
@@ -303,6 +306,14 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
     await persistirLotes(finais);
   }
 
+  function abrirSeletorFotos(loteId: string, e: MouseEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (uploadLoteId) return;
+    fotosUploadLoteIdRef.current = loteId;
+    fotosInputRef.current?.click();
+  }
+
   async function salvarFotosLote(loteId: string, file: File) {
     if (!linhaAtiva) return;
     setUploadLoteId(loteId);
@@ -452,8 +463,12 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
                                 {campo.obrigatorio ? <span className="ml-1 text-red-500">*</span> : null}
                               </label>
                               <div className="flex flex-wrap items-center gap-2">
-                                <label
-                                  className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium hover:bg-stone-50"
+                                <button
+                                  type="button"
+                                  disabled={uploadLoteId === loteAtivo.lote_id}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  onClick={(e) => abrirSeletorFotos(loteAtivo.lote_id, e)}
+                                  className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
                                   style={{ borderColor: 'var(--moni-border-default)', color: 'var(--moni-primary-600)' }}
                                 >
                                   {uploadLoteId === loteAtivo.lote_id ? (
@@ -462,18 +477,7 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
                                     <Upload size={12} />
                                   )}
                                   {uploadLoteId === loteAtivo.lote_id ? 'Enviando…' : 'Enviar fotos'}
-                                  <input
-                                    type="file"
-                                    accept="image/*,.pdf"
-                                    className="sr-only"
-                                    disabled={uploadLoteId === loteAtivo.lote_id}
-                                    onChange={(e) => {
-                                      const f = e.target.files?.[0];
-                                      if (f) void salvarFotosLote(loteAtivo.lote_id, f);
-                                      e.target.value = '';
-                                    }}
-                                  />
-                                </label>
+                                </button>
                                 {valor ? (
                                   <span className="max-w-[200px] truncate text-[10px] text-stone-500">
                                     {valor.split('/').pop()}
@@ -640,6 +644,27 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
       )}
 
       {erroSalvar ? <p className="text-xs text-red-500">{erroSalvar}</p> : null}
+
+      {typeof document !== 'undefined'
+        ? createPortal(
+            <input
+              ref={fotosInputRef}
+              type="file"
+              accept="image/*,.pdf"
+              className="hidden"
+              tabIndex={-1}
+              aria-hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                const loteId = fotosUploadLoteIdRef.current;
+                if (f && loteId) void salvarFotosLote(loteId, f);
+                fotosUploadLoteIdRef.current = null;
+                e.target.value = '';
+              }}
+            />,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
