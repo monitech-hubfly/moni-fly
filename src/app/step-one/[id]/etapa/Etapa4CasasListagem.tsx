@@ -196,7 +196,7 @@ export function Etapa4CasasListagem({
       const data = await res.json();
 
       if (!data.ok) {
-        setZapError(data.error ?? 'Erro ao buscar listagens na ZAP.');
+        setZapError(data.error ?? 'Erro ao buscar listagens.');
         setZapLoading(false);
         return;
       }
@@ -383,7 +383,7 @@ export function Etapa4CasasListagem({
     <div className="space-y-4 p-3 sm:p-4">
       <section className="space-y-3 rounded-xl border border-stone-200 bg-stone-50 p-3">
         <p className="text-sm font-medium" style={{ color: 'var(--moni-text-primary)' }}>
-          Buscar na ZAP
+          Buscar listagens
         </p>
         <div className="grid gap-2 sm:grid-cols-3">
           <label className="grid gap-1">
@@ -424,14 +424,14 @@ export function Etapa4CasasListagem({
         {condominioInicial.trim() &&
         condominio.trim().toLowerCase() !== condominioInicial.trim().toLowerCase() ? (
           <p className={`${campoTexto} text-stone-500`}>
-            Termo na ZAP para &quot;{condominioInicial.trim()}&quot; — ajuste se necessário.
+            Termo de busca para &quot;{condominioInicial.trim()}&quot; — ajuste se necessário.
           </p>
         ) : null}
         {zapLoading ? (
           <p
             className={`rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700 ${campoTexto}`}
           >
-            Buscando imóveis no ZAP via Apify… pode levar até 4 minutos. Não feche a página.
+            Buscando imóveis online… pode levar até 4 minutos. Não feche a página.
           </p>
         ) : null}
         {zapError ? (
@@ -439,7 +439,7 @@ export function Etapa4CasasListagem({
             className={`rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 ${campoTexto}`}
             role="alert"
           >
-            <strong>Erro ao varrer ZAP:</strong> {zapError}
+            <strong>Erro na busca:</strong> {zapError}
           </div>
         ) : null}
         {zapResult ? (
@@ -447,13 +447,13 @@ export function Etapa4CasasListagem({
             <p
               className={`rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 ${campoTexto}`}
             >
-              Nenhum imóvel encontrado na ZAP com estes filtros (casas/sobrados acima de R$
-              4.000.000). Confira se o termo do condomínio corresponde ao bairro/loteamento na ZAP
+              Nenhum imóvel encontrado com estes filtros (casas/sobrados acima de R$
+              4.000.000). Confira se o termo do condomínio corresponde ao bairro/loteamento na busca
               ou cadastre manualmente.
             </p>
           ) : (
             <p className={`${campoTexto} text-green-700`}>
-              {zapResult.itemCount} {zapResult.itemCount === 1 ? 'imóvel' : 'imóveis'} na ZAP —
+              {zapResult.itemCount} {zapResult.itemCount === 1 ? 'imóvel' : 'imóveis'} encontrado(s) —
               inseridos: {zapResult.inserted}, atualizados: {zapResult.updated}, marcados
               despublicados: {zapResult.despublicados}.
             </p>
@@ -488,9 +488,33 @@ export function Etapa4CasasListagem({
               >
                 {importando ? 'Importando…' : 'Importar planilha'}
               </button>
+              {casasManuais.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={handleValidarStatusCasasManuais}
+                  disabled={validandoStatus || importando}
+                  className={btnAcaoMapaClass}
+                >
+                  {validandoStatus ? 'Validando…' : 'Validar status'}
+                </button>
+              ) : null}
             </>
           ) : null}
         </div>
+        {!readOnly && precisaAlertaValidacao && casasManuais.length > 0 ? (
+          <p className={`${campoTexto}`} style={{ color: 'var(--moni-text-tertiary)' }} role="status">
+            Validação mensal pendente ({casasManuais.length}{' '}
+            {casasManuais.length === 1 ? 'casa' : 'casas'} manual/planilha).
+            {ultimaValidacaoCasasManuaisEm
+              ? ` Última: ${new Date(ultimaValidacaoCasasManuaisEm).toLocaleDateString('pt-BR')}.`
+              : ' Nenhuma validação registrada ainda.'}
+          </p>
+        ) : null}
+        {!readOnly && validacaoFeedback ? (
+          <p className="text-[11px]" style={{ color: 'var(--moni-text-secondary)' }} role="status">
+            {validacaoFeedback}
+          </p>
+        ) : null}
         {!readOnly && importErro ? (
           <p className="text-[11px] text-red-600" role="alert">
             {importErro}
@@ -525,44 +549,8 @@ export function Etapa4CasasListagem({
             background: 'var(--moni-surface-50)',
           }}
         >
-          Nenhuma listagem neste condomínio. Importe a planilha, busque na ZAP ou cadastre manualmente
+          Nenhuma listagem neste condomínio. Importe a planilha, busque online ou cadastre manualmente
           abaixo.
-        </p>
-      ) : null}
-
-      {casasManuais.length > 0 && precisaAlertaValidacao && (
-        <div
-          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4"
-          role="alert"
-        >
-          <p className="text-sm text-amber-900">
-            <strong>Validação mensal:</strong> Você tem {casasManuais.length} casa(s) cadastrada(s)
-            manualmente ou por planilha. O sistema pode acessar os links e marcar como despublicado
-            quando o anúncio não estiver mais no ar.
-            {ultimaValidacaoCasasManuaisEm ? (
-              <>
-                {' '}
-                Última validação:{' '}
-                {new Date(ultimaValidacaoCasasManuaisEm).toLocaleDateString('pt-BR')}.
-              </>
-            ) : (
-              ' Nenhuma validação registrada ainda.'
-            )}
-          </p>
-          <button
-            type="button"
-            onClick={handleValidarStatusCasasManuais}
-            disabled={validandoStatus || readOnly}
-            className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {validandoStatus ? 'Verificando links…' : 'Verificar links agora'}
-          </button>
-        </div>
-      )}
-
-      {validacaoFeedback ? (
-        <p className="text-[11px]" style={{ color: 'var(--moni-text-secondary)' }} role="status">
-          {validacaoFeedback}
         </p>
       ) : null}
 
@@ -587,7 +575,7 @@ export function Etapa4CasasListagem({
                   <th className={tabelaTh}>m²</th>
                   <th className={tabelaTh}>Preço/m²</th>
                   <th className={tabelaTh}>Estado</th>
-                  <th className={tabelaTh}>Data criação ZAP</th>
+                  <th className={tabelaTh}>Data publicação</th>
                   <th className={tabelaTh}>Duração anúncio</th>
                   <th className={tabelaTh}>Listing</th>
                 </tr>
@@ -768,7 +756,7 @@ export function Etapa4CasasListagem({
               className="space-y-3 border-t border-stone-200 p-4 pt-0"
             >
               <p className="text-sm text-stone-600">
-                Use somente se alguma casa relevante não tiver sido puxada automaticamente pela ZAP.
+                Use somente se alguma casa relevante não tiver sido puxada automaticamente na busca.
                 Casas manuais só têm o status editável na tabela.
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -950,7 +938,7 @@ function BadgeOrigemAnuncio({ casa }: { casa: CasaRow }) {
   }
   return (
     <span className="rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-800 ring-1 ring-sky-200">
-      ZAP
+      Busca
     </span>
   );
 }

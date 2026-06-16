@@ -1016,7 +1016,7 @@ export function Etapa4Casas(props: {
       const data = await res.json();
 
       if (!data.ok) {
-        setZapError(data.error ?? 'Erro ao buscar listagens na ZAP.');
+        setZapError(data.error ?? 'Erro ao buscar listagens.');
         setZapLoading(false);
         return;
       }
@@ -1137,7 +1137,7 @@ export function Etapa4Casas(props: {
                 : syncPreBatalha
                   ? 'Sincronizando modelos ranqueados…'
                   : casas.length === 0
-                    ? 'Nenhum anúncio ZAP encontrado. Execute a varredura no Mapa de Competidores primeiro.'
+                    ? 'Nenhum anúncio encontrado. Execute a varredura no Mapa de Competidores primeiro.'
                     : 'Aguardando catálogo para ranquear os modelos.'
               : 'Selecione modelos e confirme para habilitar a batalha.'}
           </p>
@@ -1394,12 +1394,12 @@ export function Etapa4Casas(props: {
           condominioInicial.trim() &&
           condominio.trim().toLowerCase() !== condominioInicial.trim().toLowerCase() ? (
             <p className={`${campoTexto} text-stone-500`}>
-              Termo na ZAP para &quot;{condominioInicial.trim()}&quot; — ajuste se necessário.
+              Termo de busca para &quot;{condominioInicial.trim()}&quot; — ajuste se necessário.
             </p>
           ) : null}
           {zapLoading ? (
             <p className={`rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700 ${campoTexto}`}>
-              Buscando imóveis no ZAP via Apify… pode levar até 4 minutos. Não feche a página.
+              Buscando imóveis online… pode levar até 4 minutos. Não feche a página.
             </p>
           ) : null}
           {zapError ? (
@@ -1407,7 +1407,7 @@ export function Etapa4Casas(props: {
               className={`rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 ${campoTexto}`}
               role="alert"
             >
-              <strong>Erro ao varrer ZAP:</strong> {zapError}
+              <strong>Erro na busca:</strong> {zapError}
             </div>
           ) : null}
           {zapResult ? (
@@ -1415,13 +1415,12 @@ export function Etapa4Casas(props: {
               <p
                 className={`rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 ${campoTexto}`}
               >
-                Nenhum imóvel encontrado na ZAP com estes filtros (casas/sobrados acima de R$
-                4.000.000). Confira se o termo do condomínio corresponde ao bairro/loteamento na
-                ZAP ou cadastre manualmente.
+                Nenhum imóvel encontrado com estes filtros (casas/sobrados acima de R$
+                4.000.000). Confira se o termo do condomínio corresponde ao bairro/loteamento na busca ou cadastre manualmente.
               </p>
             ) : (
               <p className={`${campoTexto} text-green-700`}>
-                {zapResult.itemCount} {zapResult.itemCount === 1 ? 'imóvel' : 'imóveis'} na ZAP —
+                {zapResult.itemCount} {zapResult.itemCount === 1 ? 'imóvel' : 'imóveis'} encontrado(s) —
                 inseridos: {zapResult.inserted}, atualizados: {zapResult.updated}, marcados
                 despublicados: {zapResult.despublicados}.
               </p>
@@ -1484,7 +1483,7 @@ export function Etapa4Casas(props: {
             className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
             role="status"
           >
-            Nenhum anúncio ZAP encontrado. Execute a varredura no Mapa de Competidores primeiro.
+            Nenhum anúncio encontrado. Execute a varredura no Mapa de Competidores primeiro.
           </div>
         ) : null}
         {casas.length > 0 && (
@@ -1646,7 +1645,7 @@ export function Etapa4Casas(props: {
                     <th className={tabelaTh}>m²</th>
                     <th className={tabelaTh}>R$/m²</th>
                     <th className={tabelaTh}>Estado</th>
-                    <th className={tabelaTh}>Data criação ZAP</th>
+                    <th className={tabelaTh}>Data publicação</th>
                     <th className={tabelaTh}>Duração anúncio</th>
                     <th className={tabelaTh}>Listing</th>
                     {!listagemOnly &&
@@ -2356,7 +2355,7 @@ export function Etapa4Casas(props: {
               className="space-y-3 border-t border-stone-200 p-4 pt-0"
             >
               <p className="text-sm text-stone-600">
-                Use somente se alguma casa relevante não tiver sido puxada automaticamente pela ZAP.
+                Use somente se alguma casa relevante não tiver sido puxada automaticamente na busca.
                 Casas manuais só têm o status editável na tabela.
               </p>
               <div className="grid gap-3 sm:grid-cols-2">

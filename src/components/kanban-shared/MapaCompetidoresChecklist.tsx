@@ -164,7 +164,7 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
     resumoFaixas && casasDoCondominio.length > 0 ? (
       <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
         <p className="mb-2 text-xs font-medium text-gray-500">
-          Distribuição de mercado — mínimo R$ 4MM (busca ZAP)
+          Distribuição de mercado — mínimo R$ 4MM
         </p>
         <div className="grid grid-cols-3 gap-2">
           <div className="rounded-md bg-gray-100 p-2 text-center">
@@ -267,7 +267,7 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
         <span className="ml-1 text-red-500">*</span>
       </span>
       <p className="mb-2 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-        Para cada condomínio da Tabela de Condomínios, varra a ZAP, importe por planilha ou cadastre
+        Para cada condomínio da Tabela de Condomínios, busque online, importe por planilha ou cadastre
         manualmente as casas do mapa de competidores.
       </p>
 
@@ -302,11 +302,11 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
               </div>
               <div className="space-y-2">
                 <p className="text-xs font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
-                  Listagem de casas — ZAP, planilha ou cadastro manual
+                  Listagem de casas — busca online, planilha ou cadastro manual
                   <span className="ml-1 text-red-500">*</span>
                 </p>
                 <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                  Busque na ZAP, importe planilha (.xlsx ou .csv) ou cadastre manualmente.
+                  Busque online, importe planilha (.xlsx ou .csv) ou cadastre manualmente.
                 </p>
                 <div className="relative overflow-hidden rounded-xl border border-stone-200 bg-white">
                   {recarregando ? (
