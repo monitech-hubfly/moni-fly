@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Circle, Loader2 } from 'lucide-react';
 import { Etapa4CasasListagem } from '@/app/step-one/[id]/etapa/Etapa4CasasListagem';
 import { KanbanFaseSecaoTabs } from '@/components/kanban-shared/KanbanFaseSecaoTabs';
@@ -40,25 +40,50 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
   const [rowIdAtivo, setRowIdAtivo] = useState<string | null>(null);
   const [dadosMapa, setDadosMapa] = useState<MapaCompetidoresChecklistData | null>(null);
   const [carregandoInicial, setCarregandoInicial] = useState(true);
+  const [recarregando, setRecarregando] = useState(false);
   const [erroCarregar, setErroCarregar] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
-  const recarregar = useCallback(() => {
-    setTick((t) => t + 1);
+  const primeiraCargaRef = useRef(true);
+  const recarregarPendingRef = useRef<(() => void) | null>(null);
+
+  const resolverRecarregarPendente = useCallback(() => {
+    const resolve = recarregarPendingRef.current;
+    recarregarPendingRef.current = null;
+    resolve?.();
   }, []);
+
+  const recarregar = useCallback((): Promise<void> => {
+    return new Promise((resolve) => {
+      recarregarPendingRef.current = resolve;
+      setTick((t) => t + 1);
+    });
+  }, []);
+
+  useEffect(() => {
+    primeiraCargaRef.current = true;
+  }, [cardId]);
 
   useEffect(() => {
     const cid = cardId?.trim();
     if (!cid) {
       setErroCarregar('Card inválido.');
       setCarregandoInicial(false);
+      resolverRecarregarPendente();
       return;
     }
 
     let cancelado = false;
-    void (async () => {
+    const isPrimeiraCarga = primeiraCargaRef.current;
+    if (isPrimeiraCarga) {
       setCarregandoInicial(true);
-      setErroCarregar(null);
+      primeiraCargaRef.current = false;
+    } else {
+      setRecarregando(true);
+    }
+    setErroCarregar(null);
+
+    void (async () => {
       try {
         const [prospectsRes, mapaRes] = await Promise.all([
           carregarProspectsCondominioCard(cid),
@@ -89,14 +114,19 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
       } catch {
         if (!cancelado) setErroCarregar('Falha ao carregar mapa de competidores.');
       } finally {
-        if (!cancelado) setCarregandoInicial(false);
+        if (!cancelado) {
+          setCarregandoInicial(false);
+          setRecarregando(false);
+          resolverRecarregarPendente();
+        }
       }
     })();
 
     return () => {
       cancelado = true;
+      resolverRecarregarPendente();
     };
-  }, [cardId, processoId, tick]);
+  }, [cardId, processoId, tick, resolverRecarregarPendente]);
 
   const prospects = useMemo(() => prospectsOrdenadosPorTicketCasas(linhas), [linhas]);
   const casas = dadosMapa?.ok ? dadosMapa.casas : [];
@@ -263,6 +293,12 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
                   {casasDoCondominio.length}{' '}
                   {casasDoCondominio.length === 1 ? 'listagem' : 'listagens'} neste condomínio
                 </span>
+                {recarregando ? (
+                  <span className="inline-flex items-center gap-1 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                    <Loader2 size={11} className="animate-spin" />
+                    Atualizando…
+                  </span>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <p className="text-xs font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
@@ -274,9 +310,15 @@ export function MapaCompetidoresChecklist({ cardId, processoId, itemLabel, podeE
                   planilha» para carregar casas já levantadas. Também é possível buscar na ZAP ou
                   cadastrar manualmente.
                 </p>
-                <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+                <div className="relative overflow-hidden rounded-xl border border-stone-200 bg-white">
+                  {recarregando ? (
+                    <div
+                      className="pointer-events-none absolute inset-0 z-10 bg-white/60"
+                      aria-hidden
+                    />
+                  ) : null}
                   <Etapa4CasasListagem
-                    key={`${linhaAtiva.row_id}-${dadosMapa.cidadeInicial}-${dadosMapa.estadoInicial}`}
+                    key={linhaAtiva.row_id}
                     readOnly={!podeEditar}
                     cardId={cardId}
                     processoId={dadosMapa.processoId}

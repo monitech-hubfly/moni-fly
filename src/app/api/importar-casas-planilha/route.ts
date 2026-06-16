@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import {
   ensureProcessoStepOneForKanbanCard,
   resolverProcessoIdViaRedeFranqueado,
@@ -109,6 +110,8 @@ export async function POST(request: Request) {
       records,
       condominioVinculo,
     );
+
+    revalidatePath('/');
 
     return NextResponse.json({
       ok: true,

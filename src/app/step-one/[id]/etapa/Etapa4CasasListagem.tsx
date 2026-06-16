@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import {
   addCasaListing,
@@ -27,7 +26,7 @@ type Props = {
   readOnly?: boolean;
   condominioInicial?: string;
   painelAposBuscar?: React.ReactNode;
-  onMutate?: () => void;
+  onMutate?: () => void | Promise<void>;
 };
 
 /** Listagem ZAP + cadastro manual — usado no Mapa de Competidores (sem catálogo/batalha). */
@@ -43,7 +42,6 @@ export function Etapa4CasasListagem({
   painelAposBuscar,
   onMutate,
 }: Props) {
-  const router = useRouter();
   const casasManuais = useMemo(() => casas.filter((c) => c.manual === true), [casas]);
   const precisaAlertaValidacao = useMemo(() => {
     if (casasManuais.length === 0) return false;
@@ -142,6 +140,11 @@ export function Etapa4CasasListagem({
   }, [casasExibicao, pageCasas]);
   useEffect(() => setPageCasas(1), [casasExibicao.length]);
 
+  async function sincronizarListagensAposMutacao() {
+    await onMutate?.();
+    notifyListingsCasasMutated(cardId);
+  }
+
   const handleVarrerZap = async () => {
     setZapError('');
     setZapResult(null);
@@ -184,9 +187,7 @@ export function Etapa4CasasListagem({
           despublicados: data.despublicados ?? 0,
           itemCount: data.itemCount ?? 0,
         });
-        notifyListingsCasasMutated(cardId);
-        router.refresh();
-        onMutate?.();
+        await sincronizarListagensAposMutacao();
       } else {
         setZapError('Resposta inesperada da API (dados não salvos).');
       }
@@ -269,9 +270,7 @@ export function Etapa4CasasListagem({
         updated: data.updated ?? 0,
         erros: Array.isArray(data.erros) ? data.erros : [],
       });
-      notifyListingsCasasMutated(cardId);
-      router.refresh();
-      onMutate?.();
+      await sincronizarListagensAposMutacao();
     } catch (err) {
       setImportErro(err instanceof Error ? err.message : 'Falha ao importar planilha.');
     } finally {
@@ -312,9 +311,7 @@ export function Etapa4CasasListagem({
     });
     setLoading(false);
     if (result.ok) {
-      notifyListingsCasasMutated(cardId);
-      router.refresh();
-      onMutate?.();
+      await sincronizarListagensAposMutacao();
       setCidadeManual(cidadeInicial);
       setEstadoManual(estadoInicial);
       setCondominioManual(condominioInicial.trim());
@@ -335,8 +332,7 @@ export function Etapa4CasasListagem({
   const handleStatusChange = async (casaId: string, status: 'a_venda' | 'despublicado') => {
     const result = await updateCasaStatus(casaId, status);
     if (result.ok) {
-      router.refresh();
-      onMutate?.();
+      await sincronizarListagensAposMutacao();
     }
   };
 
@@ -345,8 +341,7 @@ export function Etapa4CasasListagem({
     const result = await validarStatusCasasManuais(processoId);
     setValidandoStatus(false);
     if (result.ok) {
-      router.refresh();
-      onMutate?.();
+      await sincronizarListagensAposMutacao();
     }
   };
 
@@ -509,6 +504,20 @@ export function Etapa4CasasListagem({
       </section>
 
       {painelAposBuscar}
+
+      {casas.length === 0 ? (
+        <p
+          className="rounded-lg border px-3 py-3 text-[11px] italic"
+          style={{
+            borderColor: 'var(--moni-border-default)',
+            color: 'var(--moni-text-tertiary)',
+            background: 'var(--moni-surface-50)',
+          }}
+        >
+          Nenhuma listagem neste condomínio. Importe a planilha, busque na ZAP ou cadastre manualmente
+          abaixo.
+        </p>
+      ) : null}
 
       {casasManuais.length > 0 && precisaAlertaValidacao && (
         <div
