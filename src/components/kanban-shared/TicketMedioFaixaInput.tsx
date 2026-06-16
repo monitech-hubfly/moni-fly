@@ -1,6 +1,6 @@
 'use client';
 
-import { type CSSProperties, useEffect, useState } from 'react';
+import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import {
   formatMoedaDigitosPtBr,
   montarTicketMedioFaixa,
@@ -18,15 +18,19 @@ type Props = {
 export function TicketMedioFaixaInput({ value, onChange, onBlur, inputStyle, className }: Props) {
   const [min, setMin] = useState('');
   const [max, setMax] = useState('');
+  const ultimoEmitidoRef = useRef<string | null>(null);
 
   useEffect(() => {
+    if (value === ultimoEmitidoRef.current) return;
     const partes = parseTicketMedioFaixaPartes(value);
     setMin(partes.min);
     setMax(partes.max);
+    ultimoEmitidoRef.current = value;
   }, [value]);
 
   function emit(minFmt: string, maxFmt: string, blur = false) {
     const full = montarTicketMedioFaixa(minFmt, maxFmt);
+    ultimoEmitidoRef.current = full;
     onChange(full);
     if (blur) onBlur?.(full);
   }
@@ -35,10 +39,13 @@ export function TicketMedioFaixaInput({ value, onChange, onBlur, inputStyle, cla
     color: 'var(--moni-text-tertiary)',
     fontSize: '0.7rem',
     whiteSpace: 'nowrap',
+    flexShrink: 0,
   };
 
   const fieldStyle: CSSProperties = {
-    width: 72,
+    width: 68,
+    minWidth: 68,
+    flexShrink: 0,
     border: 'none',
     outline: 'none',
     padding: '4px 2px',
@@ -54,10 +61,11 @@ export function TicketMedioFaixaInput({ value, onChange, onBlur, inputStyle, cla
       className={className}
       style={{
         display: 'flex',
-        flexWrap: 'wrap',
+        flexWrap: 'nowrap',
         alignItems: 'center',
-        gap: 2,
+        gap: 3,
         padding: '4px 6px',
+        minWidth: 200,
       }}
     >
       <span style={labelStyle}>entre R$</span>

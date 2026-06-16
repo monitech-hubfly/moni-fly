@@ -5,7 +5,49 @@ export const TICKET_MEDIO_FAIXA_PADRAO = 'entre R$ e R$';
 
 export const PLACEHOLDER_TICKET_MEDIO_FAIXA = TICKET_MEDIO_FAIXA_PADRAO;
 
-const FAIXA_REGEX = /entre\s+R\$\s*([\d.,\s]+?)\s+e\s+R\$\s*([\d.,\s]+)/i;
+const FAIXA_REGEX = /entre\s+R\$\s*([\d.,\s]+)\s+e\s+R\$\s*([\d.,\s]+)/i;
+/** Aceita faixa incompleta enquanto o usuário digita (mín. ou máx. ainda vazio). */
+const FAIXA_PARCIAL_REGEX = /entre\s+R\$\s*([\d.,\s]*)\s+e\s+R\$\s*([\d.,\s]*)/i;
+
+function formatParteMoeda(raw: string): string {
+  const t = String(raw ?? '').trim();
+  if (!t) return '';
+  const n = parseDecimalInput(t);
+  if (n != null) return formatMoedaSemPrefixoFromNumber(n);
+  return t;
+}
+
+export function parseTicketMedioFaixaPartes(raw: string): { min: string; max: string } {
+  const t = String(raw ?? '').trim();
+  if (!t || isTicketMedioFaixaVazio(t)) return { min: '', max: '' };
+
+  const parcial = t.match(FAIXA_PARCIAL_REGEX);
+  if (parcial) {
+    return {
+      min: formatParteMoeda(parcial[1] ?? ''),
+      max: formatParteMoeda(parcial[2] ?? ''),
+    };
+  }
+
+  const [minVal, maxVal] = parseTicketMedioFaixaNumeros(raw);
+  return {
+    min: minVal != null ? formatMoedaSemPrefixoFromNumber(minVal) : '',
+    max: maxVal != null ? formatMoedaSemPrefixoFromNumber(maxVal) : '',
+  };
+}
+
+export function montarTicketMedioFaixa(minFmt: string, maxFmt: string): string {
+  const min = minFmt.trim();
+  const max = maxFmt.trim();
+  if (!min && !max) return TICKET_MEDIO_FAIXA_PADRAO;
+  return `entre R$ ${min} e R$ ${max}`;
+}
+
+export function isTicketMedioFaixaVazio(raw: string): boolean {
+  const t = String(raw ?? '').trim();
+  if (!t) return true;
+  return t.toLowerCase() === TICKET_MEDIO_FAIXA_PADRAO.toLowerCase();
+}
 
 function formatMoedaSemPrefixoFromNumber(n: number): string {
   return new Intl.NumberFormat('pt-BR', {
@@ -34,34 +76,18 @@ export function formatMoedaDigitosPtBr(digits: string): string {
   return formatMoedaSemPrefixoFromNumber(n);
 }
 
-export function parseTicketMedioFaixaPartes(raw: string): { min: string; max: string } {
-  const [minVal, maxVal] = parseTicketMedioFaixaNumeros(raw);
-  return {
-    min: minVal != null ? formatMoedaSemPrefixoFromNumber(minVal) : '',
-    max: maxVal != null ? formatMoedaSemPrefixoFromNumber(maxVal) : '',
-  };
-}
-
-export function montarTicketMedioFaixa(minFmt: string, maxFmt: string): string {
-  const min = minFmt.trim();
-  const max = maxFmt.trim();
-  if (!min && !max) return TICKET_MEDIO_FAIXA_PADRAO;
-  return `entre R$ ${min} e R$ ${max}`;
-}
-
-export function isTicketMedioFaixaVazio(raw: string): boolean {
-  const t = String(raw ?? '').trim();
-  if (!t) return true;
-  return t.toLowerCase() === TICKET_MEDIO_FAIXA_PADRAO.toLowerCase();
-}
-
 export function parseTicketMedioFaixaNumeros(raw: string): [number | null, number | null] {
   const t = String(raw ?? '').trim();
   if (!t || isTicketMedioFaixaVazio(t)) return [null, null];
 
-  const m = t.match(FAIXA_REGEX);
+  const m = t.match(FAIXA_REGEX) ?? t.match(FAIXA_PARCIAL_REGEX);
   if (m) {
-    return [parseDecimalInput(m[1]), parseDecimalInput(m[2])];
+    const minStr = String(m[1] ?? '').trim();
+    const maxStr = String(m[2] ?? '').trim();
+    return [
+      minStr ? parseDecimalInput(minStr) : null,
+      maxStr ? parseDecimalInput(maxStr) : null,
+    ];
   }
 
   const single = parseDecimalInput(t);

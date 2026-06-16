@@ -378,8 +378,17 @@ export async function listarCardIdsSyncGroup(db: SyncDb, startCardId: string): P
 }
 
 export async function contarOutrosCardsSyncGroup(db: SyncDb, cardId: string): Promise<number> {
-  const ids = await listarCardIdsSyncGroup(db, cardId);
-  return Math.max(0, ids.length - 1);
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return 0;
+
+  const ids = await listarCardIdsSyncGroup(db, cid);
+  const outros = ids.filter((id) => id !== cid);
+  if (outros.length === 0) return 0;
+
+  // Só cards kanban reais — o grupo inclui `processo_step_one.id` (shadow) para sync de dados,
+  // mas isso não é um card em outro funil e não deve aparecer no aviso da UI.
+  const { data: rows } = await db.from('kanban_cards').select('id').in('id', outros);
+  return (rows ?? []).length;
 }
 
 /** Card raiz da cadeia `origem_card_id` dentro do grupo (para leitura canônica). */

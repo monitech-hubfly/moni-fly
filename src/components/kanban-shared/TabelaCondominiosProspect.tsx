@@ -376,7 +376,7 @@ export function TabelaCondominiosProspect({ item, estado, onChange, onBlur, prac
                       key={col.key}
                       style={{
                         ...cellStyle,
-                        minWidth: col.type === 'textarea' ? 200 : col.type === 'ticket_faixa' ? 220 : undefined,
+                        minWidth: col.type === 'textarea' ? 200 : col.type === 'ticket_faixa' ? 260 : undefined,
                       }}
                     >
                       {col.type === 'textarea' ? (
