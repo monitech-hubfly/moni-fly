@@ -48,6 +48,7 @@ import { UsuarioChecklistSelect } from '@/components/kanban-shared/UsuarioCheckl
 import type { RankingPorFaixaMercado } from '@/lib/kanban/pre-batalha-compatibilidade';
 import {
   isLabelDadosCandidatoRede,
+  obrigatorioEfetivoDadosCandidato,
   valorDadosCandidatoFromRede,
   type RedeDadosCandidatoSource,
 } from '@/lib/kanban/dados-candidato-rede';
@@ -867,11 +868,14 @@ function ItemField({
   const [draftLinkAnexo, setDraftLinkAnexo] = useState('');
   const [baixandoModelo, setBaixandoModelo] = useState(false);
   const [erroModelo, setErroModelo] = useState<string | null>(null);
+  const obrigatorioItem = isDadosCandidatoFaseSlug(faseSlug)
+    ? obrigatorioEfetivoDadosCandidato(item)
+    : item.obrigatorio;
 
   const labelEl = (
     <span className="mb-1 block text-xs font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
       {item.label}
-      {item.obrigatorio && <span className="ml-1 text-red-500">*</span>}
+      {obrigatorioItem && <span className="ml-1 text-red-500">*</span>}
       {estado.salvando && <Loader2 size={10} className="ml-1 inline animate-spin" />}
     </span>
   );
@@ -933,7 +937,7 @@ function ItemField({
             }}
           />
           {item.label}
-          {item.obrigatorio && <span className="text-red-500">*</span>}
+          {obrigatorioItem && <span className="text-red-500">*</span>}
           {estado.salvando && <Loader2 size={10} className="animate-spin" />}
         </label>
         {erroEl}
@@ -1147,7 +1151,7 @@ function ItemField({
       <div>
         <span className="mb-2 block text-xs font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
           {item.label}
-          {item.obrigatorio && <span className="ml-1 text-red-500">*</span>}
+          {obrigatorioItem && <span className="ml-1 text-red-500">*</span>}
           {estado.salvando && <Loader2 size={10} className="ml-1 inline animate-spin" />}
         </span>
         {item.placeholder ? (
@@ -1181,14 +1185,14 @@ function ItemField({
         cardId={cardId}
         processoId={processoId}
         itemLabel={item.label}
-        obrigatorio={item.obrigatorio}
+        obrigatorio={obrigatorioItem}
       />
     );
   }
 
   if (item.tipo === 'lotes_condominio') {
     return (
-      <LotesCondominioDisponiveis cardId={cardId} itemLabel={item.label} obrigatorio={item.obrigatorio} />
+      <LotesCondominioDisponiveis cardId={cardId} itemLabel={item.label} obrigatorio={obrigatorioItem} />
     );
   }
 
@@ -1213,7 +1217,7 @@ function ItemField({
         cardId={cardId}
         processoId={processoId}
         itemLabel={item.label}
-        obrigatorio={item.obrigatorio}
+        obrigatorio={obrigatorioItem}
         valorInicial={estado.valor}
         podeEditar={podeEditar}
         salvando={estado.salvando}
@@ -1258,7 +1262,7 @@ function ItemField({
         cardId={cardId}
         processoId={pid}
         itemLabel={item.label}
-        obrigatorio={item.obrigatorio}
+        obrigatorio={obrigatorioItem}
       />
     );
   }
@@ -1281,7 +1285,7 @@ function ItemField({
         cidade={pracaCidade?.cidade}
         estado={pracaCidade?.uf ?? null}
         itemLabel={item.label}
-        obrigatorio={item.obrigatorio}
+        obrigatorio={obrigatorioItem}
         reloadKey={pracaReloadKey}
       />
     );
@@ -1294,7 +1298,7 @@ function ItemField({
         cidade={pracaCidade?.cidade}
         estado={pracaCidade?.uf ?? null}
         itemLabel={item.label}
-        obrigatorio={item.obrigatorio}
+        obrigatorio={obrigatorioItem}
         reloadKey={pracaReloadKey}
       />
     );
@@ -1310,7 +1314,7 @@ function ItemField({
       <ChecklistAreaAtuacaoSelect
         modo={item.label.trim() === CHECKLIST_LABEL_ESTADO ? 'estado' : 'cidade'}
         label={item.label}
-        obrigatorio={item.obrigatorio}
+        obrigatorio={obrigatorioItem}
         areas={areasAtuacao}
         valor={estado.valor}
         estadoReferencia={estadoChecklistValor}
@@ -1461,7 +1465,7 @@ function ItemField({
     return (
       <CatalogCasaChecklistSelect
         label={item.label}
-        obrigatorio={item.obrigatorio}
+        obrigatorio={obrigatorioItem}
         value={estado.valor}
         salvando={estado.salvando}
         onChange={(v) => {
@@ -1659,7 +1663,7 @@ function ItemField({
     return (
       <UsuarioChecklistSelect
         label={item.label}
-        obrigatorio={item.obrigatorio}
+        obrigatorio={obrigatorioItem}
         value={estado.valor}
         salvando={estado.salvando}
         onChange={(v) => {

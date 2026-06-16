@@ -8,6 +8,39 @@ export const CHECKLIST_LABELS_DADOS_CANDIDATO_REDE = [
   'Idade',
 ] as const;
 
+/** Ordens dos itens opcionais em Dados do Candidato (Profissão + textos longos). */
+export const DADOS_CANDIDATO_ORDENS_OPCIONAIS = [5, 6, 7, 8] as const;
+
+function normalizarLabelChecklist(label: string): string {
+  return String(label ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+}
+
+/** Profissão e textos longos do candidato não bloqueiam avanço de fase. */
+export function isDadosCandidatoItemOpcional(item: { label?: string | null; ordem?: number | null }): boolean {
+  const ordem = Number(item.ordem ?? 0);
+  if ((DADOS_CANDIDATO_ORDENS_OPCIONAIS as readonly number[]).includes(ordem)) return true;
+
+  const l = normalizarLabelChecklist(String(item.label ?? ''));
+  if (l === 'profissao') return true;
+  if (l.includes('experiencias profissionais')) return true;
+  if (l.includes('trajetoria e aprendizados')) return true;
+  if (l.includes('bom franqueado mon')) return true;
+  return false;
+}
+
+export function obrigatorioEfetivoDadosCandidato(item: {
+  label?: string | null;
+  ordem?: number | null;
+  obrigatorio?: boolean | null;
+}): boolean {
+  if (isDadosCandidatoItemOpcional(item)) return false;
+  return Boolean(item.obrigatorio);
+}
+
 export type RedeDadosCandidatoSource = Pick<
   RedeFranqueadoModalRow,
   'nome_completo' | 'email_frank' | 'telefone_frank' | 'data_nasc_frank'

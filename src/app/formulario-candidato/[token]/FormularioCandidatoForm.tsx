@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import { Loader2, CheckCircle2, Download, Upload } from 'lucide-react';
 import { salvarRespostaCandidato, type FaseChecklistItem } from '@/lib/actions/candidato-actions';
+import { obrigatorioEfetivoDadosCandidato } from '@/lib/kanban/dados-candidato-rede';
 import { ChecklistDocumentDiffModal } from '@/components/kanban-shared/ChecklistDocumentDiffModal';
 
 type Props = {
@@ -113,7 +114,7 @@ export function FormularioCandidatoForm({
 
     const novosErros: Record<string, string> = {};
     for (const it of itens) {
-      if (!it.obrigatorio) continue;
+      if (!obrigatorioEfetivoDadosCandidato(it)) continue;
       if (it.tipo === 'anexo_template' || it.tipo === 'anexo') {
         const p = (arquivos[it.id] ?? '').trim();
         if (!p) novosErros[it.id] = 'Anexo obrigatório.';
@@ -185,11 +186,12 @@ export function FormularioCandidatoForm({
         const valor = valores[item.id] ?? '';
         const erro = erros[item.id];
         const pathArquivo = arquivos[item.id];
+        const obrigatorioItem = obrigatorioEfetivoDadosCandidato(item);
 
         const label = (
           <label className="mb-1.5 block text-sm font-medium text-gray-700">
             {item.label}
-            {item.obrigatorio && <span className="ml-1 text-red-500">*</span>}
+            {obrigatorioItem && <span className="ml-1 text-red-500">*</span>}
           </label>
         );
 
@@ -314,7 +316,7 @@ export function FormularioCandidatoForm({
                 onChange={(e) => set(item.id, e.target.checked ? 'true' : 'false')}
               />
               {item.label}
-              {item.obrigatorio && <span className="text-red-500">*</span>}
+              {obrigatorioItem && <span className="text-red-500">*</span>}
             </label>
           );
           return (
