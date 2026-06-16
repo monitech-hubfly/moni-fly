@@ -23,7 +23,10 @@ import {
   LOTES_DISPONIVEIS_CHECKBOXES_LOCALIZACAO,
   LOTES_DISPONIVEIS_CHECKBOXES_TOPOGRAFIA,
   CHAVES_TOPOGRAFIA_LOTE,
+  parseFotosLotePaths,
+  rotuloArquivoFoto,
   rotuloLoteDisponivel,
+  serializarFotosLotePaths,
   type ChaveLoteCheckbox,
   type ChaveLoteDisponivel,
   type LinhaLoteDisponivel,
@@ -314,28 +317,53 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
     fotosInputRef.current?.click();
   }
 
-  async function salvarFotosLote(loteId: string, file: File) {
-    if (!linhaAtiva) return;
+  function aplicarFotosLoteLocal(loteId: string, paths: string[]) {
+    const serializado = serializarFotosLotePaths(paths);
+    setRascunhoLotes((prev) => {
+      const next = prev.map((l) => (l.lote_id === loteId ? { ...l, fotos_path: serializado } : l));
+      rascunhoLotesRef.current = next;
+      return next;
+    });
+    salvarCampoBlur(loteId, 'fotos_path', serializado);
+  }
+
+  async function salvarFotosLote(loteId: string, files: File[]) {
+    if (!linhaAtiva || files.length === 0) return;
     setUploadLoteId(loteId);
     setErroSalvar(null);
     try {
       const supabase = createClient();
-      const ext = file.name.split('.').pop() ?? 'bin';
-      const path = `respostas/${cardId}/lotes-disponiveis/${linhaAtiva.row_id}/${loteId}/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from('documentos-templates').upload(path, file, { upsert: true });
-      if (error) {
-        setErroSalvar(error.message);
-        return;
+      const loteAtual = rascunhoLotesRef.current.find((l) => l.lote_id === loteId);
+      const pathsAtuais = parseFotosLotePaths(loteAtual?.fotos_path);
+      const novosPaths = [...pathsAtuais];
+
+      for (const file of files) {
+        const ext = file.name.split('.').pop() ?? 'bin';
+        const path = `respostas/${cardId}/lotes-disponiveis/${linhaAtiva.row_id}/${loteId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const { error } = await supabase.storage.from('documentos-templates').upload(path, file, { upsert: true });
+        if (error) {
+          setErroSalvar(error.message);
+          if (novosPaths.length > pathsAtuais.length) {
+            aplicarFotosLoteLocal(loteId, novosPaths);
+          }
+          return;
+        }
+        novosPaths.push(path);
       }
-      setRascunhoLotes((prev) => {
-        const next = prev.map((l) => (l.lote_id === loteId ? { ...l, fotos_path: path } : l));
-        rascunhoLotesRef.current = next;
-        return next;
-      });
-      salvarCampoBlur(loteId, 'fotos_path', path);
+
+      aplicarFotosLoteLocal(loteId, novosPaths);
     } finally {
       setUploadLoteId(null);
     }
+  }
+
+  function removerFotoLote(loteId: string, index: number) {
+    const loteAtual = rascunhoLotesRef.current.find((l) => l.lote_id === loteId);
+    const paths = parseFotosLotePaths(loteAtual?.fotos_path);
+    aplicarFotosLoteLocal(
+      loteId,
+      paths.filter((_, i) => i !== index),
+    );
   }
 
   const tabsLotes = useMemo(
@@ -456,35 +484,71 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
                         const valor = String(loteAtivo[campo.chave] ?? '');
 
                         if (campo.tipo === 'anexo') {
+                          const fotosPaths = parseFotosLotePaths(valor);
+                          const enviandoFotos = uploadLoteId === loteAtivo.lote_id;
                           return (
                             <div key={campo.chave}>
                               <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--moni-text-primary)' }}>
                                 {campo.label}
                                 {campo.obrigatorio ? <span className="ml-1 text-red-500">*</span> : null}
                               </label>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <button
-                                  type="button"
-                                  disabled={uploadLoteId === loteAtivo.lote_id}
-                                  onMouseDown={(e) => e.stopPropagation()}
-                                  onClick={(e) => abrirSeletorFotos(loteAtivo.lote_id, e)}
-                                  className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
-                                  style={{ borderColor: 'var(--moni-border-default)', color: 'var(--moni-primary-600)' }}
-                                >
-                                  {uploadLoteId === loteAtivo.lote_id ? (
-                                    <Loader2 size={12} className="animate-spin" />
-                                  ) : (
-                                    <Upload size={12} />
-                                  )}
-                                  {uploadLoteId === loteAtivo.lote_id ? 'Enviando…' : 'Enviar fotos'}
-                                </button>
-                                {valor ? (
-                                  <span className="max-w-[200px] truncate text-[10px] text-stone-500">
-                                    {valor.split('/').pop()}
-                                  </span>
+                              <div className="space-y-2">
+                                {fotosPaths.length > 0 ? (
+                                  <ul className="space-y-1">
+                                    {fotosPaths.map((path, idx) => (
+                                      <li
+                                        key={`${path}-${idx}`}
+                                        className="flex items-center gap-2 rounded-md border px-2 py-1 text-[10px]"
+                                        style={{
+                                          borderColor: 'var(--moni-border-default)',
+                                          background: 'var(--moni-surface-0)',
+                                          color: 'var(--moni-text-secondary)',
+                                        }}
+                                      >
+                                        <span className="min-w-0 flex-1 truncate">{rotuloArquivoFoto(path)}</span>
+                                        <button
+                                          type="button"
+                                          disabled={enviandoFotos}
+                                          onClick={() => removerFotoLote(loteAtivo.lote_id, idx)}
+                                          className="shrink-0 text-red-600 hover:underline disabled:opacity-50"
+                                        >
+                                          Remover
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
                                 ) : (
-                                  <span className="text-[10px] italic text-stone-400">Nenhum arquivo</span>
+                                  <p className="text-[10px] italic" style={{ color: 'var(--moni-text-tertiary)' }}>
+                                    Nenhuma foto anexada
+                                  </p>
                                 )}
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={enviandoFotos}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    onClick={(e) => abrirSeletorFotos(loteAtivo.lote_id, e)}
+                                    className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                    style={{
+                                      borderColor: 'var(--moni-border-default)',
+                                      color: 'var(--moni-primary-600)',
+                                    }}
+                                  >
+                                    {enviandoFotos ? (
+                                      <Loader2 size={12} className="animate-spin" />
+                                    ) : (
+                                      <Upload size={12} />
+                                    )}
+                                    {enviandoFotos
+                                      ? 'Enviando…'
+                                      : fotosPaths.length > 0
+                                        ? 'Adicionar fotos'
+                                        : 'Enviar fotos'}
+                                  </button>
+                                  <span className="text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                                    Uma ou várias por vez
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           );
@@ -651,13 +715,14 @@ export function LotesCondominioDisponiveis({ cardId, itemLabel, obrigatorio }: P
               ref={fotosInputRef}
               type="file"
               accept="image/*,.pdf"
+              multiple
               className="hidden"
               tabIndex={-1}
               aria-hidden
               onChange={(e) => {
-                const f = e.target.files?.[0];
+                const files = Array.from(e.target.files ?? []);
                 const loteId = fotosUploadLoteIdRef.current;
-                if (f && loteId) void salvarFotosLote(loteId, f);
+                if (files.length > 0 && loteId) void salvarFotosLote(loteId, files);
                 fotosUploadLoteIdRef.current = null;
                 e.target.value = '';
               }}

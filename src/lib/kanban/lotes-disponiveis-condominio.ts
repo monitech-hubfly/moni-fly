@@ -265,6 +265,35 @@ function normalizarCheckbox(o: Record<string, unknown>, chave: ChaveLoteCheckbox
   return 'false';
 }
 
+/** Lê paths de fotos: JSON array ou path único legado. */
+export function parseFotosLotePaths(valor: string | null | undefined): string[] {
+  const t = String(valor ?? '').trim();
+  if (!t) return [];
+  if (t.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(t) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed.map((p) => String(p ?? '').trim()).filter(Boolean);
+      }
+    } catch {
+      /* legado: trata como path único */
+    }
+  }
+  return [t];
+}
+
+/** Serializa lista de fotos (path único se 1 item; JSON se vários). */
+export function serializarFotosLotePaths(paths: readonly string[]): string {
+  const limpos = paths.map((p) => String(p).trim()).filter(Boolean);
+  if (limpos.length === 0) return '';
+  if (limpos.length === 1) return limpos[0]!;
+  return JSON.stringify(limpos);
+}
+
+export function rotuloArquivoFoto(path: string): string {
+  return path.split('/').pop() ?? path;
+}
+
 export function normalizarLinhaLote(raw: unknown, fallbackIndex = 0): LinhaLoteDisponivel {
   const o = isRecord(raw) ? raw : {};
   // TODO: migrar respostas legadas de 'vista_privilegiada' e 'muro' no ponto de leitura do banco.
