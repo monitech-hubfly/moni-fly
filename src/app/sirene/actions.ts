@@ -1063,8 +1063,18 @@ export async function buscarCardsParaNovoChamadoSirene(
     .limit(12);
   if (lErr) return { ok: false, error: lErr.message };
 
+  // A view legada pode conter IDs que não existem em kanban_cards.
+  // sirene_chamados.card_id tem FK → kanban_cards, então filtramos aqui.
+  const legIds = (legRows ?? []).map((r) => String((r as { id: string }).id)).filter(Boolean);
+  let validLegIds = new Set<string>();
+  if (legIds.length > 0) {
+    const { data: validCards } = await admin.from('kanban_cards').select('id').in('id', legIds);
+    validLegIds = new Set((validCards ?? []).map((c) => String((c as { id: string }).id)));
+  }
+  const filteredLegRows = (legRows ?? []).filter((r) => validLegIds.has(String((r as { id: string }).id)));
+
   const kidSet2 = new Set<string>();
-  for (const r of legRows ?? []) {
+  for (const r of filteredLegRows) {
     const kid = String((r as { kanban_id?: string }).kanban_id ?? '');
     if (kid) kidSet2.add(kid);
   }
@@ -1075,7 +1085,7 @@ export async function buscarCardsParaNovoChamadoSirene(
       (kbs2 ?? []).map((k) => [String((k as { id: string }).id), String((k as { nome?: string }).nome ?? '')]),
     );
   }
-  for (const r of legRows ?? []) {
+  for (const r of filteredLegRows) {
     const id = String((r as { id: string }).id);
     const key = `l:${id}`;
     if (seen.has(key)) continue;
