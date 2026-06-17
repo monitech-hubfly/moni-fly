@@ -63,7 +63,7 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
   if (!row) notFound();
 
   const nfr = String(row.n_franquia ?? '').trim();
-  const permiteCriarSpeEEmpresa = isFranquiaCasaMoniFk0000(nfr);
+  const permiteCriarEmpresaExtra = isFranquiaCasaMoniFk0000(nfr);
 
   const nome = String(row.nome_completo ?? '').trim() || 'Franqueado';
   const pathCof = row.anexo_cof_path ?? null;
@@ -101,7 +101,8 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
               empresaDocs={empresaDocs}
               spes={spesDoFranqueado}
               empresasExtras={empresasExtrasRows ?? []}
-              permiteCriarSpeEEmpresa={permiteCriarSpeEEmpresa}
+              permiteCriarSpe
+              permiteCriarEmpresaExtra={permiteCriarEmpresaExtra}
             />
           ) : (
             <RedeFranqueadoDetalheDocsFranqueado

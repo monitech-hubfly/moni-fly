@@ -119,9 +119,9 @@ function explicarLider(ranking: RankingModeloPreBatalha[]): string {
   const compat = labelCompatibilidade(lider.notaFinal);
   const forte = eixoMaisForte(lider);
 
-  let texto = `${lider.modelo} lidera com match de ${lider.matchScore}/${lider.totalAtributosLote} atributos do lote (nota final ${lider.notaFinal}, compatibilidade ${compat}). `;
+  let texto = `${lider.modelo} lidera com match de ${lider.matchScore}/${lider.totalAtributosLote} atributos do lote (nota final Preço+Produto ${lider.notaFinal}, compatibilidade ${compat}). `;
   texto += `Seu principal diferencial nesta faixa é ${forte.toLowerCase()}: ${textoEixo(forte, lider)}. `;
-  texto += `Notas parciais — Lote: ${lider.matchScore}/${lider.totalAtributosLote}, Preço: ${lider.notaPrecoMedia}, Produto: ${lider.notaProdutoMedia}.`;
+  texto += `Notas parciais — match lote: ${lider.matchScore}/${lider.totalAtributosLote}, Preço: ${lider.notaPrecoMedia}, Produto: ${lider.notaProdutoMedia}.`;
 
   if (segundo) {
     const desempate = motivoDesempate(lider, segundo);

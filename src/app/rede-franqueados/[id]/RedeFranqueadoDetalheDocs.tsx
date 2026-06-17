@@ -58,7 +58,8 @@ type Props = {
   empresaDocs: RedeEmpresaDocsRow;
   spes?: FranqueadoSpeRow[];
   empresasExtras?: FranqueadoEmpresaExtraRow[];
-  permiteCriarSpeEEmpresa?: boolean;
+  permiteCriarSpe?: boolean;
+  permiteCriarEmpresaExtra?: boolean;
 };
 
 function DocUploadCard({
@@ -203,7 +204,8 @@ export function RedeFranqueadoDetalheDocs({
   empresaDocs,
   spes = [],
   empresasExtras = [],
-  permiteCriarSpeEEmpresa = false,
+  permiteCriarSpe = true,
+  permiteCriarEmpresaExtra = false,
 }: Props) {
   const router = useRouter();
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
@@ -368,9 +370,9 @@ export function RedeFranqueadoDetalheDocs({
           <RedeFranqueadoEmpresasExtrasSection
             redeId={redeId}
             empresas={empresasExtras}
-            permiteCriar={permiteCriarSpeEEmpresa}
+            permiteCriar={permiteCriarEmpresaExtra}
           />
-          <RedeFranqueadoSpeSection redeId={redeId} spes={spes} permiteCriar={permiteCriarSpeEEmpresa} />
+          <RedeFranqueadoSpeSection redeId={redeId} spes={spes} permiteCriar={permiteCriarSpe} />
         </div>
         </RedeDocsSecaoColapsavel>
       </div>

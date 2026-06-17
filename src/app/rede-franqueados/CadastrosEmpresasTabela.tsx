@@ -16,7 +16,6 @@ import {
 } from '@/lib/franqueado-spe';
 import { upsertFranqueadoEmpresa } from './franqueado-empresas-actions';
 import { criarFranqueadoSpe, upsertFranqueadoSpe } from './franqueado-spe-actions';
-import { isFranquiaCasaMoniFk0000 } from '@/lib/franquia-casa-moni-fk0000';
 import { redeAlertError, redeAlertSuccess, redeTh } from './rede-ui';
 import { usePaginaTabela } from '@/lib/use-pagina-tabela';
 
@@ -164,9 +163,7 @@ export function CadastrosEmpresasTabela({
     for (const spe of linha.spes) {
       spesDraft[spe.id] = speToDraft(spe);
     }
-    if (linha.spes.length === 0 && isFranquiaCasaMoniFk0000(linha.n_franquia)) {
-      spesDraft[NOVA_SPE_DRAFT_KEY] = emptyEmpresaDraft();
-    }
+    spesDraft[NOVA_SPE_DRAFT_KEY] = emptyEmpresaDraft();
     setDraftSpes(spesDraft);
     setSpeColunasExpandidas(true);
   };
@@ -258,7 +255,7 @@ export function CadastrosEmpresasTabela({
       ) : null}
 
       <div className="overflow-x-auto rounded-xl border border-stone-200/90 bg-white shadow-sm">
-        <table className="w-full min-w-[1560px] border-collapse text-left text-sm">
+        <table className="w-full min-w-[1680px] border-collapse text-left text-sm">
           <thead>
             <tr>
               <th colSpan={4} className={thGroup}>
@@ -271,7 +268,7 @@ export function CadastrosEmpresasTabela({
                 Gestora
               </th>
               <th
-                colSpan={speColunasExpandidas ? 5 : 1}
+                colSpan={speColunasExpandidas ? 6 : 1}
                 className={`${thGroup} border-l border-stone-200`}
               >
                 <button
@@ -314,6 +311,7 @@ export function CadastrosEmpresasTabela({
               {speColunasExpandidas ? (
                 <>
                   <th className={`${redeTh} border-l border-stone-200`}>Razão social</th>
+                  <th className={redeTh}>CNPJ</th>
                   <th className={redeTh}>Insc. municipal</th>
                   <th className={redeTh}>Insc. estadual</th>
                   <th className={redeTh}>Status</th>
@@ -331,10 +329,10 @@ export function CadastrosEmpresasTabela({
               const ges = linha.gestora;
 
               if (isEditing) {
-                const speEditRows = linha.spes.length > 0 ? linha.spes : [null];
+                const speEditRows: (FranqueadoSpeRow | null)[] = [...linha.spes, null];
                 return speEditRows.map((spe, speIdx) => (
                   <tr
-                    key={spe?.id ?? `${linha.redeId}-sem-spe`}
+                    key={spe?.id ?? `${linha.redeId}-nova-spe`}
                     className="border-b border-stone-200 bg-stone-50/90 align-top"
                   >
                     {speIdx === 0 ? (
@@ -356,7 +354,9 @@ export function CadastrosEmpresasTabela({
                         colSpan={15}
                         className="px-3 py-2 text-right text-[11px] font-medium text-stone-500"
                       >
-                        {spe?.nome_projeto?.trim() || spe?.razao_social?.trim() || `SPE ${speIdx + 1}`}
+                        {spe
+                          ? spe.nome_projeto?.trim() || spe.razao_social?.trim() || `SPE ${speIdx + 1}`
+                          : 'Nova SPE'}
                       </td>
                     )}
                     {speColunasExpandidas ? (
@@ -366,19 +366,12 @@ export function CadastrosEmpresasTabela({
                           setDraft={(updater) => patchSpeDraft(spe.id, updater)}
                           borderLeft={speIdx === 0}
                         />
-                      ) : isFranquiaCasaMoniFk0000(linha.n_franquia) ? (
+                      ) : (
                         <SpeEditCells
                           draft={draftSpes[NOVA_SPE_DRAFT_KEY] ?? emptyEmpresaDraft()}
                           setDraft={(updater) => patchSpeDraft(NOVA_SPE_DRAFT_KEY, updater)}
-                          borderLeft
+                          borderLeft={speIdx === 0}
                         />
-                      ) : (
-                        <td
-                          colSpan={5}
-                          className="border-l border-stone-100 px-3 py-2.5 text-xs italic text-stone-500"
-                        >
-                          Nenhuma SPE — cadastre em Documentos das Empresas (FK0000)
-                        </td>
                       )
                     ) : speIdx === 0 ? (
                       <td className="border-l border-stone-100 px-3 py-2.5 text-stone-600">
@@ -419,94 +412,109 @@ export function CadastrosEmpresasTabela({
                 ));
               }
 
-              return [
-                <tr key={linha.redeId} className="group border-b border-stone-100 align-top hover:bg-stone-50/70">
-                  <td className="px-3 py-2.5 font-medium text-stone-900">{linha.n_franquia ?? '—'}</td>
-                  <td className="px-3 py-2.5 text-stone-700">{linha.modalidade?.trim() || '—'}</td>
-                  <td className="max-w-[12rem] px-3 py-2.5 text-stone-700">{linha.nome_completo?.trim() || '—'}</td>
-                  <td className="px-3 py-2.5 text-stone-700">{linha.status_franquia?.trim() || '—'}</td>
-                  <td className="border-l border-stone-100 px-3 py-2.5 text-stone-700">
-                    {inc?.razao_social?.trim() || '—'}
-                  </td>
-                  <td className="px-3 py-2.5 text-stone-700">{inc?.cnpj?.trim() || '—'}</td>
-                  <td className="px-3 py-2.5 text-stone-700">{inc?.inscricao_municipal?.trim() || '—'}</td>
-                  <td className="px-3 py-2.5 text-stone-700">{inc?.inscricao_estadual?.trim() || '—'}</td>
-                  <td className="px-3 py-2.5">
-                    {inc ? <StatusEmpresaBadge status={inc.status} /> : '—'}
-                  </td>
-                  <td className="px-3 py-2.5 text-stone-700">
-                    {formatContaBancariaEmpresa(inc?.conta_banco, inc?.conta_agencia, inc?.conta_numero)}
-                  </td>
-                  <td className="border-l border-stone-100 px-3 py-2.5 text-stone-700">
-                    {ges?.razao_social?.trim() || '—'}
-                  </td>
-                  <td className="px-3 py-2.5 text-stone-700">{ges?.cnpj?.trim() || '—'}</td>
-                  <td className="px-3 py-2.5 text-stone-700">{ges?.inscricao_municipal?.trim() || '—'}</td>
-                  <td className="px-3 py-2.5 text-stone-700">{ges?.inscricao_estadual?.trim() || '—'}</td>
-                  <td className="px-3 py-2.5">
-                    {ges ? <StatusEmpresaBadge status={ges.status} /> : '—'}
-                  </td>
-                  {speColunasExpandidas ? (
-                    linha.spes.length === 0 ? (
+              const speViewRows: (FranqueadoSpeRow | null)[] =
+                linha.spes.length > 0 ? linha.spes : [null];
+
+              return speViewRows.flatMap((spe, speIdx) => {
+                const row = (
+                  <tr
+                    key={spe?.id ?? `${linha.redeId}-sem-spe`}
+                    className="group border-b border-stone-100 align-top hover:bg-stone-50/70"
+                  >
+                    {speIdx === 0 ? (
                       <>
-                        <td colSpan={5} className="border-l border-stone-100 px-3 py-2.5 text-stone-500">
-                          —
+                        <td className="px-3 py-2.5 font-medium text-stone-900">{linha.n_franquia ?? '—'}</td>
+                        <td className="px-3 py-2.5 text-stone-700">{linha.modalidade?.trim() || '—'}</td>
+                        <td className="max-w-[12rem] px-3 py-2.5 text-stone-700">
+                          {linha.nome_completo?.trim() || '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-stone-700">{linha.status_franquia?.trim() || '—'}</td>
+                        <td className="border-l border-stone-100 px-3 py-2.5 text-stone-700">
+                          {inc?.razao_social?.trim() || '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-stone-700">{inc?.cnpj?.trim() || '—'}</td>
+                        <td className="px-3 py-2.5 text-stone-700">{inc?.inscricao_municipal?.trim() || '—'}</td>
+                        <td className="px-3 py-2.5 text-stone-700">{inc?.inscricao_estadual?.trim() || '—'}</td>
+                        <td className="px-3 py-2.5">
+                          {inc ? <StatusEmpresaBadge status={inc.status} /> : '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-stone-700">
+                          {formatContaBancariaEmpresa(inc?.conta_banco, inc?.conta_agencia, inc?.conta_numero)}
+                        </td>
+                        <td className="border-l border-stone-100 px-3 py-2.5 text-stone-700">
+                          {ges?.razao_social?.trim() || '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-stone-700">{ges?.cnpj?.trim() || '—'}</td>
+                        <td className="px-3 py-2.5 text-stone-700">{ges?.inscricao_municipal?.trim() || '—'}</td>
+                        <td className="px-3 py-2.5 text-stone-700">{ges?.inscricao_estadual?.trim() || '—'}</td>
+                        <td className="px-3 py-2.5">
+                          {ges ? <StatusEmpresaBadge status={ges.status} /> : '—'}
                         </td>
                       </>
                     ) : (
-                      <>
-                        <td className="border-l border-stone-100 px-3 py-2.5 text-stone-700">
-                          {linha.spes[0]?.razao_social?.trim() || linha.spes[0]?.nome_projeto?.trim() || '—'}
-                        </td>
-                        <td className="px-3 py-2.5 text-stone-700">
-                          {linha.spes[0]?.inscricao_municipal?.trim() || '—'}
-                        </td>
-                        <td className="px-3 py-2.5 text-stone-700">
-                          {linha.spes[0]?.inscricao_estadual?.trim() || '—'}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          {linha.spes[0] ? <StatusEmpresaBadge status={linha.spes[0].status} /> : '—'}
-                        </td>
-                        <td className="px-3 py-2.5 text-stone-700">
-                          {linha.spes[0]
-                            ? formatContaBancariaEmpresa(
-                                linha.spes[0].conta_banco,
-                                linha.spes[0].conta_agencia,
-                                linha.spes[0].conta_numero,
-                              )
-                            : '—'}
-                        </td>
-                      </>
-                    )
-                  ) : (
-                    <td className="border-l border-stone-100 px-3 py-2.5 text-stone-700">
-                      {speResumoColapsado(linha.spes)}
-                    </td>
-                  )}
-                  <td className="sticky right-0 border-l border-stone-200 bg-white px-1 py-2 align-middle group-hover:bg-stone-50/90">
-                    <div className="flex flex-col items-center justify-center gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
-                      <Link
-                        href={`/rede-franqueados/${linha.redeId}#empresas`}
-                        title="Documentos das empresas"
-                        className="rounded-md p-1.5 text-moni-primary hover:bg-moni-light/60"
+                      <td
+                        colSpan={15}
+                        className="px-3 py-2.5 text-right text-[11px] font-medium text-stone-500"
                       >
-                        <FileText className="h-4 w-4" />
-                        <span className="sr-only">Documentos</span>
-                      </Link>
-                      <button
-                        type="button"
-                        title="Editar empresas"
-                        disabled={editingRedeId !== null}
-                        onClick={() => beginEdit(linha)}
-                        className="rounded-md p-1.5 text-stone-600 hover:bg-stone-200/80 disabled:opacity-50"
-                      >
-                        <Pencil className="h-4 w-4" />
-                        <span className="sr-only">Editar</span>
-                      </button>
-                    </div>
-                  </td>
-                </tr>,
-              ];
+                        {spe?.nome_projeto?.trim() || spe?.razao_social?.trim() || `SPE ${speIdx + 1}`}
+                      </td>
+                    )}
+                    {speColunasExpandidas ? (
+                      spe ? (
+                        <>
+                          <td className="border-l border-stone-100 px-3 py-2.5 text-stone-700">
+                            {spe.razao_social?.trim() || spe.nome_projeto?.trim() || '—'}
+                          </td>
+                          <td className="px-3 py-2.5 text-stone-700">{spe.cnpj?.trim() || '—'}</td>
+                          <td className="px-3 py-2.5 text-stone-700">{spe.inscricao_municipal?.trim() || '—'}</td>
+                          <td className="px-3 py-2.5 text-stone-700">{spe.inscricao_estadual?.trim() || '—'}</td>
+                          <td className="px-3 py-2.5">
+                            <StatusEmpresaBadge status={spe.status} />
+                          </td>
+                          <td className="px-3 py-2.5 text-stone-700">
+                            {formatContaBancariaEmpresa(spe.conta_banco, spe.conta_agencia, spe.conta_numero)}
+                          </td>
+                        </>
+                      ) : (
+                        <td colSpan={6} className="border-l border-stone-100 px-3 py-2.5 text-stone-500">
+                          —
+                        </td>
+                      )
+                    ) : speIdx === 0 ? (
+                      <td className="border-l border-stone-100 px-3 py-2.5 text-stone-700">
+                        {speResumoColapsado(linha.spes)}
+                      </td>
+                    ) : null}
+                    {speIdx === 0 ? (
+                      <td className="sticky right-0 border-l border-stone-200 bg-white px-1 py-2 align-middle group-hover:bg-stone-50/90">
+                        <div className="flex flex-col items-center justify-center gap-1 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+                          <Link
+                            href={`/rede-franqueados/${linha.redeId}#empresas`}
+                            title="Documentos das empresas"
+                            className="rounded-md p-1.5 text-moni-primary hover:bg-moni-light/60"
+                          >
+                            <FileText className="h-4 w-4" />
+                            <span className="sr-only">Documentos</span>
+                          </Link>
+                          <button
+                            type="button"
+                            title="Editar empresas"
+                            disabled={editingRedeId !== null}
+                            onClick={() => beginEdit(linha)}
+                            className="rounded-md p-1.5 text-stone-600 hover:bg-stone-200/80 disabled:opacity-50"
+                          >
+                            <Pencil className="h-4 w-4" />
+                            <span className="sr-only">Editar</span>
+                          </button>
+                        </div>
+                      </td>
+                    ) : (
+                      <td className="sticky right-0 border-l border-stone-200 bg-white group-hover:bg-stone-50/90" />
+                    )}
+                  </tr>
+                );
+                return [row];
+              });
             })}
           </tbody>
         </table>
@@ -579,6 +587,14 @@ function SpeEditCells({
           onChange={(e) => setDraft((d) => ({ ...d, razao_social: e.target.value }))}
           className={inputCls}
           placeholder="Razão social"
+        />
+      </td>
+      <td className={cell}>
+        <input
+          type="text"
+          value={draft.cnpj}
+          onChange={(e) => setDraft((d) => ({ ...d, cnpj: e.target.value }))}
+          className={inputCls}
         />
       </td>
       <td className={cell}>

@@ -1,10 +1,10 @@
 /** Labels de checklist da fase Pré Batalha (Funil Step One, slug `batalha`). */
 
-import { formatModeloTopografia, type RankingPorFaixaMercado } from '@/lib/kanban/pre-batalha-compatibilidade';
+import { formatModeloTopografia, formatConfrontosModeloGEP, type RankingPorFaixaMercado } from '@/lib/kanban/pre-batalha-compatibilidade';
 import { formatExplicacaoRankingFaixaChecklist } from '@/lib/kanban/pre-batalha-explicacao-faixa';
 
 export const PRE_BATALHA_CHECKLIST_LABEL_APLICADA =
-  'Pré-batalha aplicada (Lote + Preço + Produto)';
+  'Pré-batalha aplicada (match lote + Preço + Produto)';
 
 export const PRE_BATALHA_CHECKLIST_LABEL_RANKING =
   'Ranking inicial — casas candidatas confirmadas';
@@ -18,6 +18,7 @@ export type RankingInicialChecklistItem = {
   notaLote?: number;
   notaPreco?: number;
   notaProduto?: number;
+  confrontosModelos?: { ganhos: number; empates: number; perdas: number };
 };
 
 export type RankingInicialGrupoFaixa = {
@@ -41,7 +42,7 @@ Ordem entre modelos elegíveis:
 2. Topografia — modelos com topografia diferente do lote vão ao final, sem pontuação
 3. Desempate: média de Preço (VGV INC + Kit Moní vs anúncios) e depois Produto (quartos, banheiros, vagas, metragem)
 
-A nota final (Lote + Preço + Produto) resume o encaixe frente aos anúncios da faixa; a posição no ranking segue a hierarquia acima, não apenas essa soma.`;
+A nota final (Preço + Produto) resume o encaixe frente aos anúncios da faixa; o match de atributos do lote ordena o ranking mas não soma pontos. G/E/P nos confrontos entre modelos também usam só Preço + Produto.`;
 
 export function rankingGruposFromPorFaixas(
   grupos: RankingPorFaixaMercado[],
@@ -58,6 +59,7 @@ export function rankingGruposFromPorFaixas(
       notaLote: r.notaLote,
       notaPreco: r.notaPrecoMedia,
       notaProduto: r.notaProdutoMedia,
+      confrontosModelos: r.confrontosModelos,
     })),
   }));
 }
@@ -70,7 +72,10 @@ function formatLinhaRankingPreBatalha(item: RankingInicialChecklistItem, idx: nu
       : item.notaLote != null && item.notaPreco != null && item.notaProduto != null
         ? ` | L:${item.notaLote} P:${item.notaPreco} Prod:${item.notaProduto}`
         : '';
-  return `${idx + 1}º ${rotulo} (Final: ${item.notaFinal}${detalhe})`;
+  const confrontos = item.confrontosModelos
+    ? ` | ${formatConfrontosModeloGEP(item.confrontosModelos)}`
+    : '';
+  return `${idx + 1}º ${rotulo} (Final: ${item.notaFinal}${detalhe}${confrontos})`;
 }
 
 /** Formato checklist — seções por faixa, uma linha por modelo. */
@@ -109,7 +114,7 @@ function formatLinhaBatalhaPreBatalha(
     b.precoIncKitMoni != null && b.precoIncKitMoni > 0
       ? formatPrecoChecklist(b.precoIncKitMoni)
       : '—';
-  return `${rotulo} vs ${b.condominio} (Anúncio: ${precoAnuncio} | Moní: ${precoMoni}) → L:${b.notaLote} P:${b.notaPreco} Prod:${b.notaProduto} (Final:${b.notaFinalLinha})`;
+  return `${rotulo} vs ${b.condominio} (Anúncio: ${precoAnuncio} | Moní: ${precoMoni}) → Match:${b.matchScore}/${b.totalAtributosLote} P:${b.notaPreco} Prod:${b.notaProduto} (Final:${b.notaFinalLinha})`;
 }
 
 /**
@@ -146,6 +151,9 @@ export function formatPreBatalhaChecklistCompleto(grupos: RankingPorFaixaMercado
             notaLote: item.notaLote,
             notaPreco: item.notaPrecoMedia,
             notaProduto: item.notaProdutoMedia,
+            matchScore: item.matchScore,
+            totalAtributosLote: item.totalAtributosLote,
+            confrontosModelos: item.confrontosModelos,
           },
           idx,
         ),

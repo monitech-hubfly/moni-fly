@@ -4,10 +4,12 @@ import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight, Trophy } from 'lucide-react';
 import {
   badgeCompatibilidade,
+  formatConfrontosModeloGEP,
   formatModeloTopografia,
   formatPrecoAnuncio,
   type AnuncioAmeacadorPreBatalha,
   type BatalhaModeloAnuncioPreBatalha,
+  type ConfrontosModeloFaixa,
   type RankingPorFaixaMercado,
   type ResultadoRankingModelo,
 } from '@/lib/kanban/pre-batalha-compatibilidade';
@@ -40,6 +42,21 @@ function formatMatchLote(item: ResultadoRankingModelo): string {
 
 function linhaNotasRanking(item: ResultadoRankingModelo): string {
   return `Lote: ${formatMatchLote(item)} | Preço: ${item.notaPrecoMedia} | Produto: ${item.notaProdutoMedia}`;
+}
+
+function linhaConfrontosRanking(item: ResultadoRankingModelo): string | null {
+  if (!item.confrontosModelos) return null;
+  return formatConfrontosModeloGEP(item.confrontosModelos);
+}
+
+function CelulaConfrontosGEP({ confrontos }: { confrontos: ConfrontosModeloFaixa }) {
+  return (
+    <span className="inline-flex flex-wrap justify-center gap-x-2 gap-y-0.5 text-[11px] font-semibold tabular-nums sm:text-xs">
+      <span className="text-emerald-700">G: {confrontos.ganhos}</span>
+      <span className="text-amber-800">E: {confrontos.empates}</span>
+      <span className="text-red-700">P: {confrontos.perdas}</span>
+    </span>
+  );
 }
 
 function BadgeTipoAndarIncompativel({ item }: { item: ResultadoRankingModelo }) {
@@ -125,10 +142,12 @@ function BatalhasTable({ batalhas }: { batalhas: BatalhaModeloAnuncioPreBatalha[
             <th className="px-3 py-2 text-left sm:px-4">Anúncio</th>
             <th className="px-3 py-2 text-right sm:px-4">Preço anúncio</th>
             <th className="px-3 py-2 text-right sm:px-4">INC + Kit</th>
-            <th className="px-3 py-2 text-center sm:px-4">Lote</th>
+            <th className="px-3 py-2 text-center sm:px-4">Match lote</th>
             <th className="px-3 py-2 text-center sm:px-4">Preço</th>
             <th className="px-3 py-2 text-center sm:px-4">Produto</th>
-            <th className="px-3 py-2 text-center sm:px-4">Final</th>
+            <th className="px-3 py-2 text-center sm:px-4" title="Preço + Produto (sem eixo Lote)">
+              Final
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -153,10 +172,8 @@ function BatalhasTable({ batalhas }: { batalhas: BatalhaModeloAnuncioPreBatalha[
                   ? formatPrecoAnuncio(b.precoIncKitMoni)
                   : '—'}
               </td>
-              <td
-                className={`px-3 py-2.5 text-center text-sm font-semibold tabular-nums sm:px-4 ${notaCellClass(b.notaLote)}`}
-              >
-                {b.notaLote}
+              <td className="px-3 py-2.5 text-center text-sm font-semibold tabular-nums text-stone-800 sm:px-4">
+                {b.matchScore}/{b.totalAtributosLote}
               </td>
               <td
                 className={`px-3 py-2.5 text-center text-sm font-semibold tabular-nums sm:px-4 ${notaCellClass(b.notaPreco)}`}
@@ -277,7 +294,7 @@ function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
 
   return (
     <div className="overflow-x-auto rounded-xl border border-stone-200/90 bg-white/80 shadow-inner backdrop-blur-sm">
-      <table className="w-full min-w-[520px] border-collapse text-sm">
+      <table className="w-full min-w-[580px] border-collapse text-sm">
         <thead>
           <tr className="border-b border-stone-200 bg-stone-100/90 text-[11px] font-semibold uppercase tracking-wider text-stone-600">
             <th className="px-3 py-2.5 text-left sm:px-4">Rank</th>
@@ -285,7 +302,15 @@ function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
             <th className="px-3 py-2.5 text-center sm:px-4">Match lote</th>
             <th className="px-3 py-2.5 text-center sm:px-4">Preço</th>
             <th className="px-3 py-2.5 text-center sm:px-4">Produto</th>
-            <th className="px-3 py-2.5 text-center sm:px-4">Nota final</th>
+            <th className="px-3 py-2.5 text-center sm:px-4" title="Preço + Produto (sem eixo Lote)">
+              Nota final
+            </th>
+            <th
+              className="px-3 py-2.5 text-center sm:px-4"
+              title="Confrontos vs. outros modelos Moní da faixa (Preço + Produto por anúncio)"
+            >
+              G / E / P
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -336,6 +361,11 @@ function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
                           Lote: {formatMatchLote(item)} atributos
                         </p>
                         <p className="mt-0.5 text-[11px] text-stone-500">{linhaNotasRanking(item)}</p>
+                        {item.confrontosModelos ? (
+                          <p className="mt-0.5 text-[11px] font-medium tabular-nums text-stone-600">
+                            {formatConfrontosModeloGEP(item.confrontosModelos)}
+                          </p>
+                        ) : null}
                         {item.precoIncKitMoni != null && item.precoIncKitMoni > 0 ? (
                           <p className="mt-0.5 text-[11px] text-stone-500">
                             INC + Kit: {formatPrecoAnuncio(item.precoIncKitMoni)}
@@ -345,7 +375,7 @@ function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
                     ) : null}
                   </td>
                   {inelegivel ? (
-                    <td colSpan={4} className="px-3 py-3 sm:px-4">
+                    <td colSpan={5} className="px-3 py-3 sm:px-4">
                       <ul className="space-y-1 text-xs text-red-800">
                         {item.falhas.map((falha) => (
                           <li key={falha}>{mensagemFalhaRanking(item, falha)}</li>
@@ -372,13 +402,20 @@ function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
                           {item.notaFinal}
                         </span>
                       </td>
+                      <td className="px-3 py-3 text-center sm:px-4">
+                        {item.confrontosModelos ? (
+                          <CelulaConfrontosGEP confrontos={item.confrontosModelos} />
+                        ) : (
+                          <span className="text-stone-400">—</span>
+                        )}
+                      </td>
                     </>
                   )}
                 </tr>
                 {!inelegivel &&
                 (item.sugestaoAnexoConsolidada != null || item.anunciosAmeacadores.length > 0) ? (
                   <tr key={`${item.catalogoId}-detalhe`} className="border-b border-stone-100 bg-white/40">
-                    <td colSpan={6} className="px-3 pb-3 pt-0 sm:px-4">
+                    <td colSpan={7} className="px-3 pb-3 pt-0 sm:px-4">
                       <DetalheModeloPreBatalha item={item} />
                     </td>
                   </tr>
@@ -398,7 +435,9 @@ function linhaResumoRanking(item: ResultadoRankingModelo, posicaoElegivel: numbe
     const falhas = item.falhas.map((f) => mensagemFalhaRanking(item, f)).join('; ');
     return `— ${rotulo}${falhas ? ` — ${falhas}` : ''}`;
   }
-  return `${posicaoElegivel}º ${rotulo} (${linhaNotasRanking(item)} | Final: ${item.notaFinal})`;
+  const confrontos = linhaConfrontosRanking(item);
+  const sufixoConfrontos = confrontos ? ` | ${confrontos}` : '';
+  return `${posicaoElegivel}º ${rotulo} (${linhaNotasRanking(item)} | Final: ${item.notaFinal}${sufixoConfrontos})`;
 }
 
 function SubSecaoTabelaColapsavel({

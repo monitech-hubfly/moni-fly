@@ -1,6 +1,7 @@
 /**
  * Ranking Pré Batalha: modelos Moní vs. listagem ZAP por faixa de mercado.
  * Ordenação elegíveis: match atributos lote (DESC) → Preço (DESC) → Produto (DESC).
+ * Nota final e confrontos G/E/P: só Preço + Produto (lote não pontua entre modelos).
  * Topografia incompatível ou geometria inelegível → final do ranking, sem pontuação.
  */
 
@@ -106,10 +107,20 @@ export type BatalhaModeloAnuncioPreBatalha = {
   condominio: string;
   precoAnuncio: number;
   precoIncKitMoni: number | null;
-  notaLote: number;
+  /** Match de atributos do lote (modelo × lote) — informativo; não entra na nota final. */
+  matchScore: number;
+  totalAtributosLote: number;
   notaPreco: number;
   notaProduto: number;
+  /** Preço + Produto (sem eixo Lote). */
   notaFinalLinha: number;
+};
+
+/** Vitórias, empates e derrotas do modelo contra os demais da mesma faixa (por anúncio). */
+export type ConfrontosModeloFaixa = {
+  ganhos: number;
+  empates: number;
+  perdas: number;
 };
 
 export type RankingModeloPreBatalha = {
@@ -128,6 +139,8 @@ export type RankingModeloPreBatalha = {
   totalAtributosLote: number;
   topoCompativel: boolean;
   elegivel: boolean;
+  /** Confrontos head-to-head vs. outros modelos Moní elegíveis da faixa. */
+  confrontosModelos?: ConfrontosModeloFaixa;
   /** Modelo com andares incompatíveis com o tipo predominante da faixa (térrea/sobrado). */
   tipoAndareIncompativel: boolean;
   /** Tipo predominante usado na faixa — para badge na UI. */
@@ -419,6 +432,11 @@ function roundNota(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
+/** Nota final Pré Batalha — só Preço + Produto (lote entra via match de atributos, não soma nota). */
+export function notaFinalPreBatalhaSemLote(notaPreco: number, notaProduto: number): number {
+  return notaFinalBatalha(0, notaPreco, notaProduto);
+}
+
 function compararRankingModelo(a: RankingModeloPreBatalha, b: RankingModeloPreBatalha): number {
   if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
   if (b.notaPrecoMedia !== a.notaPrecoMedia) return b.notaPrecoMedia - a.notaPrecoMedia;
@@ -429,18 +447,19 @@ function compararRankingModelo(a: RankingModeloPreBatalha, b: RankingModeloPreBa
 function gerarBatalhasModeloAnuncio(
   catalogoFiltrado: CatalogoItem[],
   casasFaixa: CasaRowPreBatalha[],
-  notaLote: number,
+  atributosLote: AtributosLoteRespostas,
   faixa: FaixaMercado | undefined,
   produtoDadosPorAnuncio: Record<string, ProdutoDadosPar | undefined>,
   linhasProspect?: LinhaProspectCondominio[],
 ): BatalhaModeloAnuncioPreBatalha[] {
-  const notaLoteR = roundNota(notaLote);
+  const totalAtributosLote = contarAtributosLoteMarcados(atributosLote);
   const batalhas: BatalhaModeloAnuncioPreBatalha[] = [];
 
   for (const mod of catalogoFiltrado) {
     const precoIncKitMoni = getPrecoIncMaisKitMoni(mod);
     const modelo = mod.nome?.trim() || mod.id.slice(0, 8);
     const topografia = labelTopografia(mod.topografia);
+    const matchScore = calcularMatchScoreAtributosLote(atributosLote, mod);
 
     for (const c of casasFaixa) {
       const notaPreco = roundNota(
@@ -461,10 +480,11 @@ function gerarBatalhasModeloAnuncio(
         condominio: c.condominio?.trim() || '—',
         precoAnuncio: c.preco ?? 0,
         precoIncKitMoni,
-        notaLote: notaLoteR,
+        matchScore,
+        totalAtributosLote,
         notaPreco,
         notaProduto,
-        notaFinalLinha: roundNota(notaFinalBatalha(notaLoteR, notaPreco, notaProduto)),
+        notaFinalLinha: roundNota(notaFinalPreBatalhaSemLote(notaPreco, notaProduto)),
       });
     }
   }
@@ -474,6 +494,77 @@ function gerarBatalhasModeloAnuncio(
       a.modelo.localeCompare(b.modelo, 'pt-BR') ||
       a.condominio.localeCompare(b.condominio, 'pt-BR'),
   );
+}
+
+const CONFRONTOS_ZERADOS: ConfrontosModeloFaixa = { ganhos: 0, empates: 0, perdas: 0 };
+
+/**
+ * Para cada anúncio da faixa, compara Preço + Produto de cada par de modelos Moní.
+ * Match de atributos do lote não pontua aqui (só ordena o ranking agregado).
+ * Vitória: nota maior; empate: notas iguais; derrota: nota menor.
+ */
+export function calcularConfrontosModelosNaFaixa(
+  batalhas: BatalhaModeloAnuncioPreBatalha[],
+): Map<string, ConfrontosModeloFaixa> {
+  const contagem = new Map<string, ConfrontosModeloFaixa>();
+
+  const init = (id: string): ConfrontosModeloFaixa => {
+    const existente = contagem.get(id);
+    if (existente) return existente;
+    const novo = { ...CONFRONTOS_ZERADOS };
+    contagem.set(id, novo);
+    return novo;
+  };
+
+  const porAnuncio = new Map<string, Map<string, number>>();
+  for (const b of batalhas) {
+    let map = porAnuncio.get(b.anuncioId);
+    if (!map) {
+      map = new Map();
+      porAnuncio.set(b.anuncioId, map);
+    }
+    map.set(b.catalogoId, b.notaFinalLinha);
+  }
+
+  for (const map of porAnuncio.values()) {
+    const ids = [...map.keys()];
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const idA = ids[i]!;
+        const idB = ids[j]!;
+        const notaA = map.get(idA)!;
+        const notaB = map.get(idB)!;
+        const statsA = init(idA);
+        const statsB = init(idB);
+        if (notaA > notaB) {
+          statsA.ganhos++;
+          statsB.perdas++;
+        } else if (notaA < notaB) {
+          statsA.perdas++;
+          statsB.ganhos++;
+        } else {
+          statsA.empates++;
+          statsB.empates++;
+        }
+      }
+    }
+  }
+
+  return contagem;
+}
+
+export function formatConfrontosModeloGEP(c: ConfrontosModeloFaixa): string {
+  return `G: ${c.ganhos} E: ${c.empates} P: ${c.perdas}`;
+}
+
+function anexarConfrontosAoRanking(
+  ranking: RankingModeloPreBatalha[],
+  confrontosMap: Map<string, ConfrontosModeloFaixa>,
+): RankingModeloPreBatalha[] {
+  return ranking.map((item) => ({
+    ...item,
+    confrontosModelos: confrontosMap.get(item.catalogoId) ?? { ...CONFRONTOS_ZERADOS },
+  }));
 }
 
 function consolidarSugestaoAnexoPorModelo(
@@ -600,7 +691,7 @@ function rankearModelosContraAnuncios(
           )
         : 0;
 
-    const notaFinal = roundNota(notaFinalBatalha(notaLote, notaPrecoMedia, notaProdutoMedia));
+    const notaFinal = roundNota(notaFinalPreBatalhaSemLote(notaPrecoMedia, notaProdutoMedia));
 
     const anunciosAmeacadores = [...notasPorAnuncio]
       .sort(
@@ -700,18 +791,19 @@ export function calcularRankingPreBatalhaPorFaixas(
     const batalhas = gerarBatalhasModeloAnuncio(
       catalogoFaixaElegivel,
       casasFaixa,
-      notaLote,
+      atributosLote,
       faixa,
       produtoDadosPorAnuncio,
       linhasProspect,
     );
+    const confrontosMap = calcularConfrontosModelosNaFaixa(batalhas);
 
     grupos.push({
       faixa,
       faixaLabel: labelFaixaMercado(faixa),
       quantidadeAnuncios: casasFaixa.length,
       batalhas,
-      ranking,
+      ranking: anexarConfrontosAoRanking(ranking, confrontosMap),
     });
   }
 
