@@ -846,6 +846,9 @@ export async function criarChamado(
   const cardIdRaw = (formData.get('card_id') as string)?.trim() || null;
   const cardKanbanNome = (formData.get('card_kanban_nome') as string)?.trim() || null;
   const cardTitulo = (formData.get('card_titulo') as string)?.trim() || null;
+  const processoIdRaw = (formData.get('processo_id') as string)?.trim() || null;
+  const processoKanbanNome = (formData.get('processo_kanban_nome') as string)?.trim() || null;
+  const processoTitulo = (formData.get('processo_titulo') as string)?.trim() || null;
   const dataVencimento = parseDataVencimentoChamado(formData.get('data_vencimento') as string | null);
   const teTrataRaw = formData.get('te_trata');
   const teTrata =
@@ -893,6 +896,7 @@ export async function criarChamado(
   const visivelFrank = roleNorm === 'frank' || roleNorm === 'franqueado';
 
   const cardId = cardIdRaw && UUID_RE.test(cardIdRaw) ? cardIdRaw : null;
+  const processoId = processoIdRaw && UUID_RE.test(processoIdRaw) ? processoIdRaw : null;
 
   const { data: chamado, error } = await supabase
     .from('sirene_chamados')
@@ -914,6 +918,13 @@ export async function criarChamado(
             card_id: cardId,
             card_kanban_nome: cardKanbanNome || null,
             card_titulo: cardTitulo || null,
+          }
+        : {}),
+      ...(processoId
+        ? {
+            processo_id: processoId,
+            processo_kanban_nome: processoKanbanNome || null,
+            processo_titulo: processoTitulo || null,
           }
         : {}),
       ...(dataVencimento ? { data_vencimento: dataVencimento } : {}),
@@ -999,7 +1010,10 @@ export async function criarChamado(
 }
 
 export type SireneVinculoCardBuscaItem = {
-  card_id: string;
+  /** UUID de kanban_cards (cards nativos). Null para cards legados (processo_step_one). */
+  card_id: string | null;
+  /** UUID de processo_step_one (cards legados). Null para cards nativos. */
+  processo_id?: string | null;
   titulo: string;
   kanban_nome: string;
   origem: 'nativo' | 'legado';
@@ -1092,7 +1106,8 @@ export async function buscarCardsParaNovoChamadoSirene(
     seen.add(key);
     const kid = String((r as { kanban_id?: string }).kanban_id ?? '');
     out.push({
-      card_id: id,
+      card_id: null,
+      processo_id: id,
       titulo: String((r as { titulo?: string | null }).titulo ?? 'Sem título'),
       kanban_nome: kbNome2.get(kid) || 'Funil Step One',
       origem: 'legado',

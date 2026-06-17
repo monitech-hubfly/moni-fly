@@ -292,10 +292,14 @@ export type CriarChamadoSireneComAtividadeInput = {
   /** Trava no chamado (sirene_chamados / interação pai), não na atividade. */
   trava?: boolean;
   atividade: AtividadeInput;
-  /** Vínculo opcional com card aberto — torna o chamado somente leitura na Sirene. */
+  /** Vínculo opcional com card nativo (kanban_cards). */
   card_id?: string | null;
   card_kanban_nome?: string | null;
   card_titulo?: string | null;
+  /** Vínculo opcional com card legado (processo_step_one) — mutuamente exclusivo com card_id. */
+  processo_id?: string | null;
+  processo_kanban_nome?: string | null;
+  processo_titulo?: string | null;
 };
 
 export type SubInteracaoStatusDb = 'nao_iniciado' | 'em_andamento' | 'concluido' | 'aprovado';
@@ -677,6 +681,8 @@ export async function criarChamadoSireneComAtividade(
 
   const cardIdRaw = (input.card_id ?? '').trim();
   const cardId = cardIdRaw && UUID_RE_SIRENE.test(cardIdRaw) ? cardIdRaw : null;
+  const processoIdRaw = (input.processo_id ?? '').trim();
+  const processoId = processoIdRaw && UUID_RE_SIRENE.test(processoIdRaw) ? processoIdRaw : null;
   const inferredHdm = inferirHdmResponsavelPorNomesTimes(nomesTimes);
   const tipoSc: 'padrao' | 'hdm' = inferredHdm ? 'hdm' : 'padrao';
   const hdmResponsavel: HdmTime | null = inferredHdm;
@@ -705,6 +711,13 @@ export async function criarChamadoSireneComAtividade(
             card_id: cardId,
             card_kanban_nome: input.card_kanban_nome?.trim() || null,
             card_titulo: input.card_titulo?.trim() || null,
+          }
+        : {}),
+      ...(processoId
+        ? {
+            processo_id: processoId,
+            processo_kanban_nome: input.processo_kanban_nome?.trim() || null,
+            processo_titulo: input.processo_titulo?.trim() || null,
           }
         : {}),
     } as never)

@@ -99,6 +99,10 @@ export type InteracaoSireneRow = {
   sirene_arquivado?: boolean;
   criado_por?: string | null;
   sirene_prioridade?: string | null;
+  /** Vínculo com card legado (processo_step_one) — mutuamente exclusivo com card_id. */
+  processo_id?: string | null;
+  processo_titulo?: string | null;
+  processo_kanban_nome?: string | null;
 };
 type TimeOpt = { id: string; nome: string };
 type RespOpt = { id: string; nome: string; email?: string | null };

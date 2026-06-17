@@ -157,13 +157,16 @@ export default async function SireneChamadosPage({
         arquivado: boolean;
         te_trata: boolean | null;
         prioridade: string | null;
+        processo_id: string | null;
+        processo_titulo: string | null;
+        processo_kanban_nome: string | null;
       }
     >();
     if (sireneIds.length > 0) {
       const { data: scRows } = await admin
         .from('sirene_chamados')
         .select(
-          'id, frank_id, frank_nome, numero, tipo, time_abertura, abertura_responsavel_nome, hdm_responsavel, arquivado, te_trata, prioridade',
+          'id, frank_id, frank_nome, numero, tipo, time_abertura, abertura_responsavel_nome, hdm_responsavel, arquivado, te_trata, prioridade, processo_id, processo_titulo, processo_kanban_nome',
         )
         .in('id', sireneIds);
       for (const s of scRows ?? []) {
@@ -181,6 +184,9 @@ export default async function SireneChamadosPage({
           arquivado: Boolean((s as { arquivado?: boolean | null }).arquivado),
           te_trata: (s as { te_trata?: boolean | null }).te_trata ?? null,
           prioridade: (s as { prioridade?: string | null }).prioridade ?? null,
+          processo_id: (s as { processo_id?: string | null }).processo_id ?? null,
+          processo_titulo: (s as { processo_titulo?: string | null }).processo_titulo ?? null,
+          processo_kanban_nome: (s as { processo_kanban_nome?: string | null }).processo_kanban_nome ?? null,
         });
       }
     }
@@ -331,6 +337,9 @@ export default async function SireneChamadosPage({
           te_trata: ka?.origem === 'sirene' && scMeta ? scMeta.te_trata : null,
           sirene_arquivado: ka?.origem === 'sirene' && scMeta ? scMeta.arquivado : false,
           criado_por: ka?.criado_por ?? null,
+          processo_id: ka?.origem === 'sirene' && scMeta ? scMeta.processo_id : null,
+          processo_titulo: ka?.origem === 'sirene' && scMeta ? scMeta.processo_titulo : null,
+          processo_kanban_nome: ka?.origem === 'sirene' && scMeta ? scMeta.processo_kanban_nome : null,
         };
       });
 

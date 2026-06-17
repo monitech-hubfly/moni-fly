@@ -171,9 +171,18 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
           status: primeiraAtiv.status,
           pastel: false,
         },
-        card_id: cardVinculo?.card_id ?? null,
-        card_kanban_nome: cardVinculo?.kanban_nome ?? null,
-        card_titulo: cardVinculo?.titulo ?? null,
+        ...(cardVinculo?.origem === 'legado'
+          ? {
+              card_id: null,
+              processo_id: cardVinculo.processo_id ?? null,
+              processo_kanban_nome: cardVinculo.kanban_nome ?? null,
+              processo_titulo: cardVinculo.titulo ?? null,
+            }
+          : {
+              card_id: cardVinculo?.card_id ?? null,
+              card_kanban_nome: cardVinculo?.kanban_nome ?? null,
+              card_titulo: cardVinculo?.titulo ?? null,
+            }),
       });
       if (!result.ok) {
         setError(result.error);
@@ -293,7 +302,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                       <li className="px-3 py-2 text-sm text-stone-500">Buscando…</li>
                     ) : (
                       cardOpcoes.map((c) => (
-                        <li key={`${c.origem}-${c.card_id}`}>
+                        <li key={`${c.origem}-${c.card_id ?? c.processo_id}`}>
                           <button
                             type="button"
                             className="w-full px-3 py-2 text-left text-sm hover:bg-stone-100"
