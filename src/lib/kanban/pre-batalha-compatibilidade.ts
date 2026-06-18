@@ -14,6 +14,10 @@ import {
   calcularMatchScoreAtributosLote,
   contarAtributosLoteMarcados,
   M2_POR_MODULO_ANEXO,
+  OBS_FLEXIVEL_BANHEIROS,
+  OBS_FLEXIVEL_QUARTOS,
+  OBS_FLEXIVEL_SUITES,
+  OBS_FLEXIVEL_VAGAS,
   modeloPermitidoNaFaixa,
   penalizacaoTamanhoEliminada,
   modeloTipoAndarIncompativel,
@@ -90,11 +94,13 @@ export type AnuncioAmeacadorPreBatalha = {
 
 /** Sugestão de anexo única por modelo — cobre o concorrente mais desafiador em m². */
 export interface SugestaoAnexoConsolidada {
+  /** Maior m² de anexo necessário entre os anúncios penalizados. */
   m2Recomendado: number;
-  anexosRecomendados: number;
+  /** Quantidade mínima de módulos de 20m² que cobrem m2Recomendado (teto). */
+  anexosMinimos: number;
   anunciosPenalizados: number;
+  /** Anúncios em que o anexo consolidado elimina totalmente a penalização de tamanho. */
   anunciosEliminados: number;
-  totalAnuncios: number;
 }
 
 /** Uma linha: modelo Moní × anúncio ZAP na faixa (notas por eixo). */
@@ -134,6 +140,8 @@ export type RankingModeloPreBatalha = {
   precoIncKitMoni: number | null;
   anunciosAmeacadores: AnuncioAmeacadorPreBatalha[];
   sugestaoAnexoConsolidada: SugestaoAnexoConsolidada | null;
+  /** Mensagens de campos flexíveis (quartos/suítes/banheiros/vagas) usados em qualquer anúncio. */
+  obsFlexivel: string[];
   matchScore: number;
   totalAtributosLote: number;
   topoCompativel: boolean;
@@ -214,6 +222,14 @@ function resolverTipoPredominanteFaixaMercado(
   }
   if (tipos.size === 1) return [...tipos][0];
   return null;
+}
+
+/** true quando tipo predominante não está preenchido (null, undefined ou string vazia). */
+export function isTipoPredominanteFaixaAusente(
+  tipo: TipoCasaPredominanteFaixa | string | null | undefined,
+): boolean {
+  const t = String(tipo ?? '').trim();
+  return t !== 'Sobrado' && t !== 'Térrea';
 }
 
 /** Geometria do terreno: dimensões do lote + recuos do condomínio. */
@@ -325,6 +341,7 @@ function criarRankingModeloInelegivel(
     precoIncKitMoni: getPrecoIncMaisKitMoni(mod),
     anunciosAmeacadores: [],
     sugestaoAnexoConsolidada: null,
+    obsFlexivel: [],
     matchScore: extras.matchScore,
     totalAtributosLote: extras.totalAtributosLote,
     topoCompativel: extras.topoCompativel,
@@ -572,15 +589,32 @@ function anexarConfrontosAoRanking(
   }));
 }
 
+const OBS_FLEXIVEL_ORDEM = [
+  OBS_FLEXIVEL_QUARTOS,
+  OBS_FLEXIVEL_SUITES,
+  OBS_FLEXIVEL_BANHEIROS,
+  OBS_FLEXIVEL_VAGAS,
+] as const;
+
+function consolidarObsFlexivelPorModelo(notasPorAnuncio: AnuncioAmeacadorPreBatalha[]): string[] {
+  const presentes = new Set<string>();
+  for (const a of notasPorAnuncio) {
+    for (const obs of a.obsFlexivel ?? []) {
+      presentes.add(obs);
+    }
+  }
+  return OBS_FLEXIVEL_ORDEM.filter((msg) => presentes.has(msg));
+}
+
 function consolidarSugestaoAnexoPorModelo(
   notasPorAnuncio: AnuncioAmeacadorPreBatalha[],
   areaMoni: number | null | undefined,
 ): SugestaoAnexoConsolidada | null {
-  const penalizados = notasPorAnuncio.filter((a) => a.sugestaoAnexo != null);
+  const penalizados = notasPorAnuncio.filter((a) => a.sugestaoAnexo !== undefined);
   if (penalizados.length === 0) return null;
 
   const m2Recomendado = Math.max(...penalizados.map((a) => a.sugestaoAnexo!.m2Anexo));
-  const anexosRecomendados = m2Recomendado / M2_POR_MODULO_ANEXO;
+  const anexosMinimos = Math.ceil(m2Recomendado / M2_POR_MODULO_ANEXO);
 
   let anunciosEliminados = 0;
   if (areaMoni != null && areaMoni > 0) {
@@ -595,10 +629,9 @@ function consolidarSugestaoAnexoPorModelo(
 
   return {
     m2Recomendado,
-    anexosRecomendados,
+    anexosMinimos,
     anunciosPenalizados: penalizados.length,
     anunciosEliminados,
-    totalAnuncios: notasPorAnuncio.length,
   };
 }
 
@@ -710,6 +743,7 @@ function rankearModelosContraAnuncios(
       notasPorAnuncio,
       mod.area_m2,
     );
+    const obsFlexivel = consolidarObsFlexivelPorModelo(notasPorAnuncio);
 
     return {
       catalogoId: mod.id,
@@ -723,6 +757,7 @@ function rankearModelosContraAnuncios(
       precoIncKitMoni,
       anunciosAmeacadores,
       sugestaoAnexoConsolidada,
+      obsFlexivel,
       matchScore,
       totalAtributosLote,
       topoCompativel: true,
@@ -817,7 +852,7 @@ export function calcularRankingPreBatalhaPorFaixas(
       batalhas,
       ranking: anexarConfrontosAoRanking(ranking, confrontosMap),
       tipoPredominanteFaixa,
-      tipoPredominanteAusente: tipoPredominanteFaixa == null,
+      tipoPredominanteAusente: isTipoPredominanteFaixaAusente(tipoPredominanteFaixa),
     });
   }
 
@@ -876,7 +911,9 @@ export function calcularRankingModelos(
 
   return {
     ranking: ordenarRankingComInelegiveisNoFinal(ranking),
-    tipoPredominanteAusente: grupos.some((g) => g.tipoPredominanteAusente),
+    tipoPredominanteAusente: grupos.some(
+      (g) => g.tipoPredominanteAusente ?? isTipoPredominanteFaixaAusente(g.tipoPredominanteFaixa),
+    ),
   };
 }
 

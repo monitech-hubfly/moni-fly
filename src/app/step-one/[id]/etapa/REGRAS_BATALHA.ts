@@ -104,6 +104,7 @@ export const CATALOGO_CASAS_SELECT_PRE_BATALHA =
 export const OBS_FLEXIVEL_QUARTOS = '1 quarto adicional necessário para competir';
 export const OBS_FLEXIVEL_SUITES = '1 suíte adicional necessária para competir';
 export const OBS_FLEXIVEL_BANHEIROS = '1 banheiro adicional necessário para competir';
+export const OBS_FLEXIVEL_VAGAS = '1 vaga adicional necessária para competir';
 
 export function contarAtributosLoteMarcados(atributosLote: AtributosLoteRespostas): number {
   return ATRIBUTOS_LOTE.reduce((n, a) => n + (atributosLote[a.id] === true ? 1 : 0), 0);
@@ -462,7 +463,7 @@ export function notaSuites(suitesNosso: number | null, suitesAnuncio: number | n
 
 export type NotaCampoFlexResult = { nota: number; obs?: string };
 
-/** diff = moni − anúncio; se diff < 0 e flexível, recalcula com moni + 1 e registra obs. */
+/** diff = moni − anúncio; se diff < 0 e flexível, recalcula com moni + 1 (reduz penalização mesmo se diff seguir negativo). */
 function notaCampoComFlexivel(
   nosso: number | null,
   anuncio: number | null,
@@ -534,6 +535,24 @@ export function notaVagas(vagasNosso: number | null, vagasAnuncio: number | null
   return notaDiffContagem(vagasNosso, vagasAnuncio);
 }
 
+export function notaVagasComFlexivel(
+  vagasNosso: number | null,
+  vagasAnuncio: number | null,
+  flexivel?: boolean | null,
+): NotaCampoFlexResult {
+  if (vagasNosso == null) {
+    return { nota: notaVagas(vagasNosso, vagasAnuncio) };
+  }
+  return notaCampoComFlexivel(
+    vagasNosso,
+    vagasAnuncio,
+    flexivel,
+    notaVagas,
+    (n) => n ?? 0,
+    OBS_FLEXIVEL_VAGAS,
+  );
+}
+
 /** Design: opções e notas (franqueado seleciona) */
 export const DESIGN_OPCOES = [
   { id: 'arquiteto', label: 'Casa assinada por arquiteto renomado', nota: -2 },
@@ -594,6 +613,7 @@ export type CatalogoProdutoRef = {
   quartos_flexivel?: boolean | null;
   suites_flexivel?: boolean | null;
   banheiros_flexivel?: boolean | null;
+  vagas_flexivel?: boolean | null;
   assinatura?: boolean | null;
 };
 
@@ -742,7 +762,8 @@ export function calcularNotaProdutoCompleta(
   );
   const Q = qFlex.nota;
   const B = bFlex.nota;
-  const V = notaVagas(catalogo.vagas, vagasAnuncio);
+  const vFlex = notaVagasComFlexivel(catalogo.vagas, vagasAnuncio, catalogo.vagas_flexivel);
+  const V = vFlex.nota;
 
   const suitesAnuncio = anuncio.suites;
   const suitesFlex =
@@ -752,6 +773,7 @@ export function calcularNotaProdutoCompleta(
   const obsFlexivel = coletarObsFlexivel(
     qFlex,
     bFlex,
+    vFlex,
     ...(suitesFlex ? [suitesFlex] : []),
   );
   const An = notaAndares(

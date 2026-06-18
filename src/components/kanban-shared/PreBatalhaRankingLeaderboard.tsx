@@ -212,11 +212,22 @@ function SugestaoAnexoResumoConsolidada({
     <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
       <p className="mb-1 font-semibold">📐 Sugestão de anexo</p>
       <p>
-        Adicionar <strong>+{consolidada.m2Recomendado}m²</strong> de anexo (
-        {consolidada.anexosRecomendados}x módulo de 20m²) elimina a penalização de tamanho em{' '}
-        <strong>{consolidada.anunciosEliminados}</strong> de {consolidada.anunciosPenalizados}{' '}
-        anúncios penalizantes.
+        Para competir com os anúncios maiores, adicionar{' '}
+        <strong>+{consolidada.m2Recomendado}m² de anexo</strong> (mínimo {consolidada.anexosMinimos}
+        × módulo de 20m², ou módulos maiores) elimina ou reduz a penalização de tamanho em{' '}
+        <strong>{consolidada.anunciosPenalizados} anúncios</strong>.
       </p>
+    </div>
+  );
+}
+
+function ObsFlexivelConsolidada({ obsFlexivel }: { obsFlexivel: string[] }) {
+  if (obsFlexivel.length === 0) return null;
+  return (
+    <div className="mt-1 rounded border border-blue-100 bg-blue-50 px-2 py-1.5 text-xs text-blue-800">
+      {obsFlexivel.map((obs, i) => (
+        <p key={i}>⚡ {obs}</p>
+      ))}
     </div>
   );
 }
@@ -237,14 +248,16 @@ function SugestaoAnexoTamanho({ anuncio }: { anuncio: AnuncioAmeacadorPreBatalha
 
 function DetalheModeloPreBatalha({ item }: { item: ResultadoRankingModelo }) {
   const temResumo = item.sugestaoAnexoConsolidada != null;
+  const temObs = item.obsFlexivel.length > 0;
   const temAmeacadores = item.anunciosAmeacadores.length > 0;
-  if (!temResumo && !temAmeacadores) return null;
+  if (!temResumo && !temObs && !temAmeacadores) return null;
 
   return (
     <div className="space-y-2">
       {temResumo ? (
         <SugestaoAnexoResumoConsolidada consolidada={item.sugestaoAnexoConsolidada!} />
       ) : null}
+      {temObs ? <ObsFlexivelConsolidada obsFlexivel={item.obsFlexivel} /> : null}
       {temAmeacadores ? (
         <ListaAnunciosAmeacadores anuncios={item.anunciosAmeacadores} />
       ) : null}
@@ -274,13 +287,6 @@ function ListaAnunciosAmeacadores({ anuncios }: { anuncios: AnuncioAmeacadorPreB
               <p className="mt-1 text-[11px] tabular-nums text-stone-600">
                 {formatNotaAn(anuncio.notaAndares)}
               </p>
-            ) : null}
-            {anuncio.obsFlexivel && anuncio.obsFlexivel.length > 0 ? (
-              <div className="mt-1 rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-800">
-                {anuncio.obsFlexivel.map((obs, i) => (
-                  <p key={i}>⚡ {obs}</p>
-                ))}
-              </div>
             ) : null}
           </li>
         ))}
@@ -413,7 +419,9 @@ function LeaderboardTable({ ranking }: { ranking: ResultadoRankingModelo[] }) {
                   )}
                 </tr>
                 {!inelegivel &&
-                (item.sugestaoAnexoConsolidada != null || item.anunciosAmeacadores.length > 0) ? (
+                (item.sugestaoAnexoConsolidada != null ||
+                  item.obsFlexivel.length > 0 ||
+                  item.anunciosAmeacadores.length > 0) ? (
                   <tr key={`${item.catalogoId}-detalhe`} className="border-b border-stone-100 bg-white/40">
                     <td colSpan={7} className="px-3 pb-3 pt-0 sm:px-4">
                       <DetalheModeloPreBatalha item={item} />

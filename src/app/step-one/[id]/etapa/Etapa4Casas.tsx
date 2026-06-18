@@ -42,6 +42,7 @@ import {
   CATALOGO_CASAS_SELECT_PRE_BATALHA,
 } from './REGRAS_BATALHA';
 import {
+  calcularRankingModelos,
   calcularRankingPreBatalhaPorFaixas,
   flattenRankingPreBatalhaPorFaixas,
   resolverTipoPredominanteFaixa,
@@ -49,6 +50,7 @@ import {
   type CatalogoItem,
   type DadosTerreno,
   type RankingPorFaixaMercado,
+  type ResultadoCalcularRankingModelos,
 } from '@/lib/kanban/pre-batalha-compatibilidade';
 import {
   PRE_BATALHA_INSTRUCOES_FASE,
@@ -290,6 +292,8 @@ export function Etapa4Casas(props: {
   const [rankingPorFaixaPreBatalha, setRankingPorFaixaPreBatalha] = useState<
     RankingPorFaixaMercado[]
   >([]);
+  const [rankingResultPreBatalha, setRankingResultPreBatalha] =
+    useState<ResultadoCalcularRankingModelos | null>(null);
   const [terrenoPreBatalha, setTerrenoPreBatalha] = useState<DadosTerreno | null>(null);
   const [carregandoRankingPreBatalha, setCarregandoRankingPreBatalha] = useState(false);
   const [atributosLotePreBatalha, setAtributosLotePreBatalha] = useState<AtributosLoteRespostas>(
@@ -317,11 +321,6 @@ export function Etapa4Casas(props: {
 
   const rankingPreBatalha = useMemo(
     () => flattenRankingPreBatalhaPorFaixas(rankingPorFaixaPreBatalha),
-    [rankingPorFaixaPreBatalha],
-  );
-
-  const preBatalhaTipoPredominanteAusente = useMemo(
-    () => rankingPorFaixaPreBatalha.some((g) => g.tipoPredominanteAusente),
     [rankingPorFaixaPreBatalha],
   );
 
@@ -375,6 +374,7 @@ export function Etapa4Casas(props: {
 
         if (casas.length === 0 || cat.length === 0) {
           setRankingPorFaixaPreBatalha([]);
+          setRankingResultPreBatalha({ ranking: [], tipoPredominanteAusente: false });
           return;
         }
 
@@ -391,13 +391,21 @@ export function Etapa4Casas(props: {
           marcenaria: c.marcenaria,
         }));
 
+        const optsRanking = { terreno: terreno ?? undefined, linhasProspect };
+        const rankingResult = calcularRankingModelos(
+          casasPreBatalha,
+          cat,
+          atributosParaRanking,
+          optsRanking,
+        );
         const grupos = calcularRankingPreBatalhaPorFaixas(
           casasPreBatalha,
           cat,
           atributosParaRanking,
-          { terreno: terreno ?? undefined, linhasProspect },
+          optsRanking,
         );
         if (!cancelado) {
+          setRankingResultPreBatalha(rankingResult);
           setRankingPorFaixaPreBatalha(grupos);
         }
       } finally {
@@ -434,7 +442,7 @@ export function Etapa4Casas(props: {
 
   useEffect(() => {
     if (!modoPreBatalha || listagemOnly || carregandoRankingPreBatalha) return;
-    if (preBatalhaTipoPredominanteAusente) return;
+    if (rankingResultPreBatalha?.tipoPredominanteAusente === true) return;
     if (rankingPreBatalha.length === 0) return;
     if (autoMarcadoChecklistPreBatalhaRef.current) return;
 
@@ -458,7 +466,7 @@ export function Etapa4Casas(props: {
     processoId,
     rankingPorFaixaPreBatalha,
     rankingPreBatalha,
-    preBatalhaTipoPredominanteAusente,
+    rankingResultPreBatalha?.tipoPredominanteAusente,
   ]);
 
   const [selectedCatalogoIds, setSelectedCatalogoIds] = useState<string[]>(() =>
@@ -467,7 +475,7 @@ export function Etapa4Casas(props: {
   const [syncPreBatalha, setSyncPreBatalha] = useState(false);
 
   useEffect(() => {
-    if (!modoPreBatalha || listagemOnly || preBatalhaTipoPredominanteAusente) return;
+    if (!modoPreBatalha || listagemOnly || rankingResultPreBatalha?.tipoPredominanteAusente === true) return;
     if (rankingPreBatalha.length === 0) return;
     const ids = rankingPreBatalha.map((m) => m.catalogoId);
     const savedSorted = [...casasEscolhidas.map((c) => c.catalogo_casa_id)].sort().join(',');
@@ -493,7 +501,7 @@ export function Etapa4Casas(props: {
   }, [
     modoPreBatalha,
     listagemOnly,
-    preBatalhaTipoPredominanteAusente,
+    rankingResultPreBatalha?.tipoPredominanteAusente,
     rankingPreBatalha,
     casasEscolhidas,
     processoId,
@@ -520,6 +528,9 @@ export function Etapa4Casas(props: {
 
   // --- Seção 3: batalha de casas (cada casa do catálogo vs cada anúncio da listagem) ---
   const escolhidasComDados = useMemo(() => {
+    if (modoPreBatalha && rankingResultPreBatalha?.tipoPredominanteAusente === true) {
+      return [];
+    }
     if (modoPreBatalha && rankingPreBatalha.length > 0) {
       return rankingPreBatalha
         .map((item, idx) => {
@@ -544,7 +555,7 @@ export function Etapa4Casas(props: {
         catalogoRow: catalogo.find((c) => c.id === ce.catalogo_casa_id) || null,
       }))
       .filter((ce) => ce.catalogoRow !== null);
-  }, [casasEscolhidas, catalogo, catalogoAtivoPreBatalha, modoPreBatalha, rankingPreBatalha]);
+  }, [casasEscolhidas, catalogo, catalogoAtivoPreBatalha, modoPreBatalha, rankingPreBatalha, rankingResultPreBatalha?.tipoPredominanteAusente]);
 
   const batalhaByKey = useMemo(() => {
     const map = new Map<
@@ -1150,7 +1161,9 @@ export function Etapa4Casas(props: {
         {escolhidasComDados.length === 0 ? (
           <p className="text-sm italic text-stone-500">
             {modoPreBatalha
-              ? carregandoRankingPreBatalha
+              ? rankingResultPreBatalha?.tipoPredominanteAusente === true
+                ? 'Preencha o tipo de casa predominante em Dados do Condomínio para ver o ranking.'
+                : carregandoRankingPreBatalha
                 ? 'Calculando ranking dos modelos…'
                 : syncPreBatalha
                   ? 'Sincronizando modelos ranqueados…'
@@ -1540,7 +1553,7 @@ export function Etapa4Casas(props: {
                   </div>
                 ) : syncPreBatalha ? (
                   <p className="text-sm text-stone-500">Sincronizando ranking…</p>
-                ) : preBatalhaTipoPredominanteAusente ? (
+                ) : rankingResultPreBatalha?.tipoPredominanteAusente === true ? (
                   <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
                     <p className="mb-1 font-semibold">⚠️ Informação obrigatória não preenchida</p>
                     <p>
