@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import { createClient } from '@/lib/supabase/client';
 
 type Props = {
@@ -12,6 +13,8 @@ type Props = {
   onChange: (userId: string) => void;
   /** Quando informado, usa esta lista em vez de buscar profiles no cliente. */
   opcoes?: { id: string; nome: string }[];
+  /** Tamanho compacto (11px) por padrão — usado em todos os kanbans/funis. */
+  size?: 'xs' | 'compact' | 'sm';
 };
 
 export function UsuarioChecklistSelect({
@@ -21,6 +24,7 @@ export function UsuarioChecklistSelect({
   salvando,
   onChange,
   opcoes: opcoesProp,
+  size = 'compact',
 }: Props) {
   const [opcoes, setOpcoes] = useState<{ id: string; nome: string }[]>(opcoesProp ?? []);
   const [loading, setLoading] = useState(!opcoesProp?.length);
@@ -61,10 +65,10 @@ export function UsuarioChecklistSelect({
     };
   }, [opcoesProp]);
 
-  const inputClass =
-    'w-full rounded-md border px-2.5 py-1 text-[11px] leading-tight outline-none focus:ring-1' +
-    ' bg-white border-[var(--moni-border-default)] text-[var(--moni-text-primary)]' +
-    ' focus:ring-[var(--moni-primary-500)] focus:border-[var(--moni-primary-500)]';
+  const selectOptions = useMemo(
+    () => opcoes.map((o) => ({ value: o.id, label: o.nome })),
+    [opcoes],
+  );
 
   return (
     <div>
@@ -78,16 +82,19 @@ export function UsuarioChecklistSelect({
         <Loader2 size={10} className="mb-1 inline animate-spin" />
       ) : null}
       {loading ? (
-        <p className="text-xs text-stone-500">Carregando usuários…</p>
+        <p className="text-[11px] text-stone-500">Carregando usuários…</p>
       ) : (
-        <select className={inputClass} value={value} onChange={(e) => onChange(e.target.value)}>
-          <option value="">Selecione…</option>
-          {opcoes.map((o) => (
-            <option key={o.id} value={o.id} className="text-[11px]">
-              {o.nome}
-            </option>
-          ))}
-        </select>
+        <SearchableSelect
+          value={value}
+          onChange={onChange}
+          options={selectOptions}
+          placeholder="Selecione…"
+          searchPlaceholder="Buscar usuário…"
+          size={size}
+          emptyOption={{ value: '', label: 'Selecione…' }}
+          listMaxHeightClassName="max-h-48"
+          triggerClassName="border-[var(--moni-border-default)] text-[var(--moni-text-primary)]"
+        />
       )}
     </div>
   );

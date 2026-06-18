@@ -3592,7 +3592,7 @@ export function KanbanCardModal({
                 </span>
               ) : null}
               {!aguardandoDocumentacaoCreditoObra && slaCard.label && slaCard.status !== 'ok' ? (
-                <span className={`text-xs leading-none ${slaCard.classe}`}>{slaCard.label}</span>
+                <span className={`leading-none ${slaCard.classe}`}>{slaCard.label}</span>
               ) : null}
             </div>
             ) : null}

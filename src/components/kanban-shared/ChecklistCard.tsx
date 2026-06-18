@@ -200,7 +200,7 @@ export function ChecklistCard({
                 onChange={setNovoResponsavel}
                 placeholder="Responsável (opcional)"
                 searchPlaceholder="Buscar responsável"
-                size="xs"
+                size="compact"
                 options={responsaveisOpcoes.map((r) => ({ value: r.id, label: r.nome }))}
               />
               {erroAdd && <p className="text-[10px] text-red-500">{erroAdd}</p>}

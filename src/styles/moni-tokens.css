@@ -111,6 +111,7 @@
 
   /* Escalas tipográficas */
   --moni-text-xs:   11px;
+  --moni-text-tag-sla: 9px;
   --moni-text-sm:   13px;
   --moni-text-base: 15px;
   --moni-text-md:   17px;
@@ -301,10 +302,11 @@
 .moni-tag-atencao {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
+  gap: 2px;
+  padding: 1px 6px;
   border-radius: var(--moni-radius-pill);
-  font-size: var(--moni-text-xs);
+  font-size: var(--moni-text-tag-sla);
+  line-height: 1.25;
   font-weight: var(--moni-weight-medium);
   background: var(--moni-status-attention-bg);
   color: var(--moni-status-attention-text);
@@ -314,10 +316,11 @@
 .moni-tag-atrasado {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
+  gap: 2px;
+  padding: 1px 6px;
   border-radius: var(--moni-radius-pill);
-  font-size: var(--moni-text-xs);
+  font-size: var(--moni-text-tag-sla);
+  line-height: 1.25;
   font-weight: var(--moni-weight-medium);
   background: var(--moni-status-overdue-bg);
   color: var(--moni-status-overdue-text);

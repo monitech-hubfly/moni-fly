@@ -21,7 +21,7 @@ type Props = {
   className?: string;
   triggerClassName?: string;
   listMaxHeightClassName?: string;
-  size?: 'xs' | 'sm' | 'md';
+  size?: 'xs' | 'compact' | 'sm' | 'md';
   'aria-label'?: string;
 };
 
@@ -93,6 +93,8 @@ export function SearchableSelect({
   const sizeClass =
     size === 'xs'
       ? 'px-1.5 py-0.5 text-[10px] rounded'
+      : size === 'compact'
+        ? 'px-2 py-0.5 text-[11px] leading-tight rounded-md'
       : size === 'md'
         ? 'px-3 py-2 text-sm rounded-lg'
         : 'px-2 py-1 text-xs rounded-lg';
@@ -102,10 +104,18 @@ export function SearchableSelect({
       ? 'px-2 py-1.5 text-sm'
       : size === 'xs'
         ? 'px-1.5 py-0.5 text-[10px]'
+        : size === 'compact'
+          ? 'px-2 py-0.5 text-[11px]'
         : 'px-2 py-1 text-xs';
 
   const itemClass =
-    size === 'md' ? 'px-2 py-2 text-sm' : size === 'xs' ? 'px-1.5 py-1 text-[10px]' : 'px-2 py-1.5 text-xs';
+    size === 'md'
+      ? 'px-2 py-2 text-sm'
+      : size === 'xs'
+        ? 'px-1.5 py-1 text-[10px]'
+        : size === 'compact'
+          ? 'px-2 py-1 text-[11px] leading-tight'
+        : 'px-2 py-1.5 text-xs';
 
   const triggerBase =
     'flex w-full items-center justify-between gap-2 border bg-white text-left outline-none transition disabled:cursor-not-allowed disabled:opacity-60';
@@ -154,7 +164,7 @@ export function SearchableSelect({
           </div>
           <ul className={`overflow-y-auto py-0.5 ${listMaxHeightClassName}`}>
             {opcoesFiltradas.length === 0 ? (
-              <li className={`px-2 py-2 text-stone-500 ${size === 'md' ? 'text-sm' : size === 'xs' ? 'text-[10px]' : 'text-xs'}`}>
+              <li className={`px-2 py-2 text-stone-500 ${size === 'md' ? 'text-sm' : size === 'xs' ? 'text-[10px]' : size === 'compact' ? 'text-[11px]' : 'text-xs'}`}>
                 Nenhum resultado.
               </li>
             ) : (

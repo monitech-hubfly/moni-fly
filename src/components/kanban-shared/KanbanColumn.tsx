@@ -590,12 +590,12 @@ export function KanbanColumn({
                   </div>
                 ) : null}
                 {!arquivado && !concluido && aguardandoDoc ? (
-                  <p className={`mt-1 text-xs ${CLASSE_TAG_AGUARDANDO_DOCUMENTACAO}`}>
+                  <span className={`mt-1 inline-block ${CLASSE_TAG_AGUARDANDO_DOCUMENTACAO}`}>
                     {TAG_AGUARDANDO_DOCUMENTACAO}
-                  </p>
+                  </span>
                 ) : null}
                 {!arquivado && !concluido && !aguardandoDoc && sla.label && sla.status !== 'ok' ? (
-                  <p className={`mt-1 text-xs ${sla.classe}`}>{sla.label}</p>
+                  <span className={`mt-1 inline-block ${sla.classe}`}>{sla.label}</span>
                 ) : null}
                 </button>
               </div>
