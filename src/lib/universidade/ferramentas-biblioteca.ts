@@ -116,6 +116,45 @@ Escala -3 a +2, pré-preenchimento de atributos (Lotes Disponíveis), custo do C
     },
   },
   {
+    id: 'pre-batalha-casas',
+    titulo: 'Pré Batalha de Casas',
+    descricaoCurta:
+      'Triagem inicial dos modelos Moní para o lote. Ranking por match de atributos, preço e produto antes da Batalha definitiva.',
+    tags: ['Ranking', 'Step One', 'Produto'],
+    icon: 'batalha',
+    iconBgClass: 'bg-amber-100',
+    iconColorClass: 'text-amber-800',
+    conteudoExplicativoMd: `## O que é
+
+A **Pré Batalha** responde: "Quais modelos Moní têm chance real de competir neste mercado e neste lote?"
+
+Cada modelo é comparado com todos os anúncios do Mapa de Competidores da mesma faixa de preço, em dois eixos: **Preço** e **Produto**. O lote ordena o ranking pelo match de atributos, mas não entra na nota final.
+
+## Quando usar
+
+- Antes da Batalha de Casas completa (Step One, etapa 5).
+- Após ter o Mapa de Competidores preenchido e o lote definido com atributos marcados.
+
+## O que você precisa ter pronto
+
+1. Mapa de Competidores com casas da ZAP
+2. Lote escolhido com atributos marcados (Lotes Disponíveis)
+3. Tipo predominante por faixa preenchido em Dados do Condomínio (Térrea ou Sobrado)
+4. Catálogo Moní com topografia, dimensões e atributos
+
+## Resultado
+
+Um **ranking dos modelos Moní** do mais ao menos competitivo, com nota final = Preço médio + Produto médio, e rótulo Alta / Média / Baixa compatibilidade.
+
+## Guia completo
+
+Critérios detalhados, tabelas de pontuação, filtros de elegibilidade e checklist — no guia interativo abaixo.`,
+    linkPrincipal: {
+      label: 'Abrir guia completo',
+      href: '/universidade/ferramentas/pre-batalha-casas',
+    },
+  },
+  {
     id: 'configurador-casas',
     titulo: 'Configurador de casas',
     descricaoCurta:
