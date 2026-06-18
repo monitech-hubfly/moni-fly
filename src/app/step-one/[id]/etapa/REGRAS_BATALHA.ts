@@ -873,11 +873,6 @@ export function notaFinalBatalha(
   return clampNota(notaAtributos + notaPreco + notaProduto);
 }
 
-/** @deprecated Pré-batalha usa as mesmas regras da batalha completa — preferir `notaFinalBatalha`. */
-export function notaFinalPreBatalha(notaAtributos: number, notaProduto: number): number {
-  return notaFinalBatalha(notaAtributos, 0, notaProduto);
-}
-
 function clampNota(n: number): number {
   if (!Number.isFinite(n)) return 0;
   if (n <= -3) return -3;

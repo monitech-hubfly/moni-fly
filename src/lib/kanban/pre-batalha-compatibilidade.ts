@@ -781,7 +781,8 @@ export type CalcularRankingModelosOpts = {
 
 /**
  * Ranqueia modelos por faixa de mercado do mapa de competidores.
- * Cada faixa batalha todos os anúncios daquela faixa (Preço INC+Kit + Produto + Lote).
+ * Nota final = Preço médio + Produto médio.
+ * Lote não pontua — ordena o ranking por match de atributos.
  */
 export function calcularRankingPreBatalhaPorFaixas(
   casas: CasaRowPreBatalha[],
