@@ -8,6 +8,7 @@ import {
   LOTES_DISPONIVEIS_CHECKBOXES,
   type LinhaLoteDisponivel,
 } from '@/lib/kanban/lotes-disponiveis-condominio';
+import type { FaixaMercado } from '@/lib/kanban/mapa-competidores-condominio';
 
 export const ATRIBUTOS_LOTE = [
   { id: 'vista', label: 'Vista privilegiada', nota: 2 },
@@ -399,6 +400,26 @@ export function notaTamanhoM2(areaAnuncio: number | null, areaNossa: number | nu
 
 /** Quartos: fallback 4 se modelo sem valor. Anúncio com menos = positivo. */
 export const QUARTOS_PADRAO_NOSSA = 4;
+
+/** Modelos Moní elegíveis por faixa do mapa de competidores (Pré Batalha). */
+export const MODELOS_POR_FAIXA: Record<FaixaMercado, string[]> = {
+  entrada: ['Lu', 'Isa', 'Val', 'Liz', 'Ivy', 'Mia', 'Cissa', 'Sol'],
+  intermediaria: ['Liz', 'Ivy', 'Mia', 'Cissa', 'Sol'],
+  premium: ['Eva', 'Gal'],
+  premium_plus: ['Eva', 'Gal', 'Lena'],
+  premium_plus2: ['Lena'],
+  premium_plus3: ['Lena'],
+};
+
+export function modeloPermitidoNaFaixa(nomeModelo: string, faixa: FaixaMercado): boolean {
+  const permitidos = MODELOS_POR_FAIXA[faixa] ?? [];
+  const norm = nomeModelo.trim().toLowerCase();
+  const token = norm.split(/[\s/._-]+/).find(Boolean) ?? norm;
+  return permitidos.some((m) => {
+    const ml = m.toLowerCase();
+    return ml === norm || ml === token;
+  });
+}
 
 /** Escala comum para banheiros e vagas: diff = nosso − anúncio. */
 export function notaDiffContagem(nosso: number | null, anuncio: number | null): number {

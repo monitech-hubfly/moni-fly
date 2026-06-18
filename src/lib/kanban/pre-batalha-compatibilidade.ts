@@ -14,6 +14,7 @@ import {
   calcularMatchScoreAtributosLote,
   contarAtributosLoteMarcados,
   M2_POR_MODULO_ANEXO,
+  modeloPermitidoNaFaixa,
   penalizacaoTamanhoEliminada,
   modeloTipoAndarIncompativel,
   type AtributosLoteRespostas,
@@ -36,8 +37,6 @@ import {
   ORDEM_FAIXAS_MERCADO,
   type FaixaMercado,
 } from '@/lib/kanban/mapa-competidores-condominio';
-import { filtrarCatalogoPorFaixaModelo } from '@/lib/kanban/modelo-faixa-elegibilidade';
-
 /** Anúncio ZAP (`listings_casas`). */
 export type CasaRowPreBatalha = {
   id: string;
@@ -774,7 +773,9 @@ export function calcularRankingPreBatalhaPorFaixas(
     const casasFaixa = porFaixa.get(faixa);
     if (!casasFaixa?.length) continue;
 
-    const catalogoFaixa = filtrarCatalogoPorFaixaModelo(catalogo, faixa);
+    const catalogoFaixa = catalogo.filter((mod) =>
+      modeloPermitidoNaFaixa(mod.nome ?? '', faixa),
+    );
     if (catalogoFaixa.length === 0) continue;
 
     const ranking = rankearModelosContraAnuncios(
