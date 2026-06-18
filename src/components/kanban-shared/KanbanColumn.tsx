@@ -19,11 +19,8 @@ import {
   montarChipsParalelas,
 } from '@/lib/kanban/kanban-paralelas-chips';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
+import { KanbanCardPrazoIndicadores } from './KanbanCardPrazoIndicadores';
 import { ResponsavelFaseAvatar } from './ResponsavelFaseAvatar';
-import {
-  calcularCorDataTexto,
-  labelRelativoData,
-} from '@/lib/kanban/kanban-card-datas';
 import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import {
   cardLoteadoresPrecisaJustificativaSla,
@@ -569,33 +566,17 @@ export function KanbanColumn({
                 ) : card.profiles?.full_name ? (
                   <p className="mt-1 line-clamp-1 text-xs text-stone-500">{card.profiles.full_name}</p>
                 ) : null}
-                {card.data_reuniao || card.data_followup ? (
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {card.data_reuniao ? (
-                      <span
-                        className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${calcularCorDataTexto(card.data_reuniao)}`}
-                        style={{ background: 'var(--moni-surface-50)', border: '0.5px solid var(--moni-border-subtle)' }}
-                      >
-                        Reunião: {labelRelativoData(card.data_reuniao)}
-                      </span>
-                    ) : null}
-                    {card.data_followup ? (
-                      <span
-                        className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${calcularCorDataTexto(card.data_followup)}`}
-                        style={{ background: 'var(--moni-surface-50)', border: '0.5px solid var(--moni-border-subtle)' }}
-                      >
-                        Follow-up: {labelRelativoData(card.data_followup)}
-                      </span>
-                    ) : null}
-                  </div>
-                ) : null}
                 {!arquivado && !concluido && aguardandoDoc ? (
                   <span className={`mt-1 inline-block ${CLASSE_TAG_AGUARDANDO_DOCUMENTACAO}`}>
                     {TAG_AGUARDANDO_DOCUMENTACAO}
                   </span>
                 ) : null}
-                {!arquivado && !concluido && !aguardandoDoc && sla.label && sla.status !== 'ok' ? (
-                  <span className={`mt-1 inline-block ${sla.classe}`}>{sla.label}</span>
+                {!arquivado && !concluido && !aguardandoDoc ? (
+                  <KanbanCardPrazoIndicadores
+                    sla={sla}
+                    dataReuniao={card.data_reuniao}
+                    dataFollowup={card.data_followup}
+                  />
                 ) : null}
                 </button>
               </div>

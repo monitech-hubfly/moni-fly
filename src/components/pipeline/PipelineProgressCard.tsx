@@ -3,10 +3,12 @@
 import Link from 'next/link';
 import { ExternalLink, History } from 'lucide-react';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
+import { KanbanPrazoBolinha } from '@/components/kanban-shared/KanbanCardPrazoIndicadores';
 import {
-  TAG_AGUARDANDO_DOCUMENTACAO,
   CLASSE_TAG_AGUARDANDO_DOCUMENTACAO,
+  TAG_AGUARDANDO_DOCUMENTACAO,
   creditoObraAguardandoDocumentacao,
+  indicadorBolinhaSlaKanban,
 } from '@/lib/kanban/kanban-card-sla';
 import type { PipelineCardDisplay } from '@/lib/kanban/pipeline-cards-types';
 import { montarPipelineProgressCardMeta } from '@/lib/kanban/pipeline-progress-utils';
@@ -33,6 +35,8 @@ export function PipelineProgressCard({
     alvara_url: card.alvara_url,
     docs_terreno_url: card.docs_terreno_url,
   });
+
+  const slaBolinha = !meta.slaPausado ? indicadorBolinhaSlaKanban(card.sla) : null;
 
   const statusTagClass =
     meta.statusOperacional === 'atrasado'
@@ -91,8 +95,11 @@ export function PipelineProgressCard({
             )}
             {aguardandoDoc ? (
               <span className={`text-[10px] ${CLASSE_TAG_AGUARDANDO_DOCUMENTACAO}`}>{TAG_AGUARDANDO_DOCUMENTACAO}</span>
-            ) : meta.slaLabel && !meta.slaPausado ? (
-              <span className={`text-[10px] ${meta.slaClasse}`}>{meta.slaLabel}</span>
+            ) : slaBolinha ? (
+              <KanbanPrazoBolinha
+                {...slaBolinha}
+                sigla={slaBolinha.variante === 'atencao' ? 'SLA' : undefined}
+              />
             ) : null}
           </div>
         </header>
@@ -127,6 +134,11 @@ export function PipelineProgressCard({
             <dd className="mt-0.5">
               {aguardandoDoc ? (
                 <span className={CLASSE_TAG_AGUARDANDO_DOCUMENTACAO}>{TAG_AGUARDANDO_DOCUMENTACAO}</span>
+              ) : meta.slaLabel && slaBolinha ? (
+                <KanbanPrazoBolinha
+                  {...slaBolinha}
+                  sigla={slaBolinha.variante === 'atencao' ? 'SLA' : undefined}
+                />
               ) : meta.slaLabel ? (
                 <span className={meta.slaClasse}>{meta.slaLabel}</span>
               ) : (

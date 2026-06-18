@@ -15,6 +15,7 @@ import { notificarMencoesSirene, resolverMencoesSirene } from '@/lib/actions/sir
 import type { SubInteracaoTipoDb } from '@/types/kanban-subinteracao';
 import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
 import { isKanbanIdInterno } from '@/lib/kanban/filtrar-kanbans-internos';
+import { validarMotivoArquivamento } from '@/lib/kanban/motivos-arquivamento';
 import { carregarPermissoesMap } from '@/lib/permissoes-load';
 import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { montarTituloCardLoteadores, isKanbanFunilLoteadoresRef } from '@/lib/kanban/loteadores-card-titulo';
@@ -1515,8 +1516,10 @@ export async function arquivarCard(input: ArquivarCardInput): Promise<ActionResu
   const cardId = String(input.cardId ?? '').trim();
   if (!cardId) return { ok: false, error: 'Card inválido.' };
 
-  const motivo = String(input.motivo ?? '').trim();
-  if (!motivo) return { ok: false, error: 'Informe o motivo do arquivamento.' };
+  const motivoRaw = String(input.motivo ?? '').trim();
+  const motivoVal = validarMotivoArquivamento(motivoRaw);
+  if (!motivoVal.ok) return { ok: false, error: motivoVal.error };
+  const motivo = motivoVal.motivo;
 
   const [perm, { data: meProf }] = await Promise.all([
     carregarPermissoesMap(supabase, user.id),

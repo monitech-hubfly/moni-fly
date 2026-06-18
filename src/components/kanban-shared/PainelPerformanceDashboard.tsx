@@ -2,133 +2,140 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { calcularStatusSLA } from '@/lib/dias-uteis';
+import { useMemo, useState } from 'react';
+import { computePainelPerformance } from '@/lib/kanban/painel-performance-compute';
 import {
-  aggregateRetrocesso,
-  atividadeAtrasada,
-  atividadeInPeriod,
-  buildFaseMaps,
-  isDuvidaTipo,
-  periodSinceMs,
-} from '@/lib/kanban/painel-performance-compute';
-import type { PainelCardDTO, PainelPerformanceDataset, PainelPeriodKey } from '@/lib/kanban/painel-performance-types';
-import { getChartConstructor, loadChartJsFromCdn } from './chartjs-cdn';
+  applyPainelFiltros,
+  buildPainelFiltrosOpcoes,
+  filtrosAtivos,
+  PAINEL_FILTROS_INICIAL,
+  type PainelArquivamentoFiltro,
+  type PainelFiltrosState,
+  type PainelMotivoInformadoFiltro,
+} from '@/lib/kanban/painel-filtros';
+import type { GargaloClassificacao, PainelPerformanceDataset, PainelPeriodKey } from '@/lib/kanban/painel-performance-types';
+import { buildPainelArquivadosDrawerRows } from '@/lib/kanban/painel-arquivados-drawer';
+import { ConversionFunnelTree } from './ConversionFunnelTree';
+import { PainelArquivadosDrawer } from './PainelArquivadosDrawer';
+import { PainelQualidadeMotivoAlert } from './PainelQualidadeMotivoAlert';
 
-/**
- * Hex espelhando `:root` em `src/styles/moni-tokens.css` (Chart.js não lê CSS variables).
- * Escala sem `--moni-navy-700` / `--moni-navy-500` / `--moni-earth-700`: usamos navy-600, navy-400 e earth-600.
- */
-const MONI = {
-  navy900: '#071820',
-  navy700: '#0e3a4e',
-  navy500: '#3e7490',
-  green600: '#365848',
-  green400: '#4d7a62',
-  gold600: '#b08a3e',
-  gold400: '#d4ad68',
-  gold200: '#e6ce96',
-  earth700: '#5e473a',
-  overdue: '#8c2a1e',
-  overdueBg: '#fdf0ee',
-  overdueBorder: '#c24b3a',
-  attention: '#faf4e8',
-  attentionText: '#7a5f22',
-  attentionBorder: '#d4ad68',
-  surface100: '#f2ede8',
-  surface200: '#e8e2da',
-  textMuted: '#7a6e65',
-  textSecondary: '#4a3929',
-  textPrimary: '#0c2633',
-  white: '#ffffff',
-  activeBg: '#e8eef1',
-  activeText: '#0e3a4e',
-  activeBorder: '#3e7490',
-} as const;
-
-function hexAlpha(hex: string, alpha: number): string {
-  const h = hex.replace('#', '');
-  if (h.length !== 6) return hex;
-  const r = Number.parseInt(h.slice(0, 2), 16);
-  const g = Number.parseInt(h.slice(2, 4), 16);
-  const b = Number.parseInt(h.slice(4, 6), 16);
-  if (![r, g, b].every((x) => Number.isFinite(x))) return hex;
-  return `rgba(${r},${g},${b},${alpha})`;
-}
-
-const R_PANEL = 12;
+const PERIOD_OPTIONS: { key: PainelPeriodKey; label: string }[] = [
+  { key: '7d', label: '7 dias' },
+  { key: '30d', label: '30 dias' },
+  { key: '90d', label: '90 dias' },
+  { key: 'all', label: 'Tudo' },
+];
 
 function formatInt(n: number): string {
   return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(n);
 }
 
-function formatDec(n: number, frac = 1): string {
-  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: frac }).format(n);
+function formatPct(n: number | null): string {
+  if (n == null || !Number.isFinite(n)) return '—';
+  return `${n.toFixed(1)}%`;
 }
 
-function initials(name: string): string {
-  const p = name
-    .split(/\s+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (p.length === 0) return '?';
-  if (p.length === 1) return p[0].slice(0, 2).toUpperCase();
-  return `${p[0][0] ?? ''}${p[p.length - 1][0] ?? ''}`.toUpperCase();
+function formatDias(n: number | null): string {
+  if (n == null || !Number.isFinite(n)) return '—';
+  return `${Math.round(n)} dias`;
 }
 
-type Tone = 'good' | 'bad' | 'warn' | 'neutral';
-
-function toneHex(t: Tone): string {
-  if (t === 'good') return MONI.green600;
-  if (t === 'bad') return MONI.overdue;
-  if (t === 'warn') return MONI.attentionText;
-  return MONI.textMuted;
+function gargaloClassificacaoLabel(c: GargaloClassificacao): string {
+  if (c === 'critico') return 'Crítico';
+  if (c === 'atencao') return 'Atenção';
+  return 'Baixo';
 }
 
-function KpiTile({
+function gargaloClassificacaoTagClass(c: GargaloClassificacao): string {
+  if (c === 'critico') return 'moni-tag-atrasado';
+  if (c === 'atencao') return 'moni-tag-atencao';
+  return 'moni-tag-concluido';
+}
+
+function buildOpenCardHref(basePath: string, cardId: string): string {
+  const sep = basePath.includes('?') ? '&' : '?';
+  return `${basePath}${sep}tab=kanban&card=${encodeURIComponent(cardId)}`;
+}
+
+function ResumoCard({
   label,
   value,
-  subtext,
-  tone,
+  hint,
 }: {
   label: string;
   value: string | number;
-  subtext: string;
-  tone: Tone;
+  hint?: string;
 }) {
-  const sub = subtext.trim() ? subtext : 'Sem dados ainda';
-  const subTone: Tone = subtext.trim() ? tone : 'neutral';
   return (
     <div
-      className="flex min-h-[118px] min-w-[140px] flex-1 flex-col justify-between px-4 py-3"
+      className="flex min-h-[108px] flex-col justify-between px-4 py-4"
       style={{
-        borderRadius: R_PANEL,
-        background: 'var(--color-background-secondary, #f2ede8)',
+        borderRadius: 'var(--moni-radius-lg)',
+        background: 'var(--moni-surface-0)',
+        border: '0.5px solid var(--moni-border-default)',
+        boxShadow: 'var(--moni-shadow-card)',
       }}
     >
-      <p className="text-[11px] font-medium leading-tight" style={{ color: MONI.textSecondary }}>
+      <p className="text-[11px] font-medium uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
         {label}
       </p>
-      <p className="mt-2 text-3xl font-semibold tabular-nums leading-none" style={{ color: MONI.navy900 }}>
+      <p
+        className="mt-2 text-2xl font-semibold tabular-nums tracking-tight"
+        style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-navy-800)' }}
+      >
         {value}
       </p>
-      <p className="mt-2 min-h-[2.5rem] text-xs font-medium leading-snug" style={{ color: toneHex(subTone) }}>
-        {sub}
-      </p>
+      {hint ? (
+        <p className="mt-1 text-[11px] leading-snug" style={{ color: 'var(--moni-text-tertiary)' }}>
+          {hint}
+        </p>
+      ) : null}
     </div>
+  );
+}
+
+function Section({
+  id,
+  title,
+  subtitle,
+  children,
+}: {
+  id?: string;
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section id={id} className="scroll-mt-6 space-y-4">
+      <div>
+        <h2
+          className="text-lg font-semibold tracking-tight"
+          style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
+        >
+          {title}
+        </h2>
+        {subtitle ? (
+          <p className="mt-1 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+            {subtitle}
+          </p>
+        ) : null}
+      </div>
+      {children}
+    </section>
   );
 }
 
 function PanelCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div
-      className="bg-white px-4 py-4 shadow-sm"
+      className="bg-[var(--moni-surface-0)] px-4 py-4"
       style={{
-        borderRadius: R_PANEL,
-        border: `0.5px solid ${MONI.surface200}`,
+        borderRadius: 'var(--moni-radius-lg)',
+        border: '0.5px solid var(--moni-border-default)',
+        boxShadow: 'var(--moni-shadow-card)',
       }}
     >
-      <h3 className="text-sm font-semibold" style={{ color: MONI.navy900 }}>
+      <h3 className="text-sm font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
         {title}
       </h3>
       <div className="mt-3">{children}</div>
@@ -136,613 +143,201 @@ function PanelCard({ title, children }: { title: string; children: React.ReactNo
   );
 }
 
-function ChartCanvas({
-  canvasRef,
-  heightPx,
-  ariaLabel,
+function MetricTable({
+  headers,
+  rows,
+  emptyMessage,
 }: {
-  canvasRef: React.Ref<HTMLCanvasElement>;
-  heightPx: number;
-  ariaLabel: string;
+  headers: string[];
+  rows: string[][];
+  emptyMessage: string;
 }) {
+  if (rows.length === 0) {
+    return (
+      <p className="text-sm" style={{ color: 'var(--moni-text-tertiary)' }}>
+        {emptyMessage}
+      </p>
+    );
+  }
   return (
-    <div className="relative w-full" style={{ height: heightPx }}>
-      <canvas
-        ref={canvasRef}
-        role="img"
-        aria-label={ariaLabel}
-        style={{ display: 'block', width: '100%', height: '100%' }}
-      />
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[420px] text-left text-sm">
+        <thead>
+          <tr style={{ borderBottom: '0.5px solid var(--moni-border-subtle)' }}>
+            {headers.map((h) => (
+              <th
+                key={h}
+                className="pb-2 pr-4 text-[11px] font-semibold uppercase tracking-wide last:pr-0"
+                style={{ color: 'var(--moni-text-tertiary)' }}
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((cells, idx) => (
+            <tr key={idx} style={{ borderBottom: '0.5px solid var(--moni-border-subtle)' }}>
+              {cells.map((cell, ci) => (
+                <td
+                  key={ci}
+                  className={`py-2.5 pr-4 last:pr-0 ${ci > 0 ? 'tabular-nums text-right' : ''}`}
+                  style={{ color: ci === 0 ? 'var(--moni-text-secondary)' : 'var(--moni-text-primary)' }}
+                >
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-function Avatar({ name }: { name: string }) {
-  return (
-    <div
-      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
-      style={{
-        background: MONI.surface200,
-        color: MONI.navy900,
-        border: `0.5px solid ${MONI.surface200}`,
-      }}
-      aria-hidden
-    >
-      {initials(name)}
-    </div>
-  );
-}
-
-const PERIOD_OPTIONS: { key: PainelPeriodKey; label: string }[] = [
-  { key: '7d', label: '7d' },
-  { key: '30d', label: '30d' },
-  { key: '90d', label: '90d' },
-  { key: 'all', label: 'Tudo' },
-];
-
-const chartTickFont = { family: 'Inter, system-ui, sans-serif', size: 11 };
-
-/** Valores ao fim das barras horizontais (Chart.js CDN). */
-const barEndLabelsHorizontal = {
-  id: 'barValueLabelsH',
-  afterDatasetsDraw(chart: {
-    ctx: CanvasRenderingContext2D;
-    data: { datasets: Array<{ data?: unknown }> };
-    getDatasetMeta: (i: number) => { data?: Array<{ x?: number; y?: number }> };
-  }) {
-    const { ctx } = chart;
-    chart.data.datasets.forEach((dataset, di) => {
-      const meta = chart.getDatasetMeta(di);
-      if (!meta?.data) return;
-      const dataArr = (dataset.data ?? []) as number[];
-      meta.data.forEach((element, index) => {
-        const value = dataArr[index];
-        if (typeof value !== 'number' || value === 0) return;
-        const x = element.x ?? 0;
-        const y = element.y ?? 0;
-        ctx.save();
-        ctx.fillStyle = MONI.textMuted;
-        ctx.font = '11px Inter, system-ui, sans-serif';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(String(value), x + 6, y);
-        ctx.restore();
-      });
-    });
-  },
+const selectStyle: React.CSSProperties = {
+  borderRadius: 'var(--moni-radius-md)',
+  border: '0.5px solid var(--moni-border-default)',
+  background: 'var(--moni-surface-0)',
+  color: 'var(--moni-text-primary)',
+  fontFamily: 'var(--moni-font-sans)',
 };
 
-function buildOpenCardHref(basePath: string, cardId: string): string {
-  const sep = basePath.includes('?') ? '&' : '?';
-  return `${basePath}${sep}tab=kanban&card=${encodeURIComponent(cardId)}`;
-}
-
-function linhaStatusCard(c: PainelCardDTO): string {
-  if (c.arquivado) return 'Arquivado';
-  if (c.concluido) return 'Concluído';
-  return c.status || 'Ativo';
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  children,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex min-w-[140px] flex-1 flex-col gap-1 sm:max-w-[200px]">
+      <span className="text-[10px] font-medium uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+        {label}
+      </span>
+      <select
+        className="min-h-[44px] w-full px-3 py-2 text-sm sm:min-h-[36px]"
+        style={selectStyle}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {children}
+      </select>
+    </label>
+  );
 }
 
 export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerformanceDataset }) {
   const pathname = usePathname();
   const [period, setPeriod] = useState<PainelPeriodKey>('30d');
-  const [cdnError, setCdnError] = useState<string | null>(null);
-  const [cdnReady, setCdnReady] = useState(false);
-  const [drawerFaseId, setDrawerFaseId] = useState<string | null>(null);
+  const [filtros, setFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_INICIAL);
+  const [arquivadosDrawerOpen, setArquivadosDrawerOpen] = useState(false);
 
-  const funnelRef = useRef<HTMLCanvasElement>(null);
-  const tempoRef = useRef<HTMLCanvasElement>(null);
-  const slaCompareRef = useRef<HTMLCanvasElement>(null);
-  const faseChamadosRef = useRef<HTMLCanvasElement>(null);
-  const doughnutRef = useRef<HTMLCanvasElement>(null);
-  const chartInstances = useRef<Array<{ destroy: () => void }>>([]);
+  const opcoesFiltros = useMemo(() => buildPainelFiltrosOpcoes(dataset), [dataset]);
 
-  useEffect(() => {
-    let alive = true;
-    loadChartJsFromCdn()
-      .then(() => {
-        if (alive) setCdnReady(true);
-      })
-      .catch(() => {
-        if (alive) setCdnError('Não foi possível carregar Chart.js (CDN).');
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  const orderedFases = useMemo(
-    () => [...dataset.fases].sort((a, b) => a.ordem - b.ordem),
-    [dataset.fases],
+  const dadosFiltrados = useMemo(
+    () => applyPainelFiltros(dataset, filtros),
+    [dataset, filtros],
   );
 
-  const faseById = useMemo(() => new Map(orderedFases.map((f) => [f.id, f])), [orderedFases]);
-
-  const sinceMs = useMemo(() => periodSinceMs(period), [period]);
-
-  const atividadesScoped = useMemo(
-    () => dataset.atividades.filter((a) => atividadeInPeriod(a, sinceMs)),
-    [dataset.atividades, sinceMs],
-  );
-
-  const cardsAtivosFunil = useMemo(
-    () => dataset.cards.filter((c) => !c.arquivado && !c.concluido),
-    [dataset.cards],
-  );
-
-  const tituloById = useMemo(() => new Map(dataset.cards.map((c) => [c.id, c.titulo])), [dataset.cards]);
-
-  const { totalPorFase, atrasadosPorFase, tempoMedioDiasPorFase, diasUteisMedioPorFase, slaPorFase } = useMemo(
-    () => buildFaseMaps(orderedFases, cardsAtivosFunil),
-    [orderedFases, cardsAtivosFunil],
-  );
-
-  const slaRows = cardsAtivosFunil;
-  let slaDentro = 0;
-  for (const c of slaRows) {
-    const fase = faseById.get(c.fase_id);
-    const slaDias = fase?.sla_dias ?? 999;
-    const created = new Date(c.created_at);
-    if (Number.isFinite(created.getTime()) && calcularStatusSLA(created, slaDias).status !== 'atrasado') {
-      slaDentro += 1;
-    }
-  }
-  const pctSlaDentro = slaRows.length === 0 ? 0 : (slaDentro / slaRows.length) * 100;
-  const pctSlaFora = Math.max(0, 100 - pctSlaDentro);
-
-  const fasesMaisAtraso = useMemo(() => {
-    return [...orderedFases]
-      .map((f) => ({ f, n: atrasadosPorFase.get(f.id) ?? 0 }))
-      .filter((x) => x.n > 0)
-      .sort((a, b) => b.n - a.n)
-      .slice(0, 6);
-  }, [orderedFases, atrasadosPorFase]);
-
-  const totalNoFunil = cardsAtivosFunil.length;
-  const emAndamento = cardsAtivosFunil.filter((c) => String(c.status).toLowerCase() !== 'concluido').length;
-
-  const concluidosKpi = useMemo(() => {
-    return dataset.cards.filter((c) => {
-      if (!c.concluido || !c.concluido_em) return false;
-      if (sinceMs === null) return true;
-      return new Date(c.concluido_em).getTime() >= sinceMs;
-    }).length;
-  }, [dataset.cards, sinceMs]);
-
-  const arquivadosKpi = useMemo(() => dataset.cards.filter((c) => c.arquivado).length, [dataset.cards]);
-
-  let leadSum = 0;
-  let leadN = 0;
-  for (const c of dataset.cards) {
-    if (!c.concluido || !c.concluido_em) continue;
-    if (sinceMs !== null && new Date(c.concluido_em).getTime() < sinceMs) continue;
-    const a = new Date(c.created_at).getTime();
-    const b = new Date(c.concluido_em).getTime();
-    if (Number.isFinite(a) && Number.isFinite(b) && b >= a) {
-      leadSum += b - a;
-      leadN += 1;
-    }
-  }
-  const leadMedioDias = leadN === 0 ? null : leadSum / leadN / (1000 * 60 * 60 * 24);
-
-  let chamadosAbertos = 0;
-  let chamadosTrava = 0;
-  let countDuvidas = 0;
-  let countAtividades = 0;
-  for (const a of atividadesScoped) {
-    const st = String(a.status ?? '').toLowerCase();
-    const aberta = st !== 'concluida' && st !== 'cancelada';
-    if (!aberta) continue;
-    chamadosAbertos += 1;
-    if (a.trava) chamadosTrava += 1;
-    if (isDuvidaTipo(a.tipo)) countDuvidas += 1;
-    else countAtividades += 1;
-  }
-
-  const retroAggs = useMemo(
-    () => aggregateRetrocesso(dataset.retrocessoRows, tituloById),
-    [dataset.retrocessoRows, tituloById],
-  );
-  const retrabalhoN = new Set(dataset.retrocessoRows.map((r) => r.card_id)).size;
-
-  const porFaseChamados = new Map<string, number>();
-  const porCardCount = new Map<string, number>();
-  const chamadosPorResp = new Map<string, number>();
-  const respDuvidas = new Map<string, number>();
-  const respAtrasos = new Map<string, number>();
-
-  const cardFase = new Map(dataset.cards.map((c) => [c.id, c.fase_id]));
-
-  for (const a of atividadesScoped) {
-    porCardCount.set(a.card_id, (porCardCount.get(a.card_id) ?? 0) + 1);
-    const fid = cardFase.get(a.card_id);
-    if (fid) porFaseChamados.set(fid, (porFaseChamados.get(fid) ?? 0) + 1);
-
-    const ids =
-      Array.isArray(a.responsaveis_ids) && a.responsaveis_ids.length > 0
-        ? a.responsaveis_ids
-        : a.responsavel_id
-          ? [a.responsavel_id]
-          : [];
-    const seen = new Set<string>();
-    for (const rid of ids) {
-      if (!rid || seen.has(rid)) continue;
-      seen.add(rid);
-      chamadosPorResp.set(rid, (chamadosPorResp.get(rid) ?? 0) + 1);
-      if (isDuvidaTipo(a.tipo)) respDuvidas.set(rid, (respDuvidas.get(rid) ?? 0) + 1);
-      if (atividadeAtrasada(a)) respAtrasos.set(rid, (respAtrasos.get(rid) ?? 0) + 1);
-    }
-  }
-
-  const topCards = [...porCardCount.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([id, n]) => ({ id, n, titulo: tituloById.get(id) ?? 'Card' }));
-
-  const cardsPorFranqueado = new Map<string, number>();
-  const franqAtrasos = new Map<string, number>();
-  const franqSlaOk = new Map<string, number>();
-  const franqSlaTotal = new Map<string, number>();
-
-  for (const c of cardsAtivosFunil) {
-    cardsPorFranqueado.set(c.franqueado_id, (cardsPorFranqueado.get(c.franqueado_id) ?? 0) + 1);
-    const fase = faseById.get(c.fase_id);
-    const slaDias = fase?.sla_dias ?? 999;
-    const st = calcularStatusSLA(new Date(c.created_at), slaDias).status;
-    franqSlaTotal.set(c.franqueado_id, (franqSlaTotal.get(c.franqueado_id) ?? 0) + 1);
-    if (st !== 'atrasado') franqSlaOk.set(c.franqueado_id, (franqSlaOk.get(c.franqueado_id) ?? 0) + 1);
-    else franqAtrasos.set(c.franqueado_id, (franqAtrasos.get(c.franqueado_id) ?? 0) + 1);
-  }
-
-  const labelsFases = orderedFases.map((f) => f.nome);
-  const dataFunil = orderedFases.map((f) => totalPorFase.get(f.id) ?? 0);
-  const dataTempoFase = orderedFases.map((f) => Math.round((tempoMedioDiasPorFase.get(f.id) ?? 0) * 10) / 10);
-  const dataDuMedio = orderedFases.map((f) => Math.round((diasUteisMedioPorFase.get(f.id) ?? 0) * 10) / 10);
-  const dataSlaMeta = orderedFases.map((f) => slaPorFase.get(f.id) ?? 0);
-  const dataChamadosFase = orderedFases.map((f) => porFaseChamados.get(f.id) ?? 0);
-
-  const maxTimeFase = Math.max(1, ...orderedFases.map((f) => tempoMedioDiasPorFase.get(f.id) ?? 0));
-
-  const timeRows = [...cardsPorFranqueado.entries()].sort((a, b) => b[1] - a[1]);
-  const maxFranqCards = Math.max(1, ...[...cardsPorFranqueado.values()], 0);
-  const respRows = [...chamadosPorResp.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12);
-
-  const drawerFase = useMemo(
-    () => (drawerFaseId ? orderedFases.find((f) => f.id === drawerFaseId) ?? null : null),
-    [drawerFaseId, orderedFases],
-  );
-
-  const cardsListaDrawer = useMemo(() => {
-    if (!drawerFaseId) return [];
-    return cardsAtivosFunil.filter((c) => c.fase_id === drawerFaseId);
-  }, [cardsAtivosFunil, drawerFaseId]);
-
-  const totalCardsBase = Math.max(1, dataset.cards.length);
-  const pctArquivados = (arquivadosKpi / totalCardsBase) * 100;
-  const motivosArq = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const c of dataset.cards) {
-      if (!c.arquivado) continue;
-      const key = (c.motivo_arquivamento ?? 'Sem motivo').trim() || 'Sem motivo';
-      m.set(key, (m.get(key) ?? 0) + 1);
-    }
-    return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
-  }, [dataset.cards]);
-  const mediaChamadosPorCard =
-    dataset.cards.length === 0 ? 0 : atividadesScoped.length / Math.max(1, dataset.cards.length);
-
-  const abertosMix = countAtividades + countDuvidas;
-  const pctAtivMix = abertosMix === 0 ? 0 : (countAtividades / abertosMix) * 100;
-  const pctDuvMix = abertosMix === 0 ? 0 : (countDuvidas / abertosMix) * 100;
-
-  const chartDepsKey = useMemo(
+  const analise = useMemo(
     () =>
-      JSON.stringify({
+      computePainelPerformance({
+        mode: dataset.mode,
         period,
-        labelsFases,
-        dataFunil,
-        dataTempoFase,
-        dataDuMedio,
-        dataSlaMeta,
-        dataChamadosFase,
-        dough: [countAtividades, countDuvidas],
-        kanban: dataset.kanbanNome,
+        fases: dataset.fases,
+        cards: dadosFiltrados.cards,
+        cardsAnalise: dadosFiltrados.cardsAnalise,
+        chamados: dadosFiltrados.chamados,
+        retrocessoRows: dadosFiltrados.retrocessoRows,
+        historicoMovimentos: dadosFiltrados.historicoMovimentos,
+        historicoAnalise: dadosFiltrados.historicoAnalise,
+        profiles: dataset.profiles,
       }),
-    [
-      period,
-      labelsFases,
-      dataFunil,
-      dataTempoFase,
-      dataDuMedio,
-      dataSlaMeta,
-      dataChamadosFase,
-      countAtividades,
-      countDuvidas,
-      dataset.kanbanNome,
-    ],
-  );
-
-  useEffect(() => {
-    if (!cdnReady) return;
-    const Chart = getChartConstructor();
-    if (!Chart) return;
-
-    chartInstances.current.forEach((c) => c.destroy());
-    chartInstances.current = [];
-
-    const baseOpts = {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-    };
-
-    const scaleX = {
-      beginAtZero: true,
-      grid: { color: MONI.surface200 },
-      ticks: { color: MONI.textSecondary, font: chartTickFont },
-    };
-
-    /** Eixo X do funil (contagens): só inteiros visíveis. */
-    const scaleXFunnelCounts = {
-      ...scaleX,
-      ticks: {
-        ...scaleX.ticks,
-        color: MONI.textMuted,
-        stepSize: 1,
-        callback(raw: number | string) {
-          const v = typeof raw === 'number' ? raw : Number.parseFloat(String(raw));
-          return Number.isFinite(v) && Number.isInteger(v) ? formatInt(v) : '';
-        },
-      },
-    };
-    const scaleY = {
-      grid: { display: false },
-      ticks: { color: MONI.textSecondary, font: chartTickFont },
-    };
-    const scaleYFunnel = {
-      ...scaleY,
-      ticks: { ...scaleY.ticks, color: MONI.textMuted },
-    };
-
-    const mk = (canvas: HTMLCanvasElement | null, cfg: unknown) => {
-      if (!canvas) return;
-      const inst = new Chart(canvas, cfg as never);
-      chartInstances.current.push(inst);
-    };
-
-    mk(funnelRef.current, {
-      type: 'bar',
-      data: {
-        labels: labelsFases,
-        datasets: [
-          {
-            data: dataFunil,
-            backgroundColor: MONI.navy700,
-            hoverBackgroundColor: MONI.navy900,
-            borderRadius: 4,
-            maxBarThickness: 22,
-          },
-        ],
-      },
-      options: {
-        ...baseOpts,
-        indexAxis: 'y',
-        interaction: { mode: 'index' as const, intersect: false },
-        scales: { x: scaleXFunnelCounts, y: scaleYFunnel },
-        plugins: {
-          ...baseOpts.plugins,
-          tooltip: {
-            callbacks: {
-              label(ctx: { parsed?: { x?: number } }) {
-                const x = ctx.parsed?.x ?? 0;
-                return `${formatInt(x)} cards`;
-              },
-            },
-          },
-        },
-        onClick: (_evt: unknown, elements: { index: number; datasetIndex?: number }[]) => {
-          if (!elements?.length) return;
-          const idx = elements[0].index;
-          if (typeof idx !== 'number' || idx < 0) return;
-          const fase = orderedFases[idx];
-          if (!fase) return;
-          setDrawerFaseId(fase.id);
-        },
-      },
-      plugins: [barEndLabelsHorizontal],
-    });
-
-    mk(tempoRef.current, {
-      type: 'bar',
-      data: {
-        labels: labelsFases,
-        datasets: [
-          {
-            data: dataTempoFase,
-            backgroundColor(ctx: { dataIndex: number }) {
-              const i = ctx.dataIndex;
-              const sla = dataSlaMeta[i] ?? 0;
-              const du = dataDuMedio[i] ?? 0;
-              if (sla <= 0) return MONI.green600;
-              return du <= sla ? MONI.green600 : MONI.overdue;
-            },
-            hoverBackgroundColor(ctx: { dataIndex: number }) {
-              const i = ctx.dataIndex;
-              const sla = dataSlaMeta[i] ?? 0;
-              const du = dataDuMedio[i] ?? 0;
-              if (sla <= 0) return hexAlpha(MONI.green600, 0.88);
-              return du <= sla ? hexAlpha(MONI.green600, 0.88) : hexAlpha(MONI.overdue, 0.88);
-            },
-            borderRadius: 4,
-            maxBarThickness: 14,
-          },
-        ],
-      },
-      options: {
-        ...baseOpts,
-        indexAxis: 'y',
-        scales: {
-          x: { ...scaleX, suggestedMax: maxTimeFase * 1.1 || 1 },
-          y: scaleY,
-        },
-        plugins: {
-          ...baseOpts.plugins,
-          tooltip: {
-            callbacks: {
-              label(ctx: { parsed?: { x?: number } }) {
-                const x = ctx.parsed?.x ?? 0;
-                return `${formatDec(x, 1)} dias`;
-              },
-            },
-          },
-        },
-      },
-      plugins: [barEndLabelsHorizontal],
-    });
-
-    mk(slaCompareRef.current, {
-      type: 'bar',
-      data: {
-        labels: labelsFases,
-        datasets: [
-          {
-            label: 'Dias úteis (média)',
-            data: dataDuMedio,
-            backgroundColor: MONI.navy700,
-            borderRadius: 4,
-            maxBarThickness: 14,
-          },
-          {
-            label: 'SLA (d.u.)',
-            data: dataSlaMeta,
-            backgroundColor: MONI.gold600,
-            borderRadius: 4,
-            maxBarThickness: 14,
-          },
-        ],
-      },
-      options: {
-        ...baseOpts,
-        indexAxis: 'y',
-        scales: { x: scaleX, y: scaleY },
-        plugins: { ...baseOpts.plugins, tooltip: { enabled: true } },
-      },
-      plugins: [barEndLabelsHorizontal],
-    });
-
-    mk(faseChamadosRef.current, {
-      type: 'bar',
-      data: {
-        labels: labelsFases,
-        datasets: [
-          {
-            data: dataChamadosFase,
-            backgroundColor: MONI.earth700,
-            borderRadius: 4,
-            maxBarThickness: 18,
-          },
-        ],
-      },
-      options: {
-        ...baseOpts,
-        indexAxis: 'y',
-        scales: { x: scaleX, y: scaleY },
-      },
-      plugins: [barEndLabelsHorizontal],
-    });
-
-    const d1 = Math.max(0, countAtividades);
-    const d2 = Math.max(0, countDuvidas);
-    if (d1 + d2 > 0) {
-      mk(doughnutRef.current, {
-        type: 'doughnut',
-        data: {
-          labels: ['Atividade', 'Dúvida'],
-          datasets: [
-            {
-              data: [d1, d2],
-              backgroundColor: [hexAlpha(MONI.navy700, 0.9), hexAlpha(MONI.gold600, 0.9)],
-              borderWidth: 0.5,
-              borderColor: MONI.surface200,
-            },
-          ],
-        },
-        options: {
-          ...baseOpts,
-          cutout: '58%',
-          plugins: {
-            ...baseOpts.plugins,
-            tooltip: { enabled: true },
-          },
-        },
-      });
-    }
-
-    return () => {
-      chartInstances.current.forEach((c) => c.destroy());
-      chartInstances.current = [];
-    };
-    // chartDepsKey (useMemo acima) serializa labels/dados; incluir cada série aqui duplicaria o memo.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cdnReady, chartDepsKey, maxTimeFase, orderedFases, dataset.kanbanNome, setDrawerFaseId]);
-
-  const kpiRow = (
-    <div className="flex flex-wrap gap-3">
-      <KpiTile
-        label="Total no funil"
-        value={formatInt(totalNoFunil)}
-        subtext="Ativos no funil"
-        tone={totalNoFunil ? 'neutral' : 'warn'}
-      />
-      <KpiTile
-        label="Em andamento"
-        value={formatInt(emAndamento)}
-        subtext="Em progresso"
-        tone={emAndamento ? 'neutral' : 'warn'}
-      />
-      <KpiTile
-        label="Concluídos"
-        value={formatInt(concluidosKpi)}
-        subtext={concluidosKpi ? 'No período' : 'Nenhum'}
-        tone={concluidosKpi ? 'good' : 'neutral'}
-      />
-      <KpiTile
-        label="Arquivados"
-        value={formatInt(arquivadosKpi)}
-        subtext="No histórico"
-        tone={arquivadosKpi ? 'warn' : 'good'}
-      />
-      <KpiTile
-        label="% SLA"
-        value={`${formatDec(pctSlaDentro, 1)}%`}
-        subtext="No funil"
-        tone={
-          slaRows.length === 0 ? 'neutral' : pctSlaDentro >= 75 ? 'good' : pctSlaDentro >= 50 ? 'warn' : 'bad'
-        }
-      />
-      <KpiTile
-        label="Lead time médio"
-        value={leadMedioDias === null ? '—' : `${formatDec(leadMedioDias, 1)} d`}
-        subtext="Prazo médio"
-        tone={leadMedioDias === null ? 'neutral' : leadMedioDias <= 14 ? 'good' : 'warn'}
-      />
-    </div>
+    [dataset.mode, dataset.fases, dataset.profiles, dadosFiltrados, period],
   );
 
   const openCardBase = (pathname ?? '/').trim() || '/';
+  const periodLabel = PERIOD_OPTIONS.find((p) => p.key === period)?.label ?? period;
+  const gargalosCriticos = analise.gargalos.ranking.filter((g) => g.classificacao === 'critico').length;
+
+  const arquivadosDrawerRows = useMemo(
+    () =>
+      buildPainelArquivadosDrawerRows({
+        kanbanNome: dataset.kanbanNome,
+        fases: dataset.fases,
+        cards: dadosFiltrados.cardsAnalise,
+        historico: dadosFiltrados.historicoAnalise,
+        profiles: dataset.profiles,
+        period,
+        openCardHref: (cardId) => buildOpenCardHref(openCardBase, cardId),
+      }),
+    [
+      dataset.kanbanNome,
+      dataset.fases,
+      dataset.profiles,
+      dadosFiltrados.cardsAnalise,
+      dadosFiltrados.historicoAnalise,
+      period,
+      openCardBase,
+    ],
+  );
+
+  const setF = <K extends keyof PainelFiltrosState>(key: K, value: PainelFiltrosState[K]) => {
+    setFiltros((prev) => ({ ...prev, [key]: value }));
+  };
 
   return (
     <div className="space-y-10 pb-10">
-      <header className="flex flex-col gap-4 pb-6" style={{ borderBottom: `0.5px solid ${MONI.surface200}` }}>
-        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
-              {dataset.kanbanNome}
-            </h1>
+      {/* Cabeçalho */}
+      <header className="space-y-6" style={{ borderBottom: '0.5px solid var(--moni-border-default)', paddingBottom: '1.5rem' }}>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+            {dataset.kanbanNome}
+          </p>
+          <h1
+            className="mt-1 text-3xl font-semibold tracking-tight"
+            style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
+          >
+            Painel do Funil
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+            Análise padronizada do funil: operação, conversão, gargalos, chamados e insights automáticos.
+          </p>
+        </div>
+
+        {/* Filtros */}
+        <div
+          className="space-y-4 rounded-xl p-4"
+          style={{
+            background: 'var(--moni-surface-100)',
+            border: '0.5px solid var(--moni-border-subtle)',
+            borderRadius: 'var(--moni-radius-lg)',
+          }}
+        >
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-secondary)' }}>
+              Filtros
+            </p>
+            {filtrosAtivos(filtros) ? (
+              <button
+                type="button"
+                className="min-h-[36px] text-xs font-medium underline-offset-2 hover:underline"
+                style={{ color: 'var(--moni-navy-800)' }}
+                onClick={() => setFiltros(PAINEL_FILTROS_INICIAL)}
+              >
+                Limpar filtros
+              </button>
+            ) : null}
           </div>
+
           <div
-            className="inline-flex rounded-full p-0.5"
-            style={{ background: MONI.surface200, border: `0.5px solid ${MONI.surface200}` }}
+            className="inline-flex flex-wrap rounded-full p-0.5"
+            style={{ background: 'var(--moni-surface-200)', border: '0.5px solid var(--moni-border-default)' }}
             role="tablist"
             aria-label="Período"
           >
@@ -754,11 +349,10 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                   type="button"
                   role="tab"
                   aria-selected={on}
-                  className="rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
+                  className="min-h-[44px] rounded-full px-3 py-1.5 text-xs font-medium transition-colors sm:min-h-0"
                   style={{
-                    background: on ? MONI.navy900 : 'transparent',
-                    color: on ? MONI.white : MONI.textSecondary,
-                    border: '0.5px solid transparent',
+                    background: on ? 'var(--moni-navy-800)' : 'transparent',
+                    color: on ? 'var(--moni-text-inverse)' : 'var(--moni-text-secondary)',
                   }}
                   onClick={() => setPeriod(key)}
                 >
@@ -767,571 +361,782 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
               );
             })}
           </div>
+
+          <div className="flex flex-wrap gap-3">
+            {opcoesFiltros.temFranquia ? (
+              <FilterSelect
+                label="Franquia / Unidade"
+                value={filtros.franquiaId ?? ''}
+                onChange={(v) => setF('franquiaId', v || null)}
+              >
+                <option value="">Todas</option>
+                {opcoesFiltros.franquias.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.label}
+                  </option>
+                ))}
+              </FilterSelect>
+            ) : null}
+
+            <FilterSelect
+              label="Responsável"
+              value={filtros.responsavelKey ?? ''}
+              onChange={(v) => setF('responsavelKey', v || null)}
+            >
+              <option value="">Todos</option>
+              {opcoesFiltros.responsaveis.map((r) => (
+                <option key={r.key} value={r.key}>
+                  {r.label}
+                </option>
+              ))}
+            </FilterSelect>
+
+            <FilterSelect
+              label="Fase"
+              value={filtros.faseId ?? ''}
+              onChange={(v) => setF('faseId', v || null)}
+            >
+              <option value="">Todas</option>
+              {[...dataset.fases]
+                .sort((a, b) => a.ordem - b.ordem)
+                .map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.nome}
+                  </option>
+                ))}
+            </FilterSelect>
+
+            <FilterSelect label="Status" value={filtros.status} onChange={(v) => setF('status', v as PainelFiltrosState['status'])}>
+              <option value="all">Todos</option>
+              <option value="ativo">Ativos</option>
+              <option value="arquivado">Arquivados</option>
+            </FilterSelect>
+
+            <FilterSelect
+              label="Arquivamento"
+              value={filtros.arquivamento}
+              onChange={(v) => setF('arquivamento', v as PainelArquivamentoFiltro)}
+            >
+              <option value="all">Todos</option>
+              <option value="antes_conversao">Antes da conversão</option>
+              <option value="depois_conversao">Depois da conversão</option>
+            </FilterSelect>
+
+            {opcoesFiltros.motivosArquivamento.length > 0 ? (
+              <FilterSelect
+                label="Motivo de arquivamento"
+                value={filtros.motivoArquivamento ?? ''}
+                onChange={(v) => setF('motivoArquivamento', v || null)}
+              >
+                <option value="">Todos</option>
+                {opcoesFiltros.motivosArquivamento.map((m) => (
+                  <option key={m.motivo} value={m.motivo}>
+                    {m.motivo} ({m.total})
+                  </option>
+                ))}
+              </FilterSelect>
+            ) : null}
+
+            <FilterSelect
+              label="Motivo informado"
+              value={filtros.motivoInformado}
+              onChange={(v) => setF('motivoInformado', v as PainelMotivoInformadoFiltro)}
+            >
+              <option value="all">Todos</option>
+              <option value="com">Com motivo</option>
+              <option value="sem">Sem motivo</option>
+            </FilterSelect>
+
+            <FilterSelect
+              label="Fase de arquivamento"
+              value={filtros.faseArquivamentoId ?? ''}
+              onChange={(v) => setF('faseArquivamentoId', v || null)}
+            >
+              <option value="">Todas</option>
+              {[...dataset.fases]
+                .sort((a, b) => a.ordem - b.ordem)
+                .map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.nome}
+                  </option>
+                ))}
+            </FilterSelect>
+
+            <FilterSelect
+              label="Chamados"
+              value={filtros.chamados}
+              onChange={(v) => setF('chamados', v as PainelFiltrosState['chamados'])}
+            >
+              <option value="all">Todos</option>
+              <option value="com">Com chamados abertos</option>
+              <option value="sem">Sem chamados abertos</option>
+            </FilterSelect>
+
+            <FilterSelect
+              label="Trava"
+              value={filtros.trava}
+              onChange={(v) => setF('trava', v as PainelFiltrosState['trava'])}
+            >
+              <option value="all">Todos</option>
+              <option value="com">Com trava</option>
+              <option value="sem">Sem trava</option>
+            </FilterSelect>
+          </div>
+
+          <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+            {formatInt(dadosFiltrados.cards.length)} cards no recorte · Período: {periodLabel}
+            {filtrosAtivos(filtros) ? ' · Filtros adicionais aplicados' : ''}
+          </p>
+          {dadosFiltrados.ocultandoArquivados ? (
+            <p
+              className="rounded-lg px-3 py-2 text-xs"
+              style={{
+                color: 'var(--moni-text-secondary)',
+                background: 'var(--moni-surface-0)',
+                border: '0.5px solid var(--moni-border-subtle)',
+                borderRadius: 'var(--moni-radius-md)',
+              }}
+            >
+              Cards arquivados estão ocultos neste filtro. Conversão e perdas por arquivamento continuam
+              considerando os arquivados do recorte.
+            </p>
+          ) : null}
         </div>
-        {cdnError ? (
-          <p className="text-sm" style={{ color: MONI.overdue }}>
-            {cdnError}
-          </p>
-        ) : null}
-        {dataset.mode === 'legado' ? (
-          <p className="max-w-2xl text-sm" style={{ color: MONI.textSecondary }}>
-            Modo legado: métricas limitadas aos cards carregados nesta página.
-          </p>
-        ) : null}
       </header>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold" style={{ color: MONI.navy900 }}>
-          Visão geral
-        </h2>
-        {kpiRow}
-      </section>
+      {dataset.mode === 'legado' ? (
+        <p
+          className="rounded-lg px-3 py-2 text-sm"
+          style={{
+            border: '0.5px solid var(--moni-border-default)',
+            background: 'var(--moni-surface-100)',
+            color: 'var(--moni-text-secondary)',
+            borderRadius: 'var(--moni-radius-lg)',
+          }}
+        >
+          Modo legado: histórico de fases limitado; métricas usam posição atual e movimentos disponíveis.
+        </p>
+      ) : null}
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <PanelCard title="Cards por fase">
-          <div className="space-y-4">
-            <div className="cursor-pointer">
-              <ChartCanvas canvasRef={funnelRef} heightPx={240} ariaLabel="Gráfico de barras horizontais: volume de cards por fase" />
-            </div>
-            <p className="text-xs font-medium" style={{ color: MONI.textMuted }}>
-              Tempo médio por fase
-            </p>
-            <ChartCanvas
-              canvasRef={tempoRef}
-              heightPx={200}
-              ariaLabel="Gráfico de barras horizontais: tempo médio em dias por fase"
-            />
-          </div>
-        </PanelCard>
+      {!analise.conversao.faseConversaoConfigurada ? (
+        <p
+          className="rounded-lg px-4 py-3 text-sm"
+          style={{
+            color: 'var(--moni-text-secondary)',
+            background: 'var(--moni-surface-100)',
+            border: '0.5px solid var(--moni-border-subtle)',
+            borderRadius: 'var(--moni-radius-lg)',
+          }}
+        >
+          Fase de conversão não configurada
+        </p>
+      ) : null}
 
-        <PanelCard title="SLA">
-          <div className="space-y-4">
-            <div>
-              <div className="mb-1 flex justify-between text-xs" style={{ color: MONI.textSecondary }}>
-                <span>Dentro do SLA</span>
-                <span className="tabular-nums font-semibold" style={{ color: MONI.navy900 }}>
-                  {formatDec(pctSlaDentro, 1)}%
-                </span>
-              </div>
-              <div className="relative flex h-3 overflow-hidden rounded-full" style={{ background: MONI.surface200 }}>
-                <div
-                  className="h-full"
-                  style={{
-                    width: `${pctSlaDentro}%`,
-                    background: MONI.green600,
-                    transition: 'width 0.35s ease',
-                  }}
-                />
-                <div
-                  className="h-full"
-                  style={{
-                    width: `${pctSlaFora}%`,
-                    background: MONI.overdue,
-                    transition: 'width 0.35s ease',
-                  }}
-                />
-              </div>
-              <div className="mt-1 flex justify-between text-[11px]" style={{ color: MONI.textMuted }}>
-                <span>Fora: {formatDec(pctSlaFora, 1)}%</span>
-                <span>Ativos: {formatInt(slaRows.length)}</span>
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold" style={{ color: MONI.navy900 }}>
-                Fases com mais atraso
-              </p>
-              <ul className="mt-2 space-y-2">
-                {fasesMaisAtraso.length === 0 ? (
-                  <li className="text-sm" style={{ color: MONI.textMuted }}>
-                    Nenhum atraso
-                  </li>
-                ) : (
-                  fasesMaisAtraso.map(({ f, n }) => (
-                    <li key={f.id} className="flex items-center justify-between text-sm">
-                      <span style={{ color: MONI.textSecondary }}>{f.nome}</span>
-                      <span
-                        className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                        style={{
-                          background: MONI.overdue,
-                          color: MONI.white,
-                          border: `0.5px solid ${MONI.overdueBorder}`,
-                        }}
-                      >
-                        {n} atrasados
-                      </span>
-                    </li>
-                  ))
-                )}
-              </ul>
-            </div>
-
-            <div
-              className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium"
-              style={{ color: MONI.textSecondary }}
-            >
-              <span className="inline-flex items-center gap-2">
-                <span className="inline-block h-2.5 w-3 shrink-0 rounded-sm" style={{ background: MONI.navy700 }} />
-                Tempo real (d.u.)
-              </span>
-              <span style={{ color: MONI.textMuted }} aria-hidden>
-                |
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <span className="inline-block h-2.5 w-3 shrink-0 rounded-sm" style={{ background: MONI.gold600 }} />
-                SLA configurado (d.u.)
-              </span>
-            </div>
-            <ChartCanvas
-              canvasRef={slaCompareRef}
-              heightPx={220}
-              ariaLabel="Gráfico comparativo: dias úteis médios versus SLA por fase"
-            />
-          </div>
-        </PanelCard>
-
-        <PanelCard title="Time">
-          <div className="space-y-6">
-            <div>
-              <p className="text-xs font-medium" style={{ color: MONI.textMuted }}>
-                Cards por franqueado
-              </p>
-              <ul className="mt-2 space-y-3">
-                {timeRows.length === 0 ? (
-                  <li className="text-sm" style={{ color: MONI.textMuted }}>
-                    Sem dados
-                  </li>
-                ) : (
-                  timeRows.map(([id, n]) => {
-                    const name = dataset.profiles[id] ?? id.slice(0, 8);
-                    const pct = Math.round((n / maxFranqCards) * 100);
-                    return (
-                      <li key={id} className="flex items-center gap-3">
-                        <Avatar name={name} />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex justify-between gap-2 text-sm">
-                            <span className="truncate font-medium" style={{ color: MONI.navy900 }}>
-                              {name}
-                            </span>
-                            <span className="tabular-nums" style={{ color: MONI.textSecondary }}>
-                              {n}
-                            </span>
-                          </div>
-                          <div className="relative mt-1 h-2 overflow-hidden rounded-full" style={{ background: MONI.surface200 }}>
-                            <div className="h-full rounded-full" style={{ width: `${pct}%`, background: MONI.navy700 }} />
-                          </div>
-                        </div>
-                      </li>
-                    );
-                  })
-                )}
-              </ul>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold" style={{ color: MONI.navy900 }}>
-                Atrasos por pessoa
-              </p>
-              <ul className="mt-2 flex flex-wrap gap-2">
-                {[...franqAtrasos.entries()]
-                  .filter(([, n]) => n > 0)
-                  .sort((a, b) => b[1] - a[1])
-                  .slice(0, 8)
-                  .map(([id, n]) => (
-                    <li
-                      key={id}
-                      className="rounded-full px-2 py-1 text-[11px] font-semibold"
-                      style={{
-                        background: MONI.overdue,
-                        color: MONI.white,
-                        border: `0.5px solid ${MONI.overdueBorder}`,
-                      }}
-                    >
-                      {(dataset.profiles[id] ?? '').split(' ')[0] || '—'} · {n}
-                    </li>
-                  ))}
-                {![...franqAtrasos.values()].some((n) => n > 0) ? (
-                  <li className="text-sm" style={{ color: MONI.textMuted }}>
-                    Sem atrasos por dono
-                  </li>
-                ) : null}
-              </ul>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold" style={{ color: MONI.navy900 }}>
-                % SLA por pessoa
-              </p>
-              <ul className="mt-2 space-y-2">
-                {[...franqSlaTotal.entries()]
-                  .filter(([, t]) => t > 0)
-                  .map(([id, t]) => {
-                    const ok = franqSlaOk.get(id) ?? 0;
-                    const pctP = (ok / t) * 100;
-                    return (
-                      <li key={id} className="flex items-center justify-between text-sm">
-                        <span className="truncate" style={{ color: MONI.textSecondary }}>
-                          {dataset.profiles[id] ?? id.slice(0, 8)}
-                        </span>
-                        <span className="tabular-nums font-medium" style={{ color: MONI.navy900 }}>
-                          {formatDec(pctP, 0)}%
-                        </span>
-                      </li>
-                    );
-                  })}
-              </ul>
-            </div>
-          </div>
-        </PanelCard>
-      </section>
-
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold" style={{ color: MONI.navy900 }}>
-          Qualidade e chamados
-        </h2>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <PanelCard title="Qualidade">
-            <div className="space-y-4 text-sm" style={{ color: MONI.textSecondary }}>
-              <div className="flex justify-between gap-2">
-                <span>Arquivados (% do total)</span>
-                <strong className="tabular-nums" style={{ color: MONI.navy900 }}>
-                  {formatDec(pctArquivados, 1)}% · {formatInt(arquivadosKpi)} card(s)
-                </strong>
-              </div>
-              <div>
-                <p className="text-xs font-semibold" style={{ color: MONI.navy900 }}>
-                  Motivos de arquivamento (top)
-                </p>
-                <ul className="mt-2 space-y-1.5">
-                  {motivosArq.length === 0 ? (
-                    <li className="text-sm" style={{ color: MONI.textMuted }}>
-                      Nenhum arquivamento com motivo registrado
-                    </li>
-                  ) : (
-                    motivosArq.map(([mot, n]) => (
-                      <li key={mot} className="flex justify-between gap-2 text-sm">
-                        <span className="min-w-0 truncate">{mot}</span>
-                        <span className="shrink-0 tabular-nums font-medium" style={{ color: MONI.navy900 }}>
-                          {formatInt(n)}
-                        </span>
-                      </li>
-                    ))
-                  )}
-                </ul>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span>Retrabalho (cards com retrocesso)</span>
-                <strong className="tabular-nums" style={{ color: retrabalhoN ? MONI.overdue : MONI.navy900 }}>
-                  {formatInt(retrabalhoN)}
-                </strong>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span>Chamados por card (média no período)</span>
-                <strong className="tabular-nums" style={{ color: MONI.navy900 }}>
-                  {formatDec(mediaChamadosPorCard, 2)}
-                </strong>
-              </div>
-            </div>
-          </PanelCard>
-
-          <PanelCard title="Chamados — visão geral">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2 text-sm" style={{ color: MONI.textSecondary }}>
-                <div className="flex justify-between">
-                  <span>Total</span>
-                  <strong style={{ color: MONI.navy900 }}>{formatInt(atividadesScoped.length)}</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span>Em aberto</span>
-                  <strong style={{ color: MONI.navy900 }}>{formatInt(chamadosAbertos)}</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span>Com trava</span>
-                  <strong style={{ color: chamadosTrava ? MONI.overdue : MONI.navy900 }}>{formatInt(chamadosTrava)}</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span>Dúvidas</span>
-                  <strong style={{ color: MONI.navy900 }}>{formatInt(countDuvidas)}</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span>Atividades</span>
-                  <strong style={{ color: MONI.navy900 }}>{formatInt(countAtividades)}</strong>
-                </div>
-              </div>
-              <div className="flex flex-col items-center justify-center">
-                {atividadesScoped.length === 0 ? (
-                  <p className="text-sm" style={{ color: MONI.textMuted }}>
-                    Sem dados
-                  </p>
-                ) : countAtividades + countDuvidas === 0 ? (
-                  <p className="text-center text-sm" style={{ color: MONI.textMuted }}>
-                    Nenhum chamado em aberto no período
-                  </p>
-                ) : (
-                  <>
-                    <div className="relative h-44 w-44">
-                      <ChartCanvas canvasRef={doughnutRef} heightPx={176} ariaLabel="Gráfico rosca: atividades versus dúvidas em aberto" />
-                    </div>
-                    <div
-                      className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs leading-snug"
-                      style={{ color: MONI.textSecondary }}
-                    >
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: MONI.navy700 }} />
-                        Atividade {formatInt(countAtividades)} ({formatDec(pctAtivMix, 0)}%)
-                      </span>
-                      <span className="hidden sm:inline" style={{ color: MONI.textMuted }}>
-                        |
-                      </span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: MONI.gold600 }} />
-                        Dúvida {formatInt(countDuvidas)} ({formatDec(pctDuvMix, 0)}%)
-                      </span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </PanelCard>
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold" style={{ color: MONI.navy900 }}>
-          Distribuição e retrabalho
-        </h2>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div className="space-y-4">
-            <PanelCard title="Chamados por fase">
-              <div className="space-y-3">
-                <ChartCanvas canvasRef={faseChamadosRef} heightPx={220} ariaLabel="Chamados por fase do card" />
-                <div>
-                  <p className="text-xs font-semibold" style={{ color: MONI.navy900 }}>
-                    Cards mais pesados
-                  </p>
-                  <ul className="mt-2 space-y-2">
-                    {topCards.length === 0 ? (
-                      <li className="text-sm" style={{ color: MONI.textMuted }}>
-                        Sem dados
-                      </li>
-                    ) : (
-                      topCards.map((t) => (
-                        <li key={t.id} className="flex items-center justify-between gap-2 text-sm">
-                          <span className="truncate" style={{ color: MONI.textSecondary }}>
-                            {t.titulo}
-                          </span>
-                          <span
-                            className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums"
-                            style={{
-                              background: MONI.activeBg,
-                              color: MONI.activeText,
-                              border: `0.5px solid ${MONI.activeBorder}`,
-                            }}
-                          >
-                            {t.n}
-                          </span>
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                </div>
-              </div>
-            </PanelCard>
-
-            <PanelCard title="Chamados por responsável">
-              <ul className="space-y-3">
-                {respRows.length === 0 ? (
-                  <li className="text-sm" style={{ color: MONI.textMuted }}>
-                    Sem dados
-                  </li>
-                ) : (
-                  respRows.map(([id, n]) => {
-                    const name = dataset.profiles[id] ?? id.slice(0, 8);
-                    const maxR = respRows[0]?.[1] ?? 1;
-                    const pct = Math.round((n / maxR) * 100);
-                    return (
-                      <li key={id} className="flex items-center gap-3">
-                        <Avatar name={name} />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex justify-between gap-2 text-sm">
-                            <span className="truncate font-medium" style={{ color: MONI.navy900 }}>
-                              {name}
-                            </span>
-                            <span className="tabular-nums" style={{ color: MONI.textSecondary }}>
-                              {n}
-                            </span>
-                          </div>
-                          <div className="relative mt-1 h-2 overflow-hidden rounded-full" style={{ background: MONI.surface200 }}>
-                            <div className="h-full rounded-full" style={{ width: `${pct}%`, background: MONI.navy700 }} />
-                          </div>
-                          <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
-                            {(respAtrasos.get(id) ?? 0) > 0 ? (
-                              <span
-                                className="rounded-full px-1.5 py-0.5 font-semibold"
-                                style={{
-                                  background: MONI.overdue,
-                                  color: MONI.white,
-                                  border: `0.5px solid ${MONI.overdueBorder}`,
-                                }}
-                              >
-                                {respAtrasos.get(id)} atraso(s)
-                              </span>
-                            ) : null}
-                            {(respDuvidas.get(id) ?? 0) > 0 ? (
-                              <span
-                                className="rounded-full px-1.5 py-0.5 font-semibold"
-                                style={{
-                                  background: MONI.attention,
-                                  color: MONI.navy900,
-                                  border: `0.5px solid ${MONI.gold200}`,
-                                }}
-                              >
-                                {respDuvidas.get(id)} dúvida(s)
-                              </span>
-                            ) : null}
-                          </div>
-                        </div>
-                      </li>
-                    );
-                  })
-                )}
-              </ul>
-            </PanelCard>
-          </div>
-
-          <div className="bg-white px-5 py-5 shadow-sm" style={{ borderRadius: R_PANEL, border: `0.5px solid ${MONI.surface200}` }}>
-            <h3 className="text-sm font-semibold" style={{ color: MONI.navy900 }}>
-              Retrabalho
-            </h3>
-            <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-              <div>
-                <p className="text-xs font-medium" style={{ color: MONI.textMuted }}>
-                  Cards com retrocesso
-                </p>
-                <p className="text-4xl font-semibold tabular-nums" style={{ color: MONI.gold600 }}>
-                  {formatInt(retrabalhoN)}
-                </p>
-              </div>
-            </div>
-            <ul className="mt-6 divide-y" style={{ borderColor: MONI.surface200 }}>
-              {retroAggs.length === 0 ? (
-                <li className="py-6 text-center text-sm" style={{ color: MONI.textMuted }}>
-                  Sem dados
-                </li>
-              ) : (
-                retroAggs.slice(0, 20).map((r) => (
-                  <li key={r.cardId} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="font-medium" style={{ color: MONI.navy900 }}>
-                        {r.titulo}
-                      </p>
-                      <p className="text-xs" style={{ color: MONI.textMuted }}>
-                        {r.fasesLabel}
-                      </p>
-                    </div>
-                    <span
-                      className="w-fit rounded-full px-2 py-1 text-xs font-semibold tabular-nums"
-                      style={{
-                        background: MONI.attention,
-                        color: MONI.attentionText,
-                        border: `0.5px solid ${MONI.gold200}`,
-                      }}
-                    >
-                      {r.count}×
-                    </span>
-                  </li>
-                ))
-              )}
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      {drawerFaseId ? (
-        <div className="fixed inset-0 z-[60] flex justify-end" role="dialog" aria-modal="true" aria-labelledby="painel-cards-fase-titulo">
-          <button
-            type="button"
-            className="absolute inset-0 cursor-default bg-black/35"
-            aria-label="Fechar painel"
-            onClick={() => setDrawerFaseId(null)}
+      {/* 1. Operação do funil */}
+      <Section
+        id="operacao"
+        title="1. Operação do funil"
+        subtitle={`Volume, SLA e distribuição por fase — ${periodLabel}.`}
+      >
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <ResumoCard label="Cards ativos" value={formatInt(analise.operacao.cardsAtivos)} hint="Agora no funil" />
+          <ResumoCard label="Entradas" value={formatInt(analise.operacao.cardsEntraram)} hint="Novos no período" />
+          <ResumoCard label="Concluídos" value={formatInt(analise.operacao.concluidos)} />
+          <ResumoCard label="Arquivados" value={formatInt(analise.operacao.arquivados)} />
+          <ResumoCard
+            label="SLA em dia"
+            value={formatPct(analise.operacao.pctSlaDentro)}
+            hint="Cards ativos com meta de fase"
           />
-          <aside
-            className="relative flex h-full w-full max-w-md flex-col bg-white shadow-xl"
-            style={{ borderLeft: `4px solid ${MONI.navy900}` }}
-          >
-            <div className="flex items-start justify-between gap-3 border-b px-4 py-4" style={{ borderColor: MONI.surface200 }}>
-              <h2 id="painel-cards-fase-titulo" className="pr-8 text-base font-semibold leading-snug" style={{ color: MONI.navy900 }}>
-                Cards em {drawerFase?.nome ?? 'fase'}
-              </h2>
+        </div>
+        <PanelCard title="Cards por fase">
+          <MetricTable
+            headers={['Fase', 'Ativos', 'Arquivados', 'Atrasados', 'Dias úteis méd.']}
+            emptyMessage="Sem fases configuradas."
+            rows={analise.operacao.porFase
+              .filter((f) => f.cardsAtivos > 0 || f.cardsArquivados > 0 || f.atrasados > 0)
+              .map((f) => [
+                `${f.faseNome}${f.faseConversao ? ' · conv.' : ''}`,
+                formatInt(f.cardsAtivos),
+                f.cardsArquivados > 0 ? formatInt(f.cardsArquivados) : '—',
+                formatInt(f.atrasados),
+                f.diasUteisMedio > 0 ? `${Math.round(f.diasUteisMedio)} d.u.` : '—',
+              ])}
+          />
+        </PanelCard>
+      </Section>
+
+      {analise.arquivamento.qualidadeMotivo ? (
+        <PainelQualidadeMotivoAlert
+          qualidade={analise.arquivamento.qualidadeMotivo}
+          formatInt={formatInt}
+          formatPct={formatPct}
+        />
+      ) : null}
+
+      {/* Perdas e Arquivamentos */}
+      <Section
+        id="perdas-arquivamentos"
+        title="Perdas e Arquivamentos"
+        subtitle={`Onde o funil perde cards por arquivamento — ${periodLabel}. Antes da conversão = perda do funil; depois = perda pós-conversão (não reduz a taxa de conversão).`}
+      >
+        {analise.arquivamento.perdas.totalArquivados === 0 ? (
+          <p className="text-sm" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Nenhum card arquivado no recorte analisado.
+          </p>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center justify-end gap-3">
               <button
                 type="button"
-                className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full text-lg leading-none transition hover:bg-[var(--moni-surface-200)]"
-                style={{ color: MONI.textMuted }}
-                aria-label="Fechar"
-                onClick={() => setDrawerFaseId(null)}
+                onClick={() => setArquivadosDrawerOpen(true)}
+                className="min-h-[44px] rounded-lg px-4 py-2.5 text-sm font-medium transition-colors"
+                style={{
+                  background: 'var(--moni-navy-800)',
+                  color: 'var(--moni-text-inverse)',
+                  borderRadius: 'var(--moni-radius-md)',
+                }}
               >
-                ×
+                Ver cards arquivados ({formatInt(arquivadosDrawerRows.length)})
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-              {cardsListaDrawer.length === 0 ? (
-                <p className="text-sm" style={{ color: MONI.textMuted }}>
-                  Nenhum card ativo nesta fase.
-                </p>
-              ) : (
-                <ul className="space-y-2">
-                  {cardsListaDrawer.map((c) => {
-                    const f = faseById.get(c.fase_id);
-                    const slaDias = f?.sla_dias ?? 0;
-                    const slaSt = slaDias > 0 ? calcularStatusSLA(new Date(c.created_at), slaDias) : null;
-                    const slaMetaLine = slaDias > 0 ? `SLA ${slaDias} d.u.` : 'Sem meta de SLA nesta fase';
-                    const slaBadgeStyle =
-                      slaSt?.status === 'atrasado'
-                        ? { background: MONI.overdue, color: MONI.white, border: `0.5px solid ${MONI.overdueBorder}` }
-                        : slaSt?.status === 'atencao'
-                          ? { background: MONI.attention, color: MONI.navy900, border: `0.5px solid ${MONI.attentionBorder}` }
-                          : slaSt?.status === 'ok'
-                            ? { background: MONI.green600, color: MONI.white, border: `0.5px solid ${MONI.green400}` }
-                            : null;
-                    const resp = dataset.profiles[c.franqueado_id] ?? c.franqueado_id.slice(0, 8);
-                    return (
-                      <li key={c.id}>
-                        <Link
-                          href={buildOpenCardHref(openCardBase, c.id)}
-                          className="block rounded-lg border px-3 py-2.5 transition hover:bg-[var(--moni-surface-100)]"
-                          style={{ borderColor: MONI.surface200 }}
-                          onClick={() => setDrawerFaseId(null)}
-                        >
-                          <p className="font-medium leading-snug" style={{ color: MONI.navy900 }}>
-                            {c.titulo}
-                          </p>
-                          <p className="mt-1 text-xs" style={{ color: MONI.textSecondary }}>
-                            Responsável: {resp}
-                          </p>
-                          <p className="mt-0.5 text-xs" style={{ color: MONI.textMuted }}>
-                            {slaMetaLine}
-                          </p>
-                          {slaSt && slaBadgeStyle ? (
-                            <span
-                              className="mt-1 inline-flex w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                              style={slaBadgeStyle}
-                            >
-                              {slaSt.label}
-                            </span>
-                          ) : null}
-                          <p className="mt-1 text-[11px] font-semibold" style={{ color: MONI.textSecondary }}>
-                            Status: {linhaStatusCard(c)}
-                          </p>
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+              <ResumoCard
+                label="Total arquivados"
+                value={formatInt(analise.arquivamento.perdas.totalArquivados)}
+              />
+              <ResumoCard
+                label="% do período"
+                value={formatPct(analise.arquivamento.perdas.pctDoPeriodo)}
+                hint={`Sobre ${formatInt(analise.arquivamento.cardsAnalisados)} cards no recorte`}
+              />
+              <ResumoCard
+                label="Antes da conversão"
+                value={formatInt(analise.arquivamento.perdas.antesConversao)}
+                hint="Perda do funil"
+              />
+              <ResumoCard
+                label="Na conversão"
+                value={formatInt(analise.arquivamento.perdas.naConversao)}
+                hint="Converteu e arquivou na fase"
+              />
+              <ResumoCard
+                label="Depois da conversão"
+                value={formatInt(analise.arquivamento.perdas.depoisConversao)}
+                hint="Pós-conversão"
+              />
+              <ResumoCard
+                label="Principal fase"
+                value={
+                  analise.arquivamento.perdas.principalFaseArquivamento?.faseNome ?? '—'
+                }
+                hint={
+                  analise.arquivamento.perdas.principalFaseArquivamento
+                    ? `${formatInt(analise.arquivamento.perdas.principalFaseArquivamento.total)} arquivados`
+                    : undefined
+                }
+              />
+              <ResumoCard
+                label="Principal motivo"
+                value={
+                  analise.arquivamento.perdas.principalMotivoArquivamento?.motivo ?? '—'
+                }
+                hint={
+                  analise.arquivamento.perdas.principalMotivoArquivamento
+                    ? `${formatInt(analise.arquivamento.perdas.principalMotivoArquivamento.total)} ocorrências`
+                    : undefined
+                }
+              />
+              <ResumoCard
+                label="Sem motivo"
+                value={formatPct(analise.arquivamento.perdas.pctSemMotivo)}
+                hint={
+                  analise.arquivamento.perdas.semMotivoInformado > 0
+                    ? `${formatInt(analise.arquivamento.perdas.semMotivoInformado)} card(s)`
+                    : 'Todos informados'
+                }
+              />
             </div>
-          </aside>
+
+            {analise.arquivamento.perdas.impactoPerdaConversaoPct != null &&
+            analise.conversao.entradasNoPeriodo > 0 ? (
+              <p className="text-sm tabular-nums" style={{ color: 'var(--moni-text-secondary)' }}>
+                Impacto na conversão:{' '}
+                <strong style={{ color: 'var(--moni-text-primary)' }}>
+                  {formatPct(analise.arquivamento.perdas.impactoPerdaConversaoPct)}
+                </strong>{' '}
+                das entradas da coorte arquivadas antes da conversão ({formatInt(analise.arquivamento.perdas.antesConversao)}{' '}
+                de {formatInt(analise.conversao.entradasNoPeriodo)} entradas).
+              </p>
+            ) : null}
+
+            <PanelCard title="Arquivamentos por fase">
+              <MetricTable
+                headers={[
+                  'Fase',
+                  'Arquivados',
+                  '% do total',
+                  'Principal motivo',
+                  'Antes / depois conv.',
+                ]}
+                emptyMessage="Nenhum arquivado no período."
+                rows={analise.arquivamento.perdas.tabelaPorFase.map((f) => [
+                  f.faseNome,
+                  formatInt(f.arquivados),
+                  formatPct(f.pctDoTotalArquivado),
+                  f.principalMotivo,
+                  `${formatInt(f.antesConversao)} / ${formatInt(f.depoisConversao)}`,
+                ])}
+              />
+            </PanelCard>
+
+            {analise.arquivamento.motivos.sugestaoMotivoObrigatorio ? (
+              <p
+                className="rounded-lg px-3 py-2.5 text-sm"
+                style={{
+                  color: 'var(--moni-text-secondary)',
+                  background: 'var(--moni-surface-100)',
+                  border: '0.5px solid var(--moni-border-subtle)',
+                  borderRadius: 'var(--moni-radius-md)',
+                }}
+              >
+                Há arquivamentos sem motivo registrado. Recomenda-se tornar o campo obrigatório no modal de
+                arquivamento para melhorar a análise de perda do funil.
+              </p>
+            ) : null}
+
+            {analise.arquivamento.motivos.ranking.length > 0 ? (
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <PanelCard title="Motivos mais frequentes">
+                  <MetricTable
+                    headers={['Motivo', 'Total', 'Antes conv.', 'Depois conv.']}
+                    emptyMessage="Nenhum arquivado no período."
+                    rows={analise.arquivamento.motivos.ranking.slice(0, 10).map((m) => [
+                      m.motivo,
+                      formatInt(m.total),
+                      formatInt(m.antesConversao),
+                      formatInt(m.depoisConversao),
+                    ])}
+                  />
+                </PanelCard>
+                <PanelCard title="Impacto na perda antes da conversão">
+                  <MetricTable
+                    headers={['Motivo', 'Perdas', 'Depois conv.']}
+                    emptyMessage="Nenhuma perda por arquivamento no período."
+                    rows={analise.arquivamento.motivos.impactoPerdaAntesConversao.slice(0, 10).map((m) => [
+                      m.motivo,
+                      formatInt(m.antesConversao),
+                      formatInt(m.depoisConversao),
+                    ])}
+                  />
+                </PanelCard>
+                <PanelCard title="Motivos por responsável">
+                  <MetricTable
+                    headers={['Responsável', 'Motivo', 'Total', 'Antes conv.']}
+                    emptyMessage="Nenhum arquivado no período."
+                    rows={analise.arquivamento.motivos.porResponsavel
+                      .flatMap((r) =>
+                        r.motivos.slice(0, 2).map((m) => [
+                          r.responsavelNome,
+                          m.motivo,
+                          formatInt(m.total),
+                          formatInt(m.antesConversao),
+                        ]),
+                      )
+                      .slice(0, 12)}
+                  />
+                </PanelCard>
+                {analise.arquivamento.motivos.porFranquia.length > 0 ? (
+                  <PanelCard title="Motivos por franquia / unidade">
+                    <MetricTable
+                      headers={['Unidade', 'Motivo', 'Total', 'Antes conv.']}
+                      emptyMessage="Nenhum arquivado no período."
+                      rows={analise.arquivamento.motivos.porFranquia
+                        .flatMap((f) =>
+                          f.motivos.slice(0, 2).map((m) => [
+                            f.label,
+                            m.motivo,
+                            formatInt(m.total),
+                            formatInt(m.antesConversao),
+                          ]),
+                        )
+                        .slice(0, 12)}
+                    />
+                  </PanelCard>
+                ) : null}
+              </div>
+            ) : null}
+          </>
+        )}
+      </Section>
+
+      {/* 2. Conversão */}
+      <Section
+        id="conversao"
+        title="2. Conversão"
+        subtitle="Coorte do período, passagem entre fases e tempo até a conversão configurada."
+      >
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
+          <ResumoCard label="Entradas" value={formatInt(analise.conversao.entradasNoPeriodo)} hint="Coorte" />
+          <ResumoCard label="Conversões" value={formatInt(analise.conversao.chegaramConversao)} />
+          <ResumoCard label="Taxa" value={formatPct(analise.conversao.taxaConversaoPct)} />
+          <ResumoCard
+            label="Tempo médio"
+            value={formatDias(analise.conversao.tempoMedioConversaoDias)}
+            hint="Até conversão"
+          />
+          <ResumoCard
+            label="Arq. antes conv."
+            value={formatInt(analise.conversao.arquivadosSemConversao)}
+            hint="Perda por arquivamento"
+          />
+          <ResumoCard
+            label="Arq. na conv."
+            value={formatInt(analise.conversao.arquivadosNaConversao)}
+            hint="Arquivados na fase de conversão"
+          />
+          <ResumoCard
+            label="Arq. depois conv."
+            value={formatInt(analise.conversao.arquivadosDepoisConversao)}
+            hint="Perda pós-conversão"
+          />
         </div>
-      ) : null}
+
+        {analise.conversao.concluidosInconsistentesAntesConversao > 0 ? (
+          <p
+            className="rounded-lg px-4 py-3 text-sm"
+            role="status"
+            style={{
+              border: '0.5px solid var(--moni-status-attention-border)',
+              background: 'var(--moni-status-attention-bg)',
+              color: 'var(--moni-status-attention-text)',
+              borderRadius: 'var(--moni-radius-lg)',
+            }}
+          >
+            {formatInt(analise.conversao.concluidosInconsistentesAntesConversao)} card(s) concluído(s) antes da
+            fase de conversão — inconsistência operacional que distorce a taxa de conversão.
+          </p>
+        ) : null}
+
+        <PanelCard title="Funil de conversão">
+          <ConversionFunnelTree data={analise.conversao.funnelTree} />
+        </PanelCard>
+
+        {analise.conversao.fasesConversao.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {analise.conversao.fasesConversao.map((f) => (
+              <span key={f.id} className="moni-tag-concluido text-xs">
+                Conversão: {f.nome}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <PanelCard title="Transições adjacentes">
+            <MetricTable
+              headers={['Transição', 'Origem', 'Destino', 'Passagem']}
+              emptyMessage="Funil com uma fase apenas."
+              rows={analise.conversao.entreFases
+                .filter((p) => p.alcancaramOrigem > 0)
+                .map((p) => [
+                  `${p.deFaseNome} → ${p.paraFaseNome}`,
+                  formatInt(p.alcancaramOrigem),
+                  formatInt(p.alcancaramDestino),
+                  formatPct(p.taxaPassagemPct),
+                ])}
+            />
+          </PanelCard>
+          <PanelCard title="Conversão por fase">
+            <MetricTable
+              headers={['Fase', 'Alcançaram', 'Converteram', 'Taxa']}
+              emptyMessage="Sem entradas no período."
+              rows={analise.conversao.porFase
+                .filter((p) => p.alcancaram > 0)
+                .map((p) => [
+                  `${p.faseNome}${p.faseConversao ? ' · conv.' : ''}`,
+                  formatInt(p.alcancaram),
+                  formatInt(p.converteram),
+                  formatPct(p.taxaConversaoPct),
+                ])}
+            />
+          </PanelCard>
+          <PanelCard title="Por responsável">
+            <MetricTable
+              headers={['Responsável', 'Entradas', 'Convertidos', 'Taxa']}
+              emptyMessage="Sem dados."
+              rows={analise.conversao.porResponsavel.slice(0, 8).map((p) => [
+                p.responsavelNome,
+                formatInt(p.entradas),
+                formatInt(p.converteram),
+                formatPct(p.taxaConversaoPct),
+              ])}
+            />
+          </PanelCard>
+          {analise.conversao.porFranquia.length > 0 ? (
+            <PanelCard title="Por franquia / unidade">
+              <MetricTable
+                headers={['Unidade', 'Entradas', 'Convertidos', 'Taxa']}
+                emptyMessage="Sem vínculo com rede."
+                rows={analise.conversao.porFranquia.slice(0, 8).map((p) => [
+                  p.label,
+                  formatInt(p.entradas),
+                  formatInt(p.converteram),
+                  formatPct(p.taxaConversaoPct),
+                ])}
+              />
+            </PanelCard>
+          ) : null}
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <span className="text-sm tabular-nums" style={{ color: 'var(--moni-text-secondary)' }}>
+            Perda total:{' '}
+            <strong style={{ color: 'var(--moni-text-primary)' }}>{formatPct(analise.conversao.perdaTotalPct)}</strong>
+          </span>
+        </div>
+
+        <PanelCard title="Tempo médio por fase (coorte)">
+          <MetricTable
+            headers={['Fase', 'Alcançaram', '% entradas', 'Tempo médio']}
+            emptyMessage="Sem dados de tempo."
+            rows={analise.conversao.funnelTree.nodes.map((n) => [
+              `${n.faseNome}${n.faseConversao ? ' · conv.' : ''}`,
+              formatInt(n.alcancaram),
+              formatPct(n.pctSobreEntradas),
+              formatDias(n.tempoMedioDias),
+            ])}
+          />
+        </PanelCard>
+        {analise.conversao.funnelTree.historicoParcial ? (
+          <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Tempos parciais: histórico incompleto — aproximação pela posição atual em parte dos cards.
+          </p>
+        ) : null}
+      </Section>
+
+      {/* 3. Gargalos */}
+      <Section
+        id="gargalos"
+        title="3. Gargalos"
+        subtitle="GargaloScore por fase — volume, atraso, inatividade, perda de conversão, chamados e arquivamento."
+      >
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:max-w-md">
+          <ResumoCard
+            label="Fases críticas"
+            value={formatInt(gargalosCriticos)}
+            hint={gargalosCriticos > 0 ? 'Score ≥ 70' : 'Nenhuma crítica'}
+          />
+        </div>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <PanelCard title="Ranking">
+            {analise.gargalos.ranking.length === 0 ? (
+              <p className="text-sm" style={{ color: 'var(--moni-text-tertiary)' }}>Sem fases.</p>
+            ) : (
+              <ul className="space-y-3">
+                {analise.gargalos.ranking.map((g, idx) => (
+                  <li
+                    key={g.faseId}
+                    className="rounded-lg px-3 py-3"
+                    style={{
+                      border: '0.5px solid var(--moni-border-default)',
+                      borderRadius: 'var(--moni-radius-lg)',
+                      background: idx === 0 && g.score >= 40 ? 'var(--moni-surface-100)' : 'transparent',
+                    }}
+                  >
+                    <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs tabular-nums" style={{ color: 'var(--moni-text-tertiary)' }}>
+                          {idx + 1}.
+                        </span>
+                        <span className="font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                          {g.faseNome}
+                        </span>
+                        <span className={`text-xs ${gargaloClassificacaoTagClass(g.classificacao)}`}>
+                          {gargaloClassificacaoLabel(g.classificacao)}
+                        </span>
+                      </div>
+                      <span className="text-lg font-semibold tabular-nums" style={{ color: 'var(--moni-navy-800)' }}>
+                        {g.score}
+                      </span>
+                    </div>
+                    <p className="text-xs leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
+                      <span className="moni-tag-arquivado mr-1.5 text-[10px]">{g.principalMotivo}</span>
+                      {g.principalMotivoTexto}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </PanelCard>
+          <PanelCard title="Detalhe">
+            <MetricTable
+              headers={['Fase', 'Score', 'Cards', 'Atraso', 'Arq.', 'Antes conv.', 'Cham.', 'Trava']}
+              emptyMessage="Sem fases."
+              rows={analise.gargalos.ranking.map((g) => [
+                g.faseNome,
+                String(g.score),
+                formatInt(g.cardsNaFase),
+                g.pctAtrasados != null ? formatPct(g.pctAtrasados) : '—',
+                formatInt(g.cardsArquivados),
+                formatInt(g.arquivamentosAntesConversao),
+                formatInt(g.chamadosAbertos),
+                formatInt(g.chamadosComTrava),
+              ])}
+            />
+          </PanelCard>
+        </div>
+        {analise.gargalos.retrocessos.length > 0 ? (
+          <PanelCard title="Retrocessos recentes">
+            <ul className="space-y-2 text-sm">
+              {analise.gargalos.retrocessos.slice(0, 5).map((r) => (
+                <li key={r.cardId} className="flex justify-between gap-2">
+                  <Link href={buildOpenCardHref(openCardBase, r.cardId)} className="hover:underline" style={{ color: 'var(--moni-navy-800)' }}>
+                    {r.titulo}
+                  </Link>
+                  <span className="moni-tag-atencao shrink-0 text-xs tabular-nums">{r.count}×</span>
+                </li>
+              ))}
+            </ul>
+          </PanelCard>
+        ) : null}
+      </Section>
+
+      {/* 4. Chamados */}
+      <Section
+        id="chamados"
+        title="4. Chamados"
+        subtitle="Cruzamento funil + fase + card. Edição via card ou Sirene."
+      >
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <ResumoCard label="Abertos" value={formatInt(analise.chamados.abertos)} />
+          <ResumoCard label="Concluídos" value={formatInt(analise.chamados.concluidos)} />
+          <ResumoCard label="Vencidos" value={formatInt(analise.chamados.vencidos)} />
+          <ResumoCard label="Com trava" value={formatInt(analise.chamados.comTrava)} />
+        </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <PanelCard title="Por fase">
+            <MetricTable
+              headers={['Fase', 'Abertos', 'Trava', 'Vencidos']}
+              emptyMessage="Sem chamados."
+              rows={analise.chamados.porFase.map((r) => [
+                r.faseNome,
+                formatInt(r.abertos),
+                formatInt(r.comTrava),
+                formatInt(r.vencidos),
+              ])}
+            />
+          </PanelCard>
+          <PanelCard title="Gargalo × chamados">
+            <MetricTable
+              headers={['Fase', 'Score', 'Abertos', 'Trava']}
+              emptyMessage="Sem dados."
+              rows={analise.chamados.gargaloRelacao.map((r) => [
+                r.faseNome,
+                String(r.gargaloScore),
+                formatInt(r.chamadosAbertos),
+                formatInt(r.chamadosComTrava),
+              ])}
+            />
+          </PanelCard>
+          <PanelCard title="Por responsável">
+            <MetricTable
+              headers={['Responsável', 'Abertos', 'Trava']}
+              emptyMessage="Sem dados."
+              rows={analise.chamados.porResponsavel.slice(0, 8).map((r) => [
+                r.responsavelNome,
+                formatInt(r.abertos),
+                formatInt(r.comTrava),
+              ])}
+            />
+          </PanelCard>
+          <PanelCard title="Por status">
+            <MetricTable
+              headers={['Status', 'Qtd.']}
+              emptyMessage="Sem chamados."
+              rows={analise.chamados.porStatus.map((r) => [r.status, formatInt(r.total)])}
+            />
+          </PanelCard>
+        </div>
+        {analise.chamados.destaque.length > 0 ? (
+          <PanelCard title="Prioritários">
+            <ul className="space-y-2 text-sm">
+              {analise.chamados.destaque.slice(0, 8).map((ch) => (
+                <li
+                  key={ch.id}
+                  className="flex flex-wrap items-center gap-2 border-b pb-2 last:border-0"
+                  style={{ borderColor: 'var(--moni-border-subtle)' }}
+                >
+                  {ch.editHref ? (
+                    <Link href={ch.editHref} className="font-medium hover:underline" style={{ color: 'var(--moni-navy-800)' }}>
+                      {ch.titulo}
+                    </Link>
+                  ) : (
+                    <span style={{ color: 'var(--moni-text-primary)' }}>{ch.titulo}</span>
+                  )}
+                  {ch.trava ? <span className="moni-tag-atrasado text-[10px]">Trava</span> : null}
+                  {ch.atrasado ? <span className="moni-tag-atencao text-[10px]">Vencido</span> : null}
+                  <span className="text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+                    · {ch.faseNome}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </PanelCard>
+        ) : null}
+      </Section>
+
+      {/* 5. Insights */}
+      <Section
+        id="insights"
+        title="5. Insights"
+        subtitle={`Leituras automáticas sobre operação, conversão, gargalos e chamados — ${periodLabel}.`}
+      >
+        {analise.insights.length === 0 ? (
+          <p className="text-sm" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Dados insuficientes para insights acionáveis.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {analise.insights.map((ins) => (
+              <li
+                key={`${ins.tipo}-${ins.texto.slice(0, 48)}`}
+                className="flex gap-3 rounded-lg px-4 py-3"
+                style={{
+                  border: '0.5px solid var(--moni-border-default)',
+                  borderRadius: 'var(--moni-radius-lg)',
+                  background: 'var(--moni-surface-0)',
+                  boxShadow: 'var(--moni-shadow-card)',
+                }}
+              >
+                <span
+                  className="moni-tag-concluido shrink-0 self-start text-[10px]"
+                  style={{ borderRadius: 'var(--moni-radius-md)' }}
+                >
+                  {ins.tipoLabel}
+                </span>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--moni-text-secondary)' }}>
+                  {ins.texto}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      <p className="text-center text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
+        Somente leitura · kanban_cards · kanban_fases · kanban_atividades · sirene_chamados
+      </p>
+
+      <PainelArquivadosDrawer
+        open={arquivadosDrawerOpen}
+        onClose={() => setArquivadosDrawerOpen(false)}
+        rows={arquivadosDrawerRows}
+      />
     </div>
   );
 }
+
+export { ConversionFunnelTree } from './ConversionFunnelTree';
+export type { ConversionFunnelTreeProps } from './ConversionFunnelTree';

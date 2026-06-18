@@ -7,8 +7,6 @@ import { PAINEL_COLUMNS, type PainelColumnKey } from '@/app/steps-viabilidade/pa
 import { PainelNovosNegociosClient } from '@/app/steps-viabilidade/PainelNovosNegociosClient';
 import { PainelCardQueryModalWrapper } from '@/app/steps-viabilidade/PainelCardQueryModalWrapper';
 import { PainelKanbanTabs } from '@/app/steps-viabilidade/PainelKanbanTabs';
-import { fetchKanbanBoardSnapshot } from '@/components/kanban-shared/fetchKanbanBoardSnapshot';
-import { PainelPerformance } from '@/components/kanban-shared/PainelPerformance';
 import { buildChecklistAtrasoByCardId } from '@/lib/painel-checklist-atraso';
 import { sortProcessosPorOrdemColuna } from '@/lib/painel-coluna-ordem';
 export default async function PainelNovosNegociosPage({
@@ -25,11 +23,7 @@ export default async function PainelNovosNegociosPage({
   const processoSelect =
     'id, cidade, estado, status, etapa_atual, created_at, updated_at, user_id, step_atual, cancelado_em, removido_em, cancelado_motivo, removido_motivo, etapa_painel, trava_painel, tipo_aquisicao_terreno, numero_franquia, nome_franqueado, nome_condominio, quadra_lote, historico_base_id, ordem_coluna_painel';
 
-  const [snapPortfolio, snapOperacoes, processoRes] = await Promise.all([
-    fetchKanbanBoardSnapshot(supabase, 'Funil Portfólio', user.id),
-    fetchKanbanBoardSnapshot(supabase, 'Funil Operações', user.id),
-    supabase.from('processo_step_one').select(processoSelect),
-  ]);
+  const [processoRes] = await Promise.all([supabase.from('processo_step_one').select(processoSelect)]);
 
   const rowsTodos = processoRes.data ?? [];
 
@@ -187,39 +181,59 @@ export default async function PainelNovosNegociosPage({
           </Suspense>
         </main>
       ) : (
-        <main className="mx-auto max-w-[1600px] space-y-8 px-6 py-8">
+        <main className="mx-auto max-w-[1600px] space-y-6 px-6 py-8">
+          <p className="text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+            O painel de performance é padronizado por funil. Abra o funil desejado na aba{' '}
+            <strong style={{ color: 'var(--moni-text-primary)' }}>Painel</strong>.
+          </p>
+          <ul className="grid gap-4 sm:grid-cols-2">
+            <li
+              className="rounded-xl px-5 py-4"
+              style={{
+                border: '0.5px solid var(--moni-border-default)',
+                borderRadius: 'var(--moni-radius-lg)',
+                background: 'var(--moni-surface-0)',
+                boxShadow: 'var(--moni-shadow-card)',
+              }}
+            >
+              <p className="font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+                Funil Portfólio
+              </p>
+              <Link
+                href="/portfolio?tab=painel"
+                className="mt-2 inline-block text-sm font-medium hover:underline"
+                style={{ color: 'var(--moni-navy-800)' }}
+              >
+                Abrir painel →
+              </Link>
+            </li>
+            <li
+              className="rounded-xl px-5 py-4"
+              style={{
+                border: '0.5px solid var(--moni-border-default)',
+                borderRadius: 'var(--moni-radius-lg)',
+                background: 'var(--moni-surface-0)',
+                boxShadow: 'var(--moni-shadow-card)',
+              }}
+            >
+              <p className="font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+                Funil Operações
+              </p>
+              <Link
+                href="/operacoes?tab=painel"
+                className="mt-2 inline-block text-sm font-medium hover:underline"
+                style={{ color: 'var(--moni-navy-800)' }}
+              >
+                Abrir painel →
+              </Link>
+            </li>
+          </ul>
           <p className="text-sm text-stone-600">
-            Performance dos funis <strong className="text-stone-800">Portfolio</strong> e{' '}
-            <strong className="text-stone-800">Operações</strong>. Para a central única de chamados,{' '}
+            Central de chamados:{' '}
             <Link href="/sirene/chamados" className="font-medium text-moni-primary hover:underline">
               Ver no Sirene →
             </Link>
-            .
           </p>
-          <div className="grid gap-10 lg:grid-cols-2">
-            {snapPortfolio.kanban ? (
-              <PainelPerformance
-                kanbanNome="Funil Portfólio"
-                kanbanId={snapPortfolio.kanban.id}
-                fases={snapPortfolio.fases}
-                cards={snapPortfolio.cards}
-                origemCards={snapPortfolio.cards.some((c) => c.origem === 'legado') ? 'legado' : 'nativo'}
-              />
-            ) : (
-              <p className="text-sm text-stone-500">Kanban &ldquo;Funil Portfólio&rdquo; não encontrado.</p>
-            )}
-            {snapOperacoes.kanban ? (
-              <PainelPerformance
-                kanbanNome="Funil Pré Obra e Obra"
-                kanbanId={snapOperacoes.kanban.id}
-                fases={snapOperacoes.fases}
-                cards={snapOperacoes.cards}
-                origemCards={snapOperacoes.cards.some((c) => c.origem === 'legado') ? 'legado' : 'nativo'}
-              />
-            ) : (
-              <p className="text-sm text-stone-500">Kanban &ldquo;Funil Pré Obra e Obra&rdquo; não encontrado.</p>
-            )}
-          </div>
         </main>
       )}
     </div>

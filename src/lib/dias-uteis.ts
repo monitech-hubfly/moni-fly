@@ -212,6 +212,8 @@ export function calcularStatusSLA(
   status: 'ok' | 'atencao' | 'atrasado';
   label: string;
   classe: string;
+  diasAtraso?: number;
+  diasRestantes?: number;
 } {
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
@@ -236,6 +238,7 @@ export function calcularStatusSLA(
       status: 'atrasado',
       label: `Atrasado ${diasAtraso} d.u.`,
       classe: 'moni-tag-atrasado',
+      diasAtraso,
     };
   }
 
@@ -245,6 +248,7 @@ export function calcularStatusSLA(
       status: 'atencao',
       label: 'Vence hoje',
       classe: 'moni-tag-atencao',
+      diasRestantes: 0,
     };
   }
 
@@ -254,6 +258,7 @@ export function calcularStatusSLA(
       status: 'atencao',
       label: 'Vence em 1 d.u.',
       classe: 'moni-tag-atencao',
+      diasRestantes: 1,
     };
   }
 
@@ -262,5 +267,6 @@ export function calcularStatusSLA(
     status: 'ok',
     label: `${diasUteisRestantes} d.u. restantes`,
     classe: '',
+    diasRestantes: diasUteisRestantes,
   };
 }

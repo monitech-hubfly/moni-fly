@@ -10,7 +10,30 @@ export type SlaKanbanResult = {
   classe: string;
   /** SLA pausado (ex.: aguardando documentação na fase de alvará). */
   pausado: boolean;
+  diasAtraso?: number;
+  diasRestantes?: number;
 };
+
+/** Bolinha compacta para cards — atrasado = vermelho + dias úteis; atenção = dourado + dias restantes. */
+export function indicadorBolinhaSlaKanban(
+  sla: SlaKanbanResult,
+): { variante: 'atrasado' | 'atencao'; numero: number; title: string } | null {
+  if (sla.pausado || sla.status === 'ok') return null;
+  if (sla.status === 'atrasado') {
+    const n = sla.diasAtraso ?? 0;
+    return {
+      variante: 'atrasado',
+      numero: Math.max(1, n),
+      title: `SLA da fase: ${n} dia(s) útil(eis) em atraso`,
+    };
+  }
+  const n = sla.diasRestantes ?? (sla.label === 'Vence hoje' ? 0 : 1);
+  return {
+    variante: 'atencao',
+    numero: n,
+    title: n === 0 ? 'SLA da fase vence hoje' : `SLA da fase vence em ${n} dia(s) útil(eis)`,
+  };
+}
 
 export function urlDocumentacaoCreditoObraPreenchida(value: string | null | undefined): boolean {
   return String(value ?? '').trim().length > 0;

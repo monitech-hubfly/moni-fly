@@ -3,11 +3,8 @@
 import { useState } from 'react';
 import { Calendar, FileText, Plus, RefreshCw } from 'lucide-react';
 import { salvarDataFollowupCard, salvarDataReuniaoCard } from '@/lib/actions/kanban-ata-reuniao';
-import {
-  calcularCorDataBadge,
-  dataIsoInputValida,
-  labelRelativoData,
-} from '@/lib/kanban/kanban-card-datas';
+import { dataIsoInputValida } from '@/lib/kanban/kanban-card-datas';
+import { KanbanDataIndicador } from './KanbanCardPrazoIndicadores';
 import { KanbanAtaReuniaoFormModal } from './KanbanAtaReuniaoFormModal';
 
 type Props = {
@@ -110,11 +107,7 @@ export function KanbanCardDatasFields({
           />
           {dataReuniao ? (
             <>
-              <span
-                className={`shrink-0 rounded-full border px-1.5 py-px text-[9px] font-semibold ${calcularCorDataBadge(dataReuniao)}`}
-              >
-                {labelRelativoData(dataReuniao)}
-              </span>
+              <KanbanDataIndicador tipo="reuniao" dataIso={dataReuniao} />
               <button
                 type="button"
                 onClick={abrirAta}
@@ -150,11 +143,7 @@ export function KanbanCardDatasFields({
             className="min-w-0 flex-1 rounded border border-stone-200 bg-white px-1.5 py-0.5 text-[11px]"
           />
           {dataFollowup ? (
-            <span
-              className={`shrink-0 rounded-full border px-1.5 py-px text-[9px] font-semibold ${calcularCorDataBadge(dataFollowup)}`}
-            >
-              {labelRelativoData(dataFollowup)}
-            </span>
+            <KanbanDataIndicador tipo="followup" dataIso={dataFollowup} />
           ) : null}
         </div>
       </div>

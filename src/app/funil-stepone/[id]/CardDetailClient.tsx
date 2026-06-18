@@ -3,6 +3,15 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { arquivarCard } from '@/lib/actions/card-actions';
+import {
+  formatMotivoArquivamento,
+  isMotivoArquivamentoOutro,
+  MOTIVO_ARQUIVAMENTO_OBS_MAX,
+  MOTIVO_ARQUIVAMENTO_OBS_MIN,
+  MOTIVOS_ARQUIVAMENTO_CATEGORIAS,
+  motivoArquivamentoProntoParaEnviar,
+} from '@/lib/kanban/motivos-arquivamento';
 import { SearchableSelect } from '@/components/SearchableSelect';
 
 type Fase = {
@@ -36,16 +45,21 @@ export function CardDetailClient({
   card,
   fases,
   isAdmin,
+  basePath = '/funil-stepone',
 }: {
   card: Card;
   fases: Fase[];
   isAdmin: boolean;
+  basePath?: string;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [titulo, setTitulo] = useState(card.titulo);
   const [faseId, setFaseId] = useState(card.fase_id);
   const [isEditing, setIsEditing] = useState(false);
+  const [arquivamentoAberto, setArquivamentoAberto] = useState(false);
+  const [motivoCategoria, setMotivoCategoria] = useState('');
+  const [motivoObservacaoOutro, setMotivoObservacaoOutro] = useState('');
 
   const createdDate = new Date(card.created_at);
   const faseAtual = fases.find((f) => f.id === faseId) || card.kanban_fases;
@@ -95,20 +109,28 @@ export function CardDetailClient({
     }
   }
 
-  async function handleDelete() {
+  async function handleArquivar() {
+    if (
+      !motivoArquivamentoProntoParaEnviar(motivoCategoria, motivoObservacaoOutro)
+    ) {
+      if (isMotivoArquivamentoOutro(motivoCategoria)) {
+        alert(`Para "Outro", informe uma observação de ${MOTIVO_ARQUIVAMENTO_OBS_MIN} a ${MOTIVO_ARQUIVAMENTO_OBS_MAX} caracteres.`);
+      } else {
+        alert('Selecione o motivo do arquivamento.');
+      }
+      return;
+    }
     if (!confirm('Tem certeza que deseja arquivar este card?')) return;
 
     setLoading(true);
     try {
-      const supabase = createClient();
-      const { error } = await supabase
-        .from('kanban_cards')
-        .update({ status: 'arquivado' })
-        .eq('id', card.id);
-
-      if (error) throw error;
-
-      router.push('/funil-stepone');
+      const motivo = formatMotivoArquivamento(motivoCategoria, motivoObservacaoOutro);
+      const r = await arquivarCard({ cardId: card.id, motivo, basePath });
+      if (!r.ok) {
+        alert(r.error ?? 'Erro ao arquivar card.');
+        return;
+      }
+      router.push(basePath);
       router.refresh();
     } catch (err) {
       console.error('Erro ao arquivar card:', err);
@@ -248,18 +270,97 @@ export function CardDetailClient({
           boxShadow: 'var(--moni-shadow-card)',
         }}
       >
-        <h2 className="mb-4 text-lg font-semibold text-stone-800">Ações</h2>
-        <button
-          onClick={handleDelete}
-          disabled={loading}
-          style={{
-            border: '0.5px solid var(--moni-status-overdue-border)',
-            borderRadius: 'var(--moni-radius-md)',
-          }}
-          className="w-full bg-red-50 px-6 py-2.5 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-50 sm:w-auto"
-        >
-          Arquivar card
-        </button>
+        <h2 className="mb-4 text-lg font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+          Ações
+        </h2>
+        {!arquivamentoAberto ? (
+          <button
+            type="button"
+            onClick={() => setArquivamentoAberto(true)}
+            disabled={loading}
+            style={{
+              border: '0.5px solid var(--moni-status-overdue-border)',
+              borderRadius: 'var(--moni-radius-md)',
+            }}
+            className="w-full bg-[var(--moni-status-overdue-bg)] px-6 py-2.5 text-sm font-medium text-[var(--moni-status-overdue-text)] transition disabled:opacity-50 sm:w-auto"
+          >
+            Arquivar card
+          </button>
+        ) : (
+          <div className="max-w-md space-y-3">
+            <label className="block text-sm font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
+              Motivo do arquivamento *
+            </label>
+            <select
+              value={motivoCategoria}
+              onChange={(e) => {
+                setMotivoCategoria(e.target.value);
+                if (!isMotivoArquivamentoOutro(e.target.value)) setMotivoObservacaoOutro('');
+              }}
+              className="w-full min-h-[44px] rounded px-3 py-2 text-sm"
+              style={{
+                border: '0.5px solid var(--moni-border-default)',
+                borderRadius: 'var(--moni-radius-md)',
+                background: 'var(--moni-surface-0)',
+              }}
+            >
+              <option value="">Selecione…</option>
+              {MOTIVOS_ARQUIVAMENTO_CATEGORIAS.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+            {isMotivoArquivamentoOutro(motivoCategoria) ? (
+              <textarea
+                value={motivoObservacaoOutro}
+                onChange={(e) => setMotivoObservacaoOutro(e.target.value)}
+                rows={3}
+                maxLength={MOTIVO_ARQUIVAMENTO_OBS_MAX}
+                placeholder="Descreva brevemente…"
+                className="w-full resize-none rounded px-3 py-2 text-sm"
+                style={{
+                  border: '0.5px solid var(--moni-border-default)',
+                  borderRadius: 'var(--moni-radius-md)',
+                }}
+              />
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void handleArquivar()}
+                disabled={
+                  loading ||
+                  !motivoArquivamentoProntoParaEnviar(motivoCategoria, motivoObservacaoOutro)
+                }
+                className="min-h-[44px] px-6 py-2.5 text-sm font-medium text-white transition disabled:opacity-50"
+                style={{
+                  background: 'var(--moni-navy-800)',
+                  borderRadius: 'var(--moni-radius-md)',
+                }}
+              >
+                {loading ? 'Arquivando…' : 'Confirmar arquivamento'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setArquivamentoAberto(false);
+                  setMotivoCategoria('');
+                  setMotivoObservacaoOutro('');
+                }}
+                disabled={loading}
+                className="min-h-[44px] bg-transparent px-6 py-2.5 text-sm font-medium transition disabled:opacity-50"
+                style={{
+                  border: '0.5px solid var(--moni-border-default)',
+                  borderRadius: 'var(--moni-radius-md)',
+                  color: 'var(--moni-text-secondary)',
+                }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
 import { calcularStatusSLA } from '@/lib/dias-uteis';
+import { KanbanCardSlaBolinha } from '@/components/kanban-shared/KanbanCardPrazoIndicadores';
 import { getPainelColumnSlaDiasUteis, type PainelColumnKey } from './painelColumns';
 import { CardDetalheModal } from './CardDetalheModal';
 import type { ProcessoCard } from './StepsKanbanColumn';
@@ -225,10 +226,8 @@ export function PainelCard({
               Criado: {new Date(p.created_at).toLocaleDateString('pt-BR')}
             </p>
           ) : null}
-          {slaPainel.label && slaPainel.status !== 'ok' ? (
-            <div className="mt-2">
-              <span className={slaPainel.classe}>{slaPainel.label}</span>
-            </div>
+          {slaPainel.status !== 'ok' && slaPainel.label ? (
+            <KanbanCardSlaBolinha sla={slaPainel} />
           ) : null}
           <p className="mt-1 text-xs text-stone-400">
             {isCancelado ? 'Cancelado' : isRemovido ? 'Excluído' : p.status === 'concluido' ? 'Concluído' : p.status === 'em_andamento' ? 'Em andamento' : 'Rascunho'}

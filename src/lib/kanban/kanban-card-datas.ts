@@ -51,3 +51,74 @@ export function formatDataPtBr(dataIso: string): string {
   if (Number.isNaN(d.getTime())) return dataIso;
   return d.toLocaleDateString('pt-BR');
 }
+
+export type IndicadorDataKanbanTipo = 'reuniao' | 'followup';
+
+export type IndicadorDataKanban = {
+  tipo: IndicadorDataKanbanTipo;
+  variante: 'atrasado' | 'atencao' | 'ok';
+  /** Dias em atraso (calendário) ou dias até a data. */
+  numero: number;
+  rotuloCurto: string;
+  title: string;
+};
+
+function diffDiasCalendario(dataIso: string): number | null {
+  if (!dataIsoInputValida(dataIso)) return null;
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const data = new Date(`${dataIso}T00:00:00`);
+  return Math.floor((data.getTime() - hoje.getTime()) / 86400000);
+}
+
+const TITULO_DATA: Record<IndicadorDataKanbanTipo, string> = {
+  reuniao: 'Reunião',
+  followup: 'Follow-up',
+};
+
+/** Indicador compacto para data de reunião ou follow-up no card. */
+export function indicadorDataKanban(
+  tipo: IndicadorDataKanbanTipo,
+  dataIso: string,
+): IndicadorDataKanban | null {
+  const diff = diffDiasCalendario(dataIso);
+  if (diff == null) return null;
+  const titulo = TITULO_DATA[tipo];
+  const dataFmt = formatDataPtBr(dataIso);
+
+  if (diff < 0) {
+    const n = Math.abs(diff);
+    return {
+      tipo,
+      variante: 'atrasado',
+      numero: n,
+      rotuloCurto: dataFmt,
+      title: `${titulo}: ${n} dia(s) em atraso (${dataFmt})`,
+    };
+  }
+  if (diff === 0) {
+    return {
+      tipo,
+      variante: 'atencao',
+      numero: 0,
+      rotuloCurto: 'Hoje',
+      title: `${titulo}: hoje (${dataFmt})`,
+    };
+  }
+  if (diff === 1) {
+    return {
+      tipo,
+      variante: 'atencao',
+      numero: 1,
+      rotuloCurto: 'Amanhã',
+      title: `${titulo}: amanhã (${dataFmt})`,
+    };
+  }
+  return {
+    tipo,
+    variante: 'ok',
+    numero: diff,
+    rotuloCurto: dataFmt,
+    title: `${titulo}: ${dataFmt}`,
+  };
+}

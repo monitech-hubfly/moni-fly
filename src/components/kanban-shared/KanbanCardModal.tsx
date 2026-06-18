@@ -28,6 +28,14 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { calcularDiasUteis, formatIsoDateOnlyPtBr, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
 import {
+  formatMotivoArquivamento,
+  isMotivoArquivamentoOutro,
+  MOTIVO_ARQUIVAMENTO_OBS_MAX,
+  MOTIVO_ARQUIVAMENTO_OBS_MIN,
+  MOTIVOS_ARQUIVAMENTO_CATEGORIAS,
+  motivoArquivamentoProntoParaEnviar,
+} from '@/lib/kanban/motivos-arquivamento';
+import {
   arquivarCard,
   desarquivarCard,
   arquivarInteracao,
@@ -148,6 +156,7 @@ import {
 import { KanbanCardModalCondominio } from './KanbanCardModalCondominio';
 import { KanbanCardModalAtasReuniao } from './KanbanCardModalAtasReuniao';
 import { KanbanCardDatasFields } from './KanbanCardDatasFields';
+import { KanbanCardSlaBolinha } from './KanbanCardPrazoIndicadores';
 import { MencaoContentEditable } from './MencaoContentEditable';
 import { fetchKanbanFasesAtivas, augmentKanbanFasesComFasesDosCards, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
 import { loadHistoricoCardModal } from '@/lib/kanban/kanban-card-historico';
@@ -563,7 +572,8 @@ export function KanbanCardModal({
   const filtrosPopoverRef = useRef<HTMLDivElement>(null);
   const filtrosBtnRef = useRef<HTMLButtonElement>(null);
   const [arquivamentoAberto, setArquivamentoAberto] = useState(false);
-  const [motivoArquivamento, setMotivoArquivamento] = useState('');
+  const [motivoCategoriaArquivamento, setMotivoCategoriaArquivamento] = useState('');
+  const [motivoObservacaoOutro, setMotivoObservacaoOutro] = useState('');
   const [modalArquivarInteracao, setModalArquivarInteracao] = useState<{ id: string; tipo: 'chamado' | 'sub' } | null>(
     null,
   );
@@ -631,7 +641,8 @@ export function KanbanCardModal({
 
   useEffect(() => {
     setArquivamentoAberto(false);
-    setMotivoArquivamento('');
+    setMotivoCategoriaArquivamento('');
+    setMotivoObservacaoOutro('');
     setConfirmandoFinalizar(false);
     setSecaoAberta((prev) => ({ ...prev, relacionamentos: false }));
     setFiltros(KANBAN_MODAL_INTERACOES_FILTROS_DEFAULT);
@@ -2390,9 +2401,13 @@ export function KanbanCardModal({
       alert('Sem permissão para arquivar cards.');
       return;
     }
-    const motivo = motivoArquivamento.trim();
-    if (!motivo) {
-      alert('Informe o motivo do arquivamento.');
+    const motivo = formatMotivoArquivamento(motivoCategoriaArquivamento, motivoObservacaoOutro);
+    if (!motivoArquivamentoProntoParaEnviar(motivoCategoriaArquivamento, motivoObservacaoOutro)) {
+      if (isMotivoArquivamentoOutro(motivoCategoriaArquivamento)) {
+        alert(`Para "Outro", informe uma observação de ${MOTIVO_ARQUIVAMENTO_OBS_MIN} a ${MOTIVO_ARQUIVAMENTO_OBS_MAX} caracteres.`);
+      } else {
+        alert('Selecione o motivo do arquivamento.');
+      }
       return;
     }
     setLoading(true);
@@ -3591,8 +3606,8 @@ export function KanbanCardModal({
                   {TAG_AGUARDANDO_DOCUMENTACAO}
                 </span>
               ) : null}
-              {!aguardandoDocumentacaoCreditoObra && slaCard.label && slaCard.status !== 'ok' ? (
-                <span className={`leading-none ${slaCard.classe}`}>{slaCard.label}</span>
+              {!aguardandoDocumentacaoCreditoObra && slaCard.status !== 'ok' ? (
+                <KanbanCardSlaBolinha sla={slaCard} className="mt-0" />
               ) : null}
             </div>
             ) : null}
@@ -5533,18 +5548,74 @@ export function KanbanCardModal({
                   </button>
                 ) : (
                   <div className="space-y-1.5">
-                    <label className="block text-[10px] font-medium text-stone-600">Motivo</label>
-                    <textarea
-                      value={motivoArquivamento}
-                      onChange={(e) => setMotivoArquivamento(e.target.value)}
-                      rows={2}
-                      placeholder="Descreva o motivo…"
-                      className="w-full min-w-0 resize-none rounded border border-stone-300 bg-white px-2 py-1 text-[10px] focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400"
-                    />
+                    <label
+                      className="block text-[10px] font-medium"
+                      style={{ color: 'var(--moni-text-secondary)' }}
+                      htmlFor="motivo-arquivamento-categoria"
+                    >
+                      Motivo <span style={{ color: 'var(--moni-status-overdue-text)' }}>*</span>
+                    </label>
+                    <select
+                      id="motivo-arquivamento-categoria"
+                      value={motivoCategoriaArquivamento}
+                      onChange={(e) => {
+                        setMotivoCategoriaArquivamento(e.target.value);
+                        if (!isMotivoArquivamentoOutro(e.target.value)) setMotivoObservacaoOutro('');
+                      }}
+                      className="w-full min-w-0 rounded px-2 py-1.5 text-[10px]"
+                      style={{
+                        border: '0.5px solid var(--moni-border-default)',
+                        borderRadius: 'var(--moni-radius-md)',
+                        background: 'var(--moni-surface-0)',
+                        color: 'var(--moni-text-primary)',
+                      }}
+                    >
+                      <option value="">Selecione…</option>
+                      {MOTIVOS_ARQUIVAMENTO_CATEGORIAS.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                    {isMotivoArquivamentoOutro(motivoCategoriaArquivamento) ? (
+                      <>
+                        <label
+                          className="block text-[10px] font-medium"
+                          style={{ color: 'var(--moni-text-secondary)' }}
+                          htmlFor="motivo-arquivamento-outro"
+                        >
+                          Observação <span style={{ color: 'var(--moni-status-overdue-text)' }}>*</span>
+                        </label>
+                        <textarea
+                          id="motivo-arquivamento-outro"
+                          value={motivoObservacaoOutro}
+                          onChange={(e) => setMotivoObservacaoOutro(e.target.value)}
+                          rows={2}
+                          maxLength={MOTIVO_ARQUIVAMENTO_OBS_MAX}
+                          placeholder="Descreva brevemente…"
+                          className="w-full min-w-0 resize-none rounded px-2 py-1 text-[10px]"
+                          style={{
+                            border: '0.5px solid var(--moni-border-default)',
+                            borderRadius: 'var(--moni-radius-md)',
+                            background: 'var(--moni-surface-0)',
+                            color: 'var(--moni-text-primary)',
+                          }}
+                        />
+                        <p className="text-[9px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                          Mín. {MOTIVO_ARQUIVAMENTO_OBS_MIN} caracteres
+                        </p>
+                      </>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => void handleConfirmarArquivar()}
-                      disabled={loading || !motivoArquivamento.trim()}
+                      disabled={
+                        loading ||
+                        !motivoArquivamentoProntoParaEnviar(
+                          motivoCategoriaArquivamento,
+                          motivoObservacaoOutro,
+                        )
+                      }
                       className="w-full rounded px-2 py-1.5 text-[10px] font-semibold text-white transition disabled:opacity-50"
                       style={{ background: 'var(--moni-status-overdue-border)' }}
                     >
@@ -5554,10 +5625,17 @@ export function KanbanCardModal({
                       type="button"
                       onClick={() => {
                         setArquivamentoAberto(false);
-                        setMotivoArquivamento('');
+                        setMotivoCategoriaArquivamento('');
+                        setMotivoObservacaoOutro('');
                       }}
                       disabled={loading}
-                      className="w-full rounded border border-stone-300 bg-white px-2 py-1 text-[10px] font-medium text-stone-700 transition hover:bg-stone-50 disabled:opacity-50"
+                      className="w-full rounded px-2 py-1 text-[10px] font-medium transition disabled:opacity-50"
+                      style={{
+                        border: '0.5px solid var(--moni-border-default)',
+                        borderRadius: 'var(--moni-radius-md)',
+                        background: 'var(--moni-surface-0)',
+                        color: 'var(--moni-text-secondary)',
+                      }}
                     >
                       Cancelar
                     </button>

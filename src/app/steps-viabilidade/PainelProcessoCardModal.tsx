@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { X, ChevronDown, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { calcularStatusSLA } from '@/lib/dias-uteis';
+import { KanbanCardSlaBolinha } from '@/components/kanban-shared/KanbanCardPrazoIndicadores';
 import {
   atualizarEtapaPainel,
   getRelacionadosProcesso,
@@ -595,7 +596,7 @@ export function PainelProcessoCardModal({
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 {nomeFasePainel(etapaAtual)}
               </span>
-              {sla.label && sla.status !== 'ok' ? <span className={sla.classe}>{sla.label}</span> : null}
+              {sla.status !== 'ok' ? <KanbanCardSlaBolinha sla={sla} className="mt-0" /> : null}
             </div>
             <button
               type="button"
