@@ -1899,7 +1899,7 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
       }) ?? titulo;
   }
 
-  const { error } = await supabase.from('kanban_cards').insert({
+  const { data: cardRow, error } = await supabase.from('kanban_cards').insert({
     kanban_id: kanbanId,
     fase_id: faseId,
     franqueado_id: user.id,
@@ -1909,8 +1909,12 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
     quadra,
     lote,
     ...(projetoId ? { projeto_id: projetoId } : {}),
-  } as never);
+  } as never).select('id').single();
   if (error) return { ok: false, error: error.message };
+
+  const cardId = String((cardRow as { id: string }).id);
+  const { aplicarResponsavelFasePadraoAoCard } = await import('@/lib/kanban/responsavel-fase-checklist');
+  await aplicarResponsavelFasePadraoAoCard(supabase, cardId, faseId, kanbanId, user.id);
 
   const bp = (input.basePath ?? '').trim() || '/';
   revalidatePath(bp);
@@ -2066,6 +2070,9 @@ export async function criarCardFunilStepOne(
   if (!processoRes.ok) {
     return { ok: false, error: `Card criado, mas falha ao vincular processo: ${processoRes.error}` };
   }
+
+  const { aplicarResponsavelFasePadraoAoCard } = await import('@/lib/kanban/responsavel-fase-checklist');
+  await aplicarResponsavelFasePadraoAoCard(supabase, cardId, faseId, kanbanId, user.id);
 
   revalidatePath('/funil-stepone');
   revalidatePath('/');

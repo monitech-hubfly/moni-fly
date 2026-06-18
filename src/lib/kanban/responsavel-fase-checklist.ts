@@ -18,7 +18,54 @@ export function isKanbanFunilStepOneId(kanbanId: string | null | undefined): boo
   return String(kanbanId ?? '').trim() === KANBAN_IDS.STEP_ONE;
 }
 
-/** Funil Step One: responsável da fase = `kanban_cards.franqueado_id`. */
+/** E-mail do responsável padrão por funil (exceto Step One — usa franqueado da rede). */
+export const EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN: Partial<Record<string, string>> = {
+  [KANBAN_IDS.PORTFOLIO]: 'renata.silva@moni.casa',
+  [KANBAN_IDS.ACOPLAMENTO]: 'elisabete.nucci@moni.casa',
+  [KANBAN_IDS.PROJETO_LEGAL]: 'elisabete.nucci@moni.casa',
+  [KANBAN_IDS.PROJETOS_LOCAIS]: 'larissa.lima@moni.casa',
+  [KANBAN_IDS.MONI_CAPITAL]: 'kim@moni.casa',
+  [KANBAN_IDS.CREDITO_OBRA]: 'kim@moni.casa',
+};
+
+const profileIdPorEmailCache = new Map<string, string | null>();
+
+async function buscarProfileIdPorEmail(
+  supabase: SupabaseClient,
+  email: string,
+): Promise<string | null> {
+  const key = email.trim().toLowerCase();
+  if (!key) return null;
+  if (profileIdPorEmailCache.has(key)) {
+    return profileIdPorEmailCache.get(key) ?? null;
+  }
+
+  const { data: prof } = await supabase
+    .from('profiles')
+    .select('id')
+    .ilike('email', email.trim())
+    .maybeSingle();
+  const id = valorResponsavelValido((prof as { id?: string } | null)?.id);
+  profileIdPorEmailCache.set(key, id);
+  return id;
+}
+
+/** Responsável padrão do time para funis com owner fixo (Portfólio, Acoplamento, etc.). */
+export async function resolverResponsavelPadraoPorKanban(
+  supabase: SupabaseClient,
+  kanbanId: string,
+): Promise<string | null> {
+  const kid = String(kanbanId ?? '').trim();
+  if (!kid || isKanbanFunilStepOneId(kid)) return null;
+  const email = EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN[kid];
+  if (!email) return null;
+  return buscarProfileIdPorEmail(supabase, email);
+}
+
+/**
+ * Funil Step One: responsável = usuário do franqueado (rede / processo).
+ * Não usa `kanban_cards.franqueado_id` — esse campo guarda quem criou o card.
+ */
 export async function buscarFranqueadoIdResponsavelStepOne(
   supabase: SupabaseClient,
   cardId: string,
@@ -28,7 +75,7 @@ export async function buscarFranqueadoIdResponsavelStepOne(
 
   const { data: card } = await supabase
     .from('kanban_cards')
-    .select('franqueado_id, kanban_id')
+    .select('kanban_id, rede_franqueado_id, processo_step_one_id')
     .eq('id', cid)
     .maybeSingle();
   if (!card) return null;
@@ -36,7 +83,59 @@ export async function buscarFranqueadoIdResponsavelStepOne(
   const kanbanId = String((card as { kanban_id?: string | null }).kanban_id ?? '').trim();
   if (!isKanbanFunilStepOneId(kanbanId)) return null;
 
-  return valorResponsavelValido((card as { franqueado_id?: string | null } | null)?.franqueado_id);
+  const redeId = String((card as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '').trim();
+  if (redeId) {
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('rede_franqueado_id', redeId)
+      .maybeSingle();
+    const uid = valorResponsavelValido((prof as { id?: string } | null)?.id);
+    if (uid) return uid;
+
+    const { data: redeRow } = await supabase
+      .from('rede_franqueados')
+      .select('processo_id')
+      .eq('id', redeId)
+      .maybeSingle();
+    const redeProcessoId = String((redeRow as { processo_id?: string | null } | null)?.processo_id ?? '').trim();
+    if (redeProcessoId) {
+      const { data: procRede } = await supabase
+        .from('processo_step_one')
+        .select('user_id')
+        .eq('id', redeProcessoId)
+        .maybeSingle();
+      const uidRede = valorResponsavelValido((procRede as { user_id?: string | null } | null)?.user_id);
+      if (uidRede) return uidRede;
+    }
+  }
+
+  const procId = String(
+    (card as { processo_step_one_id?: string | null }).processo_step_one_id ?? cid,
+  ).trim();
+  const { data: proc } = await supabase
+    .from('processo_step_one')
+    .select('user_id, origem_rede_franqueados_id')
+    .eq('id', procId)
+    .maybeSingle();
+
+  const userFromProc = valorResponsavelValido((proc as { user_id?: string | null } | null)?.user_id);
+  if (userFromProc) return userFromProc;
+
+  const origemRedeId = String(
+    (proc as { origem_rede_franqueados_id?: string | null } | null)?.origem_rede_franqueados_id ?? '',
+  ).trim();
+  if (origemRedeId) {
+    const { data: profOrigem } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('rede_franqueado_id', origemRedeId)
+      .maybeSingle();
+    const uidOrigem = valorResponsavelValido((profOrigem as { id?: string } | null)?.id);
+    if (uidOrigem) return uidOrigem;
+  }
+
+  return null;
 }
 
 type FaseOrdemRow = { id: string; ordem: number; slug?: string | null };
@@ -149,7 +248,7 @@ async function itemIdsResponsavelPorFase(
 
 /**
  * Valor de responsável da fase imediatamente anterior (por ordem do kanban).
- * Na 1ª fase, usa `kanban_cards.franqueado_id` quando ainda não há resposta.
+ * Na 1ª fase, usa o owner padrão do funil (ou franqueado da rede no Step One).
  */
 export async function buscarValorResponsavelFaseAnterior(
   supabase: SupabaseClient,
@@ -191,12 +290,48 @@ export async function buscarValorResponsavelFaseAnterior(
     if (valor) return valor;
   }
 
-  const { data: card } = await supabase
-    .from('kanban_cards')
-    .select('franqueado_id')
-    .eq('id', cid)
+  return resolverResponsavelPadraoPorKanban(supabase, kanbanId);
+}
+
+/** Grava o responsável padrão do funil na fase atual (somente se ainda vazio). */
+export async function aplicarResponsavelFasePadraoAoCard(
+  supabase: SupabaseClient,
+  cardId: string,
+  faseId: string,
+  kanbanId: string,
+  preenchidoPor?: string | null,
+): Promise<void> {
+  const cid = cardId.trim();
+  const fid = faseId.trim();
+  const kid = String(kanbanId ?? '').trim();
+  if (!cid || !fid || !kid) return;
+
+  const itemId = await buscarItemIdResponsavelFaseEdicao(supabase, fid);
+  if (!itemId) return;
+
+  const { data: respAtual } = await supabase
+    .from('kanban_fase_checklist_respostas')
+    .select('valor')
+    .eq('card_id', cid)
+    .eq('item_id', itemId)
     .maybeSingle();
-  return valorResponsavelValido((card as { franqueado_id?: string | null } | null)?.franqueado_id);
+  if (valorResponsavelValido((respAtual as { valor?: string | null } | null)?.valor)) return;
+
+  const userId = isKanbanFunilStepOneId(kid)
+    ? await buscarFranqueadoIdResponsavelStepOne(supabase, cid)
+    : await resolverResponsavelPadraoPorKanban(supabase, kid);
+  if (!userId) return;
+
+  await supabase.from('kanban_fase_checklist_respostas').upsert(
+    {
+      item_id: itemId,
+      card_id: cid,
+      valor: userId,
+      preenchido_por: preenchidoPor ?? null,
+      preenchido_em: new Date().toISOString(),
+    },
+    { onConflict: 'item_id,card_id' },
+  );
 }
 
 /** Preenche o campo responsavel_fase da nova fase a partir da fase anterior (se ainda vazio). */
@@ -318,16 +453,40 @@ export async function enrichCardsComResponsavelFase(
   }
 
   const userIdPorCard = new Map<string, string>();
+  const stepOneSemResposta: string[] = [];
+  const outrosSemResposta: { cardId: string; kanbanId: string }[] = [];
+
   for (const card of cards) {
-    if (isKanbanFunilStepOneId(card.kanban_id)) {
-      const fid = valorResponsavelValido(card.franqueado_id);
-      if (fid) userIdPorCard.set(card.id, fid);
+    const itemId = itemPorFase.get(String(card.fase_id ?? '').trim());
+    const uidChecklist = itemId ? respPorCardItem.get(`${card.id}:${itemId}`) : null;
+    if (uidChecklist) {
+      userIdPorCard.set(card.id, uidChecklist);
       continue;
     }
-    const itemId = itemPorFase.get(String(card.fase_id ?? '').trim());
-    if (!itemId) continue;
-    const uid = respPorCardItem.get(`${card.id}:${itemId}`);
-    if (uid) userIdPorCard.set(card.id, uid);
+    if (isKanbanFunilStepOneId(card.kanban_id)) {
+      stepOneSemResposta.push(card.id);
+    } else {
+      const kid = String(card.kanban_id ?? '').trim();
+      if (kid && EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN[kid]) {
+        outrosSemResposta.push({ cardId: card.id, kanbanId: kid });
+      }
+    }
+  }
+
+  for (const sid of stepOneSemResposta) {
+    const uid = await buscarFranqueadoIdResponsavelStepOne(supabase, sid);
+    if (uid) userIdPorCard.set(sid, uid);
+  }
+
+  const kanbansUnicos = [...new Set(outrosSemResposta.map((o) => o.kanbanId))];
+  const padraoPorKanban = new Map<string, string>();
+  for (const kid of kanbansUnicos) {
+    const uid = await resolverResponsavelPadraoPorKanban(supabase, kid);
+    if (uid) padraoPorKanban.set(kid, uid);
+  }
+  for (const { cardId, kanbanId } of outrosSemResposta) {
+    const uid = padraoPorKanban.get(kanbanId);
+    if (uid) userIdPorCard.set(cardId, uid);
   }
 
   if (userIdPorCard.size === 0) return cards;
