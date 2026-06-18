@@ -23,6 +23,8 @@ export type FerramentaBiblioteca = {
   linkPrincipal?: { label: string; href: string };
 };
 
+export { PRE_BATALHA_PUBLIC_LEITURA_PATH } from '@/lib/pre-batalha-secoes';
+
 export const FERRAMENTAS_BIBLIOTECA: FerramentaBiblioteca[] = [
   {
     id: 'bca-analise-viabilidade',
@@ -151,7 +153,7 @@ Um **ranking dos modelos Moní** do mais ao menos competitivo, com nota final = 
 Critérios detalhados, tabelas de pontuação, filtros de elegibilidade e checklist — no guia interativo abaixo.`,
     linkPrincipal: {
       label: 'Abrir guia completo',
-      href: '/universidade/ferramentas/pre-batalha-casas',
+      href: '/pre-batalha/visao-geral',
     },
   },
   {

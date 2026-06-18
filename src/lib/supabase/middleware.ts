@@ -15,6 +15,7 @@ import {
   isFrankAllowedPath,
   isTeamAllowedPath,
 } from '@/lib/access-matrix';
+import { PRE_BATALHA_PUBLIC_LEITURA_PATH } from '@/lib/pre-batalha-secoes';
 import { isLiveLimitedRelease } from '@/lib/release-scope';
 
 const HUB_FLY_HOME_TODO_PATH = '/carometro/todo';
@@ -23,7 +24,11 @@ function shouldUseTodoAsHubFlyHome(accessRole: ReturnType<typeof normalizeAccess
   return (accessRole === 'team' || accessRole === 'admin') && !isLiveLimitedRelease();
 }
 
-function redirectToBcaPublicLeitura(request: NextRequest) {
+function redirectToPublicLeituraFallback(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  if (pathname === '/pre-batalha' || pathname.startsWith('/pre-batalha/')) {
+    return NextResponse.redirect(new URL(PRE_BATALHA_PUBLIC_LEITURA_PATH, request.url));
+  }
   return NextResponse.redirect(new URL(BCA_PUBLIC_LEITURA_PATH, request.url));
 }
 
@@ -129,7 +134,7 @@ export async function updateSession(request: NextRequest) {
     if (pathname === '/') {
       return NextResponse.redirect(new URL('/login', request.url));
     }
-    return redirectToBcaPublicLeitura(request);
+    return redirectToPublicLeituraFallback(request);
   }
 
   // Try to read role from cache cookie first (avoids DB round-trip on every request)
@@ -174,7 +179,7 @@ export async function updateSession(request: NextRequest) {
     const rawRoleLogin = String(profileRow.role ?? '').trim().toLowerCase();
     const roleLogin = normalizeAccessRole(profileRow.role);
     if (rawRoleLogin === 'pending') {
-      return redirectToBcaPublicLeitura(request);
+      return redirectToPublicLeituraFallback(request);
     }
     if (roleLogin === 'blocked') {
       return response;
@@ -232,7 +237,7 @@ export async function updateSession(request: NextRequest) {
 
   if (accessRole === 'pending') {
     if (!isBcaPublicLeituraAccessPath(pathname)) {
-      return redirectToBcaPublicLeitura(request);
+      return redirectToPublicLeituraFallback(request);
     }
     return response;
   }

@@ -1,4 +1,5 @@
 import { normalizeAccessRole, type AccessRole } from '@/lib/authz';
+import { PRE_BATALHA_PUBLIC_LEITURA_PATH } from '@/lib/pre-batalha-secoes';
 
 /**
  * Rotas permitidas ao papel `team` (matriz: Rede, Comunidade, Novos Negócios + dashboard/tarefas, Perfil, Sirene).
@@ -9,6 +10,7 @@ export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/rede-franqueados',
   '/comunidade',
   '/treinamento-bca',
+  '/pre-batalha',
   '/repositorio',
   '/painel-novos-negocios',
   '/portfolio',
@@ -48,6 +50,7 @@ export const FRANK_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/dashboard',
   '/portal-frank',
   '/treinamento-bca',
+  '/pre-batalha',
   '/painel-novos-negocios',
   '/portfolio',
   '/operacoes',
@@ -138,11 +141,24 @@ export function isBcaPublicLeituraPagePath(pathname: string): boolean {
   return pathname === BCA_PUBLIC_LEITURA_PATH || pathname.startsWith(`${BCA_PUBLIC_LEITURA_PATH}/`);
 }
 
+/** Página pública do guia Pré Batalha — sem sidebar, header ou dados do Hub Fly. */
+export function isPreBatalhaPublicLeituraPagePath(pathname: string): boolean {
+  return (
+    pathname === PRE_BATALHA_PUBLIC_LEITURA_PATH ||
+    pathname.startsWith(`${PRE_BATALHA_PUBLIC_LEITURA_PATH}/`)
+  );
+}
+
+/** Páginas públicas de guias em modo leitura (sem Hub). */
+export function isPublicGuiaLeituraPagePath(pathname: string): boolean {
+  return isBcaPublicLeituraPagePath(pathname) || isPreBatalhaPublicLeituraPagePath(pathname);
+}
+
 /**
- * Único conteúdo do portal acessível sem login: manual BCA em leitura + iframe do embed.
+ * Conteúdo do portal acessível sem login: guias em leitura + iframe do embed.
  */
 export function isBcaPublicLeituraAccessPath(pathname: string): boolean {
-  if (isBcaPublicLeituraPagePath(pathname)) return true;
+  if (isPublicGuiaLeituraPagePath(pathname)) return true;
   return pathname === '/embed' || pathname.startsWith('/embed/');
 }
 

@@ -53,6 +53,7 @@ export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/perfil',
   '/universidade',
   '/treinamento-bca',
+  '/pre-batalha',
   '/casa0',
   '/casa1',
   '/admin/universidade',

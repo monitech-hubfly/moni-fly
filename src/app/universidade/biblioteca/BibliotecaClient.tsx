@@ -21,7 +21,9 @@ import {
 import type { UniBibliotecaItem } from '@/lib/universidade/types';
 import {
   hrefFerramentasDocumentoInterno,
+  hrefGuiaPublicoLeitura,
   isBibliotecaDocumentoInterno,
+  isGuiaPublicoSlug,
 } from '@/lib/universidade/biblioteca-documentos';
 import type { FerramentaBiblioteca, FerramentaBibliotecaIcon } from '@/lib/universidade/ferramentas-biblioteca';
 import { FERRAMENTAS_BIBLIOTECA } from '@/lib/universidade/ferramentas-biblioteca';
@@ -73,6 +75,8 @@ function ModalFerramenta({
   nomeFranqueado: string | null | undefined;
   onClose: () => void;
 }) {
+  const [copiedPublico, setCopiedPublico] = useState(false);
+
   useEffect(() => {
     if (!ferramenta) return;
     const prev = document.body.style.overflow;
@@ -91,6 +95,20 @@ function ModalFerramenta({
 
   const link = ferramenta.linkPrincipal;
   const linkHref = link ? resolveLinkPrincipalHref(link.href, nomeFranqueado) : '';
+  const guiaPublicoSlug = isGuiaPublicoSlug(ferramenta.id) ? ferramenta.id : null;
+  const linkPublicoPath = guiaPublicoSlug ? hrefGuiaPublicoLeitura(guiaPublicoSlug) : null;
+
+  async function copiarLinkPublico() {
+    if (!linkPublicoPath) return;
+    try {
+      const url = `${window.location.origin}${linkPublicoPath}`;
+      await navigator.clipboard.writeText(url);
+      setCopiedPublico(true);
+      window.setTimeout(() => setCopiedPublico(false), 2500);
+    } catch {
+      setCopiedPublico(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="ferramenta-modal-titulo">
@@ -122,7 +140,7 @@ function ModalFerramenta({
             <ReactMarkdown>{ferramenta.conteudoExplicativoMd}</ReactMarkdown>
           </div>
           {link ? (
-            <div className="mt-6 border-t border-stone-100 pt-4">
+            <div className="mt-6 space-y-3 border-t border-stone-100 pt-4">
               <a
                 href={linkHref}
                 target={linkHref.startsWith('http') ? '_blank' : undefined}
@@ -132,6 +150,16 @@ function ModalFerramenta({
                 {link.label}
                 {linkHref.startsWith('http') ? <ExternalLink className="h-4 w-4 opacity-90" aria-hidden /> : null}
               </a>
+              {linkPublicoPath ? (
+                <button
+                  type="button"
+                  onClick={() => void copiarLinkPublico()}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-2 text-xs font-medium text-emerald-900 shadow-sm hover:bg-emerald-100/80"
+                >
+                  <Link2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  {copiedPublico ? 'Link público copiado!' : 'Copiar link público (leitura)'}
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -211,6 +239,8 @@ export function BibliotecaClient({
               const destaque = index === 0;
               const abrirTreinoNoHub =
                 f.id === 'bca-analise-viabilidade' && f.linkPrincipal?.href?.startsWith('/treinamento-bca');
+              const abrirPreBatalhaNoHub =
+                f.id === 'pre-batalha-casas' && f.linkPrincipal?.href?.startsWith('/pre-batalha');
               const abrirGuiaInternoNoHub =
                 (f.id === 'moni-capital' || f.id === 'batalha-casas') &&
                 f.linkPrincipal?.href?.startsWith('/universidade/ferramentas/');
@@ -221,6 +251,10 @@ export function BibliotecaClient({
                   onClick={() => {
                     if (abrirTreinoNoHub && f.linkPrincipal) {
                       router.push(resolveLinkPrincipalHref(f.linkPrincipal.href, nomeFranqueado));
+                      return;
+                    }
+                    if (abrirPreBatalhaNoHub && f.linkPrincipal) {
+                      router.push(f.linkPrincipal.href);
                       return;
                     }
                     if (abrirGuiaInternoNoHub && f.linkPrincipal) {
