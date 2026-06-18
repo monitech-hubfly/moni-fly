@@ -16,6 +16,7 @@ type Props = {
   faseId: string;
   kanbanId?: string | null;
   readOnly?: boolean;
+  usuarioOpcoes?: { id: string; nome: string }[];
   onChange?: (userId: string, nome?: string | null) => void;
 };
 
@@ -25,6 +26,7 @@ export function ResponsavelFaseSidebar({
   faseId,
   kanbanId = null,
   readOnly = false,
+  usuarioOpcoes,
   onChange,
 }: Props) {
   const [itemId, setItemId] = useState<string | null>(null);
@@ -34,7 +36,7 @@ export function ResponsavelFaseSidebar({
   const syncFeitoRef = useRef('');
 
   const stepOne = isKanbanFunilStepOneId(kanbanId);
-  const somenteLeitura = readOnly || stepOne;
+  const somenteLeitura = readOnly;
 
   useEffect(() => {
     syncFeitoRef.current = '';
@@ -70,7 +72,7 @@ export function ResponsavelFaseSidebar({
 
       let valorAtual = String((resp as { valor?: string | null } | null)?.valor ?? '').trim();
 
-      if (stepOne) {
+      if (stepOne && !valorAtual) {
         const franqueadoId = await buscarFranqueadoIdResponsavelStepOne(supabase, cardId);
         if (franqueadoId) {
           valorAtual = franqueadoId;
@@ -81,7 +83,7 @@ export function ResponsavelFaseSidebar({
             arquivo_path: null,
           });
         }
-      } else {
+      } else if (!stepOne) {
         const syncKey = `${cardId}:${faseId}`;
         if (!valorAtual && syncFeitoRef.current !== syncKey) {
           syncFeitoRef.current = syncKey;
@@ -121,7 +123,10 @@ export function ResponsavelFaseSidebar({
       arquivo_path: null,
     });
     setSalvando(false);
-    if (res.ok) onChange?.(userId);
+    if (res.ok) {
+      const nome = usuarioOpcoes?.find((o) => o.id === userId)?.nome ?? null;
+      onChange?.(userId, nome);
+    }
   }
 
   if (carregando) {
@@ -153,6 +158,7 @@ export function ResponsavelFaseSidebar({
       label=""
       value={valor}
       salvando={salvando}
+      opcoes={usuarioOpcoes}
       onChange={(v) => void salvar(v)}
     />
   );

@@ -391,7 +391,9 @@ export function KanbanColumn({
           const concluido = cardConcluidoVisual(card);
           const motivo = (card.motivo_arquivamento ?? '').trim();
           const opacidadeCard = arquivado || concluido ? 'opacity-60' : '';
-          const paddingTitulo = arquivado || concluido ? 'pr-20' : '';
+          const hasAvatar = Boolean(card.responsavel_fase_nome?.trim());
+          const hasBadge = arquivado || concluido;
+          const paddingTitulo = hasBadge && hasAvatar ? 'pr-24' : hasBadge ? 'pr-20' : hasAvatar ? 'pr-8' : '';
           const podeArrastar = dndAtivo;
           const insertBeforeThis =
             dragOverCardId === card.id && dragInsertBefore && dndAtivo;
@@ -525,36 +527,36 @@ export function KanbanColumn({
                     if (suppressClickRef.current) return;
                     router.push(hrefAbrirCard(basePath, card.id, cardQueryParam, card.origem));
                   }}
-                  className={`block w-full text-left ${dndAtivo ? 'pl-7' : ''} ${
-                    card.responsavel_fase_nome ? 'pb-7 pr-7' : ''
-                  }`}
+                  className={`block w-full text-left ${dndAtivo ? 'pl-7' : ''}`}
                 >
-                {arquivado ? (
-                  <span
-                    className="absolute right-2 top-2 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-                    style={{
-                      background: 'var(--moni-status-archived-bg)',
-                      color: 'var(--moni-status-archived-text)',
-                      border: '0.5px solid var(--moni-status-archived-border)',
-                    }}
-                  >
-                    ARQUIVADO
-                  </span>
-                ) : concluido ? (
-                  <span
-                    className="absolute right-2 top-2 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-                    style={{
-                      background: 'var(--moni-green-50)',
-                      color: 'var(--moni-green-800)',
-                      border: '0.5px solid var(--moni-green-400)',
-                    }}
-                  >
-                    CONCLUÍDO
-                  </span>
+                {hasBadge || hasAvatar ? (
+                  <div className="absolute right-2 top-2 z-10 flex items-center justify-end gap-1.5">
+                    {arquivado ? (
+                      <span
+                        className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                        style={{
+                          background: 'var(--moni-status-archived-bg)',
+                          color: 'var(--moni-status-archived-text)',
+                          border: '0.5px solid var(--moni-status-archived-border)',
+                        }}
+                      >
+                        ARQUIVADO
+                      </span>
+                    ) : concluido ? (
+                      <span
+                        className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                        style={{
+                          background: 'var(--moni-green-50)',
+                          color: 'var(--moni-green-800)',
+                          border: '0.5px solid var(--moni-green-400)',
+                        }}
+                      >
+                        CONCLUÍDO
+                      </span>
+                    ) : null}
+                    <ResponsavelFaseAvatar nome={card.responsavel_fase_nome} />
+                  </div>
                 ) : null}
-                <div className="absolute bottom-2 right-2 z-10">
-                  <ResponsavelFaseAvatar nome={card.responsavel_fase_nome} />
-                </div>
                 <p className={`line-clamp-2 text-sm font-medium text-stone-800 ${paddingTitulo}`}>{card.titulo}</p>
                 <KanbanParalelasChips chips={chipsParalelas} compact />
                 {arquivado && motivo ? (

@@ -5382,6 +5382,7 @@ export function KanbanCardModal({
                   faseId={card.fase_id}
                   kanbanId={card.kanban_id}
                   readOnly={ocultarGestaoCard}
+                  usuarioOpcoes={responsaveisOpcoes.map(({ id, nome }) => ({ id, nome }))}
                 />
               </PainelLateralSecao>
             ) : null}
