@@ -16,6 +16,9 @@ import { fetchRedeLoteadoresRows } from '@/lib/rede-loteadores';
 
 import { fetchCondominiosRows } from '@/lib/condominios';
 
+import { fetchPipelineCards } from '@/lib/kanban/fetch-pipeline-cards';
+import type { PipelineCardsDataset } from '@/lib/kanban/pipeline-cards-types';
+
 import { normalizarStatusEmProcessoRede } from './actions';
 
 import { RedeFranqueadosPageTabs } from './RedeFranqueadosPageTabs';
@@ -76,7 +79,7 @@ export default async function RedeFranqueadosPage() {
 
 
 
-  const [rows, loteadoresRows, empresasResult, spesResult, condominiosRows] =
+  const [rows, loteadoresRows, empresasResult, spesResult, condominiosRows, pipelineDataset] =
     await Promise.all([
 
     fetchRedeFranqueadosRows(supabase),
@@ -88,6 +91,13 @@ export default async function RedeFranqueadosPage() {
     showStaffTabs ? fetchFranqueadoSpeRows(supabase) : Promise.resolve(null),
 
     showCondominiosTab ? fetchCondominiosRows(supabase) : Promise.resolve(null),
+
+    showStaffTabs
+      ? fetchPipelineCards(supabase, { mode: 'franqueadora' }).catch((): PipelineCardsDataset => ({
+          cards: [],
+          franqueados: [],
+        }))
+      : Promise.resolve(null),
 
   ]);
 
@@ -149,6 +159,8 @@ export default async function RedeFranqueadosPage() {
             maskSensitiveColumns={maskSensitiveColumns}
 
             showDashboard={rows.length > 0}
+
+            pipelineDataset={pipelineDataset}
 
           />
 

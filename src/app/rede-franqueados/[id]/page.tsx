@@ -7,9 +7,12 @@ import { pickRedeFranqueadoDocsFromRow } from '@/lib/rede-documentos-franqueado'
 import { fetchRedeFranqueadoDetalheForPage } from '@/lib/rede-franqueados';
 import { fetchFranqueadoSpeRows } from '@/lib/franqueado-spe';
 import { fetchFranqueadoEmpresasExtrasRows } from '@/lib/franqueado-empresa-extra';
+import { fetchPipelineCards } from '@/lib/kanban/fetch-pipeline-cards';
+import type { PipelineCardsDataset } from '@/lib/kanban/pipeline-cards-types';
 import { isFranquiaCasaMoniFk0000 } from '@/lib/franquia-casa-moni-fk0000';
 import { RedeFranqueadoDetalheDocs } from './RedeFranqueadoDetalheDocs';
 import { RedeFranqueadoDetalheDocsFranqueado } from './RedeFranqueadoDetalheDocsFranqueado';
+import { RedeFranqueadoDetalheTabs } from './RedeFranqueadoDetalheTabs';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,17 +41,21 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
     if (!own) redirect('/portal-frank/rede');
   }
 
-  const [{ row, error: loadError }, spesRows, empresasExtrasRows] = await Promise.all([
+  const [{ row, error: loadError }, spesRows, empresasExtrasRows, pipelineDataset] = await Promise.all([
     fetchRedeFranqueadoDetalheForPage(supabase, id, { staffUseAdminFallback: staff }),
     staff ? fetchFranqueadoSpeRows(supabase) : Promise.resolve(null),
     staff ? fetchFranqueadoEmpresasExtrasRows(supabase, id) : Promise.resolve(null),
+    fetchPipelineCards(supabase, { mode: 'unidade', franqueadoId: id }).catch((): PipelineCardsDataset => ({
+      cards: [],
+      franqueados: [],
+    })),
   ]);
   const spesDoFranqueado = (spesRows ?? []).filter((s) => s.rede_franqueado_id === id);
 
   if (loadError && !row) {
     return (
       <div className="min-h-screen bg-[var(--moni-surface-50)]">
-        <main className="mx-auto max-w-5xl px-6 py-8">
+        <main className="mx-auto max-w-[1400px] px-6 py-8">
           <Link href="/rede-franqueados" className="mb-4 inline-block text-sm text-[#0c2633] hover:underline">
             ← Voltar à rede
           </Link>
@@ -80,7 +87,7 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
 
   return (
     <div className="min-h-screen bg-[var(--moni-surface-50)]">
-      <main className="mx-auto max-w-5xl px-6 py-8">
+      <main className="mx-auto max-w-[1400px] px-6 py-8">
         <Link href={voltarHref} className="mb-4 inline-block text-sm text-[#0c2633] hover:underline">
           ← {voltarLabel}
         </Link>
@@ -88,33 +95,39 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
         {nfr ? <p className="mt-1 text-sm text-stone-600">Nº franquia: {nfr}</p> : null}
 
         <div className="mt-8">
-          {staff ? (
-            <RedeFranqueadoDetalheDocs
-              redeId={id}
-              pathCof={pathCof}
-              pathContrato={pathContrato}
-              pathNumeroFranquia={pathNumeroFranquia}
-              justificativaCof={justificativaCof}
-              justificativaContrato={justificativaContrato}
-              justificativaNumeroFranquia={justificativaNumeroFranquia}
-              franqueadoDocs={franqueadoDocs}
-              empresaDocs={empresaDocs}
-              spes={spesDoFranqueado}
-              empresasExtras={empresasExtrasRows ?? []}
-              permiteCriarSpe
-              permiteCriarEmpresaExtra={permiteCriarEmpresaExtra}
-            />
-          ) : (
-            <RedeFranqueadoDetalheDocsFranqueado
-              pathCof={pathCof}
-              pathContrato={pathContrato}
-              pathNumeroFranquia={pathNumeroFranquia}
-              justificativaCof={justificativaCof}
-              justificativaContrato={justificativaContrato}
-              justificativaNumeroFranquia={justificativaNumeroFranquia}
-              franqueadoDocs={franqueadoDocs}
-            />
-          )}
+          <RedeFranqueadoDetalheTabs
+            redeId={id}
+            pipelineDataset={pipelineDataset}
+            cadastro={
+              staff ? (
+                <RedeFranqueadoDetalheDocs
+                  redeId={id}
+                  pathCof={pathCof}
+                  pathContrato={pathContrato}
+                  pathNumeroFranquia={pathNumeroFranquia}
+                  justificativaCof={justificativaCof}
+                  justificativaContrato={justificativaContrato}
+                  justificativaNumeroFranquia={justificativaNumeroFranquia}
+                  franqueadoDocs={franqueadoDocs}
+                  empresaDocs={empresaDocs}
+                  spes={spesDoFranqueado}
+                  empresasExtras={empresasExtrasRows ?? []}
+                  permiteCriarSpe
+                  permiteCriarEmpresaExtra={permiteCriarEmpresaExtra}
+                />
+              ) : (
+                <RedeFranqueadoDetalheDocsFranqueado
+                  pathCof={pathCof}
+                  pathContrato={pathContrato}
+                  pathNumeroFranquia={pathNumeroFranquia}
+                  justificativaCof={justificativaCof}
+                  justificativaContrato={justificativaContrato}
+                  justificativaNumeroFranquia={justificativaNumeroFranquia}
+                  franqueadoDocs={franqueadoDocs}
+                />
+              )
+            }
+          />
         </div>
       </main>
     </div>

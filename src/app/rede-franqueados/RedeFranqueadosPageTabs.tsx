@@ -11,6 +11,8 @@ import { CondominiosTabelaComBusca } from './CondominiosTabelaComBusca';
 import { buildCadastrosEmpresasLinhas, type FranqueadoEmpresaRow } from '@/lib/franqueado-empresas';
 import { buildCadastrosEmpresasLinhasComSpe, type FranqueadoSpeRow } from '@/lib/franqueado-spe';
 import type { CondominioRow } from '@/lib/condominios';
+import type { PipelineCardsDataset } from '@/lib/kanban/pipeline-cards-types';
+import { PipelineCardsView } from '@/components/pipeline/PipelineCardsView';
 import { ImportarRedeCSVButton } from './ImportarRedeCSVButton';
 import { ImportarEntidadeCSVButton } from './ImportarEntidadeCSVButton';
 import { ExportarRedeCSVButton } from './ExportarRedeCSVButton';
@@ -53,6 +55,7 @@ type Props = {
   canManageFranqueados: boolean;
   maskSensitiveColumns: boolean;
   showDashboard: boolean;
+  pipelineDataset?: PipelineCardsDataset | null;
 };
 
 export function RedeFranqueadosPageTabs({
@@ -69,6 +72,7 @@ export function RedeFranqueadosPageTabs({
   canManageFranqueados,
   maskSensitiveColumns,
   showDashboard,
+  pipelineDataset = null,
 }: Props) {
   const tabs = [
     ...(showDashboard ? [TAB_VISAO] : []),
@@ -125,7 +129,25 @@ export function RedeFranqueadosPageTabs({
 
       <div className="mt-8" role="tabpanel">
         {resolvedTab === 'visao' && showDashboard ? (
-          <RedeDashboard rows={rows} />
+          <div className="space-y-10">
+            {showStaffTabs && pipelineDataset ? (
+              <section className="space-y-4">
+                <div>
+                  <h2
+                    className="text-xl font-semibold tracking-tight"
+                    style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-display)' }}
+                  >
+                    Pipeline da rede
+                  </h2>
+                  <p className="mt-1 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+                    Cards ativos em todos os funis, consolidados por unidade de franquia.
+                  </p>
+                </div>
+                <PipelineCardsView mode="franqueadora" dataset={pipelineDataset} defaultGroupBy="franquia" />
+              </section>
+            ) : null}
+            <RedeDashboard rows={rows} />
+          </div>
         ) : null}
 
         {resolvedTab === 'franqueados' ? (
