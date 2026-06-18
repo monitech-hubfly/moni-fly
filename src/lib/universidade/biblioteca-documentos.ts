@@ -3,6 +3,7 @@ import { hrefGuiaPublicoLeitura, isGuiaPublicoSlug, type GuiaPublicoSlug } from 
 
 export type { GuiaPublicoSlug };
 export { hrefGuiaPublicoLeitura, isGuiaPublicoSlug };
+export { PRE_BATALHA_PUBLIC_LEITURA_PATH } from '@/lib/pre-batalha-secoes';
 
 export const UNI_BIBLIOTECA_TIPO_DOCUMENTO_INTERNO = 'documento-interno' as const;
 

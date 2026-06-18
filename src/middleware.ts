@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
 import { isLiveLimitedRelease, isPathAllowedInLimitedRelease } from '@/lib/release-scope';
 
+/** Rotas públicas sem login (ex.: /treinamento-bca/leitura, /pre-batalha/leitura, /embed/*) — ver access-matrix. */
+
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   if (pathname === '/onboarding' || pathname.startsWith('/onboarding/')) {

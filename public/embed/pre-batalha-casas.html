@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pré Batalha de Casas | Guia do Franqueado</title>
+<script>
+  var modoLeitura = new URLSearchParams(location.search).get('leitura') === '1';
+  if (modoLeitura) document.documentElement.classList.add('modo-leitura');
+  else document.documentElement.classList.add('hub-embed');
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --verde: #1a3a2a;
+    --verde-medio: #2d5c42;
+    --verde-claro: #4a8c63;
+    --dourado: #c9a84c;
+    --dourado-claro: #e8c96a;
+    --creme: #f5f0e8;
+    --creme-escuro: #e8dfc8;
+    --branco: #fafaf7;
+    --texto: #1a1a1a;
+    --cinza: #6b6b6b;
+    --vermelho: #8b2020;
+    --violeta: #4c1d95;
+    --amber: #92400e;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--creme); color: var(--texto); }
+
+  .hero {
+    background: var(--verde);
+    padding: 52px 56px 44px;
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute;
+    top: -80px; right: -80px;
+    width: 320px; height: 320px;
+    border-radius: 50%;
+    border: 1px solid rgba(201,168,76,0.2);
+  }
+  .hero-eyebrow {
+    font-size: 10px; font-weight: 700; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--dourado); margin-bottom: 16px;
+  }
+  .hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 40px; font-weight: 900;
+    color: var(--branco); line-height: 1.05;
+    max-width: 640px; margin-bottom: 12px;
+  }
+  .hero h1 em { color: var(--dourado); font-style: normal; }
+  .hero-sub {
+    font-size: 15px; color: rgba(255,255,255,0.7);
+    max-width: 560px; line-height: 1.65;
+  }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-top: 22px;
+    background: rgba(201,168,76,0.15);
+    border: 1px solid rgba(201,168,76,0.3);
+    border-radius: 6px; padding: 8px 16px;
+    font-size: 12px; color: var(--dourado-claro); font-weight: 500;
+  }
+
+  .doc-layout {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .doc-nav {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 6px;
+    background: white;
+    border-bottom: 1px solid var(--creme-escuro);
+    padding: 10px 16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .doc-nav-title {
+    display: none;
+  }
+  .nav-btn {
+    display: inline-flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    min-width: 96px;
+    max-width: 132px;
+    text-align: center;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 11px;
+    color: var(--cinza);
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    line-height: 1.3;
+    transition: background 0.15s, color 0.15s;
+  }
+  .nav-btn:hover { background: var(--creme); color: var(--verde); }
+  .nav-btn.active {
+    background: rgba(26,58,42,0.08);
+    color: var(--verde); font-weight: 600;
+  }
+  .nav-btn .nav-num {
+    display: block; font-size: 9px; font-weight: 700;
+    letter-spacing: 1px; color: var(--dourado);
+    margin-bottom: 2px;
+  }
+
+  .doc-main { min-width: 0; }
+
+  .page-section {
+    display: none;
+    padding: 44px 48px 52px;
+    border-bottom: 1px solid var(--creme-escuro);
+  }
+  .page-section.active { display: block; }
+  .page-section:last-child { border-bottom: none; }
+
+  html.modo-leitura .page-section { display: block !important; }
+  html.modo-leitura .doc-nav { display: flex; }
+  html.hub-embed .doc-nav { display: none !important; }
+  html.hub-embed .hero { display: none; }
+  html.hub-embed[data-hub-secao="visao-geral"] .hero { display: block; }
+
+  [id="visao-geral"],
+  [id="faixas"],
+  [id="filtros"],
+  [id="preco"],
+  [id="produto"],
+  [id="ranking"] {
+    scroll-margin-top: 12px;
+  }
+
+  .section-label {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: var(--dourado); margin-bottom: 24px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .section-label::after {
+    content: ''; flex: 1; height: 1px; background: var(--creme-escuro);
+  }
+
+  .highlight-box {
+    background: var(--verde);
+    border-radius: 12px; padding: 26px 30px;
+    color: white; margin-bottom: 22px;
+  }
+  .highlight-box.amber {
+    background: linear-gradient(135deg, #78350f 0%, #92400e 100%);
+  }
+  .highlight-box h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px; color: var(--dourado); margin-bottom: 10px;
+  }
+  .highlight-box p { font-size: 14px; line-height: 1.7; color: rgba(255,255,255,0.82); }
+  .highlight-box strong { color: white; }
+  .highlight-box blockquote {
+    margin-top: 12px; padding-left: 14px;
+    border-left: 3px solid var(--dourado-claro);
+    font-style: italic; color: rgba(255,255,255,0.9);
+  }
+
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    margin-bottom: 20px;
+  }
+  .card {
+    background: white; border-radius: 12px;
+    padding: 22px 24px; border: 1px solid var(--creme-escuro);
+  }
+  .card h4 {
+    font-family: 'Playfair Display', serif;
+    font-size: 15px; color: var(--verde); margin-bottom: 8px;
+  }
+  .card p, .card li { font-size: 13px; color: var(--cinza); line-height: 1.65; }
+  .card ul { list-style: none; margin-top: 8px; }
+  .card li { padding: 4px 0; display: flex; gap: 8px; }
+  .card li::before { content: '·'; color: var(--dourado); font-size: 18px; line-height: 1; }
+
+  .aviso-box {
+    background: rgba(139,32,32,0.06);
+    border: 1px solid rgba(139,32,32,0.2);
+    border-radius: 10px; padding: 16px 20px;
+    display: flex; gap: 12px; margin-bottom: 20px;
+  }
+  .aviso-box.info {
+    background: rgba(76,29,149,0.06);
+    border-color: rgba(76,29,149,0.2);
+  }
+  .aviso-box.amber {
+    background: rgba(146,64,14,0.08);
+    border-color: rgba(146,64,14,0.25);
+  }
+  .aviso-box p { font-size: 13px; line-height: 1.6; color: #3a1a5a; }
+  .aviso-box.info p { color: #3a2860; }
+  .aviso-box.amber p { color: var(--amber); }
+  .aviso-box strong { color: inherit; }
+
+  .steps-timeline { position: relative; }
+  .step-row {
+    display: flex; gap: 22px; position: relative;
+    padding-bottom: 28px;
+  }
+  .step-row:last-child { padding-bottom: 0; }
+  .step-row:not(:last-child)::before {
+    content: ''; position: absolute;
+    left: 17px; top: 40px; width: 2px; bottom: 0;
+    background: var(--creme-escuro);
+  }
+  .step-num {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--verde); color: var(--dourado);
+    font-family: 'Playfair Display', serif;
+    font-size: 15px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; z-index: 1;
+  }
+  .step-body { flex: 1; padding-top: 6px; }
+  .step-body h4 {
+    font-family: 'Playfair Display', serif;
+    font-size: 15px; color: var(--verde); margin-bottom: 6px;
+  }
+  .step-body p { font-size: 13px; color: var(--cinza); line-height: 1.65; }
+  .step-body ul { margin-top: 8px; padding-left: 18px; font-size: 13px; color: var(--cinza); line-height: 1.6; }
+  .step-note {
+    margin-top: 10px;
+    background: rgba(201,168,76,0.1);
+    border-left: 3px solid var(--dourado);
+    padding: 8px 12px; border-radius: 0 6px 6px 0;
+    font-size: 12px; color: #6a4e10; line-height: 1.5;
+  }
+
+  .data-table {
+    width: 100%; border-collapse: collapse;
+    background: white; border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--creme-escuro);
+    margin-bottom: 20px; font-size: 13px;
+  }
+  .data-table th {
+    background: rgba(26,58,42,0.06);
+    color: var(--verde); font-weight: 600;
+    text-align: left; padding: 11px 14px;
+    border-bottom: 1px solid var(--creme-escuro);
+  }
+  .data-table td {
+    padding: 10px 14px; vertical-align: top;
+    border-bottom: 1px solid var(--creme-escuro);
+    color: var(--cinza); line-height: 1.5;
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table td:first-child { font-weight: 600; color: var(--verde); }
+  .data-table .nota-pos { color: #1a5c32; font-weight: 600; }
+  .data-table .nota-neg { color: var(--vermelho); font-weight: 600; }
+  .data-table .nota-neu { color: var(--cinza); font-weight: 600; }
+
+  .formula-box {
+    background: white; border: 1px solid var(--creme-escuro);
+    border-radius: 10px; padding: 18px 22px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px; color: var(--verde); font-weight: 600;
+    margin-bottom: 18px; text-align: center;
+  }
+
+  .scale-grid {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;
+    margin-bottom: 20px;
+  }
+  .scale-cell {
+    background: white; border: 1px solid var(--creme-escuro);
+    border-radius: 8px; padding: 12px 8px; text-align: center;
+  }
+  .scale-cell .val {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px; font-weight: 700; color: var(--verde);
+  }
+  .scale-cell .lbl { font-size: 10px; color: var(--cinza); margin-top: 4px; line-height: 1.35; }
+
+  .gep-pills { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .gep-pill {
+    flex: 1; min-width: 140px; border-radius: 10px;
+    padding: 14px 16px; text-align: center;
+    border: 1px solid var(--creme-escuro); background: white;
+  }
+  .gep-pill .letter {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px; font-weight: 900; line-height: 1;
+  }
+  .gep-pill.g .letter { color: #1a7a3a; }
+  .gep-pill.e .letter { color: #b8860b; }
+  .gep-pill.p .letter { color: var(--vermelho); }
+  .gep-pill p { font-size: 11px; color: var(--cinza); margin-top: 6px; line-height: 1.4; }
+
+  .checklist { list-style: none; margin-bottom: 20px; }
+  .checklist li {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 10px 14px; margin-bottom: 8px;
+    background: white; border-radius: 8px;
+    border: 1px solid var(--creme-escuro);
+    font-size: 13px; color: var(--cinza); line-height: 1.5;
+  }
+  .checklist li::before {
+    content: '☐'; color: var(--dourado); font-weight: 700; flex-shrink: 0;
+  }
+
+  .confidencial {
+    text-align: center; font-size: 11px; color: var(--cinza);
+    padding: 20px; letter-spacing: 0.5px;
+  }
+
+  p.lead { font-size: 14px; color: var(--cinza); line-height: 1.65; margin-bottom: 18px; }
+
+  @media (max-width: 800px) {
+    .hero { padding: 36px 24px 28px; }
+    .hero h1 { font-size: 28px; }
+    .doc-nav { padding: 8px 12px; gap: 4px; }
+    .nav-btn { min-width: 84px; font-size: 10px; padding: 8px 8px; }
+    .page-section { padding: 32px 20px 40px; }
+    .grid-2, .scale-grid { grid-template-columns: 1fr; }
+    .scale-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero" id="visao-geral">
+  <div class="hero-eyebrow">Universidade Moní · Step One</div>
+  <h1>Pré Batalha de <em>Casas</em></h1>
+  <p class="hero-sub">Guia manual para aplicar a Pré Batalha à mão — faixas de mercado, filtros de elegibilidade, notas de Preço e Produto, ranking e leitura de compatibilidade. Mesma lógica do Hub Fly.</p>
+  <div class="hero-badge">⚡ Triagem inicial: quais modelos Moní competem de fato neste lote?</div>
+</div>
+
+<div class="doc-layout">
+  <nav class="doc-nav" aria-label="Seções do guia">
+    <p class="doc-nav-title">Navegação</p>
+    <button type="button" class="nav-btn active" data-section="sec-1" data-scroll="visao-geral"><span class="nav-num">01</span>O que é</button>
+    <button type="button" class="nav-btn" data-section="sec-2" data-scroll="visao-geral"><span class="nav-num">02</span>Pré-requisitos</button>
+    <button type="button" class="nav-btn" data-section="sec-3" data-scroll="faixas"><span class="nav-num">03</span>Faixas e modelos</button>
+    <button type="button" class="nav-btn" data-section="sec-4" data-scroll="filtros"><span class="nav-num">04</span>Lote e filtros</button>
+    <button type="button" class="nav-btn" data-section="sec-5" data-scroll="preco"><span class="nav-num">05</span>Preço</button>
+    <button type="button" class="nav-btn" data-section="sec-6" data-scroll="produto"><span class="nav-num">06</span>Produto</button>
+    <button type="button" class="nav-btn" data-section="sec-7" data-scroll="ranking"><span class="nav-num">07</span>Ranking</button>
+    <button type="button" class="nav-btn" data-section="sec-8" data-scroll="ranking"><span class="nav-num">08</span>Checklist</button>
+  </nav>
+
+  <main class="doc-main">
+
+    <section id="sec-1" class="page-section active" aria-labelledby="lbl-1" data-hub-grupo="visao-geral">
+      <div class="section-label" id="lbl-1">O que é a Pré Batalha</div>
+
+      <div class="highlight-box amber">
+        <h3>Primeira triagem</h3>
+        <p>A Pré Batalha é a <strong>primeira triagem</strong> de modelos Moní para um lote. O objetivo não é escolher a casa vencedora definitiva — isso vem na <strong>Batalha completa</strong>. Aqui você responde:</p>
+        <blockquote>“Quais modelos do catálogo têm chance real de competir neste mercado, neste lote?”</blockquote>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Como funciona</h4>
+          <p>Cada modelo é comparado com <strong>todos os anúncios</strong> do Mapa de Competidores da <strong>mesma faixa de preço</strong>, nos eixos <strong>Preço</strong> e <strong>Produto</strong>.</p>
+        </div>
+        <div class="card">
+          <h4>Papel do lote</h4>
+          <p>O lote entra para <strong>ordenar</strong> o ranking (match de atributos), mas <strong>não soma pontos</strong> na nota final da Pré Batalha.</p>
+        </div>
+      </div>
+
+      <div class="aviso-box info">
+        <span style="font-size:18px;">ℹ️</span>
+        <p><strong>Nota da linha</strong> = Preço + Produto (cada subnota de −3 a +2). A <strong>nota final do modelo</strong> = média de Preço + média de Produto contra todos os anúncios da faixa.</p>
+      </div>
+    </section>
+
+    <section id="sec-2" class="page-section" aria-labelledby="lbl-2" data-hub-grupo="visao-geral">
+      <div class="section-label" id="lbl-2">Antes de começar</div>
+
+      <p class="lead">Sem mapa preenchido ou sem lote definido, a Pré Batalha não faz sentido. Confira o que precisa estar pronto:</p>
+
+      <table class="data-table">
+        <thead>
+          <tr><th>Item</th><th>Onde fica</th><th>Para quê</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Mapa de Competidores</td><td>Pesquisa ZAP / mapa do condomínio</td><td>Lista de casas concorrentes com preço, m², quartos, banheiros, vagas</td></tr>
+          <tr><td>Atributos do lote</td><td>Lotes Disponíveis</td><td>Vista, mata, lago, topografia (plano/aclive/declive), etc.</td></tr>
+          <tr><td>Dimensões + recuos</td><td>Lotes Disponíveis / condomínio</td><td>Filtrar modelos que <strong>não cabem</strong> no terreno</td></tr>
+          <tr><td>Tipo predominante</td><td>Dados dos Condomínios (prospect)</td><td>Na faixa predomina casa <strong>Térrea</strong> ou <strong>Sobrado</strong></td></tr>
+        </tbody>
+      </table>
+
+      <div class="aviso-box amber">
+        <span>⚠️</span>
+        <p><strong>Obrigatório:</strong> preencha “Qual tipo de casa é predominante nessa faixa?” (Térrea ou Sobrado) em Dados do Condomínio. Sem isso, o Hub bloqueia o ranking da Pré Batalha.</p>
+      </div>
+    </section>
+
+    <section id="sec-3" class="page-section" aria-labelledby="faixas" data-hub-grupo="faixas">
+      <div class="section-label" id="faixas">Faixas de mercado e modelos</div>
+
+      <div class="steps-timeline">
+        <div class="step-row">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h4>Classificar anúncios em faixas</h4>
+            <p>Separe cada anúncio do mapa pela faixa de <strong>VGV (preço total)</strong>:</p>
+            <ul>
+              <li>Ordene todas as casas do universo (busca ZAP, casas ≥ R$ 4 milhões)</li>
+              <li>Calcule <strong>Corte 1</strong> (posição 1/3) e <strong>Corte 2</strong> (posição 2/3)</li>
+            </ul>
+            <table class="data-table" style="margin-top:12px;">
+              <thead><tr><th>Faixa</th><th>Regra</th></tr></thead>
+              <tbody>
+                <tr><td>Entrada</td><td>Preço ≤ Corte 1</td></tr>
+                <tr><td>Intermediária</td><td>Corte 1 &lt; Preço ≤ Corte 2</td></tr>
+                <tr><td>Premium</td><td>Corte 2 &lt; Preço &lt; R$ 10 milhões</td></tr>
+                <tr><td>Premium+</td><td>R$ 10M ≤ Preço &lt; R$ 15M</td></tr>
+                <tr><td>Premium++</td><td>R$ 15M ≤ Preço &lt; R$ 20M</td></tr>
+                <tr><td>Premium+++</td><td>Preço ≥ R$ 20M</td></tr>
+              </tbody>
+            </table>
+            <div class="step-note">A Pré Batalha roda <strong>separadamente em cada faixa</strong>. Um modelo só batalha contra anúncios da mesma faixa.</div>
+          </div>
+        </div>
+        <div class="step-row">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h4>Modelos permitidos por faixa</h4>
+            <p>Nem todo modelo aparece em toda faixa:</p>
+            <table class="data-table" style="margin-top:12px;">
+              <thead><tr><th>Modelos</th><th>Faixas</th></tr></thead>
+              <tbody>
+                <tr><td>Lu, Isa, Val</td><td>Só <strong>Entrada</strong></td></tr>
+                <tr><td>Liz, Ivy, Mia, Cissa, Sol</td><td><strong>Entrada</strong> e <strong>Intermediária</strong></td></tr>
+                <tr><td>Eva, Gal</td><td><strong>Premium</strong> e <strong>Premium+</strong></td></tr>
+                <tr><td>Lena</td><td><strong>Premium+</strong>, <strong>Premium++</strong> e <strong>Premium+++</strong></td></tr>
+              </tbody>
+            </table>
+            <p style="margin-top:10px;">Anote também a <strong>topografia</strong> de cada modelo no catálogo (Plano, Aclive ou Declive).</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec-4" class="page-section" aria-labelledby="filtros" data-hub-grupo="filtros">
+      <div class="section-label" id="filtros">Lote, match e elegibilidade</div>
+
+      <p style="font-size:13px;font-weight:600;color:var(--verde);margin-bottom:10px;">Passo 3 — Match de atributos do lote</p>
+      <p class="lead">Conte quantos atributos marcados no lote o modelo também tem no catálogo. Isso <strong>ordena</strong> o ranking; não entra na nota final.</p>
+
+      <table class="data-table">
+        <thead><tr><th>Atributo</th><th>Nota (só na Batalha completa)</th></tr></thead>
+        <tbody>
+          <tr><td>Vista privilegiada</td><td class="nota-pos">+2</td></tr>
+          <tr><td>Fundo / frente de mata</td><td class="nota-pos">+2 cada</td></tr>
+          <tr><td>Fundo / frente de lago</td><td class="nota-pos">+2 cada</td></tr>
+          <tr><td>Perto de área verde / lago / convivência</td><td class="nota-pos">+1 cada</td></tr>
+          <tr><td>Terreno plano / aclive / declive / perto de portaria</td><td class="nota-neu">0</td></tr>
+          <tr><td>Perto de lixeira / muro com rodovia / comunidade</td><td class="nota-neg">−2 cada</td></tr>
+          <tr><td>Muro com vegetação</td><td class="nota-neg">−1</td></tr>
+        </tbody>
+      </table>
+
+      <p style="font-size:13px;font-weight:600;color:var(--verde);margin:18px 0 10px;">Passo 4 — Eliminar inelegíveis</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>4a. Topografia</h4>
+          <p>Se o lote é Plano, Aclive ou Declive, o modelo precisa ter a <strong>mesma</strong> topografia. Diferente → <strong>fora</strong> (nota zero).</p>
+        </div>
+        <div class="card">
+          <h4>4b. Geometria do terreno</h4>
+          <p>Largura útil = frente − 2×recuo lateral. Profundidade útil = lateral − recuo frontal − recuo fundo. Inelegível se não cabe em largura, profundidade ou área.</p>
+        </div>
+        <div class="card">
+          <h4>4c. Tipo de andar</h4>
+          <p>Se predomina Térrea e o modelo é sobrado (ou vice-versa) → <strong>rebaixa</strong> no ranking, mas ainda pontua (antes dos totalmente inelegíveis).</p>
+        </div>
+        <div class="card">
+          <h4>Exemplo de match</h4>
+          <p>Lote: vista + fundo de mata + plano → 3 atributos. Modelo com vista e mata → <strong>match 2/3</strong>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec-5" class="page-section" aria-labelledby="preco" data-hub-grupo="preco">
+      <div class="section-label" id="preco">Eixo Preço (Pré Batalha)</div>
+
+      <div class="formula-box">Preço Moní = Incorporação (custo) + Kit Moní — compare com o preço do anúncio</div>
+
+      <p class="lead">Calcule a diferença percentual: <strong>(Preço anúncio − Preço Moní) ÷ Preço Moní</strong></p>
+
+      <table class="data-table">
+        <thead><tr><th>Diferença % (anúncio vs Moní)</th><th>Nota Preço</th></tr></thead>
+        <tbody>
+          <tr><td>Anúncio ≥ 50% mais barato</td><td class="nota-neg">−3</td></tr>
+          <tr><td>20% a 50% mais barato</td><td class="nota-neg">−2</td></tr>
+          <tr><td>1% a 20% mais barato</td><td class="nota-neg">−1</td></tr>
+          <tr><td>Diferença &lt; 1% (empate técnico)</td><td class="nota-neu">0</td></tr>
+          <tr><td>Moní até 20% mais barato</td><td class="nota-pos">+1</td></tr>
+          <tr><td>Moní mais de 20% mais barato</td><td class="nota-pos">+2</td></tr>
+        </tbody>
+      </table>
+
+      <div class="aviso-box info">
+        <span>ℹ️</span>
+        <p>Na <strong>Batalha completa</strong>, o preço usa checklist de reforma (8 categorias), distância, esforço e incerteza. Na <strong>Pré Batalha</strong> entra só a comparação direta de VGV.</p>
+      </div>
+    </section>
+
+    <section id="sec-6" class="page-section" aria-labelledby="produto" data-hub-grupo="produto">
+      <div class="section-label" id="produto">Eixo Produto (Pré Batalha)</div>
+
+      <div class="formula-box">Nota Produto = (T + Q + B + V + An) ÷ 5 — cada critério de −3 a +2</div>
+
+      <p style="font-size:13px;font-weight:600;color:var(--verde);margin-bottom:10px;">T — Tamanho (m²)</p>
+      <table class="data-table">
+        <thead><tr><th>Diferença % (anúncio vs Moní)</th><th>Nota</th></tr></thead>
+        <tbody>
+          <tr><td>Anúncio ≥ 50% maior</td><td class="nota-neg">−3</td></tr>
+          <tr><td>20% a 50% maior</td><td class="nota-neg">−2</td></tr>
+          <tr><td>1% a 20% maior</td><td class="nota-neg">−1</td></tr>
+          <tr><td>± até 20%</td><td class="nota-neu">0</td></tr>
+          <tr><td>Moní 20% a 50% maior</td><td class="nota-pos">+1</td></tr>
+          <tr><td>Moní &gt; 50% maior</td><td class="nota-pos">+2</td></tr>
+        </tbody>
+      </table>
+      <div class="step-note" style="margin-bottom:18px;">Se o anúncio for muito maior, o sistema sugere <strong>anexo</strong> (+20 m² por módulo) — orientação visual no Hub, não altera a nota automaticamente.</div>
+
+      <p style="font-size:13px;font-weight:600;color:var(--verde);margin-bottom:10px;">Q — Quartos · B — Banheiros · V — Vagas</p>
+      <p class="lead">Diferença = valor Moní − valor anúncio. Quartos: se catálogo vazio, assume 4. Banheiros/vagas: diff ≤ −2 → −2 (ou −3 em quartos); −1 → −1; 0 → 0; +1 → +1; +2 ou mais → +2.</p>
+
+      <div class="aviso-box amber">
+        <span>⚡</span>
+        <p><strong>Campos flexíveis:</strong> se o modelo permite +1 quarto, suíte, banheiro ou vaga e estaria perdendo, recalcule como se tivesse +1 e anote: “1 quarto/suíte/banheiro/vaga adicional necessário para competir”.</p>
+      </div>
+
+      <p style="font-size:13px;font-weight:600;color:var(--verde);margin:18px 0 10px;">An — Andares (tipo predominante da faixa)</p>
+      <div class="grid-2">
+        <div class="card">
+          <h4>Se predomina Sobrado</h4>
+          <ul>
+            <li>Mais de 1 andar → +2</li>
+            <li>1 andar sem rooftop problemático → 0</li>
+            <li>1 andar com rooftop “S” → −2; “N” → −3; integrado → −1</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Se predomina Térrea</h4>
+          <ul>
+            <li>1 andar → +2</li>
+            <li>Mais de 1 andar → −3</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec-7" class="page-section" aria-labelledby="ranking" data-hub-grupo="ranking">
+      <div class="section-label" id="ranking">Agregar, ranking e resultado</div>
+
+      <div class="steps-timeline">
+        <div class="step-row">
+          <div class="step-num">6</div>
+          <div class="step-body">
+            <h4>Agregar por modelo</h4>
+            <p><strong>Nota Preço média</strong> = média contra todos os anúncios da faixa.<br>
+            <strong>Nota Produto média</strong> = idem.<br>
+            <strong>Nota final</strong> = Preço média + Produto média.</p>
+            <div class="step-note">Exemplo: Preço médio 1,0 + Produto médio 0,4 = <strong>nota final 1,4</strong>.</div>
+          </div>
+        </div>
+        <div class="step-row">
+          <div class="step-num">7</div>
+          <div class="step-body">
+            <h4>Ordem do ranking (elegíveis)</h4>
+            <ol style="padding-left:18px;font-size:13px;color:var(--cinza);line-height:1.7;">
+              <li><strong>Match</strong> de atributos do lote (maior primeiro)</li>
+              <li><strong>Nota Preço média</strong> (maior primeiro)</li>
+              <li><strong>Nota Produto média</strong> (maior primeiro)</li>
+              <li>Nome do modelo (alfabético)</li>
+            </ol>
+            <p style="margin-top:8px;">Depois: tipo de andar incompatível → inelegíveis (topografia/geometria) no final.</p>
+          </div>
+        </div>
+        <div class="step-row">
+          <div class="step-num">8</div>
+          <div class="step-body">
+            <h4>Confrontos G / E / P</h4>
+            <p>Para cada anúncio, compare pares de modelos pela nota da linha (Preço + Produto):</p>
+            <div class="gep-pills">
+              <div class="gep-pill g"><div class="letter">G</div><p><strong>Ganho</strong> — nota maior</p></div>
+              <div class="gep-pill e"><div class="letter">E</div><p><strong>Empate</strong> — notas iguais</p></div>
+              <div class="gep-pill p"><div class="letter">P</div><p><strong>Perda</strong> — nota menor</p></div>
+            </div>
+            <p>Soma G/E/P de todos os anúncios — informativo; <strong>não muda</strong> a ordem do ranking.</p>
+          </div>
+        </div>
+      </div>
+
+      <p style="font-size:13px;font-weight:600;color:var(--verde);margin:18px 0 10px;">Rótulo de compatibilidade (nota final)</p>
+      <table class="data-table">
+        <thead><tr><th>Nota final</th><th>Rótulo</th></tr></thead>
+        <tbody>
+          <tr><td>≥ 1,5</td><td class="nota-pos"><strong>Alta</strong> compatibilidade</td></tr>
+          <tr><td>0 a 1,4</td><td class="nota-neu"><strong>Média</strong></td></tr>
+          <tr><td>&lt; 0</td><td class="nota-neg"><strong>Baixa</strong></td></tr>
+        </tbody>
+      </table>
+
+      <p style="font-size:13px;font-weight:600;color:var(--verde);margin:24px 0 10px;">Pré Batalha vs Batalha completa</p>
+      <table class="data-table">
+        <thead><tr><th></th><th>Pré Batalha</th><th>Batalha completa</th></tr></thead>
+        <tbody>
+          <tr><td>Nota final</td><td>Preço + Produto</td><td>Atributos lote + Preço + Produto</td></tr>
+          <tr><td>Lote</td><td>Só match (ordena)</td><td>Soma pontos dos atributos</td></tr>
+          <tr><td>Preço</td><td>VGV Moní vs anúncio</td><td>Checklist reforma + D/E/I/P</td></tr>
+          <tr><td>Produto</td><td>5 critérios (T,Q,B,V,An)</td><td>Até 8 (+ design, idade, amenidades)</td></tr>
+          <tr><td>Objetivo</td><td>Ranking inicial de candidatos</td><td>Escolha definitiva entre casas</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="sec-8" class="page-section" aria-labelledby="lbl-8" data-hub-grupo="ranking">
+      <div class="section-label" id="lbl-8">Checklist rápido</div>
+
+      <p class="lead">Use esta lista ao aplicar a Pré Batalha manualmente ou para conferir o resultado no Hub:</p>
+
+      <ul class="checklist">
+        <li>Anúncios classificados por faixa (terços + Premium+/++/+++)</li>
+        <li>Modelos filtrados pela faixa (Lu/Isa/Val só Entrada, etc.)</li>
+        <li>Topografia do lote = topografia do modelo</li>
+        <li>Casa cabe no terreno útil (largura, profundidade, área)</li>
+        <li>Tipo predominante Térrea/Sobrado preenchido em Dados do Condomínio</li>
+        <li>Match de atributos lote × catálogo anotado</li>
+        <li>Para cada modelo × anúncio: Preço (−3 a +2) + Produto (média de 5)</li>
+        <li>Médias por modelo → nota final</li>
+        <li>Ranking: match → Preço médio → Produto médio</li>
+        <li>G/E/P e rótulo Alta / Média / Baixa</li>
+      </ul>
+
+      <div class="highlight-box">
+        <h3>Exemplo resumido</h3>
+        <p><strong>Faixa Intermediária</strong>, 3 anúncios, lote plano com vista + perto do lago. Modelos elegíveis: Liz, Ivy, Mia, Cissa, Sol (topografia plano). Para cada modelo, calcule 3 linhas (×3 anúncios), tire médias, ordene por match e desempate por Preço/Produto. Anote G/E/P e compatibilidade Alta/Média/Baixa.</p>
+      </div>
+    </section>
+
+    <p class="confidencial">Documento confidencial · Uso exclusivo do franqueado Moní · Hub Fly / Step One</p>
+  </main>
+</div>
+
+<script>
+(function () {
+  var HUB_GRUPOS = {
+    'visao-geral': { hero: true, sections: ['sec-1', 'sec-2'] },
+    faixas: { sections: ['sec-3'] },
+    filtros: { sections: ['sec-4'] },
+    preco: { sections: ['sec-5'] },
+    produto: { sections: ['sec-6'] },
+    ranking: { sections: ['sec-7', 'sec-8'] },
+  };
+
+  var buttons = document.querySelectorAll('.nav-btn');
+  var sections = document.querySelectorAll('.page-section');
+  var hero = document.querySelector('.hero');
+
+  function hashHub() {
+    var hash = (location.hash || '').replace('#', '').trim();
+    return HUB_GRUPOS[hash] ? hash : 'visao-geral';
+  }
+
+  function scrollParaHub(id) {
+    var alvo =
+      document.getElementById(id) ||
+      document.querySelector('[data-hub-grupo="' + id + '"]') ||
+      document.getElementById('visao-geral');
+    if (!alvo) return;
+    window.requestAnimationFrame(function () {
+      alvo.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  function aplicarModoHub() {
+    var hub = hashHub();
+    var cfg = HUB_GRUPOS[hub];
+    document.documentElement.setAttribute('data-hub-secao', hub);
+    if (hero) hero.style.display = cfg.hero ? 'block' : 'none';
+    sections.forEach(function (s) {
+      s.style.display = cfg.sections.indexOf(s.id) >= 0 ? 'block' : 'none';
+      s.classList.remove('active');
+    });
+    if (cfg.sections[0]) {
+      var first = document.getElementById(cfg.sections[0]);
+      if (first) first.classList.add('active');
+    }
+    scrollParaHub(hub);
+  }
+
+  function showTab(id) {
+    sections.forEach(function (s) {
+      s.classList.toggle('active', s.id === id);
+    });
+    buttons.forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-section') === id);
+    });
+    if (history.replaceState) {
+      history.replaceState(null, '', '#' + id);
+    }
+  }
+
+  if (modoLeitura) {
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var target = btn.getAttribute('data-scroll') || btn.getAttribute('data-section');
+        var el = document.getElementById(target) || document.getElementById(btn.getAttribute('data-section'));
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+    return;
+  }
+
+  aplicarModoHub();
+  window.addEventListener('hashchange', aplicarModoHub);
+
+  buttons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      showTab(btn.getAttribute('data-section'));
+    });
+  });
+})();
+</script>
+</body>
+</html>
