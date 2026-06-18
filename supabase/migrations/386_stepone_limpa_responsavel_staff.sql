@@ -1,4 +1,18 @@
 -- 386: Step One — remove responsável da fase gravado como criador staff ou perfil interno.
+-- Nota: `valor` legado pode conter nome (texto) em vez de UUID — tratar antes do cast.
+
+-- Remove valores que não são UUID (ex.: nome do franqueado gravado por engano).
+DELETE FROM public.kanban_fase_checklist_respostas r
+USING public.kanban_cards c,
+      public.kanban_fase_checklist_itens i
+WHERE r.card_id = c.id
+  AND r.item_id = i.id
+  AND i.fase_id = c.fase_id
+  AND i.campo_slug = 'responsavel_fase'
+  AND c.kanban_id = '4d89f111-cef6-48aa-93ff-72d6406f0a32'::uuid
+  AND c.rede_franqueado_id IS NOT NULL
+  AND nullif(trim(r.valor), '') IS NOT NULL
+  AND trim(r.valor) !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
 
 DELETE FROM public.kanban_fase_checklist_respostas r
 USING public.kanban_cards c,
@@ -21,6 +35,7 @@ WHERE r.card_id = c.id
   AND i.campo_slug = 'responsavel_fase'
   AND c.kanban_id = '4d89f111-cef6-48aa-93ff-72d6406f0a32'::uuid
   AND c.rede_franqueado_id IS NOT NULL
+  AND trim(r.valor) ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
   AND p.id = r.valor::uuid
   AND p.role IN ('admin', 'team', 'consultor', 'supervisor');
 

@@ -67,7 +67,7 @@ async function isProfileIdStaff(
   profileId: string | null | undefined,
 ): Promise<boolean> {
   const uid = valorResponsavelValido(profileId);
-  if (!uid) return false;
+  if (!uid || !isValorUsuarioUuid(uid)) return false;
   const { data: prof } = await supabase.from('profiles').select('role').eq('id', uid).maybeSingle();
   return isStaffProfileRole((prof as { role?: string | null } | null)?.role);
 }
@@ -302,10 +302,13 @@ export async function sincronizarResponsavelFaseStepOne(
     .eq('item_id', itemId)
     .maybeSingle();
 
-  const valorAtual = valorResponsavelValido((respAtual as { valor?: string | null } | null)?.valor);
+  const valorRaw = valorResponsavelValido((respAtual as { valor?: string | null } | null)?.valor);
+  const valorAtual = valorRaw && isValorUsuarioUuid(valorRaw) ? valorRaw : null;
   const valorIncorreto =
-    Boolean(valorAtual) &&
-    (valorAtual === cardCreatorId || (await isProfileIdStaff(supabase, valorAtual)));
+    Boolean(valorRaw) &&
+    (!isValorUsuarioUuid(valorRaw) ||
+      valorRaw === cardCreatorId ||
+      (await isProfileIdStaff(supabase, valorRaw)));
 
   if (franqueadoId) {
     if (valorAtual === franqueadoId) return franqueadoId;
@@ -409,6 +412,13 @@ export async function buscarItemIdResponsavelFaseEdicao(
 function valorResponsavelValido(valor: string | null | undefined): string | null {
   const v = String(valor ?? '').trim();
   return v || null;
+}
+
+const VALOR_USUARIO_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValorUsuarioUuid(valor: string | null | undefined): boolean {
+  return VALOR_USUARIO_UUID_RE.test(String(valor ?? '').trim());
 }
 
 async function buscarRespostaValor(
@@ -678,13 +688,15 @@ export async function enrichCardsComResponsavelFase(
     if (!card) continue;
     const itemId = itemPorFase.get(String(card.fase_id ?? '').trim());
     const uidChecklist = itemId ? respPorCardItem.get(`${sid}:${itemId}`) : null;
+    const uidChecklistValido =
+      uidChecklist && isValorUsuarioUuid(uidChecklist) ? uidChecklist : null;
     const canonical = await buscarFranqueadoIdResponsavelStepOne(supabase, sid);
     const creatorId = String(card.franqueado_id ?? '').trim();
 
     let uidFinal: string | null = canonical;
-    if (!uidFinal && uidChecklist && uidChecklist !== creatorId) {
-      const staff = await isProfileIdStaff(supabase, uidChecklist);
-      if (!staff) uidFinal = uidChecklist;
+    if (!uidFinal && uidChecklistValido && uidChecklistValido !== creatorId) {
+      const staff = await isProfileIdStaff(supabase, uidChecklistValido);
+      if (!staff) uidFinal = uidChecklistValido;
     }
 
     if (uidFinal) userIdPorCard.set(sid, uidFinal);
