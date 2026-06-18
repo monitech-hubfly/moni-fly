@@ -18,6 +18,7 @@ import { upsertFranqueadoEmpresa } from './franqueado-empresas-actions';
 import { criarFranqueadoSpe, upsertFranqueadoSpe } from './franqueado-spe-actions';
 import { redeAlertError, redeAlertSuccess, redeTh } from './rede-ui';
 import { usePaginaTabela } from '@/lib/use-pagina-tabela';
+import { MoniTabelaScrollSync } from '@/components/MoniTabelaScrollSync';
 
 const PER_PAGE = 15;
 const NOVA_SPE_DRAFT_KEY = '__nova__';
@@ -254,7 +255,7 @@ export function CadastrosEmpresasTabela({
         </div>
       ) : null}
 
-      <div className="overflow-x-auto rounded-xl border border-stone-200/90 bg-white shadow-sm">
+      <MoniTabelaScrollSync className="rounded-xl border border-stone-200/90 bg-white shadow-sm">
         <table className="w-full min-w-[1680px] border-collapse text-left text-sm">
           <thead>
             <tr>
@@ -518,7 +519,7 @@ export function CadastrosEmpresasTabela({
             })}
           </tbody>
         </table>
-      </div>
+      </MoniTabelaScrollSync>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-3">
         <p className="text-sm text-stone-600">

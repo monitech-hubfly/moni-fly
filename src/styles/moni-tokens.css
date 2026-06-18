@@ -393,6 +393,49 @@
   );
 }
 
+/* Tabelas largas — barra horizontal fixa na base da tela (sincronizada com o scroll da tabela) */
+.moni-tabela-scroll-main {
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.moni-tabela-scroll-main::-webkit-scrollbar {
+  display: none;
+}
+
+.moni-tabela-scroll-bar {
+  position: fixed;
+  bottom: 0;
+  z-index: 45;
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 14px;
+  background: var(--moni-surface-50);
+  border-top: var(--moni-border-width) solid var(--moni-border-default);
+  scrollbar-width: thin;
+  scrollbar-color: var(--moni-navy-200) transparent;
+}
+
+.moni-tabela-scroll-bar::-webkit-scrollbar {
+  height: 10px;
+}
+
+.moni-tabela-scroll-bar::-webkit-scrollbar-track {
+  background: var(--moni-surface-100);
+}
+
+.moni-tabela-scroll-bar::-webkit-scrollbar-thumb {
+  background: var(--moni-navy-200);
+  border-radius: var(--moni-radius-md);
+}
+
+.moni-tabela-scroll-bar-spacer {
+  height: 1px;
+  pointer-events: none;
+}
+
 /* Tipografia editorial (H1, H2 Vogue-style) */
 .moni-heading-display {
   font-family: var(--moni-font-display);
