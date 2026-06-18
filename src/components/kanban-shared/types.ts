@@ -38,6 +38,8 @@ export type KanbanFase = {
   instrucoes?: string | null;
   /** Links / referências (migration 129). */
   materiais?: KanbanFaseMaterial[] | null;
+  /** Marcada pelo admin como fase de conversão (migration 387). */
+  fase_conversao?: boolean;
 };
 
 export type KanbanCardBrief = {

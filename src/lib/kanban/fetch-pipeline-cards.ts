@@ -25,7 +25,7 @@ const CARD_SELECT = `
   concluido,
   status,
   kanbans ( nome ),
-  kanban_fases ( nome, slug, ordem, sla_dias ),
+  kanban_fases ( nome, slug, ordem, sla_dias, fase_conversao ),
   rede_franqueados ( n_franquia, nome_completo, ordem )
 `;
 
@@ -43,8 +43,8 @@ function mapPipelineCardRow(raw: RawCard): PipelineCardRow | null {
   const kanban = relOne(raw.kanbans as { nome?: string | null } | { nome?: string | null }[] | null);
   const fase = relOne(
     raw.kanban_fases as
-      | { nome?: string | null; slug?: string | null; ordem?: number | null; sla_dias?: number | null }
-      | Array<{ nome?: string | null; slug?: string | null; ordem?: number | null; sla_dias?: number | null }>
+      | { nome?: string | null; slug?: string | null; ordem?: number | null; sla_dias?: number | null; fase_conversao?: boolean | null }
+      | Array<{ nome?: string | null; slug?: string | null; ordem?: number | null; sla_dias?: number | null; fase_conversao?: boolean | null }>
       | null,
   );
   const rede = relOne(
@@ -64,6 +64,7 @@ function mapPipelineCardRow(raw: RawCard): PipelineCardRow | null {
     fase_slug: fase?.slug != null ? String(fase.slug) : null,
     fase_ordem: Number(fase?.ordem ?? 0),
     fase_sla_dias: fase?.sla_dias != null ? Number(fase.sla_dias) : null,
+    fase_conversao: Boolean(fase?.fase_conversao),
     rede_franqueado_id: raw.rede_franqueado_id != null ? String(raw.rede_franqueado_id) : null,
     n_franquia: rede?.n_franquia != null ? String(rede.n_franquia) : null,
     franqueado_nome: rede?.nome_completo != null ? String(rede.nome_completo) : null,

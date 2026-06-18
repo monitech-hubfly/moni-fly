@@ -12,6 +12,7 @@ export function mapKanbanFaseRow(row: Record<string, unknown>): KanbanFase {
     slug: row.slug != null ? String(row.slug) : null,
     instrucoes: row.instrucoes != null ? String(row.instrucoes) : null,
     materiais: parseKanbanFaseMateriais(row.materiais),
+    fase_conversao: Boolean(row.fase_conversao),
   };
 }
 
@@ -25,7 +26,7 @@ export async function fetchKanbanFasesAtivas(
 ): Promise<KanbanFase[]> {
   const { data: fasesRows, error } = await supabase
     .from('kanban_fases')
-    .select('id, nome, ordem, sla_dias, slug, instrucoes, materiais')
+    .select('id, nome, ordem, sla_dias, slug, instrucoes, materiais, fase_conversao')
     .eq('kanban_id', kanbanId)
     .eq('ativo', true)
     .order('ordem');
@@ -51,7 +52,7 @@ export async function augmentKanbanFasesComFasesDosCards(
 
   const { data: extraRows, error } = await supabase
     .from('kanban_fases')
-    .select('id, nome, ordem, sla_dias, slug, instrucoes, materiais')
+    .select('id, nome, ordem, sla_dias, slug, instrucoes, materiais, fase_conversao')
     .eq('kanban_id', kanbanId)
     .in('id', missing);
 
