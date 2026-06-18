@@ -15,6 +15,77 @@ export const CAMPOS_SLUG_RESPONSAVEL_FASE_LEGADO = [
 
 type FaseOrdemRow = { id: string; ordem: number; slug?: string | null };
 
+type ChecklistItemResponsavelRow = {
+  id: string;
+  campo_slug?: string | null;
+  label?: string | null;
+  tipo?: string | null;
+};
+
+function normalizarLabelResponsavelFase(label: string | null | undefined): boolean {
+  const t = String(label ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+  return t === 'responsavel da fase';
+}
+
+/** Item de checklist que representa o responsável da fase (slug, label ou legado). */
+export function isChecklistItemResponsavelFase(item: ChecklistItemResponsavelRow): boolean {
+  const slug = String(item.campo_slug ?? '').trim();
+  if ((CAMPOS_SLUG_RESPONSAVEL_FASE_LEGADO as readonly string[]).includes(slug as (typeof CAMPOS_SLUG_RESPONSAVEL_FASE_LEGADO)[number])) {
+    return true;
+  }
+  if (normalizarLabelResponsavelFase(item.label)) return true;
+  const label = String(item.label ?? '').trim().toLowerCase();
+  return item.tipo === 'usuario' && label.includes('respons') && label.includes('fase');
+}
+
+export function escolherItemResponsavelFaseCanonico(rows: ChecklistItemResponsavelRow[]): string | null {
+  if (rows.length === 0) return null;
+  const bySlug = rows.find((r) => String(r.campo_slug ?? '').trim() === CAMPO_SLUG_RESPONSAVEL_FASE);
+  if (bySlug?.id) return String(bySlug.id);
+  const byLabel = rows.find((r) => normalizarLabelResponsavelFase(r.label));
+  if (byLabel?.id) return String(byLabel.id);
+  return String(rows[0]?.id ?? '').trim() || null;
+}
+
+/** Resolve o item editável de responsável da fase (sidebar / upsert). */
+export async function buscarItemIdResponsavelFaseEdicao(
+  supabase: SupabaseClient,
+  faseId: string,
+): Promise<string | null> {
+  const fid = faseId.trim();
+  if (!fid) return null;
+
+  const { data: rowsSlug } = await supabase
+    .from('kanban_fase_checklist_itens')
+    .select('id, campo_slug, label, tipo')
+    .eq('fase_id', fid)
+    .in('campo_slug', [...CAMPOS_SLUG_RESPONSAVEL_FASE_LEGADO]);
+
+  let rows = (rowsSlug ?? []) as ChecklistItemResponsavelRow[];
+  if (rows.length === 0) {
+    const { data: rowsLabel } = await supabase
+      .from('kanban_fase_checklist_itens')
+      .select('id, campo_slug, label, tipo')
+      .eq('fase_id', fid)
+      .eq('label', RESPONSAVEL_FASE_CHECKLIST_LABEL);
+    rows = (rowsLabel ?? []) as ChecklistItemResponsavelRow[];
+  }
+  if (rows.length === 0) {
+    const { data: rowsUsuario } = await supabase
+      .from('kanban_fase_checklist_itens')
+      .select('id, campo_slug, label, tipo')
+      .eq('fase_id', fid)
+      .eq('tipo', 'usuario');
+    rows = ((rowsUsuario ?? []) as ChecklistItemResponsavelRow[]).filter(isChecklistItemResponsavelFase);
+  }
+
+  return escolherItemResponsavelFaseCanonico(rows);
+}
+
 function valorResponsavelValido(valor: string | null | undefined): string | null {
   const v = String(valor ?? '').trim();
   return v || null;
@@ -116,7 +187,10 @@ export async function propagarResponsavelFaseAoEntrarFase(
     .eq('campo_slug', CAMPO_SLUG_RESPONSAVEL_FASE)
     .maybeSingle();
 
-  const itemId = String((itemDestino as { id?: string } | null)?.id ?? '').trim();
+  let itemId = String((itemDestino as { id?: string } | null)?.id ?? '').trim();
+  if (!itemId) {
+    itemId = (await buscarItemIdResponsavelFaseEdicao(supabase, fid)) ?? '';
+  }
   if (!itemId) return;
 
   const { data: respAtual } = await supabase

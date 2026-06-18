@@ -5,8 +5,8 @@ import { createClient } from '@/lib/supabase/client';
 import { upsertFaseChecklistResposta } from '@/lib/actions/card-actions';
 import { UsuarioChecklistSelect } from '@/components/kanban-shared/UsuarioChecklistSelect';
 import {
+  buscarItemIdResponsavelFaseEdicao,
   buscarValorResponsavelFaseAnterior,
-  CAMPO_SLUG_RESPONSAVEL_FASE,
 } from '@/lib/kanban/responsavel-fase-checklist';
 
 type Props = {
@@ -39,14 +39,7 @@ export function ResponsavelFaseSidebar({ cardId, faseId, readOnly = false, onCha
       setCarregando(true);
       const supabase = createClient();
 
-      const { data: item } = await supabase
-        .from('kanban_fase_checklist_itens')
-        .select('id')
-        .eq('fase_id', faseId)
-        .eq('campo_slug', CAMPO_SLUG_RESPONSAVEL_FASE)
-        .maybeSingle();
-
-      const iid = String((item as { id?: string } | null)?.id ?? '').trim();
+      const iid = (await buscarItemIdResponsavelFaseEdicao(supabase, faseId)) ?? '';
       if (!iid) {
         if (!cancelado) {
           setItemId(null);
@@ -110,7 +103,13 @@ export function ResponsavelFaseSidebar({ cardId, faseId, readOnly = false, onCha
     return <p className="text-[10px] text-stone-400">Carregando responsável…</p>;
   }
 
-  if (!itemId) return null;
+  if (!itemId) {
+    return (
+      <p className="text-[10px] text-stone-400">
+        Campo não configurado nesta fase. Aplique a migration 380 no Supabase.
+      </p>
+    );
+  }
 
   if (readOnly) {
     return (

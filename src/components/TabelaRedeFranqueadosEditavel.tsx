@@ -17,6 +17,7 @@ import { RedeFranqueadoSensitiveBlur } from '@/components/RedeFranqueadoSensitiv
 import { atualizarRedeFranqueado, excluirRedeFranqueado } from '@/app/rede-franqueados/actions';
 import { UFS_BRASIL } from '@/lib/uf';
 import { RedeFranqueadoCellValue } from '@/components/RedeFranqueadoCellValue';
+import { MoniTabelaScrollSync } from '@/components/MoniTabelaScrollSync';
 import { redeAlertError, redeAlertSuccess, redeTh } from '@/app/rede-franqueados/rede-ui';
 
 type AreaAtuacaoItem = { estado: string; cidade: string };
@@ -352,7 +353,7 @@ export function TabelaRedeFranqueadosEditavel({
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-stone-200/90 bg-white shadow-sm">
+      <MoniTabelaScrollSync className="rounded-xl border border-stone-200/90 bg-white shadow-sm">
         <table className="w-full min-w-[1700px] border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-stone-200 bg-stone-50/95">
@@ -552,7 +553,7 @@ export function TabelaRedeFranqueadosEditavel({
             })}
           </tbody>
         </table>
-      </div>
+      </MoniTabelaScrollSync>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-3">
         <p className="text-sm text-stone-600">

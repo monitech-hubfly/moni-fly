@@ -3083,6 +3083,8 @@ export function KanbanCardModal({
   const mostrarColunaAcoesLateral =
     !ocultarGestaoCard &&
     (podeMoverFaseCard || pode('finalizar_cards') || podeArquivarCardPerm);
+  const mostrarResponsavelFasePainel = Boolean(card.fase_id) && !isLegado;
+  const mostrarPainelDireitoCard = mostrarResponsavelFasePainel || mostrarColunaAcoesLateral;
   const ehFunilOperacoes =
     card.kanban_id === KANBAN_IDS.OPERACOES ||
     kanbanNome === 'Funil Pré Obra e Obra' ||
@@ -5363,8 +5365,8 @@ export function KanbanCardModal({
             )}
           </div>
 
-          {/* Direita — ações de movimento do card (mobile: após o centro) */}
-          {mostrarColunaAcoesLateral ? (
+          {/* Direita — responsável, tags e ações (mobile: após o centro) */}
+          {mostrarPainelDireitoCard ? (
           <aside
             className="moni-card-modal-acoes order-2 flex w-full shrink-0 flex-col gap-1.5 overflow-y-auto border-t p-2 text-xs sm:order-3 sm:h-full sm:min-w-0 sm:max-w-[var(--moni-card-modal-acoes-width)] sm:w-[var(--moni-card-modal-acoes-width)] sm:flex-none sm:border-l sm:border-t-0 sm:p-2.5"
             style={{
@@ -5373,7 +5375,7 @@ export function KanbanCardModal({
             }}
             aria-label="Ações do card"
           >
-            {card.fase_id ? (
+            {mostrarResponsavelFasePainel ? (
               <PainelLateralSecao titulo="Responsável da fase">
                 <ResponsavelFaseSidebar
                   cardId={card.id}
@@ -5383,6 +5385,8 @@ export function KanbanCardModal({
               </PainelLateralSecao>
             ) : null}
 
+            {mostrarColunaAcoesLateral ? (
+            <>
             <PainelLateralSecao titulo="Tags">
               <div className="mb-1.5 flex flex-wrap gap-1">
                 {tagsCard.map((t) => (
@@ -5703,6 +5707,8 @@ export function KanbanCardModal({
                   </div>
                 )}
               </PainelLateralSecao>
+            ) : null}
+            </>
             ) : null}
           </aside>
           ) : null}

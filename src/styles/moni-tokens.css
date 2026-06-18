@@ -436,6 +436,38 @@
   pointer-events: none;
 }
 
+.moni-tabela-scroll-track {
+  position: fixed;
+  bottom: 0;
+  z-index: 100;
+  box-sizing: border-box;
+  height: 20px;
+  padding: 4px 0;
+  background: var(--moni-surface-50);
+  border-top: var(--moni-border-width) solid var(--moni-border-default);
+  cursor: pointer;
+  touch-action: none;
+  pointer-events: auto;
+}
+
+.moni-tabela-scroll-thumb {
+  position: absolute;
+  top: 4px;
+  left: 0;
+  height: 12px;
+  border-radius: var(--moni-radius-md);
+  background: var(--moni-navy-300);
+  cursor: grab;
+  touch-action: none;
+  pointer-events: auto;
+  will-change: transform;
+}
+
+.moni-tabela-scroll-thumb:active {
+  cursor: grabbing;
+  background: var(--moni-navy-500);
+}
+
 /* Tipografia editorial (H1, H2 Vogue-style) */
 .moni-heading-display {
   font-family: var(--moni-font-display);

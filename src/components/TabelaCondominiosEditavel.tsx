@@ -21,6 +21,7 @@ import {
   criarCondominio,
   excluirCondominio,
 } from '@/app/rede-franqueados/condominios-actions';
+import { MoniTabelaScrollSync } from '@/components/MoniTabelaScrollSync';
 import { redeAlertError, redeAlertSuccess, redeTh } from '@/app/rede-franqueados/rede-ui';
 import { UFS_BRASIL } from '@/lib/uf';
 
@@ -218,7 +219,7 @@ export function TabelaCondominiosEditavel({
         </div>
       ) : null}
 
-      <div className="overflow-x-auto rounded-xl border border-stone-200/90 bg-white shadow-sm">
+      <MoniTabelaScrollSync className="rounded-xl border border-stone-200/90 bg-white shadow-sm">
         <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-stone-200 bg-stone-50/95">
@@ -355,7 +356,7 @@ export function TabelaCondominiosEditavel({
             })}
           </tbody>
         </table>
-      </div>
+      </MoniTabelaScrollSync>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-3">
         <p className="text-sm text-stone-600">

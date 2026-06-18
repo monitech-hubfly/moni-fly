@@ -12,6 +12,7 @@ import {
   type RedeLoteadorStatus,
 } from '@/lib/rede-loteadores';
 import { arquivarRedeLoteador, atualizarRedeLoteador, criarRedeLoteador } from '@/app/rede-franqueados/rede-loteadores-actions';
+import { MoniTabelaScrollSync } from '@/components/MoniTabelaScrollSync';
 import { redeAlertError, redeAlertSuccess, redeTh } from '@/app/rede-franqueados/rede-ui';
 import { UFS_BRASIL } from '@/lib/uf';
 
@@ -224,7 +225,7 @@ export function TabelaRedeLoteadoresEditavel({
         </div>
       ) : null}
 
-      <div className="overflow-x-auto rounded-xl border border-stone-200/90 bg-white shadow-sm">
+      <MoniTabelaScrollSync className="rounded-xl border border-stone-200/90 bg-white shadow-sm">
         <table className="w-full min-w-[960px] border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-stone-200 bg-stone-50/95">
@@ -336,7 +337,7 @@ export function TabelaRedeLoteadoresEditavel({
             })}
           </tbody>
         </table>
-      </div>
+      </MoniTabelaScrollSync>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-3">
         <p className="text-sm text-stone-600">

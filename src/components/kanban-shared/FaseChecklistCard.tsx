@@ -114,7 +114,7 @@ import { carregarLinkAcoplamentoExecucaoMaterial } from '@/lib/kanban/loteadores
 import { isChecklistItemLinkPlanilhaMapa } from '@/lib/kanban/gbox-planilha-mapa-labels';
 import { salvarDataReuniaoCard, salvarHoraReuniaoCard } from '@/lib/actions/kanban-ata-reuniao';
 import {
-  CAMPO_SLUG_RESPONSAVEL_FASE,
+  isChecklistItemResponsavelFase,
 } from '@/lib/kanban/responsavel-fase-checklist';
 
 export type CondominioChecklistContext = {
@@ -755,7 +755,7 @@ export function FaseChecklistCard({
   }
 
   const itensFiltrados = (isFrank ? itens.filter((it) => it.visivel_candidato) : itens)
-    .filter((it) => it.campo_slug !== CAMPO_SLUG_RESPONSAVEL_FASE)
+    .filter((it) => !isChecklistItemResponsavelFase(it))
     .filter((it) => !isChecklistItemOcultoUi(it))
     .filter((it) => !isLoteadoresPrimeiroContatoFaseSlug(faseSlug) || isLoteadoresPrimeiroContatoCampoVisivel(it))
     .filter((it) => !isLoteadoresR1ConceitoFaseSlug(faseSlug) || isLoteadoresR1ConceitoCampoVisivel(it))
