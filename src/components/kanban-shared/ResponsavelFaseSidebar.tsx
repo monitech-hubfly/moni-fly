@@ -15,6 +15,8 @@ type Props = {
   cardId: string;
   faseId: string;
   kanbanId?: string | null;
+  /** Funil Step One: nome em `rede_franqueados` quando não há profile vinculado. */
+  nomeFranqueadoRede?: string | null;
   readOnly?: boolean;
   usuarioOpcoes?: { id: string; nome: string }[];
   onChange?: (userId: string, nome?: string | null) => void;
@@ -25,6 +27,7 @@ export function ResponsavelFaseSidebar({
   cardId,
   faseId,
   kanbanId = null,
+  nomeFranqueadoRede = null,
   readOnly = false,
   usuarioOpcoes,
   onChange,
@@ -37,6 +40,7 @@ export function ResponsavelFaseSidebar({
 
   const stepOne = isKanbanFunilStepOneId(kanbanId);
   const somenteLeitura = readOnly;
+  const nomeRede = String(nomeFranqueadoRede ?? '').trim();
 
   useEffect(() => {
     syncFeitoRef.current = '';
@@ -63,6 +67,25 @@ export function ResponsavelFaseSidebar({
         return;
       }
 
+      if (stepOne) {
+        const franqueadoId = await sincronizarResponsavelFaseStepOne(supabase, cardId, faseId);
+        const { data: resp } = await supabase
+          .from('kanban_fase_checklist_respostas')
+          .select('valor')
+          .eq('card_id', cardId)
+          .eq('item_id', iid)
+          .maybeSingle();
+        let valorAtual = String((resp as { valor?: string | null } | null)?.valor ?? '').trim();
+        if (!valorAtual && franqueadoId) valorAtual = franqueadoId;
+
+        if (!cancelado) {
+          setItemId(iid);
+          setValor(valorAtual);
+          setCarregando(false);
+        }
+        return;
+      }
+
       const { data: resp } = await supabase
         .from('kanban_fase_checklist_respostas')
         .select('valor')
@@ -72,23 +95,18 @@ export function ResponsavelFaseSidebar({
 
       let valorAtual = String((resp as { valor?: string | null } | null)?.valor ?? '').trim();
 
-      if (stepOne) {
-        const franqueadoId = await sincronizarResponsavelFaseStepOne(supabase, cardId, faseId);
-        if (franqueadoId) valorAtual = franqueadoId;
-      } else if (!stepOne) {
-        const syncKey = `${cardId}:${faseId}`;
-        if (!valorAtual && syncFeitoRef.current !== syncKey) {
-          syncFeitoRef.current = syncKey;
-          const herdado = await buscarValorResponsavelFaseAnterior(supabase, cardId, faseId);
-          if (herdado) {
-            valorAtual = herdado;
-            await upsertFaseChecklistResposta({
-              item_id: iid,
-              card_id: cardId,
-              valor: herdado,
-              arquivo_path: null,
-            });
-          }
+      const syncKey = `${cardId}:${faseId}`;
+      if (!valorAtual && syncFeitoRef.current !== syncKey) {
+        syncFeitoRef.current = syncKey;
+        const herdado = await buscarValorResponsavelFaseAnterior(supabase, cardId, faseId);
+        if (herdado) {
+          valorAtual = herdado;
+          await upsertFaseChecklistResposta({
+            item_id: iid,
+            card_id: cardId,
+            valor: herdado,
+            arquivo_path: null,
+          });
         }
       }
 
@@ -133,11 +151,21 @@ export function ResponsavelFaseSidebar({
     );
   }
 
+  if (stepOne && !valor && nomeRede) {
+    return (
+      <p className="text-[11px] font-medium text-stone-800" title="Franqueado da rede (sem login vinculado)">
+        {nomeRede}
+      </p>
+    );
+  }
+
   if (somenteLeitura) {
     return (
       <p className="text-[11px] text-stone-700">
         {valor ? (
-          <ResponsavelFaseSidebarReadonly userId={valor} />
+          <ResponsavelFaseSidebarReadonly userId={valor} fallbackNome={nomeRede} />
+        ) : nomeRede ? (
+          nomeRede
         ) : (
           <span className="text-stone-400">Não definido</span>
         )}
@@ -145,18 +173,29 @@ export function ResponsavelFaseSidebar({
     );
   }
 
+  const opcoesComFranqueado =
+    stepOne && valor && nomeRede && !usuarioOpcoes?.some((o) => o.id === valor)
+      ? [{ id: valor, nome: nomeRede }, ...(usuarioOpcoes ?? [])]
+      : usuarioOpcoes;
+
   return (
     <UsuarioChecklistSelect
       label=""
       value={valor}
       salvando={salvando}
-      opcoes={usuarioOpcoes}
+      opcoes={opcoesComFranqueado}
       onChange={(v) => void salvar(v)}
     />
   );
 }
 
-function ResponsavelFaseSidebarReadonly({ userId }: { userId: string }) {
+function ResponsavelFaseSidebarReadonly({
+  userId,
+  fallbackNome = null,
+}: {
+  userId: string;
+  fallbackNome?: string | null;
+}) {
   const [nome, setNome] = useState<string | null>(null);
 
   useEffect(() => {
@@ -165,13 +204,14 @@ function ResponsavelFaseSidebarReadonly({ userId }: { userId: string }) {
       const supabase = createClient();
       const { data } = await supabase.from('profiles').select('full_name').eq('id', userId).maybeSingle();
       if (!cancelado) {
-        setNome(String((data as { full_name?: string | null } | null)?.full_name ?? '').trim() || userId.slice(0, 8));
+        const fn = String((data as { full_name?: string | null } | null)?.full_name ?? '').trim();
+        setNome(fn || String(fallbackNome ?? '').trim() || userId.slice(0, 8));
       }
     })();
     return () => {
       cancelado = true;
     };
-  }, [userId]);
+  }, [userId, fallbackNome]);
 
   return <span>{nome ?? '…'}</span>;
 }
