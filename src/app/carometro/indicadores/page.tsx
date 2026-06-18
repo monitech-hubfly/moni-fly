@@ -15,7 +15,7 @@ import IndicadorPrazoAtingivelField from '@/components/IndicadorPrazoAtingivelFi
 import { normalizarSemaforo, faixaTextoResumo, ESCALA_OPCOES, escalaTipoDoIndicador } from '@/utils/semaforoFaixas'
 import { parseSemanaMetaTexto } from '@/utils/metaCiclo'
 import { concluirIndicadorAtingivel } from '@/utils/indicadorConquista'
-import { listarEscalasCustom, salvarNovaEscalaCustom, notificarEscalasCustomAtualizadas, getEscalaCustom } from '@/utils/escalasCustom'
+import { listarEscalasCustom, carregarEscalasCustom, salvarNovaEscalaCustom, notificarEscalasCustomAtualizadas, getEscalaCustom } from '@/utils/escalasCustom'
 
 const SQL_SEMAFORO_FAIXAS = `ALTER TABLE indicadores ADD COLUMN IF NOT EXISTS semaforo_faixas jsonb;`
 const SQL_INDICADORES_POR_AREA = `ALTER TABLE indicadores ADD COLUMN IF NOT EXISTS area_id uuid REFERENCES areas(id) ON DELETE CASCADE;
@@ -509,6 +509,10 @@ export default function Page() {
   }, [])
 
   useEffect(() => {
+    carregarEscalasCustom(supabase).then(() => setEscalasCustom(listarEscalasCustom()))
+  }, [supabase])
+
+  useEffect(() => {
     setPortalMontado(true)
   }, [])
 
@@ -716,7 +720,7 @@ export default function Page() {
     if (!isAdmin) return
     setErroNovaEscala('')
     setSalvandoNovaEscala(true)
-    const res = salvarNovaEscalaCustom({
+    const res = await salvarNovaEscalaCustom(supabase, {
       nome: novaEscalaNome,
       modo: novaEscalaModo,
       valores: novaEscalaModo === 'lista' ? novaEscalaValores : undefined

@@ -1,45 +1,66 @@
 /**
- * Escalas de indicador definidas pelo admin (armazenamento local no navegador).
- * Permite adicionar tipos além dos pré-definidos sem migração de banco.
- * Indicadores que usam uma escala custom gravam escala_custom_id em semaforo_faixas (JSON).
+ * Escalas de indicador — persistidas na tabela `escalas_custom` do banco.
+ * Um cache de módulo mantém `getEscalaCustom` síncrono (compatível com semaforoFaixas.js).
+ * Chame `carregarEscalasCustom(supabase)` durante o data-loading do componente para
+ * popular o cache antes do primeiro render que precise de `getEscalaCustom`.
  */
-
-const STORAGE_KEY = 'carometro_escalas_indicador_v1'
-
-function safeParse(json) {
-  try {
-    return JSON.parse(json)
-  } catch {
-    return []
-  }
-}
 
 /** @typedef {{ id: string, nome: string, modo: 'lista'|'percentual'|'numero', valores?: string[], criadoEm?: string }} EscalaCustom */
 
-/** @returns {EscalaCustom[]} */
+/** @type {EscalaCustom[] | null} */
+let _cache = null
+
+/** Cache síncrono — populado por carregarEscalasCustom(). */
 export function listarEscalasCustom() {
-  if (typeof window === 'undefined') return []
-  const raw = window.localStorage.getItem(STORAGE_KEY)
-  const arr = safeParse(raw || '[]')
-  return Array.isArray(arr) ? arr.filter(x => x && x.id && x.nome && x.modo) : []
-}
-
-/** @param {string} id */
-export function getEscalaCustom(id) {
-  if (!id) return null
-  return listarEscalasCustom().find(e => e.id === id) || null
-}
-
-function uid() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
-  return `ec_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+  return _cache || []
 }
 
 /**
- * @param {{ nome: string, modo: 'lista'|'percentual'|'numero', valores?: string[] }} def
- * @returns {{ ok: true, escala: EscalaCustom } | { ok: false, erro: string }}
+ * Lookup síncrono (lê do cache).
+ * @param {string} id
+ * @returns {EscalaCustom | null}
  */
-export function salvarNovaEscalaCustom(def) {
+export function getEscalaCustom(id) {
+  if (!id || !_cache) return null
+  return _cache.find(e => e.id === id) || null
+}
+
+/**
+ * Carrega escalas do banco e popula o cache. Deve ser chamado no data-loading do componente.
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @returns {Promise<EscalaCustom[]>}
+ */
+export async function carregarEscalasCustom(supabase) {
+  try {
+    const { data, error } = await supabase
+      .from('escalas_custom')
+      .select('id, nome, modo, valores, criado_em')
+      .order('nome')
+    if (error) {
+      console.warn('[escalasCustom] erro ao carregar:', error.message)
+      return _cache || []
+    }
+    _cache = (data || []).map(r => ({
+      id: r.id,
+      nome: r.nome,
+      modo: r.modo,
+      valores: Array.isArray(r.valores) ? r.valores : [],
+      criadoEm: r.criado_em,
+    }))
+    return _cache
+  } catch (e) {
+    console.warn('[escalasCustom] erro inesperado:', e?.message || e)
+    return _cache || []
+  }
+}
+
+/**
+ * Salva nova escala no banco e atualiza o cache.
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {{ nome: string, modo: 'lista'|'percentual'|'numero', valores?: string[] }} def
+ * @returns {Promise<{ ok: true, escala: EscalaCustom } | { ok: false, erro: string }>}
+ */
+export async function salvarNovaEscalaCustom(supabase, def) {
   const nome = (def.nome || '').trim()
   if (!nome) return { ok: false, erro: 'Informe o nome da escala.' }
   const modo = def.modo
@@ -60,21 +81,27 @@ export function salvarNovaEscalaCustom(def) {
     }
   }
 
-  const escala = {
-    id: uid(),
-    nome,
-    modo,
-    valores: modo === 'lista' ? valores : undefined,
-    criadoEm: new Date().toISOString()
+  const { data, error } = await supabase
+    .from('escalas_custom')
+    .insert({ nome, modo, valores: modo === 'lista' ? valores : null })
+    .select('id, nome, modo, valores, criado_em')
+    .single()
+
+  if (error || !data) {
+    return { ok: false, erro: error?.message || 'Erro ao salvar escala.' }
   }
 
-  const lista = listarEscalasCustom()
-  lista.push(escala)
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(lista))
-  } catch (e) {
-    return { ok: false, erro: 'Não foi possível salvar (armazenamento cheio ou bloqueado).' }
+  const escala = {
+    id: data.id,
+    nome: data.nome,
+    modo: data.modo,
+    valores: Array.isArray(data.valores) ? data.valores : [],
+    criadoEm: data.criado_em,
   }
+
+  if (_cache) _cache.push(escala)
+  else _cache = [escala]
+
   return { ok: true, escala }
 }
 

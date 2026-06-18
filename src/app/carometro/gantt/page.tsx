@@ -30,6 +30,7 @@ import {
   indicadorEntradaLancamentoNumerica,
   indicadorInputModeLancamento
 } from '@/utils/semaforoFaixas'
+import { carregarEscalasCustom } from '@/utils/escalasCustom'
 import { concluirIndicadorAtingivel } from '@/utils/indicadorConquista'
 import { classificarErroSupabase } from '@/utils/supabaseErroPostgres'
 import { usePastelariaGanttBloco } from '@/components/carometro/PastelariaGanttBloco'
@@ -1874,6 +1875,7 @@ export default function Page() {
   }
 
   async function carregarIndicadoresLista() {
+    await carregarEscalasCustom(supabase)
     if (!areaId) {
       setIndicadoresPorObjetivo({})
       lancamentosRawCacheRef.current = { key: '', rows: [] }

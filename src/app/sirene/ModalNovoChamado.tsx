@@ -2,7 +2,12 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Trash2 } from 'lucide-react';
-import { buscarCardsParaNovoChamadoSirene, type SireneVinculoCardBuscaItem } from './actions';
+import {
+  buscarFunisParaNovoChamadoSirene,
+  buscarCardsParaNovoChamadoSirene,
+  type SireneVinculoCardBuscaItem,
+  type SireneFunilItem,
+} from './actions';
 import { criarChamadoSireneComAtividade, criarSubInteracao } from '@/lib/actions/card-actions';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -33,11 +38,14 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
   const [uploaderNome, setUploaderNome] = useState('Usuário');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [buscaCard, setBuscaCard] = useState('');
+
+  // Vinculo card — funil-first
+  const [funisList, setFunisList] = useState<SireneFunilItem[]>([]);
+  const [funilSelecionado, setFunilSelecionado] = useState<SireneFunilItem | null>(null);
+  const [carregandoFunis, setCarregandoFunis] = useState(false);
   const [cardOpcoes, setCardOpcoes] = useState<SireneVinculoCardBuscaItem[]>([]);
+  const [carregandoCards, setCarregandoCards] = useState(false);
   const [cardVinculo, setCardVinculo] = useState<SireneVinculoCardBuscaItem | null>(null);
-  const [abertoBuscaCard, setAbertoBuscaCard] = useState(false);
-  const [buscandoCards, setBuscandoCards] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -61,37 +69,40 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
           .map((p) => ({
             id: String(p.id),
             nome: String(p.full_name ?? p.email ?? p.id).trim(),
-            email: String(p.email ?? '')
-              .trim()
-              .toLowerCase() || null,
+            email: String(p.email ?? '').trim().toLowerCase() || null,
           }))
           .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
       );
     })();
   }, []);
 
+  // Carregar fúnis disponíveis
+  useEffect(() => {
+    setCarregandoFunis(true);
+    buscarFunisParaNovoChamadoSirene().then((r) => {
+      setCarregandoFunis(false);
+      setFunisList(r.ok ? r.items : []);
+    });
+  }, []);
+
+  // Carregar cards quando funil é selecionado
+  useEffect(() => {
+    if (!funilSelecionado) {
+      setCardOpcoes([]);
+      return;
+    }
+    setCarregandoCards(true);
+    buscarCardsParaNovoChamadoSirene('', funilSelecionado.id).then((r) => {
+      setCarregandoCards(false);
+      setCardOpcoes(r.ok ? r.items : []);
+    });
+  }, [funilSelecionado]);
+
   const timesChips = useMemo(() => timesOpcoesReceberChamado(kanbanTimes), [kanbanTimes]);
   const responsaveisFiltrados = useMemo(
     () => responsaveisFiltradosPorTimesIds(atividades[0]?.timesIds ?? [], timesChips, responsaveisOpcoes),
     [atividades, timesChips, responsaveisOpcoes],
   );
-
-  useEffect(() => {
-    const q = buscaCard.trim();
-    if (q.length < 2) {
-      setCardOpcoes([]);
-      return;
-    }
-    const t = window.setTimeout(() => {
-      setBuscandoCards(true);
-      buscarCardsParaNovoChamadoSirene(q).then((r) => {
-        setBuscandoCards(false);
-        if (r.ok) setCardOpcoes(r.items);
-        else setCardOpcoes([]);
-      });
-    }, 300);
-    return () => window.clearTimeout(t);
-  }, [buscaCard]);
 
   function adicionarAtividade() {
     setAtividades((prev) => [...prev, { ...ATIVIDADE_FORM_DRAFT_VAZIO }]);
@@ -117,7 +128,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     setTrava(false);
     setAtividades([]);
     setCardVinculo(null);
-    setBuscaCard('');
+    setFunilSelecionado(null);
     setError(null);
   }
 
@@ -238,11 +249,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
     }
   }
 
-  const temRascunho =
-    titulo.trim() ||
-    descricao.trim() ||
-    cardVinculo ||
-    atividades.length > 0;
+  const temRascunho = titulo.trim() || descricao.trim() || cardVinculo || atividades.length > 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -266,11 +273,15 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
             <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
           ) : null}
 
+          {/* Vínculo de card — seleção por funil */}
           <div>
             <label className="mb-1 block text-sm font-medium text-stone-700">Vincular a um card (opcional)</label>
             {cardVinculo ? (
               <div className="flex flex-wrap items-center gap-2 rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-sm">
                 <span className="min-w-0 flex-1 truncate">
+                  {cardVinculo.etapa ? (
+                    <span className="mr-1 text-xs text-stone-500">[{cardVinculo.etapa}]</span>
+                  ) : null}
                   {cardVinculo.titulo} — {cardVinculo.kanban_nome}
                 </span>
                 <button
@@ -278,7 +289,7 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
                   className="text-xs text-red-600 hover:underline"
                   onClick={() => {
                     setCardVinculo(null);
-                    setBuscaCard('');
+                    setFunilSelecionado(null);
                   }}
                 >
                   Remover
@@ -286,40 +297,58 @@ export function ModalNovoChamado({ onClose, onSuccess }: Props) {
               </div>
             ) : (
               <>
-                <input
-                  type="text"
-                  value={buscaCard}
+                {/* Step 1: Selecionar funil */}
+                <select
+                  value={funilSelecionado?.id ?? ''}
                   onChange={(e) => {
-                    setBuscaCard(e.target.value);
-                    setAbertoBuscaCard(true);
+                    const id = e.target.value;
+                    if (!id) {
+                      setFunilSelecionado(null);
+                      setCardVinculo(null);
+                      return;
+                    }
+                    const funil = funisList.find((f) => f.id === id) ?? null;
+                    setFunilSelecionado(funil);
+                    setCardVinculo(null);
                   }}
+                  disabled={carregandoFunis}
                   className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
-                  placeholder="Buscar card aberto por título…"
-                />
-                {abertoBuscaCard && buscaCard.trim().length >= 2 ? (
-                  <ul className="mt-1 max-h-40 overflow-auto rounded-lg border border-stone-200 bg-white py-1 shadow">
-                    {buscandoCards ? (
-                      <li className="px-3 py-2 text-sm text-stone-500">Buscando…</li>
+                >
+                  <option value="">{carregandoFunis ? 'Carregando fúnis…' : 'Selecione o Funil…'}</option>
+                  {funisList.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.nome}
+                      {f.origem === 'legado' ? ' (legado)' : ''}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Step 2: Listar cards do funil */}
+                {funilSelecionado && (
+                  <ul className="mt-1 max-h-48 overflow-auto rounded-lg border border-stone-200 bg-white py-1 shadow">
+                    {carregandoCards ? (
+                      <li className="px-3 py-2 text-sm text-stone-500">Carregando cards…</li>
+                    ) : cardOpcoes.length === 0 ? (
+                      <li className="px-3 py-2 text-sm text-stone-400">Nenhum card encontrado.</li>
                     ) : (
                       cardOpcoes.map((c) => (
                         <li key={`${c.origem}-${c.card_id ?? c.processo_id}`}>
                           <button
                             type="button"
                             className="w-full px-3 py-2 text-left text-sm hover:bg-stone-100"
-                            onClick={() => {
-                              setCardVinculo(c);
-                              setBuscaCard('');
-                              setAbertoBuscaCard(false);
-                            }}
+                            onClick={() => setCardVinculo(c)}
                           >
+                            {c.etapa ? (
+                              <span className="mr-1 text-xs text-stone-500">[{c.etapa}]</span>
+                            ) : null}
                             {c.titulo}
-                            <span className="block text-xs text-stone-500">{c.kanban_nome}</span>
+                            <span className="block text-xs text-stone-400">{c.kanban_nome}</span>
                           </button>
                         </li>
                       ))
                     )}
                   </ul>
-                ) : null}
+                )}
               </>
             )}
             {cardVinculo ? (

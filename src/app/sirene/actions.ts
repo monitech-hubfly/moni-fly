@@ -1016,12 +1016,76 @@ export type SireneVinculoCardBuscaItem = {
   processo_id?: string | null;
   titulo: string;
   kanban_nome: string;
+  /** Nome da fase/etapa para exibição no modal. */
+  etapa?: string | null;
   origem: 'nativo' | 'legado';
 };
 
-/** Autocomplete: cards nativos + legado (view) por título — para vínculo opcional no novo chamado. */
+export type SireneFunilItem = {
+  id: string;
+  nome: string;
+  /** 'nativo' = só kanban_cards; 'legado' = só processo_step_one; 'ambos' = ambas as fontes. */
+  origem: 'nativo' | 'legado' | 'ambos';
+};
+
+/** Fúnis disponíveis para vínculo no novo chamado (nativos + legados, deduplicados). */
+export async function buscarFunisParaNovoChamadoSirene(): Promise<
+  { ok: true; items: SireneFunilItem[] } | { ok: false; error: string }
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const admin = createAdminClient();
+
+  const { data: nativeRows, error: nErr } = await admin
+    .from('kanban_cards')
+    .select('kanban_id')
+    .eq('arquivado', false)
+    .limit(2000);
+  if (nErr) return { ok: false, error: nErr.message };
+
+  const nativeSet = new Set(
+    (nativeRows ?? []).map((r) => String((r as { kanban_id?: string }).kanban_id ?? '')).filter(Boolean),
+  );
+
+  const { data: legRows, error: lErr } = await admin
+    .from('v_processo_como_kanban_cards')
+    .select('kanban_id')
+    .limit(500);
+  if (lErr) return { ok: false, error: lErr.message };
+
+  const legSet = new Set(
+    (legRows ?? []).map((r) => String((r as { kanban_id?: string }).kanban_id ?? '')).filter(Boolean),
+  );
+
+  const allIds = [...new Set([...nativeSet, ...legSet])];
+  if (allIds.length === 0) return { ok: true, items: [] };
+
+  const { data: kbs } = await admin.from('kanbans').select('id, nome').in('id', allIds).order('nome');
+  const items: SireneFunilItem[] = (kbs ?? []).map((kb) => {
+    const id = String((kb as { id: string }).id);
+    const isN = nativeSet.has(id);
+    const isL = legSet.has(id);
+    return {
+      id,
+      nome: String((kb as { nome?: string }).nome ?? ''),
+      origem: isN && isL ? 'ambos' : isL ? 'legado' : 'nativo',
+    };
+  });
+
+  return { ok: true, items };
+}
+
+/**
+ * Autocomplete: cards nativos + legado por título.
+ * Se `kanbanId` for fornecido, filtra por funil e permite busca vazia (lista todos do funil).
+ */
 export async function buscarCardsParaNovoChamadoSirene(
   busca: string,
+  kanbanId?: string,
 ): Promise<{ ok: true; items: SireneVinculoCardBuscaItem[] } | { ok: false; error: string }> {
   const supabase = await createClient();
   const {
@@ -1030,19 +1094,28 @@ export async function buscarCardsParaNovoChamadoSirene(
   if (!user) return { ok: false, error: 'Faça login.' };
 
   const q = busca.trim();
-  if (q.length < 2) return { ok: true, items: [] };
+  if (!kanbanId && q.length < 2) return { ok: true, items: [] };
 
   const admin = createAdminClient();
-  const pattern = `%${q.replace(/%/g, '\\%').replace(/_/g, '\\_')}%`;
+  const pattern = q ? `%${q.replace(/%/g, '\\%').replace(/_/g, '\\_')}%` : null;
   const out: SireneVinculoCardBuscaItem[] = [];
   const seen = new Set<string>();
+  const limit = kanbanId ? 80 : 18;
 
-  const { data: nativeCards, error: nErr } = await admin
-    .from('kanban_cards')
-    .select('id, titulo, kanban_id')
-    .ilike('titulo', pattern)
-    .limit(18);
+  // --- Nativos ---
+  let nativeQ = admin.from('kanban_cards').select('id, titulo, kanban_id, fase_id').eq('arquivado', false);
+  if (kanbanId) nativeQ = nativeQ.eq('kanban_id', kanbanId);
+  if (pattern) nativeQ = nativeQ.ilike('titulo', pattern);
+  nativeQ = nativeQ.order('titulo').limit(limit);
+  const { data: nativeCards, error: nErr } = await nativeQ;
   if (nErr) return { ok: false, error: nErr.message };
+
+  const faseIds = [...new Set((nativeCards ?? []).map((r) => String((r as { fase_id?: string }).fase_id ?? '')).filter(Boolean))];
+  const faseNomeById = new Map<string, string>();
+  if (faseIds.length > 0) {
+    const { data: fases } = await admin.from('kanban_fases').select('id, nome').in('id', faseIds);
+    (fases ?? []).forEach((f) => faseNomeById.set(String((f as { id: string }).id), String((f as { nome?: string }).nome ?? '')));
+  }
 
   const kidSet = new Set<string>();
   for (const r of nativeCards ?? []) {
@@ -1062,33 +1135,33 @@ export async function buscarCardsParaNovoChamadoSirene(
     if (seen.has(key)) continue;
     seen.add(key);
     const kid = String((r as { kanban_id?: string }).kanban_id ?? '');
+    const fid = String((r as { fase_id?: string }).fase_id ?? '');
     out.push({
       card_id: id,
       titulo: String((r as { titulo?: string | null }).titulo ?? 'Sem título'),
       kanban_nome: kbNomeById.get(kid) || '—',
+      etapa: faseNomeById.get(fid) || null,
       origem: 'nativo',
     });
   }
 
-  const { data: legRows, error: lErr } = await admin
-    .from('v_processo_como_kanban_cards')
-    .select('id, titulo, kanban_id')
-    .ilike('titulo', pattern)
-    .limit(12);
+  // --- Legados (IDs são de processo_step_one → usam processo_id, sem FK constraint em card_id) ---
+  let legQ = admin.from('v_processo_como_kanban_cards').select('id, titulo, kanban_id, fase_id, etapa_slug');
+  if (kanbanId) legQ = legQ.eq('kanban_id', kanbanId);
+  if (pattern) legQ = legQ.ilike('titulo', pattern);
+  legQ = legQ.order('titulo').limit(limit);
+  const { data: legRows, error: lErr } = await legQ;
   if (lErr) return { ok: false, error: lErr.message };
 
-  // A view legada pode conter IDs que não existem em kanban_cards.
-  // sirene_chamados.card_id tem FK → kanban_cards, então filtramos aqui.
-  const legIds = (legRows ?? []).map((r) => String((r as { id: string }).id)).filter(Boolean);
-  let validLegIds = new Set<string>();
-  if (legIds.length > 0) {
-    const { data: validCards } = await admin.from('kanban_cards').select('id').in('id', legIds);
-    validLegIds = new Set((validCards ?? []).map((c) => String((c as { id: string }).id)));
+  const legFaseIds = [...new Set((legRows ?? []).map((r) => String((r as { fase_id?: string }).fase_id ?? '')).filter(Boolean))];
+  const legFaseNomeById = new Map<string, string>();
+  if (legFaseIds.length > 0) {
+    const { data: legFases } = await admin.from('kanban_fases').select('id, nome').in('id', legFaseIds);
+    (legFases ?? []).forEach((f) => legFaseNomeById.set(String((f as { id: string }).id), String((f as { nome?: string }).nome ?? '')));
   }
-  const filteredLegRows = (legRows ?? []).filter((r) => validLegIds.has(String((r as { id: string }).id)));
 
   const kidSet2 = new Set<string>();
-  for (const r of filteredLegRows) {
+  for (const r of legRows ?? []) {
     const kid = String((r as { kanban_id?: string }).kanban_id ?? '');
     if (kid) kidSet2.add(kid);
   }
@@ -1099,22 +1172,25 @@ export async function buscarCardsParaNovoChamadoSirene(
       (kbs2 ?? []).map((k) => [String((k as { id: string }).id), String((k as { nome?: string }).nome ?? '')]),
     );
   }
-  for (const r of filteredLegRows) {
+  for (const r of legRows ?? []) {
     const id = String((r as { id: string }).id);
     const key = `l:${id}`;
     if (seen.has(key)) continue;
     seen.add(key);
     const kid = String((r as { kanban_id?: string }).kanban_id ?? '');
+    const fid = String((r as { fase_id?: string }).fase_id ?? '');
+    const etapaSlug = String((r as { etapa_slug?: string | null }).etapa_slug ?? '');
     out.push({
       card_id: null,
       processo_id: id,
       titulo: String((r as { titulo?: string | null }).titulo ?? 'Sem título'),
-      kanban_nome: kbNome2.get(kid) || 'Funil Step One',
+      kanban_nome: kbNome2.get(kid) || '—',
+      etapa: legFaseNomeById.get(fid) || etapaSlug || null,
       origem: 'legado',
     });
   }
 
-  return { ok: true, items: out.slice(0, 24) };
+  return { ok: true, items: out.slice(0, kanbanId ? 160 : 24) };
 }
 
 /** Redirecionar chamado para HDM. Apenas Bombeiro. */
