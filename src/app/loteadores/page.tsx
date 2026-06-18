@@ -43,15 +43,15 @@ export default async function LoteadoresKanbanPage({
   } = await supabase.auth.getUser();
   guardLoginRequired(user);
 
-  const { kanban, fases, cards, cardsConcluidos, role } = await fetchKanbanBoardSnapshot(
+  const { kanban, fases, cards, cardsConcluidos, role, isAdmin } = await fetchKanbanBoardSnapshot(
     supabase,
     KANBAN_NOME_FUNIL_LOTEADORES,
     user.id,
   );
 
-  const isStaff = isStaffKanbanLoteadores(role);
+  const isStaff = isAdmin || isStaffKanbanLoteadores(role);
   const primeiraFaseContatoId = resolverPrimeiraFaseContatoLoteadores(fases ?? []);
-  /** Botão visível para staff; permissão fina (`criar_cards`) validada no client e ao salvar. */
+  /** Botão visível para todo o time interno (admin/team); não depende da matriz `criar_cards`. */
   const exibirNovoCard = isStaff && Boolean(primeiraFaseContatoId);
 
   if (!kanban) {
@@ -102,7 +102,7 @@ export default async function LoteadoresKanbanPage({
               columnAccent="var(--moni-kanban-stepone)"
               currentUserId={user.id}
               mostrarLinkNovoCard={exibirNovoCard}
-              podeCriarCards={isStaff}
+              podeCriarCards={exibirNovoCard ? true : false}
               kanbanNome="Funil Loteadores"
               kanbanId={kanban.id}
             />

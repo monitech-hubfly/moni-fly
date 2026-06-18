@@ -29,9 +29,9 @@ export type KanbanBoardProps = {
   cardQueryParam?: string;
   /** Para filtro “Eu” (responsável = usuário logado). */
   currentUserId?: string | null;
-  /** Exibe o atalho “+ Novo card” (`?novo=true`) quando `pode('criar_cards')`. */
+  /** Exibe o atalho “+ Novo card” (`?novo=true`). Com `podeCriarCards={true}` no pai, ignora matriz no client. */
   mostrarLinkNovoCard?: boolean;
-  /** Quando informado, substitui `usePermissoes` (evita botão oculto se a matriz ainda não carregou). */
+  /** Quando `true`, força exibição; quando `undefined`, usa `usePermissoes`; quando `false`, oculta. */
   podeCriarCards?: boolean;
   /** Quando informado, substitui heurística de `mover_fase` + role. */
   podeMoverCards?: boolean;
@@ -165,12 +165,16 @@ export function KanbanBoard({
       userRole === 'consultor');
 
   const nAtivos = countKanbanBoardFiltrosAtivos(filtros);
-  const podeCriarCards = podeCriarCardsProp ?? pode('criar_cards');
+  /** Quando o pai passa `true`, não espera a matriz `criar_cards` no client (evita botão oculto para o time). */
+  const exibirBotaoNovoCard =
+    Boolean(mostrarLinkNovoCard) &&
+    (podeCriarCardsProp === true ||
+      (podeCriarCardsProp === undefined && pode('criar_cards')));
 
   return (
     <div className="min-w-0 space-y-3">
       <div className="relative flex flex-wrap items-center gap-3">
-        {mostrarLinkNovoCard && podeCriarCards ? (
+        {exibirBotaoNovoCard ? (
           <Link
             href={`${basePath}?novo=true`}
             className="rounded-lg px-4 py-2 text-sm font-medium transition hover:bg-stone-100"

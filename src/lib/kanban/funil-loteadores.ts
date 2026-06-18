@@ -1,4 +1,5 @@
 import type { KanbanFase } from '@/components/kanban-shared/types';
+import { isRedeStaffRole } from '@/lib/authz';
 
 /** Nome do kanban na tabela `kanbans` (ex.: Funil Loteadores). Rota do app: `/loteadores`. */
 export const KANBAN_NOME_FUNIL_LOTEADORES = 'Funil Loteadores' as const;
@@ -17,7 +18,9 @@ export function resolverPrimeiraFaseContatoLoteadores(fases: KanbanFase[]): stri
   return fases[0]?.id ?? null;
 }
 
+/** Admin + team (+ legados consultor/supervisor via `normalizeAccessRole`). */
 export function isStaffKanbanLoteadores(role: string | null | undefined): boolean {
+  if (isRedeStaffRole(role)) return true;
   const r = String(role ?? '').trim().toLowerCase();
-  return r === 'admin' || r === 'team' || r === 'consultor' || r === 'supervisor';
+  return r === 'consultor' || r === 'supervisor';
 }
