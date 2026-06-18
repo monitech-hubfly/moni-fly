@@ -33,9 +33,10 @@ import {
   csvRedeLoteadores,
 } from '@/lib/rede-tabelas-csv-export';
 
-type TabId = 'visao' | 'franqueados' | 'loteadores' | 'empresas' | 'condominios';
+type TabId = 'visao' | 'pipeline' | 'franqueados' | 'loteadores' | 'empresas' | 'condominios';
 
 const TAB_VISAO: { id: TabId; label: string } = { id: 'visao', label: 'Visão geral' };
+const TAB_PIPELINE: { id: TabId; label: string } = { id: 'pipeline', label: 'Pipeline da rede' };
 const TAB_FRANQ: { id: TabId; label: string } = { id: 'franqueados', label: 'Rede de Franqueados' };
 const TAB_LOTE: { id: TabId; label: string } = { id: 'loteadores', label: 'Rede de Loteadores' };
 const TAB_EMP: { id: TabId; label: string } = { id: 'empresas', label: 'Cadastros de Empresas' };
@@ -74,8 +75,11 @@ export function RedeFranqueadosPageTabs({
   showDashboard,
   pipelineDataset = null,
 }: Props) {
+  const showPipelineTab = showStaffTabs && pipelineDataset != null;
+
   const tabs = [
     ...(showDashboard ? [TAB_VISAO] : []),
+    ...(showPipelineTab ? [TAB_PIPELINE] : []),
     TAB_FRANQ,
     ...(showStaffTabs ? [TAB_LOTE, TAB_EMP] : []),
     ...(showCondominiosTab ? [TAB_COND] : []),
@@ -128,26 +132,23 @@ export function RedeFranqueadosPageTabs({
       </div>
 
       <div className="mt-8" role="tabpanel">
-        {resolvedTab === 'visao' && showDashboard ? (
-          <div className="space-y-10">
-            {showStaffTabs && pipelineDataset ? (
-              <section className="space-y-4">
-                <div>
-                  <h2
-                    className="text-xl font-semibold tracking-tight"
-                    style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-display)' }}
-                  >
-                    Pipeline da rede
-                  </h2>
-                  <p className="mt-1 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
-                    Cards ativos em todos os funis, consolidados por unidade de franquia.
-                  </p>
-                </div>
-                <PipelineCardsView mode="franqueadora" dataset={pipelineDataset} defaultGroupBy="franquia" />
-              </section>
-            ) : null}
-            <RedeDashboard rows={rows} />
-          </div>
+        {resolvedTab === 'visao' && showDashboard ? <RedeDashboard rows={rows} /> : null}
+
+        {resolvedTab === 'pipeline' && showPipelineTab && pipelineDataset ? (
+          <section className="space-y-4">
+            <div>
+              <h2
+                className="text-xl font-semibold tracking-tight"
+                style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-display)' }}
+              >
+                Pipeline da rede
+              </h2>
+              <p className="mt-1 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+                Cards ativos em todos os funis, consolidados por unidade de franquia.
+              </p>
+            </div>
+            <PipelineCardsView mode="franqueadora" dataset={pipelineDataset} defaultGroupBy="franquia" />
+          </section>
         ) : null}
 
         {resolvedTab === 'franqueados' ? (
