@@ -197,20 +197,21 @@ export function RedeDashboard({
   const [filtroEstadoCidadeAtuacao, setFiltroEstadoCidadeAtuacao] = useState<string>('');
   const [filtroAno, setFiltroAno] = useState<FiltroAno>('tudo');
 
+  /** FK0000 (Casa Moní) não entra em KPIs, filtros nem gráficos da aba Visão geral. */
+  const rowsVisaoGeral = useMemo(() => filtrarLinhasParaGraficosVisaoGeral(rows), [rows]);
+
   const filteredRows = useMemo(() => {
     if (visaoFranqueado) {
-      return rows.filter((r) => isEmOperacao(norm(r.status_franquia)));
+      return rowsVisaoGeral.filter((r) => isEmOperacao(norm(r.status_franquia)));
     }
-    if (filtro === 'todos') return rows;
-    if (filtro === 'encerrados') return rows.filter((r) => isOperacaoEncerrada(norm(r.status_franquia)));
-    return rows.filter((r) => isEmOperacao(norm(r.status_franquia)));
-  }, [rows, filtro, visaoFranqueado]);
+    if (filtro === 'todos') return rowsVisaoGeral;
+    if (filtro === 'encerrados') {
+      return rowsVisaoGeral.filter((r) => isOperacaoEncerrada(norm(r.status_franquia)));
+    }
+    return rowsVisaoGeral.filter((r) => isEmOperacao(norm(r.status_franquia)));
+  }, [rowsVisaoGeral, filtro, visaoFranqueado]);
 
-  /** FK0000 (Casa Moní) não entra em nenhum gráfico da aba Visão geral. */
-  const linhasGraficos = useMemo(
-    () => filtrarLinhasParaGraficosVisaoGeral(filteredRows),
-    [filteredRows],
-  );
+  const linhasGraficos = filteredRows;
 
   const total = filteredRows.length;
   const totalGraficos = linhasGraficos.length;
@@ -332,7 +333,10 @@ export function RedeDashboard({
     () => linhasGraficos.filter((r) => isEmOperacao(norm(r.status_franquia))),
     [linhasGraficos],
   );
-  const rowsEncerradas = useMemo(() => filteredRows.filter((r) => isOperacaoEncerrada(norm(r.status_franquia))), [filteredRows]);
+  const rowsEncerradas = useMemo(
+    () => linhasGraficos.filter((r) => isOperacaoEncerrada(norm(r.status_franquia))),
+    [linhasGraficos],
+  );
   const rowsPagante = useMemo(
     () => linhasGraficos.filter((r) => isRedeClassificacaoPagante(r.classificacao_franqueado)),
     [linhasGraficos],
@@ -359,9 +363,9 @@ export function RedeDashboard({
     });
   }, [mesArr, filtroAno, rowsPorMes]);
 
-  const totalGeral = rows.length;
-  const operacaoGeral = rows.filter((r) => isEmOperacao(norm(r.status_franquia))).length;
-  const encerradasGeral = rows.filter((r) => isOperacaoEncerrada(norm(r.status_franquia))).length;
+  const totalGeral = rowsVisaoGeral.length;
+  const operacaoGeral = rowsVisaoGeral.filter((r) => isEmOperacao(norm(r.status_franquia))).length;
+  const encerradasGeral = rowsVisaoGeral.filter((r) => isOperacaoEncerrada(norm(r.status_franquia))).length;
 
   const emOperacaoRedeFrank = visaoFranqueado ? operacaoGeral : operacao;
 
@@ -397,7 +401,7 @@ export function RedeDashboard({
               onOpen={() =>
                 setListaModal({
                   titulo: `Em operação (${emOperacaoRedeFrank})`,
-                  rows: rows.filter((r) => isEmOperacao(norm(r.status_franquia))),
+                  rows: rowsVisaoGeral.filter((r) => isEmOperacao(norm(r.status_franquia))),
                 })
               }
             >
