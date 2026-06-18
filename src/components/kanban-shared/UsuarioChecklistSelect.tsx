@@ -62,7 +62,7 @@ export function UsuarioChecklistSelect({
   }, [opcoesProp]);
 
   const inputClass =
-    'w-full rounded-md border px-3 py-1.5 text-sm outline-none focus:ring-1' +
+    'w-full rounded-md border px-2.5 py-1 text-[11px] leading-tight outline-none focus:ring-1' +
     ' bg-white border-[var(--moni-border-default)] text-[var(--moni-text-primary)]' +
     ' focus:ring-[var(--moni-primary-500)] focus:border-[var(--moni-primary-500)]';
 
@@ -83,7 +83,7 @@ export function UsuarioChecklistSelect({
         <select className={inputClass} value={value} onChange={(e) => onChange(e.target.value)}>
           <option value="">Selecione…</option>
           {opcoes.map((o) => (
-            <option key={o.id} value={o.id}>
+            <option key={o.id} value={o.id} className="text-[11px]">
               {o.nome}
             </option>
           ))}
