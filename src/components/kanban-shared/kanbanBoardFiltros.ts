@@ -107,7 +107,13 @@ export function textoVisivelCardKanbanFechado(
   card: KanbanCardBrief,
   fase?: KanbanFase | null,
 ): string {
-  const partes: string[] = [card.titulo, card.status, card.motivo_arquivamento ?? '', card.profiles?.full_name ?? ''];
+  const partes: string[] = [
+    card.titulo,
+    card.status,
+    card.motivo_arquivamento ?? '',
+    card.profiles?.full_name ?? '',
+    card.responsavel_fase_nome ?? '',
+  ];
 
   if (card.origem !== 'legado' && card.arquivado) partes.push('ARQUIVADO');
   if (card.origem !== 'legado' && card.concluido) partes.push('CONCLUÍDO');

@@ -222,6 +222,7 @@ import { ChecklistCard } from './ChecklistCard';
 import { ChecklistLegalCondominioCard } from './ChecklistLegalCondominioCard';
 import { ChecklistCreditoSection } from '@/app/steps-viabilidade/ChecklistCreditoSection';
 import { FaseChecklistCard } from './FaseChecklistCard';
+import { ResponsavelFaseSidebar } from './ResponsavelFaseSidebar';
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
 import {
@@ -5372,6 +5373,16 @@ export function KanbanCardModal({
             }}
             aria-label="Ações do card"
           >
+            {card.fase_id ? (
+              <PainelLateralSecao titulo="Responsável da fase">
+                <ResponsavelFaseSidebar
+                  cardId={card.id}
+                  faseId={card.fase_id}
+                  readOnly={ocultarGestaoCard}
+                />
+              </PainelLateralSecao>
+            ) : null}
+
             <PainelLateralSecao titulo="Tags">
               <div className="mb-1.5 flex flex-wrap gap-1">
                 {tagsCard.map((t) => (

@@ -8,6 +8,7 @@ import {
   fetchKanbanFasesAtivas,
 } from '@/lib/kanban/fetch-kanban-fases';
 import { enrichCardsParalelasContext } from '@/lib/kanban/kanban-paralelas-chips';
+import { enrichCardsComResponsavelFase } from '@/lib/kanban/responsavel-fase-checklist';
 import {
   aplicarFasePorEtapaPainelEmLote,
   buildSlugParaFaseIdMap,
@@ -1138,21 +1139,31 @@ export async function fetchKanbanBoardSnapshot(
     const cardsTagged = cards.map((c) => ({ ...c, tagsCard: byCardId.get(c.id) ?? [] }));
     const cardsConcluidosTagged = cardsConcluidos.map((c) => ({ ...c, tagsCard: byCardId.get(c.id) ?? [] }));
 
+    const [cardsComResp, cardsConcluidosComResp] = await Promise.all([
+      enrichCardsComResponsavelFase(supabase, cardsTagged),
+      enrichCardsComResponsavelFase(supabase, cardsConcluidosTagged),
+    ]);
+
     return {
       kanban: { id: kanbanIdStr },
       fases: fasesComOrfas,
-      cards: cardsTagged,
-      cardsConcluidos: cardsConcluidosTagged,
+      cards: cardsComResp,
+      cardsConcluidos: cardsConcluidosComResp,
       role,
       isAdmin,
     };
   }
 
+  const [cardsComResp, cardsConcluidosComResp] = await Promise.all([
+    enrichCardsComResponsavelFase(supabase, cards),
+    enrichCardsComResponsavelFase(supabase, cardsConcluidos),
+  ]);
+
   return {
     kanban: { id: kanbanIdStr },
     fases: fasesComOrfas,
-    cards,
-    cardsConcluidos,
+    cards: cardsComResp,
+    cardsConcluidos: cardsConcluidosComResp,
     role,
     isAdmin,
   };

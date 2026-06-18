@@ -19,6 +19,7 @@ import {
   montarChipsParalelas,
 } from '@/lib/kanban/kanban-paralelas-chips';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
+import { ResponsavelFaseAvatar } from './ResponsavelFaseAvatar';
 import {
   calcularCorDataTexto,
   labelRelativoData,
@@ -524,7 +525,9 @@ export function KanbanColumn({
                     if (suppressClickRef.current) return;
                     router.push(hrefAbrirCard(basePath, card.id, cardQueryParam, card.origem));
                   }}
-                  className={`block w-full text-left ${dndAtivo ? 'pl-7' : ''}`}
+                  className={`block w-full text-left ${dndAtivo ? 'pl-7' : ''} ${
+                    card.responsavel_fase_nome ? 'pb-7 pr-7' : ''
+                  }`}
                 >
                 {arquivado ? (
                   <span
@@ -549,6 +552,9 @@ export function KanbanColumn({
                     CONCLUÍDO
                   </span>
                 ) : null}
+                <div className="absolute bottom-2 right-2 z-10">
+                  <ResponsavelFaseAvatar nome={card.responsavel_fase_nome} />
+                </div>
                 <p className={`line-clamp-2 text-sm font-medium text-stone-800 ${paddingTitulo}`}>{card.titulo}</p>
                 <KanbanParalelasChips chips={chipsParalelas} compact />
                 {arquivado && motivo ? (

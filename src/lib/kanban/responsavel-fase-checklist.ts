@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { KanbanCardBrief } from '@/components/kanban-shared/types';
 
 /** Slug estável do campo «Responsável da fase» em todo kanban. */
 export const CAMPO_SLUG_RESPONSAVEL_FASE = 'responsavel_fase';
@@ -140,4 +141,88 @@ export async function propagarResponsavelFaseAoEntrarFase(
     },
     { onConflict: 'item_id,card_id' },
   );
+}
+
+function resolverItemResponsavelPorFase(
+  rows: { id: string; fase_id: string; campo_slug: string }[],
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    const faseId = String(row.fase_id ?? '').trim();
+    const itemId = String(row.id ?? '').trim();
+    if (!faseId || !itemId) continue;
+    if (row.campo_slug === CAMPO_SLUG_RESPONSAVEL_FASE) {
+      map.set(faseId, itemId);
+    } else if (!map.has(faseId)) {
+      map.set(faseId, itemId);
+    }
+  }
+  return map;
+}
+
+/** Enriquece cards do board com responsável da fase atual (para avatar no card fechado). */
+export async function enrichCardsComResponsavelFase(
+  supabase: SupabaseClient,
+  cards: KanbanCardBrief[],
+): Promise<KanbanCardBrief[]> {
+  if (cards.length === 0) return cards;
+
+  const faseIds = [...new Set(cards.map((c) => String(c.fase_id ?? '').trim()).filter(Boolean))];
+  if (faseIds.length === 0) return cards;
+
+  const { data: itens } = await supabase
+    .from('kanban_fase_checklist_itens')
+    .select('id, fase_id, campo_slug')
+    .in('fase_id', faseIds)
+    .in('campo_slug', [...CAMPOS_SLUG_RESPONSAVEL_FASE_LEGADO]);
+
+  const itemPorFase = resolverItemResponsavelPorFase(
+    (itens ?? []) as { id: string; fase_id: string; campo_slug: string }[],
+  );
+  const itemIds = [...new Set([...itemPorFase.values()])];
+  if (itemIds.length === 0) return cards;
+
+  const cardIds = cards.map((c) => c.id);
+  const { data: respostas } = await supabase
+    .from('kanban_fase_checklist_respostas')
+    .select('card_id, item_id, valor')
+    .in('card_id', cardIds)
+    .in('item_id', itemIds);
+
+  const respPorCardItem = new Map<string, string>();
+  for (const row of respostas ?? []) {
+    const cid = String((row as { card_id?: string }).card_id ?? '').trim();
+    const iid = String((row as { item_id?: string }).item_id ?? '').trim();
+    const v = valorResponsavelValido((row as { valor?: string | null }).valor);
+    if (cid && iid && v) respPorCardItem.set(`${cid}:${iid}`, v);
+  }
+
+  const userIdPorCard = new Map<string, string>();
+  for (const card of cards) {
+    const itemId = itemPorFase.get(String(card.fase_id ?? '').trim());
+    if (!itemId) continue;
+    const uid = respPorCardItem.get(`${card.id}:${itemId}`);
+    if (uid) userIdPorCard.set(card.id, uid);
+  }
+
+  if (userIdPorCard.size === 0) return cards;
+
+  const userIds = [...new Set([...userIdPorCard.values()])];
+  const { data: profiles } = await supabase.from('profiles').select('id, full_name').in('id', userIds);
+  const nomePorUserId = new Map<string, string>();
+  for (const p of profiles ?? []) {
+    const id = String((p as { id?: string }).id ?? '').trim();
+    const nome = String((p as { full_name?: string | null }).full_name ?? '').trim();
+    if (id) nomePorUserId.set(id, nome || id.slice(0, 8));
+  }
+
+  return cards.map((c) => {
+    const uid = userIdPorCard.get(c.id);
+    if (!uid) return c;
+    return {
+      ...c,
+      responsavel_fase_id: uid,
+      responsavel_fase_nome: nomePorUserId.get(uid) ?? null,
+    };
+  });
 }

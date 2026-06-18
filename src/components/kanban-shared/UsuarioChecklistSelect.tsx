@@ -48,11 +48,15 @@ export function UsuarioChecklistSelect({ label, obrigatorio, value, salvando, on
 
   return (
     <div>
-      <span className="mb-1 block text-xs font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
-        {label}
-        {obrigatorio ? <span className="ml-1 text-red-500">*</span> : null}
-        {salvando ? <Loader2 size={10} className="ml-1 inline animate-spin" /> : null}
-      </span>
+      {label ? (
+        <span className="mb-1 block text-xs font-medium" style={{ color: 'var(--moni-text-secondary)' }}>
+          {label}
+          {obrigatorio ? <span className="ml-1 text-red-500">*</span> : null}
+          {salvando ? <Loader2 size={10} className="ml-1 inline animate-spin" /> : null}
+        </span>
+      ) : salvando ? (
+        <Loader2 size={10} className="mb-1 inline animate-spin" />
+      ) : null}
       {loading ? (
         <p className="text-xs text-stone-500">Carregando usuários…</p>
       ) : (

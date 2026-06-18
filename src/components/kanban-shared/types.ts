@@ -93,6 +93,9 @@ export type KanbanCardBrief = {
   entered_fase_at?: string | null;
   /** Início do SLA (após documentação completa ou outras regras de fase). */
   sla_iniciado_em?: string | null;
+  /** Responsável preenchido no checklist da fase atual (`responsavel_fase`). */
+  responsavel_fase_id?: string | null;
+  responsavel_fase_nome?: string | null;
 };
 
 /** Conteúdo extra do checklist por `fase_id` (sobrescreve placeholder). */

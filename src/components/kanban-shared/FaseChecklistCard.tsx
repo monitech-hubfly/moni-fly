@@ -114,7 +114,6 @@ import { carregarLinkAcoplamentoExecucaoMaterial } from '@/lib/kanban/loteadores
 import { isChecklistItemLinkPlanilhaMapa } from '@/lib/kanban/gbox-planilha-mapa-labels';
 import { salvarDataReuniaoCard, salvarHoraReuniaoCard } from '@/lib/actions/kanban-ata-reuniao';
 import {
-  buscarValorResponsavelFaseAnterior,
   CAMPO_SLUG_RESPONSAVEL_FASE,
 } from '@/lib/kanban/responsavel-fase-checklist';
 
@@ -197,7 +196,6 @@ export function FaseChecklistCard({
   const acoplamentoSyncFeitoRef = useRef('');
   const execucaoMaterialSyncFeitoRef = useRef('');
   const gboxPlanilhaSyncFeitoRef = useRef('');
-  const responsavelFaseSyncFeitoRef = useRef('');
   const [preBatalhaGrupos, setPreBatalhaGrupos] = useState<RankingPorFaixaMercado[]>([]);
 
   const areasAtuacao = parseAreaAtuacao(areaAtuacao);
@@ -224,7 +222,6 @@ export function FaseChecklistCard({
     acoplamentoSyncFeitoRef.current = '';
     execucaoMaterialSyncFeitoRef.current = '';
     gboxPlanilhaSyncFeitoRef.current = '';
-    responsavelFaseSyncFeitoRef.current = '';
   }, [cardId, faseId]);
 
   useEffect(() => {
@@ -316,29 +313,6 @@ export function FaseChecklistCard({
       }
     })();
   }, [carregando, faseSlug, cardId, faseId, itens, redeFranqueado, respostas]);
-
-  /** Responsável da fase: herda valor da fase anterior (ou franqueado do card na 1ª fase). */
-  useEffect(() => {
-    if (carregando || !itens?.length) return;
-
-    const itemResp = itens.find((i) => i.campo_slug === CAMPO_SLUG_RESPONSAVEL_FASE);
-    if (!itemResp) return;
-
-    const atual = respostas.get(itemResp.id)?.valor?.trim() ?? '';
-    if (atual) return;
-
-    const syncKey = `${cardId}:${faseId}`;
-    if (responsavelFaseSyncFeitoRef.current === syncKey) return;
-    responsavelFaseSyncFeitoRef.current = syncKey;
-
-    void (async () => {
-      const supabase = createClient();
-      const valor = await buscarValorResponsavelFaseAnterior(supabase, cardId, faseId);
-      if (!valor) return;
-      setResposta(itemResp.id, { valor });
-      await salvar(itemResp.id, valor);
-    })();
-  }, [carregando, cardId, faseId, itens, respostas]);
 
   /** Primeiro Contato (Loteadores): preenche data/horário a partir do card quando vazios. */
   useEffect(() => {
@@ -781,6 +755,7 @@ export function FaseChecklistCard({
   }
 
   const itensFiltrados = (isFrank ? itens.filter((it) => it.visivel_candidato) : itens)
+    .filter((it) => it.campo_slug !== CAMPO_SLUG_RESPONSAVEL_FASE)
     .filter((it) => !isChecklistItemOcultoUi(it))
     .filter((it) => !isLoteadoresPrimeiroContatoFaseSlug(faseSlug) || isLoteadoresPrimeiroContatoCampoVisivel(it))
     .filter((it) => !isLoteadoresR1ConceitoFaseSlug(faseSlug) || isLoteadoresR1ConceitoCampoVisivel(it))
