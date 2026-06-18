@@ -404,7 +404,8 @@ export const QUARTOS_PADRAO_NOSSA = 4;
 export function notaDiffContagem(nosso: number | null, anuncio: number | null): number {
   if (anuncio == null || nosso == null) return 0;
   const diff = nosso - anuncio;
-  if (diff <= -2) return -2;
+  if (diff <= -3) return -3;
+  if (diff === -2) return -2;
   if (diff === -1) return -1;
   if (diff === 0) return 0;
   if (diff === 1) return 1;
@@ -618,34 +619,38 @@ export function normalizarRooftopCatalogo(raw: RooftopCatalogo): 'S' | 'N' | 'In
   return null;
 }
 
+export type NotaAndaresResult = { nota: number; bloqueado: boolean };
+
 /** Nota Andares (An): depende do tipo predominante da faixa e de andares/rooftop do modelo Moní. */
 export function notaAndares(
   tipoPredominante: string | null | undefined,
   andaresMoni: number | null | undefined,
   rooftop: RooftopCatalogo,
-): number {
+): NotaAndaresResult {
   const tipo = String(tipoPredominante ?? '').trim();
-  if (tipo !== 'Sobrado' && tipo !== 'Térrea') return 0;
+  if (tipo !== 'Sobrado' && tipo !== 'Térrea') {
+    return { nota: 0, bloqueado: true };
+  }
 
   const andares =
     andaresMoni != null && Number.isFinite(Number(andaresMoni)) ? Number(andaresMoni) : null;
-  if (andares == null) return 0;
+  if (andares == null) return { nota: 0, bloqueado: false };
 
   if (tipo === 'Sobrado') {
-    if (andares > 1) return 2;
+    if (andares > 1) return { nota: 2, bloqueado: false };
     if (andares === 1) {
       const rt = normalizarRooftopCatalogo(rooftop);
-      if (rt === 'S') return -2;
-      if (rt === 'N') return -3;
-      if (rt === 'Integrado') return -1;
-      return 0;
+      if (rt === 'S') return { nota: -2, bloqueado: false };
+      if (rt === 'N') return { nota: -3, bloqueado: false };
+      if (rt === 'Integrado') return { nota: -1, bloqueado: false };
+      return { nota: 0, bloqueado: false };
     }
-    return 0;
+    return { nota: 0, bloqueado: false };
   }
 
-  if (andares > 1) return -3;
-  if (andares === 1) return 2;
-  return 0;
+  if (andares > 1) return { nota: -3, bloqueado: false };
+  if (andares === 1) return { nota: 2, bloqueado: false };
+  return { nota: 0, bloqueado: false };
 }
 
 export function formatNotaAn(n: number): string {
@@ -728,7 +733,11 @@ export function calcularNotaProdutoCompleta(
     bFlex,
     ...(suitesFlex ? [suitesFlex] : []),
   );
-  const An = notaAndares(dados?.tipoPredominante, catalogo.andares ?? null, catalogo.rooftop ?? null);
+  const An = notaAndares(
+    dados?.tipoPredominante,
+    catalogo.andares ?? null,
+    catalogo.rooftop ?? null,
+  ).nota;
 
   if (dados?.designId != null || dados?.idade != null) {
     const A = notaAmenidades(anuncio);

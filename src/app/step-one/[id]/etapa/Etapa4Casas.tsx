@@ -320,6 +320,11 @@ export function Etapa4Casas(props: {
     [rankingPorFaixaPreBatalha],
   );
 
+  const preBatalhaTipoPredominanteAusente = useMemo(
+    () => rankingPorFaixaPreBatalha.some((g) => g.tipoPredominanteAusente),
+    [rankingPorFaixaPreBatalha],
+  );
+
   const terrenoFiltraGeometriaPreBatalha = useMemo(
     () =>
       Boolean(
@@ -429,6 +434,7 @@ export function Etapa4Casas(props: {
 
   useEffect(() => {
     if (!modoPreBatalha || listagemOnly || carregandoRankingPreBatalha) return;
+    if (preBatalhaTipoPredominanteAusente) return;
     if (rankingPreBatalha.length === 0) return;
     if (autoMarcadoChecklistPreBatalhaRef.current) return;
 
@@ -452,6 +458,7 @@ export function Etapa4Casas(props: {
     processoId,
     rankingPorFaixaPreBatalha,
     rankingPreBatalha,
+    preBatalhaTipoPredominanteAusente,
   ]);
 
   const [selectedCatalogoIds, setSelectedCatalogoIds] = useState<string[]>(() =>
@@ -460,7 +467,8 @@ export function Etapa4Casas(props: {
   const [syncPreBatalha, setSyncPreBatalha] = useState(false);
 
   useEffect(() => {
-    if (!modoPreBatalha || listagemOnly || rankingPreBatalha.length === 0) return;
+    if (!modoPreBatalha || listagemOnly || preBatalhaTipoPredominanteAusente) return;
+    if (rankingPreBatalha.length === 0) return;
     const ids = rankingPreBatalha.map((m) => m.catalogoId);
     const savedSorted = [...casasEscolhidas.map((c) => c.catalogo_casa_id)].sort().join(',');
     const targetSorted = [...ids].sort().join(',');
@@ -485,6 +493,7 @@ export function Etapa4Casas(props: {
   }, [
     modoPreBatalha,
     listagemOnly,
+    preBatalhaTipoPredominanteAusente,
     rankingPreBatalha,
     casasEscolhidas,
     processoId,
@@ -1531,6 +1540,16 @@ export function Etapa4Casas(props: {
                   </div>
                 ) : syncPreBatalha ? (
                   <p className="text-sm text-stone-500">Sincronizando ranking…</p>
+                ) : preBatalhaTipoPredominanteAusente ? (
+                  <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                    <p className="mb-1 font-semibold">⚠️ Informação obrigatória não preenchida</p>
+                    <p>
+                      O tipo de casa predominante desta faixa não foi informado. Acesse{' '}
+                      <strong>Dados do Condomínio</strong>, preencha o campo &quot;Qual tipo de casa
+                      é predominante nessa faixa?&quot; (Térrea ou Sobrado) e volte para continuar a
+                      Pré Batalha.
+                    </p>
+                  </div>
                 ) : rankingPorFaixaPreBatalha.length === 0 ? (
                   <p className="text-sm text-stone-500">Nenhum modelo no catálogo ativo.</p>
                 ) : (

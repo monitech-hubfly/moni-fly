@@ -165,6 +165,10 @@ export type RankingPorFaixaMercado = {
   /** Todas as combinações modelo × anúncio da faixa. */
   batalhas: BatalhaModeloAnuncioPreBatalha[];
   ranking: RankingModeloPreBatalha[];
+  /** Tipo predominante informado em Dados do Condomínio para esta faixa. */
+  tipoPredominanteFaixa?: TipoCasaPredominanteFaixa | null;
+  /** true quando q_casas_tipo_predominante não está preenchido (Térrea ou Sobrado). */
+  tipoPredominanteAusente?: boolean;
 };
 
 /** @deprecated Importe de `@/lib/kanban/mapa-competidores-condominio`. */
@@ -357,6 +361,8 @@ function camposGeometriaRanking(
 
 export type ResultadoCalcularRankingModelos = {
   ranking: RankingModeloPreBatalha[];
+  /** true quando alguma faixa com anúncios não tem tipo predominante preenchido. */
+  tipoPredominanteAusente?: boolean;
 };
 
 function terrenoComDimensoesParaFiltrar(terreno?: DadosTerreno): terreno is DadosTerreno {
@@ -797,6 +803,11 @@ export function calcularRankingPreBatalhaPorFaixas(
       linhasProspect,
     );
     const confrontosMap = calcularConfrontosModelosNaFaixa(batalhas);
+    const tipoPredominanteFaixa = resolverTipoPredominanteFaixaMercado(
+      linhasProspect,
+      casasFaixa,
+      faixa,
+    );
 
     grupos.push({
       faixa,
@@ -804,6 +815,8 @@ export function calcularRankingPreBatalhaPorFaixas(
       quantidadeAnuncios: casasFaixa.length,
       batalhas,
       ranking: anexarConfrontosAoRanking(ranking, confrontosMap),
+      tipoPredominanteFaixa,
+      tipoPredominanteAusente: tipoPredominanteFaixa == null,
     });
   }
 
@@ -842,7 +855,7 @@ export function calcularRankingModelos(
   const terreno = terrenoArg ?? opts?.terreno;
 
   if (casas.length === 0 || catalogo.length === 0) {
-    return { ranking: [] };
+    return { ranking: [], tipoPredominanteAusente: false };
   }
 
   const grupos = calcularRankingPreBatalhaPorFaixas(casas, catalogo, atributosLote, {
@@ -860,7 +873,10 @@ export function calcularRankingModelos(
     }
   }
 
-  return { ranking: ordenarRankingComInelegiveisNoFinal(ranking) };
+  return {
+    ranking: ordenarRankingComInelegiveisNoFinal(ranking),
+    tipoPredominanteAusente: grupos.some((g) => g.tipoPredominanteAusente),
+  };
 }
 
 /** Rótulo de compatibilidade a partir da nota final Pré Batalha (não do score 0–100 legado). */
