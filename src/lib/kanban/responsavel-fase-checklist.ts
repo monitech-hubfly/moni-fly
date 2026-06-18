@@ -312,6 +312,7 @@ export async function sincronizarResponsavelFaseStepOne(
 
   if (franqueadoId) {
     if (valorAtual === franqueadoId) return franqueadoId;
+    if (valorAtual && !valorIncorreto) return valorAtual;
     await supabase.from('kanban_fase_checklist_respostas').upsert(
       {
         item_id: itemId,
@@ -417,7 +418,7 @@ function valorResponsavelValido(valor: string | null | undefined): string | null
 const VALOR_USUARIO_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function isValorUsuarioUuid(valor: string | null | undefined): boolean {
+export function isValorUsuarioUuid(valor: string | null | undefined): boolean {
   return VALOR_USUARIO_UUID_RE.test(String(valor ?? '').trim());
 }
 

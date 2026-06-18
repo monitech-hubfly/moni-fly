@@ -8,6 +8,7 @@ import {
   buscarItemIdResponsavelFaseEdicao,
   buscarValorResponsavelFaseAnterior,
   isKanbanFunilStepOneId,
+  isValorUsuarioUuid,
   sincronizarResponsavelFaseStepOne,
 } from '@/lib/kanban/responsavel-fase-checklist';
 
@@ -18,9 +19,13 @@ type Props = {
   /** Funil Step One: nome em `rede_franqueados` quando não há profile vinculado. */
   nomeFranqueadoRede?: string | null;
   readOnly?: boolean;
-  usuarioOpcoes?: { id: string; nome: string }[];
   onChange?: (userId: string, nome?: string | null) => void;
 };
+
+function normalizarValorUsuario(valor: string | null | undefined): string {
+  const v = String(valor ?? '').trim();
+  return v && isValorUsuarioUuid(v) ? v : '';
+}
 
 /** Campo «Responsável da fase» no painel lateral do modal (acima de Tags). */
 export function ResponsavelFaseSidebar({
@@ -29,7 +34,6 @@ export function ResponsavelFaseSidebar({
   kanbanId = null,
   nomeFranqueadoRede = null,
   readOnly = false,
-  usuarioOpcoes,
   onChange,
 }: Props) {
   const [itemId, setItemId] = useState<string | null>(null);
@@ -75,7 +79,7 @@ export function ResponsavelFaseSidebar({
           .eq('card_id', cardId)
           .eq('item_id', iid)
           .maybeSingle();
-        let valorAtual = String((resp as { valor?: string | null } | null)?.valor ?? '').trim();
+        let valorAtual = normalizarValorUsuario((resp as { valor?: string | null } | null)?.valor);
         if (!valorAtual && franqueadoId) valorAtual = franqueadoId;
 
         if (!cancelado) {
@@ -93,13 +97,13 @@ export function ResponsavelFaseSidebar({
         .eq('item_id', iid)
         .maybeSingle();
 
-      let valorAtual = String((resp as { valor?: string | null } | null)?.valor ?? '').trim();
+      let valorAtual = normalizarValorUsuario((resp as { valor?: string | null } | null)?.valor);
 
       const syncKey = `${cardId}:${faseId}`;
       if (!valorAtual && syncFeitoRef.current !== syncKey) {
         syncFeitoRef.current = syncKey;
         const herdado = await buscarValorResponsavelFaseAnterior(supabase, cardId, faseId);
-        if (herdado) {
+        if (herdado && isValorUsuarioUuid(herdado)) {
           valorAtual = herdado;
           await upsertFaseChecklistResposta({
             item_id: iid,
@@ -124,18 +128,18 @@ export function ResponsavelFaseSidebar({
 
   async function salvar(userId: string) {
     if (!itemId || somenteLeitura) return;
-    setValor(userId);
+    const uid = normalizarValorUsuario(userId);
+    setValor(uid);
     setSalvando(true);
     const res = await upsertFaseChecklistResposta({
       item_id: itemId,
       card_id: cardId,
-      valor: userId || null,
+      valor: uid || null,
       arquivo_path: null,
     });
     setSalvando(false);
     if (res.ok) {
-      const nome = usuarioOpcoes?.find((o) => o.id === userId)?.nome ?? null;
-      onChange?.(userId, nome);
+      onChange?.(uid, null);
     }
   }
 
@@ -147,14 +151,6 @@ export function ResponsavelFaseSidebar({
     return (
       <p className="text-[10px] text-stone-400">
         Campo não configurado nesta fase. Aplique a migration 380 no Supabase.
-      </p>
-    );
-  }
-
-  if (stepOne && !valor && nomeRede) {
-    return (
-      <p className="text-[11px] font-medium text-stone-800" title="Franqueado da rede (sem login vinculado)">
-        {nomeRede}
       </p>
     );
   }
@@ -173,17 +169,14 @@ export function ResponsavelFaseSidebar({
     );
   }
 
-  const opcoesComFranqueado =
-    stepOne && valor && nomeRede && !usuarioOpcoes?.some((o) => o.id === valor)
-      ? [{ id: valor, nome: nomeRede }, ...(usuarioOpcoes ?? [])]
-      : usuarioOpcoes;
-
   return (
     <UsuarioChecklistSelect
       label=""
       value={valor}
       salvando={salvando}
-      opcoes={opcoesComFranqueado}
+      placeholder="Selecione o responsável…"
+      selectedLabelOverride={!valor && nomeRede ? nomeRede : undefined}
+      menuPortal
       onChange={(v) => void salvar(v)}
     />
   );

@@ -5383,7 +5383,6 @@ export function KanbanCardModal({
                   kanbanId={card.kanban_id}
                   nomeFranqueadoRede={rede?.nome_completo ?? null}
                   readOnly={ocultarGestaoCard}
-                  usuarioOpcoes={responsaveisOpcoes.map(({ id, nome }) => ({ id, nome }))}
                 />
               </PainelLateralSecao>
             ) : null}

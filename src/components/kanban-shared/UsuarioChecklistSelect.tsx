@@ -15,6 +15,9 @@ type Props = {
   opcoes?: { id: string; nome: string }[];
   /** Tamanho compacto (11px) por padrão — usado em todos os kanbans/funis. */
   size?: 'xs' | 'compact' | 'sm';
+  placeholder?: string;
+  selectedLabelOverride?: string;
+  menuPortal?: boolean;
 };
 
 export function UsuarioChecklistSelect({
@@ -25,6 +28,9 @@ export function UsuarioChecklistSelect({
   onChange,
   opcoes: opcoesProp,
   size = 'compact',
+  placeholder = 'Selecione…',
+  selectedLabelOverride,
+  menuPortal = false,
 }: Props) {
   const [opcoes, setOpcoes] = useState<{ id: string; nome: string }[]>(opcoesProp ?? []);
   const [loading, setLoading] = useState(!opcoesProp?.length);
@@ -88,12 +94,15 @@ export function UsuarioChecklistSelect({
           value={value}
           onChange={onChange}
           options={selectOptions}
-          placeholder="Selecione…"
+          placeholder={placeholder}
           searchPlaceholder="Buscar usuário…"
           size={size}
-          emptyOption={{ value: '', label: 'Selecione…' }}
+          emptyOption={{ value: '', label: placeholder }}
           listMaxHeightClassName="max-h-48"
           triggerClassName="border-[var(--moni-border-default)] text-[var(--moni-text-primary)]"
+          selectedLabelOverride={selectedLabelOverride}
+          menuPortal={menuPortal}
+          aria-label={label || 'Selecionar usuário'}
         />
       )}
     </div>
