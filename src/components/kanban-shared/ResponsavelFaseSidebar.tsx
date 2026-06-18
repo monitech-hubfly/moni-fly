@@ -5,10 +5,10 @@ import { createClient } from '@/lib/supabase/client';
 import { upsertFaseChecklistResposta } from '@/lib/actions/card-actions';
 import { UsuarioChecklistSelect } from '@/components/kanban-shared/UsuarioChecklistSelect';
 import {
-  buscarFranqueadoIdResponsavelStepOne,
   buscarItemIdResponsavelFaseEdicao,
   buscarValorResponsavelFaseAnterior,
   isKanbanFunilStepOneId,
+  sincronizarResponsavelFaseStepOne,
 } from '@/lib/kanban/responsavel-fase-checklist';
 
 type Props = {
@@ -72,17 +72,9 @@ export function ResponsavelFaseSidebar({
 
       let valorAtual = String((resp as { valor?: string | null } | null)?.valor ?? '').trim();
 
-      if (stepOne && !valorAtual) {
-        const franqueadoId = await buscarFranqueadoIdResponsavelStepOne(supabase, cardId);
-        if (franqueadoId) {
-          valorAtual = franqueadoId;
-          await upsertFaseChecklistResposta({
-            item_id: iid,
-            card_id: cardId,
-            valor: franqueadoId,
-            arquivo_path: null,
-          });
-        }
+      if (stepOne) {
+        const franqueadoId = await sincronizarResponsavelFaseStepOne(supabase, cardId, faseId);
+        if (franqueadoId) valorAtual = franqueadoId;
       } else if (!stepOne) {
         const syncKey = `${cardId}:${faseId}`;
         if (!valorAtual && syncFeitoRef.current !== syncKey) {
