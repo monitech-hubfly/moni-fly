@@ -5,28 +5,40 @@ import { createClient } from '@/lib/supabase/client';
 import { upsertFaseChecklistResposta } from '@/lib/actions/card-actions';
 import { UsuarioChecklistSelect } from '@/components/kanban-shared/UsuarioChecklistSelect';
 import {
+  buscarFranqueadoIdResponsavelStepOne,
   buscarItemIdResponsavelFaseEdicao,
   buscarValorResponsavelFaseAnterior,
+  isKanbanFunilStepOneId,
 } from '@/lib/kanban/responsavel-fase-checklist';
 
 type Props = {
   cardId: string;
   faseId: string;
+  kanbanId?: string | null;
   readOnly?: boolean;
   onChange?: (userId: string, nome?: string | null) => void;
 };
 
 /** Campo «Responsável da fase» no painel lateral do modal (acima de Tags). */
-export function ResponsavelFaseSidebar({ cardId, faseId, readOnly = false, onChange }: Props) {
+export function ResponsavelFaseSidebar({
+  cardId,
+  faseId,
+  kanbanId = null,
+  readOnly = false,
+  onChange,
+}: Props) {
   const [itemId, setItemId] = useState<string | null>(null);
   const [valor, setValor] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const syncFeitoRef = useRef('');
 
+  const stepOne = isKanbanFunilStepOneId(kanbanId);
+  const somenteLeitura = readOnly || stepOne;
+
   useEffect(() => {
     syncFeitoRef.current = '';
-  }, [cardId, faseId]);
+  }, [cardId, faseId, kanbanId]);
 
   useEffect(() => {
     if (!cardId.trim() || !faseId.trim()) {
@@ -58,18 +70,31 @@ export function ResponsavelFaseSidebar({ cardId, faseId, readOnly = false, onCha
 
       let valorAtual = String((resp as { valor?: string | null } | null)?.valor ?? '').trim();
 
-      const syncKey = `${cardId}:${faseId}`;
-      if (!valorAtual && syncFeitoRef.current !== syncKey) {
-        syncFeitoRef.current = syncKey;
-        const herdado = await buscarValorResponsavelFaseAnterior(supabase, cardId, faseId);
-        if (herdado) {
-          valorAtual = herdado;
+      if (stepOne) {
+        const franqueadoId = await buscarFranqueadoIdResponsavelStepOne(supabase, cardId);
+        if (franqueadoId) {
+          valorAtual = franqueadoId;
           await upsertFaseChecklistResposta({
             item_id: iid,
             card_id: cardId,
-            valor: herdado,
+            valor: franqueadoId,
             arquivo_path: null,
           });
+        }
+      } else {
+        const syncKey = `${cardId}:${faseId}`;
+        if (!valorAtual && syncFeitoRef.current !== syncKey) {
+          syncFeitoRef.current = syncKey;
+          const herdado = await buscarValorResponsavelFaseAnterior(supabase, cardId, faseId);
+          if (herdado) {
+            valorAtual = herdado;
+            await upsertFaseChecklistResposta({
+              item_id: iid,
+              card_id: cardId,
+              valor: herdado,
+              arquivo_path: null,
+            });
+          }
         }
       }
 
@@ -83,10 +108,10 @@ export function ResponsavelFaseSidebar({ cardId, faseId, readOnly = false, onCha
     return () => {
       cancelado = true;
     };
-  }, [cardId, faseId]);
+  }, [cardId, faseId, kanbanId, stepOne]);
 
   async function salvar(userId: string) {
-    if (!itemId || readOnly) return;
+    if (!itemId || somenteLeitura) return;
     setValor(userId);
     setSalvando(true);
     const res = await upsertFaseChecklistResposta({
@@ -111,7 +136,7 @@ export function ResponsavelFaseSidebar({ cardId, faseId, readOnly = false, onCha
     );
   }
 
-  if (readOnly) {
+  if (somenteLeitura) {
     return (
       <p className="text-[11px] text-stone-700">
         {valor ? (

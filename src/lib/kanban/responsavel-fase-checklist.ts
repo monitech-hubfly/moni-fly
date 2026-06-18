@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanCardBrief } from '@/components/kanban-shared/types';
+import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 
 /** Slug estável do campo «Responsável da fase» em todo kanban. */
 export const CAMPO_SLUG_RESPONSAVEL_FASE = 'responsavel_fase';
@@ -12,6 +13,31 @@ export const CAMPOS_SLUG_RESPONSAVEL_FASE_LEGADO = [
   'responsavel_contato',
   'responsavel_revisao',
 ] as const;
+
+export function isKanbanFunilStepOneId(kanbanId: string | null | undefined): boolean {
+  return String(kanbanId ?? '').trim() === KANBAN_IDS.STEP_ONE;
+}
+
+/** Funil Step One: responsável da fase = `kanban_cards.franqueado_id`. */
+export async function buscarFranqueadoIdResponsavelStepOne(
+  supabase: SupabaseClient,
+  cardId: string,
+): Promise<string | null> {
+  const cid = cardId.trim();
+  if (!cid) return null;
+
+  const { data: card } = await supabase
+    .from('kanban_cards')
+    .select('franqueado_id, kanban_id')
+    .eq('id', cid)
+    .maybeSingle();
+  if (!card) return null;
+
+  const kanbanId = String((card as { kanban_id?: string | null }).kanban_id ?? '').trim();
+  if (!isKanbanFunilStepOneId(kanbanId)) return null;
+
+  return valorResponsavelValido((card as { franqueado_id?: string | null } | null)?.franqueado_id);
+}
 
 type FaseOrdemRow = { id: string; ordem: number; slug?: string | null };
 
@@ -145,6 +171,10 @@ export async function buscarValorResponsavelFaseAnterior(
   const ordemAtual = Number((faseAtual as { ordem?: number }).ordem ?? 0);
   if (!kanbanId) return null;
 
+  if (isKanbanFunilStepOneId(kanbanId)) {
+    return buscarFranqueadoIdResponsavelStepOne(supabase, cid);
+  }
+
   const { data: fases } = await supabase
     .from('kanban_fases')
     .select('id, ordem, slug')
@@ -193,6 +223,14 @@ export async function propagarResponsavelFaseAoEntrarFase(
   }
   if (!itemId) return;
 
+  const { data: faseRow } = await supabase
+    .from('kanban_fases')
+    .select('kanban_id')
+    .eq('id', fid)
+    .maybeSingle();
+  const kanbanId = String((faseRow as { kanban_id?: string | null } | null)?.kanban_id ?? '').trim();
+  const stepOne = isKanbanFunilStepOneId(kanbanId);
+
   const { data: respAtual } = await supabase
     .from('kanban_fase_checklist_respostas')
     .select('valor')
@@ -200,16 +238,24 @@ export async function propagarResponsavelFaseAoEntrarFase(
     .eq('item_id', itemId)
     .maybeSingle();
 
-  if (valorResponsavelValido((respAtual as { valor?: string | null } | null)?.valor)) return;
+  let valorDestino: string | null = null;
+  if (stepOne) {
+    valorDestino = await buscarFranqueadoIdResponsavelStepOne(supabase, cid);
+  } else {
+    if (valorResponsavelValido((respAtual as { valor?: string | null } | null)?.valor)) return;
+    valorDestino = await buscarValorResponsavelFaseAnterior(supabase, cid, fid);
+  }
 
-  const valorAnterior = await buscarValorResponsavelFaseAnterior(supabase, cid, fid);
-  if (!valorAnterior) return;
+  if (!valorDestino) return;
+
+  const valorAtual = valorResponsavelValido((respAtual as { valor?: string | null } | null)?.valor);
+  if (valorAtual === valorDestino) return;
 
   await supabase.from('kanban_fase_checklist_respostas').upsert(
     {
       item_id: itemId,
       card_id: cid,
-      valor: valorAnterior,
+      valor: valorDestino,
       preenchido_por: preenchidoPor ?? null,
       preenchido_em: new Date().toISOString(),
     },
@@ -273,6 +319,11 @@ export async function enrichCardsComResponsavelFase(
 
   const userIdPorCard = new Map<string, string>();
   for (const card of cards) {
+    if (isKanbanFunilStepOneId(card.kanban_id)) {
+      const fid = valorResponsavelValido(card.franqueado_id);
+      if (fid) userIdPorCard.set(card.id, fid);
+      continue;
+    }
     const itemId = itemPorFase.get(String(card.fase_id ?? '').trim());
     if (!itemId) continue;
     const uid = respPorCardItem.get(`${card.id}:${itemId}`);

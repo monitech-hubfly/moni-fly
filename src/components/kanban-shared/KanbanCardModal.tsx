@@ -5380,6 +5380,7 @@ export function KanbanCardModal({
                 <ResponsavelFaseSidebar
                   cardId={card.id}
                   faseId={card.fase_id}
+                  kanbanId={card.kanban_id}
                   readOnly={ocultarGestaoCard}
                 />
               </PainelLateralSecao>
