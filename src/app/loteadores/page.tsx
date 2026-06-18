@@ -10,8 +10,11 @@ import { KanbanWrapper } from '@/components/kanban-shared/KanbanWrapper';
 import { fetchKanbanBoardSnapshot } from '@/components/kanban-shared/fetchKanbanBoardSnapshot';
 import { PainelPerformance } from '@/components/kanban-shared/PainelPerformance';
 import { KanbanTabs } from '@/app/funil-moni-inc/KanbanTabs';
-import { KANBAN_NOME_FUNIL_LOTEADORES } from '@/lib/kanban/funil-loteadores';
-import { carregarPermissoesUsuario } from '@/lib/permissoes-load';
+import {
+  isStaffKanbanLoteadores,
+  KANBAN_NOME_FUNIL_LOTEADORES,
+  resolverPrimeiraFaseContatoLoteadores,
+} from '@/lib/kanban/funil-loteadores';
 import type { KanbanCardBrief, KanbanFase } from '@/components/kanban-shared/types';
 
 export const dynamic = 'force-dynamic';
@@ -40,21 +43,16 @@ export default async function LoteadoresKanbanPage({
   } = await supabase.auth.getUser();
   guardLoginRequired(user);
 
-  const { kanban, fases, cards, cardsConcluidos, role, isAdmin } = await fetchKanbanBoardSnapshot(
+  const { kanban, fases, cards, cardsConcluidos, role } = await fetchKanbanBoardSnapshot(
     supabase,
     KANBAN_NOME_FUNIL_LOTEADORES,
     user.id,
   );
 
-  const permissoes = await carregarPermissoesUsuario(supabase, user.id);
-  const podeCriarCards = isAdmin && permissoes.pode('criar_cards');
-
-  const primeiraFaseContatoId =
-    fases.find((f) => (f.slug ?? '').trim() === 'primeiro_contato_moni_inc')?.id ??
-    fases.find((f) => f.ordem === 1)?.id ??
-    null;
-
-  const exibirNovoCard = podeCriarCards && Boolean(primeiraFaseContatoId);
+  const isStaff = isStaffKanbanLoteadores(role);
+  const primeiraFaseContatoId = resolverPrimeiraFaseContatoLoteadores(fases ?? []);
+  /** Botão visível para staff; permissão fina (`criar_cards`) validada no client e ao salvar. */
+  const exibirNovoCard = isStaff && Boolean(primeiraFaseContatoId);
 
   if (!kanban) {
     return (
@@ -77,7 +75,7 @@ export default async function LoteadoresKanbanPage({
   return (
     <KanbanWrapper
       basePath={BASE_PATH}
-      isAdmin={isAdmin}
+      isAdmin={isStaff}
       kanbanId={kanban.id}
       kanbanNome="Funil Loteadores"
       fases={fases ?? []}
@@ -88,7 +86,7 @@ export default async function LoteadoresKanbanPage({
             basePath={BASE_PATH}
             tabsVariant="portfolio"
             kanbanId={String(kanban.id)}
-            isAdmin={isAdmin}
+            isAdmin={isStaff}
             primeiraFaseContatoId={primeiraFaseContatoId}
           />
         </Suspense>
@@ -104,7 +102,7 @@ export default async function LoteadoresKanbanPage({
               columnAccent="var(--moni-kanban-stepone)"
               currentUserId={user.id}
               mostrarLinkNovoCard={exibirNovoCard}
-              podeCriarCards={podeCriarCards}
+              podeCriarCards={isStaff}
               kanbanNome="Funil Loteadores"
               kanbanId={kanban.id}
             />
