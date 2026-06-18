@@ -314,12 +314,26 @@ export function rotuloArquivoFoto(path: string): string {
   return path.split('/').pop() ?? path;
 }
 
-export function normalizarLinhaLote(raw: unknown, fallbackIndex = 0): LinhaLoteDisponivel {
-  const o = isRecord(raw) ? raw : {};
-  // TODO: migrar respostas legadas de 'vista_privilegiada' e 'muro' no ponto de leitura do banco.
-  if (isRecord(o) && String(o.muro ?? '') === 'true') {
-    void o.muro;
+function migrarChavesLegadasLote(o: Record<string, unknown>): Record<string, unknown> {
+  const migrated = { ...o };
+
+  if (strField(migrated, 'vista_privilegiada', 'false') === 'true') {
+    migrated.vista = 'true';
+    delete migrated.vista_privilegiada;
   }
+
+  // muro genérico legado → muro_vegetacao (conservador).
+  // muro_rodovia e muro_comunidade devem ser revisados manualmente.
+  if (strField(migrated, 'muro', 'false') === 'true') {
+    migrated.muro_vegetacao = 'true';
+    delete migrated.muro;
+  }
+
+  return migrated;
+}
+
+export function normalizarLinhaLote(raw: unknown, fallbackIndex = 0): LinhaLoteDisponivel {
+  const o = isRecord(raw) ? migrarChavesLegadasLote(raw) : {};
   const loteId =
     typeof o.lote_id === 'string' && o.lote_id.trim()
       ? o.lote_id.trim()
