@@ -3978,6 +3978,9 @@ export async function moverCardParaFase(input: {
   await executarBastaoDeVolta(cardId, novaFaseSlug);
   await sincronizarTagAcoplamentoPaiDoFilho(cardId, novaFaseSlug);
 
+  const { propagarResponsavelFaseAoEntrarFase } = await import('@/lib/kanban/responsavel-fase-checklist');
+  await propagarResponsavelFaseAoEntrarFase(supabase, cardId, novaFaseId, user.id);
+
   void notificarUniversidadeSeAvancoStep2({
     cardId,
     newFaseId: novaFaseId,
