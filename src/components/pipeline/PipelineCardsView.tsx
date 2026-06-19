@@ -65,7 +65,7 @@ function PipelineKpisBarFranqueadora({ kpis }: { kpis: PipelineCardsKpis }) {
   const items: { label: string; value: number; hint?: string }[] = [
     { label: 'Cards ativos', value: kpis.cardsAtivos },
     { label: 'Cards atrasados', value: kpis.cardsAtrasados },
-    { label: 'Sem movimentação', value: kpis.cardsSemMovimentacao, hint: '7+ dias' },
+    { label: 'Sem movimentação', value: kpis.cardsSemMovimentacao, hint: '7+ d.u. após SLA' },
     { label: 'Próx. vencimentos', value: kpis.cardsVencendoEmBreve },
     { label: 'Gargalos críticos', value: kpis.gargalosCriticos, hint: 'GargaloScore > 70' },
     { label: 'Chamados com trava', value: kpis.chamadosComTrava },
@@ -101,7 +101,7 @@ function PipelineKpisBarUnidade({ kpis }: { kpis: PipelineCardsKpisUnidade }) {
   const items: { label: string; value: number; hint?: string; variant: KpiVariant }[] = [
     { label: 'Cards ativos', value: kpis.cardsAtivos, variant: 'neutral' },
     { label: 'Cards atrasados', value: kpis.cardsAtrasados, variant: 'danger' },
-    { label: 'Sem movimentação', value: kpis.cardsSemMovimentacao, hint: '7+ dias', variant: 'warning' },
+    { label: 'Sem movimentação', value: kpis.cardsSemMovimentacao, hint: '7+ d.u. após SLA', variant: 'warning' },
     { label: 'Próx. vencimentos', value: kpis.proximosVencimentos, variant: 'neutral' },
     { label: 'Funis ativos', value: kpis.funisAtivos, hint: 'Com ≥1 card', variant: 'neutral' },
     { label: 'Chamados com trava', value: kpis.chamadosComTrava, variant: 'neutral' },
