@@ -153,6 +153,7 @@ import type {
   KanbanNomeDisplay,
 } from './types';
 import { usePermissoes } from '@/lib/hooks/usePermissoes';
+import { podeComFallbackStaff } from '@/lib/permissoes-types';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { KanbanCardModalRelacionamentos } from './KanbanCardModalRelacionamentos';
 import {
@@ -542,6 +543,15 @@ export function KanbanCardModal({
     roleNorm: string;
     cargoNorm: string;
   }>({ userId: null, uploaderNome: '—', ehAdminOuTeam: false, roleNorm: '', cargoNorm: '' });
+  const podeCriarChamados = useMemo(
+    () =>
+      podeComFallbackStaff(pode, 'criar_chamados', {
+        isAdminProp: isAdmin,
+        ehAdminOuTeam: modalSessao.ehAdminOuTeam,
+        roleNorm: modalSessao.roleNorm,
+      }),
+    [pode, isAdmin, modalSessao.ehAdminOuTeam, modalSessao.roleNorm],
+  );
   const [kanbanTimes, setKanbanTimes] = useState<KanbanTimeRow[]>([]);
   const [responsaveisOpcoes, setResponsaveisOpcoes] = useState<
     { id: string; nome: string; email?: string | null }[]
@@ -892,7 +902,7 @@ export function KanbanCardModal({
           const fn = String((me as { full_name?: string | null } | null)?.full_name ?? '').trim();
           unome = fn || '—';
           const rl = String((me as { role?: string | null } | null)?.role ?? '').toLowerCase();
-          admTeam = rl === 'admin' || rl === 'team';
+          admTeam = rl === 'admin' || rl === 'team' || rl === 'consultor' || rl === 'supervisor';
           const cg = String((me as { cargo?: string | null } | null)?.cargo ?? '')
             .trim()
             .toLowerCase();
@@ -1705,7 +1715,7 @@ export function KanbanCardModal({
       alert('Selecione ao menos um responsável na atividade.');
       return;
     }
-    if (!pode('criar_chamados')) {
+    if (!podeCriarChamados) {
       alert('Sem permissão para criar chamados.');
       return;
     }
@@ -1906,7 +1916,7 @@ export function KanbanCardModal({
       alert('Selecione ao menos um responsável.');
       return;
     }
-    if (!pode('criar_chamados')) {
+    if (!podeCriarChamados) {
       alert('Sem permissão para criar chamados.');
       return;
     }
@@ -4000,7 +4010,7 @@ export function KanbanCardModal({
                                         <Pencil className="h-3.5 w-3.5 shrink-0" aria-hidden />
                                       </button>
                                     ) : null}
-                                    {!demo && pode('criar_chamados') ? (
+                                    {!demo && podeCriarChamados ? (
                                       <button
                                         type="button"
                                         onClick={() => {
@@ -4315,7 +4325,7 @@ export function KanbanCardModal({
                                                   Pastel
                                                 </label>
                                               ) : null}
-                                              {pode('criar_chamados') ? (
+                                              {podeCriarChamados ? (
                                                 <button
                                                   type="button"
                                                   title="Editar atividade"
@@ -4507,7 +4517,7 @@ export function KanbanCardModal({
                                 ) : null}
                               </div>
                             ) : null}
-                            {!demo && pode('criar_chamados') && subsDetalheAberto ? (
+                            {!demo && podeCriarChamados && subsDetalheAberto ? (
                               <div className="mt-1.5">
                                 <button
                                   type="button"
@@ -4547,7 +4557,7 @@ export function KanbanCardModal({
                 className="mt-2 shrink-0 border-t pt-2"
                 style={{ borderColor: 'var(--moni-border-default)' }}
               >
-              {pode('criar_chamados') ? (
+              {podeCriarChamados ? (
               <div
                 className="rounded-md p-2"
                 style={{
@@ -5544,7 +5554,7 @@ export function KanbanCardModal({
                       ) : (
                         <p className="text-[11px] text-stone-500">Todas as tags do funil já estão no card.</p>
                       )}
-                      {pode('criar_chamados') ? (
+                      {podeCriarChamados ? (
                         <div className="space-y-1.5 border-t border-stone-200 pt-1.5">
                           <p className="text-[10px] font-medium text-stone-600">Nova tag no funil</p>
                           <input
