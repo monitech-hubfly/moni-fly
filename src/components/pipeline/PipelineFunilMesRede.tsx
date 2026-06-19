@@ -163,11 +163,14 @@ export function PipelineFunilMesRede({ cards, franqueados, className }: Props) {
         <PeriodoToggle periodo={periodo} onChange={setPeriodo} />
       </div>
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
+      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-stretch lg:gap-1">
         {funil.colunas.map((col, idx) => (
           <Fragment key={col.key}>
-            <div className="flex min-w-0 flex-1 flex-col lg:max-w-[5.75rem]">
-              <p className="text-[10px] font-medium uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <p
+                className="text-[10px] font-medium uppercase leading-tight tracking-wide"
+                style={{ color: 'var(--moni-text-tertiary)' }}
+              >
                 {col.label}
               </p>
               <p
@@ -200,9 +203,12 @@ export function PipelineFunilMesRede({ cards, franqueados, className }: Props) {
             </div>
 
             {idx < funil.colunas.length - 1 ? (
-              <div className="flex shrink-0 flex-col items-center justify-start gap-1 px-0.5 pt-8 lg:px-0">
-                <ArrowRight className="h-4 w-4" style={{ color: 'var(--moni-text-tertiary)' }} aria-hidden />
-                <span className="whitespace-nowrap text-[10px] tabular-nums" style={{ color: 'var(--moni-text-secondary)' }}>
+              <div className="flex w-9 shrink-0 flex-col items-center justify-start gap-1 self-start pt-8 lg:w-8">
+                <ArrowRight className="h-3.5 w-3.5" style={{ color: 'var(--moni-text-tertiary)' }} aria-hidden />
+                <span
+                  className="whitespace-nowrap text-center text-[9px] tabular-nums leading-none"
+                  style={{ color: 'var(--moni-text-secondary)' }}
+                >
                   {formatFunilMesConversaoSeta(funil.conversoes[idx] ?? null)}
                 </span>
               </div>
