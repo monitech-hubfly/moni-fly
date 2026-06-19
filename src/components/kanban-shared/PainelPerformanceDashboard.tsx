@@ -1026,7 +1026,13 @@ function AcoplamentoEspecificidadesSection({ data }: { data: PainelAcoplamentoEs
   );
 }
 
-function OperacoesEspecificidadesSection({ data }: { data: PainelOperacoesEspecificidades }) {
+function OperacoesEspecificidadesSection({
+  data,
+  openCardBase,
+}: {
+  data: PainelOperacoesEspecificidades;
+  openCardBase: string;
+}) {
   return (
     <section className="space-y-3">
       <div>
@@ -1034,10 +1040,10 @@ function OperacoesEspecificidadesSection({ data }: { data: PainelOperacoesEspeci
           className="text-base font-semibold"
           style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
         >
-          Especificidades de Operações
+          Especificidades — Operações
         </h2>
         <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-          Tempos de aprovação, retrabalho BCA e gargalos de crédito no funil Pré Obra e Obra
+          Tempos de aprovação por praça, retrabalho BCA e gargalos de crédito no funil Pré Obra e Obra
         </p>
       </div>
 
@@ -1045,21 +1051,20 @@ function OperacoesEspecificidadesSection({ data }: { data: PainelOperacoesEspeci
         {data.taxaRetrabalhoBca != null ? (
           <div className="px-4 py-4" style={panelStyle}>
             <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              Retrabalho em Revisão do BCA
+              Taxa de retrabalho em Revisão do BCA
             </h4>
             <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Cards que retornaram à fase Revisão do BCA mais de uma vez (`is_retrocesso` no histórico).
+              Cards que retornaram à fase revisao_bca (is_retrocesso) — passagem mais de uma vez.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <MiniKpi label="Com retrabalho" value={formatInt(data.taxaRetrabalhoBca.comRetrabalho)} />
-              <MiniKpi
-                label="Visitaram Revisão BCA"
-                value={formatInt(data.taxaRetrabalhoBca.visitaramRevisaoBca)}
-              />
-              <MiniKpi label="Taxa" value={formatPct(data.taxaRetrabalhoBca.percentual)} />
+              <MiniKpi label="Total retrabalho" value={formatInt(data.taxaRetrabalhoBca.comRetrabalho)} />
+              <MiniKpi label="Total em obra" value={formatInt(data.taxaRetrabalhoBca.totalEmObra)} />
+              <MiniKpi label="%" value={formatPct(data.taxaRetrabalhoBca.percentual)} />
             </div>
-            {data.taxaRetrabalhoBca.visitaramRevisaoBca === 0 ? (
-              <DegradeNote>Sem cards na fase Revisão do BCA no recorte.</DegradeNote>
+            {data.taxaRetrabalhoBca.totalEmObra === 0 ? (
+              <DegradeNote>Sem cards ativos em obra no recorte analisado.</DegradeNote>
+            ) : data.taxaRetrabalhoBca.comRetrabalho === 0 ? (
+              <DegradeNote>Nenhum retrabalho registrado em Revisão do BCA no recorte.</DegradeNote>
             ) : null}
           </div>
         ) : null}
@@ -1070,29 +1075,30 @@ function OperacoesEspecificidadesSection({ data }: { data: PainelOperacoesEspeci
               Aguardando Crédito há mais de 30 dias
             </h4>
             <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Cards ativos na fase Aguardando Crédito com `entered_fase_at` acima de 30 dias corridos.
+              Ativos em aguardando_credito com entered_fase_at acima de 30 dias corridos.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <MiniKpi label="> 30 dias" value={formatInt(data.aguardandoCredito30Dias.acima30Dias)} />
-              <MiniKpi label="Na fase agora" value={formatInt(data.aguardandoCredito30Dias.totalNaFase)} />
-              <MiniKpi label="%" value={formatPct(data.aguardandoCredito30Dias.percentual)} />
+              <MiniKpi label="Parados > 30 dias" value={formatInt(data.aguardandoCredito30Dias.acima30Dias)} />
             </div>
-            {data.aguardandoCredito30Dias.totalNaFase === 0 ? (
-              <DegradeNote>Nenhum card ativo em Aguardando Crédito no recorte.</DegradeNote>
+            {data.aguardandoCredito30Dias.acima30Dias === 0 ? (
+              <DegradeNote>Nenhum card ativo em Aguardando Crédito há mais de 30 dias.</DegradeNote>
             ) : null}
           </div>
         ) : null}
       </div>
 
       {data.tempoAprovacaoCondominio != null ? (
-        <PanelBox title="Tempo médio — Aprovação no Condomínio (por condomínio)">
+        <PanelBox title="Tempo médio de Aprovação no Condomínio por condomínio">
+          <p className="mb-3 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Permanência em aprovacao_condominio agrupada por condomínio (projeto_negocio ou card).
+          </p>
           {data.tempoAprovacaoCondominio.localIndisponivel ? (
             <DegradeNote>
-              Condomínio/cidade indisponíveis no fetch — agrupamento pode usar rótulos genéricos.
+              Condomínio indisponível no fetch — agrupamento pode usar rótulos genéricos.
             </DegradeNote>
           ) : null}
           <DataTable
-            headers={['Condomínio', 'Média', 'Amostras']}
+            headers={['Condomínio', 'Tempo médio', 'Cards']}
             emptyMessage="Sem permanência registrada na fase Aprovação no Condomínio."
             rows={data.tempoAprovacaoCondominio.porCondominio.slice(0, 12).map((r) => [
               r.label,
@@ -1101,18 +1107,24 @@ function OperacoesEspecificidadesSection({ data }: { data: PainelOperacoesEspeci
             ])}
             alignRightFrom={1}
           />
+          <p className="mt-3 text-[10px] italic leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Referência para o time de Acoplamento priorizar praças.
+          </p>
         </PanelBox>
       ) : null}
 
       {data.tempoAprovacaoPrefeitura != null ? (
-        <PanelBox title="Tempo médio — Aprovação na Prefeitura (por cidade)">
+        <PanelBox title="Tempo médio de Aprovação na Prefeitura por cidade">
+          <p className="mb-3 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Permanência em aprovacao_prefeitura agrupada por cidade (rede_franqueados / projeto_negocio).
+          </p>
           {data.tempoAprovacaoPrefeitura.localIndisponivel ? (
             <DegradeNote>
-              Praça/cidade indisponível em rede_franqueados ou projeto_negocio — agrupamento parcial.
+              Cidade indisponível em rede_franqueados ou projeto_negocio — agrupamento parcial.
             </DegradeNote>
           ) : null}
           <DataTable
-            headers={['Cidade', 'Média', 'Amostras']}
+            headers={['Cidade', 'Tempo médio', 'Cards']}
             emptyMessage="Sem permanência registrada na fase Aprovação na Prefeitura."
             rows={data.tempoAprovacaoPrefeitura.porCidade.slice(0, 12).map((r) => [
               r.label,
@@ -1121,6 +1133,33 @@ function OperacoesEspecificidadesSection({ data }: { data: PainelOperacoesEspeci
             ])}
             alignRightFrom={1}
           />
+          <p className="mt-3 text-[10px] italic leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Dado estratégico para priorização de praças.
+          </p>
+        </PanelBox>
+      ) : null}
+
+      {data.aguardandoCredito30Dias != null && data.aguardandoCredito30Dias.itens.length > 0 ? (
+        <PanelBox title="Lista — Aguardando Crédito > 30 dias">
+          <ul className="divide-y" style={{ borderColor: 'var(--moni-border-subtle)' }}>
+            {data.aguardandoCredito30Dias.itens.slice(0, 25).map((item) => (
+              <li
+                key={item.cardId}
+                className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2.5 text-[11px] first:pt-0 last:pb-0"
+              >
+                <Link
+                  href={buildOpenCardHref(openCardBase, item.cardId)}
+                  className="min-w-0 truncate font-medium hover:underline"
+                  style={{ color: 'var(--moni-navy-800)' }}
+                >
+                  {item.titulo}
+                </Link>
+                <span className="shrink-0 tabular-nums" style={{ color: 'var(--moni-text-secondary)' }}>
+                  {formatInt(item.diasParados)} dias parados
+                </span>
+              </li>
+            ))}
+          </ul>
         </PanelBox>
       ) : null}
     </section>
@@ -2408,7 +2447,10 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
           ) : null}
 
           {operacoesEspecificidades ? (
-            <OperacoesEspecificidadesSection data={operacoesEspecificidades} />
+            <OperacoesEspecificidadesSection
+              data={operacoesEspecificidades}
+              openCardBase={openCardBase}
+            />
           ) : null}
 
           {loteadoresEspecificidades ? (

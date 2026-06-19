@@ -8,8 +8,6 @@ import type {
   PainelRetrocessoDTO,
 } from '@/lib/kanban/painel-performance-types';
 
-const MS_30_DIAS = 30 * 24 * 60 * 60 * 1000;
-
 const REVISAO_BCA_SLUGS = ['revisao_bca'] as const;
 
 function detStr(d: Record<string, unknown> | null | undefined, key: string): string {
@@ -93,11 +91,11 @@ function diasNaFaseViaTimeline(
 
 function mediaPorGrupo(
   grupos: Map<string, number[]>,
-): Array<{ label: string; mediaDias: number; amostras: number }> {
+): PainelOperacoesGrupoTempoRow[] {
   return [...grupos.entries()]
     .map(([label, nums]) => ({
       label,
-      mediaDias: nums.reduce((s, n) => s + n, 0) / nums.length,
+      mediaDias: nums.length === 0 ? null : nums.reduce((s, n) => s + n, 0) / nums.length,
       amostras: nums.length,
     }))
     .sort((a, b) => b.amostras - a.amostras);
@@ -135,9 +133,36 @@ function contagemRetrocessosParaFase(
   return n;
 }
 
+function diasDesdeEnteredFaseAt(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return null;
+  return (Date.now() - t) / (24 * 60 * 60 * 1000);
+}
+
+function resolveEnteredAguardandoCredito(
+  card: PainelCardDTO,
+  aguardandoCreditoIds: Set<string>,
+  fasesOrd: PainelFaseDTO[],
+  historico: PainelHistoricoMovimentoDTO[],
+): string | null {
+  const direct = card.entered_fase_at?.trim();
+  if (direct && aguardandoCreditoIds.has(card.fase_id)) return direct;
+  for (const faseId of aguardandoCreditoIds) {
+    const linhas = buildNativeFaseTimeline(
+      fasesOrd,
+      { created_at: card.created_at, fase_id: card.fase_id },
+      historico.map((h) => ({ acao: h.acao, detalhe: h.detalhe, criado_em: h.criado_em })),
+    );
+    const linha = linhas.find((l) => l.faseId === faseId);
+    if (linha?.entrouEm) return linha.entrouEm;
+  }
+  return null;
+}
+
 export type PainelOperacoesGrupoTempoRow = {
   label: string;
-  mediaDias: number;
+  mediaDias: number | null;
   amostras: number;
 };
 
@@ -152,13 +177,12 @@ export type PainelOperacoesEspecificidades = {
   } | null;
   taxaRetrabalhoBca: {
     comRetrabalho: number;
-    visitaramRevisaoBca: number;
+    totalEmObra: number;
     percentual: number | null;
   } | null;
   aguardandoCredito30Dias: {
     acima30Dias: number;
-    totalNaFase: number;
-    percentual: number | null;
+    itens: Array<{ cardId: string; titulo: string; diasParados: number }>;
   } | null;
 };
 
@@ -237,21 +261,21 @@ export function computeOperacoesEspecificidades(input: {
   let taxaRetrabalhoBca: PainelOperacoesEspecificidades['taxaRetrabalhoBca'] = null;
   try {
     if (revisaoBcaIds.size > 0) {
+      const totalEmObra = input.cards.filter((c) => !c.arquivado && !c.concluido).length;
       let comRetrabalho = 0;
-      let visitaramRevisaoBca = 0;
+
       for (const c of input.cards) {
         if (!cardVisitouFase(c, revisaoBcaIds, historicoPorCard)) continue;
-        visitaramRevisaoBca += 1;
         const retrocessos = retrocessoPorCard.get(c.id) ?? [];
         if (contagemRetrocessosParaFase(retrocessos, revisaoBcaIds) >= 1) {
           comRetrabalho += 1;
         }
       }
+
       taxaRetrabalhoBca = {
         comRetrabalho,
-        visitaramRevisaoBca,
-        percentual:
-          visitaramRevisaoBca === 0 ? null : (comRetrabalho / visitaramRevisaoBca) * 100,
+        totalEmObra,
+        percentual: totalEmObra === 0 ? null : (comRetrabalho / totalEmObra) * 100,
       };
     }
   } catch {
@@ -261,37 +285,33 @@ export function computeOperacoesEspecificidades(input: {
   let aguardandoCredito30Dias: PainelOperacoesEspecificidades['aguardandoCredito30Dias'] = null;
   try {
     if (aguardandoCreditoIds.size > 0) {
-      const now = Date.now();
-      let acima30Dias = 0;
-      let totalNaFase = 0;
+      const itens: NonNullable<PainelOperacoesEspecificidades['aguardandoCredito30Dias']>['itens'] =
+        [];
+
       for (const c of input.cards) {
         if (!aguardandoCreditoIds.has(c.fase_id)) continue;
         if (c.arquivado || c.concluido) continue;
-        totalNaFase += 1;
         const historico = historicoPorCard.get(c.id) ?? [];
-        let entered = c.entered_fase_at?.trim() || null;
-        if (!entered) {
-          for (const faseId of aguardandoCreditoIds) {
-            const linhas = buildNativeFaseTimeline(
-              fasesOrd,
-              { created_at: c.created_at, fase_id: c.fase_id },
-              historico.map((h) => ({ acao: h.acao, detalhe: h.detalhe, criado_em: h.criado_em })),
-            );
-            const linha = linhas.find((l) => l.faseId === faseId);
-            if (linha?.entrouEm) {
-              entered = linha.entrouEm;
-              break;
-            }
-          }
-        }
-        if (!entered) continue;
-        const t = new Date(entered).getTime();
-        if (Number.isFinite(t) && now - t > MS_30_DIAS) acima30Dias += 1;
+        const entered = resolveEnteredAguardandoCredito(
+          c,
+          aguardandoCreditoIds,
+          fasesOrd,
+          historico,
+        );
+        const dias = diasDesdeEnteredFaseAt(entered);
+        if (dias == null || dias <= 30) continue;
+        itens.push({
+          cardId: c.id,
+          titulo: c.titulo?.trim() || c.id.slice(0, 8),
+          diasParados: Math.floor(dias),
+        });
       }
+
+      itens.sort((a, b) => b.diasParados - a.diasParados);
+
       aguardandoCredito30Dias = {
-        acima30Dias,
-        totalNaFase,
-        percentual: totalNaFase === 0 ? null : (acima30Dias / totalNaFase) * 100,
+        acima30Dias: itens.length,
+        itens,
       };
     }
   } catch {
