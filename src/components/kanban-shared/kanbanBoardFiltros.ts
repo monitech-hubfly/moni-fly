@@ -64,6 +64,7 @@ function slaCategoria(
     alvara_url: card.alvara_url,
     docs_terreno_url: card.docs_terreno_url,
     sla_dias: fase?.sla_dias,
+    sla_tipo: fase?.sla_tipo,
   });
   if (sla.status === 'atrasado') return 'atrasado';
   if (sla.label === 'Vence hoje') return 'vence_hoje';
@@ -140,6 +141,7 @@ export function textoVisivelCardKanbanFechado(
       alvara_url: card.alvara_url,
       docs_terreno_url: card.docs_terreno_url,
       sla_dias: fase?.sla_dias,
+      sla_tipo: fase?.sla_tipo,
     });
     if (sla.label) partes.push(sla.label);
     partes.push(sla.status);

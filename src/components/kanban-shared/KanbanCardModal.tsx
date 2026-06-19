@@ -3226,6 +3226,7 @@ export function KanbanCardModal({
     alvara_url: card.alvara_url,
     docs_terreno_url: card.docs_terreno_url,
     sla_dias: faseAtual?.sla_dias,
+    sla_tipo: faseAtual?.sla_tipo,
   });
   const exibirSecaoJustificativaSla =
     !isLegado &&

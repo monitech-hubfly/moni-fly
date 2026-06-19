@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanFase } from '@/components/kanban-shared/types';
 import type { HistoricoItem } from '@/components/kanban-shared/kanban-card-modal-helpers';
-import { calcularDiasUteis, calcularDiasCorridos, calcularStatusSLAPorTipo, normalizarSlaTipo, adicionarDiasUteis, adicionarDiasCorridos, rotuloUnidadeSla, type SlaTipo } from '@/lib/dias-uteis';
+import { calcularDiasUteis, calcularDiasCorridos, adicionarDiasUteis, adicionarDiasCorridos, rotuloUnidadeSla, normalizarSlaTipo, type SlaTipo } from '@/lib/dias-uteis';
 import { augmentKanbanFasesComFasesDosCards, fetchKanbanFasesAtivas } from '@/lib/kanban/fetch-kanban-fases';
 import { loadHistoricoCardModal } from '@/lib/kanban/kanban-card-historico';
 import {
