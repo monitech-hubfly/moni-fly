@@ -138,6 +138,12 @@ function cardAtivo(c: PainelCardDTO): boolean {
   return !c.arquivado && !c.concluido;
 }
 
+/** Campos de negócio do card (exclui responsável — contado em Sem responsável). */
+function cardTemCamposIncompletos(c: PainelCardDTO): boolean {
+  const titulo = String(c.titulo ?? '').trim();
+  return titulo.length === 0 || titulo === '(sem título)';
+}
+
 export function deriveQualidadeMetrics(
   cards: PainelCardDTO[],
   chamados: PainelChamadoUnificadoDTO[],
@@ -152,12 +158,7 @@ export function deriveQualidadeMetrics(
   const chamadosAbertos = chamados.filter((c) => c.aberto);
   const semPrazo = chamadosAbertos.filter((c) => !String(c.data_vencimento ?? '').trim()).length;
 
-  const camposIncompletos = ativos.filter(
-    (c) =>
-      !String(c.responsavel_fase_id ?? '').trim() ||
-      !String(c.titulo ?? '').trim() ||
-      !String(c.fase_id ?? '').trim(),
-  ).length;
+  const camposIncompletos = ativos.filter(cardTemCamposIncompletos).length;
 
   const arquivSemMotivo = analise.arquivamento.perdas.semMotivoInformado;
   const pctSemMotivo = analise.arquivamento.perdas.pctSemMotivo ?? 0;
@@ -168,7 +169,7 @@ export function deriveQualidadeMetrics(
   for (const c of ativos) {
     const issues =
       (!String(c.responsavel_fase_id ?? '').trim() ? 1 : 0) +
-      (!String(c.titulo ?? '').trim() ? 1 : 0);
+      (cardTemCamposIncompletos(c) ? 1 : 0);
     if (issues === 0) continue;
     const rn = c.responsavel_fase_nome?.trim() || 'Sem responsável';
     respIssues.set(rn, (respIssues.get(rn) ?? 0) + issues);
@@ -444,7 +445,7 @@ export function deriveQualidadeOperacional(
       rr.semResponsavel += 1;
       fn.semResponsavel += 1;
     }
-    if (!String(c.titulo ?? '').trim() || !String(c.responsavel_fase_id ?? '').trim()) {
+    if (cardTemCamposIncompletos(c)) {
       fn.camposIncompletos += 1;
     }
   }

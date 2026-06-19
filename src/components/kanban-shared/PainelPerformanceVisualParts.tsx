@@ -1,5 +1,6 @@
 'use client';
 
+import type { CSSProperties } from 'react';
 import type {
   ConversionFunnelTreeNode,
   GargaloClassificacao,
@@ -177,4 +178,27 @@ export function buildRetrocessoDiasByCardId(rows: PainelRetrocessoDTO[]): Map<st
     m.set(r.card_id, cur != null ? Math.max(cur, dias) : dias);
   }
   return m;
+}
+
+/** Intensidade proporcional de atraso para heatmap (0 = sem fundo). */
+export function atrasadosHeatmapStyle(atrasados: number, maxAtrasados: number): CSSProperties | undefined {
+  if (atrasados <= 0 || maxAtrasados <= 0) return undefined;
+  const ratio = Math.min(1, atrasados / maxAtrasados);
+  const pct = Math.round(25 + ratio * 75);
+  return {
+    background: `color-mix(in srgb, var(--moni-status-overdue-bg) ${pct}%, var(--moni-surface-0))`,
+  };
+}
+
+/** Fundo por SLA em dias úteis médios (branco / âmbar / vermelho). */
+export function diasUteisHeatmapStyle(
+  diasUteisMedio: number,
+  slaDias: number | null | undefined,
+): CSSProperties | undefined {
+  if (diasUteisMedio <= 0 || slaDias == null || slaDias <= 0) return undefined;
+  if (diasUteisMedio <= slaDias) return undefined;
+  if (diasUteisMedio <= slaDias * 1.25) {
+    return { background: 'var(--moni-status-attention-bg)' };
+  }
+  return { background: 'var(--moni-status-overdue-bg)' };
 }

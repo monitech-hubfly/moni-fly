@@ -7,8 +7,6 @@ import {
   AlertTriangle,
   ArrowRight,
   Building2,
-  TrendingDown,
-  TrendingUp,
   UserX,
 } from 'lucide-react';
 import {
@@ -23,10 +21,10 @@ import {
   pastelariaPorFaseId,
   semMotivoNaFase,
   tempoMedioConversaoPorResponsavel,
+  type PainelQualidadeOperacionalFaseRow,
 } from '@/lib/kanban/painel-dashboard-derive';
 import {
   computePainelPerformance,
-  PAINEL_INSIGHT_TIPO_LABEL,
 } from '@/lib/kanban/painel-performance-compute';
 import {
   applyPainelFiltros,
@@ -78,6 +76,8 @@ import { PainelArquivadosDrawer } from './PainelArquivadosDrawer';
 import { PainelQualidadeMotivoAlert } from './PainelQualidadeMotivoAlert';
 import {
   buildRetrocessoDiasByCardId,
+  atrasadosHeatmapStyle,
+  diasUteisHeatmapStyle,
   FunnelVolumeBar,
   GargaloPrincipalFactor,
   GargaloScoreBar,
@@ -125,8 +125,10 @@ function canonicalChamadoStatusLabel(status: string): string {
   if (!raw) return '—';
   const slug = raw.toLowerCase().replace(/-/g, '_');
   const aliasMap: Record<string, string> = {
-    nao_iniciada: 'Não iniciado',
-    nao_iniciado: 'Não iniciado',
+    nao_iniciada: 'Não iniciada',
+    nao_iniciado: 'Não iniciada',
+    'não iniciado': 'Não iniciada',
+    'não iniciada': 'Não iniciada',
     em_andamento: 'Em andamento',
     pendente: 'Pendente',
     concluida: 'Concluída',
@@ -525,6 +527,214 @@ function DataTable({
   );
 }
 
+type OperacaoPorFaseRow = {
+  faseId: string;
+  faseNome: string;
+  faseConversao: boolean;
+  slaDias: number | null;
+  cardsAtivos: number;
+  cardsArquivados: number;
+  atrasados: number;
+  diasUteisMedio: number;
+};
+
+function CardsPorFaseHeatmapTable({ rows }: { rows: OperacaoPorFaseRow[] }) {
+  const visible = rows.filter((f) => f.cardsAtivos > 0 || f.cardsArquivados > 0 || f.atrasados > 0);
+  if (visible.length === 0) {
+    return (
+      <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+        Sem fases configuradas.
+      </p>
+    );
+  }
+  const maxAtrasados = Math.max(0, ...visible.map((f) => f.atrasados));
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[360px] text-left text-[11px]">
+        <thead>
+          <tr style={{ borderBottom: '0.5px solid var(--moni-border-subtle)' }}>
+            {['Fase', 'Ativos', 'Arquivados', 'Atrasados', 'Dias úteis méd.'].map((h, i) => (
+              <th
+                key={h}
+                className={`pb-2 pr-3 font-semibold uppercase tracking-wide last:pr-0 ${i > 0 ? 'text-right' : ''}`}
+                style={{ color: 'var(--moni-text-tertiary)' }}
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {visible.map((f) => (
+            <tr
+              key={f.faseId}
+              className="transition-colors hover:bg-[var(--moni-surface-50)]"
+              style={{ borderBottom: '0.5px solid var(--moni-border-subtle)' }}
+            >
+              <td className="py-2 pr-3" style={{ color: 'var(--moni-text-secondary)' }}>
+                {f.faseNome}
+                {f.faseConversao ? ' · conv.' : ''}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums" style={{ color: 'var(--moni-text-primary)' }}>
+                {formatInt(f.cardsAtivos)}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums" style={{ color: 'var(--moni-text-primary)' }}>
+                {f.cardsArquivados > 0 ? formatInt(f.cardsArquivados) : '—'}
+              </td>
+              <td
+                className="py-2 pr-3 text-right tabular-nums"
+                style={{
+                  color: 'var(--moni-text-primary)',
+                  ...atrasadosHeatmapStyle(f.atrasados, maxAtrasados),
+                }}
+              >
+                {formatInt(f.atrasados)}
+              </td>
+              <td
+                className="py-2 text-right tabular-nums"
+                style={{
+                  color: 'var(--moni-text-primary)',
+                  ...diasUteisHeatmapStyle(f.diasUteisMedio, f.slaDias),
+                }}
+              >
+                {f.diasUteisMedio > 0 ? formatDias(f.diasUteisMedio) : '—'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ProblemasPorFaseTable({ rows }: { rows: PainelQualidadeOperacionalFaseRow[] }) {
+  const sorted = [...rows]
+    .filter((f) => f.semPrazo + f.semResponsavel + f.camposIncompletos > 0)
+    .sort(
+      (a, b) =>
+        b.semPrazo +
+        b.semResponsavel +
+        b.camposIncompletos -
+        (a.semPrazo + a.semResponsavel + a.camposIncompletos),
+    );
+
+  if (sorted.length === 0) {
+    return (
+      <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+        Nenhuma lacuna identificada por fase.
+      </p>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[280px] text-left text-[11px]">
+        <thead>
+          <tr style={{ borderBottom: '0.5px solid var(--moni-border-subtle)' }}>
+            {['Fase', 'Problemas'].map((h) => (
+              <th
+                key={h}
+                className="pb-2 pr-3 font-semibold uppercase tracking-wide last:pr-0"
+                style={{ color: 'var(--moni-text-tertiary)' }}
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((f) => (
+            <tr
+              key={f.faseId}
+              className="transition-colors hover:bg-[var(--moni-surface-50)]"
+              style={{ borderBottom: '0.5px solid var(--moni-border-subtle)' }}
+            >
+              <td className="py-2 pr-3" style={{ color: 'var(--moni-text-secondary)' }}>
+                {f.faseNome}
+              </td>
+              <td className="py-2">
+                <div className="flex flex-wrap gap-1">
+                  {f.semPrazo > 0 ? (
+                    <span className="moni-tag-atencao inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-medium tabular-nums">
+                      {formatInt(f.semPrazo)}d sem prazo
+                    </span>
+                  ) : null}
+                  {f.semResponsavel > 0 ? (
+                    <span className="moni-tag-atrasado inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-medium tabular-nums">
+                      {formatInt(f.semResponsavel)}r sem resp.
+                    </span>
+                  ) : null}
+                  {f.camposIncompletos > 0 ? (
+                    <span className="moni-tag-arquivado inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-medium tabular-nums">
+                      {formatInt(f.camposIncompletos)}c incompleto
+                    </span>
+                  ) : null}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ChamadosPorStatusPanel({ rows }: { rows: Array<{ status: string; total: number }> }) {
+  const merged = mergeChamadosPorStatus(rows);
+  if (merged.length === 0) {
+    return (
+      <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+        Sem chamados.
+      </p>
+    );
+  }
+  if (merged.length <= 3) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        {merged.map((r) => (
+          <MiniKpi key={r.status} label={r.status} value={formatInt(r.total)} />
+        ))}
+      </div>
+    );
+  }
+  return (
+    <DataTable
+      headers={['Status', 'Qtd.']}
+      emptyMessage="Sem chamados."
+      rows={merged.map((r) => [r.status, formatInt(r.total)])}
+      alignRightFrom={1}
+    />
+  );
+}
+
+function ChamadosPorResponsavelPanel({
+  rows,
+}: {
+  rows: Array<{ responsavelNome: string; abertos: number; comTrava: number }>;
+}) {
+  const comResponsavel = rows.filter((r) => r.responsavelNome.trim() !== 'Sem responsável');
+  if (comResponsavel.length === 0) {
+    return (
+      <p className="text-[11px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
+        Nenhum chamado tem responsável vinculado.
+      </p>
+    );
+  }
+  return (
+    <DataTable
+      headers={['Responsável', 'Abertos', 'Trava']}
+      emptyMessage="Sem dados."
+      rows={comResponsavel.slice(0, 10).map((r) => [
+        r.responsavelNome,
+        formatInt(r.abertos),
+        formatInt(r.comTrava),
+      ])}
+      alignRightFrom={1}
+    />
+  );
+}
+
 type ChamadosPorFaseRow = {
   faseId: string;
   faseNome: string;
@@ -801,10 +1011,21 @@ function GargaloRow({
 
 function InsightIcon({ ins }: { ins: PainelInsight }) {
   const sev = insightSeveridade(ins.tipo);
-  if (sev === 'positivo') return <TrendingUp className="h-4 w-4 shrink-0" style={{ color: 'var(--moni-green-800)' }} />;
-  if (sev === 'critico')
-    return <AlertTriangle className="h-4 w-4 shrink-0" style={{ color: 'var(--moni-status-overdue-text)' }} />;
-  return <TrendingDown className="h-4 w-4 shrink-0" style={{ color: 'var(--moni-gold-800)' }} />;
+  const icon =
+    sev === 'positivo' ? 'ti-trending-up' : sev === 'critico' ? 'ti-alert-triangle' : 'ti-trending-down';
+  const color =
+    sev === 'positivo'
+      ? 'var(--moni-green-800)'
+      : sev === 'critico'
+        ? 'var(--moni-status-overdue-text)'
+        : 'var(--moni-status-attention-text)';
+  return (
+    <i
+      className={`ti ${icon} shrink-0`}
+      aria-hidden
+      style={{ fontSize: 16, color, lineHeight: 1, marginTop: 2 }}
+    />
+  );
 }
 
 function carometroSecaoVisivel(kanbanId: string, carometro: PainelCarometroIndicadores): boolean {
@@ -2262,7 +2483,6 @@ function insightCategoryBadgeClass(sev: ReturnType<typeof insightSeveridade>): s
 function InsightCard({ ins }: { ins: PainelInsight }) {
   const sev = insightSeveridade(ins.tipo);
   const accent = insightSeverityAccent(sev);
-  const categoryLabel = PAINEL_INSIGHT_TIPO_LABEL[ins.tipo];
 
   return (
     <li
@@ -2279,9 +2499,9 @@ function InsightCard({ ins }: { ins: PainelInsight }) {
         <span
           className={`inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-medium ${insightCategoryBadgeClass(sev)}`}
         >
-          {categoryLabel}
+          {ins.tipoLabel}
         </span>
-        <p className="text-[11px] font-medium leading-snug" style={{ color: 'var(--moni-text-primary)' }}>
+        <p className="text-[11px] leading-snug" style={{ color: 'var(--moni-text-primary)' }}>
           {ins.texto}
         </p>
       </div>
@@ -3318,29 +3538,8 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
             </div>
           ) : null}
 
-          {analise.arquivamento.qualidadeMotivo ? (
-            <PainelQualidadeMotivoAlert
-              qualidade={analise.arquivamento.qualidadeMotivo}
-              formatInt={formatInt}
-              formatPct={formatPct}
-            />
-          ) : null}
-
           <PanelBox title="Cards por fase">
-            <DataTable
-              headers={['Fase', 'Ativos', 'Arquivados', 'Atrasados', 'Dias úteis méd.']}
-              emptyMessage="Sem fases configuradas."
-              rows={analise.operacao.porFase
-                .filter((f) => f.cardsAtivos > 0 || f.cardsArquivados > 0 || f.atrasados > 0)
-                .map((f) => [
-                  `${f.faseNome}${f.faseConversao ? ' · conv.' : ''}`,
-                  formatInt(f.cardsAtivos),
-                  f.cardsArquivados > 0 ? formatInt(f.cardsArquivados) : '—',
-                  formatInt(f.atrasados),
-                  f.diasUteisMedio > 0 ? formatDias(f.diasUteisMedio) : '—',
-                ])}
-              alignRightFrom={1}
-            />
+            <CardsPorFaseHeatmapTable rows={analise.operacao.porFase} />
           </PanelBox>
 
           <section className="space-y-3">
@@ -3365,15 +3564,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                 />
               </PanelBox>
               <PanelBox title="Problemas por fase">
-                <DataTable
-                  headers={['Fase', 'Total']}
-                  emptyMessage="Nenhuma lacuna identificada por fase."
-                  rows={qualidadeOperacional.porFase.map((f) => [
-                    f.faseNome,
-                    formatInt(f.semPrazo + f.semResponsavel + f.camposIncompletos),
-                  ])}
-                  alignRightFrom={1}
-                />
+                <ProblemasPorFaseTable rows={qualidadeOperacional.porFase} />
               </PanelBox>
             </div>
           </section>
@@ -3394,27 +3585,10 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
             </div>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <PanelBox title="Por responsável">
-                <DataTable
-                  headers={['Responsável', 'Abertos', 'Trava']}
-                  emptyMessage="Sem dados."
-                  rows={analise.chamados.porResponsavel.slice(0, 10).map((r) => [
-                    r.responsavelNome,
-                    formatInt(r.abertos),
-                    formatInt(r.comTrava),
-                  ])}
-                  alignRightFrom={1}
-                />
+                <ChamadosPorResponsavelPanel rows={analise.chamados.porResponsavel} />
               </PanelBox>
               <PanelBox title="Por status">
-                <DataTable
-                  headers={['Status', 'Qtd.']}
-                  emptyMessage="Sem chamados."
-                  rows={mergeChamadosPorStatus(analise.chamados.porStatus).map((r) => [
-                    r.status,
-                    formatInt(r.total),
-                  ])}
-                  alignRightFrom={1}
-                />
+                <ChamadosPorStatusPanel rows={analise.chamados.porStatus} />
               </PanelBox>
             </div>
             <PanelBox title="Chamados por fase">
