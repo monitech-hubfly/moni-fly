@@ -17,6 +17,7 @@ export type PipelineCardRow = {
   fase_slug: string | null;
   fase_ordem: number;
   fase_sla_dias: number | null;
+  fase_sla_tipo: 'uteis' | 'corridos';
   /** Admin: fase marcada como conversão (migration 387). */
   fase_conversao: boolean;
   rede_franqueado_id: string | null;

@@ -1,5 +1,5 @@
 import type { KanbanFase } from '@/components/kanban-shared/types';
-import { formatLocalYmd, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
+import { calcularDiasCorridos, formatLocalYmd, parseIsoDateOnlyLocal, normalizarSlaTipo, type SlaTipo } from '@/lib/dias-uteis';
 import { addBusinessDays, type FaseTimelineStatus } from '@/lib/kanban/previsibilidade-operacoes';
 import { lastVisitPerFase, type FaseVisit } from '@/lib/kanban/kanban-card-timeline';
 
@@ -69,11 +69,28 @@ export function businessDaysBetween(inicioYmd: string, fimYmd: string): number {
   return count;
 }
 
-function fimEstimadaPorSla(inicioYmd: string, slaDias: number | null): string | null {
+function fimEstimadaPorSla(
+  inicioYmd: string,
+  slaDias: number | null,
+  slaTipo: SlaTipo = 'uteis',
+): string | null {
   if (!inicioYmd || slaDias == null || slaDias <= 0) return null;
   const base = parseIsoDateOnlyLocal(inicioYmd);
   if (!base) return null;
+  if (slaTipo === 'corridos') {
+    const fim = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+    fim.setDate(fim.getDate() + slaDias);
+    return formatLocalYmd(fim);
+  }
   return formatLocalYmd(addBusinessDays(base, slaDias));
+}
+
+function calendarDaysBetween(inicioYmd: string, fimYmd: string): number {
+  const a = parseIsoDateOnlyLocal(inicioYmd);
+  const b = parseIsoDateOnlyLocal(fimYmd);
+  if (!a || !b) return 0;
+  if (b.getTime() <= a.getTime()) return 0;
+  return calcularDiasCorridos(a, b);
 }
 
 function resolveStatus(
@@ -123,14 +140,16 @@ function resolveAtraso(
   dataFimEstimada: string | null,
   dataFimReal: string | null,
   hoje: string,
+  slaTipo: SlaTipo = 'uteis',
 ): number | null {
   if (!dataFimEstimada) return null;
+  const diff = slaTipo === 'corridos' ? calendarDaysBetween : businessDaysBetween;
   if (status === 'atual_atrasada') {
-    const dias = businessDaysBetween(dataFimEstimada, hoje);
+    const dias = diff(dataFimEstimada, hoje);
     return dias > 0 ? dias : null;
   }
   if (status === 'concluida_atraso' && dataFimReal) {
-    const dias = businessDaysBetween(dataFimEstimada, dataFimReal);
+    const dias = diff(dataFimEstimada, dataFimReal);
     return dias > 0 ? dias : null;
   }
   return null;
@@ -171,7 +190,8 @@ export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): Ca
       baseInicio = toYmd(card.created_at);
     }
 
-    const dataFimEstimada = baseInicio ? fimEstimadaPorSla(baseInicio, fase.sla_dias) : null;
+    const slaTipo = normalizarSlaTipo(fase.sla_tipo);
+    const dataFimEstimada = baseInicio ? fimEstimadaPorSla(baseInicio, fase.sla_dias, slaTipo) : null;
 
     chainCursor = dataFimReal ?? dataFimEstimada ?? chainCursor;
 
@@ -186,7 +206,7 @@ export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): Ca
       hoje,
     );
 
-    const atrasoDiasUteis = resolveAtraso(status, dataFimEstimada, dataFimReal, hoje);
+    const atrasoDiasUteis = resolveAtraso(status, dataFimEstimada, dataFimReal, hoje, slaTipo);
 
     return {
       faseId: fase.id,

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanCardBrief } from '@/components/kanban-shared/types';
 import { compareRedePorNFranquia } from '@/lib/rede-franqueados';
+import { normalizarSlaTipo } from '@/lib/dias-uteis';
 import {
   buscarProfilesFranqueadoPorRedeIdsBatch,
   enrichCardsComResponsavelFase,
@@ -34,7 +35,7 @@ const CARD_SELECT_BASE = `
   concluido,
   status,
   kanbans ( nome ),
-  kanban_fases ( nome, slug, ordem, sla_dias, fase_conversao ),
+  kanban_fases ( nome, slug, ordem, sla_dias, sla_tipo, fase_conversao ),
   rede_franqueados ( n_franquia, nome_completo, ordem ),
   projeto_negocio ( titulo )
 `;
@@ -75,7 +76,7 @@ const CARD_SELECT_SEM_PROJETO = `
   concluido,
   status,
   kanbans ( nome ),
-  kanban_fases ( nome, slug, ordem, sla_dias, fase_conversao ),
+  kanban_fases ( nome, slug, ordem, sla_dias, sla_tipo, fase_conversao ),
   rede_franqueados ( n_franquia, nome_completo, ordem )
 `.trim();
 
@@ -93,8 +94,8 @@ function mapPipelineCardRow(raw: RawCard): PipelineCardRow | null {
   const kanban = relOne(raw.kanbans as { nome?: string | null } | { nome?: string | null }[] | null);
   const fase = relOne(
     raw.kanban_fases as
-      | { nome?: string | null; slug?: string | null; ordem?: number | null; sla_dias?: number | null; fase_conversao?: boolean | null }
-      | Array<{ nome?: string | null; slug?: string | null; ordem?: number | null; sla_dias?: number | null; fase_conversao?: boolean | null }>
+      | { nome?: string | null; slug?: string | null; ordem?: number | null; sla_dias?: number | null; sla_tipo?: string | null; fase_conversao?: boolean | null }
+      | Array<{ nome?: string | null; slug?: string | null; ordem?: number | null; sla_dias?: number | null; sla_tipo?: string | null; fase_conversao?: boolean | null }>
       | null,
   );
   const rede = relOne(
@@ -118,6 +119,7 @@ function mapPipelineCardRow(raw: RawCard): PipelineCardRow | null {
     fase_slug: fase?.slug != null ? String(fase.slug) : null,
     fase_ordem: Number(fase?.ordem ?? 0),
     fase_sla_dias: fase?.sla_dias != null ? Number(fase.sla_dias) : null,
+    fase_sla_tipo: normalizarSlaTipo(fase?.sla_tipo),
     fase_conversao: Boolean(fase?.fase_conversao),
     rede_franqueado_id: raw.rede_franqueado_id != null ? String(raw.rede_franqueado_id) : null,
     n_franquia: rede?.n_franquia != null ? String(rede.n_franquia) : null,
@@ -249,7 +251,7 @@ async function fetchFasesKanbansPipeline(
 
   const { data: rows, error } = await supabase
     .from('kanban_fases')
-    .select('id, nome, ordem, sla_dias, slug, fase_conversao, kanban_id')
+    .select('id, nome, ordem, sla_dias, sla_tipo, slug, fase_conversao, kanban_id')
     .in('kanban_id', uniq)
     .eq('ativo', true)
     .order('ordem');
@@ -265,6 +267,7 @@ async function fetchFasesKanbansPipeline(
       nome?: string | null;
       ordem?: number | null;
       sla_dias?: number | string | null;
+      sla_tipo?: string | null;
       slug?: string | null;
       fase_conversao?: boolean | null;
       kanban_id?: string | null;
@@ -276,6 +279,7 @@ async function fetchFasesKanbansPipeline(
       nome: String(row.nome ?? ''),
       ordem,
       sla_dias: row.sla_dias != null && row.sla_dias !== '' ? Number(row.sla_dias) : null,
+      sla_tipo: normalizarSlaTipo(row.sla_tipo),
       fase_conversao: Boolean(row.fase_conversao),
       slug: row.slug != null ? String(row.slug) : null,
     });

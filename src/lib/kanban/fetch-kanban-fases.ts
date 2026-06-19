@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanFase } from '@/components/kanban-shared/types';
+import { normalizarSlaTipo } from '@/lib/dias-uteis';
 import { isRemovedStepOneFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { parseKanbanFaseMateriais } from './parse-kanban-fase-materiais';
 
@@ -9,6 +10,7 @@ export function mapKanbanFaseRow(row: Record<string, unknown>): KanbanFase {
     nome: String(row.nome ?? ''),
     ordem: Number(row.ordem ?? 0),
     sla_dias: row.sla_dias != null && row.sla_dias !== '' ? Number(row.sla_dias) : null,
+    sla_tipo: normalizarSlaTipo(row.sla_tipo != null ? String(row.sla_tipo) : null),
     slug: row.slug != null ? String(row.slug) : null,
     instrucoes: row.instrucoes != null ? String(row.instrucoes) : null,
     materiais: parseKanbanFaseMateriais(row.materiais),
@@ -26,7 +28,7 @@ export async function fetchKanbanFasesAtivas(
 ): Promise<KanbanFase[]> {
   const { data: fasesRows, error } = await supabase
     .from('kanban_fases')
-    .select('id, nome, ordem, sla_dias, slug, instrucoes, materiais, fase_conversao')
+    .select('id, nome, ordem, sla_dias, sla_tipo, slug, instrucoes, materiais, fase_conversao')
     .eq('kanban_id', kanbanId)
     .eq('ativo', true)
     .order('ordem');
@@ -49,7 +51,7 @@ export async function fetchKanbanFasesAtivasBatch(
 
   const { data: fasesRows, error } = await supabase
     .from('kanban_fases')
-    .select('id, nome, ordem, sla_dias, slug, instrucoes, materiais, fase_conversao, kanban_id')
+    .select('id, nome, ordem, sla_dias, sla_tipo, slug, instrucoes, materiais, fase_conversao, kanban_id')
     .in('kanban_id', uniq)
     .eq('ativo', true)
     .order('ordem');
@@ -75,7 +77,7 @@ export async function augmentKanbanFasesComFasesDosCards(
 
   const { data: extraRows, error } = await supabase
     .from('kanban_fases')
-    .select('id, nome, ordem, sla_dias, slug, instrucoes, materiais, fase_conversao')
+    .select('id, nome, ordem, sla_dias, sla_tipo, slug, instrucoes, materiais, fase_conversao')
     .eq('kanban_id', kanbanId)
     .in('id', missing);
 

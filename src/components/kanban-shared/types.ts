@@ -32,6 +32,8 @@ export type KanbanFase = {
   nome: string;
   ordem: number;
   sla_dias: number | null;
+  /** Dias úteis (default) ou corridos — migration 400. */
+  sla_tipo?: 'uteis' | 'corridos' | null;
   /** Preenchido nas fases seedadas (migration 112); Funil Step One pode ser null. */
   slug?: string | null;
   /** Texto orientativo da fase (migration 129). */

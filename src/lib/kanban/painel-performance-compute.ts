@@ -1,4 +1,4 @@
-import { calcularDiasUteis, calcularStatusSLA } from '@/lib/dias-uteis';
+import { calcularDiasUteis, calcularStatusSLAPorTipo, normalizarSlaTipo } from '@/lib/dias-uteis';
 import { computePainelChamados } from '@/lib/kanban/painel-chamados-compute';
 import { computeConversionFunnelTree } from '@/lib/kanban/painel-funnel-tree-compute';
 import { computeGargaloScoreRanking } from '@/lib/kanban/painel-gargalo-score-compute';
@@ -177,7 +177,10 @@ export function buildFaseMaps(
     const fase = faseById.get(fid);
     const slaDias = fase?.sla_dias ?? 999;
     const created = new Date(c.created_at);
-    if (Number.isFinite(created.getTime()) && calcularStatusSLA(created, slaDias).status === 'atrasado') {
+    if (
+      Number.isFinite(created.getTime()) &&
+      calcularStatusSLAPorTipo(created, slaDias, fase?.sla_tipo).status === 'atrasado'
+    ) {
       atrasadosPorFase.set(fid, (atrasadosPorFase.get(fid) ?? 0) + 1);
     }
     const diasCal = (Date.now() - new Date(c.created_at).getTime()) / (1000 * 60 * 60 * 24);
@@ -223,7 +226,7 @@ function diasNaFaseAtual(c: PainelCardDTO): number {
 function slaCardNaFase(c: PainelCardDTO, fase: PainelFaseDTO | undefined): 'ok' | 'atencao' | 'atrasado' | 'sem_sla' {
   if (!fase?.sla_dias || fase.sla_dias >= 999) return 'sem_sla';
   const ref = c.entered_fase_at ?? c.created_at;
-  const st = calcularStatusSLA(new Date(ref), fase.sla_dias).status;
+  const st = calcularStatusSLAPorTipo(new Date(ref), fase.sla_dias, fase.sla_tipo).status;
   return st;
 }
 
