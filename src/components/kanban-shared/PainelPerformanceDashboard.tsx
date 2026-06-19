@@ -6,8 +6,10 @@ import { usePathname } from 'next/navigation';
 import {
   AlertTriangle,
   ArrowRight,
+  Building2,
   TrendingDown,
   TrendingUp,
+  UserX,
 } from 'lucide-react';
 import {
   deriveFluxoMetrics,
@@ -22,7 +24,10 @@ import {
   semMotivoNaFase,
   tempoMedioConversaoPorResponsavel,
 } from '@/lib/kanban/painel-dashboard-derive';
-import { computePainelPerformance } from '@/lib/kanban/painel-performance-compute';
+import {
+  computePainelPerformance,
+  PAINEL_INSIGHT_TIPO_LABEL,
+} from '@/lib/kanban/painel-performance-compute';
 import {
   applyPainelFiltros,
   buildPainelFiltrosOpcoes,
@@ -112,6 +117,39 @@ function formatDias(n: number | null): string {
 function formatDiasCorridos(n: number | null): string {
   if (n == null || !Number.isFinite(n)) return '—';
   return `${Math.round(n)} dias`;
+}
+
+/** Normaliza slug/label de status de chamado para exibição única (UI only). */
+function canonicalChamadoStatusLabel(status: string): string {
+  const raw = status.trim();
+  if (!raw) return '—';
+  const slug = raw.toLowerCase().replace(/-/g, '_');
+  const aliasMap: Record<string, string> = {
+    nao_iniciada: 'Não iniciado',
+    nao_iniciado: 'Não iniciado',
+    em_andamento: 'Em andamento',
+    pendente: 'Pendente',
+    concluida: 'Concluída',
+    concluido: 'Concluído',
+    aprovado: 'Aprovado',
+    cancelada: 'Cancelada',
+    cancelado: 'Cancelado',
+    aguardando_aprovacao_criador: 'Aguardando aprovação',
+  };
+  return aliasMap[slug] ?? raw;
+}
+
+function mergeChamadosPorStatus(
+  rows: Array<{ status: string; total: number }>,
+): Array<{ status: string; total: number }> {
+  const map = new Map<string, number>();
+  for (const { status, total } of rows) {
+    const label = canonicalChamadoStatusLabel(status);
+    map.set(label, (map.get(label) ?? 0) + total);
+  }
+  return [...map.entries()]
+    .map(([status, total]) => ({ status, total }))
+    .sort((a, b) => b.total - a.total);
 }
 
 function DegradeNote({ children }: { children: string }) {
@@ -938,11 +976,14 @@ function CarometroIndicadoresSection({
 
 function PortfolioEspecificidadesSection({
   data,
-  confirmacaoFunnel: _confirmacaoFunnel,
+  confirmacaoFunnel,
 }: {
   data: PainelPortfolioEspecificidades;
   confirmacaoFunnel?: { opcao: number; comite: number; contrato: number } | null;
 }) {
+  const perdaInterna = data.perdaDecisao?.linhas.find((l) => l.origem.startsWith('Interna'));
+  const perdaExterna = data.perdaDecisao?.linhas.find((l) => l.origem.startsWith('Externa'));
+
   return (
     <section className="space-y-3">
       <div>
@@ -957,8 +998,31 @@ function PortfolioEspecificidadesSection({
         </p>
       </div>
 
+      {confirmacaoFunnel != null ? (
+        <div className="px-4 py-4" style={panelStyle}>
+          <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+            Funil de confirmações — Opção → Comitê → Contrato
+          </h4>
+          <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
+            opcao_assinada, comite_aprovado e contrato_assinado no período, com taxa de conversão entre etapas.
+          </p>
+          <div className="mt-4">
+            <MiniConfirmacaoFunnel
+              opcao={confirmacaoFunnel.opcao}
+              comite={confirmacaoFunnel.comite}
+              contrato={confirmacaoFunnel.contrato}
+            />
+          </div>
+          {data.taxaComiteVirandoContrato?.percentual != null ? (
+            <p className="mt-3 text-[10px] italic" style={{ color: 'var(--moni-text-tertiary)' }}>
+              meta Comitê → Contrato: 100% (atual {formatPct(data.taxaComiteVirandoContrato.percentual)})
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {data.taxaAprovacaoComite != null ? (
+        {confirmacaoFunnel == null && data.taxaAprovacaoComite != null ? (
           <div className="px-4 py-4" style={panelStyle}>
             <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
               Taxa de aprovação em Comitê
@@ -982,11 +1046,13 @@ function PortfolioEspecificidadesSection({
             <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
               opcao_assinada_em → comite_aprovado_em (dias úteis).
             </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <MiniKpi label="Mediana" value={formatDias(data.tempoOpcaoAteComite.medianaDiasUteis)} />
-              <MiniKpi label="P90" value={formatDias(data.tempoOpcaoAteComite.p90DiasUteis)} />
-              <MiniKpi label="Amostras" value={formatInt(data.tempoOpcaoAteComite.amostras)} />
-            </div>
+            <DualLargeStat
+              left={{ label: 'Mediana', value: formatDias(data.tempoOpcaoAteComite.medianaDiasUteis), tone: 'neutro' }}
+              right={{ label: 'P90', value: formatDias(data.tempoOpcaoAteComite.p90DiasUteis), tone: 'neutro' }}
+            />
+            <p className="mt-2 text-[10px] tabular-nums" style={{ color: 'var(--moni-text-tertiary)' }}>
+              {formatInt(data.tempoOpcaoAteComite.amostras)} amostras
+            </p>
             {data.tempoOpcaoAteComite.insuficiente ? (
               <DegradeNote>
                 Menos de 3 cards com opcao_assinada_em e comite_aprovado_em — mediana e P90 indisponíveis.
@@ -1019,7 +1085,7 @@ function PortfolioEspecificidadesSection({
           </div>
         ) : null}
 
-        {data.taxaComiteVirandoContrato != null ? (
+        {confirmacaoFunnel == null && data.taxaComiteVirandoContrato != null ? (
           <div className="px-4 py-4" style={panelStyle}>
             <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
               Taxa Comitê → Contrato
@@ -1045,12 +1111,43 @@ function PortfolioEspecificidadesSection({
         ) : null}
       </div>
 
-      {data.perdaDecisao != null ? (
+      {data.perdaDecisao != null && (perdaInterna || perdaExterna) ? (
         <PanelBox title="Perda por origem — decisão interna vs. externa">
           <p className="mb-3 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
             Cards arquivados no período, classificados pelo texto de motivo_arquivamento (crédito, produto,
             viabilidade, comitê → interna; desistência, terrenista, parceiro → externa).
           </p>
+          <DualLargeStat
+            left={{
+              label: 'Interna',
+              value: formatInt(perdaInterna?.quantidade ?? 0),
+              sub: formatPct(perdaInterna?.percentual ?? null),
+              tone: 'neutro',
+            }}
+            right={{
+              label: 'Externa',
+              value: formatInt(perdaExterna?.quantidade ?? 0),
+              sub: formatPct(perdaExterna?.percentual ?? null),
+              tone: 'neutro',
+            }}
+          />
+          <div className="mt-3 flex justify-center gap-8">
+            <div className="flex flex-col items-center gap-1">
+              <Building2 className="h-6 w-6" style={{ color: 'var(--moni-navy-800)' }} aria-hidden />
+              <span className="text-[10px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+                Moní reprova
+              </span>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <UserX className="h-6 w-6" style={{ color: 'var(--moni-navy-800)' }} aria-hidden />
+              <span className="text-[10px] uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+                Terrenista / franqueado
+              </span>
+            </div>
+          </div>
+        </PanelBox>
+      ) : data.perdaDecisao != null ? (
+        <PanelBox title="Perda por origem — decisão interna vs. externa">
           <DataTable
             headers={['Origem', 'Qtd.', '% do total arquivado']}
             emptyMessage="Sem arquivamentos no recorte."
@@ -2156,9 +2253,16 @@ function ContabilidadeEspecificidadesSection({
   );
 }
 
+function insightCategoryBadgeClass(sev: ReturnType<typeof insightSeveridade>): string {
+  if (sev === 'critico') return 'moni-tag-atrasado';
+  if (sev === 'positivo') return 'moni-tag-concluido';
+  return 'moni-tag-atencao';
+}
+
 function InsightCard({ ins }: { ins: PainelInsight }) {
   const sev = insightSeveridade(ins.tipo);
   const accent = insightSeverityAccent(sev);
+  const categoryLabel = PAINEL_INSIGHT_TIPO_LABEL[ins.tipo];
 
   return (
     <li
@@ -2171,7 +2275,12 @@ function InsightCard({ ins }: { ins: PainelInsight }) {
       }}
     >
       <InsightIcon ins={ins} />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <span
+          className={`inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-medium ${insightCategoryBadgeClass(sev)}`}
+        >
+          {categoryLabel}
+        </span>
         <p className="text-[11px] font-medium leading-snug" style={{ color: 'var(--moni-text-primary)' }}>
           {ins.texto}
         </p>
@@ -2829,6 +2938,24 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                   </p>
                 ) : null}
               </PanelBox>
+
+              <CollapsiblePanelBox
+                title="Tempo médio por fase (coorte)"
+                expanded={tempoMedioFaseExpandido}
+                onToggle={() => setTempoMedioFaseExpandido((v) => !v)}
+                expandLabel="Ver tempo médio por fase"
+              >
+                <DataTable
+                  headers={['Fase', 'Alcançaram', '% entradas', 'Tempo médio']}
+                  emptyMessage="Sem dados de tempo."
+                  rows={analise.conversao.funnelTree.nodes.map((n) => [
+                    `${n.faseNome}${n.faseConversao ? ' · conv.' : ''}`,
+                    formatInt(n.alcancaram),
+                    formatPct(n.pctSobreEntradas),
+                    formatDias(n.tempoMedioDias),
+                  ])}
+                />
+              </CollapsiblePanelBox>
 
               <CollapsiblePanelBox
                 title="Transições adjacentes"
