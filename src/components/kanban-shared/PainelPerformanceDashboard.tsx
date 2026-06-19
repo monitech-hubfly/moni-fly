@@ -5,7 +5,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import {
   AlertTriangle,
-  ArrowDown,
+  ArrowRight,
   TrendingDown,
   TrendingUp,
 } from 'lucide-react';
@@ -749,13 +749,9 @@ function GargaloRow({
             {gargaloClassificacaoLabel(g.classificacao)}
           </span>
         </div>
-        <span className="text-lg font-semibold tabular-nums" style={{ color: 'var(--moni-navy-800)' }}>
-          {g.score}
-        </span>
+        <GargaloScoreBar score={g.score} />
       </div>
-      <p className="mb-2 text-[11px] leading-relaxed" style={{ color: 'var(--moni-text-secondary)' }}>
-        {g.principalMotivoTexto || g.principalMotivo}
-      </p>
+      <GargaloPrincipalFactor g={g} />
       <div className="flex flex-wrap gap-1">
         {pills.map((p) => (
           <Pill key={p.label} label={p.label} tone={p.tone} />
@@ -940,7 +936,13 @@ function CarometroIndicadoresSection({
   );
 }
 
-function PortfolioEspecificidadesSection({ data }: { data: PainelPortfolioEspecificidades }) {
+function PortfolioEspecificidadesSection({
+  data,
+  confirmacaoFunnel: _confirmacaoFunnel,
+}: {
+  data: PainelPortfolioEspecificidades;
+  confirmacaoFunnel?: { opcao: number; comite: number; contrato: number } | null;
+}) {
   return (
     <section className="space-y-3">
       <div>
@@ -1119,6 +1121,73 @@ function StepOneEspecificidadesSection({
             </div>
             {data.cardsParadosIntermediarios.total === 0 ? (
               <DegradeNote>Nenhum card ativo parado além do limite no recorte.</DegradeNote>
+            ) : data.cardsParadosIntermediarios.itens.length > 0 ? (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full min-w-[320px] text-left text-[11px]">
+                  <thead>
+                    <tr style={{ borderBottom: '0.5px solid var(--moni-border-subtle)' }}>
+                      {['Card', 'Fase', 'Dias', ''].map((h) => (
+                        <th
+                          key={h}
+                          className="pb-2 pr-3 font-semibold uppercase tracking-wide last:pr-0"
+                          style={{ color: 'var(--moni-text-tertiary)' }}
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.cardsParadosIntermediarios.itens.slice(0, 25).map((item) => {
+                      const limite = data.cardsParadosIntermediarios!.limiteDias;
+                      const maxDias = Math.max(
+                        ...data.cardsParadosIntermediarios!.itens.map((i) => i.diasNaFase),
+                        limite + 1,
+                      );
+                      const acimaLimite = item.diasNaFase > limite;
+                      return (
+                        <tr
+                          key={item.cardId}
+                          className="transition-colors hover:bg-[var(--moni-surface-50)]"
+                          style={{ borderBottom: '0.5px solid var(--moni-border-subtle)' }}
+                        >
+                          <td className="max-w-[160px] truncate py-2 pr-3">
+                            <Link
+                              href={buildOpenCardHref(openCardBase, item.cardId)}
+                              className="font-medium hover:underline"
+                              style={{ color: 'var(--moni-navy-800)' }}
+                            >
+                              {item.titulo}
+                            </Link>
+                          </td>
+                          <td className="py-2 pr-3" style={{ color: 'var(--moni-text-secondary)' }}>
+                            {item.faseNome}
+                          </td>
+                          <td className="py-2 pr-3 tabular-nums" style={{ color: 'var(--moni-text-primary)' }}>
+                            {formatInt(item.diasNaFase)} d
+                          </td>
+                          <td className="min-w-[120px] py-2">
+                            <div
+                              className="h-2 w-full overflow-hidden rounded-full"
+                              style={{ background: 'var(--moni-surface-200)' }}
+                            >
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${maxDias > 0 ? Math.max(4, Math.round((item.diasNaFase / maxDias) * 100)) : 0}%`,
+                                  background: acimaLimite
+                                    ? 'var(--moni-status-overdue-border)'
+                                    : 'var(--moni-kanban-stepone)',
+                                }}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             ) : null}
           </div>
         ) : null}
@@ -1152,18 +1221,39 @@ function StepOneEspecificidadesSection({
       {data.tempoFasesPesquisa != null ? (
         <PanelBox title="Tempo médio nas fases de pesquisa">
           <p className="mb-3 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-            Permanência calculada via kanban_historico e entered_fase_at (dias corridos).
+            Permanência calculada via kanban_historico e entered_fase_at (dias corridos). Mais lento no topo.
           </p>
-          <DataTable
-            headers={['Fase', 'Tempo médio', 'Cards analisados']}
-            emptyMessage="Sem visitas registradas às fases de pesquisa no recorte."
-            rows={data.tempoFasesPesquisa.linhas.map((l) => [
-              l.faseNome,
-              formatDiasCorridos(l.tempoMedioDias),
-              formatInt(l.cardsAnalisados),
-            ])}
-            alignRightFrom={1}
-          />
+          {data.tempoFasesPesquisa.linhas.length === 0 ? (
+            <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+              Sem visitas registradas às fases de pesquisa no recorte.
+            </p>
+          ) : (
+            (() => {
+              const sorted = [...data.tempoFasesPesquisa.linhas].sort(
+                (a, b) => (b.tempoMedioDias ?? 0) - (a.tempoMedioDias ?? 0),
+              );
+              const maxTempo = Math.max(...sorted.map((l) => l.tempoMedioDias ?? 0), 1);
+              return (
+                <div className="space-y-1">
+                  {sorted.map((l) => (
+                    <ProportionalBarRow
+                      key={l.faseNome}
+                      label={l.faseNome}
+                      value={l.tempoMedioDias ?? 0}
+                      max={maxTempo}
+                      suffix={formatDiasCorridos(l.tempoMedioDias)}
+                      barColor="var(--moni-kanban-stepone)"
+                      trailing={
+                        <span className="w-10 shrink-0 text-right text-[10px] tabular-nums" style={{ color: 'var(--moni-text-tertiary)' }}>
+                          n={formatInt(l.cardsAnalisados)}
+                        </span>
+                      }
+                    />
+                  ))}
+                </div>
+              );
+            })()
+          )}
           <p className="mt-3 text-[10px] italic leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
             Fases lentas indicam mercado difícil ou franqueado sem suporte técnico.
           </p>
@@ -1172,30 +1262,6 @@ function StepOneEspecificidadesSection({
               Histórico de movimentação incompleto em parte dos cards — tempos são aproximados.
             </DegradeNote>
           ) : null}
-        </PanelBox>
-      ) : null}
-
-      {data.cardsParadosIntermediarios != null && data.cardsParadosIntermediarios.itens.length > 0 ? (
-        <PanelBox title="Lista — cards parados">
-          <ul className="divide-y" style={{ borderColor: 'var(--moni-border-subtle)' }}>
-            {data.cardsParadosIntermediarios.itens.slice(0, 25).map((item) => (
-              <li
-                key={item.cardId}
-                className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2.5 text-[11px] first:pt-0 last:pb-0"
-              >
-                <Link
-                  href={buildOpenCardHref(openCardBase, item.cardId)}
-                  className="min-w-0 truncate font-medium hover:underline"
-                  style={{ color: 'var(--moni-navy-800)' }}
-                >
-                  {item.titulo}
-                </Link>
-                <span className="shrink-0 tabular-nums" style={{ color: 'var(--moni-text-secondary)' }}>
-                  {item.faseNome} · {formatInt(item.diasNaFase)} dias
-                </span>
-              </li>
-            ))}
-          </ul>
         </PanelBox>
       ) : null}
     </section>
@@ -1219,7 +1285,7 @@ function AcoplamentoEspecificidadesSection({ data }: { data: PainelAcoplamentoEs
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
         {data.taxaAprovacaoTentativa != null ? (
-          <div className="px-4 py-4" style={panelStyle}>
+          <div className="px-4 py-4 md:col-span-2 lg:col-span-3" style={panelStyle}>
             <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
               Taxa de aprovação na primeira tentativa
             </h4>
@@ -1227,23 +1293,32 @@ function AcoplamentoEspecificidadesSection({ data }: { data: PainelAcoplamentoEs
               Chegaram a acoplamento_aprovado sem passagem prévia por alteracoes_acoplamento
               (kanban_historico + is_retrocesso).
             </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <MiniKpi
-                label="Aprovados direto"
-                value={formatInt(data.taxaAprovacaoTentativa.aprovadosPrimeiraTentativa)}
-              />
-              <MiniKpi
-                label="Com revisão"
-                value={formatInt(data.taxaAprovacaoTentativa.aprovadosComRevisoes)}
-              />
-              <MiniKpi
-                label="Taxa 1ª tentativa"
-                value={formatPct(data.taxaAprovacaoTentativa.pctPrimeiraTentativa)}
-              />
-            </div>
             {data.taxaAprovacaoTentativa.totalAprovados === 0 ? (
               <DegradeNote>Nenhum card em acoplamento_aprovado no recorte analisado.</DegradeNote>
-            ) : null}
+            ) : (
+              <div className="mt-3">
+                <DualLargeStat
+                  left={{
+                    label: 'Direto',
+                    value: formatInt(data.taxaAprovacaoTentativa.aprovadosPrimeiraTentativa),
+                    sub: formatPct(data.taxaAprovacaoTentativa.pctPrimeiraTentativa),
+                    tone: 'verde',
+                  }}
+                  right={{
+                    label: 'Com revisão',
+                    value: formatInt(data.taxaAprovacaoTentativa.aprovadosComRevisoes),
+                    sub: formatPct(
+                      data.taxaAprovacaoTentativa.totalAprovados === 0
+                        ? null
+                        : (data.taxaAprovacaoTentativa.aprovadosComRevisoes /
+                            data.taxaAprovacaoTentativa.totalAprovados) *
+                            100,
+                    ),
+                    tone: 'ambar',
+                  }}
+                />
+              </div>
+            )}
           </div>
         ) : null}
 
@@ -1277,16 +1352,46 @@ function AcoplamentoEspecificidadesSection({ data }: { data: PainelAcoplamentoEs
               Campo origem_kanban_nome indisponível — distribuição por origem pode estar incompleta.
             </DegradeNote>
           ) : null}
-          <DataTable
-            headers={['Origem', 'Quantidade', '% do total']}
-            emptyMessage="Sem cards no recorte analisado."
-            rows={data.acoplamentosPorOrigem.linhas.slice(0, 15).map((r) => [
-              r.origem,
-              formatInt(r.quantidade),
-              formatPct(r.percentual),
-            ])}
-            alignRightFrom={1}
-          />
+          {data.acoplamentosPorOrigem.linhas.length === 0 ? (
+            <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+              Sem cards no recorte analisado.
+            </p>
+          ) : (
+            (() => {
+              const grupos = { portfolio: 0, manual: 0, outros: 0 };
+              for (const r of data.acoplamentosPorOrigem!.linhas) {
+                const o = r.origem.toLowerCase();
+                if (o.includes('portfólio') || o.includes('portfolio') || o.includes('portfo')) {
+                  grupos.portfolio += r.quantidade;
+                } else if (o.includes('manual')) {
+                  grupos.manual += r.quantidade;
+                } else {
+                  grupos.outros += r.quantidade;
+                }
+              }
+              const total = data.acoplamentosPorOrigem!.total || 1;
+              const rows = [
+                { label: 'Portfólio', value: grupos.portfolio },
+                { label: 'Manual', value: grupos.manual },
+                { label: 'Outros', value: grupos.outros },
+              ].filter((r) => r.value > 0);
+              const maxQtd = Math.max(...rows.map((r) => r.value), 1);
+              return (
+                <div className="space-y-1">
+                  {rows.map((r) => (
+                    <ProportionalBarRow
+                      key={r.label}
+                      label={r.label}
+                      value={r.value}
+                      max={maxQtd}
+                      suffix={`${formatInt(r.value)} (${formatPct((r.value / total) * 100)})`}
+                      barColor="var(--moni-navy-800)"
+                    />
+                  ))}
+                </div>
+              );
+            })()
+          )}
         </PanelBox>
       ) : null}
 
@@ -1380,23 +1485,54 @@ function OperacoesEspecificidadesSection({
       {data.tempoAprovacaoCondominio != null ? (
         <PanelBox title="Tempo médio de Aprovação no Condomínio por condomínio">
           <p className="mb-3 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-            Permanência em aprovacao_condominio agrupada por condomínio (projeto_negocio ou card).
+            Permanência em aprovacao_condominio agrupada por condomínio (projeto_negocio ou card). Mais lento no topo.
           </p>
           {data.tempoAprovacaoCondominio.localIndisponivel ? (
             <DegradeNote>
               Condomínio indisponível no fetch — agrupamento pode usar rótulos genéricos.
             </DegradeNote>
           ) : null}
-          <DataTable
-            headers={['Condomínio', 'Tempo médio', 'Cards']}
-            emptyMessage="Sem permanência registrada na fase Aprovação no Condomínio."
-            rows={data.tempoAprovacaoCondominio.porCondominio.slice(0, 12).map((r) => [
-              r.label,
-              formatDiasCorridos(r.mediaDias),
-              formatInt(r.amostras),
-            ])}
-            alignRightFrom={1}
-          />
+          {data.tempoAprovacaoCondominio.porCondominio.length === 0 ? (
+            <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+              Sem permanência registrada na fase Aprovação no Condomínio.
+            </p>
+          ) : (
+            (() => {
+              const sorted = [...data.tempoAprovacaoCondominio!.porCondominio]
+                .filter((r) => r.mediaDias != null)
+                .sort((a, b) => (b.mediaDias ?? 0) - (a.mediaDias ?? 0))
+                .slice(0, 12);
+              const mediana =
+                sorted.length === 0
+                  ? 0
+                  : sorted[Math.floor(sorted.length / 2)]!.mediaDias ?? 0;
+              const maxDias = Math.max(...sorted.map((r) => r.mediaDias ?? 0), 1);
+              return (
+                <div className="space-y-1">
+                  {sorted.map((r) => {
+                    const acima = (r.mediaDias ?? 0) > mediana;
+                    return (
+                      <ProportionalBarRow
+                        key={r.label}
+                        label={r.label}
+                        value={r.mediaDias ?? 0}
+                        max={maxDias}
+                        suffix={formatDiasCorridos(r.mediaDias)}
+                        barColor={
+                          acima ? 'var(--moni-status-overdue-border)' : 'var(--moni-kanban-portfolio-accent)'
+                        }
+                        trailing={
+                          <span className="w-8 shrink-0 text-right text-[10px] tabular-nums" style={{ color: 'var(--moni-text-tertiary)' }}>
+                            n={formatInt(r.amostras)}
+                          </span>
+                        }
+                      />
+                    );
+                  })}
+                </div>
+              );
+            })()
+          )}
           <p className="mt-3 text-[10px] italic leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
             Referência para o time de Acoplamento priorizar praças.
           </p>
@@ -1406,23 +1542,54 @@ function OperacoesEspecificidadesSection({
       {data.tempoAprovacaoPrefeitura != null ? (
         <PanelBox title="Tempo médio de Aprovação na Prefeitura por cidade">
           <p className="mb-3 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-            Permanência em aprovacao_prefeitura agrupada por cidade (rede_franqueados / projeto_negocio).
+            Permanência em aprovacao_prefeitura agrupada por cidade (rede_franqueados / projeto_negocio). Mais lento no topo.
           </p>
           {data.tempoAprovacaoPrefeitura.localIndisponivel ? (
             <DegradeNote>
               Cidade indisponível em rede_franqueados ou projeto_negocio — agrupamento parcial.
             </DegradeNote>
           ) : null}
-          <DataTable
-            headers={['Cidade', 'Tempo médio', 'Cards']}
-            emptyMessage="Sem permanência registrada na fase Aprovação na Prefeitura."
-            rows={data.tempoAprovacaoPrefeitura.porCidade.slice(0, 12).map((r) => [
-              r.label,
-              formatDiasCorridos(r.mediaDias),
-              formatInt(r.amostras),
-            ])}
-            alignRightFrom={1}
-          />
+          {data.tempoAprovacaoPrefeitura.porCidade.length === 0 ? (
+            <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+              Sem permanência registrada na fase Aprovação na Prefeitura.
+            </p>
+          ) : (
+            (() => {
+              const sorted = [...data.tempoAprovacaoPrefeitura!.porCidade]
+                .filter((r) => r.mediaDias != null)
+                .sort((a, b) => (b.mediaDias ?? 0) - (a.mediaDias ?? 0))
+                .slice(0, 12);
+              const mediana =
+                sorted.length === 0
+                  ? 0
+                  : sorted[Math.floor(sorted.length / 2)]!.mediaDias ?? 0;
+              const maxDias = Math.max(...sorted.map((r) => r.mediaDias ?? 0), 1);
+              return (
+                <div className="space-y-1">
+                  {sorted.map((r) => {
+                    const acima = (r.mediaDias ?? 0) > mediana;
+                    return (
+                      <ProportionalBarRow
+                        key={r.label}
+                        label={r.label}
+                        value={r.mediaDias ?? 0}
+                        max={maxDias}
+                        suffix={formatDiasCorridos(r.mediaDias)}
+                        barColor={
+                          acima ? 'var(--moni-status-overdue-border)' : 'var(--moni-kanban-portfolio-accent)'
+                        }
+                        trailing={
+                          <span className="w-8 shrink-0 text-right text-[10px] tabular-nums" style={{ color: 'var(--moni-text-tertiary)' }}>
+                            n={formatInt(r.amostras)}
+                          </span>
+                        }
+                      />
+                    );
+                  })}
+                </div>
+              );
+            })()
+          )}
           <p className="mt-3 text-[10px] italic leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
             Dado estratégico para priorização de praças.
           </p>
@@ -1435,18 +1602,16 @@ function OperacoesEspecificidadesSection({
             {data.aguardandoCredito30Dias.itens.slice(0, 25).map((item) => (
               <li
                 key={item.cardId}
-                className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2.5 text-[11px] first:pt-0 last:pb-0"
+                className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2.5 text-[11px] first:pt-0 last:pb-0"
               >
                 <Link
                   href={buildOpenCardHref(openCardBase, item.cardId)}
-                  className="min-w-0 truncate font-medium hover:underline"
+                  className="min-w-0 flex-1 truncate font-medium hover:underline"
                   style={{ color: 'var(--moni-navy-800)' }}
                 >
                   {item.titulo}
                 </Link>
-                <span className="shrink-0 tabular-nums" style={{ color: 'var(--moni-text-secondary)' }}>
-                  {formatInt(item.diasParados)} dias parados
-                </span>
+                <RedDaysBadge dias={item.diasParados} />
               </li>
             ))}
           </ul>
@@ -1486,11 +1651,13 @@ function LoteadoresEspecificidadesSection({
             <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
               r1_conceito_moni_inc → contrato_parceria_moni_inc (dias corridos via kanban_historico).
             </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <MiniKpi label="Mediana" value={formatDiasCorridos(data.tempoR1AteContrato.medianaDias)} />
-              <MiniKpi label="P90" value={formatDiasCorridos(data.tempoR1AteContrato.p90Dias)} />
-              <MiniKpi label="Cards analisados" value={formatInt(data.tempoR1AteContrato.amostras)} />
-            </div>
+            <DualLargeStat
+              left={{ label: 'Mediana', value: formatDiasCorridos(data.tempoR1AteContrato.medianaDias), tone: 'neutro' }}
+              right={{ label: 'P90', value: formatDiasCorridos(data.tempoR1AteContrato.p90Dias), tone: 'neutro' }}
+            />
+            <p className="mt-2 text-[10px] tabular-nums" style={{ color: 'var(--moni-text-tertiary)' }}>
+              {formatInt(data.tempoR1AteContrato.amostras)} cards analisados
+            </p>
             {data.tempoR1AteContrato.historicoParcial ? (
               <DegradeNote>
                 Histórico de movimentação incompleto em parte dos cards — tempos são aproximados.
@@ -1552,15 +1719,16 @@ function LoteadoresEspecificidadesSection({
               Nenhum loteador com concentração.
             </p>
           ) : (
-            <DataTable
-              headers={['Loteador', 'Cards ativos']}
-              emptyMessage="Nenhum loteador com concentração."
-              rows={data.loteadoresComMaisDe2Ativos.linhas.slice(0, 15).map((r) => [
-                r.label,
-                formatInt(r.cardsAtivos),
-              ])}
-              alignRightFrom={1}
-            />
+            <div className="space-y-2">
+              {data.loteadoresComMaisDe2Ativos.linhas.slice(0, 15).map((r) => (
+                <div key={r.label} className="flex items-center justify-between gap-3 py-1">
+                  <span className="min-w-0 truncate text-[11px]" style={{ color: 'var(--moni-text-secondary)' }}>
+                    {r.label}
+                  </span>
+                  <CountRiskBadge count={r.cardsAtivos} threshold={3} />
+                </div>
+              ))}
+            </div>
           )}
         </PanelBox>
       ) : null}
@@ -1591,12 +1759,6 @@ function LoteadoresEspecificidadesSection({
       ) : null}
     </section>
   );
-}
-
-function formatVsPeriodoAnterior(pct: number | null): string {
-  if (pct == null || !Number.isFinite(pct)) return '—';
-  const sign = pct > 0 ? '+' : '';
-  return `${sign}${pct.toFixed(0)}%`;
 }
 
 function CreditoObraEspecificidadesSection({
@@ -1668,15 +1830,33 @@ function CreditoObraEspecificidadesSection({
               </DegradeNote>
             ) : (
               <>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <MiniKpi
-                    label="Projetos com duplo atraso"
-                    value={formatInt(data.correlacaoAtrasoOperacoes.projetosDuploAtraso)}
-                  />
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <p
+                    className="text-3xl font-semibold tabular-nums tracking-tight"
+                    style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-navy-800)' }}
+                  >
+                    {formatInt(data.correlacaoAtrasoOperacoes.projetosDuploAtraso)}
+                  </p>
+                  {data.correlacaoAtrasoOperacoes.projetosDuploAtraso > 0 ? (
+                    <span className="moni-tag-atrasado inline-flex rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wide">
+                      duplo atraso
+                    </span>
+                  ) : null}
                 </div>
                 <p className="mt-2 text-[10px] italic leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
                   Indica que o atraso no crédito está impactando a obra.
                 </p>
+                {data.correlacaoAtrasoOperacoes.projetosDuploAtraso > 0 &&
+                data.paradosEntreTranches15Dias != null &&
+                data.paradosEntreTranches15Dias.itens.length > 0 ? (
+                  <Link
+                    href={buildOpenCardHref(openCardBase, data.paradosEntreTranches15Dias.itens[0]!.cardId)}
+                    className="mt-3 inline-flex min-h-[44px] items-center text-[11px] font-medium underline sm:min-h-[32px]"
+                    style={{ color: 'var(--moni-navy-800)' }}
+                  >
+                    Ver cards com atraso
+                  </Link>
+                ) : null}
               </>
             )}
           </div>
@@ -1690,20 +1870,41 @@ function CreditoObraEspecificidadesSection({
               Histórico de movimentação incompleto em parte dos cards — tempos são aproximados.
             </DegradeNote>
           ) : null}
-          <DataTable
-            headers={['Tranche', 'Tempo médio', 'Cards', 'vs período anterior']}
-            emptyMessage="Sem ciclos de tranche registrados no recorte."
-            rows={data.tempoMedioPorTranche.linhas.map((r) => [
-              r.acimaMedianaGeral ? `${r.tranche} ↑` : r.tranche,
-              formatDiasCorridos(r.mediaDias),
-              formatInt(r.amostras),
-              formatVsPeriodoAnterior(r.vsPeriodoAnteriorPct),
-            ])}
-            alignRightFrom={1}
-          />
+          {data.tempoMedioPorTranche.linhas.length === 0 ? (
+            <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+              Sem ciclos de tranche registrados no recorte.
+            </p>
+          ) : (
+            (() => {
+              const maxDias = Math.max(...data.tempoMedioPorTranche!.linhas.map((r) => r.mediaDias ?? 0), 1);
+              return (
+                <div className="space-y-1">
+                  {data.tempoMedioPorTranche!.linhas.map((r) => (
+                    <ProportionalBarRow
+                      key={r.tranche}
+                      label={r.tranche}
+                      value={r.mediaDias ?? 0}
+                      max={maxDias}
+                      suffix={formatDiasCorridos(r.mediaDias)}
+                      barColor={
+                        r.acimaMedianaGeral
+                          ? 'var(--moni-status-overdue-border)'
+                          : 'var(--moni-kanban-credito-accent)'
+                      }
+                      trailing={
+                        <span className="w-16 shrink-0 text-right text-[10px] tabular-nums" style={{ color: 'var(--moni-text-tertiary)' }}>
+                          n={formatInt(r.amostras)}
+                        </span>
+                      }
+                    />
+                  ))}
+                </div>
+              );
+            })()
+          )}
           {data.tempoMedioPorTranche.medianaGeral != null ? (
             <p className="mt-2 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-              ↑ = tempo acima da mediana geral ({formatDiasCorridos(data.tempoMedioPorTranche.medianaGeral)}).
+              Barras vermelhas = tempo acima da mediana geral ({formatDiasCorridos(data.tempoMedioPorTranche.medianaGeral)}).
             </p>
           ) : null}
         </PanelBox>
@@ -1770,13 +1971,26 @@ function ContabilidadeEspecificidadesSection({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {data.bloqueandoCreditoObra != null ? (
-          <div className="px-4 py-4" style={panelStyle}>
+      {data.bloqueandoCreditoObra != null ? (
+        <div
+          className="flex gap-3 px-4 py-4"
+          style={{
+            borderRadius: 'var(--moni-radius-lg)',
+            border: '0.5px solid var(--moni-status-attention-border)',
+            background: 'var(--moni-status-attention-bg)',
+          }}
+          role="alert"
+        >
+          <AlertTriangle
+            className="mt-0.5 h-5 w-5 shrink-0"
+            style={{ color: 'var(--moni-status-attention-text)' }}
+            aria-hidden
+          />
+          <div className="min-w-0 flex-1">
             <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
               Cards bloqueando Crédito Obra
             </h4>
-            <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
+            <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-secondary)' }}>
               Ativos em abertura contábil com card ativo no Crédito Obra (mesmo projeto_negocio_id).
             </p>
             {data.bloqueandoCreditoObra.projetoIndisponivel ? (
@@ -1785,13 +1999,13 @@ function ContabilidadeEspecificidadesSection({
               <DegradeNote>Cards Crédito Obra vinculados indisponíveis.</DegradeNote>
             ) : (
               <>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <MiniKpi
-                    label="Projetos bloqueados"
-                    value={formatInt(data.bloqueandoCreditoObra.totalBloqueando)}
-                  />
-                </div>
-                <p className="mt-2 text-[10px] italic leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
+                <p
+                  className="mt-2 text-2xl font-semibold tabular-nums"
+                  style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-navy-800)' }}
+                >
+                  {formatInt(data.bloqueandoCreditoObra.totalBloqueando)}
+                </p>
+                <p className="mt-1 text-[10px] italic leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
                   Esses projetos estão aguardando a abertura para liberar o crédito.
                 </p>
                 {data.bloqueandoCreditoObra.totalBloqueando === 0 ? (
@@ -1800,8 +2014,51 @@ function ContabilidadeEspecificidadesSection({
               </>
             )}
           </div>
-        ) : null}
+        </div>
+      ) : null}
 
+      {data.tempoAberturaPorTipo != null && data.tempoAberturaPorTipo.linhas.length > 0 ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {data.tempoAberturaPorTipo.linhas.map((r) => (
+            <div
+              key={r.tipo}
+              className="flex min-h-[100px] flex-col justify-between px-4 py-4"
+              style={{
+                ...panelStyle,
+                ...(r.acimaSla
+                  ? {
+                      background: 'var(--moni-status-overdue-bg)',
+                      border: '0.5px solid var(--moni-status-overdue-border)',
+                    }
+                  : {
+                      background: 'var(--moni-status-done-bg)',
+                      border: '0.5px solid var(--moni-status-done-border)',
+                    }),
+              }}
+            >
+              <p className="text-[11px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+                {r.tipo}
+              </p>
+              <div>
+                <p
+                  className="text-xl font-semibold tabular-nums"
+                  style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-navy-800)' }}
+                >
+                  {formatDias(r.mediaDiasUteis)}
+                </p>
+                <p className="mt-0.5 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                  SLA {formatDias(r.slaDias)} · {formatVsSla(r.vsSlaDias)} · n={formatInt(r.amostras)}
+                </p>
+              </div>
+              <span className={`mt-2 self-start ${r.acimaSla ? 'moni-tag-atrasado' : 'moni-tag-concluido'} inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-medium`}>
+                {r.acimaSla ? 'Acima do SLA' : 'Dentro do SLA'}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
         {data.tempoAberturaPorTipo != null ? (
           <div className="px-4 py-4" style={panelStyle}>
             <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
@@ -1834,7 +2091,7 @@ function ContabilidadeEspecificidadesSection({
         ) : null}
       </div>
 
-      {data.tempoAberturaPorTipo != null ? (
+      {data.tempoAberturaPorTipo != null && data.tempoAberturaPorTipo.linhas.length === 0 ? (
         <PanelBox title="Tempo médio por tipo de abertura">
           {data.tempoAberturaPorTipo.historicoParcial ? (
             <DegradeNote>
@@ -1844,18 +2101,9 @@ function ContabilidadeEspecificidadesSection({
           <DataTable
             headers={['Tipo', 'Tempo médio', 'SLA', 'vs SLA', 'Cards']}
             emptyMessage="Sem permanência registrada nas fases de abertura."
-            rows={data.tempoAberturaPorTipo.linhas.map((r) => [
-              r.acimaSla ? `${r.tipo} ↑` : r.tipo,
-              formatDias(r.mediaDiasUteis),
-              formatDias(r.slaDias),
-              formatVsSla(r.vsSlaDias),
-              formatInt(r.amostras),
-            ])}
+            rows={[]}
             alignRightFrom={1}
           />
-          <p className="mt-2 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-            ↑ = tempo médio acima do SLA. SLA de kanban_fases.sla_dias ou 7 d.u. de fallback.
-          </p>
         </PanelBox>
       ) : null}
 
@@ -1910,25 +2158,15 @@ function ContabilidadeEspecificidadesSection({
 
 function InsightCard({ ins }: { ins: PainelInsight }) {
   const sev = insightSeveridade(ins.tipo);
-  const border =
-    sev === 'critico'
-      ? 'var(--moni-status-overdue-border)'
-      : sev === 'positivo'
-        ? 'var(--moni-status-done-border)'
-        : 'var(--moni-status-attention-border)';
-  const bg =
-    sev === 'critico'
-      ? 'var(--moni-status-overdue-bg)'
-      : sev === 'positivo'
-        ? 'var(--moni-status-done-bg)'
-        : 'var(--moni-status-attention-bg)';
+  const accent = insightSeverityAccent(sev);
 
   return (
     <li
       className="flex gap-3 rounded-lg px-3 py-3"
       style={{
-        border: `0.5px solid ${border}`,
-        background: bg,
+        border: '0.5px solid var(--moni-border-default)',
+        borderLeft: `4px solid ${accent}`,
+        background: 'var(--moni-surface-0)',
         borderRadius: 'var(--moni-radius-lg)',
       }}
     >
@@ -1936,9 +2174,6 @@ function InsightCard({ ins }: { ins: PainelInsight }) {
       <div className="min-w-0 flex-1">
         <p className="text-[11px] font-medium leading-snug" style={{ color: 'var(--moni-text-primary)' }}>
           {ins.texto}
-        </p>
-        <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-          {ins.tipoLabel}
         </p>
       </div>
     </li>
@@ -2019,6 +2254,21 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
   const retornoPorFaseMap = useMemo(
     () => new Map(fluxo.porFase.map((f) => [f.faseId, f.retornosFase])),
     [fluxo.porFase],
+  );
+
+  const gargaloClassByFaseId = useMemo(
+    () => new Map(analise.gargalos.ranking.map((g) => [g.faseId, g.classificacao])),
+    [analise.gargalos.ranking],
+  );
+
+  const slaDelayByFaseId = useMemo(
+    () => new Map(analise.operacao.porFase.map((f) => [f.faseId, f.atrasados > 0])),
+    [analise.operacao.porFase],
+  );
+
+  const retrocessoDiasByCardId = useMemo(
+    () => buildRetrocessoDiasByCardId(dadosFiltrados.retrocessoRows),
+    [dadosFiltrados.retrocessoRows],
   );
 
   const gargalosTop = useMemo(() => gargalosVisiveis(analise.gargalos.ranking), [analise.gargalos.ranking]);
@@ -2124,6 +2374,19 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
     dadosFiltrados.historicoAnalise,
     period,
   ]);
+
+  const portfolioConfirmacaoFunnel = useMemo(() => {
+    if (!portfolioEspecificidades) return null;
+    const opcao = analise.carometro.opcoes_assinadas_no_periodo?.total;
+    const comite = portfolioEspecificidades.taxaComiteVirandoContrato?.comitesAprovados;
+    const contrato = portfolioEspecificidades.taxaComiteVirandoContrato?.contratosAssinados;
+    if (opcao == null && comite == null && contrato == null) return null;
+    return {
+      opcao: opcao ?? comite ?? contrato ?? 0,
+      comite: comite ?? 0,
+      contrato: contrato ?? 0,
+    };
+  }, [portfolioEspecificidades, analise.carometro.opcoes_assinadas_no_periodo?.total]);
 
   const portfolioFilhosFiltrados = useMemo(() => {
     const ids = new Set(dadosFiltrados.cardsAnalise.map((c) => c.id));
@@ -2399,6 +2662,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
           label="SLA em dia"
           value={formatPct(analise.operacao.pctSlaDentro)}
           hint="Cards ativos com meta de fase"
+          progressPct={analise.operacao.pctSlaDentro}
         />
       </div>
 
@@ -2518,18 +2782,33 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
             {analise.gargalos.retrocessos.length > 0 ? (
               <PanelBox title="Retrocessos recentes">
                 <ul className="space-y-2">
-                  {analise.gargalos.retrocessos.slice(0, 5).map((r) => (
-                    <li key={r.cardId} className="flex justify-between gap-2 text-[11px]">
-                      <Link
-                        href={buildOpenCardHref(openCardBase, r.cardId)}
-                        className="min-w-0 truncate hover:underline"
-                        style={{ color: 'var(--moni-navy-800)' }}
-                      >
-                        {r.titulo}
-                      </Link>
-                      <span className="moni-tag-atencao shrink-0 tabular-nums">{r.count}×</span>
-                    </li>
-                  ))}
+                  {analise.gargalos.retrocessos.slice(0, 5).map((r) => {
+                    const diasAdicionados = retrocessoDiasByCardId.get(r.cardId);
+                    return (
+                      <li key={r.cardId} className="flex flex-wrap items-start justify-between gap-2 text-[11px]">
+                        <div className="min-w-0 flex-1">
+                          <Link
+                            href={buildOpenCardHref(openCardBase, r.cardId)}
+                            className="block truncate hover:underline"
+                            style={{ color: 'var(--moni-navy-800)' }}
+                          >
+                            {r.titulo}
+                          </Link>
+                          {r.fasesLabel && r.fasesLabel !== 'Retrocesso de fase' ? (
+                            <p className="mt-0.5 truncate" style={{ color: 'var(--moni-text-tertiary)' }}>
+                              {r.fasesLabel}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          {diasAdicionados != null ? (
+                            <span className="moni-tag-atencao tabular-nums">+{diasAdicionados}d</span>
+                          ) : null}
+                          <span className="moni-tag-atencao tabular-nums">{r.count}×</span>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               </PanelBox>
             ) : null}
@@ -2539,7 +2818,11 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <div className="space-y-4">
               <PanelBox title="Funil de conversão">
-                <FunnelConversionGrid nodes={analise.conversao.funnelTree.nodes} />
+                <FunnelConversionGrid
+                  nodes={analise.conversao.funnelTree.nodes}
+                  gargaloClassByFaseId={gargaloClassByFaseId}
+                  slaDelayByFaseId={slaDelayByFaseId}
+                />
                 {analise.conversao.funnelTree.historicoParcial ? (
                   <p className="mt-2 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
                     Histórico parcial — tempos aproximados em parte dos cards.
@@ -2847,7 +3130,10 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
           <CarometroIndicadoresSection kanbanId={dataset.kanbanId} carometro={analise.carometro} />
 
           {portfolioEspecificidades ? (
-            <PortfolioEspecificidadesSection data={portfolioEspecificidades} />
+            <PortfolioEspecificidadesSection
+              data={portfolioEspecificidades}
+              confirmacaoFunnel={portfolioConfirmacaoFunnel}
+            />
           ) : null}
 
           {stepOneEspecificidades ? (
