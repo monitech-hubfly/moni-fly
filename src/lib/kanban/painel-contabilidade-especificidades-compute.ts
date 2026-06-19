@@ -1,12 +1,16 @@
 import { buildNativeFaseTimeline } from '@/lib/kanban/kanban-card-timeline';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import { calcularDiasUteis } from '@/lib/dias-uteis';
+import { periodSinceMs } from '@/lib/kanban/painel-performance-compute';
 import type {
   PainelCardDTO,
   PainelCreditoObraOperacoesIrmaoDTO,
   PainelFaseDTO,
   PainelHistoricoMovimentoDTO,
+  PainelPeriodKey,
 } from '@/lib/kanban/painel-performance-types';
+
+const SLA_FALLBACK_DIAS = 7;
 
 const TIPOS_ABERTURA = [
   { label: 'Incorporadora', slug: FASE_SLUGS.CONTABILIDADE_INCORPORADORA },
@@ -27,6 +31,12 @@ function fasePorId(fases: PainelFaseDTO[], faseId: string): PainelFaseDTO | unde
   return fases.find((f) => f.id === faseId);
 }
 
+function slaDiasFase(fase: PainelFaseDTO | undefined): number {
+  const s = fase?.sla_dias;
+  if (s != null && s > 0 && s < 999) return s;
+  return SLA_FALLBACK_DIAS;
+}
+
 function buildHistoricoPorCard(
   rows: PainelHistoricoMovimentoDTO[],
 ): Map<string, PainelHistoricoMovimentoDTO[]> {
@@ -43,91 +53,90 @@ function cardAtivo(c: { arquivado: boolean; concluido: boolean }): boolean {
   return !c.arquivado && !c.concluido;
 }
 
-function diasNaFaseViaTimeline(
+function timestampInPeriod(iso: string | null | undefined, sinceMs: number | null): boolean {
+  if (sinceMs === null) return Boolean(iso);
+  if (!iso) return false;
+  const t = new Date(iso).getTime();
+  return Number.isFinite(t) && t >= sinceMs;
+}
+
+function diasUteisEntreIso(inicio: string, fim: string): number | null {
+  const a = new Date(inicio);
+  const b = new Date(fim);
+  if (!Number.isFinite(a.getTime()) || !Number.isFinite(b.getTime()) || b < a) return null;
+  a.setHours(0, 0, 0, 0);
+  b.setHours(0, 0, 0, 0);
+  return calcularDiasUteis(a, b);
+}
+
+function permanenciaNaFase(
   card: PainelCardDTO,
   faseId: string,
   fasesOrd: PainelFaseDTO[],
   historico: PainelHistoricoMovimentoDTO[],
-): { dias: number | null; saiuEm: string | null; entrouEm: string | null } {
+): { diasUteis: number | null; saiuEm: string | null; entrouEm: string | null } {
   const linhas = buildNativeFaseTimeline(
     fasesOrd,
     { created_at: card.created_at, fase_id: card.fase_id },
     historico.map((h) => ({ acao: h.acao, detalhe: h.detalhe, criado_em: h.criado_em })),
   );
   const linha = linhas.find((l) => l.faseId === faseId);
-  if (!linha?.entrouEm) {
-    if (card.fase_id === faseId && card.entered_fase_at) {
-      const a = new Date(card.entered_fase_at).getTime();
-      const b = Date.now();
-      if (Number.isFinite(a) && b >= a) {
-        return {
-          dias: (b - a) / (24 * 60 * 60 * 1000),
-          saiuEm: null,
-          entrouEm: card.entered_fase_at,
-        };
-      }
-    }
-    return { dias: null, saiuEm: null, entrouEm: null };
-  }
-  const fim = linha.saiuEm ?? new Date().toISOString();
-  const a = new Date(linha.entrouEm).getTime();
-  const b = new Date(fim).getTime();
-  if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) {
-    return { dias: null, saiuEm: linha.saiuEm ?? null, entrouEm: linha.entrouEm };
-  }
+  const entrouEm = linha?.entrouEm ?? (card.fase_id === faseId ? card.entered_fase_at : null);
+  if (!entrouEm) return { diasUteis: null, saiuEm: null, entrouEm: null };
+
+  const saiuEm = linha?.saiuEm ?? (card.fase_id === faseId ? null : new Date().toISOString());
+  const fim = saiuEm ?? new Date().toISOString();
   return {
-    dias: (b - a) / (24 * 60 * 60 * 1000),
-    saiuEm: linha.saiuEm ?? null,
-    entrouEm: linha.entrouEm,
+    diasUteis: diasUteisEntreIso(entrouEm, fim),
+    saiuEm: linha?.saiuEm ?? null,
+    entrouEm,
   };
 }
 
-function concluiuDentroSlaUteis(entrouEm: string, saiuEm: string, slaDias: number): boolean {
-  const a = new Date(entrouEm);
-  const b = new Date(saiuEm);
-  if (!Number.isFinite(a.getTime()) || !Number.isFinite(b.getTime())) return false;
-  return calcularDiasUteis(a, b) <= slaDias;
-}
-
-function isCreditoObraAguardandoSlug(slug: string | null | undefined): boolean {
-  return String(slug ?? '')
-    .trim()
-    .toLowerCase()
-    .includes('aguardando');
-}
-
-export type PainelContabilidadeTipoRow = {
+export type PainelContabilidadeTipoTempoRow = {
   tipo: string;
-  mediaDias: number | null;
+  mediaDiasUteis: number | null;
+  slaDias: number;
+  vsSlaDias: number | null;
   amostras: number;
+  acimaSla: boolean;
 };
 
 export type PainelContabilidadeSlaTipoRow = {
   tipo: string;
-  dentroSla: number;
   concluidos: number;
+  dentroSla: number;
   taxaPct: number | null;
+};
+
+export type PainelContabilidadeBloqueioItem = {
+  projetoId: string;
+  contabilidadeCardId: string;
+  titulo: string;
+  tipoAbertura: string;
 };
 
 export type PainelContabilidadeEspecificidades = {
   tempoAberturaPorTipo: {
-    linhas: PainelContabilidadeTipoRow[];
+    linhas: PainelContabilidadeTipoTempoRow[];
     historicoParcial: boolean;
+    tiposAcimaSla: number;
   } | null;
   bloqueandoCreditoObra: {
     totalBloqueando: number;
-    porTipoAbertura: PainelContabilidadeTipoRow[];
+    itens: PainelContabilidadeBloqueioItem[];
     creditoObraIndisponivel: boolean;
     projetoIndisponivel: boolean;
   } | null;
   taxaConclusaoSlaPorTipo: {
     linhas: PainelContabilidadeSlaTipoRow[];
-    semSlaConfigurado: boolean;
+    taxaMediaPct: number | null;
   } | null;
 };
 
 /** Métricas específicas do Funil Contabilidade. Degrada por bloco quando dados ausentes. */
 export function computeContabilidadeEspecificidades(input: {
+  period: PainelPeriodKey;
   fases: PainelFaseDTO[];
   cards: PainelCardDTO[];
   historicoMovimentos: PainelHistoricoMovimentoDTO[];
@@ -139,22 +148,23 @@ export function computeContabilidadeEspecificidades(input: {
   const historicoPorCard = buildHistoricoPorCard(input.historicoMovimentos);
   const fasesOrd = [...input.fases].sort((a, b) => a.ordem - b.ordem);
   const concluidoIds = new Set(faseIdsPorSlugs(input.fases, [FASE_SLUGS.CONTABILIDADE_CONCLUIDO]));
+  const sinceMs = periodSinceMs(input.period);
 
   const slugPorFaseId = new Map(input.fases.map((f) => [f.id, String(f.slug ?? '').trim()]));
-  const coSlugPorFaseId = new Map(
-    (input.creditoObraFases ?? []).map((f) => [f.id, String(f.slug ?? '').trim()]),
-  );
 
   let tempoAberturaPorTipo: PainelContabilidadeEspecificidades['tempoAberturaPorTipo'] = null;
   try {
-    const linhas: PainelContabilidadeTipoRow[] = [];
+    const linhas: PainelContabilidadeTipoTempoRow[] = [];
     let historicoParcial = false;
 
     for (const tipo of TIPOS_ABERTURA) {
       const faseIds = faseIdsPorSlugs(input.fases, [tipo.slug]);
       if (faseIds.length === 0) continue;
 
+      const fase = fasePorId(input.fases, faseIds[0]!);
+      const slaDias = slaDiasFase(fase);
       const tempos: number[] = [];
+
       for (const c of input.cards) {
         const historico = historicoPorCard.get(c.id) ?? [];
         const temMov = historico.some(
@@ -164,21 +174,32 @@ export function computeContabilidadeEspecificidades(input: {
         if (!temMov) historicoParcial = true;
 
         for (const faseId of faseIds) {
-          const { dias } = diasNaFaseViaTimeline(c, faseId, fasesOrd, historico);
-          if (dias != null) tempos.push(dias);
+          const { diasUteis } = permanenciaNaFase(c, faseId, fasesOrd, historico);
+          if (diasUteis != null) tempos.push(diasUteis);
         }
       }
 
+      const mediaDiasUteis =
+        tempos.length === 0 ? null : tempos.reduce((s, n) => s + n, 0) / tempos.length;
+      const vsSlaDias =
+        mediaDiasUteis == null ? null : Math.round((mediaDiasUteis - slaDias) * 10) / 10;
+
       linhas.push({
         tipo: tipo.label,
-        mediaDias:
-          tempos.length === 0 ? null : tempos.reduce((s, n) => s + n, 0) / tempos.length,
+        mediaDiasUteis,
+        slaDias,
+        vsSlaDias,
         amostras: tempos.length,
+        acimaSla: mediaDiasUteis != null && mediaDiasUteis > slaDias,
       });
     }
 
     if (linhas.length > 0) {
-      tempoAberturaPorTipo = { linhas, historicoParcial };
+      tempoAberturaPorTipo = {
+        linhas,
+        historicoParcial,
+        tiposAcimaSla: linhas.filter((l) => l.acimaSla).length,
+      };
     }
   } catch {
     tempoAberturaPorTipo = null;
@@ -192,23 +213,17 @@ export function computeContabilidadeEspecificidades(input: {
 
     const creditoObraIndisponivel =
       input.creditoObraIrmaosAvailable === false ||
-      !input.creditoObraFases?.length ||
       !input.creditoObraIrmaos?.length;
 
-    const irmaosAguardandoPorProjeto = new Map<string, PainelCreditoObraOperacoesIrmaoDTO>();
+    const irmaosAtivosPorProjeto = new Map<string, PainelCreditoObraOperacoesIrmaoDTO>();
     for (const irmao of input.creditoObraIrmaos ?? []) {
       if (!cardAtivo(irmao)) continue;
-      const slug = coSlugPorFaseId.get(irmao.fase_id) ?? '';
-      if (!isCreditoObraAguardandoSlug(slug)) continue;
       const pid = irmao.projeto_id.trim();
       if (!pid) continue;
-      if (!irmaosAguardandoPorProjeto.has(pid)) irmaosAguardandoPorProjeto.set(pid, irmao);
+      if (!irmaosAtivosPorProjeto.has(pid)) irmaosAtivosPorProjeto.set(pid, irmao);
     }
 
-    const porTipoMap = new Map<string, number>();
-    for (const t of TIPOS_ABERTURA) porTipoMap.set(t.label, 0);
-
-    let totalBloqueando = 0;
+    const itens: PainelContabilidadeBloqueioItem[] = [];
 
     if (!projetoIndisponivel && !creditoObraIndisponivel) {
       for (const c of input.cards) {
@@ -216,22 +231,25 @@ export function computeContabilidadeEspecificidades(input: {
         if (concluidoIds.has(c.fase_id)) continue;
         const pid = c.projeto_id?.trim();
         if (!pid) continue;
-        if (!irmaosAguardandoPorProjeto.has(pid)) continue;
+        if (!irmaosAtivosPorProjeto.has(pid)) continue;
 
-        totalBloqueando += 1;
         const slugAtual = slugPorFaseId.get(c.fase_id) ?? '';
         const tipo =
           TIPOS_ABERTURA.find((t) => t.slug === slugAtual)?.label ??
-          (slugAtual ? slugAtual : 'Tipo não identificado');
-        porTipoMap.set(tipo, (porTipoMap.get(tipo) ?? 0) + 1);
+          (slugAtual || 'Tipo não identificado');
+
+        itens.push({
+          projetoId: pid,
+          contabilidadeCardId: c.id,
+          titulo: c.titulo?.trim() || c.projeto_titulo?.trim() || pid.slice(0, 8),
+          tipoAbertura: tipo,
+        });
       }
     }
 
     bloqueandoCreditoObra = {
-      totalBloqueando,
-      porTipoAbertura: [...porTipoMap.entries()]
-        .filter(([, n]) => n > 0)
-        .map(([tipo, amostras]) => ({ tipo, mediaDias: null, amostras })),
+      totalBloqueando: itens.length,
+      itens,
       creditoObraIndisponivel,
       projetoIndisponivel,
     };
@@ -242,7 +260,8 @@ export function computeContabilidadeEspecificidades(input: {
   let taxaConclusaoSlaPorTipo: PainelContabilidadeEspecificidades['taxaConclusaoSlaPorTipo'] = null;
   try {
     const linhas: PainelContabilidadeSlaTipoRow[] = [];
-    let semSlaConfigurado = true;
+    let totalDentro = 0;
+    let totalConcluidos = 0;
 
     for (const tipo of TIPOS_ABERTURA) {
       const faseIds = faseIdsPorSlugs(input.fases, [tipo.slug]);
@@ -253,32 +272,41 @@ export function computeContabilidadeEspecificidades(input: {
 
       for (const faseId of faseIds) {
         const fase = fasePorId(input.fases, faseId);
-        const slaDias = fase?.sla_dias;
-        if (slaDias != null && slaDias > 0 && slaDias < 999) semSlaConfigurado = false;
+        const slaDias = slaDiasFase(fase);
 
         for (const c of input.cards) {
           const historico = historicoPorCard.get(c.id) ?? [];
-          const { saiuEm, entrouEm } = diasNaFaseViaTimeline(c, faseId, fasesOrd, historico);
-          if (!saiuEm || !entrouEm) continue;
-          if (slaDias == null || slaDias <= 0 || slaDias >= 999) continue;
+          const { saiuEm, entrouEm, diasUteis } = permanenciaNaFase(
+            c,
+            faseId,
+            fasesOrd,
+            historico,
+          );
+          if (!saiuEm || !entrouEm || diasUteis == null) continue;
+          if (!timestampInPeriod(saiuEm, sinceMs)) continue;
 
           concluidos += 1;
-          if (concluiuDentroSlaUteis(entrouEm, saiuEm, slaDias)) dentroSla += 1;
+          if (diasUteis <= slaDias) dentroSla += 1;
         }
       }
 
       if (concluidos > 0 || faseIds.length > 0) {
         linhas.push({
           tipo: tipo.label,
-          dentroSla,
           concluidos,
+          dentroSla,
           taxaPct: concluidos === 0 ? null : (dentroSla / concluidos) * 100,
         });
+        totalDentro += dentroSla;
+        totalConcluidos += concluidos;
       }
     }
 
     if (linhas.length > 0) {
-      taxaConclusaoSlaPorTipo = { linhas, semSlaConfigurado };
+      taxaConclusaoSlaPorTipo = {
+        linhas,
+        taxaMediaPct: totalConcluidos === 0 ? null : (totalDentro / totalConcluidos) * 100,
+      };
     }
   } catch {
     taxaConclusaoSlaPorTipo = null;

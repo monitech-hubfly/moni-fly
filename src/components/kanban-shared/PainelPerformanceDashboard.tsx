@@ -1453,7 +1453,19 @@ function CreditoObraEspecificidadesSection({
   );
 }
 
-function ContabilidadeEspecificidadesSection({ data }: { data: PainelContabilidadeEspecificidades }) {
+function formatVsSla(n: number | null): string {
+  if (n == null || !Number.isFinite(n)) return '—';
+  const sign = n > 0 ? '+' : '';
+  return `${sign}${n.toFixed(1)} d.u.`;
+}
+
+function ContabilidadeEspecificidadesSection({
+  data,
+  openCardBase,
+}: {
+  data: PainelContabilidadeEspecificidades;
+  openCardBase: string;
+}) {
   return (
     <section className="space-y-3">
       <div>
@@ -1461,106 +1473,141 @@ function ContabilidadeEspecificidadesSection({ data }: { data: PainelContabilida
           className="text-base font-semibold"
           style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
         >
-          Especificidades de Contabilidade
+          Especificidades — Contabilidade
         </h2>
         <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
           Tempo de abertura por tipo, bloqueio ao Crédito Obra e cumprimento de SLA
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
         {data.bloqueandoCreditoObra != null ? (
           <div className="px-4 py-4" style={panelStyle}>
             <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              Bloqueando Crédito Obra aguardando
+              Cards bloqueando Crédito Obra
             </h4>
             <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Cards ativos em abertura contábil com card ativo no Crédito Obra em fase de espera (mesmo
-              projeto).
+              Ativos em abertura contábil com card ativo no Crédito Obra (mesmo projeto_negocio_id).
+            </p>
+            {data.bloqueandoCreditoObra.projetoIndisponivel ? (
+              <DegradeNote>projeto_negocio_id indisponível — cruzamento cross-funil não calculado.</DegradeNote>
+            ) : data.bloqueandoCreditoObra.creditoObraIndisponivel ? (
+              <DegradeNote>Cards Crédito Obra vinculados indisponíveis.</DegradeNote>
+            ) : (
+              <>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <MiniKpi
+                    label="Projetos bloqueados"
+                    value={formatInt(data.bloqueandoCreditoObra.totalBloqueando)}
+                  />
+                </div>
+                <p className="mt-2 text-[10px] italic leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
+                  Esses projetos estão aguardando a abertura para liberar o crédito.
+                </p>
+                {data.bloqueandoCreditoObra.totalBloqueando === 0 ? (
+                  <DegradeNote>Nenhum bloqueio identificado no recorte.</DegradeNote>
+                ) : null}
+              </>
+            )}
+          </div>
+        ) : null}
+
+        {data.tempoAberturaPorTipo != null ? (
+          <div className="px-4 py-4" style={panelStyle}>
+            <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+              Tipos acima do SLA
+            </h4>
+            <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
+              Incorporadora, SPE ou Gestora com tempo médio acima do SLA (fallback 7 d.u.).
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <MiniKpi label="Total" value={formatInt(data.bloqueandoCreditoObra.totalBloqueando)} />
+              <MiniKpi
+                label="Tipos acima do SLA"
+                value={formatInt(data.tempoAberturaPorTipo.tiposAcimaSla)}
+              />
             </div>
-            {data.bloqueandoCreditoObra.projetoIndisponivel ? (
-              <DegradeNote>Campo projeto_id indisponível — cruzamento cross-funil não calculado.</DegradeNote>
-            ) : null}
-            {data.bloqueandoCreditoObra.creditoObraIndisponivel ? (
-              <DegradeNote>
-                Cards Crédito Obra vinculados ao mesmo projeto não disponíveis — contagem parcial.
-              </DegradeNote>
-            ) : null}
-            {!data.bloqueandoCreditoObra.projetoIndisponivel &&
-            !data.bloqueandoCreditoObra.creditoObraIndisponivel &&
-            data.bloqueandoCreditoObra.totalBloqueando === 0 ? (
-              <DegradeNote>Nenhum bloqueio identificado no recorte.</DegradeNote>
-            ) : null}
           </div>
         ) : null}
 
         {data.taxaConclusaoSlaPorTipo != null ? (
           <div className="px-4 py-4" style={panelStyle}>
             <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              Conclusão dentro do SLA por tipo
+              Conclusão dentro do SLA
             </h4>
             <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Saídas de fase concluídas dentro do SLA configurado (dias úteis), via histórico.
+              Média ponderada no período — tempo em fase ≤ SLA configurado (dias úteis).
             </p>
-            {data.taxaConclusaoSlaPorTipo.semSlaConfigurado ? (
-              <DegradeNote>SLA não configurado em parte das fases — taxas podem estar incompletas.</DegradeNote>
-            ) : null}
             <div className="mt-3 flex flex-wrap gap-2">
-              {data.taxaConclusaoSlaPorTipo.linhas.map((r) => (
-                <MiniKpi key={r.tipo} label={r.tipo} value={formatPct(r.taxaPct)} />
-              ))}
+              <MiniKpi label="Taxa média" value={formatPct(data.taxaConclusaoSlaPorTipo.taxaMediaPct)} />
             </div>
           </div>
         ) : null}
       </div>
 
       {data.tempoAberturaPorTipo != null ? (
-        <PanelBox title="Tempo médio de abertura por tipo">
+        <PanelBox title="Tempo médio por tipo de abertura">
           {data.tempoAberturaPorTipo.historicoParcial ? (
             <DegradeNote>
               Histórico de movimentação incompleto em parte dos cards — tempos são aproximados.
             </DegradeNote>
           ) : null}
           <DataTable
-            headers={['Tipo', 'Média', 'Amostras']}
+            headers={['Tipo', 'Tempo médio', 'SLA', 'vs SLA', 'Cards']}
             emptyMessage="Sem permanência registrada nas fases de abertura."
             rows={data.tempoAberturaPorTipo.linhas.map((r) => [
-              r.tipo,
-              formatDiasCorridos(r.mediaDias),
+              r.acimaSla ? `${r.tipo} ↑` : r.tipo,
+              formatDias(r.mediaDiasUteis),
+              formatDias(r.slaDias),
+              formatVsSla(r.vsSlaDias),
               formatInt(r.amostras),
             ])}
             alignRightFrom={1}
           />
+          <p className="mt-2 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+            ↑ = tempo médio acima do SLA. SLA de kanban_fases.sla_dias ou 7 d.u. de fallback.
+          </p>
         </PanelBox>
       ) : null}
 
       {data.bloqueandoCreditoObra != null &&
-      data.bloqueandoCreditoObra.porTipoAbertura.length > 0 ? (
-        <PanelBox title="Bloqueios por tipo de abertura">
-          <DataTable
-            headers={['Tipo', 'Cards']}
-            emptyMessage="Sem bloqueios por tipo no recorte."
-            rows={data.bloqueandoCreditoObra.porTipoAbertura.map((r) => [
-              r.tipo,
-              formatInt(r.amostras),
-            ])}
-            alignRightFrom={1}
-          />
+      !data.bloqueandoCreditoObra.projetoIndisponivel &&
+      !data.bloqueandoCreditoObra.creditoObraIndisponivel &&
+      data.bloqueandoCreditoObra.itens.length > 0 ? (
+        <PanelBox title="Lista — projetos bloqueados">
+          <ul className="divide-y" style={{ borderColor: 'var(--moni-border-subtle)' }}>
+            {data.bloqueandoCreditoObra.itens.slice(0, 25).map((item) => (
+              <li
+                key={`${item.projetoId}-${item.contabilidadeCardId}`}
+                className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2.5 text-[11px] first:pt-0 last:pb-0"
+              >
+                <Link
+                  href={buildOpenCardHref(openCardBase, item.contabilidadeCardId)}
+                  className="min-w-0 truncate font-medium hover:underline"
+                  style={{ color: 'var(--moni-navy-800)' }}
+                >
+                  {item.titulo}
+                </Link>
+                <span className="shrink-0 tabular-nums" style={{ color: 'var(--moni-text-secondary)' }}>
+                  {item.tipoAbertura}
+                </span>
+              </li>
+            ))}
+          </ul>
         </PanelBox>
       ) : null}
 
       {data.taxaConclusaoSlaPorTipo != null ? (
-        <PanelBox title="Detalhe SLA por tipo de abertura">
+        <PanelBox title="Taxa de conclusão dentro do SLA por tipo">
+          <p className="mb-3 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Saídas de fase no período com permanência ≤ SLA (dias úteis).
+          </p>
           <DataTable
-            headers={['Tipo', 'Dentro SLA', 'Concluídos', 'Taxa']}
-            emptyMessage="Sem saídas de fase registradas no histórico."
+            headers={['Tipo', 'Concluídos', 'Dentro do SLA', 'Taxa']}
+            emptyMessage="Sem saídas de fase registradas no histórico do período."
             rows={data.taxaConclusaoSlaPorTipo.linhas.map((r) => [
               r.tipo,
-              formatInt(r.dentroSla),
               formatInt(r.concluidos),
+              formatInt(r.dentroSla),
               formatPct(r.taxaPct),
             ])}
             alignRightFrom={1}
@@ -1836,6 +1883,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
   const contabilidadeEspecificidades = useMemo(() => {
     if (dataset.kanbanId !== KANBAN_IDS.CONTABILIDADE) return null;
     return computeContabilidadeEspecificidades({
+      period,
       fases: dataset.fases,
       cards: dadosFiltrados.cardsAnalise,
       historicoMovimentos: dadosFiltrados.historicoAnalise,
@@ -1853,6 +1901,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
     dataset.creditoObraIrmaosAvailable,
     dadosFiltrados.cardsAnalise,
     dadosFiltrados.historicoAnalise,
+    period,
   ]);
 
   const openCardBase = (pathname ?? '/').trim() || '/';
@@ -2510,7 +2559,10 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
           ) : null}
 
           {contabilidadeEspecificidades ? (
-            <ContabilidadeEspecificidadesSection data={contabilidadeEspecificidades} />
+            <ContabilidadeEspecificidadesSection
+              data={contabilidadeEspecificidades}
+              openCardBase={openCardBase}
+            />
           ) : null}
         </div>
       ) : (
