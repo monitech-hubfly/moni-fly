@@ -149,6 +149,10 @@ export const FASE_SLUGS = {
   PL_P_PROJETO_APROVADO:        'pl_p_projeto_aprovado',
   // Funil Projeto Legal — terminal ordem 14
   PL_PAGAMENTOS:                'pl_pagamentos',
+  /** Funil Contabilidade (KANBAN_IDS.CONTABILIDADE) — aberturas ordem 1–3 */
+  CONTABILIDADE_INCORPORADORA: 'contabilidade_incorporadora',
+  CONTABILIDADE_SPE:           'contabilidade_spe',
+  CONTABILIDADE_GESTORA:       'contabilidade_gestora',
   CONTABILIDADE_CONCLUIDO:   'contabilidade_concluido',
   JURIDICO_CONCLUIDO:        'juridico_concluido',
   // Funil Moní Capital (KANBAN_IDS.MONI_CAPITAL) — fluxo ordem 1–8
