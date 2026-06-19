@@ -103,7 +103,7 @@ const TESTS = [
     label: `projeto_legal → Projeto Legal / ${FASE_SLUGS.PL_NOVA_DEMANDA}`,
     kanbanId: KANBAN_IDS.OPERACOES,
     kanbanNome: 'Funil Operações',
-    faseAnteriorSlug: 'sondagem',
+    faseAnteriorSlug: 'planialtimetrico',
     faseGatilhoSlug: 'projeto_legal',
   },
 ];

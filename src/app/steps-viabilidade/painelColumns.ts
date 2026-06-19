@@ -18,7 +18,6 @@ export type PainelColumnKey =
   | 'contabilidade_gestora'
   | 'passagem_wayser'
   | 'planialtimetrico'
-  | 'sondagem'
   | 'projeto_legal'
   | 'aprovacao_condominio'
   | 'aprovacao_prefeitura'
@@ -75,16 +74,7 @@ export const PAINEL_COLUMNS: PainelColumnDef[] = [
   },
   { key: 'captacao_moni_capital', title: 'Captação Moní Capital', slaDiasUteis: 30 },
   { key: 'passagem_wayser', title: 'Passagem para Wayser', slaDiasUteis: 2 },
-  {
-    key: 'planialtimetrico',
-    title: 'Planialtimétrico',
-    parallelGroup: 'planialtimetrico_sondagem',
-  },
-  {
-    key: 'sondagem',
-    title: 'Sondagem (paralelo Planialtimétrico)',
-    parallelGroup: 'planialtimetrico_sondagem',
-  },
+  { key: 'planialtimetrico', title: 'Planialtimétrico' },
   { key: 'projeto_legal', title: 'Projeto Legal' },
   { key: 'aprovacao_condominio', title: 'Aprovação no Condomínio' },
   { key: 'aprovacao_prefeitura', title: 'Aprovação na Prefeitura' },
@@ -154,7 +144,7 @@ export const PAINEL_FLOW_ROWS: PainelFlowRow[] = [
   { type: 'sequential', keys: ['step_7'] },
   { type: 'sequential', keys: ['captacao_moni_capital'] },
   { type: 'sequential', keys: ['passagem_wayser'] },
-  { type: 'parallel', keys: ['planialtimetrico', 'sondagem'] },
+  { type: 'sequential', keys: ['planialtimetrico'] },
   { type: 'sequential', keys: ['projeto_legal'] },
   { type: 'sequential', keys: ['aprovacao_condominio'] },
   { type: 'sequential', keys: ['aprovacao_prefeitura'] },

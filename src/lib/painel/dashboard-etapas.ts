@@ -4,7 +4,6 @@ import type { PainelColumnKey } from '@/app/steps-viabilidade/painelColumns';
 export const ETAPAS_OPERACAO_DASHBOARD: ReadonlySet<PainelColumnKey> = new Set([
   'passagem_wayser',
   'planialtimetrico',
-  'sondagem',
   'projeto_legal',
   'aprovacao_condominio',
   'aprovacao_prefeitura',
@@ -49,7 +48,6 @@ export const ETAPAS_KANBAN_NN: ReadonlySet<PainelColumnKey> = new Set([
   'captacao_moni_capital',
   'passagem_wayser',
   'planialtimetrico',
-  'sondagem',
   'projeto_legal',
   'aprovacao_condominio',
   'aprovacao_prefeitura',

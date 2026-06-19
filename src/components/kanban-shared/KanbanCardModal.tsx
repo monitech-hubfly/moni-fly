@@ -3211,7 +3211,8 @@ export function KanbanCardModal({
   const mostrarColunaAcoesLateral =
     !ocultarGestaoCard &&
     (podeMoverFaseCard || pode('finalizar_cards') || podeArquivarCardPerm);
-  const mostrarResponsavelFasePainel = Boolean(card.fase_id) && !isLegado;
+  const faseIdResponsavelPainel = (card.fase_id?.trim() || faseAtual?.id?.trim() || '');
+  const mostrarResponsavelFasePainel = Boolean(faseIdResponsavelPainel);
   const mostrarPainelDireitoCard = mostrarResponsavelFasePainel || mostrarColunaAcoesLateral;
   const ehFunilOperacoes =
     card.kanban_id === KANBAN_IDS.OPERACOES ||
@@ -5507,7 +5508,7 @@ export function KanbanCardModal({
               <PainelLateralSecao titulo="Responsável da fase">
                 <ResponsavelFaseSidebar
                   cardId={card.id}
-                  faseId={card.fase_id}
+                  faseId={faseIdResponsavelPainel}
                   kanbanId={card.kanban_id}
                   nomeFranqueadoRede={rede?.nome_completo ?? null}
                   readOnly={ocultarGestaoCard}
