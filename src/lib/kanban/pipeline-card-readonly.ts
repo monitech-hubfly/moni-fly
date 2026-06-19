@@ -1,4 +1,4 @@
-import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
+import { calcularDiasUteis, formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import { calcularSlaKanbanCard, type SlaKanbanResult } from '@/lib/kanban/kanban-card-sla';
 import type { PipelineCardDisplay, PipelineCardRow } from '@/lib/kanban/pipeline-cards-types';
 import type { LinhaCronologiaFase } from '@/lib/kanban/kanban-card-timeline';
@@ -108,4 +108,56 @@ export function diasNaFasePipeline(
   fim.setHours(0, 0, 0, 0);
   if (!Number.isFinite(inicio.getTime()) || !Number.isFinite(fim.getTime())) return null;
   return Math.max(0, Math.floor((fim.getTime() - inicio.getTime()) / 86400000));
+}
+
+const TITULO_PIPELINE_MAX = 35;
+
+/** Título do card no pipeline — truncado; fallback FK + sequencial se vazio. */
+export function tituloPipelineCardDisplay(
+  card: Pick<PipelineCardRow, 'titulo' | 'n_franquia'>,
+  sequencial?: number,
+): string {
+  const raw = String(card.titulo ?? '').trim();
+  if (raw && raw !== '(sem título)') {
+    return raw.length <= TITULO_PIPELINE_MAX ? raw : `${raw.slice(0, TITULO_PIPELINE_MAX - 1)}…`;
+  }
+  const fk = String(card.n_franquia ?? '').trim();
+  const seq = sequencial != null && sequencial > 0 ? ` #${sequencial}` : '';
+  return fk ? `${fk}${seq}` : `Card${seq}`;
+}
+
+/** Dias úteis na fase atual — base `entered_fase_at` (fallback `created_at`). */
+export function calcularDiasUteisNaFase(card: Pick<PipelineCardRow, 'entered_fase_at' | 'created_at'>): number {
+  const ref = dataEntradaFaseAtualKanbanCard(card);
+  if (!ref) return 0;
+  const entrada = new Date(ref);
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  entrada.setHours(0, 0, 0, 0);
+  if (!Number.isFinite(entrada.getTime())) return 0;
+  return Math.max(0, calcularDiasUteis(entrada, hoje));
+}
+
+/** SLA da fase excedido — compara dias úteis na fase com `fase_sla_dias`. */
+export function faseSlaExcedido(card: PipelineCardDisplay): boolean {
+  if (card.sla.status === 'atrasado') return true;
+  const slaDias = card.fase_sla_dias;
+  if (slaDias == null || slaDias <= 0) return false;
+  return calcularDiasUteisNaFase(card) > slaDias;
+}
+
+/** Texto relativo desde entrada na fase: hoje, ontem, há Xd. */
+export function formatRelativeNaFaseDesde(card: Pick<PipelineCardRow, 'entered_fase_at' | 'created_at'>): string {
+  const dias = calcularDiasNaFase(card);
+  if (dias <= 0) return 'hoje';
+  if (dias === 1) return 'ontem';
+  return `há ${dias}d`;
+}
+
+/** Card com SLA vencendo nos próximos 2 dias úteis (não atrasado). */
+export function cardVenceEm2DiasUteis(card: PipelineCardDisplay): boolean {
+  if (card.sla.pausado || card.sla.status === 'atrasado') return false;
+  const rest = card.sla.diasRestantes;
+  if (rest == null) return card.sla.label === 'Vence hoje';
+  return rest >= 0 && rest <= 2;
 }

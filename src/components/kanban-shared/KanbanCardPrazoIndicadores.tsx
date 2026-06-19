@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import type { SlaKanbanResult } from '@/lib/kanban/kanban-card-sla';
 import { indicadorBolinhaSlaKanban } from '@/lib/kanban/kanban-card-sla';
 import type { IndicadorDataKanban } from '@/lib/kanban/kanban-card-datas';
-import { indicadorDataKanban } from '@/lib/kanban/kanban-card-datas';
+import { formatDataPtBr, indicadorDataKanban } from '@/lib/kanban/kanban-card-datas';
 
 type BolinhaProps = {
   variante: 'atrasado' | 'atencao';
@@ -16,10 +16,12 @@ type BolinhaProps = {
 
 export function KanbanPrazoBolinha({ variante, numero, title, sigla }: BolinhaProps) {
   const atrasado = variante === 'atrasado';
+  const tooltipText = sigla ? `${sigla} — ${title}` : title;
+
   return (
-    <span className="inline-flex flex-col items-center gap-0.5" title={title}>
+    <span className="group/bol relative inline-flex shrink-0 items-center justify-center">
       <span
-        className="inline-flex min-h-[20px] min-w-[20px] items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums leading-none"
+        className="inline-flex h-[14px] min-w-[14px] items-center justify-center rounded-full px-0.5 text-[8px] font-semibold tabular-nums leading-none"
         style={{
           background: atrasado ? 'var(--moni-status-overdue-bg)' : 'var(--moni-status-attention-bg)',
           color: atrasado ? 'var(--moni-status-overdue-text)' : 'var(--moni-status-attention-text)',
@@ -27,21 +29,68 @@ export function KanbanPrazoBolinha({ variante, numero, title, sigla }: BolinhaPr
             ? '0.5px solid var(--moni-status-overdue-border)'
             : '0.5px solid var(--moni-status-attention-border)',
         }}
-        aria-label={title}
+        title={tooltipText}
+        aria-label={tooltipText}
       >
         {numero}
       </span>
-      {sigla ? (
-        <span className="text-[8px] font-medium uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
-          {sigla}
-        </span>
-      ) : null}
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute bottom-[calc(100%+5px)] left-1/2 z-30 w-max max-w-[220px] -translate-x-1/2 rounded-md px-2 py-1 text-center text-[10px] font-medium leading-snug opacity-0 transition-opacity duration-150 group-hover/bol:opacity-100"
+        style={{
+          background: 'var(--moni-navy-800)',
+          color: 'var(--moni-surface-0)',
+          border: '0.5px solid var(--moni-border-default)',
+        }}
+      >
+        {tooltipText}
+      </span>
+    </span>
+  );
+}
+
+function estiloTextoDataVariante(variante: IndicadorDataKanban['variante']): React.CSSProperties {
+  if (variante === 'atrasado') {
+    return {
+      color: 'var(--moni-status-overdue-text)',
+      background: 'var(--moni-status-overdue-bg)',
+      border: '0.5px solid var(--moni-status-overdue-border)',
+    };
+  }
+  if (variante === 'atencao') {
+    return {
+      color: 'var(--moni-status-attention-text)',
+      background: 'var(--moni-status-attention-bg)',
+      border: '0.5px solid var(--moni-status-attention-border)',
+    };
+  }
+  return {
+    color: 'var(--moni-text-secondary)',
+    background: 'var(--moni-surface-100)',
+    border: '0.5px solid var(--moni-border-subtle)',
+  };
+}
+
+/** Reunião sempre em texto — nunca bolinha (todos os funis/kanbans). */
+export function TextoReuniaoCard({ dataIso }: { dataIso: string }) {
+  const ind = indicadorDataKanban('reuniao', dataIso);
+  if (!ind) return null;
+  const dataFmt = formatDataPtBr(dataIso);
+  const texto = `Reunião: ${dataFmt}`;
+
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium leading-tight"
+      style={estiloTextoDataVariante(ind.variante)}
+      title={ind.title}
+    >
+      {texto}
     </span>
   );
 }
 
 function ChipDataOk({ ind }: { ind: IndicadorDataKanban }) {
-  const sigla = ind.tipo === 'reuniao' ? 'R' : 'FU';
+  const sigla = 'FU';
   return (
     <span
       className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-medium"
@@ -83,27 +132,14 @@ export function KanbanCardPrazoIndicadores({
         <KanbanPrazoBolinha
           key="sla"
           {...slaBol}
-          sigla={slaBol.variante === 'atencao' ? 'SLA' : undefined}
+          sigla="SLA"
         />,
       );
     }
   }
 
-  const reuniao = dataReuniao ? indicadorDataKanban('reuniao', dataReuniao) : null;
-  if (reuniao) {
-    if (reuniao.variante === 'atrasado' || reuniao.variante === 'atencao') {
-      itens.push(
-        <KanbanPrazoBolinha
-          key="reuniao"
-          variante={reuniao.variante}
-          numero={reuniao.numero}
-          title={reuniao.title}
-          sigla="R"
-        />,
-      );
-    } else {
-      itens.push(<ChipDataOk key="reuniao" ind={reuniao} />);
-    }
+  if (dataReuniao && indicadorDataKanban('reuniao', dataReuniao)) {
+    itens.push(<TextoReuniaoCard key="reuniao" dataIso={dataReuniao} />);
   }
 
   const followup = dataFollowup ? indicadorDataKanban('followup', dataFollowup) : null;
@@ -126,21 +162,23 @@ export function KanbanCardPrazoIndicadores({
   if (itens.length === 0) return null;
 
   return (
-    <div className={`mt-1.5 flex flex-wrap items-end gap-2 ${className}`.trim()}>{itens}</div>
+    <div className={`mt-1.5 flex flex-wrap items-center gap-1 ${className}`.trim()}>{itens}</div>
   );
 }
 
 function renderIndicadorData(tipo: IndicadorDataKanban['tipo'], dataIso: string) {
+  if (tipo === 'reuniao') {
+    return <TextoReuniaoCard dataIso={dataIso} />;
+  }
   const ind = indicadorDataKanban(tipo, dataIso);
   if (!ind) return null;
-  const sigla = tipo === 'reuniao' ? 'R' : 'FU';
   if (ind.variante === 'atrasado' || ind.variante === 'atencao') {
     return (
       <KanbanPrazoBolinha
         variante={ind.variante}
         numero={ind.numero}
         title={ind.title}
-        sigla={sigla}
+        sigla="FU"
       />
     );
   }
@@ -169,8 +207,8 @@ export function KanbanCardSlaBolinha({
   const bol = indicadorBolinhaSlaKanban({ pausado: false, ...sla } as SlaKanbanResult);
   if (!bol) return null;
   return (
-    <div className={`mt-1.5 flex items-center gap-2 ${className}`.trim()}>
-      <KanbanPrazoBolinha {...bol} sigla={bol.variante === 'atencao' ? 'SLA' : undefined} />
+    <div className={`mt-1.5 flex items-center gap-1 ${className}`.trim()}>
+      <KanbanPrazoBolinha {...bol} sigla="SLA" />
     </div>
   );
 }

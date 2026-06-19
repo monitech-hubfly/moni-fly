@@ -4,6 +4,7 @@ export type PainelFaseDTO = {
   ordem: number;
   sla_dias: number | null;
   fase_conversao: boolean;
+  slug?: string | null;
 };
 
 export type PainelCardDTO = {
@@ -25,6 +26,76 @@ export type PainelCardDTO = {
   franqueado_rede_nome?: string | null;
   responsavel_fase_id?: string | null;
   responsavel_fase_nome?: string | null;
+  /** projeto_negocio.franqueado_id (rede_franqueados) — Carômetro. */
+  projeto_franqueado_id?: string | null;
+  projeto_n_franquia?: string | null;
+  projeto_franqueado_nome?: string | null;
+  opcao_assinada?: boolean | null;
+  opcao_assinada_em?: string | null;
+  comite_aprovado?: boolean | null;
+  comite_aprovado_em?: string | null;
+  contrato_assinado?: boolean | null;
+  contrato_assinado_em?: string | null;
+  origem_kanban_id?: string | null;
+  origem_kanban_nome?: string | null;
+  /** Funil Step One — identificação do lote no card. */
+  nome_condominio?: string | null;
+  quadra?: string | null;
+  lote?: string | null;
+  condominio_id?: string | null;
+  /** Funil Operações — projeto e praça (rede_franqueados / projeto_negocio). */
+  projeto_titulo?: string | null;
+  rede_area_atuacao?: string | null;
+  rede_cidade_casa_frank?: string | null;
+  projeto_rede_area_atuacao?: string | null;
+  projeto_rede_cidade_casa_frank?: string | null;
+  /** Funil Loteadores — FK `rede_loteadores`. */
+  rede_loteador_id?: string | null;
+  loteador_nome?: string | null;
+  /** Funil Crédito Obra / Operações — FK `projeto_negocio`. */
+  projeto_id?: string | null;
+};
+
+export type PainelCreditoObraOperacoesIrmaoDTO = {
+  projeto_id: string;
+  card_id: string;
+  fase_id: string;
+  entered_fase_at: string | null;
+  created_at: string;
+  arquivado: boolean;
+  concluido: boolean;
+};
+
+export type PainelStepOnePortfolioFilhoDTO = {
+  origem_card_id: string;
+  portfolio_card_id: string;
+};
+
+export type PainelCarometroFranquiaCount = {
+  franqueadoId: string;
+  label: string;
+  quantidade: number;
+};
+
+export type PainelCarometroIndicadores = {
+  opcoes_assinadas_no_periodo: {
+    total: number;
+    porFranquia: PainelCarometroFranquiaCount[];
+  } | null;
+  contratos_assinados_no_periodo: {
+    total: number;
+    porFranquia: PainelCarometroFranquiaCount[];
+  } | null;
+  comite_para_contrato_taxa: {
+    numerador: number;
+    denominador: number;
+    percentual: number | null;
+  } | null;
+  hipoteses_no_periodo: {
+    total: number;
+    porFranquia: PainelCarometroFranquiaCount[];
+  } | null;
+  acoplamentos_por_origem: Array<{ origem: string; quantidade: number }> | null;
 };
 
 export type PainelAtividadeDTO = {
@@ -142,6 +213,34 @@ export type PainelPerformanceDataset = {
   retrocessoRows: PainelRetrocessoDTO[];
   historicoMovimentos: PainelHistoricoMovimentoDTO[];
   profiles: Record<string, string>;
+  /** Colunas Carômetro (migration 389) disponíveis no fetch de cards. */
+  carometroFieldsAvailable?: boolean;
+  /** Campos de lote Step One (nome_condominio, quadra, lote) disponíveis no fetch. */
+  stepOneFieldsAvailable?: boolean;
+  /** Cards Portfólio filhos de cards Step One (`origem_card_id`). */
+  portfolioFilhosOrigem?: PainelStepOnePortfolioFilhoDTO[];
+  /** false quando a consulta de filhos Portfólio falhou ou não foi feita. */
+  portfolioFilhosAvailable?: boolean;
+  /** Campos Operações (condomínio, praça via rede/projeto) disponíveis no fetch. */
+  operacoesFieldsAvailable?: boolean;
+  /** Campo rede_loteador_id + join rede_loteadores disponível no fetch. */
+  loteadoresFieldsAvailable?: boolean;
+  /** Campo projeto_id disponível no fetch de cards Crédito Obra. */
+  creditoObraFieldsAvailable?: boolean;
+  /** Cards Operações vinculados ao mesmo projeto_id (cross-funil). */
+  operacoesIrmaosPorProjeto?: PainelCreditoObraOperacoesIrmaoDTO[];
+  /** Fases do funil Operações para SLA dos cards irmãos. */
+  operacoesFases?: PainelFaseDTO[];
+  /** false quando a consulta de cards Operações por projeto falhou. */
+  operacoesIrmaosAvailable?: boolean;
+  /** Campo projeto_id disponível no fetch de cards Contabilidade. */
+  contabilidadeFieldsAvailable?: boolean;
+  /** Cards Crédito Obra vinculados ao mesmo projeto_id (cross-funil). */
+  creditoObraIrmaosPorProjeto?: PainelCreditoObraOperacoesIrmaoDTO[];
+  /** Fases do funil Crédito Obra para cruzamento cross-funil. */
+  creditoObraFases?: PainelFaseDTO[];
+  /** false quando a consulta de cards Crédito Obra por projeto falhou. */
+  creditoObraIrmaosAvailable?: boolean;
 };
 
 export type PainelPeriodKey = '7d' | '30d' | '90d' | 'all';
@@ -390,6 +489,8 @@ export type PainelPerformanceResult = {
   };
   chamados: PainelChamadosAnalise;
   insights: PainelInsight[];
+  /** KPIs conectáveis ao Carômetro (por funil; null quando não aplicável). */
+  carometro: PainelCarometroIndicadores;
 };
 
 /** @deprecated Use PainelPerformanceResult */

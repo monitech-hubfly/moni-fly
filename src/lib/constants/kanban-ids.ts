@@ -101,6 +101,10 @@ export const FASE_SLUGS = {
   /** Funil Acoplamento — gate Gbox/Acoplamento antes de avançar. */
   MODELAGEM_CASA_GBOX: 'modelagem_casa_gbox',
   APROVACAO_PREFEITURA: 'aprovacao_prefeitura',
+  /** Funil Operações — fase Em Obra. */
+  EM_OBRA:            'em_obra',
+  /** Funil Operações — fase Moní Care (saída = obra finalizada). */
+  MONI_CARE:          'moni_care',
   PROJETO_LEGAL:      'projeto_legal',
   LOTEADOR_JURIDICO:  'loteador_juridico',
   // Gatilhos de VOLTA
@@ -149,6 +153,10 @@ export const FASE_SLUGS = {
   PL_P_PROJETO_APROVADO:        'pl_p_projeto_aprovado',
   // Funil Projeto Legal — terminal ordem 14
   PL_PAGAMENTOS:                'pl_pagamentos',
+  /** Funil Contabilidade (KANBAN_IDS.CONTABILIDADE) — aberturas ordem 1–3 */
+  CONTABILIDADE_INCORPORADORA: 'contabilidade_incorporadora',
+  CONTABILIDADE_SPE:           'contabilidade_spe',
+  CONTABILIDADE_GESTORA:       'contabilidade_gestora',
   CONTABILIDADE_CONCLUIDO:   'contabilidade_concluido',
   JURIDICO_CONCLUIDO:        'juridico_concluido',
   // Funil Moní Capital (KANBAN_IDS.MONI_CAPITAL) — fluxo ordem 1–8
@@ -165,6 +173,9 @@ export const FASE_SLUGS = {
   OPERACOES_ENTREGUE:        'operacoes_entregue',
   // Gates
   STEP_5:             'step_5',
+  STEP_6:             'step_6',
+  /** Funil Portfólio — fase Opção (confirmação migration 389). Legado PROD: `step_3`. */
+  OPCAO:              'opcao',
   // Funil Step One (KANBAN_IDS.STEP_ONE) — fluxo ordem 1–13 (PROD)
   ONBOARDING:           'onboarding',
   DADOS_CANDIDATO:      'dados_candidato',
@@ -183,6 +194,13 @@ export const FASE_SLUGS = {
   ESCOLHA:              'escolha',
   HIPOTESES:            'hipoteses',
 } as const
+
+/** Funil Portfólio — slugs que disparam confirmação ao sair da fase (migration 389). */
+export const PORTFOLIO_FASES_CONFIRMACAO_SAIDA = {
+  opcao: [FASE_SLUGS.OPCAO, FASE_SLUGS.STEP_3],
+  comite: [FASE_SLUGS.STEP_5],
+  contrato: [FASE_SLUGS.STEP_7],
+} as const;
 
 // Kanbans onde Frank pode abrir chamado jurídico manualmente
 export const KANBANS_COM_CHAMADO_JURIDICO = [

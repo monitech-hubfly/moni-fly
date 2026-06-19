@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
 import type { RedeLoteadorRow } from '@/lib/rede-loteadores';
 import { RedeDashboard } from './RedeDashboard';
@@ -11,8 +12,10 @@ import { CondominiosTabelaComBusca } from './CondominiosTabelaComBusca';
 import { buildCadastrosEmpresasLinhas, type FranqueadoEmpresaRow } from '@/lib/franqueado-empresas';
 import { buildCadastrosEmpresasLinhasComSpe, type FranqueadoSpeRow } from '@/lib/franqueado-spe';
 import type { CondominioRow } from '@/lib/condominios';
-import type { PipelineCardsDataset } from '@/lib/kanban/pipeline-cards-types';
 import { PipelineCardsView } from '@/components/pipeline/PipelineCardsView';
+import { PipelineAnalisesView } from '@/components/pipeline/PipelineAnalisesView';
+import { PipelineDatasetLoading } from '@/components/pipeline/PipelineDatasetLoading';
+import { usePipelineDatasetLazy } from '@/components/pipeline/usePipelineDatasetLazy';
 import { ImportarRedeCSVButton } from './ImportarRedeCSVButton';
 import { ImportarEntidadeCSVButton } from './ImportarEntidadeCSVButton';
 import { ExportarRedeCSVButton } from './ExportarRedeCSVButton';
@@ -33,10 +36,18 @@ import {
   csvRedeLoteadores,
 } from '@/lib/rede-tabelas-csv-export';
 
-type TabId = 'visao' | 'pipeline' | 'franqueados' | 'loteadores' | 'empresas' | 'condominios';
+type TabId = 'visao' | 'pipeline' | 'analises' | 'franqueados' | 'loteadores' | 'empresas' | 'condominios';
+
+const BASE_PATH = '/rede-franqueados';
+
+/** Alias legado → id real da aba. */
+const TAB_ALIASES: Record<string, TabId> = {
+  cadastro: 'empresas',
+};
 
 const TAB_VISAO: { id: TabId; label: string } = { id: 'visao', label: 'Visão geral' };
 const TAB_PIPELINE: { id: TabId; label: string } = { id: 'pipeline', label: 'Pipeline da rede' };
+const TAB_ANALISES: { id: TabId; label: string } = { id: 'analises', label: 'Análises' };
 const TAB_FRANQ: { id: TabId; label: string } = { id: 'franqueados', label: 'Rede de Franqueados' };
 const TAB_LOTE: { id: TabId; label: string } = { id: 'loteadores', label: 'Rede de Loteadores' };
 const TAB_EMP: { id: TabId; label: string } = { id: 'empresas', label: 'Cadastros de Empresas' };
@@ -56,7 +67,6 @@ type Props = {
   canManageFranqueados: boolean;
   maskSensitiveColumns: boolean;
   showDashboard: boolean;
-  pipelineDataset?: PipelineCardsDataset | null;
 };
 
 export function RedeFranqueadosPageTabs({
@@ -73,20 +83,22 @@ export function RedeFranqueadosPageTabs({
   canManageFranqueados,
   maskSensitiveColumns,
   showDashboard,
-  pipelineDataset = null,
 }: Props) {
-  const showPipelineTab = showStaffTabs && pipelineDataset != null;
+  const showPipelineTab = showStaffTabs;
+  const showAnalisesTab = showStaffTabs;
 
   const tabs = [
     ...(showDashboard ? [TAB_VISAO] : []),
     ...(showPipelineTab ? [TAB_PIPELINE] : []),
+    ...(showAnalisesTab ? [TAB_ANALISES] : []),
     TAB_FRANQ,
     ...(showStaffTabs ? [TAB_LOTE, TAB_EMP] : []),
     ...(showCondominiosTab ? [TAB_COND] : []),
   ];
 
   const defaultTab: TabId = showDashboard ? 'visao' : 'franqueados';
-  const [activeTab, setActiveTab] = useState<TabId>(defaultTab);
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [loteadorCreateTick, setLoteadorCreateTick] = useState(0);
   const [condominioCreateTick, setCondominioCreateTick] = useState(0);
 
@@ -95,7 +107,29 @@ export function RedeFranqueadosPageTabs({
     return buildCadastrosEmpresasLinhasComSpe(rows, base, spesRows);
   }, [rows, empresasRows, spesRows]);
 
-  const resolvedTab = tabs.some((t) => t.id === activeTab) ? activeTab : defaultTab;
+  const tabFromUrl = searchParams.get('tab');
+  const tabCandidate = tabFromUrl ? (TAB_ALIASES[tabFromUrl] ?? tabFromUrl) : null;
+  const resolvedTab: TabId =
+    tabCandidate && tabs.some((t) => t.id === tabCandidate)
+      ? (tabCandidate as TabId)
+      : defaultTab;
+
+  const pipelineTabAtivo = resolvedTab === 'pipeline' || resolvedTab === 'analises';
+  const { dataset: pipelineDataset, loading: pipelineLoading, error: pipelineError } = usePipelineDatasetLazy({
+    mode: 'franqueadora',
+    enabled: showStaffTabs && pipelineTabAtivo,
+  });
+
+  function handleTabClick(tabId: TabId) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (tabId === defaultTab) {
+      params.delete('tab');
+    } else {
+      params.set('tab', tabId);
+    }
+    const q = params.toString();
+    router.replace(q ? `${BASE_PATH}?${q}` : BASE_PATH);
+  }
 
   return (
     <>
@@ -112,7 +146,7 @@ export function RedeFranqueadosPageTabs({
                 type="button"
                 role="tab"
                 aria-selected={isActive}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabClick(tab.id)}
                 className="relative px-4 py-3 text-sm font-medium transition-colors hover:bg-stone-50/80"
                 style={{
                   color: isActive ? 'var(--moni-navy-800, #0c2633)' : 'var(--moni-text-tertiary, #78716c)',
@@ -134,7 +168,7 @@ export function RedeFranqueadosPageTabs({
       <div className="mt-8" role="tabpanel">
         {resolvedTab === 'visao' && showDashboard ? <RedeDashboard rows={rows} /> : null}
 
-        {resolvedTab === 'pipeline' && showPipelineTab && pipelineDataset ? (
+        {resolvedTab === 'pipeline' && showPipelineTab ? (
           <section className="space-y-4">
             <div>
               <h2
@@ -147,7 +181,40 @@ export function RedeFranqueadosPageTabs({
                 Cards ativos em todos os funis, consolidados por unidade de franquia.
               </p>
             </div>
-            <PipelineCardsView mode="franqueadora" dataset={pipelineDataset} defaultGroupBy="franquia" />
+            {pipelineLoading ? (
+              <PipelineDatasetLoading />
+            ) : pipelineError ? (
+              <p className="text-sm" style={{ color: 'var(--moni-status-overdue-text)' }}>
+                {pipelineError}
+              </p>
+            ) : pipelineDataset ? (
+              <PipelineCardsView mode="rede" dataset={pipelineDataset} defaultGroupBy="franquia" />
+            ) : null}
+          </section>
+        ) : null}
+
+        {resolvedTab === 'analises' && showAnalisesTab ? (
+          <section className="space-y-4">
+            <div>
+              <h2
+                className="text-xl font-semibold tracking-tight"
+                style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-display)' }}
+              >
+                Análises
+              </h2>
+              <p className="mt-1 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+                Travamentos, gargalos de fase, benchmark por unidade, conversão e Sirene.
+              </p>
+            </div>
+            {pipelineLoading ? (
+              <PipelineDatasetLoading label="Carregando análises…" />
+            ) : pipelineError ? (
+              <p className="text-sm" style={{ color: 'var(--moni-status-overdue-text)' }}>
+                {pipelineError}
+              </p>
+            ) : pipelineDataset ? (
+              <PipelineAnalisesView dataset={pipelineDataset} />
+            ) : null}
           </section>
         ) : null}
 

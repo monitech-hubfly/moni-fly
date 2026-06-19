@@ -51,6 +51,8 @@ import {
   excluirSubInteracao,
   finalizarCard,
   moverCardParaFase,
+  registrarConfirmacaoFaseOperacoes,
+  registrarConfirmacaoFasePortfolio,
   verificarGatePortfolioStep5,
   listarTagsCard,
   listarTagsKanban,
@@ -85,6 +87,16 @@ import {
 import { aplicarDataEnvioCreditoObraNoPreObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import { CreditoObraAberturaAutorizacaoModal } from './CreditoObraAberturaAutorizacaoModal';
 import { isPortfolioKanbanRef, isLoteadoresKanbanRef } from '@/lib/kanban/portfolio-paralelas';
+import {
+  deveConfirmarSaidaFasePortfolio,
+  portfolioConfirmacaoPergunta,
+  type PortfolioConfirmacaoFaseTipo,
+} from '@/lib/kanban/portfolio-confirmacao-fase';
+import {
+  deveConfirmarSaidaFaseOperacoes,
+  operacoesConfirmacaoPergunta,
+  type OperacoesConfirmacaoFaseTipo,
+} from '@/lib/kanban/operacoes-confirmacao-fase';
 import {
   cardLoteadoresPrecisaJustificativaSla,
 } from '@/lib/kanban/loteadores-sla-justificativa';
@@ -147,6 +159,7 @@ import type {
   KanbanNomeDisplay,
 } from './types';
 import { usePermissoes } from '@/lib/hooks/usePermissoes';
+import { podeComFallbackStaff } from '@/lib/permissoes-types';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
 import { KanbanCardModalRelacionamentos } from './KanbanCardModalRelacionamentos';
 import {
@@ -536,6 +549,15 @@ export function KanbanCardModal({
     roleNorm: string;
     cargoNorm: string;
   }>({ userId: null, uploaderNome: '—', ehAdminOuTeam: false, roleNorm: '', cargoNorm: '' });
+  const podeCriarChamados = useMemo(
+    () =>
+      podeComFallbackStaff(pode, 'criar_chamados', {
+        isAdminProp: isAdmin,
+        ehAdminOuTeam: modalSessao.ehAdminOuTeam,
+        roleNorm: modalSessao.roleNorm,
+      }),
+    [pode, isAdmin, modalSessao.ehAdminOuTeam, modalSessao.roleNorm],
+  );
   const [kanbanTimes, setKanbanTimes] = useState<KanbanTimeRow[]>([]);
   const [responsaveisOpcoes, setResponsaveisOpcoes] = useState<
     { id: string; nome: string; email?: string | null }[]
@@ -625,6 +647,14 @@ export function KanbanCardModal({
     itensPendentes: number;
   } | null>(null);
   const [solicitandoAprovacaoFase, setSolicitandoAprovacaoFase] = useState(false);
+  const [modalConfirmacaoPortfolio, setModalConfirmacaoPortfolio] = useState<{
+    dominio: 'portfolio' | 'operacoes';
+    tipo: PortfolioConfirmacaoFaseTipo | OperacoesConfirmacaoFaseTipo;
+    destinoFase: KanbanFase;
+    direcao: 'avancar' | 'retroceder';
+    opts?: { motivoReprovacaoAcoplamento?: string; justificativaSlaQuebra?: string };
+  } | null>(null);
+  const [salvandoConfirmacaoPortfolio, setSalvandoConfirmacaoPortfolio] = useState(false);
 
   const timesNovaFiltrados = useMemo(
     () => ordenarLinhasTimeKanbanPorCatalogoMoni(kanbanTimes, false),
@@ -661,6 +691,8 @@ export function KanbanCardModal({
     setModalExcluirInteracaoId(null);
     setSalvandoExcluirInteracao(false);
     setModalAprovacaoFase(null);
+    setModalConfirmacaoPortfolio(null);
+    setSalvandoConfirmacaoPortfolio(false);
     setSolicitandoAprovacaoFase(false);
     setEditingComentarioId(null);
     setEditComentarioDraft('');
@@ -877,7 +909,7 @@ export function KanbanCardModal({
           const fn = String((me as { full_name?: string | null } | null)?.full_name ?? '').trim();
           unome = fn || '—';
           const rl = String((me as { role?: string | null } | null)?.role ?? '').toLowerCase();
-          admTeam = rl === 'admin' || rl === 'team';
+          admTeam = rl === 'admin' || rl === 'team' || rl === 'consultor' || rl === 'supervisor';
           const cg = String((me as { cargo?: string | null } | null)?.cargo ?? '')
             .trim()
             .toLowerCase();
@@ -1690,7 +1722,7 @@ export function KanbanCardModal({
       alert('Selecione ao menos um responsável na atividade.');
       return;
     }
-    if (!pode('criar_chamados')) {
+    if (!podeCriarChamados) {
       alert('Sem permissão para criar chamados.');
       return;
     }
@@ -1891,7 +1923,7 @@ export function KanbanCardModal({
       alert('Selecione ao menos um responsável.');
       return;
     }
-    if (!pode('criar_chamados')) {
+    if (!podeCriarChamados) {
       alert('Sem permissão para criar chamados.');
       return;
     }
@@ -2154,6 +2186,110 @@ export function KanbanCardModal({
     }
   }
 
+  async function executarRetrocederFase(destinoFase: KanbanFase) {
+    if (!card || !faseAtual) return;
+    setMovendoFase(true);
+    try {
+      const supabase = createClient();
+      if (origem === 'legado') {
+        const slug = destinoFase.slug?.trim();
+        if (!slug) {
+          alert('Esta fase não tem slug cadastrado; não é possível retroceder o processo por aqui.');
+          return;
+        }
+        const fromSlug = faseAtual.slug?.trim();
+        const { error } = await supabase.from('processo_step_one').update({ etapa_painel: slug }).eq('id', card.id);
+        if (error) throw error;
+        if (fromSlug) await registrarMovimentoLegadoKanban(fromSlug, slug);
+      } else {
+        const { error } = await supabase.from('kanban_cards').update({ fase_id: destinoFase.id }).eq('id', card.id);
+        if (error) throw error;
+      }
+      await loadCard({ silencioso: true });
+      router.refresh();
+    } catch {
+      alert('Erro ao retroceder fase.');
+    } finally {
+      setMovendoFase(false);
+    }
+  }
+
+  function tipoConfirmacaoSaidaAtual():
+    | { dominio: 'portfolio'; tipo: PortfolioConfirmacaoFaseTipo }
+    | { dominio: 'operacoes'; tipo: OperacoesConfirmacaoFaseTipo }
+    | null {
+    if (!card || isLegado) return null;
+    const portfolio = deveConfirmarSaidaFasePortfolio({
+      kanbanId: card.kanban_id,
+      faseSlug: faseAtual?.slug,
+      origemCard: origem,
+    });
+    if (portfolio) return { dominio: 'portfolio', tipo: portfolio };
+    const operacoes = deveConfirmarSaidaFaseOperacoes({
+      kanbanId: card.kanban_id,
+      faseSlug: faseAtual?.slug,
+      origemCard: origem,
+    });
+    if (operacoes) return { dominio: 'operacoes', tipo: operacoes };
+    return null;
+  }
+
+  function perguntaConfirmacaoSaida(modal: NonNullable<typeof modalConfirmacaoPortfolio>): string {
+    if (modal.dominio === 'operacoes') {
+      return operacoesConfirmacaoPergunta(modal.tipo as OperacoesConfirmacaoFaseTipo);
+    }
+    return portfolioConfirmacaoPergunta(modal.tipo as PortfolioConfirmacaoFaseTipo);
+  }
+
+  async function iniciarMovimentoFasePortfolio(
+    destinoFase: KanbanFase,
+    direcao: 'avancar' | 'retroceder',
+    opts?: { motivoReprovacaoAcoplamento?: string; justificativaSlaQuebra?: string },
+  ) {
+    const confirmacao = tipoConfirmacaoSaidaAtual();
+    if (confirmacao) {
+      setModalJustificativaSla(null);
+      setSlaJustificativaDraft('');
+      setModalReprovacaoAcoplamento(null);
+      setMotivoReprovacaoDraft('');
+      setModalConfirmacaoPortfolio({ ...confirmacao, destinoFase, direcao, opts });
+      return;
+    }
+    if (direcao === 'avancar') await executarAvancarFase(destinoFase, opts);
+    else await executarRetrocederFase(destinoFase);
+  }
+
+  async function concluirConfirmacaoPortfolio(confirmou: boolean) {
+    const modal = modalConfirmacaoPortfolio;
+    if (!modal || !card) return;
+    setSalvandoConfirmacaoPortfolio(true);
+    try {
+      if (confirmou) {
+        const res =
+          modal.dominio === 'operacoes'
+            ? await registrarConfirmacaoFaseOperacoes({
+                cardId: card.id,
+                tipo: modal.tipo as OperacoesConfirmacaoFaseTipo,
+                basePath,
+              })
+            : await registrarConfirmacaoFasePortfolio({
+                cardId: card.id,
+                tipo: modal.tipo as PortfolioConfirmacaoFaseTipo,
+                basePath,
+              });
+        if (!res.ok) {
+          alert(res.error ?? 'Não foi possível registrar a confirmação.');
+          return;
+        }
+      }
+      if (modal.direcao === 'avancar') await executarAvancarFase(modal.destinoFase, modal.opts);
+      else await executarRetrocederFase(modal.destinoFase);
+      setModalConfirmacaoPortfolio(null);
+    } finally {
+      setSalvandoConfirmacaoPortfolio(false);
+    }
+  }
+
   async function handleAvancarFase() {
     if (!card || !faseAtual) return;
     if (!podeMoverFaseCard) {
@@ -2238,7 +2374,7 @@ export function KanbanCardModal({
       setModalAprovacaoFase({ fase: proximaFase, direcao: 'avancar', itensPendentes: checklist.itens_pendentes });
       return;
     }
-    await executarAvancarFase(proximaFase);
+    await iniciarMovimentoFasePortfolio(proximaFase, 'avancar');
   }
 
   async function handleRetrocederFase() {
@@ -2254,30 +2390,7 @@ export function KanbanCardModal({
       return;
     }
     if (!confirm(`Voltar para a fase "${faseAnterior.nome}"?`)) return;
-    setMovendoFase(true);
-    try {
-      const supabase = createClient();
-      if (origem === 'legado') {
-        const slug = faseAnterior.slug?.trim();
-        if (!slug) {
-          alert('Esta fase não tem slug cadastrado; não é possível retroceder o processo por aqui.');
-          return;
-        }
-        const fromSlug = faseAtual.slug?.trim();
-        const { error } = await supabase.from('processo_step_one').update({ etapa_painel: slug }).eq('id', card.id);
-        if (error) throw error;
-        if (fromSlug) await registrarMovimentoLegadoKanban(fromSlug, slug);
-      } else {
-        const { error } = await supabase.from('kanban_cards').update({ fase_id: faseAnterior.id }).eq('id', card.id);
-        if (error) throw error;
-      }
-      await loadCard({ silencioso: true });
-      router.refresh();
-    } catch {
-      alert('Erro ao retroceder fase.');
-    } finally {
-      setMovendoFase(false);
-    }
+    await iniciarMovimentoFasePortfolio(faseAnterior, 'retroceder');
   }
 
   async function handleSolicitarAprovacaoFase() {
@@ -3929,7 +4042,7 @@ export function KanbanCardModal({
                                         <Pencil className="h-3.5 w-3.5 shrink-0" aria-hidden />
                                       </button>
                                     ) : null}
-                                    {!demo && pode('criar_chamados') ? (
+                                    {!demo && podeCriarChamados ? (
                                       <button
                                         type="button"
                                         onClick={() => {
@@ -4244,7 +4357,7 @@ export function KanbanCardModal({
                                                   Pastel
                                                 </label>
                                               ) : null}
-                                              {pode('criar_chamados') ? (
+                                              {podeCriarChamados ? (
                                                 <button
                                                   type="button"
                                                   title="Editar atividade"
@@ -4436,7 +4549,7 @@ export function KanbanCardModal({
                                 ) : null}
                               </div>
                             ) : null}
-                            {!demo && pode('criar_chamados') && subsDetalheAberto ? (
+                            {!demo && podeCriarChamados && subsDetalheAberto ? (
                               <div className="mt-1.5">
                                 <button
                                   type="button"
@@ -4476,7 +4589,7 @@ export function KanbanCardModal({
                 className="mt-2 shrink-0 border-t pt-2"
                 style={{ borderColor: 'var(--moni-border-default)' }}
               >
-              {pode('criar_chamados') ? (
+              {podeCriarChamados ? (
               <div
                 className="rounded-md p-2"
                 style={{
@@ -5473,7 +5586,7 @@ export function KanbanCardModal({
                       ) : (
                         <p className="text-[11px] text-stone-500">Todas as tags do funil já estão no card.</p>
                       )}
-                      {pode('criar_chamados') ? (
+                      {podeCriarChamados ? (
                         <div className="space-y-1.5 border-t border-stone-200 pt-1.5">
                           <p className="text-[10px] font-medium text-stone-600">Nova tag no funil</p>
                           <input
@@ -6608,7 +6721,7 @@ export function KanbanCardModal({
                 }
                 const fase = modalJustificativaSla;
                 setSalvandoJustificativaSla(true);
-                void executarAvancarFase(fase, { justificativaSlaQuebra: justificativa })
+                void iniciarMovimentoFasePortfolio(fase, 'avancar', { justificativaSlaQuebra: justificativa })
                   .then(() => {
                     setModalJustificativaSla(null);
                     setSlaJustificativaDraft('');
@@ -6673,7 +6786,7 @@ export function KanbanCardModal({
                 }
                 const fase = modalReprovacaoAcoplamento;
                 setSalvandoReprovacaoAcoplamento(true);
-                void executarAvancarFase(fase, { motivoReprovacaoAcoplamento: motivo })
+                void iniciarMovimentoFasePortfolio(fase, 'avancar', { motivoReprovacaoAcoplamento: motivo })
                   .then(() => {
                     setModalReprovacaoAcoplamento(null);
                     setMotivoReprovacaoDraft('');
@@ -6683,6 +6796,60 @@ export function KanbanCardModal({
               className="rounded-lg bg-stone-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
               {salvandoReprovacaoAcoplamento ? 'Salvando…' : 'Confirmar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+
+    {modalConfirmacaoPortfolio ? (
+      <div className="fixed inset-0 z-[225] flex items-center justify-center bg-black/50 p-4">
+        <div
+          className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirmacao-portfolio-titulo"
+          style={{
+            borderRadius: 'var(--moni-radius-lg)',
+            border: 'var(--moni-border-width) solid var(--moni-border-default)',
+          }}
+        >
+          <h3
+            id="confirmacao-portfolio-titulo"
+            className="text-base font-semibold"
+            style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
+          >
+            Confirmação
+          </h3>
+          <p className="mt-3 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+            {perguntaConfirmacaoSaida(modalConfirmacaoPortfolio)}
+          </p>
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              disabled={salvandoConfirmacaoPortfolio || movendoFase}
+              onClick={() => void concluirConfirmacaoPortfolio(false)}
+              className="min-h-[44px] rounded-lg px-4 py-2 text-sm font-medium transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{
+                borderRadius: 'var(--moni-radius-md)',
+                border: 'var(--moni-border-width) solid var(--moni-border-default)',
+                color: 'var(--moni-text-secondary)',
+                background: 'var(--moni-surface-elevated, #fff)',
+              }}
+            >
+              Não — apenas avançar
+            </button>
+            <button
+              type="button"
+              disabled={salvandoConfirmacaoPortfolio || movendoFase}
+              onClick={() => void concluirConfirmacaoPortfolio(true)}
+              className="min-h-[44px] rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{
+                borderRadius: 'var(--moni-radius-md)',
+                background: 'var(--moni-navy-800)',
+              }}
+            >
+              {salvandoConfirmacaoPortfolio || movendoFase ? 'Salvando…' : 'Sim'}
             </button>
           </div>
         </div>

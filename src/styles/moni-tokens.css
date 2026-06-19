@@ -396,22 +396,42 @@
   );
 }
 
-/* Tabelas largas — barra horizontal fixa na base da tela (sincronizada com o scroll da tabela) */
+/* Tabelas largas — scroll horizontal nativo + barra fixa na base da tela */
+.moni-tabela-scroll-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
 .moni-tabela-scroll-main {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
   overflow-y: visible;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--moni-navy-200) var(--moni-surface-100);
 }
 
 .moni-tabela-scroll-main::-webkit-scrollbar {
-  display: none;
+  display: block;
+  height: 10px;
+}
+
+.moni-tabela-scroll-main::-webkit-scrollbar-track {
+  background: var(--moni-surface-100);
+}
+
+.moni-tabela-scroll-main::-webkit-scrollbar-thumb {
+  background: var(--moni-navy-200);
+  border-radius: var(--moni-radius-md);
 }
 
 .moni-tabela-scroll-bar {
   position: fixed;
   bottom: 0;
-  z-index: 45;
+  z-index: 100;
   overflow-x: auto;
   overflow-y: hidden;
   height: 14px;

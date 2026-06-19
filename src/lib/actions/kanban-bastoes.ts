@@ -63,6 +63,8 @@ export interface CriarCardFilhoParams {
   redeFranqueadoId: string | null;
   kanbanOrigemSlug: string;
   faseOrigemSlug: string;
+  /** Bastão automático → Acoplamento: UUID do funil que disparou (migration 389). */
+  origemKanbanId?: string | null;
 }
 
 export interface KanbanCardFilhoCriado {
@@ -159,6 +161,30 @@ async function buscarCardFilhoExistente(
   if (ativo) return ativo;
 
   return list[0] ?? null;
+}
+
+async function resolverCamposOrigemKanbanBastao(
+  db: ReturnType<typeof createAdminClient>,
+  origemKanbanId: string | null | undefined,
+): Promise<{ origem_kanban_id: string | null; origem_kanban_nome: string | null }> {
+  const kid = String(origemKanbanId ?? '').trim();
+  if (!kid) {
+    return { origem_kanban_id: null, origem_kanban_nome: null };
+  }
+
+  try {
+    const { data: kb, error } = await db.from('kanbans').select('id, nome').eq('id', kid).maybeSingle();
+    if (error || !kb?.id) {
+      return { origem_kanban_id: null, origem_kanban_nome: null };
+    }
+    const nome = String((kb as { nome?: string | null }).nome ?? '').trim();
+    return {
+      origem_kanban_id: String(kb.id),
+      origem_kanban_nome: nome || null,
+    };
+  } catch {
+    return { origem_kanban_id: null, origem_kanban_nome: null };
+  }
 }
 
 /**
@@ -313,22 +339,30 @@ export async function criarCardFilho(
     return filhoReativado as KanbanCardFilhoCriado;
   }
 
+  const insertPayload: Record<string, unknown> = {
+    kanban_id: kanbanDestinoId,
+    fase_id: faseId,
+    titulo,
+    origem_card_id: cardPaiId,
+    projeto_id: params.projetoId ?? null,
+    rede_franqueado_id: redeFranqueadoId,
+    nome_condominio: nomeCondominio,
+    quadra,
+    lote,
+    condominio_id: condominioId,
+    franqueado_id: franqueadoId,
+    status: 'ativo',
+  };
+
+  if (kanbanDestinoId === KANBAN_IDS.ACOPLAMENTO && params.origemKanbanId) {
+    const origemKanban = await resolverCamposOrigemKanbanBastao(db, params.origemKanbanId);
+    insertPayload.origem_kanban_id = origemKanban.origem_kanban_id;
+    insertPayload.origem_kanban_nome = origemKanban.origem_kanban_nome;
+  }
+
   const { data: filho, error: errInsert } = await db
     .from('kanban_cards')
-    .insert({
-      kanban_id: kanbanDestinoId,
-      fase_id: faseId,
-      titulo,
-      origem_card_id: cardPaiId,
-      projeto_id: params.projetoId ?? null,
-      rede_franqueado_id: redeFranqueadoId,
-      nome_condominio: nomeCondominio,
-      quadra,
-      lote,
-      condominio_id: condominioId,
-      franqueado_id: franqueadoId,
-      status: 'ativo',
-    })
+    .insert(insertPayload as never)
     .select(CARD_FILHO_SELECT)
     .single();
 
@@ -674,6 +708,8 @@ async function dispararBastao(
       redeFranqueadoId: pai.rede_franqueado_id,
       kanbanOrigemSlug: kanbanOrigemSlugPorId(pai.kanban_id),
       faseOrigemSlug,
+      origemKanbanId:
+        destino.kanbanDestinoId === KANBAN_IDS.ACOPLAMENTO ? pai.kanban_id : undefined,
     });
     if (
       filho?.id &&

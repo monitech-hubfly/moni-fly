@@ -1,4 +1,10 @@
 import type { SlaKanbanResult } from '@/lib/kanban/kanban-card-sla';
+import type {
+  GargaloScoreFase,
+  PainelChamadoUnificadoDTO,
+  PainelFaseDTO,
+  PainelHistoricoMovimentoDTO,
+} from '@/lib/kanban/painel-performance-types';
 
 /** Card enriquecido para o painel — campos derivados do kanban/fase reais (sem duplicata manual). */
 export type PipelineCardRow = {
@@ -28,6 +34,22 @@ export type PipelineCardRow = {
   origem: 'nativo';
   responsavel_fase_id?: string | null;
   responsavel_fase_nome?: string | null;
+  contrato_assinado?: boolean;
+  contrato_assinado_em?: string | null;
+  opcao_assinada?: boolean;
+  opcao_assinada_em?: string | null;
+  comite_aprovado?: boolean;
+  comite_aprovado_em?: string | null;
+  /** Funil Operações — migration 393. */
+  prefeitura_aprovada?: boolean;
+  prefeitura_aprovada_em?: string | null;
+  obra_iniciada?: boolean;
+  obra_iniciada_em?: string | null;
+  obra_finalizada?: boolean;
+  obra_finalizada_em?: string | null;
+  /** FK `projeto_negocio.id` — agrupa esteiras paralelas do mesmo negócio. */
+  projeto_id?: string | null;
+  projeto_titulo?: string | null;
 };
 
 export type PipelineFranqueadoUnidade = {
@@ -46,7 +68,8 @@ export type PipelineCardDisplay = PipelineCardRow & {
 
 export type PipelineGroupBy = 'franquia' | 'fase' | 'funil' | 'status';
 
-export type PipelineCardsViewMode = 'franqueadora' | 'unidade';
+/** `rede` é alias de `franqueadora` (visão consolidada da rede). */
+export type PipelineCardsViewMode = 'franqueadora' | 'rede' | 'unidade';
 
 export type PipelineCardsStatusFiltro =
   | 'todos'
@@ -75,11 +98,21 @@ export const PIPELINE_CARDS_FILTROS_DEFAULT: PipelineCardsFiltros = {
 };
 
 export type PipelineCardsKpis = {
-  unidadesComCardsAtivos: number;
   cardsAtivos: number;
   cardsAtrasados: number;
   cardsSemMovimentacao: number;
   cardsVencendoEmBreve: number;
+  gargalosCriticos: number;
+  chamadosComTrava: number;
+};
+
+export type PipelineFranqueadoraEnrichment = {
+  fases: PainelFaseDTO[];
+  /** Usado só no servidor (gargalo); removido antes de serializar ao client. */
+  historicoMovimentos?: PainelHistoricoMovimentoDTO[];
+  chamados: PainelChamadoUnificadoDTO[];
+  gargaloRanking: GargaloScoreFase[];
+  maxOrdemPorKanban: Record<string, number>;
 };
 
 export type PipelineCardsKpisFunil = {
@@ -93,8 +126,38 @@ export type PipelineCardsKpisUnidade = {
   cardsAtrasados: number;
   cardsSemMovimentacao: number;
   proximosVencimentos: number;
+  funisAtivos: number;
+  chamadosComTrava: number;
   cardsPorFunil: PipelineCardsKpisFunil[];
 };
+
+export type PipelineOQueFazerItem = {
+  cardId: string;
+  titulo: string;
+  fase: string;
+  kanbanNome: string;
+  acao: string;
+  prioridade: number;
+  href: string;
+};
+
+export type PipelineFunilGrupoUnidade = {
+  kanbanId: string;
+  kanbanNome: string;
+  cards: PipelineCardDisplay[];
+  defaultExpanded: boolean;
+};
+
+export type PipelineProjetoGrupoUnidade = {
+  projetoId: string;
+  projetoTitulo: string;
+  cards: PipelineCardDisplay[];
+  defaultExpanded: boolean;
+};
+
+export type PipelineUnidadeDisplayBloco =
+  | { tipo: 'projeto'; grupo: PipelineProjetoGrupoUnidade }
+  | { tipo: 'solo'; card: PipelineCardDisplay };
 
 export type PipelineCardsGrupo = {
   id: string;
@@ -106,4 +169,107 @@ export type PipelineCardsGrupo = {
 export type PipelineCardsDataset = {
   cards: PipelineCardRow[];
   franqueados: PipelineFranqueadoUnidade[];
+  /** Dados extras para visão franqueadora / aba Análises (degrada se ausente). */
+  enrichment?: PipelineFranqueadoraEnrichment | null;
+};
+
+export type PipelineCardBadgeStatus = 'atrasado' | 'alerta' | 'parado' | 'em_dia';
+
+export type PipelineUnidadeSaudeMes = {
+  entradasMes: number;
+  contratosMes: number;
+  metaEntradas: number;
+  metaContratos: number;
+};
+
+export type PipelineUnidadeAlertas = {
+  atrasados: number;
+  parados: number;
+  chamadosTrava: number;
+  venceEm2Dias: number;
+  nivel: 'critico' | 'atencao' | 'ok';
+};
+
+export type PipelineFunilMesDotNivel = 0 | 1 | 2 | 3 | 4 | 5;
+
+export type PipelineFunilMesUnidadeRow = {
+  redeId: string;
+  label: string;
+  quantidade: number;
+  dots: PipelineFunilMesDotNivel;
+};
+
+export type PipelineFunilMesBarSegment = {
+  redeId: string;
+  label: string;
+  quantidade: number;
+  pct: number;
+  cor: string;
+};
+
+export type PipelineFunilMesEtapaKey =
+  | 'hipoteses'
+  | 'opcoes'
+  | 'comites'
+  | 'contratos'
+  | 'aprovacoes'
+  | 'obras_iniciadas'
+  | 'obras_finalizadas';
+
+export type PipelineFunilMesColuna = {
+  key: PipelineFunilMesEtapaKey;
+  label: string;
+  total: number;
+  /** Quando campos Operações não estão no fetch — exibir "—". */
+  totalIndisponivel?: boolean;
+  /** Unidades com quantidade > 0 no mês, ordenadas decrescente. */
+  porUnidade: PipelineFunilMesUnidadeRow[];
+  /** Unidades elegíveis com quantidade 0 (expandíveis via "ver todas"). */
+  porUnidadeZeradas: PipelineFunilMesUnidadeRow[];
+  barSegments: PipelineFunilMesBarSegment[];
+};
+
+export type PipelineFunilPeriodo = 'mes' | 'tri';
+
+export type PipelineFunilMesRede = {
+  colunas: PipelineFunilMesColuna[];
+  conversoes: (number | null)[];
+  disponivel: boolean;
+  periodo: PipelineFunilPeriodo;
+};
+
+export type PipelineFunilMesUnidadeMetric = {
+  key: PipelineFunilMesEtapaKey;
+  label: string;
+  total: number;
+  totalIndisponivel?: boolean;
+  dots: PipelineFunilMesDotNivel;
+  dotCor: 'verde' | 'vermelho' | 'cinza';
+};
+
+export type PipelineFunilMesUnidade = {
+  metricas: PipelineFunilMesUnidadeMetric[];
+  conversoes: (number | null)[];
+  disponivel: boolean;
+};
+
+export type PipelineFunilMesCompact = {
+  hipoteses: number;
+  opcoes: number;
+  comites: number;
+  contratos: number;
+  aprovacoes: number;
+  obrasIniciadas: number;
+  obrasFinalizadas: number;
+};
+
+export type PipelineUnidadeBlocoMeta = {
+  redeId: string;
+  label: string;
+  nFranquia: string | null;
+  alertas: PipelineUnidadeAlertas;
+  saude: PipelineUnidadeSaudeMes;
+  funilMes: PipelineFunilMesCompact;
+  defaultExpanded: boolean;
+  sortPriority: number;
 };

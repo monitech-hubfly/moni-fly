@@ -2,13 +2,17 @@ import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import type {
   PainelCardDTO,
+  PainelCreditoObraOperacoesIrmaoDTO,
+  PainelFaseDTO,
   PainelHistoricoMovimentoDTO,
   PainelPerformanceDataset,
   PainelRetrocessoDTO,
+  PainelStepOnePortfolioFilhoDTO,
 } from '@/lib/kanban/painel-performance-types';
 import type { KanbanCardBrief, KanbanFase } from './types';
 import { fetchPainelChamados } from '@/lib/kanban/fetch-painel-chamados';
 import { enrichCardsComResponsavelFase } from '@/lib/kanban/responsavel-fase-checklist';
+import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { PainelPerformanceDashboard } from './PainelPerformanceDashboard';
 
 function relOne<T>(v: T | T[] | null | undefined): T | null {
@@ -57,6 +61,7 @@ function mapFases(fases: KanbanFase[]) {
     ordem: f.ordem,
     sla_dias: f.sla_dias,
     fase_conversao: Boolean(f.fase_conversao),
+    slug: f.slug ?? null,
   }));
 }
 
@@ -76,13 +81,82 @@ function mapCardRow(c: {
   motivo_arquivamento?: string | null;
   rede_franqueado_id?: string | null;
   rede_franqueados?:
-    | { n_franquia?: string | null; nome_completo?: string | null }
-    | Array<{ n_franquia?: string | null; nome_completo?: string | null }>
+    | {
+        n_franquia?: string | null;
+        nome_completo?: string | null;
+        area_atuacao?: string | null;
+        cidade_casa_frank?: string | null;
+      }
+    | Array<{
+        n_franquia?: string | null;
+        nome_completo?: string | null;
+        area_atuacao?: string | null;
+        cidade_casa_frank?: string | null;
+      }>
     | null;
   responsavel_fase_id?: string | null;
   responsavel_fase_nome?: string | null;
+  opcao_assinada?: boolean | null;
+  opcao_assinada_em?: string | null;
+  comite_aprovado?: boolean | null;
+  comite_aprovado_em?: string | null;
+  contrato_assinado?: boolean | null;
+  contrato_assinado_em?: string | null;
+  origem_kanban_id?: string | null;
+  origem_kanban_nome?: string | null;
+  nome_condominio?: string | null;
+  quadra?: string | null;
+  lote?: string | null;
+  condominio_id?: string | null;
+  rede_loteador_id?: string | null;
+  projeto_id?: string | null;
+  rede_loteadores?:
+    | { nome?: string | null; interlocutor_nome?: string | null }
+    | Array<{ nome?: string | null; interlocutor_nome?: string | null }>
+    | null;
+  projeto_negocio?:
+    | {
+        titulo?: string | null;
+        franqueado_id?: string | null;
+        rede_franqueados?:
+          | {
+              n_franquia?: string | null;
+              nome_completo?: string | null;
+              area_atuacao?: string | null;
+              cidade_casa_frank?: string | null;
+            }
+          | Array<{
+              n_franquia?: string | null;
+              nome_completo?: string | null;
+              area_atuacao?: string | null;
+              cidade_casa_frank?: string | null;
+            }>
+          | null;
+      }
+    | Array<{
+        titulo?: string | null;
+        franqueado_id?: string | null;
+        rede_franqueados?:
+          | {
+              n_franquia?: string | null;
+              nome_completo?: string | null;
+              area_atuacao?: string | null;
+              cidade_casa_frank?: string | null;
+            }
+          | Array<{
+              n_franquia?: string | null;
+              nome_completo?: string | null;
+              area_atuacao?: string | null;
+              cidade_casa_frank?: string | null;
+            }>
+          | null;
+      }>
+    | null;
 }): PainelCardDTO {
   const rede = relOne(c.rede_franqueados);
+  const loteador = relOne(c.rede_loteadores);
+  const projeto = relOne(c.projeto_negocio);
+  const redeProjeto = relOne(projeto?.rede_franqueados);
   return {
     id: c.id,
     titulo: c.titulo,
@@ -102,6 +176,30 @@ function mapCardRow(c: {
     franqueado_rede_nome: rede?.nome_completo != null ? String(rede.nome_completo) : null,
     responsavel_fase_id: c.responsavel_fase_id ?? null,
     responsavel_fase_nome: c.responsavel_fase_nome ?? null,
+    projeto_franqueado_id: projeto?.franqueado_id != null ? String(projeto.franqueado_id) : null,
+    projeto_n_franquia: redeProjeto?.n_franquia != null ? String(redeProjeto.n_franquia) : null,
+    projeto_franqueado_nome:
+      redeProjeto?.nome_completo != null ? String(redeProjeto.nome_completo) : null,
+    opcao_assinada: c.opcao_assinada ?? null,
+    opcao_assinada_em: c.opcao_assinada_em ?? null,
+    comite_aprovado: c.comite_aprovado ?? null,
+    comite_aprovado_em: c.comite_aprovado_em ?? null,
+    contrato_assinado: c.contrato_assinado ?? null,
+    contrato_assinado_em: c.contrato_assinado_em ?? null,
+    origem_kanban_id: c.origem_kanban_id != null ? String(c.origem_kanban_id) : null,
+    origem_kanban_nome: c.origem_kanban_nome ?? null,
+    nome_condominio: c.nome_condominio ?? null,
+    quadra: c.quadra ?? null,
+    lote: c.lote ?? null,
+    condominio_id: c.condominio_id != null ? String(c.condominio_id) : null,
+    projeto_titulo: projeto?.titulo != null ? String(projeto.titulo) : null,
+    rede_area_atuacao: rede?.area_atuacao ?? null,
+    rede_cidade_casa_frank: rede?.cidade_casa_frank ?? null,
+    projeto_rede_area_atuacao: redeProjeto?.area_atuacao ?? null,
+    projeto_rede_cidade_casa_frank: redeProjeto?.cidade_casa_frank ?? null,
+    rede_loteador_id: c.rede_loteador_id != null ? String(c.rede_loteador_id) : null,
+    loteador_nome: loteador?.nome != null ? String(loteador.nome) : null,
+    projeto_id: c.projeto_id != null ? String(c.projeto_id) : null,
   };
 }
 
@@ -109,6 +207,120 @@ const CARD_SELECT_NATIVO = `
   id,titulo,fase_id,created_at,updated_at,entered_fase_at,franqueado_id,arquivado,arquivado_em,concluido,concluido_em,status,motivo_arquivamento,rede_franqueado_id,
   rede_franqueados ( n_franquia, nome_completo )
 `;
+
+const CARD_SELECT_CAROMETRO = `
+  id,titulo,fase_id,created_at,updated_at,entered_fase_at,franqueado_id,arquivado,arquivado_em,concluido,concluido_em,status,motivo_arquivamento,rede_franqueado_id,
+  opcao_assinada,opcao_assinada_em,comite_aprovado,comite_aprovado_em,contrato_assinado,contrato_assinado_em,origem_kanban_id,origem_kanban_nome,
+  rede_franqueados ( n_franquia, nome_completo ),
+  projeto_negocio ( franqueado_id, rede_franqueados ( n_franquia, nome_completo ) )
+`;
+
+const CARD_SELECT_STEPONE = `
+  id,titulo,fase_id,created_at,updated_at,entered_fase_at,franqueado_id,arquivado,arquivado_em,concluido,concluido_em,status,motivo_arquivamento,rede_franqueado_id,
+  nome_condominio,quadra,lote,condominio_id,
+  rede_franqueados ( n_franquia, nome_completo )
+`;
+
+const CARD_SELECT_OPERACOES = `
+  id,titulo,fase_id,created_at,updated_at,entered_fase_at,franqueado_id,arquivado,arquivado_em,concluido,concluido_em,status,motivo_arquivamento,rede_franqueado_id,
+  nome_condominio,condominio_id,projeto_id,
+  rede_franqueados ( n_franquia, nome_completo, area_atuacao, cidade_casa_frank ),
+  projeto_negocio ( titulo, franqueado_id, rede_franqueados ( n_franquia, nome_completo, area_atuacao, cidade_casa_frank ) )
+`;
+
+const CARD_SELECT_LOTEADORES = `
+  id,titulo,fase_id,created_at,updated_at,entered_fase_at,franqueado_id,arquivado,arquivado_em,concluido,concluido_em,status,motivo_arquivamento,rede_franqueado_id,
+  nome_condominio,rede_loteador_id,
+  rede_franqueados ( n_franquia, nome_completo ),
+  rede_loteadores ( nome, interlocutor_nome )
+`;
+
+const CARD_SELECT_CREDITO_OBRA = `
+  id,titulo,fase_id,created_at,updated_at,entered_fase_at,franqueado_id,arquivado,arquivado_em,concluido,concluido_em,status,motivo_arquivamento,rede_franqueado_id,
+  projeto_id,
+  rede_franqueados ( n_franquia, nome_completo )
+`;
+
+async function fetchKanbanCardsPainel(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  kanbanId: string,
+  privileged: boolean,
+  uid: string | null,
+  useCarometroSelect: boolean,
+  useStepOneSelect: boolean,
+  useOperacoesSelect: boolean,
+  useLoteadoresSelect: boolean,
+  useCreditoObraSelect: boolean,
+  useContabilidadeSelect: boolean,
+): Promise<Parameters<typeof mapCardRow>[0][]> {
+  type Row = Parameters<typeof mapCardRow>[0];
+
+  if (useCreditoObraSelect || useContabilidadeSelect) {
+    return fetchPaged<Row>(async (from, to) => {
+      let q = supabase.from('kanban_cards').select(CARD_SELECT_CREDITO_OBRA).eq('kanban_id', kanbanId);
+      q = applyFranqueadoFilter(q, privileged, uid);
+      const res = await q.range(from, to);
+      return {
+        data: (res.data ?? null) as Row[] | null,
+        error: res.error,
+      };
+    });
+  }
+
+  if (useStepOneSelect) {
+    return fetchPaged<Row>(async (from, to) => {
+      let q = supabase.from('kanban_cards').select(CARD_SELECT_STEPONE).eq('kanban_id', kanbanId);
+      q = applyFranqueadoFilter(q, privileged, uid);
+      const res = await q.range(from, to);
+      return {
+        data: (res.data ?? null) as Row[] | null,
+        error: res.error,
+      };
+    });
+  }
+
+  if (useOperacoesSelect) {
+    return fetchPaged<Row>(async (from, to) => {
+      let q = supabase.from('kanban_cards').select(CARD_SELECT_OPERACOES).eq('kanban_id', kanbanId);
+      q = applyFranqueadoFilter(q, privileged, uid);
+      const res = await q.range(from, to);
+      return {
+        data: (res.data ?? null) as Row[] | null,
+        error: res.error,
+      };
+    });
+  }
+
+  if (useLoteadoresSelect) {
+    return fetchPaged<Row>(async (from, to) => {
+      let q = supabase.from('kanban_cards').select(CARD_SELECT_LOTEADORES).eq('kanban_id', kanbanId);
+      q = applyFranqueadoFilter(q, privileged, uid);
+      const res = await q.range(from, to);
+      return {
+        data: (res.data ?? null) as Row[] | null,
+        error: res.error,
+      };
+    });
+  }
+
+  if (useCarometroSelect) {
+    return fetchPaged<Row>(async (from, to) => {
+      let q = supabase.from('kanban_cards').select(CARD_SELECT_CAROMETRO).eq('kanban_id', kanbanId);
+      q = applyFranqueadoFilter(q, privileged, uid);
+      const res = await q.range(from, to);
+      return {
+        data: (res.data ?? null) as Row[] | null,
+        error: res.error,
+      };
+    });
+  }
+
+  return fetchPaged<Row>(async (from, to) => {
+    let q = supabase.from('kanban_cards').select(CARD_SELECT_NATIVO).eq('kanban_id', kanbanId);
+    q = applyFranqueadoFilter(q, privileged, uid);
+    return q.range(from, to);
+  });
+}
 
 async function fetchRetrocessos(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -158,6 +370,185 @@ async function fetchHistoricoMovimentos(
     }
   }
   return out;
+}
+
+async function fetchPortfolioFilhosPorOrigem(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  origemCardIds: string[],
+): Promise<{ rows: PainelStepOnePortfolioFilhoDTO[]; available: boolean }> {
+  const out: PainelStepOnePortfolioFilhoDTO[] = [];
+  if (origemCardIds.length === 0) return { rows: out, available: true };
+
+  let hadError = false;
+  for (const part of chunk(origemCardIds, 120)) {
+    if (part.length === 0) continue;
+    const { data, error } = await supabase
+      .from('kanban_cards')
+      .select('id, origem_card_id')
+      .eq('kanban_id', KANBAN_IDS.PORTFOLIO)
+      .in('origem_card_id', part);
+    if (error) {
+      hadError = true;
+      continue;
+    }
+    for (const r of data ?? []) {
+      const row = r as { id: string; origem_card_id: string | null };
+      const origem = String(row.origem_card_id ?? '').trim();
+      if (!origem) continue;
+      out.push({ origem_card_id: origem, portfolio_card_id: String(row.id) });
+    }
+  }
+  return { rows: out, available: !hadError };
+}
+
+async function fetchOperacoesIrmaosPorProjeto(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  projetoIds: string[],
+): Promise<{ rows: PainelCreditoObraOperacoesIrmaoDTO[]; available: boolean }> {
+  const out: PainelCreditoObraOperacoesIrmaoDTO[] = [];
+  const uniq = [...new Set(projetoIds.map((id) => id.trim()).filter(Boolean))];
+  if (uniq.length === 0) return { rows: out, available: true };
+
+  let hadError = false;
+  for (const part of chunk(uniq, 120)) {
+    if (part.length === 0) continue;
+    const { data, error } = await supabase
+      .from('kanban_cards')
+      .select('id, projeto_id, fase_id, entered_fase_at, created_at, arquivado, concluido')
+      .eq('kanban_id', KANBAN_IDS.OPERACOES)
+      .in('projeto_id', part);
+    if (error) {
+      hadError = true;
+      continue;
+    }
+    for (const r of data ?? []) {
+      const row = r as {
+        id: string;
+        projeto_id: string | null;
+        fase_id: string;
+        entered_fase_at: string | null;
+        created_at: string;
+        arquivado: boolean | null;
+        concluido: boolean | null;
+      };
+      const pid = String(row.projeto_id ?? '').trim();
+      if (!pid) continue;
+      out.push({
+        projeto_id: pid,
+        card_id: String(row.id),
+        fase_id: row.fase_id,
+        entered_fase_at: row.entered_fase_at != null ? String(row.entered_fase_at) : null,
+        created_at: row.created_at,
+        arquivado: !!row.arquivado,
+        concluido: !!row.concluido,
+      });
+    }
+  }
+  return { rows: out, available: !hadError };
+}
+
+async function fetchOperacoesFases(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<PainelFaseDTO[]> {
+  const { data, error } = await supabase
+    .from('kanban_fases')
+    .select('id, nome, ordem, sla_dias, fase_conversao, slug')
+    .eq('kanban_id', KANBAN_IDS.OPERACOES)
+    .order('ordem');
+  if (error) return [];
+  return (data ?? []).map((f) => {
+    const row = f as {
+      id: string;
+      nome: string;
+      ordem: number;
+      sla_dias: number | null;
+      fase_conversao: boolean | null;
+      slug: string | null;
+    };
+    return {
+      id: row.id,
+      nome: row.nome,
+      ordem: row.ordem,
+      sla_dias: row.sla_dias,
+      fase_conversao: Boolean(row.fase_conversao),
+      slug: row.slug ?? null,
+    };
+  });
+}
+
+async function fetchCreditoObraIrmaosPorProjeto(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  projetoIds: string[],
+): Promise<{ rows: PainelCreditoObraOperacoesIrmaoDTO[]; available: boolean }> {
+  const out: PainelCreditoObraOperacoesIrmaoDTO[] = [];
+  const uniq = [...new Set(projetoIds.map((id) => id.trim()).filter(Boolean))];
+  if (uniq.length === 0) return { rows: out, available: true };
+
+  let hadError = false;
+  for (const part of chunk(uniq, 120)) {
+    if (part.length === 0) continue;
+    const { data, error } = await supabase
+      .from('kanban_cards')
+      .select('id, projeto_id, fase_id, entered_fase_at, created_at, arquivado, concluido')
+      .eq('kanban_id', KANBAN_IDS.CREDITO_OBRA)
+      .in('projeto_id', part);
+    if (error) {
+      hadError = true;
+      continue;
+    }
+    for (const r of data ?? []) {
+      const row = r as {
+        id: string;
+        projeto_id: string | null;
+        fase_id: string;
+        entered_fase_at: string | null;
+        created_at: string;
+        arquivado: boolean | null;
+        concluido: boolean | null;
+      };
+      const pid = String(row.projeto_id ?? '').trim();
+      if (!pid) continue;
+      out.push({
+        projeto_id: pid,
+        card_id: String(row.id),
+        fase_id: row.fase_id,
+        entered_fase_at: row.entered_fase_at != null ? String(row.entered_fase_at) : null,
+        created_at: row.created_at,
+        arquivado: !!row.arquivado,
+        concluido: !!row.concluido,
+      });
+    }
+  }
+  return { rows: out, available: !hadError };
+}
+
+async function fetchCreditoObraFases(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<PainelFaseDTO[]> {
+  const { data, error } = await supabase
+    .from('kanban_fases')
+    .select('id, nome, ordem, sla_dias, fase_conversao, slug')
+    .eq('kanban_id', KANBAN_IDS.CREDITO_OBRA)
+    .order('ordem');
+  if (error) return [];
+  return (data ?? []).map((f) => {
+    const row = f as {
+      id: string;
+      nome: string;
+      ordem: number;
+      sla_dias: number | null;
+      fase_conversao: boolean | null;
+      slug: string | null;
+    };
+    return {
+      id: row.id,
+      nome: row.nome,
+      ordem: row.ordem,
+      sla_dias: row.sla_dias,
+      fase_conversao: Boolean(row.fase_conversao),
+      slug: row.slug ?? null,
+    };
+  });
 }
 
 export type PainelPerformanceProps = {
@@ -234,6 +625,20 @@ async function PainelPerformanceContent({
   const fasesDto = mapFases(fases);
 
   let cardsDto: PainelCardDTO[];
+  let carometroFieldsAvailable = false;
+  let stepOneFieldsAvailable = false;
+  let operacoesFieldsAvailable = false;
+  let loteadoresFieldsAvailable = false;
+  let creditoObraFieldsAvailable = false;
+  let contabilidadeFieldsAvailable = false;
+  let portfolioFilhosOrigem: PainelStepOnePortfolioFilhoDTO[] = [];
+  let portfolioFilhosAvailable = true;
+  let operacoesIrmaosPorProjeto: PainelCreditoObraOperacoesIrmaoDTO[] = [];
+  let operacoesIrmaosAvailable = true;
+  let operacoesFases: PainelFaseDTO[] = [];
+  let creditoObraIrmaosPorProjeto: PainelCreditoObraOperacoesIrmaoDTO[] = [];
+  let creditoObraIrmaosAvailable = true;
+  let creditoObraFases: PainelFaseDTO[] = [];
 
   if (origemCards === 'legado') {
     cardsDto = cards.map((c) =>
@@ -253,30 +658,81 @@ async function PainelPerformanceContent({
       }),
     );
   } else {
-    const cardsRows = await fetchPaged<{
-      id: string;
-      titulo: string;
-      fase_id: string;
-      created_at: string;
-      updated_at: string;
-      entered_fase_at: string | null;
-      franqueado_id: string;
-      arquivado: boolean | null;
-      arquivado_em: string | null;
-      concluido: boolean | null;
-      concluido_em: string | null;
-      status: string;
-      motivo_arquivamento: string | null;
-      rede_franqueado_id: string | null;
-      rede_franqueados:
-        | { n_franquia?: string | null; nome_completo?: string | null }
-        | Array<{ n_franquia?: string | null; nome_completo?: string | null }>
-        | null;
-    }>(async (from, to) => {
-      let q = supabase.from('kanban_cards').select(CARD_SELECT_NATIVO).eq('kanban_id', kanbanId);
-      q = applyFranqueadoFilter(q, privileged, uid);
-      return q.range(from, to);
-    });
+    const isStepOne = kanbanId === KANBAN_IDS.STEP_ONE;
+    const isOperacoes = kanbanId === KANBAN_IDS.OPERACOES;
+    const isLoteadores = kanbanId === KANBAN_IDS.LOTEADORES;
+    const isCreditoObra = kanbanId === KANBAN_IDS.CREDITO_OBRA;
+    const isContabilidade = kanbanId === KANBAN_IDS.CONTABILIDADE;
+
+    if (isStepOne) {
+      const stepOneProbe = await supabase
+        .from('kanban_cards')
+        .select(CARD_SELECT_STEPONE)
+        .eq('kanban_id', kanbanId)
+        .limit(1);
+      stepOneFieldsAvailable = !stepOneProbe.error;
+    }
+
+    if (isOperacoes) {
+      const operacoesProbe = await supabase
+        .from('kanban_cards')
+        .select(CARD_SELECT_OPERACOES)
+        .eq('kanban_id', kanbanId)
+        .limit(1);
+      operacoesFieldsAvailable = !operacoesProbe.error;
+    }
+
+    if (isLoteadores) {
+      const loteadoresProbe = await supabase
+        .from('kanban_cards')
+        .select(CARD_SELECT_LOTEADORES)
+        .eq('kanban_id', kanbanId)
+        .limit(1);
+      loteadoresFieldsAvailable = !loteadoresProbe.error;
+    }
+
+    if (isCreditoObra) {
+      const creditoObraProbe = await supabase
+        .from('kanban_cards')
+        .select(CARD_SELECT_CREDITO_OBRA)
+        .eq('kanban_id', kanbanId)
+        .limit(1);
+      creditoObraFieldsAvailable = !creditoObraProbe.error;
+    }
+
+    if (isContabilidade) {
+      const contabilidadeProbe = await supabase
+        .from('kanban_cards')
+        .select(CARD_SELECT_CREDITO_OBRA)
+        .eq('kanban_id', kanbanId)
+        .limit(1);
+      contabilidadeFieldsAvailable = !contabilidadeProbe.error;
+    }
+
+    const carometroProbe = await supabase
+      .from('kanban_cards')
+      .select(CARD_SELECT_CAROMETRO)
+      .eq('kanban_id', kanbanId)
+      .limit(1);
+    carometroFieldsAvailable = !carometroProbe.error;
+
+    const cardsRows = await fetchKanbanCardsPainel(
+      supabase,
+      kanbanId,
+      privileged,
+      uid,
+      carometroFieldsAvailable &&
+        !isStepOne &&
+        !isOperacoes &&
+        !isLoteadores &&
+        !isCreditoObra &&
+        !isContabilidade,
+      isStepOne && stepOneFieldsAvailable,
+      isOperacoes && operacoesFieldsAvailable,
+      isLoteadores && loteadoresFieldsAvailable,
+      isCreditoObra && creditoObraFieldsAvailable,
+      isContabilidade && contabilidadeFieldsAvailable,
+    );
     cardsDto = cardsRows.map((c) => mapCardRow(c));
 
     const briefs: KanbanCardBrief[] = cardsDto.map((c) => ({
@@ -306,11 +762,39 @@ async function PainelPerformanceContent({
   }
 
   const idList = cardsDto.map((c) => c.id);
-  const [chamados, retrocessoRows, historicoMovimentos] = await Promise.all([
-    fetchPainelChamados(supabase, idList, origem),
-    fetchRetrocessos(supabase, idList),
-    origem === 'nativo' ? fetchHistoricoMovimentos(supabase, idList) : Promise.resolve([]),
-  ]);
+  const projetoIdsCredito = cardsDto
+    .map((c) => c.projeto_id?.trim())
+    .filter((id): id is string => Boolean(id));
+
+  const [chamados, retrocessoRows, historicoMovimentos, portfolioFilhosResult, operacoesIrmaosResult, operacoesFasesResult, creditoObraIrmaosResult, creditoObraFasesResult] =
+    await Promise.all([
+      fetchPainelChamados(supabase, idList, origem),
+      fetchRetrocessos(supabase, idList),
+      origem === 'nativo' ? fetchHistoricoMovimentos(supabase, idList) : Promise.resolve([]),
+      origem === 'nativo' && kanbanId === KANBAN_IDS.STEP_ONE
+        ? fetchPortfolioFilhosPorOrigem(supabase, idList)
+        : Promise.resolve({ rows: [] as PainelStepOnePortfolioFilhoDTO[], available: true }),
+      origem === 'nativo' && kanbanId === KANBAN_IDS.CREDITO_OBRA
+        ? fetchOperacoesIrmaosPorProjeto(supabase, projetoIdsCredito)
+        : Promise.resolve({ rows: [] as PainelCreditoObraOperacoesIrmaoDTO[], available: true }),
+      origem === 'nativo' && kanbanId === KANBAN_IDS.CREDITO_OBRA
+        ? fetchOperacoesFases(supabase)
+        : Promise.resolve([] as PainelFaseDTO[]),
+      origem === 'nativo' && kanbanId === KANBAN_IDS.CONTABILIDADE
+        ? fetchCreditoObraIrmaosPorProjeto(supabase, projetoIdsCredito)
+        : Promise.resolve({ rows: [] as PainelCreditoObraOperacoesIrmaoDTO[], available: true }),
+      origem === 'nativo' && kanbanId === KANBAN_IDS.CONTABILIDADE
+        ? fetchCreditoObraFases(supabase)
+        : Promise.resolve([] as PainelFaseDTO[]),
+    ]);
+  portfolioFilhosOrigem = portfolioFilhosResult.rows;
+  portfolioFilhosAvailable = portfolioFilhosResult.available;
+  operacoesIrmaosPorProjeto = operacoesIrmaosResult.rows;
+  operacoesIrmaosAvailable = operacoesIrmaosResult.available;
+  operacoesFases = operacoesFasesResult;
+  creditoObraIrmaosPorProjeto = creditoObraIrmaosResult.rows;
+  creditoObraIrmaosAvailable = creditoObraIrmaosResult.available;
+  creditoObraFases = creditoObraFasesResult;
 
   const profileIds = new Set<string>();
   for (const c of cardsDto) {
@@ -339,6 +823,20 @@ async function PainelPerformanceContent({
     retrocessoRows,
     historicoMovimentos,
     profiles,
+    carometroFieldsAvailable: origemCards === 'legado' ? false : carometroFieldsAvailable,
+    stepOneFieldsAvailable: origemCards === 'legado' ? false : stepOneFieldsAvailable,
+    portfolioFilhosOrigem,
+    portfolioFilhosAvailable,
+    operacoesFieldsAvailable: origemCards === 'legado' ? false : operacoesFieldsAvailable,
+    loteadoresFieldsAvailable: origemCards === 'legado' ? false : loteadoresFieldsAvailable,
+    creditoObraFieldsAvailable: origemCards === 'legado' ? false : creditoObraFieldsAvailable,
+    operacoesIrmaosPorProjeto,
+    operacoesFases,
+    operacoesIrmaosAvailable,
+    contabilidadeFieldsAvailable: origemCards === 'legado' ? false : contabilidadeFieldsAvailable,
+    creditoObraIrmaosPorProjeto,
+    creditoObraFases,
+    creditoObraIrmaosAvailable,
   };
 
   return <PainelPerformanceDashboard dataset={dataset} />;

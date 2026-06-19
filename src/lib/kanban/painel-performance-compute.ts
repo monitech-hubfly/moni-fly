@@ -8,6 +8,7 @@ import {
   computeMotivosArquivamento,
   MOTIVO_ARQUIVAMENTO_SEM_INFORMADO,
 } from '@/lib/kanban/painel-motivo-arquivamento';
+import { computeCarometroIndicadores } from '@/lib/kanban/painel-carometro-compute';
 import { buildQualidadeMotivoArquivamento } from '@/lib/kanban/painel-qualidade-dados';
 import {
   arquivamentoNaConversao,
@@ -202,6 +203,7 @@ export { computeConversionFunnelTree } from '@/lib/kanban/painel-funnel-tree-com
 export { computeGargaloScoreRanking } from '@/lib/kanban/painel-gargalo-score-compute';
 export { computePainelChamados } from '@/lib/kanban/painel-chamados-compute';
 export { computePainelInsights, PAINEL_INSIGHT_TIPO_LABEL } from '@/lib/kanban/painel-insights-compute';
+export { computeCarometroIndicadores } from '@/lib/kanban/painel-carometro-compute';
 
 function detStr(d: Record<string, unknown> | null | undefined, key: string): string {
   if (!d) return '';
@@ -344,6 +346,7 @@ function clampPct100(n: number): number {
 
 export type ComputePainelPerformanceInput = {
   mode?: 'nativo' | 'legado';
+  kanbanId?: string | null;
   period: PainelPeriodKey;
   fases: PainelFaseDTO[];
   /** Cards filtrados para operação, gargalos e chamados. */
@@ -355,6 +358,7 @@ export type ComputePainelPerformanceInput = {
   historicoMovimentos: PainelHistoricoMovimentoDTO[];
   historicoAnalise?: PainelHistoricoMovimentoDTO[];
   profiles: Record<string, string>;
+  carometroFieldsAvailable?: boolean;
 };
 
 /** Métricas principais do painel (operação, conversão, gargalos, chamados, insights). */
@@ -831,6 +835,15 @@ export function computePainelPerformance(input: ComputePainelPerformanceInput): 
     },
   });
 
+  const carometro = computeCarometroIndicadores({
+    kanbanId: input.kanbanId,
+    period: input.period,
+    fases: fasesOrd,
+    cards: cardsAnalise,
+    historicoMovimentos: historicoAnalise,
+    carometroFieldsAvailable: input.carometroFieldsAvailable,
+  });
+
   return {
     period: input.period,
     operacao: {
@@ -880,6 +893,7 @@ export function computePainelPerformance(input: ComputePainelPerformanceInput): 
     },
     chamados: chamadosAnalise,
     insights,
+    carometro,
   };
 }
 

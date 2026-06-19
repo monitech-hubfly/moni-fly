@@ -147,75 +147,202 @@ async function buscarProfileIdSeFranqueado(
   return null;
 }
 
-async function buscarProfileFranqueadoPorRedeId(
+type RedeFranqueadoProfileRow = {
+  id: string;
+  nome_completo?: string | null;
+  email_frank?: string | null;
+  processo_id?: string | null;
+};
+
+function escolherProfileIdPorNomeCandidatos(
+  candidatos: { id: string; role?: string | null }[],
+): string | null {
+  const preferido = candidatos.find((p) => isFranqueadoProfileRole(p.role));
+  const escolhido = preferido ?? candidatos.find((p) => !isStaffProfileRole(p.role));
+  return valorResponsavelValido(escolhido?.id);
+}
+
+/** Resolve profiles de franqueado por `rede_franqueado_id` em lote (evita N+1 no pipeline). */
+export async function buscarProfilesFranqueadoPorRedeIdsBatch(
+  supabase: SupabaseClient,
+  redeIds: string[],
+): Promise<Map<string, string | null>> {
+  const out = new Map<string, string | null>();
+  const uniq = [...new Set(redeIds.map((r) => r.trim()).filter(Boolean))];
+  for (const rid of uniq) out.set(rid, null);
+  if (uniq.length === 0) return out;
+
+  const { data: profRows } = await supabase
+    .from('profiles')
+    .select('id, role, rede_franqueado_id')
+    .in('rede_franqueado_id', uniq)
+    .in('role', [...FRANQUEADO_PROFILE_ROLES]);
+
+  const unresolved = new Set(uniq);
+  for (const p of profRows ?? []) {
+    const rid = String((p as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '').trim();
+    const uid = valorResponsavelValido((p as { id?: string }).id);
+    if (rid && uid && unresolved.has(rid)) {
+      out.set(rid, uid);
+      unresolved.delete(rid);
+    }
+  }
+  if (unresolved.size === 0) return out;
+
+  const { data: redeRows } = await supabase
+    .from('rede_franqueados')
+    .select('id, nome_completo, email_frank, processo_id')
+    .in('id', [...unresolved]);
+
+  const redeById = new Map<string, RedeFranqueadoProfileRow>();
+  for (const r of redeRows ?? []) {
+    const rid = String((r as RedeFranqueadoProfileRow).id ?? '').trim();
+    if (rid) redeById.set(rid, r as RedeFranqueadoProfileRow);
+  }
+
+  const emailsUnicos = new Map<string, string[]>();
+  for (const rid of unresolved) {
+    const emailFrank = String(redeById.get(rid)?.email_frank ?? '').trim();
+    if (!emailFrank) continue;
+    const key = emailFrank.toLowerCase();
+    const list = emailsUnicos.get(key) ?? [];
+    list.push(rid);
+    emailsUnicos.set(key, list);
+  }
+  if (emailsUnicos.size > 0) {
+    const orEmail = [...emailsUnicos.keys()]
+      .map((e) => `email.ilike.${e.replace(/,/g, '')}`)
+      .join(',');
+    const { data: profsEmail } = await supabase
+      .from('profiles')
+      .select('id, role, email')
+      .or(orEmail)
+      .limit(emailsUnicos.size * 10);
+    for (const p of profsEmail ?? []) {
+      const emailKey = String((p as { email?: string | null }).email ?? '')
+        .trim()
+        .toLowerCase();
+      const rids = emailsUnicos.get(emailKey);
+      if (!rids?.length) continue;
+      const lista = [p as { id: string; role?: string | null }];
+      const franq = lista.find((row) => isFranqueadoProfileRole(row.role));
+      const naoStaff = lista.find((row) => !isStaffProfileRole(row.role));
+      const uid = valorResponsavelValido(franq?.id ?? naoStaff?.id ?? lista[0]?.id);
+      if (!uid) continue;
+      for (const rid of rids) {
+        if (!unresolved.has(rid)) continue;
+        out.set(rid, uid);
+        unresolved.delete(rid);
+      }
+    }
+  }
+  if (unresolved.size === 0) return out;
+
+  const nomesPorRid = new Map<string, string>();
+  for (const rid of unresolved) {
+    const nome = String(redeById.get(rid)?.nome_completo ?? '').trim();
+    if (nome) nomesPorRid.set(rid, nome);
+  }
+  const nomesUnicos = [...new Set(nomesPorRid.values())];
+  if (nomesUnicos.length > 0) {
+    const orNomes = nomesUnicos.map((n) => `full_name.ilike.${n.replace(/,/g, '')}`).join(',');
+    const { data: profsNome } = await supabase
+      .from('profiles')
+      .select('id, role, full_name')
+      .or(orNomes)
+      .limit(nomesUnicos.length * 5);
+    const candidatosPorNome = new Map<string, { id: string; role?: string | null }[]>();
+    for (const p of profsNome ?? []) {
+      const nome = String((p as { full_name?: string | null }).full_name ?? '')
+        .trim()
+        .toLowerCase();
+      if (!nome) continue;
+      const list = candidatosPorNome.get(nome) ?? [];
+      list.push(p as { id: string; role?: string | null });
+      candidatosPorNome.set(nome, list);
+    }
+    for (const [rid, nomeCompleto] of nomesPorRid) {
+      if (!unresolved.has(rid)) continue;
+      let candidatos = candidatosPorNome.get(nomeCompleto.toLowerCase()) ?? [];
+      if (candidatos.length === 0) {
+        const primeiroNome = nomeCompleto.split(/\s+/)[0] ?? '';
+        if (primeiroNome.length >= 3) {
+          candidatos = (profsNome ?? []).filter((p) =>
+            String((p as { full_name?: string | null }).full_name ?? '')
+              .toLowerCase()
+              .includes(primeiroNome.toLowerCase()),
+          ) as { id: string; role?: string | null }[];
+        }
+      }
+      const uidNome = escolherProfileIdPorNomeCandidatos(candidatos);
+      if (uidNome) {
+        out.set(rid, uidNome);
+        unresolved.delete(rid);
+      }
+    }
+  }
+  if (unresolved.size === 0) return out;
+
+  const procIds = [
+    ...new Set(
+      [...unresolved]
+        .map((rid) => String(redeById.get(rid)?.processo_id ?? '').trim())
+        .filter(Boolean),
+    ),
+  ];
+  if (procIds.length > 0) {
+    const { data: procs } = await supabase
+      .from('processo_step_one')
+      .select('id, user_id')
+      .in('id', procIds);
+    const procUserById = new Map<string, string>();
+    const userIds = new Set<string>();
+    for (const proc of procs ?? []) {
+      const pid = String((proc as { id?: string }).id ?? '').trim();
+      const uid = valorResponsavelValido((proc as { user_id?: string | null }).user_id);
+      if (pid && uid) {
+        procUserById.set(pid, uid);
+        userIds.add(uid);
+      }
+    }
+    const profileSeFranqueado = new Map<string, string | null>();
+    if (userIds.size > 0) {
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('id, role')
+        .in('id', [...userIds]);
+      for (const p of profs ?? []) {
+        const id = String((p as { id?: string }).id ?? '').trim();
+        if (!id) continue;
+        const role = String((p as { role?: string | null }).role ?? '').trim();
+        if (isStaffProfileRole(role)) profileSeFranqueado.set(id, null);
+        else if (isFranqueadoProfileRole(role)) profileSeFranqueado.set(id, id);
+        else profileSeFranqueado.set(id, id);
+      }
+    }
+    for (const rid of [...unresolved]) {
+      const procId = String(redeById.get(rid)?.processo_id ?? '').trim();
+      if (!procId) continue;
+      const userId = procUserById.get(procId);
+      const uidProc = userId ? (profileSeFranqueado.get(userId) ?? null) : null;
+      if (uidProc) {
+        out.set(rid, uidProc);
+        unresolved.delete(rid);
+      }
+    }
+  }
+
+  return out;
+}
+
+export async function buscarProfileFranqueadoPorRedeId(
   supabase: SupabaseClient,
   redeId: string,
 ): Promise<string | null> {
   const rid = redeId.trim();
   if (!rid) return null;
-
-  const { data: profFranq } = await supabase
-    .from('profiles')
-    .select('id, role')
-    .eq('rede_franqueado_id', rid)
-    .in('role', [...FRANQUEADO_PROFILE_ROLES])
-    .limit(1)
-    .maybeSingle();
-  const uidFranq = valorResponsavelValido((profFranq as { id?: string } | null)?.id);
-  if (uidFranq) return uidFranq;
-
-  const { data: redeRow } = await supabase
-    .from('rede_franqueados')
-    .select('nome_completo, email_frank, processo_id')
-    .eq('id', rid)
-    .maybeSingle();
-
-  const emailFrank = String((redeRow as { email_frank?: string | null } | null)?.email_frank ?? '').trim();
-  if (emailFrank) {
-    const byEmail = await buscarProfileIdPorEmail(supabase, emailFrank, { excluirStaff: true });
-    if (byEmail) return byEmail;
-  }
-
-  const nomeCompleto = String((redeRow as { nome_completo?: string | null } | null)?.nome_completo ?? '').trim();
-  if (nomeCompleto) {
-    const { data: profsNome } = await supabase
-      .from('profiles')
-      .select('id, role, full_name')
-      .ilike('full_name', nomeCompleto)
-      .limit(5);
-    let candidatos = (profsNome ?? []) as { id: string; role?: string | null }[];
-    if (candidatos.length === 0) {
-      const primeiroNome = nomeCompleto.split(/\s+/)[0] ?? '';
-      if (primeiroNome.length >= 3) {
-        const { data: profsParcial } = await supabase
-          .from('profiles')
-          .select('id, role, full_name')
-          .ilike('full_name', `%${primeiroNome}%`)
-          .limit(10);
-        candidatos = (profsParcial ?? []) as { id: string; role?: string | null }[];
-      }
-    }
-    const preferido = candidatos.find((p) => isFranqueadoProfileRole(p.role));
-    const escolhido = preferido ?? candidatos.find((p) => !isStaffProfileRole(p.role));
-    const uidNome = valorResponsavelValido(escolhido?.id);
-    if (uidNome) return uidNome;
-  }
-
-  const redeProcessoId = String((redeRow as { processo_id?: string | null } | null)?.processo_id ?? '').trim();
-  if (redeProcessoId) {
-    const { data: procRede } = await supabase
-      .from('processo_step_one')
-      .select('user_id')
-      .eq('id', redeProcessoId)
-      .maybeSingle();
-    const uidProcRede = await buscarProfileIdSeFranqueado(
-      supabase,
-      (procRede as { user_id?: string | null } | null)?.user_id,
-    );
-    if (uidProcRede) return uidProcRede;
-  }
-
-  return null;
+  const batch = await buscarProfilesFranqueadoPorRedeIdsBatch(supabase, [rid]);
+  return batch.get(rid) ?? null;
 }
 
 /**
@@ -625,10 +752,235 @@ function resolverItemResponsavelPorFase(
   return map;
 }
 
+type StepOneCardDbRow = {
+  id: string;
+  rede_franqueado_id?: string | null;
+  processo_step_one_id?: string | null;
+  franqueado_id?: string | null;
+};
+
+type StepOneProcessoRow = {
+  user_id?: string | null;
+  origem_rede_franqueados_id?: string | null;
+};
+
+export type EnrichResponsavelFaseOpts = {
+  stepOneNomeRedePorCardId?: Map<string, string>;
+  stepOneProfilePorRedeId?: Map<string, string | null>;
+};
+
+function resolveStepOneFranqueadoIdBatch(
+  cardId: string,
+  stepOneRowsById: Map<string, StepOneCardDbRow>,
+  procById: Map<string, StepOneProcessoRow>,
+  profilePorRede: Map<string, string | null>,
+  profileSeFranqueado: Map<string, string | null>,
+): string | null {
+  const row = stepOneRowsById.get(cardId);
+  if (!row) return null;
+
+  const creatorId = String(row.franqueado_id ?? '').trim();
+  let redeId = String(row.rede_franqueado_id ?? '').trim();
+  if (!redeId) {
+    const procId = String(row.processo_step_one_id ?? cardId).trim();
+    redeId = String(procById.get(procId)?.origem_rede_franqueados_id ?? '').trim();
+  }
+
+  if (redeId) {
+    const uidRede = profilePorRede.get(redeId) ?? null;
+    if (uidRede && uidRede !== creatorId) return uidRede;
+  }
+
+  const procId = String(row.processo_step_one_id ?? cardId).trim();
+  const proc = procById.get(procId);
+  const origemRedeId = String(proc?.origem_rede_franqueados_id ?? '').trim();
+  if (origemRedeId && origemRedeId !== redeId) {
+    const uidOrigem = profilePorRede.get(origemRedeId) ?? null;
+    if (uidOrigem) return uidOrigem;
+  }
+
+  const userFromProc = valorResponsavelValido(proc?.user_id);
+  if (userFromProc) return profileSeFranqueado.get(userFromProc) ?? null;
+
+  return null;
+}
+
+async function enriquecerStepOneCardsBatch(
+  supabase: SupabaseClient,
+  cards: KanbanCardBrief[],
+  stepOneCardIds: string[],
+  itemPorFase: Map<string, string>,
+  respPorCardItem: Map<string, string>,
+  userIdPorCard: Map<string, string>,
+  nomeRedePorCard: Map<string, string>,
+  opts?: EnrichResponsavelFaseOpts,
+): Promise<void> {
+  if (stepOneCardIds.length === 0) return;
+
+  const cardById = new Map(cards.map((c) => [c.id, c]));
+  const stepOneRowsById = new Map<string, StepOneCardDbRow>();
+
+  const { data: stepOneRows } = await supabase
+    .from('kanban_cards')
+    .select('id, kanban_id, rede_franqueado_id, processo_step_one_id, franqueado_id')
+    .in('id', stepOneCardIds);
+
+  for (const row of stepOneRows ?? []) {
+    const id = String((row as StepOneCardDbRow).id ?? '').trim();
+    if (id) stepOneRowsById.set(id, row as StepOneCardDbRow);
+  }
+
+  const procIds = new Set<string>();
+  for (const sid of stepOneCardIds) {
+    const row = stepOneRowsById.get(sid);
+    if (!row) continue;
+    const procId = String(row.processo_step_one_id ?? sid).trim();
+    if (procId) procIds.add(procId);
+  }
+
+  const procById = new Map<string, StepOneProcessoRow>();
+  if (procIds.size > 0) {
+    const { data: procs } = await supabase
+      .from('processo_step_one')
+      .select('id, user_id, origem_rede_franqueados_id')
+      .in('id', [...procIds]);
+    for (const p of procs ?? []) {
+      const pid = String((p as { id?: string }).id ?? '').trim();
+      if (pid) procById.set(pid, p as StepOneProcessoRow);
+    }
+  }
+
+  const redeIdsNeeded = new Set<string>();
+  for (const sid of stepOneCardIds) {
+    const row = stepOneRowsById.get(sid);
+    if (!row) continue;
+    let redeId = String(row.rede_franqueado_id ?? '').trim();
+    if (!redeId) {
+      const procId = String(row.processo_step_one_id ?? sid).trim();
+      redeId = String(procById.get(procId)?.origem_rede_franqueados_id ?? '').trim();
+    }
+    if (redeId) redeIdsNeeded.add(redeId);
+    const procId = String(row.processo_step_one_id ?? sid).trim();
+    const origem = String(procById.get(procId)?.origem_rede_franqueados_id ?? '').trim();
+    if (origem) redeIdsNeeded.add(origem);
+  }
+
+  const profilePorRede = opts?.stepOneProfilePorRedeId ?? new Map<string, string | null>();
+  const redeIdsMissingProfile = [...redeIdsNeeded].filter((rid) => !profilePorRede.has(rid));
+  if (redeIdsMissingProfile.length > 0) {
+    const batchProfiles = await buscarProfilesFranqueadoPorRedeIdsBatch(supabase, redeIdsMissingProfile);
+    for (const [rid, uid] of batchProfiles) profilePorRede.set(rid, uid);
+  }
+
+  const nomeRedePorRedeId = new Map<string, string>();
+  if (redeIdsNeeded.size > 0) {
+    const { data: redes } = await supabase
+      .from('rede_franqueados')
+      .select('id, nome_completo')
+      .in('id', [...redeIdsNeeded]);
+    for (const r of redes ?? []) {
+      const rid = String((r as { id?: string }).id ?? '').trim();
+      const nome = valorResponsavelValido((r as { nome_completo?: string | null }).nome_completo);
+      if (rid && nome) nomeRedePorRedeId.set(rid, nome);
+    }
+  }
+
+  const procUserIds = new Set<string>();
+  for (const proc of procById.values()) {
+    const uid = valorResponsavelValido(proc.user_id);
+    if (uid) procUserIds.add(uid);
+  }
+  const profileSeFranqueado = new Map<string, string | null>();
+  if (procUserIds.size > 0) {
+    const { data: profs } = await supabase
+      .from('profiles')
+      .select('id, role')
+      .in('id', [...procUserIds]);
+    for (const p of profs ?? []) {
+      const id = String((p as { id?: string }).id ?? '').trim();
+      if (!id) continue;
+      const role = String((p as { role?: string | null }).role ?? '').trim();
+      if (isStaffProfileRole(role)) profileSeFranqueado.set(id, null);
+      else profileSeFranqueado.set(id, id);
+    }
+  }
+
+  const checklistUidsToCheck = new Set<string>();
+  for (const sid of stepOneCardIds) {
+    const card = cardById.get(sid);
+    if (!card) continue;
+    const itemId = itemPorFase.get(String(card.fase_id ?? '').trim());
+    const uidChecklist = itemId ? respPorCardItem.get(`${sid}:${itemId}`) : null;
+    const uidChecklistValido =
+      uidChecklist && isValorUsuarioUuid(uidChecklist) ? uidChecklist : null;
+    const row = stepOneRowsById.get(sid);
+    const creatorId = String(row?.franqueado_id ?? card.franqueado_id ?? '').trim();
+    const canonical = resolveStepOneFranqueadoIdBatch(
+      sid,
+      stepOneRowsById,
+      procById,
+      profilePorRede,
+      profileSeFranqueado,
+    );
+    if (!canonical && uidChecklistValido && uidChecklistValido !== creatorId) {
+      checklistUidsToCheck.add(uidChecklistValido);
+    }
+  }
+
+  const staffPorProfileId = new Map<string, boolean>();
+  if (checklistUidsToCheck.size > 0) {
+    const { data: profs } = await supabase
+      .from('profiles')
+      .select('id, role')
+      .in('id', [...checklistUidsToCheck]);
+    for (const p of profs ?? []) {
+      const id = String((p as { id?: string }).id ?? '').trim();
+      if (id) staffPorProfileId.set(id, isStaffProfileRole((p as { role?: string | null }).role));
+    }
+  }
+
+  for (const sid of stepOneCardIds) {
+    const card = cardById.get(sid);
+    if (!card) continue;
+    const itemId = itemPorFase.get(String(card.fase_id ?? '').trim());
+    const uidChecklist = itemId ? respPorCardItem.get(`${sid}:${itemId}`) : null;
+    const uidChecklistValido =
+      uidChecklist && isValorUsuarioUuid(uidChecklist) ? uidChecklist : null;
+    const row = stepOneRowsById.get(sid);
+    const creatorId = String(row?.franqueado_id ?? card.franqueado_id ?? '').trim();
+
+    let uidFinal = resolveStepOneFranqueadoIdBatch(
+      sid,
+      stepOneRowsById,
+      procById,
+      profilePorRede,
+      profileSeFranqueado,
+    );
+    if (!uidFinal && uidChecklistValido && uidChecklistValido !== creatorId) {
+      if (!staffPorProfileId.get(uidChecklistValido)) uidFinal = uidChecklistValido;
+    }
+    if (uidFinal) userIdPorCard.set(sid, uidFinal);
+
+    const nomeFromOpts = opts?.stepOneNomeRedePorCardId?.get(sid);
+    if (nomeFromOpts) {
+      nomeRedePorCard.set(sid, nomeFromOpts);
+      continue;
+    }
+    let redeId = String(row?.rede_franqueado_id ?? '').trim();
+    if (!redeId && row) {
+      const procId = String(row.processo_step_one_id ?? sid).trim();
+      redeId = String(procById.get(procId)?.origem_rede_franqueados_id ?? '').trim();
+    }
+    const nomeRede = redeId ? nomeRedePorRedeId.get(redeId) : null;
+    if (nomeRede) nomeRedePorCard.set(sid, nomeRede);
+  }
+}
+
 /** Enriquece cards do board com responsável da fase atual (para avatar no card fechado). */
 export async function enrichCardsComResponsavelFase(
   supabase: SupabaseClient,
   cards: KanbanCardBrief[],
+  opts?: EnrichResponsavelFaseOpts,
 ): Promise<KanbanCardBrief[]> {
   if (cards.length === 0) return cards;
 
@@ -684,28 +1036,6 @@ export async function enrichCardsComResponsavelFase(
     }
   }
 
-  for (const sid of stepOneCardIds) {
-    const card = cards.find((c) => c.id === sid);
-    if (!card) continue;
-    const itemId = itemPorFase.get(String(card.fase_id ?? '').trim());
-    const uidChecklist = itemId ? respPorCardItem.get(`${sid}:${itemId}`) : null;
-    const uidChecklistValido =
-      uidChecklist && isValorUsuarioUuid(uidChecklist) ? uidChecklist : null;
-    const canonical = await buscarFranqueadoIdResponsavelStepOne(supabase, sid);
-    const creatorId = String(card.franqueado_id ?? '').trim();
-
-    let uidFinal: string | null = canonical;
-    if (!uidFinal && uidChecklistValido && uidChecklistValido !== creatorId) {
-      const staff = await isProfileIdStaff(supabase, uidChecklistValido);
-      if (!staff) uidFinal = uidChecklistValido;
-    }
-
-    if (uidFinal) userIdPorCard.set(sid, uidFinal);
-
-    const nomeRede = await buscarNomeFranqueadoRedeStepOne(supabase, sid);
-    if (nomeRede) nomeRedePorCard.set(sid, nomeRede);
-  }
-
   const kanbansUnicos = [...new Set(outrosSemResposta.map((o) => o.kanbanId))];
   const padraoPorKanban = new Map<string, string>();
   for (const kid of kanbansUnicos) {
@@ -716,6 +1046,17 @@ export async function enrichCardsComResponsavelFase(
     const uid = padraoPorKanban.get(kanbanId);
     if (uid) userIdPorCard.set(cardId, uid);
   }
+
+  await enriquecerStepOneCardsBatch(
+    supabase,
+    cards,
+    stepOneCardIds,
+    itemPorFase,
+    respPorCardItem,
+    userIdPorCard,
+    nomeRedePorCard,
+    opts,
+  );
 
   if (userIdPorCard.size === 0 && nomeRedePorCard.size === 0) return cards;
 

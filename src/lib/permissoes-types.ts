@@ -66,3 +66,22 @@ export function permissoesLinhasParaPode(
 export function permissoesTodasNegadas(): PermissoesPode {
   return { pode: () => false };
 }
+
+const STAFF_ROLES_MATRIZ_CRU = new Set(['admin', 'team', 'consultor', 'supervisor']);
+
+/**
+ * Fallback quando `permissoes_perfil` não carregou ou está vazio no banco.
+ * Espelha o critério ampliado já usado para arquivar/mover fase no modal do card.
+ */
+export function podeComFallbackStaff(
+  pode: (p: Permissao) => boolean,
+  perm: Permissao,
+  opts?: { isAdminProp?: boolean; ehAdminOuTeam?: boolean; roleNorm?: string },
+): boolean {
+  if (pode(perm)) return true;
+  const rl = String(opts?.roleNorm ?? '')
+    .trim()
+    .toLowerCase();
+  if (opts?.isAdminProp || opts?.ehAdminOuTeam) return true;
+  return STAFF_ROLES_MATRIZ_CRU.has(rl);
+}
