@@ -3,7 +3,7 @@
 import { Fragment } from 'react';
 import { ArrowRight } from 'lucide-react';
 import type { PipelineFunilMesUnidade as PipelineFunilMesUnidadeData } from '@/lib/kanban/pipeline-cards-types';
-import { formatFunilMesPct } from '@/lib/kanban/pipeline-funil-mes-compute';
+import { formatFunilMesConversaoSeta } from '@/lib/kanban/pipeline-funil-mes-compute';
 import { PipelineFunilMesDotsFromNivel } from '@/components/pipeline/PipelineFunilMesDots';
 
 type Props = {
@@ -47,8 +47,8 @@ export function PipelineFunilMesUnidade({ funil, className }: Props) {
             {idx < funil.metricas.length - 1 ? (
               <div className="flex flex-col items-center gap-0.5 px-0.5">
                 <ArrowRight className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--moni-text-tertiary)' }} aria-hidden />
-                <span className="text-[9px] tabular-nums" style={{ color: 'var(--moni-text-secondary)' }}>
-                  {formatFunilMesPct(funil.conversoes[idx] ?? null)}
+                <span className="whitespace-nowrap text-[9px] tabular-nums" style={{ color: 'var(--moni-text-secondary)' }}>
+                  {formatFunilMesConversaoSeta(funil.conversoes[idx] ?? null)}
                 </span>
               </div>
             ) : null}

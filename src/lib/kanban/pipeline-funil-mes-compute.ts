@@ -84,6 +84,16 @@ export function formatFunilMesPct(pct: number | null): string {
   return `${pct.toFixed(0).replace('.', ',')}%`;
 }
 
+/** Seta de conversão entre etapas — ex.: "42% →" ou "— →". */
+export function formatFunilMesConversaoSeta(pct: number | null): string {
+  if (pct == null) return '— →';
+  return `${formatFunilMesPct(pct)} →`;
+}
+
+export function dotCorFunilMesRede(qtd: number): 'verde' | 'cinza' {
+  return qtd >= 1 ? 'verde' : 'cinza';
+}
+
 export function dotCorUnidadeMetric(qtd: number): PipelineFunilMesUnidadeMetric['dotCor'] {
   if (qtd >= 1) return 'verde';
   if (diaDoMesCorrente() > 15) return 'vermelho';
@@ -157,11 +167,23 @@ function buildColuna(
     if (cardContaEtapa(c, key)) total += 1;
   }
   const porUnidade = contarPorRede(cards, key, franqueados);
+  const idsComQtd = new Set(porUnidade.map((r) => r.redeId));
+  const porUnidadeZeradas: PipelineFunilMesUnidadeRow[] = franqueados
+    .filter((f) => !idsComQtd.has(f.rede_franqueado_id))
+    .map((f) => ({
+      redeId: f.rede_franqueado_id,
+      label: labelFranqueadoPipeline(f),
+      quantidade: 0,
+      dots: 0 as PipelineFunilMesDotNivel,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
+
   return {
     key,
     label,
     total,
     porUnidade,
+    porUnidadeZeradas,
     barSegments: barSegmentsFromRows(porUnidade, total),
   };
 }
@@ -193,7 +215,7 @@ export function computeFunilMesRede(
       conversionPct(totals[1] ?? 0, totals[2] ?? 0),
       conversionPct(totals[2] ?? 0, totals[3] ?? 0),
     ],
-    disponivel: true,
+    disponivel: elegiveis.length > 0 || funilMesFieldsAvailable(cards),
   };
 }
 
@@ -227,6 +249,6 @@ export function computeFunilMesUnidade(cards: PipelineCardRow[]): PipelineFunilM
       conversionPct(compact.opcoes, compact.comites),
       conversionPct(compact.comites, compact.contratos),
     ],
-    disponivel: true,
+    disponivel: elegiveis.length > 0 || funilMesFieldsAvailable(cards),
   };
 }

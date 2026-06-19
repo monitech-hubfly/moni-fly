@@ -39,6 +39,7 @@ import { PipelineUnidadeProjetoBloco } from '@/components/pipeline/PipelineUnida
 import { PipelineUnidadeCardSolo } from '@/components/pipeline/PipelineUnidadeCardSolo';
 import { PipelineFunilMesRede } from '@/components/pipeline/PipelineFunilMesRede';
 import { PipelineFunilMesUnidade } from '@/components/pipeline/PipelineFunilMesUnidade';
+import { excluirFranquiaDosGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
 import { PIPELINE_READONLY_NOTA } from '@/lib/kanban/pipeline-card-readonly';
 
 export type PipelineCardsViewProps = {
@@ -237,13 +238,13 @@ export function PipelineCardsView({
     );
   }, [viewMode, scoped.franqueados, cardsFiltrados, dataset.enrichment?.chamados]);
 
-  const funilMesRede = useMemo(
-    () =>
-      viewMode === 'franqueadora'
-        ? computeFunilMesRede(scoped.cards, scoped.franqueados)
-        : null,
-    [viewMode, scoped.cards, scoped.franqueados],
-  );
+  const funilMesRede = useMemo(() => {
+    if (viewMode !== 'franqueadora') return null;
+    const franqueadosElegiveis = scoped.franqueados.filter(
+      (f) => !excluirFranquiaDosGraficosVisaoGeral(f.n_franquia),
+    );
+    return computeFunilMesRede(cardsElegiveisFranqueadora(cardsFiltrados), franqueadosElegiveis);
+  }, [viewMode, cardsFiltrados, scoped.franqueados]);
 
   const funilMesUnidade = useMemo(
     () => (viewMode === 'unidade' ? computeFunilMesUnidade(scoped.cards) : null),

@@ -205,7 +205,10 @@ export type PipelineFunilMesColuna = {
   key: PipelineFunilMesEtapaKey;
   label: string;
   total: number;
+  /** Unidades com quantidade > 0 no mês, ordenadas decrescente. */
   porUnidade: PipelineFunilMesUnidadeRow[];
+  /** Unidades elegíveis com quantidade 0 (expandíveis via "ver todas"). */
+  porUnidadeZeradas: PipelineFunilMesUnidadeRow[];
   barSegments: PipelineFunilMesBarSegment[];
 };
 
