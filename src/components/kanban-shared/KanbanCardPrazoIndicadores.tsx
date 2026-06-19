@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import type { SlaKanbanResult } from '@/lib/kanban/kanban-card-sla';
 import { indicadorBolinhaSlaKanban } from '@/lib/kanban/kanban-card-sla';
 import type { IndicadorDataKanban } from '@/lib/kanban/kanban-card-datas';
-import { indicadorDataKanban } from '@/lib/kanban/kanban-card-datas';
+import { formatDataPtBr, indicadorDataKanban } from '@/lib/kanban/kanban-card-datas';
 
 type BolinhaProps = {
   variante: 'atrasado' | 'atencao';
@@ -49,8 +49,48 @@ export function KanbanPrazoBolinha({ variante, numero, title, sigla }: BolinhaPr
   );
 }
 
+function estiloTextoDataVariante(variante: IndicadorDataKanban['variante']): React.CSSProperties {
+  if (variante === 'atrasado') {
+    return {
+      color: 'var(--moni-status-overdue-text)',
+      background: 'var(--moni-status-overdue-bg)',
+      border: '0.5px solid var(--moni-status-overdue-border)',
+    };
+  }
+  if (variante === 'atencao') {
+    return {
+      color: 'var(--moni-status-attention-text)',
+      background: 'var(--moni-status-attention-bg)',
+      border: '0.5px solid var(--moni-status-attention-border)',
+    };
+  }
+  return {
+    color: 'var(--moni-text-secondary)',
+    background: 'var(--moni-surface-100)',
+    border: '0.5px solid var(--moni-border-subtle)',
+  };
+}
+
+/** Reunião sempre em texto — nunca bolinha (todos os funis/kanbans). */
+export function TextoReuniaoCard({ dataIso }: { dataIso: string }) {
+  const ind = indicadorDataKanban('reuniao', dataIso);
+  if (!ind) return null;
+  const dataFmt = formatDataPtBr(dataIso);
+  const texto = `Reunião: ${dataFmt}`;
+
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium leading-tight"
+      style={estiloTextoDataVariante(ind.variante)}
+      title={ind.title}
+    >
+      {texto}
+    </span>
+  );
+}
+
 function ChipDataOk({ ind }: { ind: IndicadorDataKanban }) {
-  const sigla = ind.tipo === 'reuniao' ? 'R' : 'FU';
+  const sigla = 'FU';
   return (
     <span
       className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-medium"
@@ -98,21 +138,8 @@ export function KanbanCardPrazoIndicadores({
     }
   }
 
-  const reuniao = dataReuniao ? indicadorDataKanban('reuniao', dataReuniao) : null;
-  if (reuniao) {
-    if (reuniao.variante === 'atrasado' || reuniao.variante === 'atencao') {
-      itens.push(
-        <KanbanPrazoBolinha
-          key="reuniao"
-          variante={reuniao.variante}
-          numero={reuniao.numero}
-          title={reuniao.title}
-          sigla="R"
-        />,
-      );
-    } else {
-      itens.push(<ChipDataOk key="reuniao" ind={reuniao} />);
-    }
+  if (dataReuniao && indicadorDataKanban('reuniao', dataReuniao)) {
+    itens.push(<TextoReuniaoCard key="reuniao" dataIso={dataReuniao} />);
   }
 
   const followup = dataFollowup ? indicadorDataKanban('followup', dataFollowup) : null;
@@ -140,16 +167,18 @@ export function KanbanCardPrazoIndicadores({
 }
 
 function renderIndicadorData(tipo: IndicadorDataKanban['tipo'], dataIso: string) {
+  if (tipo === 'reuniao') {
+    return <TextoReuniaoCard dataIso={dataIso} />;
+  }
   const ind = indicadorDataKanban(tipo, dataIso);
   if (!ind) return null;
-  const sigla = tipo === 'reuniao' ? 'R' : 'FU';
   if (ind.variante === 'atrasado' || ind.variante === 'atencao') {
     return (
       <KanbanPrazoBolinha
         variante={ind.variante}
         numero={ind.numero}
         title={ind.title}
-        sigla={sigla}
+        sigla="FU"
       />
     );
   }
