@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 import type { PipelineOQueFazerItem } from '@/lib/kanban/pipeline-cards-types';
+import { tituloPipelineCardDisplay } from '@/lib/kanban/pipeline-card-readonly';
 
 const panelStyle: React.CSSProperties = {
   borderRadius: 'var(--moni-radius-lg)',
@@ -28,7 +29,7 @@ export function PipelineOQueFazerHoje({ items }: { items: PipelineOQueFazerItem[
           <table className="w-full min-w-[640px] text-left text-[11px]">
             <thead>
               <tr style={{ borderBottom: '0.5px solid var(--moni-border-subtle, var(--moni-border-default))' }}>
-                {['Card', 'Título', 'Fase', 'Ação necessária', ''].map((h) => (
+                {['Título', 'Fase', 'Ação necessária', ''].map((h) => (
                   <th
                     key={h || 'link'}
                     className="pb-2 pr-3 font-semibold uppercase tracking-wide last:pr-0"
@@ -45,11 +46,8 @@ export function PipelineOQueFazerHoje({ items }: { items: PipelineOQueFazerItem[
                   key={`${item.cardId}-${item.acao}`}
                   style={{ borderBottom: '0.5px solid var(--moni-border-subtle, var(--moni-border-default))' }}
                 >
-                  <td className="py-2.5 pr-3 font-mono text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                    {item.cardId.slice(0, 8)}…
-                  </td>
-                  <td className="max-w-[12rem] truncate py-2.5 pr-3" style={{ color: 'var(--moni-text-primary)' }}>
-                    {item.titulo}
+                  <td className="max-w-[14rem] truncate py-2.5 pr-3 font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                    {tituloPipelineCardDisplay({ titulo: item.titulo, n_franquia: null })}
                   </td>
                   <td className="py-2.5 pr-3" style={{ color: 'var(--moni-text-secondary)' }}>
                     {item.fase}

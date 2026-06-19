@@ -7,7 +7,7 @@ import type {
   PainelFaseDTO,
   PainelHistoricoMovimentoDTO,
 } from '@/lib/kanban/painel-performance-types';
-import { calcularDiasNaFase } from '@/lib/kanban/pipeline-card-readonly';
+import { calcularDiasNaFase, cardVenceEm2DiasUteis } from '@/lib/kanban/pipeline-card-readonly';
 import type {
   PipelineCardBadgeStatus,
   PipelineCardDisplay,
@@ -204,12 +204,28 @@ export function alertasUnidadePipeline(
   const atrasados = cards.filter((c) => slaCategoriaPipeline(c) === 'atrasado').length;
   const parados = cards.filter((c) => cardParado(c)).length;
   const chamadosTrava = chamados.filter((c) => c.trava && c.aberto && cardIds.has(c.cardId)).length;
+  const venceEm2Dias = cards.filter((c) => cardVenceEm2DiasUteis(c)).length;
 
   let nivel: PipelineUnidadeAlertas['nivel'] = 'ok';
   if (atrasados > 0 || parados > 0 || chamadosTrava > 0) nivel = 'critico';
   else if (cards.some((c) => c.inativo || badgeStatusPipelineCard(c) === 'alerta')) nivel = 'atencao';
 
-  return { atrasados, parados, chamadosTrava, nivel };
+  return { atrasados, parados, chamadosTrava, venceEm2Dias, nivel };
+}
+
+export type PipelineSaudeIndicador = 'vermelho' | 'amarelo' | 'verde';
+
+export function indicadorSaudeUnidadePipeline(
+  alertas: PipelineUnidadeAlertas,
+  saude: PipelineUnidadeSaudeMes,
+): PipelineSaudeIndicador {
+  if (alertas.atrasados > 0 || alertas.chamadosTrava > 0) return 'vermelho';
+  const metas = {
+    entradas: saude.entradasMes >= saude.metaEntradas,
+    contratos: saude.contratosMes >= saude.metaContratos,
+  };
+  if (!metas.entradas || !metas.contratos) return 'amarelo';
+  return 'verde';
 }
 
 export function saudeMesUnidadePipeline(cards: PipelineCardDisplay[]): PipelineUnidadeSaudeMes {
@@ -257,12 +273,18 @@ export function montarBlocosUnidadePipeline(
       nFranquia: f.n_franquia,
       alertas,
       saude,
-      defaultExpanded: alertas.nivel !== 'ok',
+      defaultExpanded: false,
       sortPriority,
     });
   }
 
-  blocos.sort((a, b) => a.sortPriority - b.sortPriority || a.label.localeCompare(b.label, 'pt-BR'));
+  blocos.sort(
+    (a, b) =>
+      b.alertas.atrasados - a.alertas.atrasados ||
+      b.alertas.chamadosTrava - a.alertas.chamadosTrava ||
+      a.sortPriority - b.sortPriority ||
+      a.label.localeCompare(b.label, 'pt-BR'),
+  );
   return blocos;
 }
 

@@ -3,20 +3,30 @@
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { PipelineCardDisplay, PipelineFranqueadoraEnrichment, PipelineUnidadeBlocoMeta } from '@/lib/kanban/pipeline-cards-types';
-import { formatDataEntradaFaseAtualKanbanCard } from '@/lib/kanban/pipeline-card-readonly';
+import {
+  faseSlaExcedido,
+  formatRelativeNaFaseDesde,
+  tituloPipelineCardDisplay,
+} from '@/lib/kanban/pipeline-card-readonly';
 import {
   badgeStatusPipelineCard,
+  indicadorSaudeUnidadePipeline,
   labelBadgeStatusPipeline,
   tagClassBadgeStatusPipeline,
 } from '@/lib/kanban/pipeline-franqueadora-compute';
 import { PipelineSequencialBar, pipelineBadgeInlineStyle } from '@/components/pipeline/PipelineSequencialBar';
-
-import { metaAtingidaSaude } from '@/lib/kanban/pipeline-unidade-compute';
+import { PipelineSaudeMesCondensado, PipelineSaudeMesInline } from '@/components/pipeline/PipelineSaudeMesCondensado';
 
 const panelStyle: React.CSSProperties = {
   borderRadius: 'var(--moni-radius-lg)',
   border: '0.5px solid var(--moni-border-default)',
   background: 'var(--moni-surface-0)',
+};
+
+const SAUDE_DOT: Record<'vermelho' | 'amarelo' | 'verde', string> = {
+  vermelho: 'var(--moni-status-overdue-text)',
+  amarelo: 'var(--moni-gold-400)',
+  verde: 'var(--moni-kanban-portfolio)',
 };
 
 type Props = {
@@ -26,61 +36,26 @@ type Props = {
   onCardClick: (card: PipelineCardDisplay) => void;
 };
 
-function SaudeMesBar({
-  entradas,
-  meta,
-  label,
-  atingida,
-}: {
-  entradas: number;
-  meta: number;
-  label: string;
-  atingida: boolean;
-}) {
-  const pct = meta <= 0 ? 0 : Math.min(100, Math.round((entradas / meta) * 100));
-  return (
-    <div className="min-w-0 flex-1">
-      <div className="flex flex-wrap items-center justify-between gap-2 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-        <span>{label}</span>
-        <div className="flex items-center gap-2">
-          <span className="tabular-nums">
-            {entradas}/{meta}
-          </span>
-          {atingida ? (
-            <span className="moni-tag-concluido text-[10px]">meta atingida</span>
-          ) : (
-            <span className="moni-tag-atencao text-[10px]">abaixo da meta</span>
-          )}
-        </div>
-      </div>
-      <div className="mt-1 h-1.5 overflow-hidden rounded-full" style={{ background: 'var(--moni-rede-chart-track)' }}>
-        <div
-          className="h-full rounded-full"
-          style={{
-            width: `${pct}%`,
-            background: atingida ? 'var(--moni-kanban-portfolio)' : 'var(--moni-gold-400)',
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
 export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCardClick }: Props) {
   const [expanded, setExpanded] = useState(meta.defaultExpanded);
   const { alertas, saude } = meta;
-  const metas = metaAtingidaSaude(saude);
+  const saudeCor = indicadorSaudeUnidadePipeline(alertas, saude);
 
   return (
     <section style={panelStyle}>
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex min-h-[44px] w-full flex-col gap-2 px-4 py-3 text-left transition hover:bg-[var(--moni-surface-50)] sm:flex-row sm:items-center sm:justify-between"
+        className="flex min-h-[44px] w-full items-center gap-2 px-4 py-3 text-left transition hover:bg-[var(--moni-surface-50)]"
         aria-expanded={expanded}
       >
+        <span
+          className="h-2 w-2 shrink-0 rounded-full"
+          style={{ background: SAUDE_DOT[saudeCor] }}
+          aria-label={`Saúde: ${saudeCor}`}
+        />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <h2
               className="text-[13px] font-semibold"
               style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-display)' }}
@@ -90,33 +65,20 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
             <span className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
               {cards.length} card{cards.length === 1 ? '' : 's'}
             </span>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
             {alertas.atrasados > 0 ? (
               <span className="moni-tag-atrasado text-[10px]">{alertas.atrasados} atrasado(s)</span>
-            ) : null}
-            {alertas.parados > 0 ? (
-              <span
-                className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                style={{
-                  background: 'var(--moni-earth-50)',
-                  color: 'var(--moni-earth-800)',
-                  border: '0.5px solid var(--moni-earth-400)',
-                }}
-              >
-                {alertas.parados} parado(s)
-              </span>
             ) : null}
             {alertas.chamadosTrava > 0 ? (
               <span className="moni-tag-atencao text-[10px]">{alertas.chamadosTrava} trava(s)</span>
             ) : null}
-            {alertas.nivel === 'ok' ? (
-              <span className="moni-tag-concluido text-[10px]">Em dia</span>
+            {alertas.venceEm2Dias > 0 ? (
+              <span className="moni-tag-atencao text-[10px]">{alertas.venceEm2Dias} vence em 2d</span>
             ) : null}
+            <PipelineSaudeMesInline saude={saude} />
           </div>
         </div>
         <ChevronDown
-          className="h-4 w-4 shrink-0 self-end sm:self-center"
+          className="h-4 w-4 shrink-0"
           style={{
             color: 'var(--moni-text-tertiary)',
             transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
@@ -126,28 +88,15 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
 
       {expanded ? (
         <div className="border-t px-4 pb-4 pt-3" style={{ borderColor: 'var(--moni-border-default)' }}>
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:gap-4">
-            <SaudeMesBar
-              entradas={saude.entradasMes}
-              meta={saude.metaEntradas}
-              label="Entradas no mês"
-              atingida={metas.entradas}
-            />
-            <SaudeMesBar
-              entradas={saude.contratosMes}
-              meta={saude.metaContratos}
-              label="Contratos no mês"
-              atingida={metas.contratos}
-            />
-          </div>
+          <PipelineSaudeMesCondensado saude={saude} className="mb-4" />
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-[11px]">
+            <table className="w-full min-w-[680px] text-left text-[11px]">
               <thead>
                 <tr style={{ borderBottom: '0.5px solid var(--moni-border-subtle, var(--moni-border-default))' }}>
-                  {['ID', 'Funil', 'Fase atual', 'Status', 'Na fase desde', 'Esteira', ''].map((h) => (
+                  {['Título', 'Fase atual', 'Status', 'Na fase desde', 'Esteira', ''].map((h) => (
                     <th
-                      key={h}
+                      key={h || 'acao'}
                       className="pb-2 pr-3 font-semibold uppercase tracking-wide last:pr-0"
                       style={{ color: 'var(--moni-text-tertiary)' }}
                     >
@@ -157,10 +106,12 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
                 </tr>
               </thead>
               <tbody>
-                {cards.map((card) => {
+                {cards.map((card, idx) => {
                   const badge = badgeStatusPipelineCard(card);
                   const tagClass = tagClassBadgeStatusPipeline(badge);
                   const customStyle = pipelineBadgeInlineStyle(badge);
+                  const relativo = formatRelativeNaFaseDesde(card);
+                  const slaExcedido = faseSlaExcedido(card);
                   return (
                     <tr
                       key={card.id}
@@ -176,11 +127,8 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
                       className="cursor-pointer transition hover:bg-[var(--moni-surface-50)]"
                       style={{ borderBottom: '0.5px solid var(--moni-border-subtle, var(--moni-border-default))' }}
                     >
-                      <td className="max-w-[8rem] truncate py-2.5 pr-3 font-mono text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                        {card.id.slice(0, 8)}…
-                      </td>
-                      <td className="py-2.5 pr-3" style={{ color: 'var(--moni-text-primary)' }}>
-                        {card.kanban_nome}
+                      <td className="max-w-[12rem] truncate py-2.5 pr-3 font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                        {tituloPipelineCardDisplay(card, idx + 1)}
                       </td>
                       <td className="py-2.5 pr-3" style={{ color: 'var(--moni-text-secondary)' }}>
                         {card.fase_nome}
@@ -191,19 +139,19 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
                             {labelBadgeStatusPipeline(badge)}
                           </span>
                         ) : (
-                          <span
-                            className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                            style={customStyle}
-                          >
+                          <span className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={customStyle}>
                             {labelBadgeStatusPipeline(badge)}
                           </span>
                         )}
                       </td>
-                      <td className="py-2.5 pr-3 tabular-nums" style={{ color: 'var(--moni-text-secondary)' }}>
-                        {formatDataEntradaFaseAtualKanbanCard(card) ?? '—'}
+                      <td
+                        className="py-2.5 pr-3 tabular-nums"
+                        style={{ color: slaExcedido ? 'var(--moni-status-overdue-text)' : 'var(--moni-text-secondary)' }}
+                      >
+                        {relativo}
                       </td>
                       <td className="min-w-[12rem] py-2.5 pr-3">
-                        <PipelineSequencialBar card={card} enrichment={enrichment} />
+                        <PipelineSequencialBar card={card} enrichment={enrichment} siblingCards={cards} />
                       </td>
                       <td className="py-2.5 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
                         Detalhe →

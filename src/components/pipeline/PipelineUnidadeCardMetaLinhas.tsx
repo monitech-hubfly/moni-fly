@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ExternalLink, History } from 'lucide-react';
 import type { PipelineCardDisplay } from '@/lib/kanban/pipeline-cards-types';
 import { hrefAbrirCardKanban } from '@/lib/kanban/kanban-card-href';
-import { formatDataEntradaFaseAtualKanbanCard, calcularDiasNaFase } from '@/lib/kanban/pipeline-card-readonly';
+import { faseSlaExcedido, formatRelativeNaFaseDesde } from '@/lib/kanban/pipeline-card-readonly';
 import {
   badgeStatusPipelineCard,
   labelBadgeStatusPipeline,
@@ -14,30 +14,26 @@ import { pipelineBadgeInlineStyle, labelSlaResumidoPipeline } from '@/components
 
 type Props = {
   card: PipelineCardDisplay;
-  showFunil?: boolean;
   onHistorico: (card: PipelineCardDisplay) => void;
 };
 
-export function PipelineUnidadeCardMetaLinhas({ card, showFunil = false, onHistorico }: Props) {
+export function PipelineUnidadeCardMetaLinhas({ card, onHistorico }: Props) {
   const badge = badgeStatusPipelineCard(card);
   const tagClass = tagClassBadgeStatusPipeline(badge);
   const customStyle = pipelineBadgeInlineStyle(badge);
-  const entrada = formatDataEntradaFaseAtualKanbanCard(card) ?? '—';
-  const dias = calcularDiasNaFase(card);
+  const relativo = formatRelativeNaFaseDesde(card);
+  const slaExcedido = faseSlaExcedido(card);
   const href = hrefAbrirCardKanban(card.kanban_nome, card.id);
 
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0 flex-1 space-y-0.5">
-        {showFunil ? (
-          <p className="text-[12px] font-medium" style={{ color: 'var(--moni-text-primary)' }}>
-            {card.kanban_nome}
-          </p>
-        ) : null}
         <p className="text-[12px] leading-snug" style={{ color: 'var(--moni-text-secondary)' }}>
           <span style={{ color: 'var(--moni-text-primary)' }}>{card.fase_nome}</span>
-          <span style={{ color: 'var(--moni-text-tertiary)' }}> · Entrada: {entrada}</span>
-          <span style={{ color: 'var(--moni-text-tertiary)' }}> · {dias}d na fase</span>
+          <span style={{ color: 'var(--moni-text-tertiary)' }}> · </span>
+          <span style={{ color: slaExcedido ? 'var(--moni-status-overdue-text)' : 'var(--moni-text-tertiary)' }}>
+            {relativo}
+          </span>
         </p>
         <p className="text-[12px] leading-snug" style={{ color: 'var(--moni-text-secondary)' }}>
           <span style={{ color: 'var(--moni-text-tertiary)' }}>SLA: </span>

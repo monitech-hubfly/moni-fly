@@ -174,6 +174,7 @@ export type PipelineUnidadeAlertas = {
   atrasados: number;
   parados: number;
   chamadosTrava: number;
+  venceEm2Dias: number;
   nivel: 'critico' | 'atencao' | 'ok';
 };
 

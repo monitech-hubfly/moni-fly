@@ -4,18 +4,18 @@ import type { PipelineCardDisplay, PipelineFranqueadoraEnrichment, PipelineCardB
 import { badgeStatusPipelineCard } from '@/lib/kanban/pipeline-franqueadora-compute';
 import {
   ESTEIRA_TRES_ETAPAS,
-  FUNIS_PARALELOS_ESTEIRA,
   configFunilParaleloEsteira,
   indiceEsteiraTresEtapas,
   isFunilParaleloEsteira,
   isFunilEsteiraPrincipal,
   ratioFaseNoKanban,
+  resolverCardEsteiraPrincipalProjeto,
 } from '@/lib/kanban/pipeline-esteira-tres-etapas';
 import { slaCategoriaPipeline } from '@/lib/kanban/pipeline-cards-utils';
 import { calcularDiasNaFase } from '@/lib/kanban/pipeline-card-readonly';
 import { PARADO_DIAS } from '@/lib/kanban/pipeline-franqueadora-compute';
 
-type SegmentEstado = 'concluida_ok' | 'concluida_alerta' | 'atual_ok' | 'atual_alerta' | 'atual_atrasado' | 'atual_parado' | 'futura';
+type SegmentEstado = 'concluida_ok' | 'concluida_alerta' | 'atual_ok' | 'atual_alerta' | 'atual_atrasado' | 'atual_parado' | 'futura' | 'neutra';
 
 const SEGMENT_FILL: Record<SegmentEstado, string> = {
   concluida_ok: 'var(--moni-navy-400)',
@@ -25,6 +25,7 @@ const SEGMENT_FILL: Record<SegmentEstado, string> = {
   atual_atrasado: 'var(--moni-status-overdue-text)',
   atual_parado: 'var(--moni-violet-800, #5b21b6)',
   futura: 'var(--moni-rede-chart-track)',
+  neutra: 'var(--moni-rede-chart-track)',
 };
 
 function resolveSegmentEstado(
@@ -32,7 +33,9 @@ function resolveSegmentEstado(
   indiceAtual: number,
   card: PipelineCardDisplay,
   isAtualSegment: boolean,
+  forceNeutro = false,
 ): SegmentEstado {
+  if (forceNeutro) return idx <= indiceAtual ? 'neutra' : 'futura';
   if (idx > indiceAtual) return 'futura';
   if (idx < indiceAtual) {
     const badge = badgeStatusPipelineCard(card);
@@ -53,7 +56,9 @@ function segmentFillWidth(
   card: PipelineCardDisplay,
   maxOrdemPorKanban: Record<string, number> | undefined,
   onMainFunnel: boolean,
+  forceNeutro = false,
 ): string {
+  if (forceNeutro) return idx <= indiceAtual ? '100%' : '0%';
   if (idx < indiceAtual) return '100%';
   if (idx > indiceAtual) return '0%';
   if (!onMainFunnel) return '100%';
@@ -80,45 +85,38 @@ type BarTrackProps = {
   card: PipelineCardDisplay;
   enrichment?: PipelineFranqueadoraEnrichment | null;
   heightPx: number;
-  showLabels?: boolean;
-  compact?: boolean;
+  siblingCards?: PipelineCardDisplay[];
 };
 
-function EsteiraMainTrack({ card, enrichment, heightPx, showLabels = true, compact = false }: BarTrackProps) {
+function EsteiraMainTrack({ card, enrichment, heightPx, siblingCards }: BarTrackProps) {
   const maxMap = enrichment?.maxOrdemPorKanban;
-  const indiceAtual = resolveMainIndiceAtual(card);
-  const onMainFunnel = isFunilEsteiraPrincipal(card.kanban_id);
+  const isParalelo = isFunilParaleloEsteira(card.kanban_id);
+
+  const trackCard: PipelineCardDisplay = (() => {
+    if (!isParalelo) return card;
+    const principal = resolverCardEsteiraPrincipalProjeto(card, siblingCards);
+    if (!principal) return card;
+    const full = siblingCards?.find(
+      (c) => c.kanban_id === principal.kanban_id && String(c.projeto_id ?? '') === String(card.projeto_id ?? ''),
+    );
+    return full ?? ({ ...card, kanban_id: principal.kanban_id, fase_ordem: principal.fase_ordem } as PipelineCardDisplay);
+  })();
+
+  const indiceAtual = resolveMainIndiceAtual(trackCard);
+  const onMainFunnel = isFunilEsteiraPrincipal(trackCard.kanban_id);
+  const forceNeutro = isParalelo;
 
   return (
     <div>
-      {showLabels ? (
-        <div className="mb-1 grid grid-cols-3 gap-1">
-          {ESTEIRA_TRES_ETAPAS.map((etapa, idx) => {
-            const isAtual = isCurrentMainSegment(idx, card);
-            return (
-              <p
-                key={etapa.id}
-                className={`truncate font-medium uppercase tracking-wide ${compact ? 'text-[9px]' : 'text-[10px]'}`}
-                style={{
-                  color: isAtual ? 'var(--moni-text-primary)' : 'var(--moni-text-tertiary)',
-                }}
-              >
-                {etapa.label}
-              </p>
-            );
-          })}
-        </div>
-      ) : null}
-
       <div
         className="flex overflow-hidden rounded-full"
         style={{ background: 'var(--moni-rede-chart-track)', height: `${heightPx}px` }}
       >
         {ESTEIRA_TRES_ETAPAS.map((etapa, idx) => {
-          const isAtual = isCurrentMainSegment(idx, card);
-          const estado = resolveSegmentEstado(idx, indiceAtual, card, isAtual);
+          const isAtual = !forceNeutro && isCurrentMainSegment(idx, trackCard);
+          const estado = resolveSegmentEstado(idx, indiceAtual, trackCard, isAtual, forceNeutro);
           const fill = SEGMENT_FILL[estado];
-          const width = segmentFillWidth(idx, indiceAtual, card, maxMap, onMainFunnel && isAtual);
+          const width = segmentFillWidth(idx, indiceAtual, trackCard, maxMap, onMainFunnel && isAtual, forceNeutro);
 
           return (
             <div
@@ -136,7 +134,7 @@ function EsteiraMainTrack({ card, enrichment, heightPx, showLabels = true, compa
                 style={{
                   width,
                   background: fill,
-                  opacity: estado === 'futura' ? 1 : 0.92,
+                  opacity: estado === 'futura' ? 1 : forceNeutro ? 0.55 : 0.92,
                 }}
               />
             </div>
@@ -144,60 +142,11 @@ function EsteiraMainTrack({ card, enrichment, heightPx, showLabels = true, compa
         })}
       </div>
 
-      {showLabels && isFunilEsteiraPrincipal(card.kanban_id) ? (
-        <p className="mt-0.5 truncate text-[10px]" style={{ color: 'var(--moni-text-secondary)' }}>
-          {card.fase_nome}
+      {isParalelo ? (
+        <p className="mt-0.5 truncate text-[10px] italic" style={{ color: 'var(--moni-text-tertiary)' }}>
+          paralelo: {configFunilParaleloEsteira(card.kanban_id)?.label ?? card.kanban_nome}
         </p>
       ) : null}
-    </div>
-  );
-}
-
-function EsteiraParalelaTrack({ card, enrichment, heightPx }: BarTrackProps) {
-  const paralelo = configFunilParaleloEsteira(card.kanban_id);
-  if (!paralelo) return null;
-
-  const maxMap = enrichment?.maxOrdemPorKanban;
-  const estado = resolveSegmentEstado(0, 0, card, true);
-  const fill = SEGMENT_FILL[estado];
-  const width = `${Math.round(ratioFaseNoKanban(card, maxMap) * 100)}%`;
-
-  return (
-    <div className="mt-2">
-      <p className="mb-1 text-[9px] font-medium uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
-        paralelo à esteira principal
-      </p>
-      <div className="mb-1 flex flex-wrap gap-x-3 gap-y-0.5">
-        {FUNIS_PARALELOS_ESTEIRA.map((f) => (
-          <span
-            key={f.id}
-            className="text-[9px] font-medium uppercase tracking-wide"
-            style={{
-              color: f.id === paralelo.id ? 'var(--moni-text-primary)' : 'var(--moni-text-tertiary)',
-            }}
-          >
-            {f.label}
-          </span>
-        ))}
-      </div>
-      <div
-        className="overflow-hidden rounded-full"
-        style={{ background: 'var(--moni-rede-chart-track)', height: `${heightPx}px` }}
-      >
-        <div
-          className="h-full rounded-full transition-all"
-          style={{
-            width,
-            background: fill,
-            opacity: 0.92,
-            outline: '1px solid var(--moni-navy-800)',
-            outlineOffset: '-1px',
-          }}
-        />
-      </div>
-      <p className="mt-0.5 truncate text-[10px]" style={{ color: 'var(--moni-text-secondary)' }}>
-        {card.kanban_nome} · {card.fase_nome}
-      </p>
     </div>
   );
 }
@@ -206,29 +155,16 @@ export function PipelineSequencialBar({
   card,
   enrichment,
   className,
-  compact = false,
+  siblingCards,
 }: {
   card: PipelineCardDisplay;
   enrichment?: PipelineFranqueadoraEnrichment | null;
   className?: string;
-  compact?: boolean;
+  siblingCards?: PipelineCardDisplay[];
 }) {
-  const showParalelo = isFunilParaleloEsteira(card.kanban_id);
-
   return (
     <div className={className}>
-      <div className="hidden sm:block">
-        <EsteiraMainTrack card={card} enrichment={enrichment} heightPx={6} compact={compact} />
-        {showParalelo ? <EsteiraParalelaTrack card={card} enrichment={enrichment} heightPx={3} /> : null}
-      </div>
-
-      <div className="sm:hidden">
-        <EsteiraMainTrack card={card} enrichment={enrichment} heightPx={6} showLabels={false} compact={compact} />
-        {showParalelo ? <EsteiraParalelaTrack card={card} enrichment={enrichment} heightPx={3} /> : null}
-        <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-          {ESTEIRA_TRES_ETAPAS.map((e) => e.label).join(' → ')}
-        </p>
-      </div>
+      <EsteiraMainTrack card={card} enrichment={enrichment} heightPx={6} siblingCards={siblingCards} />
     </div>
   );
 }
@@ -257,9 +193,11 @@ export function PipelineSequencialBarMultiTrack({
 
   return (
     <div className={className}>
-      <PipelineSequencialBar card={principal} enrichment={enrichment} compact />
+      <PipelineSequencialBar card={principal} enrichment={enrichment} siblingCards={cards} />
       {paralelos.map((c) => (
-        <EsteiraParalelaTrack key={c.id} card={c} enrichment={enrichment} heightPx={3} />
+        <div key={c.id} className="mt-2">
+          <EsteiraMainTrack card={c} enrichment={enrichment} heightPx={6} siblingCards={cards} />
+        </div>
       ))}
     </div>
   );

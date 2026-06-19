@@ -15,25 +15,23 @@ export const ESTEIRA_TRES_ETAPAS = [
   {
     id: 'pre_obra_obra',
     label: 'Pré Obra e Obra',
-    kanbanIds: [
-      KANBAN_IDS.OPERACOES,
-      KANBAN_IDS.PROJETO_LEGAL,
-      KANBAN_IDS.PROJETOS_LOCAIS,
-      KANBAN_IDS.PROJETOS_LEGAIS,
-      KANBAN_IDS.CONTRATACOES,
-      KANBAN_IDS.HDM_PRODUTO,
-      KANBAN_IDS.HDM_MODELO_VIRTUAL,
-      KANBAN_IDS.HDM_HOMOLOGACOES,
-    ],
+    kanbanIds: [KANBAN_IDS.OPERACOES],
   },
 ] as const;
 
-/** Funis paralelos à esteira principal (barra secundária). */
+/** Funis paralelos à esteira principal (barra secundária / indicador itálico). */
 export const FUNIS_PARALELOS_ESTEIRA = [
-  { id: 'credito_obra', label: 'Crédito Obra', kanbanIds: [KANBAN_IDS.CREDITO_OBRA] },
   { id: 'acoplamento', label: 'Acoplamento', kanbanIds: [KANBAN_IDS.ACOPLAMENTO] },
   { id: 'contabilidade', label: 'Contabilidade', kanbanIds: [KANBAN_IDS.CONTABILIDADE] },
+  { id: 'credito_obra', label: 'Crédito Obra', kanbanIds: [KANBAN_IDS.CREDITO_OBRA] },
   { id: 'juridico', label: 'Jurídico', kanbanIds: [KANBAN_IDS.JURIDICO] },
+  { id: 'projeto_legal', label: 'Projeto Legal', kanbanIds: [KANBAN_IDS.PROJETO_LEGAL] },
+  { id: 'projetos_locais', label: 'Projetos Locais', kanbanIds: [KANBAN_IDS.PROJETOS_LOCAIS] },
+  { id: 'projetos_legais', label: 'Projetos Legais', kanbanIds: [KANBAN_IDS.PROJETOS_LEGAIS] },
+  { id: 'hdm_modelo_virtual', label: 'Modelo Virtual', kanbanIds: [KANBAN_IDS.HDM_MODELO_VIRTUAL] },
+  { id: 'hdm_homologacoes', label: 'Homologações', kanbanIds: [KANBAN_IDS.HDM_HOMOLOGACOES] },
+  { id: 'hdm_produto', label: 'Produto HDM', kanbanIds: [KANBAN_IDS.HDM_PRODUTO] },
+  { id: 'contratacoes', label: 'Contratações', kanbanIds: [KANBAN_IDS.CONTRATACOES] },
   { id: 'moni_capital', label: 'Moní Capital', kanbanIds: [KANBAN_IDS.MONI_CAPITAL] },
 ] as const;
 
@@ -57,6 +55,13 @@ const PARALELO_RAMIFICACAO_MAIN: Record<string, number> = {
   acoplamento: 1,
   contabilidade: 1,
   juridico: 1,
+  projeto_legal: 2,
+  projetos_locais: 2,
+  projetos_legais: 2,
+  hdm_modelo_virtual: 2,
+  hdm_homologacoes: 2,
+  hdm_produto: 2,
+  contratacoes: 2,
   moni_capital: 1,
 };
 
@@ -99,4 +104,26 @@ export function ratioFaseNoKanban(
   const ordem = Math.max(0, Number(card.fase_ordem ?? 0));
   if (ordem <= 0) return 0.08;
   return Math.max(0.08, Math.min(0.98, ordem / max));
+}
+
+/** Card da esteira principal do mesmo projeto — progresso da barra principal para funis paralelos. */
+export function resolverCardEsteiraPrincipalProjeto(
+  card: { kanban_id: string; projeto_id?: string | null },
+  siblingCards: Array<{ kanban_id: string; projeto_id?: string | null; fase_ordem: number }> | undefined,
+): { kanban_id: string; fase_ordem: number } | null {
+  const pid = String(card.projeto_id ?? '').trim();
+  if (!pid || !siblingCards?.length) return null;
+  const doProjeto = siblingCards.filter((c) => String(c.projeto_id ?? '').trim() === pid);
+  const principal = doProjeto.find((c) => isFunilEsteiraPrincipal(c.kanban_id));
+  if (principal) return principal;
+  let best: (typeof doProjeto)[number] | null = null;
+  let bestIdx = -1;
+  for (const c of doProjeto) {
+    const idx = indiceEsteiraTresEtapas(c.kanban_id);
+    if (idx > bestIdx) {
+      bestIdx = idx;
+      best = c;
+    }
+  }
+  return best;
 }

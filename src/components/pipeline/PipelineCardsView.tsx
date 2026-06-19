@@ -30,7 +30,8 @@ import {
 } from '@/lib/kanban/pipeline-unidade-compute';
 import { PipelineCardMiniDrawer } from '@/components/pipeline/PipelineCardMiniDrawer';
 import { PipelineFranqueadoraUnidadeBloco } from '@/components/pipeline/PipelineFranqueadoraUnidadeBloco';
-import { PipelineUnidadeSaudeCard } from '@/components/pipeline/PipelineUnidadeSaudeCard';
+import { PipelineSaudeMesCondensado } from '@/components/pipeline/PipelineSaudeMesCondensado';
+import { PipelineUnidadeResumoLinha } from '@/components/pipeline/PipelineUnidadeResumoLinha';
 import { PipelineOQueFazerHoje } from '@/components/pipeline/PipelineOQueFazerHoje';
 import { PipelineUnidadeProjetoBloco } from '@/components/pipeline/PipelineUnidadeProjetoBloco';
 import { PipelineUnidadeCardSolo } from '@/components/pipeline/PipelineUnidadeCardSolo';
@@ -295,7 +296,16 @@ export function PipelineCardsView({
       ) : null}
       {showKpis && viewMode === 'unidade' && kpisUnidade ? <PipelineKpisBarUnidade kpis={kpisUnidade} /> : null}
 
-      {viewMode === 'unidade' && saudeUnidade ? <PipelineUnidadeSaudeCard saude={saudeUnidade} /> : null}
+      {viewMode === 'unidade' && saudeUnidade ? (
+        <div className="mb-6 px-4 py-4" style={panelStyle}>
+          <PipelineUnidadeResumoLinha
+            cards={cardsEnriquecidos}
+            chamados={dataset.enrichment?.chamados ?? []}
+            className="mb-3"
+          />
+          <PipelineSaudeMesCondensado saude={saudeUnidade} />
+        </div>
+      ) : null}
 
       {viewMode === 'unidade' ? <PipelineOQueFazerHoje items={oQueFazerHoje} /> : null}
 
