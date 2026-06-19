@@ -346,7 +346,7 @@ export function TabelaRedeFranqueadosEditavel({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 max-w-full space-y-4">
       {msg && (
         <div className={msg.tipo === 'ok' ? redeAlertSuccess : redeAlertError} role="status">
           {msg.texto}

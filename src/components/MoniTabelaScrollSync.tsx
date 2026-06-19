@@ -1,20 +1,27 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 type Props = {
   children: ReactNode;
   className?: string;
 };
 
-/** Tabela larga com barra horizontal fixa na base da viewport, sincronizada com o scroll. */
+/** Tabela larga com scroll horizontal nativo + barra fixa na base da viewport (sincronizada). */
 export function MoniTabelaScrollSync({ children, className = '' }: Props) {
   const mainRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
-  const spacerRef = useRef<HTMLDivElement>(null);
   const syncingRef = useRef(false);
   const [barStyle, setBarStyle] = useState<{ left: number; width: number } | null>(null);
   const [scrollWidth, setScrollWidth] = useState(0);
+  const [needsFixedBar, setNeedsFixedBar] = useState(false);
 
   const syncFromMain = useCallback(() => {
     const main = mainRef.current;
@@ -38,17 +45,26 @@ export function MoniTabelaScrollSync({ children, className = '' }: Props) {
     const main = mainRef.current;
     if (!main) return;
     const rect = main.getBoundingClientRect();
-    const nextWidth = Math.max(0, main.scrollWidth);
-    setScrollWidth(nextWidth);
+    const sw = main.scrollWidth;
+    const cw = main.clientWidth;
+    setScrollWidth(sw);
+    setNeedsFixedBar(sw > cw + 1);
     setBarStyle({
       left: rect.left,
-      width: rect.width,
+      width: cw,
     });
-    syncFromMain();
-  }, [syncFromMain]);
+  }, []);
+
+  useLayoutEffect(() => {
+    updateLayout();
+    requestAnimationFrame(updateLayout);
+  }, [updateLayout, children]);
 
   useEffect(() => {
-    updateLayout();
+    if (needsFixedBar) syncFromMain();
+  }, [needsFixedBar, scrollWidth, barStyle, syncFromMain]);
+
+  useEffect(() => {
     const main = mainRef.current;
     if (!main) return;
 
@@ -67,7 +83,7 @@ export function MoniTabelaScrollSync({ children, className = '' }: Props) {
   }, [updateLayout]);
 
   return (
-    <>
+    <div className="moni-tabela-scroll-wrap">
       <div
         ref={mainRef}
         id="moni-tabela-scroll-region"
@@ -76,7 +92,7 @@ export function MoniTabelaScrollSync({ children, className = '' }: Props) {
       >
         {children}
       </div>
-      {barStyle && scrollWidth > barStyle.width ? (
+      {needsFixedBar && barStyle ? (
         <div
           ref={barRef}
           className="moni-tabela-scroll-bar"
@@ -86,13 +102,9 @@ export function MoniTabelaScrollSync({ children, className = '' }: Props) {
           aria-orientation="horizontal"
           aria-controls="moni-tabela-scroll-region"
         >
-          <div
-            ref={spacerRef}
-            className="moni-tabela-scroll-bar-spacer"
-            style={{ width: scrollWidth }}
-          />
+          <div className="moni-tabela-scroll-bar-spacer" style={{ width: scrollWidth }} />
         </div>
       ) : null}
-    </>
+    </div>
   );
 }
