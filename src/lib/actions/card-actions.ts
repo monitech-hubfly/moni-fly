@@ -17,6 +17,7 @@ import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
 import { isKanbanIdInterno } from '@/lib/kanban/filtrar-kanbans-internos';
 import { validarMotivoArquivamento } from '@/lib/kanban/motivos-arquivamento';
 import type { PortfolioConfirmacaoFaseTipo } from '@/lib/kanban/portfolio-confirmacao-fase';
+import type { OperacoesConfirmacaoFaseTipo } from '@/lib/kanban/operacoes-confirmacao-fase';
 import { carregarPermissoesMap } from '@/lib/permissoes-load';
 import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { montarTituloCardLoteadores, isKanbanFunilLoteadoresRef } from '@/lib/kanban/loteadores-card-titulo';
@@ -3923,6 +3924,51 @@ export async function registrarConfirmacaoFasePortfolio(input: {
     opcao: { opcao_assinada: true, opcao_assinada_em: now },
     comite: { comite_aprovado: true, comite_aprovado_em: now },
     contrato: { contrato_assinado: true, contrato_assinado_em: now },
+  } as const;
+
+  const { error: updErr } = await supabase
+    .from('kanban_cards')
+    .update(patchByTipo[tipo] as never)
+    .eq('id', cardId);
+
+  if (updErr) return { ok: false, error: updErr.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+export async function registrarConfirmacaoFaseOperacoes(input: {
+  cardId: string;
+  tipo: OperacoesConfirmacaoFaseTipo;
+  basePath?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para registrar a confirmação.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  const tipo = input.tipo;
+  if (!cardId || !tipo) return { ok: false, error: 'Dados inválidos.' };
+
+  const { data: cardRow, error: cardErr } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  if (cardErr) return { ok: false, error: cardErr.message };
+  if (String((cardRow as { kanban_id?: string | null } | null)?.kanban_id ?? '') !== KANBAN_IDS.OPERACOES) {
+    return { ok: false, error: 'Confirmação aplicável apenas ao Funil Operações.' };
+  }
+
+  const now = new Date().toISOString();
+  const patchByTipo = {
+    prefeitura: { prefeitura_aprovada: true, prefeitura_aprovada_em: now },
+    em_obra: { obra_iniciada: true, obra_iniciada_em: now },
+    moni_care: { obra_finalizada: true, obra_finalizada_em: now },
   } as const;
 
   const { error: updErr } = await supabase

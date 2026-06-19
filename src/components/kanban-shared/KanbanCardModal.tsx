@@ -51,6 +51,7 @@ import {
   excluirSubInteracao,
   finalizarCard,
   moverCardParaFase,
+  registrarConfirmacaoFaseOperacoes,
   registrarConfirmacaoFasePortfolio,
   verificarGatePortfolioStep5,
   listarTagsCard,
@@ -91,6 +92,11 @@ import {
   portfolioConfirmacaoPergunta,
   type PortfolioConfirmacaoFaseTipo,
 } from '@/lib/kanban/portfolio-confirmacao-fase';
+import {
+  deveConfirmarSaidaFaseOperacoes,
+  operacoesConfirmacaoPergunta,
+  type OperacoesConfirmacaoFaseTipo,
+} from '@/lib/kanban/operacoes-confirmacao-fase';
 import {
   cardLoteadoresPrecisaJustificativaSla,
 } from '@/lib/kanban/loteadores-sla-justificativa';
@@ -642,7 +648,8 @@ export function KanbanCardModal({
   } | null>(null);
   const [solicitandoAprovacaoFase, setSolicitandoAprovacaoFase] = useState(false);
   const [modalConfirmacaoPortfolio, setModalConfirmacaoPortfolio] = useState<{
-    tipo: PortfolioConfirmacaoFaseTipo;
+    dominio: 'portfolio' | 'operacoes';
+    tipo: PortfolioConfirmacaoFaseTipo | OperacoesConfirmacaoFaseTipo;
     destinoFase: KanbanFase;
     direcao: 'avancar' | 'retroceder';
     opts?: { motivoReprovacaoAcoplamento?: string; justificativaSlaQuebra?: string };
@@ -2207,13 +2214,31 @@ export function KanbanCardModal({
     }
   }
 
-  function tipoConfirmacaoPortfolioSaidaAtual(): PortfolioConfirmacaoFaseTipo | null {
+  function tipoConfirmacaoSaidaAtual():
+    | { dominio: 'portfolio'; tipo: PortfolioConfirmacaoFaseTipo }
+    | { dominio: 'operacoes'; tipo: OperacoesConfirmacaoFaseTipo }
+    | null {
     if (!card || isLegado) return null;
-    return deveConfirmarSaidaFasePortfolio({
+    const portfolio = deveConfirmarSaidaFasePortfolio({
       kanbanId: card.kanban_id,
       faseSlug: faseAtual?.slug,
       origemCard: origem,
     });
+    if (portfolio) return { dominio: 'portfolio', tipo: portfolio };
+    const operacoes = deveConfirmarSaidaFaseOperacoes({
+      kanbanId: card.kanban_id,
+      faseSlug: faseAtual?.slug,
+      origemCard: origem,
+    });
+    if (operacoes) return { dominio: 'operacoes', tipo: operacoes };
+    return null;
+  }
+
+  function perguntaConfirmacaoSaida(modal: NonNullable<typeof modalConfirmacaoPortfolio>): string {
+    if (modal.dominio === 'operacoes') {
+      return operacoesConfirmacaoPergunta(modal.tipo as OperacoesConfirmacaoFaseTipo);
+    }
+    return portfolioConfirmacaoPergunta(modal.tipo as PortfolioConfirmacaoFaseTipo);
   }
 
   async function iniciarMovimentoFasePortfolio(
@@ -2221,13 +2246,13 @@ export function KanbanCardModal({
     direcao: 'avancar' | 'retroceder',
     opts?: { motivoReprovacaoAcoplamento?: string; justificativaSlaQuebra?: string },
   ) {
-    const tipo = tipoConfirmacaoPortfolioSaidaAtual();
-    if (tipo) {
+    const confirmacao = tipoConfirmacaoSaidaAtual();
+    if (confirmacao) {
       setModalJustificativaSla(null);
       setSlaJustificativaDraft('');
       setModalReprovacaoAcoplamento(null);
       setMotivoReprovacaoDraft('');
-      setModalConfirmacaoPortfolio({ tipo, destinoFase, direcao, opts });
+      setModalConfirmacaoPortfolio({ ...confirmacao, destinoFase, direcao, opts });
       return;
     }
     if (direcao === 'avancar') await executarAvancarFase(destinoFase, opts);
@@ -2240,11 +2265,18 @@ export function KanbanCardModal({
     setSalvandoConfirmacaoPortfolio(true);
     try {
       if (confirmou) {
-        const res = await registrarConfirmacaoFasePortfolio({
-          cardId: card.id,
-          tipo: modal.tipo,
-          basePath,
-        });
+        const res =
+          modal.dominio === 'operacoes'
+            ? await registrarConfirmacaoFaseOperacoes({
+                cardId: card.id,
+                tipo: modal.tipo as OperacoesConfirmacaoFaseTipo,
+                basePath,
+              })
+            : await registrarConfirmacaoFasePortfolio({
+                cardId: card.id,
+                tipo: modal.tipo as PortfolioConfirmacaoFaseTipo,
+                basePath,
+              });
         if (!res.ok) {
           alert(res.error ?? 'Não foi possível registrar a confirmação.');
           return;
@@ -6790,7 +6822,7 @@ export function KanbanCardModal({
             Confirmação
           </h3>
           <p className="mt-3 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
-            {portfolioConfirmacaoPergunta(modalConfirmacaoPortfolio.tipo)}
+            {perguntaConfirmacaoSaida(modalConfirmacaoPortfolio)}
           </p>
           <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
             <button
