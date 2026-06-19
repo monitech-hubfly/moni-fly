@@ -1,4 +1,4 @@
-import { calcularDiasUteis, calcularStatusSLAPorTipo, normalizarSlaTipo } from '@/lib/dias-uteis';
+import { calcularDiasUteis, calcularStatusSLAPorTipo } from '@/lib/dias-uteis';
 import { computePainelChamados } from '@/lib/kanban/painel-chamados-compute';
 import { computeConversionFunnelTree } from '@/lib/kanban/painel-funnel-tree-compute';
 import { computeGargaloScoreRanking } from '@/lib/kanban/painel-gargalo-score-compute';
