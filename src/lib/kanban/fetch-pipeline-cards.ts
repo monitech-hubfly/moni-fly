@@ -312,8 +312,9 @@ export async function fetchPipelineCards(
   supabase: SupabaseClient,
   opts: FetchPipelineCardsOpts,
 ): Promise<PipelineCardsDataset> {
+  const mode = opts.mode === 'rede' ? 'franqueadora' : opts.mode;
   const redeId = String(opts.franqueadoId ?? '').trim();
-  if (opts.mode === 'unidade' && !redeId) {
+  if (mode === 'unidade' && !redeId) {
     return { cards: [], franqueados: [] };
   }
 
@@ -324,7 +325,7 @@ export async function fetchPipelineCards(
     .select('id, n_franquia, nome_completo, ordem')
     .order('ordem');
 
-  if (opts.mode === 'unidade') {
+  if (mode === 'unidade') {
     franqueadosQuery = franqueadosQuery.eq('id', redeId);
   }
 
@@ -336,7 +337,7 @@ export async function fetchPipelineCards(
     cardsQuery = cardsQuery.eq('arquivado', false).eq('concluido', false);
   }
 
-  if (opts.mode === 'unidade') {
+  if (mode === 'unidade') {
     cardsQuery = cardsQuery.eq('rede_franqueado_id', redeId);
   } else {
     cardsQuery = cardsQuery.not('rede_franqueado_id', 'is', null);
@@ -353,7 +354,7 @@ export async function fetchPipelineCards(
       if (!opts.incluirEncerrados) {
         fallbackQuery = fallbackQuery.eq('arquivado', false).eq('concluido', false);
       }
-      if (opts.mode === 'unidade') {
+      if (mode === 'unidade') {
         fallbackQuery = fallbackQuery.eq('rede_franqueado_id', redeId);
       } else {
         fallbackQuery = fallbackQuery.not('rede_franqueado_id', 'is', null);
@@ -388,7 +389,7 @@ export async function fetchPipelineCards(
   let enrichment: PipelineFranqueadoraEnrichment | null = null;
   if (comEnrichment) {
     enrichment =
-      opts.mode === 'franqueadora'
+      mode === 'franqueadora'
         ? await fetchFranqueadoraEnrichment(supabase, cards)
         : await fetchUnidadeEnrichment(supabase, cards);
   }

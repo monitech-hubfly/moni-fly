@@ -3,7 +3,10 @@
 import { useMemo } from 'react';
 import type { PipelineCardsDataset } from '@/lib/kanban/pipeline-cards-types';
 import { enriquecerPipelineCard } from '@/lib/kanban/pipeline-cards-utils';
-import { computePipelineAnalises } from '@/lib/kanban/pipeline-franqueadora-compute';
+import {
+  computePipelineAnalises,
+  insightFaseAtrasosRede,
+} from '@/lib/kanban/pipeline-franqueadora-compute';
 
 const panelStyle: React.CSSProperties = {
   borderRadius: 'var(--moni-radius-lg)',
@@ -17,7 +20,7 @@ function DataTable({
   emptyMessage,
 }: {
   headers: string[];
-  rows: string[][];
+  rows: React.ReactNode[][];
   emptyMessage: string;
 }) {
   if (rows.length === 0) {
@@ -79,6 +82,19 @@ function PanelBox({ title, hint, children }: { title: string; hint?: string; chi
   );
 }
 
+function benchmarkBadge(badge: 'verde' | 'ambar' | 'vermelho') {
+  if (badge === 'verde') return <span className="moni-tag-concluido text-[10px]">Alto</span>;
+  if (badge === 'ambar') return <span className="moni-tag-atencao text-[10px]">Médio</span>;
+  return <span className="moni-tag-atrasado text-[10px]">Baixo</span>;
+}
+
+function sireneStatusBadge(ativo: boolean) {
+  return ativo ? (
+    <span className="moni-tag-concluido text-[10px]">Ativo</span>
+  ) : (
+    <span className="moni-tag-atrasado text-[10px]">Sem chamado</span>
+  );
+}
 
 type Props = {
   dataset: PipelineCardsDataset;
@@ -89,6 +105,11 @@ export function PipelineAnalisesView({ dataset }: Props) {
     const cards = dataset.cards.map(enriquecerPipelineCard);
     return computePipelineAnalises(dataset.franqueados, cards, dataset.enrichment);
   }, [dataset]);
+
+  const insightFases = useMemo(
+    () => insightFaseAtrasosRede(analises.fasesComAtrasos),
+    [analises.fasesComAtrasos],
+  );
 
   return (
     <div className="space-y-4">
@@ -119,6 +140,11 @@ export function PipelineAnalisesView({ dataset }: Props) {
           ])}
           emptyMessage="Nenhum card atrasado na rede."
         />
+        {insightFases ? (
+          <p className="mt-3 text-[11px] leading-snug" style={{ color: 'var(--moni-text-secondary)' }}>
+            {insightFases}
+          </p>
+        ) : null}
       </PanelBox>
 
       <PanelBox title="Benchmark por unidade" hint="Score = 100 − (% atrasados × 60) − (% parados × 40). FK0000 excluída.">
@@ -130,7 +156,7 @@ export function PipelineAnalisesView({ dataset }: Props) {
             String(r.atrasados),
             `${r.taxaAtraso.toFixed(1).replace('.', ',')}%`,
             String(r.score),
-            r.badge === 'verde' ? 'Alto' : r.badge === 'ambar' ? 'Médio' : 'Baixo',
+            benchmarkBadge(r.badge),
           ])}
           emptyMessage="Sem unidades elegíveis."
         />
@@ -163,17 +189,13 @@ export function PipelineAnalisesView({ dataset }: Props) {
           headers={['Unidade', 'Status', 'Último chamado']}
           rows={analises.sireneSilencio.map((r) => [
             r.unidade,
-            r.ativo ? 'Ativo' : 'Sem chamado',
+            sireneStatusBadge(r.ativo),
             r.ultimoChamadoEm
               ? new Date(r.ultimoChamadoEm).toLocaleDateString('pt-BR')
               : '—',
           ])}
           emptyMessage="Sem unidades na rede."
         />
-        <div className="mt-2 flex flex-wrap gap-2">
-          <span className="moni-tag-atrasado text-[10px]">sem chamado</span>
-          <span className="moni-tag-concluido text-[10px]">ativo</span>
-        </div>
       </PanelBox>
     </div>
   );

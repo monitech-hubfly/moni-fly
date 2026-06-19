@@ -151,7 +151,7 @@ export function RedeFranqueadosPageTabs({
                 Cards ativos em todos os funis, consolidados por unidade de franquia.
               </p>
             </div>
-            <PipelineCardsView mode="franqueadora" dataset={pipelineDataset} defaultGroupBy="franquia" />
+            <PipelineCardsView mode="rede" dataset={pipelineDataset} defaultGroupBy="franquia" />
           </section>
         ) : null}
 

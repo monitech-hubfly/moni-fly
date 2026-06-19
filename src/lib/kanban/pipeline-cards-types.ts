@@ -54,7 +54,8 @@ export type PipelineCardDisplay = PipelineCardRow & {
 
 export type PipelineGroupBy = 'franquia' | 'fase' | 'funil' | 'status';
 
-export type PipelineCardsViewMode = 'franqueadora' | 'unidade';
+/** `rede` é alias de `franqueadora` (visão consolidada da rede). */
+export type PipelineCardsViewMode = 'franqueadora' | 'rede' | 'unidade';
 
 export type PipelineCardsStatusFiltro =
   | 'todos'

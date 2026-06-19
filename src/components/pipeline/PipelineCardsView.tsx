@@ -20,6 +20,7 @@ import {
 import {
   calcularKpisPipelineFranqueadoraExtended,
   montarBlocosUnidadePipeline,
+  sortCardsFranqueadoraPrioridade,
 } from '@/lib/kanban/pipeline-franqueadora-compute';
 import {
   calcularKpisPipelineUnidadeExtended,
@@ -35,7 +36,7 @@ import { PipelineUnidadeFunilBloco } from '@/components/pipeline/PipelineUnidade
 import { PIPELINE_READONLY_NOTA } from '@/lib/kanban/pipeline-card-readonly';
 
 export type PipelineCardsViewProps = {
-  mode: 'franqueadora' | 'unidade';
+  mode: 'franqueadora' | 'rede' | 'unidade';
   franqueadoId?: string;
   showFranchiseGroups?: boolean;
   incluirUnidadesVazias?: boolean;
@@ -120,13 +121,18 @@ function PipelineKpisBarUnidade({ kpis }: { kpis: PipelineCardsKpisUnidade }) {
   );
 }
 
+function resolvePipelineViewMode(mode: PipelineCardsViewProps['mode']): 'franqueadora' | 'unidade' {
+  return mode === 'unidade' ? 'unidade' : 'franqueadora';
+}
+
 function filtrarDatasetPorModo(
   dataset: PipelineCardsDataset,
   mode: PipelineCardsViewProps['mode'],
   franqueadoId?: string,
 ): { cards: PipelineCardRow[]; franqueados: PipelineFranqueadoUnidade[] } {
   const redeId = String(franqueadoId ?? '').trim();
-  if (mode === 'unidade') {
+  const resolved = resolvePipelineViewMode(mode);
+  if (resolved === 'unidade') {
     if (!redeId) return { cards: [], franqueados: [] };
     return {
       cards: dataset.cards.filter((c) => String(c.rede_franqueado_id ?? '') === redeId),
@@ -147,7 +153,7 @@ const selectStyle: React.CSSProperties = {
 export function PipelineCardsView({
   mode,
   franqueadoId,
-  showFranchiseGroups = mode === 'franqueadora',
+  showFranchiseGroups = resolvePipelineViewMode(mode) === 'franqueadora',
   incluirUnidadesVazias = false,
   showFilters = true,
   showKpis = true,
@@ -155,7 +161,8 @@ export function PipelineCardsView({
   dataset,
   className,
 }: PipelineCardsViewProps) {
-  const [groupBy, setGroupBy] = useState<PipelineGroupBy>(mode === 'franqueadora' ? 'franquia' : defaultGroupBy);
+  const viewMode = resolvePipelineViewMode(mode);
+  const [groupBy, setGroupBy] = useState<PipelineGroupBy>(viewMode === 'franqueadora' ? 'franquia' : defaultGroupBy);
   const [filtros, setFiltros] = useState<PipelineCardsFiltros>(PIPELINE_CARDS_FILTROS_DEFAULT);
   const [drawerCard, setDrawerCard] = useState<PipelineCardDisplay | null>(null);
 
@@ -165,46 +172,46 @@ export function PipelineCardsView({
 
   const kpisFranqueadora = useMemo(
     () =>
-      showKpis && mode === 'franqueadora'
+      showKpis && viewMode === 'franqueadora'
         ? calcularKpisPipelineFranqueadoraExtended(cardsFiltrados, dataset.enrichment)
         : null,
-    [showKpis, mode, cardsFiltrados, dataset.enrichment],
+    [showKpis, viewMode, cardsFiltrados, dataset.enrichment],
   );
 
   const kpisUnidade = useMemo(
     () =>
-      showKpis && mode === 'unidade'
+      showKpis && viewMode === 'unidade'
         ? calcularKpisPipelineUnidadeExtended(cardsFiltrados, dataset.enrichment?.chamados ?? [])
         : null,
-    [showKpis, mode, cardsFiltrados, dataset.enrichment?.chamados],
+    [showKpis, viewMode, cardsFiltrados, dataset.enrichment?.chamados],
   );
 
   const saudeUnidade = useMemo(
-    () => (mode === 'unidade' ? saudeMesUnidadePipeline(cardsEnriquecidos) : null),
-    [mode, cardsEnriquecidos],
+    () => (viewMode === 'unidade' ? saudeMesUnidadePipeline(cardsEnriquecidos) : null),
+    [viewMode, cardsEnriquecidos],
   );
 
   const oQueFazerHoje = useMemo(
     () =>
-      mode === 'unidade'
+      viewMode === 'unidade'
         ? montarOQueFazerHoje(cardsEnriquecidos, dataset.enrichment?.chamados ?? [])
         : [],
-    [mode, cardsEnriquecidos, dataset.enrichment?.chamados],
+    [viewMode, cardsEnriquecidos, dataset.enrichment?.chamados],
   );
 
   const gruposFunilUnidade = useMemo(
-    () => (mode === 'unidade' ? montarGruposFunilUnidade(cardsFiltrados) : []),
-    [mode, cardsFiltrados],
+    () => (viewMode === 'unidade' ? montarGruposFunilUnidade(cardsFiltrados) : []),
+    [viewMode, cardsFiltrados],
   );
 
   const blocosFranqueadora = useMemo(() => {
-    if (mode !== 'franqueadora') return [];
+    if (viewMode !== 'franqueadora') return [];
     return montarBlocosUnidadePipeline(
       scoped.franqueados,
       cardsFiltrados,
       dataset.enrichment?.chamados ?? [],
     );
-  }, [mode, scoped.franqueados, cardsFiltrados, dataset.enrichment?.chamados]);
+  }, [viewMode, scoped.franqueados, cardsFiltrados, dataset.enrichment?.chamados]);
 
   const cardsPorRede = useMemo(() => {
     const m = new Map<string, PipelineCardDisplay[]>();
@@ -214,6 +221,9 @@ export function PipelineCardsView({
       const list = m.get(rid) ?? [];
       list.push(c);
       m.set(rid, list);
+    }
+    for (const [rid, list] of m) {
+      m.set(rid, sortCardsFranqueadoraPrioridade(list));
     }
     return m;
   }, [cardsFiltrados]);
@@ -251,7 +261,7 @@ export function PipelineCardsView({
     return { list: [...m.entries()].sort((a, b) => a[1].localeCompare(b[1], 'pt-BR')), sem };
   }, [cardsEnriquecidos]);
 
-  if (mode === 'unidade' && !String(franqueadoId ?? '').trim()) {
+  if (viewMode === 'unidade' && !String(franqueadoId ?? '').trim()) {
     return (
       <p className="rounded-xl border px-4 py-6 text-[11px]" style={{ borderColor: 'var(--moni-border-default)', color: 'var(--moni-text-secondary)' }}>
         Informe a unidade de franquia (`franqueadoId`) para exibir os cards.
@@ -261,12 +271,12 @@ export function PipelineCardsView({
 
   return (
     <div className={className}>
-      {showKpis && mode === 'franqueadora' && kpisFranqueadora ? (
+      {showKpis && viewMode === 'franqueadora' && kpisFranqueadora ? (
         <PipelineKpisBarFranqueadora kpis={kpisFranqueadora} />
       ) : null}
-      {showKpis && mode === 'unidade' && kpisUnidade ? <PipelineKpisBarUnidade kpis={kpisUnidade} /> : null}
+      {showKpis && viewMode === 'unidade' && kpisUnidade ? <PipelineKpisBarUnidade kpis={kpisUnidade} /> : null}
 
-      {mode === 'unidade' && saudeUnidade ? <PipelineUnidadeSaudeCard saude={saudeUnidade} /> : null}
+      {viewMode === 'unidade' && saudeUnidade ? <PipelineUnidadeSaudeCard saude={saudeUnidade} /> : null}
 
       {showFilters ? (
         <div className="mb-6 flex flex-col gap-3 px-4 py-4" style={panelStyle}>
@@ -284,7 +294,7 @@ export function PipelineCardsView({
             />
           </label>
           <div className="flex flex-col flex-wrap gap-3 sm:flex-row sm:items-end">
-            {mode === 'franqueadora' ? (
+            {viewMode === 'franqueadora' ? (
               <label className="flex min-w-[10rem] flex-1 flex-col gap-1 sm:max-w-[14rem]">
                 <span className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
                   Unidade de Franquia
@@ -362,7 +372,7 @@ export function PipelineCardsView({
                 ))}
               </select>
             </label>
-            {mode === 'franqueadora' ? (
+            {viewMode === 'franqueadora' ? (
               <label className="flex min-w-[10rem] flex-col gap-1 sm:max-w-[12rem]">
                 <span className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
                   Agrupar por
@@ -379,13 +389,13 @@ export function PipelineCardsView({
         </div>
       ) : null}
 
-      {mode === 'unidade' ? <PipelineOQueFazerHoje items={oQueFazerHoje} /> : null}
+      {viewMode === 'unidade' ? <PipelineOQueFazerHoje items={oQueFazerHoje} /> : null}
 
       <p className="mb-4 text-[11px]" style={{ color: 'var(--moni-text-secondary)' }}>
         {cardsFiltrados.length} card{cardsFiltrados.length === 1 ? '' : 's'} · {PIPELINE_READONLY_NOTA}
       </p>
 
-      {mode === 'franqueadora' ? (
+      {viewMode === 'franqueadora' ? (
         blocosFranqueadora.length === 0 ? (
           <p className="rounded-xl border border-dashed px-4 py-10 text-center text-[11px]" style={{ borderColor: 'var(--moni-border-default)', color: 'var(--moni-text-tertiary)' }}>
             Nenhum card encontrado com os filtros atuais.

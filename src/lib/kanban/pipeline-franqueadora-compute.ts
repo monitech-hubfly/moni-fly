@@ -39,6 +39,28 @@ function cardParado(card: PipelineCardDisplay): boolean {
   return calcularDiasNaFase(card) >= PARADO_DIAS && card.inativo;
 }
 
+const BADGE_SORT_PRIORITY: Record<PipelineCardBadgeStatus, number> = {
+  atrasado: 0,
+  parado: 1,
+  alerta: 2,
+  em_dia: 3,
+};
+
+export function sortCardsFranqueadoraPrioridade(cards: PipelineCardDisplay[]): PipelineCardDisplay[] {
+  return [...cards].sort((a, b) => {
+    const pa = BADGE_SORT_PRIORITY[badgeStatusPipelineCard(a)];
+    const pb = BADGE_SORT_PRIORITY[badgeStatusPipelineCard(b)];
+    if (pa !== pb) return pa - pb;
+    if (pa <= 1) {
+      const d = calcularDiasNaFase(b) - calcularDiasNaFase(a);
+      if (d !== 0) return d;
+    }
+    const dKanban = a.kanban_nome.localeCompare(b.kanban_nome, 'pt-BR');
+    if (dKanban !== 0) return dKanban;
+    return (b.fase_ordem ?? 0) - (a.fase_ordem ?? 0);
+  });
+}
+
 export function badgeStatusPipelineCard(card: PipelineCardDisplay): PipelineCardBadgeStatus {
   if (slaCategoriaPipeline(card) === 'atrasado') return 'atrasado';
   if (cardParado(card)) return 'parado';
@@ -258,6 +280,21 @@ export type PipelineFaseAtrasoRow = {
   totalAtrasados: number;
   pctTotalAtrasos: number;
 };
+
+export function insightFaseAtrasosRede(rows: PipelineFaseAtrasoRow[]): string | null {
+  if (rows.length === 0) return null;
+  const top = rows[0];
+  const pct = top.pctTotalAtrasos;
+  const pctFmt = pct.toFixed(0).replace('.', ',');
+  if (pct >= 40) {
+    return `${top.fase} (${top.funil}) concentra ${pctFmt}% dos atrasos — provável gargalo de processo.`;
+  }
+  const top3Pct = rows.slice(0, 3).reduce((s, r) => s + r.pctTotalAtrasos, 0);
+  if (rows.length >= 3 && top3Pct >= 60) {
+    return 'Atrasos espalhados em várias fases — revisar capacidade e SLAs da rede.';
+  }
+  return `${top.fase} lidera o volume de atrasos na rede (${pctFmt}% do total).`;
+}
 
 export type PipelineBenchmarkUnidadeRow = {
   unidade: string;

@@ -11,6 +11,8 @@ import {
 } from '@/lib/kanban/pipeline-franqueadora-compute';
 import { PipelineSequencialBar, pipelineBadgeInlineStyle } from '@/components/pipeline/PipelineSequencialBar';
 
+import { metaAtingidaSaude } from '@/lib/kanban/pipeline-unidade-compute';
+
 const panelStyle: React.CSSProperties = {
   borderRadius: 'var(--moni-radius-lg)',
   border: '0.5px solid var(--moni-border-default)',
@@ -24,20 +26,40 @@ type Props = {
   onCardClick: (card: PipelineCardDisplay) => void;
 };
 
-function SaudeMesBar({ entradas, meta, label }: { entradas: number; meta: number; label: string }) {
+function SaudeMesBar({
+  entradas,
+  meta,
+  label,
+  atingida,
+}: {
+  entradas: number;
+  meta: number;
+  label: string;
+  atingida: boolean;
+}) {
   const pct = meta <= 0 ? 0 : Math.min(100, Math.round((entradas / meta) * 100));
   return (
     <div className="min-w-0 flex-1">
-      <div className="flex items-center justify-between gap-2 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
         <span>{label}</span>
-        <span className="tabular-nums">
-          {entradas}/{meta}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="tabular-nums">
+            {entradas}/{meta}
+          </span>
+          {atingida ? (
+            <span className="moni-tag-concluido text-[10px]">meta atingida</span>
+          ) : (
+            <span className="moni-tag-atencao text-[10px]">abaixo da meta</span>
+          )}
+        </div>
       </div>
-      <div className="mt-1 h-1 overflow-hidden rounded-full" style={{ background: 'var(--moni-rede-chart-track)' }}>
+      <div className="mt-1 h-1.5 overflow-hidden rounded-full" style={{ background: 'var(--moni-rede-chart-track)' }}>
         <div
           className="h-full rounded-full"
-          style={{ width: `${pct}%`, background: 'var(--moni-kanban-portfolio)' }}
+          style={{
+            width: `${pct}%`,
+            background: atingida ? 'var(--moni-kanban-portfolio)' : 'var(--moni-gold-400)',
+          }}
         />
       </div>
     </div>
@@ -47,6 +69,7 @@ function SaudeMesBar({ entradas, meta, label }: { entradas: number; meta: number
 export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCardClick }: Props) {
   const [expanded, setExpanded] = useState(meta.defaultExpanded);
   const { alertas, saude } = meta;
+  const metas = metaAtingidaSaude(saude);
 
   return (
     <section style={panelStyle}>
@@ -104,8 +127,18 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
       {expanded ? (
         <div className="border-t px-4 pb-4 pt-3" style={{ borderColor: 'var(--moni-border-default)' }}>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:gap-4">
-            <SaudeMesBar entradas={saude.entradasMes} meta={saude.metaEntradas} label="Entradas no mês" />
-            <SaudeMesBar entradas={saude.contratosMes} meta={saude.metaContratos} label="Contratos no mês" />
+            <SaudeMesBar
+              entradas={saude.entradasMes}
+              meta={saude.metaEntradas}
+              label="Entradas no mês"
+              atingida={metas.entradas}
+            />
+            <SaudeMesBar
+              entradas={saude.contratosMes}
+              meta={saude.metaContratos}
+              label="Contratos no mês"
+              atingida={metas.contratos}
+            />
           </div>
 
           <div className="overflow-x-auto">
