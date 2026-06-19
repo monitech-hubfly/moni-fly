@@ -42,6 +42,8 @@ export type KanbanFase = {
   materiais?: KanbanFaseMaterial[] | null;
   /** Marcada pelo admin como fase de conversão (migration 387). */
   fase_conversao?: boolean;
+  /** false = fase desativada (ex.: removida por migration). Default true. */
+  ativo?: boolean;
 };
 
 export type KanbanCardBrief = {

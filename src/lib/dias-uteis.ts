@@ -83,7 +83,9 @@ export function isDiaUtil(data: Date): boolean {
 export type SlaTipo = 'uteis' | 'corridos';
 
 export function normalizarSlaTipo(value: string | null | undefined): SlaTipo {
-  return value === 'corridos' ? 'corridos' : 'uteis';
+  const v = String(value ?? '').trim().toLowerCase();
+  if (v === 'corridos' || v === 'dias_corridos' || v === 'dia_corridos') return 'corridos';
+  return 'uteis';
 }
 
 export function rotuloUnidadeSla(tipo: SlaTipo | string | null | undefined): 'd.u.' | 'd.c.' {

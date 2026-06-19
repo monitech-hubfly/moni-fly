@@ -3090,8 +3090,8 @@ export function KanbanCardModal({
     );
   }, [card, fases, historico, legadoCronologiaMoves, origem]);
 
-  const linhasCalculadoraFases = useMemo(() => {
-    if (!card || fases.length === 0) return [];
+  const calculadoraFasesPack = useMemo(() => {
+    if (!card || fases.length === 0) return { linhas: [], visits: [] };
     try {
       const historicoMovs = historico.map((h) => ({
         acao: h.acao,
@@ -3114,7 +3114,7 @@ export function KanbanCardModal({
               { created_at: card.created_at, fase_id: card.fase_id },
               historicoMovs,
             );
-      return calcularLinhasCalculadoraFases({
+      const linhas = calcularLinhasCalculadoraFases({
         fases,
         card: {
           fase_id: card.fase_id,
@@ -3125,8 +3125,9 @@ export function KanbanCardModal({
         },
         visits,
       });
+      return { linhas, visits };
     } catch {
-      return [];
+      return { linhas: [], visits: [] };
     }
   }, [card, fases, historico, legadoCronologiaMoves, origem]);
 
@@ -6012,7 +6013,12 @@ export function KanbanCardModal({
             {secaoHead(
               'calculadora',
               'Calculadora',
-              <KanbanCardModalCalculadoraFases linhas={linhasCalculadoraFases} faseAtualId={card.fase_id} />,
+              <KanbanCardModalCalculadoraFases
+                linhas={calculadoraFasesPack.linhas}
+                visits={calculadoraFasesPack.visits}
+                faseAtualId={card.fase_id}
+                cardConcluido={card.concluido === true}
+              />,
             )}
             {secaoHead(
               'cronologia',

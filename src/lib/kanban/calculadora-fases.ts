@@ -9,12 +9,40 @@ export type CalculadoraFaseLinha = {
   faseId: string;
   faseNome: string;
   ordem: number;
+  faseAtiva: boolean;
   slaDias: number | null;
+  slaTipo: SlaTipo;
   dataInicioReal: string | null;
   dataFimEstimada: string | null;
   dataFimReal: string | null;
-  atrasoDiasUteis: number | null;
+  /** Atraso na unidade do SLA da fase (d.u. ou d.c.). */
+  atrasoDias: number | null;
   status: FaseTimelineStatus;
+};
+
+export type CalculadoraStatusGeral = 'ok' | 'atencao' | 'atrasado' | 'concluido';
+
+export type CalculadoraMaiorGargalo = {
+  faseNome: string;
+  motivo: 'atraso' | 'permanencia';
+  dias: number;
+  unidade: SlaTipo;
+};
+
+export type CalculadoraResumoExecutivo = {
+  faseAtualNome: string | null;
+  diasNaFase: number | null;
+  diasNaFaseTipo: SlaTipo;
+  statusGeral: CalculadoraStatusGeral;
+  statusGeralLabel: string;
+  atrasoAcumuladoUteis: number;
+  atrasoAcumuladoCorridos: number;
+  percentualConcluido: number;
+  fasesConcluidas: number;
+  fasesTotal: number;
+  maiorGargalo: CalculadoraMaiorGargalo | null;
+  previsaoConclusao: string | null;
+  dadosParciais: boolean;
 };
 
 export type CalculadoraFasesInput = {
@@ -38,6 +66,85 @@ export const CALCULADORA_STATUS_LABEL: Record<FaseTimelineStatus, string> = {
   concluida: 'Concluída',
   concluida_atraso: 'Concluída com atraso',
 };
+
+export const CALCULADORA_STATUS_GERAL_LABEL: Record<CalculadoraStatusGeral, string> = {
+  ok: 'No prazo',
+  atencao: 'Atenção',
+  atrasado: 'Em atraso',
+  concluido: 'Concluído',
+};
+
+function addDiasPorTipo(baseYmd: string, dias: number, slaTipo: SlaTipo): string {
+  if (dias <= 0) return baseYmd;
+  const base = parseIsoDateOnlyLocal(baseYmd);
+  if (!base) return baseYmd;
+  if (slaTipo === 'corridos') {
+    const fim = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+    fim.setDate(fim.getDate() + dias);
+    return formatLocalYmd(fim);
+  }
+  return formatLocalYmd(addBusinessDays(base, dias));
+}
+
+function permanenciaDias(inicioYmd: string, fimYmd: string): number {
+  return calendarDaysBetween(inicioYmd, fimYmd);
+}
+
+function diasDecorridosNaFase(inicioYmd: string, hoje: string): number {
+  const a = parseIsoDateOnlyLocal(inicioYmd);
+  const b = parseIsoDateOnlyLocal(hoje);
+  if (!a || !b) return 0;
+  if (b.getTime() < a.getTime()) return 0;
+  return calcularDiasCorridos(a, b);
+}
+
+function diasNaFasePorTipo(inicioYmd: string, hoje: string, slaTipo: SlaTipo): number {
+  if (slaTipo === 'corridos') return diasDecorridosNaFase(inicioYmd, hoje);
+  return businessDaysBetween(inicioYmd, hoje);
+}
+
+function faseContribuiAtrasoAcumulado(status: FaseTimelineStatus): boolean {
+  return status === 'concluida_atraso' || status === 'atual_atrasada';
+}
+
+function detectarDadosParciais(linhas: CalculadoraFaseLinha[], visits: FaseVisit[]): boolean {
+  if (linhas.length === 0) return false;
+
+  const ordemAtual =
+    linhas.find((l) => l.status === 'atual' || l.status === 'atual_atrasada')?.ordem ??
+    linhas.find((l) => l.status === 'futura')?.ordem ??
+    Number.MAX_SAFE_INTEGER;
+
+  for (const row of linhas) {
+    if (row.ordem >= ordemAtual) continue;
+    if (row.status === 'concluida' || row.status === 'concluida_atraso') {
+      if (!row.dataInicioReal || !row.dataFimReal) return true;
+    }
+  }
+
+  const atual = linhas.find((l) => l.status === 'atual' || l.status === 'atual_atrasada');
+  if (atual && !atual.dataInicioReal) return true;
+
+  if (visits.length === 0 && ordemAtual > (linhas[0]?.ordem ?? 0)) return true;
+
+  return false;
+}
+
+function faseEhAtiva(fase: KanbanFase): boolean {
+  return fase.ativo !== false;
+}
+
+function slaRestanteFase(
+  inicioYmd: string,
+  slaDias: number,
+  slaTipo: SlaTipo,
+  hoje: string,
+): number {
+  const elapsed = slaTipo === 'corridos'
+    ? diasDecorridosNaFase(inicioYmd, hoje)
+    : businessDaysBetween(inicioYmd, hoje);
+  return Math.max(0, slaDias - elapsed);
+}
 
 function toYmd(iso: string | null | undefined): string | null {
   if (!iso) return null;
@@ -160,64 +267,250 @@ function resolveAtraso(
  * Usa última passagem por fase (retrocessos) e fallback seguro se histórico incompleto.
  */
 export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): CalculadoraFaseLinha[] {
-  const { fases, card, visits } = input;
-  const hoje = hojeYmd(input.hoje);
+  try {
+    const { fases, card, visits } = input;
+    const hoje = hojeYmd(input.hoje);
 
-  if (!fases.length) return [];
+    if (!fases.length) return [];
 
-  const sorted = [...fases].sort((a, b) => a.ordem - b.ordem);
-  const lastByFase = lastVisitPerFase(visits);
-  const faseAtual = sorted.find((f) => f.id === card.fase_id);
-  const ordemAtual = faseAtual?.ordem ?? Number.MAX_SAFE_INTEGER;
+    const sorted = [...fases].sort((a, b) => a.ordem - b.ordem);
+    const lastByFase = lastVisitPerFase(visits);
+    const faseAtual = sorted.find((f) => f.id === card.fase_id);
+    const ordemAtual = faseAtual?.ordem ?? Number.MAX_SAFE_INTEGER;
 
-  let chainCursor: string | null = toYmd(card.created_at);
+    let chainCursor: string | null = toYmd(card.created_at);
 
-  return sorted.map((fase) => {
-    const last = lastByFase.get(fase.id);
-    let dataInicioReal = toYmd(last?.entrou);
+    return sorted.map((fase) => {
+      const last = lastByFase.get(fase.id);
+      let dataInicioReal = toYmd(last?.entrou);
 
-    if (!dataInicioReal && fase.id === card.fase_id) {
-      dataInicioReal = toYmd(card.entered_fase_at) ?? toYmd(card.created_at);
+      if (!dataInicioReal && fase.id === card.fase_id) {
+        dataInicioReal = toYmd(card.entered_fase_at) ?? toYmd(card.created_at);
+      }
+
+      let dataFimReal = toYmd(last?.saiu);
+      if (!dataFimReal && fase.id === card.fase_id && card.concluido && card.concluido_em) {
+        dataFimReal = toYmd(card.concluido_em);
+      }
+
+      let baseInicio = dataInicioReal ?? chainCursor;
+      if (!baseInicio && fase.ordem === sorted[0]?.ordem) {
+        baseInicio = toYmd(card.created_at);
+      }
+
+      const slaTipo = normalizarSlaTipo(fase.sla_tipo);
+      const dataFimEstimada = baseInicio ? fimEstimadaPorSla(baseInicio, fase.sla_dias, slaTipo) : null;
+
+      chainCursor = dataFimReal ?? dataFimEstimada ?? chainCursor;
+
+      const status = resolveStatus(
+        fase.id,
+        card,
+        dataInicioReal,
+        dataFimReal,
+        dataFimEstimada,
+        fase.ordem,
+        ordemAtual,
+        hoje,
+      );
+
+      const atrasoDias = resolveAtraso(status, dataFimEstimada, dataFimReal, hoje, slaTipo);
+
+      return {
+        faseId: fase.id,
+        faseNome: fase.nome,
+        ordem: fase.ordem,
+        faseAtiva: faseEhAtiva(fase),
+        slaDias: fase.sla_dias,
+        slaTipo,
+        dataInicioReal,
+        dataFimEstimada,
+        dataFimReal,
+        atrasoDias,
+        status,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+function projectarPrevisaoConclusao(linhas: CalculadoraFaseLinha[], hoje: string): string | null {
+  if (linhas.length === 0) return null;
+
+  const sorted = [...linhas]
+    .filter((l) => l.faseAtiva)
+    .sort((a, b) => a.ordem - b.ordem);
+  if (sorted.length === 0) return null;
+
+  const idxAtual = sorted.findIndex((l) => l.status === 'atual' || l.status === 'atual_atrasada');
+  const todasConcluidas = sorted.every(
+    (l) => l.status === 'concluida' || l.status === 'concluida_atraso',
+  );
+
+  if (todasConcluidas) {
+    const ultimaComFim = [...sorted].reverse().find((l) => l.dataFimReal);
+    return ultimaComFim?.dataFimReal ?? null;
+  }
+
+  const startIdx = idxAtual >= 0 ? idxAtual : sorted.findIndex((l) => l.status === 'futura');
+  if (startIdx < 0) return sorted.at(-1)?.dataFimEstimada ?? null;
+
+  let cursor = hoje;
+
+  for (let i = startIdx; i < sorted.length; i++) {
+    const row = sorted[i]!;
+    if (row.slaDias == null || row.slaDias <= 0) continue;
+
+    if (i === startIdx) {
+      if (row.dataInicioReal) {
+        const restante = slaRestanteFase(row.dataInicioReal, row.slaDias, row.slaTipo, hoje);
+        cursor = addDiasPorTipo(cursor, restante, row.slaTipo);
+      } else {
+        cursor = addDiasPorTipo(cursor, row.slaDias, row.slaTipo);
+      }
+    } else {
+      cursor = addDiasPorTipo(cursor, row.slaDias, row.slaTipo);
+    }
+  }
+
+  return cursor;
+}
+
+function resolverMaiorGargalo(linhas: CalculadoraFaseLinha[], hoje: string): CalculadoraMaiorGargalo | null {
+  let melhorAtraso: CalculadoraMaiorGargalo | null = null;
+  let melhorPerm: CalculadoraMaiorGargalo | null = null;
+
+  for (const row of linhas) {
+    if (faseContribuiAtrasoAcumulado(row.status) && row.atrasoDias != null && row.atrasoDias > 0) {
+      if (!melhorAtraso || row.atrasoDias > melhorAtraso.dias) {
+        melhorAtraso = {
+          faseNome: row.faseNome,
+          motivo: 'atraso',
+          dias: row.atrasoDias,
+          unidade: row.slaTipo,
+        };
+      }
+    }
+  }
+
+  if (melhorAtraso) return melhorAtraso;
+
+  for (const row of linhas) {
+    if (!row.dataInicioReal) continue;
+    if (row.status === 'futura') continue;
+
+    const fimRef = row.dataFimReal ?? hoje;
+    const perm = permanenciaDias(row.dataInicioReal, fimRef);
+    if (perm > 0 && (!melhorPerm || perm > melhorPerm.dias)) {
+      melhorPerm = {
+        faseNome: row.faseNome,
+        motivo: 'permanencia',
+        dias: perm,
+        unidade: 'corridos',
+      };
+    }
+  }
+
+  return melhorPerm;
+}
+
+function resolverStatusGeral(
+  linhas: CalculadoraFaseLinha[],
+  cardConcluido: boolean,
+  atrasoUteis: number,
+  atrasoCorridos: number,
+  hoje: string,
+): CalculadoraStatusGeral {
+  if (cardConcluido) return 'concluido';
+  if (linhas.some((l) => l.status === 'atual_atrasada' || l.status === 'concluida_atraso')) {
+    return 'atrasado';
+  }
+  if (atrasoUteis > 0 || atrasoCorridos > 0) return 'atrasado';
+
+  const atual = linhas.find((l) => l.status === 'atual');
+  if (atual?.dataFimEstimada && atual.dataInicioReal) {
+    const restante = atual.slaTipo === 'corridos'
+      ? calendarDaysBetween(hoje, atual.dataFimEstimada)
+      : businessDaysBetween(hoje, atual.dataFimEstimada);
+    if (restante <= 1 && atual.dataFimEstimada >= hoje) return 'atencao';
+  }
+
+  return 'ok';
+}
+
+/** Métricas executivas agregadas a partir das linhas da calculadora. */
+export function calcularResumoExecutivoCalculadoraFases(
+  linhas: CalculadoraFaseLinha[],
+  opts?: { cardConcluido?: boolean; hoje?: Date; visits?: FaseVisit[] },
+): CalculadoraResumoExecutivo {
+  const empty: CalculadoraResumoExecutivo = {
+    faseAtualNome: null,
+    diasNaFase: null,
+    diasNaFaseTipo: 'uteis',
+    statusGeral: 'ok',
+    statusGeralLabel: CALCULADORA_STATUS_GERAL_LABEL.ok,
+    atrasoAcumuladoUteis: 0,
+    atrasoAcumuladoCorridos: 0,
+    percentualConcluido: 0,
+    fasesConcluidas: 0,
+    fasesTotal: 0,
+    maiorGargalo: null,
+    previsaoConclusao: null,
+    dadosParciais: true,
+  };
+
+  try {
+    const hoje = hojeYmd(opts?.hoje);
+    const linhasAtivas = linhas.filter((l) => l.faseAtiva);
+    const fasesTotal = linhasAtivas.length;
+    const fasesConcluidas = linhasAtivas.filter(
+      (l) => l.status === 'concluida' || l.status === 'concluida_atraso',
+    ).length;
+    const percentualConcluido =
+      fasesTotal > 0 ? Math.round((fasesConcluidas / fasesTotal) * 100) : 0;
+
+    let atrasoAcumuladoUteis = 0;
+    let atrasoAcumuladoCorridos = 0;
+    for (const row of linhasAtivas) {
+      if (!faseContribuiAtrasoAcumulado(row.status)) continue;
+      if (row.atrasoDias == null || row.atrasoDias <= 0) continue;
+      if (row.slaTipo === 'corridos') atrasoAcumuladoCorridos += row.atrasoDias;
+      else atrasoAcumuladoUteis += row.atrasoDias;
     }
 
-    let dataFimReal = toYmd(last?.saiu);
-    if (!dataFimReal && fase.id === card.fase_id && card.concluido && card.concluido_em) {
-      dataFimReal = toYmd(card.concluido_em);
-    }
+    const linhaAtual = linhas.find((l) => l.status === 'atual' || l.status === 'atual_atrasada');
+    const diasNaFase =
+      linhaAtual?.dataInicioReal != null
+        ? diasNaFasePorTipo(linhaAtual.dataInicioReal, hoje, linhaAtual.slaTipo)
+        : null;
 
-    let baseInicio = dataInicioReal ?? chainCursor;
-    if (!baseInicio && fase.ordem === sorted[0]?.ordem) {
-      baseInicio = toYmd(card.created_at);
-    }
-
-    const slaTipo = normalizarSlaTipo(fase.sla_tipo);
-    const dataFimEstimada = baseInicio ? fimEstimadaPorSla(baseInicio, fase.sla_dias, slaTipo) : null;
-
-    chainCursor = dataFimReal ?? dataFimEstimada ?? chainCursor;
-
-    const status = resolveStatus(
-      fase.id,
-      card,
-      dataInicioReal,
-      dataFimReal,
-      dataFimEstimada,
-      fase.ordem,
-      ordemAtual,
+    const statusGeral = resolverStatusGeral(
+      linhasAtivas,
+      opts?.cardConcluido === true,
+      atrasoAcumuladoUteis,
+      atrasoAcumuladoCorridos,
       hoje,
     );
 
-    const atrasoDiasUteis = resolveAtraso(status, dataFimEstimada, dataFimReal, hoje, slaTipo);
+    const dadosParciais = detectarDadosParciais(linhas, opts?.visits ?? []);
 
     return {
-      faseId: fase.id,
-      faseNome: fase.nome,
-      ordem: fase.ordem,
-      slaDias: fase.sla_dias,
-      dataInicioReal,
-      dataFimEstimada,
-      dataFimReal,
-      atrasoDiasUteis,
-      status,
+      faseAtualNome: linhaAtual?.faseNome ?? null,
+      diasNaFase,
+      diasNaFaseTipo: linhaAtual?.slaTipo ?? 'uteis',
+      statusGeral,
+      statusGeralLabel: CALCULADORA_STATUS_GERAL_LABEL[statusGeral],
+      atrasoAcumuladoUteis,
+      atrasoAcumuladoCorridos,
+      percentualConcluido,
+      fasesConcluidas,
+      fasesTotal,
+      maiorGargalo: resolverMaiorGargalo(linhasAtivas, hoje),
+      previsaoConclusao: projectarPrevisaoConclusao(linhasAtivas, hoje),
+      dadosParciais,
     };
-  });
+  } catch {
+    return empty;
+  }
 }

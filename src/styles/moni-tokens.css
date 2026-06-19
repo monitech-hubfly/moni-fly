@@ -380,6 +380,32 @@
   border: 0.5px solid var(--moni-navy-200, #b8ccd4);
 }
 
+.moni-calculadora-progress-track {
+  height: 6px;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--moni-radius-pill);
+  background: var(--moni-rede-chart-track, var(--moni-surface-100));
+  border: 0.5px solid var(--moni-border-default);
+}
+
+.moni-calculadora-progress-fill {
+  height: 100%;
+  border-radius: var(--moni-radius-pill);
+  background: var(--moni-navy-800);
+  transition: width 0.25s ease;
+}
+
+@media (max-width: 640px) {
+  .moni-calculadora-resumo {
+    padding: 12px;
+  }
+
+  .moni-calculadora-resumo-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Identificadores de Kanban */
 .moni-kanban-id--stepone   { background: var(--moni-kanban-stepone-light);   color: var(--moni-kanban-stepone);   border-color: var(--moni-kanban-stepone-accent); }
 .moni-kanban-id--portfolio { background: var(--moni-kanban-portfolio-light); color: var(--moni-kanban-portfolio); border-color: var(--moni-kanban-portfolio-accent); }
