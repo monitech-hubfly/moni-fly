@@ -57,6 +57,7 @@ function mapFases(fases: KanbanFase[]) {
     ordem: f.ordem,
     sla_dias: f.sla_dias,
     fase_conversao: Boolean(f.fase_conversao),
+    slug: f.slug ?? null,
   }));
 }
 
@@ -81,8 +82,34 @@ function mapCardRow(c: {
     | null;
   responsavel_fase_id?: string | null;
   responsavel_fase_nome?: string | null;
+  opcao_assinada?: boolean | null;
+  opcao_assinada_em?: string | null;
+  comite_aprovado?: boolean | null;
+  comite_aprovado_em?: string | null;
+  contrato_assinado?: boolean | null;
+  contrato_assinado_em?: string | null;
+  origem_kanban_id?: string | null;
+  origem_kanban_nome?: string | null;
+  projeto_negocio?:
+    | {
+        franqueado_id?: string | null;
+        rede_franqueados?:
+          | { n_franquia?: string | null; nome_completo?: string | null }
+          | Array<{ n_franquia?: string | null; nome_completo?: string | null }>
+          | null;
+      }
+    | Array<{
+        franqueado_id?: string | null;
+        rede_franqueados?:
+          | { n_franquia?: string | null; nome_completo?: string | null }
+          | Array<{ n_franquia?: string | null; nome_completo?: string | null }>
+          | null;
+      }>
+    | null;
 }): PainelCardDTO {
   const rede = relOne(c.rede_franqueados);
+  const projeto = relOne(c.projeto_negocio);
+  const redeProjeto = relOne(projeto?.rede_franqueados);
   return {
     id: c.id,
     titulo: c.titulo,
@@ -102,6 +129,18 @@ function mapCardRow(c: {
     franqueado_rede_nome: rede?.nome_completo != null ? String(rede.nome_completo) : null,
     responsavel_fase_id: c.responsavel_fase_id ?? null,
     responsavel_fase_nome: c.responsavel_fase_nome ?? null,
+    projeto_franqueado_id: projeto?.franqueado_id != null ? String(projeto.franqueado_id) : null,
+    projeto_n_franquia: redeProjeto?.n_franquia != null ? String(redeProjeto.n_franquia) : null,
+    projeto_franqueado_nome:
+      redeProjeto?.nome_completo != null ? String(redeProjeto.nome_completo) : null,
+    opcao_assinada: c.opcao_assinada ?? null,
+    opcao_assinada_em: c.opcao_assinada_em ?? null,
+    comite_aprovado: c.comite_aprovado ?? null,
+    comite_aprovado_em: c.comite_aprovado_em ?? null,
+    contrato_assinado: c.contrato_assinado ?? null,
+    contrato_assinado_em: c.contrato_assinado_em ?? null,
+    origem_kanban_id: c.origem_kanban_id != null ? String(c.origem_kanban_id) : null,
+    origem_kanban_nome: c.origem_kanban_nome ?? null,
   };
 }
 
@@ -109,6 +148,41 @@ const CARD_SELECT_NATIVO = `
   id,titulo,fase_id,created_at,updated_at,entered_fase_at,franqueado_id,arquivado,arquivado_em,concluido,concluido_em,status,motivo_arquivamento,rede_franqueado_id,
   rede_franqueados ( n_franquia, nome_completo )
 `;
+
+const CARD_SELECT_CAROMETRO = `
+  id,titulo,fase_id,created_at,updated_at,entered_fase_at,franqueado_id,arquivado,arquivado_em,concluido,concluido_em,status,motivo_arquivamento,rede_franqueado_id,
+  opcao_assinada,opcao_assinada_em,comite_aprovado,comite_aprovado_em,contrato_assinado,contrato_assinado_em,origem_kanban_id,origem_kanban_nome,
+  rede_franqueados ( n_franquia, nome_completo ),
+  projeto_negocio ( franqueado_id, rede_franqueados ( n_franquia, nome_completo ) )
+`;
+
+async function fetchKanbanCardsPainel(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  kanbanId: string,
+  privileged: boolean,
+  uid: string | null,
+  useCarometroSelect: boolean,
+): Promise<Parameters<typeof mapCardRow>[0][]> {
+  type Row = Parameters<typeof mapCardRow>[0];
+
+  if (useCarometroSelect) {
+    return fetchPaged<Row>(async (from, to) => {
+      let q = supabase.from('kanban_cards').select(CARD_SELECT_CAROMETRO).eq('kanban_id', kanbanId);
+      q = applyFranqueadoFilter(q, privileged, uid);
+      const res = await q.range(from, to);
+      return {
+        data: (res.data ?? null) as Row[] | null,
+        error: res.error,
+      };
+    });
+  }
+
+  return fetchPaged<Row>(async (from, to) => {
+    let q = supabase.from('kanban_cards').select(CARD_SELECT_NATIVO).eq('kanban_id', kanbanId);
+    q = applyFranqueadoFilter(q, privileged, uid);
+    return q.range(from, to);
+  });
+}
 
 async function fetchRetrocessos(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -234,6 +308,7 @@ async function PainelPerformanceContent({
   const fasesDto = mapFases(fases);
 
   let cardsDto: PainelCardDTO[];
+  let carometroFieldsAvailable = false;
 
   if (origemCards === 'legado') {
     cardsDto = cards.map((c) =>
@@ -253,30 +328,20 @@ async function PainelPerformanceContent({
       }),
     );
   } else {
-    const cardsRows = await fetchPaged<{
-      id: string;
-      titulo: string;
-      fase_id: string;
-      created_at: string;
-      updated_at: string;
-      entered_fase_at: string | null;
-      franqueado_id: string;
-      arquivado: boolean | null;
-      arquivado_em: string | null;
-      concluido: boolean | null;
-      concluido_em: string | null;
-      status: string;
-      motivo_arquivamento: string | null;
-      rede_franqueado_id: string | null;
-      rede_franqueados:
-        | { n_franquia?: string | null; nome_completo?: string | null }
-        | Array<{ n_franquia?: string | null; nome_completo?: string | null }>
-        | null;
-    }>(async (from, to) => {
-      let q = supabase.from('kanban_cards').select(CARD_SELECT_NATIVO).eq('kanban_id', kanbanId);
-      q = applyFranqueadoFilter(q, privileged, uid);
-      return q.range(from, to);
-    });
+    const carometroProbe = await supabase
+      .from('kanban_cards')
+      .select(CARD_SELECT_CAROMETRO)
+      .eq('kanban_id', kanbanId)
+      .limit(1);
+    carometroFieldsAvailable = !carometroProbe.error;
+
+    const cardsRows = await fetchKanbanCardsPainel(
+      supabase,
+      kanbanId,
+      privileged,
+      uid,
+      carometroFieldsAvailable,
+    );
     cardsDto = cardsRows.map((c) => mapCardRow(c));
 
     const briefs: KanbanCardBrief[] = cardsDto.map((c) => ({
@@ -339,6 +404,7 @@ async function PainelPerformanceContent({
     retrocessoRows,
     historicoMovimentos,
     profiles,
+    carometroFieldsAvailable: origemCards === 'legado' ? false : carometroFieldsAvailable,
   };
 
   return <PainelPerformanceDashboard dataset={dataset} />;

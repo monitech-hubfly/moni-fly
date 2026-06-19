@@ -51,6 +51,7 @@ import {
   excluirSubInteracao,
   finalizarCard,
   moverCardParaFase,
+  registrarConfirmacaoFasePortfolio,
   verificarGatePortfolioStep5,
   listarTagsCard,
   listarTagsKanban,
@@ -85,6 +86,11 @@ import {
 import { aplicarDataEnvioCreditoObraNoPreObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import { CreditoObraAberturaAutorizacaoModal } from './CreditoObraAberturaAutorizacaoModal';
 import { isPortfolioKanbanRef, isLoteadoresKanbanRef } from '@/lib/kanban/portfolio-paralelas';
+import {
+  deveConfirmarSaidaFasePortfolio,
+  portfolioConfirmacaoPergunta,
+  type PortfolioConfirmacaoFaseTipo,
+} from '@/lib/kanban/portfolio-confirmacao-fase';
 import {
   cardLoteadoresPrecisaJustificativaSla,
 } from '@/lib/kanban/loteadores-sla-justificativa';
@@ -625,6 +631,13 @@ export function KanbanCardModal({
     itensPendentes: number;
   } | null>(null);
   const [solicitandoAprovacaoFase, setSolicitandoAprovacaoFase] = useState(false);
+  const [modalConfirmacaoPortfolio, setModalConfirmacaoPortfolio] = useState<{
+    tipo: PortfolioConfirmacaoFaseTipo;
+    destinoFase: KanbanFase;
+    direcao: 'avancar' | 'retroceder';
+    opts?: { motivoReprovacaoAcoplamento?: string; justificativaSlaQuebra?: string };
+  } | null>(null);
+  const [salvandoConfirmacaoPortfolio, setSalvandoConfirmacaoPortfolio] = useState(false);
 
   const timesNovaFiltrados = useMemo(
     () => ordenarLinhasTimeKanbanPorCatalogoMoni(kanbanTimes, false),
@@ -661,6 +674,8 @@ export function KanbanCardModal({
     setModalExcluirInteracaoId(null);
     setSalvandoExcluirInteracao(false);
     setModalAprovacaoFase(null);
+    setModalConfirmacaoPortfolio(null);
+    setSalvandoConfirmacaoPortfolio(false);
     setSolicitandoAprovacaoFase(false);
     setEditingComentarioId(null);
     setEditComentarioDraft('');
@@ -2154,6 +2169,85 @@ export function KanbanCardModal({
     }
   }
 
+  async function executarRetrocederFase(destinoFase: KanbanFase) {
+    if (!card || !faseAtual) return;
+    setMovendoFase(true);
+    try {
+      const supabase = createClient();
+      if (origem === 'legado') {
+        const slug = destinoFase.slug?.trim();
+        if (!slug) {
+          alert('Esta fase não tem slug cadastrado; não é possível retroceder o processo por aqui.');
+          return;
+        }
+        const fromSlug = faseAtual.slug?.trim();
+        const { error } = await supabase.from('processo_step_one').update({ etapa_painel: slug }).eq('id', card.id);
+        if (error) throw error;
+        if (fromSlug) await registrarMovimentoLegadoKanban(fromSlug, slug);
+      } else {
+        const { error } = await supabase.from('kanban_cards').update({ fase_id: destinoFase.id }).eq('id', card.id);
+        if (error) throw error;
+      }
+      await loadCard({ silencioso: true });
+      router.refresh();
+    } catch {
+      alert('Erro ao retroceder fase.');
+    } finally {
+      setMovendoFase(false);
+    }
+  }
+
+  function tipoConfirmacaoPortfolioSaidaAtual(): PortfolioConfirmacaoFaseTipo | null {
+    if (!card || isLegado) return null;
+    return deveConfirmarSaidaFasePortfolio({
+      kanbanId: card.kanban_id,
+      faseSlug: faseAtual?.slug,
+      origemCard: origem,
+    });
+  }
+
+  async function iniciarMovimentoFasePortfolio(
+    destinoFase: KanbanFase,
+    direcao: 'avancar' | 'retroceder',
+    opts?: { motivoReprovacaoAcoplamento?: string; justificativaSlaQuebra?: string },
+  ) {
+    const tipo = tipoConfirmacaoPortfolioSaidaAtual();
+    if (tipo) {
+      setModalJustificativaSla(null);
+      setSlaJustificativaDraft('');
+      setModalReprovacaoAcoplamento(null);
+      setMotivoReprovacaoDraft('');
+      setModalConfirmacaoPortfolio({ tipo, destinoFase, direcao, opts });
+      return;
+    }
+    if (direcao === 'avancar') await executarAvancarFase(destinoFase, opts);
+    else await executarRetrocederFase(destinoFase);
+  }
+
+  async function concluirConfirmacaoPortfolio(confirmou: boolean) {
+    const modal = modalConfirmacaoPortfolio;
+    if (!modal || !card) return;
+    setSalvandoConfirmacaoPortfolio(true);
+    try {
+      if (confirmou) {
+        const res = await registrarConfirmacaoFasePortfolio({
+          cardId: card.id,
+          tipo: modal.tipo,
+          basePath,
+        });
+        if (!res.ok) {
+          alert(res.error ?? 'Não foi possível registrar a confirmação.');
+          return;
+        }
+      }
+      if (modal.direcao === 'avancar') await executarAvancarFase(modal.destinoFase, modal.opts);
+      else await executarRetrocederFase(modal.destinoFase);
+      setModalConfirmacaoPortfolio(null);
+    } finally {
+      setSalvandoConfirmacaoPortfolio(false);
+    }
+  }
+
   async function handleAvancarFase() {
     if (!card || !faseAtual) return;
     if (!podeMoverFaseCard) {
@@ -2238,7 +2332,7 @@ export function KanbanCardModal({
       setModalAprovacaoFase({ fase: proximaFase, direcao: 'avancar', itensPendentes: checklist.itens_pendentes });
       return;
     }
-    await executarAvancarFase(proximaFase);
+    await iniciarMovimentoFasePortfolio(proximaFase, 'avancar');
   }
 
   async function handleRetrocederFase() {
@@ -2254,30 +2348,7 @@ export function KanbanCardModal({
       return;
     }
     if (!confirm(`Voltar para a fase "${faseAnterior.nome}"?`)) return;
-    setMovendoFase(true);
-    try {
-      const supabase = createClient();
-      if (origem === 'legado') {
-        const slug = faseAnterior.slug?.trim();
-        if (!slug) {
-          alert('Esta fase não tem slug cadastrado; não é possível retroceder o processo por aqui.');
-          return;
-        }
-        const fromSlug = faseAtual.slug?.trim();
-        const { error } = await supabase.from('processo_step_one').update({ etapa_painel: slug }).eq('id', card.id);
-        if (error) throw error;
-        if (fromSlug) await registrarMovimentoLegadoKanban(fromSlug, slug);
-      } else {
-        const { error } = await supabase.from('kanban_cards').update({ fase_id: faseAnterior.id }).eq('id', card.id);
-        if (error) throw error;
-      }
-      await loadCard({ silencioso: true });
-      router.refresh();
-    } catch {
-      alert('Erro ao retroceder fase.');
-    } finally {
-      setMovendoFase(false);
-    }
+    await iniciarMovimentoFasePortfolio(faseAnterior, 'retroceder');
   }
 
   async function handleSolicitarAprovacaoFase() {
@@ -6608,7 +6679,7 @@ export function KanbanCardModal({
                 }
                 const fase = modalJustificativaSla;
                 setSalvandoJustificativaSla(true);
-                void executarAvancarFase(fase, { justificativaSlaQuebra: justificativa })
+                void iniciarMovimentoFasePortfolio(fase, 'avancar', { justificativaSlaQuebra: justificativa })
                   .then(() => {
                     setModalJustificativaSla(null);
                     setSlaJustificativaDraft('');
@@ -6673,7 +6744,7 @@ export function KanbanCardModal({
                 }
                 const fase = modalReprovacaoAcoplamento;
                 setSalvandoReprovacaoAcoplamento(true);
-                void executarAvancarFase(fase, { motivoReprovacaoAcoplamento: motivo })
+                void iniciarMovimentoFasePortfolio(fase, 'avancar', { motivoReprovacaoAcoplamento: motivo })
                   .then(() => {
                     setModalReprovacaoAcoplamento(null);
                     setMotivoReprovacaoDraft('');
@@ -6683,6 +6754,60 @@ export function KanbanCardModal({
               className="rounded-lg bg-stone-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
               {salvandoReprovacaoAcoplamento ? 'Salvando…' : 'Confirmar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+
+    {modalConfirmacaoPortfolio ? (
+      <div className="fixed inset-0 z-[225] flex items-center justify-center bg-black/50 p-4">
+        <div
+          className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirmacao-portfolio-titulo"
+          style={{
+            borderRadius: 'var(--moni-radius-lg)',
+            border: 'var(--moni-border-width) solid var(--moni-border-default)',
+          }}
+        >
+          <h3
+            id="confirmacao-portfolio-titulo"
+            className="text-base font-semibold"
+            style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
+          >
+            Confirmação
+          </h3>
+          <p className="mt-3 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+            {portfolioConfirmacaoPergunta(modalConfirmacaoPortfolio.tipo)}
+          </p>
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              disabled={salvandoConfirmacaoPortfolio || movendoFase}
+              onClick={() => void concluirConfirmacaoPortfolio(false)}
+              className="min-h-[44px] rounded-lg px-4 py-2 text-sm font-medium transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{
+                borderRadius: 'var(--moni-radius-md)',
+                border: 'var(--moni-border-width) solid var(--moni-border-default)',
+                color: 'var(--moni-text-secondary)',
+                background: 'var(--moni-surface-elevated, #fff)',
+              }}
+            >
+              Não — apenas avançar
+            </button>
+            <button
+              type="button"
+              disabled={salvandoConfirmacaoPortfolio || movendoFase}
+              onClick={() => void concluirConfirmacaoPortfolio(true)}
+              className="min-h-[44px] rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{
+                borderRadius: 'var(--moni-radius-md)',
+                background: 'var(--moni-navy-800)',
+              }}
+            >
+              {salvandoConfirmacaoPortfolio || movendoFase ? 'Salvando…' : 'Sim'}
             </button>
           </div>
         </div>

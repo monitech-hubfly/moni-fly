@@ -248,6 +248,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
     () =>
       computePainelPerformance({
         mode: dataset.mode,
+        kanbanId: dataset.kanbanId,
         period,
         fases: dataset.fases,
         cards: dadosFiltrados.cards,
@@ -257,8 +258,9 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
         historicoMovimentos: dadosFiltrados.historicoMovimentos,
         historicoAnalise: dadosFiltrados.historicoAnalise,
         profiles: dataset.profiles,
+        carometroFieldsAvailable: dataset.carometroFieldsAvailable,
       }),
-    [dataset.mode, dataset.fases, dataset.profiles, dadosFiltrados, period],
+    [dataset.mode, dataset.kanbanId, dataset.carometroFieldsAvailable, dataset.fases, dataset.profiles, dadosFiltrados, period],
   );
 
   const openCardBase = (pathname ?? '/').trim() || '/';

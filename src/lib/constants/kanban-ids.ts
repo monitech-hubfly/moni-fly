@@ -165,6 +165,9 @@ export const FASE_SLUGS = {
   OPERACOES_ENTREGUE:        'operacoes_entregue',
   // Gates
   STEP_5:             'step_5',
+  STEP_6:             'step_6',
+  /** Funil Portfólio — fase Opção (confirmação migration 389). Legado PROD: `step_3`. */
+  OPCAO:              'opcao',
   // Funil Step One (KANBAN_IDS.STEP_ONE) — fluxo ordem 1–13 (PROD)
   ONBOARDING:           'onboarding',
   DADOS_CANDIDATO:      'dados_candidato',
@@ -183,6 +186,13 @@ export const FASE_SLUGS = {
   ESCOLHA:              'escolha',
   HIPOTESES:            'hipoteses',
 } as const
+
+/** Funil Portfólio — slugs que disparam confirmação ao sair da fase (migration 389). */
+export const PORTFOLIO_FASES_CONFIRMACAO_SAIDA = {
+  opcao: [FASE_SLUGS.OPCAO, FASE_SLUGS.STEP_3],
+  comite: [FASE_SLUGS.STEP_5],
+  contrato: [FASE_SLUGS.STEP_7],
+} as const;
 
 // Kanbans onde Frank pode abrir chamado jurídico manualmente
 export const KANBANS_COM_CHAMADO_JURIDICO = [

@@ -4,6 +4,7 @@ export type PainelFaseDTO = {
   ordem: number;
   sla_dias: number | null;
   fase_conversao: boolean;
+  slug?: string | null;
 };
 
 export type PainelCardDTO = {
@@ -25,6 +26,45 @@ export type PainelCardDTO = {
   franqueado_rede_nome?: string | null;
   responsavel_fase_id?: string | null;
   responsavel_fase_nome?: string | null;
+  /** projeto_negocio.franqueado_id (rede_franqueados) — Carômetro. */
+  projeto_franqueado_id?: string | null;
+  projeto_n_franquia?: string | null;
+  projeto_franqueado_nome?: string | null;
+  opcao_assinada?: boolean | null;
+  opcao_assinada_em?: string | null;
+  comite_aprovado?: boolean | null;
+  comite_aprovado_em?: string | null;
+  contrato_assinado?: boolean | null;
+  contrato_assinado_em?: string | null;
+  origem_kanban_id?: string | null;
+  origem_kanban_nome?: string | null;
+};
+
+export type PainelCarometroFranquiaCount = {
+  franqueadoId: string;
+  label: string;
+  quantidade: number;
+};
+
+export type PainelCarometroIndicadores = {
+  opcoes_assinadas_no_periodo: {
+    total: number;
+    porFranquia: PainelCarometroFranquiaCount[];
+  } | null;
+  contratos_assinados_no_periodo: {
+    total: number;
+    porFranquia: PainelCarometroFranquiaCount[];
+  } | null;
+  comite_para_contrato_taxa: {
+    numerador: number;
+    denominador: number;
+    percentual: number | null;
+  } | null;
+  hipoteses_no_periodo: {
+    total: number;
+    porFranquia: PainelCarometroFranquiaCount[];
+  } | null;
+  acoplamentos_por_origem: Array<{ origem: string; quantidade: number }> | null;
 };
 
 export type PainelAtividadeDTO = {
@@ -142,6 +182,8 @@ export type PainelPerformanceDataset = {
   retrocessoRows: PainelRetrocessoDTO[];
   historicoMovimentos: PainelHistoricoMovimentoDTO[];
   profiles: Record<string, string>;
+  /** Colunas Carômetro (migration 389) disponíveis no fetch de cards. */
+  carometroFieldsAvailable?: boolean;
 };
 
 export type PainelPeriodKey = '7d' | '30d' | '90d' | 'all';
@@ -390,6 +432,8 @@ export type PainelPerformanceResult = {
   };
   chamados: PainelChamadosAnalise;
   insights: PainelInsight[];
+  /** KPIs conectáveis ao Carômetro (por funil; null quando não aplicável). */
+  carometro: PainelCarometroIndicadores;
 };
 
 /** @deprecated Use PainelPerformanceResult */
