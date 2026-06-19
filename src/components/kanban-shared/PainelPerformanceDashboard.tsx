@@ -3366,13 +3366,11 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
               </PanelBox>
               <PanelBox title="Problemas por fase">
                 <DataTable
-                  headers={['Fase', 'Sem prazo', 'Sem responsável', 'Campos incompletos']}
+                  headers={['Fase', 'Total']}
                   emptyMessage="Nenhuma lacuna identificada por fase."
                   rows={qualidadeOperacional.porFase.map((f) => [
                     f.faseNome,
-                    formatInt(f.semPrazo),
-                    formatInt(f.semResponsavel),
-                    formatInt(f.camposIncompletos),
+                    formatInt(f.semPrazo + f.semResponsavel + f.camposIncompletos),
                   ])}
                   alignRightFrom={1}
                 />
@@ -3411,7 +3409,10 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                 <DataTable
                   headers={['Status', 'Qtd.']}
                   emptyMessage="Sem chamados."
-                  rows={analise.chamados.porStatus.map((r) => [r.status, formatInt(r.total)])}
+                  rows={mergeChamadosPorStatus(analise.chamados.porStatus).map((r) => [
+                    r.status,
+                    formatInt(r.total),
+                  ])}
                   alignRightFrom={1}
                 />
               </PanelBox>
