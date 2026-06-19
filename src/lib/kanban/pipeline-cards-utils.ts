@@ -293,3 +293,10 @@ export function labelFranqueadoPipeline(f: PipelineFranqueadoUnidade): string {
   if (fk && nome) return `${fk} — ${nome}`;
   return fk || nome || '—';
 }
+
+/** Código FK compacto para tabelas do funil (sem nome). */
+export function fkFranqueadoPipeline(f: Pick<PipelineFranqueadoUnidade, 'n_franquia' | 'rede_franqueado_id'>): string {
+  const fk = String(f.n_franquia ?? '').trim();
+  if (fk) return fk;
+  return String(f.rede_franqueado_id ?? '').trim().slice(0, 6) || '—';
+}

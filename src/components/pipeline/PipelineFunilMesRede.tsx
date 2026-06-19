@@ -1,13 +1,18 @@
 'use client';
 
-import { Fragment, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import type {
+  PipelineCardRow,
+  PipelineFranqueadoUnidade,
   PipelineFunilMesColuna,
-  PipelineFunilMesRede as PipelineFunilMesRedeData,
+  PipelineFunilPeriodo,
 } from '@/lib/kanban/pipeline-cards-types';
-import { dotCorFunilMesRede, formatFunilMesConversaoSeta } from '@/lib/kanban/pipeline-funil-mes-compute';
-import { PipelineFunilMesDotsFromNivel } from '@/components/pipeline/PipelineFunilMesDots';
+import {
+  computeFunilMesRede,
+  formatFunilMesConversaoSeta,
+} from '@/lib/kanban/pipeline-funil-mes-compute';
+import { excluirFranquiaDosGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
 
 const panelStyle: React.CSSProperties = {
   borderRadius: 'var(--moni-radius-lg)',
@@ -15,99 +20,153 @@ const panelStyle: React.CSSProperties = {
   background: 'var(--moni-surface-0)',
 };
 
+const toggleWrapStyle: React.CSSProperties = {
+  borderRadius: 'var(--moni-radius-md)',
+  border: '0.5px solid var(--moni-border-default)',
+  background: 'var(--moni-surface-100)',
+  padding: '2px',
+};
+
 type Props = {
-  funil: PipelineFunilMesRedeData;
+  cards: PipelineCardRow[];
+  franqueados: PipelineFranqueadoUnidade[];
   className?: string;
 };
 
-function ColunaUnidadeTabela({ col }: { col: PipelineFunilMesColuna }) {
+function ColunaUnidadeTabela({ col, temZerosGlobal }: { col: PipelineFunilMesColuna; temZerosGlobal: boolean }) {
   const [showZeros, setShowZeros] = useState(false);
   const temZeros = col.porUnidadeZeradas.length > 0;
   const rows = showZeros ? [...col.porUnidade, ...col.porUnidadeZeradas] : col.porUnidade;
 
   return (
-    <div className="mt-3">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[160px] text-left text-[10px]">
-          <thead>
-            <tr style={{ borderBottom: '0.5px solid var(--moni-border-subtle, var(--moni-border-default))' }}>
-              <th className="pb-1.5 pr-2 font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
-                Unidade
-              </th>
-              <th className="pb-1.5 pr-2 text-right font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
-                Qtd
-              </th>
-              <th className="pb-1.5 font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
-                ·
-              </th>
+    <div className="mt-3 flex min-h-0 flex-1 flex-col">
+      <table className="w-full text-left text-[10px]">
+        <thead>
+          <tr style={{ borderBottom: '0.5px solid var(--moni-border-subtle, var(--moni-border-default))' }}>
+            <th className="pb-1.5 pr-1 font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+              FK
+            </th>
+            <th className="pb-1.5 text-right font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+              Qtd
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={2} className="py-2" style={{ color: 'var(--moni-text-tertiary)' }}>
+                —
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td colSpan={3} className="py-2" style={{ color: 'var(--moni-text-tertiary)' }}>
-                  —
+          ) : (
+            rows.map((row) => (
+              <tr
+                key={row.redeId}
+                style={{ borderBottom: '0.5px solid var(--moni-border-subtle, var(--moni-border-default))' }}
+              >
+                <td
+                  className="py-1 pr-1 tabular-nums"
+                  style={{ color: row.quantidade > 0 ? 'var(--moni-text-secondary)' : 'var(--moni-text-tertiary)' }}
+                >
+                  {row.label}
+                </td>
+                <td
+                  className="py-1 text-right tabular-nums font-medium"
+                  style={{ color: row.quantidade > 0 ? 'var(--moni-text-primary)' : 'var(--moni-text-tertiary)' }}
+                >
+                  {row.quantidade}
                 </td>
               </tr>
-            ) : (
-              rows.map((row) => (
-                <tr
-                  key={row.redeId}
-                  style={{ borderBottom: '0.5px solid var(--moni-border-subtle, var(--moni-border-default))' }}
-                >
-                  <td
-                    className="max-w-[8rem] truncate py-1.5 pr-2"
-                    style={{ color: row.quantidade > 0 ? 'var(--moni-text-secondary)' : 'var(--moni-text-tertiary)' }}
-                    title={row.label}
-                  >
-                    {row.label}
-                  </td>
-                  <td
-                    className="py-1.5 pr-2 text-right tabular-nums font-medium"
-                    style={{ color: row.quantidade > 0 ? 'var(--moni-text-primary)' : 'var(--moni-text-tertiary)' }}
-                  >
-                    {row.quantidade}
-                  </td>
-                  <td className="py-1.5">
-                    <PipelineFunilMesDotsFromNivel nivel={row.dots} dotCor={dotCorFunilMesRede(row.quantidade)} />
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+            ))
+          )}
+        </tbody>
+      </table>
+      <div className="mt-auto pt-1.5">
+        {temZeros ? (
+          <button
+            type="button"
+            onClick={() => setShowZeros((v) => !v)}
+            className="min-h-[28px] w-full text-left text-[10px] font-medium underline-offset-2 hover:underline"
+            style={{ color: 'var(--moni-navy-800)' }}
+          >
+            {showZeros ? 'Ocultar zeradas' : 'Ver todas'}
+          </button>
+        ) : temZerosGlobal ? (
+          <span className="block min-h-[28px]" aria-hidden />
+        ) : null}
       </div>
-      {temZeros ? (
-        <button
-          type="button"
-          onClick={() => setShowZeros((v) => !v)}
-          className="mt-1.5 min-h-[44px] text-[10px] font-medium underline-offset-2 hover:underline"
-          style={{ color: 'var(--moni-navy-800)' }}
-        >
-          {showZeros ? 'Ocultar zeradas' : 'Ver todas'}
-        </button>
-      ) : null}
     </div>
   );
 }
 
-export function PipelineFunilMesRede({ funil, className }: Props) {
+function PeriodoToggle({
+  periodo,
+  onChange,
+}: {
+  periodo: PipelineFunilPeriodo;
+  onChange: (p: PipelineFunilPeriodo) => void;
+}) {
+  const btn = (id: PipelineFunilPeriodo, label: string) => {
+    const active = periodo === id;
+    return (
+      <button
+        type="button"
+        onClick={() => onChange(id)}
+        className="min-h-[28px] rounded-md px-2.5 text-[11px] font-medium transition"
+        style={{
+          borderRadius: '6px',
+          background: active ? 'var(--moni-surface-0)' : 'transparent',
+          color: active ? 'var(--moni-navy-800)' : 'var(--moni-text-tertiary)',
+          boxShadow: active ? 'var(--moni-shadow-card, 0 1px 2px rgba(12,38,51,0.08))' : undefined,
+        }}
+      >
+        {label}
+      </button>
+    );
+  };
+
+  return (
+    <div className="flex shrink-0 gap-0.5" style={toggleWrapStyle} role="group" aria-label="Período do funil">
+      {btn('mes', 'Mês')}
+      {btn('tri', 'Tri')}
+    </div>
+  );
+}
+
+export function PipelineFunilMesRede({ cards, franqueados, className }: Props) {
+  const [periodo, setPeriodo] = useState<PipelineFunilPeriodo>('mes');
+
+  const franqueadosElegiveis = useMemo(
+    () => franqueados.filter((f) => !excluirFranquiaDosGraficosVisaoGeral(f.n_franquia)),
+    [franqueados],
+  );
+
+  const funil = useMemo(
+    () => computeFunilMesRede(cards, franqueadosElegiveis, periodo),
+    [cards, franqueadosElegiveis, periodo],
+  );
+
   if (!funil.disponivel) return null;
+
+  const temZerosGlobal = funil.colunas.some((c) => c.porUnidadeZeradas.length > 0);
+  const tituloPeriodo = periodo === 'mes' ? 'Funil do mês — rede' : 'Funil do tri — rede';
 
   return (
     <section className={`mb-6 px-4 py-4 ${className ?? ''}`} style={panelStyle}>
-      <h2
-        className="mb-4 text-[13px] font-semibold"
-        style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-navy-800)' }}
-      >
-        Funil do mês — rede
-      </h2>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h2
+          className="text-[13px] font-semibold"
+          style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-navy-800)' }}
+        >
+          {tituloPeriodo}
+        </h2>
+        <PeriodoToggle periodo={periodo} onChange={setPeriodo} />
+      </div>
 
-      <div className="overflow-x-auto">
-        <div className="flex min-w-[1120px] flex-col gap-4 lg:flex-row lg:items-start">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
         {funil.colunas.map((col, idx) => (
           <Fragment key={col.key}>
-            <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-1 flex-col lg:max-w-[5.75rem]">
               <p className="text-[10px] font-medium uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
                 {col.label}
               </p>
@@ -137,11 +196,11 @@ export function PipelineFunilMesRede({ funil, className }: Props) {
                 ))}
               </div>
 
-              <ColunaUnidadeTabela col={col} />
+              <ColunaUnidadeTabela col={col} temZerosGlobal={temZerosGlobal} />
             </div>
 
             {idx < funil.colunas.length - 1 ? (
-              <div className="flex shrink-0 flex-col items-center justify-start gap-1 px-1 pt-8 lg:px-0">
+              <div className="flex shrink-0 flex-col items-center justify-start gap-1 px-0.5 pt-8 lg:px-0">
                 <ArrowRight className="h-4 w-4" style={{ color: 'var(--moni-text-tertiary)' }} aria-hidden />
                 <span className="whitespace-nowrap text-[10px] tabular-nums" style={{ color: 'var(--moni-text-secondary)' }}>
                   {formatFunilMesConversaoSeta(funil.conversoes[idx] ?? null)}
@@ -150,7 +209,6 @@ export function PipelineFunilMesRede({ funil, className }: Props) {
             ) : null}
           </Fragment>
         ))}
-        </div>
       </div>
     </section>
   );

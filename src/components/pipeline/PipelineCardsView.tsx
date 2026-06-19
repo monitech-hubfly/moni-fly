@@ -24,7 +24,7 @@ import {
   montarBlocosUnidadePipeline,
   sortCardsFranqueadoraPrioridade,
 } from '@/lib/kanban/pipeline-franqueadora-compute';
-import { computeFunilMesRede, computeFunilMesUnidade } from '@/lib/kanban/pipeline-funil-mes-compute';
+import { computeFunilMesUnidade } from '@/lib/kanban/pipeline-funil-mes-compute';
 import {
   calcularKpisPipelineUnidadeExtended,
   montarBlocosDisplayUnidade,
@@ -283,13 +283,15 @@ export function PipelineCardsView({
     );
   }, [viewMode, scoped.franqueados, cardsFiltrados, dataset.enrichment?.chamados]);
 
-  const funilMesRede = useMemo(() => {
-    if (viewMode !== 'franqueadora') return null;
-    const franqueadosElegiveis = scoped.franqueados.filter(
-      (f) => !excluirFranquiaDosGraficosVisaoGeral(f.n_franquia),
-    );
-    return computeFunilMesRede(cardsElegiveisFranqueadora(cardsFiltrados), franqueadosElegiveis);
-  }, [viewMode, cardsFiltrados, scoped.franqueados]);
+  const funilRedeCards = useMemo(() => {
+    if (viewMode !== 'franqueadora') return [];
+    return cardsElegiveisFranqueadora(cardsFiltrados);
+  }, [viewMode, cardsFiltrados]);
+
+  const funilRedeFranqueados = useMemo(() => {
+    if (viewMode !== 'franqueadora') return [];
+    return scoped.franqueados.filter((f) => !excluirFranquiaDosGraficosVisaoGeral(f.n_franquia));
+  }, [viewMode, scoped.franqueados]);
 
   const funilMesUnidade = useMemo(
     () => (viewMode === 'unidade' ? computeFunilMesUnidade(scoped.cards) : null),
@@ -360,7 +362,9 @@ export function PipelineCardsView({
       ) : null}
       {showKpis && viewMode === 'unidade' && kpisUnidade ? <PipelineKpisBarUnidade kpis={kpisUnidade} /> : null}
 
-      {viewMode === 'franqueadora' && funilMesRede ? <PipelineFunilMesRede funil={funilMesRede} /> : null}
+      {viewMode === 'franqueadora' ? (
+        <PipelineFunilMesRede cards={funilRedeCards} franqueados={funilRedeFranqueados} />
+      ) : null}
 
       {viewMode === 'unidade' && (saudeUnidade || funilMesUnidade) ? (
         <div className="mb-6 px-4 py-4" style={panelStyle}>

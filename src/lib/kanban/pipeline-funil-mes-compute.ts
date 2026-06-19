@@ -11,9 +11,10 @@ import type {
   PipelineFunilMesUnidade,
   PipelineFunilMesUnidadeMetric,
   PipelineFunilMesUnidadeRow,
+  PipelineFunilPeriodo,
   PipelineFranqueadoUnidade,
 } from '@/lib/kanban/pipeline-cards-types';
-import { labelFranqueadoPipeline } from '@/lib/kanban/pipeline-cards-utils';
+import { fkFranqueadoPipeline } from '@/lib/kanban/pipeline-cards-utils';
 import { excluirFranquiaDosGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
 
 const UNIDADE_BAR_COLORS = [
@@ -47,16 +48,30 @@ function inicioMesCorrente(): Date {
   return new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
 }
 
+function inicioTrimestreCorrente(): Date {
+  const now = new Date();
+  const mesInicioTri = Math.floor(now.getMonth() / 3) * 3;
+  return new Date(now.getFullYear(), mesInicioTri, 1, 0, 0, 0, 0);
+}
+
 function fimHoje(): Date {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 }
 
 export function isNoMesCorrente(iso: string | null | undefined): boolean {
+  return isNoPeriodoCorrente(iso, 'mes');
+}
+
+export function isNoPeriodoCorrente(
+  iso: string | null | undefined,
+  periodo: PipelineFunilPeriodo,
+): boolean {
   if (!iso) return false;
   const d = new Date(iso);
   if (!Number.isFinite(d.getTime())) return false;
-  return d >= inicioMesCorrente() && d <= fimHoje();
+  const inicio = periodo === 'mes' ? inicioMesCorrente() : inicioTrimestreCorrente();
+  return d >= inicio && d <= fimHoje();
 }
 
 export function diaDoMesCorrente(): number {
@@ -126,31 +141,36 @@ function etapaOperacoesIndisponivel(cards: PipelineCardRow[], key: PipelineFunil
   return !funilMesOperacoesFieldsAvailable(cards);
 }
 
-function cardContaEtapa(c: PipelineCardRow, key: PipelineFunilMesEtapaKey): boolean {
+function cardContaEtapa(
+  c: PipelineCardRow,
+  key: PipelineFunilMesEtapaKey,
+  periodo: PipelineFunilPeriodo = 'mes',
+): boolean {
+  const noPeriodo = (iso: string | null | undefined) => isNoPeriodoCorrente(iso, periodo);
   if (key === 'hipoteses') {
-    return isHipotesesFaseSlug(c.fase_slug) && isNoMesCorrente(c.entered_fase_at);
+    return isHipotesesFaseSlug(c.fase_slug) && noPeriodo(c.entered_fase_at);
   }
   if (key === 'opcoes') {
-    return c.opcao_assinada === true && isNoMesCorrente(c.opcao_assinada_em);
+    return c.opcao_assinada === true && noPeriodo(c.opcao_assinada_em);
   }
   if (key === 'comites') {
-    return c.comite_aprovado === true && isNoMesCorrente(c.comite_aprovado_em);
+    return c.comite_aprovado === true && noPeriodo(c.comite_aprovado_em);
   }
   if (key === 'contratos') {
-    return c.contrato_assinado === true && isNoMesCorrente(c.contrato_assinado_em);
+    return c.contrato_assinado === true && noPeriodo(c.contrato_assinado_em);
   }
   if (!isCardOperacoes(c)) return false;
   if (key === 'aprovacoes') {
     if (c.prefeitura_aprovada === undefined) return false;
-    return c.prefeitura_aprovada === true && isNoMesCorrente(c.prefeitura_aprovada_em);
+    return c.prefeitura_aprovada === true && noPeriodo(c.prefeitura_aprovada_em);
   }
   if (key === 'obras_iniciadas') {
     if (c.obra_iniciada === undefined) return false;
-    return c.obra_iniciada === true && isNoMesCorrente(c.obra_iniciada_em);
+    return c.obra_iniciada === true && noPeriodo(c.obra_iniciada_em);
   }
   if (key === 'obras_finalizadas') {
     if (c.obra_finalizada === undefined) return false;
-    return c.obra_finalizada === true && isNoMesCorrente(c.obra_finalizada_em);
+    return c.obra_finalizada === true && noPeriodo(c.obra_finalizada_em);
   }
   return false;
 }
@@ -163,23 +183,24 @@ function contarPorRede(
   cards: PipelineCardRow[],
   key: PipelineFunilMesEtapaKey,
   franqueados: PipelineFranqueadoUnidade[],
+  periodo: PipelineFunilPeriodo,
 ): PipelineFunilMesUnidadeRow[] {
   const porRede = new Map<string, number>();
   for (const c of cards) {
-    if (!cardContaEtapa(c, key)) continue;
+    if (!cardContaEtapa(c, key, periodo)) continue;
     const rid = String(c.rede_franqueado_id ?? '').trim();
     if (!rid) continue;
     porRede.set(rid, (porRede.get(rid) ?? 0) + 1);
   }
 
-  const labelPorRede = new Map(franqueados.map((f) => [f.rede_franqueado_id, labelFranqueadoPipeline(f)]));
+  const labelPorRede = new Map(franqueados.map((f) => [f.rede_franqueado_id, fkFranqueadoPipeline(f)]));
 
   return [...porRede.entries()]
     .map(([redeId, quantidade]) => {
       const { filled } = quantidadeParaDots(quantidade);
       return {
         redeId,
-        label: labelPorRede.get(redeId) ?? redeId.slice(0, 8),
+        label: labelPorRede.get(redeId) ?? redeId.slice(0, 6),
         quantidade,
         dots: filled,
       };
@@ -203,15 +224,16 @@ function buildColuna(
   label: string,
   cards: PipelineCardRow[],
   franqueados: PipelineFranqueadoUnidade[],
+  periodo: PipelineFunilPeriodo,
 ): PipelineFunilMesColuna {
   const totalIndisponivel = etapaOperacoesIndisponivel(cards, key);
   let total = 0;
   if (!totalIndisponivel) {
     for (const c of cards) {
-      if (cardContaEtapa(c, key)) total += 1;
+      if (cardContaEtapa(c, key, periodo)) total += 1;
     }
   }
-  const porUnidade = totalIndisponivel ? [] : contarPorRede(cards, key, franqueados);
+  const porUnidade = totalIndisponivel ? [] : contarPorRede(cards, key, franqueados, periodo);
   const idsComQtd = new Set(porUnidade.map((r) => r.redeId));
   const porUnidadeZeradas: PipelineFunilMesUnidadeRow[] = totalIndisponivel
     ? []
@@ -219,7 +241,7 @@ function buildColuna(
         .filter((f) => !idsComQtd.has(f.rede_franqueado_id))
         .map((f) => ({
           redeId: f.rede_franqueado_id,
-          label: labelFranqueadoPipeline(f),
+          label: fkFranqueadoPipeline(f),
           quantidade: 0,
           dots: 0 as PipelineFunilMesDotNivel,
         }))
@@ -287,16 +309,18 @@ export function computeFunilMesCompact(cards: PipelineCardRow[]): PipelineFunilM
 export function computeFunilMesRede(
   cards: PipelineCardRow[],
   franqueados: PipelineFranqueadoUnidade[],
+  periodo: PipelineFunilPeriodo = 'mes',
 ): PipelineFunilMesRede {
   const elegiveis = cardsElegiveisFunilMes(cards);
   const franqueadosElegiveis = franqueados.filter((f) => !excluirFranquiaDosGraficosVisaoGeral(f.n_franquia));
 
-  const colunas = ETAPAS.map((e) => buildColuna(e.key, e.label, elegiveis, franqueadosElegiveis));
+  const colunas = ETAPAS.map((e) => buildColuna(e.key, e.label, elegiveis, franqueadosElegiveis, periodo));
 
   return {
     colunas,
     conversoes: buildConversoes(colunas),
     disponivel: elegiveis.length > 0 || funilMesFieldsAvailable(cards),
+    periodo,
   };
 }
 

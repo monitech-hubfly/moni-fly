@@ -229,10 +229,13 @@ export type PipelineFunilMesColuna = {
   barSegments: PipelineFunilMesBarSegment[];
 };
 
+export type PipelineFunilPeriodo = 'mes' | 'tri';
+
 export type PipelineFunilMesRede = {
   colunas: PipelineFunilMesColuna[];
   conversoes: (number | null)[];
   disponivel: boolean;
+  periodo: PipelineFunilPeriodo;
 };
 
 export type PipelineFunilMesUnidadeMetric = {
