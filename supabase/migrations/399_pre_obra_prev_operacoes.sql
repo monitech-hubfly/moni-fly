@@ -1,6 +1,7 @@
 -- 399: Dados Pré Obra — campos prev_* + trigger de recálculo (Funil Operações)
--- prefeitura_aprovada_em: migration 393. Demais datas reais: IF NOT EXISTS (idempotente).
+-- Idempotente. prefeitura_aprovada_em: migration 393 (não recriar aqui).
 
+-- ─── 1. Colunas (reais faltantes + prev_*) ───────────────────────────────────
 ALTER TABLE public.kanban_cards ADD COLUMN IF NOT EXISTS condominio_aprovada_em timestamptz DEFAULT null;
 ALTER TABLE public.kanban_cards ADD COLUMN IF NOT EXISTS alvara_emitido_em timestamptz DEFAULT null;
 
@@ -11,9 +12,9 @@ ALTER TABLE public.kanban_cards ADD COLUMN IF NOT EXISTS prev_envio_credito_obra
 ALTER TABLE public.kanban_cards ADD COLUMN IF NOT EXISTS prev_inicio_obra date;
 
 COMMENT ON COLUMN public.kanban_cards.condominio_aprovada_em IS
-  'Data real aprovação condomínio (Funil Operações).';
+  'Data real aprovação condomínio (Funil Operações). timestamptz';
 COMMENT ON COLUMN public.kanban_cards.alvara_emitido_em IS
-  'Data real emissão alvará (Funil Operações).';
+  'Data real emissão alvará (Funil Operações). timestamptz';
 
 COMMENT ON COLUMN public.kanban_cards.prev_aprovacao_condominio IS
   'Previsão calculada: aprovação condomínio (Funil Operações).';
@@ -26,7 +27,7 @@ COMMENT ON COLUMN public.kanban_cards.prev_envio_credito_obra IS
 COMMENT ON COLUMN public.kanban_cards.prev_inicio_obra IS
   'Previsão calculada: início obra — 30 dias após alvará (Funil Operações).';
 
--- Dias úteis seg–sex (sem feriados)
+-- ─── 2. Helpers (independentes do composite kanban_cards) ────────────────────
 CREATE OR REPLACE FUNCTION public.fn_add_business_days(p_base date, p_days integer)
 RETURNS date
 LANGUAGE plpgsql
@@ -114,6 +115,12 @@ AS $$
     (SELECT entrou FROM hist)
   )::date;
 $$;
+
+-- ─── 3. Recriar funções que usam composite kanban_cards (após ALTER TABLE) ───
+DROP TRIGGER IF EXISTS trg_kanban_cards_recalc_prev_operacoes ON public.kanban_cards;
+
+DROP FUNCTION IF EXISTS public.fn_kanban_cards_recalc_prev_operacoes();
+DROP FUNCTION IF EXISTS public.fn_kanban_cards_apply_prev_operacoes(public.kanban_cards);
 
 CREATE OR REPLACE FUNCTION public.fn_kanban_cards_apply_prev_operacoes(p_row public.kanban_cards)
 RETURNS public.kanban_cards
@@ -208,6 +215,7 @@ BEGIN
 END;
 $$;
 
+-- ─── 4. Trigger (prev_* recalculados em INSERT/UPDATE Operações) ─────────────
 CREATE OR REPLACE FUNCTION public.fn_kanban_cards_recalc_prev_operacoes()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -248,7 +256,7 @@ CREATE TRIGGER trg_kanban_cards_recalc_prev_operacoes
   FOR EACH ROW
   EXECUTE FUNCTION public.fn_kanban_cards_recalc_prev_operacoes();
 
--- Backfill cards existentes do Funil Operações
+-- ─── 5. Backfill (somente após função recriada) ──────────────────────────────
 DO $$
 DECLARE
   v_kanban_operacoes uuid := 'f6bba1de-a7a1-4b14-89d1-10c2f7bba636'::uuid;
