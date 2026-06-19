@@ -114,6 +114,7 @@ import { kanbanExibeSecaoCondominioSidebar } from '@/lib/kanban/kanban-secao-con
 import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCreditoObraDocumentacao';
 import { KanbanCardModalDadosPreObraOperacoes } from './KanbanCardModalDadosPreObraOperacoes';
+import { KanbanCardModalCalculadoraFases } from './KanbanCardModalCalculadoraFases';
 import {
   operacoesPreObraDraftFromCard,
   OPERACOES_PRE_OBRA_DRAFT_EMPTY,
@@ -254,9 +255,12 @@ import { FaseChecklistCard } from './FaseChecklistCard';
 import { ResponsavelFaseSidebar } from './ResponsavelFaseSidebar';
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
+import { calcularLinhasCalculadoraFases } from '@/lib/kanban/calculadora-fases';
 import {
   buildLegadoFaseTimeline,
+  buildLegadoFaseVisits,
   buildNativeFaseTimeline,
+  buildNativeFaseVisits,
   type ProcessoCardMoveEvt,
 } from '@/lib/kanban/kanban-card-timeline';
 
@@ -476,6 +480,7 @@ export function KanbanCardModal({
   const [fases, setFases] = useState<KanbanFase[]>(fasesProp ?? []);
   const [faseAtual, setFaseAtual] = useState<KanbanFase | null>(null);
   const [secaoAberta, setSecaoAberta] = useState<Record<SecaoEsquerdaId, boolean>>({
+    calculadora: true,
     cronologia: false,
     franqueado: false,
     loteador: false,
@@ -3083,6 +3088,46 @@ export function KanbanCardModal({
       { created_at: card.created_at, fase_id: card.fase_id },
       historico.map((h) => ({ acao: h.acao, detalhe: h.detalhe, criado_em: h.criado_em })),
     );
+  }, [card, fases, historico, legadoCronologiaMoves, origem]);
+
+  const linhasCalculadoraFases = useMemo(() => {
+    if (!card || fases.length === 0) return [];
+    try {
+      const historicoMovs = historico.map((h) => ({
+        acao: h.acao,
+        detalhe: h.detalhe,
+        criado_em: h.criado_em,
+      }));
+      const visits =
+        origem === 'legado'
+          ? buildLegadoFaseVisits(
+              fases,
+              {
+                created_at: card.created_at,
+                fase_id: card.fase_id,
+                etapa_slug: card.etapa_slug ?? null,
+              },
+              legadoCronologiaMoves,
+            )
+          : buildNativeFaseVisits(
+              fases,
+              { created_at: card.created_at, fase_id: card.fase_id },
+              historicoMovs,
+            );
+      return calcularLinhasCalculadoraFases({
+        fases,
+        card: {
+          fase_id: card.fase_id,
+          created_at: card.created_at,
+          entered_fase_at: card.entered_fase_at,
+          concluido: card.concluido,
+          concluido_em: card.concluido_em,
+        },
+        visits,
+      });
+    } catch {
+      return [];
+    }
   }, [card, fases, historico, legadoCronologiaMoves, origem]);
 
   const abrirEdicaoInstrucoesFase = () => {
@@ -5963,6 +6008,11 @@ export function KanbanCardModal({
                 {totalCardsSyncGrupo === 1 ? '' : 's'}. Alterações neste painel refletem em todos.
               </p>
             ) : null}
+            {secaoHead(
+              'calculadora',
+              'Calculadora',
+              <KanbanCardModalCalculadoraFases linhas={linhasCalculadoraFases} faseAtualId={card.fase_id} />,
+            )}
             {secaoHead(
               'cronologia',
               'ID e datas do funil',

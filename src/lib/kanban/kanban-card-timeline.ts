@@ -19,7 +19,7 @@ export type LinhaCronologiaFase = {
   saiuEm: string | null;
 };
 
-type Visit = { faseId: string; entrou: string; saiu: string | null };
+export type FaseVisit = { faseId: string; entrou: string; saiu: string | null };
 
 function sortedFasesAsc(fases: KanbanFase[]): KanbanFase[] {
   return [...fases].sort((a, b) => a.ordem - b.ordem);
@@ -31,7 +31,7 @@ function detStr(d: Record<string, unknown> | null, key: string): string {
   return typeof v === 'string' ? v.trim() : '';
 }
 
-function linhasPorVisitas(sortedFases: KanbanFase[], visits: Visit[]): LinhaCronologiaFase[] {
+function linhasPorVisitas(sortedFases: KanbanFase[], visits: FaseVisit[]): LinhaCronologiaFase[] {
   const byId = new Map(sortedFases.map((f) => [f.id, f]));
   const agg = new Map<string, { firstIn: string | null; lastOut: string | null; open: boolean }>();
   for (const f of sortedFases) {
@@ -56,12 +56,24 @@ function linhasPorVisitas(sortedFases: KanbanFase[], visits: Visit[]): LinhaCron
   });
 }
 
-/** Card nativo: histórico `kanban_historico` + `created_at` do card. */
-export function buildNativeFaseTimeline(
+/** Última passagem por fase (MVP retrocessos — Calculadora de Fases). */
+export function lastVisitPerFase(visits: FaseVisit[]): Map<string, FaseVisit> {
+  const map = new Map<string, FaseVisit>();
+  for (const v of visits) {
+    const prev = map.get(v.faseId);
+    if (!prev || new Date(v.entrou).getTime() > new Date(prev.entrou).getTime()) {
+      map.set(v.faseId, v);
+    }
+  }
+  return map;
+}
+
+/** Card nativo: visitas sequenciais a partir de `kanban_historico`. */
+export function buildNativeFaseVisits(
   fases: KanbanFase[],
   card: { created_at: string; fase_id: string },
   historico: HistoricoFaseMovimento[],
-): LinhaCronologiaFase[] {
+): FaseVisit[] {
   const sorted = sortedFasesAsc(fases);
   const byId = new Map(sorted.map((f) => [f.id, f]));
   if (sorted.length === 0) return [];
@@ -73,7 +85,7 @@ export function buildNativeFaseTimeline(
     .filter((h) => h.acao === 'fase_avancada' || h.acao === 'fase_retrocedida')
     .sort((a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime());
 
-  const visits: Visit[] = [];
+  const visits: FaseVisit[] = [];
 
   let initialPhase =
     (faseIdCriado && byId.has(faseIdCriado) ? faseIdCriado : '') ||
@@ -94,15 +106,15 @@ export function buildNativeFaseTimeline(
     visits.push({ faseId: nov, entrou: t, saiu: null });
   }
 
-  return linhasPorVisitas(sorted, visits);
+  return visits;
 }
 
-/** Card legado: eventos `processo_card_eventos` tipo card_move (slugs em detalhes). */
-export function buildLegadoFaseTimeline(
+/** Card legado: visitas a partir de `processo_card_eventos` tipo card_move. */
+export function buildLegadoFaseVisits(
   fases: KanbanFase[],
   card: { created_at: string; fase_id: string; etapa_slug?: string | null },
   moves: ProcessoCardMoveEvt[],
-): LinhaCronologiaFase[] {
+): FaseVisit[] {
   const sorted = sortedFasesAsc(fases);
   const byId = new Map(sorted.map((f) => [f.id, f]));
   if (sorted.length === 0) return [];
@@ -117,7 +129,7 @@ export function buildLegadoFaseTimeline(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
   );
 
-  const visits: Visit[] = [];
+  const visits: FaseVisit[] = [];
 
   const initialSlug =
     movesSorted.length > 0
@@ -141,5 +153,27 @@ export function buildLegadoFaseTimeline(
     visits.push({ faseId: nov, entrou: t, saiu: null });
   }
 
-  return linhasPorVisitas(sorted, visits);
+  return visits;
+}
+
+/** Card nativo: histórico `kanban_historico` + `created_at` do card. */
+export function buildNativeFaseTimeline(
+  fases: KanbanFase[],
+  card: { created_at: string; fase_id: string },
+  historico: HistoricoFaseMovimento[],
+): LinhaCronologiaFase[] {
+  const sorted = sortedFasesAsc(fases);
+  if (sorted.length === 0) return [];
+  return linhasPorVisitas(sorted, buildNativeFaseVisits(fases, card, historico));
+}
+
+/** Card legado: eventos `processo_card_eventos` tipo card_move (slugs em detalhes). */
+export function buildLegadoFaseTimeline(
+  fases: KanbanFase[],
+  card: { created_at: string; fase_id: string; etapa_slug?: string | null },
+  moves: ProcessoCardMoveEvt[],
+): LinhaCronologiaFase[] {
+  const sorted = sortedFasesAsc(fases);
+  if (sorted.length === 0) return [];
+  return linhasPorVisitas(sorted, buildLegadoFaseVisits(fases, card, moves));
 }

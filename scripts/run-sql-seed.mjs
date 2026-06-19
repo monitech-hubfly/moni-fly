@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parsePostgresUrl } from "./pg-dev-client.mjs";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const root = resolve(__dirname, "..");
@@ -27,28 +28,13 @@ let user;
 let password;
 let host;
 let port;
-let database = "postgres";
+let database;
 
-const pgUrlMatch = raw.match(
-  /^postgres(?:ql)?:\/\/([^:]+):(.+)@([^:\/?#]+)(?::(\d+))?\/([^?#]+)/i,
-);
-if (pgUrlMatch) {
-  [, user, password, host, port = "5432", database] = pgUrlMatch;
-  user = decodeURIComponent(user);
-  password = decodeURIComponent(password);
-  database = decodeURIComponent(database);
-} else {
-  try {
-    const u = new URL(raw.replace(/^postgresql:/i, "http:"));
-    user = decodeURIComponent(u.username || "postgres");
-    password = decodeURIComponent(u.password || "");
-    host = u.hostname;
-    port = u.port || "5432";
-    database = (u.pathname || "/postgres").replace(/^\//, "") || "postgres";
-  } catch {
-    console.error(`Não foi possível interpretar ${key} como URL de Postgres.`);
-    process.exit(1);
-  }
+try {
+  ({ user, password, host, port, database } = parsePostgresUrl(raw));
+} catch {
+  console.error(`Não foi possível interpretar ${key} como URL de Postgres.`);
+  process.exit(1);
 }
 
 const psql = process.env.PSQL_EXE || "psql";
