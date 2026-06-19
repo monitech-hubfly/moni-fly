@@ -1,4 +1,4 @@
-import { HIPOTESES_FASE_SLUGS } from '@/lib/kanban/stepone-fase-slugs';
+import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import type {
   PipelineCardRow,
   PipelineFunilMesBarSegment,
@@ -51,12 +51,6 @@ export function isNoMesCorrente(iso: string | null | undefined): boolean {
 
 export function diaDoMesCorrente(): number {
   return new Date().getDate();
-}
-
-function isHipotesesFaseSlug(slug: string | null | undefined): boolean {
-  const s = String(slug ?? '').trim();
-  if (!s) return false;
-  return (HIPOTESES_FASE_SLUGS as readonly string[]).includes(s);
 }
 
 export function funilMesFieldsAvailable(cards: PipelineCardRow[]): boolean {

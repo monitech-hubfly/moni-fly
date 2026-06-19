@@ -345,8 +345,8 @@ export function PipelineCardsView({
             chamados={dataset.enrichment?.chamados ?? []}
             className="mb-3"
           />
-          {funilMesUnidade ? <PipelineFunilMesUnidade funil={funilMesUnidade} className="mb-3" /> : null}
           {saudeUnidade ? <PipelineSaudeMesCondensado saude={saudeUnidade} /> : null}
+          {funilMesUnidade ? <PipelineFunilMesUnidade funil={funilMesUnidade} className="mt-3" /> : null}
         </div>
       ) : null}
 
