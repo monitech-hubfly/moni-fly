@@ -50,7 +50,13 @@ const CARD_SELECT_WITH_FUNIL = `${CARD_SELECT_BASE.trim()},
   comite_aprovado,
   comite_aprovado_em,
   contrato_assinado,
-  contrato_assinado_em
+  contrato_assinado_em,
+  prefeitura_aprovada,
+  prefeitura_aprovada_em,
+  obra_iniciada,
+  obra_iniciada_em,
+  obra_finalizada,
+  obra_finalizada_em
 `;
 
 const CARD_SELECT_SEM_PROJETO = `
@@ -144,6 +150,19 @@ function mapPipelineCardRow(raw: RawCard): PipelineCardRow | null {
     row.contrato_assinado = raw.contrato_assinado === true;
     row.contrato_assinado_em =
       raw.contrato_assinado_em != null ? String(raw.contrato_assinado_em) : null;
+  }
+  if ('prefeitura_aprovada' in raw) {
+    row.prefeitura_aprovada = raw.prefeitura_aprovada === true;
+    row.prefeitura_aprovada_em =
+      raw.prefeitura_aprovada_em != null ? String(raw.prefeitura_aprovada_em) : null;
+  }
+  if ('obra_iniciada' in raw) {
+    row.obra_iniciada = raw.obra_iniciada === true;
+    row.obra_iniciada_em = raw.obra_iniciada_em != null ? String(raw.obra_iniciada_em) : null;
+  }
+  if ('obra_finalizada' in raw) {
+    row.obra_finalizada = raw.obra_finalizada === true;
+    row.obra_finalizada_em = raw.obra_finalizada_em != null ? String(raw.obra_finalizada_em) : null;
   }
 
   return row;
@@ -397,7 +416,7 @@ export async function fetchPipelineCards(
   let cardData: RawCard[] | null = (cardResInitial.data as RawCard[] | null) ?? null;
   if (cardResInitial.error) {
     const errMsg = cardResInitial.error.message;
-    if (/opcao_assinada|comite_aprovado|contrato_assinado/i.test(errMsg)) {
+    if (/opcao_assinada|comite_aprovado|contrato_assinado|prefeitura_aprovada|obra_iniciada|obra_finalizada/i.test(errMsg)) {
       let fallbackQuery = supabase
         .from('kanban_cards')
         .select(/opcao_assinada|comite_aprovado/i.test(errMsg) ? CARD_SELECT_WITH_CONTRATO : CARD_SELECT_BASE)

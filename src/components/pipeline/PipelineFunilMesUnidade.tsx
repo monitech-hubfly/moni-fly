@@ -22,7 +22,8 @@ export function PipelineFunilMesUnidade({ funil, className }: Props) {
         paddingTop: '0.75rem',
       }}
     >
-      <div className="flex flex-wrap items-end justify-center gap-x-1 gap-y-3 sm:gap-x-2">
+      <div className="overflow-x-auto">
+        <div className="flex min-w-[640px] flex-wrap items-end justify-center gap-x-1 gap-y-3 sm:gap-x-2">
         {funil.metricas.map((metric, idx) => (
           <Fragment key={metric.key}>
             <div className="flex min-w-[64px] flex-col items-center text-center sm:min-w-[72px]">
@@ -36,9 +37,11 @@ export function PipelineFunilMesUnidade({ funil, className }: Props) {
                 className="mt-0.5 text-lg font-semibold tabular-nums"
                 style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-navy-800)' }}
               >
-                {metric.total}
+                {metric.totalIndisponivel ? '—' : metric.total}
               </p>
-              <PipelineFunilMesDotsFromNivel nivel={metric.dots} dotCor={metric.dotCor} className="mt-1" />
+              {metric.totalIndisponivel ? null : (
+                <PipelineFunilMesDotsFromNivel nivel={metric.dots} dotCor={metric.dotCor} className="mt-1" />
+              )}
             </div>
             {idx < funil.metricas.length - 1 ? (
               <div className="flex flex-col items-center gap-0.5 self-center px-0.5 pb-3">
@@ -50,6 +53,7 @@ export function PipelineFunilMesUnidade({ funil, className }: Props) {
             ) : null}
           </Fragment>
         ))}
+        </div>
       </div>
     </div>
   );

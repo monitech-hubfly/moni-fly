@@ -40,6 +40,13 @@ export type PipelineCardRow = {
   opcao_assinada_em?: string | null;
   comite_aprovado?: boolean;
   comite_aprovado_em?: string | null;
+  /** Funil Operações — migration 393. */
+  prefeitura_aprovada?: boolean;
+  prefeitura_aprovada_em?: string | null;
+  obra_iniciada?: boolean;
+  obra_iniciada_em?: string | null;
+  obra_finalizada?: boolean;
+  obra_finalizada_em?: string | null;
   /** FK `projeto_negocio.id` — agrupa esteiras paralelas do mesmo negócio. */
   projeto_id?: string | null;
   projeto_titulo?: string | null;
@@ -200,12 +207,21 @@ export type PipelineFunilMesBarSegment = {
   cor: string;
 };
 
-export type PipelineFunilMesEtapaKey = 'hipoteses' | 'opcoes' | 'comites' | 'contratos';
+export type PipelineFunilMesEtapaKey =
+  | 'hipoteses'
+  | 'opcoes'
+  | 'comites'
+  | 'contratos'
+  | 'aprovacoes'
+  | 'obras_iniciadas'
+  | 'obras_finalizadas';
 
 export type PipelineFunilMesColuna = {
   key: PipelineFunilMesEtapaKey;
   label: string;
   total: number;
+  /** Quando campos Operações não estão no fetch — exibir "—". */
+  totalIndisponivel?: boolean;
   /** Unidades com quantidade > 0 no mês, ordenadas decrescente. */
   porUnidade: PipelineFunilMesUnidadeRow[];
   /** Unidades elegíveis com quantidade 0 (expandíveis via "ver todas"). */
@@ -215,7 +231,7 @@ export type PipelineFunilMesColuna = {
 
 export type PipelineFunilMesRede = {
   colunas: PipelineFunilMesColuna[];
-  conversoes: [number | null, number | null, number | null];
+  conversoes: (number | null)[];
   disponivel: boolean;
 };
 
@@ -223,13 +239,14 @@ export type PipelineFunilMesUnidadeMetric = {
   key: PipelineFunilMesEtapaKey;
   label: string;
   total: number;
+  totalIndisponivel?: boolean;
   dots: PipelineFunilMesDotNivel;
   dotCor: 'verde' | 'vermelho' | 'cinza';
 };
 
 export type PipelineFunilMesUnidade = {
   metricas: PipelineFunilMesUnidadeMetric[];
-  conversoes: [number | null, number | null, number | null];
+  conversoes: (number | null)[];
   disponivel: boolean;
 };
 
@@ -238,6 +255,9 @@ export type PipelineFunilMesCompact = {
   opcoes: number;
   comites: number;
   contratos: number;
+  aprovacoes: number;
+  obrasIniciadas: number;
+  obrasFinalizadas: number;
 };
 
 export type PipelineUnidadeBlocoMeta = {

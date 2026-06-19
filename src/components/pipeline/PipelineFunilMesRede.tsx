@@ -103,7 +103,8 @@ export function PipelineFunilMesRede({ funil, className }: Props) {
         Funil do mês — rede
       </h2>
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+      <div className="overflow-x-auto">
+        <div className="flex min-w-[1120px] flex-col gap-4 lg:flex-row lg:items-start">
         {funil.colunas.map((col, idx) => (
           <Fragment key={col.key}>
             <div className="min-w-0 flex-1">
@@ -114,7 +115,7 @@ export function PipelineFunilMesRede({ funil, className }: Props) {
                 className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight"
                 style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-navy-800)' }}
               >
-                {col.total}
+                {col.totalIndisponivel ? '—' : col.total}
               </p>
               <p className="text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
                 {idx === 0 ? 'total rede' : 'total'}
@@ -149,6 +150,7 @@ export function PipelineFunilMesRede({ funil, className }: Props) {
             ) : null}
           </Fragment>
         ))}
+        </div>
       </div>
     </section>
   );
