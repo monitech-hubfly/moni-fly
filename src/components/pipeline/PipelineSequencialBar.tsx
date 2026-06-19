@@ -12,6 +12,7 @@ import {
   ratioFaseNoKanban,
   resolverCardEsteiraPrincipalProjeto,
 } from '@/lib/kanban/pipeline-esteira-tres-etapas';
+import { cardsRelacionadosProjeto } from '@/lib/kanban/pipeline-unidade-visualizacao';
 import { slaCategoriaPipeline } from '@/lib/kanban/pipeline-cards-utils';
 import { calcularDiasNaFase } from '@/lib/kanban/pipeline-card-readonly';
 import { PARADO_DIAS } from '@/lib/kanban/pipeline-franqueadora-compute';
@@ -139,6 +140,131 @@ function EsteiraMainTrack({ card, enrichment, heightPx, siblingCards, showParale
           paralelo: {configFunilParaleloEsteira(card.kanban_id)?.label ?? card.kanban_nome}
         </p>
       ) : null}
+    </div>
+  );
+}
+
+function resolveEstadoSegmentoCard(segCard: PipelineCardDisplay): SegmentEstado {
+  const dias = calcularDiasNaFase(segCard);
+  if (slaCategoriaPipeline(segCard) === 'atrasado') return 'atual_atrasado';
+  if (dias >= PARADO_DIAS && segCard.inativo) return 'atual_parado';
+  const badge = badgeStatusPipelineCard(segCard);
+  if (badge === 'alerta') return 'atual_alerta';
+  return 'atual_ok';
+}
+
+function resolveEstadoSegmentoConcluido(segCard: PipelineCardDisplay | null): SegmentEstado {
+  if (!segCard) return 'concluida_ok';
+  const badge = badgeStatusPipelineCard(segCard);
+  return badge === 'alerta' || badge === 'atrasado' ? 'concluida_alerta' : 'concluida_ok';
+}
+
+/** Uma única linha — Step One · Portfólio · Pré Obra e Obra (visão principal da unidade). */
+export function PipelineEsteiraTresFunis({
+  card,
+  siblingCards,
+  enrichment,
+  className,
+  heightPx = 8,
+}: {
+  card: PipelineCardDisplay;
+  siblingCards?: PipelineCardDisplay[];
+  enrichment?: PipelineFranqueadoraEnrichment | null;
+  className?: string;
+  heightPx?: number;
+}) {
+  const siblings = siblingCards ?? [card];
+  const relacionados = cardsRelacionadosProjeto(card, siblings);
+  const maxMap = enrichment?.maxOrdemPorKanban;
+
+  const segmentCards = ESTEIRA_TRES_ETAPAS.map((etapa) =>
+    relacionados.find((c) => (etapa.kanbanIds as readonly string[]).includes(c.kanban_id)) ?? null,
+  );
+
+  let highestIdx = -1;
+  for (let i = segmentCards.length - 1; i >= 0; i--) {
+    if (segmentCards[i]) {
+      highestIdx = i;
+      break;
+    }
+  }
+  if (highestIdx < 0 && isFunilEsteiraPrincipal(card.kanban_id)) {
+    highestIdx = indiceEsteiraTresEtapas(card.kanban_id);
+  }
+
+  const rowSegmentIdx = isFunilEsteiraPrincipal(card.kanban_id)
+    ? indiceEsteiraTresEtapas(card.kanban_id)
+    : -1;
+
+  return (
+    <div className={className}>
+      <div
+        className="flex overflow-hidden rounded-full"
+        style={{ background: 'var(--moni-rede-chart-track)', height: `${heightPx}px` }}
+      >
+        {ESTEIRA_TRES_ETAPAS.map((etapa, idx) => {
+          const segCard = segmentCards[idx];
+          const isAtualGlobal = idx === highestIdx;
+          const isRowKanban = idx === rowSegmentIdx;
+
+          let estado: SegmentEstado = 'futura';
+          let width = '0%';
+
+          if (segCard) {
+            if (idx < highestIdx) {
+              estado = resolveEstadoSegmentoConcluido(segCard);
+              width = '100%';
+            } else if (isAtualGlobal) {
+              estado = resolveEstadoSegmentoCard(segCard);
+              width = `${Math.round(ratioFaseNoKanban(segCard, maxMap) * 100)}%`;
+            } else {
+              estado = 'futura';
+              width = '0%';
+            }
+          } else if (idx < highestIdx) {
+            estado = 'concluida_ok';
+            width = '100%';
+          }
+
+          const fill = SEGMENT_FILL[estado];
+
+          return (
+            <div
+              key={etapa.id}
+              className="relative min-w-0 flex-1"
+              style={{
+                borderRight:
+                  idx < ESTEIRA_TRES_ETAPAS.length - 1 ? '0.5px solid var(--moni-border-default)' : undefined,
+                outline: isRowKanban ? '1px solid var(--moni-navy-800)' : undefined,
+                outlineOffset: isRowKanban ? '-1px' : undefined,
+                zIndex: isRowKanban ? 1 : 0,
+              }}
+              title={etapa.label}
+            >
+              <div
+                className="absolute inset-y-0 left-0 transition-all"
+                style={{
+                  width,
+                  background: fill,
+                  opacity: estado === 'futura' ? 1 : 0.92,
+                }}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-0.5 grid grid-cols-3 gap-0.5 text-[9px] leading-tight">
+        {ESTEIRA_TRES_ETAPAS.map((etapa) => (
+          <span
+            key={etapa.id}
+            className="truncate text-center"
+            style={{ color: 'var(--moni-text-tertiary)' }}
+            title={etapa.label}
+          >
+            {etapa.label}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

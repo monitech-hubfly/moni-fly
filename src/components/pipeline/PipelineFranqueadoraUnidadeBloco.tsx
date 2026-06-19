@@ -17,12 +17,11 @@ import {
 } from '@/lib/kanban/pipeline-franqueadora-compute';
 import {
   PipelineEsteiraParalelosLinha,
-  PipelineSequencialBarMultiTrack,
+  PipelineEsteiraTresFunis,
   pipelineBadgeInlineStyle,
 } from '@/components/pipeline/PipelineSequencialBar';
 import { PipelineFunilMesCondensado } from '@/components/pipeline/PipelineFunilMesCondensado';
 import {
-  cardsParaEsteiraPrincipalRow,
   linhaEsteiraParalelaKanban,
   splitCardsUnidadePrincipalParalelos,
 } from '@/lib/kanban/pipeline-unidade-visualizacao';
@@ -70,13 +69,20 @@ function PipelineUnidadeCardsTabela({
         {titulo}
       </h3>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-left text-[11px]">
+        <table className="w-full min-w-[520px] table-fixed text-left text-[11px]">
           <thead>
             <tr style={{ borderBottom: '0.5px solid var(--moni-border-subtle, var(--moni-border-default))' }}>
-              {['Título', 'Fase atual', 'Status', 'Tempo na fase', colunaEsteira, ''].map((h) => (
+              {[
+                { h: 'Título', w: 'w-[18%]' },
+                { h: 'Fase', w: 'w-[14%]' },
+                { h: 'Status', w: 'w-[10%]' },
+                { h: 'Tempo', w: 'w-[8%]' },
+                { h: colunaEsteira, w: 'w-[42%]' },
+                { h: '', w: 'w-[8%]' },
+              ].map(({ h, w }) => (
                 <th
                   key={h || 'acao'}
-                  className="pb-2 pr-3 font-semibold uppercase tracking-wide last:pr-0"
+                  className={`pb-2 pr-2 font-semibold uppercase tracking-wide last:pr-0 ${w}`}
                   style={{ color: 'var(--moni-text-tertiary)' }}
                 >
                   {h}
@@ -109,16 +115,16 @@ function PipelineUnidadeCardsTabela({
                   style={{ borderBottom: '0.5px solid var(--moni-border-subtle, var(--moni-border-default))' }}
                 >
                   <td
-                    className="max-w-[14rem] truncate py-2.5 pr-3 font-medium"
+                    className="truncate py-2 pr-2 font-medium"
                     style={{ color: 'var(--moni-text-primary)' }}
                     title={String(card.titulo ?? '').trim() || undefined}
                   >
                     {tituloPipelineCardDisplay(card, idx + 1)}
                   </td>
-                  <td className="max-w-[10rem] truncate py-2.5 pr-3" style={{ color: 'var(--moni-text-secondary)' }}>
+                  <td className="truncate py-2 pr-2" style={{ color: 'var(--moni-text-secondary)' }}>
                     {card.fase_nome}
                   </td>
-                  <td className="py-2.5 pr-3">
+                  <td className="py-2 pr-2">
                     {tagClass ? (
                       <span className={`text-[10px] ${tagClass}`} style={customStyle}>
                         {labelBadgeStatusPipeline(badge)}
@@ -130,17 +136,14 @@ function PipelineUnidadeCardsTabela({
                     )}
                   </td>
                   <td
-                    className="py-2.5 pr-3 tabular-nums"
+                    className="py-2 pr-2 tabular-nums"
                     style={{ color: slaExcedido ? 'var(--moni-status-overdue-text)' : 'var(--moni-text-secondary)' }}
                   >
                     {relativo}
                   </td>
-                  <td className="min-w-[12rem] py-2.5 pr-3">
+                  <td className="py-2 pr-2">
                     {modo === 'principal' ? (
-                      <PipelineSequencialBarMultiTrack
-                        cards={cardsParaEsteiraPrincipalRow(card, allCards)}
-                        enrichment={enrichment}
-                      />
+                      <PipelineEsteiraTresFunis card={card} siblingCards={allCards} enrichment={enrichment} />
                     ) : (
                       <PipelineEsteiraParalelosLinha
                         card={card}
@@ -150,7 +153,7 @@ function PipelineUnidadeCardsTabela({
                       />
                     )}
                   </td>
-                  <td className="py-2.5 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                  <td className="py-2 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
                     Detalhe →
                   </td>
                 </tr>

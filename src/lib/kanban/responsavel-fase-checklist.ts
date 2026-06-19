@@ -21,11 +21,14 @@ export function isKanbanFunilStepOneId(kanbanId: string | null | undefined): boo
 /** E-mail do responsável padrão por funil (exceto Step One — usa franqueado da rede). */
 export const EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN: Partial<Record<string, string>> = {
   [KANBAN_IDS.PORTFOLIO]: 'renata.silva@moni.casa',
+  [KANBAN_IDS.OPERACOES]: 'larissa.lima@moni.casa',
   [KANBAN_IDS.ACOPLAMENTO]: 'elisabete.nucci@moni.casa',
   [KANBAN_IDS.PROJETO_LEGAL]: 'elisabete.nucci@moni.casa',
   [KANBAN_IDS.PROJETOS_LOCAIS]: 'larissa.lima@moni.casa',
   [KANBAN_IDS.MONI_CAPITAL]: 'kim@moni.casa',
   [KANBAN_IDS.CREDITO_OBRA]: 'kim@moni.casa',
+  [KANBAN_IDS.CONTABILIDADE]: 'kim@moni.casa',
+  [KANBAN_IDS.JURIDICO]: 'elisabete.nucci@moni.casa',
 };
 
 const profileIdPorEmailCache = new Map<string, string | null>();
@@ -976,6 +979,57 @@ async function enriquecerStepOneCardsBatch(
   }
 }
 
+function resolverValorResponsavelCardComHistorico(
+  cardId: string,
+  faseIdAtual: string,
+  faseOrdemPorId: Map<string, number>,
+  itemPorFase: Map<string, string>,
+  respPorCardItem: Map<string, string>,
+): string | null {
+  const ordemAtual = faseOrdemPorId.get(faseIdAtual);
+  if (ordemAtual == null) {
+    const itemId = itemPorFase.get(faseIdAtual);
+    return itemId ? respPorCardItem.get(`${cardId}:${itemId}`) ?? null : null;
+  }
+
+  const fasesDesc = [...faseOrdemPorId.entries()]
+    .filter(([, ordem]) => ordem <= ordemAtual)
+    .sort((a, b) => b[1] - a[1]);
+
+  for (const [fid] of fasesDesc) {
+    const itemId = itemPorFase.get(fid);
+    if (!itemId) continue;
+    const v = respPorCardItem.get(`${cardId}:${itemId}`);
+    if (v) return v;
+  }
+  return null;
+}
+
+function aplicarResponsavelEnriquecidoNoCard(
+  card: KanbanCardBrief,
+  valor: string | null | undefined,
+  nomeRede: string | null | undefined,
+  nomePorUserId: Map<string, string>,
+): KanbanCardBrief {
+  const raw = valorResponsavelValido(valor);
+  const rede = valorResponsavelValido(nomeRede);
+  if (!raw && !rede) return card;
+
+  if (raw && isValorUsuarioUuid(raw)) {
+    return {
+      ...card,
+      responsavel_fase_id: raw,
+      responsavel_fase_nome: nomePorUserId.get(raw) ?? rede ?? null,
+    };
+  }
+
+  return {
+    ...card,
+    responsavel_fase_id: null,
+    responsavel_fase_nome: raw ?? rede ?? null,
+  };
+}
+
 /** Enriquece cards do board com responsável da fase atual (para avatar no card fechado). */
 export async function enrichCardsComResponsavelFase(
   supabase: SupabaseClient,
@@ -984,13 +1038,29 @@ export async function enrichCardsComResponsavelFase(
 ): Promise<KanbanCardBrief[]> {
   if (cards.length === 0) return cards;
 
-  const faseIds = [...new Set(cards.map((c) => String(c.fase_id ?? '').trim()).filter(Boolean))];
-  if (faseIds.length === 0) return cards;
+  const kanbanIds = [...new Set(cards.map((c) => String(c.kanban_id ?? '').trim()).filter(Boolean))];
+  if (kanbanIds.length === 0) return cards;
+
+  const { data: fasesRows } = await supabase
+    .from('kanban_fases')
+    .select('id, kanban_id, ordem')
+    .in('kanban_id', kanbanIds)
+    .eq('ativo', true);
+
+  const faseOrdemPorId = new Map<string, number>();
+  const allFaseIds: string[] = [];
+  for (const row of fasesRows ?? []) {
+    const fid = String((row as { id?: string }).id ?? '').trim();
+    if (!fid) continue;
+    allFaseIds.push(fid);
+    faseOrdemPorId.set(fid, Number((row as { ordem?: number }).ordem ?? 0));
+  }
+  if (allFaseIds.length === 0) return cards;
 
   const { data: itens } = await supabase
     .from('kanban_fase_checklist_itens')
     .select('id, fase_id, campo_slug')
-    .in('fase_id', faseIds)
+    .in('fase_id', allFaseIds)
     .in('campo_slug', [...CAMPOS_SLUG_RESPONSAVEL_FASE_LEGADO]);
 
   const itemPorFase = resolverItemResponsavelPorFase(
@@ -1014,7 +1084,7 @@ export async function enrichCardsComResponsavelFase(
     if (cid && iid && v) respPorCardItem.set(`${cid}:${iid}`, v);
   }
 
-  const userIdPorCard = new Map<string, string>();
+  const valorPorCard = new Map<string, string>();
   const nomeRedePorCard = new Map<string, string>();
   const stepOneCardIds: string[] = [];
   const outrosSemResposta: { cardId: string; kanbanId: string }[] = [];
@@ -1024,16 +1094,20 @@ export async function enrichCardsComResponsavelFase(
       stepOneCardIds.push(card.id);
       continue;
     }
-    const itemId = itemPorFase.get(String(card.fase_id ?? '').trim());
-    const uidChecklist = itemId ? respPorCardItem.get(`${card.id}:${itemId}`) : null;
-    if (uidChecklist) {
-      userIdPorCard.set(card.id, uidChecklist);
+    const faseId = String(card.fase_id ?? '').trim();
+    const valor = resolverValorResponsavelCardComHistorico(
+      card.id,
+      faseId,
+      faseOrdemPorId,
+      itemPorFase,
+      respPorCardItem,
+    );
+    if (valor) {
+      valorPorCard.set(card.id, valor);
       continue;
     }
     const kid = String(card.kanban_id ?? '').trim();
-    if (kid && EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN[kid]) {
-      outrosSemResposta.push({ cardId: card.id, kanbanId: kid });
-    }
+    if (kid) outrosSemResposta.push({ cardId: card.id, kanbanId: kid });
   }
 
   const kanbansUnicos = [...new Set(outrosSemResposta.map((o) => o.kanbanId))];
@@ -1044,7 +1118,7 @@ export async function enrichCardsComResponsavelFase(
   }
   for (const { cardId, kanbanId } of outrosSemResposta) {
     const uid = padraoPorKanban.get(kanbanId);
-    if (uid) userIdPorCard.set(cardId, uid);
+    if (uid) valorPorCard.set(cardId, uid);
   }
 
   await enriquecerStepOneCardsBatch(
@@ -1053,14 +1127,14 @@ export async function enrichCardsComResponsavelFase(
     stepOneCardIds,
     itemPorFase,
     respPorCardItem,
-    userIdPorCard,
+    valorPorCard,
     nomeRedePorCard,
     opts,
   );
 
-  if (userIdPorCard.size === 0 && nomeRedePorCard.size === 0) return cards;
+  if (valorPorCard.size === 0 && nomeRedePorCard.size === 0) return cards;
 
-  const userIds = [...new Set([...userIdPorCard.values()])];
+  const userIds = [...new Set([...valorPorCard.values()].filter(isValorUsuarioUuid))];
   const nomePorUserId = new Map<string, string>();
   if (userIds.length > 0) {
     const { data: profiles } = await supabase.from('profiles').select('id, full_name').in('id', userIds);
@@ -1071,14 +1145,7 @@ export async function enrichCardsComResponsavelFase(
     }
   }
 
-  return cards.map((c) => {
-    const uid = userIdPorCard.get(c.id);
-    const nomeRede = nomeRedePorCard.get(c.id);
-    if (!uid && !nomeRede) return c;
-    return {
-      ...c,
-      responsavel_fase_id: uid ?? null,
-      responsavel_fase_nome: uid ? (nomePorUserId.get(uid) ?? nomeRede ?? null) : (nomeRede ?? null),
-    };
-  });
+  return cards.map((c) =>
+    aplicarResponsavelEnriquecidoNoCard(c, valorPorCard.get(c.id), nomeRedePorCard.get(c.id), nomePorUserId),
+  );
 }

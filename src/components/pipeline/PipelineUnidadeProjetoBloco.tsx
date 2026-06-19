@@ -6,7 +6,8 @@ import type {
   PipelineProjetoGrupoUnidade,
 } from '@/lib/kanban/pipeline-cards-types';
 import { tituloPipelineCardDisplay } from '@/lib/kanban/pipeline-card-readonly';
-import { PipelineSequencialBarMultiTrack } from '@/components/pipeline/PipelineSequencialBar';
+import { PipelineEsteiraTresFunis } from '@/components/pipeline/PipelineSequencialBar';
+import { indiceEsteiraTresEtapas, isFunilEsteiraPrincipal } from '@/lib/kanban/pipeline-esteira-tres-etapas';
 import { PipelineUnidadeCardMetaLinhas } from '@/components/pipeline/PipelineUnidadeCardMetaLinhas';
 
 const panelStyle: React.CSSProperties = {
@@ -22,6 +23,14 @@ type Props = {
 };
 
 export function PipelineUnidadeProjetoBloco({ grupo, enrichment, onCardClick }: Props) {
+  const anchorCard =
+    grupo.cards.find((c) => isFunilEsteiraPrincipal(c.kanban_id)) ??
+    grupo.cards.reduce((best, c) => {
+      const idx = indiceEsteiraTresEtapas(c.kanban_id);
+      const bestIdx = indiceEsteiraTresEtapas(best.kanban_id);
+      return idx >= bestIdx ? c : best;
+    }, grupo.cards[0]);
+
   return (
     <section style={panelStyle}>
       <div className="px-4 py-3">
@@ -37,7 +46,12 @@ export function PipelineUnidadeProjetoBloco({ grupo, enrichment, onCardClick }: 
       </div>
 
       <div className="border-t px-4 pb-4 pt-3" style={{ borderColor: 'var(--moni-border-default)' }}>
-        <PipelineSequencialBarMultiTrack cards={grupo.cards} enrichment={enrichment} className="mb-4" />
+        <PipelineEsteiraTresFunis
+          card={anchorCard}
+          siblingCards={grupo.cards}
+          enrichment={enrichment}
+          className="mb-4"
+        />
 
         <div className="space-y-3">
           {grupo.cards.map((card, idx) => (
