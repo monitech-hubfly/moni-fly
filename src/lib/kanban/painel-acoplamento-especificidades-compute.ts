@@ -7,11 +7,14 @@ import type {
   PainelRetrocessoDTO,
 } from '@/lib/kanban/painel-performance-types';
 
-const ALTERACOES_ACOPLAMENTO_SLUGS = ['alteracoes_acoplamento'] as const;
-const MODELAGEM_TERRENO_SLUGS = ['modelagem_terreno'] as const;
-const APROVADO_SLUGS = [FASE_SLUGS.ACOPLAMENTO_APROVADO] as const;
-const PARALISADOS_SLUGS = [FASE_SLUGS.ACOPLAMENTO_REPROVADO] as const;
-const MODELAGEM_CASA_SLUGS = [FASE_SLUGS.MODELAGEM_CASA_GBOX] as const;
+const ORIGEM_NAO_REGISTRADA = 'Origem não registrada';
+
+const FASES_TECNICAS_SLUGS = [
+  'modelagem_terreno',
+  FASE_SLUGS.MODELAGEM_CASA_GBOX,
+  'validacao_acoplamento',
+  'alteracoes_acoplamento',
+] as const;
 
 function detStr(d: Record<string, unknown> | null | undefined, key: string): string {
   if (!d) return '';
@@ -138,7 +141,6 @@ export type PainelAcoplamentoEspecificidades = {
     aprovadosComRevisoes: number;
     totalAprovados: number;
     pctPrimeiraTentativa: number | null;
-    pctComRevisoes: number | null;
   } | null;
   acoplamentosPorOrigem: {
     linhas: PainelAcoplamentoOrigemRow[];
@@ -150,9 +152,8 @@ export type PainelAcoplamentoEspecificidades = {
     totalCards: number;
     percentual: number | null;
   } | null;
-  tempoModelagemTerrenoCasa: {
-    mediaDias: number | null;
-    amostras: number;
+  tempoFasesTecnicas: {
+    linhas: Array<{ faseNome: string; tempoMedioDias: number | null; cardsAnalisados: number }>;
     historicoParcial: boolean;
   } | null;
 };
@@ -167,17 +168,16 @@ export function computeAcoplamentoEspecificidades(input: {
 }): PainelAcoplamentoEspecificidades | null {
   const historicoPorCard = buildHistoricoPorCard(input.historicoMovimentos);
   const retrocessoPorCard = buildRetrocessoPorCard(input.retrocessoRows);
+  const faseById = new Map(input.fases.map((f) => [f.id, f]));
   const fasesOrd = [...input.fases].sort((a, b) => a.ordem - b.ordem);
 
-  const alteracoesIds = new Set(faseIdsPorSlugs(input.fases, ALTERACOES_ACOPLAMENTO_SLUGS));
-  const aprovadoIds = faseIdsPorSlugs(input.fases, APROVADO_SLUGS);
-  const paralisadosIds = new Set(faseIdsPorSlugs(input.fases, PARALISADOS_SLUGS));
-  const terrenoIds = faseIdsPorSlugs(input.fases, MODELAGEM_TERRENO_SLUGS);
-  const casaIds = faseIdsPorSlugs(input.fases, MODELAGEM_CASA_SLUGS);
+  const alteracoesIds = new Set(faseIdsPorSlugs(input.fases, ['alteracoes_acoplamento']));
+  const aprovadoIds = faseIdsPorSlugs(input.fases, [FASE_SLUGS.ACOPLAMENTO_APROVADO]);
+  const paralisadosIds = new Set(faseIdsPorSlugs(input.fases, [FASE_SLUGS.ACOPLAMENTO_REPROVADO]));
 
   let taxaAprovacaoTentativa: PainelAcoplamentoEspecificidades['taxaAprovacaoTentativa'] = null;
   try {
-    if (aprovadoIds.length > 0 && alteracoesIds.size > 0) {
+    if (aprovadoIds.length > 0) {
       const aprovadoId = aprovadoIds[0]!;
       const aprovadoSet = new Set(aprovadoIds);
       let aprovadosPrimeiraTentativa = 0;
@@ -188,6 +188,7 @@ export function computeAcoplamentoEspecificidades(input: {
         const historico = historicoPorCard.get(c.id) ?? [];
         const retrocessos = retrocessoPorCard.get(c.id) ?? [];
         if (
+          alteracoesIds.size > 0 &&
           cardComRevisoesAntesAprovado(
             c,
             alteracoesIds,
@@ -210,8 +211,6 @@ export function computeAcoplamentoEspecificidades(input: {
         totalAprovados,
         pctPrimeiraTentativa:
           totalAprovados === 0 ? null : (aprovadosPrimeiraTentativa / totalAprovados) * 100,
-        pctComRevisoes:
-          totalAprovados === 0 ? null : (aprovadosComRevisoes / totalAprovados) * 100,
       };
     }
   } catch {
@@ -227,7 +226,7 @@ export function computeAcoplamentoEspecificidades(input: {
     if (!origemIndisponivel || campoDisponivel(input.cards, 'origem_kanban_nome')) {
       const porOrigem = new Map<string, number>();
       for (const c of input.cards) {
-        const origem = c.origem_kanban_nome?.trim() || 'Origem não informada';
+        const origem = c.origem_kanban_nome?.trim() || ORIGEM_NAO_REGISTRADA;
         porOrigem.set(origem, (porOrigem.get(origem) ?? 0) + 1);
       }
       const total = input.cards.length;
@@ -262,57 +261,62 @@ export function computeAcoplamentoEspecificidades(input: {
     paralisadosPct = null;
   }
 
-  let tempoModelagemTerrenoCasa: PainelAcoplamentoEspecificidades['tempoModelagemTerrenoCasa'] = null;
+  let tempoFasesTecnicas: PainelAcoplamentoEspecificidades['tempoFasesTecnicas'] = null;
   try {
-    if (terrenoIds.length > 0 || casaIds.length > 0) {
-      const temposCombinados: number[] = [];
-      let historicoParcial = false;
+    const temposPorFase = new Map<string, number[]>();
+    let historicoParcial = false;
 
-      for (const c of input.cards) {
-        const historico = historicoPorCard.get(c.id) ?? [];
-        const temMov = historico.some(
-          (h) =>
-            h.acao === 'fase_avancada' || h.acao === 'fase_retrocedida' || h.acao === 'card_criado',
-        );
-        if (!temMov) historicoParcial = true;
+    const fasesTecnicasIds = FASES_TECNICAS_SLUGS.flatMap((slug) =>
+      faseIdsPorSlugs(input.fases, [slug]),
+    );
 
-        let soma = 0;
-        let temAlguma = false;
-        for (const faseId of terrenoIds) {
-          const dias = diasNaFaseViaTimeline(c, faseId, fasesOrd, historico);
-          if (dias != null) {
-            soma += dias;
-            temAlguma = true;
-          }
-        }
-        for (const faseId of casaIds) {
-          const dias = diasNaFaseViaTimeline(c, faseId, fasesOrd, historico);
-          if (dias != null) {
-            soma += dias;
-            temAlguma = true;
-          }
-        }
-        if (temAlguma) temposCombinados.push(soma);
+    for (const c of input.cards) {
+      const historico = historicoPorCard.get(c.id) ?? [];
+      const temMov = historico.some(
+        (h) =>
+          h.acao === 'fase_avancada' || h.acao === 'fase_retrocedida' || h.acao === 'card_criado',
+      );
+      if (!temMov) historicoParcial = true;
+
+      for (const faseId of fasesTecnicasIds) {
+        const dias = diasNaFaseViaTimeline(c, faseId, fasesOrd, historico);
+        if (dias == null) continue;
+        const list = temposPorFase.get(faseId) ?? [];
+        list.push(dias);
+        temposPorFase.set(faseId, list);
       }
+    }
 
-      tempoModelagemTerrenoCasa = {
-        mediaDias:
-          temposCombinados.length === 0
-            ? null
-            : temposCombinados.reduce((s, n) => s + n, 0) / temposCombinados.length,
-        amostras: temposCombinados.length,
-        historicoParcial,
-      };
+    const media = (nums: number[]) =>
+      nums.length === 0 ? null : nums.reduce((s, n) => s + n, 0) / nums.length;
+
+    const linhas: NonNullable<PainelAcoplamentoEspecificidades['tempoFasesTecnicas']>['linhas'] = [];
+
+    for (const slug of FASES_TECNICAS_SLUGS) {
+      const ids = faseIdsPorSlugs(input.fases, [slug]);
+      for (const faseId of ids) {
+        const nums = temposPorFase.get(faseId) ?? [];
+        const fase = faseById.get(faseId);
+        linhas.push({
+          faseNome: fase?.nome ?? slug,
+          tempoMedioDias: media(nums),
+          cardsAnalisados: nums.length,
+        });
+      }
+    }
+
+    if (linhas.length > 0) {
+      tempoFasesTecnicas = { linhas, historicoParcial };
     }
   } catch {
-    tempoModelagemTerrenoCasa = null;
+    tempoFasesTecnicas = null;
   }
 
   const temAlgum =
     taxaAprovacaoTentativa != null ||
     acoplamentosPorOrigem != null ||
     paralisadosPct != null ||
-    tempoModelagemTerrenoCasa != null;
+    tempoFasesTecnicas != null;
 
   if (!temAlgum) return null;
 
@@ -320,6 +324,6 @@ export function computeAcoplamentoEspecificidades(input: {
     taxaAprovacaoTentativa,
     acoplamentosPorOrigem,
     paralisadosPct,
-    tempoModelagemTerrenoCasa,
+    tempoFasesTecnicas,
   };
 }

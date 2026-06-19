@@ -920,40 +920,39 @@ function AcoplamentoEspecificidadesSection({ data }: { data: PainelAcoplamentoEs
           className="text-base font-semibold"
           style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
         >
-          Especificidades do Acoplamento
+          Especificidades — Acoplamento
         </h2>
         <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-          Retrocessos, origem do card e permanência nas fases de modelagem
+          Aprovação na 1ª tentativa, origem do card e permanência nas fases técnicas
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
         {data.taxaAprovacaoTentativa != null ? (
           <div className="px-4 py-4" style={panelStyle}>
             <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              Aprovação: 1ª tentativa vs com revisões
+              Taxa de aprovação na primeira tentativa
             </h4>
             <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Entre cards que chegaram a Aprovado — revisões = passagem por Alterações antes da
-              aprovação (via `is_retrocesso` no histórico).
+              Chegaram a acoplamento_aprovado sem passagem prévia por alteracoes_acoplamento
+              (kanban_historico + is_retrocesso).
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <MiniKpi
-                label="1ª tentativa"
+                label="Aprovados direto"
                 value={formatInt(data.taxaAprovacaoTentativa.aprovadosPrimeiraTentativa)}
               />
               <MiniKpi
-                label="Com revisões"
+                label="Com revisão"
                 value={formatInt(data.taxaAprovacaoTentativa.aprovadosComRevisoes)}
               />
-              <MiniKpi label="Total aprovados" value={formatInt(data.taxaAprovacaoTentativa.totalAprovados)} />
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <MiniKpi label="% 1ª tentativa" value={formatPct(data.taxaAprovacaoTentativa.pctPrimeiraTentativa)} />
-              <MiniKpi label="% com revisões" value={formatPct(data.taxaAprovacaoTentativa.pctComRevisoes)} />
+              <MiniKpi
+                label="Taxa 1ª tentativa"
+                value={formatPct(data.taxaAprovacaoTentativa.pctPrimeiraTentativa)}
+              />
             </div>
             {data.taxaAprovacaoTentativa.totalAprovados === 0 ? (
-              <DegradeNote>Nenhum card aprovado no recorte analisado.</DegradeNote>
+              <DegradeNote>Nenhum card em acoplamento_aprovado no recorte analisado.</DegradeNote>
             ) : null}
           </div>
         ) : null}
@@ -964,35 +963,15 @@ function AcoplamentoEspecificidadesSection({ data }: { data: PainelAcoplamentoEs
               Cards em Paralisados
             </h4>
             <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Cards ativos na fase Paralisados (reprovado) em relação ao total de cards ativos no funil.
+              Ativos na fase acoplamento_reprovado em relação ao total de cards ativos no funil.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <MiniKpi label="Em Paralisados" value={formatInt(data.paralisadosPct.emParalisados)} />
               <MiniKpi label="Ativos no funil" value={formatInt(data.paralisadosPct.totalCards)} />
               <MiniKpi label="%" value={formatPct(data.paralisadosPct.percentual)} />
             </div>
-          </div>
-        ) : null}
-
-        {data.tempoModelagemTerrenoCasa != null ? (
-          <div className="px-4 py-4" style={panelStyle}>
-            <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              Tempo médio — Modelagem Terreno + Casa
-            </h4>
-            <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Soma da permanência em Modelagem do Terreno e Modelagem da Casa + GBox (dias corridos).
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <MiniKpi label="Média" value={formatDiasCorridos(data.tempoModelagemTerrenoCasa.mediaDias)} />
-              <MiniKpi label="Amostras" value={formatInt(data.tempoModelagemTerrenoCasa.amostras)} />
-            </div>
-            {data.tempoModelagemTerrenoCasa.historicoParcial ? (
-              <DegradeNote>
-                Histórico de movimentação incompleto em parte dos cards — tempos são aproximados.
-              </DegradeNote>
-            ) : null}
-            {data.tempoModelagemTerrenoCasa.amostras === 0 ? (
-              <DegradeNote>Sem visitas registradas às fases de modelagem no recorte.</DegradeNote>
+            {data.paralisadosPct.totalCards === 0 ? (
+              <DegradeNote>Sem cards ativos no recorte analisado.</DegradeNote>
             ) : null}
           </div>
         ) : null}
@@ -1000,14 +979,17 @@ function AcoplamentoEspecificidadesSection({ data }: { data: PainelAcoplamentoEs
 
       {data.acoplamentosPorOrigem != null ? (
         <PanelBox title="Acoplamentos por funil de origem">
+          <p className="mb-3 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Distribuição por origem_kanban_nome (migration 389).
+          </p>
           {data.acoplamentosPorOrigem.origemIndisponivel ? (
             <DegradeNote>
               Campo origem_kanban_nome indisponível — distribuição por origem pode estar incompleta.
             </DegradeNote>
           ) : null}
           <DataTable
-            headers={['Origem', 'Qtd.', '% do total']}
-            emptyMessage="Sem cards com origem identificada no recorte."
+            headers={['Origem', 'Quantidade', '% do total']}
+            emptyMessage="Sem cards no recorte analisado."
             rows={data.acoplamentosPorOrigem.linhas.slice(0, 15).map((r) => [
               r.origem,
               formatInt(r.quantidade),
@@ -1015,6 +997,29 @@ function AcoplamentoEspecificidadesSection({ data }: { data: PainelAcoplamentoEs
             ])}
             alignRightFrom={1}
           />
+        </PanelBox>
+      ) : null}
+
+      {data.tempoFasesTecnicas != null ? (
+        <PanelBox title="Tempo médio por fase técnica">
+          <p className="mb-3 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Permanência em cada fase via kanban_historico (dias corridos).
+          </p>
+          <DataTable
+            headers={['Fase', 'Tempo médio', 'Cards analisados']}
+            emptyMessage="Sem visitas registradas às fases técnicas no recorte."
+            rows={data.tempoFasesTecnicas.linhas.map((l) => [
+              l.faseNome,
+              formatDiasCorridos(l.tempoMedioDias),
+              formatInt(l.cardsAnalisados),
+            ])}
+            alignRightFrom={1}
+          />
+          {data.tempoFasesTecnicas.historicoParcial ? (
+            <DegradeNote>
+              Histórico de movimentação incompleto em parte dos cards — tempos são aproximados.
+            </DegradeNote>
+          ) : null}
         </PanelBox>
       ) : null}
     </section>
