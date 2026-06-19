@@ -1,6 +1,5 @@
 import { calcularDiasUteis } from '@/lib/dias-uteis';
 import { FASE_SLUGS, PORTFOLIO_FASES_CONFIRMACAO_SAIDA } from '@/lib/constants/kanban-ids';
-import { categoriaMotivoArquivamento } from '@/lib/kanban/motivos-arquivamento';
 import type {
   PainelCardDTO,
   PainelFaseDTO,
@@ -8,20 +7,8 @@ import type {
   PainelPeriodKey,
 } from '@/lib/kanban/painel-performance-types';
 
-const MOTIVOS_PERDA_INTERNA = new Set([
-  'Terreno inviável',
-  'Crédito inviável',
-  'Documentação incompleta',
-  'Produto não encaixou',
-  'Fora do escopo',
-  'Erro operacional',
-  'Duplicado',
-]);
-
-const MOTIVOS_PERDA_EXTERNA = new Set([
-  'Desistência do terrenista/parceiro',
-  'Desistência do franqueado',
-]);
+const KW_PERDA_INTERNA = ['credito', 'produto', 'viabilidade', 'comite'] as const;
+const KW_PERDA_EXTERNA = ['desistencia', 'terrenista', 'parceiro'] as const;
 
 function periodSinceMs(key: PainelPeriodKey): number | null {
   if (key === 'all') return null;
@@ -111,11 +98,39 @@ function cardConfirmadoNoPeriodo(
   return timestampInPeriod(c[emField], sinceMs);
 }
 
+function cardAtivoOuArquivado(c: PainelCardDTO): boolean {
+  return !c.concluido;
+}
+
+function normalizeMotivo(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+type OrigemPerda = 'interna' | 'externa' | 'outros';
+
+function classificarOrigemPerda(motivoRaw: string): OrigemPerda {
+  const m = normalizeMotivo(String(motivoRaw ?? '').trim());
+  if (!m) return 'outros';
+  if (KW_PERDA_INTERNA.some((kw) => m.includes(kw))) return 'interna';
+  if (KW_PERDA_EXTERNA.some((kw) => m.includes(kw))) return 'externa';
+  return 'outros';
+}
+
 function median(nums: number[]): number | null {
   const sorted = nums.filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
   if (sorted.length === 0) return null;
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 === 0 ? (sorted[mid - 1]! + sorted[mid]!) / 2 : sorted[mid]!;
+}
+
+function percentile(nums: number[], p: number): number | null {
+  const sorted = nums.filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
+  if (sorted.length === 0) return null;
+  const idx = Math.ceil((p / 100) * sorted.length) - 1;
+  return sorted[Math.max(0, idx)] ?? null;
 }
 
 function diasUteisEntreIso(a: string, b: string): number | null {
@@ -134,17 +149,17 @@ export type PainelPortfolioEspecificidades = {
     percentual: number | null;
   } | null;
   perdaDecisao: {
-    internaMoni: number;
-    externaTerrenista: number;
-    outros: number;
-    totalComMotivo: number;
+    linhas: Array<{ origem: string; quantidade: number; percentual: number | null }>;
+    totalArquivados: number;
   } | null;
   tempoOpcaoAteComite: {
     medianaDiasUteis: number | null;
+    p90DiasUteis: number | null;
     amostras: number;
+    insuficiente: boolean;
   } | null;
   moniCapitalPctContrato: {
-    comCaptacaoCapital: number;
+    emCaptacaoMoniCapital: number;
     chegaramContrato: number;
     percentual: number | null;
   } | null;
@@ -184,7 +199,7 @@ export function computePortfolioEspecificidades(input: {
   const historicoPorCard = buildHistoricoPorCard(input.historicoMovimentos);
 
   const faseComiteIds = new Set(faseIdsPorSlugs(input.fases, PORTFOLIO_FASES_CONFIRMACAO_SAIDA.comite));
-  const faseContratoIds = new Set(faseIdsPorSlugs(input.fases, PORTFOLIO_FASES_CONFIRMACAO_SAIDA.contrato));
+  const faseStep7Ids = new Set(faseIdsPorSlugs(input.fases, [FASE_SLUGS.STEP_7]));
   const faseCaptacaoCapitalIds = new Set(faseIdsPorSlugs(input.fases, [FASE_SLUGS.CAPTACAO_CAPITAL]));
 
   let taxaAprovacaoComite: PainelPortfolioEspecificidades['taxaAprovacaoComite'] = null;
@@ -216,18 +231,26 @@ export function computePortfolioEspecificidades(input: {
     for (const c of input.cards) {
       if (!c.arquivado) continue;
       if (sinceMs != null && !timestampInPeriod(c.arquivado_em, sinceMs)) continue;
-      const cat = categoriaMotivoArquivamento(String(c.motivo_arquivamento ?? ''));
-      if (!cat) {
-        outros += 1;
-        continue;
-      }
-      if (MOTIVOS_PERDA_INTERNA.has(cat)) internaMoni += 1;
-      else if (MOTIVOS_PERDA_EXTERNA.has(cat)) externaTerrenista += 1;
+      const origem = classificarOrigemPerda(String(c.motivo_arquivamento ?? ''));
+      if (origem === 'interna') internaMoni += 1;
+      else if (origem === 'externa') externaTerrenista += 1;
       else outros += 1;
     }
-    const totalComMotivo = internaMoni + externaTerrenista + outros;
-    if (totalComMotivo > 0) {
-      perdaDecisao = { internaMoni, externaTerrenista, outros, totalComMotivo };
+    const totalArquivados = internaMoni + externaTerrenista + outros;
+    if (totalArquivados > 0) {
+      const pct = (n: number) => (totalArquivados === 0 ? null : (n / totalArquivados) * 100);
+      perdaDecisao = {
+        totalArquivados,
+        linhas: [
+          { origem: 'Interna (Moní reprova)', quantidade: internaMoni, percentual: pct(internaMoni) },
+          {
+            origem: 'Externa (terrenista / franqueado desiste)',
+            quantidade: externaTerrenista,
+            percentual: pct(externaTerrenista),
+          },
+          { origem: 'Outros', quantidade: outros, percentual: pct(outros) },
+        ],
+      };
     }
   } catch {
     perdaDecisao = null;
@@ -244,9 +267,12 @@ export function computePortfolioEspecificidades(input: {
         if (du != null && du >= 0) tempos.push(du);
       }
     }
+    const insuficiente = tempos.length < 3;
     tempoOpcaoAteComite = {
-      medianaDiasUteis: median(tempos),
+      medianaDiasUteis: insuficiente ? null : median(tempos),
+      p90DiasUteis: insuficiente ? null : percentile(tempos, 90),
       amostras: tempos.length,
+      insuficiente,
     };
   } catch {
     tempoOpcaoAteComite = null;
@@ -255,21 +281,20 @@ export function computePortfolioEspecificidades(input: {
   let moniCapitalPctContrato: PainelPortfolioEspecificidades['moniCapitalPctContrato'] = null;
   try {
     let chegaramContrato = 0;
-    let comCaptacaoCapital = 0;
+    let emCaptacaoMoniCapital = 0;
     for (const c of input.cards) {
-      const chegouContrato =
-        cardConfirmadoNoPeriodo(c, 'contrato_assinado', 'contrato_assinado_em', sinceMs) ||
-        cardChegouFaseNoPeriodo(c, faseContratoIds, sinceMs, historicoPorCard);
-      if (!chegouContrato) continue;
-      chegaramContrato += 1;
-      if (cardVisitouFase(c, faseCaptacaoCapitalIds, historicoPorCard)) {
-        comCaptacaoCapital += 1;
+      if (cardVisitouFase(c, faseStep7Ids, historicoPorCard)) {
+        chegaramContrato += 1;
+      }
+      if (cardAtivoOuArquivado(c) && faseCaptacaoCapitalIds.has(c.fase_id)) {
+        emCaptacaoMoniCapital += 1;
       }
     }
     moniCapitalPctContrato = {
       chegaramContrato,
-      comCaptacaoCapital,
-      percentual: chegaramContrato === 0 ? null : (comCaptacaoCapital / chegaramContrato) * 100,
+      emCaptacaoMoniCapital,
+      percentual:
+        chegaramContrato === 0 ? null : (emCaptacaoMoniCapital / chegaramContrato) * 100,
     };
   } catch {
     moniCapitalPctContrato = null;

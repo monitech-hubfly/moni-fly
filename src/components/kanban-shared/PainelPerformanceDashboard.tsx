@@ -658,49 +658,26 @@ function PortfolioEspecificidadesSection({ data }: { data: PainelPortfolioEspeci
           className="text-base font-semibold"
           style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
         >
-          Especificidades do Portfólio
+          Especificidades — Portfólio
         </h2>
         <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
           Confirmações de fase (migration 389) e histórico de movimentação
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
         {data.taxaAprovacaoComite != null ? (
           <div className="px-4 py-4" style={panelStyle}>
             <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
               Taxa de aprovação em Comitê
             </h4>
             <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Aprovados no Comitê ÷ cards que chegaram à fase Comitê no período — distinto da taxa de
-              conversão geral do funil.
+              comite_aprovado no período ÷ cards que chegaram à fase Comitê no período.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <MiniKpi label="Chegaram ao Comitê" value={formatInt(data.taxaAprovacaoComite.chegaramComite)} />
               <MiniKpi label="Aprovados" value={formatInt(data.taxaAprovacaoComite.aprovados)} />
+              <MiniKpi label="Chegaram ao Comitê" value={formatInt(data.taxaAprovacaoComite.chegaramComite)} />
               <MiniKpi label="Taxa" value={formatPct(data.taxaAprovacaoComite.percentual)} />
-            </div>
-          </div>
-        ) : null}
-
-        {data.taxaComiteVirandoContrato != null ? (
-          <div className="px-4 py-4" style={panelStyle}>
-            <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              Comitê aprovado → Contrato assinado
-            </h4>
-            <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Contratos assinados ÷ comitês aprovados no período (confirmações registradas no card).
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <MiniKpi
-                label="Comitês aprovados"
-                value={formatInt(data.taxaComiteVirandoContrato.comitesAprovados)}
-              />
-              <MiniKpi
-                label="Contratos assinados"
-                value={formatInt(data.taxaComiteVirandoContrato.contratosAssinados)}
-              />
-              <MiniKpi label="Taxa" value={formatPct(data.taxaComiteVirandoContrato.percentual)} />
             </div>
           </div>
         ) : null}
@@ -708,22 +685,22 @@ function PortfolioEspecificidadesSection({ data }: { data: PainelPortfolioEspeci
         {data.tempoOpcaoAteComite != null ? (
           <div className="px-4 py-4" style={panelStyle}>
             <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              Tempo Opção assinada → Comitê
+              Tempo de Opção até Comitê
             </h4>
             <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Mediana entre opcao_assinada_em e comite_aprovado_em.
+              opcao_assinada_em → comite_aprovado_em (dias úteis).
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <MiniKpi
-                label="Mediana"
-                value={formatDias(data.tempoOpcaoAteComite.medianaDiasUteis)}
-              />
+              <MiniKpi label="Mediana" value={formatDias(data.tempoOpcaoAteComite.medianaDiasUteis)} />
+              <MiniKpi label="P90" value={formatDias(data.tempoOpcaoAteComite.p90DiasUteis)} />
               <MiniKpi label="Amostras" value={formatInt(data.tempoOpcaoAteComite.amostras)} />
             </div>
-            {data.tempoOpcaoAteComite.amostras === 0 ? (
-              <p className="mt-2 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                Sem pares de datas de confirmação no recorte.
-              </p>
+            {data.tempoOpcaoAteComite.insuficiente ? (
+              <DegradeNote>
+                Menos de 3 cards com opcao_assinada_em e comite_aprovado_em — mediana e P90 indisponíveis.
+              </DegradeNote>
+            ) : data.tempoOpcaoAteComite.amostras === 0 ? (
+              <DegradeNote>Sem pares de datas de confirmação no recorte.</DegradeNote>
             ) : null}
           </div>
         ) : null}
@@ -731,63 +708,65 @@ function PortfolioEspecificidadesSection({ data }: { data: PainelPortfolioEspeci
         {data.moniCapitalPctContrato != null ? (
           <div className="px-4 py-4" style={panelStyle}>
             <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              Passagem por Moní Capital
+              Cards em Moní Capital
             </h4>
             <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Cards que passaram pela fase Captação Moní Capital entre os que chegaram a Contrato no período.
+              Ativos ou arquivados em captacao_moni_capital ÷ cards que passaram por step_7 (Contrato).
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <MiniKpi label="Chegaram a Contrato" value={formatInt(data.moniCapitalPctContrato.chegaramContrato)} />
-              <MiniKpi label="Com Captação Capital" value={formatInt(data.moniCapitalPctContrato.comCaptacaoCapital)} />
+              <MiniKpi
+                label="Em Moní Capital"
+                value={formatInt(data.moniCapitalPctContrato.emCaptacaoMoniCapital)}
+              />
+              <MiniKpi
+                label="Passaram por Contrato"
+                value={formatInt(data.moniCapitalPctContrato.chegaramContrato)}
+              />
               <MiniKpi label="%" value={formatPct(data.moniCapitalPctContrato.percentual)} />
             </div>
+          </div>
+        ) : null}
+
+        {data.taxaComiteVirandoContrato != null ? (
+          <div className="px-4 py-4" style={panelStyle}>
+            <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+              Taxa Comitê → Contrato
+            </h4>
+            <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
+              contrato_assinado ÷ comite_aprovado no período. Meta: 100%.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <MiniKpi
+                label="Contratos assinados"
+                value={formatInt(data.taxaComiteVirandoContrato.contratosAssinados)}
+              />
+              <MiniKpi
+                label="Comitês aprovados"
+                value={formatInt(data.taxaComiteVirandoContrato.comitesAprovados)}
+              />
+              <MiniKpi label="Taxa" value={formatPct(data.taxaComiteVirandoContrato.percentual)} />
+            </div>
+            <p className="mt-2 text-[10px] italic" style={{ color: 'var(--moni-text-tertiary)' }}>
+              meta: 100%
+            </p>
           </div>
         ) : null}
       </div>
 
       {data.perdaDecisao != null ? (
-        <PanelBox title="Perda por decisão (arquivamentos)">
+        <PanelBox title="Perda por origem — decisão interna vs. externa">
           <p className="mb-3 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-            Classificação por motivo de arquivamento: interna (Moní reprova) vs externa (terrenista/franqueado
-            desiste).
+            Cards arquivados no período, classificados pelo texto de motivo_arquivamento (crédito, produto,
+            viabilidade, comitê → interna; desistência, terrenista, parceiro → externa).
           </p>
-          <div className="mb-3 flex flex-wrap gap-2">
-            <MiniKpi label="Decisão interna (Moní)" value={formatInt(data.perdaDecisao.internaMoni)} />
-            <MiniKpi label="Decisão externa" value={formatInt(data.perdaDecisao.externaTerrenista)} />
-            <MiniKpi label="Outros / sem classificação" value={formatInt(data.perdaDecisao.outros)} />
-          </div>
           <DataTable
-            headers={['Tipo', 'Qtd.', '% do total']}
-            emptyMessage="Sem arquivamentos classificáveis."
-            rows={[
-              [
-                'Interna — Moní reprova',
-                formatInt(data.perdaDecisao.internaMoni),
-                formatPct(
-                  data.perdaDecisao.totalComMotivo === 0
-                    ? null
-                    : (data.perdaDecisao.internaMoni / data.perdaDecisao.totalComMotivo) * 100,
-                ),
-              ],
-              [
-                'Externa — terrenista / franqueado desiste',
-                formatInt(data.perdaDecisao.externaTerrenista),
-                formatPct(
-                  data.perdaDecisao.totalComMotivo === 0
-                    ? null
-                    : (data.perdaDecisao.externaTerrenista / data.perdaDecisao.totalComMotivo) * 100,
-                ),
-              ],
-              [
-                'Outros / sem motivo canônico',
-                formatInt(data.perdaDecisao.outros),
-                formatPct(
-                  data.perdaDecisao.totalComMotivo === 0
-                    ? null
-                    : (data.perdaDecisao.outros / data.perdaDecisao.totalComMotivo) * 100,
-                ),
-              ],
-            ]}
+            headers={['Origem', 'Qtd.', '% do total arquivado']}
+            emptyMessage="Sem arquivamentos no recorte."
+            rows={data.perdaDecisao.linhas.map((linha) => [
+              linha.origem,
+              formatInt(linha.quantidade),
+              formatPct(linha.percentual),
+            ])}
           />
         </PanelBox>
       ) : null}
