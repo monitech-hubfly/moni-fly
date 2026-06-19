@@ -53,17 +53,49 @@ function parseConteudo(raw: unknown): ConteudoAtaReuniao {
 function mapRow(row: Record<string, unknown>, nomePorId: Map<string, string>): AtaReuniaoRow {
   const conteudo = parseConteudo(row.conteudo);
   const preenchidoPor = row.preenchido_por != null ? String(row.preenchido_por) : null;
+  const assuntoColuna = row.assunto != null ? String(row.assunto).trim() : '';
   return {
     id: String(row.id),
     card_id: String(row.card_id),
     card_origem: row.card_origem === 'legado' ? 'legado' : 'nativo',
     data_reuniao: String(row.data_reuniao ?? '').slice(0, 10),
-    assunto: String(row.assunto ?? conteudo.assunto ?? '').trim() || 'Reunião',
+    assunto: assuntoColuna || conteudo.assunto.trim() || 'Reunião',
     conteudo,
     preenchido_por: preenchidoPor,
     preenchido_nome: preenchidoPor ? nomePorId.get(preenchidoPor) ?? null : null,
     created_at: String(row.created_at ?? ''),
   };
+}
+
+const ATA_SELECT_BASE =
+  'id, card_id, card_origem, data_reuniao, conteudo, preenchido_por, created_at';
+
+async function queryAtasReuniaoCard(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  cardId: string,
+  origem: 'nativo' | 'legado',
+) {
+  const withAssunto = await supabase
+    .from('kanban_card_atas_reuniao')
+    .select(`${ATA_SELECT_BASE}, assunto`)
+    .eq('card_id', cardId)
+    .eq('card_origem', origem)
+    .order('data_reuniao', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (!withAssunto.error) return withAssunto;
+
+  if (/assunto/i.test(withAssunto.error.message)) {
+    return supabase
+      .from('kanban_card_atas_reuniao')
+      .select(ATA_SELECT_BASE)
+      .eq('card_id', cardId)
+      .eq('card_origem', origem)
+      .order('data_reuniao', { ascending: false })
+      .order('created_at', { ascending: false });
+  }
+
+  return withAssunto;
 }
 
 export async function listarAtasReuniaoCard(input: {
@@ -74,13 +106,7 @@ export async function listarAtasReuniaoCard(input: {
   if (!cardId) return [];
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('kanban_card_atas_reuniao')
-    .select('id, card_id, card_origem, data_reuniao, assunto, conteudo, preenchido_por, created_at')
-    .eq('card_id', cardId)
-    .eq('card_origem', input.origem)
-    .order('data_reuniao', { ascending: false })
-    .order('created_at', { ascending: false });
+  const { data, error } = await queryAtasReuniaoCard(supabase, cardId, input.origem);
 
   if (error || !data?.length) return [];
 
@@ -132,14 +158,21 @@ export async function salvarAtaReuniaoCard(input: {
     acoes: acoesLimpas,
   };
 
-  const { error: insErr } = await supabase.from('kanban_card_atas_reuniao').insert({
+  const payloadBase = {
     card_id: cardId,
     card_origem: input.origem,
     data_reuniao: dataReuniao,
-    assunto,
     conteudo,
     preenchido_por: user.id,
-  } as never);
+  };
+
+  let insErr = (
+    await supabase.from('kanban_card_atas_reuniao').insert({ ...payloadBase, assunto } as never)
+  ).error;
+
+  if (insErr && /assunto/i.test(insErr.message)) {
+    insErr = (await supabase.from('kanban_card_atas_reuniao').insert(payloadBase as never)).error;
+  }
 
   if (insErr) return { ok: false, error: insErr.message };
 
