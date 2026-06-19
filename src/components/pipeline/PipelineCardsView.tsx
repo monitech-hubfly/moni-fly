@@ -168,12 +168,36 @@ function filtrarDatasetPorModo(
   return dataset;
 }
 
-const selectClass = 'min-h-[44px] rounded-lg px-3 text-sm w-full sm:w-auto';
-const selectStyle: React.CSSProperties = {
+const filtersBarStyle: React.CSSProperties = {
+  padding: '10px 14px',
+  background: 'var(--color-background-secondary)',
+  borderRadius: 'var(--moni-radius-md)',
+};
+
+const filterSelectStyle: React.CSSProperties = {
+  width: '130px',
+  flexShrink: 0,
+  height: '32px',
+  fontSize: '12px',
+  padding: '4px 8px',
   border: '0.5px solid var(--moni-border-default)',
-  fontFamily: 'var(--moni-font-sans)',
   borderRadius: 'var(--moni-radius-md)',
   background: 'var(--moni-surface-0)',
+  fontFamily: 'var(--moni-font-sans)',
+  color: 'var(--moni-text-primary)',
+};
+
+const filterSearchStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: '140px',
+  height: '32px',
+  fontSize: '12px',
+  padding: '4px 8px 4px 32px',
+  border: '0.5px solid var(--moni-border-default)',
+  borderRadius: 'var(--moni-radius-md)',
+  background: 'var(--moni-surface-0)',
+  fontFamily: 'var(--moni-font-sans)',
+  color: 'var(--moni-text-primary)',
 };
 
 export function PipelineCardsView({
@@ -353,111 +377,104 @@ export function PipelineCardsView({
       {viewMode === 'unidade' ? <PipelineOQueFazerHoje items={oQueFazerHoje} /> : null}
 
       {showFilters ? (
-        <div className="mb-6 flex flex-col gap-3 px-4 py-4" style={panelStyle}>
-          <label className="flex min-w-[12rem] flex-1 flex-col gap-1">
-            <span className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Buscar
-            </span>
-            <input
-              type="search"
-              value={filtros.busca}
-              onChange={(e) => setFiltros((f) => ({ ...f, busca: e.target.value }))}
-              placeholder="Título, funil, fase, franquia, responsável…"
-              className="min-h-[44px] rounded-lg px-3 text-sm"
-              style={selectStyle}
-            />
-          </label>
-          <div className="flex flex-col flex-wrap gap-3 sm:flex-row sm:items-end">
+        <div className="mb-6 overflow-x-auto px-4">
+          <div className="flex min-w-[720px] flex-nowrap items-center gap-2" style={filtersBarStyle}>
+            <div className="relative min-w-0 flex-1">
+              <i
+                className="ti ti-search pointer-events-none absolute left-2 top-1/2 -translate-y-1/2"
+                style={{ fontSize: 14, color: 'var(--moni-text-tertiary)' }}
+                aria-hidden
+              />
+              <input
+                type="search"
+                value={filtros.busca}
+                onChange={(e) => setFiltros((f) => ({ ...f, busca: e.target.value }))}
+                placeholder="Buscar título, funil, fase..."
+                aria-label="Buscar cards"
+                className="w-full placeholder:text-[var(--moni-text-tertiary)]"
+                style={filterSearchStyle}
+              />
+            </div>
             {viewMode === 'franqueadora' ? (
-              <label className="flex min-w-[10rem] flex-1 flex-col gap-1 sm:max-w-[14rem]">
-                <span className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                  Unidade de Franquia
-                </span>
-                <select value={filtros.unidade} onChange={(e) => setFiltros((f) => ({ ...f, unidade: e.target.value }))} className={selectClass} style={selectStyle}>
-                  <option value="todas">Todas</option>
-                  {opcoesUnidade.map(([id, nome]) => (
-                    <option key={id} value={id}>
-                      {nome}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <select
+                value={filtros.unidade}
+                onChange={(e) => setFiltros((f) => ({ ...f, unidade: e.target.value }))}
+                aria-label="Unidade"
+                style={filterSelectStyle}
+              >
+                <option value="todas">Unidade</option>
+                {opcoesUnidade.map(([id, nome]) => (
+                  <option key={id} value={id}>
+                    {nome}
+                  </option>
+                ))}
+              </select>
             ) : null}
-            <label className="flex min-w-[10rem] flex-col gap-1 sm:max-w-[12rem]">
-              <span className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                Funil / Kanban
-              </span>
-              <select
-                value={filtros.kanban}
-                onChange={(e) => setFiltros((f) => ({ ...f, kanban: e.target.value, fase: 'todas' }))}
-                className={selectClass}
-                style={selectStyle}
-              >
-                <option value="todos">Todos</option>
-                {opcoesKanban.map(([id, nome]) => (
-                  <option key={id} value={id}>
-                    {nome}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex min-w-[10rem] flex-col gap-1 sm:max-w-[12rem]">
-              <span className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                Fase
-              </span>
-              <select value={filtros.fase} onChange={(e) => setFiltros((f) => ({ ...f, fase: e.target.value }))} className={selectClass} style={selectStyle}>
-                <option value="todas">Todas</option>
-                {opcoesFase.map(([id, nome]) => (
-                  <option key={id} value={id}>
-                    {nome}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex min-w-[10rem] flex-col gap-1 sm:max-w-[12rem]">
-              <span className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                Status
-              </span>
-              <select
-                value={filtros.status}
-                onChange={(e) => setFiltros((f) => ({ ...f, status: e.target.value as PipelineCardsFiltros['status'] }))}
-                className={selectClass}
-                style={selectStyle}
-              >
-                <option value="todos">Todos</option>
-                <option value="atrasados">SLA atrasado</option>
-                <option value="vence_hoje">Vence hoje</option>
-                <option value="vencendo_breve">Vencendo em breve</option>
-                <option value="sem_movimentacao">Sem movimentação</option>
-                <option value="dentro_prazo">Dentro do prazo</option>
-              </select>
-            </label>
-            <label className="flex min-w-[10rem] flex-col gap-1 sm:max-w-[14rem]">
-              <span className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                Responsável
-              </span>
-              <select value={filtros.responsavel} onChange={(e) => setFiltros((f) => ({ ...f, responsavel: e.target.value }))} className={selectClass} style={selectStyle}>
-                <option value="todos">Todos</option>
-                {opcoesResponsavel.sem ? <option value="__sem__">Sem responsável</option> : null}
-                {opcoesResponsavel.list.map(([id, nome]) => (
-                  <option key={id} value={id}>
-                    {nome}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <select
+              value={filtros.kanban}
+              onChange={(e) => setFiltros((f) => ({ ...f, kanban: e.target.value, fase: 'todas' }))}
+              aria-label="Funil"
+              style={filterSelectStyle}
+            >
+              <option value="todos">Funil</option>
+              {opcoesKanban.map(([id, nome]) => (
+                <option key={id} value={id}>
+                  {nome}
+                </option>
+              ))}
+            </select>
+            <select
+              value={filtros.fase}
+              onChange={(e) => setFiltros((f) => ({ ...f, fase: e.target.value }))}
+              aria-label="Fase"
+              style={filterSelectStyle}
+            >
+              <option value="todas">Fase</option>
+              {opcoesFase.map(([id, nome]) => (
+                <option key={id} value={id}>
+                  {nome}
+                </option>
+              ))}
+            </select>
+            <select
+              value={filtros.status}
+              onChange={(e) => setFiltros((f) => ({ ...f, status: e.target.value as PipelineCardsFiltros['status'] }))}
+              aria-label="Status"
+              style={filterSelectStyle}
+            >
+              <option value="todos">Status</option>
+              <option value="atrasados">SLA atrasado</option>
+              <option value="vence_hoje">Vence hoje</option>
+              <option value="vencendo_breve">Vencendo em breve</option>
+              <option value="sem_movimentacao">Sem movimentação</option>
+              <option value="dentro_prazo">Dentro do prazo</option>
+            </select>
+            <select
+              value={filtros.responsavel}
+              onChange={(e) => setFiltros((f) => ({ ...f, responsavel: e.target.value }))}
+              aria-label="Responsável"
+              style={filterSelectStyle}
+            >
+              <option value="todos">Responsável</option>
+              {opcoesResponsavel.sem ? <option value="__sem__">Sem responsável</option> : null}
+              {opcoesResponsavel.list.map(([id, nome]) => (
+                <option key={id} value={id}>
+                  {nome}
+                </option>
+              ))}
+            </select>
             {viewMode === 'franqueadora' ? (
-              <label className="flex min-w-[10rem] flex-col gap-1 sm:max-w-[12rem]">
-                <span className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                  Agrupar por
-                </span>
-                <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as PipelineGroupBy)} className={selectClass} style={selectStyle}>
-                  <option value="franquia">Unidade</option>
-                  <option value="funil">Funil</option>
-                  <option value="fase">Fase</option>
-                  <option value="status">Status SLA</option>
-                </select>
-              </label>
+              <select
+                value={groupBy}
+                onChange={(e) => setGroupBy(e.target.value as PipelineGroupBy)}
+                aria-label="Agrupar por"
+                style={filterSelectStyle}
+              >
+                <option value="franquia">Agrupar por</option>
+                <option value="funil">Funil</option>
+                <option value="fase">Fase</option>
+                <option value="status">Status SLA</option>
+              </select>
             ) : null}
           </div>
         </div>
