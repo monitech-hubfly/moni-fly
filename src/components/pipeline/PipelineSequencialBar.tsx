@@ -5,6 +5,7 @@ import { badgeStatusPipelineCard } from '@/lib/kanban/pipeline-franqueadora-comp
 import {
   ESTEIRA_TRES_ETAPAS,
   configFunilParaleloEsteira,
+  idProjetoNegocioPipelineCard,
   indiceEsteiraTresEtapas,
   isFunilParaleloEsteira,
   isFunilEsteiraPrincipal,
@@ -77,13 +78,14 @@ type BarTrackProps = {
 function EsteiraMainTrack({ card, enrichment, heightPx, siblingCards, showParaleloLabel = true }: BarTrackProps) {
   const maxMap = enrichment?.maxOrdemPorKanban;
   const isParalelo = isFunilParaleloEsteira(card.kanban_id);
-  const projetoId = String(card.projeto_id ?? '').trim();
+  const projetoId = idProjetoNegocioPipelineCard(card);
   const principalRef = isParalelo ? resolverCardEsteiraPrincipalProjeto(card, siblingCards) : null;
 
   const trackCard: PipelineCardDisplay = (() => {
     if (!isParalelo || !principalRef) return card;
     const full = siblingCards?.find(
-      (c) => c.kanban_id === principalRef.kanban_id && String(c.projeto_id ?? '').trim() === projetoId,
+      (c) =>
+        c.kanban_id === principalRef.kanban_id && idProjetoNegocioPipelineCard(c) === projetoId,
     );
     return full ?? ({ ...card, kanban_id: principalRef.kanban_id, fase_ordem: principalRef.fase_ordem } as PipelineCardDisplay);
   })();

@@ -42,35 +42,33 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex min-h-[44px] w-full items-center gap-2 px-4 py-3 text-left transition hover:bg-[var(--moni-surface-50)]"
+        className="flex min-h-[44px] w-full flex-nowrap items-center gap-2 overflow-x-auto px-4 py-3 text-left transition hover:bg-[var(--moni-surface-50)]"
         aria-expanded={expanded}
       >
-        <span className="shrink-0 text-[13px] leading-none" aria-hidden>
-          {emojiIndicadorSaudePipeline(saudeIndicador)}
-        </span>
-        <span className="sr-only">Saúde: {saudeIndicador}</span>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h2
-              className="text-[13px] font-semibold"
-              style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-display)' }}
-            >
-              {meta.label}
-            </h2>
-            <span className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-              {cards.length} card{cards.length === 1 ? '' : 's'}
-            </span>
-            {alertas.atrasados > 0 ? (
-              <span className="moni-tag-atrasado text-[10px]">{alertas.atrasados} atrasado(s)</span>
-            ) : null}
-            {alertas.chamadosTrava > 0 ? (
-              <span className="moni-tag-atencao text-[10px]">{alertas.chamadosTrava} trava(s)</span>
-            ) : null}
-            {alertas.venceEm2Dias > 0 ? (
-              <span className="moni-tag-atencao text-[10px]">{alertas.venceEm2Dias} vence em 2d</span>
-            ) : null}
-            <PipelineFunilMesInline funil={funilMes} />
-          </div>
+        <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-x-2 overflow-x-auto whitespace-nowrap">
+          <h2
+            className="shrink-0 text-[13px] font-semibold"
+            style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-display)' }}
+          >
+            {meta.label}
+          </h2>
+          <span className="shrink-0 text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+            {cards.length} card{cards.length === 1 ? '' : 's'}
+          </span>
+          {alertas.atrasados > 0 ? (
+            <span className="moni-tag-atrasado shrink-0 text-[10px]">{alertas.atrasados} atrasado(s)</span>
+          ) : null}
+          {alertas.chamadosTrava > 0 ? (
+            <span className="moni-tag-atencao shrink-0 text-[10px]">{alertas.chamadosTrava} trava(s)</span>
+          ) : null}
+          {alertas.venceEm2Dias > 0 ? (
+            <span className="moni-tag-atencao shrink-0 text-[10px]">{alertas.venceEm2Dias} vence em 2d</span>
+          ) : null}
+          <span className="shrink-0 text-[13px] leading-none" aria-hidden>
+            {emojiIndicadorSaudePipeline(saudeIndicador)}
+          </span>
+          <span className="sr-only">Saúde: {saudeIndicador}</span>
+          <PipelineFunilMesInline funil={funilMes} />
         </div>
         <ChevronDown
           className="h-4 w-4 shrink-0"

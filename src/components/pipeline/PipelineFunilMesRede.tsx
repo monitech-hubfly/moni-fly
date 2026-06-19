@@ -117,7 +117,7 @@ export function PipelineFunilMesRede({ funil, className }: Props) {
                 {col.total}
               </p>
               <p className="text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                total rede
+                {idx === 0 ? 'total rede' : 'total'}
               </p>
 
               <div
