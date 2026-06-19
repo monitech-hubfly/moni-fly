@@ -178,16 +178,21 @@ export function computeGargaloScoreRanking(input: {
   totalArquivamentosSemMotivo: number;
   totalChamadosComTrava: number;
   cardAtrasadoNaFase: (card: PainelCardDTO, fase: PainelFaseDTO) => boolean;
+  /** Pipeline: inatividade via `updated_at` sem carregar histórico. */
+  cardSemMovimentacaoFn?: (card: PainelCardDTO) => boolean;
 }): GargaloScoreFase[] {
   const fasesOrd = [...input.fases].sort((a, b) => a.ordem - b.ordem);
   const historicoPorCard = buildHistoricoPorCard(input.historicoMovimentos);
+  const semMovFn =
+    input.cardSemMovimentacaoFn ??
+    ((card: PainelCardDTO) => cardSemMovimentacao(card, historicoPorCard));
   const cardsAtivos = input.cards.filter(cardAtivo);
 
   const raw = fasesOrd.map((fase) => {
     const naFase = cardsAtivos.filter((c) => c.fase_id === fase.id);
     const cardsNaFase = naFase.length;
     const cardsAtrasados = naFase.filter((c) => input.cardAtrasadoNaFase(c, fase)).length;
-    const cardsSemMovimentacao = naFase.filter((c) => cardSemMovimentacao(c, historicoPorCard)).length;
+    const cardsSemMovimentacao = naFase.filter((c) => semMovFn(c)).length;
     const pctAtrasados = cardsNaFase === 0 ? 0 : (cardsAtrasados / cardsNaFase) * 100;
     const pctSemMovimentacao = cardsNaFase === 0 ? 0 : (cardsSemMovimentacao / cardsNaFase) * 100;
 

@@ -39,6 +39,29 @@ export async function fetchKanbanFasesAtivas(
   return (fasesRows ?? []).map((row) => mapKanbanFaseRow(row as Record<string, unknown>));
 }
 
+/** Fases ativas de vários kanbans em uma única query (pipeline / painel). */
+export async function fetchKanbanFasesAtivasBatch(
+  supabase: SupabaseClient,
+  kanbanIds: string[],
+): Promise<KanbanFase[]> {
+  const uniq = [...new Set(kanbanIds.map((id) => String(id ?? '').trim()).filter(Boolean))];
+  if (uniq.length === 0) return [];
+
+  const { data: fasesRows, error } = await supabase
+    .from('kanban_fases')
+    .select('id, nome, ordem, sla_dias, slug, instrucoes, materiais, fase_conversao, kanban_id')
+    .in('kanban_id', uniq)
+    .eq('ativo', true)
+    .order('ordem');
+
+  if (error) {
+    console.error('[fetchKanbanFasesAtivasBatch]', error.message);
+    return [];
+  }
+
+  return (fasesRows ?? []).map((row) => mapKanbanFaseRow(row as Record<string, unknown>));
+}
+
 /** Inclui fases referenciadas por cards cujo `fase_id` não está nas fases ativas (ex.: fase desativada). */
 export async function augmentKanbanFasesComFasesDosCards(
   supabase: SupabaseClient,

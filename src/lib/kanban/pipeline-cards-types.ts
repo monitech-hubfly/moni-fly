@@ -101,7 +101,8 @@ export type PipelineCardsKpis = {
 
 export type PipelineFranqueadoraEnrichment = {
   fases: PainelFaseDTO[];
-  historicoMovimentos: PainelHistoricoMovimentoDTO[];
+  /** Usado só no servidor (gargalo); removido antes de serializar ao client. */
+  historicoMovimentos?: PainelHistoricoMovimentoDTO[];
   chamados: PainelChamadoUnificadoDTO[];
   gargaloRanking: GargaloScoreFase[];
   maxOrdemPorKanban: Record<string, number>;

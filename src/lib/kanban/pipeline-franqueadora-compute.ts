@@ -5,7 +5,6 @@ import type {
   PainelCardDTO,
   PainelChamadoUnificadoDTO,
   PainelFaseDTO,
-  PainelHistoricoMovimentoDTO,
 } from '@/lib/kanban/painel-performance-types';
 import { calcularDiasNaFase, cardVenceEm2DiasUteis } from '@/lib/kanban/pipeline-card-readonly';
 import type {
@@ -153,7 +152,7 @@ export function computeGargaloRankingRede(
   return computeGargaloScoreRanking({
     fases: enrichment.fases,
     cards: painelCards,
-    historicoMovimentos: enrichment.historicoMovimentos,
+    historicoMovimentos: [],
     chamadosAbertosPorFase: chamadosPorFase,
     perdaConversaoPorFase: new Map(),
     arquivamentoPorFase: new Map(),
@@ -164,6 +163,10 @@ export function computeGargaloRankingRede(
     cardAtrasadoNaFase: (card, fase) => {
       const disp = cardById.get(card.id);
       return disp ? cardAtrasadoNaFase(disp, fase) : false;
+    },
+    cardSemMovimentacaoFn: (card) => {
+      const disp = cardById.get(card.id);
+      return disp ? disp.inativo : false;
     },
   });
 }

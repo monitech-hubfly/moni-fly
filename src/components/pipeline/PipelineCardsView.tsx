@@ -9,6 +9,7 @@ import type {
   PipelineCardsKpis,
   PipelineCardsKpisUnidade,
   PipelineFranqueadoUnidade,
+  PipelineFranqueadoraEnrichment,
   PipelineGroupBy,
 } from '@/lib/kanban/pipeline-cards-types';
 import { PIPELINE_CARDS_FILTROS_DEFAULT } from '@/lib/kanban/pipeline-cards-types';
@@ -195,12 +196,32 @@ export function PipelineCardsView({
   const cardsEnriquecidos = useMemo(() => scoped.cards.map(enriquecerPipelineCard), [scoped.cards]);
   const cardsFiltrados = useMemo(() => filtrarPipelineCards(cardsEnriquecidos, filtros), [cardsEnriquecidos, filtros]);
 
+  const enrichmentGargalo = dataset.enrichment?.gargaloRanking;
+  const enrichmentChamados = dataset.enrichment?.chamados;
+
+  const enrichmentSlim = useMemo((): PipelineFranqueadoraEnrichment | null | undefined => {
+    const e = dataset.enrichment;
+    if (!e) return e;
+    return {
+      fases: e.fases,
+      chamados: e.chamados,
+      gargaloRanking: e.gargaloRanking,
+      maxOrdemPorKanban: e.maxOrdemPorKanban,
+      historicoMovimentos: [],
+    };
+  }, [
+    dataset.enrichment?.fases,
+    dataset.enrichment?.chamados,
+    dataset.enrichment?.gargaloRanking,
+    dataset.enrichment?.maxOrdemPorKanban,
+  ]);
+
   const kpisFranqueadora = useMemo(
     () =>
       showKpis && viewMode === 'franqueadora'
-        ? calcularKpisPipelineFranqueadoraExtended(cardsFiltrados, dataset.enrichment)
+        ? calcularKpisPipelineFranqueadoraExtended(cardsFiltrados, enrichmentSlim)
         : null,
-    [showKpis, viewMode, cardsFiltrados, dataset.enrichment],
+    [showKpis, viewMode, cardsFiltrados, enrichmentGargalo, enrichmentChamados],
   );
 
   const kpisUnidade = useMemo(
@@ -458,7 +479,7 @@ export function PipelineCardsView({
                 key={meta.redeId}
                 meta={meta}
                 cards={cardsPorRede.get(meta.redeId) ?? []}
-                enrichment={dataset.enrichment}
+                enrichment={enrichmentSlim}
                 onCardClick={setDrawerCard}
               />
             ))}
@@ -475,14 +496,14 @@ export function PipelineCardsView({
               <PipelineUnidadeProjetoBloco
                 key={`projeto-${bloco.grupo.projetoId}`}
                 grupo={bloco.grupo}
-                enrichment={dataset.enrichment}
+                enrichment={enrichmentSlim}
                 onCardClick={setDrawerCard}
               />
             ) : (
               <PipelineUnidadeCardSolo
                 key={bloco.card.id}
                 card={bloco.card}
-                enrichment={dataset.enrichment}
+                enrichment={enrichmentSlim}
                 onCardClick={setDrawerCard}
               />
             ),
