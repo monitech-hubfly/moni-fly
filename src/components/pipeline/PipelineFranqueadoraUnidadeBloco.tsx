@@ -16,6 +16,7 @@ import {
 } from '@/lib/kanban/pipeline-franqueadora-compute';
 import { PipelineSequencialBar, pipelineBadgeInlineStyle } from '@/components/pipeline/PipelineSequencialBar';
 import { PipelineSaudeMesCondensado, PipelineSaudeMesInline } from '@/components/pipeline/PipelineSaudeMesCondensado';
+import { PipelineFunilMesInline } from '@/components/pipeline/PipelineFunilMesInline';
 
 const panelStyle: React.CSSProperties = {
   borderRadius: 'var(--moni-radius-lg)',
@@ -38,7 +39,7 @@ type Props = {
 
 export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCardClick }: Props) {
   const [expanded, setExpanded] = useState(meta.defaultExpanded);
-  const { alertas, saude } = meta;
+  const { alertas, saude, funilMes } = meta;
   const saudeCor = indicadorSaudeUnidadePipeline(alertas, saude);
 
   return (
@@ -75,6 +76,7 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
               <span className="moni-tag-atencao text-[10px]">{alertas.venceEm2Dias} vence em 2d</span>
             ) : null}
             <PipelineSaudeMesInline saude={saude} />
+            <PipelineFunilMesInline funil={funilMes} />
           </div>
         </div>
         <ChevronDown

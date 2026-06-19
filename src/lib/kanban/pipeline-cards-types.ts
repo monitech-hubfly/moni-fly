@@ -36,6 +36,10 @@ export type PipelineCardRow = {
   responsavel_fase_nome?: string | null;
   contrato_assinado?: boolean;
   contrato_assinado_em?: string | null;
+  opcao_assinada?: boolean;
+  opcao_assinada_em?: string | null;
+  comite_aprovado?: boolean;
+  comite_aprovado_em?: string | null;
   /** FK `projeto_negocio.id` — agrupa esteiras paralelas do mesmo negócio. */
   projeto_id?: string | null;
   projeto_titulo?: string | null;
@@ -178,12 +182,67 @@ export type PipelineUnidadeAlertas = {
   nivel: 'critico' | 'atencao' | 'ok';
 };
 
+export type PipelineFunilMesDotNivel = 0 | 1 | 2 | 3 | 4 | 5;
+
+export type PipelineFunilMesUnidadeRow = {
+  redeId: string;
+  label: string;
+  quantidade: number;
+  dots: PipelineFunilMesDotNivel;
+};
+
+export type PipelineFunilMesBarSegment = {
+  redeId: string;
+  label: string;
+  quantidade: number;
+  pct: number;
+  cor: string;
+};
+
+export type PipelineFunilMesEtapaKey = 'hipoteses' | 'opcoes' | 'comites' | 'contratos';
+
+export type PipelineFunilMesColuna = {
+  key: PipelineFunilMesEtapaKey;
+  label: string;
+  total: number;
+  porUnidade: PipelineFunilMesUnidadeRow[];
+  barSegments: PipelineFunilMesBarSegment[];
+};
+
+export type PipelineFunilMesRede = {
+  colunas: PipelineFunilMesColuna[];
+  conversoes: [number | null, number | null, number | null];
+  disponivel: boolean;
+};
+
+export type PipelineFunilMesUnidadeMetric = {
+  key: PipelineFunilMesEtapaKey;
+  label: string;
+  total: number;
+  dots: PipelineFunilMesDotNivel;
+  dotCor: 'verde' | 'vermelho' | 'cinza';
+};
+
+export type PipelineFunilMesUnidade = {
+  metricas: PipelineFunilMesUnidadeMetric[];
+  conversoes: [number | null, number | null, number | null];
+  disponivel: boolean;
+};
+
+export type PipelineFunilMesCompact = {
+  hipoteses: number;
+  opcoes: number;
+  comites: number;
+  contratos: number;
+};
+
 export type PipelineUnidadeBlocoMeta = {
   redeId: string;
   label: string;
   nFranquia: string | null;
   alertas: PipelineUnidadeAlertas;
   saude: PipelineUnidadeSaudeMes;
+  funilMes: PipelineFunilMesCompact;
   defaultExpanded: boolean;
   sortPriority: number;
 };

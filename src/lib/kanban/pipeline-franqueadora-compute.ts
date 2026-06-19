@@ -25,6 +25,7 @@ import {
 } from '@/lib/kanban/pipeline-cards-utils';
 import { excluirFranquiaDosGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
 import { indiceEsteiraTresEtapas } from '@/lib/kanban/pipeline-esteira-tres-etapas';
+import { computeFunilMesCompact } from '@/lib/kanban/pipeline-funil-mes-compute';
 
 export const PARADO_DIAS = 20;
 const META_ENTRADAS_MES = 5;
@@ -265,6 +266,7 @@ export function montarBlocosUnidadePipeline(
     if (unitCards.length === 0) continue;
     const alertas = alertasUnidadePipeline(unitCards, chamados);
     const saude = saudeMesUnidadePipeline(unitCards);
+    const funilMes = computeFunilMesCompact(unitCards);
     const sortPriority =
       alertas.nivel === 'critico' ? 0 : alertas.nivel === 'atencao' ? 1 : 2;
     blocos.push({
@@ -273,6 +275,7 @@ export function montarBlocosUnidadePipeline(
       nFranquia: f.n_franquia,
       alertas,
       saude,
+      funilMes,
       defaultExpanded: false,
       sortPriority,
     });

@@ -22,6 +22,7 @@ import {
   montarBlocosUnidadePipeline,
   sortCardsFranqueadoraPrioridade,
 } from '@/lib/kanban/pipeline-franqueadora-compute';
+import { computeFunilMesRede, computeFunilMesUnidade } from '@/lib/kanban/pipeline-funil-mes-compute';
 import {
   calcularKpisPipelineUnidadeExtended,
   montarBlocosDisplayUnidade,
@@ -35,6 +36,8 @@ import { PipelineUnidadeResumoLinha } from '@/components/pipeline/PipelineUnidad
 import { PipelineOQueFazerHoje } from '@/components/pipeline/PipelineOQueFazerHoje';
 import { PipelineUnidadeProjetoBloco } from '@/components/pipeline/PipelineUnidadeProjetoBloco';
 import { PipelineUnidadeCardSolo } from '@/components/pipeline/PipelineUnidadeCardSolo';
+import { PipelineFunilMesRede } from '@/components/pipeline/PipelineFunilMesRede';
+import { PipelineFunilMesUnidade } from '@/components/pipeline/PipelineFunilMesUnidade';
 import { PIPELINE_READONLY_NOTA } from '@/lib/kanban/pipeline-card-readonly';
 
 export type PipelineCardsViewProps = {
@@ -233,6 +236,19 @@ export function PipelineCardsView({
     );
   }, [viewMode, scoped.franqueados, cardsFiltrados, dataset.enrichment?.chamados]);
 
+  const funilMesRede = useMemo(
+    () =>
+      viewMode === 'franqueadora'
+        ? computeFunilMesRede(scoped.cards, scoped.franqueados)
+        : null,
+    [viewMode, scoped.cards, scoped.franqueados],
+  );
+
+  const funilMesUnidade = useMemo(
+    () => (viewMode === 'unidade' ? computeFunilMesUnidade(scoped.cards) : null),
+    [viewMode, scoped.cards],
+  );
+
   const cardsPorRede = useMemo(() => {
     const m = new Map<string, PipelineCardDisplay[]>();
     for (const c of cardsFiltrados) {
@@ -296,14 +312,17 @@ export function PipelineCardsView({
       ) : null}
       {showKpis && viewMode === 'unidade' && kpisUnidade ? <PipelineKpisBarUnidade kpis={kpisUnidade} /> : null}
 
-      {viewMode === 'unidade' && saudeUnidade ? (
+      {viewMode === 'franqueadora' && funilMesRede ? <PipelineFunilMesRede funil={funilMesRede} /> : null}
+
+      {viewMode === 'unidade' && (saudeUnidade || funilMesUnidade) ? (
         <div className="mb-6 px-4 py-4" style={panelStyle}>
           <PipelineUnidadeResumoLinha
             cards={cardsEnriquecidos}
             chamados={dataset.enrichment?.chamados ?? []}
             className="mb-3"
           />
-          <PipelineSaudeMesCondensado saude={saudeUnidade} />
+          {funilMesUnidade ? <PipelineFunilMesUnidade funil={funilMesUnidade} className="mb-3" /> : null}
+          {saudeUnidade ? <PipelineSaudeMesCondensado saude={saudeUnidade} /> : null}
         </div>
       ) : null}
 
