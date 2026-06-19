@@ -141,7 +141,26 @@ function cardAtivo(c: PainelCardDTO): boolean {
 /** Campos de negócio do card (exclui responsável — contado em Sem responsável). */
 function cardTemCamposIncompletos(c: PainelCardDTO): boolean {
   const titulo = String(c.titulo ?? '').trim();
-  return titulo.length === 0 || titulo === '(sem título)';
+  if (titulo.length === 0 || titulo === '(sem título)') return true;
+
+  if ('nome_condominio' in c || 'quadra' in c || 'lote' in c) {
+    const condo = String(c.nome_condominio ?? '').trim();
+    const quadra = String(c.quadra ?? '').trim();
+    const lote = String(c.lote ?? '').trim();
+    if (!condo && !(quadra && lote)) return true;
+  }
+
+  if ('projeto_titulo' in c && c.projeto_titulo !== undefined) {
+    if (!String(c.projeto_titulo ?? '').trim()) return true;
+  }
+
+  if ('rede_cidade_casa_frank' in c && c.rede_cidade_casa_frank !== undefined) {
+    if (!String(c.rede_cidade_casa_frank ?? '').trim() && !String(c.rede_area_atuacao ?? '').trim()) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export function deriveQualidadeMetrics(

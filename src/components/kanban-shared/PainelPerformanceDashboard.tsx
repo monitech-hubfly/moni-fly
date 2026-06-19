@@ -127,8 +127,11 @@ function canonicalChamadoStatusLabel(status: string): string {
   const aliasMap: Record<string, string> = {
     nao_iniciada: 'Não iniciada',
     nao_iniciado: 'Não iniciada',
+    'nao iniciada': 'Não iniciada',
+    'nao iniciado': 'Não iniciada',
     'não iniciado': 'Não iniciada',
     'não iniciada': 'Não iniciada',
+    'Não iniciado': 'Não iniciada',
     em_andamento: 'Em andamento',
     pendente: 'Pendente',
     concluida: 'Concluída',
@@ -741,7 +744,6 @@ type ChamadosPorFaseRow = {
   abertos: number;
   comTrava: number;
   vencidos: number;
-  gargaloClassificacao: GargaloClassificacao | null;
   pastelaria: number;
 };
 
@@ -756,10 +758,10 @@ function ChamadosPorFaseUnifiedTable({ rows }: { rows: ChamadosPorFaseRow[] }) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[480px] text-left text-[11px]">
+      <table className="w-full min-w-[400px] text-left text-[11px]">
         <thead>
           <tr style={{ borderBottom: '0.5px solid var(--moni-border-subtle)' }}>
-            {['Fase', 'Score gargalo', 'Abertos', 'Trava', 'Vencidos', 'Pastelaria'].map((h, i) => (
+            {['Fase', 'Abertos', 'Trava', 'Vencidos', 'Pastelaria'].map((h, i) => (
               <th
                 key={h}
                 className={`pb-2 pr-3 font-semibold uppercase tracking-wide last:pr-0 ${i > 0 ? 'text-right' : ''}`}
@@ -779,13 +781,6 @@ function ChamadosPorFaseUnifiedTable({ rows }: { rows: ChamadosPorFaseRow[] }) {
             >
               <td className="py-2 pr-3" style={{ color: 'var(--moni-text-secondary)' }}>
                 {r.faseNome}
-              </td>
-              <td className="py-2 pr-3 text-right">
-                {r.gargaloClassificacao ? (
-                  <GargaloScoreBadge classificacao={r.gargaloClassificacao} />
-                ) : (
-                  <span style={{ color: 'var(--moni-text-tertiary)' }}>—</span>
-                )}
               </td>
               <td className="py-2 pr-3 text-right tabular-nums" style={{ color: 'var(--moni-text-primary)' }}>
                 {formatInt(r.abertos)}
@@ -1006,25 +1001,6 @@ function GargaloRow({
         ))}
       </div>
     </button>
-  );
-}
-
-function InsightIcon({ ins }: { ins: PainelInsight }) {
-  const sev = insightSeveridade(ins.tipo);
-  const icon =
-    sev === 'positivo' ? 'ti-trending-up' : sev === 'critico' ? 'ti-alert-triangle' : 'ti-trending-down';
-  const color =
-    sev === 'positivo'
-      ? 'var(--moni-green-800)'
-      : sev === 'critico'
-        ? 'var(--moni-status-overdue-text)'
-        : 'var(--moni-status-attention-text)';
-  return (
-    <i
-      className={`ti ${icon} shrink-0`}
-      aria-hidden
-      style={{ fontSize: 16, color, lineHeight: 1, marginTop: 2 }}
-    />
   );
 }
 
@@ -2486,7 +2462,7 @@ function InsightCard({ ins }: { ins: PainelInsight }) {
 
   return (
     <li
-      className="flex gap-3 rounded-lg px-3 py-3"
+      className="rounded-lg px-3 py-3"
       style={{
         border: '0.5px solid var(--moni-border-default)',
         borderLeft: `4px solid ${accent}`,
@@ -2494,17 +2470,14 @@ function InsightCard({ ins }: { ins: PainelInsight }) {
         borderRadius: 'var(--moni-radius-lg)',
       }}
     >
-      <InsightIcon ins={ins} />
-      <div className="min-w-0 flex-1 space-y-1.5">
+      <p className="text-[11px] leading-snug" style={{ color: 'var(--moni-text-primary)' }}>
         <span
-          className={`inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-medium ${insightCategoryBadgeClass(sev)}`}
+          className={`mr-2 inline-flex align-middle rounded-md px-1.5 py-0.5 text-[10px] font-medium ${insightCategoryBadgeClass(sev)}`}
         >
           {ins.tipoLabel}
         </span>
-        <p className="text-[11px] leading-snug" style={{ color: 'var(--moni-text-primary)' }}>
-          {ins.texto}
-        </p>
-      </div>
+        {ins.texto}
+      </p>
     </li>
   );
 }
@@ -2628,7 +2601,6 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
   );
 
   const chamadosPorFaseUnificado = useMemo(() => {
-    const gargaloMap = new Map(analise.gargalos.ranking.map((g) => [g.faseId, g]));
     return analise.chamados.porFase
       .filter((r) => r.total > 0 || r.abertos > 0)
       .sort((a, b) => b.abertos - a.abertos)
@@ -2638,10 +2610,9 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
         abertos: r.abertos,
         comTrava: r.comTrava,
         vencidos: r.vencidos,
-        gargaloClassificacao: gargaloMap.get(r.faseId)?.classificacao ?? null,
         pastelaria: pastelariaPorFase.get(r.faseId) ?? 0,
       }));
-  }, [analise.chamados.porFase, analise.gargalos.ranking, pastelariaPorFase]);
+  }, [analise.chamados.porFase, pastelariaPorFase]);
 
   const arquivamentosPorFaseUnificado = useMemo(
     () =>
