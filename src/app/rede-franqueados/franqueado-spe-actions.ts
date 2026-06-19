@@ -65,6 +65,63 @@ function revalidateSpePaths(redeId: string) {
   revalidatePath(`/rede-franqueados/${redeId}`);
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+function normalizeKanbanCardIdInput(raw: string): string {
+  return raw.trim().replace(/\s+/g, '').toLowerCase();
+}
+
+type AdminClient = ReturnType<typeof createAdminClient>;
+
+type KanbanCardVinculo =
+  | { id: string; rede_franqueado_id: string | null }
+  | { error: string };
+
+async function resolverKanbanCardParaVinculoSpe(
+  admin: AdminClient,
+  rawId: string,
+): Promise<KanbanCardVinculo> {
+  const normalized = normalizeKanbanCardIdInput(rawId);
+  if (!normalized) return { error: 'ID do card inválido.' };
+  if (!UUID_RE.test(normalized)) {
+    return {
+      error:
+        'Formato de UUID inválido. Cole o ID completo do card (ex.: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).',
+    };
+  }
+
+  const { data: byId, error: byIdErr } = await admin
+    .from('kanban_cards')
+    .select('id, rede_franqueado_id')
+    .eq('id', normalized)
+    .maybeSingle();
+  if (byIdErr) return { error: byIdErr.message };
+  if (byId) {
+    return {
+      id: String((byId as { id: string }).id),
+      rede_franqueado_id: (byId as { rede_franqueado_id: string | null }).rede_franqueado_id,
+    };
+  }
+
+  const { data: byProcesso, error: byProcErr } = await admin
+    .from('kanban_cards')
+    .select('id, rede_franqueado_id')
+    .eq('processo_step_one_id', normalized)
+    .maybeSingle();
+  if (byProcErr) return { error: byProcErr.message };
+  if (byProcesso) {
+    return {
+      id: String((byProcesso as { id: string }).id),
+      rede_franqueado_id: (byProcesso as { rede_franqueado_id: string | null }).rede_franqueado_id,
+    };
+  }
+
+  return {
+    error: 'Card não encontrado. Verifique o ID do card Kanban ou do processo Step One.',
+  };
+}
+
 /** Cria SPE vazia para o franqueado (um projeto). */
 export async function criarFranqueadoSpe(
   redeFranqueadoId: string,
@@ -141,8 +198,7 @@ export async function vincularSpeACard(speId: string, kanbanCardId: string): Pro
   const gate = await requireSpeStaff();
   if (!gate.ok) return gate;
   const spe = speId.trim();
-  const cardId = kanbanCardId.trim();
-  if (!spe || !cardId) return { ok: false, error: 'SPE ou card inválido.' };
+  if (!spe) return { ok: false, error: 'SPE inválida.' };
 
   const { data: speRow, error: speErr } = await gate.supabase
     .from('franqueado_spe')
@@ -153,14 +209,12 @@ export async function vincularSpeACard(speId: string, kanbanCardId: string): Pro
 
   const redeId = String((speRow as { rede_franqueado_id: string }).rede_franqueado_id);
 
-  const { data: card, error: cardErr } = await gate.supabase
-    .from('kanban_cards')
-    .select('id, rede_franqueado_id')
-    .eq('id', cardId)
-    .maybeSingle();
-  if (cardErr || !card) return { ok: false, error: 'Card não encontrado.' };
+  const admin = createAdminClient();
+  const resolved = await resolverKanbanCardParaVinculoSpe(admin, kanbanCardId);
+  if ('error' in resolved) return { ok: false, error: resolved.error };
+  const cardId = resolved.id;
 
-  const cardRedeId = (card as { rede_franqueado_id: string | null }).rede_franqueado_id;
+  const cardRedeId = resolved.rede_franqueado_id;
   if (cardRedeId && cardRedeId !== redeId) {
     return { ok: false, error: 'O card pertence a outro franqueado.' };
   }
@@ -184,13 +238,10 @@ export async function vincularSpeACard(speId: string, kanbanCardId: string): Pro
   if (upSpe) return { ok: false, error: upSpe.message };
 
   if (oldCardId && oldCardId !== cardId) {
-    await gate.supabase
-      .from('kanban_cards')
-      .update({ franqueado_spe_id: null } as never)
-      .eq('id', oldCardId);
+    await admin.from('kanban_cards').update({ franqueado_spe_id: null } as never).eq('id', oldCardId);
   }
 
-  const { error: upCard } = await gate.supabase
+  const { error: upCard } = await admin
     .from('kanban_cards')
     .update({ franqueado_spe_id: spe, rede_franqueado_id: redeId } as never)
     .eq('id', cardId);
@@ -220,7 +271,8 @@ export async function desvincularSpeDoCard(speId: string): Promise<Ok | Err> {
     .update({ kanban_card_id: null, updated_at: new Date().toISOString() } as never)
     .eq('id', id);
   if (cardId) {
-    await gate.supabase.from('kanban_cards').update({ franqueado_spe_id: null } as never).eq('id', cardId);
+    const admin = createAdminClient();
+    await admin.from('kanban_cards').update({ franqueado_spe_id: null } as never).eq('id', cardId);
   }
 
   revalidateSpePaths(String((speRow as { rede_franqueado_id: string }).rede_franqueado_id));
@@ -432,7 +484,8 @@ export async function excluirFranqueadoSpe(speId: string): Promise<Ok | Err> {
   if (error) return { ok: false, error: error.message };
 
   if (cardId) {
-    await gate.supabase.from('kanban_cards').update({ franqueado_spe_id: null } as never).eq('id', cardId);
+    const admin = createAdminClient();
+    await admin.from('kanban_cards').update({ franqueado_spe_id: null } as never).eq('id', cardId);
   }
 
   revalidateSpePaths(String((row as { rede_franqueado_id: string }).rede_franqueado_id));
