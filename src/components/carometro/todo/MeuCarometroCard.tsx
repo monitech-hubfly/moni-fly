@@ -24,6 +24,12 @@ function dayLabel(data: string): string {
   return ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][d.getDay()];
 }
 
+const TOOLTIP_FORMULA: Record<string, string> = {
+  sirene: '100 − (atrasados × 20 + semPrazo × 5)',
+  engajamento: 'atividades no prazo / total planejadas × 100',
+  indicadores: 'média dos % de cada indicador',
+};
+
 type MeuCarometroCardProps = {
   titulo: string;
   score: number | null;
@@ -36,10 +42,12 @@ export function MeuCarometroCard({
   titulo,
   score,
   diasDaSemana,
+  tipo,
   children,
 }: MeuCarometroCardProps) {
   const [expandido, setExpandido] = useState(false);
   const { emoji, color } = scoreVisual(score);
+  const formula = TOOLTIP_FORMULA[tipo];
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 flex flex-col gap-3">
@@ -70,15 +78,29 @@ export function MeuCarometroCard({
           {diasDaSemana.length > 0 && (
             <div className="flex justify-around items-end">
               {diasDaSemana.map(dia => (
-                <div
-                  key={dia.data}
-                  className="flex flex-col items-center gap-1"
-                  title={`${dayLabel(dia.data)}: ${dia.score !== null ? `${dia.score}%` : 'sem dados'}`}
-                >
+                <div key={dia.data} className="flex flex-col items-center gap-1 group relative">
+                  {/* Tooltip com fórmula */}
+                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-10 hidden group-hover:flex flex-col items-center pointer-events-none">
+                    <div className="bg-gray-800 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap max-w-[180px] text-center leading-tight">
+                      <span className="font-semibold">{dayLabel(dia.data)}</span>
+                      {dia.score !== null ? `: ${dia.score}%` : ': sem dados'}
+                      <br />
+                      <span className="text-gray-300">{formula}</span>
+                    </div>
+                    <div className="w-2 h-2 bg-gray-800 rotate-45 -mt-1" />
+                  </div>
+                  {/* Bolinha 40px com % dentro */}
                   <div
-                    className="w-3 h-3 rounded-full"
+                    className="w-10 h-10 rounded-full flex items-center justify-center"
                     style={{ backgroundColor: dotColor(dia.score) }}
-                  />
+                  >
+                    <span
+                      className="text-xs font-bold leading-none"
+                      style={{ color: dia.score !== null ? '#ffffff' : '#6b7280' }}
+                    >
+                      {dia.score !== null ? `${dia.score}%` : '—'}
+                    </span>
+                  </div>
                   <span className="text-[10px] text-gray-400">{dayLabel(dia.data)}</span>
                 </div>
               ))}

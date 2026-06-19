@@ -146,7 +146,7 @@ export function TodoPainelSirene({ onCountReady }: { onCountReady?: (stats: Sire
       if (!a.prazo && !b.prazo) return 0;
       if (!a.prazo) return 1;
       if (!b.prazo) return -1;
-      return a.prazo.localeCompare(b.prazo);
+      return String(a.prazo ?? '').localeCompare(String(b.prazo ?? ''));
     });
 
     setRows(built);

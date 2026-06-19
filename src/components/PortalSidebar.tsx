@@ -82,8 +82,8 @@ const CAROMETRO_SUBITENS: NavItem[] = [
   { href: '/carometro/dashboard-produtos', label: 'Dashboard Casas Moní' },
   { href: '/carometro/todo', label: 'TO DO' },
   { href: '/carometro/todo-planning', label: 'TO DO & Planning' },
-  { href: '/carometro/pre-bone-day', label: '🎓 Plano Boné Day' },
-  { href: '/carometro/fechamento-bone-day', label: '🎓 Fechamento Boné Day' },
+  { href: '/carometro/pre-bone-day', label: 'Plano Boné Day' },
+  { href: '/carometro/fechamento-bone-day', label: 'Fechamento Boné Day' },
   { href: '/carometro/cadastros', label: 'Cadastros' },
   { href: '/carometro/log', label: 'Log' },
 ];
@@ -98,8 +98,8 @@ const CAROMETRO_SUBITENS_TEAM: NavItem[] = [
   { href: '/carometro/dashboard-produtos', label: 'Dashboard Casas Moní' },
   { href: '/carometro/todo', label: 'TO DO' },
   { href: '/carometro/todo-planning', label: 'TO DO & Planning' },
-  { href: '/carometro/pre-bone-day', label: '🎓 Plano Boné Day' },
-  { href: '/carometro/fechamento-bone-day', label: '🎓 Fechamento Boné Day' },
+  { href: '/carometro/pre-bone-day', label: 'Plano Boné Day' },
+  { href: '/carometro/fechamento-bone-day', label: 'Fechamento Boné Day' },
 ];
 
 const REDE_HREFS_DEV_ONLY = new Set(['/comunidade', '/rede']);

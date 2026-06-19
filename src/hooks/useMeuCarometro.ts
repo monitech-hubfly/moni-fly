@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { isoWeek } from '@/utils/periodos';
+import { isoWeek, isoWeekYear } from '@/utils/periodos';
+import { useSimulacaoUsuario } from '@/components/carometro/todo/SeletorUsuarioAdmin';
 
 export type DiaStatus = {
   data: string;
@@ -47,9 +48,42 @@ export type UseMeuCarometroResult = {
   error: string | null;
 };
 
+// Mapeamento cor semáforo → score 0-100
+const COR_PARA_SCORE: Record<string, number> = {
+  '#1e7a3a': 100,
+  '#52b36f': 75,
+  '#f2c94c': 50,
+  '#d24141': 0,
+};
+
+type SemaforoFaixa = { cor: string; limite: string | number; comparacao?: string };
+
+function scoreDeValorESemaforo(valor: unknown, semaforo_faixas: unknown): number {
+  if (valor == null || valor === '') return 50;
+  const faixas = (semaforo_faixas as { faixas?: SemaforoFaixa[] } | null)?.faixas;
+  if (!faixas?.length) return 50;
+
+  const n = Number(String(valor).replace(',', '.'));
+  if (!Number.isFinite(n)) return 50;
+
+  for (const f of faixas) {
+    const limite = Number(String(f.limite ?? '').replace(',', '.'));
+    if (!Number.isFinite(limite)) continue;
+    const op = f.comparacao ?? 'gte';
+    let match = false;
+    if (op === 'gte') match = n >= limite;
+    else if (op === 'gt')  match = n > limite;
+    else if (op === 'lte') match = n <= limite;
+    else if (op === 'lt')  match = n < limite;
+    else if (op === 'eq')  match = n === limite;
+    if (match) return COR_PARA_SCORE[f.cor?.toLowerCase()] ?? 50;
+  }
+  return 50;
+}
+
 function getDiasSemanAtual(): string[] {
   const hoje = new Date();
-  const dow = hoje.getDay() || 7; // 1=Seg … 7=Dom
+  const dow = hoje.getDay() || 7;
   const segunda = new Date(hoje);
   segunda.setDate(hoje.getDate() - (dow - 1));
   const dias: string[] = [];
@@ -60,6 +94,8 @@ function getDiasSemanAtual(): string[] {
   }
   return dias;
 }
+
+const ADMIN_EMAIL = 'danilo.n@moni.casa';
 
 export function useMeuCarometro(): UseMeuCarometroResult {
   const supabase = useMemo(() => createClient(), []);
@@ -73,6 +109,11 @@ export function useMeuCarometro(): UseMeuCarometroResult {
   const [diasIndicadores, setDiasIndicadores] = useState<DiaStatus[]>([]);
   const [semanaAtual, setSemanaAtual] = useState<number>(() => isoWeek(new Date()));
 
+  const { simulacao } = useSimulacaoUsuario();
+  const simProfileId = simulacao?.profileId ?? null;
+  const simAreaId    = simulacao?.areaId ?? null;
+  const simNome      = simulacao?.nomeUsuario ?? null;
+
   const carregar = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -80,27 +121,38 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Não autenticado');
 
+      const isAdmin = user.email === ADMIN_EMAIL;
       const hoje = new Date();
       const semana = isoWeek(hoje);
+      const anoISO = isoWeekYear(hoje);
       setSemanaAtual(semana);
       const hojeStr = hoje.toISOString().slice(0, 10);
       const diasSemana = getDiasSemanAtual();
 
-      // Dados do usuário na área
-      const { data: areaPessoa } = await supabase
-        .from('area_pessoas')
-        .select('area_id, nome')
-        .eq('profile_id', user.id)
-        .maybeSingle();
+      // ── Resolve identidade efetiva (simulação admin ou usuário real) ───────────
+      let effectiveProfileId = user.id;
+      let areaId: string | null = null;
+      let nomeUsuario: string | null = null;
 
-      const areaId = (areaPessoa?.area_id as string | null) ?? null;
-      const nomeUsuario = (areaPessoa?.nome as string | null) ?? null;
+      if (isAdmin && simProfileId) {
+        effectiveProfileId = simProfileId;
+        areaId   = simAreaId;
+        nomeUsuario = simNome;
+      } else {
+        const { data: areaPessoa } = await supabase
+          .from('area_pessoas')
+          .select('area_id, nome')
+          .eq('profile_id', user.id)
+          .maybeSingle();
+        areaId      = (areaPessoa?.area_id as string | null) ?? null;
+        nomeUsuario = (areaPessoa?.nome    as string | null) ?? null;
+      }
 
-      // Snapshots armazenados para os dias da semana atual
+      // ── Snapshots armazenados para os dias da semana atual ───────────────────
       const { data: snapshots } = await supabase
         .from('carometro_status_diario')
         .select('data, sirene, engajamento, indicadores')
-        .eq('profile_id', user.id)
+        .eq('profile_id', effectiveProfileId)
         .in('data', diasSemana);
 
       type SnapRow = { data: string; sirene: unknown; engajamento: unknown; indicadores: unknown };
@@ -112,14 +164,12 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       const { data: topicos } = await supabase
         .from('sirene_topicos')
         .select('id, data_fim, prazo_proposto')
-        .eq('responsavel_id', user.id)
+        .eq('responsavel_id', effectiveProfileId)
         .in('status', ['nao_iniciado', 'em_andamento'])
         .eq('arquivado', false);
 
       const topicosArr = topicos ?? [];
-      const topicosSemPrazo = topicosArr.filter(
-        t => !t.data_fim && !t.prazo_proposto
-      ).length;
+      const topicosSemPrazo  = topicosArr.filter(t => !t.data_fim && !t.prazo_proposto).length;
       const topicosAtrasados = topicosArr.filter(t => {
         const prazo = (t.data_fim || t.prazo_proposto) as string | null;
         if (!prazo) return false;
@@ -132,12 +182,12 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
       const sireneRuntime: SireneSnapshot = {
         atrasados: topicosAtrasados,
-        abertos: topicosArr.length,
-        semPrazo: topicosSemPrazo,
-        score: sireneScore,
+        abertos:   topicosArr.length,
+        semPrazo:  topicosSemPrazo,
+        score:     sireneScore,
       };
 
-      // ── Engajamento (fallback runtime via gantt_planejamento) ────────────────
+      // ── Engajamento (alimentado pela Agenda — Sessão 3) ──────────────────────
       let engajamentoRuntime: EngajamentoSnapshot = {
         atividadesAtrasadas: 0,
         acumuladoDias: 0,
@@ -174,46 +224,70 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         };
       }
 
-      // ── Indicadores (fallback runtime) ──────────────────────────────────────
+      // ── Indicadores com score via semáforo ──────────────────────────────────
       let indicadoresRuntime: IndicadoresSnapshot = { porIndicador: [], media: null };
 
       if (areaId) {
         const { data: indsData } = await supabase
           .from('indicadores')
-          .select('id, nome')
+          .select('id, nome, semaforo_faixas')
           .eq('area_id', areaId);
 
-        const indIds = ((indsData ?? []) as { id: string; nome: string }[]).map(i => i.id);
+        const indsTyped = ((indsData ?? []) as { id: string; nome: string; semaforo_faixas: unknown }[]);
+        const indIds = indsTyped.map(i => i.id);
 
         if (indIds.length > 0) {
+          // Período ativo para converter semana ISO → semana relativa do período
+          const { data: periodo } = await supabase
+            .from('periodos')
+            .select('id, semana_inicio, semana_fim')
+            .lte('semana_inicio', semana)
+            .gte('semana_fim', semana)
+            .eq('ano', anoISO)
+            .order('semana_fim', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+
+          const semanaRelativa = periodo
+            ? semana - Number((periodo as { semana_inicio: number }).semana_inicio) + 1
+            : semana;
+
           const { data: lancamentos } = await supabase
             .from('indicador_lancamentos')
             .select('indicador_id, valor')
             .in('indicador_id', indIds)
-            .eq('semana', semana);
+            .eq('semana', semanaRelativa);
 
-          const lancMap = new Map<string, number>(
+          const lancMap = new Map<string, unknown>(
             ((lancamentos ?? []) as { indicador_id: string; valor: unknown }[]).map(l => [
               l.indicador_id,
-              Number(l.valor) || 0,
+              l.valor,
             ])
           );
 
-          const indsTyped = (indsData ?? []) as { id: string; nome: string }[];
           const porIndicador: IndicadorItem[] = indsTyped
             .filter(ind => lancMap.has(ind.id))
             .map(ind => {
-              const valor = lancMap.get(ind.id) ?? 0;
-              return { nome: ind.nome || ind.id, valor, meta: 0, percentual: valor > 0 ? 100 : 0 };
+              const valor = lancMap.get(ind.id);
+              const score = scoreDeValorESemaforo(valor, ind.semaforo_faixas);
+              return {
+                nome:       ind.nome || ind.id,
+                valor:      Number(valor) || 0,
+                meta:       0,
+                percentual: score,
+              };
             });
 
-          const comValor = porIndicador.filter(i => i.valor > 0).length;
-          const media = indIds.length === 0 ? null : Math.round((comValor / indIds.length) * 100);
+          const scores = porIndicador.map(i => i.percentual);
+          const media  = scores.length > 0
+            ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length)
+            : null;
+
           indicadoresRuntime = { porIndicador, media };
         }
       }
 
-      // ── Monta dias da semana com scores (snapshot > runtime de hoje) ─────────
+      // ── Dias da semana com scores (snapshot > runtime de hoje) ───────────────
       const buildDias = (
         snapKey: 'sirene' | 'engajamento' | 'indicadores',
         scoreField: string,
@@ -240,7 +314,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
     } finally {
       setIsLoading(false);
     }
-  }, [supabase]);
+  }, [supabase, simProfileId, simAreaId, simNome]);
 
   useEffect(() => { carregar(); }, [carregar]);
 

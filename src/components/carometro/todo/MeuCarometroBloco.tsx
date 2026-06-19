@@ -2,6 +2,7 @@
 
 import { useMeuCarometro } from '@/hooks/useMeuCarometro';
 import { MeuCarometroCard } from './MeuCarometroCard';
+import { SeletorUsuarioAdmin } from './SeletorUsuarioAdmin';
 
 export function MeuCarometroBloco() {
   const {
@@ -34,6 +35,7 @@ export function MeuCarometroBloco() {
 
   return (
     <div className="bg-[#F8F7F5] rounded-xl p-4 flex flex-col gap-4">
+      <SeletorUsuarioAdmin />
       <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">
         MEU CARÔMETRO — S{String(semanaAtual).padStart(2, '0')} · clique nos cards = detalhes
       </h2>
