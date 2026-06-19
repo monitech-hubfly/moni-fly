@@ -3939,6 +3939,66 @@ export async function registrarConfirmacaoFasePortfolio(input: {
   return { ok: true };
 }
 
+function timestampCampoCalendarioIso(input: string | null | undefined): string | null {
+  const ymd = dataCampoCalendarioIso(input);
+  if (!ymd) return null;
+  return `${ymd}T12:00:00.000Z`;
+}
+
+export type SalvarDadosPreObraOperacoesInput = {
+  cardId: string;
+  condominio_aprovada_em?: string | null;
+  prefeitura_aprovada_em?: string | null;
+  alvara_emitido_em?: string | null;
+  basePath?: string;
+};
+
+/** Salva datas reais de pré-obra no card nativo do Funil Operações (prev_* recalculados pelo trigger). */
+export async function salvarDadosPreObraOperacoes(
+  input: SalvarDadosPreObraOperacoesInput,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para salvar.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const { data: cardRow, error: cardErr } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  if (cardErr) return { ok: false, error: cardErr.message };
+  if (String((cardRow as { kanban_id?: string | null } | null)?.kanban_id ?? '') !== KANBAN_IDS.OPERACOES) {
+    return { ok: false, error: 'Pré-obra aplicável apenas ao Funil Operações.' };
+  }
+
+  const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+  if (input.condominio_aprovada_em !== undefined) {
+    update.condominio_aprovada_em = timestampCampoCalendarioIso(input.condominio_aprovada_em);
+  }
+  if (input.prefeitura_aprovada_em !== undefined) {
+    const ts = timestampCampoCalendarioIso(input.prefeitura_aprovada_em);
+    update.prefeitura_aprovada_em = ts;
+    update.prefeitura_aprovada = ts != null;
+  }
+  if (input.alvara_emitido_em !== undefined) {
+    update.alvara_emitido_em = timestampCampoCalendarioIso(input.alvara_emitido_em);
+  }
+
+  const { error: updErr } = await supabase.from('kanban_cards').update(update as never).eq('id', cardId);
+  if (updErr) return { ok: false, error: updErr.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
 export async function registrarConfirmacaoFaseOperacoes(input: {
   cardId: string;
   tipo: OperacoesConfirmacaoFaseTipo;

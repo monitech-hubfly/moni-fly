@@ -24,16 +24,15 @@ import {
   montarBlocosUnidadePipeline,
   sortCardsFranqueadoraPrioridade,
 } from '@/lib/kanban/pipeline-franqueadora-compute';
-import { computeFunilMesUnidade } from '@/lib/kanban/pipeline-funil-mes-compute';
+import { computeFunilMesCompact, computeFunilMesUnidade } from '@/lib/kanban/pipeline-funil-mes-compute';
 import {
   calcularKpisPipelineUnidadeExtended,
   montarBlocosDisplayUnidade,
   montarOQueFazerHoje,
-  saudeMesUnidadePipeline,
 } from '@/lib/kanban/pipeline-unidade-compute';
 import { PipelineCardMiniDrawer } from '@/components/pipeline/PipelineCardMiniDrawer';
 import { PipelineFranqueadoraUnidadeBloco } from '@/components/pipeline/PipelineFranqueadoraUnidadeBloco';
-import { PipelineSaudeMesCondensado } from '@/components/pipeline/PipelineSaudeMesCondensado';
+import { PipelineFunilMesCondensado } from '@/components/pipeline/PipelineFunilMesCondensado';
 import { PipelineUnidadeResumoLinha } from '@/components/pipeline/PipelineUnidadeResumoLinha';
 import { PipelineOQueFazerHoje } from '@/components/pipeline/PipelineOQueFazerHoje';
 import { PipelineUnidadeProjetoBloco } from '@/components/pipeline/PipelineUnidadeProjetoBloco';
@@ -256,11 +255,6 @@ export function PipelineCardsView({
     [showKpis, viewMode, cardsFiltrados, dataset.enrichment?.chamados],
   );
 
-  const saudeUnidade = useMemo(
-    () => (viewMode === 'unidade' ? saudeMesUnidadePipeline(cardsEnriquecidos) : null),
-    [viewMode, cardsEnriquecidos],
-  );
-
   const oQueFazerHoje = useMemo(
     () =>
       viewMode === 'unidade'
@@ -295,6 +289,11 @@ export function PipelineCardsView({
 
   const funilMesUnidade = useMemo(
     () => (viewMode === 'unidade' ? computeFunilMesUnidade(scoped.cards) : null),
+    [viewMode, scoped.cards],
+  );
+
+  const funilMesCompactUnidade = useMemo(
+    () => (viewMode === 'unidade' ? computeFunilMesCompact(scoped.cards) : null),
     [viewMode, scoped.cards],
   );
 
@@ -366,14 +365,14 @@ export function PipelineCardsView({
         <PipelineFunilMesRede cards={funilRedeCards} franqueados={funilRedeFranqueados} />
       ) : null}
 
-      {viewMode === 'unidade' && (saudeUnidade || funilMesUnidade) ? (
+      {viewMode === 'unidade' && (funilMesCompactUnidade || funilMesUnidade) ? (
         <div className="mb-6 px-4 py-4" style={panelStyle}>
           <PipelineUnidadeResumoLinha
             cards={cardsEnriquecidos}
             chamados={dataset.enrichment?.chamados ?? []}
             className="mb-3"
           />
-          {saudeUnidade ? <PipelineSaudeMesCondensado saude={saudeUnidade} /> : null}
+          {funilMesCompactUnidade ? <PipelineFunilMesCondensado funil={funilMesCompactUnidade} /> : null}
           {funilMesUnidade ? <PipelineFunilMesUnidade funil={funilMesUnidade} className="mt-3" /> : null}
         </div>
       ) : null}

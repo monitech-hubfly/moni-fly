@@ -203,6 +203,94 @@ export function PipelineSequencialBarMultiTrack({
   );
 }
 
+/** Esteira sequencial de funis paralelos (ex.: Acoplamento + Projetos Legais na mesma linha). */
+export function PipelineEsteiraParalelosLinha({
+  card,
+  siblingCards,
+  enrichment,
+  kanbanIds,
+  labels,
+  className,
+}: {
+  card: PipelineCardDisplay;
+  siblingCards?: PipelineCardDisplay[];
+  enrichment?: PipelineFranqueadoraEnrichment | null;
+  kanbanIds: readonly string[];
+  labels?: readonly string[];
+  className?: string;
+}) {
+  const siblings = siblingCards ?? [card];
+  const maxMap = enrichment?.maxOrdemPorKanban;
+
+  const segmentCards = kanbanIds.map((kid) => {
+    const pid = idProjetoNegocioPipelineCard(card);
+    const pool = pid
+      ? siblings.filter((c) => idProjetoNegocioPipelineCard(c) === pid)
+      : siblings;
+    const found = pool.find((c) => c.kanban_id === kid);
+    if (found) return found;
+    if (card.kanban_id === kid) return card;
+    return null;
+  });
+
+  return (
+    <div className={className}>
+      <div
+        className="flex overflow-hidden rounded-full"
+        style={{ background: 'var(--moni-rede-chart-track)', height: '6px' }}
+      >
+        {kanbanIds.map((kid, idx) => {
+          const segCard = segmentCards[idx];
+          const isRowKanban = card.kanban_id === kid;
+          const isAtual = Boolean(segCard && isRowKanban);
+          let estado: SegmentEstado = 'futura';
+          let width = '0%';
+
+          if (segCard) {
+            const dias = calcularDiasNaFase(segCard);
+            if (slaCategoriaPipeline(segCard) === 'atrasado') estado = 'atual_atrasado';
+            else if (dias >= PARADO_DIAS && segCard.inativo) estado = 'atual_parado';
+            else if (badgeStatusPipelineCard(segCard) === 'alerta') estado = 'atual_alerta';
+            else estado = 'atual_ok';
+            width = `${Math.round(ratioFaseNoKanban(segCard, maxMap) * 100)}%`;
+          }
+
+          const fill = SEGMENT_FILL[estado];
+          const label = labels?.[idx] ?? configFunilParaleloEsteira(kid)?.label ?? kid;
+
+          return (
+            <div
+              key={kid}
+              className="relative min-w-0 flex-1"
+              style={{
+                borderRight: idx < kanbanIds.length - 1 ? '0.5px solid var(--moni-border-default)' : undefined,
+                outline: isAtual ? '1px solid var(--moni-navy-800)' : undefined,
+                outlineOffset: isAtual ? '-1px' : undefined,
+                zIndex: isAtual ? 1 : 0,
+              }}
+              title={label}
+            >
+              <div
+                className="absolute inset-y-0 left-0 transition-all"
+                style={{
+                  width: segCard ? width : '0%',
+                  background: fill,
+                  opacity: segCard ? 0.92 : 1,
+                }}
+              />
+            </div>
+          );
+        })}
+      </div>
+      {labels?.length || kanbanIds.length > 1 ? (
+        <p className="mt-0.5 truncate text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+          {(labels ?? kanbanIds.map((kid) => configFunilParaleloEsteira(kid)?.label ?? kid)).join(' · ')}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function pipelineBadgeInlineStyle(status: PipelineCardBadgeStatus): React.CSSProperties | undefined {
   if (status === 'parado') {
     return {

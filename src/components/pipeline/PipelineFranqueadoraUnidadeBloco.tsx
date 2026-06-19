@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { PipelineCardDisplay, PipelineFranqueadoraEnrichment, PipelineUnidadeBlocoMeta } from '@/lib/kanban/pipeline-cards-types';
 import {
@@ -15,9 +15,17 @@ import {
   labelBadgeStatusPipeline,
   tagClassBadgeStatusPipeline,
 } from '@/lib/kanban/pipeline-franqueadora-compute';
-import { PipelineSequencialBar, pipelineBadgeInlineStyle } from '@/components/pipeline/PipelineSequencialBar';
-import { PipelineSaudeMesCondensado } from '@/components/pipeline/PipelineSaudeMesCondensado';
-import { PipelineFunilMesInline } from '@/components/pipeline/PipelineFunilMesInline';
+import {
+  PipelineEsteiraParalelosLinha,
+  PipelineSequencialBarMultiTrack,
+  pipelineBadgeInlineStyle,
+} from '@/components/pipeline/PipelineSequencialBar';
+import { PipelineFunilMesCondensado } from '@/components/pipeline/PipelineFunilMesCondensado';
+import {
+  cardsParaEsteiraPrincipalRow,
+  linhaEsteiraParalelaKanban,
+  splitCardsUnidadePrincipalParalelos,
+} from '@/lib/kanban/pipeline-unidade-visualizacao';
 
 const panelStyle: React.CSSProperties = {
   borderRadius: 'var(--moni-radius-lg)',
@@ -32,10 +40,135 @@ type Props = {
   onCardClick: (card: PipelineCardDisplay) => void;
 };
 
+type TabelaProps = {
+  titulo: string;
+  colunaEsteira: string;
+  cards: PipelineCardDisplay[];
+  allCards: PipelineCardDisplay[];
+  enrichment?: PipelineFranqueadoraEnrichment | null;
+  modo: 'principal' | 'paralelos';
+  onCardClick: (card: PipelineCardDisplay) => void;
+};
+
+function PipelineUnidadeCardsTabela({
+  titulo,
+  colunaEsteira,
+  cards,
+  allCards,
+  enrichment,
+  modo,
+  onCardClick,
+}: TabelaProps) {
+  if (cards.length === 0) return null;
+
+  return (
+    <div className="mb-5 last:mb-0">
+      <h3
+        className="mb-2 text-[11px] font-semibold uppercase tracking-wide"
+        style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}
+      >
+        {titulo}
+      </h3>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-left text-[11px]">
+          <thead>
+            <tr style={{ borderBottom: '0.5px solid var(--moni-border-subtle, var(--moni-border-default))' }}>
+              {['Título', 'Fase atual', 'Status', 'Tempo na fase', colunaEsteira, ''].map((h) => (
+                <th
+                  key={h || 'acao'}
+                  className="pb-2 pr-3 font-semibold uppercase tracking-wide last:pr-0"
+                  style={{ color: 'var(--moni-text-tertiary)' }}
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {cards.map((card, idx) => {
+              const badge = badgeStatusPipelineCard(card);
+              const tagClass = tagClassBadgeStatusPipeline(badge);
+              const customStyle = pipelineBadgeInlineStyle(badge);
+              const relativo = formatRelativeNaFaseDesde(card);
+              const slaExcedido = faseSlaExcedido(card);
+              const linhaParalela = linhaEsteiraParalelaKanban(card.kanban_id);
+
+              return (
+                <tr
+                  key={card.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onCardClick(card)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onCardClick(card);
+                    }
+                  }}
+                  className="cursor-pointer transition hover:bg-[var(--moni-surface-50)]"
+                  style={{ borderBottom: '0.5px solid var(--moni-border-subtle, var(--moni-border-default))' }}
+                >
+                  <td
+                    className="max-w-[14rem] truncate py-2.5 pr-3 font-medium"
+                    style={{ color: 'var(--moni-text-primary)' }}
+                    title={String(card.titulo ?? '').trim() || undefined}
+                  >
+                    {tituloPipelineCardDisplay(card, idx + 1)}
+                  </td>
+                  <td className="max-w-[10rem] truncate py-2.5 pr-3" style={{ color: 'var(--moni-text-secondary)' }}>
+                    {card.fase_nome}
+                  </td>
+                  <td className="py-2.5 pr-3">
+                    {tagClass ? (
+                      <span className={`text-[10px] ${tagClass}`} style={customStyle}>
+                        {labelBadgeStatusPipeline(badge)}
+                      </span>
+                    ) : (
+                      <span className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={customStyle}>
+                        {labelBadgeStatusPipeline(badge)}
+                      </span>
+                    )}
+                  </td>
+                  <td
+                    className="py-2.5 pr-3 tabular-nums"
+                    style={{ color: slaExcedido ? 'var(--moni-status-overdue-text)' : 'var(--moni-text-secondary)' }}
+                  >
+                    {relativo}
+                  </td>
+                  <td className="min-w-[12rem] py-2.5 pr-3">
+                    {modo === 'principal' ? (
+                      <PipelineSequencialBarMultiTrack
+                        cards={cardsParaEsteiraPrincipalRow(card, allCards)}
+                        enrichment={enrichment}
+                      />
+                    ) : (
+                      <PipelineEsteiraParalelosLinha
+                        card={card}
+                        siblingCards={allCards}
+                        enrichment={enrichment}
+                        kanbanIds={linhaParalela?.kanbanIds ?? [card.kanban_id]}
+                      />
+                    )}
+                  </td>
+                  <td className="py-2.5 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                    Detalhe →
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCardClick }: Props) {
   const [expanded, setExpanded] = useState(false);
   const { alertas, saude, funilMes } = meta;
   const saudeIndicador = indicadorSaudeUnidadePipeline(alertas, saude);
+
+  const { principal, paralelos } = useMemo(() => splitCardsUnidadePrincipalParalelos(cards), [cards]);
 
   return (
     <section style={panelStyle}>
@@ -46,6 +179,13 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
         aria-expanded={expanded}
       >
         <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-x-2 overflow-x-auto whitespace-nowrap">
+          <span
+            className="inline-flex w-5 shrink-0 items-center justify-center text-[13px] leading-none"
+            aria-hidden
+          >
+            {emojiIndicadorSaudePipeline(saudeIndicador)}
+          </span>
+          <span className="sr-only">Saúde: {saudeIndicador}</span>
           <h2
             className="shrink-0 text-[13px] font-semibold"
             style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-display)' }}
@@ -64,11 +204,6 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
           {alertas.venceEm2Dias > 0 ? (
             <span className="moni-tag-atencao shrink-0 text-[10px]">{alertas.venceEm2Dias} vence em 2d</span>
           ) : null}
-          <span className="shrink-0 text-[13px] leading-none" aria-hidden>
-            {emojiIndicadorSaudePipeline(saudeIndicador)}
-          </span>
-          <span className="sr-only">Saúde: {saudeIndicador}</span>
-          <PipelineFunilMesInline funil={funilMes} />
         </div>
         <ChevronDown
           className="h-4 w-4 shrink-0"
@@ -81,84 +216,27 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
 
       {expanded ? (
         <div className="border-t px-4 pb-4 pt-3" style={{ borderColor: 'var(--moni-border-default)' }}>
-          <PipelineSaudeMesCondensado saude={saude} className="mb-4" />
+          <PipelineFunilMesCondensado funil={funilMes} className="mb-4" />
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-[11px]">
-              <thead>
-                <tr style={{ borderBottom: '0.5px solid var(--moni-border-subtle, var(--moni-border-default))' }}>
-                  {['Título', 'Fase atual', 'Status', 'Tempo na fase', 'Esteira', ''].map((h) => (
-                    <th
-                      key={h || 'acao'}
-                      className="pb-2 pr-3 font-semibold uppercase tracking-wide last:pr-0"
-                      style={{ color: 'var(--moni-text-tertiary)' }}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {cards.map((card, idx) => {
-                  const badge = badgeStatusPipelineCard(card);
-                  const tagClass = tagClassBadgeStatusPipeline(badge);
-                  const customStyle = pipelineBadgeInlineStyle(badge);
-                  const relativo = formatRelativeNaFaseDesde(card);
-                  const slaExcedido = faseSlaExcedido(card);
-                  return (
-                    <tr
-                      key={card.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => onCardClick(card)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          onCardClick(card);
-                        }
-                      }}
-                      className="cursor-pointer transition hover:bg-[var(--moni-surface-50)]"
-                      style={{ borderBottom: '0.5px solid var(--moni-border-subtle, var(--moni-border-default))' }}
-                    >
-                      <td
-                        className="max-w-[14rem] truncate py-2.5 pr-3 font-medium"
-                        style={{ color: 'var(--moni-text-primary)' }}
-                        title={String(card.titulo ?? '').trim() || undefined}
-                      >
-                        {tituloPipelineCardDisplay(card, idx + 1)}
-                      </td>
-                      <td className="max-w-[10rem] truncate py-2.5 pr-3" style={{ color: 'var(--moni-text-secondary)' }}>
-                        {card.fase_nome}
-                      </td>
-                      <td className="py-2.5 pr-3">
-                        {tagClass ? (
-                          <span className={`text-[10px] ${tagClass}`} style={customStyle}>
-                            {labelBadgeStatusPipeline(badge)}
-                          </span>
-                        ) : (
-                          <span className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={customStyle}>
-                            {labelBadgeStatusPipeline(badge)}
-                          </span>
-                        )}
-                      </td>
-                      <td
-                        className="py-2.5 pr-3 tabular-nums"
-                        style={{ color: slaExcedido ? 'var(--moni-status-overdue-text)' : 'var(--moni-text-secondary)' }}
-                      >
-                        {relativo}
-                      </td>
-                      <td className="min-w-[12rem] py-2.5 pr-3">
-                        <PipelineSequencialBar card={card} enrichment={enrichment} siblingCards={cards} />
-                      </td>
-                      <td className="py-2.5 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                        Detalhe →
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <PipelineUnidadeCardsTabela
+            titulo="Principal"
+            colunaEsteira="Esteira"
+            cards={principal}
+            allCards={cards}
+            enrichment={enrichment}
+            modo="principal"
+            onCardClick={onCardClick}
+          />
+
+          <PipelineUnidadeCardsTabela
+            titulo="Paralelos"
+            colunaEsteira="Esteiras"
+            cards={paralelos}
+            allCards={cards}
+            enrichment={enrichment}
+            modo="paralelos"
+            onCardClick={onCardClick}
+          />
         </div>
       ) : null}
     </section>

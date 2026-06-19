@@ -58,6 +58,7 @@ import {
   listarTagsKanban,
   salvarDadosNegocioKanban,
   salvarDadosPreObra,
+  salvarDadosPreObraOperacoes,
   salvarFranqueadoCardVinculado,
   salvarInstrucoesFase,
   obterInfoSyncGrupoCard,
@@ -112,6 +113,12 @@ import { PRE_BATALHA_INSTRUCOES_FASE, PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING } fr
 import { kanbanExibeSecaoCondominioSidebar } from '@/lib/kanban/kanban-secao-condominio';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCreditoObraDocumentacao';
+import { KanbanCardModalDadosPreObraOperacoes } from './KanbanCardModalDadosPreObraOperacoes';
+import {
+  operacoesPreObraDraftFromCard,
+  OPERACOES_PRE_OBRA_DRAFT_EMPTY,
+  type OperacoesPreObraDraft,
+} from '@/lib/kanban/previsibilidade-operacoes';
 import {
   calcularSlaKanbanCard,
   creditoObraAguardandoDocumentacao,
@@ -612,6 +619,9 @@ export function KanbanCardModal({
     empresas: null,
   });
   const [preObraDraft, setPreObraDraft] = useState<PreObraDraftKanban>(() => preObraDraftFromProcesso(null));
+  const [operacoesPreObraDraft, setOperacoesPreObraDraft] = useState<OperacoesPreObraDraft>(
+    () => ({ ...OPERACOES_PRE_OBRA_DRAFT_EMPTY }),
+  );
   const [salvandoPreObra, setSalvandoPreObra] = useState(false);
   const [creditoObraAbertura, setCreditoObraAbertura] = useState<{
     tituloCard: string;
@@ -680,6 +690,7 @@ export function KanbanCardModal({
     setFiltrosOpen(false);
     setModalDetalhes({ rede: null, processo: null, redeIdContrato: null, empresas: null });
     setPreObraDraft(preObraDraftFromProcesso(null));
+    setOperacoesPreObraDraft({ ...OPERACOES_PRE_OBRA_DRAFT_EMPTY });
     setCreditoObraAbertura(null);
     setCreditoObraAberturaPending(false);
     setLegadoCronologiaMoves([]);
@@ -1049,15 +1060,21 @@ export function KanbanCardModal({
         }
       } else {
         setLegadoCronologiaMoves([]);
-        const cardSelectBase =
+        const cardSelectCore =
           'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, hora_reuniao, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url';
+        const cardSelectPreObra =
+          'condominio_aprovada_em, prefeitura_aprovada_em, alvara_emitido_em, prev_aprovacao_condominio, prev_aprovacao_prefeitura, prev_emissao_alvara, prev_envio_credito_obra, prev_inicio_obra';
+        const cardSelectBase = `${cardSelectCore}, ${cardSelectPreObra}`;
         const cardSelectWithSla = `${cardSelectBase}, sla_iniciado_em, entered_fase_at, sla_justificativa, sla_justificativa_em`;
         let cardRes = await supabase.from('kanban_cards').select(cardSelectWithSla).eq('id', cardId).single();
         if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
           cardRes = await supabase.from('kanban_cards').select(`${cardSelectBase}, sla_iniciado_em, entered_fase_at`).eq('id', cardId).single();
         }
         if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
-          cardRes = await supabase.from('kanban_cards').select(cardSelectBase).eq('id', cardId).single();
+          cardRes = await supabase.from('kanban_cards').select(`${cardSelectCore}, sla_iniciado_em, entered_fase_at`).eq('id', cardId).single();
+        }
+        if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
+          cardRes = await supabase.from('kanban_cards').select(cardSelectCore).eq('id', cardId).single();
         }
         const { data: cardData, error: cardError } = cardRes;
 
@@ -1137,6 +1154,7 @@ export function KanbanCardModal({
         };
         nativeRedeFranqueadoId =
           (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? null;
+        setOperacoesPreObraDraft(operacoesPreObraDraftFromCard(cardData as Record<string, unknown>));
       }
 
       if (!loaded) {
@@ -2682,6 +2700,30 @@ export function KanbanCardModal({
       router.refresh();
     } finally {
       setCreditoObraAberturaPending(false);
+    }
+  }
+
+  async function handleSalvarPreObraOperacoes() {
+    if (!card?.id) return;
+    setSalvandoPreObra(true);
+    try {
+      const res = await salvarDadosPreObraOperacoes({
+        cardId: card.id,
+        condominio_aprovada_em: operacoesPreObraDraft.condominio_aprovada_em,
+        prefeitura_aprovada_em: operacoesPreObraDraft.prefeitura_aprovada_em,
+        alvara_emitido_em: operacoesPreObraDraft.alvara_emitido_em,
+        basePath,
+      });
+      if (!res.ok) {
+        alert(res.error);
+        return;
+      }
+      await loadCard({ silencioso: true });
+      router.refresh();
+    } catch {
+      alert('Erro ao salvar dados pré-obra.');
+    } finally {
+      setSalvandoPreObra(false);
     }
   }
 
@@ -6324,8 +6366,16 @@ export function KanbanCardModal({
             {secaoHead(
               'preObra',
               'Dados Pré Obra',
-              !proc ? (
-                <p className="text-xs text-stone-500">
+              ehFunilOperacoes && !isLegado ? (
+                <KanbanCardModalDadosPreObraOperacoes
+                  draft={operacoesPreObraDraft}
+                  onChange={(patch) => setOperacoesPreObraDraft((d) => ({ ...d, ...patch }))}
+                  onSalvar={() => void handleSalvarPreObraOperacoes()}
+                  salvando={salvandoPreObra}
+                  podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                />
+              ) : !proc ? (
+                <p className="text-xs text-[var(--moni-text-tertiary)]">
                   Sem processo vinculado — não é possível editar pré-obra neste card.
                 </p>
               ) : (
