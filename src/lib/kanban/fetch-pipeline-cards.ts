@@ -2,16 +2,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanCardBrief } from '@/components/kanban-shared/types';
 import { compareRedePorNFranquia } from '@/lib/rede-franqueados';
 import {
-  buscarProfileFranqueadoPorRedeId,
+  buscarProfilesFranqueadoPorRedeIdsBatch,
   enrichCardsComResponsavelFase,
   isKanbanFunilStepOneId,
 } from '@/lib/kanban/responsavel-fase-checklist';
 import { fetchPainelChamados } from '@/lib/kanban/fetch-painel-chamados';
 import { computeGargaloRankingRede } from '@/lib/kanban/pipeline-franqueadora-compute';
-import type {
-  PainelFaseDTO,
-  PainelHistoricoMovimentoDTO,
-} from '@/lib/kanban/painel-performance-types';
+import type { PainelFaseDTO } from '@/lib/kanban/painel-performance-types';
 import type {
   PipelineCardRow,
   PipelineCardsDataset,
@@ -77,12 +74,6 @@ const CARD_SELECT_SEM_PROJETO = `
 `.trim();
 
 type RawCard = Record<string, unknown>;
-
-function chunk<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
-}
 
 function relOne<T>(v: T | T[] | null | undefined): T | null {
   if (v == null) return null;
@@ -195,12 +186,10 @@ async function enriquecerResponsavelPipelineCards(
     redeIdsToResolve.add(redeId);
   }
 
-  const stepOneProfilePorRedeId = new Map<string, string | null>();
-  await Promise.all(
-    [...redeIdsToResolve].map(async (rid) => {
-      stepOneProfilePorRedeId.set(rid, await buscarProfileFranqueadoPorRedeId(supabase, rid));
-    }),
-  );
+  const stepOneProfilePorRedeId =
+    redeIdsToResolve.size > 0
+      ? await buscarProfilesFranqueadoPorRedeIdsBatch(supabase, [...redeIdsToResolve])
+      : new Map<string, string | null>();
 
   const briefs = cards.map(toKanbanCardBrief);
   const enriched = await enrichCardsComResponsavelFase(supabase, briefs, {
@@ -256,7 +245,7 @@ async function fetchFasesKanbansPipeline(
       id: string;
       nome?: string | null;
       ordem?: number | null;
-      sla_dias?: number | null;
+      sla_dias?: number | string | null;
       slug?: string | null;
       fase_conversao?: boolean | null;
       kanban_id?: string | null;
@@ -267,7 +256,7 @@ async function fetchFasesKanbansPipeline(
       id: String(row.id),
       nome: String(row.nome ?? ''),
       ordem,
-      sla_dias: row.sla_dias != null ? Number(row.sla_dias) : null,
+      sla_dias: row.sla_dias != null && row.sla_dias !== '' ? Number(row.sla_dias) : null,
       fase_conversao: Boolean(row.fase_conversao),
       slug: row.slug != null ? String(row.slug) : null,
     });
@@ -277,32 +266,6 @@ async function fetchFasesKanbansPipeline(
   }
 
   return { fases, maxOrdemPorKanban };
-}
-
-async function fetchHistoricoMovimentosPipeline(
-  supabase: SupabaseClient,
-  cardIds: string[],
-): Promise<PainelHistoricoMovimentoDTO[]> {
-  const out: PainelHistoricoMovimentoDTO[] = [];
-  for (const part of chunk(cardIds, 80)) {
-    if (part.length === 0) continue;
-    const { data: rows, error } = await supabase
-      .from('kanban_historico')
-      .select('card_id, acao, criado_em')
-      .in('card_id', part)
-      .in('acao', ['fase_avancada', 'fase_retrocedida']);
-    if (error) continue;
-    for (const r of rows ?? []) {
-      const row = r as { card_id: string; acao: string; criado_em: string };
-      out.push({
-        card_id: row.card_id,
-        acao: row.acao,
-        detalhe: null,
-        criado_em: String(row.criado_em ?? new Date().toISOString()),
-      });
-    }
-  }
-  return out;
 }
 
 async function fetchUnidadeEnrichment(
@@ -355,15 +318,13 @@ async function fetchFranqueadoraEnrichment(
     const cardIds = cards.map((c) => c.id);
     const kanbanIds = [...new Set(cards.map((c) => c.kanban_id))];
 
-    const [fasesPack, historicoMovimentos, chamados] = await Promise.all([
+    const [fasesPack, chamados] = await Promise.all([
       fetchFasesKanbansPipeline(supabase, kanbanIds),
-      fetchHistoricoMovimentosPipeline(supabase, cardIds),
       fetchPainelChamados(supabase, cardIds, 'nativo').catch(() => []),
     ]);
 
     const base: PipelineFranqueadoraEnrichment = {
       fases: fasesPack.fases,
-      historicoMovimentos,
       chamados,
       gargaloRanking: [],
       maxOrdemPorKanban: fasesPack.maxOrdemPorKanban,
@@ -373,10 +334,7 @@ async function fetchFranqueadoraEnrichment(
     const displayCards = cards.map(enriquecerPipelineCard);
     base.gargaloRanking = computeGargaloRankingRede(displayCards, base);
 
-    return {
-      ...base,
-      historicoMovimentos: [],
-    };
+    return base;
   } catch {
     return null;
   }
