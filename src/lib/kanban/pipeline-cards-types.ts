@@ -36,6 +36,9 @@ export type PipelineCardRow = {
   responsavel_fase_nome?: string | null;
   contrato_assinado?: boolean;
   contrato_assinado_em?: string | null;
+  /** FK `projeto_negocio.id` — agrupa esteiras paralelas do mesmo negócio. */
+  projeto_id?: string | null;
+  projeto_titulo?: string | null;
 };
 
 export type PipelineFranqueadoUnidade = {
@@ -132,6 +135,17 @@ export type PipelineFunilGrupoUnidade = {
   cards: PipelineCardDisplay[];
   defaultExpanded: boolean;
 };
+
+export type PipelineProjetoGrupoUnidade = {
+  projetoId: string;
+  projetoTitulo: string;
+  cards: PipelineCardDisplay[];
+  defaultExpanded: boolean;
+};
+
+export type PipelineUnidadeDisplayBloco =
+  | { tipo: 'projeto'; grupo: PipelineProjetoGrupoUnidade }
+  | { tipo: 'solo'; card: PipelineCardDisplay };
 
 export type PipelineCardsGrupo = {
   id: string;

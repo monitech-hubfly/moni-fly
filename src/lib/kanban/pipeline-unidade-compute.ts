@@ -6,6 +6,8 @@ import type {
   PipelineCardsKpisUnidade,
   PipelineFunilGrupoUnidade,
   PipelineOQueFazerItem,
+  PipelineProjetoGrupoUnidade,
+  PipelineUnidadeDisplayBloco,
   PipelineUnidadeSaudeMes,
 } from '@/lib/kanban/pipeline-cards-types';
 import { slaCategoriaPipeline } from '@/lib/kanban/pipeline-cards-utils';
@@ -88,6 +90,64 @@ export function montarGruposFunilUnidade(cards: PipelineCardDisplay[]): Pipeline
       };
     })
     .sort((a, b) => a.kanbanNome.localeCompare(b.kanbanNome, 'pt-BR'));
+}
+
+function blocoSortPriority(cards: PipelineCardDisplay[]): number {
+  let p = 0;
+  for (const c of cards) {
+    if (slaCategoriaPipeline(c) === 'atrasado') p = Math.max(p, 1000 + calcularDiasNaFase(c));
+    else if (c.inativo) p = Math.max(p, 500 + c.diasSemMovimento);
+  }
+  return p;
+}
+
+export function montarBlocosDisplayUnidade(cards: PipelineCardDisplay[]): PipelineUnidadeDisplayBloco[] {
+  const porProjeto = new Map<string, PipelineCardDisplay[]>();
+  const titulos = new Map<string, string>();
+  const solos: PipelineCardDisplay[] = [];
+
+  for (const c of cards) {
+    const pid = String(c.projeto_id ?? '').trim();
+    if (!pid) {
+      solos.push(c);
+      continue;
+    }
+    titulos.set(pid, String(c.projeto_titulo ?? c.titulo ?? '').trim() || 'Projeto');
+    const list = porProjeto.get(pid) ?? [];
+    list.push(c);
+    porProjeto.set(pid, list);
+  }
+
+  const blocos: PipelineUnidadeDisplayBloco[] = [];
+
+  for (const [projetoId, list] of porProjeto) {
+    const sorted = sortCardsFunilPrioridade(list);
+    const temAtrasado = sorted.some((c) => slaCategoriaPipeline(c) === 'atrasado');
+    blocos.push({
+      tipo: 'projeto',
+      grupo: {
+        projetoId,
+        projetoTitulo: titulos.get(projetoId) ?? 'Projeto',
+        cards: sorted,
+        defaultExpanded: temAtrasado || sorted.some((c) => c.inativo),
+      },
+    });
+  }
+
+  for (const c of sortCardsFunilPrioridade(solos)) {
+    blocos.push({ tipo: 'solo', card: c });
+  }
+
+  return blocos.sort((a, b) => {
+    const pa =
+      a.tipo === 'projeto' ? blocoSortPriority(a.grupo.cards) : blocoSortPriority([a.card]);
+    const pb =
+      b.tipo === 'projeto' ? blocoSortPriority(b.grupo.cards) : blocoSortPriority([b.card]);
+    if (pb !== pa) return pb - pa;
+    const la = a.tipo === 'projeto' ? a.grupo.projetoTitulo : a.card.titulo;
+    const lb = b.tipo === 'projeto' ? b.grupo.projetoTitulo : b.card.titulo;
+    return la.localeCompare(lb, 'pt-BR');
+  });
 }
 
 function cardPorId(cards: PipelineCardDisplay[]): Map<string, PipelineCardDisplay> {

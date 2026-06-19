@@ -24,7 +24,7 @@ import {
 } from '@/lib/kanban/pipeline-franqueadora-compute';
 import {
   calcularKpisPipelineUnidadeExtended,
-  montarGruposFunilUnidade,
+  montarBlocosDisplayUnidade,
   montarOQueFazerHoje,
   saudeMesUnidadePipeline,
 } from '@/lib/kanban/pipeline-unidade-compute';
@@ -32,7 +32,8 @@ import { PipelineCardMiniDrawer } from '@/components/pipeline/PipelineCardMiniDr
 import { PipelineFranqueadoraUnidadeBloco } from '@/components/pipeline/PipelineFranqueadoraUnidadeBloco';
 import { PipelineUnidadeSaudeCard } from '@/components/pipeline/PipelineUnidadeSaudeCard';
 import { PipelineOQueFazerHoje } from '@/components/pipeline/PipelineOQueFazerHoje';
-import { PipelineUnidadeFunilBloco } from '@/components/pipeline/PipelineUnidadeFunilBloco';
+import { PipelineUnidadeProjetoBloco } from '@/components/pipeline/PipelineUnidadeProjetoBloco';
+import { PipelineUnidadeCardSolo } from '@/components/pipeline/PipelineUnidadeCardSolo';
 import { PIPELINE_READONLY_NOTA } from '@/lib/kanban/pipeline-card-readonly';
 
 export type PipelineCardsViewProps = {
@@ -88,25 +89,43 @@ function PipelineKpisBarFranqueadora({ kpis }: { kpis: PipelineCardsKpis }) {
 }
 
 function PipelineKpisBarUnidade({ kpis }: { kpis: PipelineCardsKpisUnidade }) {
-  const items: { label: string; value: number; hint?: string }[] = [
-    { label: 'Cards ativos', value: kpis.cardsAtivos },
-    { label: 'Cards atrasados', value: kpis.cardsAtrasados },
-    { label: 'Sem movimentação', value: kpis.cardsSemMovimentacao, hint: '7+ dias' },
-    { label: 'Próx. vencimentos', value: kpis.proximosVencimentos },
-    { label: 'Funis ativos', value: kpis.funisAtivos, hint: 'Com ≥1 card' },
-    { label: 'Chamados com trava', value: kpis.chamadosComTrava },
+  type KpiVariant = 'neutral' | 'danger' | 'warning';
+
+  const items: { label: string; value: number; hint?: string; variant: KpiVariant }[] = [
+    { label: 'Cards ativos', value: kpis.cardsAtivos, variant: 'neutral' },
+    { label: 'Cards atrasados', value: kpis.cardsAtrasados, variant: 'danger' },
+    { label: 'Sem movimentação', value: kpis.cardsSemMovimentacao, hint: '7+ dias', variant: 'warning' },
+    { label: 'Próx. vencimentos', value: kpis.proximosVencimentos, variant: 'neutral' },
+    { label: 'Funis ativos', value: kpis.funisAtivos, hint: 'Com ≥1 card', variant: 'neutral' },
+    { label: 'Chamados com trava', value: kpis.chamadosComTrava, variant: 'neutral' },
   ];
+
+  const variantStyle = (variant: KpiVariant): React.CSSProperties => {
+    if (variant === 'danger') {
+      return { ...panelStyle, background: 'var(--moni-status-overdue-bg)' };
+    }
+    if (variant === 'warning') {
+      return { ...panelStyle, background: 'var(--moni-status-attention-bg)' };
+    }
+    return panelStyle;
+  };
+
+  const valueColor = (variant: KpiVariant): string => {
+    if (variant === 'danger') return 'var(--moni-status-overdue-text)';
+    if (variant === 'warning') return 'var(--moni-status-attention-text)';
+    return 'var(--moni-navy-800)';
+  };
 
   return (
     <div className="mb-6 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
       {items.map((item) => (
-        <div key={item.label} className="flex min-h-[88px] flex-col justify-between px-3 py-3" style={panelStyle}>
+        <div key={item.label} className="flex min-h-[88px] flex-col justify-between px-3 py-3" style={variantStyle(item.variant)}>
           <p className="text-[11px] font-medium uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
             {item.label}
           </p>
           <p
             className="mt-1 text-xl font-semibold tabular-nums tracking-tight"
-            style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-navy-800)' }}
+            style={{ fontFamily: 'var(--moni-font-display)', color: valueColor(item.variant) }}
           >
             {item.value}
           </p>
@@ -199,8 +218,8 @@ export function PipelineCardsView({
     [viewMode, cardsEnriquecidos, dataset.enrichment?.chamados],
   );
 
-  const gruposFunilUnidade = useMemo(
-    () => (viewMode === 'unidade' ? montarGruposFunilUnidade(cardsFiltrados) : []),
+  const blocosUnidade = useMemo(
+    () => (viewMode === 'unidade' ? montarBlocosDisplayUnidade(cardsFiltrados) : []),
     [viewMode, cardsFiltrados],
   );
 
@@ -277,6 +296,8 @@ export function PipelineCardsView({
       {showKpis && viewMode === 'unidade' && kpisUnidade ? <PipelineKpisBarUnidade kpis={kpisUnidade} /> : null}
 
       {viewMode === 'unidade' && saudeUnidade ? <PipelineUnidadeSaudeCard saude={saudeUnidade} /> : null}
+
+      {viewMode === 'unidade' ? <PipelineOQueFazerHoje items={oQueFazerHoje} /> : null}
 
       {showFilters ? (
         <div className="mb-6 flex flex-col gap-3 px-4 py-4" style={panelStyle}>
@@ -389,8 +410,6 @@ export function PipelineCardsView({
         </div>
       ) : null}
 
-      {viewMode === 'unidade' ? <PipelineOQueFazerHoje items={oQueFazerHoje} /> : null}
-
       <p className="mb-4 text-[11px]" style={{ color: 'var(--moni-text-secondary)' }}>
         {cardsFiltrados.length} card{cardsFiltrados.length === 1 ? '' : 's'} · {PIPELINE_READONLY_NOTA}
       </p>
@@ -413,20 +432,29 @@ export function PipelineCardsView({
             ))}
           </div>
         )
-      ) : gruposFunilUnidade.length === 0 ? (
+      ) : blocosUnidade.length === 0 ? (
         <p className="rounded-xl border border-dashed px-4 py-10 text-center text-[11px]" style={{ borderColor: 'var(--moni-border-default)', color: 'var(--moni-text-tertiary)' }}>
           Nenhum card encontrado com os filtros atuais.
         </p>
       ) : (
         <div className="space-y-3">
-          {gruposFunilUnidade.map((grupo) => (
-            <PipelineUnidadeFunilBloco
-              key={grupo.kanbanId}
-              grupo={grupo}
-              enrichment={dataset.enrichment}
-              onCardClick={setDrawerCard}
-            />
-          ))}
+          {blocosUnidade.map((bloco) =>
+            bloco.tipo === 'projeto' ? (
+              <PipelineUnidadeProjetoBloco
+                key={`projeto-${bloco.grupo.projetoId}`}
+                grupo={bloco.grupo}
+                enrichment={dataset.enrichment}
+                onCardClick={setDrawerCard}
+              />
+            ) : (
+              <PipelineUnidadeCardSolo
+                key={bloco.card.id}
+                card={bloco.card}
+                enrichment={dataset.enrichment}
+                onCardClick={setDrawerCard}
+              />
+            ),
+          )}
         </div>
       )}
 

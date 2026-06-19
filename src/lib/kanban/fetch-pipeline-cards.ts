@@ -23,6 +23,33 @@ const CARD_SELECT_BASE = `
   kanban_id,
   fase_id,
   rede_franqueado_id,
+  projeto_id,
+  created_at,
+  updated_at,
+  entered_fase_at,
+  sla_iniciado_em,
+  alvara_url,
+  docs_terreno_url,
+  arquivado,
+  concluido,
+  status,
+  kanbans ( nome ),
+  kanban_fases ( nome, slug, ordem, sla_dias, fase_conversao ),
+  rede_franqueados ( n_franquia, nome_completo, ordem ),
+  projeto_negocio ( titulo )
+`;
+
+const CARD_SELECT_WITH_CONTRATO = `${CARD_SELECT_BASE.trim()},
+  contrato_assinado,
+  contrato_assinado_em
+`;
+
+const CARD_SELECT_SEM_PROJETO = `
+  id,
+  titulo,
+  kanban_id,
+  fase_id,
+  rede_franqueado_id,
   created_at,
   updated_at,
   entered_fase_at,
@@ -35,12 +62,7 @@ const CARD_SELECT_BASE = `
   kanbans ( nome ),
   kanban_fases ( nome, slug, ordem, sla_dias, fase_conversao ),
   rede_franqueados ( n_franquia, nome_completo, ordem )
-`;
-
-const CARD_SELECT_WITH_CONTRATO = `${CARD_SELECT_BASE.trim()},
-  contrato_assinado,
-  contrato_assinado_em
-`;
+`.trim();
 
 type RawCard = Record<string, unknown>;
 
@@ -72,6 +94,10 @@ function mapPipelineCardRow(raw: RawCard): PipelineCardRow | null {
       | Array<{ n_franquia?: string | null; nome_completo?: string | null; ordem?: number | null }>
       | null,
   );
+  const projeto = relOne(
+    raw.projeto_negocio as { titulo?: string | null } | Array<{ titulo?: string | null }> | null,
+  );
+  const projetoId = raw.projeto_id != null ? String(raw.projeto_id).trim() : '';
 
   return {
     id,
@@ -102,6 +128,8 @@ function mapPipelineCardRow(raw: RawCard): PipelineCardRow | null {
     contrato_assinado: raw.contrato_assinado === true,
     contrato_assinado_em:
       raw.contrato_assinado_em != null ? String(raw.contrato_assinado_em) : null,
+    projeto_id: projetoId || null,
+    projeto_titulo: projeto?.titulo != null ? String(projeto.titulo).trim() || null : null,
   };
 }
 
@@ -349,7 +377,8 @@ export async function fetchPipelineCards(
 
   let cardData: RawCard[] | null = (cardResInitial.data as RawCard[] | null) ?? null;
   if (cardResInitial.error) {
-    if (/contrato_assinado/i.test(cardResInitial.error.message)) {
+    const errMsg = cardResInitial.error.message;
+    if (/contrato_assinado/i.test(errMsg)) {
       let fallbackQuery = supabase.from('kanban_cards').select(CARD_SELECT_BASE).eq('status', 'ativo');
       if (!opts.incluirEncerrados) {
         fallbackQuery = fallbackQuery.eq('arquivado', false).eq('concluido', false);
@@ -363,6 +392,20 @@ export async function fetchPipelineCards(
       const fallbackRes = await fallbackQuery;
       if (fallbackRes.error) throw new Error(fallbackRes.error.message);
       cardData = (fallbackRes.data as RawCard[] | null) ?? null;
+    } else if (/projeto_negocio|projeto_id/i.test(errMsg)) {
+      let fallbackQuery = supabase.from('kanban_cards').select(CARD_SELECT_SEM_PROJETO).eq('status', 'ativo');
+      if (!opts.incluirEncerrados) {
+        fallbackQuery = fallbackQuery.eq('arquivado', false).eq('concluido', false);
+      }
+      if (mode === 'unidade') {
+        fallbackQuery = fallbackQuery.eq('rede_franqueado_id', redeId);
+      } else {
+        fallbackQuery = fallbackQuery.not('rede_franqueado_id', 'is', null);
+      }
+      fallbackQuery = fallbackQuery.order('updated_at', { ascending: false });
+      const fallbackRes = await fallbackQuery;
+      if (fallbackRes.error) throw new Error(fallbackRes.error.message);
+      cardData = (fallbackRes.data as unknown as RawCard[] | null) ?? null;
     } else {
       throw new Error(cardResInitial.error.message);
     }
