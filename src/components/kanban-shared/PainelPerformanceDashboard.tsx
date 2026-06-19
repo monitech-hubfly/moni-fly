@@ -19,6 +19,7 @@ import {
   insightSeveridade,
   maxFunnelBar,
   pastelariaPorFaseId,
+  semMotivoNaFase,
   tempoMedioConversaoPorResponsavel,
 } from '@/lib/kanban/painel-dashboard-derive';
 import { computePainelPerformance } from '@/lib/kanban/painel-performance-compute';
@@ -70,6 +71,15 @@ import {
 import { buildPainelArquivadosDrawerRows } from '@/lib/kanban/painel-arquivados-drawer';
 import { PainelArquivadosDrawer } from './PainelArquivadosDrawer';
 import { PainelQualidadeMotivoAlert } from './PainelQualidadeMotivoAlert';
+import {
+  buildRetrocessoDiasByCardId,
+  FunnelVolumeBar,
+  GargaloPrincipalFactor,
+  GargaloScoreBar,
+  insightSeverityAccent,
+  resolveFunnelBarTone,
+  SlaProgressBar,
+} from './PainelPerformanceVisualParts';
 
 const PERIOD_OPTIONS: { key: PainelPeriodKey; label: string }[] = [
   { key: '7d', label: '7 dias' },
@@ -124,6 +134,14 @@ function gargaloTagClass(c: GargaloClassificacao): string {
   return 'moni-tag-concluido';
 }
 
+function GargaloScoreBadge({ classificacao }: { classificacao: GargaloClassificacao }) {
+  return (
+    <span className={`inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-medium ${gargaloTagClass(classificacao)}`}>
+      {gargaloClassificacaoLabel(classificacao)}
+    </span>
+  );
+}
+
 function buildOpenCardHref(basePath: string, cardId: string): string {
   const sep = basePath.includes('?') ? '&' : '?';
   return `${basePath}${sep}tab=kanban&card=${encodeURIComponent(cardId)}`;
@@ -143,18 +161,31 @@ const selectStyle: React.CSSProperties = {
   fontFamily: 'var(--moni-font-sans)',
 };
 
-function KpiCard({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+function KpiCard({
+  label,
+  value,
+  hint,
+  progressPct,
+}: {
+  label: string;
+  value: string | number;
+  hint?: string;
+  progressPct?: number | null;
+}) {
   return (
     <div className="flex min-h-[88px] flex-col justify-between px-3 py-3" style={panelStyle}>
       <p className="text-[11px] font-medium uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
         {label}
       </p>
-      <p
-        className="mt-1 text-xl font-semibold tabular-nums tracking-tight"
-        style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-navy-800)' }}
-      >
-        {value}
-      </p>
+      <div>
+        <p
+          className="mt-1 text-xl font-semibold tabular-nums tracking-tight"
+          style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-navy-800)' }}
+        >
+          {value}
+        </p>
+        {progressPct != null ? <SlaProgressBar pct={progressPct} /> : null}
+      </div>
       {hint ? (
         <p className="mt-0.5 text-[11px] leading-snug" style={{ color: 'var(--moni-text-tertiary)' }}>
           {hint}
@@ -177,6 +208,167 @@ function MiniKpi({ label, value }: { label: string; value: string | number }) {
   );
 }
 
+function conversionPct(from: number, to: number): number | null {
+  if (from <= 0) return null;
+  return (to / from) * 100;
+}
+
+function MiniConfirmacaoFunnel({
+  opcao,
+  comite,
+  contrato,
+}: {
+  opcao: number;
+  comite: number;
+  contrato: number;
+}) {
+  const steps = [
+    { label: 'Opção', value: opcao },
+    { label: 'Comitê', value: comite },
+    { label: 'Contrato', value: contrato },
+  ];
+
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+      {steps.map((step, idx) => (
+        <Fragment key={step.label}>
+          <div
+            className="flex min-w-[88px] flex-col items-center px-3 py-2.5 text-center"
+            style={{ ...panelStyle, borderRadius: 'var(--moni-radius-md)' }}
+          >
+            <p className="text-[10px] font-medium uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+              {step.label}
+            </p>
+            <p
+              className="mt-1 text-lg font-semibold tabular-nums"
+              style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-navy-800)' }}
+            >
+              {formatInt(step.value)}
+            </p>
+          </div>
+          {idx < steps.length - 1 ? (
+            <div className="flex flex-col items-center gap-0.5 px-1">
+              <ArrowRight className="h-4 w-4 shrink-0" style={{ color: 'var(--moni-text-tertiary)' }} aria-hidden />
+              <span className="text-[10px] tabular-nums" style={{ color: 'var(--moni-text-secondary)' }}>
+                {formatPct(conversionPct(steps[idx]!.value, steps[idx + 1]!.value))}
+              </span>
+            </div>
+          ) : null}
+        </Fragment>
+      ))}
+    </div>
+  );
+}
+
+function DualLargeStat({
+  left,
+  right,
+}: {
+  left: { label: string; value: string; sub?: string; tone: 'verde' | 'ambar' | 'neutro' };
+  right: { label: string; value: string; sub?: string; tone: 'verde' | 'ambar' | 'neutro' };
+}) {
+  const toneStyle = (tone: 'verde' | 'ambar' | 'neutro'): React.CSSProperties => {
+    if (tone === 'verde') {
+      return {
+        background: 'var(--moni-status-done-bg)',
+        border: '0.5px solid var(--moni-status-done-border)',
+      };
+    }
+    if (tone === 'ambar') {
+      return {
+        background: 'var(--moni-status-attention-bg)',
+        border: '0.5px solid var(--moni-status-attention-border)',
+      };
+    }
+    return panelStyle;
+  };
+
+  const renderStat = (stat: { label: string; value: string; sub?: string; tone: 'verde' | 'ambar' | 'neutro' }) => (
+    <div className="flex min-h-[88px] flex-1 flex-col justify-center px-4 py-4" style={{ ...toneStyle(stat.tone), borderRadius: 'var(--moni-radius-lg)' }}>
+      <p className="text-[10px] font-medium uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
+        {stat.label}
+      </p>
+      <p
+        className="mt-1 text-2xl font-semibold tabular-nums tracking-tight"
+        style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-navy-800)' }}
+      >
+        {stat.value}
+      </p>
+      {stat.sub ? (
+        <p className="mt-0.5 text-[11px]" style={{ color: 'var(--moni-text-secondary)' }}>
+          {stat.sub}
+        </p>
+      ) : null}
+    </div>
+  );
+
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {renderStat(left)}
+      {renderStat(right)}
+    </div>
+  );
+}
+
+function ProportionalBarRow({
+  label,
+  value,
+  max,
+  suffix,
+  barColor,
+  trailing,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  suffix?: string;
+  barColor?: string;
+  trailing?: React.ReactNode;
+}) {
+  const pct = max > 0 ? Math.max(4, Math.round((value / max) * 100)) : 0;
+  return (
+    <div className="flex items-center gap-3 py-1.5">
+      <span className="min-w-0 flex-1 truncate text-[11px]" style={{ color: 'var(--moni-text-secondary)' }} title={label}>
+        {label}
+      </span>
+      <div className="flex min-w-[120px] flex-[2] items-center gap-2">
+        <div
+          className="h-2 flex-1 overflow-hidden rounded-full"
+          style={{ background: 'var(--moni-surface-200)' }}
+        >
+          <div
+            className="h-full rounded-full transition-all"
+            style={{ width: `${pct}%`, background: barColor ?? 'var(--moni-navy-800)' }}
+          />
+        </div>
+        <span className="w-14 shrink-0 text-right text-[11px] tabular-nums" style={{ color: 'var(--moni-text-primary)' }}>
+          {suffix ?? formatInt(value)}
+        </span>
+      </div>
+      {trailing}
+    </div>
+  );
+}
+
+function RedDaysBadge({ dias }: { dias: number }) {
+  return (
+    <span className="moni-tag-atrasado inline-flex rounded-md px-2 py-1 text-[11px] font-semibold tabular-nums">
+      {formatInt(dias)} dias
+    </span>
+  );
+}
+
+function CountRiskBadge({ count, threshold = 3 }: { count: number; threshold?: number }) {
+  const isRisk = count >= threshold;
+  return (
+    <span
+      className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold tabular-nums ${isRisk ? 'moni-tag-atrasado' : 'moni-tag-concluido'}`}
+    >
+      {formatInt(count)}
+    </span>
+  );
+}
+
 function PanelBox({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="px-4 py-4" style={panelStyle}>
@@ -184,6 +376,55 @@ function PanelBox({ title, children }: { title: string; children: React.ReactNod
         {title}
       </h3>
       <div className="mt-3">{children}</div>
+    </div>
+  );
+}
+
+function CollapsiblePanelBox({
+  title,
+  expanded,
+  onToggle,
+  expandLabel,
+  collapseLabel = 'Ocultar',
+  children,
+}: {
+  title: string;
+  expanded: boolean;
+  onToggle: () => void;
+  expandLabel: string;
+  collapseLabel?: string;
+  children: React.ReactNode;
+}) {
+  const linkClass =
+    'min-h-[44px] text-[11px] font-medium underline sm:min-h-[32px]';
+
+  return (
+    <div className="px-4 py-4" style={panelStyle}>
+      <h3 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+        {title}
+      </h3>
+      {expanded ? (
+        <>
+          <div className="mt-3">{children}</div>
+          <button
+            type="button"
+            className={`mt-3 ${linkClass}`}
+            style={{ color: 'var(--moni-text-secondary)' }}
+            onClick={onToggle}
+          >
+            {collapseLabel}
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          className={`mt-3 ${linkClass}`}
+          style={{ color: 'var(--moni-navy-800)' }}
+          onClick={onToggle}
+        >
+          {expandLabel}
+        </button>
+      )}
     </div>
   );
 }
@@ -238,6 +479,78 @@ function DataTable({
                   {cell}
                 </td>
               ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+type ChamadosPorFaseRow = {
+  faseId: string;
+  faseNome: string;
+  abertos: number;
+  comTrava: number;
+  vencidos: number;
+  gargaloClassificacao: GargaloClassificacao | null;
+  pastelaria: number;
+};
+
+function ChamadosPorFaseUnifiedTable({ rows }: { rows: ChamadosPorFaseRow[] }) {
+  if (rows.length === 0) {
+    return (
+      <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+        Sem chamados no recorte.
+      </p>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[480px] text-left text-[11px]">
+        <thead>
+          <tr style={{ borderBottom: '0.5px solid var(--moni-border-subtle)' }}>
+            {['Fase', 'Score gargalo', 'Abertos', 'Trava', 'Vencidos', 'Pastelaria'].map((h, i) => (
+              <th
+                key={h}
+                className={`pb-2 pr-3 font-semibold uppercase tracking-wide last:pr-0 ${i > 0 ? 'text-right' : ''}`}
+                style={{ color: 'var(--moni-text-tertiary)' }}
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr
+              key={r.faseId}
+              className="transition-colors hover:bg-[var(--moni-surface-50)]"
+              style={{ borderBottom: '0.5px solid var(--moni-border-subtle)' }}
+            >
+              <td className="py-2 pr-3" style={{ color: 'var(--moni-text-secondary)' }}>
+                {r.faseNome}
+              </td>
+              <td className="py-2 pr-3 text-right">
+                {r.gargaloClassificacao ? (
+                  <GargaloScoreBadge classificacao={r.gargaloClassificacao} />
+                ) : (
+                  <span style={{ color: 'var(--moni-text-tertiary)' }}>—</span>
+                )}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums" style={{ color: 'var(--moni-text-primary)' }}>
+                {formatInt(r.abertos)}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums" style={{ color: 'var(--moni-text-primary)' }}>
+                {formatInt(r.comTrava)}
+              </td>
+              <td className="py-2 pr-3 text-right tabular-nums" style={{ color: 'var(--moni-text-primary)' }}>
+                {formatInt(r.vencidos)}
+              </td>
+              <td className="py-2 text-right tabular-nums" style={{ color: 'var(--moni-text-primary)' }}>
+                {formatInt(r.pastelaria)}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -306,27 +619,14 @@ function FilterSelect({
   );
 }
 
-function FunnelBar({ value, max }: { value: number; max: number }) {
-  const pct = max > 0 ? Math.max(4, Math.round((value / max) * 100)) : 0;
-  return (
-    <div
-      className="h-2 w-full min-w-[48px] overflow-hidden rounded-full"
-      style={{ background: 'var(--moni-surface-200)' }}
-    >
-      <div
-        className="h-full rounded-full transition-all"
-        style={{ width: `${pct}%`, background: 'var(--moni-navy-800)' }}
-      />
-    </div>
-  );
-}
-
 function FunnelConversionGrid({
   nodes,
-  faseConversaoConfigurada,
+  gargaloClassByFaseId,
+  slaDelayByFaseId,
 }: {
   nodes: ConversionFunnelTreeNode[];
-  faseConversaoConfigurada: boolean;
+  gargaloClassByFaseId: Map<string, GargaloClassificacao>;
+  slaDelayByFaseId: Map<string, boolean>;
 }) {
   if (nodes.length === 0) {
     return (
@@ -340,24 +640,11 @@ function FunnelConversionGrid({
 
   return (
     <div className="space-y-0">
-      {!faseConversaoConfigurada ? (
-        <p
-          className="mb-3 rounded-md px-3 py-2 text-[11px]"
-          style={{
-            color: 'var(--moni-text-secondary)',
-            background: 'var(--moni-surface-100)',
-            border: '0.5px solid var(--moni-border-subtle)',
-          }}
-        >
-          Fase de conversão não configurada — configure em Admin → Fases de conversão para destacar a etapa de
-          conversão.
-        </p>
-      ) : null}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[480px] text-[11px]">
+        <table className="w-full min-w-[420px] text-[11px]">
           <thead>
             <tr style={{ borderBottom: '0.5px solid var(--moni-border-subtle)' }}>
-              {['Fase', 'Volume', 'N', '%', 'Perda', 'Tempo'].map((h) => (
+              {['Fase', 'Volume', 'N', '%', 'Tempo médio'].map((h) => (
                 <th
                   key={h}
                   className={`pb-2 pr-3 font-semibold uppercase tracking-wide last:pr-0 ${h !== 'Fase' && h !== 'Volume' ? 'text-right' : ''}`}
@@ -371,17 +658,23 @@ function FunnelConversionGrid({
           <tbody>
             {nodes.map((node, idx) => {
               const showPerda = idx > 0 && node.perdaAnteriorPct != null && node.perdaAnteriorPct > 0;
+              const barTone = resolveFunnelBarTone(
+                node,
+                gargaloClassByFaseId.get(node.faseId),
+                slaDelayByFaseId.get(node.faseId) ?? false,
+              );
               return (
                 <Fragment key={node.faseId}>
                   {showPerda ? (
                     <tr>
-                      <td colSpan={6} className="py-1">
-                        <div
-                          className="flex items-center justify-center gap-1 text-[10px]"
-                          style={{ color: 'var(--moni-text-tertiary)' }}
-                        >
-                          <ArrowDown className="h-3 w-3" aria-hidden />
-                          Perda {formatPct(node.perdaAnteriorPct)}
+                      <td colSpan={5} className="py-0.5">
+                        <div className="flex items-center justify-center">
+                          <span
+                            className="text-[11px] font-semibold tabular-nums"
+                            style={{ color: 'var(--moni-status-overdue-text)' }}
+                          >
+                            −{formatPct(node.perdaAnteriorPct)}
+                          </span>
                         </div>
                       </td>
                     </tr>
@@ -390,23 +683,20 @@ function FunnelConversionGrid({
                     className="transition-colors hover:bg-[var(--moni-surface-50)]"
                     style={{
                       borderBottom: '0.5px solid var(--moni-border-subtle)',
-                      background: node.faseConversao ? 'var(--moni-gold-50)' : undefined,
+                      background: node.faseConversao ? 'var(--moni-navy-50)' : undefined,
                     }}
                   >
                     <td className="py-2.5 pr-3">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span style={{ color: 'var(--moni-text-secondary)' }}>{node.faseNome}</span>
-                        {node.faseConversao ? <Pill label="Conversão" tone="ambar" /> : null}
+                        {node.faseConversao ? <Pill label="Conversão" tone="roxo" /> : null}
                       </div>
                     </td>
                     <td className="py-2.5 pr-3">
-                      <FunnelBar value={node.alcancaram} max={maxBar} />
+                      <FunnelVolumeBar value={node.alcancaram} max={maxBar} tone={barTone} />
                     </td>
                     <td className="py-2.5 pr-3 text-right tabular-nums">{formatInt(node.alcancaram)}</td>
                     <td className="py-2.5 pr-3 text-right tabular-nums">{formatPct(node.pctSobreEntradas)}</td>
-                    <td className="py-2.5 pr-3 text-right tabular-nums">
-                      {idx === 0 ? '—' : formatPct(node.perdaAnteriorPct)}
-                    </td>
                     <td className="py-2.5 text-right tabular-nums">{formatDias(node.tempoMedioDias)}</td>
                   </tr>
                 </Fragment>
@@ -1662,6 +1952,8 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
   const [tab, setTab] = useState<DashboardTab>('operacao');
   const [arquivadosDrawerOpen, setArquivadosDrawerOpen] = useState(false);
   const [gargalosExpandido, setGargalosExpandido] = useState(false);
+  const [tempoMedioFaseExpandido, setTempoMedioFaseExpandido] = useState(false);
+  const [transicoesExpandido, setTransicoesExpandido] = useState(false);
 
   const opcoesFiltros = useMemo(() => buildPainelFiltrosOpcoes(dataset), [dataset]);
 
@@ -1732,19 +2024,77 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
   const gargalosTop = useMemo(() => gargalosVisiveis(analise.gargalos.ranking), [analise.gargalos.ranking]);
   const gargalosBaixo = useMemo(() => gargalosBaixos(analise.gargalos.ranking), [analise.gargalos.ranking]);
   const gargalosExibidos = useMemo(
-    () => (gargalosExpandido ? analise.gargalos.ranking : gargalosTop),
-    [gargalosExpandido, analise.gargalos.ranking, gargalosTop],
+    () => (gargalosExpandido ? [...gargalosTop, ...gargalosBaixo] : gargalosTop),
+    [gargalosExpandido, gargalosTop, gargalosBaixo],
   );
+
+  const transicoesAdjacentes = useMemo(
+    () => analise.conversao.entreFases.filter((p) => p.alcancaramOrigem > 0),
+    [analise.conversao.entreFases],
+  );
+
+  const todasTaxasZero = useMemo(() => {
+    try {
+      const rows = analise.conversao.porFase.filter((p) => p.alcancaram > 0);
+      if (rows.length === 0) return true;
+      return rows.every((p) => (p.taxaConversaoPct ?? 0) === 0);
+    } catch {
+      return false;
+    }
+  }, [analise.conversao.porFase]);
 
   const pastelariaPorFase = useMemo(
     () => pastelariaPorFaseId(dadosFiltrados.chamados, dadosFiltrados.cardsAnalise),
     [dadosFiltrados.chamados, dadosFiltrados.cardsAnalise],
   );
 
+  const chamadosPorFaseUnificado = useMemo(() => {
+    const gargaloMap = new Map(analise.gargalos.ranking.map((g) => [g.faseId, g]));
+    return analise.chamados.porFase
+      .filter((r) => r.total > 0 || r.abertos > 0)
+      .sort((a, b) => b.abertos - a.abertos)
+      .map((r) => ({
+        faseId: r.faseId,
+        faseNome: r.faseNome,
+        abertos: r.abertos,
+        comTrava: r.comTrava,
+        vencidos: r.vencidos,
+        gargaloClassificacao: gargaloMap.get(r.faseId)?.classificacao ?? null,
+        pastelaria: pastelariaPorFase.get(r.faseId) ?? 0,
+      }));
+  }, [analise.chamados.porFase, analise.gargalos.ranking, pastelariaPorFase]);
+
+  const arquivamentosPorFaseUnificado = useMemo(
+    () =>
+      [...analise.arquivamento.perdas.tabelaPorFase]
+        .sort((a, b) => b.arquivados - a.arquivados)
+        .map((f) => [
+          f.faseNome,
+          formatInt(f.arquivados),
+          formatPct(f.pctDoTotalArquivado),
+          f.principalMotivo,
+          formatInt(f.antesConversao),
+          formatInt(f.depoisConversao),
+          formatInt(semMotivoNaFase(analise, f.faseId)),
+        ]),
+    [analise],
+  );
+
   const conversaoPorCidade = useMemo(
     () => deriveConversaoPorCidade(dadosFiltrados.cardsAnalise, dataset.fases, period),
     [dadosFiltrados.cardsAnalise, dataset.fases, period],
   );
+
+  const semCidadeInformada = useMemo(() => {
+    try {
+      if (!conversaoPorCidade.campoDisponivel) return false;
+      const { linhas } = conversaoPorCidade;
+      if (linhas.length === 0) return false;
+      return linhas.every((r) => r.cidade === 'Cidade não informada');
+    } catch {
+      return false;
+    }
+  }, [conversaoPorCidade]);
 
   const qualidadeOperacional = useMemo(
     () =>
@@ -2132,7 +2482,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                     style={{ color: 'var(--moni-navy-800)' }}
                     onClick={() => setGargalosExpandido(true)}
                   >
-                    Ver todos os gargalos ({formatInt(gargalosBaixo.length)} classificação baixa)
+                    Ver todos os gargalos ({formatInt(gargalosBaixo.length)} baixo)
                   </button>
                 ) : null}
                 {gargalosExpandido && gargalosBaixo.length > 0 ? (
@@ -2189,10 +2539,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <div className="space-y-4">
               <PanelBox title="Funil de conversão">
-                <FunnelConversionGrid
-                  nodes={analise.conversao.funnelTree.nodes}
-                  faseConversaoConfigurada={analise.conversao.faseConversaoConfigurada}
-                />
+                <FunnelConversionGrid nodes={analise.conversao.funnelTree.nodes} />
                 {analise.conversao.funnelTree.historicoParcial ? (
                   <p className="mt-2 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
                     Histórico parcial — tempos aproximados em parte dos cards.
@@ -2200,33 +2547,23 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                 ) : null}
               </PanelBox>
 
-              <PanelBox title="Tempo médio por fase (coorte)">
-                <DataTable
-                  headers={['Fase', 'Alcançaram', '% entradas', 'Tempo médio']}
-                  emptyMessage="Sem dados de tempo."
-                  rows={analise.conversao.funnelTree.nodes.map((n) => [
-                    `${n.faseNome}${n.faseConversao ? ' · conv.' : ''}`,
-                    formatInt(n.alcancaram),
-                    formatPct(n.pctSobreEntradas),
-                    formatDias(n.tempoMedioDias),
-                  ])}
-                />
-              </PanelBox>
-
-              <PanelBox title="Transições adjacentes">
+              <CollapsiblePanelBox
+                title="Transições adjacentes"
+                expanded={transicoesExpandido}
+                onToggle={() => setTransicoesExpandido((v) => !v)}
+                expandLabel={`Ver transições (${formatInt(transicoesAdjacentes.length)})`}
+              >
                 <DataTable
                   headers={['Transição', 'Origem', 'Destino', 'Passagem']}
                   emptyMessage="Funil com uma fase apenas."
-                  rows={analise.conversao.entreFases
-                    .filter((p) => p.alcancaramOrigem > 0)
-                    .map((p) => [
-                      `${p.deFaseNome} → ${p.paraFaseNome}`,
-                      formatInt(p.alcancaramOrigem),
-                      formatInt(p.alcancaramDestino),
-                      formatPct(p.taxaPassagemPct),
-                    ])}
+                  rows={transicoesAdjacentes.map((p) => [
+                    `${p.deFaseNome} → ${p.paraFaseNome}`,
+                    formatInt(p.alcancaramOrigem),
+                    formatInt(p.alcancaramDestino),
+                    formatPct(p.taxaPassagemPct),
+                  ])}
                 />
-              </PanelBox>
+              </CollapsiblePanelBox>
             </div>
 
             <div className="space-y-4">
@@ -2237,19 +2574,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                   <MiniKpi label="Vencidos" value={formatInt(analise.chamados.vencidos)} />
                   <MiniKpi label="Com trava" value={formatInt(analise.chamados.comTrava)} />
                 </div>
-                <DataTable
-                  headers={['Fase', 'Abertos', 'Trava', 'Vencidos', 'Pastelaria']}
-                  emptyMessage="Sem chamados no recorte."
-                  rows={analise.chamados.porFase
-                    .filter((r) => r.total > 0 || r.abertos > 0)
-                    .map((r) => [
-                      r.faseNome,
-                      formatInt(r.abertos),
-                      formatInt(r.comTrava),
-                      formatInt(r.vencidos),
-                      formatInt(pastelariaPorFase.get(r.faseId) ?? 0),
-                    ])}
-                />
+                <ChamadosPorFaseUnifiedTable rows={chamadosPorFaseUnificado} />
               </PanelBox>
 
               <PanelBox title="Fluxo">
@@ -2311,14 +2636,6 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
               ) : null}
             </div>
 
-            {analise.arquivamento.qualidadeMotivo ? (
-              <PainelQualidadeMotivoAlert
-                qualidade={analise.arquivamento.qualidadeMotivo}
-                formatInt={formatInt}
-                formatPct={formatPct}
-              />
-            ) : null}
-
             {analise.arquivamento.perdas.totalArquivados === 0 ? (
               <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
                 Nenhum card arquivado no recorte analisado.
@@ -2366,17 +2683,27 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                   </p>
                 ) : null}
 
+                {analise.arquivamento.qualidadeMotivo ? (
+                  <PainelQualidadeMotivoAlert
+                    qualidade={analise.arquivamento.qualidadeMotivo}
+                    formatInt={formatInt}
+                    formatPct={formatPct}
+                  />
+                ) : null}
+
                 <PanelBox title="Arquivamentos por fase">
                   <DataTable
-                    headers={['Fase', 'Arquivados', '% total', 'Principal motivo', 'Antes / depois conv.']}
+                    headers={[
+                      'Fase',
+                      'Arquivados',
+                      '% total',
+                      'Principal motivo',
+                      'Antes conv.',
+                      'Depois conv.',
+                      'Sem motivo',
+                    ]}
                     emptyMessage="Nenhum arquivado no período."
-                    rows={analise.arquivamento.perdas.tabelaPorFase.map((f) => [
-                      f.faseNome,
-                      formatInt(f.arquivados),
-                      formatPct(f.pctDoTotalArquivado),
-                      f.principalMotivo,
-                      `${formatInt(f.antesConversao)} / ${formatInt(f.depoisConversao)}`,
-                    ])}
+                    rows={arquivamentosPorFaseUnificado}
                     alignRightFrom={1}
                   />
                 </PanelBox>
@@ -2388,21 +2715,11 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                   </DegradeNote>
                 ) : null}
 
-                {analise.arquivamento.motivos.ranking.length > 0 ? (
+                {analise.arquivamento.motivos.ranking.length > 0 ||
+                analise.arquivamento.motivos.impactoPerdaAntesConversao.length > 0 ||
+                analise.arquivamento.motivos.porResponsavel.length > 0 ||
+                analise.arquivamento.motivos.porFranquia.length > 0 ? (
                   <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                    <PanelBox title="Motivos mais frequentes">
-                      <DataTable
-                        headers={['Motivo', 'Total', 'Antes conv.', 'Depois conv.']}
-                        emptyMessage="Nenhum arquivado no período."
-                        rows={analise.arquivamento.motivos.ranking.slice(0, 10).map((m) => [
-                          m.motivo,
-                          formatInt(m.total),
-                          formatInt(m.antesConversao),
-                          formatInt(m.depoisConversao),
-                        ])}
-                        alignRightFrom={1}
-                      />
-                    </PanelBox>
                     <PanelBox title="Impacto na perda antes da conversão">
                       <DataTable
                         headers={['Motivo', 'Perdas', 'Depois conv.']}
@@ -2485,41 +2802,45 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                 />
               </PanelBox>
 
-              <PanelBox title="Conversão por praça / cidade">
-                {!conversaoPorCidade.campoDisponivel ? (
-                  <DegradeNote>
-                    Campo de cidade indisponível no recorte — vincule cards à rede ou projeto com área de atuação.
-                  </DegradeNote>
-                ) : null}
-                <DataTable
-                  headers={['Cidade', 'Entradas', 'Conv.', 'Taxa', 'Tempo médio']}
-                  emptyMessage="Sem entradas no período."
-                  rows={conversaoPorCidade.linhas.slice(0, 10).map((r) => [
-                    r.cidade,
-                    formatInt(r.entradas),
-                    formatInt(r.converteram),
-                    formatPct(r.taxaConversaoPct),
-                    formatDias(r.tempoMedioDias),
-                  ])}
-                  alignRightFrom={1}
-                />
-              </PanelBox>
-
-              <PanelBox title="Conversão por fase">
-                <DataTable
-                  headers={['Fase', 'Alcançaram', 'Converteram', 'Taxa']}
-                  emptyMessage="Sem entradas no período."
-                  rows={analise.conversao.porFase
-                    .filter((p) => p.alcancaram > 0)
-                    .map((p) => [
-                      `${p.faseNome}${p.faseConversao ? ' · conv.' : ''}`,
-                      formatInt(p.alcancaram),
-                      formatInt(p.converteram),
-                      formatPct(p.taxaConversaoPct),
+              {!semCidadeInformada ? (
+                <PanelBox title="Conversão por praça / cidade">
+                  {!conversaoPorCidade.campoDisponivel ? (
+                    <DegradeNote>
+                      Campo de cidade indisponível no recorte — vincule cards à rede ou projeto com área de atuação.
+                    </DegradeNote>
+                  ) : null}
+                  <DataTable
+                    headers={['Cidade', 'Entradas', 'Conv.', 'Taxa', 'Tempo médio']}
+                    emptyMessage="Sem entradas no período."
+                    rows={conversaoPorCidade.linhas.slice(0, 10).map((r) => [
+                      r.cidade,
+                      formatInt(r.entradas),
+                      formatInt(r.converteram),
+                      formatPct(r.taxaConversaoPct),
+                      formatDias(r.tempoMedioDias),
                     ])}
-                  alignRightFrom={1}
-                />
-              </PanelBox>
+                    alignRightFrom={1}
+                  />
+                </PanelBox>
+              ) : null}
+
+              {!todasTaxasZero ? (
+                <PanelBox title="Conversão por fase">
+                  <DataTable
+                    headers={['Fase', 'Alcançaram', 'Converteram', 'Taxa']}
+                    emptyMessage="Sem entradas no período."
+                    rows={analise.conversao.porFase
+                      .filter((p) => p.alcancaram > 0)
+                      .map((p) => [
+                        `${p.faseNome}${p.faseConversao ? ' · conv.' : ''}`,
+                        formatInt(p.alcancaram),
+                        formatInt(p.converteram),
+                        formatPct(p.taxaConversaoPct),
+                      ])}
+                    alignRightFrom={1}
+                  />
+                </PanelBox>
+              ) : null}
             </div>
           </section>
 
@@ -2673,19 +2994,6 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                   alignRightFrom={1}
                 />
               </PanelBox>
-              <PanelBox title="Gargalo × chamados">
-                <DataTable
-                  headers={['Fase', 'Score', 'Abertos', 'Trava']}
-                  emptyMessage="Sem dados."
-                  rows={analise.chamados.gargaloRelacao.map((r) => [
-                    r.faseNome,
-                    String(r.gargaloScore),
-                    formatInt(r.chamadosAbertos),
-                    formatInt(r.chamadosComTrava),
-                  ])}
-                  alignRightFrom={1}
-                />
-              </PanelBox>
               <PanelBox title="Por status">
                 <DataTable
                   headers={['Status', 'Qtd.']}
@@ -2695,6 +3003,9 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
                 />
               </PanelBox>
             </div>
+            <PanelBox title="Chamados por fase">
+              <ChamadosPorFaseUnifiedTable rows={chamadosPorFaseUnificado} />
+            </PanelBox>
             {analise.chamados.destaque.length > 0 ? (
               <PanelBox title="Prioritários">
                 <ul className="space-y-2">
