@@ -13,6 +13,7 @@ import { buildCadastrosEmpresasLinhasComSpe, type FranqueadoSpeRow } from '@/lib
 import type { CondominioRow } from '@/lib/condominios';
 import type { PipelineCardsDataset } from '@/lib/kanban/pipeline-cards-types';
 import { PipelineCardsView } from '@/components/pipeline/PipelineCardsView';
+import { PipelineAnalisesView } from '@/components/pipeline/PipelineAnalisesView';
 import { ImportarRedeCSVButton } from './ImportarRedeCSVButton';
 import { ImportarEntidadeCSVButton } from './ImportarEntidadeCSVButton';
 import { ExportarRedeCSVButton } from './ExportarRedeCSVButton';
@@ -33,10 +34,11 @@ import {
   csvRedeLoteadores,
 } from '@/lib/rede-tabelas-csv-export';
 
-type TabId = 'visao' | 'pipeline' | 'franqueados' | 'loteadores' | 'empresas' | 'condominios';
+type TabId = 'visao' | 'pipeline' | 'analises' | 'franqueados' | 'loteadores' | 'empresas' | 'condominios';
 
 const TAB_VISAO: { id: TabId; label: string } = { id: 'visao', label: 'Visão geral' };
 const TAB_PIPELINE: { id: TabId; label: string } = { id: 'pipeline', label: 'Pipeline da rede' };
+const TAB_ANALISES: { id: TabId; label: string } = { id: 'analises', label: 'Análises' };
 const TAB_FRANQ: { id: TabId; label: string } = { id: 'franqueados', label: 'Rede de Franqueados' };
 const TAB_LOTE: { id: TabId; label: string } = { id: 'loteadores', label: 'Rede de Loteadores' };
 const TAB_EMP: { id: TabId; label: string } = { id: 'empresas', label: 'Cadastros de Empresas' };
@@ -76,10 +78,12 @@ export function RedeFranqueadosPageTabs({
   pipelineDataset = null,
 }: Props) {
   const showPipelineTab = showStaffTabs && pipelineDataset != null;
+  const showAnalisesTab = showStaffTabs && pipelineDataset != null;
 
   const tabs = [
     ...(showDashboard ? [TAB_VISAO] : []),
     ...(showPipelineTab ? [TAB_PIPELINE] : []),
+    ...(showAnalisesTab ? [TAB_ANALISES] : []),
     TAB_FRANQ,
     ...(showStaffTabs ? [TAB_LOTE, TAB_EMP] : []),
     ...(showCondominiosTab ? [TAB_COND] : []),
@@ -148,6 +152,23 @@ export function RedeFranqueadosPageTabs({
               </p>
             </div>
             <PipelineCardsView mode="franqueadora" dataset={pipelineDataset} defaultGroupBy="franquia" />
+          </section>
+        ) : null}
+
+        {resolvedTab === 'analises' && showAnalisesTab && pipelineDataset ? (
+          <section className="space-y-4">
+            <div>
+              <h2
+                className="text-xl font-semibold tracking-tight"
+                style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-display)' }}
+              >
+                Análises
+              </h2>
+              <p className="mt-1 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
+                Travamentos, gargalos de fase, benchmark por unidade, conversão e Sirene.
+              </p>
+            </div>
+            <PipelineAnalisesView dataset={pipelineDataset} />
           </section>
         ) : null}
 

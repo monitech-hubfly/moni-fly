@@ -16,10 +16,12 @@ type BolinhaProps = {
 
 export function KanbanPrazoBolinha({ variante, numero, title, sigla }: BolinhaProps) {
   const atrasado = variante === 'atrasado';
+  const tooltipText = sigla ? `${sigla} — ${title}` : title;
+
   return (
-    <span className="inline-flex flex-col items-center gap-0.5" title={title}>
+    <span className="group/bol relative inline-flex shrink-0 items-center justify-center">
       <span
-        className="inline-flex min-h-[20px] min-w-[20px] items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums leading-none"
+        className="inline-flex h-[14px] min-w-[14px] items-center justify-center rounded-full px-0.5 text-[8px] font-semibold tabular-nums leading-none"
         style={{
           background: atrasado ? 'var(--moni-status-overdue-bg)' : 'var(--moni-status-attention-bg)',
           color: atrasado ? 'var(--moni-status-overdue-text)' : 'var(--moni-status-attention-text)',
@@ -27,15 +29,22 @@ export function KanbanPrazoBolinha({ variante, numero, title, sigla }: BolinhaPr
             ? '0.5px solid var(--moni-status-overdue-border)'
             : '0.5px solid var(--moni-status-attention-border)',
         }}
-        aria-label={title}
+        title={tooltipText}
+        aria-label={tooltipText}
       >
         {numero}
       </span>
-      {sigla ? (
-        <span className="text-[8px] font-medium uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
-          {sigla}
-        </span>
-      ) : null}
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute bottom-[calc(100%+5px)] left-1/2 z-30 w-max max-w-[220px] -translate-x-1/2 rounded-md px-2 py-1 text-center text-[10px] font-medium leading-snug opacity-0 transition-opacity duration-150 group-hover/bol:opacity-100"
+        style={{
+          background: 'var(--moni-navy-800)',
+          color: 'var(--moni-surface-0)',
+          border: '0.5px solid var(--moni-border-default)',
+        }}
+      >
+        {tooltipText}
+      </span>
     </span>
   );
 }
@@ -83,7 +92,7 @@ export function KanbanCardPrazoIndicadores({
         <KanbanPrazoBolinha
           key="sla"
           {...slaBol}
-          sigla={slaBol.variante === 'atencao' ? 'SLA' : undefined}
+          sigla="SLA"
         />,
       );
     }
@@ -126,7 +135,7 @@ export function KanbanCardPrazoIndicadores({
   if (itens.length === 0) return null;
 
   return (
-    <div className={`mt-1.5 flex flex-wrap items-end gap-2 ${className}`.trim()}>{itens}</div>
+    <div className={`mt-1.5 flex flex-wrap items-center gap-1 ${className}`.trim()}>{itens}</div>
   );
 }
 
@@ -169,8 +178,8 @@ export function KanbanCardSlaBolinha({
   const bol = indicadorBolinhaSlaKanban({ pausado: false, ...sla } as SlaKanbanResult);
   if (!bol) return null;
   return (
-    <div className={`mt-1.5 flex items-center gap-2 ${className}`.trim()}>
-      <KanbanPrazoBolinha {...bol} sigla={bol.variante === 'atencao' ? 'SLA' : undefined} />
+    <div className={`mt-1.5 flex items-center gap-1 ${className}`.trim()}>
+      <KanbanPrazoBolinha {...bol} sigla="SLA" />
     </div>
   );
 }

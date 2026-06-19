@@ -53,14 +53,20 @@ export function RedeFranqueadoDetalheTabs({ redeId, pipelineDataset, cadastro }:
       <div className="mt-8" role="tabpanel">
         {activeTab === 'cadastro' ? cadastro : null}
         {activeTab === 'painel' ? (
-          <PipelineCardsView
-            mode="unidade"
-            franqueadoId={redeId}
-            dataset={pipelineDataset}
-            defaultGroupBy="funil"
-            showFranchiseGroups={false}
-            showKpis
-          />
+          <div>
+            <p className="mb-6 text-sm leading-relaxed" style={{ color: 'var(--moni-text-secondary)' }}>
+              Visão operacional da unidade: KPIs, saúde do pipeline, prioridades do dia e cards por funil com esteira
+              Step One → Portfólio → Pré Obra e Obra.
+            </p>
+            <PipelineCardsView
+              mode="unidade"
+              franqueadoId={redeId}
+              dataset={pipelineDataset}
+              defaultGroupBy="funil"
+              showFranchiseGroups={false}
+              showKpis
+            />
+          </div>
         ) : null}
       </div>
     </>

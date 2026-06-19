@@ -1,4 +1,10 @@
 import type { SlaKanbanResult } from '@/lib/kanban/kanban-card-sla';
+import type {
+  GargaloScoreFase,
+  PainelChamadoUnificadoDTO,
+  PainelFaseDTO,
+  PainelHistoricoMovimentoDTO,
+} from '@/lib/kanban/painel-performance-types';
 
 /** Card enriquecido para o painel — campos derivados do kanban/fase reais (sem duplicata manual). */
 export type PipelineCardRow = {
@@ -28,6 +34,8 @@ export type PipelineCardRow = {
   origem: 'nativo';
   responsavel_fase_id?: string | null;
   responsavel_fase_nome?: string | null;
+  contrato_assinado?: boolean;
+  contrato_assinado_em?: string | null;
 };
 
 export type PipelineFranqueadoUnidade = {
@@ -75,11 +83,20 @@ export const PIPELINE_CARDS_FILTROS_DEFAULT: PipelineCardsFiltros = {
 };
 
 export type PipelineCardsKpis = {
-  unidadesComCardsAtivos: number;
   cardsAtivos: number;
   cardsAtrasados: number;
   cardsSemMovimentacao: number;
   cardsVencendoEmBreve: number;
+  gargalosCriticos: number;
+  chamadosComTrava: number;
+};
+
+export type PipelineFranqueadoraEnrichment = {
+  fases: PainelFaseDTO[];
+  historicoMovimentos: PainelHistoricoMovimentoDTO[];
+  chamados: PainelChamadoUnificadoDTO[];
+  gargaloRanking: GargaloScoreFase[];
+  maxOrdemPorKanban: Record<string, number>;
 };
 
 export type PipelineCardsKpisFunil = {
@@ -93,7 +110,26 @@ export type PipelineCardsKpisUnidade = {
   cardsAtrasados: number;
   cardsSemMovimentacao: number;
   proximosVencimentos: number;
+  funisAtivos: number;
+  chamadosComTrava: number;
   cardsPorFunil: PipelineCardsKpisFunil[];
+};
+
+export type PipelineOQueFazerItem = {
+  cardId: string;
+  titulo: string;
+  fase: string;
+  kanbanNome: string;
+  acao: string;
+  prioridade: number;
+  href: string;
+};
+
+export type PipelineFunilGrupoUnidade = {
+  kanbanId: string;
+  kanbanNome: string;
+  cards: PipelineCardDisplay[];
+  defaultExpanded: boolean;
 };
 
 export type PipelineCardsGrupo = {
@@ -106,4 +142,32 @@ export type PipelineCardsGrupo = {
 export type PipelineCardsDataset = {
   cards: PipelineCardRow[];
   franqueados: PipelineFranqueadoUnidade[];
+  /** Dados extras para visão franqueadora / aba Análises (degrada se ausente). */
+  enrichment?: PipelineFranqueadoraEnrichment | null;
+};
+
+export type PipelineCardBadgeStatus = 'atrasado' | 'alerta' | 'parado' | 'em_dia';
+
+export type PipelineUnidadeSaudeMes = {
+  entradasMes: number;
+  contratosMes: number;
+  metaEntradas: number;
+  metaContratos: number;
+};
+
+export type PipelineUnidadeAlertas = {
+  atrasados: number;
+  parados: number;
+  chamadosTrava: number;
+  nivel: 'critico' | 'atencao' | 'ok';
+};
+
+export type PipelineUnidadeBlocoMeta = {
+  redeId: string;
+  label: string;
+  nFranquia: string | null;
+  alertas: PipelineUnidadeAlertas;
+  saude: PipelineUnidadeSaudeMes;
+  defaultExpanded: boolean;
+  sortPriority: number;
 };

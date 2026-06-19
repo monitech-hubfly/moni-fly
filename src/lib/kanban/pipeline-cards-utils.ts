@@ -104,12 +104,8 @@ export function filtrarPipelineCards(
 /** KPIs consolidados — FK0000 (Casa Moní) não entra nos totais (regra da Visão geral). */
 export function calcularKpisPipelineFranqueadora(cards: PipelineCardDisplay[]): PipelineCardsKpis {
   const elegiveis = cards.filter((c) => !excluirFranquiaDosGraficosVisaoGeral(c.n_franquia));
-  const unidades = new Set(
-    elegiveis.map((c) => String(c.rede_franqueado_id ?? '').trim()).filter(Boolean),
-  );
 
   return {
-    unidadesComCardsAtivos: unidades.size,
     cardsAtivos: elegiveis.length,
     cardsAtrasados: elegiveis.filter((c) => slaCategoriaPipeline(c) === 'atrasado').length,
     cardsSemMovimentacao: elegiveis.filter((c) => c.inativo).length,
@@ -117,6 +113,8 @@ export function calcularKpisPipelineFranqueadora(cards: PipelineCardDisplay[]): 
       const cat = slaCategoriaPipeline(c);
       return cat === 'atencao_outros' || cat === 'vence_hoje';
     }).length,
+    gargalosCriticos: 0,
+    chamadosComTrava: 0,
   };
 }
 
@@ -132,6 +130,9 @@ export function calcularKpisPipelineUnidade(cards: PipelineCardDisplay[]): Pipel
     }
   }
 
+  const funis = new Set<string>();
+  for (const card of cards) funis.add(card.kanban_id);
+
   return {
     cardsAtivos: cards.length,
     cardsAtrasados: cards.filter((c) => slaCategoriaPipeline(c) === 'atrasado').length,
@@ -140,6 +141,8 @@ export function calcularKpisPipelineUnidade(cards: PipelineCardDisplay[]): Pipel
       const cat = slaCategoriaPipeline(c);
       return cat === 'atencao_outros' || cat === 'vence_hoje';
     }).length,
+    funisAtivos: funis.size,
+    chamadosComTrava: 0,
     cardsPorFunil: [...porFunil.entries()]
       .map(([kanbanId, meta]) => ({
         kanbanId,

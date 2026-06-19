@@ -2,14 +2,22 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanCardBrief } from '@/components/kanban-shared/types';
 import { compareRedePorNFranquia } from '@/lib/rede-franqueados';
 import { enrichCardsComResponsavelFase } from '@/lib/kanban/responsavel-fase-checklist';
+import { fetchKanbanFasesAtivas } from '@/lib/kanban/fetch-kanban-fases';
+import { fetchPainelChamados } from '@/lib/kanban/fetch-painel-chamados';
+import { computeGargaloRankingRede } from '@/lib/kanban/pipeline-franqueadora-compute';
+import type {
+  PainelFaseDTO,
+  PainelHistoricoMovimentoDTO,
+} from '@/lib/kanban/painel-performance-types';
 import type {
   PipelineCardRow,
   PipelineCardsDataset,
   PipelineCardsViewMode,
   PipelineFranqueadoUnidade,
+  PipelineFranqueadoraEnrichment,
 } from '@/lib/kanban/pipeline-cards-types';
 
-const CARD_SELECT = `
+const CARD_SELECT_BASE = `
   id,
   titulo,
   kanban_id,
@@ -29,7 +37,18 @@ const CARD_SELECT = `
   rede_franqueados ( n_franquia, nome_completo, ordem )
 `;
 
+const CARD_SELECT_WITH_CONTRATO = `${CARD_SELECT_BASE.trim()},
+  contrato_assinado,
+  contrato_assinado_em
+`;
+
 type RawCard = Record<string, unknown>;
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
 
 function relOne<T>(v: T | T[] | null | undefined): T | null {
   if (v == null) return null;
@@ -80,6 +99,9 @@ function mapPipelineCardRow(raw: RawCard): PipelineCardRow | null {
     origem: 'nativo',
     responsavel_fase_id: null,
     responsavel_fase_nome: null,
+    contrato_assinado: raw.contrato_assinado === true,
+    contrato_assinado_em:
+      raw.contrato_assinado_em != null ? String(raw.contrato_assinado_em) : null,
   };
 }
 
@@ -132,12 +154,153 @@ function mapFranqueado(raw: RawCard): PipelineFranqueadoUnidade | null {
   };
 }
 
+async function fetchHistoricoMovimentosPipeline(
+  supabase: SupabaseClient,
+  cardIds: string[],
+): Promise<PainelHistoricoMovimentoDTO[]> {
+  const out: PainelHistoricoMovimentoDTO[] = [];
+  for (const part of chunk(cardIds, 80)) {
+    if (part.length === 0) continue;
+    const { data: rows, error } = await supabase
+      .from('kanban_historico')
+      .select('card_id,acao,detalhe,criado_em')
+      .in('card_id', part)
+      .in('acao', ['card_criado', 'fase_avancada', 'fase_retrocedida', 'card_arquivado']);
+    if (error) continue;
+    for (const r of rows ?? []) {
+      const row = r as {
+        card_id: string;
+        acao: string;
+        detalhe: Record<string, unknown> | null;
+        criado_em: string;
+      };
+      out.push({
+        card_id: row.card_id,
+        acao: row.acao,
+        detalhe: row.detalhe ?? null,
+        criado_em: String(row.criado_em ?? new Date().toISOString()),
+      });
+    }
+  }
+  return out;
+}
+
+async function fetchFasesKanbansPipeline(
+  supabase: SupabaseClient,
+  kanbanIds: string[],
+): Promise<{ fases: PainelFaseDTO[]; maxOrdemPorKanban: Record<string, number> }> {
+  const fases: PainelFaseDTO[] = [];
+  const maxOrdemPorKanban: Record<string, number> = {};
+  const uniq = [...new Set(kanbanIds.filter(Boolean))];
+
+  await Promise.all(
+    uniq.map(async (kid) => {
+      const rows = await fetchKanbanFasesAtivas(supabase, kid);
+      let maxOrd = 0;
+      for (const f of rows) {
+        maxOrd = Math.max(maxOrd, f.ordem);
+        fases.push({
+          id: f.id,
+          nome: f.nome,
+          ordem: f.ordem,
+          sla_dias: f.sla_dias,
+          fase_conversao: Boolean(f.fase_conversao),
+          slug: f.slug ?? null,
+        });
+      }
+      if (maxOrd > 0) maxOrdemPorKanban[kid] = maxOrd;
+    }),
+  );
+
+  return { fases, maxOrdemPorKanban };
+}
+
+async function fetchUnidadeEnrichment(
+  supabase: SupabaseClient,
+  cards: PipelineCardRow[],
+): Promise<PipelineFranqueadoraEnrichment | null> {
+  if (cards.length === 0) {
+    return {
+      fases: [],
+      historicoMovimentos: [],
+      chamados: [],
+      gargaloRanking: [],
+      maxOrdemPorKanban: {},
+    };
+  }
+
+  try {
+    const cardIds = cards.map((c) => c.id);
+    const kanbanIds = [...new Set(cards.map((c) => c.kanban_id))];
+
+    const [fasesPack, historicoMovimentos, chamados] = await Promise.all([
+      fetchFasesKanbansPipeline(supabase, kanbanIds),
+      fetchHistoricoMovimentosPipeline(supabase, cardIds),
+      fetchPainelChamados(supabase, cardIds, 'nativo').catch(() => []),
+    ]);
+
+    return {
+      fases: fasesPack.fases,
+      historicoMovimentos,
+      chamados,
+      gargaloRanking: [],
+      maxOrdemPorKanban: fasesPack.maxOrdemPorKanban,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchFranqueadoraEnrichment(
+  supabase: SupabaseClient,
+  cards: PipelineCardRow[],
+): Promise<PipelineFranqueadoraEnrichment | null> {
+  if (cards.length === 0) {
+    return {
+      fases: [],
+      historicoMovimentos: [],
+      chamados: [],
+      gargaloRanking: [],
+      maxOrdemPorKanban: {},
+    };
+  }
+
+  try {
+    const cardIds = cards.map((c) => c.id);
+    const kanbanIds = [...new Set(cards.map((c) => c.kanban_id))];
+
+    const [fasesPack, historicoMovimentos, chamados] = await Promise.all([
+      fetchFasesKanbansPipeline(supabase, kanbanIds),
+      fetchHistoricoMovimentosPipeline(supabase, cardIds),
+      fetchPainelChamados(supabase, cardIds, 'nativo').catch(() => []),
+    ]);
+
+    const base: PipelineFranqueadoraEnrichment = {
+      fases: fasesPack.fases,
+      historicoMovimentos,
+      chamados,
+      gargaloRanking: [],
+      maxOrdemPorKanban: fasesPack.maxOrdemPorKanban,
+    };
+
+    const { enriquecerPipelineCard } = await import('@/lib/kanban/pipeline-cards-utils');
+    const displayCards = cards.map(enriquecerPipelineCard);
+    base.gargaloRanking = computeGargaloRankingRede(displayCards, base);
+
+    return base;
+  } catch {
+    return null;
+  }
+}
+
 export type FetchPipelineCardsOpts = {
   mode: PipelineCardsViewMode;
   /** UUID em `rede_franqueados.id` — obrigatório quando `mode === 'unidade'`. */
   franqueadoId?: string;
   /** Incluir cards arquivados/concluídos (padrão: só ativos em andamento). */
   incluirEncerrados?: boolean;
+  /** Carregar dados para KPIs extendidos, Gantt e drawer (padrão: true). */
+  comEnrichment?: boolean;
 };
 
 /**
@@ -154,6 +317,8 @@ export async function fetchPipelineCards(
     return { cards: [], franqueados: [] };
   }
 
+  const comEnrichment = opts.comEnrichment ?? true;
+
   let franqueadosQuery = supabase
     .from('rede_franqueados')
     .select('id, n_franquia, nome_completo, ordem')
@@ -163,7 +328,9 @@ export async function fetchPipelineCards(
     franqueadosQuery = franqueadosQuery.eq('id', redeId);
   }
 
-  let cardsQuery = supabase.from('kanban_cards').select(CARD_SELECT).eq('status', 'ativo');
+  const frResPromise = franqueadosQuery;
+
+  let cardsQuery = supabase.from('kanban_cards').select(CARD_SELECT_WITH_CONTRATO).eq('status', 'ativo');
 
   if (!opts.incluirEncerrados) {
     cardsQuery = cardsQuery.eq('arquivado', false).eq('concluido', false);
@@ -177,10 +344,30 @@ export async function fetchPipelineCards(
 
   cardsQuery = cardsQuery.order('updated_at', { ascending: false });
 
-  const [frRes, cardRes] = await Promise.all([franqueadosQuery, cardsQuery]);
+  const [frRes, cardResInitial] = await Promise.all([frResPromise, cardsQuery]);
+
+  let cardData: RawCard[] | null = (cardResInitial.data as RawCard[] | null) ?? null;
+  if (cardResInitial.error) {
+    if (/contrato_assinado/i.test(cardResInitial.error.message)) {
+      let fallbackQuery = supabase.from('kanban_cards').select(CARD_SELECT_BASE).eq('status', 'ativo');
+      if (!opts.incluirEncerrados) {
+        fallbackQuery = fallbackQuery.eq('arquivado', false).eq('concluido', false);
+      }
+      if (opts.mode === 'unidade') {
+        fallbackQuery = fallbackQuery.eq('rede_franqueado_id', redeId);
+      } else {
+        fallbackQuery = fallbackQuery.not('rede_franqueado_id', 'is', null);
+      }
+      fallbackQuery = fallbackQuery.order('updated_at', { ascending: false });
+      const fallbackRes = await fallbackQuery;
+      if (fallbackRes.error) throw new Error(fallbackRes.error.message);
+      cardData = (fallbackRes.data as RawCard[] | null) ?? null;
+    } else {
+      throw new Error(cardResInitial.error.message);
+    }
+  }
 
   if (frRes.error) throw new Error(frRes.error.message);
-  if (cardRes.error) throw new Error(cardRes.error.message);
 
   const franqueados = (frRes.data ?? [])
     .map((r) => mapFranqueado(r as RawCard))
@@ -192,11 +379,19 @@ export async function fetchPipelineCards(
       ),
     );
 
-  const cardsRaw = (cardRes.data ?? [])
+  const cardsRaw = (cardData ?? [])
     .map((r) => mapPipelineCardRow(r as RawCard))
     .filter((c): c is PipelineCardRow => c != null);
 
   const cards = await enriquecerResponsavelPipelineCards(supabase, cardsRaw);
 
-  return { cards, franqueados };
+  let enrichment: PipelineFranqueadoraEnrichment | null = null;
+  if (comEnrichment) {
+    enrichment =
+      opts.mode === 'franqueadora'
+        ? await fetchFranqueadoraEnrichment(supabase, cards)
+        : await fetchUnidadeEnrichment(supabase, cards);
+  }
+
+  return { cards, franqueados, enrichment };
 }

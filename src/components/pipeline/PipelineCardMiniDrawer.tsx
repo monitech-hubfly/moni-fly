@@ -131,7 +131,7 @@ export function PipelineCardMiniDrawer({ card, onClose }: Props) {
         onClick={onClose}
       />
       <aside
-        className={`absolute right-0 top-0 flex h-full w-full max-w-lg flex-col bg-white shadow-xl transition-transform duration-200 ${
+        className={`absolute right-0 top-0 flex h-full w-full max-w-lg flex-col bg-white transition-transform duration-200 ${
           entered ? 'translate-x-0' : 'translate-x-full'
         }`}
         style={{ borderLeft: '0.5px solid var(--moni-border-default)' }}
@@ -256,7 +256,7 @@ export function PipelineCardMiniDrawer({ card, onClose }: Props) {
                   style={{
                     border: '0.5px solid var(--moni-border-default)',
                     background: 'var(--moni-surface-50, #fafaf9)',
-                    boxShadow: fase.faseAtual ? 'inset 0 0 0 1px var(--moni-navy-800)' : undefined,
+                    outline: fase.faseAtual ? '1px solid var(--moni-navy-800)' : undefined,
                   }}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-2">
