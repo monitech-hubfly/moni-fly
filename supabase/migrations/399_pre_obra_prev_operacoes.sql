@@ -1,5 +1,6 @@
 -- 399: Dados Pré Obra — campos prev_* + trigger de recálculo (Funil Operações)
--- Idempotente. prefeitura_aprovada_em: migration 393 (não recriar aqui).
+-- Campos reais usados pela feature.
+-- prefeitura_aprovada_em já existia; condominio_aprovada_em e alvara_emitido_em são criados com IF NOT EXISTS para garantir compatibilidade entre ambientes.
 
 -- ─── 1. Colunas (reais faltantes + prev_*) ───────────────────────────────────
 ALTER TABLE public.kanban_cards ADD COLUMN IF NOT EXISTS condominio_aprovada_em timestamptz DEFAULT null;
