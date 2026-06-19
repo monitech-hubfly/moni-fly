@@ -121,7 +121,9 @@ export function PipelineCardMiniDrawer({ card, onClose }: Props) {
 
   return (
     <div
-      className={`fixed inset-0 z-[120] ${entered ? 'opacity-100' : 'opacity-0'} transition-opacity duration-200`}
+      className={`fixed inset-0 z-[120] transition-opacity duration-200 ${
+        entered ? 'opacity-100' : 'pointer-events-none opacity-0'
+      }`}
       aria-hidden={!entered}
     >
       <button

@@ -229,6 +229,12 @@ export function indicadorSaudeUnidadePipeline(
   return 'verde';
 }
 
+export function emojiIndicadorSaudePipeline(indicador: PipelineSaudeIndicador): string {
+  if (indicador === 'vermelho') return '🔴';
+  if (indicador === 'amarelo') return '🟡';
+  return '🟢';
+}
+
 export function saudeMesUnidadePipeline(cards: PipelineCardDisplay[]): PipelineUnidadeSaudeMes {
   let entradasMes = 0;
   let contratosMes = 0;

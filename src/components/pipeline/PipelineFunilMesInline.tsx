@@ -24,8 +24,8 @@ export function PipelineFunilMesInline({ funil }: Props) {
       {items.map((item, idx) => (
         <span key={item.key}>
           {idx > 0 ? <span style={{ color: 'var(--moni-text-tertiary)' }}> · </span> : null}
-          {item.key}:
-          <span style={{ color: valorCor(item.value) }}> {item.value}</span>
+          <span style={{ color: 'var(--moni-text-tertiary)' }}>{item.key}:</span>
+          <span style={{ color: valorCor(item.value) }}>{item.value}</span>
         </span>
       ))}
     </span>

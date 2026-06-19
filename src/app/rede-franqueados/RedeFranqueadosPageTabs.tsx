@@ -12,9 +12,10 @@ import { CondominiosTabelaComBusca } from './CondominiosTabelaComBusca';
 import { buildCadastrosEmpresasLinhas, type FranqueadoEmpresaRow } from '@/lib/franqueado-empresas';
 import { buildCadastrosEmpresasLinhasComSpe, type FranqueadoSpeRow } from '@/lib/franqueado-spe';
 import type { CondominioRow } from '@/lib/condominios';
-import type { PipelineCardsDataset } from '@/lib/kanban/pipeline-cards-types';
 import { PipelineCardsView } from '@/components/pipeline/PipelineCardsView';
 import { PipelineAnalisesView } from '@/components/pipeline/PipelineAnalisesView';
+import { PipelineDatasetLoading } from '@/components/pipeline/PipelineDatasetLoading';
+import { usePipelineDatasetLazy } from '@/components/pipeline/usePipelineDatasetLazy';
 import { ImportarRedeCSVButton } from './ImportarRedeCSVButton';
 import { ImportarEntidadeCSVButton } from './ImportarEntidadeCSVButton';
 import { ExportarRedeCSVButton } from './ExportarRedeCSVButton';
@@ -66,7 +67,6 @@ type Props = {
   canManageFranqueados: boolean;
   maskSensitiveColumns: boolean;
   showDashboard: boolean;
-  pipelineDataset?: PipelineCardsDataset | null;
 };
 
 export function RedeFranqueadosPageTabs({
@@ -83,10 +83,9 @@ export function RedeFranqueadosPageTabs({
   canManageFranqueados,
   maskSensitiveColumns,
   showDashboard,
-  pipelineDataset = null,
 }: Props) {
-  const showPipelineTab = showStaffTabs && pipelineDataset != null;
-  const showAnalisesTab = showStaffTabs && pipelineDataset != null;
+  const showPipelineTab = showStaffTabs;
+  const showAnalisesTab = showStaffTabs;
 
   const tabs = [
     ...(showDashboard ? [TAB_VISAO] : []),
@@ -114,6 +113,12 @@ export function RedeFranqueadosPageTabs({
     tabCandidate && tabs.some((t) => t.id === tabCandidate)
       ? (tabCandidate as TabId)
       : defaultTab;
+
+  const pipelineTabAtivo = resolvedTab === 'pipeline' || resolvedTab === 'analises';
+  const { dataset: pipelineDataset, loading: pipelineLoading, error: pipelineError } = usePipelineDatasetLazy({
+    mode: 'franqueadora',
+    enabled: showStaffTabs && pipelineTabAtivo,
+  });
 
   function handleTabClick(tabId: TabId) {
     const params = new URLSearchParams(searchParams.toString());
@@ -163,7 +168,7 @@ export function RedeFranqueadosPageTabs({
       <div className="mt-8" role="tabpanel">
         {resolvedTab === 'visao' && showDashboard ? <RedeDashboard rows={rows} /> : null}
 
-        {resolvedTab === 'pipeline' && showPipelineTab && pipelineDataset ? (
+        {resolvedTab === 'pipeline' && showPipelineTab ? (
           <section className="space-y-4">
             <div>
               <h2
@@ -176,11 +181,19 @@ export function RedeFranqueadosPageTabs({
                 Cards ativos em todos os funis, consolidados por unidade de franquia.
               </p>
             </div>
-            <PipelineCardsView mode="rede" dataset={pipelineDataset} defaultGroupBy="franquia" />
+            {pipelineLoading ? (
+              <PipelineDatasetLoading />
+            ) : pipelineError ? (
+              <p className="text-sm" style={{ color: 'var(--moni-status-overdue-text)' }}>
+                {pipelineError}
+              </p>
+            ) : pipelineDataset ? (
+              <PipelineCardsView mode="rede" dataset={pipelineDataset} defaultGroupBy="franquia" />
+            ) : null}
           </section>
         ) : null}
 
-        {resolvedTab === 'analises' && showAnalisesTab && pipelineDataset ? (
+        {resolvedTab === 'analises' && showAnalisesTab ? (
           <section className="space-y-4">
             <div>
               <h2
@@ -193,7 +206,15 @@ export function RedeFranqueadosPageTabs({
                 Travamentos, gargalos de fase, benchmark por unidade, conversão e Sirene.
               </p>
             </div>
-            <PipelineAnalisesView dataset={pipelineDataset} />
+            {pipelineLoading ? (
+              <PipelineDatasetLoading label="Carregando análises…" />
+            ) : pipelineError ? (
+              <p className="text-sm" style={{ color: 'var(--moni-status-overdue-text)' }}>
+                {pipelineError}
+              </p>
+            ) : pipelineDataset ? (
+              <PipelineAnalisesView dataset={pipelineDataset} />
+            ) : null}
           </section>
         ) : null}
 

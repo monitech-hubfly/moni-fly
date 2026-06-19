@@ -110,7 +110,7 @@ export function diasNaFasePipeline(
   return Math.max(0, Math.floor((fim.getTime() - inicio.getTime()) / 86400000));
 }
 
-const TITULO_PIPELINE_MAX = 30;
+const TITULO_PIPELINE_MAX = 35;
 
 /** Título do card no pipeline — truncado; fallback FK + sequencial se vazio. */
 export function tituloPipelineCardDisplay(

@@ -19,6 +19,7 @@ import {
 } from '@/lib/kanban/pipeline-cards-utils';
 import {
   calcularKpisPipelineFranqueadoraExtended,
+  cardsElegiveisFranqueadora,
   montarBlocosUnidadePipeline,
   sortCardsFranqueadoraPrioridade,
 } from '@/lib/kanban/pipeline-franqueadora-compute';
@@ -250,8 +251,9 @@ export function PipelineCardsView({
   );
 
   const cardsPorRede = useMemo(() => {
+    const baseCards = viewMode === 'franqueadora' ? cardsElegiveisFranqueadora(cardsFiltrados) : cardsFiltrados;
     const m = new Map<string, PipelineCardDisplay[]>();
-    for (const c of cardsFiltrados) {
+    for (const c of baseCards) {
       const rid = String(c.rede_franqueado_id ?? '').trim();
       if (!rid) continue;
       const list = m.get(rid) ?? [];
@@ -262,7 +264,7 @@ export function PipelineCardsView({
       m.set(rid, sortCardsFranqueadoraPrioridade(list));
     }
     return m;
-  }, [cardsFiltrados]);
+  }, [cardsFiltrados, viewMode]);
 
   const opcoesUnidade = useMemo(() => {
     const m = new Map<string, string>();

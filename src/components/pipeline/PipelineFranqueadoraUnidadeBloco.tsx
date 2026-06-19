@@ -10,24 +10,19 @@ import {
 } from '@/lib/kanban/pipeline-card-readonly';
 import {
   badgeStatusPipelineCard,
+  emojiIndicadorSaudePipeline,
   indicadorSaudeUnidadePipeline,
   labelBadgeStatusPipeline,
   tagClassBadgeStatusPipeline,
 } from '@/lib/kanban/pipeline-franqueadora-compute';
 import { PipelineSequencialBar, pipelineBadgeInlineStyle } from '@/components/pipeline/PipelineSequencialBar';
-import { PipelineSaudeMesCondensado, PipelineSaudeMesInline } from '@/components/pipeline/PipelineSaudeMesCondensado';
+import { PipelineSaudeMesCondensado } from '@/components/pipeline/PipelineSaudeMesCondensado';
 import { PipelineFunilMesInline } from '@/components/pipeline/PipelineFunilMesInline';
 
 const panelStyle: React.CSSProperties = {
   borderRadius: 'var(--moni-radius-lg)',
   border: '0.5px solid var(--moni-border-default)',
   background: 'var(--moni-surface-0)',
-};
-
-const SAUDE_DOT: Record<'vermelho' | 'amarelo' | 'verde', string> = {
-  vermelho: 'var(--moni-status-overdue-text)',
-  amarelo: 'var(--moni-gold-400)',
-  verde: 'var(--moni-kanban-portfolio)',
 };
 
 type Props = {
@@ -38,9 +33,9 @@ type Props = {
 };
 
 export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCardClick }: Props) {
-  const [expanded, setExpanded] = useState(meta.defaultExpanded);
+  const [expanded, setExpanded] = useState(false);
   const { alertas, saude, funilMes } = meta;
-  const saudeCor = indicadorSaudeUnidadePipeline(alertas, saude);
+  const saudeIndicador = indicadorSaudeUnidadePipeline(alertas, saude);
 
   return (
     <section style={panelStyle}>
@@ -50,11 +45,10 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
         className="flex min-h-[44px] w-full items-center gap-2 px-4 py-3 text-left transition hover:bg-[var(--moni-surface-50)]"
         aria-expanded={expanded}
       >
-        <span
-          className="h-2 w-2 shrink-0 rounded-full"
-          style={{ background: SAUDE_DOT[saudeCor] }}
-          aria-label={`Saúde: ${saudeCor}`}
-        />
+        <span className="shrink-0 text-[13px] leading-none" aria-hidden>
+          {emojiIndicadorSaudePipeline(saudeIndicador)}
+        </span>
+        <span className="sr-only">Saúde: {saudeIndicador}</span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <h2
@@ -75,7 +69,6 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
             {alertas.venceEm2Dias > 0 ? (
               <span className="moni-tag-atencao text-[10px]">{alertas.venceEm2Dias} vence em 2d</span>
             ) : null}
-            <PipelineSaudeMesInline saude={saude} />
             <PipelineFunilMesInline funil={funilMes} />
           </div>
         </div>
@@ -93,10 +86,10 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
           <PipelineSaudeMesCondensado saude={saude} className="mb-4" />
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[680px] text-left text-[11px]">
+            <table className="w-full min-w-[640px] text-left text-[11px]">
               <thead>
                 <tr style={{ borderBottom: '0.5px solid var(--moni-border-subtle, var(--moni-border-default))' }}>
-                  {['Título', 'Fase atual', 'Status', 'Na fase desde', 'Esteira', ''].map((h) => (
+                  {['Título', 'Fase atual', 'Status', 'Tempo na fase', 'Esteira', ''].map((h) => (
                     <th
                       key={h || 'acao'}
                       className="pb-2 pr-3 font-semibold uppercase tracking-wide last:pr-0"
@@ -129,10 +122,14 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
                       className="cursor-pointer transition hover:bg-[var(--moni-surface-50)]"
                       style={{ borderBottom: '0.5px solid var(--moni-border-subtle, var(--moni-border-default))' }}
                     >
-                      <td className="max-w-[12rem] truncate py-2.5 pr-3 font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+                      <td
+                        className="max-w-[14rem] truncate py-2.5 pr-3 font-medium"
+                        style={{ color: 'var(--moni-text-primary)' }}
+                        title={String(card.titulo ?? '').trim() || undefined}
+                      >
                         {tituloPipelineCardDisplay(card, idx + 1)}
                       </td>
-                      <td className="py-2.5 pr-3" style={{ color: 'var(--moni-text-secondary)' }}>
+                      <td className="max-w-[10rem] truncate py-2.5 pr-3" style={{ color: 'var(--moni-text-secondary)' }}>
                         {card.fase_nome}
                       </td>
                       <td className="py-2.5 pr-3">

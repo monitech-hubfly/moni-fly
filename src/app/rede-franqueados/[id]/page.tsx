@@ -7,8 +7,6 @@ import { pickRedeFranqueadoDocsFromRow } from '@/lib/rede-documentos-franqueado'
 import { fetchRedeFranqueadoDetalheForPage } from '@/lib/rede-franqueados';
 import { fetchFranqueadoSpeRows } from '@/lib/franqueado-spe';
 import { fetchFranqueadoEmpresasExtrasRows } from '@/lib/franqueado-empresa-extra';
-import { fetchPipelineCards } from '@/lib/kanban/fetch-pipeline-cards';
-import type { PipelineCardsDataset } from '@/lib/kanban/pipeline-cards-types';
 import { isFranquiaCasaMoniFk0000 } from '@/lib/franquia-casa-moni-fk0000';
 import { RedeFranqueadoDetalheDocs } from './RedeFranqueadoDetalheDocs';
 import { RedeFranqueadoDetalheDocsFranqueado } from './RedeFranqueadoDetalheDocsFranqueado';
@@ -41,14 +39,10 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
     if (!own) redirect('/portal-frank/rede');
   }
 
-  const [{ row, error: loadError }, spesRows, empresasExtrasRows, pipelineDataset] = await Promise.all([
+  const [{ row, error: loadError }, spesRows, empresasExtrasRows] = await Promise.all([
     fetchRedeFranqueadoDetalheForPage(supabase, id, { staffUseAdminFallback: staff }),
     staff ? fetchFranqueadoSpeRows(supabase) : Promise.resolve(null),
     staff ? fetchFranqueadoEmpresasExtrasRows(supabase, id) : Promise.resolve(null),
-    fetchPipelineCards(supabase, { mode: 'unidade', franqueadoId: id }).catch((): PipelineCardsDataset => ({
-      cards: [],
-      franqueados: [],
-    })),
   ]);
   const spesDoFranqueado = (spesRows ?? []).filter((s) => s.rede_franqueado_id === id);
 
@@ -97,7 +91,6 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
         <div className="mt-8">
           <RedeFranqueadoDetalheTabs
             redeId={id}
-            pipelineDataset={pipelineDataset}
             cadastro={
               staff ? (
                 <RedeFranqueadoDetalheDocs

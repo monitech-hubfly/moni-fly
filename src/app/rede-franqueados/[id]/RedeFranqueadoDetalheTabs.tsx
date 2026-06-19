@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import type { PipelineCardsDataset } from '@/lib/kanban/pipeline-cards-types';
 import { PipelineCardsView } from '@/components/pipeline/PipelineCardsView';
+import { PipelineDatasetLoading } from '@/components/pipeline/PipelineDatasetLoading';
+import { usePipelineDatasetLazy } from '@/components/pipeline/usePipelineDatasetLazy';
 
 type TabId = 'cadastro' | 'painel';
 
@@ -11,13 +12,18 @@ const TAB_PAINEL = { id: 'painel' as const, label: 'Painel da Unidade' };
 
 type Props = {
   redeId: string;
-  pipelineDataset: PipelineCardsDataset;
   cadastro: React.ReactNode;
 };
 
-export function RedeFranqueadoDetalheTabs({ redeId, pipelineDataset, cadastro }: Props) {
+export function RedeFranqueadoDetalheTabs({ redeId, cadastro }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>('cadastro');
   const tabs = [TAB_CADASTRO, TAB_PAINEL];
+
+  const { dataset: pipelineDataset, loading: pipelineLoading, error: pipelineError } = usePipelineDatasetLazy({
+    mode: 'unidade',
+    franqueadoId: redeId,
+    enabled: activeTab === 'painel',
+  });
 
   return (
     <>
@@ -58,14 +64,22 @@ export function RedeFranqueadoDetalheTabs({ redeId, pipelineDataset, cadastro }:
               Visão operacional da unidade: KPIs, saúde do pipeline, prioridades do dia e cards por funil com esteira
               Step One → Portfólio → Pré Obra e Obra.
             </p>
-            <PipelineCardsView
-              mode="unidade"
-              franqueadoId={redeId}
-              dataset={pipelineDataset}
-              defaultGroupBy="funil"
-              showFranchiseGroups={false}
-              showKpis
-            />
+            {pipelineLoading ? (
+              <PipelineDatasetLoading />
+            ) : pipelineError ? (
+              <p className="text-sm" style={{ color: 'var(--moni-status-overdue-text)' }}>
+                {pipelineError}
+              </p>
+            ) : pipelineDataset ? (
+              <PipelineCardsView
+                mode="unidade"
+                franqueadoId={redeId}
+                dataset={pipelineDataset}
+                defaultGroupBy="funil"
+                showFranchiseGroups={false}
+                showKpis
+              />
+            ) : null}
           </div>
         ) : null}
       </div>
