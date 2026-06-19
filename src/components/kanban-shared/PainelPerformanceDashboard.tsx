@@ -774,7 +774,13 @@ function PortfolioEspecificidadesSection({ data }: { data: PainelPortfolioEspeci
   );
 }
 
-function StepOneEspecificidadesSection({ data }: { data: PainelStepOneEspecificidades }) {
+function StepOneEspecificidadesSection({
+  data,
+  openCardBase,
+}: {
+  data: PainelStepOneEspecificidades;
+  openCardBase: string;
+}) {
   return (
     <section className="space-y-3">
       <div>
@@ -782,10 +788,10 @@ function StepOneEspecificidadesSection({ data }: { data: PainelStepOneEspecifici
           className="text-base font-semibold"
           style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
         >
-          Especificidades do Step One
+          Especificidades — Step One
         </h2>
         <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-          Histórico de fases, campos de lote no card e bastão para o Portfólio
+          Histórico de fases, conversão para o Portfólio e permanência nas etapas intermediárias
         </p>
       </div>
 
@@ -796,115 +802,110 @@ function StepOneEspecificidadesSection({ data }: { data: PainelStepOneEspecifici
               Taxa de aprovação em Hipóteses
             </h4>
             <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Cards que chegaram à fase Hipóteses ÷ entradas no funil no período.
+              Entradas na fase Hipóteses no período ÷ entradas no funil no período.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
+              <MiniKpi label="Entraram em Hipóteses" value={formatInt(data.taxaAprovacaoHipoteses.entraramHipoteses)} />
               <MiniKpi label="Entradas no funil" value={formatInt(data.taxaAprovacaoHipoteses.entradasFunil)} />
-              <MiniKpi label="Chegaram a Hipóteses" value={formatInt(data.taxaAprovacaoHipoteses.entraramHipoteses)} />
               <MiniKpi label="Taxa" value={formatPct(data.taxaAprovacaoHipoteses.percentual)} />
             </div>
-          </div>
-        ) : null}
-
-        {data.conversaoPortfolio != null ? (
-          <div className="px-4 py-4" style={panelStyle}>
-            <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              Conversão Step One → Portfólio
-            </h4>
-            <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Cards que saíram de Hipóteses e geraram card filho no Funil Portfólio (`origem_card_id`).
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <MiniKpi label="Saíram de Hipóteses" value={formatInt(data.conversaoPortfolio.sairamHipoteses)} />
-              <MiniKpi label="Geraram Portfólio" value={formatInt(data.conversaoPortfolio.geraramPortfolio)} />
-              <MiniKpi label="Taxa" value={formatPct(data.conversaoPortfolio.percentual)} />
-            </div>
-            {data.conversaoPortfolio.portfolioIndisponivel ? (
-              <DegradeNote>
-                Vínculo com Portfólio indisponível no momento — taxa pode estar subestimada.
-              </DegradeNote>
+            {data.taxaAprovacaoHipoteses.entradasFunil === 0 ? (
+              <DegradeNote>Sem entradas no funil no recorte analisado.</DegradeNote>
             ) : null}
           </div>
         ) : null}
 
-        {data.qualidadeDadosLotes != null ? (
+        {data.cardsParadosIntermediarios != null ? (
           <div className="px-4 py-4" style={panelStyle}>
             <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              Qualidade dos dados de lotes
+              Cards parados em fases intermediárias
             </h4>
             <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Preenchimento de nome do condomínio, quadra e lote nos cards que passaram por pesquisa de lotes.
+              Ativos há mais de {data.cardsParadosIntermediarios.limiteDias} dias em dados_candidato,
+              dados_cidade, mapa_competidores, dados_condominios ou lotes_disponiveis.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <MiniKpi label="Campos preenchidos" value={formatInt(data.qualidadeDadosLotes.camposPreenchidos)} />
-              <MiniKpi label="Campos estimados" value={formatInt(data.qualidadeDadosLotes.camposEstimados)} />
-              <MiniKpi label="%" value={formatPct(data.qualidadeDadosLotes.percentual)} />
+              <MiniKpi label="Total parados" value={formatInt(data.cardsParadosIntermediarios.total)} />
             </div>
-            {data.qualidadeDadosLotes.camposIndisponiveis ? (
-              <DegradeNote>
-                Campos de lote não retornados pelo servidor — métrica indisponível para parte do recorte.
-              </DegradeNote>
-            ) : data.qualidadeDadosLotes.cardsAnalisados === 0 ? (
-              <DegradeNote>Sem cards na fase de lotes no recorte analisado.</DegradeNote>
-            ) : null}
-          </div>
-        ) : null}
-
-        {data.tempoFasesPesquisa != null ? (
-          <div className="px-4 py-4" style={panelStyle}>
-            <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              Tempo médio nas fases de pesquisa
-            </h4>
-            <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Permanência na fase a partir do histórico de movimentação (`kanban_historico` + `entered_fase_at`).
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {data.tempoFasesPesquisa.mapaCompetidores != null ? (
-                <>
-                  <MiniKpi
-                    label="Mapa de Competidores"
-                    value={formatDiasCorridos(data.tempoFasesPesquisa.mapaCompetidores.mediaDias)}
-                  />
-                  <MiniKpi
-                    label="Amostras (mapa)"
-                    value={formatInt(data.tempoFasesPesquisa.mapaCompetidores.amostras)}
-                  />
-                </>
-              ) : null}
-              {data.tempoFasesPesquisa.dadosCondominios != null ? (
-                <>
-                  <MiniKpi
-                    label="Dados dos Condomínios"
-                    value={formatDiasCorridos(data.tempoFasesPesquisa.dadosCondominios.mediaDias)}
-                  />
-                  <MiniKpi
-                    label="Amostras (cond.)"
-                    value={formatInt(data.tempoFasesPesquisa.dadosCondominios.amostras)}
-                  />
-                </>
-              ) : null}
-            </div>
-            {data.tempoFasesPesquisa.historicoParcial ? (
-              <DegradeNote>
-                Histórico de movimentação incompleto em parte dos cards — tempos são aproximados.
-              </DegradeNote>
-            ) : null}
-            {data.tempoFasesPesquisa.mapaCompetidores?.amostras === 0 &&
-            data.tempoFasesPesquisa.dadosCondominios?.amostras === 0 ? (
-              <DegradeNote>Sem visitas registradas às fases de pesquisa no recorte.</DegradeNote>
+            {data.cardsParadosIntermediarios.total === 0 ? (
+              <DegradeNote>Nenhum card ativo parado além do limite no recorte.</DegradeNote>
             ) : null}
           </div>
         ) : null}
       </div>
 
-      {data.conversaoPortfolio != null && data.conversaoPortfolio.porFranquia.length > 0 ? (
+      {data.conversaoPortfolio != null ? (
         <PanelBox title="Conversão Step One → Portfólio por franquia">
+          <p className="mb-3 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Cards que passaram por Hipóteses e geraram card no Portfólio (via origem_card_id), agrupados
+            por n_franquia.
+          </p>
+          {data.conversaoPortfolio.portfolioIndisponivel ? (
+            <DegradeNote>
+              Vínculo com Portfólio indisponível — conversões podem estar subestimadas.
+            </DegradeNote>
+          ) : null}
           <DataTable
-            headers={['Franquia', 'Cards no Portfólio']}
-            emptyMessage="Sem conversões com vínculo de franquia."
-            rows={data.conversaoPortfolio.porFranquia.slice(0, 12).map((p) => [p.label, formatInt(p.quantidade)])}
+            headers={['Franquia', 'Hipóteses', 'Gerou Portfólio', 'Taxa']}
+            emptyMessage="Sem cards com franquia identificada no recorte."
+            rows={data.conversaoPortfolio.porFranquia.slice(0, 20).map((p) => [
+              p.label,
+              formatInt(p.hipoteses),
+              formatInt(p.gerouPortfolio),
+              formatPct(p.taxa),
+            ])}
             alignRightFrom={1}
           />
+        </PanelBox>
+      ) : null}
+
+      {data.tempoFasesPesquisa != null ? (
+        <PanelBox title="Tempo médio nas fases de pesquisa">
+          <p className="mb-3 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Permanência calculada via kanban_historico e entered_fase_at (dias corridos).
+          </p>
+          <DataTable
+            headers={['Fase', 'Tempo médio', 'Cards analisados']}
+            emptyMessage="Sem visitas registradas às fases de pesquisa no recorte."
+            rows={data.tempoFasesPesquisa.linhas.map((l) => [
+              l.faseNome,
+              formatDiasCorridos(l.tempoMedioDias),
+              formatInt(l.cardsAnalisados),
+            ])}
+            alignRightFrom={1}
+          />
+          <p className="mt-3 text-[10px] italic leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
+            Fases lentas indicam mercado difícil ou franqueado sem suporte técnico.
+          </p>
+          {data.tempoFasesPesquisa.historicoParcial ? (
+            <DegradeNote>
+              Histórico de movimentação incompleto em parte dos cards — tempos são aproximados.
+            </DegradeNote>
+          ) : null}
+        </PanelBox>
+      ) : null}
+
+      {data.cardsParadosIntermediarios != null && data.cardsParadosIntermediarios.itens.length > 0 ? (
+        <PanelBox title="Lista — cards parados">
+          <ul className="divide-y" style={{ borderColor: 'var(--moni-border-subtle)' }}>
+            {data.cardsParadosIntermediarios.itens.slice(0, 25).map((item) => (
+              <li
+                key={item.cardId}
+                className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2.5 text-[11px] first:pt-0 last:pb-0"
+              >
+                <Link
+                  href={buildOpenCardHref(openCardBase, item.cardId)}
+                  className="min-w-0 truncate font-medium hover:underline"
+                  style={{ color: 'var(--moni-navy-800)' }}
+                >
+                  {item.titulo}
+                </Link>
+                <span className="shrink-0 tabular-nums" style={{ color: 'var(--moni-text-secondary)' }}>
+                  {item.faseNome} · {formatInt(item.diasNaFase)} dias
+                </span>
+              </li>
+            ))}
+          </ul>
         </PanelBox>
       ) : null}
     </section>
@@ -2394,7 +2395,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
           ) : null}
 
           {stepOneEspecificidades ? (
-            <StepOneEspecificidadesSection data={stepOneEspecificidades} />
+            <StepOneEspecificidadesSection data={stepOneEspecificidades} openCardBase={openCardBase} />
           ) : null}
 
           {acoplamentoEspecificidades ? (

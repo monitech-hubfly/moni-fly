@@ -1,6 +1,8 @@
 import { buildNativeFaseTimeline } from '@/lib/kanban/kanban-card-timeline';
 import { periodSinceMs } from '@/lib/kanban/painel-performance-compute';
 import {
+  DADOS_CANDIDATO_FASE_SLUGS,
+  DADOS_CIDADE_FASE_SLUGS,
   DADOS_CONDOMINIOS_FASE_SLUGS,
   HIPOTESES_FASE_SLUGS,
   MAPA_COMPETIDORES_FASE_SLUGS,
@@ -8,23 +10,26 @@ import {
 } from '@/lib/kanban/stepone-fase-slugs';
 import type {
   PainelCardDTO,
-  PainelCarometroFranquiaCount,
   PainelFaseDTO,
   PainelHistoricoMovimentoDTO,
   PainelPeriodKey,
   PainelStepOnePortfolioFilhoDTO,
 } from '@/lib/kanban/painel-performance-types';
 
-const CAMPOS_LOTE: (keyof PainelCardDTO)[] = ['nome_condominio', 'quadra', 'lote'];
+const LIMITE_PARADO_DIAS = 15;
+
+const FASES_PARADOS_SLUGS = [
+  ...DADOS_CANDIDATO_FASE_SLUGS,
+  ...DADOS_CIDADE_FASE_SLUGS,
+  ...MAPA_COMPETIDORES_FASE_SLUGS,
+  ...DADOS_CONDOMINIOS_FASE_SLUGS,
+  ...LOTES_DISPONIVEIS_FASE_SLUGS,
+] as const;
 
 function detStr(d: Record<string, unknown> | null | undefined, key: string): string {
   if (!d) return '';
   const v = d[key];
   return typeof v === 'string' ? v.trim() : '';
-}
-
-function campoDisponivel(cards: PainelCardDTO[], key: keyof PainelCardDTO): boolean {
-  return cards.some((c) => c[key] !== undefined);
 }
 
 function faseIdsPorSlugs(fases: PainelFaseDTO[], slugs: readonly string[]): string[] {
@@ -44,6 +49,13 @@ function buildHistoricoPorCard(
   return m;
 }
 
+function timestampInPeriod(iso: string | null | undefined, sinceMs: number | null): boolean {
+  if (sinceMs === null) return Boolean(iso);
+  if (!iso) return false;
+  const t = new Date(iso).getTime();
+  return Number.isFinite(t) && t >= sinceMs;
+}
+
 function cardVisitouFase(
   card: PainelCardDTO,
   faseIds: Set<string>,
@@ -59,6 +71,29 @@ function cardVisitouFase(
   return false;
 }
 
+function cardChegouFaseNoPeriodo(
+  card: PainelCardDTO,
+  faseIds: Set<string>,
+  sinceMs: number | null,
+  historicoPorCard: Map<string, PainelHistoricoMovimentoDTO[]>,
+): boolean {
+  for (const faseId of faseIds) {
+    for (const h of historicoPorCard.get(card.id) ?? []) {
+      const nov =
+        detStr(h.detalhe, 'fase_nova_id') ||
+        (h.acao === 'card_criado' ? detStr(h.detalhe, 'fase_id') : '');
+      if (nov !== faseId) continue;
+      if (sinceMs === null) return true;
+      const t = new Date(h.criado_em).getTime();
+      if (Number.isFinite(t) && t >= sinceMs) return true;
+    }
+    if (faseIds.has(card.fase_id) && faseId === card.fase_id && timestampInPeriod(card.entered_fase_at, sinceMs)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function cardEntrouFunilNoPeriodo(card: PainelCardDTO, sinceMs: number | null): boolean {
   if (sinceMs === null) return true;
   const cr = new Date(card.created_at).getTime();
@@ -66,24 +101,12 @@ function cardEntrouFunilNoPeriodo(card: PainelCardDTO, sinceMs: number | null): 
 }
 
 function franquiaKeyLabel(c: PainelCardDTO): { key: string; label: string } | null {
-  const redeId = c.rede_franqueado_id?.trim();
+  const redeId = c.rede_franqueado_id?.trim() || c.projeto_franqueado_id?.trim();
   if (!redeId) return null;
-  const nFranq = c.n_franquia?.trim();
-  const nomeRede = c.franqueado_rede_nome?.trim();
-  const label = [nFranq, nomeRede].filter(Boolean).join(' · ') || redeId.slice(0, 8);
+  const nFranq = c.n_franquia?.trim() || c.projeto_n_franquia?.trim();
+  const nomeRede = c.franqueado_rede_nome?.trim() || c.projeto_franqueado_nome?.trim();
+  const label = nFranq || [nomeRede].filter(Boolean).join(' · ') || redeId.slice(0, 8);
   return { key: redeId, label };
-}
-
-function franquiaCountsFromMap(
-  map: Map<string, { label: string; quantidade: number }>,
-): PainelCarometroFranquiaCount[] {
-  return [...map.entries()]
-    .map(([franqueadoId, v]) => ({
-      franqueadoId,
-      label: v.label,
-      quantidade: v.quantidade,
-    }))
-    .sort((a, b) => b.quantidade - a.quantidade);
 }
 
 function cardSaiuDeHipoteses(
@@ -131,11 +154,20 @@ function diasNaFaseViaTimeline(
   return (b - a) / (24 * 60 * 60 * 1000);
 }
 
-function campoLotePreenchido(c: PainelCardDTO, key: keyof PainelCardDTO): boolean {
-  const v = c[key];
-  if (v == null) return false;
-  return String(v).trim().length > 0;
+function diasDesdeEnteredFaseAt(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return null;
+  return (Date.now() - t) / (24 * 60 * 60 * 1000);
 }
+
+export type PainelStepOneFranquiaConversaoRow = {
+  franqueadoId: string;
+  label: string;
+  hipoteses: number;
+  gerouPortfolio: number;
+  taxa: number | null;
+};
 
 export type PainelStepOneEspecificidades = {
   taxaAprovacaoHipoteses: {
@@ -147,20 +179,17 @@ export type PainelStepOneEspecificidades = {
     sairamHipoteses: number;
     geraramPortfolio: number;
     percentual: number | null;
-    porFranquia: PainelCarometroFranquiaCount[];
+    porFranquia: PainelStepOneFranquiaConversaoRow[];
     portfolioIndisponivel: boolean;
   } | null;
-  qualidadeDadosLotes: {
-    camposPreenchidos: number;
-    camposEstimados: number;
-    percentual: number | null;
-    cardsAnalisados: number;
-    camposIndisponiveis: boolean;
-  } | null;
   tempoFasesPesquisa: {
-    mapaCompetidores: { mediaDias: number | null; amostras: number } | null;
-    dadosCondominios: { mediaDias: number | null; amostras: number } | null;
+    linhas: Array<{ faseNome: string; tempoMedioDias: number | null; cardsAnalisados: number }>;
     historicoParcial: boolean;
+  } | null;
+  cardsParadosIntermediarios: {
+    total: number;
+    limiteDias: number;
+    itens: Array<{ cardId: string; titulo: string; faseNome: string; diasNaFase: number }>;
   } | null;
 };
 
@@ -196,8 +225,8 @@ export function computeStepOneEspecificidades(input: {
   const portfolioOrigemIds = new Set(
     (input.portfolioFilhos ?? []).map((f) => f.origem_card_id).filter(Boolean),
   );
-  const portfolioPorOrigem = new Map(
-    (input.portfolioFilhos ?? []).map((f) => [f.origem_card_id, f.portfolio_card_id]),
+  const portfolioPorOrigem = new Set(
+    (input.portfolioFilhos ?? []).map((f) => f.origem_card_id).filter(Boolean),
   );
 
   const entradasFunil = input.cards.filter((c) => cardEntrouFunilNoPeriodo(c, sinceMs));
@@ -207,7 +236,9 @@ export function computeStepOneEspecificidades(input: {
     if (hipFaseIds.size > 0) {
       let entraramHipoteses = 0;
       for (const c of entradasFunil) {
-        if (cardVisitouFase(c, hipFaseIds, historicoPorCard)) entraramHipoteses += 1;
+        if (cardChegouFaseNoPeriodo(c, hipFaseIds, sinceMs, historicoPorCard)) {
+          entraramHipoteses += 1;
+        }
       }
       taxaAprovacaoHipoteses = {
         entraramHipoteses,
@@ -225,38 +256,57 @@ export function computeStepOneEspecificidades(input: {
     const portfolioIndisponivel = input.portfolioFilhosAvailable === false;
     let sairamHipoteses = 0;
     let geraramPortfolio = 0;
-    const porFranquiaMap = new Map<string, { label: string; quantidade: number }>();
+    const porFranquiaMap = new Map<
+      string,
+      { label: string; hipoteses: number; gerouPortfolio: number }
+    >();
 
     for (const c of input.cards) {
-      if (
-        !cardSaiuDeHipoteses(
-          c,
-          hipFaseIds,
-          hipOrdem,
-          faseById,
-          historicoPorCard,
-          portfolioOrigemIds,
-        )
-      ) {
-        continue;
+      const visitouHip = cardVisitouFase(c, hipFaseIds, historicoPorCard);
+      const saiuHip = cardSaiuDeHipoteses(
+        c,
+        hipFaseIds,
+        hipOrdem,
+        faseById,
+        historicoPorCard,
+        portfolioOrigemIds,
+      );
+      if (saiuHip) {
+        sairamHipoteses += 1;
+        if (portfolioPorOrigem.has(c.id)) geraramPortfolio += 1;
       }
-      sairamHipoteses += 1;
-      if (!portfolioPorOrigem.has(c.id)) continue;
-      geraramPortfolio += 1;
-      const fk = franquiaKeyLabel(c);
-      if (fk) {
-        const cur = porFranquiaMap.get(fk.key) ?? { label: fk.label, quantidade: 0 };
-        cur.quantidade += 1;
-        porFranquiaMap.set(fk.key, cur);
+
+      if (visitouHip) {
+        const fk = franquiaKeyLabel(c);
+        if (fk) {
+          const cur = porFranquiaMap.get(fk.key) ?? {
+            label: fk.label,
+            hipoteses: 0,
+            gerouPortfolio: 0,
+          };
+          cur.hipoteses += 1;
+          if (portfolioPorOrigem.has(c.id)) cur.gerouPortfolio += 1;
+          porFranquiaMap.set(fk.key, cur);
+        }
       }
     }
+
+    const porFranquia: PainelStepOneFranquiaConversaoRow[] = [...porFranquiaMap.entries()]
+      .map(([franqueadoId, v]) => ({
+        franqueadoId,
+        label: v.label,
+        hipoteses: v.hipoteses,
+        gerouPortfolio: v.gerouPortfolio,
+        taxa: v.hipoteses === 0 ? null : (v.gerouPortfolio / v.hipoteses) * 100,
+      }))
+      .sort((a, b) => b.hipoteses - a.hipoteses);
 
     if (hipFaseIds.size > 0) {
       conversaoPortfolio = {
         sairamHipoteses,
         geraramPortfolio,
         percentual: sairamHipoteses === 0 ? null : (geraramPortfolio / sairamHipoteses) * 100,
-        porFranquia: franquiaCountsFromMap(porFranquiaMap),
+        porFranquia,
         portfolioIndisponivel,
       };
     }
@@ -264,48 +314,19 @@ export function computeStepOneEspecificidades(input: {
     conversaoPortfolio = null;
   }
 
-  let qualidadeDadosLotes: PainelStepOneEspecificidades['qualidadeDadosLotes'] = null;
-  try {
-    const camposIndisponiveis = !CAMPOS_LOTE.every((k) => campoDisponivel(input.cards, k));
-    const fasesLoteIds = new Set([
-      ...faseIdsPorSlugs(input.fases, LOTES_DISPONIVEIS_FASE_SLUGS),
-      ...faseIdsPorSlugs(input.fases, DADOS_CONDOMINIOS_FASE_SLUGS),
-    ]);
-
-    let camposPreenchidos = 0;
-    let camposEstimados = 0;
-    let cardsAnalisados = 0;
-
-    for (const c of input.cards) {
-      if (fasesLoteIds.size > 0 && !cardVisitouFase(c, fasesLoteIds, historicoPorCard)) continue;
-      cardsAnalisados += 1;
-      camposEstimados += CAMPOS_LOTE.length;
-      for (const key of CAMPOS_LOTE) {
-        if (campoLotePreenchido(c, key)) camposPreenchidos += 1;
-      }
-    }
-
-    if (!camposIndisponiveis || cardsAnalisados > 0) {
-      qualidadeDadosLotes = {
-        camposPreenchidos,
-        camposEstimados,
-        percentual: camposEstimados === 0 ? null : (camposPreenchidos / camposEstimados) * 100,
-        cardsAnalisados,
-        camposIndisponiveis,
-      };
-    }
-  } catch {
-    qualidadeDadosLotes = null;
-  }
-
   let tempoFasesPesquisa: PainelStepOneEspecificidades['tempoFasesPesquisa'] = null;
   try {
     const mapaIds = faseIdsPorSlugs(input.fases, MAPA_COMPETIDORES_FASE_SLUGS);
     const dadosCondIds = faseIdsPorSlugs(input.fases, DADOS_CONDOMINIOS_FASE_SLUGS);
 
-    const temposMapa: number[] = [];
-    const temposDadosCond: number[] = [];
+    const temposPorFase = new Map<string, number[]>();
     let historicoParcial = false;
+
+    const registrarFase = (faseId: string, dias: number) => {
+      const list = temposPorFase.get(faseId) ?? [];
+      list.push(dias);
+      temposPorFase.set(faseId, list);
+    };
 
     for (const c of input.cards) {
       const historico = historicoPorCard.get(c.id) ?? [];
@@ -317,46 +338,88 @@ export function computeStepOneEspecificidades(input: {
 
       for (const faseId of mapaIds) {
         const dias = diasNaFaseViaTimeline(c, faseId, fasesOrd, historico);
-        if (dias != null) temposMapa.push(dias);
+        if (dias != null) registrarFase(faseId, dias);
       }
       for (const faseId of dadosCondIds) {
         const dias = diasNaFaseViaTimeline(c, faseId, fasesOrd, historico);
-        if (dias != null) temposDadosCond.push(dias);
+        if (dias != null) registrarFase(faseId, dias);
       }
     }
 
     const media = (nums: number[]) =>
       nums.length === 0 ? null : nums.reduce((s, n) => s + n, 0) / nums.length;
 
-    if (mapaIds.length > 0 || dadosCondIds.length > 0) {
-      tempoFasesPesquisa = {
-        mapaCompetidores:
-          mapaIds.length === 0
-            ? null
-            : { mediaDias: media(temposMapa), amostras: temposMapa.length },
-        dadosCondominios:
-          dadosCondIds.length === 0
-            ? null
-            : { mediaDias: media(temposDadosCond), amostras: temposDadosCond.length },
-        historicoParcial,
-      };
+    const linhas: NonNullable<PainelStepOneEspecificidades['tempoFasesPesquisa']>['linhas'] = [];
+
+    for (const faseId of mapaIds) {
+      const nums = temposPorFase.get(faseId) ?? [];
+      const fase = faseById.get(faseId);
+      linhas.push({
+        faseNome: fase?.nome ?? 'Mapa de Competidores',
+        tempoMedioDias: media(nums),
+        cardsAnalisados: nums.length,
+      });
+    }
+    for (const faseId of dadosCondIds) {
+      const nums = temposPorFase.get(faseId) ?? [];
+      const fase = faseById.get(faseId);
+      linhas.push({
+        faseNome: fase?.nome ?? 'Dados dos Condomínios',
+        tempoMedioDias: media(nums),
+        cardsAnalisados: nums.length,
+      });
+    }
+
+    if (linhas.length > 0) {
+      tempoFasesPesquisa = { linhas, historicoParcial };
     }
   } catch {
     tempoFasesPesquisa = null;
   }
 
+  let cardsParadosIntermediarios: PainelStepOneEspecificidades['cardsParadosIntermediarios'] = null;
+  try {
+    const fasesParadosIds = new Set(faseIdsPorSlugs(input.fases, FASES_PARADOS_SLUGS));
+    const itens: NonNullable<PainelStepOneEspecificidades['cardsParadosIntermediarios']>['itens'] =
+      [];
+
+    for (const c of input.cards) {
+      if (c.arquivado || c.concluido) continue;
+      if (!fasesParadosIds.has(c.fase_id)) continue;
+      const dias = diasDesdeEnteredFaseAt(c.entered_fase_at);
+      if (dias == null || dias <= LIMITE_PARADO_DIAS) continue;
+      const faseNome = faseById.get(c.fase_id)?.nome ?? '—';
+      itens.push({
+        cardId: c.id,
+        titulo: c.titulo?.trim() || c.id.slice(0, 8),
+        faseNome,
+        diasNaFase: Math.floor(dias),
+      });
+    }
+
+    itens.sort((a, b) => b.diasNaFase - a.diasNaFase);
+
+    cardsParadosIntermediarios = {
+      total: itens.length,
+      limiteDias: LIMITE_PARADO_DIAS,
+      itens,
+    };
+  } catch {
+    cardsParadosIntermediarios = null;
+  }
+
   const temAlgum =
     taxaAprovacaoHipoteses != null ||
     conversaoPortfolio != null ||
-    qualidadeDadosLotes != null ||
-    tempoFasesPesquisa != null;
+    tempoFasesPesquisa != null ||
+    cardsParadosIntermediarios != null;
 
   if (!temAlgum) return null;
 
   return {
     taxaAprovacaoHipoteses,
     conversaoPortfolio,
-    qualidadeDadosLotes,
     tempoFasesPesquisa,
+    cardsParadosIntermediarios,
   };
 }
