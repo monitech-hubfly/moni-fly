@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
 import type { RedeLoteadorRow } from '@/lib/rede-loteadores';
 import { RedeDashboard } from './RedeDashboard';
@@ -35,6 +36,13 @@ import {
 } from '@/lib/rede-tabelas-csv-export';
 
 type TabId = 'visao' | 'pipeline' | 'analises' | 'franqueados' | 'loteadores' | 'empresas' | 'condominios';
+
+const BASE_PATH = '/rede-franqueados';
+
+/** Alias legado → id real da aba. */
+const TAB_ALIASES: Record<string, TabId> = {
+  cadastro: 'empresas',
+};
 
 const TAB_VISAO: { id: TabId; label: string } = { id: 'visao', label: 'Visão geral' };
 const TAB_PIPELINE: { id: TabId; label: string } = { id: 'pipeline', label: 'Pipeline da rede' };
@@ -90,7 +98,8 @@ export function RedeFranqueadosPageTabs({
   ];
 
   const defaultTab: TabId = showDashboard ? 'visao' : 'franqueados';
-  const [activeTab, setActiveTab] = useState<TabId>(defaultTab);
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [loteadorCreateTick, setLoteadorCreateTick] = useState(0);
   const [condominioCreateTick, setCondominioCreateTick] = useState(0);
 
@@ -99,7 +108,23 @@ export function RedeFranqueadosPageTabs({
     return buildCadastrosEmpresasLinhasComSpe(rows, base, spesRows);
   }, [rows, empresasRows, spesRows]);
 
-  const resolvedTab = tabs.some((t) => t.id === activeTab) ? activeTab : defaultTab;
+  const tabFromUrl = searchParams.get('tab');
+  const tabCandidate = tabFromUrl ? (TAB_ALIASES[tabFromUrl] ?? tabFromUrl) : null;
+  const resolvedTab: TabId =
+    tabCandidate && tabs.some((t) => t.id === tabCandidate)
+      ? (tabCandidate as TabId)
+      : defaultTab;
+
+  function handleTabClick(tabId: TabId) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (tabId === defaultTab) {
+      params.delete('tab');
+    } else {
+      params.set('tab', tabId);
+    }
+    const q = params.toString();
+    router.replace(q ? `${BASE_PATH}?${q}` : BASE_PATH);
+  }
 
   return (
     <>
@@ -116,7 +141,7 @@ export function RedeFranqueadosPageTabs({
                 type="button"
                 role="tab"
                 aria-selected={isActive}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabClick(tab.id)}
                 className="relative px-4 py-3 text-sm font-medium transition-colors hover:bg-stone-50/80"
                 style={{
                   color: isActive ? 'var(--moni-navy-800, #0c2633)' : 'var(--moni-text-tertiary, #78716c)',
