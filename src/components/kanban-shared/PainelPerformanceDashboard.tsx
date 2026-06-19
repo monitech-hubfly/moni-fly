@@ -1166,7 +1166,13 @@ function OperacoesEspecificidadesSection({
   );
 }
 
-function LoteadoresEspecificidadesSection({ data }: { data: PainelLoteadoresEspecificidades }) {
+function LoteadoresEspecificidadesSection({
+  data,
+  openCardBase,
+}: {
+  data: PainelLoteadoresEspecificidades;
+  openCardBase: string;
+}) {
   return (
     <section className="space-y-3">
       <div>
@@ -1174,7 +1180,7 @@ function LoteadoresEspecificidadesSection({ data }: { data: PainelLoteadoresEspe
           className="text-base font-semibold"
           style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
         >
-          Especificidades de Loteadores
+          Especificidades — Loteadores
         </h2>
         <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
           Conversão por parceiro, ciclo R1 → Contrato e gargalos em Viabilidade
@@ -1185,14 +1191,15 @@ function LoteadoresEspecificidadesSection({ data }: { data: PainelLoteadoresEspe
         {data.tempoR1AteContrato != null ? (
           <div className="px-4 py-4" style={panelStyle}>
             <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              Tempo médio R1 → Contrato de Parceria
+              Tempo R1 até Contrato de Parceria
             </h4>
             <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Entre a primeira entrada em R1 Executada — Conceito e Contrato de Parceria (dias corridos).
+              r1_conceito_moni_inc → contrato_parceria_moni_inc (dias corridos via kanban_historico).
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <MiniKpi label="Média" value={formatDiasCorridos(data.tempoR1AteContrato.mediaDias)} />
-              <MiniKpi label="Amostras" value={formatInt(data.tempoR1AteContrato.amostras)} />
+              <MiniKpi label="Mediana" value={formatDiasCorridos(data.tempoR1AteContrato.medianaDias)} />
+              <MiniKpi label="P90" value={formatDiasCorridos(data.tempoR1AteContrato.p90Dias)} />
+              <MiniKpi label="Cards analisados" value={formatInt(data.tempoR1AteContrato.amostras)} />
             </div>
             {data.tempoR1AteContrato.historicoParcial ? (
               <DegradeNote>
@@ -1211,21 +1218,16 @@ function LoteadoresEspecificidadesSection({ data }: { data: PainelLoteadoresEspe
               Viabilidade sem movimentação há 15+ dias
             </h4>
             <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Cards ativos em Viabilidade com `entered_fase_at` acima de 15 dias corridos.
+              Ativos em viabilidade_moni_inc há mais de 15 dias sem fase_avancada ou fase_retrocedida.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <MiniKpi
-                label="> 15 dias"
+                label="Parados"
                 value={formatInt(data.viabilidadeSemMovimentacao15Dias.acima15Dias)}
               />
-              <MiniKpi
-                label="Na fase agora"
-                value={formatInt(data.viabilidadeSemMovimentacao15Dias.totalNaFase)}
-              />
-              <MiniKpi label="%" value={formatPct(data.viabilidadeSemMovimentacao15Dias.percentual)} />
             </div>
-            {data.viabilidadeSemMovimentacao15Dias.totalNaFase === 0 ? (
-              <DegradeNote>Nenhum card ativo em Viabilidade no recorte.</DegradeNote>
+            {data.viabilidadeSemMovimentacao15Dias.acima15Dias === 0 ? (
+              <DegradeNote>Nenhum card parado em Viabilidade além do limite no recorte.</DegradeNote>
             ) : null}
           </div>
         ) : null}
@@ -1234,38 +1236,67 @@ function LoteadoresEspecificidadesSection({ data }: { data: PainelLoteadoresEspe
       {data.conversaoPorLoteador != null ? (
         <PanelBox title="Taxa de conversão por loteador">
           {data.conversaoPorLoteador.loteadorIndisponivel ? (
-            <DegradeNote>
-              Campo rede_loteador_id indisponível — agrupamento usa título do card como fallback.
-            </DegradeNote>
-          ) : null}
-          <DataTable
-            headers={['Loteador', 'Entradas', 'Conv.', 'Taxa']}
-            emptyMessage="Sem cards no recorte."
-            rows={data.conversaoPorLoteador.linhas.slice(0, 12).map((r) => [
-              r.label,
-              formatInt(r.entradas),
-              formatInt(r.converteram),
-              formatPct(r.taxaConversaoPct),
-            ])}
-            alignRightFrom={1}
-          />
+            <DegradeNote>Vínculo com loteador não disponível neste funil.</DegradeNote>
+          ) : (
+            <DataTable
+              headers={['Loteador', 'Entradas', 'Conversões', 'Taxa']}
+              emptyMessage="Sem cards com loteador vinculado no recorte."
+              rows={data.conversaoPorLoteador.linhas.slice(0, 15).map((r) => [
+                r.label,
+                formatInt(r.entradas),
+                formatInt(r.converteram),
+                formatPct(r.taxaConversaoPct),
+              ])}
+              alignRightFrom={1}
+            />
+          )}
         </PanelBox>
       ) : null}
 
       {data.loteadoresComMaisDe2Ativos != null ? (
-        <PanelBox title="Loteadores com mais de 2 cards ativos simultâneos">
+        <PanelBox title="Concentração de risco por loteador">
           {data.loteadoresComMaisDe2Ativos.loteadorIndisponivel ? (
-            <DegradeNote>Vínculo rede_loteador_id parcial — contagem pode estar incompleta.</DegradeNote>
-          ) : null}
-          <DataTable
-            headers={['Loteador', 'Cards ativos']}
-            emptyMessage="Nenhum loteador com mais de 2 cards ativos no recorte."
-            rows={data.loteadoresComMaisDe2Ativos.linhas.slice(0, 12).map((r) => [
-              r.label,
-              formatInt(r.cardsAtivos),
-            ])}
-            alignRightFrom={1}
-          />
+            <DegradeNote>Vínculo com loteador não disponível neste funil.</DegradeNote>
+          ) : data.loteadoresComMaisDe2Ativos.linhas.length === 0 ? (
+            <p className="text-[11px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+              Nenhum loteador com concentração.
+            </p>
+          ) : (
+            <DataTable
+              headers={['Loteador', 'Cards ativos']}
+              emptyMessage="Nenhum loteador com concentração."
+              rows={data.loteadoresComMaisDe2Ativos.linhas.slice(0, 15).map((r) => [
+                r.label,
+                formatInt(r.cardsAtivos),
+              ])}
+              alignRightFrom={1}
+            />
+          )}
+        </PanelBox>
+      ) : null}
+
+      {data.viabilidadeSemMovimentacao15Dias != null &&
+      data.viabilidadeSemMovimentacao15Dias.itens.length > 0 ? (
+        <PanelBox title="Lista — Viabilidade parada">
+          <ul className="divide-y" style={{ borderColor: 'var(--moni-border-subtle)' }}>
+            {data.viabilidadeSemMovimentacao15Dias.itens.slice(0, 25).map((item) => (
+              <li
+                key={item.cardId}
+                className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2.5 text-[11px] first:pt-0 last:pb-0"
+              >
+                <Link
+                  href={buildOpenCardHref(openCardBase, item.cardId)}
+                  className="min-w-0 truncate font-medium hover:underline"
+                  style={{ color: 'var(--moni-navy-800)' }}
+                >
+                  {item.titulo}
+                </Link>
+                <span className="shrink-0 tabular-nums" style={{ color: 'var(--moni-text-secondary)' }}>
+                  {formatInt(item.diasParados)} dias parados
+                </span>
+              </li>
+            ))}
+          </ul>
         </PanelBox>
       ) : null}
     </section>
@@ -2454,7 +2485,10 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
           ) : null}
 
           {loteadoresEspecificidades ? (
-            <LoteadoresEspecificidadesSection data={loteadoresEspecificidades} />
+            <LoteadoresEspecificidadesSection
+              data={loteadoresEspecificidades}
+              openCardBase={openCardBase}
+            />
           ) : null}
 
           {creditoObraEspecificidades ? (

@@ -1,6 +1,5 @@
 import { buildNativeFaseTimeline } from '@/lib/kanban/kanban-card-timeline';
 import { LOTEADORES_R1_CONCEITO_FASE_SLUG } from '@/lib/kanban/loteadores-r1-conceito';
-import { LOTEADORES_VIABILIDADE_FASE_SLUGS } from '@/lib/kanban/loteadores-viabilidade';
 import {
   buildConversaoContext,
   cardConverteuPorRegras,
@@ -11,8 +10,8 @@ import type {
   PainelHistoricoMovimentoDTO,
 } from '@/lib/kanban/painel-performance-types';
 
-const MS_15_DIAS = 15 * 24 * 60 * 60 * 1000;
 const CONTRATO_PARCERIA_SLUG = 'contrato_parceria_moni_inc' as const;
+const VIABILIDADE_SLUG = 'viabilidade_moni_inc' as const;
 
 function campoDisponivel(cards: PainelCardDTO[], key: keyof PainelCardDTO): boolean {
   return cards.some((c) => c[key] !== undefined);
@@ -39,17 +38,11 @@ function cardAtivo(c: PainelCardDTO): boolean {
   return !c.arquivado && !c.concluido;
 }
 
-function resolveLoteadorKey(c: PainelCardDTO): { key: string; label: string } {
+function resolveLoteadorKey(c: PainelCardDTO): { key: string; label: string } | null {
   const id = c.rede_loteador_id?.trim();
+  if (!id) return null;
   const nome = c.loteador_nome?.trim();
-  if (id) {
-    return { key: id, label: nome || id.slice(0, 8) };
-  }
-  const tituloParte = c.titulo.split(' - ')[0]?.trim();
-  if (tituloParte) {
-    return { key: `titulo:${tituloParte.toLowerCase()}`, label: tituloParte };
-  }
-  return { key: '__sem_loteador__', label: 'Loteador não vinculado' };
+  return { key: id, label: nome || id.slice(0, 8) };
 }
 
 function primeiraEntradaFase(
@@ -85,6 +78,41 @@ function diasEntreFases(
   return (b - a) / (24 * 60 * 60 * 1000);
 }
 
+function median(nums: number[]): number | null {
+  const sorted = nums.filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
+  if (sorted.length === 0) return null;
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1]! + sorted[mid]!) / 2 : sorted[mid]!;
+}
+
+function percentile(nums: number[], p: number): number | null {
+  const sorted = nums.filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
+  if (sorted.length === 0) return null;
+  const idx = Math.ceil((p / 100) * sorted.length) - 1;
+  return sorted[Math.max(0, idx)] ?? null;
+}
+
+function diasDesdeEnteredFaseAt(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return null;
+  return (Date.now() - t) / (24 * 60 * 60 * 1000);
+}
+
+function teveMovimentacaoDesde(
+  enteredIso: string,
+  historico: PainelHistoricoMovimentoDTO[],
+): boolean {
+  const t0 = new Date(enteredIso).getTime();
+  if (!Number.isFinite(t0)) return false;
+  for (const h of historico) {
+    const t = new Date(h.criado_em).getTime();
+    if (!Number.isFinite(t) || t <= t0) continue;
+    if (h.acao === 'fase_avancada' || h.acao === 'fase_retrocedida') return true;
+  }
+  return false;
+}
+
 export type PainelLoteadoresConversaoRow = {
   loteadorId: string;
   label: string;
@@ -105,14 +133,14 @@ export type PainelLoteadoresEspecificidades = {
     loteadorIndisponivel: boolean;
   } | null;
   tempoR1AteContrato: {
-    mediaDias: number | null;
+    medianaDias: number | null;
+    p90Dias: number | null;
     amostras: number;
     historicoParcial: boolean;
   } | null;
   viabilidadeSemMovimentacao15Dias: {
     acima15Dias: number;
-    totalNaFase: number;
-    percentual: number | null;
+    itens: Array<{ cardId: string; titulo: string; diasParados: number }>;
   } | null;
   loteadoresComMaisDe2Ativos: {
     linhas: PainelLoteadoresLoteadorAtivosRow[];
@@ -133,7 +161,7 @@ export function computeLoteadoresEspecificidades(input: {
 
   const r1Ids = faseIdsPorSlugs(input.fases, [LOTEADORES_R1_CONCEITO_FASE_SLUG]);
   const contratoIds = faseIdsPorSlugs(input.fases, [CONTRATO_PARCERIA_SLUG]);
-  const viabilidadeIds = new Set(faseIdsPorSlugs(input.fases, LOTEADORES_VIABILIDADE_FASE_SLUGS));
+  const viabilidadeIds = new Set(faseIdsPorSlugs(input.fases, [VIABILIDADE_SLUG]));
 
   const loteadorIndisponivel =
     input.loteadoresFieldsAvailable === false ||
@@ -142,18 +170,21 @@ export function computeLoteadoresEspecificidades(input: {
   let conversaoPorLoteador: PainelLoteadoresEspecificidades['conversaoPorLoteador'] = null;
   try {
     const map = new Map<string, PainelLoteadoresConversaoRow>();
-    for (const c of input.cards) {
-      const lk = resolveLoteadorKey(c);
-      const cur = map.get(lk.key) ?? {
-        loteadorId: lk.key,
-        label: lk.label,
-        entradas: 0,
-        converteram: 0,
-        taxaConversaoPct: null,
-      };
-      cur.entradas += 1;
-      if (cardConverteuPorRegras(c, conversaoCtx)) cur.converteram += 1;
-      map.set(lk.key, cur);
+    if (!loteadorIndisponivel) {
+      for (const c of input.cards) {
+        const lk = resolveLoteadorKey(c);
+        if (!lk) continue;
+        const cur = map.get(lk.key) ?? {
+          loteadorId: lk.key,
+          label: lk.label,
+          entradas: 0,
+          converteram: 0,
+          taxaConversaoPct: null,
+        };
+        cur.entradas += 1;
+        if (cardConverteuPorRegras(c, conversaoCtx)) cur.converteram += 1;
+        map.set(lk.key, cur);
+      }
     }
     const linhas = [...map.values()]
       .map((g) => ({
@@ -161,9 +192,7 @@ export function computeLoteadoresEspecificidades(input: {
         taxaConversaoPct: g.entradas === 0 ? null : (g.converteram / g.entradas) * 100,
       }))
       .sort((a, b) => b.entradas - a.entradas);
-    if (linhas.length > 0 || !loteadorIndisponivel) {
-      conversaoPorLoteador = { linhas, loteadorIndisponivel };
-    }
+    conversaoPorLoteador = { linhas, loteadorIndisponivel };
   } catch {
     conversaoPorLoteador = null;
   }
@@ -188,8 +217,8 @@ export function computeLoteadoresEspecificidades(input: {
         }
       }
       tempoR1AteContrato = {
-        mediaDias:
-          tempos.length === 0 ? null : tempos.reduce((s, n) => s + n, 0) / tempos.length,
+        medianaDias: median(tempos),
+        p90Dias: percentile(tempos, 90),
         amostras: tempos.length,
         historicoParcial,
       };
@@ -202,13 +231,13 @@ export function computeLoteadoresEspecificidades(input: {
     null;
   try {
     if (viabilidadeIds.size > 0) {
-      const now = Date.now();
-      let acima15Dias = 0;
-      let totalNaFase = 0;
+      const itens: NonNullable<
+        PainelLoteadoresEspecificidades['viabilidadeSemMovimentacao15Dias']
+      >['itens'] = [];
+
       for (const c of input.cards) {
         if (!viabilidadeIds.has(c.fase_id)) continue;
         if (!cardAtivo(c)) continue;
-        totalNaFase += 1;
         const historico = historicoPorCard.get(c.id) ?? [];
         let entered = c.entered_fase_at?.trim() || null;
         if (!entered) {
@@ -218,13 +247,21 @@ export function computeLoteadoresEspecificidades(input: {
           }
         }
         if (!entered) continue;
-        const t = new Date(entered).getTime();
-        if (Number.isFinite(t) && now - t > MS_15_DIAS) acima15Dias += 1;
+        const dias = diasDesdeEnteredFaseAt(entered);
+        if (dias == null || dias <= 15) continue;
+        if (teveMovimentacaoDesde(entered, historico)) continue;
+        itens.push({
+          cardId: c.id,
+          titulo: c.titulo?.trim() || c.id.slice(0, 8),
+          diasParados: Math.floor(dias),
+        });
       }
+
+      itens.sort((a, b) => b.diasParados - a.diasParados);
+
       viabilidadeSemMovimentacao15Dias = {
-        acima15Dias,
-        totalNaFase,
-        percentual: totalNaFase === 0 ? null : (acima15Dias / totalNaFase) * 100,
+        acima15Dias: itens.length,
+        itens,
       };
     }
   } catch {
@@ -235,16 +272,19 @@ export function computeLoteadoresEspecificidades(input: {
     null;
   try {
     const map = new Map<string, PainelLoteadoresLoteadorAtivosRow>();
-    for (const c of input.cards) {
-      if (!cardAtivo(c)) continue;
-      const lk = resolveLoteadorKey(c);
-      const cur = map.get(lk.key) ?? {
-        loteadorId: lk.key,
-        label: lk.label,
-        cardsAtivos: 0,
-      };
-      cur.cardsAtivos += 1;
-      map.set(lk.key, cur);
+    if (!loteadorIndisponivel) {
+      for (const c of input.cards) {
+        if (!cardAtivo(c)) continue;
+        const lk = resolveLoteadorKey(c);
+        if (!lk) continue;
+        const cur = map.get(lk.key) ?? {
+          loteadorId: lk.key,
+          label: lk.label,
+          cardsAtivos: 0,
+        };
+        cur.cardsAtivos += 1;
+        map.set(lk.key, cur);
+      }
     }
     const linhas = [...map.values()]
       .filter((r) => r.cardsAtivos > 2)
