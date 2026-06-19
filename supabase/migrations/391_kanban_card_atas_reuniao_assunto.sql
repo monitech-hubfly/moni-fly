@@ -1,4 +1,24 @@
--- 391: coluna assunto em kanban_card_atas_reuniao (PROD pode ter tabela sem ela)
+-- 391: coluna assunto em kanban_card_atas_reuniao (PROD pode ter tabela sem ela ou conteudo em text)
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'kanban_card_atas_reuniao'
+      AND column_name = 'conteudo'
+      AND data_type = 'text'
+  ) THEN
+    ALTER TABLE public.kanban_card_atas_reuniao
+      ALTER COLUMN conteudo TYPE jsonb USING (
+        CASE
+          WHEN conteudo IS NULL OR TRIM(conteudo) = '' THEN '{}'::jsonb
+          ELSE conteudo::jsonb
+        END
+      );
+  END IF;
+END $$;
 
 ALTER TABLE public.kanban_card_atas_reuniao
   ADD COLUMN IF NOT EXISTS assunto text;
@@ -6,7 +26,12 @@ ALTER TABLE public.kanban_card_atas_reuniao
 UPDATE public.kanban_card_atas_reuniao
 SET assunto = COALESCE(
   NULLIF(TRIM(assunto), ''),
-  NULLIF(TRIM(conteudo->>'assunto'), ''),
+  NULLIF(
+    TRIM(
+      (COALESCE(conteudo::jsonb, '{}'::jsonb))->>'assunto'
+    ),
+    ''
+  ),
   'Reunião'
 )
 WHERE assunto IS NULL OR TRIM(assunto) = '';
