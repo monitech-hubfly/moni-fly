@@ -6,10 +6,13 @@ import type {
   PainelCreditoObraOperacoesIrmaoDTO,
   PainelFaseDTO,
   PainelHistoricoMovimentoDTO,
+  PainelPeriodKey,
   PainelRetrocessoDTO,
 } from '@/lib/kanban/painel-performance-types';
 
 const MS_15_DIAS = 15 * 24 * 60 * 60 * 1000;
+
+const CO_FASE_SLUGS = (Object.values(FASE_SLUGS) as string[]).filter((v) => v.startsWith('co_'));
 
 const TRANCHE_BLOCOS = [
   {
@@ -45,12 +48,23 @@ const PRIMEIRA_TRANCHE_FASE_SLUGS = [
   FASE_SLUGS.CO_SHAREPOINT_CASHME,
 ] as const;
 
-const ENTRE_TRANCHES_FASE_SLUGS = [
-  FASE_SLUGS.CO_NECESSIDADE_3A_TRANCHE,
-  FASE_SLUGS.CO_NECESSIDADE_4A_TRANCHE,
-  FASE_SLUGS.CO_NECESSIDADE_5A_TRANCHE,
-  FASE_SLUGS.CO_NECESSIDADE_6A_TRANCHE,
-] as const;
+function periodWindows(key: PainelPeriodKey): {
+  currentSince: number | null;
+  previousSince: number | null;
+  previousUntil: number | null;
+} {
+  if (key === 'all') {
+    return { currentSince: null, previousSince: null, previousUntil: null };
+  }
+  const days = key === '7d' ? 7 : key === '30d' ? 30 : 90;
+  const now = Date.now();
+  const ms = days * 86400000;
+  return {
+    currentSince: now - ms,
+    previousSince: now - 2 * ms,
+    previousUntil: now - ms,
+  };
+}
 
 function detStr(d: Record<string, unknown> | null | undefined, key: string): string {
   if (!d) return '';
@@ -115,6 +129,18 @@ function primeiraEntradaFase(
   return null;
 }
 
+function entradaNoIntervalo(
+  iso: string | null,
+  sinceMs: number | null,
+  untilMs: number | null,
+): boolean {
+  if (!iso || sinceMs == null) return sinceMs === null;
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return false;
+  if (untilMs != null) return t >= sinceMs && t < untilMs;
+  return t >= sinceMs;
+}
+
 function diasEntreFases(
   card: PainelCardDTO,
   faseOrigemId: string,
@@ -129,6 +155,13 @@ function diasEntreFases(
   const b = new Date(fim).getTime();
   if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) return null;
   return (b - a) / (24 * 60 * 60 * 1000);
+}
+
+function diasDesdeEnteredFaseAt(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return null;
+  return (Date.now() - t) / (24 * 60 * 60 * 1000);
 }
 
 function cardVisitouFase(
@@ -174,43 +207,52 @@ function cardAtrasadoNaFase(
   return calcularStatusSLA(new Date(ref), fase.sla_dias).status === 'atrasado';
 }
 
+function media(nums: number[]): number | null {
+  if (nums.length === 0) return null;
+  return nums.reduce((s, n) => s + n, 0) / nums.length;
+}
+
+function median(nums: number[]): number | null {
+  const sorted = nums.filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
+  if (sorted.length === 0) return null;
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1]! + sorted[mid]!) / 2 : sorted[mid]!;
+}
+
 export type PainelCreditoObraTrancheTempoRow = {
   tranche: string;
   mediaDias: number | null;
   amostras: number;
+  mediaDiasPeriodoAnterior: number | null;
+  vsPeriodoAnteriorPct: number | null;
+  acimaMedianaGeral: boolean;
 };
 
 export type PainelCreditoObraEspecificidades = {
   tempoMedioPorTranche: {
     linhas: PainelCreditoObraTrancheTempoRow[];
+    medianaGeral: number | null;
     historicoParcial: boolean;
   } | null;
   taxaAprovacaoPrimeiraTranche: {
     aprovadosPrimeiraTentativa: number;
     aprovadosComRevisoes: number;
-    totalAprovados: number;
     pctPrimeiraTentativa: number | null;
-    pctComRevisoes: number | null;
   } | null;
   paradosEntreTranches15Dias: {
     acima15Dias: number;
-    totalNaFase: number;
-    percentual: number | null;
+    itens: Array<{ cardId: string; titulo: string; faseNome: string; diasParados: number }>;
   } | null;
   correlacaoAtrasoOperacoes: {
-    projetosComPar: number;
-    ambosAtrasados: number;
-    soCreditoAtrasado: number;
-    soOperacoesAtrasado: number;
-    pctAmbosEntrePares: number | null;
-    pctAmbosEntreAtrasados: number | null;
-    operacoesIndisponivel: boolean;
+    projetosDuploAtraso: number;
     projetoIndisponivel: boolean;
+    operacoesIndisponivel: boolean;
   } | null;
 };
 
 /** Métricas específicas do Funil Crédito Obra. Degrada por bloco quando dados ausentes. */
 export function computeCreditoObraEspecificidades(input: {
+  period: PainelPeriodKey;
   fases: PainelFaseDTO[];
   cards: PainelCardDTO[];
   historicoMovimentos: PainelHistoricoMovimentoDTO[];
@@ -222,7 +264,9 @@ export function computeCreditoObraEspecificidades(input: {
 }): PainelCreditoObraEspecificidades | null {
   const historicoPorCard = buildHistoricoPorCard(input.historicoMovimentos);
   const retrocessoPorCard = buildRetrocessoPorCard(input.retrocessoRows);
+  const faseById = new Map(input.fases.map((f) => [f.id, f]));
   const fasesOrd = [...input.fases].sort((a, b) => a.ordem - b.ordem);
+  const { currentSince, previousSince, previousUntil } = periodWindows(input.period);
 
   let tempoMedioPorTranche: PainelCreditoObraEspecificidades['tempoMedioPorTranche'] = null;
   try {
@@ -234,7 +278,9 @@ export function computeCreditoObraEspecificidades(input: {
       const fimId = faseIdPorSlug(input.fases, bloco.fim);
       if (!inicioId || !fimId) continue;
 
-      const tempos: number[] = [];
+      const temposAtual: number[] = [];
+      const temposAnterior: number[] = [];
+
       for (const c of input.cards) {
         const historico = historicoPorCard.get(c.id) ?? [];
         const temMov = historico.some(
@@ -242,20 +288,50 @@ export function computeCreditoObraEspecificidades(input: {
             h.acao === 'fase_avancada' || h.acao === 'fase_retrocedida' || h.acao === 'card_criado',
         );
         if (!temMov) historicoParcial = true;
+
         const dias = diasEntreFases(c, inicioId, fimId, fasesOrd, historico);
-        if (dias != null) tempos.push(dias);
+        if (dias == null) continue;
+
+        const fimEm = primeiraEntradaFase(c, fimId, fasesOrd, historico);
+        if (currentSince === null) {
+          temposAtual.push(dias);
+        } else {
+          if (entradaNoIntervalo(fimEm, currentSince, null)) temposAtual.push(dias);
+          if (entradaNoIntervalo(fimEm, previousSince, previousUntil)) temposAnterior.push(dias);
+        }
+      }
+
+      const mediaAtual = media(temposAtual);
+      const mediaAnterior = media(temposAnterior);
+      let vsPeriodoAnteriorPct: number | null = null;
+      if (mediaAtual != null && mediaAnterior != null && mediaAnterior > 0) {
+        vsPeriodoAnteriorPct = ((mediaAtual - mediaAnterior) / mediaAnterior) * 100;
       }
 
       linhas.push({
         tranche: bloco.label,
-        mediaDias:
-          tempos.length === 0 ? null : tempos.reduce((s, n) => s + n, 0) / tempos.length,
-        amostras: tempos.length,
+        mediaDias: mediaAtual,
+        amostras: temposAtual.length,
+        mediaDiasPeriodoAnterior: currentSince === null ? null : mediaAnterior,
+        vsPeriodoAnteriorPct: currentSince === null ? null : vsPeriodoAnteriorPct,
+        acimaMedianaGeral: false,
       });
     }
 
+    const mediasValidas = linhas
+      .map((l) => l.mediaDias)
+      .filter((m): m is number => m != null && Number.isFinite(m));
+    const medianaGeral = median(mediasValidas);
+
+    for (const linha of linhas) {
+      linha.acimaMedianaGeral =
+        medianaGeral != null &&
+        linha.mediaDias != null &&
+        linha.mediaDias > medianaGeral;
+    }
+
     if (linhas.length > 0) {
-      tempoMedioPorTranche = { linhas, historicoParcial };
+      tempoMedioPorTranche = { linhas, medianaGeral, historicoParcial };
     }
   } catch {
     tempoMedioPorTranche = null;
@@ -286,11 +362,8 @@ export function computeCreditoObraEspecificidades(input: {
         taxaAprovacaoPrimeiraTranche = {
           aprovadosPrimeiraTentativa,
           aprovadosComRevisoes,
-          totalAprovados,
           pctPrimeiraTentativa:
             totalAprovados === 0 ? null : (aprovadosPrimeiraTentativa / totalAprovados) * 100,
-          pctComRevisoes:
-            totalAprovados === 0 ? null : (aprovadosComRevisoes / totalAprovados) * 100,
         };
       }
     }
@@ -301,31 +374,37 @@ export function computeCreditoObraEspecificidades(input: {
   let paradosEntreTranches15Dias: PainelCreditoObraEspecificidades['paradosEntreTranches15Dias'] =
     null;
   try {
-    const entreTranchesIds = new Set(faseIdsPorSlugs(input.fases, ENTRE_TRANCHES_FASE_SLUGS));
-    if (entreTranchesIds.size > 0) {
-      const now = Date.now();
-      let acima15Dias = 0;
-      let totalNaFase = 0;
+    const coFaseIds = new Set(faseIdsPorSlugs(input.fases, CO_FASE_SLUGS));
+    if (coFaseIds.size > 0) {
+      const itens: NonNullable<
+        PainelCreditoObraEspecificidades['paradosEntreTranches15Dias']
+      >['itens'] = [];
 
       for (const c of input.cards) {
-        if (!entreTranchesIds.has(c.fase_id)) continue;
+        if (!coFaseIds.has(c.fase_id)) continue;
         if (!cardAtivo(c)) continue;
-        totalNaFase += 1;
 
         const historico = historicoPorCard.get(c.id) ?? [];
         let entered = c.entered_fase_at?.trim() || null;
         if (!entered) {
           entered = primeiraEntradaFase(c, c.fase_id, fasesOrd, historico);
         }
-        if (!entered) continue;
-        const t = new Date(entered).getTime();
-        if (Number.isFinite(t) && now - t > MS_15_DIAS) acima15Dias += 1;
+        const dias = diasDesdeEnteredFaseAt(entered);
+        if (dias == null || dias <= 15) continue;
+
+        itens.push({
+          cardId: c.id,
+          titulo: c.titulo?.trim() || c.id.slice(0, 8),
+          faseNome: faseById.get(c.fase_id)?.nome ?? '—',
+          diasParados: Math.floor(dias),
+        });
       }
 
+      itens.sort((a, b) => b.diasParados - a.diasParados);
+
       paradosEntreTranches15Dias = {
-        acima15Dias,
-        totalNaFase,
-        percentual: totalNaFase === 0 ? null : (acima15Dias / totalNaFase) * 100,
+        acima15Dias: itens.length,
+        itens,
       };
     }
   } catch {
@@ -351,10 +430,7 @@ export function computeCreditoObraEspecificidades(input: {
         if (!irmaosPorProjeto.has(pid)) irmaosPorProjeto.set(pid, irmao);
       }
 
-      let projetosComPar = 0;
-      let ambosAtrasados = 0;
-      let soCreditoAtrasado = 0;
-      let soOperacoesAtrasado = 0;
+      let projetosDuploAtraso = 0;
 
       for (const c of input.cards) {
         if (!cardAtivo(c)) continue;
@@ -363,38 +439,20 @@ export function computeCreditoObraEspecificidades(input: {
         const irmao = irmaosPorProjeto.get(pid);
         if (!irmao || !cardAtivo(irmao)) continue;
 
-        projetosComPar += 1;
         const credAtras = cardAtrasadoNaFase(c, input.fases);
         const opAtras = cardAtrasadoNaFase(irmao, input.operacoesFases ?? []);
-
-        if (credAtras && opAtras) ambosAtrasados += 1;
-        else if (credAtras) soCreditoAtrasado += 1;
-        else if (opAtras) soOperacoesAtrasado += 1;
+        if (credAtras && opAtras) projetosDuploAtraso += 1;
       }
 
-      const totalAtrasados = ambosAtrasados + soCreditoAtrasado + soOperacoesAtrasado;
-
       correlacaoAtrasoOperacoes = {
-        projetosComPar,
-        ambosAtrasados,
-        soCreditoAtrasado,
-        soOperacoesAtrasado,
-        pctAmbosEntrePares:
-          projetosComPar === 0 ? null : (ambosAtrasados / projetosComPar) * 100,
-        pctAmbosEntreAtrasados:
-          totalAtrasados === 0 ? null : (ambosAtrasados / totalAtrasados) * 100,
+        projetosDuploAtraso,
         operacoesIndisponivel: false,
         projetoIndisponivel: false,
       };
-    } else if (!projetoIndisponivel || input.operacoesIrmaosAvailable === false) {
+    } else {
       correlacaoAtrasoOperacoes = {
-        projetosComPar: 0,
-        ambosAtrasados: 0,
-        soCreditoAtrasado: 0,
-        soOperacoesAtrasado: 0,
-        pctAmbosEntrePares: null,
-        pctAmbosEntreAtrasados: null,
-        operacoesIndisponivel: operacoesIndisponivel,
+        projetosDuploAtraso: 0,
+        operacoesIndisponivel,
         projetoIndisponivel,
       };
     }

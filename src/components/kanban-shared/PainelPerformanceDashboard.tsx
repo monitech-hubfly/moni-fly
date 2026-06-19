@@ -1303,7 +1303,19 @@ function LoteadoresEspecificidadesSection({
   );
 }
 
-function CreditoObraEspecificidadesSection({ data }: { data: PainelCreditoObraEspecificidades }) {
+function formatVsPeriodoAnterior(pct: number | null): string {
+  if (pct == null || !Number.isFinite(pct)) return '—';
+  const sign = pct > 0 ? '+' : '';
+  return `${sign}${pct.toFixed(0)}%`;
+}
+
+function CreditoObraEspecificidadesSection({
+  data,
+  openCardBase,
+}: {
+  data: PainelCreditoObraEspecificidades;
+  openCardBase: string;
+}) {
   return (
     <section className="space-y-3">
       <div>
@@ -1311,10 +1323,10 @@ function CreditoObraEspecificidadesSection({ data }: { data: PainelCreditoObraEs
           className="text-base font-semibold"
           style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
         >
-          Especificidades de Crédito Obra
+          Especificidades — Crédito Obra
         </h2>
         <p className="mt-1 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-          Ciclo por tranche, aprovação da 1ª tranche, espera entre tranches e correlação com Operações
+          Ciclo por tranche, aprovação da 1ª tranche, espera entre fases co_* e correlação com Operações
         </p>
       </div>
 
@@ -1322,50 +1334,61 @@ function CreditoObraEspecificidadesSection({ data }: { data: PainelCreditoObraEs
         {data.taxaAprovacaoPrimeiraTranche != null ? (
           <div className="px-4 py-4" style={panelStyle}>
             <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              1ª tranche aprovada na primeira tentativa
+              Taxa de aprovação da 1ª tranche na primeira tentativa
             </h4>
             <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Cards que chegaram a Acompanhamento de Tranche sem retrocesso às fases da 1ª tranche.
+              Avançaram da 1ª tranche sem is_retrocesso às fases co_aguardando_1a_tranche,
+              co_solicitacao_tranche ou co_sharepoint_cashme.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <MiniKpi
-                label="1ª tentativa"
+                label="Aprovados direto"
+                value={formatInt(data.taxaAprovacaoPrimeiraTranche.aprovadosPrimeiraTentativa)}
+              />
+              <MiniKpi
+                label="Com revisão"
+                value={formatInt(data.taxaAprovacaoPrimeiraTranche.aprovadosComRevisoes)}
+              />
+              <MiniKpi
+                label="Taxa"
                 value={formatPct(data.taxaAprovacaoPrimeiraTranche.pctPrimeiraTentativa)}
               />
-              <MiniKpi
-                label="Com revisões"
-                value={formatPct(data.taxaAprovacaoPrimeiraTranche.pctComRevisoes)}
-              />
-              <MiniKpi
-                label="Total aprovados"
-                value={formatInt(data.taxaAprovacaoPrimeiraTranche.totalAprovados)}
-              />
             </div>
-            {data.taxaAprovacaoPrimeiraTranche.totalAprovados === 0 ? (
+            {data.taxaAprovacaoPrimeiraTranche.aprovadosPrimeiraTentativa +
+              data.taxaAprovacaoPrimeiraTranche.aprovadosComRevisoes ===
+            0 ? (
               <DegradeNote>Nenhum card com 1ª tranche concluída no recorte.</DegradeNote>
             ) : null}
           </div>
         ) : null}
 
-        {data.paradosEntreTranches15Dias != null ? (
+        {data.correlacaoAtrasoOperacoes != null ? (
           <div className="px-4 py-4" style={panelStyle}>
             <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              Parados entre tranches há 15+ dias
+              Relação Crédito Obra × Operações
             </h4>
             <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Cards ativos em Necessidade de tranche (3ª–6ª) com `entered_fase_at` acima de 15 dias corridos.
+              Projetos com card ativo atrasado (SLA) simultaneamente nos dois funis (projeto_negocio_id).
             </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <MiniKpi label="> 15 dias" value={formatInt(data.paradosEntreTranches15Dias.acima15Dias)} />
-              <MiniKpi
-                label="Na fase agora"
-                value={formatInt(data.paradosEntreTranches15Dias.totalNaFase)}
-              />
-              <MiniKpi label="%" value={formatPct(data.paradosEntreTranches15Dias.percentual)} />
-            </div>
-            {data.paradosEntreTranches15Dias.totalNaFase === 0 ? (
-              <DegradeNote>Nenhum card ativo aguardando próxima tranche no recorte.</DegradeNote>
-            ) : null}
+            {data.correlacaoAtrasoOperacoes.projetoIndisponivel ? (
+              <DegradeNote>projeto_negocio_id indisponível — correlação cross-funil não calculada.</DegradeNote>
+            ) : data.correlacaoAtrasoOperacoes.operacoesIndisponivel ? (
+              <DegradeNote>
+                Cards de Operações vinculados ao mesmo projeto indisponíveis.
+              </DegradeNote>
+            ) : (
+              <>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <MiniKpi
+                    label="Projetos com duplo atraso"
+                    value={formatInt(data.correlacaoAtrasoOperacoes.projetosDuploAtraso)}
+                  />
+                </div>
+                <p className="mt-2 text-[10px] italic leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
+                  Indica que o atraso no crédito está impactando a obra.
+                </p>
+              </>
+            )}
           </div>
         ) : null}
       </div>
@@ -1378,66 +1401,52 @@ function CreditoObraEspecificidadesSection({ data }: { data: PainelCreditoObraEs
             </DegradeNote>
           ) : null}
           <DataTable
-            headers={['Tranche', 'Média', 'Amostras']}
+            headers={['Tranche', 'Tempo médio', 'Cards', 'vs período anterior']}
             emptyMessage="Sem ciclos de tranche registrados no recorte."
             rows={data.tempoMedioPorTranche.linhas.map((r) => [
-              r.tranche,
+              r.acimaMedianaGeral ? `${r.tranche} ↑` : r.tranche,
               formatDiasCorridos(r.mediaDias),
               formatInt(r.amostras),
+              formatVsPeriodoAnterior(r.vsPeriodoAnteriorPct),
             ])}
             alignRightFrom={1}
           />
+          {data.tempoMedioPorTranche.medianaGeral != null ? (
+            <p className="mt-2 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+              ↑ = tempo acima da mediana geral ({formatDiasCorridos(data.tempoMedioPorTranche.medianaGeral)}).
+            </p>
+          ) : null}
         </PanelBox>
       ) : null}
 
-      {data.correlacaoAtrasoOperacoes != null ? (
-        <PanelBox title="Relação atraso Crédito Obra × Operações">
-          {data.correlacaoAtrasoOperacoes.projetoIndisponivel ? (
-            <DegradeNote>
-              Campo projeto_id indisponível — correlação cross-funil não calculada.
-            </DegradeNote>
-          ) : null}
-          {data.correlacaoAtrasoOperacoes.operacoesIndisponivel ? (
-            <DegradeNote>
-              Cards Operações vinculados ao mesmo projeto não disponíveis — correlação parcial.
-            </DegradeNote>
-          ) : null}
-          {!data.correlacaoAtrasoOperacoes.projetoIndisponivel &&
-          !data.correlacaoAtrasoOperacoes.operacoesIndisponivel ? (
-            <>
-              <p className="mb-3 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
-                Projetos com card ativo nos dois funis e SLA vencido na fase atual (dias úteis).
-              </p>
-              <div className="mb-3 flex flex-wrap gap-2">
-                <MiniKpi
-                  label="Pares ativos"
-                  value={formatInt(data.correlacaoAtrasoOperacoes.projetosComPar)}
-                />
-                <MiniKpi
-                  label="Ambos atrasados"
-                  value={formatInt(data.correlacaoAtrasoOperacoes.ambosAtrasados)}
-                />
-                <MiniKpi
-                  label="% entre pares"
-                  value={formatPct(data.correlacaoAtrasoOperacoes.pctAmbosEntrePares)}
-                />
-                <MiniKpi
-                  label="% entre atrasados"
-                  value={formatPct(data.correlacaoAtrasoOperacoes.pctAmbosEntreAtrasados)}
-                />
-              </div>
-              <DataTable
-                headers={['Situação', 'Projetos']}
-                emptyMessage="Nenhum par Crédito Obra + Operações ativo no recorte."
-                rows={[
-                  ['Atrasados nos dois funis', formatInt(data.correlacaoAtrasoOperacoes.ambosAtrasados)],
-                  ['Só Crédito Obra atrasado', formatInt(data.correlacaoAtrasoOperacoes.soCreditoAtrasado)],
-                  ['Só Operações atrasado', formatInt(data.correlacaoAtrasoOperacoes.soOperacoesAtrasado)],
-                ]}
-                alignRightFrom={1}
-              />
-            </>
-          ) : null}
+      {data.paradosEntreTranches15Dias != null ? (
+        <PanelBox title={`Cards parados entre tranches — ${formatInt(data.paradosEntreTranches15Dias.acima15Dias)} ativos há mais de 15 dias`}>
+          <p className="mb-3 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
+            entered_fase_at em fases co_* sem avanço recente.
+          </p>
+          {data.paradosEntreTranches15Dias.itens.length === 0 ? (
+            <DegradeNote>Nenhum card parado além do limite no recorte.</DegradeNote>
+          ) : (
+            <ul className="divide-y" style={{ borderColor: 'var(--moni-border-subtle)' }}>
+              {data.paradosEntreTranches15Dias.itens.slice(0, 25).map((item) => (
+                <li
+                  key={item.cardId}
+                  className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2.5 text-[11px] first:pt-0 last:pb-0"
+                >
+                  <Link
+                    href={buildOpenCardHref(openCardBase, item.cardId)}
+                    className="min-w-0 truncate font-medium hover:underline"
+                    style={{ color: 'var(--moni-navy-800)' }}
+                  >
+                    {item.titulo}
+                  </Link>
+                  <span className="shrink-0 tabular-nums" style={{ color: 'var(--moni-text-secondary)' }}>
+                    {item.faseNome} · {formatInt(item.diasParados)} dias
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </PanelBox>
       ) : null}
     </section>
@@ -1801,6 +1810,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
   const creditoObraEspecificidades = useMemo(() => {
     if (dataset.kanbanId !== KANBAN_IDS.CREDITO_OBRA) return null;
     return computeCreditoObraEspecificidades({
+      period,
       fases: dataset.fases,
       cards: dadosFiltrados.cardsAnalise,
       historicoMovimentos: dadosFiltrados.historicoAnalise,
@@ -1820,6 +1830,7 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
     dadosFiltrados.cardsAnalise,
     dadosFiltrados.historicoAnalise,
     dadosFiltrados.retrocessoRows,
+    period,
   ]);
 
   const contabilidadeEspecificidades = useMemo(() => {
@@ -2492,7 +2503,10 @@ export function PainelPerformanceDashboard({ dataset }: { dataset: PainelPerform
           ) : null}
 
           {creditoObraEspecificidades ? (
-            <CreditoObraEspecificidadesSection data={creditoObraEspecificidades} />
+            <CreditoObraEspecificidadesSection
+              data={creditoObraEspecificidades}
+              openCardBase={openCardBase}
+            />
           ) : null}
 
           {contabilidadeEspecificidades ? (
