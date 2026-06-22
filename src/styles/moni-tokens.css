@@ -575,7 +575,7 @@
 
 .moni-calculadora-table-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 64px minmax(72px, 1.1fr) 66px 84px 60px;
+  grid-template-columns: minmax(0, 1fr) 56px 52px 56px 72px 52px;
   gap: 6px;
   padding: 0 8px 4px;
   font-size: 9px;
@@ -587,7 +587,7 @@
 
 .moni-calculadora-fase-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 64px minmax(72px, 1.1fr) 66px 84px 60px;
+  grid-template-columns: minmax(0, 1fr) 56px 52px 56px 72px 52px;
   align-items: center;
   gap: 6px;
   padding: 5px 8px;
@@ -655,7 +655,10 @@
   line-height: 1.25;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: break-word;
 }
 
 .moni-calculadora-fase-chevron {
@@ -690,13 +693,14 @@
 
 .moni-calculadora-fase-custo {
   display: block;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 500;
   color: var(--moni-text-secondary);
-  line-height: 1.25;
+  line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 52px;
 }
 
 .moni-calculadora-fase-data {
@@ -939,7 +943,7 @@
 
   .moni-calculadora-table-header,
   .moni-calculadora-fase-row {
-    grid-template-columns: minmax(0, 1fr) 52px minmax(56px, 1fr) 56px 72px 52px;
+    grid-template-columns: minmax(0, 1fr) 48px 44px 52px 68px 48px;
     gap: 4px;
     font-size: 10px;
   }
