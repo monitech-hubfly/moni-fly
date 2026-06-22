@@ -5,6 +5,7 @@ import { badgeStatusPipelineCard } from '@/lib/kanban/pipeline-franqueadora-comp
 import {
   ESTEIRA_TRES_ETAPAS,
   configFunilParaleloEsteira,
+  gridColumnSubesteiraParalela,
   idProjetoNegocioPipelineCard,
   indiceEsteiraTresEtapas,
   isFunilParaleloEsteira,
@@ -303,10 +304,7 @@ export function PipelineEsteiraPrincipalComSubesteiras({
       />
 
       {subLinhas.length > 0 ? (
-        <div
-          className="mt-2 space-y-1.5 border-l-2 pl-2"
-          style={{ borderColor: 'var(--moni-border-default)' }}
-        >
+        <div className="mt-2 grid grid-cols-3 gap-x-0.5 gap-y-1.5">
           {subLinhas.map((linha) => {
             const rowCard =
               linha.kanbanIds
@@ -314,7 +312,7 @@ export function PipelineEsteiraPrincipalComSubesteiras({
                 .find(Boolean) ?? card;
 
             return (
-              <div key={linha.id}>
+              <div key={linha.id} style={{ gridColumn: gridColumnSubesteiraParalela(linha.kanbanIds) }}>
                 <p
                   className="mb-0.5 truncate text-[9px] font-medium"
                   style={{ color: 'var(--moni-text-tertiary)' }}
