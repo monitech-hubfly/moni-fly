@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePermissoes } from '@/lib/hooks/usePermissoes';
+import { podeComFallbackStaff } from '@/lib/permissoes-types';
 import { KanbanBoardFiltrosPanel } from './KanbanBoardFiltrosPanel';
 import { KanbanColumn } from './KanbanColumn';
 import {
@@ -166,10 +167,11 @@ export function KanbanBoard({
 
   const nAtivos = countKanbanBoardFiltrosAtivos(filtros);
   /** Quando o pai passa `true`, não espera a matriz `criar_cards` no client (evita botão oculto para o time). */
-  const exibirBotaoNovoCard =
-    Boolean(mostrarLinkNovoCard) &&
-    (podeCriarCardsProp === true ||
-      (podeCriarCardsProp === undefined && pode('criar_cards')));
+  const criarCardsPermitido =
+    podeCriarCardsProp === true ||
+    (podeCriarCardsProp !== false &&
+      podeComFallbackStaff(pode, 'criar_cards', { roleNorm: userRole }));
+  const exibirBotaoNovoCard = Boolean(mostrarLinkNovoCard) && criarCardsPermitido;
 
   return (
     <div className="min-w-0 space-y-3">

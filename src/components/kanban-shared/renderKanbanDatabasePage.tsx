@@ -98,6 +98,7 @@ export async function renderKanbanDatabasePage(
               columnAccent={config.columnAccent}
               currentUserId={user.id}
               mostrarLinkNovoCard={exibirNovoCard}
+              podeCriarCards={exibirNovoCard ? true : false}
               kanbanNome={config.kanbanNomeDisplay}
               kanbanId={kanban.id}
             />

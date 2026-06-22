@@ -70,6 +70,7 @@ export default async function PainelContabilidadePage({
                 cardQueryParam="kanbanCard"
                 currentUserId={user?.id ?? null}
                 mostrarLinkNovoCard
+                podeCriarCards={snapshot.isAdmin ? true : undefined}
                 kanbanId={snapshot.kanban!.id}
               />
             </main>
