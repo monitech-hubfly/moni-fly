@@ -7,6 +7,7 @@ import {
   isValorResponsavelDaFaseLista,
   labelResponsavelDaFasePorTipo,
 } from '@/lib/kanban/responsavel-fase-checklist';
+import { custoPadraoPorSlug } from '@/lib/kanban/custo-padrao-por-slug';
 
 export type { FaseTimelineStatus };
 
@@ -27,6 +28,8 @@ export type CalculadoraFaseLinha = {
   status: FaseTimelineStatus;
   /** Moní ou Franqueado — quem executa a fase. */
   responsavelDaFase?: string | null;
+  /** Quem arca com custos da fase (padrão por slug). */
+  custo?: string | null;
   /** Funil da esteira principal (Step One / Portfólio / Pré Obra e Obra). */
   funilLabel?: string;
 };
@@ -407,6 +410,21 @@ export function enriquecerLinhasCalculadoraComResponsavelDaFase(
       ...linha,
       faseSlug: slug || linha.faseSlug,
       responsavelDaFase,
+    };
+  });
+}
+
+/** Preenche coluna «Custo» a partir do slug da fase. */
+export function enriquecerLinhasCalculadoraComCusto(
+  linhas: CalculadoraFaseLinha[],
+  faseSlugPorId: Map<string, string> = new Map(),
+): CalculadoraFaseLinha[] {
+  return linhas.map((linha) => {
+    const slug = faseSlugPorId.get(linha.faseId) ?? linha.faseSlug ?? '';
+    return {
+      ...linha,
+      faseSlug: slug || linha.faseSlug,
+      custo: custoPadraoPorSlug(slug),
     };
   });
 }

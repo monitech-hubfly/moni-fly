@@ -264,7 +264,7 @@ import {
 } from '@/lib/kanban/responsavel-fase-checklist';
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
-import { calcularLinhasCalculadoraFases, calcularResumoExecutivoCalculadoraFases, enriquecerLinhasCalculadoraComResponsavelDaFase } from '@/lib/kanban/calculadora-fases';
+import { calcularLinhasCalculadoraFases, calcularResumoExecutivoCalculadoraFases, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase } from '@/lib/kanban/calculadora-fases';
 import {
   calcularLinhasCalculadoraFasesEsteira,
   CALCULADORA_ESTEIRA_KANBAN_IDS,
@@ -3364,15 +3364,14 @@ export function KanbanCardModal({
     return map;
   }, [calculadoraFasesMeta]);
 
-  const calculadoraLinhasEnriquecidas = useMemo(
-    () =>
-      enriquecerLinhasCalculadoraComResponsavelDaFase(
-        calculadoraFasesPack.linhas,
-        calculadoraSlugPorFaseId,
-        responsavelDaFaseSalvoPorFase,
-      ),
-    [calculadoraFasesPack.linhas, calculadoraSlugPorFaseId, responsavelDaFaseSalvoPorFase],
-  );
+  const calculadoraLinhasEnriquecidas = useMemo(() => {
+    const comResponsavel = enriquecerLinhasCalculadoraComResponsavelDaFase(
+      calculadoraFasesPack.linhas,
+      calculadoraSlugPorFaseId,
+      responsavelDaFaseSalvoPorFase,
+    );
+    return enriquecerLinhasCalculadoraComCusto(comResponsavel, calculadoraSlugPorFaseId);
+  }, [calculadoraFasesPack.linhas, calculadoraSlugPorFaseId, responsavelDaFaseSalvoPorFase]);
 
   const abrirEdicaoInstrucoesFase = () => {
     if (!faseAtual || !pode('editar_instrucoes')) return;
