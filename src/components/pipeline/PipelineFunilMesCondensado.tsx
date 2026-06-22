@@ -84,7 +84,7 @@ export function PipelineFunilMesCondensado({ funil, className }: Props) {
 
   return (
     <div className={className}>
-      <div className="grid max-w-md grid-cols-4 gap-1">
+      <div className="grid w-full grid-cols-4 gap-1.5">
         {items.map((item) => {
           const identity = METRIC_IDENTITY[item.key];
           const statusColor = corValorStatus(item.value);
