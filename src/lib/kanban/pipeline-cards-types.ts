@@ -279,6 +279,6 @@ export type PipelineUnidadeBlocoMeta = {
   funilMes: PipelineFunilMesCompact;
   defaultExpanded: boolean;
   sortPriority: number;
-  /** Unidade com ≥1 card com tag «⭐Especial». */
+  /** Unidade com ≥1 card do fluxo principal com tag «⭐Especial». */
   temTagEspecial: boolean;
 };

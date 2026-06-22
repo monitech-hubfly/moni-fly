@@ -10,6 +10,7 @@ import { calcularDiasNaFase, cardVenceEm2DiasUteis } from '@/lib/kanban/pipeline
 import type {
   PipelineCardBadgeStatus,
   PipelineCardDisplay,
+  PipelineCardRow,
   PipelineCardsKpis,
   PipelineFranqueadoUnidade,
   PipelineFranqueadoraEnrichment,
@@ -25,6 +26,7 @@ import {
 import { excluirFranquiaDosGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
 import { indiceEsteiraTresEtapas } from '@/lib/kanban/pipeline-esteira-tres-etapas';
 import { computeFunilMesCompact } from '@/lib/kanban/pipeline-funil-mes-compute';
+import { isCardBlocoPrincipalUnidade } from '@/lib/kanban/pipeline-unidade-visualizacao';
 
 export const PARADO_DIAS = 20;
 const META_ENTRADAS_MES = 5;
@@ -33,6 +35,27 @@ const SIRENE_SILENCIO_DIAS = 30;
 
 export function cardsElegiveisFranqueadora(cards: PipelineCardDisplay[]): PipelineCardDisplay[] {
   return cards.filter((c) => !excluirFranquiaDosGraficosVisaoGeral(c.n_franquia));
+}
+
+/** Card do fluxo principal (Step One / Portfólio / Pré Obra e Obra) com tag «⭐Especial». */
+export function cardTemTagEspecialFluxoPrincipal(card: PipelineCardRow): boolean {
+  return card.tem_tag_especial === true && isCardBlocoPrincipalUnidade(card as PipelineCardDisplay);
+}
+
+/** Unidade com ≥1 card do fluxo principal com tag «⭐Especial». */
+export function unidadeTemTagEspecialFluxoPrincipal(cards: PipelineCardRow[]): boolean {
+  return cards.some(cardTemTagEspecialFluxoPrincipal);
+}
+
+/** Mapa rede_franqueado_id → unidade tem tag no fluxo principal. */
+export function redeIdsComTagEspecialFluxoPrincipal(cards: PipelineCardRow[]): Set<string> {
+  const ids = new Set<string>();
+  for (const c of cards) {
+    if (!cardTemTagEspecialFluxoPrincipal(c)) continue;
+    const rid = String(c.rede_franqueado_id ?? '').trim();
+    if (rid) ids.add(rid);
+  }
+  return ids;
 }
 
 function cardParado(card: PipelineCardDisplay): boolean {
@@ -264,7 +287,7 @@ export function montarBlocoMetaUnidadePipeline(
   const funilMes = computeFunilMesCompact(cards);
   const sortPriority =
     alertas.nivel === 'critico' ? 0 : alertas.nivel === 'atencao' ? 1 : 2;
-  const temTagEspecial = cards.some((c) => c.tem_tag_especial === true);
+  const temTagEspecial = unidadeTemTagEspecialFluxoPrincipal(cards);
   return {
     redeId: franqueado.rede_franqueado_id,
     label: labelFranqueadoPipeline(franqueado),

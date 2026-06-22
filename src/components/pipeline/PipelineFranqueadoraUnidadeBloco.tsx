@@ -6,6 +6,7 @@ import type { PipelineCardDisplay, PipelineFranqueadoraEnrichment, PipelineUnida
 import { tituloPipelineCardDisplay } from '@/lib/kanban/pipeline-card-readonly';
 import {
   badgeStatusPipelineCard,
+  cardTemTagEspecialFluxoPrincipal,
   emojiIndicadorSaudePipeline,
   indicadorSaudeUnidadePipeline,
 } from '@/lib/kanban/pipeline-franqueadora-compute';
@@ -24,6 +25,7 @@ import {
   rotuloFaseSubesteira,
 } from '@/lib/kanban/pipeline-unidade-visualizacao';
 import { isFunilParaleloEsteira } from '@/lib/kanban/pipeline-esteira-tres-etapas';
+import { PipelineIndicadorTagEspecial } from '@/components/pipeline/PipelineIndicadorTagEspecial';
 
 const panelStyle: React.CSSProperties = {
   borderRadius: 'var(--moni-radius-lg)',
@@ -116,7 +118,12 @@ function PipelineUnidadeCardsTabela({ titulo, grupos, enrichment, onCardClick }:
                       style={{ color: 'var(--moni-text-primary)' }}
                       title={String(card.titulo ?? '').trim() || undefined}
                     >
-                      {tituloPipelineCardDisplay(card, idx + 1)}
+                      <span className="inline-flex max-w-full items-center gap-1">
+                        {cardTemTagEspecialFluxoPrincipal(card) ? (
+                          <PipelineIndicadorTagEspecial compact />
+                        ) : null}
+                        <span className="truncate">{tituloPipelineCardDisplay(card, idx + 1)}</span>
+                      </span>
                       {paralelosCount > 0 ? (
                         <span className="ml-1 text-[10px] font-normal" style={{ color: 'var(--moni-text-tertiary)' }}>
                           +{paralelosCount} paralelo{paralelosCount === 1 ? '' : 's'}
@@ -260,14 +267,7 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
             {emojiIndicadorSaudePipeline(saudeIndicador)}
           </span>
           <span className="sr-only">Saúde: {saudeIndicador}</span>
-          {meta.temTagEspecial ? (
-            <span
-              className="inline-flex shrink-0 items-center justify-center text-[13px] leading-none"
-              aria-label="Unidade especial"
-            >
-              ⭐
-            </span>
-          ) : null}
+          {meta.temTagEspecial ? <PipelineIndicadorTagEspecial /> : null}
           <h2
             className="shrink-0 text-[13px] font-semibold"
             style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-display)' }}
