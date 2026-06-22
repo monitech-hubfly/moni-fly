@@ -4028,7 +4028,7 @@ export async function registrarConfirmacaoFaseOperacoes(input: {
 
   const { data: cardRow, error: cardErr } = await supabase
     .from('kanban_cards')
-    .select('kanban_id')
+    .select('kanban_id, obra_iniciada, obra_finalizada')
     .eq('id', cardId)
     .maybeSingle();
   if (cardErr) return { ok: false, error: cardErr.message };
@@ -4037,15 +4037,29 @@ export async function registrarConfirmacaoFaseOperacoes(input: {
   }
 
   const now = new Date().toISOString();
-  const patchByTipo = {
-    prefeitura: { prefeitura_aprovada: true, prefeitura_aprovada_em: now },
-    em_obra: { obra_iniciada: true, obra_iniciada_em: now },
-    moni_care: { obra_finalizada: true, obra_finalizada_em: now },
-  } as const;
+  const cardFlags = cardRow as {
+    obra_iniciada?: boolean | null;
+    obra_finalizada?: boolean | null;
+  } | null;
+
+  let patch: Record<string, boolean | string>;
+  if (tipo === 'prefeitura') {
+    patch = { prefeitura_aprovada: true, prefeitura_aprovada_em: now };
+  } else {
+    patch = {};
+    if (cardFlags?.obra_iniciada !== true) {
+      patch.obra_iniciada = true;
+      patch.obra_iniciada_em = now;
+    }
+    if (cardFlags?.obra_finalizada !== true) {
+      patch.obra_finalizada = true;
+      patch.obra_finalizada_em = now;
+    }
+  }
 
   const { error: updErr } = await supabase
     .from('kanban_cards')
-    .update(patchByTipo[tipo] as never)
+    .update(patch as never)
     .eq('id', cardId);
 
   if (updErr) return { ok: false, error: updErr.message };

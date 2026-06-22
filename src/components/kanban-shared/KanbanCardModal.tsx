@@ -109,6 +109,7 @@ import {
   montarChipsParalelas,
 } from '@/lib/kanban/kanban-paralelas-chips';
 import { isDadosCondominiosFaseSlug, isHipotesesFaseSlug, isPreBatalhaFaseSlug, filterStepOneCalculadoraFases } from '@/lib/kanban/stepone-fase-slugs';
+import { filterOperacoesCalculadoraFases } from '@/lib/kanban/operacoes-fase-slugs';
 import { PRE_BATALHA_INSTRUCOES_FASE, PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING } from '@/lib/kanban/pre-batalha-checklist';
 import { kanbanExibeSecaoCondominioSidebar } from '@/lib/kanban/kanban-secao-condominio';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
@@ -258,6 +259,7 @@ import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from
 import { calcularLinhasCalculadoraFases, calcularResumoExecutivoCalculadoraFases } from '@/lib/kanban/calculadora-fases';
 import {
   calcularLinhasCalculadoraFasesEsteira,
+  CALCULADORA_ESTEIRA_KANBAN_IDS,
   fetchCalculadoraEsteiraFasesMap,
   mesclarFasesKanbanAtualNoMapa,
 } from '@/lib/kanban/calculadora-fases-esteira';
@@ -306,6 +308,9 @@ type Card = {
   entered_fase_at?: string | null;
   sla_justificativa?: string | null;
   sla_justificativa_em?: string | null;
+  opcao_assinada_em?: string | null;
+  obra_iniciada_em?: string | null;
+  obra_finalizada_em?: string | null;
   portfolio_vinculo_rotulo?: string | null;
   tem_filho_juridico?: boolean;
   tem_filho_acoplamento?: boolean;
@@ -1002,6 +1007,9 @@ export function KanbanCardModal({
         entered_fase_at?: string | null;
         sla_justificativa?: string | null;
         sla_justificativa_em?: string | null;
+        opcao_assinada_em?: string | null;
+        obra_iniciada_em?: string | null;
+        obra_finalizada_em?: string | null;
       };
 
       let loaded: LoadedShape | null = null;
@@ -1087,8 +1095,10 @@ export function KanbanCardModal({
         }
       } else {
         setLegadoCronologiaMoves([]);
+        const cardSelectConfirmacao =
+          'opcao_assinada_em, obra_iniciada_em, obra_finalizada_em';
         const cardSelectCore =
-          'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, hora_reuniao, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url';
+          `id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, hora_reuniao, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, ${cardSelectConfirmacao}`;
         const cardSelectPreObra =
           'condominio_aprovada_em, prefeitura_aprovada_em, alvara_emitido_em, prev_aprovacao_condominio, prev_aprovacao_prefeitura, prev_emissao_alvara, prev_envio_credito_obra, prev_inicio_obra';
         const cardSelectBase = `${cardSelectCore}, ${cardSelectPreObra}`;
@@ -1177,6 +1187,18 @@ export function KanbanCardModal({
           sla_justificativa_em:
             (cardData as { sla_justificativa_em?: string | null }).sla_justificativa_em != null
               ? String((cardData as { sla_justificativa_em?: string | null }).sla_justificativa_em)
+              : null,
+          opcao_assinada_em:
+            (cardData as { opcao_assinada_em?: string | null }).opcao_assinada_em != null
+              ? String((cardData as { opcao_assinada_em?: string | null }).opcao_assinada_em)
+              : null,
+          obra_iniciada_em:
+            (cardData as { obra_iniciada_em?: string | null }).obra_iniciada_em != null
+              ? String((cardData as { obra_iniciada_em?: string | null }).obra_iniciada_em)
+              : null,
+          obra_finalizada_em:
+            (cardData as { obra_finalizada_em?: string | null }).obra_finalizada_em != null
+              ? String((cardData as { obra_finalizada_em?: string | null }).obra_finalizada_em)
               : null,
         };
         nativeRedeFranqueadoId =
@@ -3173,7 +3195,11 @@ export function KanbanCardModal({
       if (fases.length === 0) return { linhas: [], visits: [] };
 
       const fasesCalculadora =
-        card.kanban_id === KANBAN_IDS.STEP_ONE ? filterStepOneCalculadoraFases(fases) : fases;
+        card.kanban_id === KANBAN_IDS.STEP_ONE
+          ? filterStepOneCalculadoraFases(fases)
+          : card.kanban_id === KANBAN_IDS.OPERACOES
+            ? filterOperacoesCalculadoraFases(fases)
+            : fases;
 
       const linhas = calcularLinhasCalculadoraFases({
         fases: fasesCalculadora,
@@ -3199,6 +3225,43 @@ export function KanbanCardModal({
         visits: calculadoraFasesPack.visits,
       }),
     [calculadoraFasesPack, card?.concluido],
+  );
+
+  const calculadoraFasesFlat = useMemo(() => {
+    const list: KanbanFase[] = [];
+    for (const kid of CALCULADORA_ESTEIRA_KANBAN_IDS) {
+      list.push(...(fasesEsteiraCalculadora.get(kid) ?? []));
+    }
+    if (list.length > 0) return list;
+    return card?.kanban_id === KANBAN_IDS.STEP_ONE
+      ? filterStepOneCalculadoraFases(fases)
+      : card?.kanban_id === KANBAN_IDS.OPERACOES
+        ? filterOperacoesCalculadoraFases(fases)
+        : fases;
+  }, [fasesEsteiraCalculadora, fases, card?.kanban_id]);
+
+  const calculadoraFasesMeta = useMemo(() => {
+    const map = new Map<string, KanbanFase>();
+    for (const f of calculadoraFasesFlat) map.set(f.id, f);
+    for (const f of fases) map.set(f.id, f);
+    return map;
+  }, [calculadoraFasesFlat, fases]);
+
+  const calculadoraMarcosInput = useMemo(
+    () => ({
+      opcao_assinada_em: card?.opcao_assinada_em ?? null,
+      obra_iniciada_em: card?.obra_iniciada_em ?? null,
+      obra_finalizada_em: card?.obra_finalizada_em ?? null,
+      concluido_em: card?.concluido_em ?? null,
+      visits: calculadoraFasesPack.visits,
+    }),
+    [
+      card?.opcao_assinada_em,
+      card?.obra_iniciada_em,
+      card?.obra_finalizada_em,
+      card?.concluido_em,
+      calculadoraFasesPack.visits,
+    ],
   );
 
   const abrirEdicaoInstrucoesFase = () => {
@@ -4993,6 +5056,9 @@ export function KanbanCardModal({
                     visits={calculadoraFasesPack.visits}
                     faseAtualId={card.fase_id}
                     cardConcluido={card.concluido === true}
+                    fases={calculadoraFasesFlat}
+                    fasesMeta={calculadoraFasesMeta}
+                    marcos={calculadoraMarcosInput}
                     variant="painel"
                   />
                 </div>

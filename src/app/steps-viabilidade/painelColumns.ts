@@ -25,7 +25,6 @@ export type PainelColumnKey =
   | 'processos_cartorarios'
   | 'aguardando_credito'
   | 'em_obra'
-  | 'moni_care'
   | 'credito_terreno'
   | 'credito_obra';
 
@@ -82,7 +81,6 @@ export const PAINEL_COLUMNS: PainelColumnDef[] = [
   { key: 'processos_cartorarios', title: 'Processos Cartorários' },
   { key: 'aguardando_credito', title: 'Aguardando Crédito' },
   { key: 'em_obra', title: 'Em Obra' },
-  { key: 'moni_care', title: 'Moní Care' },
   { key: 'contabilidade_incorporadora', title: 'Abertura da Incorporadora' },
   { key: 'contabilidade_spe', title: 'Abertura da SPE' },
   { key: 'contabilidade_gestora', title: 'Abertura da Gestora' },
@@ -152,7 +150,6 @@ export const PAINEL_FLOW_ROWS: PainelFlowRow[] = [
   { type: 'sequential', keys: ['processos_cartorarios'] },
   { type: 'sequential', keys: ['aguardando_credito'] },
   { type: 'sequential', keys: ['em_obra'] },
-  { type: 'sequential', keys: ['moni_care'] },
 ];
 
 export function getDefaultEtapaPainel(): PainelColumnKey {
@@ -218,8 +215,7 @@ export function getHrefForProcesso(etapaKey: PainelColumnKey, processoId: string
     etapaKey === 'revisao_bca' ||
     etapaKey === 'processos_cartorarios' ||
     etapaKey === 'aguardando_credito' ||
-    etapaKey === 'em_obra' ||
-    etapaKey === 'moni_care'
+    etapaKey === 'em_obra'
   ) {
     return `/painel-novos-negocios?card=${encodeURIComponent(processoId)}`;
   }

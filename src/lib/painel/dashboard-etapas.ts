@@ -11,7 +11,6 @@ export const ETAPAS_OPERACAO_DASHBOARD: ReadonlySet<PainelColumnKey> = new Set([
   'processos_cartorarios',
   'aguardando_credito',
   'em_obra',
-  'moni_care',
   'credito_terreno',
   'credito_obra',
 ]);
@@ -55,7 +54,6 @@ export const ETAPAS_KANBAN_NN: ReadonlySet<PainelColumnKey> = new Set([
   'processos_cartorarios',
   'aguardando_credito',
   'em_obra',
-  'moni_care',
 ]);
 
 export function isEtapaKanbanNovosNegocios(etapa: PainelColumnKey | string): boolean {

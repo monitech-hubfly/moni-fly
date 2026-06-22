@@ -10,6 +10,7 @@ import { fetchKanbanFasesAtivas, mapKanbanFaseRow } from '@/lib/kanban/fetch-kan
 import type { FaseVisit } from '@/lib/kanban/kanban-card-timeline';
 import { indiceEsteiraTresEtapas } from '@/lib/kanban/pipeline-esteira-tres-etapas';
 import { filterStepOneCalculadoraFases, isCalculadoraExcludedStepOneFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { filterOperacoesCalculadoraFases } from '@/lib/kanban/operacoes-fase-slugs';
 
 /** Ordem fixa da calculadora global: Step One → Portfólio → Pré Obra e Obra. */
 export const CALCULADORA_ESTEIRA_FUNIS = [
@@ -49,6 +50,16 @@ function filtrarFasesStepOne(fases: KanbanFase[]): KanbanFase[] {
   return filterStepOneCalculadoraFases(fases);
 }
 
+function filtrarFasesOperacoes(fases: KanbanFase[]): KanbanFase[] {
+  return filterOperacoesCalculadoraFases(fases);
+}
+
+function filtrarFasesCalculadoraEsteira(kanbanId: string, fases: KanbanFase[]): KanbanFase[] {
+  if (kanbanId === KANBAN_IDS.STEP_ONE) return filtrarFasesStepOne(fases);
+  if (kanbanId === KANBAN_IDS.OPERACOES) return filtrarFasesOperacoes(fases);
+  return fases;
+}
+
 /** Carrega fases ativas dos 3 funis da esteira principal. */
 export async function fetchCalculadoraEsteiraFasesMap(
   supabase: SupabaseClient,
@@ -56,7 +67,7 @@ export async function fetchCalculadoraEsteiraFasesMap(
   const map = new Map<string, KanbanFase[]>();
   for (const { kanbanId } of CALCULADORA_ESTEIRA_FUNIS) {
     const fases = await fetchKanbanFasesAtivas(supabase, kanbanId);
-    const list = kanbanId === KANBAN_IDS.STEP_ONE ? filtrarFasesStepOne(fases) : fases;
+    const list = filtrarFasesCalculadoraEsteira(kanbanId, fases);
     map.set(kanbanId, list);
   }
   return map;
@@ -236,8 +247,7 @@ export function mesclarFasesKanbanAtualNoMapa(
 ): Map<string, KanbanFase[]> {
   const next = new Map(map);
   if (fasesAtuais.length > 0 && (CALCULADORA_ESTEIRA_KANBAN_IDS as readonly string[]).includes(kanbanId)) {
-    const list =
-      kanbanId === KANBAN_IDS.STEP_ONE ? filtrarFasesStepOne(fasesAtuais) : fasesAtuais;
+    const list = filtrarFasesCalculadoraEsteira(kanbanId, fasesAtuais);
     next.set(kanbanId, list);
   }
   return next;
@@ -273,6 +283,9 @@ export async function completarMapaCalculadoraEsteira(
 
   if (next.has(KANBAN_IDS.STEP_ONE)) {
     next.set(KANBAN_IDS.STEP_ONE, filtrarFasesStepOne(next.get(KANBAN_IDS.STEP_ONE)!));
+  }
+  if (next.has(KANBAN_IDS.OPERACOES)) {
+    next.set(KANBAN_IDS.OPERACOES, filtrarFasesOperacoes(next.get(KANBAN_IDS.OPERACOES)!));
   }
 
   return next;

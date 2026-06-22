@@ -4,7 +4,6 @@ import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 export const OPERACOES_FASES_CONFIRMACAO_SAIDA = {
   prefeitura: [FASE_SLUGS.APROVACAO_PREFEITURA],
   em_obra: [FASE_SLUGS.EM_OBRA],
-  moni_care: [FASE_SLUGS.MONI_CARE],
 } as const;
 
 export type OperacoesConfirmacaoFaseTipo = keyof typeof OPERACOES_FASES_CONFIRMACAO_SAIDA;
@@ -14,8 +13,7 @@ const SLUGS_POR_TIPO: Record<OperacoesConfirmacaoFaseTipo, readonly string[]> =
 
 const PERGUNTA_POR_TIPO: Record<OperacoesConfirmacaoFaseTipo, string> = {
   prefeitura: 'Aprovação na Prefeitura concluída?',
-  em_obra: 'Obra iniciada?',
-  moni_care: 'Obra finalizada?',
+  em_obra: 'Obra finalizada?',
 };
 
 export function operacoesConfirmacaoPergunta(tipo: OperacoesConfirmacaoFaseTipo): string {
