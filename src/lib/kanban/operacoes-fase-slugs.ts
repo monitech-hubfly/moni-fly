@@ -1,8 +1,7 @@
 import type { KanbanFase } from '@/components/kanban-shared/types';
-import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 
-/** Fases removidas do board Operações — cards realocados via migração SQL. */
-export const OPERACOES_REMOVED_FASE_SLUGS = [FASE_SLUGS.MONI_CARE] as const;
+/** Fases removidas do board Operações — cards realocados via migração SQL 401. */
+export const OPERACOES_REMOVED_FASE_SLUGS = ['moni_care'] as const;
 
 export function isRemovedOperacoesFaseSlug(slug: string | null | undefined): boolean {
   const s = String(slug ?? '').trim();

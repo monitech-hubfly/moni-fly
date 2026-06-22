@@ -103,8 +103,6 @@ export const FASE_SLUGS = {
   APROVACAO_PREFEITURA: 'aprovacao_prefeitura',
   /** Funil Operações — fase Em Obra. */
   EM_OBRA:            'em_obra',
-  /** Funil Operações — fase Moní Care (removida 401; legado remap). */
-  MONI_CARE:          'moni_care',
   PROJETO_LEGAL:      'projeto_legal',
   LOTEADOR_JURIDICO:  'loteador_juridico',
   // Gatilhos de VOLTA

@@ -9,6 +9,7 @@ import {
   buscarValorResponsavelFaseAnterior,
   isKanbanFunilStepOneId,
   isValorUsuarioUuid,
+  resolverProfileIdPorValorChecklistUsuario,
   sincronizarResponsavelFaseStepOne,
 } from '@/lib/kanban/responsavel-fase-checklist';
 
@@ -18,6 +19,8 @@ type Props = {
   kanbanId?: string | null;
   /** Funil Step One: nome em `rede_franqueados` quando não há profile vinculado. */
   nomeFranqueadoRede?: string | null;
+  /** Lista enriquecida do modal (catálogo Moní + profiles). */
+  opcoes?: { id: string; nome: string }[];
   readOnly?: boolean;
   onChange?: (userId: string, nome?: string | null) => void;
 };
@@ -33,6 +36,7 @@ export function ResponsavelFaseSidebar({
   faseId,
   kanbanId = null,
   nomeFranqueadoRede = null,
+  opcoes,
   readOnly = false,
   onChange,
 }: Props) {
@@ -97,7 +101,21 @@ export function ResponsavelFaseSidebar({
         .eq('item_id', iid)
         .maybeSingle();
 
-      let valorAtual = normalizarValorUsuario((resp as { valor?: string | null } | null)?.valor);
+      const valorBruto = (resp as { valor?: string | null } | null)?.valor;
+      let valorAtual = normalizarValorUsuario(valorBruto);
+
+      if (!valorAtual) {
+        const resolvido = await resolverProfileIdPorValorChecklistUsuario(supabase, valorBruto);
+        if (resolvido) {
+          valorAtual = resolvido;
+          await upsertFaseChecklistResposta({
+            item_id: iid,
+            card_id: cardId,
+            valor: resolvido,
+            arquivo_path: null,
+          });
+        }
+      }
 
       const syncKey = `${cardId}:${faseId}`;
       if (!valorAtual && syncFeitoRef.current !== syncKey) {
@@ -139,7 +157,8 @@ export function ResponsavelFaseSidebar({
     });
     setSalvando(false);
     if (res.ok) {
-      onChange?.(uid, null);
+      const nome = opcoes?.find((o) => o.id === uid)?.nome ?? null;
+      onChange?.(uid, nome);
     }
   }
 
@@ -174,6 +193,7 @@ export function ResponsavelFaseSidebar({
       label=""
       value={valor}
       salvando={salvando}
+      opcoes={opcoes}
       placeholder="Selecione o responsável…"
       selectedLabelOverride={!valor && nomeRede ? nomeRede : undefined}
       menuPortal

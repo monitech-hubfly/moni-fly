@@ -1,7 +1,8 @@
 -- 401: Remove fase "Moní Care" do Funil Operações (Pré Obra e Obra).
 -- Cards nativos em moni_care → operacoes_entregue (fase sucessora).
 -- Legado processo_step_one etapa_painel 'moni_care' → 'operacoes_entregue'.
--- Fase desativada (ativo = false), não deletada — histórico e augment de cards órfãos preservados.
+-- Fase desativada (ativo = false), não deletada — histórico preservado.
+-- Campos obra_finalizada / obra_finalizada_em em kanban_cards permanecem (popup desligado no código).
 
 DO $$
 DECLARE
@@ -56,10 +57,11 @@ BEGIN
   SET instrucoes = NULL
   WHERE id = v_fase_moni_care_id;
 
-  -- Cards nativos → operacoes_entregue
+  -- Cards nativos (ativos e arquivados) → operacoes_entregue
   IF v_fase_entregue_id IS NOT NULL THEN
     UPDATE public.kanban_cards c
     SET fase_id = v_fase_entregue_id,
+        entered_fase_at = CASE WHEN COALESCE(c.arquivado, false) = false THEN now() ELSE c.entered_fase_at END,
         updated_at = now()
     WHERE c.fase_id = v_fase_moni_care_id;
 
@@ -81,7 +83,7 @@ BEGIN
   WHERE id = v_fase_moni_care_id
     AND COALESCE(ativo, true) = true;
 
-  -- Renumera fases ativas posteriores
+  -- Renumera fases ativas posteriores (operacoes_entregue passa a ordem 9 se moni_care era 9)
   IF v_moni_care_ordem IS NOT NULL THEN
     UPDATE public.kanban_fases
     SET ordem = ordem - 1
@@ -93,7 +95,7 @@ END;
 $$;
 
 INSERT INTO supabase_migrations.schema_migrations (version, name)
-VALUES ('401', 'operacoes_remove_fase_moni_care')
+VALUES ('401', 'remove_fase_moni_care_operacoes')
 ON CONFLICT (version) DO NOTHING;
 
 NOTIFY pgrst, 'reload schema';

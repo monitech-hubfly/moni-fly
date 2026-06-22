@@ -552,6 +552,35 @@ export function isValorUsuarioUuid(valor: string | null | undefined): boolean {
   return VALOR_USUARIO_UUID_RE.test(String(valor ?? '').trim());
 }
 
+/** Converte valor legado (nome/e-mail) do checklist em UUID de profile. */
+export async function resolverProfileIdPorValorChecklistUsuario(
+  supabase: SupabaseClient,
+  valor: string | null | undefined,
+): Promise<string | null> {
+  const raw = valorResponsavelValido(valor);
+  if (!raw) return null;
+  if (isValorUsuarioUuid(raw)) return raw;
+
+  if (raw.includes('@')) {
+    return buscarProfileIdPorEmail(supabase, raw);
+  }
+
+  const { data: rows } = await supabase
+    .from('profiles')
+    .select('id, full_name')
+    .ilike('full_name', raw)
+    .limit(5);
+
+  const lista = (rows ?? []) as { id: string; full_name?: string | null }[];
+  const exact = lista.find(
+    (p) =>
+      String(p.full_name ?? '')
+        .trim()
+        .localeCompare(raw, 'pt-BR', { sensitivity: 'accent' }) === 0,
+  );
+  return valorResponsavelValido(exact?.id ?? lista[0]?.id);
+}
+
 async function buscarRespostaValor(
   supabase: SupabaseClient,
   cardId: string,

@@ -4045,16 +4045,27 @@ export async function registrarConfirmacaoFaseOperacoes(input: {
   let patch: Record<string, boolean | string>;
   if (tipo === 'prefeitura') {
     patch = { prefeitura_aprovada: true, prefeitura_aprovada_em: now };
-  } else {
+  } else if (tipo === 'em_obra') {
     patch = {};
     if (cardFlags?.obra_iniciada !== true) {
       patch.obra_iniciada = true;
       patch.obra_iniciada_em = now;
     }
+  } else if (tipo === 'entregue') {
+    patch = {};
     if (cardFlags?.obra_finalizada !== true) {
       patch.obra_finalizada = true;
       patch.obra_finalizada_em = now;
     }
+  } else {
+    return { ok: false, error: 'Tipo de confirmação inválido.' };
+  }
+
+  if (Object.keys(patch).length === 0) {
+    const base = String(input.basePath ?? '/').trim() || '/';
+    revalidatePath(base);
+    revalidatePath('/');
+    return { ok: true };
   }
 
   const { error: updErr } = await supabase

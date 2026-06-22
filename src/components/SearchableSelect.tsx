@@ -67,10 +67,13 @@ export function SearchableSelect({
   }, [emptyOption, options]);
 
   const rotuloSelecionado = useMemo(() => {
-    const hit = todasOpcoes.find((o) => o.value === value);
+    const vNorm = String(value ?? '').trim().toLowerCase();
+    const hit = todasOpcoes.find(
+      (o) => o.value === value || (vNorm && o.value.trim().toLowerCase() === vNorm),
+    );
     const label = hit?.label?.trim() || '';
     if (label) return label;
-    if (!value && selectedLabelOverride?.trim()) return selectedLabelOverride.trim();
+    if (selectedLabelOverride?.trim()) return selectedLabelOverride.trim();
     return '';
   }, [todasOpcoes, value, selectedLabelOverride]);
 

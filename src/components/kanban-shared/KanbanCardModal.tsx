@@ -94,6 +94,7 @@ import {
   type PortfolioConfirmacaoFaseTipo,
 } from '@/lib/kanban/portfolio-confirmacao-fase';
 import {
+  deveConfirmarEntradaFaseOperacoes,
   deveConfirmarSaidaFaseOperacoes,
   operacoesConfirmacaoPergunta,
   type OperacoesConfirmacaoFaseTipo,
@@ -2313,14 +2314,36 @@ export function KanbanCardModal({
     direcao: 'avancar' | 'retroceder',
     opts?: { motivoReprovacaoAcoplamento?: string; justificativaSlaQuebra?: string },
   ) {
-    const confirmacao = tipoConfirmacaoSaidaAtual();
-    if (confirmacao) {
+    const confirmacaoSaida = tipoConfirmacaoSaidaAtual();
+    if (confirmacaoSaida) {
       setModalJustificativaSla(null);
       setSlaJustificativaDraft('');
       setModalReprovacaoAcoplamento(null);
       setMotivoReprovacaoDraft('');
-      setModalConfirmacaoPortfolio({ ...confirmacao, destinoFase, direcao, opts });
+      setModalConfirmacaoPortfolio({ ...confirmacaoSaida, destinoFase, direcao, opts });
       return;
+    }
+    if (direcao === 'avancar' && card) {
+      const confirmacaoEntrada = deveConfirmarEntradaFaseOperacoes({
+        kanbanId: card.kanban_id,
+        destinoFaseSlug: destinoFase.slug,
+        origemCard: origem,
+        direcao,
+      });
+      if (confirmacaoEntrada) {
+        setModalJustificativaSla(null);
+        setSlaJustificativaDraft('');
+        setModalReprovacaoAcoplamento(null);
+        setMotivoReprovacaoDraft('');
+        setModalConfirmacaoPortfolio({
+          dominio: 'operacoes',
+          tipo: confirmacaoEntrada,
+          destinoFase,
+          direcao,
+          opts,
+        });
+        return;
+      }
     }
     if (direcao === 'avancar') await executarAvancarFase(destinoFase, opts);
     else await executarRetrocederFase(destinoFase);
@@ -2349,6 +2372,31 @@ export function KanbanCardModal({
           return;
         }
       }
+
+      if (
+        confirmou &&
+        modal.dominio === 'operacoes' &&
+        modal.tipo === 'em_obra' &&
+        modal.direcao === 'avancar'
+      ) {
+        const confirmacaoEntrada = deveConfirmarEntradaFaseOperacoes({
+          kanbanId: card.kanban_id,
+          destinoFaseSlug: modal.destinoFase.slug,
+          origemCard: origem,
+          direcao: 'avancar',
+        });
+        if (confirmacaoEntrada) {
+          setModalConfirmacaoPortfolio({
+            dominio: 'operacoes',
+            tipo: confirmacaoEntrada,
+            destinoFase: modal.destinoFase,
+            direcao: modal.direcao,
+            opts: modal.opts,
+          });
+          return;
+        }
+      }
+
       if (modal.direcao === 'avancar') await executarAvancarFase(modal.destinoFase, modal.opts);
       else await executarRetrocederFase(modal.destinoFase);
       setModalConfirmacaoPortfolio(null);
@@ -5829,6 +5877,7 @@ export function KanbanCardModal({
                   faseId={faseIdResponsavelPainel}
                   kanbanId={card.kanban_id}
                   nomeFranqueadoRede={rede?.nome_completo ?? null}
+                  opcoes={responsaveisOpcoes}
                   readOnly={ocultarGestaoCard}
                 />
               </PainelLateralSecao>
