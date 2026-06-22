@@ -1840,6 +1840,8 @@ export type CriarCardKanbanInput = {
   nomeCondominio?: string;
   quadra?: string;
   lote?: string;
+  redeFranqueadoId?: string;
+  origemTipo?: 'hipotese_direta';
 };
 
 /** Card nativo no kanban (`franqueado_id` = utilizador autenticado). */
@@ -1879,18 +1881,21 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
   if (faseErr) return { ok: false, error: faseErr.message };
   if (!faseRow) return { ok: false, error: 'Fase não pertence a este kanban.' };
 
+  const nomeCondominio = (input.nomeCondominio ?? '').trim() || null;
+  const quadra = (input.quadra ?? '').trim() || null;
+  const lote = (input.lote ?? '').trim() || null;
+
   let projetoId: string | null = null;
   if (kanbanId === KANBAN_IDS.PORTFOLIO) {
     projetoId = await tentarCriarProjetoNegocioPortfolio({
       titulo,
       franqueadoUserId: user.id,
-      redeFranqueadoId: null,
+      redeFranqueadoId: (input.redeFranqueadoId ?? '').trim() || null,
+      nomeCondominio,
+      quadra,
+      lote,
     });
   }
-
-  const nomeCondominio = (input.nomeCondominio ?? '').trim() || null;
-  const quadra = (input.quadra ?? '').trim() || null;
-  const lote = (input.lote ?? '').trim() || null;
 
   let tituloFinal = titulo;
   if (isKanbanFunilLoteadoresRef(kanbanId, kanbanNome)) {
@@ -1904,7 +1909,7 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
       }) ?? titulo;
   }
 
-  const { data: cardRow, error } = await supabase.from('kanban_cards').insert({
+  const insertPayload: Record<string, unknown> = {
     kanban_id: kanbanId,
     fase_id: faseId,
     franqueado_id: user.id,
@@ -1914,7 +1919,14 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
     quadra,
     lote,
     ...(projetoId ? { projeto_id: projetoId } : {}),
-  } as never).select('id').single();
+  };
+  const redeId = (input.redeFranqueadoId ?? '').trim();
+  if (redeId) insertPayload.rede_franqueado_id = redeId;
+  if (input.origemTipo === 'hipotese_direta') {
+    insertPayload.origem_tipo = 'hipotese_direta';
+  }
+
+  const { data: cardRow, error } = await supabase.from('kanban_cards').insert(insertPayload as never).select('id').single();
   if (error) return { ok: false, error: error.message };
 
   const cardId = String((cardRow as { id: string }).id);

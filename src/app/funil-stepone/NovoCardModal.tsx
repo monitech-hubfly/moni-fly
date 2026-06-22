@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { SearchableSelect } from '@/components/SearchableSelect';
-import { criarCardFunilStepOne } from '@/lib/actions/card-actions';
+import { criarCard, criarCardFunilStepOne } from '@/lib/actions/card-actions';
+import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import type { KanbanNomeDisplay } from '@/components/kanban-shared/types';
 
 type Fase = {
   id: string;
@@ -17,11 +19,15 @@ export type TipoOrigemNovoCard = 'via_step_one' | 'hipotese_direta';
 
 export function NovoCardModal({
   kanbanId,
+  kanbanNome,
+  basePath = '/',
   onClose,
   isAdmin,
   showTipoOrigem = false,
 }: {
   kanbanId: string;
+  kanbanNome: KanbanNomeDisplay;
+  basePath?: string;
   onClose: () => void;
   isAdmin: boolean;
   /** Portfolio: campo informativo de origem (hipótese direta só admin/team). */
@@ -96,17 +102,33 @@ export function NovoCardModal({
       const partes = [nFranquiaSelected, nomeCondominio.trim(), quadra.trim(), lote.trim()].filter(Boolean);
       const tituloAuto = partes.join(' - ');
 
-      const res = await criarCardFunilStepOne({
-        faseId,
-        redeFranqueadoId: franqueadoRedeId,
-        titulo: tituloAuto,
-        nomeCondominio: nomeCondominio.trim() || undefined,
-        quadra: quadra.trim() || undefined,
-        lote: lote.trim() || undefined,
-        ...(showTipoOrigem && isAdmin && tipoOrigem === 'hipotese_direta'
-          ? { origemTipo: 'hipotese_direta' as const }
-          : {}),
-      });
+      const origemHipoteseDireta =
+        showTipoOrigem && isAdmin && tipoOrigem === 'hipotese_direta';
+
+      const isFunilStepOne =
+        kanbanId === KANBAN_IDS.STEP_ONE || kanbanNome === 'Funil Step One';
+
+      const res = isFunilStepOne
+        ? await criarCardFunilStepOne({
+            faseId,
+            redeFranqueadoId: franqueadoRedeId,
+            titulo: tituloAuto,
+            nomeCondominio: nomeCondominio.trim() || undefined,
+            quadra: quadra.trim() || undefined,
+            lote: lote.trim() || undefined,
+            ...(origemHipoteseDireta ? { origemTipo: 'hipotese_direta' as const } : {}),
+          })
+        : await criarCard({
+            titulo: tituloAuto,
+            kanban_nome: kanbanNome,
+            fase_id: faseId,
+            basePath,
+            nomeCondominio: nomeCondominio.trim() || undefined,
+            quadra: quadra.trim() || undefined,
+            lote: lote.trim() || undefined,
+            redeFranqueadoId: franqueadoRedeId,
+            ...(origemHipoteseDireta ? { origemTipo: 'hipotese_direta' as const } : {}),
+          });
 
       if (!res.ok) throw new Error(res.error);
 
