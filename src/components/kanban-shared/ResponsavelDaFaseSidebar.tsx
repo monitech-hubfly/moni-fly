@@ -1,57 +1,38 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { upsertFaseChecklistResposta } from '@/lib/actions/card-actions';
 import { UsuarioChecklistSelect } from '@/components/kanban-shared/UsuarioChecklistSelect';
 import {
-  RESPONSAVEL_DA_FASE_TIPO_FRANQUEADO,
-  RESPONSAVEL_DA_FASE_TIPO_MONI,
-  buscarItensResponsavelDaFaseEdicao,
+  buscarItemIdResponsavelDaFaseEdicao,
   isValorUsuarioUuid,
+  resolverProfileIdPorValorChecklistUsuario,
 } from '@/lib/kanban/responsavel-fase-checklist';
-
-type TipoResponsavelDaFase = 'franqueado' | 'moni' | '';
 
 type Props = {
   cardId: string;
   faseId: string;
   nomeFranqueadoRede?: string | null;
-  /** Catálogo Moní (profiles) para opção Moní. */
-  opcoesMoni?: { id: string; nome: string }[];
+  opcoes?: { id: string; nome: string }[];
   readOnly?: boolean;
 };
 
-function parseTipoValor(valor: string | null | undefined): TipoResponsavelDaFase {
-  const v = String(valor ?? '').trim();
-  if (v === RESPONSAVEL_DA_FASE_TIPO_FRANQUEADO) return 'franqueado';
-  if (v === RESPONSAVEL_DA_FASE_TIPO_MONI) return 'moni';
-  return '';
-}
-
-function tipoParaValor(tipo: TipoResponsavelDaFase): string {
-  if (tipo === 'franqueado') return RESPONSAVEL_DA_FASE_TIPO_FRANQUEADO;
-  if (tipo === 'moni') return RESPONSAVEL_DA_FASE_TIPO_MONI;
-  return '';
-}
-
-function normalizarUuid(valor: string | null | undefined): string {
+function normalizarValorUsuario(valor: string | null | undefined): string {
   const v = String(valor ?? '').trim();
   return v && isValorUsuarioUuid(v) ? v : '';
 }
 
-/** «Responsável da fase» — Franqueado (rede) ou Moní (time). */
+/** Campo «Responsável da fase» no painel lateral — mesma lista do responsável do card. */
 export function ResponsavelDaFaseSidebar({
   cardId,
   faseId,
   nomeFranqueadoRede = null,
-  opcoesMoni = [],
+  opcoes,
   readOnly = false,
 }: Props) {
-  const [tipoItemId, setTipoItemId] = useState<string | null>(null);
-  const [usuarioItemId, setUsuarioItemId] = useState<string | null>(null);
-  const [tipo, setTipo] = useState<TipoResponsavelDaFase>('');
-  const [usuarioMoni, setUsuarioMoni] = useState('');
+  const [itemId, setItemId] = useState<string | null>(null);
+  const [valor, setValor] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [carregando, setCarregando] = useState(true);
 
@@ -67,37 +48,43 @@ export function ResponsavelDaFaseSidebar({
     void (async () => {
       setCarregando(true);
       const supabase = createClient();
-      const itens = await buscarItensResponsavelDaFaseEdicao(supabase, faseId);
 
-      if (!itens.tipoItemId || !itens.usuarioItemId) {
+      const iid = (await buscarItemIdResponsavelDaFaseEdicao(supabase, faseId)) ?? '';
+      if (!iid) {
         if (!cancelado) {
-          setTipoItemId(null);
-          setUsuarioItemId(null);
-          setTipo('');
-          setUsuarioMoni('');
+          setItemId(null);
+          setValor('');
           setCarregando(false);
         }
         return;
       }
 
-      const { data: respostas } = await supabase
+      const { data: resp } = await supabase
         .from('kanban_fase_checklist_respostas')
-        .select('item_id, valor')
+        .select('valor')
         .eq('card_id', cardId)
-        .in('item_id', [itens.tipoItemId, itens.usuarioItemId]);
+        .eq('item_id', iid)
+        .maybeSingle();
 
-      const map = new Map(
-        ((respostas ?? []) as { item_id: string; valor?: string | null }[]).map((r) => [
-          r.item_id,
-          r.valor,
-        ]),
-      );
+      const valorBruto = (resp as { valor?: string | null } | null)?.valor;
+      let valorAtual = normalizarValorUsuario(valorBruto);
+
+      if (!valorAtual) {
+        const resolvido = await resolverProfileIdPorValorChecklistUsuario(supabase, valorBruto);
+        if (resolvido) {
+          valorAtual = resolvido;
+          await upsertFaseChecklistResposta({
+            item_id: iid,
+            card_id: cardId,
+            valor: resolvido,
+            arquivo_path: null,
+          });
+        }
+      }
 
       if (!cancelado) {
-        setTipoItemId(itens.tipoItemId);
-        setUsuarioItemId(itens.usuarioItemId);
-        setTipo(parseTipoValor(map.get(itens.tipoItemId) as string | null | undefined));
-        setUsuarioMoni(normalizarUuid(map.get(itens.usuarioItemId) as string | null | undefined));
+        setItemId(iid);
+        setValor(valorAtual);
         setCarregando(false);
       }
     })();
@@ -107,156 +94,83 @@ export function ResponsavelDaFaseSidebar({
     };
   }, [cardId, faseId]);
 
-  async function persistir(patch: {
-    tipo?: TipoResponsavelDaFase;
-    usuarioMoni?: string;
-  }) {
-    if (!tipoItemId || !usuarioItemId || readOnly) return;
-
-    const nextTipo = patch.tipo !== undefined ? patch.tipo : tipo;
-    const nextUsuario =
-      patch.usuarioMoni !== undefined ? normalizarUuid(patch.usuarioMoni) : usuarioMoni;
-
+  async function salvar(userId: string) {
+    if (!itemId || readOnly) return;
+    const uid = normalizarValorUsuario(userId);
+    setValor(uid);
     setSalvando(true);
-    try {
-      if (patch.tipo !== undefined) {
-        setTipo(nextTipo);
-        if (nextTipo === 'franqueado') {
-          setUsuarioMoni('');
-        }
-      }
-      if (patch.usuarioMoni !== undefined) {
-        setUsuarioMoni(nextUsuario);
-      }
-
-      await upsertFaseChecklistResposta({
-        item_id: tipoItemId,
-        card_id: cardId,
-        valor: tipoParaValor(nextTipo) || null,
-        arquivo_path: null,
-      });
-
-      const valorUsuario =
-        nextTipo === 'moni' ? nextUsuario || null : null;
-      await upsertFaseChecklistResposta({
-        item_id: usuarioItemId,
-        card_id: cardId,
-        valor: valorUsuario,
-        arquivo_path: null,
-      });
-    } finally {
-      setSalvando(false);
-    }
+    await upsertFaseChecklistResposta({
+      item_id: itemId,
+      card_id: cardId,
+      valor: uid || null,
+      arquivo_path: null,
+    });
+    setSalvando(false);
   }
-
-  async function selecionarTipo(novo: TipoResponsavelDaFase) {
-    if (readOnly || novo === tipo) return;
-    await persistir({ tipo: novo, usuarioMoni: novo === 'franqueado' ? '' : usuarioMoni });
-  }
-
-  const labelFranqueado = useMemo(() => {
-    if (nomeRede) return nomeRede;
-    return 'Franqueado não vinculado ao card';
-  }, [nomeRede]);
 
   if (carregando) {
-    return <p className="text-[10px] text-stone-400">Carregando…</p>;
+    return <p className="text-[10px] text-stone-400">Carregando responsável…</p>;
   }
 
-  if (!tipoItemId || !usuarioItemId) {
+  if (!itemId) {
     return (
       <p className="text-[10px] text-stone-400">
-        Campo não configurado nesta fase. Aplique a migration 403 no Supabase.
+        Campo não configurado nesta fase. Aplique a migration 404 no Supabase.
       </p>
     );
   }
 
-  const btnBase =
-    'flex-1 rounded-[var(--moni-radius-md)] border px-2 py-1.5 text-[10px] font-semibold transition min-h-[44px]';
-  const btnAtivo = `${btnBase} border-[var(--moni-navy-800)] bg-[var(--moni-navy-800)] text-white`;
-  const btnInativo = `${btnBase} border-[var(--moni-border-default)] bg-white text-[var(--moni-text-secondary)] hover:bg-[var(--moni-surface-50)]`;
+  if (readOnly) {
+    return (
+      <p className="text-[11px] text-stone-700">
+        {valor ? (
+          <ResponsavelDaFaseSidebarReadonly userId={valor} fallbackNome={nomeRede} />
+        ) : nomeRede ? (
+          nomeRede
+        ) : (
+          <span className="text-stone-400">Não definido</span>
+        )}
+      </p>
+    );
+  }
 
   return (
-    <div className="space-y-2">
-      <div className="flex gap-1" role="group" aria-label="Tipo de responsável da fase">
-        <button
-          type="button"
-          disabled={readOnly || salvando}
-          className={tipo === 'franqueado' ? btnAtivo : btnInativo}
-          onClick={() => void selecionarTipo('franqueado')}
-        >
-          Franqueado
-        </button>
-        <button
-          type="button"
-          disabled={readOnly || salvando}
-          className={tipo === 'moni' ? btnAtivo : btnInativo}
-          onClick={() => void selecionarTipo('moni')}
-        >
-          Moní
-        </button>
-      </div>
-
-      {!tipo ? (
-        <p className="text-[10px] text-[var(--moni-text-tertiary)]">Selecione Franqueado ou Moní.</p>
-      ) : null}
-
-      {tipo === 'franqueado' ? (
-        <p className="text-[11px] text-[var(--moni-text-secondary)]">{labelFranqueado}</p>
-      ) : null}
-
-      {tipo === 'moni' ? (
-        readOnly ? (
-          <ResponsavelDaFaseMoniReadonly userId={usuarioMoni} opcoes={opcoesMoni} />
-        ) : (
-          <UsuarioChecklistSelect
-            label=""
-            value={usuarioMoni}
-            salvando={salvando}
-            opcoes={opcoesMoni}
-            placeholder="Selecione o responsável Moní…"
-            menuPortal
-            onChange={(v) => void persistir({ usuarioMoni: v })}
-          />
-        )
-      ) : null}
-    </div>
+    <UsuarioChecklistSelect
+      label=""
+      value={valor}
+      salvando={salvando}
+      opcoes={opcoes}
+      placeholder="Selecione o responsável…"
+      selectedLabelOverride={!valor && nomeRede ? nomeRede : undefined}
+      menuPortal
+      onChange={(v) => void salvar(v)}
+    />
   );
 }
 
-function ResponsavelDaFaseMoniReadonly({
+function ResponsavelDaFaseSidebarReadonly({
   userId,
-  opcoes,
+  fallbackNome = null,
 }: {
   userId: string;
-  opcoes: { id: string; nome: string }[];
+  fallbackNome?: string | null;
 }) {
-  const hit = opcoes.find((o) => o.id === userId);
-  if (hit?.nome) return <span className="text-[11px] text-stone-700">{hit.nome}</span>;
-  return <ResponsavelDaFaseMoniReadonlyProfile userId={userId} />;
-}
-
-function ResponsavelDaFaseMoniReadonlyProfile({ userId }: { userId: string }) {
   const [nome, setNome] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!userId) {
-      setNome(null);
-      return;
-    }
     let cancelado = false;
     void (async () => {
       const supabase = createClient();
       const { data } = await supabase.from('profiles').select('full_name').eq('id', userId).maybeSingle();
       if (!cancelado) {
-        setNome(String((data as { full_name?: string | null } | null)?.full_name ?? '').trim() || userId.slice(0, 8));
+        const fn = String((data as { full_name?: string | null } | null)?.full_name ?? '').trim();
+        setNome(fn || String(fallbackNome ?? '').trim() || userId.slice(0, 8));
       }
     })();
     return () => {
       cancelado = true;
     };
-  }, [userId]);
+  }, [userId, fallbackNome]);
 
-  if (!userId) return <span className="text-stone-400">Não definido</span>;
-  return <span className="text-[11px] text-stone-700">{nome ?? '…'}</span>;
+  return <span>{nome ?? '…'}</span>;
 }

@@ -5904,7 +5904,7 @@ export function KanbanCardModal({
                     cardId={card.id}
                     faseId={faseIdResponsavelPainel}
                     nomeFranqueadoRede={rede?.nome_completo ?? null}
-                    opcoesMoni={responsaveisFiltroOpcoesModal}
+                    opcoes={responsaveisOpcoes}
                     readOnly={ocultarGestaoCard}
                   />
                 </PainelLateralSecao>
