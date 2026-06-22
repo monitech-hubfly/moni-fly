@@ -134,7 +134,7 @@ function CalculadoraResumoExecutivo({
             className="text-[10px] text-[var(--moni-text-tertiary)]"
             style={{ fontFamily: 'var(--moni-font-sans)' }}
           >
-            Progresso no funil
+            Progresso na esteira
           </span>
           <span
             className="text-[10px] font-medium text-[var(--moni-text-secondary)]"
@@ -190,7 +190,7 @@ export function KanbanCardModalCalculadoraFases({
   if (linhas.length === 0) {
     return (
       <p className="text-[11px] text-[var(--moni-text-tertiary)]" style={{ fontFamily: 'var(--moni-font-sans)' }}>
-        Nenhuma fase configurada para este kanban.
+        Nenhuma fase configurada para a esteira principal.
       </p>
     );
   }
@@ -219,11 +219,22 @@ export function KanbanCardModalCalculadoraFases({
               : 'max-h-72 space-y-1.5 overflow-y-auto pr-0.5'
           }
         >
-          {linhas.map((row) => {
+          {linhas.map((row, idx) => {
             const isAtual = row.faseId === faseAtualId;
+            const funilAnterior = idx > 0 ? linhas[idx - 1]?.funilLabel : undefined;
+            const mostrarCabecalhoFunil = row.funilLabel && row.funilLabel !== funilAnterior;
+
             return (
+              <div key={row.faseId}>
+                {mostrarCabecalhoFunil ? (
+                  <p
+                    className="mb-1 mt-2 first:mt-0 text-[10px] font-semibold uppercase tracking-wide text-[var(--moni-text-secondary)]"
+                    style={{ fontFamily: 'var(--moni-font-sans)' }}
+                  >
+                    {row.funilLabel}
+                  </p>
+                ) : null}
               <div
-                key={row.faseId}
                 className="rounded-[var(--moni-radius-md)] px-2 py-1.5"
                 style={{
                   border: isAtual
@@ -268,6 +279,7 @@ export function KanbanCardModalCalculadoraFases({
                     </div>
                   ) : null}
                 </dl>
+              </div>
               </div>
             );
           })}

@@ -257,6 +257,11 @@ import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
 import { calcularLinhasCalculadoraFases, calcularResumoExecutivoCalculadoraFases } from '@/lib/kanban/calculadora-fases';
 import {
+  calcularLinhasCalculadoraFasesEsteira,
+  fetchCalculadoraEsteiraFasesMap,
+  mesclarFasesKanbanAtualNoMapa,
+} from '@/lib/kanban/calculadora-fases-esteira';
+import {
   buildLegadoFaseTimeline,
   buildLegadoFaseVisits,
   buildNativeFaseTimeline,
@@ -478,6 +483,7 @@ export function KanbanCardModal({
   const [gerandoLink, setGerandoLink] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
   const [fases, setFases] = useState<KanbanFase[]>(fasesProp ?? []);
+  const [fasesEsteiraCalculadora, setFasesEsteiraCalculadora] = useState<Map<string, KanbanFase[]>>(new Map());
   const [faseAtual, setFaseAtual] = useState<KanbanFase | null>(null);
   const [secaoAberta, setSecaoAberta] = useState<Record<SecaoEsquerdaId, boolean>>({
     calculadora: false,
@@ -862,6 +868,22 @@ export function KanbanCardModal({
   useEffect(() => {
     if (fasesProp?.length) setFases(fasesProp);
   }, [fasesProp]);
+
+  useEffect(() => {
+    if (!card) {
+      setFasesEsteiraCalculadora(new Map());
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const map = await fetchCalculadoraEsteiraFasesMap(supabase);
+      if (!cancelled) setFasesEsteiraCalculadora(map);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [card?.id]);
 
   useEffect(() => {
     if (!editingComentarioId) return;
@@ -3097,7 +3119,7 @@ export function KanbanCardModal({
   }, [card, fases, historico, legadoCronologiaMoves, origem]);
 
   const calculadoraFasesPack = useMemo(() => {
-    if (!card || fases.length === 0) return { linhas: [], visits: [] };
+    if (!card) return { linhas: [], visits: [] };
     try {
       const historicoMovs = historico.map((h) => ({
         acao: h.acao,
@@ -3120,6 +3142,32 @@ export function KanbanCardModal({
               { created_at: card.created_at, fase_id: card.fase_id },
               historicoMovs,
             );
+
+      const fasesEsteiraMap = mesclarFasesKanbanAtualNoMapa(
+        fasesEsteiraCalculadora,
+        card.kanban_id,
+        fases,
+      );
+
+      const linhasEsteira = calcularLinhasCalculadoraFasesEsteira({
+        fasesPorKanban: fasesEsteiraMap,
+        cardKanbanId: card.kanban_id,
+        card: {
+          fase_id: card.fase_id,
+          created_at: card.created_at,
+          entered_fase_at: card.entered_fase_at,
+          concluido: card.concluido,
+          concluido_em: card.concluido_em,
+        },
+        visits,
+      });
+
+      if (linhasEsteira.length > 0) {
+        return { linhas: linhasEsteira, visits };
+      }
+
+      if (fases.length === 0) return { linhas: [], visits: [] };
+
       const linhas = calcularLinhasCalculadoraFases({
         fases,
         card: {
@@ -3135,7 +3183,7 @@ export function KanbanCardModal({
     } catch {
       return { linhas: [], visits: [] };
     }
-  }, [card, fases, historico, legadoCronologiaMoves, origem]);
+  }, [card, fases, fasesEsteiraCalculadora, historico, legadoCronologiaMoves, origem]);
 
   const calculadoraResumo = useMemo(
     () =>

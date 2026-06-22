@@ -18,6 +18,8 @@ export type CalculadoraFaseLinha = {
   /** Atraso na unidade do SLA da fase (d.u. ou d.c.). */
   atrasoDias: number | null;
   status: FaseTimelineStatus;
+  /** Funil da esteira principal (Step One / Portfólio / Pré Obra e Obra). */
+  funilLabel?: string;
 };
 
 export type CalculadoraStatusGeral = 'ok' | 'atencao' | 'atrasado' | 'concluido';
