@@ -52,7 +52,7 @@ function PipelineUnidadeCardsTabela({ titulo, grupos, enrichment, onCardClick }:
 
   const toggleParalelos = (anchorId: string, e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
-    setParalelosAbertos((prev) => ({ ...prev, [anchorId]: !(prev[anchorId] ?? true) }));
+    setParalelosAbertos((prev) => ({ ...prev, [anchorId]: !(prev[anchorId] ?? false) }));
   };
 
   return (
@@ -92,7 +92,7 @@ function PipelineUnidadeCardsTabela({ titulo, grupos, enrichment, onCardClick }:
               const paralelosCount = grupo.cards.filter((c) => isFunilParaleloEsteira(c.kanban_id)).length;
               const subLinhas = linhasSubesteiraParalelaDoGrupo(grupo.cards);
               const temParalelos = subLinhas.length > 0;
-              const paralelosExpandidos = paralelosAbertos[card.id] ?? true;
+              const paralelosExpandidos = paralelosAbertos[card.id] ?? false;
 
               const abrirCard = (c: PipelineCardDisplay) => onCardClick(c);
 

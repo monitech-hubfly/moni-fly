@@ -29,7 +29,7 @@ type Props = {
 };
 
 export function PipelineUnidadeProjetoBloco({ grupo, enrichment, onCardClick }: Props) {
-  const [paralelosExpandidos, setParalelosExpandidos] = useState(true);
+  const [paralelosExpandidos, setParalelosExpandidos] = useState(false);
 
   const anchorCard =
     grupo.cards.find((c) => isFunilEsteiraPrincipal(c.kanban_id)) ??
