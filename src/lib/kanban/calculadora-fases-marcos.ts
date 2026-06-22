@@ -43,6 +43,8 @@ const MARCO_DEFS: {
     id: 'M0',
     label: 'Contrato',
     funilLabel: 'Funil Portfólio',
+    custo:
+      'Franqueado: pode assumir custos do terreno aqui ou em Processos Cartorários (transferência)',
     anchor: 'after',
     match: (slug, nome) =>
       slug === FASE_SLUGS.STEP_7 || /^contrato$/i.test(nome.trim()),

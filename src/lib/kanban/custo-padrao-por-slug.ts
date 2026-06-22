@@ -5,6 +5,8 @@
 export const CUSTO_PADRAO_POR_SLUG: Record<string, string> = {
   // Funil Portfólio
   step_6: 'Franqueado: Forn. homologado',
+  step_7:
+    'Franqueado: pode assumir custos do terreno aqui ou em Processos Cartorários (transferência)',
 
   // Funil Contabilidade
   contabilidade_incorporadora: 'Franqueado: Todos os custos contábeis',
@@ -15,7 +17,8 @@ export const CUSTO_PADRAO_POR_SLUG: Record<string, string> = {
   planialtimetrico: 'Franqueado',
   aprovacao_condominio: 'Franqueado',
   aprovacao_prefeitura: 'Franqueado',
-  processos_cartorarios: 'Franqueado',
+  processos_cartorarios:
+    'Franqueado: ITBI + registros, pode assumir custos do terreno aqui ou em Contrato',
 };
 
 export function custoPadraoPorSlug(slug: string | null | undefined): string | null {
