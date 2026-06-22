@@ -389,6 +389,10 @@
   border: 0.5px solid var(--moni-border-default);
 }
 
+.moni-calculadora-progress-track--compact {
+  height: 4px;
+}
+
 .moni-calculadora-progress-fill {
   height: 100%;
   border-radius: var(--moni-radius-pill);
