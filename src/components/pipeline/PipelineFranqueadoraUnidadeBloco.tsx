@@ -130,30 +130,32 @@ function PipelineUnidadeCardsTabela({ titulo, grupos, enrichment, onCardClick }:
                     <PipelineTabelaCelulaTempo card={card} />
                     <td className="py-2 pr-2">
                       <PipelineEsteiraTresFunis card={card} siblingCards={grupo.cards} enrichment={enrichment} />
-                      {temParalelos ? (
-                        <button
-                          type="button"
-                          onClick={(e) => toggleParalelos(card.id, e)}
-                          className="mt-1.5 inline-flex min-h-[28px] items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium transition hover:bg-[var(--moni-surface-50)]"
-                          style={{
-                            color: 'var(--moni-text-tertiary)',
-                            border: '0.5px solid var(--moni-border-default)',
-                            borderRadius: 'var(--moni-radius-md)',
-                          }}
-                          aria-expanded={paralelosExpandidos}
-                        >
-                          <ChevronDown
-                            className="h-3 w-3 shrink-0"
-                            style={{
-                              transform: paralelosExpandidos ? 'rotate(180deg)' : 'rotate(0deg)',
-                            }}
-                          />
-                          {paralelosExpandidos ? 'Ocultar' : 'Mostrar'} paralelas ({subLinhas.length})
-                        </button>
-                      ) : null}
                     </td>
-                    <td className="py-2 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                      Detalhe →
+                    <td className="py-2 align-top text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span className="whitespace-nowrap">Detalhe →</span>
+                        {temParalelos ? (
+                          <button
+                            type="button"
+                            onClick={(e) => toggleParalelos(card.id, e)}
+                            className="inline-flex min-h-[22px] items-center gap-0.5 rounded px-1 py-px text-[8px] font-medium leading-tight transition hover:bg-[var(--moni-surface-50)]"
+                            style={{
+                              color: 'var(--moni-text-tertiary)',
+                              border: '0.5px solid var(--moni-border-default)',
+                              borderRadius: 'var(--moni-radius-md)',
+                            }}
+                            aria-expanded={paralelosExpandidos}
+                          >
+                            <ChevronDown
+                              className="h-2.5 w-2.5 shrink-0"
+                              style={{
+                                transform: paralelosExpandidos ? 'rotate(180deg)' : 'rotate(0deg)',
+                              }}
+                            />
+                            {paralelosExpandidos ? 'Ocultar' : 'Mostrar'} ({subLinhas.length})
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
 
