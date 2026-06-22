@@ -1,5 +1,5 @@
 import type { KanbanFase } from '@/components/kanban-shared/types';
-import { calcularDiasCorridos, formatLocalYmd, parseIsoDateOnlyLocal, normalizarSlaTipo, type SlaTipo } from '@/lib/dias-uteis';
+import { calcularDiasCorridos, formatLocalYmd, isDiaUtil, parseIsoDateOnlyLocal, normalizarSlaTipo, type SlaTipo } from '@/lib/dias-uteis';
 import { addBusinessDays, type FaseTimelineStatus } from '@/lib/kanban/previsibilidade-operacoes';
 import { lastVisitPerFase, type FaseVisit } from '@/lib/kanban/kanban-card-timeline';
 
@@ -154,6 +154,22 @@ function toYmd(iso: string | null | undefined): string | null {
   return /^\d{4}-\d{2}-\d{2}$/.test(head) ? head : null;
 }
 
+/** Primeiro dia útil na data ou após (seg–sex). */
+function primeiroDiaUtilDe(ymd: string): string {
+  const parsed = parseIsoDateOnlyLocal(ymd);
+  if (!parsed) return ymd;
+  const cur = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  while (!isDiaUtil(cur)) {
+    cur.setDate(cur.getDate() + 1);
+  }
+  return formatLocalYmd(cur);
+}
+
+function inicioPorFimFaseAnterior(fimReal: string | null, fimEstimado: string | null): string | null {
+  const fim = fimReal ?? fimEstimado;
+  return fim ? primeiroDiaUtilDe(fim) : null;
+}
+
 function hojeYmd(ref?: Date): string {
   const d = ref ?? new Date();
   return formatLocalYmd(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -277,30 +293,37 @@ export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): Ca
     const faseAtual = sorted.find((f) => f.id === card.fase_id);
     const ordemAtual = faseAtual?.ordem ?? Number.MAX_SAFE_INTEGER;
 
-    let chainCursor: string | null = toYmd(card.created_at);
+    const linhas: CalculadoraFaseLinha[] = [];
+    let fimFaseAnteriorReal: string | null = null;
+    let fimFaseAnteriorEstimado: string | null = null;
 
-    return sorted.map((fase) => {
+    for (const fase of sorted) {
       const last = lastByFase.get(fase.id);
-      let dataInicioReal = toYmd(last?.entrou);
-
-      if (!dataInicioReal && fase.id === card.fase_id) {
-        dataInicioReal = toYmd(card.entered_fase_at) ?? toYmd(card.created_at);
-      }
 
       let dataFimReal = toYmd(last?.saiu);
       if (!dataFimReal && fase.id === card.fase_id && card.concluido && card.concluido_em) {
         dataFimReal = toYmd(card.concluido_em);
       }
 
-      let baseInicio = dataInicioReal ?? chainCursor;
-      if (!baseInicio && fase.ordem === sorted[0]?.ordem) {
-        baseInicio = toYmd(card.created_at);
+      let dataInicioReal = inicioPorFimFaseAnterior(fimFaseAnteriorReal, fimFaseAnteriorEstimado);
+
+      if (!dataInicioReal) {
+        dataInicioReal = toYmd(last?.entrou);
+        if (!dataInicioReal && fase.id === card.fase_id) {
+          dataInicioReal = toYmd(card.entered_fase_at) ?? toYmd(card.created_at);
+        }
+        if (!dataInicioReal && fase.ordem === sorted[0]?.ordem) {
+          dataInicioReal = toYmd(card.created_at);
+        }
+        if (dataInicioReal) {
+          dataInicioReal = primeiroDiaUtilDe(dataInicioReal);
+        }
       }
 
       const slaTipo = normalizarSlaTipo(fase.sla_tipo);
-      const dataFimEstimada = baseInicio ? fimEstimadaPorSla(baseInicio, fase.sla_dias, slaTipo) : null;
-
-      chainCursor = dataFimReal ?? dataFimEstimada ?? chainCursor;
+      const dataFimEstimada = dataInicioReal
+        ? fimEstimadaPorSla(dataInicioReal, fase.sla_dias, slaTipo)
+        : null;
 
       const status = resolveStatus(
         fase.id,
@@ -315,7 +338,7 @@ export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): Ca
 
       const atrasoDias = resolveAtraso(status, dataFimEstimada, dataFimReal, hoje, slaTipo);
 
-      return {
+      linhas.push({
         faseId: fase.id,
         faseNome: fase.nome,
         ordem: fase.ordem,
@@ -327,8 +350,13 @@ export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): Ca
         dataFimReal,
         atrasoDias,
         status,
-      };
-    });
+      });
+
+      fimFaseAnteriorReal = dataFimReal;
+      fimFaseAnteriorEstimado = dataFimEstimada;
+    }
+
+    return linhas;
   } catch {
     return [];
   }
