@@ -3902,7 +3902,9 @@ export function KanbanCardModal({
         <div className="flex h-full w-full flex-col sm:flex-row" style={{ paddingTop: '70px' }}>
           {/* Centro — conteúdo principal (mobile: primeiro) */}
           <div
-            className="moni-card-modal-center order-1 flex h-full min-h-0 flex-1 flex-col overflow-y-auto p-6 sm:order-2 sm:min-w-0"
+            className={`moni-card-modal-center order-1 flex h-full min-h-0 flex-1 flex-col p-6 sm:order-2 sm:min-w-0 ${
+              abaCentro === 'calculadora' ? 'overflow-hidden' : 'overflow-y-auto'
+            }`}
             style={{ background: 'var(--moni-surface-0)' }}
           >
             {!painelCentroAlternativo ? (
@@ -4953,17 +4955,17 @@ export function KanbanCardModal({
             </div>
             </>
             ) : abaCentro === 'calculadora' ? (
-            <>
+            <div className="flex min-h-0 flex-1 flex-col">
               <button
                 type="button"
                 onClick={voltarPainelDetalhes}
-                className="mb-4 inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-stone-700 shadow-sm transition hover:bg-stone-50"
+                className="mb-4 inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-stone-700 shadow-sm transition hover:bg-stone-50"
               >
                 <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
                 Voltar
               </button>
               <div className="flex min-h-0 flex-1 flex-col">
-                <h4 className="mb-3 text-sm font-semibold" style={{ color: 'var(--moni-text-secondary)' }}>
+                <h4 className="mb-3 shrink-0 text-sm font-semibold" style={{ color: 'var(--moni-text-secondary)' }}>
                   Calculadora
                   {calculadoraResumo.fasesTotal > 0 ? (
                     <span className="ml-2 text-xs font-normal text-stone-500">
@@ -4973,7 +4975,7 @@ export function KanbanCardModal({
                   ) : null}
                 </h4>
                 <div
-                  className="min-h-0 flex-1 rounded-lg bg-white p-4"
+                  className="flex min-h-0 flex-1 flex-col rounded-lg bg-white p-4"
                   style={{
                     border: '0.5px solid var(--moni-border-default)',
                     boxShadow: 'var(--moni-shadow-sm)',
@@ -4988,7 +4990,7 @@ export function KanbanCardModal({
                   />
                 </div>
               </div>
-            </>
+            </div>
             ) : (
             <>
             {chamadosAbertosCount > 0 ? (

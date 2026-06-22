@@ -87,6 +87,40 @@ export function montarFasesCalculadoraEsteira(
   return result;
 }
 
+function aplicarOrdemRelativaFaseAtual(
+  linhas: CalculadoraFaseLinha[],
+  meta: CalculadoraFaseEsteiraMeta[],
+  cardFaseId: string,
+): CalculadoraFaseLinha[] {
+  const ordemPorFase = new Map(meta.map((m) => [m.id, m.ordemGlobal]));
+  const ordemAtual = ordemPorFase.get(cardFaseId);
+  if (ordemAtual == null) return linhas;
+
+  return linhas.map((linha) => {
+    if (linha.faseId === cardFaseId) return linha;
+    const ordem = ordemPorFase.get(linha.faseId) ?? linha.ordem;
+
+    if (ordem < ordemAtual) {
+      if (linha.status === 'futura' || linha.status === 'atual' || linha.status === 'atual_atrasada') {
+        return { ...linha, status: 'concluida', atrasoDias: null };
+      }
+      return linha;
+    }
+
+    if (ordem > ordemAtual && linha.status !== 'concluida' && linha.status !== 'concluida_atraso') {
+      return {
+        ...linha,
+        status: 'futura',
+        dataInicioReal: linha.status === 'atual' || linha.status === 'atual_atrasada' ? linha.dataInicioReal : null,
+        dataFimReal: null,
+        atrasoDias: null,
+      };
+    }
+
+    return linha;
+  });
+}
+
 function aplicarRegrasSegmentoEsteira(
   linhas: CalculadoraFaseLinha[],
   meta: CalculadoraFaseEsteiraMeta[],
@@ -179,7 +213,8 @@ export function calcularLinhasCalculadoraFasesEsteira(input: {
     hoje: input.hoje,
   });
 
-  return aplicarRegrasSegmentoEsteira(linhas, meta, segmentoCard);
+  const comSegmento = aplicarRegrasSegmentoEsteira(linhas, meta, segmentoCard);
+  return aplicarOrdemRelativaFaseAtual(comSegmento, meta, input.card.fase_id);
 }
 
 /** Mescla fases já carregadas do kanban atual no mapa (fallback enquanto busca a esteira). */

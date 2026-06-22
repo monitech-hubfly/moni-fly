@@ -65,8 +65,8 @@ export const CALCULADORA_STATUS_LABEL: Record<FaseTimelineStatus, string> = {
   futura: 'Futura',
   atual: 'Em andamento',
   atual_atrasada: 'Em andamento (atraso)',
-  concluida: 'Concluída',
-  concluida_atraso: 'Concluída com atraso',
+  concluida: 'Passada',
+  concluida_atraso: 'Passada (atraso)',
 };
 
 export const CALCULADORA_STATUS_GERAL_LABEL: Record<CalculadoraStatusGeral, string> = {
@@ -220,25 +220,22 @@ function resolveStatus(
     return 'atual';
   }
 
-  if (dataFimReal) {
-    if (dataFimEstimada && dataFimReal > dataFimEstimada) return 'concluida_atraso';
-    return 'concluida';
-  }
-
-  if (dataInicioReal && faseOrdem < ordemAtual) {
-    return 'concluida';
-  }
-
-  if (faseOrdem > ordemAtual && !dataInicioReal) {
-    return 'futura';
-  }
-
   if (isCurrent && !cardAtivo) {
     if (dataFimEstimada && card.concluido_em) {
       const fim = toYmd(card.concluido_em);
       if (fim && fim > dataFimEstimada) return 'concluida_atraso';
     }
     return 'concluida';
+  }
+
+  /** Fases anteriores à atual na ordem do funil já foram percorridas — nunca "futura". */
+  if (faseOrdem < ordemAtual) {
+    if (dataFimReal && dataFimEstimada && dataFimReal > dataFimEstimada) return 'concluida_atraso';
+    return 'concluida';
+  }
+
+  if (faseOrdem > ordemAtual) {
+    return 'futura';
   }
 
   return 'futura';

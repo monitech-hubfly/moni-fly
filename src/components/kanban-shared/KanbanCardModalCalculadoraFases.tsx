@@ -175,6 +175,76 @@ function CalculadoraResumoExecutivo({
   );
 }
 
+function agruparLinhasPorFunil(linhas: CalculadoraFaseLinha[]): { label: string; linhas: CalculadoraFaseLinha[] }[] {
+  const grupos: { label: string; linhas: CalculadoraFaseLinha[] }[] = [];
+  for (const row of linhas) {
+    const label = row.funilLabel ?? 'Fases';
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo && ultimo.label === label) ultimo.linhas.push(row);
+    else grupos.push({ label, linhas: [row] });
+  }
+  return grupos;
+}
+
+function CalculadoraFaseCard({
+  row,
+  faseAtualId,
+}: {
+  row: CalculadoraFaseLinha;
+  faseAtualId: string | null;
+}) {
+  const isAtual = row.faseId === faseAtualId;
+
+  return (
+    <div
+      className="rounded-[var(--moni-radius-md)] px-2 py-1.5"
+      style={{
+        border: isAtual
+          ? '0.5px solid var(--moni-navy-800)'
+          : '0.5px solid var(--moni-border-default)',
+        background: isAtual ? 'var(--moni-surface-100, #fafaf9)' : 'var(--moni-surface-50)',
+        boxShadow: isAtual ? 'var(--moni-shadow-sm)' : undefined,
+      }}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-1">
+        <span
+          className="text-[11px] font-medium text-[var(--moni-text-primary)]"
+          style={{ fontFamily: 'var(--moni-font-sans)' }}
+        >
+          {row.faseNome}
+        </span>
+        <span className={statusClass(row.status)}>{CALCULADORA_STATUS_LABEL[row.status]}</span>
+      </div>
+      <dl className="mt-1 grid grid-cols-1 gap-0.5 text-[10px] sm:grid-cols-2">
+        <div>
+          <dt className="text-[var(--moni-text-tertiary)]">SLA</dt>
+          <dd className="text-[var(--moni-text-secondary)]">{fmtSla(row.slaDias, row.slaTipo)}</dd>
+        </div>
+        <div>
+          <dt className="text-[var(--moni-text-tertiary)]">Início real</dt>
+          <dd className="text-[var(--moni-text-secondary)]">{fmtData(row.dataInicioReal)}</dd>
+        </div>
+        <div>
+          <dt className="text-[var(--moni-text-tertiary)]">Fim estimado</dt>
+          <dd className="text-[var(--moni-text-secondary)]">{fmtData(row.dataFimEstimada)}</dd>
+        </div>
+        <div>
+          <dt className="text-[var(--moni-text-tertiary)]">Fim real</dt>
+          <dd className="text-[var(--moni-text-secondary)]">{fmtData(row.dataFimReal)}</dd>
+        </div>
+        {row.atrasoDias != null && row.atrasoDias > 0 ? (
+          <div className="sm:col-span-2">
+            <dt className="text-[var(--moni-text-tertiary)]">Atraso</dt>
+            <dd className="font-medium text-[var(--moni-status-overdue-text)]">
+              {row.atrasoDias} {row.slaTipo === 'corridos' ? 'd.c.' : 'd.u.'}
+            </dd>
+          </div>
+        ) : null}
+      </dl>
+    </div>
+  );
+}
+
 export function KanbanCardModalCalculadoraFases({
   linhas,
   faseAtualId,
@@ -187,6 +257,8 @@ export function KanbanCardModalCalculadoraFases({
     [linhas, cardConcluido, visits],
   );
 
+  const gruposFunil = useMemo(() => agruparLinhasPorFunil(linhas), [linhas]);
+
   if (linhas.length === 0) {
     return (
       <p className="text-[11px] text-[var(--moni-text-tertiary)]" style={{ fontFamily: 'var(--moni-font-sans)' }}>
@@ -196,10 +268,10 @@ export function KanbanCardModalCalculadoraFases({
   }
 
   return (
-    <div className="space-y-3">
+    <div className={variant === 'painel' ? 'flex h-full min-h-0 flex-col gap-3' : 'space-y-3'}>
       <CalculadoraResumoExecutivo resumo={resumo} />
 
-      <div>
+      <div className={variant === 'painel' ? 'flex min-h-0 flex-1 flex-col' : undefined}>
         <p
           className="mb-1.5 text-[10px] uppercase tracking-wide text-[var(--moni-text-tertiary)]"
           style={{ fontFamily: 'var(--moni-font-sans)' }}
@@ -215,74 +287,30 @@ export function KanbanCardModalCalculadoraFases({
         <div
           className={
             variant === 'painel'
-              ? 'max-h-none space-y-1.5 overflow-y-auto pr-0.5'
-              : 'max-h-72 space-y-1.5 overflow-y-auto pr-0.5'
+              ? 'min-h-0 flex-1 space-y-3 overflow-y-auto pr-0.5'
+              : 'max-h-72 space-y-3 overflow-y-auto pr-0.5'
           }
         >
-          {linhas.map((row, idx) => {
-            const isAtual = row.faseId === faseAtualId;
-            const funilAnterior = idx > 0 ? linhas[idx - 1]?.funilLabel : undefined;
-            const mostrarCabecalhoFunil = row.funilLabel && row.funilLabel !== funilAnterior;
-
-            return (
-              <div key={row.faseId}>
-                {mostrarCabecalhoFunil ? (
-                  <p
-                    className="mb-1 mt-2 first:mt-0 text-[10px] font-semibold uppercase tracking-wide text-[var(--moni-text-secondary)]"
-                    style={{ fontFamily: 'var(--moni-font-sans)' }}
-                  >
-                    {row.funilLabel}
-                  </p>
-                ) : null}
-              <div
-                className="rounded-[var(--moni-radius-md)] px-2 py-1.5"
-                style={{
-                  border: isAtual
-                    ? '0.5px solid var(--moni-navy-800)'
-                    : '0.5px solid var(--moni-border-default)',
-                  background: isAtual ? 'var(--moni-surface-100, #fafaf9)' : 'var(--moni-surface-50)',
-                  boxShadow: isAtual ? 'var(--moni-shadow-sm)' : undefined,
-                }}
+          {gruposFunil.map((grupo) => (
+            <section
+              key={grupo.label}
+              className="moni-calculadora-funil-bloco space-y-1.5 rounded-[var(--moni-radius-lg)] p-2.5"
+              style={{
+                border: '0.5px solid var(--moni-border-default)',
+                background: 'var(--moni-surface-0)',
+              }}
+            >
+              <h5
+                className="text-[10px] font-semibold uppercase tracking-wide text-[var(--moni-text-secondary)]"
+                style={{ fontFamily: 'var(--moni-font-sans)' }}
               >
-                <div className="flex flex-wrap items-start justify-between gap-1">
-                  <span
-                    className="text-[11px] font-medium text-[var(--moni-text-primary)]"
-                    style={{ fontFamily: 'var(--moni-font-sans)' }}
-                  >
-                    {row.faseNome}
-                  </span>
-                  <span className={statusClass(row.status)}>{CALCULADORA_STATUS_LABEL[row.status]}</span>
-                </div>
-                <dl className="mt-1 grid grid-cols-1 gap-0.5 text-[10px] sm:grid-cols-2">
-                  <div>
-                    <dt className="text-[var(--moni-text-tertiary)]">SLA</dt>
-                    <dd className="text-[var(--moni-text-secondary)]">{fmtSla(row.slaDias, row.slaTipo)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[var(--moni-text-tertiary)]">Início real</dt>
-                    <dd className="text-[var(--moni-text-secondary)]">{fmtData(row.dataInicioReal)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[var(--moni-text-tertiary)]">Fim estimado</dt>
-                    <dd className="text-[var(--moni-text-secondary)]">{fmtData(row.dataFimEstimada)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[var(--moni-text-tertiary)]">Fim real</dt>
-                    <dd className="text-[var(--moni-text-secondary)]">{fmtData(row.dataFimReal)}</dd>
-                  </div>
-                  {row.atrasoDias != null && row.atrasoDias > 0 ? (
-                    <div className="sm:col-span-2">
-                      <dt className="text-[var(--moni-text-tertiary)]">Atraso</dt>
-                      <dd className="font-medium text-[var(--moni-status-overdue-text)]">
-                        {row.atrasoDias} {row.slaTipo === 'corridos' ? 'd.c.' : 'd.u.'}
-                      </dd>
-                    </div>
-                  ) : null}
-                </dl>
-              </div>
-              </div>
-            );
-          })}
+                {grupo.label}
+              </h5>
+              {grupo.linhas.map((row) => (
+                <CalculadoraFaseCard key={row.faseId} row={row} faseAtualId={faseAtualId} />
+              ))}
+            </section>
+          ))}
         </div>
       </div>
     </div>
