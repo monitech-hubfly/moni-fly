@@ -383,9 +383,9 @@
   --moni-calc-marco-m0-dot: #185FA5;
   --moni-calc-marco-m0-badge-bg: #EBF3FB;
   --moni-calc-marco-m0-badge-text: #0C447C;
-  --moni-calc-marco-m4-dot: #0F6E56;
-  --moni-calc-marco-m4-badge-bg: #E3F5EF;
-  --moni-calc-marco-m4-badge-text: #085041;
+  --moni-calc-marco-m4-dot: #854F0B;
+  --moni-calc-marco-m4-badge-bg: #FEF3E2;
+  --moni-calc-marco-m4-badge-text: #854F0B;
   --moni-calc-marco-m24-dot: #A32D2D;
   --moni-calc-marco-m24-badge-bg: #FEF6F6;
   --moni-calc-marco-m24-badge-text: #A32D2D;
@@ -465,6 +465,10 @@
 
 .moni-calculadora-resumo {
   font-family: var(--moni-font-sans);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
 }
 
 .moni-calculadora-resumo-badges {
@@ -472,7 +476,8 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 4px;
+  min-height: 18px;
 }
 
 .moni-calculadora-badge-parcial {
@@ -518,19 +523,21 @@
   font-size: 12px;
   font-weight: var(--moni-weight-medium);
   color: var(--moni-text-primary);
-  line-height: 1.3;
+  line-height: 1.25;
 }
 
 .moni-calculadora-resumo-meta {
   font-size: 9px;
   color: var(--moni-text-tertiary);
-  line-height: 1.35;
+  line-height: 1.25;
+  margin-top: 1px;
 }
 
 .moni-calculadora-resumo-progress-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  margin-top: 2px;
 }
 
 .moni-calculadora-resumo-progress-label {
@@ -545,6 +552,9 @@
   grid-template-columns: 1fr 1fr 1fr;
   gap: 0;
   font-size: 10px;
+  margin-top: 2px;
+  padding-top: 4px;
+  border-top: 0.5px solid var(--moni-calc-separator);
 }
 
 .moni-calculadora-resumo-stat {
@@ -597,6 +607,14 @@
   cursor: pointer;
   border: 0.5px solid transparent;
   font-family: var(--moni-font-sans);
+}
+
+.moni-calculadora-fase-row--no-steps {
+  cursor: default;
+}
+
+.moni-calculadora-fase-row:not(.moni-calculadora-fase-row--no-steps):hover {
+  border-color: var(--moni-border-default);
 }
 
 .moni-calculadora-fase-row--futura {
@@ -799,6 +817,8 @@
   border-radius: 6px;
   font-size: 11px;
   font-family: var(--moni-font-sans);
+  cursor: default;
+  pointer-events: none;
 }
 
 .moni-calculadora-marco-label-wrap {
@@ -822,12 +842,14 @@
 .moni-calculadora-marco-label {
   font-weight: 500;
   color: var(--moni-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.moni-calculadora-marco-id {
-  font-size: 9px;
+.moni-calculadora-marco-sep {
   color: var(--moni-text-tertiary);
-  margin-right: 4px;
+  margin: 0 3px;
 }
 
 .moni-calculadora-marco-data {
@@ -915,18 +937,61 @@
   line-height: 1;
 }
 
-.moni-calculadora-funil-group.collapsed .moni-calculadora-funil-chev {
-  transform: rotate(-90deg);
-}
-
 .moni-calculadora-funil-body {
   overflow: hidden;
   max-height: 9999px;
-  transition: max-height 0.3s ease;
+  transition: max-height 0.25s ease;
 }
 
-.moni-calculadora-funil-group.collapsed .moni-calculadora-funil-body {
+.moni-calculadora-funil-group.collapsed .moni-calculadora-funil-body,
+.moni-calculadora-funil-collapsed .moni-calculadora-funil-body {
   max-height: 0;
+}
+
+.moni-calculadora-funil-group.collapsed .moni-calculadora-funil-chev,
+.moni-calculadora-funil-collapsed .moni-calculadora-funil-chev {
+  transform: rotate(-90deg);
+}
+
+.moni-calculadora-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.moni-calculadora-section-title {
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--moni-text-secondary);
+}
+
+.moni-calculadora-share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  min-height: 28px;
+  border-radius: var(--moni-radius-sm, 5px);
+  border: var(--moni-border-width) solid var(--moni-border-secondary, var(--moni-border-default));
+  background: var(--moni-surface-50, var(--moni-bg-secondary));
+  color: var(--moni-text-tertiary);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.moni-calculadora-share-btn:hover:not(:disabled) {
+  background: var(--moni-surface-100, var(--moni-bg-tertiary));
+}
+
+.moni-calculadora-share-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 
 @media (max-width: 640px) {

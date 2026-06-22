@@ -4,9 +4,11 @@
  */
 export const CUSTO_PADRAO_POR_SLUG: Record<string, string> = {
   // Funil Portfólio
-  step_6: 'Franqueado: Forn. homologado',
-  step_7:
-    'Franqueado: pode assumir custos do terreno aqui ou em Processos Cartorários (transferência)',
+  step_3: 'Franqueado: autenticação de documentos e custos administrativos.',
+  opcao: 'Franqueado: autenticação de documentos e custos administrativos.',
+  step_6:
+    'Franqueado: lista obrigatória e complementares: certidões negativas, análises jurídicas, avaliações técnicas, estudos ambientais e despesas administrativas.',
+  step_7: 'Franqueado: autenticação de documentos e custos administrativos.',
 
   // Funil Contabilidade
   contabilidade_incorporadora: 'Franqueado: Todos os custos contábeis',
@@ -14,11 +16,13 @@ export const CUSTO_PADRAO_POR_SLUG: Record<string, string> = {
   contabilidade_gestora: 'Franqueado: Todos os custos contábeis',
 
   // Funil Operações
-  planialtimetrico: 'Franqueado',
-  aprovacao_condominio: 'Franqueado',
-  aprovacao_prefeitura: 'Franqueado',
+  planialtimetrico:
+    'Franqueado: levantamento planialtimétrico, sondagem de solo e análises técnicas do terreno.',
+  aprovacao_condominio: 'Franqueado: registro de responsabilidade técnica do projeto.',
+  aprovacao_prefeitura:
+    'Franqueado: registro de responsabilidade técnica da execução da obra; taxas municipais e protocolos necessários para aprovação de obras.',
   processos_cartorarios:
-    'Franqueado: ITBI + registros, pode assumir custos do terreno aqui ou em Contrato',
+    'Moní: pagamento de entrada · Moní: comissão do corretor · Franqueado: escritura pública, registro de matrícula, autenticações, taxas legais e emissões de documentos.',
 };
 
 export function custoPadraoPorSlug(slug: string | null | undefined): string | null {

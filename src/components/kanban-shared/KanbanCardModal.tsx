@@ -5169,6 +5169,7 @@ export function KanbanCardModal({
                     fasesMeta={calculadoraFasesMeta}
                     marcos={calculadoraMarcosInput}
                     variant="painel"
+                    cardId={card.id}
                   />
                 </div>
               </div>

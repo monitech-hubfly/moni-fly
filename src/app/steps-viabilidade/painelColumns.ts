@@ -78,7 +78,7 @@ export const PAINEL_COLUMNS: PainelColumnDef[] = [
   { key: 'aprovacao_condominio', title: 'Aprovação no Condomínio' },
   { key: 'aprovacao_prefeitura', title: 'Aprovação na Prefeitura' },
   { key: 'revisao_bca', title: 'Revisão do BCA' },
-  { key: 'processos_cartorarios', title: 'Processos Cartorários' },
+  { key: 'processos_cartorarios', title: 'Transferência do Terreno' },
   { key: 'aguardando_credito', title: 'Aguardando Crédito' },
   { key: 'em_obra', title: 'Em Obra' },
   { key: 'contabilidade_incorporadora', title: 'Abertura da Incorporadora' },

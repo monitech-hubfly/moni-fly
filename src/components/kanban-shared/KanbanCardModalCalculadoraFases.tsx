@@ -19,6 +19,7 @@ import {
 } from '@/lib/kanban/calculadora-fases-marcos';
 import type { FaseVisit } from '@/lib/kanban/kanban-card-timeline';
 import type { KanbanFase } from '@/components/kanban-shared/types';
+import { useCalculadoraShareLink } from '@/hooks/useCalculadoraShareLink';
 
 type Props = {
   linhas: CalculadoraFaseLinha[];
@@ -30,6 +31,10 @@ type Props = {
   fasesMeta?: Map<string, KanbanFase>;
   /** painel = centro do drawer (altura livre); compact = legado sidebar */
   variant?: 'painel' | 'compact';
+  /** ID do card — habilita botão Compartilhar (omitir em modo público). */
+  cardId?: string;
+  /** Leitura pública via token — oculta ações internas. */
+  modoPublico?: boolean;
 };
 
 function fmtData(iso: string | null): string {
@@ -108,18 +113,15 @@ function CalculadoraResumoExecutivo({
   const slaLabel = linhaAtual ? fmtSla(linhaAtual.slaDias, linhaAtual.slaTipo) : 'SLA variável';
 
   return (
-    <div
-      className="moni-calculadora-resumo space-y-1.5 rounded-[var(--moni-radius-md)] px-2.5 py-2"
-      style={{
+    <div className="moni-calculadora-resumo rounded-[var(--moni-radius-md)]" style={{
         border: '0.5px solid var(--moni-border-default)',
         background: 'var(--moni-surface-50)',
-      }}
-    >
+      }}>
       <div className="moni-calculadora-resumo-badges">
         {resumo.dadosParciais ? (
-          <span className="moni-calculadora-badge-parcial">⚠ Dados parciais — histórico incompleto</span>
+          <span className="moni-calculadora-badge-parcial">⚠ Dados parciais</span>
         ) : (
-          <span />
+          <span aria-hidden />
         )}
         <span className={statusResumoClass(resumo.statusGeral)}>
           {statusResumoLabel(resumo.statusGeral)}
@@ -131,7 +133,7 @@ function CalculadoraResumoExecutivo({
           {resumo.faseAtualNome ?? '—'}
         </p>
         <p className="moni-calculadora-resumo-meta truncate">
-          Fase atual · {funilLabel} · {slaLabel}
+          {funilLabel} · {slaLabel}
         </p>
       </div>
 
@@ -177,8 +179,9 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
     <div className="moni-calculadora-marco-row" role="listitem">
       <div className="moni-calculadora-marco-label-wrap min-w-0">
         <span className={`moni-calculadora-marco-dot moni-calculadora-marco-dot--${id}`} aria-hidden />
-        <span className="moni-calculadora-marco-label min-w-0 truncate">
-          <span className="moni-calculadora-marco-id">{id}</span>
+        <span className="moni-calculadora-marco-label min-w-0 truncate" title={`${id} — ${marco.label}`}>
+          <span className="font-semibold">{id}</span>
+          <span className="moni-calculadora-marco-sep">—</span>
           {marco.label}
         </span>
       </div>
@@ -188,11 +191,10 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
       </span>
       <span className="moni-calculadora-marco-data">—</span>
       <span className="moni-calculadora-marco-data">
-        {marco.data ? fmtData(marco.data) : '—'}
+        {marco.data ? fmtData(marco.data) : 'previsto'}
         {marco.isPrevisto && marco.data ? (
           <span className="text-[var(--moni-text-tertiary)]"> prev.</span>
         ) : null}
-        {!marco.data ? ' previsto' : null}
       </span>
       <span className={`moni-calculadora-marco-badge moni-calculadora-marco-badge--${id}`}>Marco</span>
     </div>
@@ -210,24 +212,29 @@ function CalculadoraFaseRow({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const isGargalo = row.atrasoDias != null && row.atrasoDias > 0;
+  const steps = parseFaseSteps(faseMeta);
+  const hasSteps = steps.length > 0;
+  const isGargalo = row.atrasoDias !== null && row.atrasoDias > 0;
   const fimData = row.dataFimReal ?? row.dataFimEstimada;
   const fimLabel = row.dataFimReal ? 'real' : 'est.';
-  const steps = parseFaseSteps(faseMeta);
   const unidadeAtraso = row.slaTipo === 'corridos' ? 'd.c.' : 'd.u.';
 
   return (
     <div
-      className={`moni-calculadora-fase-row ${statusRowClass(row.status)}${expanded ? ' open' : ''}${row.status === 'futura' ? ' moni-calculadora-fase-row--futura' : ''}`}
-      role="button"
-      tabIndex={0}
-      onClick={onToggle}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onToggle();
-        }
-      }}
+      className={`moni-calculadora-fase-row ${statusRowClass(row.status)}${expanded ? ' open' : ''}${row.status === 'futura' ? ' moni-calculadora-fase-row--futura' : ''}${hasSteps ? '' : ' moni-calculadora-fase-row--no-steps'}`}
+      role={hasSteps ? 'button' : undefined}
+      tabIndex={hasSteps ? 0 : undefined}
+      onClick={hasSteps ? onToggle : undefined}
+      onKeyDown={
+        hasSteps
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onToggle();
+              }
+            }
+          : undefined
+      }
     >
       <div className="min-w-0">
         <div className="moni-calculadora-fase-nome-wrap">
@@ -314,7 +321,9 @@ function CalculadoraFunilGroup({
   ).length;
 
   return (
-    <section className={`moni-calculadora-funil-group${collapsed ? ' collapsed' : ''}`}>
+    <section
+      className={`moni-calculadora-funil-group${collapsed ? ' moni-calculadora-funil-collapsed collapsed' : ''}`}
+    >
       <button type="button" className="moni-calculadora-funil-header w-full text-left" onClick={onToggle}>
         <span className={`moni-calculadora-funil-dot ${funilDotClass(label)}`} aria-hidden />
         <span className="moni-calculadora-funil-title">{label.replace(/^Funil /i, '')}</span>
@@ -362,9 +371,14 @@ export function KanbanCardModalCalculadoraFases({
   marcos,
   fasesMeta,
   variant = 'compact',
+  cardId,
+  modoPublico = false,
 }: Props) {
   const [collapsedFunis, setCollapsedFunis] = useState<Set<string>>(new Set());
   const [expandedFases, setExpandedFases] = useState<Set<string>>(new Set());
+  const { loading: shareLoading, copied: shareCopied, gerarECopiar } = useCalculadoraShareLink(
+    cardId ?? '',
+  );
 
   const metaMap = useMemo(() => {
     if (fasesMeta && fasesMeta.size > 0) return fasesMeta;
@@ -416,6 +430,21 @@ export function KanbanCardModalCalculadoraFases({
 
   return (
     <div className={variant === 'painel' ? 'flex h-full min-h-0 flex-col gap-2' : 'space-y-2'}>
+      {!modoPublico && cardId ? (
+        <div className="moni-calculadora-section-header">
+          <span className="moni-calculadora-section-title">Calculadora de fases</span>
+          <button
+            type="button"
+            onClick={() => void gerarECopiar()}
+            disabled={shareLoading}
+            className="moni-calculadora-share-btn"
+            aria-label="Copiar link público da calculadora"
+          >
+            {shareLoading ? '...' : shareCopied ? '✓ Copiado' : '⤴ Compartilhar'}
+          </button>
+        </div>
+      ) : null}
+
       <CalculadoraResumoExecutivo resumo={resumo} linhaAtual={linhaAtual} />
 
       <div className={variant === 'painel' ? 'flex min-h-0 flex-1 flex-col' : undefined}>

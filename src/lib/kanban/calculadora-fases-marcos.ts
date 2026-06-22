@@ -41,10 +41,8 @@ const MARCO_DEFS: {
 }[] = [
   {
     id: 'M0',
-    label: 'Contrato',
+    label: 'Opção firmada',
     funilLabel: 'Funil Portfólio',
-    custo:
-      'Franqueado: pode assumir custos do terreno aqui ou em Processos Cartorários (transferência)',
     anchor: 'after',
     match: (slug, nome) =>
       slug === FASE_SLUGS.STEP_7 || /^contrato$/i.test(nome.trim()),
@@ -53,7 +51,8 @@ const MARCO_DEFS: {
     id: 'M4',
     label: 'Emissão do alvará',
     funilLabel: 'Funil Pré Obra e Obra',
-    custo: 'Franqueado: instrumento garantidor',
+    custo:
+      'Franqueado: instrumento que assegure o terrenista do recebimento do valor do terreno no final da operação',
     anchor: 'after',
     match: (slug, nome) =>
       slug === FASE_SLUGS.APROVACAO_PREFEITURA ||
