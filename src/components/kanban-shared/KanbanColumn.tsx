@@ -20,6 +20,7 @@ import {
 } from '@/lib/kanban/kanban-paralelas-chips';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardPrazoIndicadores } from './KanbanCardPrazoIndicadores';
+import { KanbanCardBoardTags } from './KanbanCardBoardTags';
 import { ResponsavelFaseAvatar } from './ResponsavelFaseAvatar';
 import { rotuloUnidadeSla } from '@/lib/dias-uteis';
 import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
@@ -572,6 +573,7 @@ export function KanbanColumn({
                 ) : card.profiles?.full_name ? (
                   <p className="mt-1 line-clamp-1 text-xs text-stone-500">{card.profiles.full_name}</p>
                 ) : null}
+                <KanbanCardBoardTags tags={card.tagsCard} className="mt-1.5" />
                 {!arquivado && !concluido && aguardandoDoc ? (
                   <span className={`mt-1 inline-block ${CLASSE_TAG_AGUARDANDO_DOCUMENTACAO}`}>
                     {TAG_AGUARDANDO_DOCUMENTACAO}
