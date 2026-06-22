@@ -62,8 +62,8 @@ function FunilMiniBar({ valor, barColor }: { valor: number; barColor: string }) 
 
   return (
     <div
-      className="h-1.5 w-full overflow-hidden rounded-full"
-      style={{ background: 'var(--moni-rede-chart-track)', maxHeight: '6px', height: '6px' }}
+      className="h-1 w-full overflow-hidden rounded-full"
+      style={{ background: 'var(--moni-rede-chart-track)', maxHeight: '4px', height: '4px' }}
       title={`${valor} no mês`}
     >
       <div
@@ -84,15 +84,15 @@ export function PipelineFunilMesCondensado({ funil, className }: Props) {
 
   return (
     <div className={className}>
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid max-w-md grid-cols-4 gap-1">
         {items.map((item) => {
           const identity = METRIC_IDENTITY[item.key];
           const statusColor = corValorStatus(item.value);
 
           return (
-            <div key={item.key} className="flex min-w-0 flex-col items-center gap-1">
+            <div key={item.key} className="flex min-w-0 flex-col items-center gap-0.5">
               <span
-                className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums"
+                className="inline-flex items-center gap-px rounded-full px-1 py-px text-[9px] font-medium leading-none tabular-nums"
                 style={{
                   background: identity.pillBg,
                   color: identity.pillText,
@@ -105,7 +105,7 @@ export function PipelineFunilMesCondensado({ funil, className }: Props) {
                   {item.value}
                 </span>
               </span>
-              <div className="w-full px-0.5">
+              <div className="w-full px-px">
                 <FunilMiniBar valor={item.value} barColor={identity.bar} />
               </div>
             </div>

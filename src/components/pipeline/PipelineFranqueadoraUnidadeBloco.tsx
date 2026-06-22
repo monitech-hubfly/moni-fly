@@ -289,7 +289,7 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
 
       {expanded ? (
         <div className="border-t px-4 pb-4 pt-3" style={{ borderColor: 'var(--moni-border-default)' }}>
-          <PipelineFunilMesCondensado funil={funilMes} className="mb-4" />
+          <PipelineFunilMesCondensado funil={funilMes} className="mb-3" />
 
           <PipelineUnidadeCardsTabela
             titulo="Projetos"
