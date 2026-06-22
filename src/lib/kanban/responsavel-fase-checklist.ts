@@ -1,6 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanCardBrief } from '@/components/kanban-shared/types';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import {
+  tipoResponsavelDaFasePorSlug,
+  type TipoResponsavelDaFasePadrao,
+} from '@/lib/kanban/responsavel-da-fase-padrao-por-slug';
 
 /** Slug estável do campo «Responsável do card» em todo kanban. */
 export const CAMPO_SLUG_RESPONSAVEL_FASE = 'responsavel_fase';
@@ -44,7 +48,17 @@ export const EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN: Partial<Record<string, string>
   [KANBAN_IDS.CREDITO_OBRA]: 'kim@moni.casa',
   [KANBAN_IDS.CONTABILIDADE]: 'kim@moni.casa',
   [KANBAN_IDS.JURIDICO]: 'elisabete.nucci@moni.casa',
+  [KANBAN_IDS.LOTEADORES]: 'kim@moni.casa',
+  [KANBAN_IDS.CONTRATACOES]: 'renata.silva@moni.casa',
+  [KANBAN_IDS.HDM_PRODUTO]: 'elisabete.nucci@moni.casa',
+  [KANBAN_IDS.HDM_MODELO_VIRTUAL]: 'elisabete.nucci@moni.casa',
+  [KANBAN_IDS.HDM_HOMOLOGACOES]: 'elisabete.nucci@moni.casa',
+  [KANBAN_IDS.PROJETOS_LEGAIS]: 'larissa.lima@moni.casa',
+  [KANBAN_IDS.STEP_ONE]: 'renata.silva@moni.casa',
 };
+
+/** Fallback Moní quando o funil não tem e-mail mapeado. */
+const MONI_EMAIL_FALLBACK = 'renata.silva@moni.casa';
 
 const profileIdPorEmailCache = new Map<string, string | null>();
 
@@ -616,6 +630,126 @@ export async function buscarItemIdResponsavelDaFaseEdicao(
   }
 
   return escolherItemResponsavelDaFaseCanonico(rows);
+}
+
+/** Franqueado vinculado ao card (rede / Step One). */
+export async function buscarFranqueadoIdResponsavelCard(
+  supabase: SupabaseClient,
+  cardId: string,
+): Promise<string | null> {
+  const cid = cardId.trim();
+  if (!cid) return null;
+
+  const { data: card } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id, rede_franqueado_id')
+    .eq('id', cid)
+    .maybeSingle();
+  if (!card) return null;
+
+  const kanbanId = String((card as { kanban_id?: string | null }).kanban_id ?? '').trim();
+  if (isKanbanFunilStepOneId(kanbanId)) {
+    return buscarFranqueadoIdResponsavelStepOne(supabase, cid);
+  }
+
+  const redeId = String((card as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '').trim();
+  if (!redeId) return null;
+  return buscarProfileFranqueadoPorRedeId(supabase, redeId);
+}
+
+async function resolverUsuarioResponsavelDaFasePorTipo(
+  supabase: SupabaseClient,
+  cardId: string,
+  faseId: string,
+  kanbanId: string,
+  tipo: TipoResponsavelDaFasePadrao,
+): Promise<string | null> {
+  if (tipo === 'franqueado') {
+    return buscarFranqueadoIdResponsavelCard(supabase, cardId);
+  }
+
+  const itemCardId = await buscarItemIdResponsavelFaseEdicao(supabase, faseId);
+  if (itemCardId) {
+    const { data: respCard } = await supabase
+      .from('kanban_fase_checklist_respostas')
+      .select('valor')
+      .eq('card_id', cardId)
+      .eq('item_id', itemCardId)
+      .maybeSingle();
+    const uidCard = valorResponsavelValido((respCard as { valor?: string | null } | null)?.valor);
+    if (uidCard && (await isProfileIdStaff(supabase, uidCard))) return uidCard;
+  }
+
+  if (isKanbanFunilStepOneId(kanbanId)) {
+    const email = EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN[KANBAN_IDS.STEP_ONE] ?? MONI_EMAIL_FALLBACK;
+    return buscarProfileIdPorEmail(supabase, email);
+  }
+
+  const padraoKanban = await resolverResponsavelPadraoPorKanban(supabase, kanbanId);
+  if (padraoKanban) return padraoKanban;
+
+  return buscarProfileIdPorEmail(supabase, MONI_EMAIL_FALLBACK);
+}
+
+/** Preenche «Responsável da fase» conforme slug (Moní / Franqueado) se ainda vazio. */
+export async function aplicarResponsavelDaFasePadraoSeVazio(
+  supabase: SupabaseClient,
+  cardId: string,
+  faseId: string,
+  preenchidoPor?: string | null,
+): Promise<string | null> {
+  const cid = cardId.trim();
+  const fid = faseId.trim();
+  if (!cid || !fid) return null;
+
+  const { data: faseRow } = await supabase
+    .from('kanban_fases')
+    .select('slug, kanban_id')
+    .eq('id', fid)
+    .maybeSingle();
+  if (!faseRow) return null;
+
+  const slug = String((faseRow as { slug?: string | null }).slug ?? '').trim();
+  const kanbanId = String((faseRow as { kanban_id?: string | null }).kanban_id ?? '').trim();
+  const tipo = tipoResponsavelDaFasePorSlug(slug);
+  if (!tipo) return null;
+
+  const itemId = await buscarItemIdResponsavelDaFaseEdicao(supabase, fid);
+  if (!itemId) return null;
+
+  const { data: respAtual } = await supabase
+    .from('kanban_fase_checklist_respostas')
+    .select('valor')
+    .eq('card_id', cid)
+    .eq('item_id', itemId)
+    .maybeSingle();
+  if (valorResponsavelValido((respAtual as { valor?: string | null } | null)?.valor)) return null;
+
+  const userId = await resolverUsuarioResponsavelDaFasePorTipo(supabase, cid, fid, kanbanId, tipo);
+  if (!userId) return null;
+
+  await supabase.from('kanban_fase_checklist_respostas').upsert(
+    {
+      item_id: itemId,
+      card_id: cid,
+      valor: userId,
+      preenchido_por: preenchidoPor ?? null,
+      preenchido_em: new Date().toISOString(),
+    },
+    { onConflict: 'item_id,card_id' },
+  );
+
+  return userId;
+}
+
+/** Ao entrar em nova fase: aplica padrão Moní/Franqueado do slug. */
+export async function propagarResponsavelDaFaseAoEntrarFase(
+  supabase: SupabaseClient,
+  cardId: string,
+  novaFaseId: string,
+  preenchidoPor?: string | null,
+): Promise<void> {
+  await aplicarResponsavelDaFasePadraoSeVazio(supabase, cardId, novaFaseId, preenchidoPor);
 }
 
 function valorResponsavelValido(valor: string | null | undefined): string | null {

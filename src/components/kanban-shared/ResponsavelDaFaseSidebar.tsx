@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { upsertFaseChecklistResposta } from '@/lib/actions/card-actions';
 import { UsuarioChecklistSelect } from '@/components/kanban-shared/UsuarioChecklistSelect';
 import {
+  aplicarResponsavelDaFasePadraoSeVazio,
   buscarItemIdResponsavelDaFaseEdicao,
   isValorUsuarioUuid,
   resolverProfileIdPorValorChecklistUsuario,
@@ -66,19 +67,31 @@ export function ResponsavelDaFaseSidebar({
         .eq('item_id', iid)
         .maybeSingle();
 
-      const valorBruto = (resp as { valor?: string | null } | null)?.valor;
+      let valorBruto = (resp as { valor?: string | null } | null)?.valor;
       let valorAtual = normalizarValorUsuario(valorBruto);
 
       if (!valorAtual) {
-        const resolvido = await resolverProfileIdPorValorChecklistUsuario(supabase, valorBruto);
-        if (resolvido) {
-          valorAtual = resolvido;
-          await upsertFaseChecklistResposta({
-            item_id: iid,
-            card_id: cardId,
-            valor: resolvido,
-            arquivo_path: null,
-          });
+        const { data: authData } = await supabase.auth.getUser();
+        const preenchidoPor = authData.user?.id ?? null;
+        const aplicado = await aplicarResponsavelDaFasePadraoSeVazio(
+          supabase,
+          cardId,
+          faseId,
+          preenchidoPor,
+        );
+        if (aplicado) {
+          valorAtual = aplicado;
+        } else {
+          const resolvido = await resolverProfileIdPorValorChecklistUsuario(supabase, valorBruto);
+          if (resolvido) {
+            valorAtual = resolvido;
+            await upsertFaseChecklistResposta({
+              item_id: iid,
+              card_id: cardId,
+              valor: resolvido,
+              arquivo_path: null,
+            });
+          }
         }
       }
 

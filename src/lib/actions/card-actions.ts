@@ -1930,8 +1930,10 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
   if (error) return { ok: false, error: error.message };
 
   const cardId = String((cardRow as { id: string }).id);
-  const { aplicarResponsavelFasePadraoAoCard } = await import('@/lib/kanban/responsavel-fase-checklist');
+  const { aplicarResponsavelFasePadraoAoCard, aplicarResponsavelDaFasePadraoSeVazio } =
+    await import('@/lib/kanban/responsavel-fase-checklist');
   await aplicarResponsavelFasePadraoAoCard(supabase, cardId, faseId, kanbanId, user.id);
+  await aplicarResponsavelDaFasePadraoSeVazio(supabase, cardId, faseId, user.id);
 
   const bp = (input.basePath ?? '').trim() || '/';
   revalidatePath(bp);
@@ -2088,8 +2090,10 @@ export async function criarCardFunilStepOne(
     return { ok: false, error: `Card criado, mas falha ao vincular processo: ${processoRes.error}` };
   }
 
-  const { aplicarResponsavelFasePadraoAoCard } = await import('@/lib/kanban/responsavel-fase-checklist');
+  const { aplicarResponsavelFasePadraoAoCard, aplicarResponsavelDaFasePadraoSeVazio } =
+    await import('@/lib/kanban/responsavel-fase-checklist');
   await aplicarResponsavelFasePadraoAoCard(supabase, cardId, faseId, kanbanId, user.id);
+  await aplicarResponsavelDaFasePadraoSeVazio(supabase, cardId, faseId, user.id);
 
   revalidatePath('/funil-stepone');
   revalidatePath('/');
@@ -4177,8 +4181,10 @@ export async function moverCardParaFase(input: {
   await executarBastaoDeVolta(cardId, novaFaseSlug);
   await sincronizarTagAcoplamentoPaiDoFilho(cardId, novaFaseSlug);
 
-  const { propagarResponsavelFaseAoEntrarFase } = await import('@/lib/kanban/responsavel-fase-checklist');
+  const { propagarResponsavelFaseAoEntrarFase, propagarResponsavelDaFaseAoEntrarFase } =
+    await import('@/lib/kanban/responsavel-fase-checklist');
   await propagarResponsavelFaseAoEntrarFase(supabase, cardId, novaFaseId, user.id);
+  await propagarResponsavelDaFaseAoEntrarFase(supabase, cardId, novaFaseId, user.id);
 
   void notificarUniversidadeSeAvancoStep2({
     cardId,
