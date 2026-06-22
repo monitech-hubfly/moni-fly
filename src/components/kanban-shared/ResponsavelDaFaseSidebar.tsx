@@ -3,41 +3,31 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { upsertFaseChecklistResposta } from '@/lib/actions/card-actions';
-import { UsuarioChecklistSelect } from '@/components/kanban-shared/UsuarioChecklistSelect';
 import {
   aplicarResponsavelDaFasePadraoSeVazio,
   buscarItemIdResponsavelDaFaseEdicao,
+  isValorResponsavelDaFaseLista,
   isValorUsuarioUuid,
-  resolverProfileIdPorValorChecklistUsuario,
+  OPCOES_RESPONSAVEL_DA_FASE,
 } from '@/lib/kanban/responsavel-fase-checklist';
 
 type Props = {
   cardId: string;
   faseId: string;
-  nomeFranqueadoRede?: string | null;
-  opcoes?: { id: string; nome: string }[];
   readOnly?: boolean;
 };
 
-function normalizarValorUsuario(valor: string | null | undefined): string {
+function normalizarValorLista(valor: string | null | undefined): string {
   const v = String(valor ?? '').trim();
-  return v && isValorUsuarioUuid(v) ? v : '';
+  return isValorResponsavelDaFaseLista(v) ? v : '';
 }
 
-/** Campo «Responsável da fase» no painel lateral — mesma lista do responsável do card. */
-export function ResponsavelDaFaseSidebar({
-  cardId,
-  faseId,
-  nomeFranqueadoRede = null,
-  opcoes,
-  readOnly = false,
-}: Props) {
+/** Campo «Responsável da fase» no painel lateral — lista Moní ou Franqueado. */
+export function ResponsavelDaFaseSidebar({ cardId, faseId, readOnly = false }: Props) {
   const [itemId, setItemId] = useState<string | null>(null);
   const [valor, setValor] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [carregando, setCarregando] = useState(true);
-
-  const nomeRede = String(nomeFranqueadoRede ?? '').trim();
 
   useEffect(() => {
     if (!cardId.trim() || !faseId.trim()) {
@@ -67,32 +57,18 @@ export function ResponsavelDaFaseSidebar({
         .eq('item_id', iid)
         .maybeSingle();
 
-      let valorBruto = (resp as { valor?: string | null } | null)?.valor;
-      let valorAtual = normalizarValorUsuario(valorBruto);
+      const valorBruto = (resp as { valor?: string | null } | null)?.valor;
+      let valorAtual = normalizarValorLista(valorBruto);
 
-      if (!valorAtual) {
+      if (!valorAtual || isValorUsuarioUuid(valorBruto)) {
         const { data: authData } = await supabase.auth.getUser();
-        const preenchidoPor = authData.user?.id ?? null;
         const aplicado = await aplicarResponsavelDaFasePadraoSeVazio(
           supabase,
           cardId,
           faseId,
-          preenchidoPor,
+          authData.user?.id ?? null,
         );
-        if (aplicado) {
-          valorAtual = aplicado;
-        } else {
-          const resolvido = await resolverProfileIdPorValorChecklistUsuario(supabase, valorBruto);
-          if (resolvido) {
-            valorAtual = resolvido;
-            await upsertFaseChecklistResposta({
-              item_id: iid,
-              card_id: cardId,
-              valor: resolvido,
-              arquivo_path: null,
-            });
-          }
-        }
+        if (aplicado) valorAtual = aplicado;
       }
 
       if (!cancelado) {
@@ -107,15 +83,15 @@ export function ResponsavelDaFaseSidebar({
     };
   }, [cardId, faseId]);
 
-  async function salvar(userId: string) {
+  async function salvar(novoValor: string) {
     if (!itemId || readOnly) return;
-    const uid = normalizarValorUsuario(userId);
-    setValor(uid);
+    const v = normalizarValorLista(novoValor);
+    setValor(v);
     setSalvando(true);
     await upsertFaseChecklistResposta({
       item_id: itemId,
       card_id: cardId,
-      valor: uid || null,
+      valor: v || null,
       arquivo_path: null,
     });
     setSalvando(false);
@@ -128,7 +104,7 @@ export function ResponsavelDaFaseSidebar({
   if (!itemId) {
     return (
       <p className="text-[10px] text-stone-400">
-        Campo não configurado nesta fase. Aplique a migration 405 no Supabase.
+        Campo não configurado nesta fase. Aplique a migration 406 no Supabase.
       </p>
     );
   }
@@ -136,54 +112,32 @@ export function ResponsavelDaFaseSidebar({
   if (readOnly) {
     return (
       <p className="text-[11px] text-stone-700">
-        {valor ? (
-          <ResponsavelDaFaseSidebarReadonly userId={valor} fallbackNome={nomeRede} />
-        ) : nomeRede ? (
-          nomeRede
-        ) : (
-          <span className="text-stone-400">Não definido</span>
-        )}
+        {valor ? valor : <span className="text-stone-400">Não definido</span>}
       </p>
     );
   }
 
   return (
-    <UsuarioChecklistSelect
-      label=""
+    <select
+      className="w-full rounded-md px-2 py-2 text-[11px] disabled:opacity-60"
+      style={{
+        fontFamily: 'var(--moni-font-sans)',
+        color: 'var(--moni-text-primary)',
+        background: 'var(--moni-surface-0)',
+        border: 'var(--moni-border-width) solid var(--moni-border-default)',
+        borderRadius: 'var(--moni-radius-md)',
+        minHeight: '44px',
+      }}
       value={valor}
-      salvando={salvando}
-      opcoes={opcoes}
-      placeholder="Selecione o responsável…"
-      selectedLabelOverride={!valor && nomeRede ? nomeRede : undefined}
-      menuPortal
-      onChange={(v) => void salvar(v)}
-    />
+      disabled={salvando}
+      onChange={(e) => void salvar(e.target.value)}
+    >
+      <option value="">Selecione…</option>
+      {OPCOES_RESPONSAVEL_DA_FASE.map((opcao) => (
+        <option key={opcao} value={opcao}>
+          {opcao}
+        </option>
+      ))}
+    </select>
   );
-}
-
-function ResponsavelDaFaseSidebarReadonly({
-  userId,
-  fallbackNome = null,
-}: {
-  userId: string;
-  fallbackNome?: string | null;
-}) {
-  const [nome, setNome] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelado = false;
-    void (async () => {
-      const supabase = createClient();
-      const { data } = await supabase.from('profiles').select('full_name').eq('id', userId).maybeSingle();
-      if (!cancelado) {
-        const fn = String((data as { full_name?: string | null } | null)?.full_name ?? '').trim();
-        setNome(fn || String(fallbackNome ?? '').trim() || userId.slice(0, 8));
-      }
-    })();
-    return () => {
-      cancelado = true;
-    };
-  }, [userId, fallbackNome]);
-
-  return <span>{nome ?? '…'}</span>;
 }

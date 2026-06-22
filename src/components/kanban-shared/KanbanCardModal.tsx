@@ -5903,8 +5903,6 @@ export function KanbanCardModal({
                   <ResponsavelDaFaseSidebar
                     cardId={card.id}
                     faseId={faseIdResponsavelPainel}
-                    nomeFranqueadoRede={rede?.nome_completo ?? null}
-                    opcoes={responsaveisOpcoes}
                     readOnly={ocultarGestaoCard}
                   />
                 </PainelLateralSecao>

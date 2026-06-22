@@ -14,17 +14,35 @@ export const RESPONSAVEL_FASE_CHECKLIST_LABEL = 'Responsável do card';
 /** Label anterior (migration 380–382) — reconhecida ao resolver itens legados. */
 export const RESPONSAVEL_FASE_CHECKLIST_LABEL_LEGADO = 'Responsável da fase';
 
-/** Painel lateral: quem executa a fase (lista de usuários). */
+/** Painel lateral: quem executa a fase (Moní ou Franqueado). */
 export const RESPONSAVEL_DA_FASE_CHECKLIST_LABEL = 'Responsável da fase';
 
 export const CAMPO_SLUG_RESPONSAVEL_DA_FASE = 'responsavel_da_fase';
 
-/** Legado migration 403 — tipo Franqueado/Moní (substituído por 404). */
+/** Legado migration 403 — campo tipo duplicado; preferir responsavel_da_fase. */
 export const CAMPO_SLUG_RESPONSAVEL_DA_FASE_TIPO = 'responsavel_da_fase_tipo';
 export const CAMPO_SLUG_RESPONSAVEL_DA_FASE_USUARIO = 'responsavel_da_fase_usuario';
 
 export const RESPONSAVEL_DA_FASE_TIPO_FRANQUEADO = 'Franqueado';
 export const RESPONSAVEL_DA_FASE_TIPO_MONI = 'Moní';
+
+export const OPCOES_RESPONSAVEL_DA_FASE = [
+  RESPONSAVEL_DA_FASE_TIPO_FRANQUEADO,
+  RESPONSAVEL_DA_FASE_TIPO_MONI,
+] as const;
+
+export type ValorResponsavelDaFaseLista = (typeof OPCOES_RESPONSAVEL_DA_FASE)[number];
+
+export function isValorResponsavelDaFaseLista(
+  valor: string | null | undefined,
+): valor is ValorResponsavelDaFaseLista {
+  const v = String(valor ?? '').trim();
+  return v === RESPONSAVEL_DA_FASE_TIPO_FRANQUEADO || v === RESPONSAVEL_DA_FASE_TIPO_MONI;
+}
+
+export function labelResponsavelDaFasePorTipo(tipo: TipoResponsavelDaFasePadrao): ValorResponsavelDaFaseLista {
+  return tipo === 'moni' ? RESPONSAVEL_DA_FASE_TIPO_MONI : RESPONSAVEL_DA_FASE_TIPO_FRANQUEADO;
+}
 
 /** Slugs legados de responsável (Loteadores) — lidos ao propagar da fase anterior. */
 export const CAMPOS_SLUG_RESPONSAVEL_FASE_LEGADO = [
@@ -527,10 +545,13 @@ function normalizarLabelResponsavelDaFase(label: string | null | undefined): boo
 export function isChecklistItemResponsavelDaFaseSidebar(item: ChecklistItemResponsavelRow): boolean {
   const slug = String(item.campo_slug ?? '').trim();
   if (slug === CAMPO_SLUG_RESPONSAVEL_DA_FASE) return true;
-  if (slug === CAMPO_SLUG_RESPONSAVEL_DA_FASE_TIPO || slug === CAMPO_SLUG_RESPONSAVEL_DA_FASE_USUARIO) {
-    return true;
-  }
-  return item.tipo === 'usuario' && normalizarLabelResponsavelDaFase(item.label) && slug !== CAMPO_SLUG_RESPONSAVEL_FASE;
+  if (slug === CAMPO_SLUG_RESPONSAVEL_DA_FASE_TIPO) return true;
+  if (slug === CAMPO_SLUG_RESPONSAVEL_DA_FASE_USUARIO) return true;
+  return (
+    item.tipo === 'select' &&
+    normalizarLabelResponsavelDaFase(item.label) &&
+    slug !== CAMPO_SLUG_RESPONSAVEL_FASE
+  );
 }
 
 /** Item de checklist que representa o responsável do card (slug, label ou legado). */
@@ -596,12 +617,18 @@ export async function buscarItemIdResponsavelFaseEdicao(
 
 function escolherItemResponsavelDaFaseCanonico(rows: ChecklistItemResponsavelRow[]): string | null {
   if (rows.length === 0) return null;
+  const bySlugSelect = rows.find(
+    (r) =>
+      String(r.campo_slug ?? '').trim() === CAMPO_SLUG_RESPONSAVEL_DA_FASE &&
+      String(r.tipo ?? '').trim() === 'select',
+  );
+  if (bySlugSelect?.id) return String(bySlugSelect.id);
   const bySlug = rows.find((r) => String(r.campo_slug ?? '').trim() === CAMPO_SLUG_RESPONSAVEL_DA_FASE);
   if (bySlug?.id) return String(bySlug.id);
-  const byLegacySlug = rows.find(
-    (r) => String(r.campo_slug ?? '').trim() === CAMPO_SLUG_RESPONSAVEL_DA_FASE_USUARIO,
+  const byLegacyTipo = rows.find(
+    (r) => String(r.campo_slug ?? '').trim() === CAMPO_SLUG_RESPONSAVEL_DA_FASE_TIPO,
   );
-  if (byLegacySlug?.id) return String(byLegacySlug.id);
+  if (byLegacyTipo?.id) return String(byLegacyTipo.id);
   const byLabel = rows.find((r) => normalizarLabelResponsavelDaFase(r.label));
   if (byLabel?.id) return String(byLabel.id);
   return String(rows[0]?.id ?? '').trim() || null;
@@ -619,7 +646,11 @@ export async function buscarItemIdResponsavelDaFaseEdicao(
     .from('kanban_fase_checklist_itens')
     .select('id, campo_slug, label, tipo')
     .eq('fase_id', fid)
-    .in('campo_slug', [CAMPO_SLUG_RESPONSAVEL_DA_FASE, CAMPO_SLUG_RESPONSAVEL_DA_FASE_USUARIO]);
+    .in('campo_slug', [
+      CAMPO_SLUG_RESPONSAVEL_DA_FASE,
+      CAMPO_SLUG_RESPONSAVEL_DA_FASE_TIPO,
+      CAMPO_SLUG_RESPONSAVEL_DA_FASE_USUARIO,
+    ]);
 
   let rows = (rowsSlug ?? []) as ChecklistItemResponsavelRow[];
   if (rows.length === 0) {
@@ -633,74 +664,15 @@ export async function buscarItemIdResponsavelDaFaseEdicao(
     );
   }
   if (rows.length === 0) {
-    const { data: rowsUsuario } = await supabase
+    const { data: rowsSelect } = await supabase
       .from('kanban_fase_checklist_itens')
       .select('id, campo_slug, label, tipo')
       .eq('fase_id', fid)
-      .eq('tipo', 'usuario');
-    rows = ((rowsUsuario ?? []) as ChecklistItemResponsavelRow[]).filter(isChecklistItemResponsavelDaFaseSidebar);
+      .eq('tipo', 'select');
+    rows = ((rowsSelect ?? []) as ChecklistItemResponsavelRow[]).filter(isChecklistItemResponsavelDaFaseSidebar);
   }
 
   return escolherItemResponsavelDaFaseCanonico(rows);
-}
-
-/** Franqueado vinculado ao card (rede / Step One). */
-export async function buscarFranqueadoIdResponsavelCard(
-  supabase: SupabaseClient,
-  cardId: string,
-): Promise<string | null> {
-  const cid = cardId.trim();
-  if (!cid) return null;
-
-  const { data: card } = await supabase
-    .from('kanban_cards')
-    .select('kanban_id, rede_franqueado_id')
-    .eq('id', cid)
-    .maybeSingle();
-  if (!card) return null;
-
-  const kanbanId = String((card as { kanban_id?: string | null }).kanban_id ?? '').trim();
-  if (isKanbanFunilStepOneId(kanbanId)) {
-    return buscarFranqueadoIdResponsavelStepOne(supabase, cid);
-  }
-
-  const redeId = String((card as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '').trim();
-  if (!redeId) return null;
-  return buscarProfileFranqueadoPorRedeId(supabase, redeId);
-}
-
-async function resolverUsuarioResponsavelDaFasePorTipo(
-  supabase: SupabaseClient,
-  cardId: string,
-  faseId: string,
-  kanbanId: string,
-  tipo: TipoResponsavelDaFasePadrao,
-): Promise<string | null> {
-  if (tipo === 'franqueado') {
-    return buscarFranqueadoIdResponsavelCard(supabase, cardId);
-  }
-
-  const itemCardId = await buscarItemIdResponsavelFaseEdicao(supabase, faseId);
-  if (itemCardId) {
-    const { data: respCard } = await supabase
-      .from('kanban_fase_checklist_respostas')
-      .select('valor')
-      .eq('card_id', cardId)
-      .eq('item_id', itemCardId)
-      .maybeSingle();
-    const uidCard = valorResponsavelValido((respCard as { valor?: string | null } | null)?.valor);
-    if (uidCard && (await isProfileIdStaff(supabase, uidCard))) return uidCard;
-  }
-
-  if (isKanbanFunilStepOneId(kanbanId)) {
-    const email = EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN[KANBAN_IDS.STEP_ONE] ?? MONI_EMAIL_FALLBACK;
-    return buscarProfileIdPorEmail(supabase, email);
-  }
-
-  const padraoKanban = await resolverResponsavelPadraoPorKanban(supabase, kanbanId);
-  if (padraoKanban) return padraoKanban;
-
-  return buscarProfileIdPorEmail(supabase, MONI_EMAIL_FALLBACK);
 }
 
 /** Preenche «Responsável da fase» conforme slug (Moní / Franqueado) se ainda vazio. */
@@ -722,7 +694,6 @@ export async function aplicarResponsavelDaFasePadraoSeVazio(
   if (!faseRow) return null;
 
   const slug = String((faseRow as { slug?: string | null }).slug ?? '').trim();
-  const kanbanId = String((faseRow as { kanban_id?: string | null }).kanban_id ?? '').trim();
   const tipo = tipoResponsavelDaFasePorSlug(slug);
   if (!tipo) return null;
 
@@ -735,23 +706,23 @@ export async function aplicarResponsavelDaFasePadraoSeVazio(
     .eq('card_id', cid)
     .eq('item_id', itemId)
     .maybeSingle();
-  if (valorResponsavelValido((respAtual as { valor?: string | null } | null)?.valor)) return null;
+  const valorAtual = (respAtual as { valor?: string | null } | null)?.valor;
+  if (isValorResponsavelDaFaseLista(valorAtual)) return null;
 
-  const userId = await resolverUsuarioResponsavelDaFasePorTipo(supabase, cid, fid, kanbanId, tipo);
-  if (!userId) return null;
+  const valorPadrao = labelResponsavelDaFasePorTipo(tipo);
 
   await supabase.from('kanban_fase_checklist_respostas').upsert(
     {
       item_id: itemId,
       card_id: cid,
-      valor: userId,
+      valor: valorPadrao,
       preenchido_por: preenchidoPor ?? null,
       preenchido_em: new Date().toISOString(),
     },
     { onConflict: 'item_id,card_id' },
   );
 
-  return userId;
+  return valorPadrao;
 }
 
 /** Ao entrar em nova fase: aplica padrão Moní/Franqueado do slug. */
