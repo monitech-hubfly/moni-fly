@@ -518,6 +518,7 @@ type FaseOrdemRow = { id: string; ordem: number; slug?: string | null };
 
 type ChecklistItemResponsavelRow = {
   id: string;
+  fase_id?: string | null;
   campo_slug?: string | null;
   label?: string | null;
   tipo?: string | null;
@@ -733,6 +734,60 @@ export async function propagarResponsavelDaFaseAoEntrarFase(
   preenchidoPor?: string | null,
 ): Promise<void> {
   await aplicarResponsavelDaFasePadraoSeVazio(supabase, cardId, novaFaseId, preenchidoPor);
+}
+
+/** Valores salvos de «Responsável da fase» por fase (batch — calculadora). */
+export async function buscarResponsavelDaFaseSalvoPorFases(
+  supabase: SupabaseClient,
+  cardId: string,
+  faseIds: string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const cid = cardId.trim();
+  const fids = [...new Set(faseIds.map((f) => f.trim()).filter(Boolean))];
+  if (!cid || fids.length === 0) return out;
+
+  const { data: itensRaw } = await supabase
+    .from('kanban_fase_checklist_itens')
+    .select('id, fase_id, campo_slug, label, tipo')
+    .in('fase_id', fids)
+    .in('campo_slug', [
+      CAMPO_SLUG_RESPONSAVEL_DA_FASE,
+      CAMPO_SLUG_RESPONSAVEL_DA_FASE_TIPO,
+      CAMPO_SLUG_RESPONSAVEL_DA_FASE_USUARIO,
+    ]);
+
+  const itemPorFase = new Map<string, string>();
+  for (const fid of fids) {
+    const rows = ((itensRaw ?? []) as ChecklistItemResponsavelRow[]).filter(
+      (r) => String(r.fase_id ?? '').trim() === fid,
+    );
+    const itemId = escolherItemResponsavelDaFaseCanonico(rows);
+    if (itemId) itemPorFase.set(fid, itemId);
+  }
+
+  const itemIds = [...itemPorFase.values()];
+  if (itemIds.length === 0) return out;
+
+  const { data: respostas } = await supabase
+    .from('kanban_fase_checklist_respostas')
+    .select('item_id, valor')
+    .eq('card_id', cid)
+    .in('item_id', itemIds);
+
+  const valorPorItem = new Map<string, string>();
+  for (const row of respostas ?? []) {
+    const iid = String((row as { item_id?: string }).item_id ?? '').trim();
+    const valor = String((row as { valor?: string | null }).valor ?? '').trim();
+    if (iid && valor) valorPorItem.set(iid, valor);
+  }
+
+  for (const [fid, iid] of itemPorFase) {
+    const valor = valorPorItem.get(iid);
+    if (isValorResponsavelDaFaseLista(valor)) out.set(fid, valor);
+  }
+
+  return out;
 }
 
 function valorResponsavelValido(valor: string | null | undefined): string | null {

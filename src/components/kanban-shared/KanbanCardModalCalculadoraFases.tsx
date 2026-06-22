@@ -242,6 +242,12 @@ function CalculadoraFaseRow({
       </div>
 
       <div>
+        <span className="moni-calculadora-fase-responsavel" title={row.responsavelDaFase ?? undefined}>
+          {row.responsavelDaFase ?? '—'}
+        </span>
+      </div>
+
+      <div>
         <span className="moni-calculadora-fase-data">{fmtData(row.dataInicioReal)}</span>
         <span className="moni-calculadora-fase-data-label">início</span>
       </div>
@@ -310,6 +316,7 @@ function CalculadoraFunilGroup({
       <div className="moni-calculadora-funil-body">
         <div className="moni-calculadora-table-header">
           <span>Fase</span>
+          <span>Resp. fase</span>
           <span>Início</span>
           <span>Fim</span>
           <span>Status</span>

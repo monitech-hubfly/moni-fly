@@ -259,10 +259,11 @@ import { ResponsavelDaFaseSidebar } from './ResponsavelDaFaseSidebar';
 import {
   RESPONSAVEL_DA_FASE_CHECKLIST_LABEL,
   RESPONSAVEL_FASE_CHECKLIST_LABEL,
+  buscarResponsavelDaFaseSalvoPorFases,
 } from '@/lib/kanban/responsavel-fase-checklist';
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
-import { calcularLinhasCalculadoraFases, calcularResumoExecutivoCalculadoraFases } from '@/lib/kanban/calculadora-fases';
+import { calcularLinhasCalculadoraFases, calcularResumoExecutivoCalculadoraFases, enriquecerLinhasCalculadoraComResponsavelDaFase } from '@/lib/kanban/calculadora-fases';
 import {
   calcularLinhasCalculadoraFasesEsteira,
   CALCULADORA_ESTEIRA_KANBAN_IDS,
@@ -3329,6 +3330,49 @@ export function KanbanCardModal({
     ],
   );
 
+  const [responsavelDaFaseSalvoPorFase, setResponsavelDaFaseSalvoPorFase] = useState<Map<string, string>>(
+    () => new Map(),
+  );
+
+  useEffect(() => {
+    const cardId = card?.id?.trim();
+    const faseIds = calculadoraFasesPack.linhas.map((l) => l.faseId).filter(Boolean);
+    if (!cardId || faseIds.length === 0) {
+      setResponsavelDaFaseSalvoPorFase(new Map());
+      return;
+    }
+
+    let cancelado = false;
+    void (async () => {
+      const supabase = createClient();
+      const map = await buscarResponsavelDaFaseSalvoPorFases(supabase, cardId, faseIds);
+      if (!cancelado) setResponsavelDaFaseSalvoPorFase(map);
+    })();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [card?.id, calculadoraFasesPack.linhas]);
+
+  const calculadoraSlugPorFaseId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const [id, f] of calculadoraFasesMeta) {
+      const slug = String(f.slug ?? '').trim();
+      if (slug) map.set(id, slug);
+    }
+    return map;
+  }, [calculadoraFasesMeta]);
+
+  const calculadoraLinhasEnriquecidas = useMemo(
+    () =>
+      enriquecerLinhasCalculadoraComResponsavelDaFase(
+        calculadoraFasesPack.linhas,
+        calculadoraSlugPorFaseId,
+        responsavelDaFaseSalvoPorFase,
+      ),
+    [calculadoraFasesPack.linhas, calculadoraSlugPorFaseId, responsavelDaFaseSalvoPorFase],
+  );
+
   const abrirEdicaoInstrucoesFase = () => {
     if (!faseAtual || !pode('editar_instrucoes')) return;
     setDraftInstrucoesFase((faseAtual.instrucoes ?? '').trim() ? String(faseAtual.instrucoes) : '');
@@ -5117,7 +5161,7 @@ export function KanbanCardModal({
                   }}
                 >
                   <KanbanCardModalCalculadoraFases
-                    linhas={calculadoraFasesPack.linhas}
+                    linhas={calculadoraLinhasEnriquecidas}
                     visits={calculadoraFasesPack.visits}
                     faseAtualId={card.fase_id}
                     cardConcluido={card.concluido === true}

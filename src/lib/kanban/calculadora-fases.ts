@@ -2,12 +2,19 @@ import type { KanbanFase } from '@/components/kanban-shared/types';
 import { calcularDiasCorridos, formatLocalYmd, isDiaUtil, parseIsoDateOnlyLocal, normalizarSlaTipo, type SlaTipo } from '@/lib/dias-uteis';
 import { addBusinessDays, type FaseTimelineStatus } from '@/lib/kanban/previsibilidade-operacoes';
 import { lastVisitPerFase, type FaseVisit } from '@/lib/kanban/kanban-card-timeline';
+import { tipoResponsavelDaFasePorSlug } from '@/lib/kanban/responsavel-da-fase-padrao-por-slug';
+import {
+  isValorResponsavelDaFaseLista,
+  labelResponsavelDaFasePorTipo,
+} from '@/lib/kanban/responsavel-fase-checklist';
 
 export type { FaseTimelineStatus };
 
 export type CalculadoraFaseLinha = {
   faseId: string;
   faseNome: string;
+  /** Slug da fase (para responsável da fase e integrações). */
+  faseSlug?: string;
   ordem: number;
   faseAtiva: boolean;
   slaDias: number | null;
@@ -18,6 +25,8 @@ export type CalculadoraFaseLinha = {
   /** Atraso na unidade do SLA da fase (d.u. ou d.c.). */
   atrasoDias: number | null;
   status: FaseTimelineStatus;
+  /** Moní ou Franqueado — quem executa a fase. */
+  responsavelDaFase?: string | null;
   /** Funil da esteira principal (Step One / Portfólio / Pré Obra e Obra). */
   funilLabel?: string;
 };
@@ -337,6 +346,7 @@ export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): Ca
       linhas.push({
         faseId: fase.id,
         faseNome: fase.nome,
+        faseSlug: String(fase.slug ?? '').trim() || undefined,
         ordem: fase.ordem,
         faseAtiva: faseEhAtiva(fase),
         slaDias: fase.sla_dias,
@@ -376,6 +386,29 @@ export function inferirFimRealPorProximaFase(linhas: CalculadoraFaseLinha[]): Ca
   }
 
   return out;
+}
+
+/** Preenche coluna «Responsável da fase» (Moní/Franqueado) — valor salvo ou padrão por slug. */
+export function enriquecerLinhasCalculadoraComResponsavelDaFase(
+  linhas: CalculadoraFaseLinha[],
+  faseSlugPorId: Map<string, string> = new Map(),
+  valorSalvoPorFaseId: Map<string, string> = new Map(),
+): CalculadoraFaseLinha[] {
+  return linhas.map((linha) => {
+    const slug = faseSlugPorId.get(linha.faseId) ?? linha.faseSlug ?? '';
+    const salvo = valorSalvoPorFaseId.get(linha.faseId);
+    const tipo = tipoResponsavelDaFasePorSlug(slug);
+    const responsavelDaFase = isValorResponsavelDaFaseLista(salvo)
+      ? salvo
+      : tipo
+        ? labelResponsavelDaFasePorTipo(tipo)
+        : null;
+    return {
+      ...linha,
+      faseSlug: slug || linha.faseSlug,
+      responsavelDaFase,
+    };
+  });
 }
 
 function projectarPrevisaoConclusao(linhas: CalculadoraFaseLinha[], hoje: string): string | null {
