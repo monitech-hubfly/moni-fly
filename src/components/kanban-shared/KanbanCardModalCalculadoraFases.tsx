@@ -16,6 +16,8 @@ type Props = {
   faseAtualId: string | null;
   cardConcluido?: boolean;
   visits?: FaseVisit[];
+  /** painel = centro do drawer (altura livre); compact = legado sidebar */
+  variant?: 'painel' | 'compact';
 };
 
 function fmtData(iso: string | null): string {
@@ -178,6 +180,7 @@ export function KanbanCardModalCalculadoraFases({
   faseAtualId,
   cardConcluido,
   visits = [],
+  variant = 'compact',
 }: Props) {
   const resumo = useMemo(
     () => calcularResumoExecutivoCalculadoraFases(linhas, { cardConcluido, visits }),
@@ -209,7 +212,13 @@ export function KanbanCardModalCalculadoraFases({
         >
           SLA em d.u. (dias úteis) ou d.c. (dias corridos), conforme a fase.
         </p>
-        <div className="max-h-72 space-y-1.5 overflow-y-auto pr-0.5">
+        <div
+          className={
+            variant === 'painel'
+              ? 'max-h-none space-y-1.5 overflow-y-auto pr-0.5'
+              : 'max-h-72 space-y-1.5 overflow-y-auto pr-0.5'
+          }
+        >
           {linhas.map((row) => {
             const isAtual = row.faseId === faseAtualId;
             return (

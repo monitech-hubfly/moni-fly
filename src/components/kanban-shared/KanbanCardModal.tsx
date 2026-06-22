@@ -255,7 +255,7 @@ import { FaseChecklistCard } from './FaseChecklistCard';
 import { ResponsavelFaseSidebar } from './ResponsavelFaseSidebar';
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
-import { calcularLinhasCalculadoraFases } from '@/lib/kanban/calculadora-fases';
+import { calcularLinhasCalculadoraFases, calcularResumoExecutivoCalculadoraFases } from '@/lib/kanban/calculadora-fases';
 import {
   buildLegadoFaseTimeline,
   buildLegadoFaseVisits,
@@ -480,7 +480,7 @@ export function KanbanCardModal({
   const [fases, setFases] = useState<KanbanFase[]>(fasesProp ?? []);
   const [faseAtual, setFaseAtual] = useState<KanbanFase | null>(null);
   const [secaoAberta, setSecaoAberta] = useState<Record<SecaoEsquerdaId, boolean>>({
-    calculadora: true,
+    calculadora: false,
     cronologia: false,
     franqueado: false,
     loteador: false,
@@ -536,7 +536,7 @@ export function KanbanCardModal({
   const [salvandoFranqueado, setSalvandoFranqueado] = useState(false);
   const [totalCardsSyncGrupo, setTotalCardsSyncGrupo] = useState(0);
   const [abaComentarios, setAbaComentarios] = useState<'comentarios' | 'email'>('comentarios');
-  const [abaCentro, setAbaCentro] = useState<'detalhes' | 'chamados' | 'trancheVinculo'>('detalhes');
+  const [abaCentro, setAbaCentro] = useState<'detalhes' | 'chamados' | 'trancheVinculo' | 'calculadora'>('detalhes');
   const [trancheVinculoIndex, setTrancheVinculoIndex] = useState<number | null>(null);
   const [trancheVinculosTick, setTrancheVinculosTick] = useState(0);
   const [emailPara, setEmailPara] = useState('');
@@ -2605,6 +2605,12 @@ export function KanbanCardModal({
     setSecaoAberta((prev) => ({ ...prev, [id]: !prev[id] }));
   }
 
+  function abrirPainelCalculadora() {
+    setAbaCentro('calculadora');
+    setTrancheVinculoIndex(null);
+    setSecaoAberta((prev) => ({ ...prev, calculadora: true }));
+  }
+
   function abrirPainelChamados() {
     setAbaCentro('chamados');
     setTrancheVinculoIndex(null);
@@ -3131,6 +3137,15 @@ export function KanbanCardModal({
     }
   }, [card, fases, historico, legadoCronologiaMoves, origem]);
 
+  const calculadoraResumo = useMemo(
+    () =>
+      calcularResumoExecutivoCalculadoraFases(calculadoraFasesPack.linhas, {
+        cardConcluido: card?.concluido === true,
+        visits: calculadoraFasesPack.visits,
+      }),
+    [calculadoraFasesPack, card?.concluido],
+  );
+
   const abrirEdicaoInstrucoesFase = () => {
     if (!faseAtual || !pode('editar_instrucoes')) return;
     setDraftInstrucoesFase((faseAtual.instrucoes ?? '').trim() ? String(faseAtual.instrucoes) : '');
@@ -3309,7 +3324,8 @@ export function KanbanCardModal({
     kanbanNome === 'Funil Operações';
   const podeGerenciarRelacionamentos =
     !ocultarGestaoCard && modalSessao.ehAdminOuTeam;
-  const painelCentroAlternativo = abaCentro === 'chamados' || abaCentro === 'trancheVinculo';
+  const painelCentroAlternativo =
+    abaCentro === 'chamados' || abaCentro === 'trancheVinculo' || abaCentro === 'calculadora';
   const cardTitulo = card.titulo;
   const checklistExtra = card.fase_id && camposPorFase?.[card.fase_id];
   const faseChecklistFaseId = card.fase_id ?? '';
@@ -3698,6 +3714,59 @@ export function KanbanCardModal({
       ) : null}
     </div>
   );
+
+  const secaoHeadPainelCentroCalculadora = () => {
+    const ativo = abaCentro === 'calculadora';
+    const pct = calculadoraFasesPack.linhas.length > 0 ? calculadoraResumo.percentualConcluido : null;
+    return (
+      <div
+        className="mb-2 overflow-hidden rounded-lg bg-white text-xs"
+        style={{
+          border: '0.5px solid var(--moni-border-default)',
+          boxShadow: 'var(--moni-shadow-sm)',
+        }}
+      >
+        <button
+          type="button"
+          onClick={abrirPainelCalculadora}
+          className={`flex w-full items-center gap-2 p-2 text-left text-xs transition hover:bg-stone-50 ${
+            ativo ? 'bg-[var(--moni-navy-50,#eef3f5)] ring-1 ring-inset ring-[var(--moni-navy-200,#b8ccd4)]' : ''
+          }`}
+        >
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-stone-500" aria-hidden />
+          <span className="text-xs font-semibold text-stone-800">Calculadora</span>
+          {pct != null ? (
+            <span
+              className="ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums"
+              style={{
+                background: 'var(--moni-navy-50, #eef3f5)',
+                color: 'var(--moni-navy-800)',
+              }}
+              title="Progresso no funil"
+            >
+              {pct}%
+            </span>
+          ) : null}
+        </button>
+        {ativo ? (
+          <p
+            className="border-t px-2 pb-2 pt-1.5 text-[10px] text-stone-500"
+            style={{ borderColor: 'var(--moni-border-subtle)' }}
+          >
+            Calculadora aberta — use <strong className="font-medium text-stone-700">Voltar</strong> no centro do
+            card.
+          </p>
+        ) : pct != null ? (
+          <p
+            className="border-t px-2 pb-2 pt-1.5 text-[10px] text-stone-500"
+            style={{ borderColor: 'var(--moni-border-subtle)' }}
+          >
+            {pct}% concluído no funil — clique para ver SLA e previsões.
+          </p>
+        ) : null}
+      </div>
+    );
+  };
 
   function handleBackdropClick(e: ReactMouseEvent<HTMLDivElement>) {
     if (e.target !== e.currentTarget) return;
@@ -4834,6 +4903,43 @@ export function KanbanCardModal({
               </div>
             </div>
             </div>
+            </>
+            ) : abaCentro === 'calculadora' ? (
+            <>
+              <button
+                type="button"
+                onClick={voltarPainelDetalhes}
+                className="mb-4 inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-stone-700 shadow-sm transition hover:bg-stone-50"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+                Voltar
+              </button>
+              <div className="flex min-h-0 flex-1 flex-col">
+                <h4 className="mb-3 text-sm font-semibold" style={{ color: 'var(--moni-text-secondary)' }}>
+                  Calculadora
+                  {calculadoraResumo.fasesTotal > 0 ? (
+                    <span className="ml-2 text-xs font-normal text-stone-500">
+                      ({calculadoraResumo.percentualConcluido}% · {calculadoraResumo.fasesConcluidas}/
+                      {calculadoraResumo.fasesTotal} fases)
+                    </span>
+                  ) : null}
+                </h4>
+                <div
+                  className="min-h-0 flex-1 rounded-lg bg-white p-4"
+                  style={{
+                    border: '0.5px solid var(--moni-border-default)',
+                    boxShadow: 'var(--moni-shadow-sm)',
+                  }}
+                >
+                  <KanbanCardModalCalculadoraFases
+                    linhas={calculadoraFasesPack.linhas}
+                    visits={calculadoraFasesPack.visits}
+                    faseAtualId={card.fase_id}
+                    cardConcluido={card.concluido === true}
+                    variant="painel"
+                  />
+                </div>
+              </div>
             </>
             ) : (
             <>
@@ -6011,16 +6117,6 @@ export function KanbanCardModal({
               </p>
             ) : null}
             {secaoHead(
-              'calculadora',
-              'Calculadora',
-              <KanbanCardModalCalculadoraFases
-                linhas={calculadoraFasesPack.linhas}
-                visits={calculadoraFasesPack.visits}
-                faseAtualId={card.fase_id}
-                cardConcluido={card.concluido === true}
-              />,
-            )}
-            {secaoHead(
               'cronologia',
               'ID e datas do funil',
               <div className="space-y-2">
@@ -6552,6 +6648,7 @@ export function KanbanCardModal({
                 </div>
               ),
             )}
+            {secaoHeadPainelCentroCalculadora()}
             {exibirSecaoDocumentacaoCreditoObra
               ? secaoHead(
                   'documentacaoCreditoObra',
