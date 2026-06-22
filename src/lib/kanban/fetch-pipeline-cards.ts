@@ -25,6 +25,8 @@ const CARD_SELECT_BASE = `
   fase_id,
   rede_franqueado_id,
   projeto_id,
+  origem_card_id,
+  processo_step_one_id,
   created_at,
   updated_at,
   entered_fase_at,
@@ -66,6 +68,8 @@ const CARD_SELECT_SEM_PROJETO = `
   kanban_id,
   fase_id,
   rede_franqueado_id,
+  origem_card_id,
+  processo_step_one_id,
   created_at,
   updated_at,
   entered_fase_at,
@@ -138,6 +142,9 @@ function mapPipelineCardRow(raw: RawCard): PipelineCardRow | null {
     responsavel_fase_nome: null,
     projeto_id: projetoId || null,
     projeto_titulo: projeto?.titulo != null ? String(projeto.titulo).trim() || null : null,
+    origem_card_id: raw.origem_card_id != null ? String(raw.origem_card_id).trim() || null : null,
+    processo_step_one_id:
+      raw.processo_step_one_id != null ? String(raw.processo_step_one_id).trim() || null : null,
   };
 
   if ('opcao_assinada' in raw) {

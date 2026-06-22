@@ -51,6 +51,10 @@ export type PipelineCardRow = {
   /** FK `projeto_negocio.id` — agrupa esteiras paralelas do mesmo negócio. */
   projeto_id?: string | null;
   projeto_titulo?: string | null;
+  /** Bastão / card pai na cadeia de sync entre funis. */
+  origem_card_id?: string | null;
+  /** Processo Step One — distinto de `projeto_id` (Portfolio). */
+  processo_step_one_id?: string | null;
 };
 
 export type PipelineFranqueadoUnidade = {

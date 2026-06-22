@@ -1,7 +1,6 @@
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import type { PipelineCardDisplay } from '@/lib/kanban/pipeline-cards-types';
 import {
-  idProjetoNegocioPipelineCard,
   indiceEsteiraTresEtapas,
   isFunilEsteiraPrincipal,
   isFunilParaleloEsteira,
@@ -68,9 +67,8 @@ export function cardsRelacionadosProjeto(
   card: PipelineCardDisplay,
   allCards: readonly PipelineCardDisplay[],
 ): PipelineCardDisplay[] {
-  const pid = idProjetoNegocioPipelineCard(card);
-  if (!pid) return [card];
-  return allCards.filter((c) => idProjetoNegocioPipelineCard(c) === pid);
+  const relacionados = allCards.filter((c) => cardsCompartilhamNegocioPipeline(card, c));
+  return relacionados.length > 0 ? relacionados : [card];
 }
 
 /** Cards da linha principal + funis paralelos do mesmo projeto (para multi-track). */
@@ -111,8 +109,7 @@ export function resolverCardFunilNoGrupoParalelo(
   rowCard: PipelineCardDisplay,
   siblingCards: readonly PipelineCardDisplay[],
 ): PipelineCardDisplay | null {
-  const pid = idProjetoNegocioPipelineCard(rowCard);
-  const relacionados = pid ? cardsRelacionadosProjeto(rowCard, siblingCards) : siblingCards;
+  const relacionados = cardsRelacionadosProjeto(rowCard, siblingCards);
   const match = relacionados.find((c) => c.kanban_id === kanbanId);
   if (match) return match;
   if (rowCard.kanban_id === kanbanId) return rowCard;
@@ -135,28 +132,95 @@ export type GrupoProjetoUnidade = {
   cards: PipelineCardDisplay[];
 };
 
-/** Agrupa cards da unidade por `projeto_negocio_id` — paralelos como sub-esteiras do mesmo projeto. */
+/** IDs compartilhados entre Step One (`processo_step_one`) e Portfolio (`projeto_negocio`). */
+function chavesCorrelacaoNegocioPipeline(
+  card: Pick<PipelineCardDisplay, 'projeto_id' | 'processo_step_one_id'>,
+): string[] {
+  const keys: string[] = [];
+  const pid = String(card.projeto_id ?? '').trim();
+  const proc = String(card.processo_step_one_id ?? '').trim();
+  if (pid) keys.push(`ref:${pid}`);
+  if (proc && proc !== pid) keys.push(`ref:${proc}`);
+  return keys;
+}
+
+/** Dois cards pertencem ao mesmo negócio (projeto, processo ou bastão). */
+export function cardsCompartilhamNegocioPipeline(
+  a: Pick<PipelineCardDisplay, 'id' | 'projeto_id' | 'processo_step_one_id' | 'origem_card_id'>,
+  b: Pick<PipelineCardDisplay, 'id' | 'projeto_id' | 'processo_step_one_id' | 'origem_card_id'>,
+): boolean {
+  if (a.id === b.id) return true;
+  const keysB = new Set(chavesCorrelacaoNegocioPipeline(b));
+  for (const k of chavesCorrelacaoNegocioPipeline(a)) {
+    if (keysB.has(k)) return true;
+  }
+  const origA = String(a.origem_card_id ?? '').trim();
+  const origB = String(b.origem_card_id ?? '').trim();
+  if (origA && origA === b.id) return true;
+  if (origB && origB === a.id) return true;
+  return false;
+}
+
+class UnionFindAgrupamento {
+  private parent = new Map<string, string>();
+
+  init(id: string): void {
+    if (!this.parent.has(id)) this.parent.set(id, id);
+  }
+
+  find(id: string): string {
+    let root = id;
+    let p = this.parent.get(root);
+    while (p && p !== root) {
+      root = p;
+      p = this.parent.get(root);
+    }
+    let cur = id;
+    while (cur !== root) {
+      const next = this.parent.get(cur)!;
+      this.parent.set(cur, root);
+      cur = next;
+    }
+    return root;
+  }
+
+  union(a: string, b: string): void {
+    const ra = this.find(a);
+    const rb = this.find(b);
+    if (ra !== rb) this.parent.set(rb, ra);
+  }
+}
+
+/** Agrupa cards da unidade por negócio — `projeto_negocio`, `processo_step_one` e cadeia `origem_card_id`. */
 export function agruparCardsUnidadePorProjeto(cards: PipelineCardDisplay[]): GrupoProjetoUnidade[] {
-  const byPid = new Map<string, PipelineCardDisplay[]>();
-  const semPid: PipelineCardDisplay[] = [];
+  if (cards.length === 0) return [];
+
+  const ufs = new UnionFindAgrupamento();
+  const cardById = new Map(cards.map((c) => [c.id, c]));
+  const refParaCard = new Map<string, string>();
 
   for (const c of cards) {
-    const pid = idProjetoNegocioPipelineCard(c);
-    if (!pid) {
-      semPid.push(c);
-      continue;
+    ufs.init(c.id);
+    for (const key of chavesCorrelacaoNegocioPipeline(c)) {
+      const outro = refParaCard.get(key);
+      if (outro) ufs.union(c.id, outro);
+      else refParaCard.set(key, c.id);
     }
-    const list = byPid.get(pid) ?? [];
+    const origem = String(c.origem_card_id ?? '').trim();
+    if (origem && cardById.has(origem)) ufs.union(c.id, origem);
+  }
+
+  const porRaiz = new Map<string, PipelineCardDisplay[]>();
+  for (const c of cards) {
+    const root = ufs.find(c.id);
+    const list = porRaiz.get(root) ?? [];
     list.push(c);
-    byPid.set(pid, list);
+    porRaiz.set(root, list);
   }
 
   const grupos: GrupoProjetoUnidade[] = [];
-  for (const list of byPid.values()) {
+  for (const list of porRaiz.values()) {
     grupos.push({ anchor: resolverAnchorCardGrupoUnidade(list), cards: list });
-  }
-  for (const c of semPid) {
-    grupos.push({ anchor: c, cards: [c] });
   }
 
   const byAnchorId = new Map(grupos.map((g) => [g.anchor.id, g]));
