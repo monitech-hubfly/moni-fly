@@ -598,6 +598,10 @@ function escolherItemResponsavelDaFaseCanonico(rows: ChecklistItemResponsavelRow
   if (rows.length === 0) return null;
   const bySlug = rows.find((r) => String(r.campo_slug ?? '').trim() === CAMPO_SLUG_RESPONSAVEL_DA_FASE);
   if (bySlug?.id) return String(bySlug.id);
+  const byLegacySlug = rows.find(
+    (r) => String(r.campo_slug ?? '').trim() === CAMPO_SLUG_RESPONSAVEL_DA_FASE_USUARIO,
+  );
+  if (byLegacySlug?.id) return String(byLegacySlug.id);
   const byLabel = rows.find((r) => normalizarLabelResponsavelDaFase(r.label));
   if (byLabel?.id) return String(byLabel.id);
   return String(rows[0]?.id ?? '').trim() || null;
@@ -615,7 +619,7 @@ export async function buscarItemIdResponsavelDaFaseEdicao(
     .from('kanban_fase_checklist_itens')
     .select('id, campo_slug, label, tipo')
     .eq('fase_id', fid)
-    .eq('campo_slug', CAMPO_SLUG_RESPONSAVEL_DA_FASE);
+    .in('campo_slug', [CAMPO_SLUG_RESPONSAVEL_DA_FASE, CAMPO_SLUG_RESPONSAVEL_DA_FASE_USUARIO]);
 
   let rows = (rowsSlug ?? []) as ChecklistItemResponsavelRow[];
   if (rows.length === 0) {
@@ -627,6 +631,14 @@ export async function buscarItemIdResponsavelDaFaseEdicao(
     rows = ((rowsLabel ?? []) as ChecklistItemResponsavelRow[]).filter(
       (r) => !isChecklistItemResponsavelFase(r),
     );
+  }
+  if (rows.length === 0) {
+    const { data: rowsUsuario } = await supabase
+      .from('kanban_fase_checklist_itens')
+      .select('id, campo_slug, label, tipo')
+      .eq('fase_id', fid)
+      .eq('tipo', 'usuario');
+    rows = ((rowsUsuario ?? []) as ChecklistItemResponsavelRow[]).filter(isChecklistItemResponsavelDaFaseSidebar);
   }
 
   return escolherItemResponsavelDaFaseCanonico(rows);

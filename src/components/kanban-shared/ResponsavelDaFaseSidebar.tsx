@@ -128,7 +128,7 @@ export function ResponsavelDaFaseSidebar({
   if (!itemId) {
     return (
       <p className="text-[10px] text-stone-400">
-        Campo não configurado nesta fase. Aplique a migration 404 no Supabase.
+        Campo não configurado nesta fase. Aplique a migration 405 no Supabase.
       </p>
     );
   }
