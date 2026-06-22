@@ -1,9 +1,14 @@
 import type { KanbanFase } from '@/components/kanban-shared/types';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
+import { formatLocalYmd, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
 import type { CalculadoraFaseLinha } from '@/lib/kanban/calculadora-fases';
 import type { FaseVisit } from '@/lib/kanban/kanban-card-timeline';
+import {
+  addBusinessDays,
+  DIAS_ALVARA_APOS_PREFEITURA,
+} from '@/lib/kanban/previsibilidade-operacoes';
 
-export type CalculadoraMarcoId = 'M0' | 'M4' | 'M8' | 'M24';
+export type CalculadoraMarcoId = 'M0' | 'M4' | 'M24';
 
 export type CalculadoraMarco = {
   id: CalculadoraMarcoId;
@@ -14,8 +19,7 @@ export type CalculadoraMarco = {
 };
 
 export type CalculadoraMarcosInput = {
-  opcao_assinada_em?: string | null;
-  obra_iniciada_em?: string | null;
+  contrato_assinado_em?: string | null;
   obra_finalizada_em?: string | null;
   concluido_em?: string | null;
   visits: FaseVisit[];
@@ -34,28 +38,20 @@ const MARCO_DEFS: {
 }[] = [
   {
     id: 'M0',
-    label: 'Opção firmada',
-    funilLabel: 'Funil Step One',
-    anchor: 'after',
-    match: (slug, nome) =>
-      slug === FASE_SLUGS.HIPOTESES ||
-      slug === 'stepone_hipoteses' ||
-      /hip[oó]tese/i.test(nome),
-  },
-  {
-    id: 'M4',
-    label: 'Passagem Wayser',
+    label: 'Contrato',
     funilLabel: 'Funil Portfólio',
     anchor: 'after',
     match: (slug, nome) =>
-      slug === FASE_SLUGS.CAPTACAO_CAPITAL || /capta[cç][aã]o.*mon[ií].*capital/i.test(nome),
+      slug === FASE_SLUGS.STEP_7 || /^contrato$/i.test(nome.trim()),
   },
   {
-    id: 'M8',
-    label: 'Início da obra',
+    id: 'M4',
+    label: 'Emissão do alvará',
     funilLabel: 'Funil Pré Obra e Obra',
-    anchor: 'before',
-    match: (slug, nome) => slug === FASE_SLUGS.EM_OBRA || /em obra/i.test(nome),
+    anchor: 'after',
+    match: (slug, nome) =>
+      slug === FASE_SLUGS.APROVACAO_PREFEITURA ||
+      /aprova[cç][aã]o.*prefeitura/i.test(nome),
   },
   {
     id: 'M24',
@@ -95,15 +91,18 @@ function dataFimRef(linha: CalculadoraFaseLinha | undefined): string | null {
   return linha.dataFimReal ?? linha.dataFimEstimada ?? linha.dataInicioReal;
 }
 
-function dataInicioRef(linha: CalculadoraFaseLinha | undefined): string | null {
-  if (!linha) return null;
-  return linha.dataInicioReal ?? linha.dataFimEstimada;
-}
-
-function visitEntradaEmFase(visits: FaseVisit[], faseId: string | undefined): string | null {
-  if (!faseId) return null;
-  const visit = visits.find((v) => v.faseId === faseId);
-  return visit ? toYmd(visit.entrou) : null;
+function marcoDataAposFimFase(
+  linha: CalculadoraFaseLinha | undefined,
+  diasUteis: number,
+): { data: string | null; isPrevisto: boolean } {
+  const fim = dataFimRef(linha);
+  if (!fim) return { data: null, isPrevisto: true };
+  const base = parseIsoDateOnlyLocal(fim);
+  if (!base) return { data: null, isPrevisto: true };
+  return {
+    data: formatLocalYmd(addBusinessDays(base, diasUteis)),
+    isPrevisto: linha?.dataFimReal == null,
+  };
 }
 
 function resolverDataMarco(
@@ -111,55 +110,32 @@ function resolverDataMarco(
   input: CalculadoraMarcosInput,
   linhas: CalculadoraFaseLinha[],
   slugs: Map<string, string | null | undefined>,
-  fases: KanbanFase[],
 ): { data: string | null; isPrevisto: boolean } {
-  const idxHipoteses = findFaseIndex(linhas, slugs, MARCO_DEFS[0]!.match);
-  const idxCaptacao = findFaseIndex(linhas, slugs, MARCO_DEFS[1]!.match);
-  const idxEmObra = findFaseIndex(linhas, slugs, MARCO_DEFS[2]!.match);
-  const idxEntregue = findFaseIndex(linhas, slugs, MARCO_DEFS[3]!.match);
+  const def = MARCO_DEFS.find((d) => d.id === id);
+  if (!def) return { data: null, isPrevisto: true };
+
+  const idx = findFaseIndex(linhas, slugs, def.match);
 
   if (id === 'M0') {
-    const real = toYmd(input.opcao_assinada_em);
+    const real = toYmd(input.contrato_assinado_em);
     if (real) return { data: real, isPrevisto: false };
-    return { data: dataFimRef(linhas[idxHipoteses]), isPrevisto: true };
+    return { data: dataFimRef(linhas[idx]), isPrevisto: true };
   }
 
   if (id === 'M4') {
-    const passagemFase = fases.find(
-      (f) =>
-        f.slug === FASE_SLUGS.PASSAGEM_WAYSER ||
-        /passagem.*wayser/i.test(f.nome),
-    );
-    const visitDate = visitEntradaEmFase(input.visits, passagemFase?.id);
-    if (visitDate) return { data: visitDate, isPrevisto: false };
-    const prevPassagem = idxCaptacao >= 0 ? linhas[idxCaptacao + 1] : undefined;
-    const prev =
-      dataInicioRef(prevPassagem) ??
-      dataFimRef(linhas[idxCaptacao]) ??
-      dataFimRef(prevPassagem);
-    return { data: prev, isPrevisto: true };
-  }
-
-  if (id === 'M8') {
-    const real = toYmd(input.obra_iniciada_em);
-    if (real) return { data: real, isPrevisto: false };
-    const prev = idxEmObra > 0 ? linhas[idxEmObra - 1] : undefined;
-    return {
-      data: dataInicioRef(linhas[idxEmObra]) ?? dataFimRef(prev),
-      isPrevisto: true,
-    };
+    return marcoDataAposFimFase(idx >= 0 ? linhas[idx] : undefined, DIAS_ALVARA_APOS_PREFEITURA);
   }
 
   const real =
     toYmd(input.obra_finalizada_em) ??
     toYmd(input.concluido_em);
   if (real) return { data: real, isPrevisto: false };
-  return { data: dataFimRef(linhas[idxEntregue]), isPrevisto: true };
+  return { data: dataFimRef(linhas[idx]), isPrevisto: true };
 }
 
 type InsercaoMarco = { index: number; marco: CalculadoraMarco };
 
-/** Intercala marcos M0/M4/M8/M24 na timeline de fases da esteira. */
+/** Intercala marcos M0/M4/M24 na timeline de fases da esteira. */
 export function montarTimelineCalculadoraComMarcos(
   linhas: CalculadoraFaseLinha[],
   fases: KanbanFase[],
@@ -175,7 +151,7 @@ export function montarTimelineCalculadoraComMarcos(
     if (idx < 0) continue;
 
     const insertAt = def.anchor === 'after' ? idx + 1 : idx;
-    const { data, isPrevisto } = resolverDataMarco(def.id, marcosInput, linhas, slugs, fases);
+    const { data, isPrevisto } = resolverDataMarco(def.id, marcosInput, linhas, slugs);
 
     insercoes.push({
       index: insertAt,

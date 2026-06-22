@@ -2,10 +2,22 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanCardBrief } from '@/components/kanban-shared/types';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 
-/** Slug estável do campo «Responsável da fase» em todo kanban. */
+/** Slug estável do campo «Responsável do card» em todo kanban. */
 export const CAMPO_SLUG_RESPONSAVEL_FASE = 'responsavel_fase';
 
-export const RESPONSAVEL_FASE_CHECKLIST_LABEL = 'Responsável da fase';
+export const RESPONSAVEL_FASE_CHECKLIST_LABEL = 'Responsável do card';
+
+/** Label anterior (migration 380–382) — reconhecida ao resolver itens legados. */
+export const RESPONSAVEL_FASE_CHECKLIST_LABEL_LEGADO = 'Responsável da fase';
+
+/** Painel lateral: quem executa a fase (Franqueado ou Moní). */
+export const RESPONSAVEL_DA_FASE_CHECKLIST_LABEL = 'Responsável da fase';
+
+export const CAMPO_SLUG_RESPONSAVEL_DA_FASE_TIPO = 'responsavel_da_fase_tipo';
+export const CAMPO_SLUG_RESPONSAVEL_DA_FASE_USUARIO = 'responsavel_da_fase_usuario';
+
+export const RESPONSAVEL_DA_FASE_TIPO_FRANQUEADO = 'Franqueado';
+export const RESPONSAVEL_DA_FASE_TIPO_MONI = 'Moní';
 
 /** Slugs legados de responsável (Loteadores) — lidos ao propagar da fase anterior. */
 export const CAMPOS_SLUG_RESPONSAVEL_FASE_LEGADO = [
@@ -482,18 +494,30 @@ function normalizarLabelResponsavelFase(label: string | null | undefined): boole
     .toLowerCase()
     .normalize('NFD')
     .replace(/\p{M}/gu, '');
-  return t === 'responsavel da fase';
+  return t === 'responsavel da fase' || t === 'responsavel do card';
 }
 
-/** Item de checklist que representa o responsável da fase (slug, label ou legado). */
+/** Itens do checklist só exibidos no painel lateral (responsável da fase Franqueado/Moní). */
+export function isChecklistItemResponsavelDaFaseSidebar(item: ChecklistItemResponsavelRow): boolean {
+  const slug = String(item.campo_slug ?? '').trim();
+  return slug === CAMPO_SLUG_RESPONSAVEL_DA_FASE_TIPO || slug === CAMPO_SLUG_RESPONSAVEL_DA_FASE_USUARIO;
+}
+
+/** Item de checklist que representa o responsável do card (slug, label ou legado). */
 export function isChecklistItemResponsavelFase(item: ChecklistItemResponsavelRow): boolean {
+  if (isChecklistItemResponsavelDaFaseSidebar(item)) return false;
   const slug = String(item.campo_slug ?? '').trim();
   if ((CAMPOS_SLUG_RESPONSAVEL_FASE_LEGADO as readonly string[]).includes(slug as (typeof CAMPOS_SLUG_RESPONSAVEL_FASE_LEGADO)[number])) {
     return true;
   }
   if (normalizarLabelResponsavelFase(item.label)) return true;
   const label = String(item.label ?? '').trim().toLowerCase();
-  return item.tipo === 'usuario' && label.includes('respons') && label.includes('fase');
+  return (
+    item.tipo === 'usuario' &&
+    slug === CAMPO_SLUG_RESPONSAVEL_FASE &&
+    label.includes('respons') &&
+    (label.includes('card') || label.includes('fase'))
+  );
 }
 
 export function escolherItemResponsavelFaseCanonico(rows: ChecklistItemResponsavelRow[]): string | null {
@@ -525,7 +549,7 @@ export async function buscarItemIdResponsavelFaseEdicao(
       .from('kanban_fase_checklist_itens')
       .select('id, campo_slug, label, tipo')
       .eq('fase_id', fid)
-      .eq('label', RESPONSAVEL_FASE_CHECKLIST_LABEL);
+      .in('label', [RESPONSAVEL_FASE_CHECKLIST_LABEL, RESPONSAVEL_FASE_CHECKLIST_LABEL_LEGADO]);
     rows = (rowsLabel ?? []) as ChecklistItemResponsavelRow[];
   }
   if (rows.length === 0) {
@@ -538,6 +562,64 @@ export async function buscarItemIdResponsavelFaseEdicao(
   }
 
   return escolherItemResponsavelFaseCanonico(rows);
+}
+
+export type ResponsavelDaFaseItensEdicao = {
+  tipoItemId: string | null;
+  usuarioItemId: string | null;
+};
+
+/** Resolve itens editáveis de «Responsável da fase» (tipo + usuário Moní). */
+export async function buscarItensResponsavelDaFaseEdicao(
+  supabase: SupabaseClient,
+  faseId: string,
+): Promise<ResponsavelDaFaseItensEdicao> {
+  const fid = faseId.trim();
+  if (!fid) return { tipoItemId: null, usuarioItemId: null };
+
+  const { data } = await supabase
+    .from('kanban_fase_checklist_itens')
+    .select('id, campo_slug')
+    .eq('fase_id', fid)
+    .in('campo_slug', [CAMPO_SLUG_RESPONSAVEL_DA_FASE_TIPO, CAMPO_SLUG_RESPONSAVEL_DA_FASE_USUARIO]);
+
+  const rows = (data ?? []) as { id: string; campo_slug?: string | null }[];
+  const tipoItemId =
+    rows.find((r) => String(r.campo_slug ?? '').trim() === CAMPO_SLUG_RESPONSAVEL_DA_FASE_TIPO)?.id ??
+    null;
+  const usuarioItemId =
+    rows.find((r) => String(r.campo_slug ?? '').trim() === CAMPO_SLUG_RESPONSAVEL_DA_FASE_USUARIO)?.id ??
+    null;
+
+  return {
+    tipoItemId: tipoItemId ? String(tipoItemId) : null,
+    usuarioItemId: usuarioItemId ? String(usuarioItemId) : null,
+  };
+}
+
+/** Franqueado vinculado ao card (rede / Step One). */
+export async function buscarFranqueadoIdResponsavelCard(
+  supabase: SupabaseClient,
+  cardId: string,
+): Promise<string | null> {
+  const cid = cardId.trim();
+  if (!cid) return null;
+
+  const { data: card } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id, rede_franqueado_id')
+    .eq('id', cid)
+    .maybeSingle();
+  if (!card) return null;
+
+  const kanbanId = String((card as { kanban_id?: string | null }).kanban_id ?? '').trim();
+  if (isKanbanFunilStepOneId(kanbanId)) {
+    return buscarFranqueadoIdResponsavelStepOne(supabase, cid);
+  }
+
+  const redeId = String((card as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? '').trim();
+  if (!redeId) return null;
+  return buscarProfileFranqueadoPorRedeId(supabase, redeId);
 }
 
 function valorResponsavelValido(valor: string | null | undefined): string | null {

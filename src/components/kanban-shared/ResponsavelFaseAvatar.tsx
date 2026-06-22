@@ -11,7 +11,7 @@ type Props = {
 const SIZE_PX = { sm: 22, md: 28 } as const;
 const FONT_PX = { sm: 9, md: 11 } as const;
 
-/** Bolinha com iniciais do responsável da fase (card fechado no board). */
+/** Bolinha com iniciais do responsável do card (card fechado no board). */
 export function ResponsavelFaseAvatar({ nome, size = 'sm', className = '' }: Props) {
   const label = nome?.trim();
   if (!label) return null;

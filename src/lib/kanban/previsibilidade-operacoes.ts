@@ -29,7 +29,7 @@ export type PrevisibilidadeOperacoesInput = {
   sla_aprovacao_prefeitura: number | null;
 };
 
-const DIAS_ALVARA_APOS_PREFEITURA = 3;
+export const DIAS_ALVARA_APOS_PREFEITURA = 3;
 const DIAS_ANTECEDENCIA_ENVIO_CREDITO = 30;
 const DIAS_APOS_ALVARA_INICIO_OBRA = 30;
 

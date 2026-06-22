@@ -371,9 +371,6 @@
   --moni-calc-marco-m4-dot: #0F6E56;
   --moni-calc-marco-m4-badge-bg: #E3F5EF;
   --moni-calc-marco-m4-badge-text: #085041;
-  --moni-calc-marco-m8-dot: #3B6D11;
-  --moni-calc-marco-m8-badge-bg: #EBF4DC;
-  --moni-calc-marco-m8-badge-text: #27500A;
   --moni-calc-marco-m24-dot: #A32D2D;
   --moni-calc-marco-m24-badge-bg: #FEF6F6;
   --moni-calc-marco-m24-badge-text: #A32D2D;
@@ -772,7 +769,6 @@
 
 .moni-calculadora-marco-dot--M0 { background: var(--moni-calc-marco-m0-dot); }
 .moni-calculadora-marco-dot--M4 { background: var(--moni-calc-marco-m4-dot); }
-.moni-calculadora-marco-dot--M8 { background: var(--moni-calc-marco-m8-dot); }
 .moni-calculadora-marco-dot--M24 { background: var(--moni-calc-marco-m24-dot); }
 
 .moni-calculadora-marco-label {
@@ -811,11 +807,6 @@
 .moni-calculadora-marco-badge--M4 {
   background: var(--moni-calc-marco-m4-badge-bg);
   color: var(--moni-calc-marco-m4-badge-text);
-}
-
-.moni-calculadora-marco-badge--M8 {
-  background: var(--moni-calc-marco-m8-badge-bg);
-  color: var(--moni-calc-marco-m8-badge-text);
 }
 
 .moni-calculadora-marco-badge--M24 {

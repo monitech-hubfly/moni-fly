@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import {
   calcularLinhasCalculadoraFases,
+  inferirFimRealPorProximaFase,
   type CalculadoraFaseLinha,
   type CalculadoraFasesInput,
 } from '@/lib/kanban/calculadora-fases';
@@ -193,6 +194,20 @@ function resolverFaseIdParaCalculo(
   return primeiraDoSegmento?.id ?? cardFaseId;
 }
 
+/** Fases de todos os funis da esteira — necessário para montar visitas com histórico cross-funil. */
+export function montarFasesFlatCalculadoraVisitas(
+  fasesPorKanban: Map<string, KanbanFase[]>,
+  fasesKanbanAtual: KanbanFase[],
+  kanbanId: string,
+): KanbanFase[] {
+  const list: KanbanFase[] = [];
+  for (const kid of CALCULADORA_ESTEIRA_KANBAN_IDS) {
+    list.push(...(fasesPorKanban.get(kid) ?? []));
+  }
+  if (list.length > 0) return list;
+  return filtrarFasesCalculadoraEsteira(kanbanId, fasesKanbanAtual);
+}
+
 /**
  * Calculadora com todas as fases Step One → Portfólio → Pré Obra e Obra.
  * Cards em funis anteriores marcam fases futuras; em funis posteriores, anteriores como concluídas.
@@ -236,7 +251,9 @@ export function calcularLinhasCalculadoraFasesEsteira(input: {
   const comSegmento = aplicarRegrasSegmentoEsteira(linhas, meta, segmentoCard);
   const faseOrdemRelativa =
     meta.some((m) => m.id === input.card.fase_id) ? input.card.fase_id : faseIdCalc;
-  return aplicarOrdemRelativaFaseAtual(comSegmento, meta, faseOrdemRelativa);
+  return inferirFimRealPorProximaFase(
+    aplicarOrdemRelativaFaseAtual(comSegmento, meta, faseOrdemRelativa),
+  );
 }
 
 /** Mescla fases já carregadas do kanban atual no mapa (fallback enquanto busca a esteira). */

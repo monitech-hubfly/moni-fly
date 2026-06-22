@@ -352,10 +352,30 @@ export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): Ca
       fimFaseAnteriorEstimado = dataFimEstimada;
     }
 
-    return linhas;
+    return inferirFimRealPorProximaFase(linhas);
   } catch {
     return [];
   }
+}
+
+/** Preenche fim real a partir da entrada na fase seguinte (quando o histórico não registrou saída). */
+export function inferirFimRealPorProximaFase(linhas: CalculadoraFaseLinha[]): CalculadoraFaseLinha[] {
+  if (linhas.length === 0) return linhas;
+
+  const out = linhas.map((l) => ({ ...l }));
+
+  for (let i = 0; i < out.length - 1; i++) {
+    const row = out[i]!;
+    if (row.dataFimReal) continue;
+    const concluida = row.status === 'concluida' || row.status === 'concluida_atraso';
+    if (!concluida) continue;
+    const proximoInicio = out[i + 1]!.dataInicioReal;
+    if (proximoInicio) {
+      out[i] = { ...row, dataFimReal: proximoInicio };
+    }
+  }
+
+  return out;
 }
 
 function projectarPrevisaoConclusao(linhas: CalculadoraFaseLinha[], hoje: string): string | null {

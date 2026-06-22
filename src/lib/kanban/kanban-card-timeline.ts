@@ -101,9 +101,14 @@ export function buildNativeFaseVisits(
     const nov = detStr(m.detalhe, 'fase_nova_id');
     if (!ant || !nov || !byId.has(ant) || !byId.has(nov)) continue;
     const t = m.criado_em;
+    for (const v of visits) {
+      if (v.faseId === ant && v.saiu === null) v.saiu = t;
+    }
     const last = visits[visits.length - 1];
     if (last && last.faseId === ant && last.saiu === null) last.saiu = t;
-    visits.push({ faseId: nov, entrou: t, saiu: null });
+    if (!last || last.faseId !== nov || last.saiu !== null) {
+      visits.push({ faseId: nov, entrou: t, saiu: null });
+    }
   }
 
   return visits;

@@ -255,6 +255,11 @@ import { ChecklistLegalCondominioCard } from './ChecklistLegalCondominioCard';
 import { ChecklistCreditoSection } from '@/app/steps-viabilidade/ChecklistCreditoSection';
 import { FaseChecklistCard } from './FaseChecklistCard';
 import { ResponsavelFaseSidebar } from './ResponsavelFaseSidebar';
+import { ResponsavelDaFaseSidebar } from './ResponsavelDaFaseSidebar';
+import {
+  RESPONSAVEL_DA_FASE_CHECKLIST_LABEL,
+  RESPONSAVEL_FASE_CHECKLIST_LABEL,
+} from '@/lib/kanban/responsavel-fase-checklist';
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
 import { calcularLinhasCalculadoraFases, calcularResumoExecutivoCalculadoraFases } from '@/lib/kanban/calculadora-fases';
@@ -263,6 +268,7 @@ import {
   CALCULADORA_ESTEIRA_KANBAN_IDS,
   fetchCalculadoraEsteiraFasesMap,
   mesclarFasesKanbanAtualNoMapa,
+  montarFasesFlatCalculadoraVisitas,
 } from '@/lib/kanban/calculadora-fases-esteira';
 import {
   buildLegadoFaseTimeline,
@@ -310,6 +316,7 @@ type Card = {
   sla_justificativa?: string | null;
   sla_justificativa_em?: string | null;
   opcao_assinada_em?: string | null;
+  contrato_assinado_em?: string | null;
   obra_iniciada_em?: string | null;
   obra_finalizada_em?: string | null;
   portfolio_vinculo_rotulo?: string | null;
@@ -1009,6 +1016,7 @@ export function KanbanCardModal({
         sla_justificativa?: string | null;
         sla_justificativa_em?: string | null;
         opcao_assinada_em?: string | null;
+        contrato_assinado_em?: string | null;
         obra_iniciada_em?: string | null;
         obra_finalizada_em?: string | null;
       };
@@ -1097,7 +1105,7 @@ export function KanbanCardModal({
       } else {
         setLegadoCronologiaMoves([]);
         const cardSelectConfirmacao =
-          'opcao_assinada_em, obra_iniciada_em, obra_finalizada_em';
+          'opcao_assinada_em, contrato_assinado_em, obra_iniciada_em, obra_finalizada_em';
         const cardSelectCore =
           `id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, hora_reuniao, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, ${cardSelectConfirmacao}`;
         const cardSelectPreObra =
@@ -1192,6 +1200,10 @@ export function KanbanCardModal({
           opcao_assinada_em:
             (cardData as { opcao_assinada_em?: string | null }).opcao_assinada_em != null
               ? String((cardData as { opcao_assinada_em?: string | null }).opcao_assinada_em)
+              : null,
+          contrato_assinado_em:
+            (cardData as { contrato_assinado_em?: string | null }).contrato_assinado_em != null
+              ? String((cardData as { contrato_assinado_em?: string | null }).contrato_assinado_em)
               : null,
           obra_iniciada_em:
             (cardData as { obra_iniciada_em?: string | null }).obra_iniciada_em != null
@@ -3196,10 +3208,23 @@ export function KanbanCardModal({
         detalhe: h.detalhe,
         criado_em: h.criado_em,
       }));
+
+      const fasesEsteiraMap = mesclarFasesKanbanAtualNoMapa(
+        fasesEsteiraCalculadora,
+        card.kanban_id,
+        fases,
+      );
+
+      const fasesParaVisitas = montarFasesFlatCalculadoraVisitas(
+        fasesEsteiraMap,
+        fases,
+        card.kanban_id,
+      );
+
       const visits =
         origem === 'legado'
           ? buildLegadoFaseVisits(
-              fases,
+              fasesParaVisitas,
               {
                 created_at: card.created_at,
                 fase_id: card.fase_id,
@@ -3208,16 +3233,10 @@ export function KanbanCardModal({
               legadoCronologiaMoves,
             )
           : buildNativeFaseVisits(
-              fases,
+              fasesParaVisitas,
               { created_at: card.created_at, fase_id: card.fase_id },
               historicoMovs,
             );
-
-      const fasesEsteiraMap = mesclarFasesKanbanAtualNoMapa(
-        fasesEsteiraCalculadora,
-        card.kanban_id,
-        fases,
-      );
 
       const cardFaseSlug =
         fases.find((f) => f.id === card.fase_id)?.slug ?? card.etapa_slug ?? null;
@@ -3297,15 +3316,13 @@ export function KanbanCardModal({
 
   const calculadoraMarcosInput = useMemo(
     () => ({
-      opcao_assinada_em: card?.opcao_assinada_em ?? null,
-      obra_iniciada_em: card?.obra_iniciada_em ?? null,
+      contrato_assinado_em: card?.contrato_assinado_em ?? null,
       obra_finalizada_em: card?.obra_finalizada_em ?? null,
       concluido_em: card?.concluido_em ?? null,
       visits: calculadoraFasesPack.visits,
     }),
     [
-      card?.opcao_assinada_em,
-      card?.obra_iniciada_em,
+      card?.contrato_assinado_em,
       card?.obra_finalizada_em,
       card?.concluido_em,
       calculadoraFasesPack.visits,
@@ -5871,16 +5888,27 @@ export function KanbanCardModal({
             aria-label="Ações do card"
           >
             {mostrarResponsavelFasePainel ? (
-              <PainelLateralSecao titulo="Responsável da fase">
-                <ResponsavelFaseSidebar
-                  cardId={card.id}
-                  faseId={faseIdResponsavelPainel}
-                  kanbanId={card.kanban_id}
-                  nomeFranqueadoRede={rede?.nome_completo ?? null}
-                  opcoes={responsaveisOpcoes}
-                  readOnly={ocultarGestaoCard}
-                />
-              </PainelLateralSecao>
+              <>
+                <PainelLateralSecao titulo={RESPONSAVEL_FASE_CHECKLIST_LABEL}>
+                  <ResponsavelFaseSidebar
+                    cardId={card.id}
+                    faseId={faseIdResponsavelPainel}
+                    kanbanId={card.kanban_id}
+                    nomeFranqueadoRede={rede?.nome_completo ?? null}
+                    opcoes={responsaveisOpcoes}
+                    readOnly={ocultarGestaoCard}
+                  />
+                </PainelLateralSecao>
+                <PainelLateralSecao titulo={RESPONSAVEL_DA_FASE_CHECKLIST_LABEL}>
+                  <ResponsavelDaFaseSidebar
+                    cardId={card.id}
+                    faseId={faseIdResponsavelPainel}
+                    nomeFranqueadoRede={rede?.nome_completo ?? null}
+                    opcoesMoni={responsaveisFiltroOpcoesModal}
+                    readOnly={ocultarGestaoCard}
+                  />
+                </PainelLateralSecao>
+              </>
             ) : null}
 
             {mostrarColunaAcoesLateral ? (
