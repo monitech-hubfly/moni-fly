@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import {
   CALCULADORA_STATUS_LABEL,
@@ -9,13 +9,25 @@ import {
   type CalculadoraStatusGeral,
   type FaseTimelineStatus,
 } from '@/lib/kanban/calculadora-fases';
+import {
+  agruparTimelinePorFunil,
+  montarTimelineCalculadoraComMarcos,
+  type CalculadoraMarco,
+  type CalculadoraMarcoId,
+  type CalculadoraMarcosInput,
+  type CalculadoraTimelineItem,
+} from '@/lib/kanban/calculadora-fases-marcos';
 import type { FaseVisit } from '@/lib/kanban/kanban-card-timeline';
+import type { KanbanFase } from '@/components/kanban-shared/types';
 
 type Props = {
   linhas: CalculadoraFaseLinha[];
   faseAtualId: string | null;
   cardConcluido?: boolean;
   visits?: FaseVisit[];
+  fases?: KanbanFase[];
+  marcos?: CalculadoraMarcosInput;
+  fasesMeta?: Map<string, KanbanFase>;
   /** painel = centro do drawer (altura livre); compact = legado sidebar */
   variant?: 'painel' | 'compact';
 };
@@ -26,8 +38,8 @@ function fmtData(iso: string | null): string {
 }
 
 function fmtSla(dias: number | null, tipo: 'uteis' | 'corridos'): string {
-  if (dias == null || dias <= 0) return '—';
-  return tipo === 'corridos' ? `${dias} d.c.` : `${dias} d.u.`;
+  if (dias == null || dias <= 0) return 'SLA variável';
+  return tipo === 'corridos' ? `SLA ${dias} d.c.` : `SLA ${dias} d.u.`;
 }
 
 function fmtAtrasoAcumulado(uteis: number, corridos: number): string {
@@ -38,52 +50,62 @@ function fmtAtrasoAcumulado(uteis: number, corridos: number): string {
   return parts.join(' + ');
 }
 
-function statusClass(status: FaseTimelineStatus): string {
-  switch (status) {
-    case 'futura':
-      return 'moni-calculadora-status-futura';
-    case 'atual':
-      return 'moni-calculadora-status-atual';
-    case 'atual_atrasada':
-      return 'moni-tag-atencao';
-    case 'concluida':
-      return 'moni-tag-concluido';
-    case 'concluida_atraso':
-      return 'moni-tag-atrasado';
-    default:
-      return 'moni-calculadora-status-futura';
-  }
-}
-
-function statusGeralClass(status: CalculadoraStatusGeral): string {
-  switch (status) {
-    case 'ok':
-      return 'moni-tag-concluido';
-    case 'atencao':
-      return 'moni-tag-atencao';
-    case 'atrasado':
-      return 'moni-tag-atrasado';
-    case 'concluido':
-      return 'moni-tag-concluido';
-    default:
-      return 'moni-calculadora-status-futura';
-  }
-}
-
-function fmtGargalo(
+function fmtGargaloResumo(
   g: NonNullable<ReturnType<typeof calcularResumoExecutivoCalculadoraFases>['maiorGargalo']>,
 ): string {
   const un = g.unidade === 'corridos' ? 'd.c.' : 'd.u.';
-  if (g.motivo === 'atraso') return `${g.faseNome} — ${g.dias} ${un} de atraso`;
-  return `${g.faseNome} — ${g.dias} d.c. de permanência`;
+  return `${g.faseNome} +${g.dias} ${un}`;
+}
+
+function statusResumoLabel(status: CalculadoraStatusGeral): string {
+  if (status === 'atrasado') return 'Atrasada';
+  if (status === 'concluido') return 'Concluído';
+  return 'No prazo';
+}
+
+function statusResumoClass(status: CalculadoraStatusGeral): string {
+  if (status === 'atrasado') return 'moni-calculadora-badge-atrasada';
+  return 'moni-calculadora-badge-prazo';
+}
+
+function statusRowClass(status: FaseTimelineStatus): string {
+  return `moni-calculadora-fase-row--${status}`;
+}
+
+function statusBadgeClass(status: FaseTimelineStatus): string {
+  return `moni-calculadora-fase-status moni-calculadora-fase-status--${status}`;
+}
+
+function funilDotClass(label: string): string {
+  if (/step one/i.test(label)) return 'moni-calculadora-funil-dot--stepone';
+  if (/portf[oó]lio/i.test(label)) return 'moni-calculadora-funil-dot--portfolio';
+  return 'moni-calculadora-funil-dot--operacoes';
+}
+
+function parseFaseSteps(fase: KanbanFase | undefined): string[] {
+  if (!fase) return [];
+  if (fase.materiais && fase.materiais.length > 0) {
+    return fase.materiais.map((m) => m.titulo.trim()).filter(Boolean);
+  }
+  if (fase.instrucoes?.trim()) {
+    return fase.instrucoes
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return [];
 }
 
 function CalculadoraResumoExecutivo({
   resumo,
+  linhaAtual,
 }: {
   resumo: ReturnType<typeof calcularResumoExecutivoCalculadoraFases>;
+  linhaAtual: CalculadoraFaseLinha | undefined;
 }) {
-  const unidadeNaFase = resumo.diasNaFaseTipo === 'corridos' ? 'd.c.' : 'd.u.';
+  const atrasada = resumo.statusGeral === 'atrasado';
+  const funilLabel = linhaAtual?.funilLabel ?? '—';
+  const slaLabel = linhaAtual ? fmtSla(linhaAtual.slaDias, linhaAtual.slaTipo) : 'SLA variável';
 
   return (
     <div
@@ -93,84 +115,54 @@ function CalculadoraResumoExecutivo({
         background: 'var(--moni-surface-50)',
       }}
     >
-      <div className="flex flex-wrap items-center justify-between gap-1.5">
+      <div className="moni-calculadora-resumo-badges">
         {resumo.dadosParciais ? (
-          <p
-            className="moni-tag-atencao text-[9px] leading-tight"
-            style={{ fontFamily: 'var(--moni-font-sans)' }}
-          >
-            Dados parciais — histórico incompleto
-          </p>
-        ) : null}
-        <span
-          className={`${statusGeralClass(resumo.statusGeral)} text-[9px] leading-tight${resumo.dadosParciais ? '' : ' ml-auto'}`}
-        >
-          {resumo.statusGeralLabel}
+          <span className="moni-calculadora-badge-parcial">⚠ Dados parciais — histórico incompleto</span>
+        ) : (
+          <span />
+        )}
+        <span className={statusResumoClass(resumo.statusGeral)}>
+          {statusResumoLabel(resumo.statusGeral)}
         </span>
       </div>
 
       <div className="min-w-0">
-        <p
-          className="text-[9px] uppercase tracking-wide text-[var(--moni-text-tertiary)]"
-          style={{ fontFamily: 'var(--moni-font-sans)' }}
-        >
-          Resumo do projeto
-        </p>
-        <p
-          className="truncate text-[12px] font-medium leading-snug text-[var(--moni-text-primary)]"
-          style={{ fontFamily: 'var(--moni-font-sans)' }}
-          title={resumo.faseAtualNome ?? undefined}
-        >
+        <p className="moni-calculadora-resumo-fase truncate" title={resumo.faseAtualNome ?? undefined}>
           {resumo.faseAtualNome ?? '—'}
-          {resumo.diasNaFase != null ? (
-            <span className="font-normal text-[var(--moni-text-tertiary)]">
-              {' '}
-              · {resumo.diasNaFase} {unidadeNaFase}
-            </span>
-          ) : null}
+        </p>
+        <p className="moni-calculadora-resumo-meta truncate">
+          Fase atual · {funilLabel} · {slaLabel}
         </p>
       </div>
 
-      <div>
-        <div className="mb-0.5 flex items-center justify-between gap-2">
-          <span
-            className="text-[9px] text-[var(--moni-text-tertiary)]"
-            style={{ fontFamily: 'var(--moni-font-sans)' }}
-          >
-            Progresso na esteira
-          </span>
-          <span
-            className="shrink-0 text-[9px] font-medium text-[var(--moni-text-secondary)]"
-            style={{ fontFamily: 'var(--moni-font-sans)' }}
-          >
-            {resumo.percentualConcluido}% · {resumo.fasesConcluidas}/{resumo.fasesTotal}
-          </span>
-        </div>
-        <div className="moni-calculadora-progress-track moni-calculadora-progress-track--compact">
+      <div className="moni-calculadora-resumo-progress-row">
+        <div className="moni-calculadora-progress-track moni-calculadora-progress-track--compact min-w-0 flex-1">
           <div
-            className="moni-calculadora-progress-fill"
+            className={`moni-calculadora-progress-fill${atrasada ? ' moni-calculadora-progress-fill--atraso' : ''}`}
             style={{ width: `${Math.min(100, Math.max(0, resumo.percentualConcluido))}%` }}
           />
         </div>
+        <span className="moni-calculadora-resumo-progress-label">
+          {resumo.percentualConcluido}% · {resumo.fasesConcluidas}/{resumo.fasesTotal}
+        </span>
       </div>
 
-      <dl className="moni-calculadora-resumo-grid grid grid-cols-1 gap-x-3 gap-y-1 text-[10px] sm:grid-cols-2">
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-1 sm:block">
-          <dt className="text-[var(--moni-text-tertiary)]">Atraso acumulado</dt>
-          <dd className="font-medium text-[var(--moni-text-primary)]">
-            {fmtAtrasoAcumulado(resumo.atrasoAcumuladoUteis, resumo.atrasoAcumuladoCorridos)}
-          </dd>
+      <dl className="moni-calculadora-resumo-stats">
+        <div className="moni-calculadora-resumo-stat">
+          <dt>Atraso acumulado</dt>
+          <dd>{fmtAtrasoAcumulado(resumo.atrasoAcumuladoUteis, resumo.atrasoAcumuladoCorridos)}</dd>
         </div>
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-1 sm:block">
-          <dt className="text-[var(--moni-text-tertiary)]">Previsão de conclusão</dt>
-          <dd className="font-medium text-[var(--moni-text-primary)]">
-            {fmtData(resumo.previsaoConclusao)}
-          </dd>
+        <div className="moni-calculadora-resumo-stat">
+          <dt>Previsão conclusão</dt>
+          <dd>{fmtData(resumo.previsaoConclusao)}</dd>
         </div>
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-1 sm:col-span-2 sm:block">
-          <dt className="shrink-0 text-[var(--moni-text-tertiary)]">Maior gargalo</dt>
-          <dd className="truncate text-[var(--moni-text-secondary)]" title={resumo.maiorGargalo ? fmtGargalo(resumo.maiorGargalo) : undefined}>
-            {resumo.maiorGargalo ? fmtGargalo(resumo.maiorGargalo) : '—'}
+        <div className="moni-calculadora-resumo-stat">
+          <dt>Maior gargalo</dt>
+          <dd
+            className="truncate"
+            title={resumo.maiorGargalo ? fmtGargaloResumo(resumo.maiorGargalo) : undefined}
+          >
+            {resumo.maiorGargalo ? fmtGargaloResumo(resumo.maiorGargalo) : '—'}
           </dd>
         </div>
       </dl>
@@ -178,79 +170,165 @@ function CalculadoraResumoExecutivo({
   );
 }
 
-function agruparLinhasPorFunil(linhas: CalculadoraFaseLinha[]): { label: string; linhas: CalculadoraFaseLinha[] }[] {
-  const grupos: { label: string; linhas: CalculadoraFaseLinha[] }[] = [];
-  for (const row of linhas) {
-    const label = row.funilLabel ?? 'Fases';
-    const ultimo = grupos[grupos.length - 1];
-    if (ultimo && ultimo.label === label) ultimo.linhas.push(row);
-    else grupos.push({ label, linhas: [row] });
-  }
-  return grupos;
+function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
+  const id = marco.id as CalculadoraMarcoId;
+
+  return (
+    <div className="moni-calculadora-marco-row" role="listitem">
+      <span className={`moni-calculadora-marco-dot moni-calculadora-marco-dot--${id}`} aria-hidden />
+      <span className="moni-calculadora-marco-label min-w-0 truncate">
+        <span className="moni-calculadora-marco-id">{id}</span>
+        {marco.label}
+      </span>
+      <span className="moni-calculadora-marco-data">
+        {marco.data ? fmtData(marco.data) : '—'}
+        {marco.isPrevisto && marco.data ? (
+          <span className="text-[var(--moni-text-tertiary)]"> prev.</span>
+        ) : null}
+        {!marco.data ? ' previsto' : null}
+      </span>
+      <span className={`moni-calculadora-marco-badge moni-calculadora-marco-badge--${id}`}>Marco</span>
+    </div>
+  );
 }
 
-function CalculadoraFaseCard({
+function CalculadoraFaseRow({
   row,
-  faseAtualId,
+  faseMeta,
+  expanded,
+  onToggle,
 }: {
   row: CalculadoraFaseLinha;
-  faseAtualId: string | null;
+  faseMeta: KanbanFase | undefined;
+  expanded: boolean;
+  onToggle: () => void;
 }) {
-  const isAtual = row.faseId === faseAtualId;
-
-  const metaItems: { label: string; value: string }[] = [
-    { label: 'SLA', value: fmtSla(row.slaDias, row.slaTipo) },
-    { label: 'Início', value: fmtData(row.dataInicioReal) },
-    { label: 'Fim est.', value: fmtData(row.dataFimEstimada) },
-    { label: 'Fim real', value: fmtData(row.dataFimReal) },
-  ];
-  if (row.atrasoDias != null && row.atrasoDias > 0) {
-    metaItems.push({
-      label: 'Atraso',
-      value: `${row.atrasoDias} ${row.slaTipo === 'corridos' ? 'd.c.' : 'd.u.'}`,
-    });
-  }
+  const isGargalo = row.atrasoDias != null && row.atrasoDias > 0;
+  const fimData = row.dataFimReal ?? row.dataFimEstimada;
+  const fimLabel = row.dataFimReal ? 'real' : 'est.';
+  const steps = parseFaseSteps(faseMeta);
+  const unidadeAtraso = row.slaTipo === 'corridos' ? 'd.c.' : 'd.u.';
 
   return (
     <div
-      className="rounded-[var(--moni-radius-md)] px-2 py-1"
-      style={{
-        border: isAtual
-          ? '0.5px solid var(--moni-navy-800)'
-          : '0.5px solid var(--moni-border-default)',
-        background: isAtual ? 'var(--moni-surface-100, #fafaf9)' : 'var(--moni-surface-50)',
-        boxShadow: isAtual ? 'var(--moni-shadow-sm)' : undefined,
+      className={`moni-calculadora-fase-row ${statusRowClass(row.status)}${expanded ? ' open' : ''}${row.status === 'futura' ? ' moni-calculadora-fase-row--futura' : ''}`}
+      role="button"
+      tabIndex={0}
+      onClick={onToggle}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onToggle();
+        }
       }}
     >
-      <div className="flex items-center justify-between gap-1.5">
-        <span
-          className="min-w-0 truncate text-[11px] font-medium leading-tight text-[var(--moni-text-primary)]"
-          style={{ fontFamily: 'var(--moni-font-sans)' }}
-          title={row.faseNome}
-        >
-          {row.faseNome}
-        </span>
-        <span className={`${statusClass(row.status)} shrink-0 text-[9px] leading-tight`}>
+      <div className="min-w-0">
+        <div className="moni-calculadora-fase-nome-wrap">
+          <span className="moni-calculadora-fase-nome" title={row.faseNome}>
+            {row.faseNome}
+          </span>
+          {steps.length > 0 ? (
+            <span className="moni-calculadora-fase-chevron" aria-hidden>
+              ›
+            </span>
+          ) : null}
+          {isGargalo ? (
+            <span className="moni-calculadora-gargalo-badge">
+              gargalo · +{row.atrasoDias} {unidadeAtraso}
+            </span>
+          ) : null}
+        </div>
+        <div className="moni-calculadora-fase-sla">{fmtSla(row.slaDias, row.slaTipo)}</div>
+      </div>
+
+      <div>
+        <span className="moni-calculadora-fase-data">{fmtData(row.dataInicioReal)}</span>
+        <span className="moni-calculadora-fase-data-label">início</span>
+      </div>
+
+      <div>
+        <span className="moni-calculadora-fase-data">{fmtData(fimData)}</span>
+        <span className="moni-calculadora-fase-data-label">{fimLabel}</span>
+      </div>
+
+      <div>
+        <span className={statusBadgeClass(row.status)}>
           {CALCULADORA_STATUS_LABEL[row.status]}
         </span>
       </div>
-      <dl className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[9px] leading-tight">
-        {metaItems.map(({ label, value }) => (
-          <div key={label} className="inline-flex min-w-0 items-baseline gap-0.5">
-            <dt className="shrink-0 text-[var(--moni-text-tertiary)]">{label}</dt>
-            <dd
-              className={
-                label === 'Atraso'
-                  ? 'font-medium text-[var(--moni-status-overdue-text)]'
-                  : 'text-[var(--moni-text-secondary)]'
-              }
-            >
-              {value}
-            </dd>
-          </div>
-        ))}
-      </dl>
+
+      {steps.length > 0 ? (
+        <ul className="moni-calculadora-fase-steps">
+          {steps.map((step) => (
+            <li key={step} className="moni-calculadora-fase-step">
+              {step}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
+  );
+}
+
+function CalculadoraFunilGroup({
+  label,
+  items,
+  fasesMeta,
+  collapsed,
+  onToggle,
+  expandedFases,
+  onToggleFase,
+}: {
+  label: string;
+  items: CalculadoraTimelineItem[];
+  fasesMeta: Map<string, KanbanFase>;
+  collapsed: boolean;
+  onToggle: () => void;
+  expandedFases: Set<string>;
+  onToggleFase: (faseId: string) => void;
+}) {
+  const faseItems = items.filter((i) => i.kind === 'fase');
+  const concluidas = faseItems.filter(
+    (i) =>
+      i.kind === 'fase' &&
+      (i.linha.status === 'concluida' || i.linha.status === 'concluida_atraso'),
+  ).length;
+
+  return (
+    <section className={`moni-calculadora-funil-group${collapsed ? ' collapsed' : ''}`}>
+      <button type="button" className="moni-calculadora-funil-header w-full text-left" onClick={onToggle}>
+        <span className={`moni-calculadora-funil-dot ${funilDotClass(label)}`} aria-hidden />
+        <span className="moni-calculadora-funil-title">{label.replace(/^Funil /i, '')}</span>
+        <span className="moni-calculadora-funil-count">
+          {faseItems.length} fases · {concluidas} concluídas
+        </span>
+        <span className="moni-calculadora-funil-chev" aria-hidden>
+          ▾
+        </span>
+      </button>
+
+      <div className="moni-calculadora-funil-body">
+        <div className="moni-calculadora-table-header">
+          <span>Fase</span>
+          <span>Início</span>
+          <span>Fim</span>
+          <span>Status</span>
+        </div>
+        {items.map((item) =>
+          item.kind === 'marco' ? (
+            <CalculadoraMarcoRow key={`marco-${item.marco.id}`} marco={item.marco} />
+          ) : (
+            <CalculadoraFaseRow
+              key={item.linha.faseId}
+              row={item.linha}
+              faseMeta={fasesMeta.get(item.linha.faseId)}
+              expanded={expandedFases.has(item.linha.faseId)}
+              onToggle={() => onToggleFase(item.linha.faseId)}
+            />
+          ),
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -259,14 +337,53 @@ export function KanbanCardModalCalculadoraFases({
   faseAtualId,
   cardConcluido,
   visits = [],
+  fases = [],
+  marcos,
+  fasesMeta,
   variant = 'compact',
 }: Props) {
+  const [collapsedFunis, setCollapsedFunis] = useState<Set<string>>(new Set());
+  const [expandedFases, setExpandedFases] = useState<Set<string>>(new Set());
+
+  const metaMap = useMemo(() => {
+    if (fasesMeta && fasesMeta.size > 0) return fasesMeta;
+    return new Map(fases.map((f) => [f.id, f]));
+  }, [fasesMeta, fases]);
+
   const resumo = useMemo(
     () => calcularResumoExecutivoCalculadoraFases(linhas, { cardConcluido, visits }),
     [linhas, cardConcluido, visits],
   );
 
-  const gruposFunil = useMemo(() => agruparLinhasPorFunil(linhas), [linhas]);
+  const linhaAtual = useMemo(
+    () => linhas.find((l) => l.faseId === faseAtualId || l.status === 'atual' || l.status === 'atual_atrasada'),
+    [linhas, faseAtualId],
+  );
+
+  const timelineItems = useMemo(
+    () => montarTimelineCalculadoraComMarcos(linhas, fases, marcos ?? { visits }),
+    [linhas, fases, marcos, visits],
+  );
+
+  const gruposFunil = useMemo(() => agruparTimelinePorFunil(timelineItems), [timelineItems]);
+
+  const toggleFunil = (label: string) => {
+    setCollapsedFunis((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  };
+
+  const toggleFase = (faseId: string) => {
+    setExpandedFases((prev) => {
+      const next = new Set(prev);
+      if (next.has(faseId)) next.delete(faseId);
+      else next.add(faseId);
+      return next;
+    });
+  };
 
   if (linhas.length === 0) {
     return (
@@ -278,47 +395,29 @@ export function KanbanCardModalCalculadoraFases({
 
   return (
     <div className={variant === 'painel' ? 'flex h-full min-h-0 flex-col gap-2' : 'space-y-2'}>
-      <CalculadoraResumoExecutivo resumo={resumo} />
+      <CalculadoraResumoExecutivo resumo={resumo} linhaAtual={linhaAtual} />
 
       <div className={variant === 'painel' ? 'flex min-h-0 flex-1 flex-col' : undefined}>
-        <p
-          className="mb-0.5 text-[9px] uppercase tracking-wide text-[var(--moni-text-tertiary)]"
-          style={{ fontFamily: 'var(--moni-font-sans)' }}
-        >
-          Detalhe por fase
-        </p>
-        <p
-          className="mb-1.5 text-[9px] leading-snug text-[var(--moni-text-tertiary)]"
-          style={{ fontFamily: 'var(--moni-font-sans)' }}
-        >
-          SLA em d.u. (dias úteis) ou d.c. (dias corridos), conforme a fase.
-        </p>
         <div
           className={
             variant === 'painel'
-              ? 'min-h-0 flex-1 space-y-2 overflow-y-auto pr-0.5'
-              : 'max-h-72 space-y-2 overflow-y-auto pr-0.5'
+              ? 'min-h-0 flex-1 overflow-y-auto pr-0.5'
+              : 'max-h-72 overflow-y-auto pr-0.5'
           }
         >
-          {gruposFunil.map((grupo) => (
-            <section
-              key={grupo.label}
-              className="moni-calculadora-funil-bloco space-y-1 rounded-[var(--moni-radius-md)] px-2 py-1.5"
-              style={{
-                border: '0.5px solid var(--moni-border-default)',
-                background: 'var(--moni-surface-0)',
-              }}
-            >
-              <h5
-                className="text-[9px] font-semibold uppercase tracking-wide text-[var(--moni-text-secondary)]"
-                style={{ fontFamily: 'var(--moni-font-sans)' }}
-              >
-                {grupo.label}
-              </h5>
-              {grupo.linhas.map((row) => (
-                <CalculadoraFaseCard key={row.faseId} row={row} faseAtualId={faseAtualId} />
-              ))}
-            </section>
+          {gruposFunil.map((grupo, idx) => (
+            <div key={grupo.label}>
+              {idx > 0 ? <hr className="moni-calculadora-funil-separator" /> : null}
+              <CalculadoraFunilGroup
+                label={grupo.label}
+                items={grupo.items}
+                fasesMeta={metaMap}
+                collapsed={collapsedFunis.has(grupo.label)}
+                onToggle={() => toggleFunil(grupo.label)}
+                expandedFases={expandedFases}
+                onToggleFase={toggleFase}
+              />
+            </div>
           ))}
         </div>
       </div>

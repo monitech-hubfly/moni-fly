@@ -88,10 +88,6 @@ function addDiasPorTipo(baseYmd: string, dias: number, slaTipo: SlaTipo): string
   return formatLocalYmd(addBusinessDays(base, dias));
 }
 
-function permanenciaDias(inicioYmd: string, fimYmd: string): number {
-  return calendarDaysBetween(inicioYmd, fimYmd);
-}
-
 function diasDecorridosNaFase(inicioYmd: string, hoje: string): number {
   const a = parseIsoDateOnlyLocal(inicioYmd);
   const b = parseIsoDateOnlyLocal(hoje);
@@ -404,9 +400,8 @@ function projectarPrevisaoConclusao(linhas: CalculadoraFaseLinha[], hoje: string
   return cursor;
 }
 
-function resolverMaiorGargalo(linhas: CalculadoraFaseLinha[], hoje: string): CalculadoraMaiorGargalo | null {
+function resolverMaiorGargalo(linhas: CalculadoraFaseLinha[]): CalculadoraMaiorGargalo | null {
   let melhorAtraso: CalculadoraMaiorGargalo | null = null;
-  let melhorPerm: CalculadoraMaiorGargalo | null = null;
 
   for (const row of linhas) {
     if (faseContribuiAtrasoAcumulado(row.status) && row.atrasoDias != null && row.atrasoDias > 0) {
@@ -421,25 +416,7 @@ function resolverMaiorGargalo(linhas: CalculadoraFaseLinha[], hoje: string): Cal
     }
   }
 
-  if (melhorAtraso) return melhorAtraso;
-
-  for (const row of linhas) {
-    if (!row.dataInicioReal) continue;
-    if (row.status === 'futura') continue;
-
-    const fimRef = row.dataFimReal ?? hoje;
-    const perm = permanenciaDias(row.dataInicioReal, fimRef);
-    if (perm > 0 && (!melhorPerm || perm > melhorPerm.dias)) {
-      melhorPerm = {
-        faseNome: row.faseNome,
-        motivo: 'permanencia',
-        dias: perm,
-        unidade: 'corridos',
-      };
-    }
-  }
-
-  return melhorPerm;
+  return melhorAtraso;
 }
 
 function resolverStatusGeral(
@@ -533,7 +510,7 @@ export function calcularResumoExecutivoCalculadoraFases(
       percentualConcluido,
       fasesConcluidas,
       fasesTotal,
-      maiorGargalo: resolverMaiorGargalo(linhasAtivas, hoje),
+      maiorGargalo: resolverMaiorGargalo(linhasAtivas),
       previsaoConclusao: projectarPrevisaoConclusao(linhasAtivas, hoje),
       dadosParciais,
     };
