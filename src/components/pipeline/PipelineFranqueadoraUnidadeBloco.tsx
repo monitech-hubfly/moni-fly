@@ -1,26 +1,28 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { PipelineCardDisplay, PipelineFranqueadoraEnrichment, PipelineUnidadeBlocoMeta } from '@/lib/kanban/pipeline-cards-types';
-import {
-  faseSlaExcedido,
-  formatRelativeNaFaseDesde,
-  tituloPipelineCardDisplay,
-} from '@/lib/kanban/pipeline-card-readonly';
+import { tituloPipelineCardDisplay } from '@/lib/kanban/pipeline-card-readonly';
 import {
   badgeStatusPipelineCard,
   emojiIndicadorSaudePipeline,
   indicadorSaudeUnidadePipeline,
-  labelBadgeStatusPipeline,
-  tagClassBadgeStatusPipeline,
 } from '@/lib/kanban/pipeline-franqueadora-compute';
 import {
-  PipelineEsteiraPrincipalComSubesteiras,
-  pipelineBadgeInlineStyle,
+  PipelineEsteiraParalelosLinha,
+  PipelineEsteiraTresFunis,
 } from '@/components/pipeline/PipelineSequencialBar';
 import { PipelineFunilMesCondensado } from '@/components/pipeline/PipelineFunilMesCondensado';
-import { agruparCardsUnidadePorProjeto } from '@/lib/kanban/pipeline-unidade-visualizacao';
+import { PipelineTabelaCelulaStatus, PipelineTabelaCelulaTempo } from '@/components/pipeline/PipelineTabelaMetaCelulas';
+import {
+  agruparCardsUnidadePorProjeto,
+  badgeSubesteira,
+  cardPrioritarioSubesteira,
+  cardsDaLinhaSubesteira,
+  linhasSubesteiraParalelaDoGrupo,
+  rotuloFaseSubesteira,
+} from '@/lib/kanban/pipeline-unidade-visualizacao';
 import { isFunilParaleloEsteira } from '@/lib/kanban/pipeline-esteira-tres-etapas';
 
 const panelStyle: React.CSSProperties = {
@@ -45,7 +47,14 @@ type TabelaProps = {
 };
 
 function PipelineUnidadeCardsTabela({ titulo, grupos, allCards, enrichment, onCardClick }: TabelaProps) {
+  const [paralelosAbertos, setParalelosAbertos] = useState<Record<string, boolean>>({});
+
   if (grupos.length === 0) return null;
+
+  const toggleParalelos = (anchorId: string, e: React.MouseEvent | React.KeyboardEvent) => {
+    e.stopPropagation();
+    setParalelosAbertos((prev) => ({ ...prev, [anchorId]: !(prev[anchorId] ?? true) }));
+  };
 
   return (
     <div className="mb-5 last:mb-0">
@@ -81,70 +90,143 @@ function PipelineUnidadeCardsTabela({ titulo, grupos, allCards, enrichment, onCa
             {grupos.map((grupo, idx) => {
               const card = grupo.anchor;
               const badge = badgeStatusPipelineCard(card);
-              const tagClass = tagClassBadgeStatusPipeline(badge);
-              const customStyle = pipelineBadgeInlineStyle(badge);
-              const relativo = formatRelativeNaFaseDesde(card);
-              const slaExcedido = faseSlaExcedido(card);
               const paralelosCount = grupo.cards.filter((c) => isFunilParaleloEsteira(c.kanban_id)).length;
+              const subLinhas = linhasSubesteiraParalelaDoGrupo(grupo.cards);
+              const temParalelos = subLinhas.length > 0;
+              const paralelosExpandidos = paralelosAbertos[card.id] ?? true;
+
+              const abrirCard = (c: PipelineCardDisplay) => onCardClick(c);
 
               return (
-                <tr
-                  key={grupo.anchor.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => onCardClick(card)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      onCardClick(card);
-                    }
-                  }}
-                  className="cursor-pointer transition hover:bg-[var(--moni-surface-50)]"
-                  style={{ borderBottom: '0.5px solid var(--moni-border-subtle, var(--moni-border-default))' }}
-                >
-                  <td
-                    className="truncate py-2 pr-2 font-medium"
-                    style={{ color: 'var(--moni-text-primary)' }}
-                    title={String(card.titulo ?? '').trim() || undefined}
+                <Fragment key={card.id}>
+                  <tr
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => abrirCard(card)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        abrirCard(card);
+                      }
+                    }}
+                    className="cursor-pointer transition hover:bg-[var(--moni-surface-50)]"
+                    style={{ borderBottom: temParalelos && paralelosExpandidos ? undefined : '0.5px solid var(--moni-border-subtle, var(--moni-border-default))' }}
                   >
-                    {tituloPipelineCardDisplay(card, idx + 1)}
-                    {paralelosCount > 0 ? (
-                      <span className="ml-1 text-[10px] font-normal" style={{ color: 'var(--moni-text-tertiary)' }}>
-                        +{paralelosCount} paralelo{paralelosCount === 1 ? '' : 's'}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="truncate py-2 pr-2" style={{ color: 'var(--moni-text-secondary)' }}>
-                    {card.fase_nome}
-                  </td>
-                  <td className="py-2 pr-2">
-                    {tagClass ? (
-                      <span className={`text-[10px] ${tagClass}`} style={customStyle}>
-                        {labelBadgeStatusPipeline(badge)}
-                      </span>
-                    ) : (
-                      <span className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={customStyle}>
-                        {labelBadgeStatusPipeline(badge)}
-                      </span>
-                    )}
-                  </td>
-                  <td
-                    className="py-2 pr-2 tabular-nums"
-                    style={{ color: slaExcedido ? 'var(--moni-status-overdue-text)' : 'var(--moni-text-secondary)' }}
-                  >
-                    {relativo}
-                  </td>
-                  <td className="py-2 pr-2">
-                    <PipelineEsteiraPrincipalComSubesteiras
-                      card={card}
-                      siblingCards={allCards}
-                      enrichment={enrichment}
-                    />
-                  </td>
-                  <td className="py-2 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-                    Detalhe →
-                  </td>
-                </tr>
+                    <td
+                      className="truncate py-2 pr-2 font-medium"
+                      style={{ color: 'var(--moni-text-primary)' }}
+                      title={String(card.titulo ?? '').trim() || undefined}
+                    >
+                      {tituloPipelineCardDisplay(card, idx + 1)}
+                      {paralelosCount > 0 ? (
+                        <span className="ml-1 text-[10px] font-normal" style={{ color: 'var(--moni-text-tertiary)' }}>
+                          +{paralelosCount} paralelo{paralelosCount === 1 ? '' : 's'}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="truncate py-2 pr-2" style={{ color: 'var(--moni-text-secondary)' }}>
+                      {card.fase_nome}
+                    </td>
+                    <PipelineTabelaCelulaStatus badge={badge} />
+                    <PipelineTabelaCelulaTempo card={card} />
+                    <td className="py-2 pr-2">
+                      <PipelineEsteiraTresFunis card={card} siblingCards={allCards} enrichment={enrichment} />
+                      {temParalelos ? (
+                        <button
+                          type="button"
+                          onClick={(e) => toggleParalelos(card.id, e)}
+                          className="mt-1.5 inline-flex min-h-[28px] items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium transition hover:bg-[var(--moni-surface-50)]"
+                          style={{
+                            color: 'var(--moni-text-tertiary)',
+                            border: '0.5px solid var(--moni-border-default)',
+                            borderRadius: 'var(--moni-radius-md)',
+                          }}
+                          aria-expanded={paralelosExpandidos}
+                        >
+                          <ChevronDown
+                            className="h-3 w-3 shrink-0"
+                            style={{
+                              transform: paralelosExpandidos ? 'rotate(180deg)' : 'rotate(0deg)',
+                            }}
+                          />
+                          {paralelosExpandidos ? 'Ocultar' : 'Mostrar'} paralelas ({subLinhas.length})
+                        </button>
+                      ) : null}
+                    </td>
+                    <td className="py-2 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                      Detalhe →
+                    </td>
+                  </tr>
+
+                  {temParalelos && paralelosExpandidos
+                    ? subLinhas.map((linha, subIdx) => {
+                        const linhaCards = cardsDaLinhaSubesteira(linha, card, allCards);
+                        const refCard = cardPrioritarioSubesteira(linhaCards);
+                        const rowCard = refCard ?? card;
+                        const subBadge = badgeSubesteira(linhaCards);
+                        const isLastSub = subIdx === subLinhas.length - 1;
+
+                        return (
+                          <tr
+                            key={`${card.id}-${linha.id}`}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => refCard && abrirCard(refCard)}
+                            onKeyDown={(e) => {
+                              if ((e.key === 'Enter' || e.key === ' ') && refCard) {
+                                e.preventDefault();
+                                abrirCard(refCard);
+                              }
+                            }}
+                            className="cursor-pointer transition hover:bg-[var(--moni-surface-50)]"
+                            style={{
+                              borderBottom: isLastSub
+                                ? '0.5px solid var(--moni-border-subtle, var(--moni-border-default))'
+                                : undefined,
+                              background: 'var(--moni-surface-50)',
+                            }}
+                          >
+                            <td
+                              className="truncate py-1.5 pr-2 pl-4 text-[10px] font-medium"
+                              style={{ color: 'var(--moni-text-secondary)' }}
+                              title={linha.label}
+                            >
+                              ↳ {linha.label}
+                            </td>
+                            <td
+                              className="truncate py-1.5 pr-2 text-[10px]"
+                              style={{ color: 'var(--moni-text-secondary)' }}
+                              title={rotuloFaseSubesteira(linhaCards)}
+                            >
+                              {rotuloFaseSubesteira(linhaCards)}
+                            </td>
+                            <PipelineTabelaCelulaStatus badge={subBadge} compact />
+                            {refCard ? (
+                              <PipelineTabelaCelulaTempo card={refCard} compact />
+                            ) : (
+                              <td className="py-1.5 pr-2 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                                —
+                              </td>
+                            )}
+                            <td className="py-1.5 pr-2">
+                              <div style={{ gridColumn: 'span 3' }}>
+                                <PipelineEsteiraParalelosLinha
+                                  card={rowCard}
+                                  siblingCards={allCards}
+                                  enrichment={enrichment}
+                                  kanbanIds={linha.kanbanIds}
+                                  heightPx={5}
+                                />
+                              </div>
+                            </td>
+                            <td className="py-1.5 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
+                              {refCard ? 'Detalhe →' : '—'}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    : null}
+                </Fragment>
               );
             })}
           </tbody>

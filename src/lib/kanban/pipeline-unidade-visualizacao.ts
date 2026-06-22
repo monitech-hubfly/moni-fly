@@ -6,7 +6,11 @@ import {
   isFunilEsteiraPrincipal,
   isFunilParaleloEsteira,
 } from '@/lib/kanban/pipeline-esteira-tres-etapas';
-import { sortCardsFranqueadoraPrioridade } from '@/lib/kanban/pipeline-franqueadora-compute';
+import {
+  badgeStatusPipelineCard,
+  sortCardsFranqueadoraPrioridade,
+} from '@/lib/kanban/pipeline-franqueadora-compute';
+import type { PipelineCardBadgeStatus } from '@/lib/kanban/pipeline-cards-types';
 
 /** Linhas da esteira no bloco Paralelos (ordem de exibição). */
 export const PARALELOS_ESTEIRA_LINHAS = [
@@ -167,4 +171,45 @@ export function linhasSubesteiraParalelaDoGrupo(
 ): ParalelosEsteiraLinha[] {
   const ids = new Set(grupoCards.map((c) => c.kanban_id));
   return PARALELOS_ESTEIRA_LINHAS.filter((linha) => linha.kanbanIds.some((kid) => ids.has(kid)));
+}
+
+/** Cards ativos de uma linha de sub-esteira paralela no mesmo projeto. */
+export function cardsDaLinhaSubesteira(
+  linha: ParalelosEsteiraLinha,
+  anchor: PipelineCardDisplay,
+  siblingCards: readonly PipelineCardDisplay[],
+): PipelineCardDisplay[] {
+  return linha.kanbanIds
+    .map((kid) => resolverCardFunilNoGrupoParalelo(kid, anchor, siblingCards))
+    .filter((c): c is PipelineCardDisplay => c != null);
+}
+
+/** Card de referência para status/tempo (pior prioridade entre os da linha). */
+export function cardPrioritarioSubesteira(cards: readonly PipelineCardDisplay[]): PipelineCardDisplay | null {
+  if (cards.length === 0) return null;
+  return sortCardsFranqueadoraPrioridade([...cards])[0] ?? null;
+}
+
+/** Rótulo de fase(s) para sub-esteira com um ou mais funis. */
+export function rotuloFaseSubesteira(cards: readonly PipelineCardDisplay[]): string {
+  if (cards.length === 0) return '—';
+  if (cards.length === 1) return cards[0].fase_nome;
+  return cards.map((c) => c.fase_nome).join(' · ');
+}
+
+const BADGE_PRIORIDADE: Record<PipelineCardBadgeStatus, number> = {
+  atrasado: 0,
+  parado: 1,
+  alerta: 2,
+  em_dia: 3,
+};
+
+/** Pior badge entre os cards da sub-esteira. */
+export function badgeSubesteira(cards: readonly PipelineCardDisplay[]): PipelineCardBadgeStatus {
+  let worst: PipelineCardBadgeStatus = 'em_dia';
+  for (const c of cards) {
+    const b = badgeStatusPipelineCard(c);
+    if (BADGE_PRIORIDADE[b] < BADGE_PRIORIDADE[worst]) worst = b;
+  }
+  return worst;
 }

@@ -274,6 +274,61 @@ export function PipelineEsteiraTresFunis({
   );
 }
 
+/** Sub-esteiras dos funis paralelos do mesmo projeto (grid 3 colunas). */
+export function PipelineSubesteirasParalelasGrid({
+  card,
+  siblingCards,
+  enrichment,
+  heightPxSub = 5,
+  className,
+}: {
+  card: PipelineCardDisplay;
+  siblingCards?: PipelineCardDisplay[];
+  enrichment?: PipelineFranqueadoraEnrichment | null;
+  heightPxSub?: number;
+  className?: string;
+}) {
+  const siblings = siblingCards ?? [card];
+  const relacionados = cardsRelacionadosProjeto(card, siblings);
+  const subLinhas = linhasSubesteiraParalelaDoGrupo(relacionados);
+
+  if (subLinhas.length === 0) return null;
+
+  return (
+    <div className={className}>
+      <div className="grid grid-cols-3 gap-x-0.5 gap-y-1.5">
+        {subLinhas.map((linha) => {
+          const rowCard =
+            linha.kanbanIds
+              .map((kid) => resolverCardFunilNoGrupoParalelo(kid, card, siblings))
+              .find(Boolean) ?? card;
+
+          return (
+            <div key={linha.id} style={{ gridColumn: gridColumnSubesteiraParalela(linha.kanbanIds) }}>
+              {linha.kanbanIds.length === 1 ? (
+                <p
+                  className="mb-0.5 truncate text-[9px] font-medium"
+                  style={{ color: 'var(--moni-text-tertiary)' }}
+                  title={linha.label}
+                >
+                  {linha.label}
+                </p>
+              ) : null}
+              <PipelineEsteiraParalelosLinha
+                card={rowCard}
+                siblingCards={siblings}
+                enrichment={enrichment}
+                kanbanIds={linha.kanbanIds}
+                heightPx={heightPxSub}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /** Esteira principal (3 funis) + sub-esteiras dos funis paralelos do mesmo projeto. */
 export function PipelineEsteiraPrincipalComSubesteiras({
   card,
@@ -282,6 +337,7 @@ export function PipelineEsteiraPrincipalComSubesteiras({
   className,
   heightPxPrincipal = 8,
   heightPxSub = 5,
+  mostrarSubesteiras = true,
 }: {
   card: PipelineCardDisplay;
   siblingCards?: PipelineCardDisplay[];
@@ -289,10 +345,10 @@ export function PipelineEsteiraPrincipalComSubesteiras({
   className?: string;
   heightPxPrincipal?: number;
   heightPxSub?: number;
+  /** Quando false, só a esteira principal (3 funis) é exibida. */
+  mostrarSubesteiras?: boolean;
 }) {
   const siblings = siblingCards ?? [card];
-  const relacionados = cardsRelacionadosProjeto(card, siblings);
-  const subLinhas = linhasSubesteiraParalelaDoGrupo(relacionados);
 
   return (
     <div className={className}>
@@ -303,34 +359,14 @@ export function PipelineEsteiraPrincipalComSubesteiras({
         heightPx={heightPxPrincipal}
       />
 
-      {subLinhas.length > 0 ? (
-        <div className="mt-2 grid grid-cols-3 gap-x-0.5 gap-y-1.5">
-          {subLinhas.map((linha) => {
-            const rowCard =
-              linha.kanbanIds
-                .map((kid) => resolverCardFunilNoGrupoParalelo(kid, card, siblings))
-                .find(Boolean) ?? card;
-
-            return (
-              <div key={linha.id} style={{ gridColumn: gridColumnSubesteiraParalela(linha.kanbanIds) }}>
-                <p
-                  className="mb-0.5 truncate text-[9px] font-medium"
-                  style={{ color: 'var(--moni-text-tertiary)' }}
-                  title={linha.label}
-                >
-                  {linha.label}
-                </p>
-                <PipelineEsteiraParalelosLinha
-                  card={rowCard}
-                  siblingCards={siblings}
-                  enrichment={enrichment}
-                  kanbanIds={linha.kanbanIds}
-                  heightPx={heightPxSub}
-                />
-              </div>
-            );
-          })}
-        </div>
+      {mostrarSubesteiras ? (
+        <PipelineSubesteirasParalelasGrid
+          card={card}
+          siblingCards={siblings}
+          enrichment={enrichment}
+          heightPxSub={heightPxSub}
+          className="mt-2"
+        />
       ) : null}
     </div>
   );
@@ -427,8 +463,26 @@ export function PipelineEsteiraParalelosLinha({
     return null;
   });
 
+  const segmentLabels = kanbanIds.map(
+    (kid, idx) => labels?.[idx] ?? configFunilParaleloEsteira(kid)?.label ?? kid,
+  );
+
   return (
     <div className={className}>
+      {kanbanIds.length > 1 ? (
+        <div className="mb-0.5 flex gap-0.5">
+          {kanbanIds.map((kid, idx) => (
+            <span
+              key={kid}
+              className="min-w-0 flex-1 truncate text-center text-[9px] font-medium leading-tight"
+              style={{ color: 'var(--moni-text-tertiary)' }}
+              title={segmentLabels[idx]}
+            >
+              {segmentLabels[idx]}
+            </span>
+          ))}
+        </div>
+      ) : null}
       <div
         className="flex overflow-hidden rounded-full"
         style={{ background: 'var(--moni-rede-chart-track)', height: `${heightPx}px` }}
@@ -450,7 +504,7 @@ export function PipelineEsteiraParalelosLinha({
           }
 
           const fill = SEGMENT_FILL[estado];
-          const label = labels?.[idx] ?? configFunilParaleloEsteira(kid)?.label ?? kid;
+          const label = segmentLabels[idx];
 
           return (
             <div
@@ -476,11 +530,6 @@ export function PipelineEsteiraParalelosLinha({
           );
         })}
       </div>
-      {labels?.length || kanbanIds.length > 1 ? (
-        <p className="mt-0.5 truncate text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
-          {(labels ?? kanbanIds.map((kid) => configFunilParaleloEsteira(kid)?.label ?? kid)).join(' · ')}
-        </p>
-      ) : null}
     </div>
   );
 }
