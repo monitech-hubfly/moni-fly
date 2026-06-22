@@ -260,6 +260,14 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
             {emojiIndicadorSaudePipeline(saudeIndicador)}
           </span>
           <span className="sr-only">Saúde: {saudeIndicador}</span>
+          {meta.temTagEspecial ? (
+            <span
+              className="inline-flex shrink-0 items-center justify-center text-[13px] leading-none"
+              aria-label="Unidade especial"
+            >
+              ⭐
+            </span>
+          ) : null}
           <h2
             className="shrink-0 text-[13px] font-semibold"
             style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-display)' }}

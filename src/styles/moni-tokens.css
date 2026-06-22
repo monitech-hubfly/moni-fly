@@ -353,6 +353,21 @@
   border: 0.5px solid var(--moni-status-archived-border);
 }
 
+.moni-tag-especial {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  border-radius: var(--moni-radius-pill);
+  font-size: var(--moni-text-tag-sla);
+  line-height: 1.25;
+  font-weight: var(--moni-weight-medium);
+  font-family: var(--moni-font-sans);
+  background: var(--moni-gold-50);
+  color: var(--moni-gold-800);
+  border: 0.5px solid var(--moni-gold-400);
+}
+
 /* Calculadora Global de Fases — tokens e componentes */
 :root {
   --moni-calc-prazo-bg: #EAF3DE;

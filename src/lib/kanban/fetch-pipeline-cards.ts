@@ -9,6 +9,7 @@ import {
 } from '@/lib/kanban/responsavel-fase-checklist';
 import { fetchPainelChamados } from '@/lib/kanban/fetch-painel-chamados';
 import { computeGargaloRankingRede } from '@/lib/kanban/pipeline-franqueadora-compute';
+import { isKanbanTagEspecialNome } from '@/lib/kanban/kanban-tag-especial';
 import type { PainelFaseDTO } from '@/lib/kanban/painel-performance-types';
 import type {
   PipelineCardRow,
@@ -234,6 +235,56 @@ async function enriquecerResponsavelPipelineCards(
       responsavel_fase_nome: extra.responsavel_fase_nome ?? null,
     };
   });
+}
+
+const TAG_ESPECIAL_CARD_IDS_CHUNK = 200;
+
+async function fetchCardIdsComTagEspecial(
+  supabase: SupabaseClient,
+  cardIds: string[],
+): Promise<Set<string>> {
+  const uniq = [...new Set(cardIds.filter(Boolean))];
+  if (uniq.length === 0) return new Set();
+
+  const especialIds = new Set<string>();
+
+  for (let i = 0; i < uniq.length; i += TAG_ESPECIAL_CARD_IDS_CHUNK) {
+    const slice = uniq.slice(i, i + TAG_ESPECIAL_CARD_IDS_CHUNK);
+    const { data, error } = await supabase
+      .from('kanban_card_tags')
+      .select('card_id, kanban_tags(nome)')
+      .in('card_id', slice);
+
+    if (error) {
+      console.error('[fetchCardIdsComTagEspecial]', error.message);
+      continue;
+    }
+
+    for (const raw of data ?? []) {
+      const row = raw as {
+        card_id?: string | null;
+        kanban_tags?: { nome?: string | null } | { nome?: string | null }[] | null;
+      };
+      const cardId = String(row.card_id ?? '').trim();
+      if (!cardId) continue;
+      const tag = relOne(row.kanban_tags);
+      if (isKanbanTagEspecialNome(tag?.nome)) {
+        especialIds.add(cardId);
+      }
+    }
+  }
+
+  return especialIds;
+}
+
+function marcarCardsComTagEspecial(
+  cards: PipelineCardRow[],
+  ids: Set<string>,
+): PipelineCardRow[] {
+  return cards.map((c) => ({
+    ...c,
+    tem_tag_especial: ids.has(c.id),
+  }));
 }
 
 function mapFranqueado(raw: RawCard): PipelineFranqueadoUnidade | null {
@@ -479,7 +530,12 @@ export async function fetchPipelineCards(
     .map((r) => mapPipelineCardRow(r as RawCard))
     .filter((c): c is PipelineCardRow => c != null);
 
-  const cards = await enriquecerResponsavelPipelineCards(supabase, cardsRaw);
+  const cardsComResp = await enriquecerResponsavelPipelineCards(supabase, cardsRaw);
+  const tagEspecialIds = await fetchCardIdsComTagEspecial(
+    supabase,
+    cardsComResp.map((c) => c.id),
+  );
+  const cards = marcarCardsComTagEspecial(cardsComResp, tagEspecialIds);
 
   let enrichment: PipelineFranqueadoraEnrichment | null = null;
   if (comEnrichment) {

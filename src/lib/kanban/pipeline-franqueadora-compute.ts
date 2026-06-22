@@ -264,6 +264,7 @@ export function montarBlocoMetaUnidadePipeline(
   const funilMes = computeFunilMesCompact(cards);
   const sortPriority =
     alertas.nivel === 'critico' ? 0 : alertas.nivel === 'atencao' ? 1 : 2;
+  const temTagEspecial = cards.some((c) => c.tem_tag_especial === true);
   return {
     redeId: franqueado.rede_franqueado_id,
     label: labelFranqueadoPipeline(franqueado),
@@ -273,6 +274,7 @@ export function montarBlocoMetaUnidadePipeline(
     funilMes,
     defaultExpanded: options?.defaultExpanded ?? false,
     sortPriority,
+    temTagEspecial,
   };
 }
 
@@ -301,6 +303,7 @@ export function montarBlocosUnidadePipeline(
 
   blocos.sort(
     (a, b) =>
+      Number(b.temTagEspecial) - Number(a.temTagEspecial) ||
       b.alertas.atrasados - a.alertas.atrasados ||
       b.alertas.chamadosTrava - a.alertas.chamadosTrava ||
       a.sortPriority - b.sortPriority ||

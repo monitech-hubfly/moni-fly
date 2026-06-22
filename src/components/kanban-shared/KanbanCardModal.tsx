@@ -113,6 +113,7 @@ import { isDadosCondominiosFaseSlug, isHipotesesFaseSlug, isPreBatalhaFaseSlug, 
 import { filterOperacoesCalculadoraFases } from '@/lib/kanban/operacoes-fase-slugs';
 import { PRE_BATALHA_INSTRUCOES_FASE, PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING } from '@/lib/kanban/pre-batalha-checklist';
 import { kanbanExibeSecaoCondominioSidebar } from '@/lib/kanban/kanban-secao-condominio';
+import { estiloChipTagKanban } from '@/lib/kanban/kanban-tag-especial';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCreditoObraDocumentacao';
 import { KanbanCardModalDadosPreObraOperacoes } from './KanbanCardModalDadosPreObraOperacoes';
@@ -5957,11 +5958,13 @@ export function KanbanCardModal({
             <>
             <PainelLateralSecao titulo="Tags">
               <div className="mb-1.5 flex flex-wrap gap-1">
-                {tagsCard.map((t) => (
+                {tagsCard.map((t) => {
+                  const chip = estiloChipTagKanban(t.nome, t.cor);
+                  return (
                   <span
                     key={t.id}
-                    className="inline-flex max-w-full items-center gap-0.5 rounded-md px-1.5 py-px text-[10px] font-semibold leading-tight"
-                    style={{ background: t.cor + '22', color: t.cor, border: `1px solid ${t.cor}55` }}
+                    className={chip.className}
+                    style={chip.style}
                   >
                     <span className="truncate">{t.nome}</span>
                     {!ocultarGestaoCard ? (
@@ -5979,7 +5982,8 @@ export function KanbanCardModal({
                       </button>
                     ) : null}
                   </span>
-                ))}
+                  );
+                })}
                 {tagsCard.length === 0 ? (
                   <p className="text-[10px] text-stone-400">Nenhuma tag</p>
                 ) : null}
@@ -6000,7 +6004,9 @@ export function KanbanCardModal({
                       <div className="flex flex-wrap gap-1">
                         {tagsKanban
                           .filter((t) => !tagsCard.some((tc) => tc.tag_id === t.id))
-                          .map((t) => (
+                          .map((t) => {
+                            const chip = estiloChipTagKanban(t.nome, t.cor);
+                            return (
                             <button
                               key={t.id}
                               type="button"
@@ -6014,12 +6020,13 @@ export function KanbanCardModal({
                                 setTagsCard(tc);
                                 setTagsOpen(false);
                               }}
-                                className="rounded-md px-1.5 py-px text-[10px] font-semibold transition hover:opacity-90"
-                              style={{ background: t.cor + '22', color: t.cor, border: `1px solid ${t.cor}55` }}
+                              className={`${chip.className} transition hover:opacity-90`}
+                              style={chip.style}
                             >
                               {t.nome}
                             </button>
-                          ))}
+                            );
+                          })}
                       </div>
                       ) : (
                         <p className="text-[11px] text-stone-500">Todas as tags do funil já estão no card.</p>

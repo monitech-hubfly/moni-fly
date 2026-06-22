@@ -55,6 +55,8 @@ export type PipelineCardRow = {
   origem_card_id?: string | null;
   /** Processo Step One — distinto de `projeto_id` (Portfolio). */
   processo_step_one_id?: string | null;
+  /** Tag padronizada «⭐Especial» vinculada ao card. */
+  tem_tag_especial?: boolean;
 };
 
 export type PipelineFranqueadoUnidade = {
@@ -277,4 +279,6 @@ export type PipelineUnidadeBlocoMeta = {
   funilMes: PipelineFunilMesCompact;
   defaultExpanded: boolean;
   sortPriority: number;
+  /** Unidade com ≥1 card com tag «⭐Especial». */
+  temTagEspecial: boolean;
 };
