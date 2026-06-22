@@ -41,12 +41,11 @@ type Props = {
 type TabelaProps = {
   titulo: string;
   grupos: ReturnType<typeof agruparCardsUnidadePorProjeto>;
-  allCards: PipelineCardDisplay[];
   enrichment?: PipelineFranqueadoraEnrichment | null;
   onCardClick: (card: PipelineCardDisplay) => void;
 };
 
-function PipelineUnidadeCardsTabela({ titulo, grupos, allCards, enrichment, onCardClick }: TabelaProps) {
+function PipelineUnidadeCardsTabela({ titulo, grupos, enrichment, onCardClick }: TabelaProps) {
   const [paralelosAbertos, setParalelosAbertos] = useState<Record<string, boolean>>({});
 
   if (grupos.length === 0) return null;
@@ -130,7 +129,7 @@ function PipelineUnidadeCardsTabela({ titulo, grupos, allCards, enrichment, onCa
                     <PipelineTabelaCelulaStatus badge={badge} />
                     <PipelineTabelaCelulaTempo card={card} />
                     <td className="py-2 pr-2">
-                      <PipelineEsteiraTresFunis card={card} siblingCards={allCards} enrichment={enrichment} />
+                      <PipelineEsteiraTresFunis card={card} siblingCards={grupo.cards} enrichment={enrichment} />
                       {temParalelos ? (
                         <button
                           type="button"
@@ -160,7 +159,7 @@ function PipelineUnidadeCardsTabela({ titulo, grupos, allCards, enrichment, onCa
 
                   {temParalelos && paralelosExpandidos
                     ? subLinhas.map((linha, subIdx) => {
-                        const linhaCards = cardsDaLinhaSubesteira(linha, card, allCards);
+                        const linhaCards = cardsDaLinhaSubesteira(linha, card, grupo.cards);
                         const refCard = cardPrioritarioSubesteira(linhaCards);
                         const rowCard = refCard ?? card;
                         const subBadge = badgeSubesteira(linhaCards);
@@ -212,7 +211,7 @@ function PipelineUnidadeCardsTabela({ titulo, grupos, allCards, enrichment, onCa
                               <div style={{ gridColumn: 'span 3' }}>
                                 <PipelineEsteiraParalelosLinha
                                   card={rowCard}
-                                  siblingCards={allCards}
+                                  siblingCards={grupo.cards}
                                   enrichment={enrichment}
                                   kanbanIds={linha.kanbanIds}
                                   heightPx={5}
@@ -237,7 +236,7 @@ function PipelineUnidadeCardsTabela({ titulo, grupos, allCards, enrichment, onCa
 }
 
 export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCardClick }: Props) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(meta.defaultExpanded);
   const { alertas, saude, funilMes } = meta;
   const saudeIndicador = indicadorSaudeUnidadePipeline(alertas, saude);
 
@@ -294,7 +293,6 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
           <PipelineUnidadeCardsTabela
             titulo="Projetos"
             grupos={grupos}
-            allCards={cards}
             enrichment={enrichment}
             onCardClick={onCardClick}
           />

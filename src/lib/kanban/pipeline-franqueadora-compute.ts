@@ -253,6 +253,29 @@ export function saudeMesUnidadePipeline(cards: PipelineCardDisplay[]): PipelineU
   };
 }
 
+export function montarBlocoMetaUnidadePipeline(
+  franqueado: PipelineFranqueadoUnidade,
+  cards: PipelineCardDisplay[],
+  chamados: PainelChamadoUnificadoDTO[],
+  options?: { defaultExpanded?: boolean },
+): PipelineUnidadeBlocoMeta {
+  const alertas = alertasUnidadePipeline(cards, chamados);
+  const saude = saudeMesUnidadePipeline(cards);
+  const funilMes = computeFunilMesCompact(cards);
+  const sortPriority =
+    alertas.nivel === 'critico' ? 0 : alertas.nivel === 'atencao' ? 1 : 2;
+  return {
+    redeId: franqueado.rede_franqueado_id,
+    label: labelFranqueadoPipeline(franqueado),
+    nFranquia: franqueado.n_franquia,
+    alertas,
+    saude,
+    funilMes,
+    defaultExpanded: options?.defaultExpanded ?? false,
+    sortPriority,
+  };
+}
+
 export function montarBlocosUnidadePipeline(
   franqueados: PipelineFranqueadoUnidade[],
   cards: PipelineCardDisplay[],
@@ -273,21 +296,7 @@ export function montarBlocosUnidadePipeline(
     if (excluirFranquiaDosGraficosVisaoGeral(f.n_franquia)) continue;
     const unitCards = porRede.get(f.rede_franqueado_id) ?? [];
     if (unitCards.length === 0) continue;
-    const alertas = alertasUnidadePipeline(unitCards, chamados);
-    const saude = saudeMesUnidadePipeline(unitCards);
-    const funilMes = computeFunilMesCompact(unitCards);
-    const sortPriority =
-      alertas.nivel === 'critico' ? 0 : alertas.nivel === 'atencao' ? 1 : 2;
-    blocos.push({
-      redeId: f.rede_franqueado_id,
-      label: labelFranqueadoPipeline(f),
-      nFranquia: f.n_franquia,
-      alertas,
-      saude,
-      funilMes,
-      defaultExpanded: false,
-      sortPriority,
-    });
+    blocos.push(montarBlocoMetaUnidadePipeline(f, unitCards, chamados));
   }
 
   blocos.sort(

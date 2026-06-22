@@ -21,13 +21,13 @@ import {
 import {
   calcularKpisPipelineFranqueadoraExtended,
   cardsElegiveisFranqueadora,
+  montarBlocoMetaUnidadePipeline,
   montarBlocosUnidadePipeline,
   sortCardsFranqueadoraPrioridade,
 } from '@/lib/kanban/pipeline-franqueadora-compute';
 import { computeFunilMesCompact, computeFunilMesUnidade } from '@/lib/kanban/pipeline-funil-mes-compute';
 import {
   calcularKpisPipelineUnidadeExtended,
-  montarBlocosDisplayUnidade,
   montarOQueFazerHoje,
 } from '@/lib/kanban/pipeline-unidade-compute';
 import { PipelineCardMiniDrawer } from '@/components/pipeline/PipelineCardMiniDrawer';
@@ -35,8 +35,6 @@ import { PipelineFranqueadoraUnidadeBloco } from '@/components/pipeline/Pipeline
 import { PipelineFunilMesCondensado } from '@/components/pipeline/PipelineFunilMesCondensado';
 import { PipelineUnidadeResumoLinha } from '@/components/pipeline/PipelineUnidadeResumoLinha';
 import { PipelineOQueFazerHoje } from '@/components/pipeline/PipelineOQueFazerHoje';
-import { PipelineUnidadeProjetoBloco } from '@/components/pipeline/PipelineUnidadeProjetoBloco';
-import { PipelineUnidadeCardSolo } from '@/components/pipeline/PipelineUnidadeCardSolo';
 import { PipelineFunilMesRede } from '@/components/pipeline/PipelineFunilMesRede';
 import { PipelineFunilMesUnidade } from '@/components/pipeline/PipelineFunilMesUnidade';
 import { excluirFranquiaDosGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
@@ -263,8 +261,20 @@ export function PipelineCardsView({
     [viewMode, cardsEnriquecidos, dataset.enrichment?.chamados],
   );
 
-  const blocosUnidade = useMemo(
-    () => (viewMode === 'unidade' ? montarBlocosDisplayUnidade(cardsFiltrados) : []),
+  const metaUnidade = useMemo(() => {
+    if (viewMode !== 'unidade') return null;
+    const franqueado = scoped.franqueados[0];
+    if (!franqueado || cardsFiltrados.length === 0) return null;
+    return montarBlocoMetaUnidadePipeline(
+      franqueado,
+      cardsFiltrados,
+      dataset.enrichment?.chamados ?? [],
+      { defaultExpanded: true },
+    );
+  }, [viewMode, scoped.franqueados, cardsFiltrados, dataset.enrichment?.chamados]);
+
+  const cardsUnidadeSorted = useMemo(
+    () => (viewMode === 'unidade' ? sortCardsFranqueadoraPrioridade(cardsFiltrados) : []),
     [viewMode, cardsFiltrados],
   );
 
@@ -505,30 +515,17 @@ export function PipelineCardsView({
             ))}
           </div>
         )
-      ) : blocosUnidade.length === 0 ? (
+      ) : !metaUnidade ? (
         <p className="rounded-xl border border-dashed px-4 py-10 text-center text-[11px]" style={{ borderColor: 'var(--moni-border-default)', color: 'var(--moni-text-tertiary)' }}>
           Nenhum card encontrado com os filtros atuais.
         </p>
       ) : (
-        <div className="space-y-3">
-          {blocosUnidade.map((bloco) =>
-            bloco.tipo === 'projeto' ? (
-              <PipelineUnidadeProjetoBloco
-                key={`projeto-${bloco.grupo.projetoId}`}
-                grupo={bloco.grupo}
-                enrichment={enrichmentSlim}
-                onCardClick={setDrawerCard}
-              />
-            ) : (
-              <PipelineUnidadeCardSolo
-                key={bloco.card.id}
-                card={bloco.card}
-                enrichment={enrichmentSlim}
-                onCardClick={setDrawerCard}
-              />
-            ),
-          )}
-        </div>
+        <PipelineFranqueadoraUnidadeBloco
+          meta={metaUnidade}
+          cards={cardsUnidadeSorted}
+          enrichment={enrichmentSlim}
+          onCardClick={setDrawerCard}
+        />
       )}
 
       <PipelineCardMiniDrawer card={drawerCard} onClose={() => setDrawerCard(null)} />
