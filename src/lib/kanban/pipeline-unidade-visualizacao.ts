@@ -2,6 +2,7 @@ import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import type { PipelineCardDisplay } from '@/lib/kanban/pipeline-cards-types';
 import {
   idProjetoNegocioPipelineCard,
+  indiceEsteiraTresEtapas,
   isFunilEsteiraPrincipal,
   isFunilParaleloEsteira,
 } from '@/lib/kanban/pipeline-esteira-tres-etapas';
@@ -112,4 +113,58 @@ export function resolverCardFunilNoGrupoParalelo(
   if (match) return match;
   if (rowCard.kanban_id === kanbanId) return rowCard;
   return null;
+}
+
+export function resolverAnchorCardGrupoUnidade(cards: PipelineCardDisplay[]): PipelineCardDisplay {
+  if (cards.length === 0) throw new Error('grupo vazio');
+  const principal = cards.find((c) => isFunilEsteiraPrincipal(c.kanban_id));
+  if (principal) return principal;
+  return cards.reduce((best, c) => {
+    const idx = indiceEsteiraTresEtapas(c.kanban_id);
+    const bestIdx = indiceEsteiraTresEtapas(best.kanban_id);
+    return idx >= bestIdx ? c : best;
+  }, cards[0]);
+}
+
+export type GrupoProjetoUnidade = {
+  anchor: PipelineCardDisplay;
+  cards: PipelineCardDisplay[];
+};
+
+/** Agrupa cards da unidade por `projeto_negocio_id` — paralelos como sub-esteiras do mesmo projeto. */
+export function agruparCardsUnidadePorProjeto(cards: PipelineCardDisplay[]): GrupoProjetoUnidade[] {
+  const byPid = new Map<string, PipelineCardDisplay[]>();
+  const semPid: PipelineCardDisplay[] = [];
+
+  for (const c of cards) {
+    const pid = idProjetoNegocioPipelineCard(c);
+    if (!pid) {
+      semPid.push(c);
+      continue;
+    }
+    const list = byPid.get(pid) ?? [];
+    list.push(c);
+    byPid.set(pid, list);
+  }
+
+  const grupos: GrupoProjetoUnidade[] = [];
+  for (const list of byPid.values()) {
+    grupos.push({ anchor: resolverAnchorCardGrupoUnidade(list), cards: list });
+  }
+  for (const c of semPid) {
+    grupos.push({ anchor: c, cards: [c] });
+  }
+
+  const byAnchorId = new Map(grupos.map((g) => [g.anchor.id, g]));
+  return sortCardsFranqueadoraPrioridade(grupos.map((g) => g.anchor)).map(
+    (anchor) => byAnchorId.get(anchor.id)!,
+  );
+}
+
+/** Linhas de sub-esteira paralela com pelo menos um card no grupo do projeto. */
+export function linhasSubesteiraParalelaDoGrupo(
+  grupoCards: readonly PipelineCardDisplay[],
+): ParalelosEsteiraLinha[] {
+  const ids = new Set(grupoCards.map((c) => c.kanban_id));
+  return PARALELOS_ESTEIRA_LINHAS.filter((linha) => linha.kanbanIds.some((kid) => ids.has(kid)));
 }

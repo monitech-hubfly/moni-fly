@@ -16,15 +16,12 @@ import {
   tagClassBadgeStatusPipeline,
 } from '@/lib/kanban/pipeline-franqueadora-compute';
 import {
-  PipelineEsteiraParalelosLinha,
-  PipelineEsteiraTresFunis,
+  PipelineEsteiraPrincipalComSubesteiras,
   pipelineBadgeInlineStyle,
 } from '@/components/pipeline/PipelineSequencialBar';
 import { PipelineFunilMesCondensado } from '@/components/pipeline/PipelineFunilMesCondensado';
-import {
-  linhaEsteiraParalelaKanban,
-  splitCardsUnidadePrincipalParalelos,
-} from '@/lib/kanban/pipeline-unidade-visualizacao';
+import { agruparCardsUnidadePorProjeto } from '@/lib/kanban/pipeline-unidade-visualizacao';
+import { isFunilParaleloEsteira } from '@/lib/kanban/pipeline-esteira-tres-etapas';
 
 const panelStyle: React.CSSProperties = {
   borderRadius: 'var(--moni-radius-lg)',
@@ -41,24 +38,14 @@ type Props = {
 
 type TabelaProps = {
   titulo: string;
-  colunaEsteira: string;
-  cards: PipelineCardDisplay[];
+  grupos: ReturnType<typeof agruparCardsUnidadePorProjeto>;
   allCards: PipelineCardDisplay[];
   enrichment?: PipelineFranqueadoraEnrichment | null;
-  modo: 'principal' | 'paralelos';
   onCardClick: (card: PipelineCardDisplay) => void;
 };
 
-function PipelineUnidadeCardsTabela({
-  titulo,
-  colunaEsteira,
-  cards,
-  allCards,
-  enrichment,
-  modo,
-  onCardClick,
-}: TabelaProps) {
-  if (cards.length === 0) return null;
+function PipelineUnidadeCardsTabela({ titulo, grupos, allCards, enrichment, onCardClick }: TabelaProps) {
+  if (grupos.length === 0) return null;
 
   return (
     <div className="mb-5 last:mb-0">
@@ -77,7 +64,7 @@ function PipelineUnidadeCardsTabela({
                 { h: 'Fase', w: 'w-[14%]' },
                 { h: 'Status', w: 'w-[10%]' },
                 { h: 'Tempo', w: 'w-[8%]' },
-                { h: colunaEsteira, w: 'w-[42%]' },
+                { h: 'Esteira', w: 'w-[42%]' },
                 { h: '', w: 'w-[8%]' },
               ].map(({ h, w }) => (
                 <th
@@ -91,17 +78,18 @@ function PipelineUnidadeCardsTabela({
             </tr>
           </thead>
           <tbody>
-            {cards.map((card, idx) => {
+            {grupos.map((grupo, idx) => {
+              const card = grupo.anchor;
               const badge = badgeStatusPipelineCard(card);
               const tagClass = tagClassBadgeStatusPipeline(badge);
               const customStyle = pipelineBadgeInlineStyle(badge);
               const relativo = formatRelativeNaFaseDesde(card);
               const slaExcedido = faseSlaExcedido(card);
-              const linhaParalela = linhaEsteiraParalelaKanban(card.kanban_id);
+              const paralelosCount = grupo.cards.filter((c) => isFunilParaleloEsteira(c.kanban_id)).length;
 
               return (
                 <tr
-                  key={card.id}
+                  key={grupo.anchor.id}
                   role="button"
                   tabIndex={0}
                   onClick={() => onCardClick(card)}
@@ -120,6 +108,11 @@ function PipelineUnidadeCardsTabela({
                     title={String(card.titulo ?? '').trim() || undefined}
                   >
                     {tituloPipelineCardDisplay(card, idx + 1)}
+                    {paralelosCount > 0 ? (
+                      <span className="ml-1 text-[10px] font-normal" style={{ color: 'var(--moni-text-tertiary)' }}>
+                        +{paralelosCount} paralelo{paralelosCount === 1 ? '' : 's'}
+                      </span>
+                    ) : null}
                   </td>
                   <td className="truncate py-2 pr-2" style={{ color: 'var(--moni-text-secondary)' }}>
                     {card.fase_nome}
@@ -142,16 +135,11 @@ function PipelineUnidadeCardsTabela({
                     {relativo}
                   </td>
                   <td className="py-2 pr-2">
-                    {modo === 'principal' ? (
-                      <PipelineEsteiraTresFunis card={card} siblingCards={allCards} enrichment={enrichment} />
-                    ) : (
-                      <PipelineEsteiraParalelosLinha
-                        card={card}
-                        siblingCards={allCards}
-                        enrichment={enrichment}
-                        kanbanIds={linhaParalela?.kanbanIds ?? [card.kanban_id]}
-                      />
-                    )}
+                    <PipelineEsteiraPrincipalComSubesteiras
+                      card={card}
+                      siblingCards={allCards}
+                      enrichment={enrichment}
+                    />
                   </td>
                   <td className="py-2 text-[10px]" style={{ color: 'var(--moni-text-tertiary)' }}>
                     Detalhe →
@@ -171,7 +159,7 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
   const { alertas, saude, funilMes } = meta;
   const saudeIndicador = indicadorSaudeUnidadePipeline(alertas, saude);
 
-  const { principal, paralelos } = useMemo(() => splitCardsUnidadePrincipalParalelos(cards), [cards]);
+  const grupos = useMemo(() => agruparCardsUnidadePorProjeto(cards), [cards]);
 
   return (
     <section style={panelStyle}>
@@ -222,22 +210,10 @@ export function PipelineFranqueadoraUnidadeBloco({ meta, cards, enrichment, onCa
           <PipelineFunilMesCondensado funil={funilMes} className="mb-4" />
 
           <PipelineUnidadeCardsTabela
-            titulo="Principal"
-            colunaEsteira="Esteira"
-            cards={principal}
+            titulo="Projetos"
+            grupos={grupos}
             allCards={cards}
             enrichment={enrichment}
-            modo="principal"
-            onCardClick={onCardClick}
-          />
-
-          <PipelineUnidadeCardsTabela
-            titulo="Paralelos"
-            colunaEsteira="Esteiras"
-            cards={paralelos}
-            allCards={cards}
-            enrichment={enrichment}
-            modo="paralelos"
             onCardClick={onCardClick}
           />
         </div>

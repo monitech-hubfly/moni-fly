@@ -6,7 +6,7 @@ import type {
   PipelineProjetoGrupoUnidade,
 } from '@/lib/kanban/pipeline-cards-types';
 import { tituloPipelineCardDisplay } from '@/lib/kanban/pipeline-card-readonly';
-import { PipelineEsteiraTresFunis } from '@/components/pipeline/PipelineSequencialBar';
+import { PipelineEsteiraPrincipalComSubesteiras } from '@/components/pipeline/PipelineSequencialBar';
 import { indiceEsteiraTresEtapas, isFunilEsteiraPrincipal } from '@/lib/kanban/pipeline-esteira-tres-etapas';
 import { PipelineUnidadeCardMetaLinhas } from '@/components/pipeline/PipelineUnidadeCardMetaLinhas';
 
@@ -46,7 +46,7 @@ export function PipelineUnidadeProjetoBloco({ grupo, enrichment, onCardClick }: 
       </div>
 
       <div className="border-t px-4 pb-4 pt-3" style={{ borderColor: 'var(--moni-border-default)' }}>
-        <PipelineEsteiraTresFunis
+        <PipelineEsteiraPrincipalComSubesteiras
           card={anchorCard}
           siblingCards={grupo.cards}
           enrichment={enrichment}

@@ -12,7 +12,11 @@ import {
   ratioFaseNoKanban,
   resolverCardEsteiraPrincipalProjeto,
 } from '@/lib/kanban/pipeline-esteira-tres-etapas';
-import { cardsRelacionadosProjeto } from '@/lib/kanban/pipeline-unidade-visualizacao';
+import {
+  cardsRelacionadosProjeto,
+  linhasSubesteiraParalelaDoGrupo,
+  resolverCardFunilNoGrupoParalelo,
+} from '@/lib/kanban/pipeline-unidade-visualizacao';
 import { slaCategoriaPipeline } from '@/lib/kanban/pipeline-cards-utils';
 import { calcularDiasNaFase } from '@/lib/kanban/pipeline-card-readonly';
 import { PARADO_DIAS } from '@/lib/kanban/pipeline-franqueadora-compute';
@@ -269,6 +273,71 @@ export function PipelineEsteiraTresFunis({
   );
 }
 
+/** Esteira principal (3 funis) + sub-esteiras dos funis paralelos do mesmo projeto. */
+export function PipelineEsteiraPrincipalComSubesteiras({
+  card,
+  siblingCards,
+  enrichment,
+  className,
+  heightPxPrincipal = 8,
+  heightPxSub = 5,
+}: {
+  card: PipelineCardDisplay;
+  siblingCards?: PipelineCardDisplay[];
+  enrichment?: PipelineFranqueadoraEnrichment | null;
+  className?: string;
+  heightPxPrincipal?: number;
+  heightPxSub?: number;
+}) {
+  const siblings = siblingCards ?? [card];
+  const relacionados = cardsRelacionadosProjeto(card, siblings);
+  const subLinhas = linhasSubesteiraParalelaDoGrupo(relacionados);
+
+  return (
+    <div className={className}>
+      <PipelineEsteiraTresFunis
+        card={card}
+        siblingCards={siblings}
+        enrichment={enrichment}
+        heightPx={heightPxPrincipal}
+      />
+
+      {subLinhas.length > 0 ? (
+        <div
+          className="mt-2 space-y-1.5 border-l-2 pl-2"
+          style={{ borderColor: 'var(--moni-border-default)' }}
+        >
+          {subLinhas.map((linha) => {
+            const rowCard =
+              linha.kanbanIds
+                .map((kid) => resolverCardFunilNoGrupoParalelo(kid, card, siblings))
+                .find(Boolean) ?? card;
+
+            return (
+              <div key={linha.id}>
+                <p
+                  className="mb-0.5 truncate text-[9px] font-medium"
+                  style={{ color: 'var(--moni-text-tertiary)' }}
+                  title={linha.label}
+                >
+                  {linha.label}
+                </p>
+                <PipelineEsteiraParalelosLinha
+                  card={rowCard}
+                  siblingCards={siblings}
+                  enrichment={enrichment}
+                  kanbanIds={linha.kanbanIds}
+                  heightPx={heightPxSub}
+                />
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function PipelineSequencialBar({
   card,
   enrichment,
@@ -315,16 +384,15 @@ export function PipelineSequencialBarMultiTrack({
       return idx >= bestIdx ? c : best;
     }, cards[0]);
 
-  const paralelos = cards.filter((c) => isFunilParaleloEsteira(c.kanban_id));
-
   return (
     <div className={className}>
-      <PipelineSequencialBar card={principal} enrichment={enrichment} siblingCards={cards} />
-      {paralelos.map((c) => (
-        <div key={c.id} className="mt-2">
-          <EsteiraMainTrack card={c} enrichment={enrichment} heightPx={6} siblingCards={cards} />
-        </div>
-      ))}
+      <PipelineEsteiraPrincipalComSubesteiras
+        card={principal}
+        enrichment={enrichment}
+        siblingCards={cards}
+        heightPxPrincipal={6}
+        heightPxSub={4}
+      />
     </div>
   );
 }
@@ -337,6 +405,7 @@ export function PipelineEsteiraParalelosLinha({
   kanbanIds,
   labels,
   className,
+  heightPx = 6,
 }: {
   card: PipelineCardDisplay;
   siblingCards?: PipelineCardDisplay[];
@@ -344,6 +413,7 @@ export function PipelineEsteiraParalelosLinha({
   kanbanIds: readonly string[];
   labels?: readonly string[];
   className?: string;
+  heightPx?: number;
 }) {
   const siblings = siblingCards ?? [card];
   const maxMap = enrichment?.maxOrdemPorKanban;
@@ -363,7 +433,7 @@ export function PipelineEsteiraParalelosLinha({
     <div className={className}>
       <div
         className="flex overflow-hidden rounded-full"
-        style={{ background: 'var(--moni-rede-chart-track)', height: '6px' }}
+        style={{ background: 'var(--moni-rede-chart-track)', height: `${heightPx}px` }}
       >
         {kanbanIds.map((kid, idx) => {
           const segCard = segmentCards[idx];
