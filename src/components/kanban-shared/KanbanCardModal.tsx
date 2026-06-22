@@ -108,7 +108,7 @@ import {
   hipotesesOrdemMinima,
   montarChipsParalelas,
 } from '@/lib/kanban/kanban-paralelas-chips';
-import { isDadosCondominiosFaseSlug, isHipotesesFaseSlug, isPreBatalhaFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { isDadosCondominiosFaseSlug, isHipotesesFaseSlug, isPreBatalhaFaseSlug, filterStepOneCalculadoraFases } from '@/lib/kanban/stepone-fase-slugs';
 import { PRE_BATALHA_INSTRUCOES_FASE, PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING } from '@/lib/kanban/pre-batalha-checklist';
 import { kanbanExibeSecaoCondominioSidebar } from '@/lib/kanban/kanban-secao-condominio';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
@@ -3149,9 +3149,13 @@ export function KanbanCardModal({
         fases,
       );
 
+      const cardFaseSlug =
+        fases.find((f) => f.id === card.fase_id)?.slug ?? card.etapa_slug ?? null;
+
       const linhasEsteira = calcularLinhasCalculadoraFasesEsteira({
         fasesPorKanban: fasesEsteiraMap,
         cardKanbanId: card.kanban_id,
+        cardFaseSlug,
         card: {
           fase_id: card.fase_id,
           created_at: card.created_at,
@@ -3168,8 +3172,11 @@ export function KanbanCardModal({
 
       if (fases.length === 0) return { linhas: [], visits: [] };
 
+      const fasesCalculadora =
+        card.kanban_id === KANBAN_IDS.STEP_ONE ? filterStepOneCalculadoraFases(fases) : fases;
+
       const linhas = calcularLinhasCalculadoraFases({
-        fases,
+        fases: fasesCalculadora,
         card: {
           fase_id: card.fase_id,
           created_at: card.created_at,

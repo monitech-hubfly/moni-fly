@@ -9,7 +9,7 @@ import {
 import { fetchKanbanFasesAtivas, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
 import type { FaseVisit } from '@/lib/kanban/kanban-card-timeline';
 import { indiceEsteiraTresEtapas } from '@/lib/kanban/pipeline-esteira-tres-etapas';
-import { isRemovedStepOneFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { filterStepOneCalculadoraFases, isCalculadoraExcludedStepOneFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 
 /** Ordem fixa da calculadora global: Step One → Portfólio → Pré Obra e Obra. */
 export const CALCULADORA_ESTEIRA_FUNIS = [
@@ -46,7 +46,7 @@ export function cardKanbanNaEsteiraPrincipalCalculadora(kanbanId: string): boole
 }
 
 function filtrarFasesStepOne(fases: KanbanFase[]): KanbanFase[] {
-  return fases.filter((f) => !isRemovedStepOneFaseSlug(f.slug));
+  return filterStepOneCalculadoraFases(fases);
 }
 
 /** Carrega fases ativas dos 3 funis da esteira principal. */
@@ -169,8 +169,15 @@ function resolverFaseIdParaCalculo(
   meta: CalculadoraFaseEsteiraMeta[],
   segmentoCard: number,
   cardNaEsteira: boolean,
+  cardFaseSlug?: string | null,
 ): string {
   if (cardNaEsteira && meta.some((m) => m.id === cardFaseId)) return cardFaseId;
+
+  if (isCalculadoraExcludedStepOneFaseSlug(cardFaseSlug)) {
+    const primeiraIncluida = meta.find((m) => m.segmentoEsteira === 0);
+    if (primeiraIncluida) return primeiraIncluida.id;
+  }
+
   const primeiraDoSegmento = meta.find((m) => m.segmentoEsteira === segmentoCard);
   return primeiraDoSegmento?.id ?? cardFaseId;
 }
@@ -182,6 +189,7 @@ function resolverFaseIdParaCalculo(
 export function calcularLinhasCalculadoraFasesEsteira(input: {
   fasesPorKanban: Map<string, KanbanFase[]>;
   cardKanbanId: string;
+  cardFaseSlug?: string | null;
   card: CalculadoraFasesInput['card'];
   visits: FaseVisit[];
   hoje?: Date;
@@ -196,6 +204,7 @@ export function calcularLinhasCalculadoraFasesEsteira(input: {
     meta,
     segmentoCard,
     cardNaEsteira,
+    input.cardFaseSlug,
   );
 
   const fasesGlobais: KanbanFase[] = meta.map((m) => ({
@@ -214,7 +223,9 @@ export function calcularLinhasCalculadoraFasesEsteira(input: {
   });
 
   const comSegmento = aplicarRegrasSegmentoEsteira(linhas, meta, segmentoCard);
-  return aplicarOrdemRelativaFaseAtual(comSegmento, meta, input.card.fase_id);
+  const faseOrdemRelativa =
+    meta.some((m) => m.id === input.card.fase_id) ? input.card.fase_id : faseIdCalc;
+  return aplicarOrdemRelativaFaseAtual(comSegmento, meta, faseOrdemRelativa);
 }
 
 /** Mescla fases já carregadas do kanban atual no mapa (fallback enquanto busca a esteira). */
