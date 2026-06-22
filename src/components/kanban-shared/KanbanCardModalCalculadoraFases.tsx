@@ -175,11 +175,18 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
 
   return (
     <div className="moni-calculadora-marco-row" role="listitem">
-      <span className={`moni-calculadora-marco-dot moni-calculadora-marco-dot--${id}`} aria-hidden />
-      <span className="moni-calculadora-marco-label min-w-0 truncate">
-        <span className="moni-calculadora-marco-id">{id}</span>
-        {marco.label}
+      <div className="moni-calculadora-marco-label-wrap min-w-0">
+        <span className={`moni-calculadora-marco-dot moni-calculadora-marco-dot--${id}`} aria-hidden />
+        <span className="moni-calculadora-marco-label min-w-0 truncate">
+          <span className="moni-calculadora-marco-id">{id}</span>
+          {marco.label}
+        </span>
+      </div>
+      <span className="moni-calculadora-fase-responsavel">—</span>
+      <span className="moni-calculadora-fase-custo" title={marco.custo ?? undefined}>
+        {marco.custo ?? '—'}
       </span>
+      <span className="moni-calculadora-marco-data">—</span>
       <span className="moni-calculadora-marco-data">
         {marco.data ? fmtData(marco.data) : '—'}
         {marco.isPrevisto && marco.data ? (

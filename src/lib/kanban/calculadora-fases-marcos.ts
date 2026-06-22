@@ -16,6 +16,8 @@ export type CalculadoraMarco = {
   data: string | null;
   isPrevisto: boolean;
   funilLabel: string;
+  /** Custo associado ao marco (ex.: M4 — instrumento garantidor). */
+  custo?: string | null;
 };
 
 export type CalculadoraMarcosInput = {
@@ -33,6 +35,7 @@ const MARCO_DEFS: {
   id: CalculadoraMarcoId;
   label: string;
   funilLabel: string;
+  custo?: string | null;
   anchor: 'after' | 'before';
   match: (slug: string | null | undefined, nome: string) => boolean;
 }[] = [
@@ -48,6 +51,7 @@ const MARCO_DEFS: {
     id: 'M4',
     label: 'Emissão do alvará',
     funilLabel: 'Funil Pré Obra e Obra',
+    custo: 'Franqueado: instrumento garantidor',
     anchor: 'after',
     match: (slug, nome) =>
       slug === FASE_SLUGS.APROVACAO_PREFEITURA ||
@@ -161,6 +165,7 @@ export function montarTimelineCalculadoraComMarcos(
         data,
         isPrevisto,
         funilLabel: def.funilLabel,
+        custo: def.custo ?? null,
       },
     });
   }
