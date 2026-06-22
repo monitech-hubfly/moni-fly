@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { upsertFaseChecklistResposta } from '@/lib/actions/card-actions';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import {
   aplicarResponsavelDaFasePadraoSeVazio,
   buscarItemIdResponsavelDaFaseEdicao,
@@ -28,6 +30,11 @@ export function ResponsavelDaFaseSidebar({ cardId, faseId, readOnly = false }: P
   const [valor, setValor] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [carregando, setCarregando] = useState(true);
+
+  const selectOptions = useMemo(
+    () => OPCOES_RESPONSAVEL_DA_FASE.map((opcao) => ({ value: opcao, label: opcao })),
+    [],
+  );
 
   useEffect(() => {
     if (!cardId.trim() || !faseId.trim()) {
@@ -118,26 +125,22 @@ export function ResponsavelDaFaseSidebar({ cardId, faseId, readOnly = false }: P
   }
 
   return (
-    <select
-      className="w-full rounded-md px-2 py-2 text-[11px] disabled:opacity-60"
-      style={{
-        fontFamily: 'var(--moni-font-sans)',
-        color: 'var(--moni-text-primary)',
-        background: 'var(--moni-surface-0)',
-        border: 'var(--moni-border-width) solid var(--moni-border-default)',
-        borderRadius: 'var(--moni-radius-md)',
-        minHeight: '44px',
-      }}
-      value={valor}
-      disabled={salvando}
-      onChange={(e) => void salvar(e.target.value)}
-    >
-      <option value="">Selecione…</option>
-      {OPCOES_RESPONSAVEL_DA_FASE.map((opcao) => (
-        <option key={opcao} value={opcao}>
-          {opcao}
-        </option>
-      ))}
-    </select>
+    <div>
+      {salvando ? <Loader2 size={10} className="mb-1 inline animate-spin" /> : null}
+      <SearchableSelect
+        value={valor}
+        onChange={(v) => void salvar(v)}
+        options={selectOptions}
+        placeholder="Selecione o responsável…"
+        searchPlaceholder="Buscar…"
+        size="compact"
+        emptyOption={{ value: '', label: 'Selecione o responsável…' }}
+        listMaxHeightClassName="max-h-48"
+        triggerClassName="border-[var(--moni-border-default)] text-[var(--moni-text-primary)]"
+        menuPortal
+        disabled={salvando}
+        aria-label="Responsável da fase"
+      />
+    </div>
   );
 }
