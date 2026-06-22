@@ -101,6 +101,20 @@ function parseFaseSteps(fase: KanbanFase | undefined): string[] {
   return [];
 }
 
+/** Custo longo ou composto (vários itens) — exibe chevron e painel expandido. */
+function custoPrecisaExpandir(custo: string | null | undefined): boolean {
+  const t = String(custo ?? '').trim();
+  if (!t) return false;
+  return t.length > 18 || t.includes(' · ');
+}
+
+function parseCustoItens(custo: string | null | undefined): string[] {
+  const t = String(custo ?? '').trim();
+  if (!t) return [];
+  if (t.includes(' · ')) return t.split(' · ').map((s) => s.trim()).filter(Boolean);
+  return [t];
+}
+
 function CalculadoraResumoExecutivo({
   resumo,
   linhaAtual,
@@ -174,9 +188,27 @@ function CalculadoraResumoExecutivo({
 
 function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
   const id = marco.id as CalculadoraMarcoId;
+  const [expanded, setExpanded] = useState(false);
+  const custoItens = parseCustoItens(marco.custo);
+  const custoExpandivel = custoPrecisaExpandir(marco.custo);
 
   return (
-    <div className="moni-calculadora-marco-row" role="listitem">
+    <div
+      className={`moni-calculadora-marco-row${custoExpandivel ? ' moni-calculadora-marco-row--expandable' : ''}${expanded ? ' open' : ''}`}
+      role={custoExpandivel ? 'button' : 'listitem'}
+      tabIndex={custoExpandivel ? 0 : undefined}
+      onClick={custoExpandivel ? () => setExpanded((v) => !v) : undefined}
+      onKeyDown={
+        custoExpandivel
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setExpanded((v) => !v);
+              }
+            }
+          : undefined
+      }
+    >
       <div className="moni-calculadora-marco-label-wrap min-w-0">
         <span className={`moni-calculadora-marco-dot moni-calculadora-marco-dot--${id}`} aria-hidden />
         <span className="moni-calculadora-marco-label min-w-0 truncate" title={`${id} — ${marco.label}`}>
@@ -184,6 +216,11 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
           <span className="moni-calculadora-marco-sep">—</span>
           {marco.label}
         </span>
+        {custoExpandivel ? (
+          <span className="moni-calculadora-fase-chevron" aria-hidden>
+            ›
+          </span>
+        ) : null}
       </div>
       <span className="moni-calculadora-fase-responsavel">—</span>
       <span className="moni-calculadora-fase-custo" title={marco.custo ?? undefined}>
@@ -197,6 +234,15 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
         ) : null}
       </span>
       <span className={`moni-calculadora-marco-badge moni-calculadora-marco-badge--${id}`}>Marco</span>
+      {custoExpandivel ? (
+        <div className="moni-calculadora-fase-custo-detail">
+          {custoItens.map((item) => (
+            <p key={item} className="moni-calculadora-fase-custo-item">
+              {item}
+            </p>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -213,7 +259,9 @@ function CalculadoraFaseRow({
   onToggle: () => void;
 }) {
   const steps = parseFaseSteps(faseMeta);
-  const hasSteps = steps.length > 0;
+  const custoItens = parseCustoItens(row.custo);
+  const custoExpandivel = custoPrecisaExpandir(row.custo);
+  const hasExpand = steps.length > 0 || custoExpandivel;
   const isGargalo = row.atrasoDias !== null && row.atrasoDias > 0;
   const fimData = row.dataFimReal ?? row.dataFimEstimada;
   const fimLabel = row.dataFimReal ? 'real' : 'est.';
@@ -221,12 +269,12 @@ function CalculadoraFaseRow({
 
   return (
     <div
-      className={`moni-calculadora-fase-row ${statusRowClass(row.status)}${expanded ? ' open' : ''}${row.status === 'futura' ? ' moni-calculadora-fase-row--futura' : ''}${hasSteps ? '' : ' moni-calculadora-fase-row--no-steps'}`}
-      role={hasSteps ? 'button' : undefined}
-      tabIndex={hasSteps ? 0 : undefined}
-      onClick={hasSteps ? onToggle : undefined}
+      className={`moni-calculadora-fase-row ${statusRowClass(row.status)}${expanded ? ' open' : ''}${row.status === 'futura' ? ' moni-calculadora-fase-row--futura' : ''}${hasExpand ? '' : ' moni-calculadora-fase-row--no-expand'}`}
+      role={hasExpand ? 'button' : undefined}
+      tabIndex={hasExpand ? 0 : undefined}
+      onClick={hasExpand ? onToggle : undefined}
       onKeyDown={
-        hasSteps
+        hasExpand
           ? (e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
@@ -241,7 +289,7 @@ function CalculadoraFaseRow({
           <span className="moni-calculadora-fase-nome" title={row.faseNome}>
             {row.faseNome}
           </span>
-          {steps.length > 0 ? (
+          {hasExpand ? (
             <span className="moni-calculadora-fase-chevron" aria-hidden>
               ›
             </span>
@@ -282,6 +330,16 @@ function CalculadoraFaseRow({
           {CALCULADORA_STATUS_LABEL[row.status]}
         </span>
       </div>
+
+      {custoExpandivel ? (
+        <div className="moni-calculadora-fase-custo-detail">
+          {custoItens.map((item) => (
+            <p key={item} className="moni-calculadora-fase-custo-item">
+              {item}
+            </p>
+          ))}
+        </div>
+      ) : null}
 
       {steps.length > 0 ? (
         <ul className="moni-calculadora-fase-steps">

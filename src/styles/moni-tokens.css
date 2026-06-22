@@ -609,11 +609,11 @@
   font-family: var(--moni-font-sans);
 }
 
-.moni-calculadora-fase-row--no-steps {
+.moni-calculadora-fase-row--no-expand {
   cursor: default;
 }
 
-.moni-calculadora-fase-row:not(.moni-calculadora-fase-row--no-steps):hover {
+.moni-calculadora-fase-row:not(.moni-calculadora-fase-row--no-expand):hover {
   border-color: var(--moni-border-default);
 }
 
@@ -796,6 +796,28 @@
   display: block;
 }
 
+.moni-calculadora-fase-custo-detail {
+  display: none;
+  grid-column: 1 / -1;
+  padding: 2px 0 4px 12px;
+  margin-top: -2px;
+  border-left: 2px solid var(--moni-calc-separator);
+  margin-left: 4px;
+}
+
+.moni-calculadora-fase-row.open .moni-calculadora-fase-custo-detail,
+.moni-calculadora-marco-row.open .moni-calculadora-fase-custo-detail {
+  display: block;
+}
+
+.moni-calculadora-fase-custo-item {
+  font-size: 9px;
+  color: var(--moni-text-secondary);
+  line-height: 1.45;
+  padding: 2px 0;
+  margin: 0;
+}
+
 .moni-calculadora-fase-step {
   font-size: 9px;
   color: var(--moni-text-secondary);
@@ -818,13 +840,25 @@
   font-size: 11px;
   font-family: var(--moni-font-sans);
   cursor: default;
-  pointer-events: none;
+}
+
+.moni-calculadora-marco-row--expandable {
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.moni-calculadora-marco-row--expandable:hover {
+  border-color: var(--moni-border-default);
+}
+
+.moni-calculadora-marco-row.open .moni-calculadora-fase-chevron {
+  transform: rotate(90deg);
 }
 
 .moni-calculadora-marco-label-wrap {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 4px;
   min-width: 0;
 }
 
