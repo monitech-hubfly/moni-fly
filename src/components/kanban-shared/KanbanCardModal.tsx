@@ -117,6 +117,18 @@ import { estiloChipTagKanban } from '@/lib/kanban/kanban-tag-especial';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCreditoObraDocumentacao';
 import { KanbanCardModalDadosPreObraOperacoes } from './KanbanCardModalDadosPreObraOperacoes';
+import { KanbanCardModalNegocioPrazoField } from './KanbanCardModalNegocioPrazoField';
+import {
+  NEGOCIO_PRAZO_DRAFT_VAZIO,
+  faseLabelFromOpcoes,
+  formatNegocioPrazoDisplay,
+  negocioPrazoDbPatchFromValores,
+  negocioPrazoDraftFromValores,
+  negocioPrazoValoresFromDraft,
+  type FaseNegocioPrazoOpcao,
+  type NegocioPrazoDraft,
+} from '@/lib/kanban/dados-negocio-prazo';
+import { fetchFasesNegocioPrazoOpcoes } from '@/lib/kanban/fetch-kanban-fases';
 import { KanbanCardModalCalculadoraFases } from './KanbanCardModalCalculadoraFases';
 import {
   operacoesPreObraDraftFromCard,
@@ -532,7 +544,24 @@ export function KanbanCardModal({
   const [novaTagCor, setNovaTagCor] = useState('#F5A100');
   const [criandoTag, setCriandoTag] = useState(false);
   const [editandoNegocio, setEditandoNegocio] = useState(false);
-  const [negocioDraft, setNegocioDraft] = useState({
+  const [negocioDraft, setNegocioDraft] = useState<{
+    tipo_aquisicao_terreno: string;
+    valor_terreno: string;
+    vgv_pretendido: string;
+    produto_modelo_casa: string;
+    link_pasta_drive: string;
+    link_bca: string;
+    link_gbox: string;
+    link_mapa_competidores: string;
+    link_acoplamento: string;
+    link_apresentacao_comite: string;
+    link_moni_capital_seguro_garantia: string;
+    comentario_moni_capital_seguro_garantia: string;
+    link_moni_capital_gastos_aporte_inicial: string;
+    comentario_moni_capital_gastos_aporte_inicial: string;
+    prazo_opcao: NegocioPrazoDraft;
+    prazo_instrumento_garantidor: NegocioPrazoDraft;
+  }>({
     tipo_aquisicao_terreno: '',
     valor_terreno: '',
     vgv_pretendido: '',
@@ -547,7 +576,10 @@ export function KanbanCardModal({
     comentario_moni_capital_seguro_garantia: '',
     link_moni_capital_gastos_aporte_inicial: '',
     comentario_moni_capital_gastos_aporte_inicial: '',
+    prazo_opcao: { ...NEGOCIO_PRAZO_DRAFT_VAZIO },
+    prazo_instrumento_garantidor: { ...NEGOCIO_PRAZO_DRAFT_VAZIO },
   });
+  const [fasesNegocioPrazo, setFasesNegocioPrazo] = useState<FaseNegocioPrazoOpcao[]>([]);
   const [salvandoNegocio, setSalvandoNegocio] = useState(false);
   const [editandoFranqueado, setEditandoFranqueado] = useState(false);
   const [franqueadosLista, setFranqueadosLista] = useState<
@@ -776,6 +808,8 @@ export function KanbanCardModal({
       comentario_moni_capital_seguro_garantia: '',
       link_moni_capital_gastos_aporte_inicial: '',
       comentario_moni_capital_gastos_aporte_inicial: '',
+      prazo_opcao: { ...NEGOCIO_PRAZO_DRAFT_VAZIO },
+      prazo_instrumento_garantidor: { ...NEGOCIO_PRAZO_DRAFT_VAZIO },
     });
     setEditandoNegocio(false);
     setEditandoFranqueado(false);
@@ -804,6 +838,19 @@ export function KanbanCardModal({
     setEmailAssunto(assuntoPadrao);
     // card: assunto deriva de titulo; id+cardId já filtram card errado, mas o linter exige card completo.
   }, [card, cardId]);
+
+  useEffect(() => {
+    const procId = modalDetalhes.processo?.id;
+    if (!procId) return;
+    let cancel = false;
+    void (async () => {
+      const opcoes = await fetchFasesNegocioPrazoOpcoes(createClient());
+      if (!cancel) setFasesNegocioPrazo(opcoes);
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [modalDetalhes.processo?.id]);
 
   useEffect(() => {
     if (!card?.fase_id) return;
@@ -2883,6 +2930,13 @@ export function KanbanCardModal({
     if (!card) return;
     setSalvandoNegocio(true);
     try {
+      const prazoOpcao = negocioPrazoValoresFromDraft(negocioDraft.prazo_opcao);
+      const prazoInstrumento = negocioPrazoValoresFromDraft(negocioDraft.prazo_instrumento_garantidor);
+      const prazoOpcaoDb = negocioPrazoDbPatchFromValores(prazoOpcao, 'prazo_opcao');
+      const prazoInstrumentoDb = negocioPrazoDbPatchFromValores(
+        prazoInstrumento,
+        'prazo_instrumento_garantidor',
+      );
       const upd = await salvarDadosNegocioKanban({
         cardId: card.id,
         processoId: modalDetalhes.processo?.id ?? '',
@@ -2904,6 +2958,24 @@ export function KanbanCardModal({
             negocioDraft.link_moni_capital_gastos_aporte_inicial?.trim() || null,
           comentario_moni_capital_gastos_aporte_inicial:
             negocioDraft.comentario_moni_capital_gastos_aporte_inicial?.trim() || null,
+          prazo_opcao_dias: prazoOpcaoDb.prazo_opcao_dias as number | null,
+          prazo_opcao_sla_tipo: prazoOpcaoDb.prazo_opcao_sla_tipo as 'uteis' | 'corridos' | null,
+          prazo_opcao_modo: prazoOpcaoDb.prazo_opcao_modo as 'fase' | 'data' | null,
+          prazo_opcao_fase_id: prazoOpcaoDb.prazo_opcao_fase_id as string | null,
+          prazo_opcao_data: prazoOpcaoDb.prazo_opcao_data as string | null,
+          prazo_instrumento_garantidor_dias: prazoInstrumentoDb.prazo_instrumento_garantidor_dias as number | null,
+          prazo_instrumento_garantidor_sla_tipo: prazoInstrumentoDb.prazo_instrumento_garantidor_sla_tipo as
+            | 'uteis'
+            | 'corridos'
+            | null,
+          prazo_instrumento_garantidor_modo: prazoInstrumentoDb.prazo_instrumento_garantidor_modo as
+            | 'fase'
+            | 'data'
+            | null,
+          prazo_instrumento_garantidor_fase_id: prazoInstrumentoDb.prazo_instrumento_garantidor_fase_id as
+            | string
+            | null,
+          prazo_instrumento_garantidor_data: prazoInstrumentoDb.prazo_instrumento_garantidor_data as string | null,
         },
         basePath,
       });
@@ -3894,6 +3966,10 @@ export function KanbanCardModal({
 
   function abrirEdicaoNegocio() {
     if (!proc) return;
+    void (async () => {
+      const supabase = createClient();
+      const opcoes = await fetchFasesNegocioPrazoOpcoes(supabase);
+      setFasesNegocioPrazo(opcoes);
       setNegocioDraft({
         tipo_aquisicao_terreno: proc.tipo_aquisicao_terreno ?? '',
         valor_terreno: proc.valor_terreno != null ? String(proc.valor_terreno) : '',
@@ -3910,8 +3986,23 @@ export function KanbanCardModal({
         link_moni_capital_gastos_aporte_inicial: proc.link_moni_capital_gastos_aporte_inicial ?? '',
         comentario_moni_capital_gastos_aporte_inicial:
           proc.comentario_moni_capital_gastos_aporte_inicial ?? '',
+        prazo_opcao: negocioPrazoDraftFromValores({
+          dias: proc.prazo_opcao_dias,
+          slaTipo: proc.prazo_opcao_sla_tipo,
+          modo: proc.prazo_opcao_modo,
+          faseId: proc.prazo_opcao_fase_id,
+          data: proc.prazo_opcao_data,
+        }),
+        prazo_instrumento_garantidor: negocioPrazoDraftFromValores({
+          dias: proc.prazo_instrumento_garantidor_dias,
+          slaTipo: proc.prazo_instrumento_garantidor_sla_tipo,
+          modo: proc.prazo_instrumento_garantidor_modo,
+          faseId: proc.prazo_instrumento_garantidor_fase_id,
+          data: proc.prazo_instrumento_garantidor_data,
+        }),
       });
       setEditandoNegocio(true);
+    })();
   }
 
   const secaoHead = (id: SecaoEsquerdaId, label: string, body: ReactNode) => (
@@ -6679,6 +6770,22 @@ export function KanbanCardModal({
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                       />
                     </label>
+                    <KanbanCardModalNegocioPrazoField
+                      label="Prazo Opção"
+                      draft={negocioDraft.prazo_opcao}
+                      onChange={(prazo_opcao) => setNegocioDraft((d) => ({ ...d, prazo_opcao }))}
+                      faseOpcoes={fasesNegocioPrazo}
+                      disabled={salvandoNegocio}
+                    />
+                    <KanbanCardModalNegocioPrazoField
+                      label="Prazo Instrumento Garantidor"
+                      draft={negocioDraft.prazo_instrumento_garantidor}
+                      onChange={(prazo_instrumento_garantidor) =>
+                        setNegocioDraft((d) => ({ ...d, prazo_instrumento_garantidor }))
+                      }
+                      faseOpcoes={fasesNegocioPrazo}
+                      disabled={salvandoNegocio}
+                    />
                     {renderDadosNegocioLinksEAnexos(true)}
                     <div className="flex gap-2 pt-1">
                       <button
@@ -6734,8 +6841,34 @@ export function KanbanCardModal({
                         </div>
                       </div>
                       <div>
-                        <div className="text-[11px] font-medium text-stone-500">—</div>
-                        <div className="text-xs text-stone-800">—</div>
+                        <div className="text-[11px] font-medium text-stone-500">Prazo Opção</div>
+                        <div className="text-xs text-stone-800">
+                          {formatNegocioPrazoDisplay(
+                            {
+                              dias: proc.prazo_opcao_dias,
+                              slaTipo: proc.prazo_opcao_sla_tipo,
+                              modo: proc.prazo_opcao_modo,
+                              faseId: proc.prazo_opcao_fase_id,
+                              data: proc.prazo_opcao_data,
+                            },
+                            faseLabelFromOpcoes(proc.prazo_opcao_fase_id, fasesNegocioPrazo),
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-medium text-stone-500">Prazo Instrumento Garantidor</div>
+                        <div className="text-xs text-stone-800">
+                          {formatNegocioPrazoDisplay(
+                            {
+                              dias: proc.prazo_instrumento_garantidor_dias,
+                              slaTipo: proc.prazo_instrumento_garantidor_sla_tipo,
+                              modo: proc.prazo_instrumento_garantidor_modo,
+                              faseId: proc.prazo_instrumento_garantidor_fase_id,
+                              data: proc.prazo_instrumento_garantidor_data,
+                            },
+                            faseLabelFromOpcoes(proc.prazo_instrumento_garantidor_fase_id, fasesNegocioPrazo),
+                          )}
+                        </div>
                       </div>
                     </div>
                     {renderDadosNegocioLinksEAnexos(false)}

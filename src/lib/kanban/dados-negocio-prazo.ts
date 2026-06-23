@@ -82,3 +82,47 @@ export type FaseNegocioPrazoOpcao = {
   id: string;
   label: string;
 };
+
+export type NegocioPrazoDbPatch = {
+  dias: number | null;
+  slaTipo: SlaTipo | null;
+  modo: NegocioPrazoModo | null;
+  faseId: string | null;
+  data: string | null;
+};
+
+export function negocioPrazoValoresFromProcessoRow(
+  row: Record<string, unknown> | null | undefined,
+  prefix: 'prazo_opcao' | 'prazo_instrumento_garantidor',
+): NegocioPrazoValores {
+  if (!row) {
+    return { dias: null, slaTipo: null, modo: null, faseId: null, data: null };
+  }
+  const modoRaw = row[`${prefix}_modo`];
+  const modo = modoRaw === 'fase' || modoRaw === 'data' ? modoRaw : null;
+  const diasRaw = row[`${prefix}_dias`];
+  const dias =
+    diasRaw != null && diasRaw !== '' && Number.isFinite(Number(diasRaw)) ? Number(diasRaw) : null;
+  const slaRaw = row[`${prefix}_sla_tipo`];
+  const slaTipo = slaRaw === 'corridos' ? 'corridos' : slaRaw === 'uteis' ? 'uteis' : null;
+  const faseRaw = row[`${prefix}_fase_id`];
+  const faseId = faseRaw != null && String(faseRaw).trim() ? String(faseRaw) : null;
+  const dataRaw = row[`${prefix}_data`];
+  const data = dataRaw != null && String(dataRaw).trim() ? String(dataRaw).slice(0, 10) : null;
+  return { dias, slaTipo, modo, faseId, data };
+}
+
+export function negocioPrazoDbPatchFromValores(v: NegocioPrazoValores, prefix: 'prazo_opcao' | 'prazo_instrumento_garantidor') {
+  return {
+    [`${prefix}_dias`]: v.modo === 'fase' ? v.dias : null,
+    [`${prefix}_sla_tipo`]: v.modo === 'fase' ? v.slaTipo : null,
+    [`${prefix}_modo`]: v.modo,
+    [`${prefix}_fase_id`]: v.modo === 'fase' ? v.faseId : null,
+    [`${prefix}_data`]: v.modo === 'data' ? v.data : null,
+  };
+}
+
+export function faseLabelFromOpcoes(faseId: string | null | undefined, opcoes: FaseNegocioPrazoOpcao[]): string | null {
+  if (!faseId) return null;
+  return opcoes.find((o) => o.id === faseId)?.label ?? null;
+}

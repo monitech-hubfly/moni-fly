@@ -3,6 +3,7 @@ import type { KanbanFase } from '@/components/kanban-shared/types';
 import { normalizarSlaTipo } from '@/lib/dias-uteis';
 import { isRemovedStepOneFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { parseKanbanFaseMateriais } from './parse-kanban-fase-materiais';
+import type { FaseNegocioPrazoOpcao } from './dados-negocio-prazo';
 
 export function mapKanbanFaseRow(row: Record<string, unknown>): KanbanFase {
   return {
@@ -91,4 +92,49 @@ export async function augmentKanbanFasesComFasesDosCards(
     .map((row) => mapKanbanFaseRow(row as Record<string, unknown>))
     .filter((f) => !isRemovedStepOneFaseSlug(f.slug));
   return [...fases, ...extra].sort((a, b) => a.ordem - b.ordem);
+}
+
+/** Todas as fases ativas de todos os kanbans — seletor de âncora em Dados do Negócio. */
+export async function fetchFasesNegocioPrazoOpcoes(supabase: SupabaseClient): Promise<FaseNegocioPrazoOpcao[]> {
+  const { data, error } = await supabase
+    .from('kanban_fases')
+    .select('id, nome, ordem, kanban_id, kanbans(nome)')
+    .eq('ativo', true)
+    .order('ordem');
+
+  if (error) {
+    console.error('[fetchFasesNegocioPrazoOpcoes]', error.message);
+    return [];
+  }
+
+  type Row = {
+    id: string;
+    nome?: string | null;
+    ordem?: number | null;
+    kanban_id?: string | null;
+    kanbans?: { nome?: string | null } | { nome?: string | null }[] | null;
+  };
+
+  const rows = (data ?? []) as Row[];
+  return rows
+    .map((row) => {
+      const kanbanJoin = row.kanbans;
+      const kanbanNome = Array.isArray(kanbanJoin)
+        ? String(kanbanJoin[0]?.nome ?? '').trim()
+        : String(kanbanJoin?.nome ?? '').trim();
+      const faseNome = String(row.nome ?? '').trim();
+      const label = kanbanNome ? `${kanbanNome} — ${faseNome}` : faseNome;
+      return {
+        id: String(row.id),
+        label,
+        kanbanNome,
+        ordem: Number(row.ordem ?? 0),
+      };
+    })
+    .sort((a, b) => {
+      const kanbanCmp = a.kanbanNome.localeCompare(b.kanbanNome, 'pt-BR');
+      if (kanbanCmp !== 0) return kanbanCmp;
+      return a.ordem - b.ordem;
+    })
+    .map(({ id, label }) => ({ id, label }));
 }
