@@ -412,6 +412,7 @@
   --moni-pipeline-esteira-date-real: var(--moni-status-done-text);
   --moni-pipeline-esteira-date-est: var(--moni-status-active-text);
   --moni-pipeline-esteira-date-at: var(--moni-status-overdue-text);
+  --moni-pipeline-esteira-date-concluida: var(--moni-text-tertiary);
   --moni-pipeline-esteira-cur-bg: var(--moni-status-active-bg);
   --moni-pipeline-esteira-cur-at-bg: var(--moni-status-overdue-bg);
   --moni-pipeline-esteira-badge-port-bg: var(--moni-status-done-bg);
@@ -1552,6 +1553,12 @@
   font-size: 10px;
   font-weight: 500;
   color: var(--moni-pipeline-esteira-date-real);
+}
+
+.moni-pipeline-esteira-date-concluida {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--moni-pipeline-esteira-date-concluida);
 }
 
 .moni-pipeline-esteira-date-est {

@@ -144,8 +144,18 @@ export function PipelineEsteiraTable({ cards, historico }: PipelineEsteiraTableP
                   }
 
                   const dateStr = formatDataCelula(celula.date);
-                  const cls =
-                    celula.tipo === 'real' ? 'real' : celula.tipo === 'at' ? 'at' : 'est';
+                  const isConcluida = col.ordemGlobal < faseCol.ordemGlobal;
+                  const cls = celula.isCurrent
+                    ? celula.tipo === 'at'
+                      ? 'at'
+                      : 'est'
+                    : isConcluida
+                      ? 'concluida'
+                      : celula.tipo === 'real'
+                        ? 'real'
+                        : celula.tipo === 'at'
+                          ? 'at'
+                          : 'est';
                   const curCls =
                     celula.isCurrent && celula.tipo === 'at'
                       ? ' cur-at'
