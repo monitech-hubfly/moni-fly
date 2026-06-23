@@ -103,7 +103,17 @@ function custoCellClass(custo: string | null | undefined, status: FaseTimelineSt
 }
 
 function statusBadgeClass(status: FaseTimelineStatus): string {
-  return `moni-calculadora-fase-status moni-calculadora-fase-status--${status}`;
+  const base = 'moni-calculadora-fase-status';
+  if (status === 'concluida' || status === 'concluida_atraso') {
+    return `${base} moni-calc-badge-pass`;
+  }
+  if (status === 'atual') return `${base} moni-calc-badge-atu`;
+  if (status === 'atual_atrasada') return `${base} moni-calc-badge-atu-at`;
+  return `${base} moni-calc-badge-fut`;
+}
+
+function prazoPillClass(atrasada: boolean): string {
+  return `moni-calc-prazo-pill${atrasada ? ' at' : ' undef'}`;
 }
 
 function funilDotClass(label: string): string {
@@ -163,7 +173,7 @@ function CalculadoraResumoExecutivo({
             <span className="moni-calculadora-badge-parcial">⚠ Dados parciais</span>
           ) : null}
           {linhaAtual?.slaPrazoNaoDefinido ? (
-            <span className="moni-calculadora-badge-sla-indefinido">Prazo não definido</span>
+            <span className={prazoPillClass(atrasada)}>Prazo não definido</span>
           ) : null}
           <span className={statusResumoClass(resumo.statusGeral)}>
             {statusResumoLabel(resumo.statusGeral)}
@@ -175,9 +185,9 @@ function CalculadoraResumoExecutivo({
       </p>
 
       <div className="moni-calculadora-resumo-progress-row">
-        <div className="moni-calculadora-progress-track moni-calculadora-progress-track--compact min-w-0 flex-1">
+        <div className="moni-calc-prog-track min-w-0 flex-1">
           <div
-            className={`moni-calculadora-progress-fill${atrasada ? ' moni-calculadora-progress-fill--atraso' : ''}`}
+            className={`moni-calc-prog-fill${atrasada ? ' at' : ''}`}
             style={{ width: `${Math.min(100, Math.max(0, resumo.percentualConcluido))}%` }}
           />
         </div>
@@ -215,32 +225,19 @@ function CalculadoraResumoExecutivo({
   );
 }
 
-function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
+function CalculadoraMarcoSep({ marco }: { marco: CalculadoraMarco }) {
   const id = marco.id as CalculadoraMarcoId;
-  const fimData = marco.data ? fmtData(marco.data) : null;
+  const dataFmt = marco.data ? fmtData(marco.data) : null;
 
   return (
-    <div className="moni-calculadora-marco-row moni-calc-row-marco" role="listitem">
-      <div className="moni-calculadora-marco-label-wrap min-w-0">
-        <span className={`moni-calculadora-marco-dot moni-calculadora-marco-dot--${id}`} aria-hidden />
-        <span className={`moni-calculadora-marco-label moni-calculadora-marco-label--${id} min-w-0 truncate`}>
-          {id} — {marco.label}
-        </span>
+    <div className="moni-calc-marco-sep" role="separator">
+      <div className="moni-calc-marco-line" aria-hidden />
+      <div className="moni-calc-marco-pill">
+        <span className={`moni-calc-marco-dot moni-calc-marco-dot--${id}`} aria-hidden />
+        {marco.label}
+        {dataFmt ? <span className="moni-calc-marco-data">{dataFmt}</span> : null}
       </div>
-      <span className="moni-calculadora-fase-responsavel resp moni-calculadora-fase-responsavel--empty">—</span>
-      <span className="moni-calculadora-fase-custo fc moni-calculadora-fase-custo--valor" title={marco.custo ?? undefined}>
-        {marco.custo ?? '—'}
-      </span>
-      <span className="moni-calculadora-marco-data fd-val">—</span>
-      <div className="moni-calculadora-marco-fim-cell">
-        <span className={`moni-calculadora-marco-fim-val fd-val moni-calculadora-marco-fim-val--${id}`}>
-          {fimData ?? 'previsto'}
-        </span>
-        <span className="moni-calculadora-fase-data-label">
-          {fimData ? 'data' : 'previsão'}
-        </span>
-      </div>
-      <span className="moni-calculadora-marco-badge">Marco</span>
+      <div className="moni-calc-marco-line" aria-hidden />
     </div>
   );
 }
@@ -306,7 +303,7 @@ function CalculadoraFaseRow({
         <div className="moni-calculadora-fase-sla-wrap">
           <div className="moni-calculadora-fase-sla fsla">{fmtSla(row.slaDias, row.slaTipo)}</div>
           {row.slaPrazoNaoDefinido ? (
-            <span className="moni-calculadora-badge-sla-indefinido">Prazo não definido</span>
+            <span className={prazoPillClass(row.status === 'atual_atrasada')}>Prazo não definido</span>
           ) : null}
         </div>
       </div>
@@ -419,7 +416,7 @@ function CalculadoraFunilGroup({
         </div>
         {items.map((item) =>
           item.kind === 'marco' ? (
-            <CalculadoraMarcoRow key={`marco-${item.marco.id}`} marco={item.marco} />
+            <CalculadoraMarcoSep key={`marco-${item.marco.id}`} marco={item.marco} />
           ) : (
             <CalculadoraFaseRow
               key={item.linha.faseId}
