@@ -37,6 +37,7 @@ import { PipelineFunilMesCondensado } from '@/components/pipeline/PipelineFunilM
 import { PipelineUnidadeResumoLinha } from '@/components/pipeline/PipelineUnidadeResumoLinha';
 import { PipelineOQueFazerHoje } from '@/components/pipeline/PipelineOQueFazerHoje';
 import { PipelineFunilMesRede } from '@/components/pipeline/PipelineFunilMesRede';
+import { PipelineFunilProvisionadoRede } from '@/components/pipeline/PipelineFunilProvisionadoRede';
 import { PipelineFunilMesUnidade } from '@/components/pipeline/PipelineFunilMesUnidade';
 import { excluirFranquiaDosGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
 import { PIPELINE_READONLY_NOTA } from '@/lib/kanban/pipeline-card-readonly';
@@ -388,7 +389,14 @@ export function PipelineCardsView({
       {showKpis && viewMode === 'unidade' && kpisUnidade ? <PipelineKpisBarUnidade kpis={kpisUnidade} /> : null}
 
       {viewMode === 'franqueadora' ? (
-        <PipelineFunilMesRede cards={funilRedeCards} franqueados={funilRedeFranqueados} />
+        <>
+          <PipelineFunilMesRede cards={funilRedeCards} franqueados={funilRedeFranqueados} />
+          <PipelineFunilProvisionadoRede
+            cards={funilRedeCards}
+            franqueados={funilRedeFranqueados}
+            historico={dataset.historico ?? {}}
+          />
+        </>
       ) : null}
 
       {viewMode === 'unidade' && (funilMesCompactUnidade || funilMesUnidade) ? (

@@ -1,5 +1,12 @@
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import type { SlaTipo } from '@/lib/dias-uteis';
+import {
+  adicionarDiasCorridos,
+  adicionarDiasUteis,
+  formatLocalYmd,
+  parseIsoDateOnlyLocal,
+} from '@/lib/dias-uteis';
+import type { CalculadoraFaseLinha } from '@/lib/kanban/calculadora-fases';
 import { ESTEIRA_COLUNAS } from '@/lib/kanban/pipeline-esteira-datas';
 import { ESTEIRA_TRES_ETAPAS } from '@/lib/kanban/pipeline-esteira-tres-etapas';
 
@@ -137,4 +144,75 @@ export function faseLabelFromOpcoes(faseId: string | null | undefined, opcoes: F
         ? ESTEIRA_TRES_ETAPAS[1].label
         : ESTEIRA_TRES_ETAPAS[2].label;
   return `${etapa} — ${col.label}`;
+}
+
+/** Resolve data de vencimento do prazo (Dados do Negócio) na timeline da calculadora. */
+export function resolverDataPrazoNegocioYmd(
+  valores: NegocioPrazoValores | null | undefined,
+  linhas: CalculadoraFaseLinha[],
+): { data: string | null; isPrevisto: boolean } {
+  if (!valores?.modo) return { data: null, isPrevisto: true };
+
+  if (valores.modo === 'data') {
+    const d = valores.data?.trim().slice(0, 10) ?? '';
+    return {
+      data: /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null,
+      isPrevisto: true,
+    };
+  }
+
+  if (!valores.dias || valores.dias <= 0 || !valores.faseId) {
+    return { data: null, isPrevisto: true };
+  }
+
+  const linha = linhas.find((l) => l.faseId === valores.faseId);
+  const anchorYmd = linha
+    ? linha.dataFimReal ?? linha.dataFimEstimada ?? linha.dataInicioReal
+    : null;
+  if (!anchorYmd) return { data: null, isPrevisto: true };
+
+  const base = parseIsoDateOnlyLocal(anchorYmd);
+  if (!base) return { data: null, isPrevisto: true };
+
+  const tipo: SlaTipo = valores.slaTipo === 'corridos' ? 'corridos' : 'uteis';
+  const fim =
+    tipo === 'corridos' ? adicionarDiasCorridos(base, valores.dias) : adicionarDiasUteis(base, valores.dias);
+
+  return {
+    data: formatLocalYmd(fim),
+    isPrevisto: linha?.dataFimReal == null,
+  };
+}
+
+export function negocioPrazoValoresFromProcessoModal(proc: {
+  prazo_opcao_dias?: number | null;
+  prazo_opcao_sla_tipo?: SlaTipo | null;
+  prazo_opcao_modo?: NegocioPrazoModo | null;
+  prazo_opcao_fase_id?: string | null;
+  prazo_opcao_data?: string | null;
+  prazo_instrumento_garantidor_dias?: number | null;
+  prazo_instrumento_garantidor_sla_tipo?: SlaTipo | null;
+  prazo_instrumento_garantidor_modo?: NegocioPrazoModo | null;
+  prazo_instrumento_garantidor_fase_id?: string | null;
+  prazo_instrumento_garantidor_data?: string | null;
+} | null | undefined): {
+  prazo_opcao: NegocioPrazoValores;
+  prazo_instrumento_garantidor: NegocioPrazoValores;
+} {
+  return {
+    prazo_opcao: {
+      dias: proc?.prazo_opcao_dias ?? null,
+      slaTipo: proc?.prazo_opcao_sla_tipo ?? null,
+      modo: proc?.prazo_opcao_modo ?? null,
+      faseId: proc?.prazo_opcao_fase_id ?? null,
+      data: proc?.prazo_opcao_data ?? null,
+    },
+    prazo_instrumento_garantidor: {
+      dias: proc?.prazo_instrumento_garantidor_dias ?? null,
+      slaTipo: proc?.prazo_instrumento_garantidor_sla_tipo ?? null,
+      modo: proc?.prazo_instrumento_garantidor_modo ?? null,
+      faseId: proc?.prazo_instrumento_garantidor_fase_id ?? null,
+      data: proc?.prazo_instrumento_garantidor_data ?? null,
+    },
+  };
 }

@@ -129,6 +129,7 @@ import {
   type NegocioPrazoDraft,
 } from '@/lib/kanban/dados-negocio-prazo';
 import { fetchFasesNegocioPrazoOpcoes } from '@/lib/kanban/fetch-kanban-fases';
+import { negocioPrazoValoresFromProcessoModal } from '@/lib/kanban/dados-negocio-prazo';
 import { KanbanCardModalCalculadoraFases } from './KanbanCardModalCalculadoraFases';
 import {
   operacoesPreObraDraftFromCard,
@@ -3388,20 +3389,27 @@ export function KanbanCardModal({
     return map;
   }, [calculadoraFasesFlat, fases]);
 
-  const calculadoraMarcosInput = useMemo(
-    () => ({
+  const calculadoraMarcosInput = useMemo(() => {
+    const prazos = negocioPrazoValoresFromProcessoModal(modalDetalhes.processo);
+    return {
       contrato_assinado_em: card?.contrato_assinado_em ?? null,
       obra_finalizada_em: card?.obra_finalizada_em ?? null,
       concluido_em: card?.concluido_em ?? null,
+      opcao_assinada_em: card?.opcao_assinada_em ?? null,
+      prazo_opcao: prazos.prazo_opcao.modo ? prazos.prazo_opcao : null,
+      prazo_instrumento_garantidor: prazos.prazo_instrumento_garantidor.modo
+        ? prazos.prazo_instrumento_garantidor
+        : null,
       visits: calculadoraFasesPack.visits,
-    }),
-    [
-      card?.contrato_assinado_em,
-      card?.obra_finalizada_em,
-      card?.concluido_em,
-      calculadoraFasesPack.visits,
-    ],
-  );
+    };
+  }, [
+    modalDetalhes.processo,
+    card?.contrato_assinado_em,
+    card?.obra_finalizada_em,
+    card?.concluido_em,
+    card?.opcao_assinada_em,
+    calculadoraFasesPack.visits,
+  ]);
 
   const [responsavelDaFaseSalvoPorFase, setResponsavelDaFaseSalvoPorFase] = useState<Map<string, string>>(
     () => new Map(),

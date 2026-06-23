@@ -4,11 +4,16 @@ import { formatLocalYmd, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
 import type { CalculadoraFaseLinha } from '@/lib/kanban/calculadora-fases';
 import type { FaseVisit } from '@/lib/kanban/kanban-card-timeline';
 import {
+  negocioPrazoValoresFromProcessoRow,
+  resolverDataPrazoNegocioYmd,
+  type NegocioPrazoValores,
+} from '@/lib/kanban/dados-negocio-prazo';
+import {
   addBusinessDays,
   DIAS_ALVARA_APOS_PREFEITURA,
 } from '@/lib/kanban/previsibilidade-operacoes';
 
-export type CalculadoraMarcoId = 'M0' | 'M4' | 'M24';
+export type CalculadoraMarcoId = 'M0' | 'M4' | 'M24' | 'MO' | 'MIG';
 
 export type CalculadoraMarco = {
   id: CalculadoraMarcoId;
@@ -24,6 +29,9 @@ export type CalculadoraMarcosInput = {
   contrato_assinado_em?: string | null;
   obra_finalizada_em?: string | null;
   concluido_em?: string | null;
+  opcao_assinada_em?: string | null;
+  prazo_opcao?: NegocioPrazoValores | null;
+  prazo_instrumento_garantidor?: NegocioPrazoValores | null;
   visits: FaseVisit[];
 };
 
@@ -31,15 +39,17 @@ export type CalculadoraTimelineItem =
   | { kind: 'fase'; linha: CalculadoraFaseLinha }
   | { kind: 'marco'; marco: CalculadoraMarco };
 
+const CUSTO_INSTRUMENTO_GARANTIDOR =
+  'Franqueado: instrumento que assegure o terrenista do recebimento do valor do terreno no final da operação';
+
 const MARCO_DEFS: {
-  id: CalculadoraMarcoId;
+  id: Extract<CalculadoraMarcoId, 'M0' | 'M4' | 'M24'>;
   label: string;
   funilLabel: string;
   custo?: string | null;
   anchor: 'after' | 'before' | 'replace';
   match: (slug: string | null | undefined, nome: string) => boolean;
 }[] = [
-  /** M0 — substitui a fase Contrato (step_7), Funil Portfólio */
   {
     id: 'M0',
     label: 'Contrato',
@@ -48,19 +58,16 @@ const MARCO_DEFS: {
     match: (slug, nome) =>
       slug === FASE_SLUGS.STEP_7 || /^contrato$/i.test(nome.trim()),
   },
-  /** M4 — após Aprovação na Prefeitura, Funil Operações */
   {
     id: 'M4',
     label: 'Emissão do alvará',
     funilLabel: 'Funil Pré Obra e Obra',
-    custo:
-      'Franqueado: instrumento que assegure o terrenista do recebimento do valor do terreno no final da operação',
+    custo: CUSTO_INSTRUMENTO_GARANTIDOR,
     anchor: 'after',
     match: (slug, nome) =>
       slug === FASE_SLUGS.APROVACAO_PREFEITURA ||
       /aprova[cç][aã]o.*prefeitura/i.test(nome),
   },
-  /** M24 — após Entregue (operacoes_entregue), Funil Operações */
   {
     id: 'M24',
     label: 'Liquidação final',
@@ -68,6 +75,33 @@ const MARCO_DEFS: {
     anchor: 'after',
     match: (slug, nome) =>
       slug === FASE_SLUGS.OPERACOES_ENTREGUE || /^entregue$/i.test(nome.trim()),
+  },
+];
+
+const MARCOS_PRAZO_NEGOCIO: {
+  id: Extract<CalculadoraMarcoId, 'MO' | 'MIG'>;
+  label: string;
+  custo?: string | null;
+  resolver: (
+    input: CalculadoraMarcosInput,
+    linhas: CalculadoraFaseLinha[],
+  ) => { data: string | null; isPrevisto: boolean };
+}[] = [
+  {
+    id: 'MO',
+    label: 'Fim Opção',
+    resolver: (input, linhas) => {
+      const real = toYmd(input.opcao_assinada_em);
+      if (real) return { data: real, isPrevisto: false };
+      return resolverDataPrazoNegocioYmd(input.prazo_opcao, linhas);
+    },
+  },
+  {
+    id: 'MIG',
+    label: 'Contratação Instrumento Garantidor',
+    custo: CUSTO_INSTRUMENTO_GARANTIDOR,
+    resolver: (input, linhas) =>
+      resolverDataPrazoNegocioYmd(input.prazo_instrumento_garantidor, linhas),
   },
 ];
 
@@ -114,7 +148,7 @@ function marcoDataAposFimFase(
 }
 
 function resolverDataMarco(
-  id: CalculadoraMarcoId,
+  id: Extract<CalculadoraMarcoId, 'M0' | 'M4' | 'M24'>,
   input: CalculadoraMarcosInput,
   linhas: CalculadoraFaseLinha[],
   slugs: Map<string, string | null | undefined>,
@@ -134,16 +168,79 @@ function resolverDataMarco(
     return marcoDataAposFimFase(idx >= 0 ? linhas[idx] : undefined, DIAS_ALVARA_APOS_PREFEITURA);
   }
 
-  const real =
-    toYmd(input.obra_finalizada_em) ??
-    toYmd(input.concluido_em);
+  const real = toYmd(input.obra_finalizada_em) ?? toYmd(input.concluido_em);
   if (real) return { data: real, isPrevisto: false };
   return { data: dataFimRef(linhas[idx]), isPrevisto: true };
 }
 
 type InsercaoMarco = { index: number; marco: CalculadoraMarco; replace: boolean };
 
-/** Intercala marcos M0/M4/M24 na timeline de fases da esteira. */
+function dataReferenciaItem(item: CalculadoraTimelineItem): string | null {
+  if (item.kind === 'marco') return item.marco.data;
+  const l = item.linha;
+  return l.dataFimReal ?? l.dataFimEstimada ?? l.dataInicioReal ?? null;
+}
+
+function funilLabelNoIndice(items: CalculadoraTimelineItem[], index: number): string {
+  for (let i = index - 1; i >= 0; i--) {
+    const it = items[i]!;
+    if (it.kind === 'fase' && it.linha.funilLabel) return it.linha.funilLabel;
+    if (it.kind === 'marco' && it.marco.funilLabel) return it.marco.funilLabel;
+  }
+  return 'Dados do Negócio';
+}
+
+function insertIndexPorData(items: CalculadoraTimelineItem[], dataYmd: string): number {
+  const target = parseIsoDateOnlyLocal(dataYmd);
+  if (!target) return items.length;
+
+  for (let i = 0; i < items.length; i++) {
+    const ref = dataReferenciaItem(items[i]!);
+    if (!ref) continue;
+    const d = parseIsoDateOnlyLocal(ref);
+    if (d && d > target) return i;
+  }
+  return items.length;
+}
+
+function inserirMarcosPrazoNegocio(
+  items: CalculadoraTimelineItem[],
+  marcosInput: CalculadoraMarcosInput,
+  linhas: CalculadoraFaseLinha[],
+): CalculadoraTimelineItem[] {
+  const candidatos: CalculadoraMarco[] = [];
+
+  for (const def of MARCOS_PRAZO_NEGOCIO) {
+    const { data, isPrevisto } = def.resolver(marcosInput, linhas);
+    if (!data) continue;
+    candidatos.push({
+      id: def.id,
+      label: def.label,
+      data,
+      isPrevisto,
+      funilLabel: 'Dados do Negócio',
+      custo: def.custo ?? null,
+    });
+  }
+
+  candidatos.sort((a, b) => {
+    const da = a.data ?? '';
+    const db = b.data ?? '';
+    return da < db ? -1 : da > db ? 1 : 0;
+  });
+
+  const out = [...items];
+  for (const marco of candidatos) {
+    const idx = insertIndexPorData(out, marco.data!);
+    out.splice(idx, 0, {
+      kind: 'marco',
+      marco: { ...marco, funilLabel: funilLabelNoIndice(out, idx) },
+    });
+  }
+  return out;
+}
+
+/** Intercala marcos na timeline de fases da esteira (âncora por fase + prazos do negócio por data). */
 export function montarTimelineCalculadoraComMarcos(
   linhas: CalculadoraFaseLinha[],
   fases: KanbanFase[],
@@ -158,8 +255,7 @@ export function montarTimelineCalculadoraComMarcos(
     const idx = findFaseIndex(linhas, slugs, def.match);
     if (idx < 0) continue;
 
-    const insertAt =
-      def.anchor === 'after' ? idx + 1 : def.anchor === 'replace' ? idx : idx;
+    const insertAt = def.anchor === 'after' ? idx + 1 : def.anchor === 'replace' ? idx : idx;
     const { data, isPrevisto } = resolverDataMarco(def.id, marcosInput, linhas, slugs);
     const linhaContrato = def.id === 'M0' ? linhas[idx] : undefined;
 
@@ -179,12 +275,13 @@ export function montarTimelineCalculadoraComMarcos(
 
   insercoes.sort((a, b) => b.index - a.index);
 
-  const items: CalculadoraTimelineItem[] = linhas.map((linha) => ({ kind: 'fase', linha }));
+  let items: CalculadoraTimelineItem[] = linhas.map((linha) => ({ kind: 'fase', linha }));
   for (const { index, marco, replace } of insercoes) {
     if (replace) items.splice(index, 1, { kind: 'marco', marco });
     else items.splice(index, 0, { kind: 'marco', marco });
   }
 
+  items = inserirMarcosPrazoNegocio(items, marcosInput, linhas);
   return items;
 }
 
@@ -206,4 +303,19 @@ export function agruparTimelinePorFunil(
   }
 
   return grupos;
+}
+
+/** Monta input de marcos a partir de linha `processo_step_one`. */
+export function calculadoraMarcosInputFromProcessoRow(
+  row: Record<string, unknown> | null | undefined,
+  base: Omit<CalculadoraMarcosInput, 'prazo_opcao' | 'prazo_instrumento_garantidor'>,
+): CalculadoraMarcosInput {
+  return {
+    ...base,
+    prazo_opcao: negocioPrazoValoresFromProcessoRow(row, 'prazo_opcao'),
+    prazo_instrumento_garantidor: negocioPrazoValoresFromProcessoRow(
+      row,
+      'prazo_instrumento_garantidor',
+    ),
+  };
 }

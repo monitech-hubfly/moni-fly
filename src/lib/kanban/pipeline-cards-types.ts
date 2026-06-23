@@ -48,6 +48,15 @@ export type PipelineCardRow = {
   obra_iniciada_em?: string | null;
   obra_finalizada?: boolean;
   obra_finalizada_em?: string | null;
+  /** Previsões automáticas Operações (migration 399). */
+  prev_aprovacao_prefeitura?: string | null;
+  prev_inicio_obra?: string | null;
+  /** Prazo Opção em `processo_step_one` (migration 411). */
+  prazo_opcao_modo?: 'fase' | 'data' | null;
+  prazo_opcao_data?: string | null;
+  prazo_opcao_dias?: number | null;
+  prazo_opcao_sla_tipo?: 'uteis' | 'corridos' | null;
+  prazo_opcao_fase_id?: string | null;
   /** FK `projeto_negocio.id` — agrupa esteiras paralelas do mesmo negócio. */
   projeto_id?: string | null;
   projeto_titulo?: string | null;
@@ -279,6 +288,33 @@ export type PipelineFunilMesCompact = {
   aprovacoes: number;
   obrasIniciadas: number;
   obrasFinalizadas: number;
+};
+
+export const FUNIL_PROVISIONADO_HORIZONTES = [30, 60, 90, 120, 150, 160] as const;
+export type PipelineFunilProvisionadoHorizonte = (typeof FUNIL_PROVISIONADO_HORIZONTES)[number];
+
+export type PipelineFunilProvisionadoEtapaKey =
+  | 'hipoteses'
+  | 'opcao'
+  | 'comite'
+  | 'aprovacao_prefeitura'
+  | 'em_obra'
+  | 'obras_finalizadas';
+
+export type PipelineFunilProvisionadoColuna = {
+  key: PipelineFunilProvisionadoEtapaKey;
+  label: string;
+  total: number;
+  porUnidade: PipelineFunilMesUnidadeRow[];
+  porUnidadeZeradas: PipelineFunilMesUnidadeRow[];
+  barSegments: PipelineFunilMesBarSegment[];
+};
+
+export type PipelineFunilProvisionadoRede = {
+  colunas: PipelineFunilProvisionadoColuna[];
+  conversoes: (number | null)[];
+  disponivel: boolean;
+  horizonteDias: PipelineFunilProvisionadoHorizonte;
 };
 
 export type PipelineUnidadeBlocoMeta = {

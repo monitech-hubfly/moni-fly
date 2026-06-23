@@ -65,7 +65,9 @@ const CARD_SELECT_WITH_FUNIL = `${CARD_SELECT_BASE.trim()},
   obra_iniciada,
   obra_iniciada_em,
   obra_finalizada,
-  obra_finalizada_em
+  obra_finalizada_em,
+  prev_aprovacao_prefeitura,
+  prev_inicio_obra
 `;
 
 const CARD_SELECT_SEM_PROJETO = `
@@ -259,6 +261,13 @@ function mapPipelineCardRow(raw: RawCard): PipelineCardRow | null {
     row.obra_finalizada = raw.obra_finalizada === true;
     row.obra_finalizada_em = raw.obra_finalizada_em != null ? String(raw.obra_finalizada_em) : null;
   }
+  if ('prev_aprovacao_prefeitura' in raw) {
+    row.prev_aprovacao_prefeitura =
+      raw.prev_aprovacao_prefeitura != null ? String(raw.prev_aprovacao_prefeitura).slice(0, 10) : null;
+  }
+  if ('prev_inicio_obra' in raw) {
+    row.prev_inicio_obra = raw.prev_inicio_obra != null ? String(raw.prev_inicio_obra).slice(0, 10) : null;
+  }
 
   return row;
 }
@@ -370,6 +379,86 @@ function marcarCardsComTagEspecial(
     ...c,
     tem_tag_especial: ids.has(c.id),
   }));
+}
+
+const PROCESSO_PROVISIONADO_CHUNK = 150;
+
+async function enriquecerCardsProcessoProvisionado(
+  supabase: SupabaseClient,
+  cards: PipelineCardRow[],
+): Promise<PipelineCardRow[]> {
+  const procIds = [
+    ...new Set(
+      cards
+        .map((c) => String(c.processo_step_one_id ?? '').trim())
+        .filter(Boolean),
+    ),
+  ];
+  if (procIds.length === 0) return cards;
+
+  type ProcRow = {
+    id: string;
+    prazo_opcao_dias?: number | null;
+    prazo_opcao_sla_tipo?: string | null;
+    prazo_opcao_modo?: string | null;
+    prazo_opcao_fase_id?: string | null;
+    prazo_opcao_data?: string | null;
+  };
+
+  const porId = new Map<string, ProcRow>();
+
+  for (let i = 0; i < procIds.length; i += PROCESSO_PROVISIONADO_CHUNK) {
+    const slice = procIds.slice(i, i + PROCESSO_PROVISIONADO_CHUNK);
+    const { data, error } = await supabase
+      .from('processo_step_one')
+      .select(
+        'id, prazo_opcao_dias, prazo_opcao_sla_tipo, prazo_opcao_modo, prazo_opcao_fase_id, prazo_opcao_data',
+      )
+      .in('id', slice);
+
+    if (error) {
+      if (!/prazo_opcao/i.test(error.message)) {
+        console.error('[enriquecerCardsProcessoProvisionado]', error.message);
+      }
+      continue;
+    }
+
+    for (const row of data ?? []) {
+      const id = String((row as ProcRow).id ?? '').trim();
+      if (id) porId.set(id, row as ProcRow);
+    }
+  }
+
+  if (porId.size === 0) return cards;
+
+  return cards.map((card) => {
+    const pid = String(card.processo_step_one_id ?? '').trim();
+    if (!pid) return card;
+    const proc = porId.get(pid);
+    if (!proc) return card;
+
+    const modoRaw = proc.prazo_opcao_modo;
+    const modo = modoRaw === 'fase' || modoRaw === 'data' ? modoRaw : null;
+
+    return {
+      ...card,
+      prazo_opcao_modo: modo,
+      prazo_opcao_data:
+        proc.prazo_opcao_data != null ? String(proc.prazo_opcao_data).slice(0, 10) : null,
+      prazo_opcao_dias:
+        proc.prazo_opcao_dias != null && Number.isFinite(Number(proc.prazo_opcao_dias))
+          ? Number(proc.prazo_opcao_dias)
+          : null,
+      prazo_opcao_sla_tipo:
+        proc.prazo_opcao_sla_tipo === 'corridos'
+          ? 'corridos'
+          : proc.prazo_opcao_sla_tipo === 'uteis'
+            ? 'uteis'
+            : null,
+      prazo_opcao_fase_id:
+        proc.prazo_opcao_fase_id != null ? String(proc.prazo_opcao_fase_id) : null,
+    };
+  });
 }
 
 function mapFranqueado(raw: RawCard): PipelineFranqueadoUnidade | null {
@@ -620,7 +709,8 @@ export async function fetchPipelineCards(
     supabase,
     cardsComResp.map((c) => c.id),
   );
-  const cards = marcarCardsComTagEspecial(cardsComResp, tagEspecialIds);
+  const cardsComTag = marcarCardsComTagEspecial(cardsComResp, tagEspecialIds);
+  const cards = await enriquecerCardsProcessoProvisionado(supabase, cardsComTag);
 
   let enrichment: PipelineFranqueadoraEnrichment | null = null;
   if (comEnrichment) {

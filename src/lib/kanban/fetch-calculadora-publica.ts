@@ -8,6 +8,7 @@ import {
   type CalculadoraFaseLinha,
 } from '@/lib/kanban/calculadora-fases';
 import type { CalculadoraMarcosInput } from '@/lib/kanban/calculadora-fases-marcos';
+import { calculadoraMarcosInputFromProcessoRow } from '@/lib/kanban/calculadora-fases-marcos';
 import {
   CALCULADORA_ESTEIRA_KANBAN_IDS,
   calcularLinhasCalculadoraFasesEsteira,
@@ -35,6 +36,8 @@ export type CalculadoraPublicaCard = {
   concluido_em: string | null;
   contrato_assinado_em: string | null;
   obra_finalizada_em: string | null;
+  opcao_assinada_em: string | null;
+  processo_step_one_id: string | null;
 };
 
 export type CalculadoraPublicaPack = {
@@ -167,17 +170,35 @@ async function montarCalculadoraPack(
     slugPorFaseId,
   );
 
+  const marcosBase: Omit<CalculadoraMarcosInput, 'prazo_opcao' | 'prazo_instrumento_garantidor'> = {
+    contrato_assinado_em: card.contrato_assinado_em,
+    obra_finalizada_em: card.obra_finalizada_em,
+    concluido_em: card.concluido_em,
+    opcao_assinada_em: card.opcao_assinada_em,
+    visits,
+  };
+
+  let marcos: CalculadoraMarcosInput = { ...marcosBase, prazo_opcao: null, prazo_instrumento_garantidor: null };
+  const procId = String(card.processo_step_one_id ?? '').trim();
+  if (procId) {
+    const { data: procRow } = await supabase
+      .from('processo_step_one')
+      .select(
+        'prazo_opcao_dias, prazo_opcao_sla_tipo, prazo_opcao_modo, prazo_opcao_fase_id, prazo_opcao_data, prazo_instrumento_garantidor_dias, prazo_instrumento_garantidor_sla_tipo, prazo_instrumento_garantidor_modo, prazo_instrumento_garantidor_fase_id, prazo_instrumento_garantidor_data',
+      )
+      .eq('id', procId)
+      .maybeSingle();
+    if (procRow) {
+      marcos = calculadoraMarcosInputFromProcessoRow(procRow as Record<string, unknown>, marcosBase);
+    }
+  }
+
   return {
     card,
     linhas: linhasEnriquecidas,
     fasesFlat: fasesFlatFinal,
     fasesMeta,
-    marcos: {
-      contrato_assinado_em: card.contrato_assinado_em,
-      obra_finalizada_em: card.obra_finalizada_em,
-      concluido_em: card.concluido_em,
-      visits,
-    },
+    marcos,
   };
 }
 
@@ -199,7 +220,7 @@ export async function fetchCalculadoraPublicaByToken(
   const { data: row, error } = await admin
     .from('kanban_cards')
     .select(
-      'id, titulo, kanban_id, fase_id, created_at, entered_fase_at, concluido, concluido_em, contrato_assinado_em, obra_finalizada_em, status',
+      'id, titulo, kanban_id, fase_id, created_at, entered_fase_at, concluido, concluido_em, contrato_assinado_em, obra_finalizada_em, opcao_assinada_em, processo_step_one_id, status',
     )
     .eq('id', cardId)
     .eq('status', 'ativo')
@@ -223,6 +244,10 @@ export async function fetchCalculadoraPublicaByToken(
       row.contrato_assinado_em != null ? String(row.contrato_assinado_em) : null,
     obra_finalizada_em:
       row.obra_finalizada_em != null ? String(row.obra_finalizada_em) : null,
+    opcao_assinada_em:
+      row.opcao_assinada_em != null ? String(row.opcao_assinada_em) : null,
+    processo_step_one_id:
+      row.processo_step_one_id != null ? String(row.processo_step_one_id).trim() || null : null,
   };
 
   return montarCalculadoraPack(admin, card);
