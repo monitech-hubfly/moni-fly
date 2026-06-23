@@ -12,9 +12,7 @@ import {
   computeFunilMesRede,
   formatFunilMesConversaoSeta,
 } from '@/lib/kanban/pipeline-funil-mes-compute';
-import { redeIdsComTagEspecialFluxoPrincipal } from '@/lib/kanban/pipeline-franqueadora-compute';
 import { excluirFranquiaDosGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
-import { PipelineIndicadorTagEspecial } from '@/components/pipeline/PipelineIndicadorTagEspecial';
 
 const panelStyle: React.CSSProperties = {
   borderRadius: 'var(--moni-radius-lg)',
@@ -38,11 +36,9 @@ type Props = {
 function ColunaUnidadeTabela({
   col,
   temZerosGlobal,
-  tagEspecialPorRede,
 }: {
   col: PipelineFunilMesColuna;
   temZerosGlobal: boolean;
-  tagEspecialPorRede: Set<string>;
 }) {
   const [showZeros, setShowZeros] = useState(false);
   const temZeros = col.porUnidadeZeradas.length > 0;
@@ -78,10 +74,7 @@ function ColunaUnidadeTabela({
                   className="py-1 pr-1 tabular-nums"
                   style={{ color: row.quantidade > 0 ? 'var(--moni-text-secondary)' : 'var(--moni-text-tertiary)' }}
                 >
-                  <span className="inline-flex items-center gap-0.5">
-                    {tagEspecialPorRede.has(row.redeId) ? <PipelineIndicadorTagEspecial compact /> : null}
-                    {row.label}
-                  </span>
+                  {row.label}
                 </td>
                 <td
                   className="py-1 text-right tabular-nums font-medium"
@@ -159,8 +152,6 @@ export function PipelineFunilMesRede({ cards, franqueados, className }: Props) {
     [cards, franqueadosElegiveis, periodo],
   );
 
-  const tagEspecialPorRede = useMemo(() => redeIdsComTagEspecialFluxoPrincipal(cards), [cards]);
-
   if (!funil.disponivel) return null;
 
   const temZerosGlobal = funil.colunas.some((c) => c.porUnidadeZeradas.length > 0);
@@ -214,7 +205,7 @@ export function PipelineFunilMesRede({ cards, franqueados, className }: Props) {
                 ))}
               </div>
 
-              <ColunaUnidadeTabela col={col} temZerosGlobal={temZerosGlobal} tagEspecialPorRede={tagEspecialPorRede} />
+              <ColunaUnidadeTabela col={col} temZerosGlobal={temZerosGlobal} />
             </div>
 
             {idx < funil.colunas.length - 1 ? (

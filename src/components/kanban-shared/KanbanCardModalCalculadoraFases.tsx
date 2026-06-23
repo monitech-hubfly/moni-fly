@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import {
   CALCULADORA_STATUS_LABEL,
@@ -74,7 +75,31 @@ function statusResumoClass(status: CalculadoraStatusGeral): string {
 }
 
 function statusRowClass(status: FaseTimelineStatus): string {
-  return `moni-calculadora-fase-row--${status}`;
+  const base = 'moni-calculadora-fase-row';
+  if (status === 'concluida' || status === 'concluida_atraso') {
+    return `${base} moni-calc-row-pass moni-calculadora-fase-row--${status}`;
+  }
+  if (status === 'atual') return `${base} moni-calc-row-atu moni-calculadora-fase-row--atual`;
+  if (status === 'atual_atrasada') {
+    return `${base} moni-calc-row-atu-at moni-calculadora-fase-row--atual_atrasada`;
+  }
+  return `${base} moni-calc-row-fut moni-calculadora-fase-row--futura`;
+}
+
+function responsavelCellClass(val: string | null | undefined, status: FaseTimelineStatus): string {
+  const v = String(val ?? '').trim();
+  if (!v || v === '—') return 'moni-calculadora-fase-responsavel resp moni-calculadora-fase-responsavel--empty';
+  if (status === 'futura') return 'moni-calculadora-fase-responsavel resp moni-calculadora-fase-responsavel--futura';
+  if (/^mon[ií]/i.test(v)) return 'moni-calculadora-fase-responsavel resp moni-calculadora-fase-responsavel--moni';
+  if (/franqueado/i.test(v)) return 'moni-calculadora-fase-responsavel resp moni-calculadora-fase-responsavel--franqueado';
+  return 'moni-calculadora-fase-responsavel resp';
+}
+
+function custoCellClass(custo: string | null | undefined, status: FaseTimelineStatus): string {
+  const v = String(custo ?? '').trim();
+  if (!v || v === '—') return 'moni-calculadora-fase-custo fc moni-calculadora-fase-custo--empty';
+  if (status === 'futura') return 'moni-calculadora-fase-custo fc moni-calculadora-fase-custo--futura';
+  return 'moni-calculadora-fase-custo fc moni-calculadora-fase-custo--valor';
 }
 
 function statusBadgeClass(status: FaseTimelineStatus): string {
@@ -131,17 +156,6 @@ function CalculadoraResumoExecutivo({
         border: '0.5px solid var(--moni-border-default)',
         background: 'var(--moni-surface-50)',
       }}>
-      <div className="moni-calculadora-resumo-badges">
-        {resumo.dadosParciais ? (
-          <span className="moni-calculadora-badge-parcial">⚠ Dados parciais</span>
-        ) : (
-          <span aria-hidden />
-        )}
-        <span className={statusResumoClass(resumo.statusGeral)}>
-          {statusResumoLabel(resumo.statusGeral)}
-        </span>
-      </div>
-
       <div className="min-w-0">
         <p className="moni-calculadora-resumo-fase truncate" title={resumo.faseAtualNome ?? undefined}>
           {resumo.faseAtualNome ?? '—'}
@@ -163,19 +177,37 @@ function CalculadoraResumoExecutivo({
         </span>
       </div>
 
+      <div className="moni-calculadora-resumo-badges">
+        {resumo.dadosParciais ? (
+          <span className="moni-calculadora-badge-parcial">⚠ Dados parciais</span>
+        ) : null}
+        {linhaAtual?.slaPrazoNaoDefinido ? (
+          <span className="moni-calculadora-badge-sla-indefinido">Prazo não definido</span>
+        ) : null}
+        <span className={statusResumoClass(resumo.statusGeral)}>
+          {statusResumoLabel(resumo.statusGeral)}
+        </span>
+      </div>
+
       <dl className="moni-calculadora-resumo-stats">
         <div className="moni-calculadora-resumo-stat">
-          <dt>Atraso acumulado</dt>
-          <dd>{fmtAtrasoAcumulado(resumo.atrasoAcumuladoUteis, resumo.atrasoAcumuladoCorridos)}</dd>
-        </div>
-        <div className="moni-calculadora-resumo-stat">
-          <dt>Previsão conclusão</dt>
-          <dd>{fmtData(resumo.previsaoConclusao)}</dd>
-        </div>
-        <div className="moni-calculadora-resumo-stat">
-          <dt>Maior gargalo</dt>
+          <dt className="moni-calculadora-resumo-stat-lbl">Atraso acumulado</dt>
           <dd
-            className="truncate"
+            className={`moni-calculadora-resumo-stat-val${
+              resumo.atrasoAcumuladoUteis > 0 || resumo.atrasoAcumuladoCorridos > 0 ? ' moni-calculadora-resumo-stat-val--warn' : ''
+            }`}
+          >
+            {fmtAtrasoAcumulado(resumo.atrasoAcumuladoUteis, resumo.atrasoAcumuladoCorridos)}
+          </dd>
+        </div>
+        <div className="moni-calculadora-resumo-stat">
+          <dt className="moni-calculadora-resumo-stat-lbl">Previsão conclusão</dt>
+          <dd className="moni-calculadora-resumo-stat-val">{fmtData(resumo.previsaoConclusao)}</dd>
+        </div>
+        <div className="moni-calculadora-resumo-stat">
+          <dt className="moni-calculadora-resumo-stat-lbl">Maior gargalo</dt>
+          <dd
+            className={`moni-calculadora-resumo-stat-val truncate${resumo.maiorGargalo ? ' moni-calculadora-resumo-stat-val--warn' : ''}`}
             title={resumo.maiorGargalo ? fmtGargaloResumo(resumo.maiorGargalo) : undefined}
           >
             {resumo.maiorGargalo ? fmtGargaloResumo(resumo.maiorGargalo) : '—'}
@@ -188,61 +220,30 @@ function CalculadoraResumoExecutivo({
 
 function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
   const id = marco.id as CalculadoraMarcoId;
-  const [expanded, setExpanded] = useState(false);
-  const custoItens = parseCustoItens(marco.custo);
-  const custoExpandivel = custoPrecisaExpandir(marco.custo);
+  const fimData = marco.data ? fmtData(marco.data) : null;
 
   return (
-    <div
-      className={`moni-calculadora-marco-row${custoExpandivel ? ' moni-calculadora-marco-row--expandable' : ''}${expanded ? ' open' : ''}`}
-      role={custoExpandivel ? 'button' : 'listitem'}
-      tabIndex={custoExpandivel ? 0 : undefined}
-      onClick={custoExpandivel ? () => setExpanded((v) => !v) : undefined}
-      onKeyDown={
-        custoExpandivel
-          ? (e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setExpanded((v) => !v);
-              }
-            }
-          : undefined
-      }
-    >
+    <div className="moni-calculadora-marco-row moni-calc-row-marco" role="listitem">
       <div className="moni-calculadora-marco-label-wrap min-w-0">
         <span className={`moni-calculadora-marco-dot moni-calculadora-marco-dot--${id}`} aria-hidden />
-        <span className="moni-calculadora-marco-label min-w-0 truncate" title={`${id} — ${marco.label}`}>
-          <span className="font-semibold">{id}</span>
-          <span className="moni-calculadora-marco-sep">—</span>
-          {marco.label}
+        <span className={`moni-calculadora-marco-label moni-calculadora-marco-label--${id} min-w-0 truncate`}>
+          {id} — {marco.label}
         </span>
-        {custoExpandivel ? (
-          <span className="moni-calculadora-fase-chevron" aria-hidden>
-            ›
-          </span>
-        ) : null}
       </div>
-      <span className="moni-calculadora-fase-responsavel">—</span>
-      <span className="moni-calculadora-fase-custo" title={marco.custo ?? undefined}>
+      <span className="moni-calculadora-fase-responsavel resp moni-calculadora-fase-responsavel--empty">—</span>
+      <span className="moni-calculadora-fase-custo fc moni-calculadora-fase-custo--valor" title={marco.custo ?? undefined}>
         {marco.custo ?? '—'}
       </span>
-      <span className="moni-calculadora-marco-data">—</span>
-      <span className="moni-calculadora-marco-data">
-        {marco.data ? fmtData(marco.data) : 'previsto'}
-        {marco.isPrevisto && marco.data ? (
-          <span className="text-[var(--moni-text-tertiary)]"> prev.</span>
-        ) : null}
-      </span>
-      <span className={`moni-calculadora-marco-badge moni-calculadora-marco-badge--${id}`}>Marco</span>
-      {custoExpandivel ? (
-        <div className="moni-calculadora-fase-custo-detail">
-          {custoItens.map((item) => (
-            <p key={item} className="moni-calculadora-fase-custo-item">
-              {item}
-            </p>
-          ))}
-        </div>
-      ) : null}
+      <span className="moni-calculadora-marco-data fd-val">—</span>
+      <div className="moni-calculadora-marco-fim-cell">
+        <span className={`moni-calculadora-marco-fim-val fd-val moni-calculadora-marco-fim-val--${id}`}>
+          {fimData ?? 'previsto'}
+        </span>
+        <span className="moni-calculadora-fase-data-label">
+          {fimData ? 'data' : 'previsão'}
+        </span>
+      </div>
+      <span className="moni-calculadora-marco-badge">Marco</span>
     </div>
   );
 }
@@ -267,9 +268,13 @@ function CalculadoraFaseRow({
   const fimLabel = row.dataFimReal ? 'real' : 'est.';
   const unidadeAtraso = row.slaTipo === 'corridos' ? 'd.c.' : 'd.u.';
 
+  const fimAtraso =
+    row.status === 'atual_atrasada' ||
+    (row.status === 'concluida_atraso' && row.atrasoDias !== null && row.atrasoDias > 0);
+
   return (
     <div
-      className={`moni-calculadora-fase-row ${statusRowClass(row.status)}${expanded ? ' open' : ''}${row.status === 'futura' ? ' moni-calculadora-fase-row--futura' : ''}${hasExpand ? '' : ' moni-calculadora-fase-row--no-expand'}`}
+      className={`${statusRowClass(row.status)}${expanded ? ' open' : ''}${hasExpand ? '' : ' moni-calculadora-fase-row--no-expand'}`}
       role={hasExpand ? 'button' : undefined}
       tabIndex={hasExpand ? 0 : undefined}
       onClick={hasExpand ? onToggle : undefined}
@@ -286,7 +291,7 @@ function CalculadoraFaseRow({
     >
       <div className="min-w-0">
         <div className="moni-calculadora-fase-nome-wrap">
-          <span className="moni-calculadora-fase-nome" title={row.faseNome}>
+          <span className="moni-calculadora-fase-nome fn" title={row.faseNome}>
             {row.faseNome}
           </span>
           {hasExpand ? (
@@ -300,28 +305,37 @@ function CalculadoraFaseRow({
             </span>
           ) : null}
         </div>
-        <div className="moni-calculadora-fase-sla">{fmtSla(row.slaDias, row.slaTipo)}</div>
+        <div className="moni-calculadora-fase-sla-wrap">
+          <div className="moni-calculadora-fase-sla fsla">{fmtSla(row.slaDias, row.slaTipo)}</div>
+          {row.slaPrazoNaoDefinido ? (
+            <span className="moni-calculadora-badge-sla-indefinido">Prazo não definido</span>
+          ) : null}
+        </div>
       </div>
 
       <div>
-        <span className="moni-calculadora-fase-responsavel" title={row.responsavelDaFase ?? undefined}>
+        <span className={responsavelCellClass(row.responsavelDaFase, row.status)} title={row.responsavelDaFase ?? undefined}>
           {row.responsavelDaFase ?? '—'}
         </span>
       </div>
 
       <div>
-        <span className="moni-calculadora-fase-custo" title={row.custo ?? undefined}>
+        <span className={custoCellClass(row.custo, row.status)} title={row.custo ?? undefined}>
           {row.custo ?? '—'}
         </span>
       </div>
 
       <div>
-        <span className="moni-calculadora-fase-data">{fmtData(row.dataInicioReal)}</span>
+        <span className="moni-calculadora-fase-data fd-val">{fmtData(row.dataInicioReal)}</span>
         <span className="moni-calculadora-fase-data-label">início</span>
       </div>
 
       <div>
-        <span className="moni-calculadora-fase-data">{fmtData(fimData)}</span>
+        <span
+          className={`moni-calculadora-fase-data fd-val${fimAtraso ? ' fd-val--atraso' : ''}`}
+        >
+          {fmtData(fimData)}
+        </span>
         <span className="moni-calculadora-fase-data-label">{fimLabel}</span>
       </div>
 
@@ -389,7 +403,7 @@ function CalculadoraFunilGroup({
           {faseItems.length} fases · {concluidas} concluídas
         </span>
         <span className="moni-calculadora-funil-chev" aria-hidden>
-          ▾
+          <ChevronDown size={14} strokeWidth={2} />
         </span>
       </button>
 
@@ -504,6 +518,10 @@ export function KanbanCardModalCalculadoraFases({
       ) : null}
 
       <CalculadoraResumoExecutivo resumo={resumo} linhaAtual={linhaAtual} />
+
+      <p className="moni-calculadora-footnote">
+        SLA em d.u. (dias úteis) e d.c. (dias corridos). Clique no funil para recolher.
+      </p>
 
       <div className={variant === 'painel' ? 'flex min-h-0 flex-1 flex-col' : undefined}>
         <div

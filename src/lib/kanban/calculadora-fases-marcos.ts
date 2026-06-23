@@ -39,6 +39,7 @@ const MARCO_DEFS: {
   anchor: 'after' | 'before';
   match: (slug: string | null | undefined, nome: string) => boolean;
 }[] = [
+  /** M0 — após Contrato (step_7), Funil Portfólio */
   {
     id: 'M0',
     label: 'Opção firmada',
@@ -47,6 +48,7 @@ const MARCO_DEFS: {
     match: (slug, nome) =>
       slug === FASE_SLUGS.STEP_7 || /^contrato$/i.test(nome.trim()),
   },
+  /** M4 — após Aprovação na Prefeitura, Funil Operações */
   {
     id: 'M4',
     label: 'Emissão do alvará',
@@ -58,6 +60,7 @@ const MARCO_DEFS: {
       slug === FASE_SLUGS.APROVACAO_PREFEITURA ||
       /aprova[cç][aã]o.*prefeitura/i.test(nome),
   },
+  /** M24 — após Entregue (operacoes_entregue), Funil Operações */
   {
     id: 'M24',
     label: 'Liquidação final',

@@ -8,6 +8,7 @@ import {
   labelResponsavelDaFasePorTipo,
 } from '@/lib/kanban/responsavel-fase-checklist';
 import { custoPadraoPorSlug } from '@/lib/kanban/custo-padrao-por-slug';
+import { resolverSlaCalculadoraFase } from '@/lib/kanban/sla-fallback-calculadora-por-slug';
 
 export type { FaseTimelineStatus };
 
@@ -20,6 +21,8 @@ export type CalculadoraFaseLinha = {
   faseAtiva: boolean;
   slaDias: number | null;
   slaTipo: SlaTipo;
+  /** SLA inferido por fallback (fase sem prazo no banco). */
+  slaPrazoNaoDefinido?: boolean;
   dataInicioReal: string | null;
   dataFimEstimada: string | null;
   dataFimReal: string | null;
@@ -328,9 +331,11 @@ export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): Ca
         }
       }
 
-      const slaTipo = normalizarSlaTipo(fase.sla_tipo);
+      const slug = String(fase.slug ?? '').trim();
+      const slaResolvido = resolverSlaCalculadoraFase(slug, fase.sla_dias, fase.sla_tipo);
+      const { slaDias, slaTipo, slaPrazoNaoDefinido } = slaResolvido;
       const dataFimEstimada = dataInicioReal
-        ? fimEstimadaPorSla(dataInicioReal, fase.sla_dias, slaTipo)
+        ? fimEstimadaPorSla(dataInicioReal, slaDias, slaTipo)
         : null;
 
       const status = resolveStatus(
@@ -349,11 +354,12 @@ export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): Ca
       linhas.push({
         faseId: fase.id,
         faseNome: fase.nome,
-        faseSlug: String(fase.slug ?? '').trim() || undefined,
+        faseSlug: slug || undefined,
         ordem: fase.ordem,
         faseAtiva: faseEhAtiva(fase),
-        slaDias: fase.sla_dias,
+        slaDias,
         slaTipo,
+        slaPrazoNaoDefinido,
         dataInicioReal,
         dataFimEstimada,
         dataFimReal,
