@@ -225,6 +225,7 @@ export function PipelineCardsView({
   className,
 }: PipelineCardsViewProps) {
   const viewMode = resolvePipelineViewMode(mode);
+  const [funilRedeVisao, setFunilRedeVisao] = useState<'mes' | 'provisionado'>('mes');
   const [listaLayout, setListaLayout] = useState<'cards' | 'esteira'>('cards');
   const [groupBy, setGroupBy] = useState<PipelineGroupBy>(viewMode === 'franqueadora' ? 'franquia' : defaultGroupBy);
   const [filtros, setFiltros] = useState<PipelineCardsFiltros>(PIPELINE_CARDS_FILTROS_DEFAULT);
@@ -389,14 +390,37 @@ export function PipelineCardsView({
       {showKpis && viewMode === 'unidade' && kpisUnidade ? <PipelineKpisBarUnidade kpis={kpisUnidade} /> : null}
 
       {viewMode === 'franqueadora' ? (
-        <>
-          <PipelineFunilMesRede cards={funilRedeCards} franqueados={funilRedeFranqueados} />
-          <PipelineFunilProvisionadoRede
-            cards={funilRedeCards}
-            franqueados={funilRedeFranqueados}
-            historico={dataset.historico ?? {}}
-          />
-        </>
+        <div className="mb-4 flex justify-end px-4">
+          <div className="flex shrink-0 gap-1" role="group" aria-label="Tipo de funil">
+            <button
+              type="button"
+              onClick={() => setFunilRedeVisao('mes')}
+              style={filterToggleBtnStyle(funilRedeVisao === 'mes')}
+              aria-pressed={funilRedeVisao === 'mes'}
+            >
+              Funil mês
+            </button>
+            <button
+              type="button"
+              onClick={() => setFunilRedeVisao('provisionado')}
+              style={filterToggleBtnStyle(funilRedeVisao === 'provisionado')}
+              aria-pressed={funilRedeVisao === 'provisionado'}
+            >
+              Provisionado
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {viewMode === 'franqueadora' && funilRedeVisao === 'mes' ? (
+        <PipelineFunilMesRede cards={funilRedeCards} franqueados={funilRedeFranqueados} />
+      ) : null}
+      {viewMode === 'franqueadora' && funilRedeVisao === 'provisionado' ? (
+        <PipelineFunilProvisionadoRede
+          cards={funilRedeCards}
+          franqueados={funilRedeFranqueados}
+          historico={dataset.historico ?? {}}
+        />
       ) : null}
 
       {viewMode === 'unidade' && (funilMesCompactUnidade || funilMesUnidade) ? (
