@@ -382,26 +382,52 @@
   --moni-calc-funil-stepone: var(--moni-kanban-stepone);
   --moni-calc-funil-portfolio: var(--moni-kanban-portfolio);
   --moni-calc-funil-operacoes: var(--moni-earth-600);
-  --moni-calc-marco-m0-dot: var(--moni-navy-800);
-  --moni-calc-marco-m0-badge-bg: var(--moni-surface-100);
-  --moni-calc-marco-m0-badge-text: var(--moni-text-primary);
+  --moni-calc-funil-stepone-header-bg: var(--moni-kanban-stepone-light);
+  --moni-calc-funil-portfolio-header-bg: var(--moni-kanban-portfolio-light);
+  --moni-calc-funil-operacoes-header-bg: var(--moni-earth-50);
+  --moni-calc-marco-m0-dot: var(--moni-navy-600);
+  --moni-calc-marco-m0-bg: var(--moni-navy-50);
+  --moni-calc-marco-m0-border: var(--moni-navy-200);
+  --moni-calc-marco-m0-text: var(--moni-navy-800);
+  --moni-calc-marco-m0-badge-bg: var(--moni-navy-100);
+  --moni-calc-marco-m0-badge-text: var(--moni-navy-600);
+  --moni-calc-marco-m0-line: var(--moni-navy-200);
   --moni-calc-marco-m4-dot: var(--moni-earth-600);
-  --moni-calc-marco-m4-text: var(--moni-text-secondary);
-  --moni-calc-marco-m4-badge-bg: var(--moni-surface-100);
-  --moni-calc-marco-m4-badge-text: var(--moni-text-secondary);
-  --moni-calc-marco-m24-dot: var(--moni-navy-600);
-  --moni-calc-marco-m24-text: var(--moni-text-secondary);
-  --moni-calc-marco-m24-badge-bg: var(--moni-surface-100);
-  --moni-calc-marco-m24-badge-text: var(--moni-text-secondary);
+  --moni-calc-marco-m4-bg: var(--moni-earth-50);
+  --moni-calc-marco-m4-border: var(--moni-earth-200);
+  --moni-calc-marco-m4-text: var(--moni-earth-800);
+  --moni-calc-marco-m4-badge-bg: var(--moni-earth-100);
+  --moni-calc-marco-m4-badge-text: var(--moni-earth-800);
+  --moni-calc-marco-m4-line: var(--moni-earth-200);
+  --moni-calc-marco-m24-dot: var(--moni-calc-at-text);
+  --moni-calc-marco-m24-bg: var(--moni-calc-at-bg);
+  --moni-calc-marco-m24-border: var(--moni-calc-at-border);
+  --moni-calc-marco-m24-text: var(--moni-calc-at-text);
+  --moni-calc-marco-m24-badge-bg: var(--moni-calc-resumo-atrasada-bg);
+  --moni-calc-marco-m24-badge-text: var(--moni-calc-resumo-atrasada-text);
+  --moni-calc-marco-m24-line: var(--moni-calc-at-border);
   --moni-calc-marco-mo-dot: var(--moni-gold-600);
-  --moni-calc-marco-mo-text: var(--moni-text-primary);
+  --moni-calc-marco-mo-bg: var(--moni-gold-50);
+  --moni-calc-marco-mo-border: var(--moni-gold-200);
+  --moni-calc-marco-mo-text: var(--moni-gold-800);
+  --moni-calc-marco-mo-line: var(--moni-gold-200);
   --moni-calc-marco-mig-dot: var(--moni-earth-600);
-  --moni-calc-marco-mig-text: var(--moni-text-secondary);
+  --moni-calc-marco-mig-bg: var(--moni-earth-50);
+  --moni-calc-marco-mig-border: var(--moni-earth-200);
+  --moni-calc-marco-mig-text: var(--moni-earth-800);
+  --moni-calc-marco-mig-line: var(--moni-earth-200);
   --moni-calc-marco-row-bg: var(--moni-surface-50);
   --moni-calc-marco-row-border: var(--moni-border-default);
-  --moni-calc-dados-parciais-bg: var(--moni-status-attention-bg);
-  --moni-calc-dados-parciais-text: var(--moni-status-attention-text);
-  --moni-calc-dados-parciais-border: var(--moni-status-attention-border);
+  --moni-calc-dados-parciais-bg: var(--moni-gold-50);
+  --moni-calc-dados-parciais-text: var(--moni-gold-800);
+  --moni-calc-dados-parciais-border: var(--moni-gold-200);
+  --moni-calc-resumo-bg: #f9f8f3;
+  --moni-calc-resumo-border: var(--moni-border-default);
+  --moni-calc-resumo-atrasada-bg: #fde8e8;
+  --moni-calc-resumo-atrasada-text: #9b1c1c;
+  --moni-calc-resumo-atrasada-border: rgba(155, 28, 28, 0.12);
+  --moni-calc-resumo-gargalo-text: var(--moni-navy-600);
+  --moni-calc-prog-track: #e8e6e0;
   --moni-calc-gargalo-bg: var(--moni-status-attention-bg);
   --moni-calc-gargalo-text: var(--moni-status-attention-text);
   --moni-calc-text-default: var(--moni-text-primary);
@@ -410,19 +436,19 @@
 
   /* Pipeline Esteira — visão tabela da rede */
   --moni-pipeline-esteira-step-bg: var(--moni-kanban-stepone-light);
-  --moni-pipeline-esteira-step-text: var(--moni-status-active-text);
+  --moni-pipeline-esteira-step-text: var(--moni-kanban-stepone);
   --moni-pipeline-esteira-port-bg: var(--moni-kanban-portfolio-light);
   --moni-pipeline-esteira-port-text: var(--moni-kanban-portfolio);
-  --moni-pipeline-esteira-op-bg: var(--moni-status-done-bg);
-  --moni-pipeline-esteira-op-text: var(--moni-status-done-text);
+  --moni-pipeline-esteira-op-bg: var(--moni-earth-50);
+  --moni-pipeline-esteira-op-text: var(--moni-earth-800);
   --moni-pipeline-esteira-date-real: var(--moni-status-done-text);
   --moni-pipeline-esteira-date-est: var(--moni-status-active-text);
   --moni-pipeline-esteira-date-at: var(--moni-status-overdue-text);
   --moni-pipeline-esteira-date-concluida: var(--moni-text-tertiary);
   --moni-pipeline-esteira-cur-bg: var(--moni-status-active-bg);
   --moni-pipeline-esteira-cur-at-bg: var(--moni-status-overdue-bg);
-  --moni-pipeline-esteira-badge-port-bg: var(--moni-status-done-bg);
-  --moni-pipeline-esteira-badge-port-text: var(--moni-status-done-text);
+  --moni-pipeline-esteira-badge-port-bg: var(--moni-kanban-portfolio-light);
+  --moni-pipeline-esteira-badge-port-text: var(--moni-kanban-portfolio);
   --moni-calc-resp-moni: var(--moni-text-secondary);
   --moni-calc-resp-franq: var(--moni-text-secondary);
   --moni-calc-custo-amber: var(--moni-text-secondary);
@@ -508,6 +534,9 @@
   flex-direction: column;
   gap: 6px;
   padding: 12px 14px;
+  border-radius: var(--moni-radius-md);
+  border: 0.5px solid var(--moni-calc-resumo-border);
+  background: var(--moni-calc-resumo-bg);
 }
 
 .moni-calculadora-resumo-top {
@@ -563,9 +592,9 @@
   font-size: 10px;
   line-height: 1.35;
   font-weight: 500;
-  background: var(--moni-status-overdue-bg);
-  color: var(--moni-status-overdue-text);
-  border: 0.5px solid var(--moni-status-overdue-border);
+  background: var(--moni-calc-resumo-atrasada-bg);
+  color: var(--moni-calc-resumo-atrasada-text);
+  border: 0.5px solid var(--moni-calc-resumo-atrasada-border);
 }
 
 .moni-calculadora-badge-sla-indefinido {
@@ -612,7 +641,7 @@
   width: 100%;
   overflow: hidden;
   border-radius: 2px;
-  background: var(--moni-surface-200);
+  background: var(--moni-calc-prog-track);
 }
 
 .moni-calc-prog-fill {
@@ -635,9 +664,10 @@
 }
 
 .moni-calculadora-resumo-fase {
-  font-size: 12px;
-  font-weight: var(--moni-weight-medium);
-  color: var(--moni-text-primary);
+  font-family: var(--moni-font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--moni-navy-800);
   line-height: 1.25;
   flex: 1;
   min-width: 0;
@@ -699,13 +729,24 @@
 .moni-calculadora-resumo-stat-val {
   font-size: 12px;
   font-weight: 500;
-  color: var(--moni-text-primary);
+  color: var(--moni-navy-800);
   margin: 0;
 }
 
-.moni-calculadora-resumo-stat-val--warn {
-  color: var(--moni-text-secondary);
+.moni-calculadora-resumo-stat-val--atraso {
   font-weight: 600;
+  color: var(--moni-navy-800);
+}
+
+.moni-calculadora-resumo-stat-val--gargalo {
+  font-weight: 600;
+  color: var(--moni-calc-resumo-gargalo-text);
+}
+
+/* legado */
+.moni-calculadora-resumo-stat-val--warn {
+  font-weight: 600;
+  color: var(--moni-navy-800);
 }
 
 .moni-calculadora-footnote {
@@ -1114,17 +1155,23 @@
 }
 
 .moni-calc-marco-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
   background: var(--moni-navy-800);
 }
 
-.moni-calc-marco-dot--M0,
-.moni-calc-marco-dot--M4,
-.moni-calc-marco-dot--M24 {
+.moni-calc-marco-dot--M0 {
   background: var(--moni-calc-marco-m0-dot);
+}
+
+.moni-calc-marco-dot--M4 {
+  background: var(--moni-calc-marco-m4-dot);
+}
+
+.moni-calc-marco-dot--M24 {
+  background: var(--moni-calc-marco-m24-dot);
 }
 
 .moni-calc-marco-dot--MO {
@@ -1133,6 +1180,77 @@
 
 .moni-calc-marco-dot--MIG {
   background: var(--moni-calc-marco-mig-dot);
+}
+
+.moni-calc-marco-pill--M0 {
+  background: var(--moni-calc-marco-m0-bg);
+  border-color: var(--moni-calc-marco-m0-border);
+  color: var(--moni-calc-marco-m0-text);
+  font-weight: 600;
+}
+
+.moni-calc-marco-pill--M4 {
+  background: var(--moni-calc-marco-m4-bg);
+  border-color: var(--moni-calc-marco-m4-border);
+  color: var(--moni-calc-marco-m4-text);
+  font-weight: 600;
+}
+
+.moni-calc-marco-pill--M24 {
+  background: var(--moni-calc-marco-m24-bg);
+  border-color: var(--moni-calc-marco-m24-border);
+  color: var(--moni-calc-marco-m24-text);
+  font-weight: 600;
+}
+
+.moni-calc-marco-pill--MO {
+  background: var(--moni-calc-marco-mo-bg);
+  border-color: var(--moni-calc-marco-mo-border);
+  color: var(--moni-calc-marco-mo-text);
+  font-weight: 600;
+}
+
+.moni-calc-marco-pill--MIG {
+  background: var(--moni-calc-marco-mig-bg);
+  border-color: var(--moni-calc-marco-mig-border);
+  color: var(--moni-calc-marco-mig-text);
+  font-weight: 600;
+}
+
+.moni-calc-marco-sep--M0 .moni-calc-marco-line {
+  background: var(--moni-calc-marco-m0-line);
+}
+
+.moni-calc-marco-sep--M4 .moni-calc-marco-line {
+  background: var(--moni-calc-marco-m4-line);
+}
+
+.moni-calc-marco-sep--M24 .moni-calc-marco-line {
+  background: var(--moni-calc-marco-m24-line);
+}
+
+.moni-calc-marco-sep--MO .moni-calc-marco-line {
+  background: var(--moni-calc-marco-mo-line);
+}
+
+.moni-calc-marco-sep--MIG .moni-calc-marco-line {
+  background: var(--moni-calc-marco-mig-line);
+}
+
+.moni-calc-marco-pill .moni-calculadora-marco-badge {
+  margin-left: 2px;
+  font-size: 7px;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+}
+
+.moni-calc-marco-pill--M0 .moni-calc-marco-data,
+.moni-calc-marco-pill--M4 .moni-calc-marco-data,
+.moni-calc-marco-pill--M24 .moni-calc-marco-data,
+.moni-calc-marco-pill--MO .moni-calc-marco-data,
+.moni-calc-marco-pill--MIG .moni-calc-marco-data {
+  font-weight: 500;
+  opacity: 0.85;
 }
 
 .moni-calc-marco-data {
@@ -1156,10 +1274,16 @@
   background: var(--moni-navy-800);
 }
 
-.moni-calculadora-marco-dot--M0,
-.moni-calculadora-marco-dot--M4,
+.moni-calculadora-marco-dot--M0 {
+  background: var(--moni-calc-marco-m0-dot);
+}
+
+.moni-calculadora-marco-dot--M4 {
+  background: var(--moni-calc-marco-m4-dot);
+}
+
 .moni-calculadora-marco-dot--M24 {
-  background: var(--moni-navy-800);
+  background: var(--moni-calc-marco-m24-dot);
 }
 
 .moni-calculadora-marco-dot--MO {
@@ -1179,10 +1303,16 @@
   color: var(--moni-text-primary);
 }
 
-.moni-calculadora-marco-label--M0,
-.moni-calculadora-marco-label--M4,
+.moni-calculadora-marco-label--M0 {
+  color: var(--moni-calc-marco-m0-text);
+}
+
+.moni-calculadora-marco-label--M4 {
+  color: var(--moni-calc-marco-m4-text);
+}
+
 .moni-calculadora-marco-label--M24 {
-  color: var(--moni-text-primary);
+  color: var(--moni-calc-marco-m24-text);
 }
 
 .moni-calculadora-marco-label--MO {
@@ -1205,10 +1335,16 @@
   color: var(--moni-text-secondary);
 }
 
-.moni-calculadora-marco-fim-val--M0,
-.moni-calculadora-marco-fim-val--M4,
+.moni-calculadora-marco-fim-val--M0 {
+  color: var(--moni-calc-marco-m0-text);
+}
+
+.moni-calculadora-marco-fim-val--M4 {
+  color: var(--moni-calc-marco-m4-text);
+}
+
 .moni-calculadora-marco-fim-val--M24 {
-  color: var(--moni-text-secondary);
+  color: var(--moni-calc-marco-m24-text);
 }
 
 .moni-calculadora-marco-fim-val--MO {
@@ -1239,6 +1375,36 @@
   border: 0.5px solid var(--moni-border-default);
 }
 
+.moni-calculadora-marco-badge--M0 {
+  background: var(--moni-calc-marco-m0-badge-bg);
+  color: var(--moni-calc-marco-m0-badge-text);
+  border-color: var(--moni-calc-marco-m0-border);
+}
+
+.moni-calculadora-marco-badge--M4 {
+  background: var(--moni-calc-marco-m4-badge-bg);
+  color: var(--moni-calc-marco-m4-badge-text);
+  border-color: var(--moni-calc-marco-m4-border);
+}
+
+.moni-calculadora-marco-badge--M24 {
+  background: var(--moni-calc-marco-m24-badge-bg);
+  color: var(--moni-calc-marco-m24-badge-text);
+  border-color: var(--moni-calc-marco-m24-border);
+}
+
+.moni-calculadora-marco-badge--MO {
+  background: var(--moni-calc-marco-mo-bg);
+  color: var(--moni-calc-marco-mo-text);
+  border-color: var(--moni-calc-marco-mo-border);
+}
+
+.moni-calculadora-marco-badge--MIG {
+  background: var(--moni-calc-marco-mig-bg);
+  color: var(--moni-calc-marco-mig-text);
+  border-color: var(--moni-calc-marco-mig-border);
+}
+
 .moni-calculadora-funil-group {
   margin-bottom: 0;
 }
@@ -1254,10 +1420,26 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 4px;
+  padding: 6px 8px;
+  margin-bottom: 4px;
   cursor: pointer;
   user-select: none;
   font-family: var(--moni-font-sans);
+  border-radius: var(--moni-radius-md);
+  border: 0.5px solid transparent;
+  background: var(--moni-surface-100);
+}
+
+.moni-calculadora-funil-header--stepone {
+  background: var(--moni-calc-funil-stepone-header-bg);
+}
+
+.moni-calculadora-funil-header--portfolio {
+  background: var(--moni-calc-funil-portfolio-header-bg);
+}
+
+.moni-calculadora-funil-header--operacoes {
+  background: var(--moni-calc-funil-operacoes-header-bg);
 }
 
 .moni-calculadora-funil-dot {
@@ -1267,10 +1449,16 @@
   flex-shrink: 0;
 }
 
-.moni-calculadora-funil-dot--stepone,
-.moni-calculadora-funil-dot--portfolio,
+.moni-calculadora-funil-dot--stepone {
+  background: var(--moni-calc-funil-stepone);
+}
+
+.moni-calculadora-funil-dot--portfolio {
+  background: var(--moni-calc-funil-portfolio);
+}
+
 .moni-calculadora-funil-dot--operacoes {
-  background: var(--moni-text-tertiary);
+  background: var(--moni-calc-funil-operacoes);
 }
 
 .moni-calculadora-funil-title {

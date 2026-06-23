@@ -109,10 +109,10 @@ function prazoPillClass(atrasada: boolean): string {
   return `moni-calc-prazo-pill${atrasada ? ' at' : ' undef'}`;
 }
 
-function funilDotClass(label: string): string {
-  if (/step one/i.test(label)) return 'moni-calculadora-funil-dot--stepone';
-  if (/portf[oó]lio/i.test(label)) return 'moni-calculadora-funil-dot--portfolio';
-  return 'moni-calculadora-funil-dot--operacoes';
+function funilEsteiraKind(label: string): 'stepone' | 'portfolio' | 'operacoes' {
+  if (/step\s*one|stepone/i.test(label)) return 'stepone';
+  if (/portf[oó]lio/i.test(label)) return 'portfolio';
+  return 'operacoes';
 }
 
 function parseFaseSteps(fase: KanbanFase | undefined): string[] {
@@ -141,10 +141,7 @@ function CalculadoraResumoExecutivo({
   const slaLabel = linhaAtual ? fmtSla(linhaAtual.slaDias, linhaAtual.slaTipo) : 'SLA variável';
 
   return (
-    <div className="moni-calculadora-resumo rounded-[var(--moni-radius-md)]" style={{
-        border: '0.5px solid var(--moni-border-default)',
-        background: 'var(--moni-surface-50)',
-      }}>
+    <div className="moni-calculadora-resumo">
       <div className="moni-calculadora-resumo-top">
         <p className="moni-calculadora-resumo-fase truncate" title={resumo.faseAtualNome ?? undefined}>
           {resumo.faseAtualNome ?? '—'}
@@ -182,7 +179,9 @@ function CalculadoraResumoExecutivo({
           <dt className="moni-calculadora-resumo-stat-lbl">Atraso acumulado</dt>
           <dd
             className={`moni-calculadora-resumo-stat-val${
-              resumo.atrasoAcumuladoUteis > 0 || resumo.atrasoAcumuladoCorridos > 0 ? ' moni-calculadora-resumo-stat-val--warn' : ''
+              resumo.atrasoAcumuladoUteis > 0 || resumo.atrasoAcumuladoCorridos > 0
+                ? ' moni-calculadora-resumo-stat-val--atraso'
+                : ''
             }`}
           >
             {fmtAtrasoAcumulado(resumo.atrasoAcumuladoUteis, resumo.atrasoAcumuladoCorridos)}
@@ -195,7 +194,7 @@ function CalculadoraResumoExecutivo({
         <div className="moni-calculadora-resumo-stat">
           <dt className="moni-calculadora-resumo-stat-lbl">Maior gargalo</dt>
           <dd
-            className={`moni-calculadora-resumo-stat-val truncate${resumo.maiorGargalo ? ' moni-calculadora-resumo-stat-val--warn' : ''}`}
+            className={`moni-calculadora-resumo-stat-val truncate${resumo.maiorGargalo ? ' moni-calculadora-resumo-stat-val--gargalo' : ''}`}
             title={resumo.maiorGargalo ? fmtGargaloResumo(resumo.maiorGargalo) : undefined}
           >
             {resumo.maiorGargalo ? fmtGargaloResumo(resumo.maiorGargalo) : '—'}
@@ -211,12 +210,13 @@ function CalculadoraMarcoSep({ marco }: { marco: CalculadoraMarco }) {
   const dataFmt = marco.data ? fmtData(marco.data) : null;
 
   return (
-    <div className="moni-calc-marco-sep" role="separator">
+    <div className={`moni-calc-marco-sep moni-calc-marco-sep--${id}`} role="separator">
       <div className="moni-calc-marco-line" aria-hidden />
-      <div className="moni-calc-marco-pill">
+      <div className={`moni-calc-marco-pill moni-calc-marco-pill--${id}`}>
         <span className={`moni-calc-marco-dot moni-calc-marco-dot--${id}`} aria-hidden />
-        {marco.label}
+        <span>{marco.label}</span>
         {dataFmt ? <span className="moni-calc-marco-data">{dataFmt}</span> : null}
+        <span className={`moni-calculadora-marco-badge moni-calculadora-marco-badge--${id}`}>Marco</span>
       </div>
       <div className="moni-calc-marco-line" aria-hidden />
     </div>
@@ -357,12 +357,18 @@ function CalculadoraFunilGroup({
       (i.linha.status === 'concluida' || i.linha.status === 'concluida_atraso'),
   ).length;
 
+  const esteira = funilEsteiraKind(label);
+
   return (
     <section
-      className={`moni-calculadora-funil-group${collapsed ? ' moni-calculadora-funil-collapsed collapsed' : ''}`}
+      className={`moni-calculadora-funil-group moni-calculadora-funil-group--${esteira}${collapsed ? ' moni-calculadora-funil-collapsed collapsed' : ''}`}
     >
-      <button type="button" className="moni-calculadora-funil-header w-full text-left" onClick={onToggle}>
-        <span className={`moni-calculadora-funil-dot ${funilDotClass(label)}`} aria-hidden />
+      <button
+        type="button"
+        className={`moni-calculadora-funil-header moni-calculadora-funil-header--${esteira} w-full text-left`}
+        onClick={onToggle}
+      >
+        <span className={`moni-calculadora-funil-dot moni-calculadora-funil-dot--${esteira}`} aria-hidden />
         <span className="moni-calculadora-funil-title">{label.replace(/^Funil /i, '')}</span>
         <span className="moni-calculadora-funil-count">
           {faseItems.length} fases · {concluidas} concluídas
