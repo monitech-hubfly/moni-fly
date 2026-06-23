@@ -126,11 +126,9 @@ function parseFaseSteps(fase: KanbanFase | undefined): string[] {
   return [];
 }
 
-/** Custo longo ou composto (vários itens) — exibe chevron e painel expandido. */
-function custoPrecisaExpandir(custo: string | null | undefined): boolean {
-  const t = String(custo ?? '').trim();
-  if (!t) return false;
-  return t.length > 18 || t.includes(' · ');
+/** Qualquer custo preenchido pode expandir para leitura integral. */
+function custoTemConteudo(custo: string | null | undefined): boolean {
+  return String(custo ?? '').trim().length > 0;
 }
 
 function parseCustoItens(custo: string | null | undefined): string[] {
@@ -156,14 +154,25 @@ function CalculadoraResumoExecutivo({
         border: '0.5px solid var(--moni-border-default)',
         background: 'var(--moni-surface-50)',
       }}>
-      <div className="min-w-0">
+      <div className="moni-calculadora-resumo-top">
         <p className="moni-calculadora-resumo-fase truncate" title={resumo.faseAtualNome ?? undefined}>
           {resumo.faseAtualNome ?? '—'}
         </p>
-        <p className="moni-calculadora-resumo-meta truncate">
-          {funilLabel} · {slaLabel}
-        </p>
+        <div className="moni-calculadora-resumo-badges">
+          {resumo.dadosParciais ? (
+            <span className="moni-calculadora-badge-parcial">⚠ Dados parciais</span>
+          ) : null}
+          {linhaAtual?.slaPrazoNaoDefinido ? (
+            <span className="moni-calculadora-badge-sla-indefinido">Prazo não definido</span>
+          ) : null}
+          <span className={statusResumoClass(resumo.statusGeral)}>
+            {statusResumoLabel(resumo.statusGeral)}
+          </span>
+        </div>
       </div>
+      <p className="moni-calculadora-resumo-meta truncate">
+        {funilLabel} · {slaLabel}
+      </p>
 
       <div className="moni-calculadora-resumo-progress-row">
         <div className="moni-calculadora-progress-track moni-calculadora-progress-track--compact min-w-0 flex-1">
@@ -174,18 +183,6 @@ function CalculadoraResumoExecutivo({
         </div>
         <span className="moni-calculadora-resumo-progress-label">
           {resumo.percentualConcluido}% · {resumo.fasesConcluidas}/{resumo.fasesTotal}
-        </span>
-      </div>
-
-      <div className="moni-calculadora-resumo-badges">
-        {resumo.dadosParciais ? (
-          <span className="moni-calculadora-badge-parcial">⚠ Dados parciais</span>
-        ) : null}
-        {linhaAtual?.slaPrazoNaoDefinido ? (
-          <span className="moni-calculadora-badge-sla-indefinido">Prazo não definido</span>
-        ) : null}
-        <span className={statusResumoClass(resumo.statusGeral)}>
-          {statusResumoLabel(resumo.statusGeral)}
         </span>
       </div>
 
@@ -261,11 +258,12 @@ function CalculadoraFaseRow({
 }) {
   const steps = parseFaseSteps(faseMeta);
   const custoItens = parseCustoItens(row.custo);
-  const custoExpandivel = custoPrecisaExpandir(row.custo);
-  const hasExpand = steps.length > 0 || custoExpandivel;
+  const temCusto = custoTemConteudo(row.custo);
+  const hasExpand = steps.length > 0 || temCusto;
   const isGargalo = row.atrasoDias !== null && row.atrasoDias > 0;
   const fimData = row.dataFimReal ?? row.dataFimEstimada;
   const fimLabel = row.dataFimReal ? 'real' : 'est.';
+  const inicioLabel = row.status === 'futura' ? 'prev.' : 'início';
   const unidadeAtraso = row.slaTipo === 'corridos' ? 'd.c.' : 'd.u.';
 
   const fimAtraso =
@@ -319,15 +317,18 @@ function CalculadoraFaseRow({
         </span>
       </div>
 
-      <div>
-        <span className={custoCellClass(row.custo, row.status)} title={row.custo ?? undefined}>
+      <div className="min-w-0">
+        <span
+          className={`${custoCellClass(row.custo, row.status)}${expanded && temCusto ? ' moni-calculadora-fase-custo--expanded' : ''}`}
+          title={!expanded && temCusto ? (row.custo ?? undefined) : undefined}
+        >
           {row.custo ?? '—'}
         </span>
       </div>
 
       <div>
         <span className="moni-calculadora-fase-data fd-val">{fmtData(row.dataInicioReal)}</span>
-        <span className="moni-calculadora-fase-data-label">início</span>
+        <span className="moni-calculadora-fase-data-label">{inicioLabel}</span>
       </div>
 
       <div>
@@ -345,8 +346,8 @@ function CalculadoraFaseRow({
         </span>
       </div>
 
-      {custoExpandivel ? (
-        <div className="moni-calculadora-fase-custo-detail">
+      {expanded && temCusto ? (
+        <div className="moni-calculadora-fase-custo-detail" aria-label="Detalhe do custo">
           {custoItens.map((item) => (
             <p key={item} className="moni-calculadora-fase-custo-item">
               {item}

@@ -1740,7 +1740,7 @@ function OperacoesEspecificidadesSection({
         {data.taxaRetrabalhoBca != null ? (
           <div className="px-4 py-4" style={panelStyle}>
             <h4 className="text-[13px] font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
-              Taxa de retrabalho em Revisão do BCA
+              Taxa de retrabalho em Revisão BCA + Instrumento Garantidor
             </h4>
             <p className="mt-1 text-[10px] leading-relaxed" style={{ color: 'var(--moni-text-tertiary)' }}>
               Cards que retornaram à fase revisao_bca (is_retrocesso) — passagem mais de uma vez.
@@ -1753,7 +1753,7 @@ function OperacoesEspecificidadesSection({
             {data.taxaRetrabalhoBca.totalEmObra === 0 ? (
               <DegradeNote>Sem cards ativos em obra no recorte analisado.</DegradeNote>
             ) : data.taxaRetrabalhoBca.comRetrabalho === 0 ? (
-              <DegradeNote>Nenhum retrabalho registrado em Revisão do BCA no recorte.</DegradeNote>
+              <DegradeNote>Nenhum retrabalho registrado em Revisão BCA + Instrumento Garantidor no recorte.</DegradeNote>
             ) : null}
           </div>
         ) : null}

@@ -36,15 +36,15 @@ const MARCO_DEFS: {
   label: string;
   funilLabel: string;
   custo?: string | null;
-  anchor: 'after' | 'before';
+  anchor: 'after' | 'before' | 'replace';
   match: (slug: string | null | undefined, nome: string) => boolean;
 }[] = [
-  /** M0 — após Contrato (step_7), Funil Portfólio */
+  /** M0 — substitui a fase Contrato (step_7), Funil Portfólio */
   {
     id: 'M0',
-    label: 'Opção firmada',
+    label: 'Contrato',
     funilLabel: 'Funil Portfólio',
-    anchor: 'after',
+    anchor: 'replace',
     match: (slug, nome) =>
       slug === FASE_SLUGS.STEP_7 || /^contrato$/i.test(nome.trim()),
   },
@@ -141,7 +141,7 @@ function resolverDataMarco(
   return { data: dataFimRef(linhas[idx]), isPrevisto: true };
 }
 
-type InsercaoMarco = { index: number; marco: CalculadoraMarco };
+type InsercaoMarco = { index: number; marco: CalculadoraMarco; replace: boolean };
 
 /** Intercala marcos M0/M4/M24 na timeline de fases da esteira. */
 export function montarTimelineCalculadoraComMarcos(
@@ -158,18 +158,21 @@ export function montarTimelineCalculadoraComMarcos(
     const idx = findFaseIndex(linhas, slugs, def.match);
     if (idx < 0) continue;
 
-    const insertAt = def.anchor === 'after' ? idx + 1 : idx;
+    const insertAt =
+      def.anchor === 'after' ? idx + 1 : def.anchor === 'replace' ? idx : idx;
     const { data, isPrevisto } = resolverDataMarco(def.id, marcosInput, linhas, slugs);
+    const linhaContrato = def.id === 'M0' ? linhas[idx] : undefined;
 
     insercoes.push({
       index: insertAt,
+      replace: def.anchor === 'replace',
       marco: {
         id: def.id,
         label: def.label,
         data,
         isPrevisto,
         funilLabel: def.funilLabel,
-        custo: def.custo ?? null,
+        custo: def.custo ?? linhaContrato?.custo ?? null,
       },
     });
   }
@@ -177,8 +180,9 @@ export function montarTimelineCalculadoraComMarcos(
   insercoes.sort((a, b) => b.index - a.index);
 
   const items: CalculadoraTimelineItem[] = linhas.map((linha) => ({ kind: 'fase', linha }));
-  for (const { index, marco } of insercoes) {
-    items.splice(index, 0, { kind: 'marco', marco });
+  for (const { index, marco, replace } of insercoes) {
+    if (replace) items.splice(index, 1, { kind: 'marco', marco });
+    else items.splice(index, 0, { kind: 'marco', marco });
   }
 
   return items;

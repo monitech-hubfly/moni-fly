@@ -123,7 +123,6 @@ function aplicarOrdemRelativaFaseAtual(
       return {
         ...linha,
         status: 'futura',
-        dataInicioReal: linha.status === 'atual' || linha.status === 'atual_atrasada' ? linha.dataInicioReal : null,
         dataFimReal: null,
         atrasoDias: null,
       };
@@ -165,9 +164,7 @@ function aplicarRegrasSegmentoEsteira(
       return {
         ...base,
         status: 'futura',
-        dataInicioReal: null,
         dataFimReal: null,
-        dataFimEstimada: null,
         atrasoDias: null,
       };
     }
