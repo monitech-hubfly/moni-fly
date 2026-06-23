@@ -112,9 +112,12 @@ export function PipelineFunilProvisionadoRede({
         >
           Funil provisionado — rede
         </h2>
-        <div className="flex flex-col items-end gap-1.5">
+        <div className="moni-pipeline-funil-header-controls">
           {funilRedeVisao != null && onFunilRedeVisaoChange ? (
-            <PipelineFunilRedeVisaoToggle value={funilRedeVisao} onChange={onFunilRedeVisaoChange} />
+            <>
+              <PipelineFunilRedeVisaoToggle value={funilRedeVisao} onChange={onFunilRedeVisaoChange} />
+              <span className="moni-pipeline-funil-header-sep" aria-hidden />
+            </>
           ) : null}
           <HorizonteToggle horizonte={horizonte} onChange={setHorizonte} />
         </div>

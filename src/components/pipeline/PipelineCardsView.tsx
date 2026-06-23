@@ -199,18 +199,32 @@ const filterSearchStyle: React.CSSProperties = {
   color: 'var(--moni-text-primary)',
 };
 
-const filterToggleBtnStyle = (active: boolean): React.CSSProperties => ({
+const filterSegmentWrapStyle: React.CSSProperties = {
+  width: '130px',
+  flexShrink: 0,
   height: '32px',
-  minHeight: '44px',
-  padding: '4px 10px',
-  fontSize: '12px',
+  display: 'flex',
+  gap: '2px',
+  padding: '2px',
   border: '0.5px solid var(--moni-border-default)',
   borderRadius: 'var(--moni-radius-md)',
-  background: active ? 'var(--moni-navy-800)' : 'var(--moni-surface-0)',
+  background: 'var(--moni-surface-100)',
+  boxSizing: 'border-box',
+};
+
+const filterSegmentBtnStyle = (active: boolean): React.CSSProperties => ({
+  flex: 1,
+  minWidth: 0,
+  height: '100%',
+  fontSize: '12px',
+  padding: '0 4px',
+  border: 'none',
+  borderRadius: '6px',
+  background: active ? 'var(--moni-navy-800)' : 'transparent',
   color: active ? 'var(--moni-text-inverse, #fff)' : 'var(--moni-text-primary)',
   fontFamily: 'var(--moni-font-sans)',
+  fontWeight: 500,
   cursor: 'pointer',
-  flexShrink: 0,
 });
 
 export function PipelineCardsView({
@@ -521,11 +535,16 @@ export function PipelineCardsView({
                 <option value="status">Status SLA</option>
               </select>
             ) : null}
-            <div className="flex shrink-0 gap-1" role="group" aria-label="Visualização do pipeline">
+            <div
+              className="flex shrink-0"
+              style={filterSegmentWrapStyle}
+              role="group"
+              aria-label="Visualização do pipeline"
+            >
               <button
                 type="button"
                 onClick={() => setListaLayout('cards')}
-                style={filterToggleBtnStyle(listaLayout === 'cards')}
+                style={filterSegmentBtnStyle(listaLayout === 'cards')}
                 aria-pressed={listaLayout === 'cards'}
               >
                 Cards
@@ -533,7 +552,7 @@ export function PipelineCardsView({
               <button
                 type="button"
                 onClick={() => setListaLayout('esteira')}
-                style={filterToggleBtnStyle(listaLayout === 'esteira')}
+                style={filterSegmentBtnStyle(listaLayout === 'esteira')}
                 aria-pressed={listaLayout === 'esteira'}
               >
                 Esteira

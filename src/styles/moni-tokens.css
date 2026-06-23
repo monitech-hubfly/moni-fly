@@ -1998,6 +1998,81 @@
   color: var(--moni-status-overdue-text);
 }
 
+/* Funil da rede — controles do cabeçalho (sublinhado + Mês/Tri) */
+.moni-pipeline-funil-header-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 0;
+}
+
+.moni-pipeline-funil-header-sep {
+  flex-shrink: 0;
+  width: 0.5px;
+  height: 20px;
+  margin: 0 10px 5px;
+  background: var(--moni-border-default);
+}
+
+.moni-pipeline-funil-underline-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border-bottom: 0.5px solid var(--moni-border-default);
+}
+
+.moni-pipeline-funil-underline-tab {
+  position: relative;
+  min-height: 28px;
+  padding: 5px 10px;
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--moni-text-tertiary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.moni-pipeline-funil-underline-tab:hover {
+  color: var(--moni-text-secondary);
+}
+
+.moni-pipeline-funil-underline-tab--active {
+  color: var(--moni-navy-800);
+}
+
+.moni-pipeline-funil-underline-tab--active::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -0.5px;
+  left: 0;
+  height: 2px;
+  border-radius: 1px 1px 0 0;
+  background: var(--moni-green-800);
+}
+
+@media (max-width: 640px) {
+  .moni-pipeline-funil-header-controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .moni-pipeline-funil-header-sep {
+    display: none;
+  }
+
+  .moni-pipeline-funil-underline-tabs {
+    width: 100%;
+    margin-bottom: 6px;
+  }
+}
+
 /* Tipografia editorial (H1, H2 Vogue-style) */
 .moni-heading-display {
   font-family: var(--moni-font-display);
