@@ -290,15 +290,20 @@ function CalculadoraFaseRow({
         </div>
         <div className="moni-calculadora-fase-sla-wrap">
           <div className="moni-calculadora-fase-sla fsla">{fmtSla(row.slaDias, row.slaTipo)}</div>
-          {temCusto ? (
-            <div className="moni-calc-fcusto" title={custo}>
-              <span className="moni-calc-fcusto-label">Custo:</span> {custo}
-            </div>
-          ) : null}
           {row.slaPrazoNaoDefinido ? (
             <span className={prazoPillClass(row.status === 'atual_atrasada')}>Prazo não definido</span>
           ) : null}
         </div>
+        {temCusto ? (
+          <div className="moni-calc-fcusto-block" title={custo}>
+            <span className="moni-calc-fcusto-label">Custo</span>
+            <ul className="moni-calc-fcusto-list">
+              {custo.split(' · ').map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
 
       <div>
