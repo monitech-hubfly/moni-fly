@@ -722,19 +722,20 @@
 }
 
 .moni-calculadora-resumo-stat-lbl {
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--moni-text-tertiary);
-  margin-bottom: 2px;
+  margin-bottom: 1px;
 }
 
 .moni-calculadora-resumo-stat-val {
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 500;
   color: var(--moni-navy-800);
   margin: 0;
+  line-height: 1.3;
 }
 
 .moni-calculadora-resumo-stat-val--atraso {
