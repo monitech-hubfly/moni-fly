@@ -95,13 +95,6 @@ function responsavelCellClass(val: string | null | undefined, status: FaseTimeli
   return 'moni-calculadora-fase-responsavel resp';
 }
 
-function custoCellClass(custo: string | null | undefined, status: FaseTimelineStatus): string {
-  const v = String(custo ?? '').trim();
-  if (!v || v === '—') return 'moni-calculadora-fase-custo fc moni-calculadora-fase-custo--empty';
-  if (status === 'futura') return 'moni-calculadora-fase-custo fc moni-calculadora-fase-custo--futura';
-  return 'moni-calculadora-fase-custo fc moni-calculadora-fase-custo--valor';
-}
-
 function statusBadgeClass(status: FaseTimelineStatus): string {
   const base = 'moni-calculadora-fase-status';
   if (status === 'concluida' || status === 'concluida_atraso') {
@@ -134,18 +127,6 @@ function parseFaseSteps(fase: KanbanFase | undefined): string[] {
       .filter(Boolean);
   }
   return [];
-}
-
-/** Qualquer custo preenchido pode expandir para leitura integral. */
-function custoTemConteudo(custo: string | null | undefined): boolean {
-  return String(custo ?? '').trim().length > 0;
-}
-
-function parseCustoItens(custo: string | null | undefined): string[] {
-  const t = String(custo ?? '').trim();
-  if (!t) return [];
-  if (t.includes(' · ')) return t.split(' · ').map((s) => s.trim()).filter(Boolean);
-  return [t];
 }
 
 function CalculadoraResumoExecutivo({
@@ -254,9 +235,9 @@ function CalculadoraFaseRow({
   onToggle: () => void;
 }) {
   const steps = parseFaseSteps(faseMeta);
-  const custoItens = parseCustoItens(row.custo);
-  const temCusto = custoTemConteudo(row.custo);
-  const hasExpand = steps.length > 0 || temCusto;
+  const custo = String(row.custo ?? '').trim();
+  const temCusto = custo.length > 0 && custo !== '—';
+  const hasExpand = steps.length > 0;
   const isGargalo = row.atrasoDias !== null && row.atrasoDias > 0;
   const fimData = row.dataFimReal ?? row.dataFimEstimada;
   const fimLabel = row.dataFimReal ? 'real' : 'est.';
@@ -302,6 +283,11 @@ function CalculadoraFaseRow({
         </div>
         <div className="moni-calculadora-fase-sla-wrap">
           <div className="moni-calculadora-fase-sla fsla">{fmtSla(row.slaDias, row.slaTipo)}</div>
+          {temCusto ? (
+            <div className="moni-calc-fcusto" title={custo}>
+              Custo: {custo}
+            </div>
+          ) : null}
           {row.slaPrazoNaoDefinido ? (
             <span className={prazoPillClass(row.status === 'atual_atrasada')}>Prazo não definido</span>
           ) : null}
@@ -311,15 +297,6 @@ function CalculadoraFaseRow({
       <div>
         <span className={responsavelCellClass(row.responsavelDaFase, row.status)} title={row.responsavelDaFase ?? undefined}>
           {row.responsavelDaFase ?? '—'}
-        </span>
-      </div>
-
-      <div className="min-w-0">
-        <span
-          className={`${custoCellClass(row.custo, row.status)}${expanded && temCusto ? ' moni-calculadora-fase-custo--expanded' : ''}`}
-          title={!expanded && temCusto ? (row.custo ?? undefined) : undefined}
-        >
-          {row.custo ?? '—'}
         </span>
       </div>
 
@@ -342,16 +319,6 @@ function CalculadoraFaseRow({
           {CALCULADORA_STATUS_LABEL[row.status]}
         </span>
       </div>
-
-      {expanded && temCusto ? (
-        <div className="moni-calculadora-fase-custo-detail" aria-label="Detalhe do custo">
-          {custoItens.map((item) => (
-            <p key={item} className="moni-calculadora-fase-custo-item">
-              {item}
-            </p>
-          ))}
-        </div>
-      ) : null}
 
       {steps.length > 0 ? (
         <ul className="moni-calculadora-fase-steps">
@@ -409,7 +376,6 @@ function CalculadoraFunilGroup({
         <div className="moni-calculadora-table-header">
           <span>Fase</span>
           <span>Resp. fase</span>
-          <span>Custo</span>
           <span>Início</span>
           <span>Fim</span>
           <span>Status</span>
