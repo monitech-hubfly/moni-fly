@@ -5,7 +5,6 @@ import { ArrowRight } from 'lucide-react';
 import type {
   PipelineCardRow,
   PipelineFranqueadoUnidade,
-  PipelineFunilMesColuna,
   PipelineFunilPeriodo,
 } from '@/lib/kanban/pipeline-cards-types';
 import {
@@ -13,6 +12,7 @@ import {
   formatFunilMesConversaoSeta,
 } from '@/lib/kanban/pipeline-funil-mes-compute';
 import { excluirFranquiaDosGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
+import { PipelineFunilColunaUnidadeTabela } from '@/components/pipeline/PipelineFunilColunaUnidadeTabela';
 
 const panelStyle: React.CSSProperties = {
   borderRadius: 'var(--moni-radius-lg)',
@@ -32,78 +32,6 @@ type Props = {
   franqueados: PipelineFranqueadoUnidade[];
   className?: string;
 };
-
-function ColunaUnidadeTabela({
-  col,
-  temZerosGlobal,
-}: {
-  col: PipelineFunilMesColuna;
-  temZerosGlobal: boolean;
-}) {
-  const [showZeros, setShowZeros] = useState(false);
-  const temZeros = col.porUnidadeZeradas.length > 0;
-  const rows = showZeros ? [...col.porUnidade, ...col.porUnidadeZeradas] : col.porUnidade;
-
-  return (
-    <div className="mt-3 flex min-h-0 flex-1 flex-col">
-      <table className="w-full text-left text-[10px]">
-        <thead>
-          <tr style={{ borderBottom: '0.5px solid var(--moni-border-subtle, var(--moni-border-default))' }}>
-            <th className="pb-1.5 pr-1 font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
-              FK
-            </th>
-            <th className="pb-1.5 text-right font-semibold uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)' }}>
-              Qtd
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <tr>
-              <td colSpan={2} className="py-2" style={{ color: 'var(--moni-text-tertiary)' }}>
-                —
-              </td>
-            </tr>
-          ) : (
-            rows.map((row) => (
-              <tr
-                key={row.redeId}
-                style={{ borderBottom: '0.5px solid var(--moni-border-subtle, var(--moni-border-default))' }}
-              >
-                <td
-                  className="py-1 pr-1 tabular-nums"
-                  style={{ color: row.quantidade > 0 ? 'var(--moni-text-secondary)' : 'var(--moni-text-tertiary)' }}
-                >
-                  {row.label}
-                </td>
-                <td
-                  className="py-1 text-right tabular-nums font-medium"
-                  style={{ color: row.quantidade > 0 ? 'var(--moni-text-primary)' : 'var(--moni-text-tertiary)' }}
-                >
-                  {row.quantidade}
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-      <div className="mt-auto pt-1.5">
-        {temZeros ? (
-          <button
-            type="button"
-            onClick={() => setShowZeros((v) => !v)}
-            className="min-h-[28px] w-full text-left text-[10px] font-medium underline-offset-2 hover:underline"
-            style={{ color: 'var(--moni-navy-800)' }}
-          >
-            {showZeros ? 'Ocultar zeradas' : 'Ver todas'}
-          </button>
-        ) : temZerosGlobal ? (
-          <span className="block min-h-[28px]" aria-hidden />
-        ) : null}
-      </div>
-    </div>
-  );
-}
 
 function PeriodoToggle({
   periodo,
@@ -205,7 +133,11 @@ export function PipelineFunilMesRede({ cards, franqueados, className }: Props) {
                 ))}
               </div>
 
-              <ColunaUnidadeTabela col={col} temZerosGlobal={temZerosGlobal} />
+              <PipelineFunilColunaUnidadeTabela
+                porUnidade={col.porUnidade}
+                porUnidadeZeradas={col.porUnidadeZeradas}
+                temZerosGlobal={temZerosGlobal}
+              />
             </div>
 
             {idx < funil.colunas.length - 1 ? (
