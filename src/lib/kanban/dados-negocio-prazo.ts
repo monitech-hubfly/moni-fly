@@ -115,6 +115,80 @@ export function negocioPrazoOpcaoDraftFromProcesso(
   });
 }
 
+/** Slug da fase âncora padrão do Prazo Instrumento Garantidor (Pré Obra e Obra — Aprov. Pref.). */
+export const NEGOCIO_PRAZO_INSTRUMENTO_FASE_SLUG = 'aprovacao_prefeitura';
+
+export const NEGOCIO_PRAZO_INSTRUMENTO_DRAFT_PADRAO: NegocioPrazoDraft = {
+  modo: 'fase',
+  dias: '90',
+  slaTipo: 'corridos',
+  faseId: '',
+  data: '',
+};
+
+export const NEGOCIO_PRAZO_INSTRUMENTO_VALORES_PADRAO: NegocioPrazoValores = {
+  dias: 90,
+  slaTipo: 'corridos',
+  modo: 'fase',
+  faseId: null,
+  data: null,
+};
+
+export function resolverFaseIdPrazoInstrumentoPadrao(opcoes: FaseNegocioPrazoOpcao[]): string {
+  const porLabel = opcoes.find((o) => /pr[eé]\s*obra e obra\s*—\s*aprov\.?\s*pref\.?/i.test(o.label));
+  if (porLabel) return porLabel.id;
+  const col = ESTEIRA_COLUNAS.find((c) => c.slug === NEGOCIO_PRAZO_INSTRUMENTO_FASE_SLUG);
+  return col?.faseId ?? '';
+}
+
+export function negocioPrazoInstrumentoDraftPadrao(opcoes: FaseNegocioPrazoOpcao[] = []): NegocioPrazoDraft {
+  return {
+    ...NEGOCIO_PRAZO_INSTRUMENTO_DRAFT_PADRAO,
+    faseId: resolverFaseIdPrazoInstrumentoPadrao(opcoes),
+  };
+}
+
+export function negocioPrazoInstrumentoValoresPadrao(opcoes: FaseNegocioPrazoOpcao[] = []): NegocioPrazoValores {
+  const faseId = resolverFaseIdPrazoInstrumentoPadrao(opcoes) || null;
+  return {
+    ...NEGOCIO_PRAZO_INSTRUMENTO_VALORES_PADRAO,
+    faseId,
+  };
+}
+
+function prazoInstrumentoProcessoVazio(proc: {
+  prazo_instrumento_garantidor_dias?: number | null;
+  prazo_instrumento_garantidor_sla_tipo?: SlaTipo | null;
+  prazo_instrumento_garantidor_modo?: NegocioPrazoModo | null;
+  prazo_instrumento_garantidor_fase_id?: string | null;
+  prazo_instrumento_garantidor_data?: string | null;
+} | null | undefined): boolean {
+  if (!proc) return true;
+  return proc.prazo_instrumento_garantidor_modo == null;
+}
+
+export function negocioPrazoInstrumentoDraftFromProcesso(
+  proc: {
+    prazo_instrumento_garantidor_dias?: number | null;
+    prazo_instrumento_garantidor_sla_tipo?: SlaTipo | null;
+    prazo_instrumento_garantidor_modo?: NegocioPrazoModo | null;
+    prazo_instrumento_garantidor_fase_id?: string | null;
+    prazo_instrumento_garantidor_data?: string | null;
+  } | null | undefined,
+  opcoes: FaseNegocioPrazoOpcao[] = [],
+): NegocioPrazoDraft {
+  if (prazoInstrumentoProcessoVazio(proc)) {
+    return negocioPrazoInstrumentoDraftPadrao(opcoes);
+  }
+  return negocioPrazoDraftFromValores({
+    dias: proc?.prazo_instrumento_garantidor_dias ?? null,
+    slaTipo: proc?.prazo_instrumento_garantidor_sla_tipo ?? null,
+    modo: proc?.prazo_instrumento_garantidor_modo ?? null,
+    faseId: proc?.prazo_instrumento_garantidor_fase_id ?? null,
+    data: proc?.prazo_instrumento_garantidor_data ?? null,
+  });
+}
+
 export function negocioPrazoDraftFromValores(v: NegocioPrazoValores | null | undefined): NegocioPrazoDraft {
   if (!v?.modo) return { ...NEGOCIO_PRAZO_DRAFT_VAZIO };
   return {
@@ -285,12 +359,14 @@ export function negocioPrazoValoresFromProcessoModal(proc: {
           faseId: proc?.prazo_opcao_fase_id ?? null,
           data: proc?.prazo_opcao_data ?? null,
         },
-    prazo_instrumento_garantidor: {
-      dias: proc?.prazo_instrumento_garantidor_dias ?? null,
-      slaTipo: proc?.prazo_instrumento_garantidor_sla_tipo ?? null,
-      modo: proc?.prazo_instrumento_garantidor_modo ?? null,
-      faseId: proc?.prazo_instrumento_garantidor_fase_id ?? null,
-      data: proc?.prazo_instrumento_garantidor_data ?? null,
-    },
+    prazo_instrumento_garantidor: prazoInstrumentoProcessoVazio(proc)
+      ? negocioPrazoInstrumentoValoresPadrao(opcoes)
+      : {
+          dias: proc?.prazo_instrumento_garantidor_dias ?? null,
+          slaTipo: proc?.prazo_instrumento_garantidor_sla_tipo ?? null,
+          modo: proc?.prazo_instrumento_garantidor_modo ?? null,
+          faseId: proc?.prazo_instrumento_garantidor_fase_id ?? null,
+          data: proc?.prazo_instrumento_garantidor_data ?? null,
+        },
   };
 }

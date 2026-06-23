@@ -121,11 +121,13 @@ import { KanbanCardModalNegocioPrazoField } from './KanbanCardModalNegocioPrazoF
 import {
   NEGOCIO_PRAZO_DRAFT_VAZIO,
   NEGOCIO_PRAZO_OPCAO_DRAFT_PADRAO,
+  NEGOCIO_PRAZO_INSTRUMENTO_DRAFT_PADRAO,
   faseLabelFromOpcoes,
   formatNegocioPrazoDisplay,
   negocioPrazoDbPatchFromValores,
   negocioPrazoDraftFromValores,
   negocioPrazoOpcaoDraftFromProcesso,
+  negocioPrazoInstrumentoDraftFromProcesso,
   negocioPrazoValoresFromDraft,
   negocioPrazoValoresFromProcessoModal,
   type FaseNegocioPrazoOpcao,
@@ -580,7 +582,7 @@ export function KanbanCardModal({
     link_moni_capital_gastos_aporte_inicial: '',
     comentario_moni_capital_gastos_aporte_inicial: '',
     prazo_opcao: { ...NEGOCIO_PRAZO_OPCAO_DRAFT_PADRAO },
-    prazo_instrumento_garantidor: { ...NEGOCIO_PRAZO_DRAFT_VAZIO },
+    prazo_instrumento_garantidor: { ...NEGOCIO_PRAZO_INSTRUMENTO_DRAFT_PADRAO },
   });
   const [fasesNegocioPrazo, setFasesNegocioPrazo] = useState<FaseNegocioPrazoOpcao[]>([]);
   const [salvandoNegocio, setSalvandoNegocio] = useState(false);
@@ -812,7 +814,7 @@ export function KanbanCardModal({
       link_moni_capital_gastos_aporte_inicial: '',
       comentario_moni_capital_gastos_aporte_inicial: '',
       prazo_opcao: { ...NEGOCIO_PRAZO_OPCAO_DRAFT_PADRAO },
-      prazo_instrumento_garantidor: { ...NEGOCIO_PRAZO_DRAFT_VAZIO },
+      prazo_instrumento_garantidor: { ...NEGOCIO_PRAZO_INSTRUMENTO_DRAFT_PADRAO },
     });
     setEditandoNegocio(false);
     setEditandoFranqueado(false);
@@ -3998,13 +4000,7 @@ export function KanbanCardModal({
         comentario_moni_capital_gastos_aporte_inicial:
           proc.comentario_moni_capital_gastos_aporte_inicial ?? '',
         prazo_opcao: negocioPrazoOpcaoDraftFromProcesso(proc, opcoes),
-        prazo_instrumento_garantidor: negocioPrazoDraftFromValores({
-          dias: proc.prazo_instrumento_garantidor_dias,
-          slaTipo: proc.prazo_instrumento_garantidor_sla_tipo,
-          modo: proc.prazo_instrumento_garantidor_modo,
-          faseId: proc.prazo_instrumento_garantidor_fase_id,
-          data: proc.prazo_instrumento_garantidor_data,
-        }),
+        prazo_instrumento_garantidor: negocioPrazoInstrumentoDraftFromProcesso(proc, opcoes),
       });
       setEditandoNegocio(true);
     })();
@@ -6861,14 +6857,12 @@ export function KanbanCardModal({
                         <div className="text-[11px] font-medium text-stone-500">Prazo Instrumento Garantidor</div>
                         <div className="text-xs text-stone-800">
                           {formatNegocioPrazoDisplay(
-                            {
-                              dias: proc.prazo_instrumento_garantidor_dias,
-                              slaTipo: proc.prazo_instrumento_garantidor_sla_tipo,
-                              modo: proc.prazo_instrumento_garantidor_modo,
-                              faseId: proc.prazo_instrumento_garantidor_fase_id,
-                              data: proc.prazo_instrumento_garantidor_data,
-                            },
-                            faseLabelFromOpcoes(proc.prazo_instrumento_garantidor_fase_id, fasesNegocioPrazo),
+                            negocioPrazoValoresFromProcessoModal(proc, fasesNegocioPrazo).prazo_instrumento_garantidor,
+                            faseLabelFromOpcoes(
+                              negocioPrazoValoresFromProcessoModal(proc, fasesNegocioPrazo).prazo_instrumento_garantidor
+                                .faseId,
+                              fasesNegocioPrazo,
+                            ),
                           )}
                         </div>
                       </div>

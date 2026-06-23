@@ -4,6 +4,7 @@ import { formatLocalYmd, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
 import type { CalculadoraFaseLinha } from '@/lib/kanban/calculadora-fases';
 import type { FaseVisit } from '@/lib/kanban/kanban-card-timeline';
 import {
+  negocioPrazoInstrumentoValoresPadrao,
   negocioPrazoOpcaoValoresPadrao,
   negocioPrazoValoresFromProcessoRow,
   resolverDataPrazoNegocioYmd,
@@ -312,12 +313,12 @@ export function calculadoraMarcosInputFromProcessoRow(
   base: Omit<CalculadoraMarcosInput, 'prazo_opcao' | 'prazo_instrumento_garantidor'>,
 ): CalculadoraMarcosInput {
   const prazoOpcao = negocioPrazoValoresFromProcessoRow(row, 'prazo_opcao');
+  const prazoInstrumento = negocioPrazoValoresFromProcessoRow(row, 'prazo_instrumento_garantidor');
   return {
     ...base,
     prazo_opcao: prazoOpcao.modo ? prazoOpcao : negocioPrazoOpcaoValoresPadrao(),
-    prazo_instrumento_garantidor: negocioPrazoValoresFromProcessoRow(
-      row,
-      'prazo_instrumento_garantidor',
-    ),
+    prazo_instrumento_garantidor: prazoInstrumento.modo
+      ? prazoInstrumento
+      : negocioPrazoInstrumentoValoresPadrao(),
   };
 }
