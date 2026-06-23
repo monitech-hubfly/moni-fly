@@ -401,6 +401,21 @@
   --moni-calc-text-default: var(--moni-text-primary);
   --moni-calc-text-futura: var(--moni-text-tertiary);
   --moni-calc-text-futura-sla: var(--moni-text-tertiary);
+
+  /* Pipeline Esteira — visão tabela da rede */
+  --moni-pipeline-esteira-step-bg: var(--moni-kanban-stepone-light);
+  --moni-pipeline-esteira-step-text: var(--moni-status-active-text);
+  --moni-pipeline-esteira-port-bg: var(--moni-kanban-portfolio-light);
+  --moni-pipeline-esteira-port-text: var(--moni-kanban-portfolio);
+  --moni-pipeline-esteira-op-bg: var(--moni-status-done-bg);
+  --moni-pipeline-esteira-op-text: var(--moni-status-done-text);
+  --moni-pipeline-esteira-date-real: var(--moni-status-done-text);
+  --moni-pipeline-esteira-date-est: var(--moni-status-active-text);
+  --moni-pipeline-esteira-date-at: var(--moni-status-overdue-text);
+  --moni-pipeline-esteira-cur-bg: var(--moni-status-active-bg);
+  --moni-pipeline-esteira-cur-at-bg: var(--moni-status-overdue-bg);
+  --moni-pipeline-esteira-badge-port-bg: var(--moni-status-done-bg);
+  --moni-pipeline-esteira-badge-port-text: var(--moni-status-done-text);
   --moni-calc-resp-moni: var(--moni-text-secondary);
   --moni-calc-resp-franq: var(--moni-text-secondary);
   --moni-calc-custo-amber: var(--moni-text-secondary);
@@ -1419,6 +1434,201 @@
 .moni-tabela-scroll-thumb:active {
   cursor: grabbing;
   background: var(--moni-navy-500);
+}
+
+/* ── Pipeline Esteira Table ── */
+.moni-pipeline-esteira-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.moni-pipeline-esteira-table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 1000px;
+  font-family: var(--moni-font-sans);
+}
+
+.moni-pipeline-esteira-th {
+  padding: 5px 8px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--moni-text-tertiary);
+  text-align: center;
+  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+  white-space: nowrap;
+  background: var(--moni-surface-0);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.moni-pipeline-esteira-th.cl {
+  text-align: left;
+}
+
+.moni-pipeline-esteira-th-info {
+  padding: 5px 8px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--moni-text-tertiary);
+  background: var(--moni-surface-100);
+  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+}
+
+.moni-pipeline-esteira-th-step {
+  padding: 5px 8px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  background: var(--moni-pipeline-esteira-step-bg);
+  color: var(--moni-pipeline-esteira-step-text);
+  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+}
+
+.moni-pipeline-esteira-th-port {
+  padding: 5px 8px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  background: var(--moni-pipeline-esteira-port-bg);
+  color: var(--moni-pipeline-esteira-port-text);
+  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+}
+
+.moni-pipeline-esteira-th-op {
+  padding: 5px 8px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  background: var(--moni-pipeline-esteira-op-bg);
+  color: var(--moni-pipeline-esteira-op-text);
+  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+}
+
+.moni-pipeline-esteira-td-info {
+  padding: 6px 8px;
+  vertical-align: top;
+  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+  background: var(--moni-surface-0);
+}
+
+.moni-pipeline-esteira-dc {
+  text-align: center;
+  white-space: nowrap;
+  min-width: 54px;
+  padding: 4px 6px;
+  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+  background: var(--moni-surface-0);
+}
+
+.moni-pipeline-esteira-dc.cur {
+  background: var(--moni-pipeline-esteira-cur-bg);
+}
+
+.moni-pipeline-esteira-dc.cur-at {
+  background: var(--moni-pipeline-esteira-cur-at-bg);
+}
+
+.moni-pipeline-esteira-date-real {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--moni-pipeline-esteira-date-real);
+}
+
+.moni-pipeline-esteira-date-est {
+  font-size: 10px;
+  color: var(--moni-pipeline-esteira-date-est);
+}
+
+.moni-pipeline-esteira-date-at {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--moni-pipeline-esteira-date-at);
+}
+
+.moni-pipeline-esteira-date-none {
+  font-size: 11px;
+  color: var(--moni-text-tertiary);
+}
+
+.moni-pipeline-esteira-proj-linha {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-bottom: 2px;
+}
+
+.moni-pipeline-esteira-fk {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--moni-text-secondary);
+}
+
+.moni-pipeline-esteira-frank-nome {
+  font-size: 9px;
+  color: var(--moni-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 110px;
+}
+
+.moni-pipeline-esteira-proj-nome {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--moni-text-primary);
+  white-space: nowrap;
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.moni-pipeline-esteira-fase-badge {
+  font-size: 9px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: var(--moni-radius-sm, 4px);
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.moni-pipeline-esteira-fase-badge.step {
+  background: var(--moni-pipeline-esteira-step-bg);
+  color: var(--moni-pipeline-esteira-step-text);
+}
+
+.moni-pipeline-esteira-fase-badge.port {
+  background: var(--moni-pipeline-esteira-badge-port-bg);
+  color: var(--moni-pipeline-esteira-badge-port-text);
+}
+
+.moni-pipeline-esteira-fase-badge.op {
+  background: var(--moni-pipeline-esteira-op-bg);
+  color: var(--moni-pipeline-esteira-op-text);
+}
+
+.moni-pipeline-esteira-fase-badge.atrasado {
+  background: var(--moni-status-overdue-bg);
+  color: var(--moni-status-overdue-text);
 }
 
 /* Tipografia editorial (H1, H2 Vogue-style) */

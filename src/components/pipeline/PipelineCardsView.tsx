@@ -31,6 +31,7 @@ import {
   montarOQueFazerHoje,
 } from '@/lib/kanban/pipeline-unidade-compute';
 import { PipelineCardMiniDrawer } from '@/components/pipeline/PipelineCardMiniDrawer';
+import { PipelineEsteiraTable } from '@/components/pipeline/PipelineEsteiraTable';
 import { PipelineFranqueadoraUnidadeBloco } from '@/components/pipeline/PipelineFranqueadoraUnidadeBloco';
 import { PipelineFunilMesCondensado } from '@/components/pipeline/PipelineFunilMesCondensado';
 import { PipelineUnidadeResumoLinha } from '@/components/pipeline/PipelineUnidadeResumoLinha';
@@ -197,6 +198,20 @@ const filterSearchStyle: React.CSSProperties = {
   color: 'var(--moni-text-primary)',
 };
 
+const filterToggleBtnStyle = (active: boolean): React.CSSProperties => ({
+  height: '32px',
+  minHeight: '44px',
+  padding: '4px 10px',
+  fontSize: '12px',
+  border: '0.5px solid var(--moni-border-default)',
+  borderRadius: 'var(--moni-radius-md)',
+  background: active ? 'var(--moni-navy-800)' : 'var(--moni-surface-0)',
+  color: active ? 'var(--moni-text-inverse, #fff)' : 'var(--moni-text-primary)',
+  fontFamily: 'var(--moni-font-sans)',
+  cursor: 'pointer',
+  flexShrink: 0,
+});
+
 export function PipelineCardsView({
   mode,
   franqueadoId,
@@ -209,6 +224,7 @@ export function PipelineCardsView({
   className,
 }: PipelineCardsViewProps) {
   const viewMode = resolvePipelineViewMode(mode);
+  const [listaLayout, setListaLayout] = useState<'cards' | 'esteira'>('cards');
   const [groupBy, setGroupBy] = useState<PipelineGroupBy>(viewMode === 'franqueadora' ? 'franquia' : defaultGroupBy);
   const [filtros, setFiltros] = useState<PipelineCardsFiltros>(PIPELINE_CARDS_FILTROS_DEFAULT);
   const [drawerCard, setDrawerCard] = useState<PipelineCardDisplay | null>(null);
@@ -489,6 +505,24 @@ export function PipelineCardsView({
                 <option value="status">Status SLA</option>
               </select>
             ) : null}
+            <div className="flex shrink-0 gap-1" role="group" aria-label="Visualização do pipeline">
+              <button
+                type="button"
+                onClick={() => setListaLayout('cards')}
+                style={filterToggleBtnStyle(listaLayout === 'cards')}
+                aria-pressed={listaLayout === 'cards'}
+              >
+                Cards
+              </button>
+              <button
+                type="button"
+                onClick={() => setListaLayout('esteira')}
+                style={filterToggleBtnStyle(listaLayout === 'esteira')}
+                aria-pressed={listaLayout === 'esteira'}
+              >
+                Esteira
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -497,7 +531,9 @@ export function PipelineCardsView({
         {cardsFiltrados.length} card{cardsFiltrados.length === 1 ? '' : 's'} · {PIPELINE_READONLY_NOTA}
       </p>
 
-      {viewMode === 'franqueadora' ? (
+      {listaLayout === 'esteira' ? (
+        <PipelineEsteiraTable cards={cardsFiltrados} historico={dataset.historico ?? {}} />
+      ) : viewMode === 'franqueadora' ? (
         blocosFranqueadora.length === 0 ? (
           <p className="rounded-xl border border-dashed px-4 py-10 text-center text-[11px]" style={{ borderColor: 'var(--moni-border-default)', color: 'var(--moni-text-tertiary)' }}>
             Nenhum card encontrado com os filtros atuais.

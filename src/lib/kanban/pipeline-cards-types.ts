@@ -173,9 +173,20 @@ export type PipelineCardsGrupo = {
   cards: PipelineCardDisplay[];
 };
 
+export type PipelineEsteiraHistoricoEvento = {
+  fase_anterior_id: string;
+  fase_anterior_slug?: string | null;
+  criado_em: string;
+  is_retrocesso: boolean;
+};
+
+export type PipelineEsteiraHistoricoPorCard = Record<string, PipelineEsteiraHistoricoEvento[]>;
+
 export type PipelineCardsDataset = {
   cards: PipelineCardRow[];
   franqueados: PipelineFranqueadoUnidade[];
+  /** Movimentações `fase_avancada` dos cards da esteira principal (Step One / Portfólio / Operações). */
+  historico?: PipelineEsteiraHistoricoPorCard;
   /** Dados extras para visão franqueadora / aba Análises (degrada se ausente). */
   enrichment?: PipelineFranqueadoraEnrichment | null;
 };

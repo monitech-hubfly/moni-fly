@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanCardBrief } from '@/components/kanban-shared/types';
+import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { compareRedePorNFranquia } from '@/lib/rede-franqueados';
 import { normalizarSlaTipo } from '@/lib/dias-uteis';
 import {
@@ -15,9 +16,13 @@ import type {
   PipelineCardRow,
   PipelineCardsDataset,
   PipelineCardsViewMode,
+  PipelineEsteiraHistoricoEvento,
+  PipelineEsteiraHistoricoPorCard,
   PipelineFranqueadoUnidade,
   PipelineFranqueadoraEnrichment,
 } from '@/lib/kanban/pipeline-cards-types';
+
+const ESTEIRA_KANBAN_IDS = [KANBAN_IDS.STEP_ONE, KANBAN_IDS.PORTFOLIO, KANBAN_IDS.OPERACOES] as const;
 
 const CARD_SELECT_BASE = `
   id,
@@ -90,6 +95,86 @@ type RawCard = Record<string, unknown>;
 function relOne<T>(v: T | T[] | null | undefined): T | null {
   if (v == null) return null;
   return Array.isArray(v) ? (v[0] ?? null) : v;
+}
+
+function detStr(d: Record<string, unknown> | null | undefined, key: string): string {
+  if (!d) return '';
+  const v = d[key];
+  return typeof v === 'string' ? v.trim() : '';
+}
+
+async function fetchFaseSlugMap(
+  supabase: SupabaseClient,
+  faseIds: string[],
+): Promise<Map<string, string | null>> {
+  const ids = [...new Set(faseIds.map((id) => String(id).trim()).filter(Boolean))];
+  const map = new Map<string, string | null>();
+  if (ids.length === 0) return map;
+
+  const { data, error } = await supabase.from('kanban_fases').select('id, slug').in('id', ids);
+  if (error) {
+    console.error('[fetchFaseSlugMap]', error.message);
+    return map;
+  }
+
+  for (const row of data ?? []) {
+    const id = String((row as { id?: string }).id ?? '').trim();
+    if (!id) continue;
+    const slug = (row as { slug?: string | null }).slug;
+    map.set(id, slug != null ? String(slug).trim() || null : null);
+  }
+  return map;
+}
+
+async function fetchHistoricoEsteiraCards(
+  supabase: SupabaseClient,
+  cardIds: string[],
+): Promise<PipelineEsteiraHistoricoPorCard> {
+  if (cardIds.length === 0) return {};
+
+  const { data, error } = await supabase
+    .from('kanban_historico')
+    .select('card_id, detalhe, criado_em, is_retrocesso, acao')
+    .in('card_id', cardIds)
+    .eq('acao', 'fase_avancada')
+    .order('criado_em', { ascending: true });
+
+  if (error) {
+    console.error('[fetchHistoricoEsteiraCards]', error.message);
+    return {};
+  }
+
+  const faseIds: string[] = [];
+  for (const row of data ?? []) {
+    const detalhe = (row as { detalhe?: Record<string, unknown> | null }).detalhe ?? null;
+    const fid = detStr(detalhe, 'fase_anterior_id');
+    if (fid) faseIds.push(fid);
+  }
+
+  const slugMap = await fetchFaseSlugMap(supabase, faseIds);
+  const historico: PipelineEsteiraHistoricoPorCard = {};
+
+  for (const row of data ?? []) {
+    const cardId = String((row as { card_id?: string }).card_id ?? '').trim();
+    if (!cardId) continue;
+
+    const detalhe = (row as { detalhe?: Record<string, unknown> | null }).detalhe ?? null;
+    const faseAnteriorId = detStr(detalhe, 'fase_anterior_id');
+    if (!faseAnteriorId) continue;
+
+    const ev: PipelineEsteiraHistoricoEvento = {
+      fase_anterior_id: faseAnteriorId,
+      fase_anterior_slug: slugMap.get(faseAnteriorId) ?? null,
+      criado_em: String((row as { criado_em?: string }).criado_em ?? ''),
+      is_retrocesso: Boolean((row as { is_retrocesso?: boolean | null }).is_retrocesso),
+    };
+
+    const list = historico[cardId] ?? [];
+    list.push(ev);
+    historico[cardId] = list;
+  }
+
+  return historico;
 }
 
 function mapPipelineCardRow(raw: RawCard): PipelineCardRow | null {
@@ -443,7 +528,7 @@ export async function fetchPipelineCards(
   const mode = opts.mode === 'rede' ? 'franqueadora' : opts.mode;
   const redeId = String(opts.franqueadoId ?? '').trim();
   if (mode === 'unidade' && !redeId) {
-    return { cards: [], franqueados: [] };
+    return { cards: [], franqueados: [], historico: {} };
   }
 
   const comEnrichment = opts.comEnrichment ?? true;
@@ -545,5 +630,10 @@ export async function fetchPipelineCards(
         : await fetchUnidadeEnrichment(supabase, cards);
   }
 
-  return { cards, franqueados, enrichment };
+  const esteiraCardIds = cards
+    .filter((c) => (ESTEIRA_KANBAN_IDS as readonly string[]).includes(c.kanban_id))
+    .map((c) => c.id);
+  const historico = await fetchHistoricoEsteiraCards(supabase, esteiraCardIds);
+
+  return { cards, franqueados, historico, enrichment };
 }
