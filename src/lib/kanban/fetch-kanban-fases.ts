@@ -1,7 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanFase } from '@/components/kanban-shared/types';
+import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { normalizarSlaTipo } from '@/lib/dias-uteis';
 import { isRemovedStepOneFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
+import { ESTEIRA_COLUNAS } from '@/lib/kanban/pipeline-esteira-datas';
+import { ESTEIRA_TRES_ETAPAS } from '@/lib/kanban/pipeline-esteira-tres-etapas';
 import { parseKanbanFaseMateriais } from './parse-kanban-fase-materiais';
 import type { FaseNegocioPrazoOpcao } from './dados-negocio-prazo';
 
@@ -94,47 +97,47 @@ export async function augmentKanbanFasesComFasesDosCards(
   return [...fases, ...extra].sort((a, b) => a.ordem - b.ordem);
 }
 
-/** Todas as fases ativas de todos os kanbans — seletor de âncora em Dados do Negócio. */
-export async function fetchFasesNegocioPrazoOpcoes(supabase: SupabaseClient): Promise<FaseNegocioPrazoOpcao[]> {
-  const { data, error } = await supabase
-    .from('kanban_fases')
-    .select('id, nome, ordem, kanban_id, kanbans(nome)')
-    .eq('ativo', true)
-    .order('ordem');
+/** Funis das três esteiras da pipeline consolidada (Step One → Portfólio → Pré Obra e Obra). */
+const KANBANS_NEGOCIO_PRAZO_ESTEIRA = [
+  KANBAN_IDS.STEP_ONE,
+  KANBAN_IDS.PORTFOLIO,
+  KANBAN_IDS.OPERACOES,
+] as const;
 
-  if (error) {
-    console.error('[fetchFasesNegocioPrazoOpcoes]', error.message);
-    return [];
+function etapaEsteiraLabelNegocioPrazo(ordemGlobal: number): string {
+  if (ordemGlobal <= 3) return ESTEIRA_TRES_ETAPAS[0].label;
+  if (ordemGlobal <= 10) return ESTEIRA_TRES_ETAPAS[1].label;
+  return ESTEIRA_TRES_ETAPAS[2].label;
+}
+
+/** 14 fases-chave das três esteiras — mesma ordem da tabela consolidada da Rede. */
+export function montarFasesNegocioPrazoOpcoes(fases: KanbanFase[]): FaseNegocioPrazoOpcao[] {
+  const bySlug = new Map<string, KanbanFase>();
+  const byId = new Map<string, KanbanFase>();
+  for (const fase of fases) {
+    byId.set(fase.id, fase);
+    const slug = String(fase.slug ?? '').trim();
+    if (slug) bySlug.set(slug, fase);
   }
 
-  type Row = {
-    id: string;
-    nome?: string | null;
-    ordem?: number | null;
-    kanban_id?: string | null;
-    kanbans?: { nome?: string | null } | { nome?: string | null }[] | null;
-  };
+  const opcoes: FaseNegocioPrazoOpcao[] = [];
+  for (const col of ESTEIRA_COLUNAS) {
+    const fase = bySlug.get(col.slug) ?? byId.get(col.faseId);
+    if (!fase) continue;
+    opcoes.push({
+      id: fase.id,
+      label: `${etapaEsteiraLabelNegocioPrazo(col.ordemGlobal)} — ${col.label}`,
+    });
+  }
+  return opcoes;
+}
 
-  const rows = (data ?? []) as Row[];
-  return rows
-    .map((row) => {
-      const kanbanJoin = row.kanbans;
-      const kanbanNome = Array.isArray(kanbanJoin)
-        ? String(kanbanJoin[0]?.nome ?? '').trim()
-        : String(kanbanJoin?.nome ?? '').trim();
-      const faseNome = String(row.nome ?? '').trim();
-      const label = kanbanNome ? `${kanbanNome} — ${faseNome}` : faseNome;
-      return {
-        id: String(row.id),
-        label,
-        kanbanNome,
-        ordem: Number(row.ordem ?? 0),
-      };
-    })
-    .sort((a, b) => {
-      const kanbanCmp = a.kanbanNome.localeCompare(b.kanbanNome, 'pt-BR');
-      if (kanbanCmp !== 0) return kanbanCmp;
-      return a.ordem - b.ordem;
-    })
-    .map(({ id, label }) => ({ id, label }));
+/** Fases âncora dos prazos em Dados do Negócio — apenas as 14 colunas das três esteiras. */
+export async function fetchFasesNegocioPrazoOpcoes(supabase: SupabaseClient): Promise<FaseNegocioPrazoOpcao[]> {
+  const fases: KanbanFase[] = [];
+  for (const kanbanId of KANBANS_NEGOCIO_PRAZO_ESTEIRA) {
+    const list = await fetchKanbanFasesAtivas(supabase, kanbanId);
+    fases.push(...list);
+  }
+  return montarFasesNegocioPrazoOpcoes(fases);
 }

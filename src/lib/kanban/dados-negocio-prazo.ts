@@ -1,5 +1,7 @@
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import type { SlaTipo } from '@/lib/dias-uteis';
+import { ESTEIRA_COLUNAS } from '@/lib/kanban/pipeline-esteira-datas';
+import { ESTEIRA_TRES_ETAPAS } from '@/lib/kanban/pipeline-esteira-tres-etapas';
 
 export type NegocioPrazoModo = 'fase' | 'data';
 
@@ -124,5 +126,15 @@ export function negocioPrazoDbPatchFromValores(v: NegocioPrazoValores, prefix: '
 
 export function faseLabelFromOpcoes(faseId: string | null | undefined, opcoes: FaseNegocioPrazoOpcao[]): string | null {
   if (!faseId) return null;
-  return opcoes.find((o) => o.id === faseId)?.label ?? null;
+  const hit = opcoes.find((o) => o.id === faseId)?.label;
+  if (hit) return hit;
+  const col = ESTEIRA_COLUNAS.find((c) => c.faseId === faseId);
+  if (!col) return null;
+  const etapa =
+    col.ordemGlobal <= 3
+      ? ESTEIRA_TRES_ETAPAS[0].label
+      : col.ordemGlobal <= 10
+        ? ESTEIRA_TRES_ETAPAS[1].label
+        : ESTEIRA_TRES_ETAPAS[2].label;
+  return `${etapa} — ${col.label}`;
 }
