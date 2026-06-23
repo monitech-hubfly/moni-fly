@@ -873,31 +873,39 @@
 }
 
 .moni-calc-fcusto-block {
+  grid-column: 1 / -1;
   margin-top: 4px;
-  padding: 4px 6px;
+  padding: 5px 8px;
   width: 100%;
   min-width: 0;
-  max-width: 100%;
   box-sizing: border-box;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   background: var(--moni-surface-100);
   border: var(--moni-border-width) solid var(--moni-border-default);
   border-radius: var(--moni-radius-md);
 }
 
 .moni-calc-fcusto-label {
-  display: block;
+  flex-shrink: 0;
   font-size: 8px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--moni-calc-custo-label);
-  margin-bottom: 2px;
+  padding-top: 1px;
 }
 
 .moni-calc-fcusto-list {
+  flex: 1;
+  min-width: 0;
   margin: 0;
   padding: 0;
   list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
   font-size: 10px;
   line-height: 1.4;
   color: var(--moni-calc-custo-text);
@@ -1638,8 +1646,15 @@
     padding: 2px 8px;
   }
 
+  .moni-calc-fcusto-block {
+    flex-direction: column;
+    gap: 4px;
+  }
+
   .moni-calc-fcusto-list {
     font-size: 9px;
+    flex-direction: column;
+    gap: 2px;
   }
 }
 

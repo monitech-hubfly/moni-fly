@@ -294,16 +294,6 @@ function CalculadoraFaseRow({
             <span className={prazoPillClass(row.status === 'atual_atrasada')}>Prazo não definido</span>
           ) : null}
         </div>
-        {temCusto ? (
-          <div className="moni-calc-fcusto-block" title={custo}>
-            <span className="moni-calc-fcusto-label">Custo</span>
-            <ul className="moni-calc-fcusto-list">
-              {custo.split(' · ').map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
       </div>
 
       <div>
@@ -331,6 +321,17 @@ function CalculadoraFaseRow({
           {CALCULADORA_STATUS_LABEL[row.status]}
         </span>
       </div>
+
+      {temCusto ? (
+        <div className="moni-calc-fcusto-block" title={custo}>
+          <span className="moni-calc-fcusto-label">Custo</span>
+          <ul className="moni-calc-fcusto-list">
+            {custo.split(' · ').map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {steps.length > 0 ? (
         <ul className="moni-calculadora-fase-steps">
