@@ -452,6 +452,8 @@
   --moni-calc-resp-moni: var(--moni-text-secondary);
   --moni-calc-resp-franq: var(--moni-text-secondary);
   --moni-calc-custo-amber: var(--moni-text-secondary);
+  --moni-calc-custo-text: var(--moni-text-secondary);
+  --moni-calc-custo-label: var(--moni-text-tertiary);
   --moni-calc-row-pass-bg: var(--moni-surface-100);
   --moni-calc-row-atu-border: var(--moni-border-strong);
   --moni-calc-row-atu-at-border: var(--moni-calc-at-border);
@@ -661,6 +663,8 @@
   align-items: flex-start;
   gap: 2px;
   margin-top: 1px;
+  width: 100%;
+  min-width: 0;
 }
 
 .moni-calculadora-resumo-fase {
@@ -772,7 +776,7 @@
 .moni-calculadora-fase-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 72px 60px 80px 64px;
-  align-items: center;
+  align-items: start;
   gap: 6px;
   padding: 5px 8px;
   border-radius: var(--moni-radius-md, 6px);
@@ -853,23 +857,38 @@
   color: var(--moni-calc-text-futura);
 }
 
-.moni-calc-row-fut .fsla,
-.moni-calc-row-fut .moni-calc-fcusto {
+.moni-calc-row-fut .fsla {
   color: var(--moni-calc-text-futura-sla);
+}
+
+.moni-calculadora-fase-col {
+  min-width: 0;
+  overflow: hidden;
 }
 
 .moni-calc-fcusto {
   font-size: 9px;
-  color: var(--moni-text-tertiary);
+  color: var(--moni-calc-custo-text);
   margin-top: 1px;
-  line-height: 1.2;
-  white-space: nowrap;
+  line-height: 1.35;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.moni-calc-fcusto-label {
+  color: var(--moni-calc-custo-label);
+  font-weight: 500;
 }
 
 .moni-calc-row-fut .moni-calc-fcusto {
-  color: var(--moni-border-strong);
+  color: var(--moni-calc-custo-text);
 }
 
 .moni-calculadora-fase-row--concluida {
@@ -1588,6 +1607,11 @@
   .moni-calc-marco-pill {
     font-size: 8px;
     padding: 2px 8px;
+  }
+
+  .moni-calc-fcusto {
+    -webkit-line-clamp: 3;
+    font-size: 8px;
   }
 }
 

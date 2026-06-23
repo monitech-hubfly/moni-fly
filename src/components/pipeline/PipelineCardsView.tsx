@@ -389,37 +389,21 @@ export function PipelineCardsView({
       ) : null}
       {showKpis && viewMode === 'unidade' && kpisUnidade ? <PipelineKpisBarUnidade kpis={kpisUnidade} /> : null}
 
-      {viewMode === 'franqueadora' ? (
-        <div className="mb-4 flex justify-end px-4">
-          <div className="flex shrink-0 gap-1" role="group" aria-label="Tipo de funil">
-            <button
-              type="button"
-              onClick={() => setFunilRedeVisao('mes')}
-              style={filterToggleBtnStyle(funilRedeVisao === 'mes')}
-              aria-pressed={funilRedeVisao === 'mes'}
-            >
-              Funil mês
-            </button>
-            <button
-              type="button"
-              onClick={() => setFunilRedeVisao('provisionado')}
-              style={filterToggleBtnStyle(funilRedeVisao === 'provisionado')}
-              aria-pressed={funilRedeVisao === 'provisionado'}
-            >
-              Provisionado
-            </button>
-          </div>
-        </div>
-      ) : null}
-
       {viewMode === 'franqueadora' && funilRedeVisao === 'mes' ? (
-        <PipelineFunilMesRede cards={funilRedeCards} franqueados={funilRedeFranqueados} />
+        <PipelineFunilMesRede
+          cards={funilRedeCards}
+          franqueados={funilRedeFranqueados}
+          funilRedeVisao={funilRedeVisao}
+          onFunilRedeVisaoChange={setFunilRedeVisao}
+        />
       ) : null}
       {viewMode === 'franqueadora' && funilRedeVisao === 'provisionado' ? (
         <PipelineFunilProvisionadoRede
           cards={funilRedeCards}
           franqueados={funilRedeFranqueados}
           historico={dataset.historico ?? {}}
+          funilRedeVisao={funilRedeVisao}
+          onFunilRedeVisaoChange={setFunilRedeVisao}
         />
       ) : null}
 

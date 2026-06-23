@@ -15,6 +15,10 @@ import {
 import { formatFunilMesConversaoSeta } from '@/lib/kanban/pipeline-funil-mes-compute';
 import { excluirFranquiaDosGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
 import { PipelineFunilColunaUnidadeTabela } from '@/components/pipeline/PipelineFunilColunaUnidadeTabela';
+import {
+  PipelineFunilRedeVisaoToggle,
+  type PipelineFunilRedeVisao,
+} from '@/components/pipeline/PipelineFunilRedeVisaoToggle';
 
 const panelStyle: React.CSSProperties = {
   borderRadius: 'var(--moni-radius-lg)',
@@ -34,6 +38,8 @@ type Props = {
   franqueados: PipelineFranqueadoUnidade[];
   historico: PipelineEsteiraHistoricoPorCard;
   className?: string;
+  funilRedeVisao?: PipelineFunilRedeVisao;
+  onFunilRedeVisaoChange?: (v: PipelineFunilRedeVisao) => void;
 };
 
 function HorizonteToggle({
@@ -73,7 +79,14 @@ function HorizonteToggle({
   );
 }
 
-export function PipelineFunilProvisionadoRede({ cards, franqueados, historico, className }: Props) {
+export function PipelineFunilProvisionadoRede({
+  cards,
+  franqueados,
+  historico,
+  className,
+  funilRedeVisao,
+  onFunilRedeVisaoChange,
+}: Props) {
   const [horizonte, setHorizonte] = useState<PipelineFunilProvisionadoHorizonte>(30);
 
   const franqueadosElegiveis = useMemo(
@@ -99,7 +112,12 @@ export function PipelineFunilProvisionadoRede({ cards, franqueados, historico, c
         >
           Funil provisionado — rede
         </h2>
-        <HorizonteToggle horizonte={horizonte} onChange={setHorizonte} />
+        <div className="flex flex-col items-end gap-1.5">
+          {funilRedeVisao != null && onFunilRedeVisaoChange ? (
+            <PipelineFunilRedeVisaoToggle value={funilRedeVisao} onChange={onFunilRedeVisaoChange} />
+          ) : null}
+          <HorizonteToggle horizonte={horizonte} onChange={setHorizonte} />
+        </div>
       </div>
       <p className="mb-4 text-[10px] leading-snug" style={{ color: 'var(--moni-text-tertiary)' }}>
         Marcos ainda não fechados com data provisionada nos próximos {horizonte} dias (esteira + previsões).

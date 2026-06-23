@@ -1,6 +1,6 @@
 import type { KanbanFase } from '@/components/kanban-shared/types';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
-import { formatLocalYmd, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
+import { parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
 import type { CalculadoraFaseLinha } from '@/lib/kanban/calculadora-fases';
 import type { FaseVisit } from '@/lib/kanban/kanban-card-timeline';
 import {
@@ -10,10 +10,6 @@ import {
   resolverDataPrazoNegocioYmd,
   type NegocioPrazoValores,
 } from '@/lib/kanban/dados-negocio-prazo';
-import {
-  addBusinessDays,
-  DIAS_ALVARA_APOS_PREFEITURA,
-} from '@/lib/kanban/previsibilidade-operacoes';
 
 export type CalculadoraMarcoId = 'M0' | 'M4' | 'M24' | 'MO' | 'MIG';
 
@@ -62,17 +58,17 @@ const MARCO_DEFS: {
   },
   {
     id: 'M4',
-    label: 'Emissão do alvará',
+    label: 'Transferência do Terreno',
     funilLabel: 'Funil Pré Obra e Obra',
     custo: CUSTO_INSTRUMENTO_GARANTIDOR,
-    anchor: 'after',
+    anchor: 'replace',
     match: (slug, nome) =>
-      slug === FASE_SLUGS.APROVACAO_PREFEITURA ||
-      /aprova[cç][aã]o.*prefeitura/i.test(nome),
+      slug === FASE_SLUGS.PROCESSOS_CARTORARIOS ||
+      /transfer[eê]ncia.*terreno/i.test(nome.trim()),
   },
   {
     id: 'M24',
-    label: 'Liquidação final',
+    label: 'Liquidação',
     funilLabel: 'Funil Pré Obra e Obra',
     anchor: 'after',
     match: (slug, nome) =>
@@ -135,20 +131,6 @@ function dataFimRef(linha: CalculadoraFaseLinha | undefined): string | null {
   return linha.dataFimReal ?? linha.dataFimEstimada ?? linha.dataInicioReal;
 }
 
-function marcoDataAposFimFase(
-  linha: CalculadoraFaseLinha | undefined,
-  diasUteis: number,
-): { data: string | null; isPrevisto: boolean } {
-  const fim = dataFimRef(linha);
-  if (!fim) return { data: null, isPrevisto: true };
-  const base = parseIsoDateOnlyLocal(fim);
-  if (!base) return { data: null, isPrevisto: true };
-  return {
-    data: formatLocalYmd(addBusinessDays(base, diasUteis)),
-    isPrevisto: linha?.dataFimReal == null,
-  };
-}
-
 function resolverDataMarco(
   id: Extract<CalculadoraMarcoId, 'M0' | 'M4' | 'M24'>,
   input: CalculadoraMarcosInput,
@@ -167,7 +149,8 @@ function resolverDataMarco(
   }
 
   if (id === 'M4') {
-    return marcoDataAposFimFase(idx >= 0 ? linhas[idx] : undefined, DIAS_ALVARA_APOS_PREFEITURA);
+    const linha = idx >= 0 ? linhas[idx] : undefined;
+    return { data: dataFimRef(linha), isPrevisto: linha?.dataFimReal == null };
   }
 
   const real = toYmd(input.obra_finalizada_em) ?? toYmd(input.concluido_em);
@@ -259,7 +242,7 @@ export function montarTimelineCalculadoraComMarcos(
 
     const insertAt = def.anchor === 'after' ? idx + 1 : def.anchor === 'replace' ? idx : idx;
     const { data, isPrevisto } = resolverDataMarco(def.id, marcosInput, linhas, slugs);
-    const linhaContrato = def.id === 'M0' ? linhas[idx] : undefined;
+    const linhaAnchora = def.anchor === 'replace' ? linhas[idx] : undefined;
 
     insercoes.push({
       index: insertAt,
@@ -270,7 +253,7 @@ export function montarTimelineCalculadoraComMarcos(
         data,
         isPrevisto,
         funilLabel: def.funilLabel,
-        custo: def.custo ?? linhaContrato?.custo ?? null,
+        custo: def.custo ?? linhaAnchora?.custo ?? null,
       },
     });
   }

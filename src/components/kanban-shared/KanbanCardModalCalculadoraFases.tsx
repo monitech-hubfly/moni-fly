@@ -205,6 +205,13 @@ function CalculadoraResumoExecutivo({
   );
 }
 
+const MARCOS_COM_PREFIXO: ReadonlySet<CalculadoraMarcoId> = new Set(['M0', 'M4', 'M24']);
+
+function marcoDisplayLabel(marco: CalculadoraMarco): string {
+  if (MARCOS_COM_PREFIXO.has(marco.id)) return `${marco.id}: ${marco.label}`;
+  return marco.label;
+}
+
 function CalculadoraMarcoSep({ marco }: { marco: CalculadoraMarco }) {
   const id = marco.id as CalculadoraMarcoId;
   const dataFmt = marco.data ? fmtData(marco.data) : null;
@@ -214,7 +221,7 @@ function CalculadoraMarcoSep({ marco }: { marco: CalculadoraMarco }) {
       <div className="moni-calc-marco-line" aria-hidden />
       <div className={`moni-calc-marco-pill moni-calc-marco-pill--${id}`}>
         <span className={`moni-calc-marco-dot moni-calc-marco-dot--${id}`} aria-hidden />
-        <span>{marco.label}</span>
+        <span>{marcoDisplayLabel(marco)}</span>
         {dataFmt ? <span className="moni-calc-marco-data">{dataFmt}</span> : null}
         <span className={`moni-calculadora-marco-badge moni-calculadora-marco-badge--${id}`}>Marco</span>
       </div>
@@ -265,7 +272,7 @@ function CalculadoraFaseRow({
           : undefined
       }
     >
-      <div className="min-w-0">
+      <div className="moni-calculadora-fase-col min-w-0">
         <div className="moni-calculadora-fase-nome-wrap">
           <span className="moni-calculadora-fase-nome fn" title={row.faseNome}>
             {row.faseNome}
@@ -285,7 +292,7 @@ function CalculadoraFaseRow({
           <div className="moni-calculadora-fase-sla fsla">{fmtSla(row.slaDias, row.slaTipo)}</div>
           {temCusto ? (
             <div className="moni-calc-fcusto" title={custo}>
-              Custo: {custo}
+              <span className="moni-calc-fcusto-label">Custo:</span> {custo}
             </div>
           ) : null}
           {row.slaPrazoNaoDefinido ? (

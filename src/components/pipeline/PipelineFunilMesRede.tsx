@@ -13,6 +13,10 @@ import {
 } from '@/lib/kanban/pipeline-funil-mes-compute';
 import { excluirFranquiaDosGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
 import { PipelineFunilColunaUnidadeTabela } from '@/components/pipeline/PipelineFunilColunaUnidadeTabela';
+import {
+  PipelineFunilRedeVisaoToggle,
+  type PipelineFunilRedeVisao,
+} from '@/components/pipeline/PipelineFunilRedeVisaoToggle';
 
 const panelStyle: React.CSSProperties = {
   borderRadius: 'var(--moni-radius-lg)',
@@ -31,6 +35,8 @@ type Props = {
   cards: PipelineCardRow[];
   franqueados: PipelineFranqueadoUnidade[];
   className?: string;
+  funilRedeVisao?: PipelineFunilRedeVisao;
+  onFunilRedeVisaoChange?: (v: PipelineFunilRedeVisao) => void;
 };
 
 function PeriodoToggle({
@@ -67,7 +73,13 @@ function PeriodoToggle({
   );
 }
 
-export function PipelineFunilMesRede({ cards, franqueados, className }: Props) {
+export function PipelineFunilMesRede({
+  cards,
+  franqueados,
+  className,
+  funilRedeVisao,
+  onFunilRedeVisaoChange,
+}: Props) {
   const [periodo, setPeriodo] = useState<PipelineFunilPeriodo>('mes');
 
   const franqueadosElegiveis = useMemo(
@@ -94,7 +106,12 @@ export function PipelineFunilMesRede({ cards, franqueados, className }: Props) {
         >
           {tituloPeriodo}
         </h2>
-        <PeriodoToggle periodo={periodo} onChange={setPeriodo} />
+        <div className="flex flex-col items-end gap-1.5">
+          {funilRedeVisao != null && onFunilRedeVisaoChange ? (
+            <PipelineFunilRedeVisaoToggle value={funilRedeVisao} onChange={onFunilRedeVisaoChange} />
+          ) : null}
+          <PeriodoToggle periodo={periodo} onChange={setPeriodo} />
+        </div>
       </div>
 
       <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-stretch lg:gap-1">
