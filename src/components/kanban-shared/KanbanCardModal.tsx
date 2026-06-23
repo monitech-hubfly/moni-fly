@@ -120,16 +120,18 @@ import { KanbanCardModalDadosPreObraOperacoes } from './KanbanCardModalDadosPreO
 import { KanbanCardModalNegocioPrazoField } from './KanbanCardModalNegocioPrazoField';
 import {
   NEGOCIO_PRAZO_DRAFT_VAZIO,
+  NEGOCIO_PRAZO_OPCAO_DRAFT_PADRAO,
   faseLabelFromOpcoes,
   formatNegocioPrazoDisplay,
   negocioPrazoDbPatchFromValores,
   negocioPrazoDraftFromValores,
+  negocioPrazoOpcaoDraftFromProcesso,
   negocioPrazoValoresFromDraft,
+  negocioPrazoValoresFromProcessoModal,
   type FaseNegocioPrazoOpcao,
   type NegocioPrazoDraft,
 } from '@/lib/kanban/dados-negocio-prazo';
 import { fetchFasesNegocioPrazoOpcoes } from '@/lib/kanban/fetch-kanban-fases';
-import { negocioPrazoValoresFromProcessoModal } from '@/lib/kanban/dados-negocio-prazo';
 import { KanbanCardModalCalculadoraFases } from './KanbanCardModalCalculadoraFases';
 import {
   operacoesPreObraDraftFromCard,
@@ -577,7 +579,7 @@ export function KanbanCardModal({
     comentario_moni_capital_seguro_garantia: '',
     link_moni_capital_gastos_aporte_inicial: '',
     comentario_moni_capital_gastos_aporte_inicial: '',
-    prazo_opcao: { ...NEGOCIO_PRAZO_DRAFT_VAZIO },
+    prazo_opcao: { ...NEGOCIO_PRAZO_OPCAO_DRAFT_PADRAO },
     prazo_instrumento_garantidor: { ...NEGOCIO_PRAZO_DRAFT_VAZIO },
   });
   const [fasesNegocioPrazo, setFasesNegocioPrazo] = useState<FaseNegocioPrazoOpcao[]>([]);
@@ -809,7 +811,7 @@ export function KanbanCardModal({
       comentario_moni_capital_seguro_garantia: '',
       link_moni_capital_gastos_aporte_inicial: '',
       comentario_moni_capital_gastos_aporte_inicial: '',
-      prazo_opcao: { ...NEGOCIO_PRAZO_DRAFT_VAZIO },
+      prazo_opcao: { ...NEGOCIO_PRAZO_OPCAO_DRAFT_PADRAO },
       prazo_instrumento_garantidor: { ...NEGOCIO_PRAZO_DRAFT_VAZIO },
     });
     setEditandoNegocio(false);
@@ -3390,7 +3392,7 @@ export function KanbanCardModal({
   }, [calculadoraFasesFlat, fases]);
 
   const calculadoraMarcosInput = useMemo(() => {
-    const prazos = negocioPrazoValoresFromProcessoModal(modalDetalhes.processo);
+    const prazos = negocioPrazoValoresFromProcessoModal(modalDetalhes.processo, fasesNegocioPrazo);
     return {
       contrato_assinado_em: card?.contrato_assinado_em ?? null,
       obra_finalizada_em: card?.obra_finalizada_em ?? null,
@@ -3409,6 +3411,7 @@ export function KanbanCardModal({
     card?.concluido_em,
     card?.opcao_assinada_em,
     calculadoraFasesPack.visits,
+    fasesNegocioPrazo,
   ]);
 
   const [responsavelDaFaseSalvoPorFase, setResponsavelDaFaseSalvoPorFase] = useState<Map<string, string>>(
@@ -3994,13 +3997,7 @@ export function KanbanCardModal({
         link_moni_capital_gastos_aporte_inicial: proc.link_moni_capital_gastos_aporte_inicial ?? '',
         comentario_moni_capital_gastos_aporte_inicial:
           proc.comentario_moni_capital_gastos_aporte_inicial ?? '',
-        prazo_opcao: negocioPrazoDraftFromValores({
-          dias: proc.prazo_opcao_dias,
-          slaTipo: proc.prazo_opcao_sla_tipo,
-          modo: proc.prazo_opcao_modo,
-          faseId: proc.prazo_opcao_fase_id,
-          data: proc.prazo_opcao_data,
-        }),
+        prazo_opcao: negocioPrazoOpcaoDraftFromProcesso(proc, opcoes),
         prazo_instrumento_garantidor: negocioPrazoDraftFromValores({
           dias: proc.prazo_instrumento_garantidor_dias,
           slaTipo: proc.prazo_instrumento_garantidor_sla_tipo,
@@ -6852,14 +6849,11 @@ export function KanbanCardModal({
                         <div className="text-[11px] font-medium text-stone-500">Prazo Opção</div>
                         <div className="text-xs text-stone-800">
                           {formatNegocioPrazoDisplay(
-                            {
-                              dias: proc.prazo_opcao_dias,
-                              slaTipo: proc.prazo_opcao_sla_tipo,
-                              modo: proc.prazo_opcao_modo,
-                              faseId: proc.prazo_opcao_fase_id,
-                              data: proc.prazo_opcao_data,
-                            },
-                            faseLabelFromOpcoes(proc.prazo_opcao_fase_id, fasesNegocioPrazo),
+                            negocioPrazoValoresFromProcessoModal(proc, fasesNegocioPrazo).prazo_opcao,
+                            faseLabelFromOpcoes(
+                              negocioPrazoValoresFromProcessoModal(proc, fasesNegocioPrazo).prazo_opcao.faseId,
+                              fasesNegocioPrazo,
+                            ),
                           )}
                         </div>
                       </div>

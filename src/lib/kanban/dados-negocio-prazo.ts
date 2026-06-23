@@ -36,6 +36,85 @@ export const NEGOCIO_PRAZO_DRAFT_VAZIO: NegocioPrazoDraft = {
   data: '',
 };
 
+export type FaseNegocioPrazoOpcao = {
+  id: string;
+  label: string;
+};
+
+/** Slug da fase âncora padrão do Prazo Opção (Funil Portfólio — Opção). */
+export const NEGOCIO_PRAZO_OPCAO_FASE_SLUG = 'step_3';
+
+export const NEGOCIO_PRAZO_OPCAO_DRAFT_PADRAO: NegocioPrazoDraft = {
+  modo: 'fase',
+  dias: '30',
+  slaTipo: 'corridos',
+  faseId: '',
+  data: '',
+};
+
+export const NEGOCIO_PRAZO_OPCAO_VALORES_PADRAO: NegocioPrazoValores = {
+  dias: 30,
+  slaTipo: 'corridos',
+  modo: 'fase',
+  faseId: null,
+  data: null,
+};
+
+export function resolverFaseIdPrazoOpcaoPadrao(opcoes: FaseNegocioPrazoOpcao[]): string {
+  const porLabel = opcoes.find((o) => /portf[oó]lio\s*—\s*op[cç][aã]o/i.test(o.label));
+  if (porLabel) return porLabel.id;
+  return '';
+}
+
+export function negocioPrazoOpcaoDraftPadrao(opcoes: FaseNegocioPrazoOpcao[] = []): NegocioPrazoDraft {
+  const faseId = resolverFaseIdPrazoOpcaoPadrao(opcoes);
+  return {
+    ...NEGOCIO_PRAZO_OPCAO_DRAFT_PADRAO,
+    faseId,
+  };
+}
+
+export function negocioPrazoOpcaoValoresPadrao(opcoes: FaseNegocioPrazoOpcao[] = []): NegocioPrazoValores {
+  const faseId = resolverFaseIdPrazoOpcaoPadrao(opcoes) || null;
+  return {
+    ...NEGOCIO_PRAZO_OPCAO_VALORES_PADRAO,
+    faseId,
+  };
+}
+
+function prazoOpcaoProcessoVazio(proc: {
+  prazo_opcao_dias?: number | null;
+  prazo_opcao_sla_tipo?: SlaTipo | null;
+  prazo_opcao_modo?: NegocioPrazoModo | null;
+  prazo_opcao_fase_id?: string | null;
+  prazo_opcao_data?: string | null;
+} | null | undefined): boolean {
+  if (!proc) return true;
+  return proc.prazo_opcao_modo == null;
+}
+
+export function negocioPrazoOpcaoDraftFromProcesso(
+  proc: {
+    prazo_opcao_dias?: number | null;
+    prazo_opcao_sla_tipo?: SlaTipo | null;
+    prazo_opcao_modo?: NegocioPrazoModo | null;
+    prazo_opcao_fase_id?: string | null;
+    prazo_opcao_data?: string | null;
+  } | null | undefined,
+  opcoes: FaseNegocioPrazoOpcao[] = [],
+): NegocioPrazoDraft {
+  if (prazoOpcaoProcessoVazio(proc)) {
+    return negocioPrazoOpcaoDraftPadrao(opcoes);
+  }
+  return negocioPrazoDraftFromValores({
+    dias: proc?.prazo_opcao_dias ?? null,
+    slaTipo: proc?.prazo_opcao_sla_tipo ?? null,
+    modo: proc?.prazo_opcao_modo ?? null,
+    faseId: proc?.prazo_opcao_fase_id ?? null,
+    data: proc?.prazo_opcao_data ?? null,
+  });
+}
+
 export function negocioPrazoDraftFromValores(v: NegocioPrazoValores | null | undefined): NegocioPrazoDraft {
   if (!v?.modo) return { ...NEGOCIO_PRAZO_DRAFT_VAZIO };
   return {
@@ -86,11 +165,6 @@ export function formatNegocioPrazoDisplay(
   const fase = faseLabel?.trim();
   return fase ? `${v.dias} ${un} a partir de ${fase}` : `${v.dias} ${un} (fase não definida)`;
 }
-
-export type FaseNegocioPrazoOpcao = {
-  id: string;
-  label: string;
-};
 
 export type NegocioPrazoDbPatch = {
   dias: number | null;
@@ -195,18 +269,22 @@ export function negocioPrazoValoresFromProcessoModal(proc: {
   prazo_instrumento_garantidor_modo?: NegocioPrazoModo | null;
   prazo_instrumento_garantidor_fase_id?: string | null;
   prazo_instrumento_garantidor_data?: string | null;
-} | null | undefined): {
+} | null | undefined,
+  opcoes: FaseNegocioPrazoOpcao[] = [],
+): {
   prazo_opcao: NegocioPrazoValores;
   prazo_instrumento_garantidor: NegocioPrazoValores;
 } {
   return {
-    prazo_opcao: {
-      dias: proc?.prazo_opcao_dias ?? null,
-      slaTipo: proc?.prazo_opcao_sla_tipo ?? null,
-      modo: proc?.prazo_opcao_modo ?? null,
-      faseId: proc?.prazo_opcao_fase_id ?? null,
-      data: proc?.prazo_opcao_data ?? null,
-    },
+    prazo_opcao: prazoOpcaoProcessoVazio(proc)
+      ? negocioPrazoOpcaoValoresPadrao(opcoes)
+      : {
+          dias: proc?.prazo_opcao_dias ?? null,
+          slaTipo: proc?.prazo_opcao_sla_tipo ?? null,
+          modo: proc?.prazo_opcao_modo ?? null,
+          faseId: proc?.prazo_opcao_fase_id ?? null,
+          data: proc?.prazo_opcao_data ?? null,
+        },
     prazo_instrumento_garantidor: {
       dias: proc?.prazo_instrumento_garantidor_dias ?? null,
       slaTipo: proc?.prazo_instrumento_garantidor_sla_tipo ?? null,

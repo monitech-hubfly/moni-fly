@@ -129,6 +129,17 @@ export function montarFasesNegocioPrazoOpcoes(fases: KanbanFase[]): FaseNegocioP
       label: `${etapaEsteiraLabelNegocioPrazo(col.ordemGlobal)} — ${col.label}`,
     });
   }
+
+  const faseOpcao = bySlug.get('step_3') ?? bySlug.get('opcao');
+  if (faseOpcao && !opcoes.some((o) => o.id === faseOpcao.id)) {
+    const idxNovoNeg = opcoes.findIndex((o) => /—\s*Novo Neg\./i.test(o.label));
+    const insertAt = idxNovoNeg >= 0 ? idxNovoNeg + 1 : opcoes.length;
+    opcoes.splice(insertAt, 0, {
+      id: faseOpcao.id,
+      label: `${ESTEIRA_TRES_ETAPAS[1].label} — Opção`,
+    });
+  }
+
   return opcoes;
 }
 
