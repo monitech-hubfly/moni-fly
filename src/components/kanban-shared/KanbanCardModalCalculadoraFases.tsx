@@ -316,7 +316,7 @@ function CalculadoraFaseRow({
         <span className="moni-calculadora-fase-data-label">{fimLabel}</span>
       </div>
 
-      <div>
+      <div className="moni-calculadora-fase-status-col">
         <span className={statusBadgeClass(row.status)}>
           {CALCULADORA_STATUS_LABEL[row.status]}
         </span>
