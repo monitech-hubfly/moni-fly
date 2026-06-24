@@ -237,19 +237,19 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         const indIds = indsTyped.map(i => i.id);
 
         if (indIds.length > 0) {
-          // Período ativo para converter semana ISO → semana relativa do período
+          // Período ativo via data_inicio/data_fim (a tabela não tem semana_inicio/semana_fim)
           const { data: periodo } = await supabase
             .from('periodos')
-            .select('id, semana_inicio, semana_fim')
-            .lte('semana_inicio', semana)
-            .gte('semana_fim', semana)
+            .select('id, data_inicio, data_fim')
+            .lte('data_inicio', hojeStr)
+            .gte('data_fim', hojeStr)
             .eq('ano', anoISO)
-            .order('semana_fim', { ascending: true })
+            .order('data_fim', { ascending: true })
             .limit(1)
             .maybeSingle();
 
           const semanaRelativa = periodo
-            ? semana - Number((periodo as { semana_inicio: number }).semana_inicio) + 1
+            ? isoWeek(new Date((periodo as { data_inicio: string }).data_inicio))
             : semana;
 
           const { data: lancamentos } = await supabase

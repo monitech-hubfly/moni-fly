@@ -3,13 +3,18 @@
 import { ReactNode, useState } from 'react';
 import type { DiaStatus } from '@/hooks/useMeuCarometro';
 
-type ScoreVisual = { emoji: string; color: string };
+function getCarinhaImg(score: number | null): string {
+  if (score === null) return '/carometro/carometro-emoji-branco.png';
+  if (score > 65)  return '/carometro/carometro-emoji-verde-escuro.png';
+  if (score >= 35) return '/carometro/carometro-emoji-amarelo.png';
+  return '/carometro/carometro-emoji-vermelho.png';
+}
 
-function scoreVisual(score: number | null): ScoreVisual {
-  if (score === null) return { emoji: '😶', color: '#9ca3af' };
-  if (score > 65) return { emoji: '😊', color: '#16a34a' };
-  if (score >= 35) return { emoji: '😐', color: '#ca8a04' };
-  return { emoji: '😟', color: '#dc2626' };
+function scoreColor(score: number | null): string {
+  if (score === null) return 'text-gray-400';
+  if (score > 65)  return 'text-green-700';
+  if (score >= 35) return 'text-yellow-600';
+  return 'text-red-600';
 }
 
 function dotColor(score: number | null): string {
@@ -46,7 +51,8 @@ export function MeuCarometroCard({
   children,
 }: MeuCarometroCardProps) {
   const [expandido, setExpandido] = useState(false);
-  const { emoji, color } = scoreVisual(score);
+  const carinhaImg = getCarinhaImg(score);
+  const scoreCls   = scoreColor(score);
   const formula = TOOLTIP_FORMULA[tipo];
 
   return (
@@ -54,10 +60,9 @@ export function MeuCarometroCard({
       <p className="text-center text-sm font-semibold text-gray-700">{titulo}</p>
 
       <div className="flex items-center justify-between px-2">
-        <span className="text-3xl leading-none" title={score !== null ? `${score}%` : 'Sem dados'}>
-          {emoji}
-        </span>
-        <span className="text-2xl font-bold tabular-nums" style={{ color }}>
+        <img src={carinhaImg} alt="carinha" className="w-14 h-14 object-contain"
+          title={score !== null ? `${score}%` : 'Sem dados'} />
+        <span className={`text-2xl font-bold tabular-nums ${scoreCls}`}>
           {score !== null ? `${score}%` : '—'}
         </span>
       </div>

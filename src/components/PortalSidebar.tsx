@@ -81,6 +81,7 @@ const CAROMETRO_SUBITENS: NavItem[] = [
   { href: '/carometro', label: 'Carômetro' },
   { href: '/carometro/dashboard-produtos', label: 'Dashboard Casas Moní' },
   { href: '/carometro/todo', label: 'TO DO' },
+  { href: '/carometro/dashboard-geral', label: 'Dashboard Geral' },
   { href: '/carometro/todo-planning', label: 'TO DO & Planning' },
   { href: '/carometro/pre-bone-day', label: 'Plano Boné Day' },
   { href: '/carometro/fechamento-bone-day', label: 'Fechamento Boné Day' },
