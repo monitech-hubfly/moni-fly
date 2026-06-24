@@ -1605,7 +1605,7 @@ export function InteracoesLista({
                                   aria-label="Status do chamado"
                                 >
                                   <option value="pendente">A fazer</option>
-                                  <option value="concluida" disabled={temSubAberta}>Concluída</option>
+                                  <option value="concluida">Concluída</option>
                                 </SelectMoni>
                               )}
                             </div>

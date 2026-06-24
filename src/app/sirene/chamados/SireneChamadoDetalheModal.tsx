@@ -431,7 +431,7 @@ export function SireneChamadoDetalheModal({
                       aria-label="Status do chamado"
                     >
                       <option value="pendente">A fazer</option>
-                      <option value="concluida" disabled={temSubAberta}>
+                      <option value="concluida">
                         Concluída
                       </option>
                     </select>
