@@ -1,22 +1,24 @@
-import { moedaCampoValorInicial } from '@/lib/kanban/moeda-campo';
-
 /** Linha de negociação em Dados do Negócio (condição · valor · data de pagamento). */
 export type NegociacaoLinha = {
   condicao: string;
   valor: string;
   dataPagamento: string;
-  /** Fase da calculadora — quando preenchido, a data vem da timeline (ignora dataPagamento). */
-  faseId?: string;
+  /** fase:<slug> ou marco:<id> — data derivada da calculadora quando preenchido. */
+  vinculoCalculadora?: string | null;
 };
 
 export type NegociacaoLinhaDb = {
   condicao: string;
   valor: string;
   data_pagamento: string;
-  fase_id?: string;
+  vinculo_calculadora?: string | null;
 };
 
 export type NegociacaoLinhaDraft = NegociacaoLinha & { id: string };
+
+export type VinculoCalculadoraNegociacao =
+  | { tipo: 'fase'; slug: string }
+  | { tipo: 'marco'; marcoId: string };
 
 function newRowId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -26,11 +28,27 @@ function newRowId(): string {
 }
 
 export function criarNegociacaoLinhaDraftVazia(): NegociacaoLinhaDraft {
-  return { id: newRowId(), condicao: '', valor: '', dataPagamento: '', faseId: '' };
+  return { id: newRowId(), condicao: '', valor: '', dataPagamento: '', vinculoCalculadora: '' };
 }
 
 export function negociacaoLinhasDraftPadrao(): NegociacaoLinhaDraft[] {
   return [criarNegociacaoLinhaDraftVazia()];
+}
+
+export function parseVinculoCalculadoraNegociacao(
+  raw: string | null | undefined,
+): VinculoCalculadoraNegociacao | null {
+  const v = String(raw ?? '').trim();
+  if (!v) return null;
+  if (v.startsWith('fase:')) {
+    const slug = v.slice(5).trim();
+    return slug ? { tipo: 'fase', slug } : null;
+  }
+  if (v.startsWith('marco:')) {
+    const marcoId = v.slice(6).trim();
+    return marcoId ? { tipo: 'marco', marcoId } : null;
+  }
+  return null;
 }
 
 export function parseNegociacaoLinhasFromDb(raw: unknown): NegociacaoLinha[] {
@@ -43,9 +61,14 @@ export function parseNegociacaoLinhasFromDb(raw: unknown): NegociacaoLinha[] {
     const valor = String(o.valor ?? '').trim();
     const dataRaw = String(o.data_pagamento ?? o.dataPagamento ?? '').trim();
     const dataPagamento = /^\d{4}-\d{2}-\d{2}/.test(dataRaw) ? dataRaw.slice(0, 10) : dataRaw;
-    const faseId = String(o.fase_id ?? o.faseId ?? '').trim();
-    if (!condicao && !valor && !dataPagamento && !faseId) continue;
-    out.push({ condicao, valor, dataPagamento, ...(faseId ? { faseId } : {}) });
+    const vinculoCalculadora = String(o.vinculo_calculadora ?? o.vinculoCalculadora ?? '').trim();
+    if (!condicao && !valor && !dataPagamento && !vinculoCalculadora) continue;
+    out.push({
+      condicao,
+      valor,
+      dataPagamento,
+      vinculoCalculadora: vinculoCalculadora || null,
+    });
   }
   return out;
 }
@@ -55,8 +78,7 @@ export function negociacaoLinhasDraftFromLinhas(linhas: NegociacaoLinha[]): Nego
   return linhas.map((l) => ({
     ...l,
     id: newRowId(),
-    faseId: l.faseId ?? '',
-    valor: moedaCampoValorInicial(l.valor),
+    vinculoCalculadora: l.vinculoCalculadora ?? '',
   }));
 }
 
@@ -65,21 +87,26 @@ export function negociacaoLinhasToDb(linhas: NegociacaoLinhaDraft[]): Negociacao
   for (const l of linhas) {
     const condicao = l.condicao.trim();
     const valor = l.valor.trim();
-    const data_pagamento = l.dataPagamento.trim().slice(0, 10);
-    const fase_id = String(l.faseId ?? '').trim();
-    if (!condicao && !valor && !data_pagamento && !fase_id) continue;
+    const vinculo = String(l.vinculoCalculadora ?? '').trim();
+    const data_pagamento = vinculo ? '' : l.dataPagamento.trim().slice(0, 10);
+    if (!condicao && !valor && !data_pagamento && !vinculo) continue;
     out.push({
       condicao,
       valor,
       data_pagamento,
-      ...(fase_id ? { fase_id } : {}),
+      vinculo_calculadora: vinculo || null,
     });
   }
   return out.length > 0 ? out : null;
 }
 
 export function negociacaoLinhaTemConteudo(
-  l: Pick<NegociacaoLinha, 'condicao' | 'valor' | 'dataPagamento' | 'faseId'>,
+  l: Pick<NegociacaoLinha, 'condicao' | 'valor' | 'dataPagamento' | 'vinculoCalculadora'>,
 ): boolean {
-  return Boolean(l.condicao.trim() || l.valor.trim() || l.dataPagamento.trim() || String(l.faseId ?? '').trim());
+  return Boolean(
+    l.condicao.trim() ||
+      l.valor.trim() ||
+      l.dataPagamento.trim() ||
+      String(l.vinculoCalculadora ?? '').trim(),
+  );
 }

@@ -23,9 +23,13 @@ import {
   type CalculadoraTimelineItem,
 } from '@/lib/kanban/calculadora-fases-marcos';
 import type { FaseVisit } from '@/lib/kanban/kanban-card-timeline';
-import type { NegociacaoLinha } from '@/lib/kanban/negociacao-linhas';
-import { montarNegociacaoCalculadoraLinhas, type NegociacaoCalculadoraLinha } from '@/lib/kanban/negociacao-calculadora';
 import type { KanbanFase } from '@/components/kanban-shared/types';
+import type { NegociacaoLinha } from '@/lib/kanban/negociacao-linhas';
+import {
+  resolverNegociacaoLinhasCalculadora,
+  type NegociacaoLinhaCalculadora,
+} from '@/lib/kanban/calculadora-negociacao';
+import { fmtMoedaKanban } from '@/lib/kanban/kanban-card-modal-detalhes';
 import { useCalculadoraShareLink } from '@/hooks/useCalculadoraShareLink';
 
 type Props = {
@@ -700,55 +704,6 @@ function funilTotalmenteConcluido(items: CalculadoraTimelineItem[]): boolean {
   return etapasVisiveis.every(etapaVisivelConcluida);
 }
 
-function CalculadoraNegociacaoSection({ linhas }: { linhas: NegociacaoCalculadoraLinha[] }) {
-  if (linhas.length === 0) return null;
-
-  return (
-    <section className="moni-calculadora-negociacao-group">
-      <hr className="moni-calculadora-funil-separator" />
-      <div className="moni-calculadora-funil-header moni-calculadora-funil-header--negociacao w-full">
-        <span className="moni-calculadora-funil-dot moni-calculadora-funil-dot--negociacao" aria-hidden />
-        <span className="moni-calculadora-funil-title">Negociação</span>
-        <span className="moni-calculadora-funil-count">
-          {linhas.length} {linhas.length === 1 ? 'linha' : 'linhas'}
-        </span>
-      </div>
-      <div className="moni-calculadora-funil-body">
-        <div className="moni-calculadora-table-header moni-calculadora-table-header--negociacao">
-          <span>Condição</span>
-          <span>Valor</span>
-          <span aria-hidden />
-          <span>Data pagamento</span>
-          <span aria-hidden />
-        </div>
-        {linhas.map((linha, idx) => (
-          <div key={`neg-calc-${idx}`} className="moni-calculadora-negociacao-row">
-            <div className="min-w-0">
-              <span className="moni-calculadora-fase-nome fn" title={linha.condicao}>
-                {linha.condicao.trim() || '—'}
-              </span>
-              {linha.faseNome ? (
-                <span className="moni-calculadora-negociacao-fase-hint">Fase: {linha.faseNome}</span>
-              ) : null}
-            </div>
-            <div className="moni-calculadora-negociacao-valor">{linha.valorExibicao}</div>
-            <div aria-hidden />
-            <div className="moni-calculadora-fase-data-cell">
-              <span
-                className={`moni-calculadora-fase-data fd-val${!linha.dataResolvida ? ' fd-val--empty' : ''}`}
-              >
-                {fmtData(linha.dataResolvida)}
-              </span>
-              <span className="moni-calculadora-fase-data-label">{linha.dataLabel}</span>
-            </div>
-            <div aria-hidden />
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function collapsedFunisIniciais(
   grupos: { label: string; items: CalculadoraTimelineItem[] }[],
 ): Set<string> {
@@ -835,6 +790,53 @@ function CalculadoraFunilGroup({
   );
 }
 
+function CalculadoraNegociacaoSection({ linhas }: { linhas: NegociacaoLinhaCalculadora[] }) {
+  if (linhas.length === 0) return null;
+
+  return (
+    <section className="moni-calculadora-negociacao">
+      <hr className="moni-calculadora-funil-separator" />
+      <div className="moni-calculadora-negociacao-header">
+        <span className="moni-calculadora-funil-dot moni-calculadora-funil-dot--operacoes" aria-hidden />
+        <span className="moni-calculadora-negociacao-title">Negociação</span>
+        <span className="moni-calculadora-funil-count">{linhas.length} parcela{linhas.length === 1 ? '' : 's'}</span>
+      </div>
+      <div className="moni-calculadora-table-header moni-calculadora-negociacao-table-header">
+        <span>Condição</span>
+        <span>Valor</span>
+        <span>Vínculo</span>
+        <span>Data pagamento</span>
+      </div>
+      {linhas.map((linha, idx) => (
+        <div
+          key={`neg-calc-${idx}`}
+          className="moni-calculadora-negociacao-row"
+        >
+          <div className="min-w-0">
+            <span className="moni-calculadora-fase-nome fn" title={linha.condicao}>
+              {linha.condicao.trim() || '—'}
+            </span>
+          </div>
+          <div className="min-w-0 text-xs text-[var(--moni-text-primary)]">
+            {fmtMoedaKanban(linha.valor) || '—'}
+          </div>
+          <div className="min-w-0 text-[10px] text-[var(--moni-text-tertiary)]">
+            {linha.vinculoLabel ?? 'Manual'}
+          </div>
+          <div className="moni-calculadora-fase-data-cell">
+            <span className={`moni-calculadora-fase-data fd-val${!linha.dataPagamentoResolvida ? ' fd-val--empty' : ''}`}>
+              {fmtData(linha.dataPagamentoResolvida)}
+            </span>
+            <span className="moni-calculadora-fase-data-label">
+              {linha.dataPagamentoPrevista ? 'est.' : 'real'}
+            </span>
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 export function KanbanCardModalCalculadoraFases({
   linhas,
   faseAtualId,
@@ -889,12 +891,10 @@ export function KanbanCardModalCalculadoraFases({
 
   const gruposFunil = useMemo(() => agruparTimelinePorFunil(timelineItems), [timelineItems]);
 
-  const negociacaoCalculadora = useMemo(() => {
-    const faseNomePorId = new Map<string, string>();
-    for (const f of fases) faseNomePorId.set(f.id, f.nome);
-    for (const [id, f] of metaMap) faseNomePorId.set(id, f.nome);
-    return montarNegociacaoCalculadoraLinhas(negociacaoLinhas, linhas, faseNomePorId);
-  }, [negociacaoLinhas, linhas, fases, metaMap]);
+  const negociacaoResolvida = useMemo(
+    () => resolverNegociacaoLinhasCalculadora(negociacaoLinhas, linhas, timelineItems),
+    [negociacaoLinhas, linhas, timelineItems],
+  );
 
   useEffect(() => {
     const cid = cardId?.trim() ?? '';
@@ -996,7 +996,7 @@ export function KanbanCardModalCalculadoraFases({
               />
             </div>
           ))}
-          <CalculadoraNegociacaoSection linhas={negociacaoCalculadora} />
+          <CalculadoraNegociacaoSection linhas={negociacaoResolvida} />
         </div>
       </div>
     </div>

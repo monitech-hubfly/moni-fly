@@ -145,8 +145,16 @@ import {
   negociacaoLinhasDraftFromLinhas,
   negociacaoLinhasDraftPadrao,
   negociacaoLinhasToDb,
+  parseVinculoCalculadoraNegociacao,
+  type NegociacaoLinha,
   type NegociacaoLinhaDraft,
 } from '@/lib/kanban/negociacao-linhas';
+import {
+  buildOpcoesVinculoCalculadora,
+  resolverDataPagamentoNegociacao,
+  resolverNegociacaoLinhasCalculadora,
+} from '@/lib/kanban/calculadora-negociacao';
+import { montarTimelineCalculadoraComMarcos } from '@/lib/kanban/calculadora-fases-marcos';
 import { moedaCampoValorInicial } from '@/lib/kanban/moeda-campo';
 import { fetchFasesNegocioPrazoOpcoes } from '@/lib/kanban/fetch-kanban-fases';
 import { KanbanCardModalCalculadoraFases } from './KanbanCardModalCalculadoraFases';
@@ -3432,11 +3440,6 @@ export function KanbanCardModal({
           : fases;
   }, [fasesEsteiraCalculadora, fases, card?.kanban_id]);
 
-  const fasesCalculadoraNegociacao = useMemo(
-    () => calculadoraFasesFlat.map((f) => ({ id: f.id, nome: f.nome })),
-    [calculadoraFasesFlat],
-  );
-
   const calculadoraFasesMeta = useMemo(() => {
     const map = new Map<string, KanbanFase>();
     for (const f of calculadoraFasesFlat) map.set(f.id, f);
@@ -3629,6 +3632,68 @@ export function KanbanCardModal({
     );
     return enriquecerLinhasCalculadoraComCusto(comResponsavel, calculadoraSlugPorFaseId);
   }, [calculadoraLinhasEncadeadas, calculadoraSlugPorFaseId, responsavelDaFaseSalvoPorFase]);
+
+  const calculadoraTimelineNegociacao = useMemo(
+    () =>
+      montarTimelineCalculadoraComMarcos(
+        calculadoraLinhasEnriquecidas,
+        calculadoraFasesFlat,
+        calculadoraMarcosInput,
+      ),
+    [calculadoraLinhasEnriquecidas, calculadoraFasesFlat, calculadoraMarcosInput],
+  );
+
+  const calculadoraOpcoesVinculoNegociacao = useMemo(
+    () => buildOpcoesVinculoCalculadora(calculadoraFasesFlat),
+    [calculadoraFasesFlat],
+  );
+
+  const negociacaoLinhasCalculadora = useMemo((): NegociacaoLinha[] => {
+    if (editandoNegocio) {
+      return negocioDraft.negociacao_linhas.map(
+        ({ condicao, valor, dataPagamento, vinculoCalculadora }) => ({
+          condicao,
+          valor,
+          dataPagamento,
+          vinculoCalculadora: vinculoCalculadora || null,
+        }),
+      );
+    }
+    return modalDetalhes.processo?.negociacao_linhas ?? [];
+  }, [editandoNegocio, negocioDraft.negociacao_linhas, modalDetalhes.processo?.negociacao_linhas]);
+
+  const negociacaoDatasResolvidas = useMemo(() => {
+    const map = new Map<string, { data: string | null; prevista: boolean }>();
+    for (const l of negocioDraft.negociacao_linhas) {
+      const vinculo = parseVinculoCalculadoraNegociacao(l.vinculoCalculadora);
+      if (!vinculo) continue;
+      const r = resolverDataPagamentoNegociacao(
+        vinculo,
+        calculadoraLinhasEnriquecidas,
+        calculadoraTimelineNegociacao,
+      );
+      map.set(l.id, { data: r.data, prevista: r.prevista });
+    }
+    return map;
+  }, [
+    negocioDraft.negociacao_linhas,
+    calculadoraLinhasEnriquecidas,
+    calculadoraTimelineNegociacao,
+  ]);
+
+  const negociacaoLinhasLeituraResolvidas = useMemo(() => {
+    const base = modalDetalhes.processo?.negociacao_linhas ?? [];
+    return resolverNegociacaoLinhasCalculadora(
+      base,
+      calculadoraLinhasEnriquecidas,
+      calculadoraTimelineNegociacao,
+    ).map((l) => ({
+      condicao: l.condicao,
+      valor: l.valor,
+      dataPagamento: l.dataPagamentoResolvida ?? l.dataPagamento,
+      vinculoCalculadora: l.vinculoCalculadora,
+    }));
+  }, [modalDetalhes.processo?.negociacao_linhas, calculadoraLinhasEnriquecidas, calculadoraTimelineNegociacao]);
 
   const abrirEdicaoInstrucoesFase = () => {
     if (!faseAtual || !pode('editar_instrucoes')) return;
@@ -5424,11 +5489,11 @@ export function KanbanCardModal({
                     fases={calculadoraFasesFlat}
                     fasesMeta={calculadoraFasesMeta}
                     marcos={calculadoraMarcosInput}
+                    negociacaoLinhas={negociacaoLinhasCalculadora}
                     variant="painel"
                     cardId={card.id}
                     podeEditarDatas={podeEditarDatasCalculadora}
                     onSalvarData={salvarDataCalculadora}
-                    negociacaoLinhas={modalDetalhes.processo?.negociacao_linhas ?? []}
                   />
                 </div>
               </div>
@@ -6944,7 +7009,8 @@ export function KanbanCardModal({
                         setNegocioDraft((d) => ({ ...d, negociacao_linhas }))
                       }
                       disabled={salvandoNegocio}
-                      fasesCalculadora={fasesCalculadoraNegociacao}
+                      opcoesVinculo={calculadoraOpcoesVinculoNegociacao}
+                      datasResolvidas={negociacaoDatasResolvidas}
                     />
                     {renderDadosNegocioLinksEAnexos(true)}
                     <div className="flex gap-2 pt-1">
@@ -7030,8 +7096,7 @@ export function KanbanCardModal({
                       modoLeitura
                       linhas={[]}
                       onChange={() => {}}
-                      linhasLeitura={proc.negociacao_linhas ?? []}
-                      fasesCalculadora={fasesCalculadoraNegociacao}
+                      linhasLeitura={negociacaoLinhasLeituraResolvidas}
                     />
                     {renderDadosNegocioLinksEAnexos(false)}
                     {modalSessao.ehAdminOuTeam && (

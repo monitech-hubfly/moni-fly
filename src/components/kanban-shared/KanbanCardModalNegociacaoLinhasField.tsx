@@ -2,16 +2,15 @@
 
 import { Plus, Trash2 } from 'lucide-react';
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
-import { moedaCampoValorInicial } from '@/lib/kanban/moeda-campo';
-import { formatNegociacaoValorExibicao } from '@/lib/kanban/negociacao-calculadora';
+import { fmtMoedaKanban } from '@/lib/kanban/kanban-card-modal-detalhes';
 import {
   criarNegociacaoLinhaDraftVazia,
   type NegociacaoLinha,
   type NegociacaoLinhaDraft,
 } from '@/lib/kanban/negociacao-linhas';
-import { KanbanCardModalMoedaField } from './KanbanCardModalMoedaField';
-
-export type NegociacaoFaseOpcao = { id: string; nome: string };
+import type { OpcaoVinculoCalculadora } from '@/lib/kanban/calculadora-negociacao';
+import { KanbanCardModalMoedaField } from '@/components/kanban-shared/KanbanCardModalMoedaField';
+import { moedaCampoValorInicial } from '@/lib/kanban/moeda-campo';
 
 type Props = {
   linhas: NegociacaoLinhaDraft[];
@@ -19,11 +18,9 @@ type Props = {
   disabled?: boolean;
   modoLeitura?: boolean;
   linhasLeitura?: NegociacaoLinha[];
-  /** Fases da calculadora para atrelar data de pagamento. */
-  fasesCalculadora?: NegociacaoFaseOpcao[];
+  opcoesVinculo?: OpcaoVinculoCalculadora[];
+  datasResolvidas?: Map<string, { data: string | null; prevista: boolean }>;
 };
-
-const NEGOCIACAO_MODO_DATA = '__data__';
 
 const inputClass =
   'w-full bg-white px-2 py-1.5 text-xs text-[var(--moni-text-primary)] min-h-[44px] sm:min-h-[36px]';
@@ -33,8 +30,8 @@ const inputStyle = {
   fontFamily: 'var(--moni-font-sans)',
 } as const;
 
-function fmtData(iso: string): string {
-  if (!iso.trim()) return '—';
+function fmtData(iso: string | null | undefined): string {
+  if (!iso?.trim()) return '—';
   return formatIsoDateOnlyPtBr(iso) ?? iso;
 }
 
@@ -44,7 +41,8 @@ export function KanbanCardModalNegociacaoLinhasField({
   disabled = false,
   modoLeitura = false,
   linhasLeitura = [],
-  fasesCalculadora = [],
+  opcoesVinculo = [{ value: '', label: 'Data manual' }],
+  datasResolvidas,
 }: Props) {
   const atualizarLinha = (id: string, patch: Partial<NegociacaoLinha>) => {
     onChange(linhas.map((l) => (l.id === id ? { ...l, ...patch } : l)));
@@ -73,43 +71,33 @@ export function KanbanCardModalNegociacaoLinhasField({
       <div className="space-y-2">
         <div className="text-[11px] font-medium text-[var(--moni-text-secondary)]">Negociação</div>
         <div
-          className="hidden gap-2 px-1 text-[10px] font-medium uppercase tracking-wide text-[var(--moni-text-tertiary)] sm:grid sm:grid-cols-[1fr_1fr_minmax(120px,0.9fr)]"
+          className="hidden gap-2 px-1 text-[10px] font-medium uppercase tracking-wide text-[var(--moni-text-tertiary)] sm:grid sm:grid-cols-[1fr_1fr_minmax(88px,0.75fr)]"
           aria-hidden
         >
           <span>Condição</span>
           <span>Valor</span>
-          <span>Pagamento</span>
+          <span>Data pagamento</span>
         </div>
-        {linhasLeitura.map((linha, idx) => {
-          const faseId = String(linha.faseId ?? '').trim();
-          const faseNome = faseId
-            ? fasesCalculadora.find((f) => f.id === faseId)?.nome ?? 'Fase'
-            : null;
-          return (
-            <div
-              key={`neg-read-${idx}`}
-              className="grid grid-cols-1 gap-1.5 rounded-lg p-2 sm:grid-cols-[1fr_1fr_minmax(120px,0.9fr)] sm:gap-2 sm:p-0"
-              style={idx > 0 ? { borderTop: '0.5px solid var(--moni-border-subtle)', paddingTop: '8px' } : undefined}
-            >
-              <div className="min-w-0">
-                <span className="text-[10px] font-medium text-[var(--moni-text-tertiary)] sm:hidden">Condição</span>
-                <div className="text-xs text-[var(--moni-text-primary)]">{linha.condicao.trim() || '—'}</div>
-              </div>
-              <div className="min-w-0">
-                <span className="text-[10px] font-medium text-[var(--moni-text-tertiary)] sm:hidden">Valor</span>
-                <div className="text-xs text-[var(--moni-text-primary)]">
-                  {formatNegociacaoValorExibicao(linha.valor)}
-                </div>
-              </div>
-              <div className="min-w-0">
-                <span className="text-[10px] font-medium text-[var(--moni-text-tertiary)] sm:hidden">Pagamento</span>
-                <div className="text-xs text-[var(--moni-text-primary)]">
-                  {faseNome ? `Fase: ${faseNome}` : fmtData(linha.dataPagamento)}
-                </div>
-              </div>
+        {linhasLeitura.map((linha, idx) => (
+          <div
+            key={`neg-read-${idx}`}
+            className="grid grid-cols-1 gap-1.5 rounded-lg p-2 sm:grid-cols-[1fr_1fr_minmax(88px,0.75fr)] sm:gap-2 sm:p-0"
+            style={idx > 0 ? { borderTop: '0.5px solid var(--moni-border-subtle)', paddingTop: '8px' } : undefined}
+          >
+            <div className="min-w-0">
+              <span className="text-[10px] font-medium text-[var(--moni-text-tertiary)] sm:hidden">Condição</span>
+              <div className="text-xs text-[var(--moni-text-primary)]">{linha.condicao.trim() || '—'}</div>
             </div>
-          );
-        })}
+            <div className="min-w-0">
+              <span className="text-[10px] font-medium text-[var(--moni-text-tertiary)] sm:hidden">Valor</span>
+              <div className="text-xs text-[var(--moni-text-primary)]">{fmtMoedaKanban(linha.valor) || '—'}</div>
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] font-medium text-[var(--moni-text-tertiary)] sm:hidden">Data pagamento</span>
+              <div className="text-xs text-[var(--moni-text-primary)]">{fmtData(linha.dataPagamento)}</div>
+            </div>
+          </div>
+        ))}
       </div>
     );
   }
@@ -123,23 +111,26 @@ export function KanbanCardModalNegociacaoLinhasField({
       <legend className="px-1 text-[11px] font-medium text-[var(--moni-text-secondary)]">Negociação</legend>
 
       <div
-        className="mb-1.5 hidden gap-2 px-0.5 text-[10px] font-medium text-[var(--moni-text-tertiary)] sm:grid sm:grid-cols-[1fr_1fr_minmax(140px,1fr)_32px]"
+        className="mb-1.5 hidden gap-2 px-0.5 text-[10px] font-medium text-[var(--moni-text-tertiary)] sm:grid sm:grid-cols-[1fr_1fr_minmax(108px,0.8fr)_minmax(120px,1fr)_32px]"
         aria-hidden
       >
         <span>Condição</span>
         <span>Valor</span>
-        <span>Pagamento</span>
+        <span>Data</span>
+        <span>Atrelar à fase</span>
         <span />
       </div>
 
       <div className="space-y-2">
         {linhas.map((linha) => {
-          const faseId = String(linha.faseId ?? '').trim();
-          const modoFase = Boolean(faseId);
+          const vinculo = String(linha.vinculoCalculadora ?? '').trim();
+          const temVinculo = vinculo.length > 0;
+          const resolvida = datasResolvidas?.get(linha.id);
+
           return (
             <div
               key={linha.id}
-              className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_minmax(140px,1fr)_32px] sm:items-start"
+              className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_minmax(108px,0.8fr)_minmax(120px,1fr)_32px] sm:items-start"
             >
               <label className="block min-w-0">
                 <span className="text-[10px] font-medium text-[var(--moni-text-tertiary)] sm:hidden">Condição</span>
@@ -160,44 +151,52 @@ export function KanbanCardModalNegociacaoLinhasField({
                   className={`${inputClass} gap-0`}
                 />
               </label>
-              <div className="min-w-0 space-y-1">
-                <span className="text-[10px] font-medium text-[var(--moni-text-tertiary)] sm:hidden">Pagamento</span>
-                <select
-                  value={modoFase ? faseId : NEGOCIACAO_MODO_DATA}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v === NEGOCIACAO_MODO_DATA) {
-                      atualizarLinha(linha.id, { faseId: '' });
-                    } else {
-                      atualizarLinha(linha.id, { faseId: v, dataPagamento: '' });
-                    }
-                  }}
-                  className={inputClass}
-                  style={inputStyle}
-                  aria-label="Atrelar pagamento a fase ou data fixa"
-                >
-                  <option value={NEGOCIACAO_MODO_DATA}>Data fixa</option>
-                  {fasesCalculadora.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      Fase: {f.nome}
-                    </option>
-                  ))}
-                </select>
-                {!modoFase ? (
+              <label className="block min-w-0">
+                <span className="text-[10px] font-medium text-[var(--moni-text-tertiary)] sm:hidden">Data pagamento</span>
+                {temVinculo ? (
+                  <div
+                    className={`${inputClass} flex flex-col justify-center`}
+                    style={inputStyle}
+                    title={resolvida?.data ? fmtData(resolvida.data) : undefined}
+                  >
+                    <span className="text-xs text-[var(--moni-text-primary)]">
+                      {fmtData(resolvida?.data ?? null)}
+                    </span>
+                    <span className="text-[10px] text-[var(--moni-text-tertiary)]">
+                      {resolvida?.prevista === false ? 'real' : 'est.'}
+                    </span>
+                  </div>
+                ) : (
                   <input
                     type="date"
                     value={linha.dataPagamento}
                     onChange={(e) => atualizarLinha(linha.id, { dataPagamento: e.target.value })}
                     className={inputClass}
                     style={inputStyle}
-                    aria-label="Data de pagamento"
                   />
-                ) : (
-                  <p className="px-0.5 text-[10px] leading-snug text-[var(--moni-text-tertiary)]">
-                    Data da fase na calculadora
-                  </p>
                 )}
-              </div>
+              </label>
+              <label className="block min-w-0">
+                <span className="text-[10px] font-medium text-[var(--moni-text-tertiary)] sm:hidden">Atrelar à fase</span>
+                <select
+                  value={vinculo}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    atualizarLinha(linha.id, {
+                      vinculoCalculadora: next,
+                      dataPagamento: next ? '' : linha.dataPagamento,
+                    });
+                  }}
+                  className={inputClass}
+                  style={inputStyle}
+                >
+                  {opcoesVinculo.map((o) => (
+                    <option key={o.value || '__manual'} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <div className="flex items-center justify-end sm:justify-center sm:pt-1">
                 <button
                   type="button"

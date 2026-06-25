@@ -1735,6 +1735,47 @@
   border: none;
 }
 
+.moni-calculadora-negociacao {
+  margin-top: 4px;
+  padding-bottom: 8px;
+}
+
+.moni-calculadora-negociacao-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  font-family: var(--moni-font-sans);
+}
+
+.moni-calculadora-negociacao-title {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--moni-text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.moni-calculadora-negociacao-table-header {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(72px, 0.75fr);
+}
+
+.moni-calculadora-negociacao-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(72px, 0.75fr);
+  gap: 8px;
+  align-items: start;
+  padding: 6px 8px;
+  border-bottom: 0.5px solid var(--moni-calc-separator);
+  font-family: var(--moni-font-sans);
+}
+
+.moni-calculadora-negociacao-row:last-child {
+  border-bottom: none;
+}
+
 .moni-calculadora-funil-header {
   display: flex;
   align-items: center;
@@ -1759,47 +1800,6 @@
 
 .moni-calculadora-funil-header--operacoes {
   background: var(--moni-calc-funil-operacoes-header-bg);
-}
-
-.moni-calculadora-funil-header--negociacao {
-  background: var(--moni-surface-100);
-  cursor: default;
-}
-
-.moni-calculadora-funil-dot--negociacao {
-  background: var(--moni-navy-800);
-}
-
-.moni-calculadora-table-header--negociacao {
-  grid-template-columns: minmax(0, 1fr) 88px 60px 80px 96px;
-}
-
-.moni-calculadora-negociacao-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 88px 60px 80px 96px;
-  align-items: start;
-  gap: 6px;
-  padding: 8px;
-  border-radius: var(--moni-radius-md);
-  border: 0.5px solid var(--moni-border-subtle);
-  background: var(--moni-surface-0);
-  margin-bottom: 4px;
-}
-
-.moni-calculadora-negociacao-valor {
-  font-family: var(--moni-font-sans);
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--moni-text-primary);
-  text-align: right;
-  padding-top: 2px;
-}
-
-.moni-calculadora-negociacao-fase-hint {
-  display: block;
-  margin-top: 2px;
-  font-size: 9px;
-  color: var(--moni-text-tertiary);
 }
 
 .moni-calculadora-funil-dot {

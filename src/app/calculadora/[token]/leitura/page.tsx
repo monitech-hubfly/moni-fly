@@ -57,9 +57,9 @@ export default async function CalculadoraPublicaPage({ params }: Props) {
         fases={fasesFlat}
         fasesMeta={fasesMeta}
         marcos={marcos}
+        negociacaoLinhas={negociacaoLinhas}
         variant="painel"
         modoPublico
-        negociacaoLinhas={negociacaoLinhas}
       />
 
       <p
