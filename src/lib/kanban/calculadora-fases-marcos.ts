@@ -632,17 +632,7 @@ export function montarTimelineCalculadoraComMarcos(
         refYmd,
       );
       if (contratoTemFimReal(marcosInput) && marco.dataLimiteContrato) {
-        const limite = marco.dataLimiteContrato;
         marco = { ...marco, limiteContratoReal: true };
-        if (!marco.dataFimReal) {
-          marco = {
-            ...marco,
-            dataFimReal: limite,
-            dataFim: limite,
-            data: limite,
-            isPrevisto: false,
-          };
-        }
       }
     }
 

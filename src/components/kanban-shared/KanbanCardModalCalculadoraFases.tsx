@@ -325,20 +325,25 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
     );
   }
 
-  const inicio = marco.dataInicioReal ?? marco.dataInicio;
+  const limiteContrato = marco.dataLimiteContrato;
+  const isM4ComLimite = id === 'M4' && Boolean(limiteContrato);
+  const inicio = isM4ComLimite
+    ? limiteContrato!
+    : marco.dataInicioReal ?? marco.dataInicio;
   const fim =
     marco.dataFimReal ??
     marco.dataFimEstimada ??
     marco.dataFim ??
     marco.data;
-  const inicioLabel = labelSufixoDataCalculadora(Boolean(marco.dataInicioReal));
-  const fimLabel = labelSufixoDataCalculadora(
-    Boolean(marco.dataFimReal || marco.limiteContratoReal),
-  );
+  const inicioLabel = isM4ComLimite
+    ? marco.limiteContratoReal
+      ? 'real'
+      : 'est. · limite'
+    : labelSufixoDataCalculadora(Boolean(marco.dataInicioReal));
+  const fimLabel = labelSufixoDataCalculadora(Boolean(marco.dataFimReal));
   const fimAtraso =
     marco.status === 'atual_atrasada' ||
     (marco.status === 'concluida_atraso' && Boolean(marco.dataFimReal));
-  const limiteContrato = marco.dataLimiteContrato;
   const custo = String(marco.custo ?? '').trim();
   const temCusto = custo.length > 0 && custo !== '—';
 
@@ -369,12 +374,7 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
         >
           {fmtData(fim)}
         </span>
-        <span className="moni-calculadora-fase-data-label">
-          {fimLabel}
-          {limiteContrato && id === 'M4' && !marco.dataFimReal && !marco.limiteContratoReal
-            ? ` · limite ${fmtData(limiteContrato)}`
-            : ''}
-        </span>
+        <span className="moni-calculadora-fase-data-label">{fimLabel}</span>
       </div>
 
       <div className="moni-calculadora-fase-status-col">
