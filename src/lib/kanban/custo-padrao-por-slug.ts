@@ -18,9 +18,9 @@ export const CUSTO_PADRAO_POR_SLUG: Record<string, string> = {
   // Funil Operações
   planialtimetrico:
     'Franqueado: levantamento planialtimétrico, sondagem de solo e análises técnicas do terreno.',
-  aprovacao_condominio: 'Franqueado: registro de responsabilidade técnica do projeto.',
+  aprovacao_condominio: 'Franqueado: registros de responsabilidade técnica e taxas de aprovação',
   aprovacao_prefeitura:
-    'Franqueado: registro de responsabilidade técnica da execução da obra; taxas municipais e protocolos necessários para aprovação de obras.',
+    'Franqueado: registro de responsabilidade e taxas municipais e protocolos necessários para aprovação de obras.',
   processos_cartorarios:
     'Moní: pagamento de entrada · Moní: comissão do corretor · Franqueado: escritura pública, registro de matrícula, autenticações, taxas legais e emissões de documentos.',
 };
