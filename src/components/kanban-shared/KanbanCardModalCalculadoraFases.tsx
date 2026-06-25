@@ -260,10 +260,11 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
     const dataLimite =
       marco.dataFimReal ?? marco.dataFimEstimada ?? marco.dataFim ?? marco.data;
     const limiteLabel = labelSufixoDataCalculadora(Boolean(marco.dataFimReal));
+    const exibirData = Boolean(dataLimite) || marco.isPrevisto;
 
     return (
       <div
-        className={`moni-calculadora-marco-row moni-calculadora-marco-row--${id} moni-calculadora-marco-row--somente-rotulo${dataLimite ? ' moni-calculadora-marco-row--somente-rotulo-com-limite' : ''}`}
+        className={`moni-calculadora-marco-row moni-calculadora-marco-row--${id} moni-calculadora-marco-row--somente-rotulo${exibirData ? ' moni-calculadora-marco-row--somente-rotulo-com-limite' : ''}`}
         role="separator"
       >
         <div className="moni-calculadora-marco-col min-w-0">
@@ -279,7 +280,7 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
           </div>
         </div>
 
-        {dataLimite ? (
+        {exibirData ? (
           <>
             <div aria-hidden />
             <div aria-hidden />

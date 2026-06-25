@@ -41,6 +41,7 @@ export type CalculadoraPublicaCard = {
   concluido: boolean;
   concluido_em: string | null;
   contrato_assinado_em: string | null;
+  obra_iniciada_em: string | null;
   obra_finalizada_em: string | null;
   opcao_assinada_em: string | null;
   processo_step_one_id: string | null;
@@ -235,6 +236,7 @@ async function montarCalculadoraPack(
 
   const marcosBase: Omit<CalculadoraMarcosInput, 'prazo_opcao' | 'prazo_instrumento_garantidor'> = {
     contrato_assinado_em: card.contrato_assinado_em,
+    obra_iniciada_em: card.obra_iniciada_em,
     obra_finalizada_em: card.obra_finalizada_em,
     concluido_em: card.concluido_em,
     opcao_assinada_em: card.opcao_assinada_em,
@@ -283,7 +285,7 @@ export async function fetchCalculadoraPublicaByToken(
   const { data: row, error } = await admin
     .from('kanban_cards')
     .select(
-      'id, titulo, kanban_id, fase_id, created_at, entered_fase_at, concluido, concluido_em, contrato_assinado_em, obra_finalizada_em, opcao_assinada_em, processo_step_one_id, condominio_id, status',
+      'id, titulo, kanban_id, fase_id, created_at, entered_fase_at, concluido, concluido_em, contrato_assinado_em, obra_iniciada_em, obra_finalizada_em, opcao_assinada_em, processo_step_one_id, condominio_id, status',
     )
     .eq('id', cardId)
     .eq('status', 'ativo')
@@ -305,6 +307,8 @@ export async function fetchCalculadoraPublicaByToken(
     concluido_em: row.concluido_em != null ? String(row.concluido_em) : null,
     contrato_assinado_em:
       row.contrato_assinado_em != null ? String(row.contrato_assinado_em) : null,
+    obra_iniciada_em:
+      row.obra_iniciada_em != null ? String(row.obra_iniciada_em) : null,
     obra_finalizada_em:
       row.obra_finalizada_em != null ? String(row.obra_finalizada_em) : null,
     opcao_assinada_em:

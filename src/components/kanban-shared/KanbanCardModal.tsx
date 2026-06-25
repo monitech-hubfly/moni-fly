@@ -3443,6 +3443,7 @@ export function KanbanCardModal({
     const prazos = negocioPrazoValoresFromProcessoModal(modalDetalhes.processo, fasesNegocioPrazo);
     return {
       contrato_assinado_em: card?.contrato_assinado_em ?? null,
+      obra_iniciada_em: card?.obra_iniciada_em ?? null,
       obra_finalizada_em: card?.obra_finalizada_em ?? null,
       concluido_em: card?.concluido_em ?? null,
       opcao_assinada_em: card?.opcao_assinada_em ?? null,
@@ -3455,6 +3456,7 @@ export function KanbanCardModal({
   }, [
     modalDetalhes.processo,
     card?.contrato_assinado_em,
+    card?.obra_iniciada_em,
     card?.obra_finalizada_em,
     card?.concluido_em,
     card?.opcao_assinada_em,

@@ -15,13 +15,30 @@ import {
   type NegocioPrazoValores,
 } from '@/lib/kanban/dados-negocio-prazo';
 
-export type CalculadoraMarcoId = 'M0' | 'M4' | 'M24' | 'MO' | 'MIG';
+export type CalculadoraMarcoId =
+  | 'M0'
+  | 'M4'
+  | 'M24'
+  | 'MO'
+  | 'MIG'
+  | 'fim_planta'
+  | 'fim_target'
+  | 'fim_liquidacao';
 
 /** Meses após o fim do contrato (M0) para o limite regulatório do marco M4. */
 export const M4_MESES_APOS_FIM_CONTRATO = 4;
 
 /** Meses após o fim do contrato (M0) para a data limite do marco M24 Fim da Operação. */
 export const M24_MESES_APOS_FIM_CONTRATO = 24;
+
+/** Meses após `obra_iniciada_em` para o fim do cenário planta (BCA). */
+export const FIM_PLANTA_MESES_APOS_OBRA = 3;
+
+/** Meses após `obra_iniciada_em` para o fim do cenário target (BCA). */
+export const FIM_TARGET_MESES_APOS_OBRA = 8;
+
+/** Meses após `obra_iniciada_em` para o fim do cenário liquidação (BCA). */
+export const FIM_LIQUIDACAO_MESES_APOS_OBRA = 12;
 
 export type CalculadoraMarco = {
   id: CalculadoraMarcoId;
@@ -47,6 +64,7 @@ export type CalculadoraMarco = {
 
 export type CalculadoraMarcosInput = {
   contrato_assinado_em?: string | null;
+  obra_iniciada_em?: string | null;
   obra_finalizada_em?: string | null;
   concluido_em?: string | null;
   opcao_assinada_em?: string | null;
@@ -135,6 +153,40 @@ const MARCOS_PRAZO_NEGOCIO: {
       );
       return { dataInicio: null, dataFim: dataLimite, isPrevisto: true };
     },
+  },
+];
+
+const MARCOS_BCA: {
+  id: Extract<CalculadoraMarcoId, 'fim_planta' | 'fim_target' | 'fim_liquidacao'>;
+  label: string;
+  mesesAposObra: number;
+  anchorSlug: string;
+  posicao: 'within_em_obra' | 'after_em_obra' | 'after_operacoes_entregue';
+  somenteRotulo: true;
+}[] = [
+  {
+    id: 'fim_planta',
+    label: 'Fim cenário planta',
+    mesesAposObra: FIM_PLANTA_MESES_APOS_OBRA,
+    anchorSlug: FASE_SLUGS.EM_OBRA,
+    posicao: 'within_em_obra',
+    somenteRotulo: true,
+  },
+  {
+    id: 'fim_target',
+    label: 'Fim cenário target',
+    mesesAposObra: FIM_TARGET_MESES_APOS_OBRA,
+    anchorSlug: FASE_SLUGS.EM_OBRA,
+    posicao: 'after_em_obra',
+    somenteRotulo: true,
+  },
+  {
+    id: 'fim_liquidacao',
+    label: 'Fim cenário liquidação',
+    mesesAposObra: FIM_LIQUIDACAO_MESES_APOS_OBRA,
+    anchorSlug: FASE_SLUGS.OPERACOES_ENTREGUE,
+    posicao: 'after_operacoes_entregue',
+    somenteRotulo: true,
   },
 ];
 
@@ -359,6 +411,93 @@ function insertIndexPorData(items: CalculadoraTimelineItem[], dataYmd: string): 
   return items.length;
 }
 
+function findPhaseItemIndexBySlug(
+  items: CalculadoraTimelineItem[],
+  slugs: Map<string, string | null | undefined>,
+  slug: string,
+): number {
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i]!;
+    if (it.kind !== 'fase') continue;
+    if (slugs.get(it.linha.faseId) === slug) return i;
+  }
+  return -1;
+}
+
+function findMarcoItemIndex(items: CalculadoraTimelineItem[], id: CalculadoraMarcoId): number {
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i]!;
+    if (it.kind === 'marco' && it.marco.id === id) return i;
+  }
+  return -1;
+}
+
+/** Datas derivadas de `obra_iniciada_em` (+ meses calendário). Sem âncora → previsto sem data. */
+function resolverDatasMarcoBca(
+  input: CalculadoraMarcosInput,
+  mesesAposObra: number,
+): MarcoDatas {
+  const inicioObra = toYmd(input.obra_iniciada_em);
+  if (!inicioObra) return { dataInicio: null, dataFim: null, isPrevisto: true };
+  const dataFim = adicionarMesesCalendarioYmd(inicioObra, mesesAposObra);
+  return { dataInicio: null, dataFim, isPrevisto: true };
+}
+
+function insertIndexMarcoBca(
+  items: CalculadoraTimelineItem[],
+  slugs: Map<string, string | null | undefined>,
+  def: (typeof MARCOS_BCA)[number],
+  dataYmd: string | null,
+): number {
+  const idxEmObra = findPhaseItemIndexBySlug(items, slugs, FASE_SLUGS.EM_OBRA);
+  const idxEntregue = findPhaseItemIndexBySlug(items, slugs, FASE_SLUGS.OPERACOES_ENTREGUE);
+
+  if (def.posicao === 'within_em_obra') {
+    let insertAt = idxEmObra >= 0 ? idxEmObra + 1 : items.length;
+    if (dataYmd) insertAt = Math.max(insertAt, insertIndexPorData(items, dataYmd));
+    return insertAt;
+  }
+
+  if (def.posicao === 'after_em_obra') {
+    let insertAt = idxEmObra >= 0 ? idxEmObra + 1 : items.length;
+    const idxPlanta = findMarcoItemIndex(items, 'fim_planta');
+    if (idxPlanta >= 0) insertAt = Math.max(insertAt, idxPlanta + 1);
+    if (dataYmd) insertAt = Math.max(insertAt, insertIndexPorData(items, dataYmd));
+    return insertAt;
+  }
+
+  let insertAt = idxEntregue >= 0 ? idxEntregue + 1 : items.length;
+  if (dataYmd) insertAt = Math.max(insertAt, insertIndexPorData(items, dataYmd));
+  return insertAt;
+}
+
+function inserirMarcosBca(
+  items: CalculadoraTimelineItem[],
+  marcosInput: CalculadoraMarcosInput,
+  slugs: Map<string, string | null | undefined>,
+): CalculadoraTimelineItem[] {
+  const out = [...items];
+
+  for (const def of MARCOS_BCA) {
+    const datas = resolverDatasMarcoBca(marcosInput, def.mesesAposObra);
+    const marco = marcoFromDatas(datas, {
+      id: def.id,
+      label: def.label,
+      funilLabel: 'Dados do Negócio',
+      custo: null,
+      somenteRotulo: def.somenteRotulo,
+    });
+    const refData = marco.dataFim ?? marco.dataInicio;
+    const idx = insertIndexMarcoBca(out, slugs, def, refData);
+    out.splice(idx, 0, {
+      kind: 'marco',
+      marco: { ...marco, funilLabel: funilLabelNoIndice(out, idx) },
+    });
+  }
+
+  return out;
+}
+
 function inserirMarcosPrazoNegocio(
   items: CalculadoraTimelineItem[],
   marcosInput: CalculadoraMarcosInput,
@@ -394,7 +533,15 @@ function inserirMarcosPrazoNegocio(
   for (const marco of candidatos) {
     const refData = marco.dataFim ?? marco.dataInicio;
     if (!refData) continue;
-    const idx = insertIndexPorData(out, refData);
+    let idx = insertIndexPorData(out, refData);
+    if (marco.id === 'M24') {
+      const idxLiq = findMarcoItemIndex(out, 'fim_liquidacao');
+      if (idxLiq >= 0) idx = Math.max(idx, idxLiq + 1);
+      else {
+        const idxEnt = findPhaseItemIndexBySlug(out, slugs, FASE_SLUGS.OPERACOES_ENTREGUE);
+        if (idxEnt >= 0) idx = Math.max(idx, idxEnt + 1);
+      }
+    }
     out.splice(idx, 0, {
       kind: 'marco',
       marco: { ...marco, funilLabel: funilLabelNoIndice(out, idx) },
@@ -457,6 +604,7 @@ export function montarTimelineCalculadoraComMarcos(
     else items.splice(index, 0, { kind: 'marco', marco });
   }
 
+  items = inserirMarcosBca(items, marcosInput, slugs);
   items = inserirMarcosPrazoNegocio(items, marcosInput, linhas, slugs);
   return items;
 }
