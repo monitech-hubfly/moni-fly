@@ -1,6 +1,14 @@
 import type { KanbanFase } from '@/components/kanban-shared/types';
-import type { CalculadoraFaseLinha } from '@/lib/kanban/calculadora-fases';
-import type { CalculadoraTimelineItem } from '@/lib/kanban/calculadora-fases-marcos';
+import {
+  calculadoraHojeYmd,
+  type CalculadoraFaseLinha,
+  type FaseTimelineStatus,
+} from '@/lib/kanban/calculadora-fases';
+import {
+  funilLabelNoIndice,
+  insertIndexPorData,
+  type CalculadoraTimelineItem,
+} from '@/lib/kanban/calculadora-fases-marcos';
 import {
   type NegociacaoLinha,
   negociacaoLinhaTemConteudo,
@@ -14,6 +22,7 @@ export type NegociacaoLinhaCalculadora = NegociacaoLinha & {
   dataPagamentoResolvida: string | null;
   dataPagamentoPrevista: boolean;
   vinculoLabel: string | null;
+  status: FaseTimelineStatus;
 };
 
 const MARCOS_VINCULO: { id: string; label: string }[] = [
@@ -119,6 +128,7 @@ export function resolverNegociacaoLinhasCalculadora(
         dataPagamentoResolvida,
         dataPagamentoPrevista,
         vinculoLabel: vinculo ? resolvido.label : null,
+        status: derivarStatusNegociacao(dataPagamentoResolvida),
       };
     });
 }
@@ -130,4 +140,48 @@ export function labelVinculoCalculadora(
   const v = String(vinculoRaw ?? '').trim();
   if (!v) return null;
   return opcoes.find((o) => o.value === v)?.label ?? v;
+}
+
+function derivarStatusNegociacao(dataPagamentoResolvida: string | null): FaseTimelineStatus {
+  const data = dataPagamentoResolvida?.trim().slice(0, 10);
+  if (!data || !/^\d{4}-\d{2}-\d{2}$/.test(data)) return 'futura';
+  const hoje = calculadoraHojeYmd();
+  if (data < hoje) return 'concluida';
+  if (data === hoje) return 'atual';
+  return 'futura';
+}
+
+export function inserirNegociacaoNaTimeline(
+  items: CalculadoraTimelineItem[],
+  negociacaoResolvida: NegociacaoLinhaCalculadora[],
+): CalculadoraTimelineItem[] {
+  if (negociacaoResolvida.length === 0) return items;
+
+  const out = [...items];
+  const ordenadas = negociacaoResolvida.map((negociacao, index) => ({ negociacao, index }));
+
+  ordenadas.sort((a, b) => {
+    const da = a.negociacao.dataPagamentoResolvida ?? '9999-99-99';
+    const db = b.negociacao.dataPagamentoResolvida ?? '9999-99-99';
+    if (da !== db) return db < da ? -1 : 1;
+    return b.index - a.index;
+  });
+
+  for (const { negociacao, index } of ordenadas) {
+    const data = negociacao.dataPagamentoResolvida?.trim().slice(0, 10);
+    const temData = Boolean(data && /^\d{4}-\d{2}-\d{2}$/.test(data));
+    const idx = temData && data ? insertIndexPorData(out, data) : out.length;
+    const funilLabel = temData ? funilLabelNoIndice(out, idx) : 'Negociação';
+    out.splice(idx, 0, {
+      kind: 'negociacao',
+      negociacao: {
+        ...negociacao,
+        status: derivarStatusNegociacao(negociacao.dataPagamentoResolvida),
+      },
+      index,
+      funilLabel,
+    });
+  }
+
+  return out;
 }

@@ -27,6 +27,7 @@ import type { KanbanFase } from '@/components/kanban-shared/types';
 import type { NegociacaoLinha } from '@/lib/kanban/negociacao-linhas';
 import {
   resolverNegociacaoLinhasCalculadora,
+  inserirNegociacaoNaTimeline,
   type NegociacaoLinhaCalculadora,
 } from '@/lib/kanban/calculadora-negociacao';
 import { fmtMoedaKanban } from '@/lib/kanban/kanban-card-modal-detalhes';
@@ -54,7 +55,7 @@ type Props = {
     campo: 'inicio' | 'fim',
     valor: string | null,
   ) => Promise<{ ok: boolean; error?: string }>;
-  /** Linhas de negociação (Dados do Negócio) — exibidas ao final da calculadora. */
+  /** Linhas de negociação — intercaladas na timeline como condições. */
   negociacaoLinhas?: NegociacaoLinha[];
 };
 
@@ -176,7 +177,8 @@ function prazoPillClass(atrasada: boolean): string {
   return `moni-calc-prazo-pill${atrasada ? ' at' : ' undef'}`;
 }
 
-function funilEsteiraKind(label: string): 'stepone' | 'portfolio' | 'operacoes' {
+function funilEsteiraKind(label: string): 'stepone' | 'portfolio' | 'operacoes' | 'negociacao' {
+  if (/negocia/i.test(label)) return 'negociacao';
   if (/step\s*one|stepone/i.test(label)) return 'stepone';
   if (/portf[oó]lio/i.test(label)) return 'portfolio';
   return 'operacoes';
@@ -403,6 +405,58 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
           </ul>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function CalculadoraNegociacaoRow({ negociacao }: { negociacao: NegociacaoLinhaCalculadora }) {
+  const titulo = negociacao.condicao.trim() || '—';
+  const fim = negociacao.dataPagamentoResolvida;
+  const fimLabel = labelSufixoDataCalculadora(!negociacao.dataPagamentoPrevista);
+  const valorFmt = fmtMoedaKanban(negociacao.valor);
+  const status = negociacao.status;
+
+  return (
+    <div
+      className={`moni-calculadora-fase-row moni-calculadora-fase-row--no-expand moni-calculadora-negociacao-row ${statusRowClass(status)}`}
+    >
+      <div className="moni-calculadora-fase-col min-w-0">
+        <div className="moni-calculadora-fase-nome-wrap">
+          <span className="moni-calculadora-fase-nome fn" title={titulo}>
+            {titulo}
+          </span>
+          <span className="moni-calculadora-negociacao-badge">Negociação</span>
+        </div>
+        {valorFmt ? (
+          <div className="moni-calculadora-fase-sla-wrap">
+            <div className="moni-calculadora-fase-sla fsla">{valorFmt}</div>
+          </div>
+        ) : null}
+      </div>
+
+      <div>
+        <span
+          className="moni-calculadora-fase-responsavel resp"
+          title={negociacao.vinculoLabel ?? 'Manual'}
+        >
+          {negociacao.vinculoLabel ?? 'Manual'}
+        </span>
+      </div>
+
+      <div aria-hidden />
+
+      <div className="moni-calculadora-fase-data-cell">
+        <span className={`moni-calculadora-fase-data fd-val${!fim ? ' fd-val--empty' : ''}`}>
+          {fmtData(fim)}
+        </span>
+        <span className="moni-calculadora-fase-data-label">{fimLabel}</span>
+      </div>
+
+      <div className="moni-calculadora-fase-status-col">
+        <span className={statusBadgeClass(status)}>
+          <CalculadoraStatusLabel status={status} />
+        </span>
+      </div>
     </div>
   );
 }
@@ -694,6 +748,7 @@ function etapasVisiveisFunil(items: CalculadoraTimelineItem[]): CalculadoraTimel
 
 function etapaVisivelConcluida(item: CalculadoraTimelineItem): boolean {
   if (item.kind === 'fase') return isStatusConcluido(item.linha.status);
+  if (item.kind === 'negociacao') return isStatusConcluido(item.negociacao.status);
   if (item.marco.somenteRotulo || item.marco.status == null) return true;
   return isStatusConcluido(item.marco.status);
 }
@@ -739,8 +794,9 @@ function CalculadoraFunilGroup({
 }) {
   const etapasVisiveis = etapasVisiveisFunil(items);
   const concluidas = etapasVisiveis.filter(etapaVisivelConcluida).length;
-
+  const condicoesNegociacao = items.filter((i) => i.kind === 'negociacao');
   const esteira = funilEsteiraKind(label);
+  const isFunilNegociacao = esteira === 'negociacao';
 
   return (
     <section
@@ -754,7 +810,9 @@ function CalculadoraFunilGroup({
         <span className={`moni-calculadora-funil-dot moni-calculadora-funil-dot--${esteira}`} aria-hidden />
         <span className="moni-calculadora-funil-title">{label.replace(/^Funil /i, '')}</span>
         <span className="moni-calculadora-funil-count">
-          {etapasVisiveis.length} fases · {concluidas} concluídas
+          {isFunilNegociacao && condicoesNegociacao.length > 0
+            ? `${condicoesNegociacao.length} condição${condicoesNegociacao.length === 1 ? '' : 'ões'}`
+            : `${etapasVisiveis.length} fases · ${concluidas} concluídas`}
         </span>
         <span className="moni-calculadora-funil-chev" aria-hidden>
           <ChevronDown size={14} strokeWidth={2} />
@@ -769,10 +827,24 @@ function CalculadoraFunilGroup({
           <span>Fim</span>
           <span>Status</span>
         </div>
-        {items.map((item) =>
-          item.kind === 'marco' ? (
-            <CalculadoraMarcoRow key={`marco-${item.marco.id}-${item.marco.dataFim ?? ''}`} marco={item.marco} />
-          ) : (
+        {items.map((item) => {
+          if (item.kind === 'marco') {
+            return (
+              <CalculadoraMarcoRow
+                key={`marco-${item.marco.id}-${item.marco.dataFim ?? ''}`}
+                marco={item.marco}
+              />
+            );
+          }
+          if (item.kind === 'negociacao') {
+            return (
+              <CalculadoraNegociacaoRow
+                key={`negociacao-${item.index}-${item.negociacao.condicao}`}
+                negociacao={item.negociacao}
+              />
+            );
+          }
+          return (
             <CalculadoraFaseRow
               key={item.linha.faseId}
               row={item.linha}
@@ -783,56 +855,9 @@ function CalculadoraFunilGroup({
               ordemAtual={ordemAtual}
               onSalvarData={onSalvarData}
             />
-          ),
-        )}
+          );
+        })}
       </div>
-    </section>
-  );
-}
-
-function CalculadoraNegociacaoSection({ linhas }: { linhas: NegociacaoLinhaCalculadora[] }) {
-  if (linhas.length === 0) return null;
-
-  return (
-    <section className="moni-calculadora-negociacao">
-      <hr className="moni-calculadora-funil-separator" />
-      <div className="moni-calculadora-negociacao-header">
-        <span className="moni-calculadora-funil-dot moni-calculadora-funil-dot--operacoes" aria-hidden />
-        <span className="moni-calculadora-negociacao-title">Negociação</span>
-        <span className="moni-calculadora-funil-count">{linhas.length} parcela{linhas.length === 1 ? '' : 's'}</span>
-      </div>
-      <div className="moni-calculadora-table-header moni-calculadora-negociacao-table-header">
-        <span>Condição</span>
-        <span>Valor</span>
-        <span>Vínculo</span>
-        <span>Data pagamento</span>
-      </div>
-      {linhas.map((linha, idx) => (
-        <div
-          key={`neg-calc-${idx}`}
-          className="moni-calculadora-negociacao-row"
-        >
-          <div className="min-w-0">
-            <span className="moni-calculadora-fase-nome fn" title={linha.condicao}>
-              {linha.condicao.trim() || '—'}
-            </span>
-          </div>
-          <div className="min-w-0 text-xs text-[var(--moni-text-primary)]">
-            {fmtMoedaKanban(linha.valor) || '—'}
-          </div>
-          <div className="min-w-0 text-[10px] text-[var(--moni-text-tertiary)]">
-            {linha.vinculoLabel ?? 'Manual'}
-          </div>
-          <div className="moni-calculadora-fase-data-cell">
-            <span className={`moni-calculadora-fase-data fd-val${!linha.dataPagamentoResolvida ? ' fd-val--empty' : ''}`}>
-              {fmtData(linha.dataPagamentoResolvida)}
-            </span>
-            <span className="moni-calculadora-fase-data-label">
-              {linha.dataPagamentoPrevista ? 'est.' : 'real'}
-            </span>
-          </div>
-        </div>
-      ))}
     </section>
   );
 }
@@ -884,17 +909,13 @@ export function KanbanCardModalCalculadoraFases({
     );
   }, [linhas, faseAtualId]);
 
-  const timelineItems = useMemo(
-    () => montarTimelineCalculadoraComMarcos(linhas, fases, marcos ?? { visits }),
-    [linhas, fases, marcos, visits],
-  );
+  const timelineItems = useMemo(() => {
+    const base = montarTimelineCalculadoraComMarcos(linhas, fases, marcos ?? { visits });
+    const resolvida = resolverNegociacaoLinhasCalculadora(negociacaoLinhas, linhas, base);
+    return inserirNegociacaoNaTimeline(base, resolvida);
+  }, [linhas, fases, marcos, visits, negociacaoLinhas]);
 
   const gruposFunil = useMemo(() => agruparTimelinePorFunil(timelineItems), [timelineItems]);
-
-  const negociacaoResolvida = useMemo(
-    () => resolverNegociacaoLinhasCalculadora(negociacaoLinhas, linhas, timelineItems),
-    [negociacaoLinhas, linhas, timelineItems],
-  );
 
   useEffect(() => {
     const cid = cardId?.trim() ?? '';
@@ -996,7 +1017,6 @@ export function KanbanCardModalCalculadoraFases({
               />
             </div>
           ))}
-          <CalculadoraNegociacaoSection linhas={negociacaoResolvida} />
         </div>
       </div>
     </div>

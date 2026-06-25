@@ -1,4 +1,4 @@
-/** Linha de negociação em Dados do Negócio (condição · valor · data de pagamento). */
+/** Linha de negociação em Dados do Negócio (condição · valor · data). */
 export type NegociacaoLinha = {
   condicao: string;
   valor: string;

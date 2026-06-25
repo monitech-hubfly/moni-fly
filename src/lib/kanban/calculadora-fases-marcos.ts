@@ -6,6 +6,7 @@ import {
   parseIsoDateOnlyLocal,
 } from '@/lib/dias-uteis';
 import type { CalculadoraFaseLinha, FaseTimelineStatus } from '@/lib/kanban/calculadora-fases';
+import type { NegociacaoLinha } from '@/lib/kanban/negociacao-linhas';
 import type { FaseVisit } from '@/lib/kanban/kanban-card-timeline';
 import {
   negocioPrazoInstrumentoValoresPadrao,
@@ -77,7 +78,18 @@ export type CalculadoraMarcosInput = {
 
 export type CalculadoraTimelineItem =
   | { kind: 'fase'; linha: CalculadoraFaseLinha }
-  | { kind: 'marco'; marco: CalculadoraMarco };
+  | { kind: 'marco'; marco: CalculadoraMarco }
+  | {
+      kind: 'negociacao';
+      negociacao: NegociacaoLinha & {
+        dataPagamentoResolvida: string | null;
+        dataPagamentoPrevista: boolean;
+        vinculoLabel: string | null;
+        status: FaseTimelineStatus;
+      };
+      index: number;
+      funilLabel: string;
+    };
 
 const CUSTO_TRANSFERENCIA_TERRENO =
   'Franqueado: ITBI, impostos, taxas para transferência e custas do terreno';
@@ -398,20 +410,22 @@ type InsercaoMarco = { index: number; marco: CalculadoraMarco; replace: boolean 
 
 function dataReferenciaItem(item: CalculadoraTimelineItem): string | null {
   if (item.kind === 'marco') return item.marco.dataFim ?? item.marco.data;
+  if (item.kind === 'negociacao') return item.negociacao.dataPagamentoResolvida;
   const l = item.linha;
   return l.dataFimReal ?? l.dataFimEstimada ?? l.dataInicioReal ?? null;
 }
 
-function funilLabelNoIndice(items: CalculadoraTimelineItem[], index: number): string {
+export function funilLabelNoIndice(items: CalculadoraTimelineItem[], index: number): string {
   for (let i = index - 1; i >= 0; i--) {
     const it = items[i]!;
     if (it.kind === 'fase' && it.linha.funilLabel) return it.linha.funilLabel;
     if (it.kind === 'marco' && it.marco.funilLabel) return it.marco.funilLabel;
+    if (it.kind === 'negociacao' && it.funilLabel) return it.funilLabel;
   }
   return 'Dados do Negócio';
 }
 
-function insertIndexPorData(items: CalculadoraTimelineItem[], dataYmd: string): number {
+export function insertIndexPorData(items: CalculadoraTimelineItem[], dataYmd: string): number {
   const target = parseIsoDateOnlyLocal(dataYmd);
   if (!target) return items.length;
 
@@ -666,7 +680,9 @@ export function agruparTimelinePorFunil(
     const label =
       item.kind === 'fase'
         ? item.linha.funilLabel ?? 'Fases'
-        : item.marco.funilLabel;
+        : item.kind === 'marco'
+          ? item.marco.funilLabel
+          : item.funilLabel;
 
     const ultimo = grupos[grupos.length - 1];
     if (ultimo && ultimo.label === label) ultimo.items.push(item);

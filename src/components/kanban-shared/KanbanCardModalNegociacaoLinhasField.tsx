@@ -76,7 +76,7 @@ export function KanbanCardModalNegociacaoLinhasField({
         >
           <span>Condição</span>
           <span>Valor</span>
-          <span>Data pagamento</span>
+          <span>Data</span>
         </div>
         {linhasLeitura.map((linha, idx) => (
           <div
@@ -93,7 +93,7 @@ export function KanbanCardModalNegociacaoLinhasField({
               <div className="text-xs text-[var(--moni-text-primary)]">{fmtMoedaKanban(linha.valor) || '—'}</div>
             </div>
             <div className="min-w-0">
-              <span className="text-[10px] font-medium text-[var(--moni-text-tertiary)] sm:hidden">Data pagamento</span>
+              <span className="text-[10px] font-medium text-[var(--moni-text-tertiary)] sm:hidden">Data</span>
               <div className="text-xs text-[var(--moni-text-primary)]">{fmtData(linha.dataPagamento)}</div>
             </div>
           </div>
@@ -152,7 +152,7 @@ export function KanbanCardModalNegociacaoLinhasField({
                 />
               </label>
               <label className="block min-w-0">
-                <span className="text-[10px] font-medium text-[var(--moni-text-tertiary)] sm:hidden">Data pagamento</span>
+                <span className="text-[10px] font-medium text-[var(--moni-text-tertiary)] sm:hidden">Data</span>
                 {temVinculo ? (
                   <div
                     className={`${inputClass} flex flex-col justify-center`}
