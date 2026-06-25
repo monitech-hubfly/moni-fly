@@ -6480,37 +6480,36 @@ export function KanbanCardModal({
                     </button>
                   </div>
                 ) : !modalAprovacaoFase ? (
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <div className="moni-card-modal-movimentacao-grid">
                     <button
                       type="button"
                       onClick={() => void handleRetrocederFase()}
                       disabled={movendoFase || !podeRetrocederFase || !podeMoverFaseCard}
-                      className="flex min-h-[44px] items-center justify-center gap-0.5 rounded border border-stone-300 bg-white px-1 py-1.5 text-[10px] font-semibold leading-tight text-stone-800 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
+                      className="moni-card-modal-movimentacao-btn"
                     >
-                      <ChevronLeft className="h-3 w-3 shrink-0" aria-hidden />
-                      {movendoFase ? '…' : 'Anterior'}
+                      <ChevronLeft className="moni-card-modal-movimentacao-btn-icon" aria-hidden />
+                      <span className="moni-card-modal-movimentacao-btn-label">
+                        {movendoFase ? '…' : 'Anterior'}
+                      </span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setArquivamentoAberto(true)}
                       disabled={loading || !exibirBlocoArquivar}
-                      className="flex min-h-[44px] items-center justify-center rounded border border-stone-300 bg-white px-1 py-1.5 text-[10px] font-semibold leading-tight text-stone-800 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
+                      className="moni-card-modal-movimentacao-btn"
                     >
-                      Arquivar
+                      <span className="moni-card-modal-movimentacao-btn-label">Arquivar</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => void handleAvancarFase()}
                       disabled={movendoFase || !podeAvancarFase || !podeMoverFaseCard}
-                      className="flex min-h-[44px] items-center justify-center gap-0.5 rounded border px-1 py-1.5 text-[10px] font-semibold leading-tight transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
-                      style={{
-                        background: 'var(--moni-green-50)',
-                        color: 'var(--moni-green-800)',
-                        borderColor: 'var(--moni-green-400)',
-                      }}
+                      className="moni-card-modal-movimentacao-btn moni-card-modal-movimentacao-btn--proxima"
                     >
-                      {movendoFase ? '…' : 'Próxima'}
-                      <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
+                      <span className="moni-card-modal-movimentacao-btn-label">
+                        {movendoFase ? '…' : 'Próxima'}
+                      </span>
+                      <ChevronRight className="moni-card-modal-movimentacao-btn-icon" aria-hidden />
                     </button>
                   </div>
                 ) : (

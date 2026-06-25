@@ -247,7 +247,7 @@
   --moni-card-width-kanban:   280px;   /* largura do card na coluna */
   --moni-card-width-min:      240px;
   --moni-card-modal-max:      1180px;  /* largura máx do modal de detalhe */
-  --moni-card-modal-acoes-width: 11.5rem; /* coluna direita (tags, fase, arquivar) */
+  --moni-card-modal-acoes-width: 13rem; /* coluna direita (tags, fase, movimentação) */
   --moni-column-width:        300px;   /* largura da coluna no board */
 
   /* Carômetro — layout de página e headlines */
@@ -2309,6 +2309,82 @@
   font-size: var(--moni-text-base);
   line-height: var(--moni-leading-body);
   color: var(--moni-text-secondary);
+}
+
+/* Card modal — Movimentação (Anterior · Arquivar · Próxima) */
+.moni-card-modal-movimentacao-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+
+.moni-card-modal-movimentacao-btn {
+  box-sizing: border-box;
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 3px;
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  border-radius: var(--moni-radius-md);
+  background: var(--moni-surface-0);
+  color: var(--moni-text-primary);
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.15;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.moni-card-modal-movimentacao-btn:hover:not(:disabled) {
+  background: var(--moni-surface-100);
+}
+
+.moni-card-modal-movimentacao-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.moni-card-modal-movimentacao-btn--proxima {
+  background: var(--moni-green-50);
+  color: var(--moni-green-800);
+  border-color: var(--moni-green-400);
+}
+
+.moni-card-modal-movimentacao-btn--proxima:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.moni-card-modal-movimentacao-btn-icon {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+}
+
+.moni-card-modal-movimentacao-btn-label {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 641px) {
+  .moni-card-modal-movimentacao-btn {
+    min-height: 0;
+    flex-direction: row;
+    gap: 3px;
+    padding: 7px 4px;
+    font-size: 10px;
+  }
 }
 
 /* --------------------------------------------------
