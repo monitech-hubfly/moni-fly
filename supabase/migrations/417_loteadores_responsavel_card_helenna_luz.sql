@@ -29,10 +29,14 @@ BEGIN
     preenchido_em = NOW()
   FROM public.kanban_fase_checklist_itens i
   INNER JOIN public.kanban_fases f ON f.id = i.fase_id
-  INNER JOIN public.kanban_cards c ON c.id = r.card_id
   WHERE r.item_id = i.id
     AND f.kanban_id = v_kanban_id
-    AND c.kanban_id = v_kanban_id
+    AND EXISTS (
+      SELECT 1
+      FROM public.kanban_cards c
+      WHERE c.id = r.card_id
+        AND c.kanban_id = v_kanban_id
+    )
     AND i.campo_slug IN ('responsavel_fase', 'responsavel_contato', 'responsavel_revisao')
     AND trim(r.valor) = v_thais_id::text;
 
