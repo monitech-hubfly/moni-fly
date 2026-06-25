@@ -778,20 +778,6 @@ export function KanbanCardModalCalculadoraFases({
 
       <CalculadoraResumoExecutivo resumo={resumo} linhaAtual={linhaAtual} />
 
-      <p className="moni-calculadora-footnote">
-        SLA em d.u. (dias úteis) e d.c. (dias corridos). Clique no funil para recolher.
-        {podeEditarDatasEfetivo ? (
-          <>
-            {' '}
-            <span className="moni-calculadora-edit-hint">
-              {editandoDatas
-                ? 'Alterações são salvas ao escolher cada data ou status. Fases futuras podem ser marcadas como Concluída.'
-                : 'Use «Editar datas» para ajustar início, fim e status manualmente.'}
-            </span>
-          </>
-        ) : null}
-      </p>
-
       <div className={variant === 'painel' ? 'flex min-h-0 flex-1 flex-col' : undefined}>
         <div
           className={
