@@ -40,8 +40,10 @@ export type CalculadoraTimelineItem =
   | { kind: 'fase'; linha: CalculadoraFaseLinha }
   | { kind: 'marco'; marco: CalculadoraMarco };
 
-const CUSTO_TRANSFERENCIA_TERRENO = 'Franqueado: ITBI, impostos e taxas para transferência';
-const CUSTO_INSTRUMENTO_GARANTIDOR = 'Contratação do Instrumento';
+const CUSTO_TRANSFERENCIA_TERRENO =
+  'Franqueado: ITBI, impostos, taxas para transferência e custas do terreno';
+const CUSTO_INSTRUMENTO_GARANTIDOR =
+  'Franqueado: Contratação do Instrumento (obs: este é o limite, a contratação deve ser feita, finalizada e apresentada ao terrenista antes da Transferência do Terreno)';
 
 type MarcoDatas = {
   dataInicio: string | null;
