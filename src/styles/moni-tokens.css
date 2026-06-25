@@ -1388,6 +1388,15 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* MIG / somenteRotulo — título longo + badge Marco na mesma linha (como M4) */
+.moni-calculadora-marco-row--somente-rotulo .moni-calculadora-marco-label-wrap {
+  flex-wrap: nowrap;
+}
+
+.moni-calculadora-marco-row--somente-rotulo .moni-calculadora-marco-label {
+  min-width: 0;
+}
+
 /* Marcos v4 — separador horizontal */
 .moni-calc-marco-sep {
   display: flex;
