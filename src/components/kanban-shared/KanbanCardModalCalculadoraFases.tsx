@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Pencil } from 'lucide-react';
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import {
   CALCULADORA_STATUS_LABEL,
@@ -250,7 +250,7 @@ function CalculadoraFaseDataCell({
   valor,
   label,
   atraso,
-  editavel,
+  editando,
   onSalvarData,
 }: {
   faseId: string;
@@ -258,7 +258,7 @@ function CalculadoraFaseDataCell({
   valor: string | null;
   label: string;
   atraso?: boolean;
-  editavel: boolean;
+  editando: boolean;
   onSalvarData?: Props['onSalvarData'];
 }) {
   const [salvando, setSalvando] = useState(false);
@@ -267,10 +267,13 @@ function CalculadoraFaseDataCell({
     e.stopPropagation();
   };
 
-  if (!editavel || !onSalvarData) {
+  if (!editando || !onSalvarData) {
     return (
-      <div>
-        <span className={`moni-calculadora-fase-data fd-val${atraso ? ' fd-val--atraso' : ''}`}>
+      <div className="moni-calculadora-fase-data-cell">
+        <span
+          className={`moni-calculadora-fase-data fd-val${atraso ? ' fd-val--atraso' : ''}${!valor ? ' fd-val--empty' : ''}`}
+          title={valor ? fmtData(valor) : undefined}
+        >
           {fmtData(valor)}
         </span>
         <span className="moni-calculadora-fase-data-label">{label}</span>
@@ -279,7 +282,7 @@ function CalculadoraFaseDataCell({
   }
 
   return (
-    <div onClick={stop} onKeyDown={stop}>
+    <div className="moni-calculadora-fase-data-cell moni-calculadora-fase-data-cell--edit" onClick={stop} onKeyDown={stop}>
       <input
         type="date"
         className={`moni-calculadora-fase-data-input${atraso ? ' moni-calculadora-fase-data-input--atraso' : ''}${salvando ? ' moni-calculadora-fase-data-input--saving' : ''}`}
@@ -310,14 +313,14 @@ function CalculadoraFaseRow({
   faseMeta,
   expanded,
   onToggle,
-  podeEditarDatas,
+  editandoDatas,
   onSalvarData,
 }: {
   row: CalculadoraFaseLinha;
   faseMeta: KanbanFase | undefined;
   expanded: boolean;
   onToggle: () => void;
-  podeEditarDatas?: boolean;
+  editandoDatas: boolean;
   onSalvarData?: Props['onSalvarData'];
 }) {
   const steps = parseFaseSteps(faseMeta);
@@ -386,7 +389,7 @@ function CalculadoraFaseRow({
         campo="inicio"
         valor={row.dataInicioReal}
         label={inicioLabel}
-        editavel={podeEditarDatas === true}
+        editando={editandoDatas}
         onSalvarData={onSalvarData}
       />
 
@@ -396,7 +399,7 @@ function CalculadoraFaseRow({
         valor={fimData}
         label={fimLabel}
         atraso={fimAtraso}
-        editavel={podeEditarDatas === true}
+        editando={editandoDatas}
         onSalvarData={onSalvarData}
       />
 
@@ -438,7 +441,7 @@ function CalculadoraFunilGroup({
   onToggle,
   expandedFases,
   onToggleFase,
-  podeEditarDatas,
+  editandoDatas,
   onSalvarData,
 }: {
   label: string;
@@ -448,7 +451,7 @@ function CalculadoraFunilGroup({
   onToggle: () => void;
   expandedFases: Set<string>;
   onToggleFase: (faseId: string) => void;
-  podeEditarDatas?: boolean;
+  editandoDatas: boolean;
   onSalvarData?: Props['onSalvarData'];
 }) {
   const faseItems = items.filter((i) => i.kind === 'fase');
@@ -497,7 +500,7 @@ function CalculadoraFunilGroup({
               faseMeta={fasesMeta.get(item.linha.faseId)}
               expanded={expandedFases.has(item.linha.faseId)}
               onToggle={() => onToggleFase(item.linha.faseId)}
-              podeEditarDatas={podeEditarDatas}
+              editandoDatas={editandoDatas}
               onSalvarData={onSalvarData}
             />
           ),
@@ -523,6 +526,7 @@ export function KanbanCardModalCalculadoraFases({
 }: Props) {
   const [collapsedFunis, setCollapsedFunis] = useState<Set<string>>(new Set());
   const [expandedFases, setExpandedFases] = useState<Set<string>>(new Set());
+  const [editandoDatas, setEditandoDatas] = useState(false);
   const { loading: shareLoading, copied: shareCopied, gerarECopiar } = useCalculadoraShareLink(
     cardId ?? '',
   );
@@ -575,20 +579,38 @@ export function KanbanCardModalCalculadoraFases({
     );
   }
 
+  const podeEditarDatasEfetivo = podeEditarDatas && !modoPublico && Boolean(onSalvarData);
+
   return (
-    <div className={variant === 'painel' ? 'flex h-full min-h-0 flex-col gap-2' : 'space-y-2'}>
+    <div
+      className={`${variant === 'painel' ? 'flex h-full min-h-0 flex-col gap-2' : 'space-y-2'}${editandoDatas ? ' moni-calculadora--modo-edicao-datas' : ''}`}
+    >
       {!modoPublico && cardId ? (
         <div className="moni-calculadora-section-header">
           <span className="moni-calculadora-section-title">Calculadora de fases</span>
-          <button
-            type="button"
-            onClick={() => void gerarECopiar()}
-            disabled={shareLoading}
-            className="moni-calculadora-share-btn"
-            aria-label="Copiar link público da calculadora"
-          >
-            {shareLoading ? '...' : shareCopied ? '✓ Copiado' : '⤴ Compartilhar'}
-          </button>
+          <div className="moni-calculadora-section-actions">
+            {podeEditarDatasEfetivo ? (
+              <button
+                type="button"
+                onClick={() => setEditandoDatas((v) => !v)}
+                className={`moni-calculadora-share-btn moni-calculadora-edit-datas-btn${editandoDatas ? ' moni-calculadora-edit-datas-btn--active' : ''}`}
+                aria-pressed={editandoDatas}
+                aria-label={editandoDatas ? 'Concluir edição de datas' : 'Editar datas manualmente'}
+              >
+                <Pencil size={11} strokeWidth={2} aria-hidden />
+                {editandoDatas ? 'Concluir' : 'Editar datas'}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => void gerarECopiar()}
+              disabled={shareLoading}
+              className="moni-calculadora-share-btn"
+              aria-label="Copiar link público da calculadora"
+            >
+              {shareLoading ? '...' : shareCopied ? '✓ Copiado' : '⤴ Compartilhar'}
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -596,10 +618,14 @@ export function KanbanCardModalCalculadoraFases({
 
       <p className="moni-calculadora-footnote">
         SLA em d.u. (dias úteis) e d.c. (dias corridos). Clique no funil para recolher.
-        {podeEditarDatas ? (
+        {podeEditarDatasEfetivo ? (
           <>
             {' '}
-            <span className="moni-calculadora-edit-hint">Clique nas datas para editar manualmente.</span>
+            <span className="moni-calculadora-edit-hint">
+              {editandoDatas
+                ? 'Alterações são salvas ao escolher cada data.'
+                : 'Use «Editar datas» para ajustar início e fim manualmente.'}
+            </span>
           </>
         ) : null}
       </p>
@@ -623,7 +649,7 @@ export function KanbanCardModalCalculadoraFases({
                 onToggle={() => toggleFunil(grupo.label)}
                 expandedFases={expandedFases}
                 onToggleFase={toggleFase}
-                podeEditarDatas={podeEditarDatas}
+                editandoDatas={editandoDatas && podeEditarDatasEfetivo}
                 onSalvarData={onSalvarData}
               />
             </div>

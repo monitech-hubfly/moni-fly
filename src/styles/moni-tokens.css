@@ -1074,20 +1074,48 @@
   line-height: 1.2;
 }
 
+.moni-calculadora-fase-data-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.moni-calculadora-fase-data-cell .fd-val {
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.moni-calculadora-fase-data-cell .fd-val--empty {
+  color: var(--moni-text-tertiary);
+}
+
 .moni-calculadora-fase-data-input {
   display: block;
   width: 100%;
-  max-width: 108px;
-  min-height: 28px;
-  padding: 2px 4px;
+  max-width: 100%;
+  min-height: 20px;
+  padding: 0 2px;
   font-family: var(--moni-font-sans);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
   color: var(--moni-calc-text-default);
   background: var(--moni-surface-0, #fff);
   border: var(--moni-border-width) solid var(--moni-border-default);
-  border-radius: var(--moni-radius-md);
+  border-radius: var(--moni-radius-sm, 5px);
   line-height: 1.2;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.moni-calculadora-fase-data-input::-webkit-calendar-picker-indicator {
+  width: 10px;
+  height: 10px;
+  margin: 0;
+  padding: 0;
+  opacity: 0.45;
   cursor: pointer;
 }
 
@@ -1117,12 +1145,39 @@
   line-height: 1.35;
 }
 
+.moni-calculadora-section-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.moni-calculadora-edit-datas-btn--active {
+  border-color: var(--moni-navy-800);
+  background: var(--moni-navy-800);
+  color: #fff;
+}
+
+.moni-calculadora-edit-datas-btn--active:hover:not(:disabled) {
+  background: var(--moni-navy-800);
+  opacity: 0.92;
+}
+
+.moni-calculadora--modo-edicao-datas .moni-calculadora-table-header,
+.moni-calculadora--modo-edicao-datas .moni-calculadora-fase-row {
+  grid-template-columns: minmax(0, 1fr) 72px 64px 72px 96px;
+}
+
 @media (max-width: 640px) {
   .moni-calculadora-fase-data-input {
-    max-width: none;
     min-height: 44px;
     font-size: 12px;
-    padding: 6px 8px;
+    padding: 4px 6px;
+  }
+
+  .moni-calculadora--modo-edicao-datas .moni-calculadora-table-header,
+  .moni-calculadora--modo-edicao-datas .moni-calculadora-fase-row {
+    grid-template-columns: minmax(0, 1fr) 56px 60px 64px 76px;
   }
 }
 
