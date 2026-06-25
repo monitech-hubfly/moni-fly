@@ -1761,6 +1761,47 @@
   background: var(--moni-calc-funil-operacoes-header-bg);
 }
 
+.moni-calculadora-funil-header--negociacao {
+  background: var(--moni-surface-100);
+  cursor: default;
+}
+
+.moni-calculadora-funil-dot--negociacao {
+  background: var(--moni-navy-800);
+}
+
+.moni-calculadora-table-header--negociacao {
+  grid-template-columns: minmax(0, 1fr) 88px 60px 80px 96px;
+}
+
+.moni-calculadora-negociacao-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px 60px 80px 96px;
+  align-items: start;
+  gap: 6px;
+  padding: 8px;
+  border-radius: var(--moni-radius-md);
+  border: 0.5px solid var(--moni-border-subtle);
+  background: var(--moni-surface-0);
+  margin-bottom: 4px;
+}
+
+.moni-calculadora-negociacao-valor {
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--moni-text-primary);
+  text-align: right;
+  padding-top: 2px;
+}
+
+.moni-calculadora-negociacao-fase-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 9px;
+  color: var(--moni-text-tertiary);
+}
+
 .moni-calculadora-funil-dot {
   width: 8px;
   height: 8px;

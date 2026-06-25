@@ -9,8 +9,11 @@ import {
   enriquecerLinhasCalculadoraComResponsavelDaFase,
   type CalculadoraFaseLinha,
 } from '@/lib/kanban/calculadora-fases';
-import type { CalculadoraMarcosInput } from '@/lib/kanban/calculadora-fases-marcos';
-import { calculadoraMarcosInputFromProcessoRow } from '@/lib/kanban/calculadora-fases-marcos';
+import { parseNegociacaoLinhasFromDb, type NegociacaoLinha } from '@/lib/kanban/negociacao-linhas';
+import {
+  calculadoraMarcosInputFromProcessoRow,
+  type CalculadoraMarcosInput,
+} from '@/lib/kanban/calculadora-fases-marcos';
 import {
   CALCULADORA_ESTEIRA_KANBAN_IDS,
   calcularLinhasCalculadoraFasesEsteira,
@@ -54,6 +57,7 @@ export type CalculadoraPublicaPack = {
   fasesFlat: KanbanFase[];
   fasesMeta: Map<string, KanbanFase>;
   marcos: CalculadoraMarcosInput;
+  negociacaoLinhas: NegociacaoLinha[];
 };
 
 /** Resolve card_id via RPC pública (anon). */
@@ -244,17 +248,21 @@ async function montarCalculadoraPack(
   };
 
   let marcos: CalculadoraMarcosInput = { ...marcosBase, prazo_opcao: null, prazo_instrumento_garantidor: null };
+  let negociacaoLinhas: NegociacaoLinha[] = [];
   const procId = String(card.processo_step_one_id ?? '').trim();
   if (procId) {
     const { data: procRow } = await supabase
       .from('processo_step_one')
       .select(
-        'prazo_opcao_dias, prazo_opcao_sla_tipo, prazo_opcao_modo, prazo_opcao_fase_id, prazo_opcao_data, prazo_instrumento_garantidor_dias, prazo_instrumento_garantidor_sla_tipo, prazo_instrumento_garantidor_modo, prazo_instrumento_garantidor_fase_id, prazo_instrumento_garantidor_data, calculadora_ancora_fase_slug, calculadora_ancora_data_fim',
+        'prazo_opcao_dias, prazo_opcao_sla_tipo, prazo_opcao_modo, prazo_opcao_fase_id, prazo_opcao_data, prazo_instrumento_garantidor_dias, prazo_instrumento_garantidor_sla_tipo, prazo_instrumento_garantidor_modo, prazo_instrumento_garantidor_fase_id, prazo_instrumento_garantidor_data, calculadora_ancora_fase_slug, calculadora_ancora_data_fim, negociacao_linhas',
       )
       .eq('id', procId)
       .maybeSingle();
     if (procRow) {
       marcos = calculadoraMarcosInputFromProcessoRow(procRow as Record<string, unknown>, marcosBase);
+      negociacaoLinhas = parseNegociacaoLinhasFromDb(
+        (procRow as { negociacao_linhas?: unknown }).negociacao_linhas,
+      );
     }
   }
 
@@ -264,6 +272,7 @@ async function montarCalculadoraPack(
     fasesFlat: fasesFlatFinal,
     fasesMeta,
     marcos,
+    negociacaoLinhas,
   };
 }
 

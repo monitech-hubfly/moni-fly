@@ -3432,6 +3432,11 @@ export function KanbanCardModal({
           : fases;
   }, [fasesEsteiraCalculadora, fases, card?.kanban_id]);
 
+  const fasesCalculadoraNegociacao = useMemo(
+    () => calculadoraFasesFlat.map((f) => ({ id: f.id, nome: f.nome })),
+    [calculadoraFasesFlat],
+  );
+
   const calculadoraFasesMeta = useMemo(() => {
     const map = new Map<string, KanbanFase>();
     for (const f of calculadoraFasesFlat) map.set(f.id, f);
@@ -5423,6 +5428,7 @@ export function KanbanCardModal({
                     cardId={card.id}
                     podeEditarDatas={podeEditarDatasCalculadora}
                     onSalvarData={salvarDataCalculadora}
+                    negociacaoLinhas={modalDetalhes.processo?.negociacao_linhas ?? []}
                   />
                 </div>
               </div>
@@ -6938,6 +6944,7 @@ export function KanbanCardModal({
                         setNegocioDraft((d) => ({ ...d, negociacao_linhas }))
                       }
                       disabled={salvandoNegocio}
+                      fasesCalculadora={fasesCalculadoraNegociacao}
                     />
                     {renderDadosNegocioLinksEAnexos(true)}
                     <div className="flex gap-2 pt-1">
@@ -7024,6 +7031,7 @@ export function KanbanCardModal({
                       linhas={[]}
                       onChange={() => {}}
                       linhasLeitura={proc.negociacao_linhas ?? []}
+                      fasesCalculadora={fasesCalculadoraNegociacao}
                     />
                     {renderDadosNegocioLinksEAnexos(false)}
                     {modalSessao.ehAdminOuTeam && (

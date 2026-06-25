@@ -12,7 +12,7 @@ export default async function CalculadoraPublicaPage({ params }: Props) {
 
   if (!pack) notFound();
 
-  const { card, linhas, fasesFlat, fasesMeta, marcos } = pack;
+  const { card, linhas, fasesFlat, fasesMeta, marcos, negociacaoLinhas } = pack;
 
   return (
     <div
@@ -59,6 +59,7 @@ export default async function CalculadoraPublicaPage({ params }: Props) {
         marcos={marcos}
         variant="painel"
         modoPublico
+        negociacaoLinhas={negociacaoLinhas}
       />
 
       <p
