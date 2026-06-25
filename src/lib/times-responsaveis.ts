@@ -51,6 +51,7 @@ export const MONI_EMAIL_POR_NOME: Record<string, string> = {
   'Mateus Palma': 'mateus.palma@moni.casa',
   'Fábio Siano': 'fabio.siano@moni.casa',
   'Rafael Abreu': 'rafael.abreu@moni.casa',
+  'Rafael Negão': 'rafael.negao@moni.casa',
   'João Fernandes': 'joao.fernandes@moni.casa',
   'Isabella Seabra': 'isa.seabra@moni.casa',
   'Felipe Batista': 'felipe.batista@moni.casa',
@@ -150,6 +151,8 @@ const APELIDO_MONI_PARA_EMAIL: Record<string, string> = {
   alef: 'alef.lopes@moni.casa',
   elisabete: 'elisabete.nucci@moni.casa',
   isabela: 'isabela.correa@moni.casa',
+  'negão': 'rafael.negao@moni.casa',
+  'negao': 'rafael.negao@moni.casa',
 };
 
 /** Resolve email em `profiles` a partir do nome completo do catálogo Moní, apelido ou texto legado. */
@@ -263,7 +266,7 @@ export const RESPONSAVEIS_POR_TIME: Record<string, string[]> = {
   'Moní Inc': ['Helenna Luz', 'Daniel Viotto'],
   Homologações: HDM_RESPONSAVEIS.Homologações.map((x) => x.nome),
   Produto: HDM_RESPONSAVEIS.Produto.map((x) => x.nome),
-  Marketing: ['Rafael Abreu', 'João Fernandes'],
+  Marketing: ['Rafael Abreu', 'Rafael Negão', 'João Fernandes'],
   Administrativo: ['Isabella Seabra'],
   Controladoria: ['Felipe Batista'],
   Jurídico: ['Isabela Correa'],
