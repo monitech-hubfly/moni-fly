@@ -543,9 +543,18 @@
 
 .moni-calculadora-resumo-top {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
+}
+
+.moni-calculadora-resumo-headline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  flex: 1;
   min-width: 0;
 }
 
@@ -673,15 +682,16 @@
   font-weight: 600;
   color: var(--moni-navy-800);
   line-height: 1.25;
-  flex: 1;
   min-width: 0;
+  flex-shrink: 0;
 }
 
 .moni-calculadora-resumo-meta {
   font-size: 9px;
   color: var(--moni-text-tertiary);
   line-height: 1.25;
-  margin-top: 1px;
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 .moni-calculadora-resumo-progress-row {
@@ -1734,6 +1744,12 @@
     flex-direction: column;
     align-items: stretch;
     gap: 6px;
+  }
+
+  .moni-calculadora-resumo-headline {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
   }
 
   .moni-calculadora-resumo-badges {

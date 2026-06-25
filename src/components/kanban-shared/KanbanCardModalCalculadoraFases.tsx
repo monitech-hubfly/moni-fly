@@ -151,9 +151,17 @@ function CalculadoraResumoExecutivo({
   return (
     <div className="moni-calculadora-resumo">
       <div className="moni-calculadora-resumo-top">
-        <p className="moni-calculadora-resumo-fase truncate" title={resumo.faseAtualNome ?? undefined}>
-          {resumo.faseAtualNome ?? '—'}
-        </p>
+        <div className="moni-calculadora-resumo-headline">
+          <p className="moni-calculadora-resumo-fase truncate" title={resumo.faseAtualNome ?? undefined}>
+            {resumo.faseAtualNome ?? '—'}
+          </p>
+          <span
+            className="moni-calculadora-resumo-meta truncate"
+            title={`${funilLabel} · ${slaLabel}`}
+          >
+            {funilLabel} · {slaLabel}
+          </span>
+        </div>
         <div className="moni-calculadora-resumo-badges">
           {resumo.dadosParciais ? (
             <span className="moni-calculadora-badge-parcial">⚠ Dados parciais</span>
@@ -166,9 +174,6 @@ function CalculadoraResumoExecutivo({
           </span>
         </div>
       </div>
-      <p className="moni-calculadora-resumo-meta truncate">
-        {funilLabel} · {slaLabel}
-      </p>
 
       <div className="moni-calculadora-resumo-progress-row">
         <div className="moni-calc-prog-track min-w-0 flex-1">
