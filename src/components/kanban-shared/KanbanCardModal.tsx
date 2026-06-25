@@ -6338,24 +6338,54 @@ export function KanbanCardModal({
               ) : null}
             </PainelLateralSecao>
 
-            {exibirBlocoArquivar ? (
-              <PainelLateralSecao titulo="Arquivar">
-                {!arquivamentoAberto ? (
-                  <button
-                    type="button"
-                    onClick={() => setArquivamentoAberto(true)}
-                    disabled={loading}
-                    className="flex w-full items-center justify-center gap-1.5 rounded px-2 py-1.5 text-[10px] font-semibold transition disabled:opacity-50"
+            {exibirBlocoDesarquivar ? (
+              <PainelLateralSecao titulo="Desarquivar">
+                <button
+                  type="button"
+                  onClick={() => void handleConfirmarDesarquivar()}
+                  disabled={loading}
+                  className="flex w-full items-center justify-center gap-1.5 rounded px-2 py-1.5 text-[10px] font-semibold transition disabled:opacity-50"
+                  style={{
+                    background: 'var(--moni-status-success-bg, #f0fdf4)',
+                    color: 'var(--moni-status-success-text, #166534)',
+                    border: '0.5px solid var(--moni-status-success-border, #bbf7d0)',
+                  }}
+                >
+                  <ArchiveRestore className="h-4 w-4 shrink-0" aria-hidden />
+                  {loading ? 'Desarquivando…' : 'Desarquivar card'}
+                </button>
+              </PainelLateralSecao>
+            ) : null}
+
+            {podeMoverFaseCard || exibirBlocoArquivar ? (
+              <PainelLateralSecao titulo="Movimentação">
+                {gateStep5Toast ? (
+                  <p
+                    className="mb-1.5 rounded px-2 py-1 text-[10px] font-medium leading-snug"
+                    role="alert"
                     style={{
-                      background: 'var(--moni-status-overdue-bg)',
-                      color: 'var(--moni-status-overdue-text)',
-                      border: '0.5px solid var(--moni-status-overdue-border)',
+                      background: '#FAEEDA',
+                      color: '#92400e',
+                      border: '0.5px solid #D4AD68',
                     }}
                   >
-                    <Archive className="h-4 w-4 shrink-0" aria-hidden />
-                    Arquivar card
-                  </button>
-                ) : (
+                    {gateStep5Toast}
+                  </p>
+                ) : null}
+                {acoplamentoGateToast ? (
+                  <p
+                    className="mb-1.5 rounded px-2 py-1 text-[10px] font-medium leading-snug"
+                    role="alert"
+                    style={{
+                      background: '#FAEEDA',
+                      color: '#92400e',
+                      border: '0.5px solid #D4AD68',
+                    }}
+                  >
+                    {acoplamentoGateToast}
+                  </p>
+                ) : null}
+                {arquivamentoAberto ? (
                   <div className="space-y-1.5">
                     <label
                       className="block text-[10px] font-medium"
@@ -6449,73 +6479,36 @@ export function KanbanCardModal({
                       Cancelar
                     </button>
                   </div>
-                )}
-              </PainelLateralSecao>
-            ) : null}
-
-            {exibirBlocoDesarquivar ? (
-              <PainelLateralSecao titulo="Desarquivar">
-                <button
-                  type="button"
-                  onClick={() => void handleConfirmarDesarquivar()}
-                  disabled={loading}
-                  className="flex w-full items-center justify-center gap-1.5 rounded px-2 py-1.5 text-[10px] font-semibold transition disabled:opacity-50"
-                  style={{
-                    background: 'var(--moni-status-success-bg, #f0fdf4)',
-                    color: 'var(--moni-status-success-text, #166534)',
-                    border: '0.5px solid var(--moni-status-success-border, #bbf7d0)',
-                  }}
-                >
-                  <ArchiveRestore className="h-4 w-4 shrink-0" aria-hidden />
-                  {loading ? 'Desarquivando…' : 'Desarquivar card'}
-                </button>
-              </PainelLateralSecao>
-            ) : null}
-
-            {podeMoverFaseCard ? (
-              <PainelLateralSecao titulo="Movimentação">
-                {gateStep5Toast ? (
-                  <p
-                    className="mb-1.5 rounded px-2 py-1 text-[10px] font-medium leading-snug"
-                    role="alert"
-                    style={{
-                      background: '#FAEEDA',
-                      color: '#92400e',
-                      border: '0.5px solid #D4AD68',
-                    }}
-                  >
-                    {gateStep5Toast}
-                  </p>
-                ) : null}
-                {acoplamentoGateToast ? (
-                  <p
-                    className="mb-1.5 rounded px-2 py-1 text-[10px] font-medium leading-snug"
-                    role="alert"
-                    style={{
-                      background: '#FAEEDA',
-                      color: '#92400e',
-                      border: '0.5px solid #D4AD68',
-                    }}
-                  >
-                    {acoplamentoGateToast}
-                  </p>
-                ) : null}
-                {!modalAprovacaoFase ? (
-                  <div className="grid grid-cols-2 gap-1.5">
+                ) : !modalAprovacaoFase ? (
+                  <div className="grid grid-cols-3 gap-1.5">
                     <button
                       type="button"
                       onClick={() => void handleRetrocederFase()}
-                      disabled={movendoFase || !podeRetrocederFase}
-                      className="flex items-center justify-center gap-0.5 rounded border border-stone-300 bg-white px-1.5 py-1.5 text-[10px] font-semibold leading-tight text-stone-800 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={movendoFase || !podeRetrocederFase || !podeMoverFaseCard}
+                      className="flex min-h-[44px] items-center justify-center gap-0.5 rounded border border-stone-300 bg-white px-1 py-1.5 text-[10px] font-semibold leading-tight text-stone-800 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
                     >
                       <ChevronLeft className="h-3 w-3 shrink-0" aria-hidden />
                       {movendoFase ? '…' : 'Anterior'}
                     </button>
                     <button
                       type="button"
+                      onClick={() => setArquivamentoAberto(true)}
+                      disabled={loading || !exibirBlocoArquivar}
+                      className="flex min-h-[44px] items-center justify-center gap-0.5 rounded px-1 py-1.5 text-[10px] font-semibold leading-tight transition disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-0"
+                      style={{
+                        background: 'var(--moni-status-overdue-bg)',
+                        color: 'var(--moni-status-overdue-text)',
+                        border: '0.5px solid var(--moni-status-overdue-border)',
+                      }}
+                    >
+                      <Archive className="h-3 w-3 shrink-0" aria-hidden />
+                      Arquivar
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => void handleAvancarFase()}
-                      disabled={movendoFase || !podeAvancarFase}
-                      className="flex items-center justify-center gap-0.5 rounded border px-1.5 py-1.5 text-[10px] font-semibold leading-tight transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={movendoFase || !podeAvancarFase || !podeMoverFaseCard}
+                      className="flex min-h-[44px] items-center justify-center gap-0.5 rounded border px-1 py-1.5 text-[10px] font-semibold leading-tight transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
                       style={{
                         background: 'var(--moni-green-50)',
                         color: 'var(--moni-green-800)',
