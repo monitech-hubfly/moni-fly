@@ -302,6 +302,10 @@ function contratoTemFimReal(input: CalculadoraMarcosInput): boolean {
   return Boolean(toYmd(input.contrato_assinado_em));
 }
 
+function obraTemInicioReal(input: CalculadoraMarcosInput): boolean {
+  return Boolean(toYmd(input.obra_iniciada_em));
+}
+
 function marcoFromDatas(
   datas: MarcoDatas,
   partial: Omit<CalculadoraMarco, 'data' | 'dataInicio' | 'dataFim' | 'isPrevisto'>,
@@ -476,7 +480,7 @@ function resolverDatasMarcoBca(
   const inicioObra = resolverDataInicioObra(input, linhas, slugs);
   if (!inicioObra) return { dataInicio: null, dataFim: null, isPrevisto: true };
   const dataFim = adicionarMesesCalendarioYmd(inicioObra, mesesAposObra);
-  return { dataInicio: null, dataFim, isPrevisto: true };
+  return { dataInicio: null, dataFim, isPrevisto: !obraTemInicioReal(input) };
 }
 
 function insertIndexMarcoBca(
@@ -517,17 +521,13 @@ function inserirMarcosBca(
 
   for (const def of MARCOS_BCA) {
     const datas = resolverDatasMarcoBca(marcosInput, linhas, slugs, def.mesesAposObra);
-    const marcoBase = marcoFromDatas(datas, {
+    const marco = marcoFromDatas(datas, {
       id: def.id,
       label: def.label,
       funilLabel: 'Dados do Negócio',
       custo: null,
       somenteRotulo: def.somenteRotulo,
     });
-    const marco: CalculadoraMarco = {
-      ...marcoBase,
-      dataFimEstimada: datas.dataFim,
-    };
     const refData = marco.dataFim ?? marco.dataInicio;
     const idx = insertIndexMarcoBca(out, slugs, def, refData);
     out.splice(idx, 0, {
