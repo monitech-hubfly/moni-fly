@@ -9,6 +9,7 @@ import {
 } from '@/lib/kanban/responsavel-fase-checklist';
 import { custoPadraoPorSlug } from '@/lib/kanban/custo-padrao-por-slug';
 import { resolverSlaCalculadoraFase } from '@/lib/kanban/sla-fallback-calculadora-por-slug';
+import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 
 export type { FaseTimelineStatus };
 
@@ -86,9 +87,12 @@ export type CalculadoraFasesInput = {
   /** Referência para fase atual atrasada (default: hoje). */
   hoje?: Date;
   ancora?: CalculadoraAncora | null;
-  /** Overrides manuais por fase_id — não propagam para fases posteriores. */
+  /** Overrides manuais por fase_id — por padrão não propagam; exceção: passagem_wayser. */
   overrides?: Map<string, CalculadoraFaseDataManualOverride>;
 };
+
+/** Slugs cujo override manual recalcula início/fim estimado das fases posteriores. */
+const SLUGS_OVERRIDE_PROPAGA_FORWARD = new Set<string>([FASE_SLUGS.PASSAGEM_WAYSER]);
 
 export function calculadoraAncoraFromProcesso(proc: {
   calculadora_ancora_fase_slug?: string | null;
@@ -515,9 +519,60 @@ export function aplicarAncoraCalculadoraLinhas(
   return inferirFimRealPorProximaFase(out);
 }
 
+/** Recalcula início/estimativa (e fim real de concluídas) a partir de uma fase âncora. */
+function propagarLinhasCalculadoraForward(
+  linhas: CalculadoraFaseLinha[],
+  desdeIdx: number,
+  card: CalculadoraFasesInput['card'],
+  ordemAtual: number,
+  hoje: string,
+): CalculadoraFaseLinha[] {
+  const out = linhas.map((l) => ({ ...l }));
+  const ancRow = out[desdeIdx]!;
+  let fimFaseAnteriorReal: string | null = ancRow.dataFimReal;
+  let fimFaseAnteriorEstimado: string | null = ancRow.dataFimEstimada;
+
+  for (let i = desdeIdx + 1; i < out.length; i++) {
+    const row = out[i]!;
+    const dataInicioReal = inicioPorFimFaseAnterior(fimFaseAnteriorReal, fimFaseAnteriorEstimado);
+    const dataFimEstimada = dataInicioReal
+      ? fimEstimadaPorSla(dataInicioReal, row.slaDias, row.slaTipo)
+      : null;
+
+    const concluida = row.ordem < ordemAtual;
+    const dataFimReal = concluida ? row.dataFimReal : null;
+
+    const status = resolveStatus(
+      row.faseId,
+      card,
+      dataInicioReal,
+      dataFimReal,
+      dataFimEstimada,
+      row.ordem,
+      ordemAtual,
+      hoje,
+    );
+    const atrasoDias = resolveAtraso(status, dataFimEstimada, dataFimReal, hoje, row.slaTipo);
+
+    out[i] = {
+      ...row,
+      dataInicioReal,
+      dataFimEstimada,
+      dataFimReal,
+      status,
+      atrasoDias,
+    };
+
+    fimFaseAnteriorReal = dataFimReal ?? dataFimEstimada;
+    fimFaseAnteriorEstimado = dataFimEstimada;
+  }
+
+  return inferirFimRealPorProximaFase(out);
+}
+
 /**
- * Aplica overrides manuais de datas — altera apenas a linha da fase editada,
- * recalculando status/atraso localmente sem propagar para fases posteriores.
+ * Aplica overrides manuais de datas — por padrão só a linha editada;
+ * em Passagem para Wayser, recalcula SLA das fases posteriores.
  */
 export function aplicarDatasManuaisCalculadoraLinhas(
   linhas: CalculadoraFaseLinha[],
@@ -534,7 +589,7 @@ export function aplicarDatasManuaisCalculadoraLinhas(
     linhas.find((l) => l.status === 'futura')?.ordem ??
     Number.MAX_SAFE_INTEGER;
 
-  return linhas.map((linha) => {
+  let out = linhas.map((linha) => {
     const ov = overrides.get(linha.faseId);
     if (!ov) return linha;
 
@@ -579,6 +634,21 @@ export function aplicarDatasManuaisCalculadoraLinhas(
       atrasoDias,
     };
   });
+
+  let propagateIdx = -1;
+  for (let i = 0; i < out.length; i++) {
+    const slug = String(out[i]!.faseSlug ?? '').trim();
+    if (SLUGS_OVERRIDE_PROPAGA_FORWARD.has(slug) && overrides.has(out[i]!.faseId)) {
+      propagateIdx = i;
+      break;
+    }
+  }
+
+  if (propagateIdx >= 0) {
+    out = propagarLinhasCalculadoraForward(out, propagateIdx, card, ordemAtual, hoje);
+  }
+
+  return out;
 }
 
 /** Preenche fim real a partir da entrada na fase seguinte (quando o histórico não registrou saída). */

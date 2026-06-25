@@ -79,7 +79,7 @@ import { enviarHipoteseAoPortfolio } from '@/lib/actions/card-actions';
 import { deletarChamado } from '@/app/sirene/actions';
 import { KANBANS_COM_CHAMADO_JURIDICO } from '@/lib/constants/kanban-ids';
 import { isFrankOrFranqueadoRole, normalizeAccessRole } from '@/lib/authz';
-import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import {
   autorizarAberturaCreditoObra,
   consultarAberturaCreditoObraPendente,
@@ -292,7 +292,9 @@ import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from
 import { calcularLinhasCalculadoraFases, calcularResumoExecutivoCalculadoraFases, calculadoraAncoraFromProcesso, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase } from '@/lib/kanban/calculadora-fases';
 import {
   buscarDatasManuaisCalculadoraPorFases,
+  limparDatasManuaisCalculadoraPorFases,
   salvarDataManualCalculadora,
+  CALCULADORA_FASE_SLUG_PROPAGA_FORWARD,
   type CalculadoraFaseDataManual,
 } from '@/lib/kanban/calculadora-fase-datas';
 import {
@@ -3519,19 +3521,38 @@ export function KanbanCardModal({
       );
 
       if (result.ok) {
+        const idx = calculadoraFasesPack.faseIds.indexOf(faseId);
+        const fasesPosteriores = idx >= 0 ? calculadoraFasesPack.faseIds.slice(idx + 1) : [];
+        const slugFase = String(calculadoraFasesMeta.get(faseId)?.slug ?? '').trim();
+        const propagaForward =
+          slugFase === CALCULADORA_FASE_SLUG_PROPAGA_FORWARD ||
+          faseId === FASE_IDS.PORTFOLIO_PASSAGEM_WAYSER;
+
+        if (propagaForward && fasesPosteriores.length > 0) {
+          await limparDatasManuaisCalculadoraPorFases(supabase, cardId, fasesPosteriores);
+        }
+
         setDatasManuaisCalculadora((prev) => {
           const next = new Map(prev);
           const cur = { ...(next.get(faseId) ?? {}) };
           if (campo === 'inicio') cur.dataInicio = valor;
           else cur.dataFim = valor;
           next.set(faseId, cur);
+          if (propagaForward) {
+            for (const fid of fasesPosteriores) next.delete(fid);
+          }
           return next;
         });
       }
 
       return result;
     },
-    [card?.id, modalSessao.userId],
+    [
+      card?.id,
+      modalSessao.userId,
+      calculadoraFasesPack.faseIds,
+      calculadoraFasesMeta,
+    ],
   );
 
   const calculadoraSlugPorFaseId = useMemo(() => {

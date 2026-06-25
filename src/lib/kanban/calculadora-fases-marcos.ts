@@ -96,7 +96,7 @@ const MARCOS_PRAZO_NEGOCIO: {
   },
   {
     id: 'MIG',
-    label: 'Contratação Instrumento Garantidor',
+    label: 'Limite Contratação Instrumento Garantidor',
     custo: CUSTO_INSTRUMENTO_GARANTIDOR,
     resolver: (input, linhas) =>
       resolverDataPrazoNegocioYmd(input.prazo_instrumento_garantidor, linhas),

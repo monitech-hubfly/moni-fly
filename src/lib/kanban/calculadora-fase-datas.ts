@@ -98,7 +98,34 @@ export async function salvarDataManualCalculadora(
   return { ok: true };
 }
 
-/** Overlay por fase — altera só a linha editada, sem recalcular fases posteriores. */
+/** Remove overrides manuais das fases indicadas (ex.: após editar Passagem para Wayser). */
+export async function limparDatasManuaisCalculadoraPorFases(
+  supabase: SupabaseClient,
+  cardId: string,
+  faseIds: string[],
+): Promise<{ ok: boolean; error?: string }> {
+  const cid = String(cardId ?? '').trim();
+  const fids = [...new Set(faseIds.map((f) => String(f ?? '').trim()).filter(Boolean))];
+  if (!cid || fids.length === 0) return { ok: true };
+
+  const { error } = await supabase
+    .from('kanban_calculadora_fase_datas')
+    .delete()
+    .eq('card_id', cid)
+    .in('fase_id', fids);
+
+  if (error) {
+    console.error('[limparDatasManuaisCalculadoraPorFases]', error.message);
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true };
+}
+
+/** Slug da fase que, ao ser editada manualmente, propaga recálculo para as posteriores. */
+export const CALCULADORA_FASE_SLUG_PROPAGA_FORWARD = 'passagem_wayser';
+
+/** Overlay por fase; Passagem para Wayser propaga recálculo forward. */
 export function aplicarDatasManuaisCalculadora(
   linhas: CalculadoraFaseLinha[],
   overrides: Map<string, CalculadoraFaseDataManual>,
