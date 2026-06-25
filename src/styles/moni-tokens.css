@@ -1074,6 +1074,58 @@
   line-height: 1.2;
 }
 
+.moni-calculadora-fase-data-input {
+  display: block;
+  width: 100%;
+  max-width: 108px;
+  min-height: 28px;
+  padding: 2px 4px;
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--moni-calc-text-default);
+  background: var(--moni-surface-0, #fff);
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  border-radius: var(--moni-radius-md);
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.moni-calculadora-fase-data-input:hover {
+  border-color: var(--moni-navy-800);
+}
+
+.moni-calculadora-fase-data-input:focus {
+  outline: none;
+  border-color: var(--moni-navy-800);
+  box-shadow: 0 0 0 1px var(--moni-navy-800);
+}
+
+.moni-calculadora-fase-data-input--atraso {
+  color: var(--moni-calc-fim-atraso);
+}
+
+.moni-calculadora-fase-data-input--saving {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.moni-calculadora-edit-hint {
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  color: var(--moni-text-tertiary);
+  line-height: 1.35;
+}
+
+@media (max-width: 640px) {
+  .moni-calculadora-fase-data-input {
+    max-width: none;
+    min-height: 44px;
+    font-size: 12px;
+    padding: 6px 8px;
+  }
+}
+
 .moni-calculadora-fase-status {
   display: inline-flex;
   align-items: center;

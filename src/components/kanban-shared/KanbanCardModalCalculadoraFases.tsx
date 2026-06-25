@@ -36,6 +36,14 @@ type Props = {
   cardId?: string;
   /** Leitura pública via token — oculta ações internas. */
   modoPublico?: boolean;
+  /** Admin/team — habilita edição manual de datas. */
+  podeEditarDatas?: boolean;
+  /** Persiste override manual (início ou fim) para uma fase. */
+  onSalvarData?: (
+    faseId: string,
+    campo: 'inicio' | 'fim',
+    valor: string | null,
+  ) => Promise<{ ok: boolean; error?: string }>;
 };
 
 function fmtData(iso: string | null): string {
@@ -230,16 +238,87 @@ function CalculadoraMarcoSep({ marco }: { marco: CalculadoraMarco }) {
   );
 }
 
+function fmtDataInput(iso: string | null): string {
+  if (!iso) return '';
+  const head = String(iso).trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(head) ? head : '';
+}
+
+function CalculadoraFaseDataCell({
+  faseId,
+  campo,
+  valor,
+  label,
+  atraso,
+  editavel,
+  onSalvarData,
+}: {
+  faseId: string;
+  campo: 'inicio' | 'fim';
+  valor: string | null;
+  label: string;
+  atraso?: boolean;
+  editavel: boolean;
+  onSalvarData?: Props['onSalvarData'];
+}) {
+  const [salvando, setSalvando] = useState(false);
+
+  const stop = (e: React.SyntheticEvent) => {
+    e.stopPropagation();
+  };
+
+  if (!editavel || !onSalvarData) {
+    return (
+      <div>
+        <span className={`moni-calculadora-fase-data fd-val${atraso ? ' fd-val--atraso' : ''}`}>
+          {fmtData(valor)}
+        </span>
+        <span className="moni-calculadora-fase-data-label">{label}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div onClick={stop} onKeyDown={stop}>
+      <input
+        type="date"
+        className={`moni-calculadora-fase-data-input${atraso ? ' moni-calculadora-fase-data-input--atraso' : ''}${salvando ? ' moni-calculadora-fase-data-input--saving' : ''}`}
+        value={fmtDataInput(valor)}
+        disabled={salvando}
+        aria-label={`${campo === 'inicio' ? 'Início' : 'Fim'} — ${label}`}
+        onClick={stop}
+        onChange={(e) => {
+          void (async () => {
+            const next = e.target.value.trim() || null;
+            if (next === fmtDataInput(valor)) return;
+            setSalvando(true);
+            try {
+              await onSalvarData(faseId, campo, next);
+            } finally {
+              setSalvando(false);
+            }
+          })();
+        }}
+      />
+      <span className="moni-calculadora-fase-data-label">{label}</span>
+    </div>
+  );
+}
+
 function CalculadoraFaseRow({
   row,
   faseMeta,
   expanded,
   onToggle,
+  podeEditarDatas,
+  onSalvarData,
 }: {
   row: CalculadoraFaseLinha;
   faseMeta: KanbanFase | undefined;
   expanded: boolean;
   onToggle: () => void;
+  podeEditarDatas?: boolean;
+  onSalvarData?: Props['onSalvarData'];
 }) {
   const steps = parseFaseSteps(faseMeta);
   const custo = String(row.custo ?? '').trim();
@@ -302,19 +381,24 @@ function CalculadoraFaseRow({
         </span>
       </div>
 
-      <div>
-        <span className="moni-calculadora-fase-data fd-val">{fmtData(row.dataInicioReal)}</span>
-        <span className="moni-calculadora-fase-data-label">{inicioLabel}</span>
-      </div>
+      <CalculadoraFaseDataCell
+        faseId={row.faseId}
+        campo="inicio"
+        valor={row.dataInicioReal}
+        label={inicioLabel}
+        editavel={podeEditarDatas === true}
+        onSalvarData={onSalvarData}
+      />
 
-      <div>
-        <span
-          className={`moni-calculadora-fase-data fd-val${fimAtraso ? ' fd-val--atraso' : ''}`}
-        >
-          {fmtData(fimData)}
-        </span>
-        <span className="moni-calculadora-fase-data-label">{fimLabel}</span>
-      </div>
+      <CalculadoraFaseDataCell
+        faseId={row.faseId}
+        campo="fim"
+        valor={fimData}
+        label={fimLabel}
+        atraso={fimAtraso}
+        editavel={podeEditarDatas === true}
+        onSalvarData={onSalvarData}
+      />
 
       <div className="moni-calculadora-fase-status-col">
         <span className={statusBadgeClass(row.status)}>
@@ -354,6 +438,8 @@ function CalculadoraFunilGroup({
   onToggle,
   expandedFases,
   onToggleFase,
+  podeEditarDatas,
+  onSalvarData,
 }: {
   label: string;
   items: CalculadoraTimelineItem[];
@@ -362,6 +448,8 @@ function CalculadoraFunilGroup({
   onToggle: () => void;
   expandedFases: Set<string>;
   onToggleFase: (faseId: string) => void;
+  podeEditarDatas?: boolean;
+  onSalvarData?: Props['onSalvarData'];
 }) {
   const faseItems = items.filter((i) => i.kind === 'fase');
   const concluidas = faseItems.filter(
@@ -409,6 +497,8 @@ function CalculadoraFunilGroup({
               faseMeta={fasesMeta.get(item.linha.faseId)}
               expanded={expandedFases.has(item.linha.faseId)}
               onToggle={() => onToggleFase(item.linha.faseId)}
+              podeEditarDatas={podeEditarDatas}
+              onSalvarData={onSalvarData}
             />
           ),
         )}
@@ -428,6 +518,8 @@ export function KanbanCardModalCalculadoraFases({
   variant = 'compact',
   cardId,
   modoPublico = false,
+  podeEditarDatas = false,
+  onSalvarData,
 }: Props) {
   const [collapsedFunis, setCollapsedFunis] = useState<Set<string>>(new Set());
   const [expandedFases, setExpandedFases] = useState<Set<string>>(new Set());
@@ -504,6 +596,12 @@ export function KanbanCardModalCalculadoraFases({
 
       <p className="moni-calculadora-footnote">
         SLA em d.u. (dias úteis) e d.c. (dias corridos). Clique no funil para recolher.
+        {podeEditarDatas ? (
+          <>
+            {' '}
+            <span className="moni-calculadora-edit-hint">Clique nas datas para editar manualmente.</span>
+          </>
+        ) : null}
       </p>
 
       <div className={variant === 'painel' ? 'flex min-h-0 flex-1 flex-col' : undefined}>
@@ -525,6 +623,8 @@ export function KanbanCardModalCalculadoraFases({
                 onToggle={() => toggleFunil(grupo.label)}
                 expandedFases={expandedFases}
                 onToggleFase={toggleFase}
+                podeEditarDatas={podeEditarDatas}
+                onSalvarData={onSalvarData}
               />
             </div>
           ))}

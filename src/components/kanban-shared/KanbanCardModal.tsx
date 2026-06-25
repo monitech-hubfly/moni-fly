@@ -1,7 +1,7 @@
 'use client';
 
 import type { ChangeEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   X,
@@ -284,6 +284,11 @@ import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
 import { calcularLinhasCalculadoraFases, calcularResumoExecutivoCalculadoraFases, calculadoraAncoraFromProcesso, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase } from '@/lib/kanban/calculadora-fases';
 import {
+  buscarDatasManuaisCalculadoraPorFases,
+  salvarDataManualCalculadora,
+  type CalculadoraFaseDataManual,
+} from '@/lib/kanban/calculadora-fase-datas';
+import {
   calcularLinhasCalculadoraFasesEsteira,
   CALCULADORA_ESTEIRA_KANBAN_IDS,
   fetchCalculadoraEsteiraFasesMap,
@@ -517,6 +522,12 @@ export function KanbanCardModal({
   const [linkCopiado, setLinkCopiado] = useState(false);
   const [fases, setFases] = useState<KanbanFase[]>(fasesProp ?? []);
   const [fasesEsteiraCalculadora, setFasesEsteiraCalculadora] = useState<Map<string, KanbanFase[]>>(new Map());
+  const [datasManuaisCalculadora, setDatasManuaisCalculadora] = useState<
+    Map<string, CalculadoraFaseDataManual>
+  >(() => new Map());
+  const [responsavelDaFaseSalvoPorFase, setResponsavelDaFaseSalvoPorFase] = useState<Map<string, string>>(
+    () => new Map(),
+  );
   const [faseAtual, setFaseAtual] = useState<KanbanFase | null>(null);
   const [secaoAberta, setSecaoAberta] = useState<Record<SecaoEsquerdaId, boolean>>({
     calculadora: false,
@@ -3281,7 +3292,7 @@ export function KanbanCardModal({
   }, [card, fases, historico, legadoCronologiaMoves, origem]);
 
   const calculadoraFasesPack = useMemo(() => {
-    if (!card) return { linhas: [], visits: [] };
+    if (!card) return { linhas: [], visits: [], faseIds: [] as string[] };
     try {
       const historicoMovs = historico.map((h) => ({
         acao: h.acao,
@@ -3323,26 +3334,33 @@ export function KanbanCardModal({
 
       const calculadoraAncora = calculadoraAncoraFromProcesso(modalDetalhes.processo);
 
+      const cardCalcInput = {
+        fase_id: card.fase_id,
+        created_at: card.created_at,
+        entered_fase_at: card.entered_fase_at,
+        concluido: card.concluido,
+        concluido_em: card.concluido_em,
+      };
+
       const linhasEsteira = calcularLinhasCalculadoraFasesEsteira({
         fasesPorKanban: fasesEsteiraMap,
         cardKanbanId: card.kanban_id,
         cardFaseSlug,
-        card: {
-          fase_id: card.fase_id,
-          created_at: card.created_at,
-          entered_fase_at: card.entered_fase_at,
-          concluido: card.concluido,
-          concluido_em: card.concluido_em,
-        },
+        card: cardCalcInput,
         visits,
         ancora: calculadoraAncora,
+        overrides: datasManuaisCalculadora,
       });
 
       if (linhasEsteira.length > 0) {
-        return { linhas: linhasEsteira, visits };
+        return {
+          linhas: linhasEsteira,
+          visits,
+          faseIds: linhasEsteira.map((l) => l.faseId).filter(Boolean),
+        };
       }
 
-      if (fases.length === 0) return { linhas: [], visits: [] };
+      if (fases.length === 0) return { linhas: [], visits, faseIds: [] as string[] };
 
       const fasesCalculadora =
         card.kanban_id === KANBAN_IDS.STEP_ONE
@@ -3355,21 +3373,20 @@ export function KanbanCardModal({
 
       const linhas = calcularLinhasCalculadoraFases({
         fases: fasesCalculadora,
-        card: {
-          fase_id: card.fase_id,
-          created_at: card.created_at,
-          entered_fase_at: card.entered_fase_at,
-          concluido: card.concluido,
-          concluido_em: card.concluido_em,
-        },
+        card: cardCalcInput,
         visits,
         ancora: calculadoraAncora,
+        overrides: datasManuaisCalculadora,
       });
-      return { linhas, visits };
+      return {
+        linhas,
+        visits,
+        faseIds: linhas.map((l) => l.faseId).filter(Boolean),
+      };
     } catch {
-      return { linhas: [], visits: [] };
+      return { linhas: [], visits: [], faseIds: [] as string[] };
     }
-  }, [card, fases, fasesEsteiraCalculadora, historico, legadoCronologiaMoves, origem, modalDetalhes.processo]);
+  }, [card, fases, fasesEsteiraCalculadora, historico, legadoCronologiaMoves, origem, modalDetalhes.processo, datasManuaisCalculadora]);
 
   const calculadoraAncora = useMemo(
     () => calculadoraAncoraFromProcesso(modalDetalhes.processo),
@@ -3431,13 +3448,9 @@ export function KanbanCardModal({
     fasesNegocioPrazo,
   ]);
 
-  const [responsavelDaFaseSalvoPorFase, setResponsavelDaFaseSalvoPorFase] = useState<Map<string, string>>(
-    () => new Map(),
-  );
-
   useEffect(() => {
     const cardId = card?.id?.trim();
-    const faseIds = calculadoraFasesPack.linhas.map((l) => l.faseId).filter(Boolean);
+    const faseIds = calculadoraFasesPack.faseIds;
     if (!cardId || faseIds.length === 0) {
       setResponsavelDaFaseSalvoPorFase(new Map());
       return;
@@ -3453,7 +3466,62 @@ export function KanbanCardModal({
     return () => {
       cancelado = true;
     };
-  }, [card?.id, calculadoraFasesPack.linhas]);
+  }, [card?.id, calculadoraFasesPack.faseIds.join('|')]);
+
+  useEffect(() => {
+    const cardId = card?.id?.trim();
+    const faseIds = calculadoraFasesPack.faseIds;
+    if (!cardId || faseIds.length === 0) {
+      setDatasManuaisCalculadora(new Map());
+      return;
+    }
+
+    let cancelado = false;
+    void (async () => {
+      const supabase = createClient();
+      const map = await buscarDatasManuaisCalculadoraPorFases(supabase, cardId, faseIds);
+      if (!cancelado) setDatasManuaisCalculadora(map);
+    })();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [card?.id, calculadoraFasesPack.faseIds.join('|')]);
+
+  const podeEditarDatasCalculadora =
+    modalSessao.roleNorm === 'admin' || modalSessao.roleNorm === 'team';
+
+  const salvarDataCalculadora = useCallback(
+    async (faseId: string, campo: 'inicio' | 'fim', valor: string | null) => {
+      const cardId = card?.id?.trim();
+      if (!cardId) return { ok: false, error: 'Card não encontrado.' };
+
+      const supabase = createClient();
+      const patch =
+        campo === 'inicio' ? { dataInicio: valor } : { dataFim: valor };
+      const result = await salvarDataManualCalculadora(
+        supabase,
+        cardId,
+        faseId,
+        patch,
+        modalSessao.userId,
+      );
+
+      if (result.ok) {
+        setDatasManuaisCalculadora((prev) => {
+          const next = new Map(prev);
+          const cur = { ...(next.get(faseId) ?? {}) };
+          if (campo === 'inicio') cur.dataInicio = valor;
+          else cur.dataFim = valor;
+          next.set(faseId, cur);
+          return next;
+        });
+      }
+
+      return result;
+    },
+    [card?.id, modalSessao.userId],
+  );
 
   const calculadoraSlugPorFaseId = useMemo(() => {
     const map = new Map<string, string>();
@@ -5277,6 +5345,8 @@ export function KanbanCardModal({
                     marcos={calculadoraMarcosInput}
                     variant="painel"
                     cardId={card.id}
+                    podeEditarDatas={podeEditarDatasCalculadora}
+                    onSalvarData={salvarDataCalculadora}
                   />
                 </div>
               </div>

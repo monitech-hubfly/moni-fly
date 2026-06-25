@@ -68,6 +68,11 @@ export type CalculadoraAncora = {
   dataFim: string;
 };
 
+export type CalculadoraFaseDataManualOverride = {
+  dataInicio?: string | null;
+  dataFim?: string | null;
+};
+
 export type CalculadoraFasesInput = {
   fases: KanbanFase[];
   card: {
@@ -81,6 +86,8 @@ export type CalculadoraFasesInput = {
   /** Referência para fase atual atrasada (default: hoje). */
   hoje?: Date;
   ancora?: CalculadoraAncora | null;
+  /** Overrides manuais por fase_id — não propagam para fases posteriores. */
+  overrides?: Map<string, CalculadoraFaseDataManualOverride>;
 };
 
 export function calculadoraAncoraFromProcesso(proc: {
@@ -399,7 +406,13 @@ export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): Ca
     }
 
     const comAncora = aplicarAncoraCalculadoraLinhas(linhas, input.ancora, card, input.hoje);
-    return inferirFimRealPorProximaFase(comAncora);
+    const comInferencia = inferirFimRealPorProximaFase(comAncora);
+    return aplicarDatasManuaisCalculadoraLinhas(
+      comInferencia,
+      input.overrides ?? new Map(),
+      card,
+      input.hoje,
+    );
   } catch {
     return [];
   }
@@ -500,6 +513,72 @@ export function aplicarAncoraCalculadoraLinhas(
   }
 
   return inferirFimRealPorProximaFase(out);
+}
+
+/**
+ * Aplica overrides manuais de datas — altera apenas a linha da fase editada,
+ * recalculando status/atraso localmente sem propagar para fases posteriores.
+ */
+export function aplicarDatasManuaisCalculadoraLinhas(
+  linhas: CalculadoraFaseLinha[],
+  overrides: Map<string, CalculadoraFaseDataManualOverride>,
+  card: CalculadoraFasesInput['card'],
+  hojeRef?: Date,
+): CalculadoraFaseLinha[] {
+  if (overrides.size === 0 || linhas.length === 0) return linhas;
+
+  const hoje = hojeYmd(hojeRef);
+  const ordemAtual =
+    linhas.find((l) => l.faseId === card.fase_id)?.ordem ??
+    linhas.find((l) => l.status === 'atual' || l.status === 'atual_atrasada')?.ordem ??
+    linhas.find((l) => l.status === 'futura')?.ordem ??
+    Number.MAX_SAFE_INTEGER;
+
+  return linhas.map((linha) => {
+    const ov = overrides.get(linha.faseId);
+    if (!ov) return linha;
+
+    let dataInicioReal = linha.dataInicioReal;
+    let dataFimReal = linha.dataFimReal;
+    let dataFimEstimada = linha.dataFimEstimada;
+
+    if ('dataInicio' in ov) {
+      dataInicioReal = ov.dataInicio ? toYmd(ov.dataInicio) : null;
+      if (dataInicioReal && linha.slaDias != null && linha.slaDias > 0) {
+        dataFimEstimada = fimEstimadaPorSla(dataInicioReal, linha.slaDias, linha.slaTipo);
+      }
+    }
+
+    if ('dataFim' in ov) {
+      const fimManual = ov.dataFim ? toYmd(ov.dataFim) : null;
+      if (fimManual) {
+        dataFimReal = fimManual;
+      } else {
+        dataFimReal = null;
+      }
+    }
+
+    const status = resolveStatus(
+      linha.faseId,
+      card,
+      dataInicioReal,
+      dataFimReal,
+      dataFimEstimada,
+      linha.ordem,
+      ordemAtual,
+      hoje,
+    );
+    const atrasoDias = resolveAtraso(status, dataFimEstimada, dataFimReal, hoje, linha.slaTipo);
+
+    return {
+      ...linha,
+      dataInicioReal,
+      dataFimReal,
+      dataFimEstimada,
+      status,
+      atrasoDias,
+    };
+  });
 }
 
 /** Preenche fim real a partir da entrada na fase seguinte (quando o histórico não registrou saída). */

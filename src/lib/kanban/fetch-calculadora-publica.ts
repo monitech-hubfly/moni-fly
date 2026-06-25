@@ -17,6 +17,7 @@ import {
   mesclarFasesKanbanAtualNoMapa,
   montarFasesFlatCalculadoraVisitas,
 } from '@/lib/kanban/calculadora-fases-esteira';
+import { buscarDatasManuaisCalculadoraPorFases } from '@/lib/kanban/calculadora-fase-datas';
 import { fetchKanbanFasesAtivas } from '@/lib/kanban/fetch-kanban-fases';
 import { loadHistoricoCardModal } from '@/lib/kanban/kanban-card-historico';
 import { buildNativeFaseVisits } from '@/lib/kanban/kanban-card-timeline';
@@ -122,6 +123,19 @@ async function montarCalculadoraPack(
     );
   }
 
+  const faseIdsPreCalc = (() => {
+    const ids: string[] = [];
+    for (const kid of CALCULADORA_ESTEIRA_KANBAN_IDS) {
+      for (const f of fasesMap.get(kid) ?? []) ids.push(f.id);
+    }
+    if (ids.length === 0) {
+      for (const f of fasesKanban) ids.push(f.id);
+    }
+    return ids;
+  })();
+
+  const overrides = await buscarDatasManuaisCalculadoraPorFases(supabase, card.id, faseIdsPreCalc);
+
   const linhasEsteira = calcularLinhasCalculadoraFasesEsteira({
     fasesPorKanban: fasesMap,
     cardKanbanId: kanbanId,
@@ -135,6 +149,7 @@ async function montarCalculadoraPack(
     },
     visits,
     ancora: calculadoraAncora,
+    overrides,
   });
 
   let linhas = linhasEsteira;
@@ -160,6 +175,7 @@ async function montarCalculadoraPack(
       },
       visits,
       ancora: calculadoraAncora,
+      overrides,
     });
   }
 
