@@ -5370,15 +5370,6 @@ export function KanbanCardModal({
                 Voltar
               </button>
               <div className="flex min-h-0 flex-1 flex-col">
-                <h4 className="mb-3 shrink-0 text-sm font-semibold" style={{ color: 'var(--moni-text-secondary)' }}>
-                  Calculadora
-                  {calculadoraResumo.fasesTotal > 0 ? (
-                    <span className="ml-2 text-xs font-normal text-stone-500">
-                      ({calculadoraResumo.percentualConcluido}% · {calculadoraResumo.fasesConcluidas}/
-                      {calculadoraResumo.fasesTotal} fases)
-                    </span>
-                  ) : null}
-                </h4>
                 <div
                   className="flex min-h-0 flex-1 flex-col rounded-lg bg-white p-4"
                   style={{
