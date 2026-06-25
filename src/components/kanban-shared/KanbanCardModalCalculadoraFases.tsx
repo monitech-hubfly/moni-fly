@@ -218,7 +218,7 @@ function CalculadoraResumoExecutivo({
   );
 }
 
-const MARCOS_COM_PREFIXO: ReadonlySet<CalculadoraMarcoId> = new Set(['M0', 'M4', 'M24']);
+const MARCOS_COM_PREFIXO: ReadonlySet<CalculadoraMarcoId> = new Set(['M0', 'M4']);
 
 function marcoDisplayLabel(marco: CalculadoraMarco): string {
   if (MARCOS_COM_PREFIXO.has(marco.id)) return `${marco.id}: ${marco.label}`;

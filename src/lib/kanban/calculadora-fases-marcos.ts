@@ -11,7 +11,7 @@ import {
   type NegocioPrazoValores,
 } from '@/lib/kanban/dados-negocio-prazo';
 
-export type CalculadoraMarcoId = 'M0' | 'M4' | 'M24' | 'MO' | 'MIG';
+export type CalculadoraMarcoId = 'M0' | 'M4' | 'MO' | 'MIG';
 
 export type CalculadoraMarco = {
   id: CalculadoraMarcoId;
@@ -52,7 +52,7 @@ type MarcoDatas = {
 };
 
 const MARCO_DEFS: {
-  id: Extract<CalculadoraMarcoId, 'M0' | 'M4' | 'M24'>;
+  id: Extract<CalculadoraMarcoId, 'M0' | 'M4'>;
   label: string;
   funilLabel: string;
   custo?: string | null;
@@ -76,14 +76,6 @@ const MARCO_DEFS: {
     match: (slug, nome) =>
       slug === FASE_SLUGS.PROCESSOS_CARTORARIOS ||
       /transfer[eê]ncia.*terreno/i.test(nome.trim()),
-  },
-  {
-    id: 'M24',
-    label: 'Liquidação',
-    funilLabel: 'Funil Pré Obra e Obra',
-    anchor: 'after',
-    match: (slug, nome) =>
-      slug === FASE_SLUGS.OPERACOES_ENTREGUE || /^entregue$/i.test(nome.trim()),
   },
 ];
 
@@ -186,7 +178,7 @@ function marcoFromDatas(
 }
 
 function resolverDatasMarco(
-  id: Extract<CalculadoraMarcoId, 'M0' | 'M4' | 'M24'>,
+  id: Extract<CalculadoraMarcoId, 'M0' | 'M4'>,
   input: CalculadoraMarcosInput,
   linhas: CalculadoraFaseLinha[],
   slugs: Map<string, string | null | undefined>,
@@ -231,13 +223,7 @@ function resolverDatasMarco(
     };
   }
 
-  const real = toYmd(input.obra_finalizada_em) ?? toYmd(input.concluido_em);
-  if (real) return { dataInicio: inicioAposFaseAnterior(linhas, idx, slugs), dataFim: real, isPrevisto: false };
-  return {
-    dataInicio: inicioAposFaseAnterior(linhas, idx, slugs),
-    dataFim: dataFimRef(linha),
-    isPrevisto: true,
-  };
+  return { dataInicio: null, dataFim: null, isPrevisto: true };
 }
 
 type InsercaoMarco = { index: number; marco: CalculadoraMarco; replace: boolean };
