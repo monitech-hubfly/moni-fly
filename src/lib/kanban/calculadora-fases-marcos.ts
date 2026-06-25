@@ -24,7 +24,7 @@ export type CalculadoraMarco = {
   funilLabel: string;
   /** Custo associado ao marco (ex.: M4 — transferência do terreno). */
   custo?: string | null;
-  /** Exibe só título + badge Marco (sem datas, status nem custo). */
+  /** Exibe título + badge Marco; sem início, status nem custo (data limite opcional). */
   somenteRotulo?: boolean;
   /** Status da fase substituída (ex.: M0 ← Contrato). */
   status?: FaseTimelineStatus | null;

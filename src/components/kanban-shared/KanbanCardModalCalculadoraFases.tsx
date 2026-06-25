@@ -231,9 +231,13 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
   const somenteRotulo = marco.somenteRotulo === true;
 
   if (somenteRotulo) {
+    const dataLimite =
+      marco.dataFimReal ?? marco.dataFimEstimada ?? marco.dataFim ?? marco.data;
+    const limiteLabel = marco.isPrevisto ? 'limite est.' : 'limite';
+
     return (
       <div
-        className={`moni-calculadora-marco-row moni-calculadora-marco-row--${id} moni-calculadora-marco-row--somente-rotulo`}
+        className={`moni-calculadora-marco-row moni-calculadora-marco-row--${id} moni-calculadora-marco-row--somente-rotulo${dataLimite ? ' moni-calculadora-marco-row--somente-rotulo-com-limite' : ''}`}
         role="separator"
       >
         <div className="moni-calculadora-marco-col min-w-0">
@@ -248,6 +252,22 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
             <span className={`moni-calculadora-marco-badge moni-calculadora-marco-badge--${id}`}>Marco</span>
           </div>
         </div>
+
+        {dataLimite ? (
+          <>
+            <div aria-hidden />
+            <div aria-hidden />
+            <div className="moni-calculadora-fase-data-cell">
+              <span
+                className={`moni-calculadora-fase-data fd-val${!dataLimite ? ' fd-val--empty' : ''}`}
+              >
+                {fmtData(dataLimite)}
+              </span>
+              <span className="moni-calculadora-fase-data-label">{limiteLabel}</span>
+            </div>
+            <div aria-hidden />
+          </>
+        ) : null}
       </div>
     );
   }

@@ -1384,7 +1384,7 @@
   font-family: var(--moni-font-sans);
 }
 
-.moni-calculadora-marco-row--somente-rotulo {
+.moni-calculadora-marco-row--somente-rotulo:not(.moni-calculadora-marco-row--somente-rotulo-com-limite) {
   grid-template-columns: minmax(0, 1fr);
 }
 
