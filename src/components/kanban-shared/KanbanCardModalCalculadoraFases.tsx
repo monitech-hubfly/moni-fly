@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Pencil } from 'lucide-react';
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import {
@@ -551,6 +551,26 @@ function CalculadoraFaseRow({
   );
 }
 
+function funilTotalmenteConcluido(items: CalculadoraTimelineItem[]): boolean {
+  const faseItems = items.filter((i) => i.kind === 'fase');
+  if (faseItems.length === 0) return false;
+  return faseItems.every(
+    (i) =>
+      i.kind === 'fase' &&
+      (i.linha.status === 'concluida' || i.linha.status === 'concluida_atraso'),
+  );
+}
+
+function collapsedFunisIniciais(
+  grupos: { label: string; items: CalculadoraTimelineItem[] }[],
+): Set<string> {
+  const out = new Set<string>();
+  for (const grupo of grupos) {
+    if (funilTotalmenteConcluido(grupo.items)) out.add(grupo.label);
+  }
+  return out;
+}
+
 function CalculadoraFunilGroup({
   label,
   items,
@@ -648,6 +668,7 @@ export function KanbanCardModalCalculadoraFases({
   const [collapsedFunis, setCollapsedFunis] = useState<Set<string>>(new Set());
   const [expandedFases, setExpandedFases] = useState<Set<string>>(new Set());
   const [editandoDatas, setEditandoDatas] = useState(false);
+  const cardInicializadoRef = useRef<string | null>(null);
   const { loading: shareLoading, copied: shareCopied, gerarECopiar } = useCalculadoraShareLink(
     cardId ?? '',
   );
@@ -682,6 +703,17 @@ export function KanbanCardModalCalculadoraFases({
   );
 
   const gruposFunil = useMemo(() => agruparTimelinePorFunil(timelineItems), [timelineItems]);
+
+  useEffect(() => {
+    const cid = cardId?.trim() ?? '';
+    if (!cid || gruposFunil.length === 0) return;
+    if (cardInicializadoRef.current === cid) return;
+
+    cardInicializadoRef.current = cid;
+    setCollapsedFunis(collapsedFunisIniciais(gruposFunil));
+    setExpandedFases(new Set());
+    setEditandoDatas(false);
+  }, [cardId, gruposFunil]);
 
   const toggleFunil = (label: string) => {
     setCollapsedFunis((prev) => {
