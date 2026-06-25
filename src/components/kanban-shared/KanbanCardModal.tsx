@@ -6494,14 +6494,8 @@ export function KanbanCardModal({
                       type="button"
                       onClick={() => setArquivamentoAberto(true)}
                       disabled={loading || !exibirBlocoArquivar}
-                      className="flex min-h-[44px] items-center justify-center gap-0.5 rounded px-1 py-1.5 text-[10px] font-semibold leading-tight transition disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-0"
-                      style={{
-                        background: 'var(--moni-status-overdue-bg)',
-                        color: 'var(--moni-status-overdue-text)',
-                        border: '0.5px solid var(--moni-status-overdue-border)',
-                      }}
+                      className="flex min-h-[44px] items-center justify-center rounded border border-stone-300 bg-white px-1 py-1.5 text-[10px] font-semibold leading-tight text-stone-800 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0"
                     >
-                      <Archive className="h-3 w-3 shrink-0" aria-hidden />
                       Arquivar
                     </button>
                     <button
