@@ -784,6 +784,12 @@
   color: var(--moni-calc-col-header);
 }
 
+.moni-calculadora-table-header span:nth-child(3),
+.moni-calculadora-table-header span:nth-child(4),
+.moni-calculadora-table-header span:nth-child(5) {
+  text-align: right;
+}
+
 .moni-calculadora-fase-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 72px 60px 80px 96px;
@@ -889,40 +895,47 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  align-items: flex-end;
-  gap: 4px;
+  align-items: stretch;
+  width: 100%;
 }
 
-.moni-calculadora-fase-concluir-btn {
+.moni-calculadora-fase-status-col .moni-calculadora-fase-status,
+.moni-calculadora-fase-status-col .moni-calc-badge-pass,
+.moni-calculadora-fase-status-col .moni-calc-badge-fut,
+.moni-calculadora-fase-status-col .moni-calc-badge-atu,
+.moni-calculadora-fase-status-col .moni-calc-badge-atu-at {
+  align-self: flex-end;
+  text-align: right;
+}
+
+.moni-calculadora-fase-status-select {
+  width: 100%;
+  min-width: 0;
   min-height: 44px;
-  padding: 4px 8px;
+  padding: 4px 6px;
   font-family: var(--moni-font-sans);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
   line-height: 1.2;
-  text-align: center;
   color: var(--moni-text-primary);
   background: var(--moni-surface-50);
   border: var(--moni-border-width) solid var(--moni-border-default);
   border-radius: var(--moni-radius-md);
   cursor: pointer;
-  white-space: nowrap;
+  text-align: right;
+  text-align-last: right;
 }
 
-.moni-calculadora-fase-concluir-btn:hover:not(:disabled) {
-  background: var(--moni-surface-100);
-}
-
-.moni-calculadora-fase-concluir-btn:disabled {
+.moni-calculadora-fase-status-select:disabled {
   opacity: 0.6;
   cursor: default;
 }
 
 @media (min-width: 641px) {
-  .moni-calculadora-fase-concluir-btn {
+  .moni-calculadora-fase-status-select {
     min-height: 0;
-    font-size: 8px;
-    padding: 3px 6px;
+    font-size: 9px;
+    padding: 3px 4px;
   }
 }
 
@@ -1209,8 +1222,9 @@
 }
 
 .moni-calculadora--modo-edicao-datas .moni-calculadora-table-header,
-.moni-calculadora--modo-edicao-datas .moni-calculadora-fase-row {
-  grid-template-columns: minmax(0, 1fr) 72px 64px 72px 96px;
+.moni-calculadora--modo-edicao-datas .moni-calculadora-fase-row,
+.moni-calculadora--modo-edicao-datas .moni-calculadora-marco-row {
+  grid-template-columns: minmax(0, 1fr) 72px 64px 72px 104px;
 }
 
 @media (max-width: 640px) {
@@ -1221,8 +1235,9 @@
   }
 
   .moni-calculadora--modo-edicao-datas .moni-calculadora-table-header,
-  .moni-calculadora--modo-edicao-datas .moni-calculadora-fase-row {
-    grid-template-columns: minmax(0, 1fr) 56px 60px 64px 76px;
+  .moni-calculadora--modo-edicao-datas .moni-calculadora-fase-row,
+  .moni-calculadora--modo-edicao-datas .moni-calculadora-marco-row {
+    grid-template-columns: minmax(0, 1fr) 56px 60px 64px 88px;
   }
 }
 

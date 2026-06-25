@@ -350,12 +350,74 @@ function CalculadoraFaseDataCell({
   );
 }
 
+function CalculadoraFaseStatusCell({
+  row,
+  editandoDatas,
+  ordemAtual,
+  onSalvarData,
+}: {
+  row: CalculadoraFaseLinha;
+  editandoDatas: boolean;
+  ordemAtual: number;
+  onSalvarData?: Props['onSalvarData'];
+}) {
+  const editavel =
+    editandoDatas &&
+    onSalvarData &&
+    (row.status === 'futura' ||
+      ((row.status === 'concluida' || row.status === 'concluida_atraso') &&
+        row.ordem > ordemAtual &&
+        Boolean(row.dataFimReal)));
+
+  const [salvando, setSalvando] = useState(false);
+
+  if (!editavel) {
+    return (
+      <span className={statusBadgeClass(row.status)}>
+        {CALCULADORA_STATUS_LABEL[row.status]}
+      </span>
+    );
+  }
+
+  const selectValue = row.status === 'futura' ? 'futura' : 'concluida';
+
+  return (
+    <select
+      className="moni-calculadora-fase-status-select"
+      value={selectValue}
+      disabled={salvando}
+      aria-label={`Status — ${row.faseNome}`}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => {
+        void (async () => {
+          const next = e.target.value;
+          if (!onSalvarData) return;
+          setSalvando(true);
+          try {
+            if (next === 'concluida') {
+              await onSalvarData(row.faseId, 'fim', calculadoraHojeYmd());
+            } else {
+              await onSalvarData(row.faseId, 'fim', null);
+            }
+          } finally {
+            setSalvando(false);
+          }
+        })();
+      }}
+    >
+      <option value="futura">Futura</option>
+      <option value="concluida">Concluída</option>
+    </select>
+  );
+}
+
 function CalculadoraFaseRow({
   row,
   faseMeta,
   expanded,
   onToggle,
   editandoDatas,
+  ordemAtual,
   onSalvarData,
 }: {
   row: CalculadoraFaseLinha;
@@ -363,6 +425,7 @@ function CalculadoraFaseRow({
   expanded: boolean;
   onToggle: () => void;
   editandoDatas: boolean;
+  ordemAtual: number;
   onSalvarData?: Props['onSalvarData'];
 }) {
   const steps = parseFaseSteps(faseMeta);
@@ -378,22 +441,6 @@ function CalculadoraFaseRow({
   const fimAtraso =
     row.status === 'atual_atrasada' ||
     (row.status === 'concluida_atraso' && row.atrasoDias !== null && row.atrasoDias > 0);
-
-  const podeConcluirManual =
-    editandoDatas && onSalvarData && row.status === 'futura';
-
-  const [concluindo, setConcluindo] = useState(false);
-
-  const concluirFaseManual = async () => {
-    if (!onSalvarData || concluindo) return;
-    setConcluindo(true);
-    try {
-      const hoje = calculadoraHojeYmd();
-      await onSalvarData(row.faseId, 'fim', hoje);
-    } finally {
-      setConcluindo(false);
-    }
-  };
 
   return (
     <div
@@ -462,22 +509,12 @@ function CalculadoraFaseRow({
       />
 
       <div className="moni-calculadora-fase-status-col">
-        <span className={statusBadgeClass(row.status)}>
-          {CALCULADORA_STATUS_LABEL[row.status]}
-        </span>
-        {podeConcluirManual ? (
-          <button
-            type="button"
-            className="moni-calculadora-fase-concluir-btn"
-            disabled={concluindo}
-            onClick={(e) => {
-              e.stopPropagation();
-              void concluirFaseManual();
-            }}
-          >
-            {concluindo ? 'Salvando…' : 'Concluir fase'}
-          </button>
-        ) : null}
+        <CalculadoraFaseStatusCell
+          row={row}
+          editandoDatas={editandoDatas}
+          ordemAtual={ordemAtual}
+          onSalvarData={onSalvarData}
+        />
       </div>
 
       {temCusto ? (
@@ -513,6 +550,7 @@ function CalculadoraFunilGroup({
   expandedFases,
   onToggleFase,
   editandoDatas,
+  ordemAtual,
   onSalvarData,
 }: {
   label: string;
@@ -523,6 +561,7 @@ function CalculadoraFunilGroup({
   expandedFases: Set<string>;
   onToggleFase: (faseId: string) => void;
   editandoDatas: boolean;
+  ordemAtual: number;
   onSalvarData?: Props['onSalvarData'];
 }) {
   const faseItems = items.filter((i) => i.kind === 'fase');
@@ -572,6 +611,7 @@ function CalculadoraFunilGroup({
               expanded={expandedFases.has(item.linha.faseId)}
               onToggle={() => onToggleFase(item.linha.faseId)}
               editandoDatas={editandoDatas}
+              ordemAtual={ordemAtual}
               onSalvarData={onSalvarData}
             />
           ),
@@ -616,6 +656,15 @@ export function KanbanCardModalCalculadoraFases({
     () => linhas.find((l) => l.faseId === faseAtualId || l.status === 'atual' || l.status === 'atual_atrasada'),
     [linhas, faseAtualId],
   );
+
+  const ordemAtual = useMemo(() => {
+    const porId = linhas.find((l) => l.faseId === faseAtualId)?.ordem;
+    if (porId != null) return porId;
+    return (
+      linhas.find((l) => l.status === 'atual' || l.status === 'atual_atrasada')?.ordem ??
+      Number.MAX_SAFE_INTEGER
+    );
+  }, [linhas, faseAtualId]);
 
   const timelineItems = useMemo(
     () => montarTimelineCalculadoraComMarcos(linhas, fases, marcos ?? { visits }),
@@ -694,8 +743,8 @@ export function KanbanCardModalCalculadoraFases({
             {' '}
             <span className="moni-calculadora-edit-hint">
               {editandoDatas
-                ? 'Alterações são salvas ao escolher cada data. Em fases futuras, use «Concluir fase» ou informe a data de fim.'
-                : 'Use «Editar datas» para ajustar início e fim manualmente.'}
+                ? 'Alterações são salvas ao escolher cada data ou status. Fases futuras podem ser marcadas como Concluída.'
+                : 'Use «Editar datas» para ajustar início, fim e status manualmente.'}
             </span>
           </>
         ) : null}
@@ -721,6 +770,7 @@ export function KanbanCardModalCalculadoraFases({
                 expandedFases={expandedFases}
                 onToggleFase={toggleFase}
                 editandoDatas={editandoDatas && podeEditarDatasEfetivo}
+                ordemAtual={ordemAtual}
                 onSalvarData={onSalvarData}
               />
             </div>
