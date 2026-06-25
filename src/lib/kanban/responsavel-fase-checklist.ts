@@ -55,6 +55,13 @@ export function isKanbanFunilStepOneId(kanbanId: string | null | undefined): boo
   return String(kanbanId ?? '').trim() === KANBAN_IDS.STEP_ONE;
 }
 
+export function isKanbanFunilLoteadoresId(kanbanId: string | null | undefined): boolean {
+  return String(kanbanId ?? '').trim() === KANBAN_IDS.LOTEADORES;
+}
+
+/** Responsável legado do Funil Loteadores (antes de Helenna Luz). */
+export const EMAIL_RESPONSAVEL_LOTEADORES_ANTIGO = 'kim@moni.casa';
+
 /** E-mail do responsável padrão por funil (exceto Step One — usa franqueado da rede). */
 export const EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN: Partial<Record<string, string>> = {
   [KANBAN_IDS.PORTFOLIO]: 'renata.silva@moni.casa',
@@ -110,6 +117,29 @@ async function buscarProfileIdPorEmail(
 
   profileIdPorEmailCache.set(cacheKey, escolhido);
   return escolhido;
+}
+
+async function buscarIdsCorrecaoResponsavelLoteadores(
+  supabase: SupabaseClient,
+): Promise<{ thaisId: string | null; helennaId: string | null }> {
+  const [thaisId, helennaId] = await Promise.all([
+    buscarProfileIdPorEmail(supabase, EMAIL_RESPONSAVEL_LOTEADORES_ANTIGO),
+    resolverResponsavelPadraoPorKanban(supabase, KANBAN_IDS.LOTEADORES),
+  ]);
+  return { thaisId, helennaId };
+}
+
+/** Substitui Thais Kim (legado) por Helenna Luz no Funil Loteadores. */
+export async function substituirThaisPorHelennaSeLoteadores(
+  supabase: SupabaseClient,
+  kanbanId: string | null | undefined,
+  userId: string | null | undefined,
+): Promise<string | null> {
+  const uid = valorResponsavelValido(userId);
+  if (!uid || !isKanbanFunilLoteadoresId(kanbanId)) return uid;
+  const { thaisId, helennaId } = await buscarIdsCorrecaoResponsavelLoteadores(supabase);
+  if (!thaisId || !helennaId || uid !== thaisId) return uid;
+  return helennaId;
 }
 
 async function isProfileIdStaff(
@@ -514,6 +544,48 @@ export async function sincronizarResponsavelFaseStepOne(
   return null;
 }
 
+/** Loteadores: corrige responsável legado (Thais Kim) e persiste Helenna Luz. */
+export async function sincronizarResponsavelFaseLoteadores(
+  supabase: SupabaseClient,
+  cardId: string,
+  faseId: string,
+  kanbanId: string | null | undefined,
+  preenchidoPor?: string | null,
+): Promise<string | null> {
+  if (!isKanbanFunilLoteadoresId(kanbanId)) return null;
+
+  const cid = cardId.trim();
+  const fid = faseId.trim();
+  if (!cid || !fid) return null;
+
+  const itemId = await buscarItemIdResponsavelFaseEdicao(supabase, fid);
+  if (!itemId) return null;
+
+  const { data: respAtual } = await supabase
+    .from('kanban_fase_checklist_respostas')
+    .select('valor')
+    .eq('card_id', cid)
+    .eq('item_id', itemId)
+    .maybeSingle();
+
+  const valorAtual = valorResponsavelValido((respAtual as { valor?: string | null } | null)?.valor);
+  const corrigido = await substituirThaisPorHelennaSeLoteadores(supabase, kanbanId, valorAtual);
+  if (!corrigido) return valorAtual;
+  if (corrigido === valorAtual) return valorAtual;
+
+  await supabase.from('kanban_fase_checklist_respostas').upsert(
+    {
+      item_id: itemId,
+      card_id: cid,
+      valor: corrigido,
+      preenchido_por: preenchidoPor ?? null,
+      preenchido_em: new Date().toISOString(),
+    },
+    { onConflict: 'item_id,card_id' },
+  );
+  return corrigido;
+}
+
 type FaseOrdemRow = { id: string; ordem: number; slug?: string | null };
 
 type ChecklistItemResponsavelRow = {
@@ -902,7 +974,9 @@ export async function buscarValorResponsavelFaseAnterior(
   for (const fase of anteriores) {
     const itemIds = await itemIdsResponsavelPorFase(supabase, fase.id);
     const valor = await buscarRespostaValor(supabase, cid, itemIds);
-    if (valor) return valor;
+    if (valor) {
+      return substituirThaisPorHelennaSeLoteadores(supabase, kanbanId, valor);
+    }
   }
 
   return resolverResponsavelPadraoPorKanban(supabase, kanbanId);
@@ -1398,6 +1472,17 @@ export async function enrichCardsComResponsavelFase(
   for (const { cardId, kanbanId } of outrosSemResposta) {
     const uid = padraoPorKanban.get(kanbanId);
     if (uid) valorPorCard.set(cardId, uid);
+  }
+
+  if (kanbanIds.includes(KANBAN_IDS.LOTEADORES)) {
+    const { thaisId, helennaId } = await buscarIdsCorrecaoResponsavelLoteadores(supabase);
+    if (thaisId && helennaId) {
+      for (const card of cards) {
+        if (!isKanbanFunilLoteadoresId(card.kanban_id)) continue;
+        const uid = valorPorCard.get(card.id);
+        if (uid === thaisId) valorPorCard.set(card.id, helennaId);
+      }
+    }
   }
 
   await enriquecerStepOneCardsBatch(

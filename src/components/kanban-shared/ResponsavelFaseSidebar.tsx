@@ -7,9 +7,11 @@ import { UsuarioChecklistSelect } from '@/components/kanban-shared/UsuarioCheckl
 import {
   buscarItemIdResponsavelFaseEdicao,
   buscarValorResponsavelFaseAnterior,
+  isKanbanFunilLoteadoresId,
   isKanbanFunilStepOneId,
   isValorUsuarioUuid,
   resolverProfileIdPorValorChecklistUsuario,
+  sincronizarResponsavelFaseLoteadores,
   sincronizarResponsavelFaseStepOne,
 } from '@/lib/kanban/responsavel-fase-checklist';
 
@@ -47,6 +49,7 @@ export function ResponsavelFaseSidebar({
   const syncFeitoRef = useRef('');
 
   const stepOne = isKanbanFunilStepOneId(kanbanId);
+  const loteadores = isKanbanFunilLoteadoresId(kanbanId);
   const somenteLeitura = readOnly;
   const nomeRede = String(nomeFranqueadoRede ?? '').trim();
 
@@ -103,6 +106,13 @@ export function ResponsavelFaseSidebar({
 
       const valorBruto = (resp as { valor?: string | null } | null)?.valor;
       let valorAtual = normalizarValorUsuario(valorBruto);
+
+      if (loteadores) {
+        const corrigido = await sincronizarResponsavelFaseLoteadores(supabase, cardId, faseId, kanbanId);
+        if (corrigido && isValorUsuarioUuid(corrigido)) {
+          valorAtual = corrigido;
+        }
+      }
 
       if (!valorAtual) {
         const resolvido = await resolverProfileIdPorValorChecklistUsuario(supabase, valorBruto);
