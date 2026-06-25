@@ -20,6 +20,7 @@ import { fetchKanbanFasesAtivas } from '@/lib/kanban/fetch-kanban-fases';
 import { loadHistoricoCardModal } from '@/lib/kanban/kanban-card-historico';
 import { buildNativeFaseVisits } from '@/lib/kanban/kanban-card-timeline';
 import { filterOperacoesCalculadoraFases } from '@/lib/kanban/operacoes-fase-slugs';
+import { filterPortfolioCalculadoraFases } from '@/lib/kanban/portfolio-fase-slugs';
 import { buscarResponsavelDaFaseSalvoPorFases } from '@/lib/kanban/responsavel-fase-checklist';
 import { filterStepOneCalculadoraFases } from '@/lib/kanban/stepone-fase-slugs';
 import { createClient } from '@/lib/supabase/server';
@@ -127,9 +128,11 @@ async function montarCalculadoraPack(
     const fasesCalculadora =
       kanbanId === KANBAN_IDS.STEP_ONE
         ? filterStepOneCalculadoraFases(fasesKanban)
-        : kanbanId === KANBAN_IDS.OPERACOES
-          ? filterOperacoesCalculadoraFases(fasesKanban)
-          : fasesKanban;
+        : kanbanId === KANBAN_IDS.PORTFOLIO
+          ? filterPortfolioCalculadoraFases(fasesKanban)
+          : kanbanId === KANBAN_IDS.OPERACOES
+            ? filterOperacoesCalculadoraFases(fasesKanban)
+            : fasesKanban;
 
     linhas = calcularLinhasCalculadoraFases({
       fases: fasesCalculadora,
@@ -153,9 +156,11 @@ async function montarCalculadoraPack(
       ? fasesFlat
       : kanbanId === KANBAN_IDS.STEP_ONE
         ? filterStepOneCalculadoraFases(fasesKanban)
-        : kanbanId === KANBAN_IDS.OPERACOES
-          ? filterOperacoesCalculadoraFases(fasesKanban)
-          : fasesKanban;
+        : kanbanId === KANBAN_IDS.PORTFOLIO
+          ? filterPortfolioCalculadoraFases(fasesKanban)
+          : kanbanId === KANBAN_IDS.OPERACOES
+            ? filterOperacoesCalculadoraFases(fasesKanban)
+            : fasesKanban;
 
   const fasesMeta = new Map<string, KanbanFase>();
   for (const f of fasesFlatFinal) fasesMeta.set(f.id, f);

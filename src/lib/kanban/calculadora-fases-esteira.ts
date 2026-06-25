@@ -12,6 +12,11 @@ import type { FaseVisit } from '@/lib/kanban/kanban-card-timeline';
 import { indiceEsteiraTresEtapas } from '@/lib/kanban/pipeline-esteira-tres-etapas';
 import { filterStepOneCalculadoraFases, isCalculadoraExcludedStepOneFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { filterOperacoesCalculadoraFases } from '@/lib/kanban/operacoes-fase-slugs';
+import {
+  filterPortfolioCalculadoraFases,
+  isCalculadoraExcludedPortfolioFaseSlug,
+} from '@/lib/kanban/portfolio-fase-slugs';
+import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 
 /** Ordem fixa da calculadora global: Step One → Portfólio → Pré Obra e Obra. */
 export const CALCULADORA_ESTEIRA_FUNIS = [
@@ -55,8 +60,13 @@ function filtrarFasesOperacoes(fases: KanbanFase[]): KanbanFase[] {
   return filterOperacoesCalculadoraFases(fases);
 }
 
+function filtrarFasesPortfolio(fases: KanbanFase[]): KanbanFase[] {
+  return filterPortfolioCalculadoraFases(fases);
+}
+
 function filtrarFasesCalculadoraEsteira(kanbanId: string, fases: KanbanFase[]): KanbanFase[] {
   if (kanbanId === KANBAN_IDS.STEP_ONE) return filtrarFasesStepOne(fases);
+  if (kanbanId === KANBAN_IDS.PORTFOLIO) return filtrarFasesPortfolio(fases);
   if (kanbanId === KANBAN_IDS.OPERACOES) return filtrarFasesOperacoes(fases);
   return fases;
 }
@@ -187,6 +197,15 @@ function resolverFaseIdParaCalculo(
     if (primeiraIncluida) return primeiraIncluida.id;
   }
 
+  if (isCalculadoraExcludedPortfolioFaseSlug(cardFaseSlug)) {
+    const passagem = meta.find(
+      (m) => m.segmentoEsteira === 1 && m.slug === FASE_SLUGS.PASSAGEM_WAYSER,
+    );
+    if (passagem) return passagem.id;
+    const primeiraPortfolio = meta.find((m) => m.segmentoEsteira === 1);
+    if (primeiraPortfolio) return primeiraPortfolio.id;
+  }
+
   const primeiraDoSegmento = meta.find((m) => m.segmentoEsteira === segmentoCard);
   return primeiraDoSegmento?.id ?? cardFaseId;
 }
@@ -297,6 +316,9 @@ export async function completarMapaCalculadoraEsteira(
 
   if (next.has(KANBAN_IDS.STEP_ONE)) {
     next.set(KANBAN_IDS.STEP_ONE, filtrarFasesStepOne(next.get(KANBAN_IDS.STEP_ONE)!));
+  }
+  if (next.has(KANBAN_IDS.PORTFOLIO)) {
+    next.set(KANBAN_IDS.PORTFOLIO, filtrarFasesPortfolio(next.get(KANBAN_IDS.PORTFOLIO)!));
   }
   if (next.has(KANBAN_IDS.OPERACOES)) {
     next.set(KANBAN_IDS.OPERACOES, filtrarFasesOperacoes(next.get(KANBAN_IDS.OPERACOES)!));

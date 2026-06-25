@@ -111,6 +111,7 @@ import {
 } from '@/lib/kanban/kanban-paralelas-chips';
 import { isDadosCondominiosFaseSlug, isHipotesesFaseSlug, isPreBatalhaFaseSlug, filterStepOneCalculadoraFases } from '@/lib/kanban/stepone-fase-slugs';
 import { filterOperacoesCalculadoraFases } from '@/lib/kanban/operacoes-fase-slugs';
+import { filterPortfolioCalculadoraFases } from '@/lib/kanban/portfolio-fase-slugs';
 import { PRE_BATALHA_INSTRUCOES_FASE, PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING } from '@/lib/kanban/pre-batalha-checklist';
 import { kanbanExibeSecaoCondominioSidebar } from '@/lib/kanban/kanban-secao-condominio';
 import { estiloChipTagKanban } from '@/lib/kanban/kanban-tag-especial';
@@ -3343,9 +3344,11 @@ export function KanbanCardModal({
       const fasesCalculadora =
         card.kanban_id === KANBAN_IDS.STEP_ONE
           ? filterStepOneCalculadoraFases(fases)
-          : card.kanban_id === KANBAN_IDS.OPERACOES
-            ? filterOperacoesCalculadoraFases(fases)
-            : fases;
+          : card.kanban_id === KANBAN_IDS.PORTFOLIO
+            ? filterPortfolioCalculadoraFases(fases)
+            : card.kanban_id === KANBAN_IDS.OPERACOES
+              ? filterOperacoesCalculadoraFases(fases)
+              : fases;
 
       const linhas = calcularLinhasCalculadoraFases({
         fases: fasesCalculadora,
@@ -3381,9 +3384,11 @@ export function KanbanCardModal({
     if (list.length > 0) return list;
     return card?.kanban_id === KANBAN_IDS.STEP_ONE
       ? filterStepOneCalculadoraFases(fases)
-      : card?.kanban_id === KANBAN_IDS.OPERACOES
-        ? filterOperacoesCalculadoraFases(fases)
-        : fases;
+      : card?.kanban_id === KANBAN_IDS.PORTFOLIO
+        ? filterPortfolioCalculadoraFases(fases)
+        : card?.kanban_id === KANBAN_IDS.OPERACOES
+          ? filterOperacoesCalculadoraFases(fases)
+          : fases;
   }, [fasesEsteiraCalculadora, fases, card?.kanban_id]);
 
   const calculadoraFasesMeta = useMemo(() => {
