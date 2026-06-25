@@ -242,7 +242,6 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
           <span className={`moni-calculadora-marco-label moni-calculadora-marco-label--${id}`} title={marcoDisplayLabel(marco)}>
             {marcoDisplayLabel(marco)}
           </span>
-          <span className={`moni-calculadora-marco-badge moni-calculadora-marco-badge--${id}`}>Marco</span>
         </div>
       </div>
 
@@ -262,7 +261,9 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
         <span className="moni-calculadora-fase-data-label">{fimLabel}</span>
       </div>
 
-      <div className="moni-calculadora-fase-status-col" aria-hidden />
+      <div className="moni-calculadora-fase-status-col">
+        <span className={`moni-calculadora-marco-badge moni-calculadora-marco-badge--${id}`}>Marco</span>
+      </div>
 
       {temCusto ? (
         <div className="moni-calc-fcusto-block" title={custo}>
