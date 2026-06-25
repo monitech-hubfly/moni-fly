@@ -16,7 +16,7 @@ export default async function CalculadoraPublicaPage({ params }: Props) {
 
   return (
     <div
-      className="min-h-screen"
+      className="moni-calculadora--modo-publico min-h-screen"
       style={{
         maxWidth: 760,
         margin: '0 auto',

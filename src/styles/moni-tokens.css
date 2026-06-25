@@ -1928,6 +1928,161 @@
   }
 }
 
+/* Calculadora — modo público / link compartilhável (tipografia ampliada) */
+.moni-calculadora--modo-publico .moni-calculadora-resumo {
+  padding: 14px 16px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-resumo-fase {
+  font-size: 18px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-resumo-meta {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-resumo-progress-label {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-resumo-stat-lbl {
+  font-size: 10px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-resumo-stat-val {
+  font-size: 13px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-badge-parcial,
+.moni-calculadora--modo-publico .moni-calculadora-badge-prazo,
+.moni-calculadora--modo-publico .moni-calculadora-badge-atrasada {
+  font-size: 12px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-table-header {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-row,
+.moni-calculadora--modo-publico .moni-calculadora-marco-row {
+  font-size: 13px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-nome {
+  font-size: 13px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-sla {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-responsavel {
+  font-size: 12px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-data,
+.moni-calculadora--modo-publico .moni-calculadora-fase-data.fd-val,
+.moni-calculadora--modo-publico .moni-calculadora-fase-data-cell .fd-val {
+  font-size: 13px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-data-label {
+  font-size: 10px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-status,
+.moni-calculadora--modo-publico .moni-calc-badge-atu,
+.moni-calculadora--modo-publico .moni-calc-badge-atu-at,
+.moni-calculadora--modo-publico .moni-calc-badge-atraso-text {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico .moni-calc-status-stacked-sub {
+  font-size: 10px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-funil-title,
+.moni-calculadora--modo-publico .moni-calculadora-funil-count {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-marco-label {
+  font-size: 12px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-marco-badge {
+  font-size: 9px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-gargalo-badge {
+  font-size: 10px;
+}
+
+.moni-calculadora--modo-publico .moni-calculadora-fase-step {
+  font-size: 12px;
+}
+
+.moni-calculadora--modo-publico .moni-calc-fcusto-label,
+.moni-calculadora--modo-publico .moni-calc-fcusto-list {
+  font-size: 11px;
+}
+
+.moni-calculadora--modo-publico > header span:first-child {
+  font-size: 17px;
+}
+
+.moni-calculadora--modo-publico > header span:last-child {
+  font-size: 13px;
+}
+
+.moni-calculadora--modo-publico > p:last-child {
+  font-size: 11px;
+}
+
+@media (max-width: 640px) {
+  .moni-calculadora--modo-publico .moni-calculadora-resumo-fase {
+    font-size: 17px;
+  }
+
+  .moni-calculadora--modo-publico .moni-calculadora-resumo-stat-val {
+    font-size: 12px;
+  }
+
+  .moni-calculadora--modo-publico .moni-calculadora-table-header,
+  .moni-calculadora--modo-publico .moni-calculadora-fase-row,
+  .moni-calculadora--modo-publico .moni-calculadora-marco-row {
+    font-size: 12px;
+  }
+
+  .moni-calculadora--modo-publico .moni-calculadora-fase-nome {
+    font-size: 12px;
+  }
+
+  .moni-calculadora--modo-publico .moni-calculadora-fase-data,
+  .moni-calculadora--modo-publico .moni-calculadora-fase-data.fd-val,
+  .moni-calculadora--modo-publico .moni-calculadora-fase-data-cell .fd-val {
+    font-size: 12px;
+  }
+
+  .moni-calculadora--modo-publico .moni-calculadora-fase-data-label {
+    font-size: 9px;
+  }
+
+  .moni-calculadora--modo-publico .moni-calculadora-fase-status,
+  .moni-calculadora--modo-publico .moni-calc-badge-atu,
+  .moni-calculadora--modo-publico .moni-calc-badge-atu-at {
+    font-size: 10px;
+  }
+
+  .moni-calculadora--modo-publico > header span:first-child {
+    font-size: 16px;
+  }
+
+  .moni-calculadora--modo-publico > header span:last-child {
+    font-size: 12px;
+  }
+}
+
 /* Identificadores de Kanban */
 .moni-kanban-id--stepone   { background: var(--moni-kanban-stepone-light);   color: var(--moni-kanban-stepone);   border-color: var(--moni-kanban-stepone-accent); }
 .moni-kanban-id--portfolio { background: var(--moni-kanban-portfolio-light); color: var(--moni-kanban-portfolio); border-color: var(--moni-kanban-portfolio-accent); }

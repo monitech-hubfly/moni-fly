@@ -7,6 +7,7 @@ import {
   CALCULADORA_STATUS_LABEL,
   calcularResumoExecutivoCalculadoraFases,
   calculadoraHojeYmd,
+  labelSufixoDataCalculadora,
   type CalculadoraFaseLinha,
   type CalculadoraStatusGeral,
   type FaseTimelineStatus,
@@ -258,7 +259,7 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
   if (somenteRotulo) {
     const dataLimite =
       marco.dataFimReal ?? marco.dataFimEstimada ?? marco.dataFim ?? marco.data;
-    const limiteLabel = marco.isPrevisto ? 'limite est.' : 'limite';
+    const limiteLabel = labelSufixoDataCalculadora(Boolean(marco.dataFimReal));
 
     return (
       <div
@@ -299,8 +300,8 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
 
   const inicio = marco.dataInicioReal ?? marco.dataInicio;
   const fim = marco.dataFimReal ?? marco.dataFimEstimada ?? marco.dataFim ?? marco.data;
-  const inicioLabel = marco.status === 'futura' ? 'prev.' : 'início';
-  const fimLabel = marco.dataFimReal ? 'real' : 'est.';
+  const inicioLabel = labelSufixoDataCalculadora(Boolean(marco.dataInicioReal));
+  const fimLabel = labelSufixoDataCalculadora(Boolean(marco.dataFimReal));
   const fimAtraso =
     marco.status === 'atual_atrasada' ||
     (marco.status === 'concluida_atraso' && Boolean(marco.dataFimReal));
@@ -519,8 +520,8 @@ function CalculadoraFaseRow({
   const hasExpand = steps.length > 0;
   const isGargalo = row.atrasoDias !== null && row.atrasoDias > 0;
   const fimData = row.dataFimReal ?? row.dataFimEstimada;
-  const fimLabel = row.dataFimReal ? 'real' : 'est.';
-  const inicioLabel = row.status === 'futura' ? 'prev.' : 'início';
+  const fimLabel = labelSufixoDataCalculadora(Boolean(row.dataFimReal));
+  const inicioLabel = labelSufixoDataCalculadora(Boolean(row.dataInicioReal));
   const unidadeAtraso = row.slaTipo === 'corridos' ? 'd.c.' : 'd.u.';
 
   const fimAtraso =
@@ -832,7 +833,7 @@ export function KanbanCardModalCalculadoraFases({
 
   return (
     <div
-      className={`${variant === 'painel' ? 'flex h-full min-h-0 flex-col gap-2' : 'space-y-2'}${editandoDatas ? ' moni-calculadora--modo-edicao-datas' : ''}`}
+      className={`${variant === 'painel' ? 'flex h-full min-h-0 flex-col gap-2' : 'space-y-2'}${modoPublico ? ' moni-calculadora--modo-publico' : ''}${editandoDatas ? ' moni-calculadora--modo-edicao-datas' : ''}`}
     >
       {!modoPublico && cardId ? (
         <div className="moni-calculadora-section-header">

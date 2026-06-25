@@ -122,6 +122,11 @@ export const CALCULADORA_STATUS_GERAL_LABEL: Record<CalculadoraStatusGeral, stri
   concluido: 'Concluído',
 };
 
+/** Sufixo de coluna de data na calculadora: est. (previsão) ou real (registrada). */
+export function labelSufixoDataCalculadora(temDataReal: boolean): 'est.' | 'real' {
+  return temDataReal ? 'real' : 'est.';
+}
+
 function addDiasPorTipo(baseYmd: string, dias: number, slaTipo: SlaTipo): string {
   if (dias <= 0) return baseYmd;
   const base = parseIsoDateOnlyLocal(baseYmd);
