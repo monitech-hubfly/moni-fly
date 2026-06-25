@@ -228,10 +228,13 @@ function marcoDisplayLabel(marco: CalculadoraMarco): string {
 
 function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
   const id = marco.id as CalculadoraMarcoId;
-  const inicio = marco.dataInicio;
-  const fim = marco.dataFim ?? marco.data;
-  const inicioLabel = marco.isPrevisto ? 'prev.' : 'início';
-  const fimLabel = marco.isPrevisto ? 'est.' : 'real';
+  const inicio = marco.dataInicioReal ?? marco.dataInicio;
+  const fim = marco.dataFimReal ?? marco.dataFimEstimada ?? marco.dataFim ?? marco.data;
+  const inicioLabel = marco.status === 'futura' ? 'prev.' : 'início';
+  const fimLabel = marco.dataFimReal ? 'real' : 'est.';
+  const fimAtraso =
+    marco.status === 'atual_atrasada' ||
+    (marco.status === 'concluida_atraso' && Boolean(marco.dataFimReal));
   const custo = String(marco.custo ?? '').trim();
   const temCusto = custo.length > 0 && custo !== '—';
 
@@ -243,27 +246,34 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
           <span className={`moni-calculadora-marco-label moni-calculadora-marco-label--${id}`} title={marcoDisplayLabel(marco)}>
             {marcoDisplayLabel(marco)}
           </span>
+          <span className={`moni-calculadora-marco-badge moni-calculadora-marco-badge--${id}`}>Marco</span>
         </div>
       </div>
 
       <div aria-hidden />
 
       <div className="moni-calculadora-fase-data-cell">
-        <span className={`moni-calculadora-marco-fim-val moni-calculadora-marco-fim-val--${id}${!inicio ? ' fd-val--empty' : ''}`}>
+        <span className={`moni-calculadora-fase-data fd-val${!inicio ? ' fd-val--empty' : ''}`}>
           {fmtData(inicio)}
         </span>
         <span className="moni-calculadora-fase-data-label">{inicioLabel}</span>
       </div>
 
-      <div className="moni-calculadora-marco-fim-cell">
-        <span className={`moni-calculadora-marco-fim-val moni-calculadora-marco-fim-val--${id}${!fim ? ' fd-val--empty' : ''}`}>
+      <div className="moni-calculadora-fase-data-cell">
+        <span
+          className={`moni-calculadora-fase-data fd-val${fimAtraso ? ' fd-val--atraso' : ''}${!fim ? ' fd-val--empty' : ''}`}
+        >
           {fmtData(fim)}
         </span>
         <span className="moni-calculadora-fase-data-label">{fimLabel}</span>
       </div>
 
       <div className="moni-calculadora-fase-status-col">
-        <span className={`moni-calculadora-marco-badge moni-calculadora-marco-badge--${id}`}>Marco</span>
+        {marco.status ? (
+          <span className={statusBadgeClass(marco.status)}>
+            {CALCULADORA_STATUS_LABEL[marco.status]}
+          </span>
+        ) : null}
       </div>
 
       {temCusto ? (

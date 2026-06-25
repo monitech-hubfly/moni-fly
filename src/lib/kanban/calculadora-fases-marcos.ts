@@ -1,7 +1,7 @@
 import type { KanbanFase } from '@/components/kanban-shared/types';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 import { parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
-import type { CalculadoraFaseLinha } from '@/lib/kanban/calculadora-fases';
+import type { CalculadoraFaseLinha, FaseTimelineStatus } from '@/lib/kanban/calculadora-fases';
 import type { FaseVisit } from '@/lib/kanban/kanban-card-timeline';
 import {
   negocioPrazoInstrumentoValoresPadrao,
@@ -24,6 +24,11 @@ export type CalculadoraMarco = {
   funilLabel: string;
   /** Custo associado ao marco (ex.: M4 — instrumento garantidor). */
   custo?: string | null;
+  /** Status da fase substituída (ex.: M0 ← Contrato). */
+  status?: FaseTimelineStatus | null;
+  dataInicioReal?: string | null;
+  dataFimReal?: string | null;
+  dataFimEstimada?: string | null;
 };
 
 export type CalculadoraMarcosInput = {
@@ -177,6 +182,30 @@ function marcoFromDatas(
   };
 }
 
+/** Copia status e datas reais/estimadas da fase substituída pelo marco. */
+function enriquecerMarcoComLinhaAnchora(
+  marco: CalculadoraMarco,
+  linhaAnchora: CalculadoraFaseLinha | undefined,
+): CalculadoraMarco {
+  if (!linhaAnchora) return marco;
+
+  const dataFim =
+    linhaAnchora.dataFimReal ?? linhaAnchora.dataFimEstimada ?? marco.dataFim;
+  const dataInicio = linhaAnchora.dataInicioReal ?? marco.dataInicio;
+
+  return {
+    ...marco,
+    status: linhaAnchora.status,
+    dataInicioReal: linhaAnchora.dataInicioReal,
+    dataFimReal: linhaAnchora.dataFimReal,
+    dataFimEstimada: linhaAnchora.dataFimEstimada,
+    dataInicio,
+    dataFim,
+    data: dataFim,
+    isPrevisto: !linhaAnchora.dataFimReal,
+  };
+}
+
 function resolverDatasMarco(
   id: Extract<CalculadoraMarcoId, 'M0' | 'M4'>,
   input: CalculadoraMarcosInput,
@@ -317,12 +346,15 @@ export function montarTimelineCalculadoraComMarcos(
     insercoes.push({
       index: insertAt,
       replace: def.anchor === 'replace',
-      marco: marcoFromDatas(datas, {
-        id: def.id,
-        label: def.label,
-        funilLabel: def.funilLabel,
-        custo: def.custo ?? linhaAnchora?.custo ?? null,
-      }),
+      marco: enriquecerMarcoComLinhaAnchora(
+        marcoFromDatas(datas, {
+          id: def.id,
+          label: def.label,
+          funilLabel: def.funilLabel,
+          custo: def.custo ?? linhaAnchora?.custo ?? null,
+        }),
+        linhaAnchora,
+      ),
     });
   }
 

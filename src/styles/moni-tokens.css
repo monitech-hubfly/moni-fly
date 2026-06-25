@@ -1137,6 +1137,16 @@
   flex-direction: column;
   gap: 1px;
   min-width: 0;
+  text-align: right;
+  align-items: flex-end;
+}
+
+.moni-calculadora-fase-data-cell--edit {
+  align-items: stretch;
+}
+
+.moni-calculadora-fase-data-cell--edit .moni-calculadora-fase-data-input {
+  text-align: right;
 }
 
 .moni-calculadora-fase-data-cell .fd-val {
@@ -1515,6 +1525,11 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
+  flex-wrap: wrap;
+}
+
+.moni-calculadora-marco-label-wrap .moni-calculadora-marco-badge {
+  flex-shrink: 0;
 }
 
 .moni-calculadora-marco-dot {
@@ -1576,6 +1591,11 @@
 
 .moni-calculadora-marco-fim-cell {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  text-align: right;
+  align-items: flex-end;
 }
 
 .moni-calculadora-marco-fim-val {
