@@ -4,6 +4,8 @@ import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import {
   calcularLinhasCalculadoraFases,
   inferirFimRealPorProximaFase,
+  aplicarAncoraCalculadoraLinhas,
+  type CalculadoraAncora,
   type CalculadoraFaseLinha,
   type CalculadoraFasesInput,
 } from '@/lib/kanban/calculadora-fases';
@@ -235,6 +237,7 @@ export function calcularLinhasCalculadoraFasesEsteira(input: {
   card: CalculadoraFasesInput['card'];
   visits: FaseVisit[];
   hoje?: Date;
+  ancora?: CalculadoraAncora | null;
 }): CalculadoraFaseLinha[] {
   const meta = montarFasesCalculadoraEsteira(input.fasesPorKanban);
   if (meta.length === 0) return [];
@@ -267,9 +270,9 @@ export function calcularLinhasCalculadoraFasesEsteira(input: {
   const comSegmento = aplicarRegrasSegmentoEsteira(linhas, meta, segmentoCard);
   const faseOrdemRelativa =
     meta.some((m) => m.id === input.card.fase_id) ? input.card.fase_id : faseIdCalc;
-  return inferirFimRealPorProximaFase(
-    aplicarOrdemRelativaFaseAtual(comSegmento, meta, faseOrdemRelativa),
-  );
+  const comOrdem = aplicarOrdemRelativaFaseAtual(comSegmento, meta, faseOrdemRelativa);
+  const comInferencia = inferirFimRealPorProximaFase(comOrdem);
+  return aplicarAncoraCalculadoraLinhas(comInferencia, input.ancora, input.card, input.hoje);
 }
 
 /** Mescla fases já carregadas do kanban atual no mapa (fallback enquanto busca a esteira). */

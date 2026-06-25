@@ -62,6 +62,12 @@ export type CalculadoraResumoExecutivo = {
   dadosParciais: boolean;
 };
 
+/** Âncora manual: fim real de uma fase; etapas anteriores sem datas; recálculo a partir daí. */
+export type CalculadoraAncora = {
+  faseSlug: string;
+  dataFim: string;
+};
+
 export type CalculadoraFasesInput = {
   fases: KanbanFase[];
   card: {
@@ -74,7 +80,18 @@ export type CalculadoraFasesInput = {
   visits: FaseVisit[];
   /** Referência para fase atual atrasada (default: hoje). */
   hoje?: Date;
+  ancora?: CalculadoraAncora | null;
 };
+
+export function calculadoraAncoraFromProcesso(proc: {
+  calculadora_ancora_fase_slug?: string | null;
+  calculadora_ancora_data_fim?: string | null;
+} | null | undefined): CalculadoraAncora | null {
+  const slug = String(proc?.calculadora_ancora_fase_slug ?? '').trim();
+  const dataFim = toYmd(proc?.calculadora_ancora_data_fim);
+  if (!slug || !dataFim) return null;
+  return { faseSlug: slug, dataFim };
+}
 
 export const CALCULADORA_STATUS_LABEL: Record<FaseTimelineStatus, string> = {
   futura: 'Futura',
@@ -120,8 +137,17 @@ function faseContribuiAtrasoAcumulado(status: FaseTimelineStatus): boolean {
   return status === 'concluida_atraso' || status === 'atual_atrasada';
 }
 
-function detectarDadosParciais(linhas: CalculadoraFaseLinha[], visits: FaseVisit[]): boolean {
+function detectarDadosParciais(
+  linhas: CalculadoraFaseLinha[],
+  visits: FaseVisit[],
+  ancora?: CalculadoraAncora | null,
+): boolean {
   if (linhas.length === 0) return false;
+
+  const ancoraIdx = ancora
+    ? linhas.findIndex((l) => String(l.faseSlug ?? '').trim() === ancora.faseSlug)
+    : -1;
+  const ordemAncora = ancoraIdx >= 0 ? (linhas[ancoraIdx]?.ordem ?? -1) : -1;
 
   const ordemAtual =
     linhas.find((l) => l.status === 'atual' || l.status === 'atual_atrasada')?.ordem ??
@@ -129,6 +155,7 @@ function detectarDadosParciais(linhas: CalculadoraFaseLinha[], visits: FaseVisit
     Number.MAX_SAFE_INTEGER;
 
   for (const row of linhas) {
+    if (ordemAncora >= 0 && row.ordem < ordemAncora) continue;
     if (row.ordem >= ordemAtual) continue;
     if (row.status === 'concluida' || row.status === 'concluida_atraso') {
       if (!row.dataInicioReal || !row.dataFimReal) return true;
@@ -371,10 +398,108 @@ export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): Ca
       fimFaseAnteriorEstimado = dataFimEstimada;
     }
 
-    return inferirFimRealPorProximaFase(linhas);
+    const comAncora = aplicarAncoraCalculadoraLinhas(linhas, input.ancora, card, input.hoje);
+    return inferirFimRealPorProximaFase(comAncora);
   } catch {
     return [];
   }
+}
+
+/**
+ * Aplica âncora manual: limpa datas das etapas anteriores, fixa fim real na fase âncora
+ * e recalcula início/estimativa (e mantém fim real de visitas) das etapas posteriores.
+ */
+export function aplicarAncoraCalculadoraLinhas(
+  linhas: CalculadoraFaseLinha[],
+  ancora: CalculadoraAncora | null | undefined,
+  card: CalculadoraFasesInput['card'],
+  hojeRef?: Date,
+): CalculadoraFaseLinha[] {
+  if (!ancora?.faseSlug || !ancora.dataFim) return linhas;
+
+  const idx = linhas.findIndex((l) => String(l.faseSlug ?? '').trim() === ancora.faseSlug);
+  if (idx < 0) return linhas;
+
+  const hoje = hojeYmd(hojeRef);
+  const ordemAtual =
+    linhas.find((l) => l.faseId === card.fase_id)?.ordem ??
+    linhas.find((l) => l.status === 'atual' || l.status === 'atual_atrasada')?.ordem ??
+    linhas.find((l) => l.status === 'futura')?.ordem ??
+    Number.MAX_SAFE_INTEGER;
+
+  const out = linhas.map((l) => ({ ...l }));
+
+  for (let i = 0; i < idx; i++) {
+    const row = out[i]!;
+    out[i] = {
+      ...row,
+      dataInicioReal: null,
+      dataFimReal: null,
+      dataFimEstimada: null,
+      atrasoDias: null,
+      status: row.ordem < ordemAtual ? 'concluida' : row.status,
+    };
+  }
+
+  const ancRow = out[idx]!;
+  const ancStatus = resolveStatus(
+    ancRow.faseId,
+    card,
+    null,
+    ancora.dataFim,
+    null,
+    ancRow.ordem,
+    ordemAtual,
+    hoje,
+  );
+  out[idx] = {
+    ...ancRow,
+    dataInicioReal: null,
+    dataFimReal: ancora.dataFim,
+    dataFimEstimada: null,
+    atrasoDias: resolveAtraso(ancStatus, null, ancora.dataFim, hoje, ancRow.slaTipo),
+    status: ancStatus,
+  };
+
+  let fimFaseAnteriorReal: string | null = ancora.dataFim;
+  let fimFaseAnteriorEstimado: string | null = null;
+
+  for (let i = idx + 1; i < out.length; i++) {
+    const row = out[i]!;
+    const dataInicioReal = inicioPorFimFaseAnterior(fimFaseAnteriorReal, fimFaseAnteriorEstimado);
+    const dataFimEstimada = dataInicioReal
+      ? fimEstimadaPorSla(dataInicioReal, row.slaDias, row.slaTipo)
+      : null;
+
+    const concluida = row.ordem < ordemAtual;
+    const dataFimReal = concluida ? row.dataFimReal : null;
+
+    const status = resolveStatus(
+      row.faseId,
+      card,
+      dataInicioReal,
+      dataFimReal,
+      dataFimEstimada,
+      row.ordem,
+      ordemAtual,
+      hoje,
+    );
+    const atrasoDias = resolveAtraso(status, dataFimEstimada, dataFimReal, hoje, row.slaTipo);
+
+    out[i] = {
+      ...row,
+      dataInicioReal,
+      dataFimEstimada,
+      dataFimReal,
+      status,
+      atrasoDias,
+    };
+
+    fimFaseAnteriorReal = dataFimReal ?? dataFimEstimada;
+    fimFaseAnteriorEstimado = dataFimEstimada;
+  }
+
+  return inferirFimRealPorProximaFase(out);
 }
 
 /** Preenche fim real a partir da entrada na fase seguinte (quando o histórico não registrou saída). */
@@ -523,7 +648,7 @@ function resolverStatusGeral(
 /** Métricas executivas agregadas a partir das linhas da calculadora. */
 export function calcularResumoExecutivoCalculadoraFases(
   linhas: CalculadoraFaseLinha[],
-  opts?: { cardConcluido?: boolean; hoje?: Date; visits?: FaseVisit[] },
+  opts?: { cardConcluido?: boolean; hoje?: Date; visits?: FaseVisit[]; ancora?: CalculadoraAncora | null },
 ): CalculadoraResumoExecutivo {
   const empty: CalculadoraResumoExecutivo = {
     faseAtualNome: null,
@@ -574,7 +699,7 @@ export function calcularResumoExecutivoCalculadoraFases(
       hoje,
     );
 
-    const dadosParciais = detectarDadosParciais(linhas, opts?.visits ?? []);
+    const dadosParciais = detectarDadosParciais(linhas, opts?.visits ?? [], opts?.ancora);
 
     return {
       faseAtualNome: linhaAtual?.faseNome ?? null,

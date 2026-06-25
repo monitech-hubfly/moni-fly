@@ -78,6 +78,8 @@ export type ProcessoModalNegocioPreObra = {
   prazo_instrumento_garantidor_modo: NegocioPrazoModo | null;
   prazo_instrumento_garantidor_fase_id: string | null;
   prazo_instrumento_garantidor_data: string | null;
+  calculadora_ancora_fase_slug: string | null;
+  calculadora_ancora_data_fim: string | null;
 };
 
 const REDE_SELECT = [
@@ -163,7 +165,12 @@ const PROCESSO_SELECT_PRAZO = [
   'prazo_instrumento_garantidor_data',
 ].join(',');
 
-const PROCESSO_SELECT = `${PROCESSO_SELECT_LEGACY},${PROCESSO_SELECT_EXTENDED},${PROCESSO_SELECT_PRAZO}`;
+const PROCESSO_SELECT_CALCULADORA_ANCORA = [
+  'calculadora_ancora_fase_slug',
+  'calculadora_ancora_data_fim',
+].join(',');
+
+const PROCESSO_SELECT = `${PROCESSO_SELECT_LEGACY},${PROCESSO_SELECT_EXTENDED},${PROCESSO_SELECT_PRAZO},${PROCESSO_SELECT_CALCULADORA_ANCORA}`;
 
 function isMissingColumnError(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
@@ -381,6 +388,8 @@ function mapProcesso(r: Record<string, unknown> | null): ProcessoModalNegocioPre
     prazo_instrumento_garantidor_modo: modo('prazo_instrumento_garantidor_modo'),
     prazo_instrumento_garantidor_fase_id: g('prazo_instrumento_garantidor_fase_id'),
     prazo_instrumento_garantidor_data: g('prazo_instrumento_garantidor_data')?.slice(0, 10) ?? null,
+    calculadora_ancora_fase_slug: g('calculadora_ancora_fase_slug'),
+    calculadora_ancora_data_fim: g('calculadora_ancora_data_fim')?.slice(0, 10) ?? null,
   };
 }
 

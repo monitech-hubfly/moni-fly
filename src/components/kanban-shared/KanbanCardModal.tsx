@@ -282,7 +282,7 @@ import {
 } from '@/lib/kanban/responsavel-fase-checklist';
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
-import { calcularLinhasCalculadoraFases, calcularResumoExecutivoCalculadoraFases, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase } from '@/lib/kanban/calculadora-fases';
+import { calcularLinhasCalculadoraFases, calcularResumoExecutivoCalculadoraFases, calculadoraAncoraFromProcesso, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase } from '@/lib/kanban/calculadora-fases';
 import {
   calcularLinhasCalculadoraFasesEsteira,
   CALCULADORA_ESTEIRA_KANBAN_IDS,
@@ -3321,6 +3321,8 @@ export function KanbanCardModal({
       const cardFaseSlug =
         fases.find((f) => f.id === card.fase_id)?.slug ?? card.etapa_slug ?? null;
 
+      const calculadoraAncora = calculadoraAncoraFromProcesso(modalDetalhes.processo);
+
       const linhasEsteira = calcularLinhasCalculadoraFasesEsteira({
         fasesPorKanban: fasesEsteiraMap,
         cardKanbanId: card.kanban_id,
@@ -3333,6 +3335,7 @@ export function KanbanCardModal({
           concluido_em: card.concluido_em,
         },
         visits,
+        ancora: calculadoraAncora,
       });
 
       if (linhasEsteira.length > 0) {
@@ -3360,20 +3363,27 @@ export function KanbanCardModal({
           concluido_em: card.concluido_em,
         },
         visits,
+        ancora: calculadoraAncora,
       });
       return { linhas, visits };
     } catch {
       return { linhas: [], visits: [] };
     }
-  }, [card, fases, fasesEsteiraCalculadora, historico, legadoCronologiaMoves, origem]);
+  }, [card, fases, fasesEsteiraCalculadora, historico, legadoCronologiaMoves, origem, modalDetalhes.processo]);
+
+  const calculadoraAncora = useMemo(
+    () => calculadoraAncoraFromProcesso(modalDetalhes.processo),
+    [modalDetalhes.processo],
+  );
 
   const calculadoraResumo = useMemo(
     () =>
       calcularResumoExecutivoCalculadoraFases(calculadoraFasesPack.linhas, {
         cardConcluido: card?.concluido === true,
         visits: calculadoraFasesPack.visits,
+        ancora: calculadoraAncora,
       }),
-    [calculadoraFasesPack, card?.concluido],
+    [calculadoraFasesPack, card?.concluido, calculadoraAncora],
   );
 
   const calculadoraFasesFlat = useMemo(() => {
