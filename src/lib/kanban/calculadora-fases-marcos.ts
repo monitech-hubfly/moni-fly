@@ -432,12 +432,39 @@ function findMarcoItemIndex(items: CalculadoraTimelineItem[], id: CalculadoraMar
   return -1;
 }
 
-/** Datas derivadas de `obra_iniciada_em` (+ meses calendário). Sem âncora → previsto sem data. */
+/** Data início da obra: `obra_iniciada_em` real ou estimativa da fase Em Obra na timeline. */
+function resolverDataInicioObra(
+  input: CalculadoraMarcosInput,
+  linhas: CalculadoraFaseLinha[],
+  slugs: Map<string, string | null | undefined>,
+): string | null {
+  const realInicio = toYmd(input.obra_iniciada_em);
+  if (realInicio) return realInicio;
+
+  const idx = findFaseIndex(
+    linhas,
+    slugs,
+    (slug, nome) => slug === FASE_SLUGS.EM_OBRA || /^em\s*obra$/i.test(nome.trim()),
+  );
+  const linha = idx >= 0 ? linhas[idx] : undefined;
+  if (linha?.dataInicioReal) return linha.dataInicioReal;
+
+  if (idx >= 0) {
+    const inicioEstimado = inicioAposFaseAnterior(linhas, idx, slugs);
+    if (inicioEstimado) return inicioEstimado;
+  }
+
+  return null;
+}
+
+/** Datas derivadas do início da obra (+ meses calendário). Sem âncora → previsto sem data. */
 function resolverDatasMarcoBca(
   input: CalculadoraMarcosInput,
+  linhas: CalculadoraFaseLinha[],
+  slugs: Map<string, string | null | undefined>,
   mesesAposObra: number,
 ): MarcoDatas {
-  const inicioObra = toYmd(input.obra_iniciada_em);
+  const inicioObra = resolverDataInicioObra(input, linhas, slugs);
   if (!inicioObra) return { dataInicio: null, dataFim: null, isPrevisto: true };
   const dataFim = adicionarMesesCalendarioYmd(inicioObra, mesesAposObra);
   return { dataInicio: null, dataFim, isPrevisto: true };
@@ -474,19 +501,24 @@ function insertIndexMarcoBca(
 function inserirMarcosBca(
   items: CalculadoraTimelineItem[],
   marcosInput: CalculadoraMarcosInput,
+  linhas: CalculadoraFaseLinha[],
   slugs: Map<string, string | null | undefined>,
 ): CalculadoraTimelineItem[] {
   const out = [...items];
 
   for (const def of MARCOS_BCA) {
-    const datas = resolverDatasMarcoBca(marcosInput, def.mesesAposObra);
-    const marco = marcoFromDatas(datas, {
+    const datas = resolverDatasMarcoBca(marcosInput, linhas, slugs, def.mesesAposObra);
+    const marcoBase = marcoFromDatas(datas, {
       id: def.id,
       label: def.label,
       funilLabel: 'Dados do Negócio',
       custo: null,
       somenteRotulo: def.somenteRotulo,
     });
+    const marco: CalculadoraMarco = {
+      ...marcoBase,
+      dataFimEstimada: datas.dataFim,
+    };
     const refData = marco.dataFim ?? marco.dataInicio;
     const idx = insertIndexMarcoBca(out, slugs, def, refData);
     out.splice(idx, 0, {
@@ -604,7 +636,7 @@ export function montarTimelineCalculadoraComMarcos(
     else items.splice(index, 0, { kind: 'marco', marco });
   }
 
-  items = inserirMarcosBca(items, marcosInput, slugs);
+  items = inserirMarcosBca(items, marcosInput, linhas, slugs);
   items = inserirMarcosPrazoNegocio(items, marcosInput, linhas, slugs);
   return items;
 }
