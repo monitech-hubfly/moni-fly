@@ -16,7 +16,10 @@ export type CalculadoraMarcoId = 'M0' | 'M4' | 'M24' | 'MO' | 'MIG';
 export type CalculadoraMarco = {
   id: CalculadoraMarcoId;
   label: string;
+  /** Fim do marco (alias de dataFim). */
   data: string | null;
+  dataInicio: string | null;
+  dataFim: string | null;
   isPrevisto: boolean;
   funilLabel: string;
   /** Custo associado ao marco (ex.: M4 — instrumento garantidor). */
@@ -39,6 +42,12 @@ export type CalculadoraTimelineItem =
 
 const CUSTO_INSTRUMENTO_GARANTIDOR =
   'Franqueado: instrumento que assegure o terrenista do recebimento do valor do terreno no final da operação';
+
+type MarcoDatas = {
+  dataInicio: string | null;
+  dataFim: string | null;
+  isPrevisto: boolean;
+};
 
 const MARCO_DEFS: {
   id: Extract<CalculadoraMarcoId, 'M0' | 'M4' | 'M24'>;
@@ -80,18 +89,15 @@ const MARCOS_PRAZO_NEGOCIO: {
   id: Extract<CalculadoraMarcoId, 'MO' | 'MIG'>;
   label: string;
   custo?: string | null;
-  resolver: (
-    input: CalculadoraMarcosInput,
-    linhas: CalculadoraFaseLinha[],
-  ) => { data: string | null; isPrevisto: boolean };
+  resolver: (input: CalculadoraMarcosInput, linhas: CalculadoraFaseLinha[]) => MarcoDatas;
 }[] = [
   {
     id: 'MO',
     label: 'Fim Opção',
     resolver: (input, linhas) => {
       const real = toYmd(input.opcao_assinada_em);
-      if (real) return { data: real, isPrevisto: false };
-      return resolverDataPrazoNegocioYmd(input.prazo_opcao, linhas);
+      if (real) return { dataInicio: real, dataFim: real, isPrevisto: false };
+      return resolverDatasPrazoNegocio(input.prazo_opcao, linhas);
     },
   },
   {
@@ -99,7 +105,7 @@ const MARCOS_PRAZO_NEGOCIO: {
     label: 'Limite Contratação Instrumento Garantidor',
     custo: CUSTO_INSTRUMENTO_GARANTIDOR,
     resolver: (input, linhas) =>
-      resolverDataPrazoNegocioYmd(input.prazo_instrumento_garantidor, linhas),
+      resolverDatasPrazoNegocio(input.prazo_instrumento_garantidor, linhas),
   },
 ];
 
@@ -126,42 +132,116 @@ function findFaseIndex(
   return -1;
 }
 
+function inicioAposFaseAnterior(
+  linhas: CalculadoraFaseLinha[],
+  idx: number,
+  slugs: Map<string, string | null | undefined>,
+): string | null {
+  if (idx > 0) {
+    const ant = linhas[idx - 1]!;
+    const fim = ant.dataFimReal ?? ant.dataFimEstimada ?? ant.dataInicioReal;
+    if (fim) return fim;
+  }
+  return null;
+}
+
 function dataFimRef(linha: CalculadoraFaseLinha | undefined): string | null {
   if (!linha) return null;
   return linha.dataFimReal ?? linha.dataFimEstimada ?? linha.dataInicioReal;
 }
 
-function resolverDataMarco(
+function resolverDatasPrazoNegocio(
+  valores: NegocioPrazoValores | null | undefined,
+  linhas: CalculadoraFaseLinha[],
+): MarcoDatas {
+  if (!valores?.modo) return { dataInicio: null, dataFim: null, isPrevisto: true };
+
+  if (valores.modo === 'data') {
+    const d = valores.data?.trim().slice(0, 10) ?? '';
+    const dataFim = /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+    return { dataInicio: null, dataFim, isPrevisto: true };
+  }
+
+  const linha = linhas.find((l) => l.faseId === valores.faseId);
+  const anchor = linha
+    ? linha.dataFimReal ?? linha.dataFimEstimada ?? linha.dataInicioReal
+    : null;
+  const { data: dataFim, isPrevisto } = resolverDataPrazoNegocioYmd(valores, linhas);
+  return { dataInicio: anchor, dataFim, isPrevisto };
+}
+
+function marcoFromDatas(
+  datas: MarcoDatas,
+  partial: Omit<CalculadoraMarco, 'data' | 'dataInicio' | 'dataFim' | 'isPrevisto'>,
+): CalculadoraMarco {
+  return {
+    ...partial,
+    dataInicio: datas.dataInicio,
+    dataFim: datas.dataFim,
+    data: datas.dataFim,
+    isPrevisto: datas.isPrevisto,
+  };
+}
+
+function resolverDatasMarco(
   id: Extract<CalculadoraMarcoId, 'M0' | 'M4' | 'M24'>,
   input: CalculadoraMarcosInput,
   linhas: CalculadoraFaseLinha[],
   slugs: Map<string, string | null | undefined>,
-): { data: string | null; isPrevisto: boolean } {
+): MarcoDatas {
   const def = MARCO_DEFS.find((d) => d.id === id);
-  if (!def) return { data: null, isPrevisto: true };
+  if (!def) return { dataInicio: null, dataFim: null, isPrevisto: true };
 
   const idx = findFaseIndex(linhas, slugs, def.match);
+  const linha = idx >= 0 ? linhas[idx] : undefined;
 
   if (id === 'M0') {
-    const real = toYmd(input.contrato_assinado_em);
-    if (real) return { data: real, isPrevisto: false };
-    return { data: dataFimRef(linhas[idx]), isPrevisto: true };
+    const realFim = toYmd(input.contrato_assinado_em);
+    const dataInicio =
+      linha?.dataInicioReal ??
+      (() => {
+        const idxDil = findFaseIndex(
+          linhas,
+          slugs,
+          (slug, nome) => slug === 'step_6' || /dilig[eê]ncia/i.test(nome.trim()),
+        );
+        if (idxDil >= 0) {
+          const dil = linhas[idxDil]!;
+          return dil.dataFimReal ?? dil.dataFimEstimada ?? null;
+        }
+        return inicioAposFaseAnterior(linhas, idx, slugs);
+      })();
+    const dataFim =
+      realFim ?? linha?.dataFimReal ?? linha?.dataFimEstimada ?? dataFimRef(linha);
+    return {
+      dataInicio,
+      dataFim,
+      isPrevisto: !realFim && linha?.dataFimReal == null,
+    };
   }
 
   if (id === 'M4') {
-    const linha = idx >= 0 ? linhas[idx] : undefined;
-    return { data: dataFimRef(linha), isPrevisto: linha?.dataFimReal == null };
+    const dataFim = dataFimRef(linha);
+    return {
+      dataInicio: inicioAposFaseAnterior(linhas, idx, slugs),
+      dataFim,
+      isPrevisto: linha?.dataFimReal == null,
+    };
   }
 
   const real = toYmd(input.obra_finalizada_em) ?? toYmd(input.concluido_em);
-  if (real) return { data: real, isPrevisto: false };
-  return { data: dataFimRef(linhas[idx]), isPrevisto: true };
+  if (real) return { dataInicio: inicioAposFaseAnterior(linhas, idx, slugs), dataFim: real, isPrevisto: false };
+  return {
+    dataInicio: inicioAposFaseAnterior(linhas, idx, slugs),
+    dataFim: dataFimRef(linha),
+    isPrevisto: true,
+  };
 }
 
 type InsercaoMarco = { index: number; marco: CalculadoraMarco; replace: boolean };
 
 function dataReferenciaItem(item: CalculadoraTimelineItem): string | null {
-  if (item.kind === 'marco') return item.marco.data;
+  if (item.kind === 'marco') return item.marco.dataFim ?? item.marco.data;
   const l = item.linha;
   return l.dataFimReal ?? l.dataFimEstimada ?? l.dataInicioReal ?? null;
 }
@@ -196,27 +276,29 @@ function inserirMarcosPrazoNegocio(
   const candidatos: CalculadoraMarco[] = [];
 
   for (const def of MARCOS_PRAZO_NEGOCIO) {
-    const { data, isPrevisto } = def.resolver(marcosInput, linhas);
-    if (!data) continue;
-    candidatos.push({
-      id: def.id,
-      label: def.label,
-      data,
-      isPrevisto,
-      funilLabel: 'Dados do Negócio',
-      custo: def.custo ?? null,
-    });
+    const datas = def.resolver(marcosInput, linhas);
+    if (!datas.dataFim && !datas.dataInicio) continue;
+    candidatos.push(
+      marcoFromDatas(datas, {
+        id: def.id,
+        label: def.label,
+        funilLabel: 'Dados do Negócio',
+        custo: def.custo ?? null,
+      }),
+    );
   }
 
   candidatos.sort((a, b) => {
-    const da = a.data ?? '';
-    const db = b.data ?? '';
+    const da = a.dataFim ?? a.dataInicio ?? '';
+    const db = b.dataFim ?? b.dataInicio ?? '';
     return da < db ? -1 : da > db ? 1 : 0;
   });
 
   const out = [...items];
   for (const marco of candidatos) {
-    const idx = insertIndexPorData(out, marco.data!);
+    const refData = marco.dataFim ?? marco.dataInicio;
+    if (!refData) continue;
+    const idx = insertIndexPorData(out, refData);
     out.splice(idx, 0, {
       kind: 'marco',
       marco: { ...marco, funilLabel: funilLabelNoIndice(out, idx) },
@@ -241,20 +323,18 @@ export function montarTimelineCalculadoraComMarcos(
     if (idx < 0) continue;
 
     const insertAt = def.anchor === 'after' ? idx + 1 : def.anchor === 'replace' ? idx : idx;
-    const { data, isPrevisto } = resolverDataMarco(def.id, marcosInput, linhas, slugs);
+    const datas = resolverDatasMarco(def.id, marcosInput, linhas, slugs);
     const linhaAnchora = def.anchor === 'replace' ? linhas[idx] : undefined;
 
     insercoes.push({
       index: insertAt,
       replace: def.anchor === 'replace',
-      marco: {
+      marco: marcoFromDatas(datas, {
         id: def.id,
         label: def.label,
-        data,
-        isPrevisto,
         funilLabel: def.funilLabel,
         custo: def.custo ?? linhaAnchora?.custo ?? null,
-      },
+      }),
     });
   }
 

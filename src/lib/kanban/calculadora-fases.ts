@@ -520,7 +520,7 @@ export function aplicarAncoraCalculadoraLinhas(
 }
 
 /** Recalcula início/estimativa (e fim real de concluídas) a partir de uma fase âncora. */
-function propagarLinhasCalculadoraForward(
+export function propagarLinhasCalculadoraForward(
   linhas: CalculadoraFaseLinha[],
   desdeIdx: number,
   card: CalculadoraFasesInput['card'],
@@ -649,6 +649,96 @@ export function aplicarDatasManuaisCalculadoraLinhas(
   }
 
   return out;
+}
+
+type EncadeamentoMarcoContratoInput = { contrato_assinado_em?: string | null };
+
+function idxFasePorSlugOuNome(
+  linhas: CalculadoraFaseLinha[],
+  slugs: Map<string, string | null | undefined>,
+  match: (slug: string | null | undefined, nome: string) => boolean,
+): number {
+  for (let i = 0; i < linhas.length; i++) {
+    const row = linhas[i]!;
+    const slug = slugs.get(row.faseId) ?? row.faseSlug;
+    if (match(slug, row.faseNome)) return i;
+  }
+  return -1;
+}
+
+/**
+ * Encadeia M0 (Contrato) após Diligência e recalcula Passagem para Wayser e fases posteriores.
+ */
+export function aplicarEncadeamentoMarcoContratoNasLinhas(
+  linhas: CalculadoraFaseLinha[],
+  fases: KanbanFase[],
+  marcosInput: EncadeamentoMarcoContratoInput,
+  card: CalculadoraFasesInput['card'],
+  hojeRef?: Date,
+): CalculadoraFaseLinha[] {
+  if (linhas.length === 0) return linhas;
+
+  const slugs = new Map(fases.map((f) => [f.id, f.slug]));
+  const idxContrato = idxFasePorSlugOuNome(
+    linhas,
+    slugs,
+    (slug, nome) => slug === FASE_SLUGS.STEP_7 || /^contrato$/i.test(nome.trim()),
+  );
+  if (idxContrato < 0) return linhas;
+
+  const idxDiligencia = idxFasePorSlugOuNome(
+    linhas,
+    slugs,
+    (slug, nome) => slug === 'step_6' || /dilig[eê]ncia/i.test(nome.trim()),
+  );
+
+  const hoje = hojeYmd(hojeRef);
+  const ordemAtual =
+    linhas.find((l) => l.faseId === card.fase_id)?.ordem ??
+    linhas.find((l) => l.status === 'atual' || l.status === 'atual_atrasada')?.ordem ??
+    linhas.find((l) => l.status === 'futura')?.ordem ??
+    Number.MAX_SAFE_INTEGER;
+
+  const out = linhas.map((l) => ({ ...l }));
+  const rowContrato = out[idxContrato]!;
+
+  let inicioContrato: string | null = null;
+  if (idxDiligencia >= 0) {
+    const dil = out[idxDiligencia]!;
+    inicioContrato = inicioPorFimFaseAnterior(dil.dataFimReal, dil.dataFimEstimada);
+  } else if (idxContrato > 0) {
+    const ant = out[idxContrato - 1]!;
+    inicioContrato = inicioPorFimFaseAnterior(ant.dataFimReal, ant.dataFimEstimada);
+  }
+
+  const realFim = toYmd(marcosInput.contrato_assinado_em);
+  const fimEstimado =
+    inicioContrato && rowContrato.slaDias != null && rowContrato.slaDias > 0
+      ? fimEstimadaPorSla(inicioContrato, rowContrato.slaDias, rowContrato.slaTipo)
+      : rowContrato.dataFimEstimada;
+
+  const status = resolveStatus(
+    rowContrato.faseId,
+    card,
+    inicioContrato,
+    realFim,
+    realFim ? null : fimEstimado,
+    rowContrato.ordem,
+    ordemAtual,
+    hoje,
+  );
+  const atrasoDias = resolveAtraso(status, realFim ? null : fimEstimado, realFim, hoje, rowContrato.slaTipo);
+
+  out[idxContrato] = {
+    ...rowContrato,
+    dataInicioReal: inicioContrato ?? rowContrato.dataInicioReal,
+    dataFimReal: realFim,
+    dataFimEstimada: realFim ? null : fimEstimado,
+    status,
+    atrasoDias,
+  };
+
+  return propagarLinhasCalculadoraForward(out, idxContrato, card, ordemAtual, hoje);
 }
 
 /** Preenche fim real a partir da entrada na fase seguinte (quando o histórico não registrou saída). */

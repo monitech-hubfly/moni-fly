@@ -225,20 +225,42 @@ function marcoDisplayLabel(marco: CalculadoraMarco): string {
   return marco.label;
 }
 
-function CalculadoraMarcoSep({ marco }: { marco: CalculadoraMarco }) {
+function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
   const id = marco.id as CalculadoraMarcoId;
-  const dataFmt = marco.data ? fmtData(marco.data) : null;
+  const inicio = marco.dataInicio;
+  const fim = marco.dataFim ?? marco.data;
+  const inicioLabel = marco.isPrevisto ? 'prev.' : 'início';
+  const fimLabel = marco.isPrevisto ? 'est.' : 'real';
 
   return (
-    <div className={`moni-calc-marco-sep moni-calc-marco-sep--${id}`} role="separator">
-      <div className="moni-calc-marco-line" aria-hidden />
-      <div className={`moni-calc-marco-pill moni-calc-marco-pill--${id}`}>
-        <span className={`moni-calc-marco-dot moni-calc-marco-dot--${id}`} aria-hidden />
-        <span>{marcoDisplayLabel(marco)}</span>
-        {dataFmt ? <span className="moni-calc-marco-data">{dataFmt}</span> : null}
-        <span className={`moni-calculadora-marco-badge moni-calculadora-marco-badge--${id}`}>Marco</span>
+    <div className={`moni-calculadora-marco-row moni-calculadora-marco-row--${id}`} role="separator">
+      <div className="moni-calculadora-marco-col min-w-0">
+        <div className="moni-calculadora-marco-label-wrap">
+          <span className={`moni-calculadora-marco-dot moni-calculadora-marco-dot--${id}`} aria-hidden />
+          <span className={`moni-calculadora-marco-label moni-calculadora-marco-label--${id}`} title={marcoDisplayLabel(marco)}>
+            {marcoDisplayLabel(marco)}
+          </span>
+          <span className={`moni-calculadora-marco-badge moni-calculadora-marco-badge--${id}`}>Marco</span>
+        </div>
       </div>
-      <div className="moni-calc-marco-line" aria-hidden />
+
+      <div aria-hidden />
+
+      <div className="moni-calculadora-fase-data-cell">
+        <span className={`moni-calculadora-marco-fim-val moni-calculadora-marco-fim-val--${id}${!inicio ? ' fd-val--empty' : ''}`}>
+          {fmtData(inicio)}
+        </span>
+        <span className="moni-calculadora-fase-data-label">{inicioLabel}</span>
+      </div>
+
+      <div className="moni-calculadora-marco-fim-cell">
+        <span className={`moni-calculadora-marco-fim-val moni-calculadora-marco-fim-val--${id}${!fim ? ' fd-val--empty' : ''}`}>
+          {fmtData(fim)}
+        </span>
+        <span className="moni-calculadora-fase-data-label">{fimLabel}</span>
+      </div>
+
+      <div className="moni-calculadora-fase-status-col" aria-hidden />
     </div>
   );
 }
@@ -497,7 +519,7 @@ function CalculadoraFunilGroup({
         </div>
         {items.map((item) =>
           item.kind === 'marco' ? (
-            <CalculadoraMarcoSep key={`marco-${item.marco.id}`} marco={item.marco} />
+            <CalculadoraMarcoRow key={`marco-${item.marco.id}-${item.marco.dataFim ?? ''}`} marco={item.marco} />
           ) : (
             <CalculadoraFaseRow
               key={item.linha.faseId}

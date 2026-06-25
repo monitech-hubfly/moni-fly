@@ -1312,7 +1312,16 @@
 
 .moni-calculadora-marco-row,
 .moni-calc-row-marco {
-  display: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px 60px 80px 96px;
+  align-items: start;
+  gap: 6px;
+  padding: 6px 8px;
+  margin: 2px 0;
+  border-radius: var(--moni-radius-md, 6px);
+  border: 0.5px solid var(--moni-calc-marco-row-border);
+  background: var(--moni-calc-marco-row-bg);
+  font-family: var(--moni-font-sans);
 }
 
 /* Marcos v4 — separador horizontal */
@@ -1772,7 +1781,8 @@
   }
 
   .moni-calculadora-table-header,
-  .moni-calculadora-fase-row {
+  .moni-calculadora-fase-row,
+  .moni-calculadora-marco-row {
     grid-template-columns: minmax(0, 1fr) 56px 52px 64px 76px;
     gap: 4px;
     font-size: 10px;

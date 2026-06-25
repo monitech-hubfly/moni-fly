@@ -289,7 +289,7 @@ import {
 } from '@/lib/kanban/responsavel-fase-checklist';
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
-import { calcularLinhasCalculadoraFases, calcularResumoExecutivoCalculadoraFases, calculadoraAncoraFromProcesso, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase } from '@/lib/kanban/calculadora-fases';
+import { calcularLinhasCalculadoraFases, calcularResumoExecutivoCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase } from '@/lib/kanban/calculadora-fases';
 import {
   buscarDatasManuaisCalculadoraPorFases,
   limparDatasManuaisCalculadoraPorFases,
@@ -3406,16 +3406,6 @@ export function KanbanCardModal({
     [modalDetalhes.processo],
   );
 
-  const calculadoraResumo = useMemo(
-    () =>
-      calcularResumoExecutivoCalculadoraFases(calculadoraFasesPack.linhas, {
-        cardConcluido: card?.concluido === true,
-        visits: calculadoraFasesPack.visits,
-        ancora: calculadoraAncora,
-      }),
-    [calculadoraFasesPack, card?.concluido, calculadoraAncora],
-  );
-
   const calculadoraFasesFlat = useMemo(() => {
     const list: KanbanFase[] = [];
     for (const kid of CALCULADORA_ESTEIRA_KANBAN_IDS) {
@@ -3564,14 +3554,40 @@ export function KanbanCardModal({
     return map;
   }, [calculadoraFasesMeta]);
 
+  const calculadoraLinhasEncadeadas = useMemo(() => {
+    if (!card) return calculadoraFasesPack.linhas;
+    return aplicarEncadeamentoMarcoContratoNasLinhas(
+      calculadoraFasesPack.linhas,
+      calculadoraFasesFlat,
+      { contrato_assinado_em: calculadoraMarcosInput.contrato_assinado_em },
+      {
+        fase_id: card.fase_id,
+        created_at: card.created_at,
+        entered_fase_at: card.entered_fase_at,
+        concluido: card.concluido,
+        concluido_em: card.concluido_em,
+      },
+    );
+  }, [card, calculadoraFasesPack.linhas, calculadoraFasesFlat, calculadoraMarcosInput.contrato_assinado_em]);
+
+  const calculadoraResumo = useMemo(
+    () =>
+      calcularResumoExecutivoCalculadoraFases(calculadoraLinhasEncadeadas, {
+        cardConcluido: card?.concluido === true,
+        visits: calculadoraFasesPack.visits,
+        ancora: calculadoraAncora,
+      }),
+    [calculadoraLinhasEncadeadas, calculadoraFasesPack.visits, card?.concluido, calculadoraAncora],
+  );
+
   const calculadoraLinhasEnriquecidas = useMemo(() => {
     const comResponsavel = enriquecerLinhasCalculadoraComResponsavelDaFase(
-      calculadoraFasesPack.linhas,
+      calculadoraLinhasEncadeadas,
       calculadoraSlugPorFaseId,
       responsavelDaFaseSalvoPorFase,
     );
     return enriquecerLinhasCalculadoraComCusto(comResponsavel, calculadoraSlugPorFaseId);
-  }, [calculadoraFasesPack.linhas, calculadoraSlugPorFaseId, responsavelDaFaseSalvoPorFase]);
+  }, [calculadoraLinhasEncadeadas, calculadoraSlugPorFaseId, responsavelDaFaseSalvoPorFase]);
 
   const abrirEdicaoInstrucoesFase = () => {
     if (!faseAtual || !pode('editar_instrucoes')) return;

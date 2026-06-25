@@ -4,6 +4,7 @@ import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import {
   calcularLinhasCalculadoraFases,
   calculadoraAncoraFromProcesso,
+  aplicarEncadeamentoMarcoContratoNasLinhas,
   enriquecerLinhasCalculadoraComCusto,
   enriquecerLinhasCalculadoraComResponsavelDaFase,
   type CalculadoraFaseLinha,
@@ -193,6 +194,19 @@ async function montarCalculadoraPack(
           : kanbanId === KANBAN_IDS.OPERACOES
             ? filterOperacoesCalculadoraFases(fasesKanban)
             : fasesKanban;
+
+  linhas = aplicarEncadeamentoMarcoContratoNasLinhas(
+    linhas,
+    fasesFlatFinal,
+    { contrato_assinado_em: card.contrato_assinado_em },
+    {
+      fase_id: card.fase_id,
+      created_at: card.created_at,
+      entered_fase_at: card.entered_fase_at,
+      concluido: card.concluido,
+      concluido_em: card.concluido_em,
+    },
+  );
 
   const fasesMeta = new Map<string, KanbanFase>();
   for (const f of fasesFlatFinal) fasesMeta.set(f.id, f);
