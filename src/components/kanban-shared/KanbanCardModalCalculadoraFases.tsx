@@ -228,6 +228,30 @@ function marcoDisplayLabel(marco: CalculadoraMarco): string {
 
 function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
   const id = marco.id as CalculadoraMarcoId;
+  const somenteRotulo = marco.somenteRotulo === true;
+
+  if (somenteRotulo) {
+    return (
+      <div
+        className={`moni-calculadora-marco-row moni-calculadora-marco-row--${id} moni-calculadora-marco-row--somente-rotulo`}
+        role="separator"
+      >
+        <div className="moni-calculadora-marco-col min-w-0">
+          <div className="moni-calculadora-marco-label-wrap">
+            <span className={`moni-calculadora-marco-dot moni-calculadora-marco-dot--${id}`} aria-hidden />
+            <span
+              className={`moni-calculadora-marco-label moni-calculadora-marco-label--${id}`}
+              title={marcoDisplayLabel(marco)}
+            >
+              {marcoDisplayLabel(marco)}
+            </span>
+            <span className={`moni-calculadora-marco-badge moni-calculadora-marco-badge--${id}`}>Marco</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const inicio = marco.dataInicioReal ?? marco.dataInicio;
   const fim = marco.dataFimReal ?? marco.dataFimEstimada ?? marco.dataFim ?? marco.data;
   const inicioLabel = marco.status === 'futura' ? 'prev.' : 'início';

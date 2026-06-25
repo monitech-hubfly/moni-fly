@@ -1384,6 +1384,10 @@
   font-family: var(--moni-font-sans);
 }
 
+.moni-calculadora-marco-row--somente-rotulo {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 /* Marcos v4 — separador horizontal */
 .moni-calc-marco-sep {
   display: flex;

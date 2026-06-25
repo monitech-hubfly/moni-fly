@@ -21,6 +21,8 @@ export const CUSTO_PADRAO_POR_SLUG: Record<string, string> = {
   aprovacao_condominio: 'Franqueado: registros de responsabilidade técnica e taxas de aprovação',
   aprovacao_prefeitura:
     'Franqueado: registro de responsabilidade e taxas municipais e protocolos necessários para aprovação de obras.',
+  revisao_bca:
+    'Franqueado: Contratação do Instrumento (obs: este é o limite, a contratação deve ser feita, finalizada e apresentada ao terrenista antes da Transferência do Terreno)',
   processos_cartorarios:
     'Franqueado: ITBI, impostos, taxas para transferência e custas do terreno',
 };

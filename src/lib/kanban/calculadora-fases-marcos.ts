@@ -22,8 +22,10 @@ export type CalculadoraMarco = {
   dataFim: string | null;
   isPrevisto: boolean;
   funilLabel: string;
-  /** Custo associado ao marco (ex.: M4 — instrumento garantidor). */
+  /** Custo associado ao marco (ex.: M4 — transferência do terreno). */
   custo?: string | null;
+  /** Exibe só título + badge Marco (sem datas, status nem custo). */
+  somenteRotulo?: boolean;
   /** Status da fase substituída (ex.: M0 ← Contrato). */
   status?: FaseTimelineStatus | null;
   dataInicioReal?: string | null;
@@ -47,9 +49,6 @@ export type CalculadoraTimelineItem =
 
 const CUSTO_TRANSFERENCIA_TERRENO =
   'Franqueado: ITBI, impostos, taxas para transferência e custas do terreno';
-const CUSTO_INSTRUMENTO_GARANTIDOR =
-  'Franqueado: Contratação do Instrumento (obs: este é o limite, a contratação deve ser feita, finalizada e apresentada ao terrenista antes da Transferência do Terreno)';
-
 type MarcoDatas = {
   dataInicio: string | null;
   dataFim: string | null;
@@ -88,6 +87,7 @@ const MARCOS_PRAZO_NEGOCIO: {
   id: Extract<CalculadoraMarcoId, 'MO' | 'MIG'>;
   label: string;
   custo?: string | null;
+  somenteRotulo?: boolean;
   resolver: (input: CalculadoraMarcosInput, linhas: CalculadoraFaseLinha[]) => MarcoDatas;
 }[] = [
   {
@@ -102,7 +102,7 @@ const MARCOS_PRAZO_NEGOCIO: {
   {
     id: 'MIG',
     label: 'Limite Contratação Instrumento Garantidor',
-    custo: CUSTO_INSTRUMENTO_GARANTIDOR,
+    somenteRotulo: true,
     resolver: (input, linhas) =>
       resolverDatasPrazoNegocio(input.prazo_instrumento_garantidor, linhas),
   },
@@ -301,6 +301,7 @@ function inserirMarcosPrazoNegocio(
         label: def.label,
         funilLabel: 'Dados do Negócio',
         custo: def.custo ?? null,
+        somenteRotulo: def.somenteRotulo ?? false,
       }),
     );
   }
