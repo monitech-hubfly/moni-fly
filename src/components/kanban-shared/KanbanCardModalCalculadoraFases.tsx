@@ -676,6 +676,14 @@ function isStatusConcluido(status: FaseTimelineStatus): boolean {
 }
 
 /** Fases e marcos com status (ex. M0 Contrato) contam como etapas visíveis do funil. */
+function etapasVisiveisFunil(items: CalculadoraTimelineItem[]): CalculadoraTimelineItem[] {
+  return items.filter(
+    (i) =>
+      i.kind === 'fase' ||
+      (i.kind === 'marco' && !i.marco.somenteRotulo && i.marco.status != null),
+  );
+}
+
 function etapaVisivelConcluida(item: CalculadoraTimelineItem): boolean {
   if (item.kind === 'fase') return isStatusConcluido(item.linha.status);
   if (item.marco.somenteRotulo || item.marco.status == null) return true;
@@ -683,11 +691,7 @@ function etapaVisivelConcluida(item: CalculadoraTimelineItem): boolean {
 }
 
 function funilTotalmenteConcluido(items: CalculadoraTimelineItem[]): boolean {
-  const etapasVisiveis = items.filter(
-    (i) =>
-      i.kind === 'fase' ||
-      (i.kind === 'marco' && !i.marco.somenteRotulo && i.marco.status != null),
-  );
+  const etapasVisiveis = etapasVisiveisFunil(items);
   if (etapasVisiveis.length === 0) return false;
   return etapasVisiveis.every(etapaVisivelConcluida);
 }
@@ -725,12 +729,8 @@ function CalculadoraFunilGroup({
   ordemAtual: number;
   onSalvarData?: Props['onSalvarData'];
 }) {
-  const faseItems = items.filter((i) => i.kind === 'fase');
-  const concluidas = faseItems.filter(
-    (i) =>
-      i.kind === 'fase' &&
-      (i.linha.status === 'concluida' || i.linha.status === 'concluida_atraso'),
-  ).length;
+  const etapasVisiveis = etapasVisiveisFunil(items);
+  const concluidas = etapasVisiveis.filter(etapaVisivelConcluida).length;
 
   const esteira = funilEsteiraKind(label);
 
@@ -746,7 +746,7 @@ function CalculadoraFunilGroup({
         <span className={`moni-calculadora-funil-dot moni-calculadora-funil-dot--${esteira}`} aria-hidden />
         <span className="moni-calculadora-funil-title">{label.replace(/^Funil /i, '')}</span>
         <span className="moni-calculadora-funil-count">
-          {faseItems.length} fases · {concluidas} concluídas
+          {etapasVisiveis.length} fases · {concluidas} concluídas
         </span>
         <span className="moni-calculadora-funil-chev" aria-hidden>
           <ChevronDown size={14} strokeWidth={2} />
