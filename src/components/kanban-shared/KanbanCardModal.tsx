@@ -119,6 +119,7 @@ import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCreditoObraDocumentacao';
 import { KanbanCardModalDadosPreObraOperacoes } from './KanbanCardModalDadosPreObraOperacoes';
 import { KanbanCardModalNegocioPrazoField } from './KanbanCardModalNegocioPrazoField';
+import { KanbanCardModalNegociacaoLinhasField } from './KanbanCardModalNegociacaoLinhasField';
 import {
   NEGOCIO_PRAZO_DRAFT_VAZIO,
   NEGOCIO_PRAZO_OPCAO_DRAFT_PADRAO,
@@ -134,6 +135,12 @@ import {
   type FaseNegocioPrazoOpcao,
   type NegocioPrazoDraft,
 } from '@/lib/kanban/dados-negocio-prazo';
+import {
+  negociacaoLinhasDraftFromLinhas,
+  negociacaoLinhasDraftPadrao,
+  negociacaoLinhasToDb,
+  type NegociacaoLinhaDraft,
+} from '@/lib/kanban/negociacao-linhas';
 import { fetchFasesNegocioPrazoOpcoes } from '@/lib/kanban/fetch-kanban-fases';
 import { KanbanCardModalCalculadoraFases } from './KanbanCardModalCalculadoraFases';
 import {
@@ -578,6 +585,7 @@ export function KanbanCardModal({
     comentario_moni_capital_gastos_aporte_inicial: string;
     prazo_opcao: NegocioPrazoDraft;
     prazo_instrumento_garantidor: NegocioPrazoDraft;
+    negociacao_linhas: NegociacaoLinhaDraft[];
   }>({
     tipo_aquisicao_terreno: '',
     valor_terreno: '',
@@ -595,6 +603,7 @@ export function KanbanCardModal({
     comentario_moni_capital_gastos_aporte_inicial: '',
     prazo_opcao: { ...NEGOCIO_PRAZO_OPCAO_DRAFT_PADRAO },
     prazo_instrumento_garantidor: { ...NEGOCIO_PRAZO_INSTRUMENTO_DRAFT_PADRAO },
+    negociacao_linhas: negociacaoLinhasDraftPadrao(),
   });
   const [fasesNegocioPrazo, setFasesNegocioPrazo] = useState<FaseNegocioPrazoOpcao[]>([]);
   const [salvandoNegocio, setSalvandoNegocio] = useState(false);
@@ -827,6 +836,7 @@ export function KanbanCardModal({
       comentario_moni_capital_gastos_aporte_inicial: '',
       prazo_opcao: { ...NEGOCIO_PRAZO_OPCAO_DRAFT_PADRAO },
       prazo_instrumento_garantidor: { ...NEGOCIO_PRAZO_INSTRUMENTO_DRAFT_PADRAO },
+      negociacao_linhas: negociacaoLinhasDraftPadrao(),
     });
     setEditandoNegocio(false);
     setEditandoFranqueado(false);
@@ -2993,6 +3003,7 @@ export function KanbanCardModal({
             | string
             | null,
           prazo_instrumento_garantidor_data: prazoInstrumentoDb.prazo_instrumento_garantidor_data as string | null,
+          negociacao_linhas: negociacaoLinhasToDb(negocioDraft.negociacao_linhas),
         },
         basePath,
       });
@@ -4084,6 +4095,7 @@ export function KanbanCardModal({
           proc.comentario_moni_capital_gastos_aporte_inicial ?? '',
         prazo_opcao: negocioPrazoOpcaoDraftFromProcesso(proc, opcoes),
         prazo_instrumento_garantidor: negocioPrazoInstrumentoDraftFromProcesso(proc, opcoes),
+        negociacao_linhas: negociacaoLinhasDraftFromLinhas(proc.negociacao_linhas ?? []),
       });
       setEditandoNegocio(true);
     })();
@@ -6872,6 +6884,13 @@ export function KanbanCardModal({
                       faseOpcoes={fasesNegocioPrazo}
                       disabled={salvandoNegocio}
                     />
+                    <KanbanCardModalNegociacaoLinhasField
+                      linhas={negocioDraft.negociacao_linhas}
+                      onChange={(negociacao_linhas) =>
+                        setNegocioDraft((d) => ({ ...d, negociacao_linhas }))
+                      }
+                      disabled={salvandoNegocio}
+                    />
                     {renderDadosNegocioLinksEAnexos(true)}
                     <div className="flex gap-2 pt-1">
                       <button
@@ -6952,6 +6971,12 @@ export function KanbanCardModal({
                         </div>
                       </div>
                     </div>
+                    <KanbanCardModalNegociacaoLinhasField
+                      modoLeitura
+                      linhas={[]}
+                      onChange={() => {}}
+                      linhasLeitura={proc.negociacao_linhas ?? []}
+                    />
                     {renderDadosNegocioLinksEAnexos(false)}
                     {modalSessao.ehAdminOuTeam && (
                       <button
