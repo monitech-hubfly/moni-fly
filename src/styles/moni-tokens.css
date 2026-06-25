@@ -887,8 +887,43 @@
   min-width: 0;
   overflow: visible;
   display: flex;
-  justify-content: flex-end;
-  align-items: flex-start;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.moni-calculadora-fase-concluir-btn {
+  min-height: 44px;
+  padding: 4px 8px;
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--moni-text-primary);
+  background: var(--moni-surface-50);
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  border-radius: var(--moni-radius-md);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.moni-calculadora-fase-concluir-btn:hover:not(:disabled) {
+  background: var(--moni-surface-100);
+}
+
+.moni-calculadora-fase-concluir-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (min-width: 641px) {
+  .moni-calculadora-fase-concluir-btn {
+    min-height: 0;
+    font-size: 8px;
+    padding: 3px 6px;
+  }
 }
 
 .moni-calc-fcusto-block {

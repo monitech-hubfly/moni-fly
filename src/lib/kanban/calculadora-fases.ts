@@ -111,8 +111,8 @@ export const CALCULADORA_STATUS_LABEL: Record<FaseTimelineStatus, string> = {
   futura: 'Futura',
   atual: 'Em andamento',
   atual_atrasada: 'Em andamento (atraso)',
-  concluida: 'Passada',
-  concluida_atraso: 'Passada (atraso)',
+  concluida: 'Concluída',
+  concluida_atraso: 'Concluída (atraso)',
 };
 
 export const CALCULADORA_STATUS_GERAL_LABEL: Record<CalculadoraStatusGeral, string> = {
@@ -227,6 +227,11 @@ function hojeYmd(ref?: Date): string {
   return formatLocalYmd(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
 }
 
+/** Data de hoje (YYYY-MM-DD) para edição manual na calculadora. */
+export function calculadoraHojeYmd(ref?: Date): string {
+  return hojeYmd(ref);
+}
+
 /** Dias úteis (seg–sex, sem feriados) entre duas datas inclusive no fim. */
 export function businessDaysBetween(inicioYmd: string, fimYmd: string): number {
   const a = parseIsoDateOnlyLocal(inicioYmd);
@@ -284,7 +289,10 @@ function resolveStatus(
   const cardAtivo = !card.concluido;
 
   if (isCurrent && cardAtivo) {
-    if (dataFimEstimada && hoje > dataFimEstimada) return 'atual_atrasada';
+    if (dataFimReal && dataFimEstimada && dataFimReal > dataFimEstimada) {
+      return 'atual_atrasada';
+    }
+    if (!dataFimReal && dataFimEstimada && hoje > dataFimEstimada) return 'atual_atrasada';
     return 'atual';
   }
 
@@ -375,6 +383,10 @@ function resolveAtraso(
   if (!dataFimEstimada) return null;
   const diff = slaTipo === 'corridos' ? calendarDaysBetween : businessDaysBetween;
   if (status === 'atual_atrasada') {
+    if (dataFimReal && dataFimEstimada) {
+      const dias = diff(dataFimEstimada, dataFimReal);
+      if (dias > 0) return dias;
+    }
     const dias = diff(dataFimEstimada, hoje);
     return dias > 0 ? dias : null;
   }
@@ -790,18 +802,18 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
     card,
     inicioContrato,
     realFim,
-    realFim ? null : fimEstimado,
+    fimEstimado,
     rowContrato.ordem,
     ordemAtual,
     hoje,
   );
-  const atrasoDias = resolveAtraso(status, realFim ? null : fimEstimado, realFim, hoje, rowContrato.slaTipo);
+  const atrasoDias = resolveAtraso(status, fimEstimado, realFim, hoje, rowContrato.slaTipo);
 
   out[idxContrato] = {
     ...rowContrato,
     dataInicioReal: inicioContrato ?? rowContrato.dataInicioReal,
     dataFimReal: realFim,
-    dataFimEstimada: realFim ? null : fimEstimado,
+    dataFimEstimada: fimEstimado,
     status,
     atrasoDias,
   };

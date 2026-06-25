@@ -6,6 +6,7 @@ import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import {
   CALCULADORA_STATUS_LABEL,
   calcularResumoExecutivoCalculadoraFases,
+  calculadoraHojeYmd,
   type CalculadoraFaseLinha,
   type CalculadoraStatusGeral,
   type FaseTimelineStatus,
@@ -378,6 +379,22 @@ function CalculadoraFaseRow({
     row.status === 'atual_atrasada' ||
     (row.status === 'concluida_atraso' && row.atrasoDias !== null && row.atrasoDias > 0);
 
+  const podeConcluirManual =
+    editandoDatas && onSalvarData && row.status === 'futura';
+
+  const [concluindo, setConcluindo] = useState(false);
+
+  const concluirFaseManual = async () => {
+    if (!onSalvarData || concluindo) return;
+    setConcluindo(true);
+    try {
+      const hoje = calculadoraHojeYmd();
+      await onSalvarData(row.faseId, 'fim', hoje);
+    } finally {
+      setConcluindo(false);
+    }
+  };
+
   return (
     <div
       className={`${statusRowClass(row.status)}${expanded ? ' open' : ''}${hasExpand ? '' : ' moni-calculadora-fase-row--no-expand'}`}
@@ -448,6 +465,19 @@ function CalculadoraFaseRow({
         <span className={statusBadgeClass(row.status)}>
           {CALCULADORA_STATUS_LABEL[row.status]}
         </span>
+        {podeConcluirManual ? (
+          <button
+            type="button"
+            className="moni-calculadora-fase-concluir-btn"
+            disabled={concluindo}
+            onClick={(e) => {
+              e.stopPropagation();
+              void concluirFaseManual();
+            }}
+          >
+            {concluindo ? 'Salvando…' : 'Concluir fase'}
+          </button>
+        ) : null}
       </div>
 
       {temCusto ? (
@@ -664,7 +694,7 @@ export function KanbanCardModalCalculadoraFases({
             {' '}
             <span className="moni-calculadora-edit-hint">
               {editandoDatas
-                ? 'Alterações são salvas ao escolher cada data.'
+                ? 'Alterações são salvas ao escolher cada data. Em fases futuras, use «Concluir fase» ou informe a data de fim.'
                 : 'Use «Editar datas» para ajustar início e fim manualmente.'}
             </span>
           </>
