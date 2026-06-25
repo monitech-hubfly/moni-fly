@@ -608,14 +608,25 @@ function CalculadoraFaseRow({
   );
 }
 
+function isStatusConcluido(status: FaseTimelineStatus): boolean {
+  return status === 'concluida' || status === 'concluida_atraso';
+}
+
+/** Fases e marcos com status (ex. M0 Contrato) contam como etapas visíveis do funil. */
+function etapaVisivelConcluida(item: CalculadoraTimelineItem): boolean {
+  if (item.kind === 'fase') return isStatusConcluido(item.linha.status);
+  if (item.marco.somenteRotulo || item.marco.status == null) return true;
+  return isStatusConcluido(item.marco.status);
+}
+
 function funilTotalmenteConcluido(items: CalculadoraTimelineItem[]): boolean {
-  const faseItems = items.filter((i) => i.kind === 'fase');
-  if (faseItems.length === 0) return false;
-  return faseItems.every(
+  const etapasVisiveis = items.filter(
     (i) =>
-      i.kind === 'fase' &&
-      (i.linha.status === 'concluida' || i.linha.status === 'concluida_atraso'),
+      i.kind === 'fase' ||
+      (i.kind === 'marco' && !i.marco.somenteRotulo && i.marco.status != null),
   );
+  if (etapasVisiveis.length === 0) return false;
+  return etapasVisiveis.every(etapaVisivelConcluida);
 }
 
 function collapsedFunisIniciais(
