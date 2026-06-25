@@ -60,6 +60,8 @@ export type CalculadoraMarco = {
   dataFimEstimada?: string | null;
   /** Data limite derivada do fim do contrato (ex.: M4 = +4 meses, M24 = +24 meses). */
   dataLimiteContrato?: string | null;
+  /** Limite calculado a partir de `contrato_assinado_em` (não estimativa da fase Contrato). */
+  limiteContratoReal?: boolean;
 };
 
 export type CalculadoraMarcosInput = {
@@ -145,13 +147,14 @@ const MARCOS_PRAZO_NEGOCIO: {
     label: 'Fim da Operação',
     somenteRotulo: true,
     resolver: (input, linhas, slugs) => {
+      const fimContratoReal = toYmd(input.contrato_assinado_em);
       const fimContrato = resolverDataFimContrato(input, linhas, slugs);
       if (!fimContrato) return { dataInicio: null, dataFim: null, isPrevisto: true };
       const dataLimite = adicionarMesesCalendarioYmd(
         fimContrato,
         M24_MESES_APOS_FIM_CONTRATO,
       );
-      return { dataInicio: null, dataFim: dataLimite, isPrevisto: true };
+      return { dataInicio: null, dataFim: dataLimite, isPrevisto: !fimContratoReal };
     },
   },
 ];
@@ -295,6 +298,10 @@ function resolverDatasPrazoNegocio(
   return { dataInicio: anchor, dataFim, isPrevisto };
 }
 
+function contratoTemFimReal(input: CalculadoraMarcosInput): boolean {
+  return Boolean(toYmd(input.contrato_assinado_em));
+}
+
 function marcoFromDatas(
   datas: MarcoDatas,
   partial: Omit<CalculadoraMarco, 'data' | 'dataInicio' | 'dataFim' | 'isPrevisto'>,
@@ -305,6 +312,8 @@ function marcoFromDatas(
     dataFim: datas.dataFim,
     data: datas.dataFim,
     isPrevisto: datas.isPrevisto,
+    dataFimReal: !datas.isPrevisto ? datas.dataFim : null,
+    dataFimEstimada: datas.isPrevisto ? datas.dataFim : null,
   };
 }
 
@@ -543,15 +552,18 @@ function inserirMarcosPrazoNegocio(
     if (!datas.dataFim && !datas.dataInicio) continue;
     const dataLimiteContrato =
       def.id === 'M24' && datas.dataFim ? datas.dataFim : null;
+    const marcoBase = marcoFromDatas(datas, {
+      id: def.id,
+      label: def.label,
+      funilLabel: 'Dados do Negócio',
+      custo: def.custo ?? null,
+      somenteRotulo: def.somenteRotulo ?? false,
+      dataLimiteContrato,
+    });
     candidatos.push(
-      marcoFromDatas(datas, {
-        id: def.id,
-        label: def.label,
-        funilLabel: 'Dados do Negócio',
-        custo: def.custo ?? null,
-        somenteRotulo: def.somenteRotulo ?? false,
-        dataLimiteContrato,
-      }),
+      def.id === 'M24' && contratoTemFimReal(marcosInput)
+        ? { ...marcoBase, limiteContratoReal: true }
+        : marcoBase,
     );
   }
 
@@ -619,6 +631,18 @@ export function montarTimelineCalculadoraComMarcos(
         dataFimContrato,
         refYmd,
       );
+      if (contratoTemFimReal(marcosInput) && marco.dataLimiteContrato) {
+        marco = { ...marco, limiteContratoReal: true };
+        if (!marco.dataFimReal) {
+          marco = {
+            ...marco,
+            dataFimReal: marco.dataLimiteContrato,
+            dataFim: marco.dataLimiteContrato,
+            data: marco.dataLimiteContrato,
+            isPrevisto: false,
+          };
+        }
+      }
     }
 
     insercoes.push({

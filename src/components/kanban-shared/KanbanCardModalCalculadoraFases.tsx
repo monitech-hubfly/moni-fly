@@ -283,7 +283,9 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
   if (somenteRotulo) {
     const dataLimite =
       marco.dataFimReal ?? marco.dataFimEstimada ?? marco.dataFim ?? marco.data;
-    const limiteLabel = labelSufixoDataCalculadora(Boolean(marco.dataFimReal));
+    const limiteLabel = labelSufixoDataCalculadora(
+      Boolean(marco.dataFimReal || marco.limiteContratoReal),
+    );
     const exibirData = Boolean(dataLimite) || marco.isPrevisto;
 
     return (
@@ -324,9 +326,15 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
   }
 
   const inicio = marco.dataInicioReal ?? marco.dataInicio;
-  const fim = marco.dataFimReal ?? marco.dataFimEstimada ?? marco.dataFim ?? marco.data;
+  const fim =
+    marco.dataFimReal ??
+    marco.dataFimEstimada ??
+    marco.dataFim ??
+    marco.data;
   const inicioLabel = labelSufixoDataCalculadora(Boolean(marco.dataInicioReal));
-  const fimLabel = labelSufixoDataCalculadora(Boolean(marco.dataFimReal));
+  const fimLabel = labelSufixoDataCalculadora(
+    Boolean(marco.dataFimReal || marco.limiteContratoReal),
+  );
   const fimAtraso =
     marco.status === 'atual_atrasada' ||
     (marco.status === 'concluida_atraso' && Boolean(marco.dataFimReal));
@@ -363,7 +371,7 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
         </span>
         <span className="moni-calculadora-fase-data-label">
           {fimLabel}
-          {limiteContrato && id === 'M4' && !marco.dataFimReal
+          {limiteContrato && id === 'M4' && !marco.dataFimReal && !marco.limiteContratoReal
             ? ` · limite ${fmtData(limiteContrato)}`
             : ''}
         </span>
