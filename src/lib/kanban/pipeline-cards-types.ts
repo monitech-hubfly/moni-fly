@@ -17,6 +17,7 @@ export type PipelineCardRow = {
   fase_slug: string | null;
   fase_ordem: number;
   fase_sla_dias: number | null;
+  fase_sla_tipo: 'uteis' | 'corridos';
   /** Admin: fase marcada como conversão (migration 387). */
   fase_conversao: boolean;
   rede_franqueado_id: string | null;
@@ -47,9 +48,24 @@ export type PipelineCardRow = {
   obra_iniciada_em?: string | null;
   obra_finalizada?: boolean;
   obra_finalizada_em?: string | null;
+  /** Previsões automáticas Operações (migration 399). */
+  prev_aprovacao_prefeitura?: string | null;
+  prev_inicio_obra?: string | null;
+  /** Prazo Opção em `processo_step_one` (migration 411). */
+  prazo_opcao_modo?: 'fase' | 'data' | null;
+  prazo_opcao_data?: string | null;
+  prazo_opcao_dias?: number | null;
+  prazo_opcao_sla_tipo?: 'uteis' | 'corridos' | null;
+  prazo_opcao_fase_id?: string | null;
   /** FK `projeto_negocio.id` — agrupa esteiras paralelas do mesmo negócio. */
   projeto_id?: string | null;
   projeto_titulo?: string | null;
+  /** Bastão / card pai na cadeia de sync entre funis. */
+  origem_card_id?: string | null;
+  /** Processo Step One — distinto de `projeto_id` (Portfolio). */
+  processo_step_one_id?: string | null;
+  /** Tag padronizada «⭐Especial» vinculada ao card. */
+  tem_tag_especial?: boolean;
 };
 
 export type PipelineFranqueadoUnidade = {
@@ -166,9 +182,20 @@ export type PipelineCardsGrupo = {
   cards: PipelineCardDisplay[];
 };
 
+export type PipelineEsteiraHistoricoEvento = {
+  fase_anterior_id: string;
+  fase_anterior_slug?: string | null;
+  criado_em: string;
+  is_retrocesso: boolean;
+};
+
+export type PipelineEsteiraHistoricoPorCard = Record<string, PipelineEsteiraHistoricoEvento[]>;
+
 export type PipelineCardsDataset = {
   cards: PipelineCardRow[];
   franqueados: PipelineFranqueadoUnidade[];
+  /** Movimentações `fase_avancada` dos cards da esteira principal (Step One / Portfólio / Operações). */
+  historico?: PipelineEsteiraHistoricoPorCard;
   /** Dados extras para visão franqueadora / aba Análises (degrada se ausente). */
   enrichment?: PipelineFranqueadoraEnrichment | null;
 };
@@ -263,6 +290,33 @@ export type PipelineFunilMesCompact = {
   obrasFinalizadas: number;
 };
 
+export const FUNIL_PROVISIONADO_HORIZONTES = [30, 60, 90, 120, 150, 160] as const;
+export type PipelineFunilProvisionadoHorizonte = (typeof FUNIL_PROVISIONADO_HORIZONTES)[number];
+
+export type PipelineFunilProvisionadoEtapaKey =
+  | 'hipoteses'
+  | 'opcao'
+  | 'comite'
+  | 'aprovacao_prefeitura'
+  | 'em_obra'
+  | 'obras_finalizadas';
+
+export type PipelineFunilProvisionadoColuna = {
+  key: PipelineFunilProvisionadoEtapaKey;
+  label: string;
+  total: number;
+  porUnidade: PipelineFunilMesUnidadeRow[];
+  porUnidadeZeradas: PipelineFunilMesUnidadeRow[];
+  barSegments: PipelineFunilMesBarSegment[];
+};
+
+export type PipelineFunilProvisionadoRede = {
+  colunas: PipelineFunilProvisionadoColuna[];
+  conversoes: (number | null)[];
+  disponivel: boolean;
+  horizonteDias: PipelineFunilProvisionadoHorizonte;
+};
+
 export type PipelineUnidadeBlocoMeta = {
   redeId: string;
   label: string;
@@ -272,4 +326,6 @@ export type PipelineUnidadeBlocoMeta = {
   funilMes: PipelineFunilMesCompact;
   defaultExpanded: boolean;
   sortPriority: number;
+  /** Unidade com ≥1 card do fluxo principal com tag «⭐Especial». */
+  temTagEspecial: boolean;
 };

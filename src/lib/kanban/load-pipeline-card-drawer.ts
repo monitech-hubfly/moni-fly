@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanFase } from '@/components/kanban-shared/types';
 import type { HistoricoItem } from '@/components/kanban-shared/kanban-card-modal-helpers';
-import { adicionarDiasUteis, calcularDiasUteis } from '@/lib/dias-uteis';
+import { calcularDiasUteis, calcularDiasCorridos, adicionarDiasUteis, adicionarDiasCorridos, rotuloUnidadeSla, normalizarSlaTipo, type SlaTipo } from '@/lib/dias-uteis';
 import { augmentKanbanFasesComFasesDosCards, fetchKanbanFasesAtivas } from '@/lib/kanban/fetch-kanban-fases';
 import { loadHistoricoCardModal } from '@/lib/kanban/kanban-card-historico';
 import {
@@ -52,6 +52,7 @@ function calcularSlaHistoricoFase(
   entrouEm: string,
   saiuEm: string | null,
   slaDias: number | null,
+  slaTipo: SlaTipo = 'uteis',
 ): { label: string; classe: string; atrasado: boolean } {
   if (slaDias == null || slaDias <= 0) {
     return { label: 'Sem SLA', classe: '', atrasado: false };
@@ -62,13 +63,22 @@ function calcularSlaHistoricoFase(
   const referencia = saiuEm ? new Date(saiuEm) : new Date();
   referencia.setHours(0, 0, 0, 0);
 
-  const vencimento = adicionarDiasUteis(entrada, slaDias);
+  const unidade = rotuloUnidadeSla(slaTipo);
+  const vencimento =
+    slaTipo === 'corridos'
+      ? adicionarDiasCorridos(entrada, slaDias)
+      : adicionarDiasUteis(entrada, slaDias);
   vencimento.setHours(0, 0, 0, 0);
 
+  const diffDias =
+    slaTipo === 'corridos'
+      ? (a: Date, b: Date) => calcularDiasCorridos(a, b)
+      : (a: Date, b: Date) => calcularDiasUteis(a, b);
+
   if (vencimento < referencia) {
-    const diasAtraso = calcularDiasUteis(vencimento, referencia);
+    const diasAtraso = diffDias(vencimento, referencia);
     return {
-      label: `Atrasado ${diasAtraso} d.u.`,
+      label: `Atrasado ${diasAtraso} ${unidade}`,
       classe: 'moni-tag-atrasado',
       atrasado: true,
     };
@@ -78,9 +88,9 @@ function calcularSlaHistoricoFase(
     return { label: 'Vence na saída', classe: 'moni-tag-atencao', atrasado: false };
   }
 
-  const restantes = calcularDiasUteis(referencia, vencimento);
+  const restantes = diffDias(referencia, vencimento);
   if (!saiuEm && restantes === 1) {
-    return { label: 'Vence em 1 d.u.', classe: 'moni-tag-atencao', atrasado: false };
+    return { label: `Vence em 1 ${unidade}`, classe: 'moni-tag-atencao', atrasado: false };
   }
 
   if (!saiuEm && restantes === 0) {
@@ -88,7 +98,7 @@ function calcularSlaHistoricoFase(
   }
 
   return {
-    label: saiuEm ? `Dentro do prazo (${slaDias} d.u.)` : `${restantes} d.u. restantes`,
+    label: saiuEm ? `Dentro do prazo (${slaDias} ${unidade})` : `${restantes} ${unidade} restantes`,
     classe: saiuEm ? 'moni-tag-concluido' : '',
     atrasado: false,
   };
@@ -124,7 +134,12 @@ function montarFasesPercorridas(
         slaClasse = card.sla.classe;
         atrasado = card.sla.status === 'atrasado';
       } else {
-        const sla = calcularSlaHistoricoFase(entrouEm, saiuEm, meta?.sla_dias ?? null);
+        const sla = calcularSlaHistoricoFase(
+          entrouEm,
+          saiuEm,
+          meta?.sla_dias ?? null,
+          normalizarSlaTipo(meta?.sla_tipo),
+        );
         slaLabel = sla.label;
         slaClasse = sla.classe;
         atrasado = sla.atrasado;

@@ -353,6 +353,1330 @@
   border: 0.5px solid var(--moni-status-archived-border);
 }
 
+.moni-tag-especial {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  border-radius: var(--moni-radius-pill);
+  font-size: var(--moni-text-tag-sla);
+  line-height: 1.25;
+  font-weight: var(--moni-weight-medium);
+  font-family: var(--moni-font-sans);
+  background: var(--moni-gold-50);
+  color: var(--moni-gold-800);
+  border: 0.5px solid var(--moni-gold-400);
+}
+
+/* Calculadora Global de Fases — tokens e componentes */
+:root {
+  --moni-calc-prazo-bg: var(--moni-status-done-bg);
+  --moni-calc-prazo-text: var(--moni-status-done-text);
+  --moni-calc-at-border: #f09595;
+  --moni-calc-at-bg: #fcebeb;
+  --moni-calc-at-text: #a32d2d;
+  --moni-calc-prog-fill: #27500a;
+  --moni-calc-progress-ok: var(--moni-calc-prog-fill);
+  --moni-calc-progress-atraso: var(--moni-calc-at-text);
+  --moni-calc-separator: var(--moni-border-default);
+  --moni-calc-funil-stepone: var(--moni-kanban-stepone);
+  --moni-calc-funil-portfolio: var(--moni-kanban-portfolio);
+  --moni-calc-funil-operacoes: var(--moni-earth-600);
+  --moni-calc-funil-stepone-header-bg: var(--moni-kanban-stepone-light);
+  --moni-calc-funil-portfolio-header-bg: var(--moni-kanban-portfolio-light);
+  --moni-calc-funil-operacoes-header-bg: var(--moni-earth-50);
+  --moni-calc-marco-m0-dot: var(--moni-navy-600);
+  --moni-calc-marco-m0-bg: var(--moni-navy-50);
+  --moni-calc-marco-m0-border: var(--moni-navy-200);
+  --moni-calc-marco-m0-text: var(--moni-navy-800);
+  --moni-calc-marco-m0-badge-bg: var(--moni-navy-100);
+  --moni-calc-marco-m0-badge-text: var(--moni-navy-600);
+  --moni-calc-marco-m0-line: var(--moni-navy-200);
+  --moni-calc-marco-m4-dot: var(--moni-earth-600);
+  --moni-calc-marco-m4-bg: var(--moni-earth-50);
+  --moni-calc-marco-m4-border: var(--moni-earth-200);
+  --moni-calc-marco-m4-text: var(--moni-earth-800);
+  --moni-calc-marco-m4-badge-bg: var(--moni-earth-100);
+  --moni-calc-marco-m4-badge-text: var(--moni-earth-800);
+  --moni-calc-marco-m4-line: var(--moni-earth-200);
+  --moni-calc-marco-m24-dot: var(--moni-calc-at-text);
+  --moni-calc-marco-m24-bg: var(--moni-calc-at-bg);
+  --moni-calc-marco-m24-border: var(--moni-calc-at-border);
+  --moni-calc-marco-m24-text: var(--moni-calc-at-text);
+  --moni-calc-marco-m24-badge-bg: var(--moni-calc-resumo-atrasada-bg);
+  --moni-calc-marco-m24-badge-text: var(--moni-calc-resumo-atrasada-text);
+  --moni-calc-marco-m24-line: var(--moni-calc-at-border);
+  --moni-calc-marco-mo-dot: var(--moni-gold-600);
+  --moni-calc-marco-mo-bg: var(--moni-gold-50);
+  --moni-calc-marco-mo-border: var(--moni-gold-200);
+  --moni-calc-marco-mo-text: var(--moni-gold-800);
+  --moni-calc-marco-mo-line: var(--moni-gold-200);
+  --moni-calc-marco-mig-dot: var(--moni-earth-600);
+  --moni-calc-marco-mig-bg: var(--moni-earth-50);
+  --moni-calc-marco-mig-border: var(--moni-earth-200);
+  --moni-calc-marco-mig-text: var(--moni-earth-800);
+  --moni-calc-marco-mig-line: var(--moni-earth-200);
+  --moni-calc-marco-row-bg: var(--moni-surface-50);
+  --moni-calc-marco-row-border: var(--moni-border-default);
+  --moni-calc-dados-parciais-bg: var(--moni-gold-50);
+  --moni-calc-dados-parciais-text: var(--moni-gold-800);
+  --moni-calc-dados-parciais-border: var(--moni-gold-200);
+  --moni-calc-resumo-bg: #f9f8f3;
+  --moni-calc-resumo-border: var(--moni-border-default);
+  --moni-calc-resumo-atrasada-bg: #fde8e8;
+  --moni-calc-resumo-atrasada-text: #9b1c1c;
+  --moni-calc-resumo-atrasada-border: rgba(155, 28, 28, 0.12);
+  --moni-calc-resumo-gargalo-text: var(--moni-navy-600);
+  --moni-calc-prog-track: #e8e6e0;
+  --moni-calc-gargalo-bg: var(--moni-status-attention-bg);
+  --moni-calc-gargalo-text: var(--moni-status-attention-text);
+  --moni-calc-text-default: var(--moni-text-primary);
+  --moni-calc-text-futura: var(--moni-text-tertiary);
+  --moni-calc-text-futura-sla: var(--moni-text-tertiary);
+
+  /* Pipeline Esteira — visão tabela da rede */
+  --moni-pipeline-esteira-step-bg: var(--moni-kanban-stepone-light);
+  --moni-pipeline-esteira-step-text: var(--moni-kanban-stepone);
+  --moni-pipeline-esteira-port-bg: var(--moni-kanban-portfolio-light);
+  --moni-pipeline-esteira-port-text: var(--moni-kanban-portfolio);
+  --moni-pipeline-esteira-op-bg: var(--moni-earth-50);
+  --moni-pipeline-esteira-op-text: var(--moni-earth-800);
+  --moni-pipeline-esteira-date-real: var(--moni-status-done-text);
+  --moni-pipeline-esteira-date-est: var(--moni-status-active-text);
+  --moni-pipeline-esteira-date-at: var(--moni-status-overdue-text);
+  --moni-pipeline-esteira-date-concluida: var(--moni-text-tertiary);
+  --moni-pipeline-esteira-cur-bg: var(--moni-status-active-bg);
+  --moni-pipeline-esteira-cur-at-bg: var(--moni-status-overdue-bg);
+  --moni-pipeline-esteira-badge-port-bg: var(--moni-kanban-portfolio-light);
+  --moni-pipeline-esteira-badge-port-text: var(--moni-kanban-portfolio);
+  --moni-calc-resp-moni: var(--moni-text-secondary);
+  --moni-calc-resp-franq: var(--moni-text-secondary);
+  --moni-calc-custo-amber: var(--moni-text-secondary);
+  --moni-calc-custo-text: var(--moni-text-secondary);
+  --moni-calc-custo-label: var(--moni-text-tertiary);
+  --moni-calc-row-pass-bg: var(--moni-surface-100);
+  --moni-calc-row-atu-border: var(--moni-border-strong);
+  --moni-calc-row-atu-at-border: var(--moni-calc-at-border);
+  --moni-calc-prazo-undef-bg: var(--moni-surface-100);
+  --moni-calc-prazo-undef-text: var(--moni-text-tertiary);
+  --moni-calc-prazo-at-bg: var(--moni-calc-at-bg);
+  --moni-calc-prazo-at-text: var(--moni-calc-at-text);
+  --moni-calc-prazo-at-border: var(--moni-calc-at-border);
+  --moni-calc-fim-atraso: var(--moni-status-overdue-text);
+  --moni-calc-status-concluida-bg: transparent;
+  --moni-calc-status-concluida-nome: var(--moni-text-primary);
+  --moni-calc-status-concluida-badge-bg: var(--moni-surface-100);
+  --moni-calc-status-concluida-badge-text: var(--moni-text-tertiary);
+  --moni-calc-status-concluida-atraso-bg: transparent;
+  --moni-calc-status-concluida-atraso-nome: var(--moni-text-primary);
+  --moni-calc-status-atual-bg: var(--moni-surface-50);
+  --moni-calc-status-atual-border: var(--moni-border-default);
+  --moni-calc-status-atual-nome: var(--moni-text-primary);
+  --moni-calc-status-atual-badge-bg: var(--moni-surface-100);
+  --moni-calc-status-atual-badge-text: var(--moni-text-primary);
+  --moni-calc-status-futura-nome: var(--moni-text-tertiary);
+  --moni-calc-status-futura-badge-bg: var(--moni-surface-100);
+  --moni-calc-status-futura-badge-text: var(--moni-text-tertiary);
+  --moni-calc-col-header: var(--moni-text-tertiary);
+}
+
+.moni-calculadora-status-futura {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--moni-radius-pill);
+  font-size: var(--moni-text-tag-sla);
+  line-height: 1.25;
+  font-weight: var(--moni-weight-medium);
+  background: var(--moni-surface-100, #f5f5f4);
+  color: var(--moni-text-tertiary);
+  border: 0.5px solid var(--moni-border-default);
+}
+
+.moni-calculadora-status-atual {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--moni-radius-pill);
+  font-size: var(--moni-text-tag-sla);
+  line-height: 1.25;
+  font-weight: var(--moni-weight-medium);
+  background: var(--moni-navy-50, #eef3f5);
+  color: var(--moni-navy-800);
+  border: 0.5px solid var(--moni-navy-200, #b8ccd4);
+}
+
+.moni-calculadora-progress-track {
+  height: 6px;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--moni-rede-chart-track, var(--moni-surface-100));
+  border: 0.5px solid var(--moni-border-default);
+}
+
+.moni-calculadora-progress-track--compact {
+  height: 3px;
+}
+
+.moni-calculadora-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--moni-calc-progress-ok);
+  transition: width 0.25s ease;
+}
+
+.moni-calculadora-progress-fill--atraso {
+  background: var(--moni-calc-progress-atraso);
+}
+
+.moni-calculadora-resumo {
+  font-family: var(--moni-font-sans);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: var(--moni-radius-md);
+  border: 0.5px solid var(--moni-calc-resumo-border);
+  background: var(--moni-calc-resumo-bg);
+}
+
+.moni-calculadora-resumo-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.moni-calculadora-resumo-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+  min-height: 0;
+  max-width: 52%;
+}
+
+.moni-calculadora-badge-parcial {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 500;
+  background: var(--moni-calc-dados-parciais-bg);
+  color: var(--moni-calc-dados-parciais-text);
+  border: 0.5px solid var(--moni-calc-dados-parciais-border);
+}
+
+.moni-calculadora-badge-prazo {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 10px;
+  line-height: 1.35;
+  font-weight: 500;
+  background: var(--moni-surface-100);
+  color: var(--moni-text-secondary);
+  border: 0.5px solid var(--moni-border-default);
+}
+
+.moni-calculadora-badge-atrasada {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 10px;
+  line-height: 1.35;
+  font-weight: 500;
+  background: var(--moni-calc-resumo-atrasada-bg);
+  color: var(--moni-calc-resumo-atrasada-text);
+  border: 0.5px solid var(--moni-calc-resumo-atrasada-border);
+}
+
+.moni-calculadora-badge-sla-indefinido {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--moni-radius-pill);
+  font-size: 8px;
+  line-height: 1.3;
+  font-weight: var(--moni-weight-semibold, 600);
+  background: var(--moni-calc-prazo-undef-bg);
+  color: var(--moni-calc-prazo-undef-text);
+  border: 0.5px solid var(--moni-border-default);
+  white-space: nowrap;
+}
+
+/* Prazo não definido — neutro ou vermelho se atrasada */
+.moni-calc-prazo-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--moni-radius-pill);
+  font-size: 8px;
+  line-height: 1.3;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.moni-calc-prazo-pill.undef {
+  background: var(--moni-calc-prazo-undef-bg);
+  color: var(--moni-calc-prazo-undef-text);
+  border: 0.5px solid var(--moni-border-default);
+}
+
+.moni-calc-prazo-pill.at {
+  background: var(--moni-calc-prazo-at-bg);
+  color: var(--moni-calc-prazo-at-text);
+  border: 0.5px solid var(--moni-calc-prazo-at-border);
+}
+
+/* Barra de progresso v4 */
+.moni-calc-prog-track {
+  height: 4px;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--moni-calc-prog-track);
+}
+
+.moni-calc-prog-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--moni-calc-prog-fill);
+  transition: width 0.25s ease;
+}
+
+.moni-calc-prog-fill.at {
+  background: var(--moni-calc-at-text);
+}
+
+.moni-calculadora-fase-sla-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin-top: 1px;
+  width: 100%;
+  min-width: 0;
+}
+
+.moni-calculadora-resumo-fase {
+  font-family: var(--moni-font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--moni-navy-800);
+  line-height: 1.25;
+  flex: 1;
+  min-width: 0;
+}
+
+.moni-calculadora-resumo-meta {
+  font-size: 9px;
+  color: var(--moni-text-tertiary);
+  line-height: 1.25;
+  margin-top: 1px;
+}
+
+.moni-calculadora-resumo-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.moni-calculadora-resumo-progress-label {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: var(--moni-weight-medium);
+  color: var(--moni-text-secondary);
+}
+
+.moni-calculadora-resumo-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0;
+  margin-top: 0;
+  padding-top: 10px;
+  border-top: 0.5px solid var(--moni-border-tertiary, var(--moni-calc-separator));
+}
+
+.moni-calculadora-resumo-stat {
+  padding: 0 8px;
+  border-right: 0.5px solid var(--moni-border-tertiary, var(--moni-calc-separator));
+}
+
+.moni-calculadora-resumo-stat:first-child {
+  padding-left: 0;
+}
+
+.moni-calculadora-resumo-stat:last-child {
+  border-right: none;
+  padding-right: 0;
+}
+
+.moni-calculadora-resumo-stat-lbl {
+  font-size: 8px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--moni-text-tertiary);
+  margin-bottom: 1px;
+}
+
+.moni-calculadora-resumo-stat-val {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--moni-navy-800);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.moni-calculadora-resumo-stat-val--atraso {
+  font-weight: 600;
+  color: var(--moni-navy-800);
+}
+
+.moni-calculadora-resumo-stat-val--gargalo {
+  font-weight: 600;
+  color: var(--moni-calc-resumo-gargalo-text);
+}
+
+/* legado */
+.moni-calculadora-resumo-stat-val--warn {
+  font-weight: 600;
+  color: var(--moni-navy-800);
+}
+
+.moni-calculadora-footnote {
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  color: var(--moni-text-tertiary);
+  margin: 0 0 8px;
+  line-height: 1.35;
+}
+
+.moni-calculadora-table-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px 60px 80px 96px;
+  gap: 6px;
+  padding: 0 8px 4px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--moni-calc-col-header);
+}
+
+.moni-calculadora-fase-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px 60px 80px 96px;
+  align-items: start;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: var(--moni-radius-md, 6px);
+  margin-bottom: 1px;
+  font-size: 11px;
+  cursor: pointer;
+  border: 0.5px solid transparent;
+  font-family: var(--moni-font-sans);
+}
+
+.moni-calculadora-fase-row--no-expand {
+  cursor: default;
+}
+
+.moni-calculadora-fase-row:not(.moni-calculadora-fase-row--no-expand):hover {
+  border-color: var(--moni-border-default);
+}
+
+.moni-calculadora-fase-row--futura {
+  opacity: 1;
+}
+
+/* Passada — fundo discreto, badge texto simples */
+.moni-calc-row-pass {
+  background: var(--moni-calc-row-pass-bg);
+}
+
+.moni-calc-row-pass .fn,
+.moni-calc-row-pass .fd-val {
+  color: var(--moni-text-secondary);
+  font-weight: 500;
+}
+
+/* Atual no prazo — borda 1.5px, sem fundo colorido */
+.moni-calc-row-atu {
+  background: transparent;
+  border: 1.5px solid var(--moni-calc-row-atu-border);
+  margin: 4px 0;
+  box-shadow: none;
+}
+
+.moni-calc-row-atu .fn {
+  color: var(--moni-text-primary);
+  font-weight: 600;
+}
+
+.moni-calc-row-atu .fd-val {
+  color: var(--moni-text-primary);
+}
+
+/* Atual atrasada — borda vermelha discreta */
+.moni-calc-row-atu-at {
+  background: transparent;
+  border: 1.5px solid var(--moni-calc-row-atu-at-border);
+  margin: 4px 0;
+  box-shadow: none;
+}
+
+.moni-calc-row-atu-at .fn {
+  color: var(--moni-text-primary);
+  font-weight: 600;
+}
+
+.moni-calc-row-atu-at .fd-val {
+  color: var(--moni-text-primary);
+}
+
+.moni-calc-row-atu-at .fd-val--atraso {
+  color: var(--moni-calc-fim-atraso);
+}
+
+/* Futura */
+.moni-calc-row-fut .fn {
+  color: var(--moni-calc-text-futura);
+}
+
+.moni-calc-row-fut .fd-val {
+  color: var(--moni-calc-text-futura);
+}
+
+.moni-calc-row-fut .fsla {
+  color: var(--moni-calc-text-futura-sla);
+}
+
+.moni-calculadora-fase-col {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.moni-calculadora-fase-row > div:not(.moni-calculadora-fase-col):not(.moni-calculadora-fase-status-col) {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.moni-calculadora-fase-status-col {
+  min-width: 0;
+  overflow: visible;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+}
+
+.moni-calc-fcusto-block {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  padding: 5px 8px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--moni-surface-100);
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  border-radius: var(--moni-radius-md);
+}
+
+.moni-calc-fcusto-label {
+  flex-shrink: 0;
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--moni-calc-custo-label);
+  padding-top: 1px;
+}
+
+.moni-calc-fcusto-list {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--moni-calc-custo-text);
+  word-break: break-word;
+}
+
+.moni-calc-fcusto-list li {
+  position: relative;
+  padding-left: 9px;
+}
+
+.moni-calc-fcusto-list li::before {
+  content: '·';
+  position: absolute;
+  left: 0;
+  color: var(--moni-text-tertiary);
+}
+
+.moni-calc-row-fut .moni-calc-fcusto-list {
+  color: var(--moni-calc-custo-text);
+}
+
+.moni-calculadora-fase-row--concluida {
+  background: transparent;
+}
+
+.moni-calculadora-fase-row--concluida_atraso {
+  background: transparent;
+}
+
+.moni-calculadora-fase-row--concluida_atraso .fn {
+  color: var(--moni-text-secondary);
+}
+
+.moni-calculadora-fase-row--concluida_atraso .fd-val--atraso {
+  color: var(--moni-calc-fim-atraso);
+}
+
+.moni-calculadora-fase-row--atual .moni-calculadora-fase-nome {
+  font-weight: 600;
+}
+
+.moni-calculadora-fase-row--atual_atrasada .moni-calculadora-fase-nome {
+  font-weight: 600;
+}
+
+.moni-calculadora-fase-nome-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.moni-calculadora-fase-nome {
+  font-weight: 500;
+  line-height: 1.25;
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: break-word;
+}
+
+.moni-calculadora-fase-chevron {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--moni-text-tertiary);
+  transition: transform 0.2s ease;
+  line-height: 1;
+  margin-top: 1px;
+}
+
+.moni-calculadora-fase-row.open .moni-calculadora-fase-chevron {
+  transform: rotate(90deg);
+}
+
+.moni-calculadora-fase-sla {
+  font-size: 9px;
+  color: var(--moni-text-tertiary);
+  line-height: 1.2;
+}
+
+.moni-calculadora-fase-responsavel {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 72px;
+}
+
+.moni-calculadora-fase-responsavel--empty {
+  color: var(--moni-text-tertiary);
+}
+
+.moni-calculadora-fase-responsavel--moni {
+  color: var(--moni-calc-resp-moni);
+}
+
+.moni-calculadora-fase-responsavel--franqueado {
+  color: var(--moni-calc-resp-franq);
+}
+
+.moni-calculadora-fase-responsavel--futura {
+  color: var(--moni-calc-text-futura);
+}
+
+.moni-calculadora-fase-custo {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 58px;
+}
+
+.moni-calculadora-fase-custo--empty {
+  color: var(--moni-text-tertiary);
+  font-size: 10px;
+}
+
+.moni-calculadora-fase-custo--valor {
+  color: var(--moni-text-secondary);
+}
+
+.moni-calculadora-fase-custo--futura {
+  color: var(--moni-calc-text-futura);
+  font-size: 10px;
+}
+
+.moni-calculadora-fase-data.fd-val {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--moni-calc-text-default);
+  line-height: 1.2;
+}
+
+.moni-calculadora-fase-data {
+  font-size: 11px;
+  color: var(--moni-calc-text-default);
+  line-height: 1.2;
+}
+
+.fd-val--atraso {
+  color: var(--moni-calc-fim-atraso) !important;
+}
+
+.moni-calculadora-fase-data-label {
+  display: block;
+  font-size: 8px;
+  color: var(--moni-text-tertiary);
+  line-height: 1.2;
+}
+
+.moni-calculadora-fase-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+/* Badges v4 — passada/futura: texto simples; atual: pill */
+.moni-calc-badge-pass,
+.moni-calc-badge-fut {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-weight: 500;
+  color: var(--moni-text-tertiary);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.moni-calc-badge-atu {
+  justify-content: flex-end;
+  padding: 1px 5px;
+  border-radius: var(--moni-radius-pill);
+  text-transform: none;
+  font-size: 9px;
+  white-space: normal;
+  text-align: right;
+  line-height: 1.25;
+  background: transparent;
+  color: var(--moni-text-primary);
+  border: 0.5px solid var(--moni-border-default);
+}
+
+.moni-calc-badge-atu-at {
+  justify-content: flex-end;
+  padding: 1px 5px;
+  border-radius: var(--moni-radius-pill);
+  text-transform: none;
+  font-size: 9px;
+  white-space: normal;
+  text-align: right;
+  line-height: 1.25;
+  background: var(--moni-calc-at-bg);
+  color: var(--moni-calc-at-text);
+  border: 0.5px solid var(--moni-calc-at-border);
+}
+
+/* Legado — mantido para compatibilidade */
+.moni-calculadora-fase-status--concluida {
+  background: transparent;
+  color: var(--moni-text-tertiary);
+  border: none;
+  padding: 0;
+}
+
+.moni-calculadora-fase-status--concluida_atraso {
+  background: transparent;
+  color: var(--moni-text-tertiary);
+  border: none;
+  padding: 0;
+}
+
+.moni-calculadora-fase-status--atual {
+  background: transparent;
+  color: var(--moni-text-primary);
+  border: 0.5px solid var(--moni-border-default);
+}
+
+.moni-calculadora-fase-status--atual_atrasada {
+  background: var(--moni-calc-at-bg);
+  color: var(--moni-calc-at-text);
+  border: 0.5px solid var(--moni-calc-at-border);
+}
+
+.moni-calculadora-fase-status--futura {
+  background: transparent;
+  color: var(--moni-text-tertiary);
+  border: none;
+  padding: 0;
+}
+
+.moni-calculadora-gargalo-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 9px;
+  font-weight: 500;
+  background: transparent;
+  color: var(--moni-status-attention-text);
+  border: 0.5px solid var(--moni-status-attention-border);
+  border-radius: var(--moni-radius-pill);
+  padding: 1px 5px;
+  margin-left: 5px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.moni-calculadora-fase-steps {
+  display: none;
+  grid-column: 1 / -1;
+  padding: 2px 0 4px 12px;
+  margin-top: -2px;
+}
+
+.moni-calculadora-fase-row.open .moni-calculadora-fase-steps {
+  display: block;
+}
+
+.moni-calculadora-fase-step {
+  font-size: 9px;
+  color: var(--moni-text-secondary);
+  line-height: 1.45;
+  padding: 1px 0;
+  list-style: disc;
+  margin-left: 12px;
+}
+
+.moni-calculadora-marco-row,
+.moni-calc-row-marco {
+  display: none;
+}
+
+/* Marcos v4 — separador horizontal */
+.moni-calc-marco-sep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+  padding: 0 8px;
+}
+
+.moni-calc-marco-line {
+  flex: 1;
+  height: 0.5px;
+  background: var(--moni-border-default);
+}
+
+.moni-calc-marco-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--moni-radius-pill);
+  border: 0.5px solid var(--moni-border-default);
+  background: var(--moni-surface-50);
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--moni-text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.moni-calc-marco-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--moni-navy-800);
+}
+
+.moni-calc-marco-dot--M0 {
+  background: var(--moni-calc-marco-m0-dot);
+}
+
+.moni-calc-marco-dot--M4 {
+  background: var(--moni-calc-marco-m4-dot);
+}
+
+.moni-calc-marco-dot--M24 {
+  background: var(--moni-calc-marco-m24-dot);
+}
+
+.moni-calc-marco-dot--MO {
+  background: var(--moni-calc-marco-mo-dot);
+}
+
+.moni-calc-marco-dot--MIG {
+  background: var(--moni-calc-marco-mig-dot);
+}
+
+.moni-calc-marco-pill--M0 {
+  background: var(--moni-calc-marco-m0-bg);
+  border-color: var(--moni-calc-marco-m0-border);
+  color: var(--moni-calc-marco-m0-text);
+  font-weight: 600;
+}
+
+.moni-calc-marco-pill--M4 {
+  background: var(--moni-calc-marco-m4-bg);
+  border-color: var(--moni-calc-marco-m4-border);
+  color: var(--moni-calc-marco-m4-text);
+  font-weight: 600;
+}
+
+.moni-calc-marco-pill--M24 {
+  background: var(--moni-calc-marco-m24-bg);
+  border-color: var(--moni-calc-marco-m24-border);
+  color: var(--moni-calc-marco-m24-text);
+  font-weight: 600;
+}
+
+.moni-calc-marco-pill--MO {
+  background: var(--moni-calc-marco-mo-bg);
+  border-color: var(--moni-calc-marco-mo-border);
+  color: var(--moni-calc-marco-mo-text);
+  font-weight: 600;
+}
+
+.moni-calc-marco-pill--MIG {
+  background: var(--moni-calc-marco-mig-bg);
+  border-color: var(--moni-calc-marco-mig-border);
+  color: var(--moni-calc-marco-mig-text);
+  font-weight: 600;
+}
+
+.moni-calc-marco-sep--M0 .moni-calc-marco-line {
+  background: var(--moni-calc-marco-m0-line);
+}
+
+.moni-calc-marco-sep--M4 .moni-calc-marco-line {
+  background: var(--moni-calc-marco-m4-line);
+}
+
+.moni-calc-marco-sep--M24 .moni-calc-marco-line {
+  background: var(--moni-calc-marco-m24-line);
+}
+
+.moni-calc-marco-sep--MO .moni-calc-marco-line {
+  background: var(--moni-calc-marco-mo-line);
+}
+
+.moni-calc-marco-sep--MIG .moni-calc-marco-line {
+  background: var(--moni-calc-marco-mig-line);
+}
+
+.moni-calc-marco-pill .moni-calculadora-marco-badge {
+  margin-left: 2px;
+  font-size: 7px;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+}
+
+.moni-calc-marco-pill--M0 .moni-calc-marco-data,
+.moni-calc-marco-pill--M4 .moni-calc-marco-data,
+.moni-calc-marco-pill--M24 .moni-calc-marco-data,
+.moni-calc-marco-pill--MO .moni-calc-marco-data,
+.moni-calc-marco-pill--MIG .moni-calc-marco-data {
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.moni-calc-marco-data {
+  font-size: 9px;
+  font-weight: 400;
+  color: var(--moni-text-tertiary);
+}
+
+.moni-calculadora-marco-label-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.moni-calculadora-marco-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--moni-navy-800);
+}
+
+.moni-calculadora-marco-dot--M0 {
+  background: var(--moni-calc-marco-m0-dot);
+}
+
+.moni-calculadora-marco-dot--M4 {
+  background: var(--moni-calc-marco-m4-dot);
+}
+
+.moni-calculadora-marco-dot--M24 {
+  background: var(--moni-calc-marco-m24-dot);
+}
+
+.moni-calculadora-marco-dot--MO {
+  background: var(--moni-calc-marco-mo-dot);
+}
+
+.moni-calculadora-marco-dot--MIG {
+  background: var(--moni-calc-marco-mig-dot);
+}
+
+.moni-calculadora-marco-label {
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--moni-text-primary);
+}
+
+.moni-calculadora-marco-label--M0 {
+  color: var(--moni-calc-marco-m0-text);
+}
+
+.moni-calculadora-marco-label--M4 {
+  color: var(--moni-calc-marco-m4-text);
+}
+
+.moni-calculadora-marco-label--M24 {
+  color: var(--moni-calc-marco-m24-text);
+}
+
+.moni-calculadora-marco-label--MO {
+  color: var(--moni-calc-marco-mo-text);
+}
+
+.moni-calculadora-marco-label--MIG {
+  color: var(--moni-calc-marco-mig-text);
+}
+
+.moni-calculadora-marco-fim-cell {
+  min-width: 0;
+}
+
+.moni-calculadora-marco-fim-val {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--moni-text-secondary);
+}
+
+.moni-calculadora-marco-fim-val--M0 {
+  color: var(--moni-calc-marco-m0-text);
+}
+
+.moni-calculadora-marco-fim-val--M4 {
+  color: var(--moni-calc-marco-m4-text);
+}
+
+.moni-calculadora-marco-fim-val--M24 {
+  color: var(--moni-calc-marco-m24-text);
+}
+
+.moni-calculadora-marco-fim-val--MO {
+  color: var(--moni-calc-marco-mo-text);
+}
+
+.moni-calculadora-marco-fim-val--MIG {
+  color: var(--moni-calc-marco-mig-text);
+}
+
+.moni-calculadora-marco-data {
+  font-size: 10px;
+  color: var(--moni-text-secondary);
+  white-space: nowrap;
+}
+
+.moni-calculadora-marco-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  border-radius: var(--moni-radius-pill);
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: var(--moni-surface-100);
+  color: var(--moni-text-tertiary);
+  border: 0.5px solid var(--moni-border-default);
+}
+
+.moni-calculadora-marco-badge--M0 {
+  background: var(--moni-calc-marco-m0-badge-bg);
+  color: var(--moni-calc-marco-m0-badge-text);
+  border-color: var(--moni-calc-marco-m0-border);
+}
+
+.moni-calculadora-marco-badge--M4 {
+  background: var(--moni-calc-marco-m4-badge-bg);
+  color: var(--moni-calc-marco-m4-badge-text);
+  border-color: var(--moni-calc-marco-m4-border);
+}
+
+.moni-calculadora-marco-badge--M24 {
+  background: var(--moni-calc-marco-m24-badge-bg);
+  color: var(--moni-calc-marco-m24-badge-text);
+  border-color: var(--moni-calc-marco-m24-border);
+}
+
+.moni-calculadora-marco-badge--MO {
+  background: var(--moni-calc-marco-mo-bg);
+  color: var(--moni-calc-marco-mo-text);
+  border-color: var(--moni-calc-marco-mo-border);
+}
+
+.moni-calculadora-marco-badge--MIG {
+  background: var(--moni-calc-marco-mig-bg);
+  color: var(--moni-calc-marco-mig-text);
+  border-color: var(--moni-calc-marco-mig-border);
+}
+
+.moni-calculadora-funil-group {
+  margin-bottom: 0;
+}
+
+.moni-calculadora-funil-separator {
+  height: 0.5px;
+  background: var(--moni-calc-separator);
+  margin: 8px 0;
+  border: none;
+}
+
+.moni-calculadora-funil-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  user-select: none;
+  font-family: var(--moni-font-sans);
+  border-radius: var(--moni-radius-md);
+  border: 0.5px solid transparent;
+  background: var(--moni-surface-100);
+}
+
+.moni-calculadora-funil-header--stepone {
+  background: var(--moni-calc-funil-stepone-header-bg);
+}
+
+.moni-calculadora-funil-header--portfolio {
+  background: var(--moni-calc-funil-portfolio-header-bg);
+}
+
+.moni-calculadora-funil-header--operacoes {
+  background: var(--moni-calc-funil-operacoes-header-bg);
+}
+
+.moni-calculadora-funil-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.moni-calculadora-funil-dot--stepone {
+  background: var(--moni-calc-funil-stepone);
+}
+
+.moni-calculadora-funil-dot--portfolio {
+  background: var(--moni-calc-funil-portfolio);
+}
+
+.moni-calculadora-funil-dot--operacoes {
+  background: var(--moni-calc-funil-operacoes);
+}
+
+.moni-calculadora-funil-title {
+  flex: 1;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--moni-text-secondary);
+}
+
+.moni-calculadora-funil-count {
+  font-size: 9px;
+  color: var(--moni-text-tertiary);
+}
+
+.moni-calculadora-funil-chev {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  font-size: 14px;
+  color: var(--moni-text-tertiary);
+  transition: transform 0.2s;
+  margin-left: 4px;
+  line-height: 1;
+}
+
+.moni-calculadora-funil-body {
+  overflow: hidden;
+  max-height: 9999px;
+  transition: max-height 0.25s ease;
+}
+
+.moni-calculadora-funil-group.collapsed .moni-calculadora-funil-body,
+.moni-calculadora-funil-collapsed .moni-calculadora-funil-body {
+  max-height: 0;
+}
+
+.moni-calculadora-funil-group.collapsed .moni-calculadora-funil-chev,
+.moni-calculadora-funil-collapsed .moni-calculadora-funil-chev {
+  transform: rotate(-90deg);
+}
+
+.moni-calculadora-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.moni-calculadora-section-title {
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--moni-text-secondary);
+}
+
+.moni-calculadora-share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  min-height: 28px;
+  border-radius: var(--moni-radius-sm, 5px);
+  border: var(--moni-border-width) solid var(--moni-border-secondary, var(--moni-border-default));
+  background: var(--moni-surface-50, var(--moni-bg-secondary));
+  color: var(--moni-text-tertiary);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.moni-calculadora-share-btn:hover:not(:disabled) {
+  background: var(--moni-surface-100, var(--moni-bg-tertiary));
+}
+
+.moni-calculadora-share-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+@media (max-width: 640px) {
+  .moni-calculadora-resumo {
+    padding: 12px;
+  }
+
+  .moni-calculadora-resumo-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .moni-calculadora-resumo-badges {
+    justify-content: flex-start;
+    max-width: none;
+  }
+
+  .moni-calculadora-resumo-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .moni-calculadora-resumo-stats {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .moni-calculadora-resumo-stat {
+    border-right: none;
+    padding: 0;
+  }
+
+  .moni-calculadora-table-header,
+  .moni-calculadora-fase-row {
+    grid-template-columns: minmax(0, 1fr) 56px 52px 64px 76px;
+    gap: 4px;
+    font-size: 10px;
+  }
+
+  .moni-calc-marco-sep {
+    padding: 0 4px;
+    gap: 6px;
+  }
+
+  .moni-calc-marco-pill {
+    font-size: 8px;
+    padding: 2px 8px;
+  }
+
+  .moni-calc-fcusto-block {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .moni-calc-fcusto-list {
+    font-size: 9px;
+    flex-direction: column;
+    gap: 2px;
+  }
+}
+
 /* Identificadores de Kanban */
 .moni-kanban-id--stepone   { background: var(--moni-kanban-stepone-light);   color: var(--moni-kanban-stepone);   border-color: var(--moni-kanban-stepone-accent); }
 .moni-kanban-id--portfolio { background: var(--moni-kanban-portfolio-light); color: var(--moni-kanban-portfolio); border-color: var(--moni-kanban-portfolio-accent); }
@@ -489,6 +1813,282 @@
 .moni-tabela-scroll-thumb:active {
   cursor: grabbing;
   background: var(--moni-navy-500);
+}
+
+/* ── Pipeline Esteira Table ── */
+.moni-pipeline-esteira-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.moni-pipeline-esteira-table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 1000px;
+  font-family: var(--moni-font-sans);
+}
+
+.moni-pipeline-esteira-th {
+  padding: 5px 8px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--moni-text-tertiary);
+  text-align: center;
+  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+  white-space: nowrap;
+  background: var(--moni-surface-0);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.moni-pipeline-esteira-th.cl {
+  text-align: left;
+}
+
+.moni-pipeline-esteira-th-info {
+  padding: 5px 8px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--moni-text-tertiary);
+  background: var(--moni-surface-100);
+  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+}
+
+.moni-pipeline-esteira-th-step {
+  padding: 5px 8px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  background: var(--moni-pipeline-esteira-step-bg);
+  color: var(--moni-pipeline-esteira-step-text);
+  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+}
+
+.moni-pipeline-esteira-th-port {
+  padding: 5px 8px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  background: var(--moni-pipeline-esteira-port-bg);
+  color: var(--moni-pipeline-esteira-port-text);
+  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+}
+
+.moni-pipeline-esteira-th-op {
+  padding: 5px 8px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  background: var(--moni-pipeline-esteira-op-bg);
+  color: var(--moni-pipeline-esteira-op-text);
+  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+}
+
+.moni-pipeline-esteira-td-info {
+  padding: 6px 8px;
+  vertical-align: top;
+  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+  background: var(--moni-surface-0);
+}
+
+.moni-pipeline-esteira-dc {
+  text-align: center;
+  white-space: nowrap;
+  min-width: 54px;
+  padding: 4px 6px;
+  border-bottom: var(--moni-border-width) solid var(--moni-border-default);
+  border-right: var(--moni-border-width) solid var(--moni-border-default);
+  background: var(--moni-surface-0);
+}
+
+.moni-pipeline-esteira-dc.cur {
+  background: var(--moni-pipeline-esteira-cur-bg);
+}
+
+.moni-pipeline-esteira-dc.cur-at {
+  background: var(--moni-pipeline-esteira-cur-at-bg);
+}
+
+.moni-pipeline-esteira-date-real {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--moni-pipeline-esteira-date-real);
+}
+
+.moni-pipeline-esteira-date-concluida {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--moni-pipeline-esteira-date-concluida);
+}
+
+.moni-pipeline-esteira-date-est {
+  font-size: 10px;
+  color: var(--moni-pipeline-esteira-date-est);
+}
+
+.moni-pipeline-esteira-date-at {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--moni-pipeline-esteira-date-at);
+}
+
+.moni-pipeline-esteira-date-none {
+  font-size: 11px;
+  color: var(--moni-text-tertiary);
+}
+
+.moni-pipeline-esteira-proj-linha {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-bottom: 2px;
+}
+
+.moni-pipeline-esteira-fk {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--moni-text-secondary);
+}
+
+.moni-pipeline-esteira-frank-nome {
+  font-size: 9px;
+  color: var(--moni-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 110px;
+}
+
+.moni-pipeline-esteira-proj-nome {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--moni-text-primary);
+  white-space: nowrap;
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.moni-pipeline-esteira-fase-badge {
+  font-size: 9px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: var(--moni-radius-sm, 4px);
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.moni-pipeline-esteira-fase-badge.step {
+  background: var(--moni-pipeline-esteira-step-bg);
+  color: var(--moni-pipeline-esteira-step-text);
+}
+
+.moni-pipeline-esteira-fase-badge.port {
+  background: var(--moni-pipeline-esteira-badge-port-bg);
+  color: var(--moni-pipeline-esteira-badge-port-text);
+}
+
+.moni-pipeline-esteira-fase-badge.op {
+  background: var(--moni-pipeline-esteira-op-bg);
+  color: var(--moni-pipeline-esteira-op-text);
+}
+
+.moni-pipeline-esteira-fase-badge.atrasado {
+  background: var(--moni-status-overdue-bg);
+  color: var(--moni-status-overdue-text);
+}
+
+/* Funil da rede — controles do cabeçalho (sublinhado + Mês/Tri) */
+.moni-pipeline-funil-header-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 0;
+}
+
+.moni-pipeline-funil-header-sep {
+  flex-shrink: 0;
+  width: 0.5px;
+  height: 20px;
+  margin: 0 10px 5px;
+  background: var(--moni-border-default);
+}
+
+.moni-pipeline-funil-underline-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border-bottom: 0.5px solid var(--moni-border-default);
+}
+
+.moni-pipeline-funil-underline-tab {
+  position: relative;
+  min-height: 28px;
+  padding: 5px 10px;
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--moni-text-tertiary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.moni-pipeline-funil-underline-tab:hover {
+  color: var(--moni-text-secondary);
+}
+
+.moni-pipeline-funil-underline-tab--active {
+  color: var(--moni-navy-800);
+}
+
+.moni-pipeline-funil-underline-tab--active::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -0.5px;
+  left: 0;
+  height: 2px;
+  border-radius: 1px 1px 0 0;
+  background: var(--moni-green-800);
+}
+
+@media (max-width: 640px) {
+  .moni-pipeline-funil-header-controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .moni-pipeline-funil-header-sep {
+    display: none;
+  }
+
+  .moni-pipeline-funil-underline-tabs {
+    width: 100%;
+    margin-bottom: 6px;
+  }
 }
 
 /* Tipografia editorial (H1, H2 Vogue-style) */

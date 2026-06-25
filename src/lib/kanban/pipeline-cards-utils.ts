@@ -16,8 +16,18 @@ import type {
   PipelineGroupBy,
 } from '@/lib/kanban/pipeline-cards-types';
 
-/** Dias sem atualização no card para sinalizar inatividade (alinhado a alertas 7d do README). */
+/** Dias úteis após vencimento do SLA para sinalizar sem movimentação no pipeline. */
 export const PIPELINE_INATIVIDADE_DIAS = 7;
+
+export function cardSemMovimentacaoPosSlaPipeline(
+  card: Pick<PipelineCardDisplay, 'sla' | 'diasSemMovimento'>,
+): boolean {
+  if (card.sla.pausado) return false;
+  if (card.sla.status !== 'atrasado') return false;
+  const diasAposSla = card.sla.diasAtraso ?? 0;
+  if (diasAposSla < PIPELINE_INATIVIDADE_DIAS) return false;
+  return card.diasSemMovimento >= PIPELINE_INATIVIDADE_DIAS;
+}
 
 export function enriquecerPipelineCard(row: PipelineCardRow): PipelineCardDisplay {
   const sla = slaKanbanCardFromPipelineRow(row);
@@ -30,12 +40,14 @@ export function enriquecerPipelineCard(row: PipelineCardRow): PipelineCardDispla
     ? Math.max(0, Math.floor((hoje.getTime() - updated.getTime()) / 86400000))
     : 0;
 
-  return {
+  const enriched: PipelineCardDisplay = {
     ...row,
     sla,
     diasSemMovimento,
-    inativo: diasSemMovimento >= PIPELINE_INATIVIDADE_DIAS,
+    inativo: false,
   };
+  enriched.inativo = cardSemMovimentacaoPosSlaPipeline(enriched);
+  return enriched;
 }
 
 export function slaCategoriaPipeline(

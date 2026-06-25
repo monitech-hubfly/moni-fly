@@ -394,6 +394,7 @@ export type ComentarioCardRow = {
 };
 
 export type SecaoEsquerdaId =
+  | 'calculadora'
   | 'cronologia'
   | 'franqueado'
   | 'loteador'

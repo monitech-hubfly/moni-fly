@@ -85,7 +85,6 @@ const ETAPAS_POS_STEP7: ReadonlySet<string> = new Set([
   'captacao_moni_capital',
   'passagem_wayser',
   'planialtimetrico',
-  'sondagem',
   'projeto_legal',
   'aprovacao_condominio',
   'aprovacao_prefeitura',
@@ -93,7 +92,6 @@ const ETAPAS_POS_STEP7: ReadonlySet<string> = new Set([
   'processos_cartorarios',
   'aguardando_credito',
   'em_obra',
-  'moni_care',
 ]);
 
 type BuildDashboardOptions = {

@@ -18,7 +18,6 @@ export type PainelColumnKey =
   | 'contabilidade_gestora'
   | 'passagem_wayser'
   | 'planialtimetrico'
-  | 'sondagem'
   | 'projeto_legal'
   | 'aprovacao_condominio'
   | 'aprovacao_prefeitura'
@@ -26,7 +25,6 @@ export type PainelColumnKey =
   | 'processos_cartorarios'
   | 'aguardando_credito'
   | 'em_obra'
-  | 'moni_care'
   | 'credito_terreno'
   | 'credito_obra';
 
@@ -75,24 +73,14 @@ export const PAINEL_COLUMNS: PainelColumnDef[] = [
   },
   { key: 'captacao_moni_capital', title: 'Captação Moní Capital', slaDiasUteis: 30 },
   { key: 'passagem_wayser', title: 'Passagem para Wayser', slaDiasUteis: 2 },
-  {
-    key: 'planialtimetrico',
-    title: 'Planialtimétrico',
-    parallelGroup: 'planialtimetrico_sondagem',
-  },
-  {
-    key: 'sondagem',
-    title: 'Sondagem (paralelo Planialtimétrico)',
-    parallelGroup: 'planialtimetrico_sondagem',
-  },
+  { key: 'planialtimetrico', title: 'Planialtimétrico' },
   { key: 'projeto_legal', title: 'Projeto Legal' },
   { key: 'aprovacao_condominio', title: 'Aprovação no Condomínio' },
   { key: 'aprovacao_prefeitura', title: 'Aprovação na Prefeitura' },
-  { key: 'revisao_bca', title: 'Revisão do BCA' },
-  { key: 'processos_cartorarios', title: 'Processos Cartorários' },
+  { key: 'revisao_bca', title: 'Revisão BCA + Instrumento Garantidor' },
+  { key: 'processos_cartorarios', title: 'Transferência do Terreno' },
   { key: 'aguardando_credito', title: 'Aguardando Crédito' },
   { key: 'em_obra', title: 'Em Obra' },
-  { key: 'moni_care', title: 'Moní Care' },
   { key: 'contabilidade_incorporadora', title: 'Abertura da Incorporadora' },
   { key: 'contabilidade_spe', title: 'Abertura da SPE' },
   { key: 'contabilidade_gestora', title: 'Abertura da Gestora' },
@@ -154,7 +142,7 @@ export const PAINEL_FLOW_ROWS: PainelFlowRow[] = [
   { type: 'sequential', keys: ['step_7'] },
   { type: 'sequential', keys: ['captacao_moni_capital'] },
   { type: 'sequential', keys: ['passagem_wayser'] },
-  { type: 'parallel', keys: ['planialtimetrico', 'sondagem'] },
+  { type: 'sequential', keys: ['planialtimetrico'] },
   { type: 'sequential', keys: ['projeto_legal'] },
   { type: 'sequential', keys: ['aprovacao_condominio'] },
   { type: 'sequential', keys: ['aprovacao_prefeitura'] },
@@ -162,7 +150,6 @@ export const PAINEL_FLOW_ROWS: PainelFlowRow[] = [
   { type: 'sequential', keys: ['processos_cartorarios'] },
   { type: 'sequential', keys: ['aguardando_credito'] },
   { type: 'sequential', keys: ['em_obra'] },
-  { type: 'sequential', keys: ['moni_care'] },
 ];
 
 export function getDefaultEtapaPainel(): PainelColumnKey {
@@ -228,8 +215,7 @@ export function getHrefForProcesso(etapaKey: PainelColumnKey, processoId: string
     etapaKey === 'revisao_bca' ||
     etapaKey === 'processos_cartorarios' ||
     etapaKey === 'aguardando_credito' ||
-    etapaKey === 'em_obra' ||
-    etapaKey === 'moni_care'
+    etapaKey === 'em_obra'
   ) {
     return `/painel-novos-negocios?card=${encodeURIComponent(processoId)}`;
   }

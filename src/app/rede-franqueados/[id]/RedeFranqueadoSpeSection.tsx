@@ -55,6 +55,10 @@ function speToCadastroDraft(spe: FranqueadoSpeRow): SpeCadastroDraft {
   };
 }
 
+function normalizeCardIdInput(raw: string): string {
+  return raw.trim().replace(/\s+/g, '').toLowerCase();
+}
+
 function draftToSpeUpsert(d: SpeCadastroDraft) {
   return {
     nome_projeto: d.nome_projeto.trim() || null,
@@ -188,7 +192,8 @@ function SpeCadastroCard({ spe, onRefresh }: { redeId: string; spe: FranqueadoSp
   async function vincular() {
     setVinculando(true);
     setMsg(null);
-    const res = await vincularSpeACard(spe.id, cardIdInput.trim());
+    const normalized = normalizeCardIdInput(cardIdInput);
+    const res = await vincularSpeACard(spe.id, normalized);
     setVinculando(false);
     setMsg(res.ok ? res.mensagem : res.error);
     if (res.ok) onRefresh();
@@ -320,7 +325,7 @@ function SpeCadastroCard({ spe, onRefresh }: { redeId: string; spe: FranqueadoSp
           </label>
           <button
             type="button"
-            disabled={vinculando || salvando || !cardIdInput.trim()}
+            disabled={vinculando || salvando || !normalizeCardIdInput(cardIdInput)}
             onClick={() => void vincular()}
             className="inline-flex items-center gap-1 rounded bg-stone-800 px-2 py-1 text-[11px] text-white disabled:opacity-50"
           >

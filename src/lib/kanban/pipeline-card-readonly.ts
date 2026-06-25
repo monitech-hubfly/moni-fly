@@ -1,4 +1,4 @@
-import { calcularDiasUteis, formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
+import { calcularDiasUteis, formatIsoDateOnlyPtBr, normalizarSlaTipo } from '@/lib/dias-uteis';
 import { calcularSlaKanbanCard, type SlaKanbanResult } from '@/lib/kanban/kanban-card-sla';
 import type { PipelineCardDisplay, PipelineCardRow } from '@/lib/kanban/pipeline-cards-types';
 import type { LinhaCronologiaFase } from '@/lib/kanban/kanban-card-timeline';
@@ -20,6 +20,7 @@ type CardSlaInput = Pick<
   | 'alvara_url'
   | 'docs_terreno_url'
   | 'fase_sla_dias'
+  | 'fase_sla_tipo'
 >;
 
 /** SLA do card — mesma função usada no board (`KanbanColumn`) e nos filtros do kanban. */
@@ -32,6 +33,7 @@ export function slaKanbanCardFromPipelineRow(row: CardSlaInput): SlaKanbanResult
     alvara_url: row.alvara_url,
     docs_terreno_url: row.docs_terreno_url,
     sla_dias: row.fase_sla_dias,
+    sla_tipo: row.fase_sla_tipo,
   });
 }
 
@@ -138,12 +140,15 @@ export function calcularDiasUteisNaFase(card: Pick<PipelineCardRow, 'entered_fas
   return Math.max(0, calcularDiasUteis(entrada, hoje));
 }
 
-/** SLA da fase excedido — compara dias úteis na fase com `fase_sla_dias`. */
+/** SLA da fase excedido — compara dias na fase com `fase_sla_dias` (úteis ou corridos). */
 export function faseSlaExcedido(card: PipelineCardDisplay): boolean {
   if (card.sla.status === 'atrasado') return true;
   const slaDias = card.fase_sla_dias;
   if (slaDias == null || slaDias <= 0) return false;
-  return calcularDiasUteisNaFase(card) > slaDias;
+  const slaTipo = normalizarSlaTipo(card.fase_sla_tipo);
+  const diasNaFase =
+    slaTipo === 'corridos' ? calcularDiasNaFase(card) : calcularDiasUteisNaFase(card);
+  return diasNaFase > slaDias;
 }
 
 /** Texto relativo desde entrada na fase: hoje, ontem, há Xd. */

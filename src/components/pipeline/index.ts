@@ -1,4 +1,5 @@
 export { PipelineCardsView, type PipelineCardsViewProps } from '@/components/pipeline/PipelineCardsView';
+export { PipelineEsteiraTable, type PipelineEsteiraTableProps } from '@/components/pipeline/PipelineEsteiraTable';
 export { PipelineCardMiniDrawer } from '@/components/pipeline/PipelineCardMiniDrawer';
 export { PipelineProgressBar, type PipelineProgressBarProps } from '@/components/pipeline/PipelineProgressBar';
 export { PipelineProgressCard, type PipelineProgressCardProps } from '@/components/pipeline/PipelineProgressCard';
@@ -40,7 +41,15 @@ export type {
   PipelineCardsViewMode,
   PipelineCardsFiltros,
   PipelineCardsGrupo,
+  PipelineEsteiraHistoricoEvento,
+  PipelineEsteiraHistoricoPorCard,
 } from '@/lib/kanban/pipeline-cards-types';
+export {
+  ESTEIRA_COLUNAS,
+  computarDatasEsteira,
+  extrairHistoricoDeSaida,
+  resolverColunaEsteira,
+} from '@/lib/kanban/pipeline-esteira-datas';
 export {
   enriquecerPipelineCard,
   agruparPipelineCards,

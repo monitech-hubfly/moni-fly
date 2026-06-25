@@ -179,7 +179,6 @@ const ETAPAS_POS_APROVACAO_PREFEITURA: PainelColumnKey[] = [
   'processos_cartorarios',
   'aguardando_credito',
   'em_obra',
-  'moni_care',
 ];
 
 function isEtapaPosAprovacaoPrefeitura(etapa: PainelColumnKey | string): boolean {

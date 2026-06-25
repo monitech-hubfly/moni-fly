@@ -154,11 +154,16 @@ export function isPublicGuiaLeituraPagePath(pathname: string): boolean {
   return isBcaPublicLeituraPagePath(pathname) || isPreBatalhaPublicLeituraPagePath(pathname);
 }
 
+export function isCalculadoraPublicLeituraPath(pathname: string): boolean {
+  return /^\/calculadora\/[^/]+\/leitura\/?$/.test(pathname);
+}
+
 /**
- * Conteúdo do portal acessível sem login: guias em leitura + iframe do embed.
+ * Conteúdo do portal acessível sem login: guias em leitura + iframe do embed + calculadora pública.
  */
 export function isBcaPublicLeituraAccessPath(pathname: string): boolean {
   if (isPublicGuiaLeituraPagePath(pathname)) return true;
+  if (isCalculadoraPublicLeituraPath(pathname)) return true;
   return pathname === '/embed' || pathname.startsWith('/embed/');
 }
 

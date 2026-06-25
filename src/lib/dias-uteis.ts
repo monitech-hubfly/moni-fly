@@ -80,6 +80,18 @@ export function isDiaUtil(data: Date): boolean {
   return !FERIADOS_NACIONAIS.has(formatLocalYmd(data));
 }
 
+export type SlaTipo = 'uteis' | 'corridos';
+
+export function normalizarSlaTipo(value: string | null | undefined): SlaTipo {
+  const v = String(value ?? '').trim().toLowerCase();
+  if (v === 'corridos' || v === 'dias_corridos' || v === 'dia_corridos') return 'corridos';
+  return 'uteis';
+}
+
+export function rotuloUnidadeSla(tipo: SlaTipo | string | null | undefined): 'd.u.' | 'd.c.' {
+  return normalizarSlaTipo(tipo) === 'corridos' ? 'd.c.' : 'd.u.';
+}
+
 export type RotuloSlaAtividadeVariante = 'atrasado' | 'atencao' | 'ok' | 'nenhum';
 
 export type RotuloSlaAtividade = {
@@ -197,6 +209,95 @@ export function adicionarDiasUteis(dataBase: Date, diasUteis: number): Date {
   }
 
   return resultado;
+}
+
+/** Dias corridos entre duas datas (início e fim inclusive no cálculo de atraso). */
+export function calcularDiasCorridos(dataInicio: Date, dataFim: Date): number {
+  const inicio = startOfLocalDay(dataInicio);
+  const fim = startOfLocalDay(dataFim);
+  if (fim < inicio) return 0;
+  return Math.max(0, Math.round((fim.getTime() - inicio.getTime()) / 86400000));
+}
+
+/** Soma N dias corridos a uma data. */
+export function adicionarDiasCorridos(dataBase: Date, diasCorridos: number): Date {
+  const resultado = new Date(dataBase);
+  resultado.setDate(resultado.getDate() + diasCorridos);
+  return startOfLocalDay(resultado);
+}
+
+export type StatusSlaCalculado = {
+  status: 'ok' | 'atencao' | 'atrasado';
+  label: string;
+  classe: string;
+  diasAtraso?: number;
+  diasRestantes?: number;
+  slaTipo: SlaTipo;
+};
+
+/**
+ * Calcula o status do SLA baseado em dias corridos.
+ */
+export function calcularStatusSLACorridos(
+  createdAt: Date,
+  slaDiasCorridos: number,
+): StatusSlaCalculado {
+  const hoje = startOfLocalDay(new Date());
+  const criacao = startOfLocalDay(createdAt);
+  const dataVencimento = adicionarDiasCorridos(criacao, slaDiasCorridos);
+
+  if (dataVencimento < hoje) {
+    const diasAtraso = calcularDiasCorridos(dataVencimento, hoje);
+    return {
+      status: 'atrasado',
+      label: `Atrasado ${diasAtraso} d.c.`,
+      classe: 'moni-tag-atrasado',
+      diasAtraso,
+      slaTipo: 'corridos',
+    };
+  }
+
+  if (dataVencimento.getTime() === hoje.getTime()) {
+    return {
+      status: 'atencao',
+      label: 'Vence hoje',
+      classe: 'moni-tag-atencao',
+      diasRestantes: 0,
+      slaTipo: 'corridos',
+    };
+  }
+
+  const diasRestantes = calcularDiasCorridos(hoje, dataVencimento);
+  if (diasRestantes === 1) {
+    return {
+      status: 'atencao',
+      label: 'Vence em 1 d.c.',
+      classe: 'moni-tag-atencao',
+      diasRestantes: 1,
+      slaTipo: 'corridos',
+    };
+  }
+
+  return {
+    status: 'ok',
+    label: `${diasRestantes} d.c. restantes`,
+    classe: '',
+    diasRestantes,
+    slaTipo: 'corridos',
+  };
+}
+
+/** Despacha para dias úteis ou corridos conforme `sla_tipo` da fase. */
+export function calcularStatusSLAPorTipo(
+  createdAt: Date,
+  slaDias: number,
+  slaTipo?: SlaTipo | string | null,
+): StatusSlaCalculado {
+  if (normalizarSlaTipo(slaTipo) === 'corridos') {
+    return calcularStatusSLACorridos(createdAt, slaDias);
+  }
+  const sla = calcularStatusSLA(createdAt, slaDias);
+  return { ...sla, slaTipo: 'uteis' as const };
 }
 
 /**

@@ -20,7 +20,9 @@ import {
 } from '@/lib/kanban/kanban-paralelas-chips';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardPrazoIndicadores } from './KanbanCardPrazoIndicadores';
+import { KanbanCardBoardTags } from './KanbanCardBoardTags';
 import { ResponsavelFaseAvatar } from './ResponsavelFaseAvatar';
+import { rotuloUnidadeSla } from '@/lib/dias-uteis';
 import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import {
   cardLoteadoresPrecisaJustificativaSla,
@@ -61,6 +63,7 @@ type DragPayload = {
   docs_terreno_url?: string | null;
   sla_justificativa?: string | null;
   fromFaseSlaDias?: number | null;
+  fromFaseSlaTipo?: 'uteis' | 'corridos' | null;
 };
 
 function hrefAbrirCard(
@@ -110,6 +113,7 @@ function parseDragPayload(raw: string): DragPayload | null {
       docs_terreno_url: data.docs_terreno_url ?? null,
       sla_justificativa: data.sla_justificativa ?? null,
       fromFaseSlaDias: data.fromFaseSlaDias ?? null,
+      fromFaseSlaTipo: data.fromFaseSlaTipo ?? null,
     };
   } catch {
     return null;
@@ -215,6 +219,7 @@ export function KanbanColumn({
               alvara_url: payload.alvara_url,
               docs_terreno_url: payload.docs_terreno_url,
               sla_dias: payload.fromFaseSlaDias ?? null,
+              sla_tipo: payload.fromFaseSlaTipo ?? null,
             });
             if (
               cardLoteadoresPrecisaJustificativaSla({
@@ -352,7 +357,7 @@ export function KanbanColumn({
                 border: '0.5px solid var(--moni-navy-200)',
               }}
             >
-              SLA: {fase.sla_dias}d
+              SLA: {fase.sla_dias} {rotuloUnidadeSla(fase.sla_tipo)}
             </span>
           ) : null}
         </div>
@@ -383,6 +388,7 @@ export function KanbanColumn({
             alvara_url: card.alvara_url,
             docs_terreno_url: card.docs_terreno_url,
             sla_dias: fase.sla_dias,
+            sla_tipo: fase.sla_tipo,
           });
           const arquivado = cardArquivadoVisual(card);
           const concluido = cardConcluidoVisual(card);
@@ -445,6 +451,7 @@ export function KanbanColumn({
                       docs_terreno_url: card.docs_terreno_url ?? null,
                       sla_justificativa: (card as { sla_justificativa?: string | null }).sla_justificativa ?? null,
                       fromFaseSlaDias: fase.sla_dias ?? null,
+                      fromFaseSlaTipo: fase.sla_tipo ?? null,
                     } satisfies DragPayload),
                   );
                 }}
@@ -566,6 +573,7 @@ export function KanbanColumn({
                 ) : card.profiles?.full_name ? (
                   <p className="mt-1 line-clamp-1 text-xs text-stone-500">{card.profiles.full_name}</p>
                 ) : null}
+                <KanbanCardBoardTags tags={card.tagsCard} className="mt-1.5" />
                 {!arquivado && !concluido && aguardandoDoc ? (
                   <span className={`mt-1 inline-block ${CLASSE_TAG_AGUARDANDO_DOCUMENTACAO}`}>
                     {TAG_AGUARDANDO_DOCUMENTACAO}

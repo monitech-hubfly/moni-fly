@@ -418,11 +418,6 @@ export function SireneChamadoDetalheModal({
 
                 {/* Status: select only for creator, static badge for others */}
                 {ehCriador ? (
-                  statusSelect === 'em_andamento' ? (
-                    <span className={`min-w-[9.5rem] text-center text-sm ${selectClass}`}>
-                      Em andamento
-                    </span>
-                  ) : (
                     <select
                       value={statusSelect}
                       disabled={pending}
@@ -431,11 +426,11 @@ export function SireneChamadoDetalheModal({
                       aria-label="Status do chamado"
                     >
                       <option value="pendente">A fazer</option>
+                      <option value="em_andamento">Em andamento</option>
                       <option value="concluida">
                         Concluída
                       </option>
                     </select>
-                  )
                 ) : (
                   <span className={`rounded border px-2 py-1 text-xs font-medium ${statusBadgeClass(statusSelect)}`}>
                     {statusBadgeLabel(statusSelect)}

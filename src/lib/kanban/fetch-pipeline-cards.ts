@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanCardBrief } from '@/components/kanban-shared/types';
+import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { compareRedePorNFranquia } from '@/lib/rede-franqueados';
+import { normalizarSlaTipo } from '@/lib/dias-uteis';
 import {
   buscarProfilesFranqueadoPorRedeIdsBatch,
   enrichCardsComResponsavelFase,
@@ -8,14 +10,19 @@ import {
 } from '@/lib/kanban/responsavel-fase-checklist';
 import { fetchPainelChamados } from '@/lib/kanban/fetch-painel-chamados';
 import { computeGargaloRankingRede } from '@/lib/kanban/pipeline-franqueadora-compute';
+import { isKanbanTagEspecialNome } from '@/lib/kanban/kanban-tag-especial';
 import type { PainelFaseDTO } from '@/lib/kanban/painel-performance-types';
 import type {
   PipelineCardRow,
   PipelineCardsDataset,
   PipelineCardsViewMode,
+  PipelineEsteiraHistoricoEvento,
+  PipelineEsteiraHistoricoPorCard,
   PipelineFranqueadoUnidade,
   PipelineFranqueadoraEnrichment,
 } from '@/lib/kanban/pipeline-cards-types';
+
+const ESTEIRA_KANBAN_IDS = [KANBAN_IDS.STEP_ONE, KANBAN_IDS.PORTFOLIO, KANBAN_IDS.OPERACOES] as const;
 
 const CARD_SELECT_BASE = `
   id,
@@ -24,6 +31,8 @@ const CARD_SELECT_BASE = `
   fase_id,
   rede_franqueado_id,
   projeto_id,
+  origem_card_id,
+  processo_step_one_id,
   created_at,
   updated_at,
   entered_fase_at,
@@ -34,7 +43,7 @@ const CARD_SELECT_BASE = `
   concluido,
   status,
   kanbans ( nome ),
-  kanban_fases ( nome, slug, ordem, sla_dias, fase_conversao ),
+  kanban_fases ( nome, slug, ordem, sla_dias, sla_tipo, fase_conversao ),
   rede_franqueados ( n_franquia, nome_completo, ordem ),
   projeto_negocio ( titulo )
 `;
@@ -56,7 +65,9 @@ const CARD_SELECT_WITH_FUNIL = `${CARD_SELECT_BASE.trim()},
   obra_iniciada,
   obra_iniciada_em,
   obra_finalizada,
-  obra_finalizada_em
+  obra_finalizada_em,
+  prev_aprovacao_prefeitura,
+  prev_inicio_obra
 `;
 
 const CARD_SELECT_SEM_PROJETO = `
@@ -65,6 +76,8 @@ const CARD_SELECT_SEM_PROJETO = `
   kanban_id,
   fase_id,
   rede_franqueado_id,
+  origem_card_id,
+  processo_step_one_id,
   created_at,
   updated_at,
   entered_fase_at,
@@ -75,7 +88,7 @@ const CARD_SELECT_SEM_PROJETO = `
   concluido,
   status,
   kanbans ( nome ),
-  kanban_fases ( nome, slug, ordem, sla_dias, fase_conversao ),
+  kanban_fases ( nome, slug, ordem, sla_dias, sla_tipo, fase_conversao ),
   rede_franqueados ( n_franquia, nome_completo, ordem )
 `.trim();
 
@@ -86,6 +99,86 @@ function relOne<T>(v: T | T[] | null | undefined): T | null {
   return Array.isArray(v) ? (v[0] ?? null) : v;
 }
 
+function detStr(d: Record<string, unknown> | null | undefined, key: string): string {
+  if (!d) return '';
+  const v = d[key];
+  return typeof v === 'string' ? v.trim() : '';
+}
+
+async function fetchFaseSlugMap(
+  supabase: SupabaseClient,
+  faseIds: string[],
+): Promise<Map<string, string | null>> {
+  const ids = [...new Set(faseIds.map((id) => String(id).trim()).filter(Boolean))];
+  const map = new Map<string, string | null>();
+  if (ids.length === 0) return map;
+
+  const { data, error } = await supabase.from('kanban_fases').select('id, slug').in('id', ids);
+  if (error) {
+    console.error('[fetchFaseSlugMap]', error.message);
+    return map;
+  }
+
+  for (const row of data ?? []) {
+    const id = String((row as { id?: string }).id ?? '').trim();
+    if (!id) continue;
+    const slug = (row as { slug?: string | null }).slug;
+    map.set(id, slug != null ? String(slug).trim() || null : null);
+  }
+  return map;
+}
+
+async function fetchHistoricoEsteiraCards(
+  supabase: SupabaseClient,
+  cardIds: string[],
+): Promise<PipelineEsteiraHistoricoPorCard> {
+  if (cardIds.length === 0) return {};
+
+  const { data, error } = await supabase
+    .from('kanban_historico')
+    .select('card_id, detalhe, criado_em, is_retrocesso, acao')
+    .in('card_id', cardIds)
+    .eq('acao', 'fase_avancada')
+    .order('criado_em', { ascending: true });
+
+  if (error) {
+    console.error('[fetchHistoricoEsteiraCards]', error.message);
+    return {};
+  }
+
+  const faseIds: string[] = [];
+  for (const row of data ?? []) {
+    const detalhe = (row as { detalhe?: Record<string, unknown> | null }).detalhe ?? null;
+    const fid = detStr(detalhe, 'fase_anterior_id');
+    if (fid) faseIds.push(fid);
+  }
+
+  const slugMap = await fetchFaseSlugMap(supabase, faseIds);
+  const historico: PipelineEsteiraHistoricoPorCard = {};
+
+  for (const row of data ?? []) {
+    const cardId = String((row as { card_id?: string }).card_id ?? '').trim();
+    if (!cardId) continue;
+
+    const detalhe = (row as { detalhe?: Record<string, unknown> | null }).detalhe ?? null;
+    const faseAnteriorId = detStr(detalhe, 'fase_anterior_id');
+    if (!faseAnteriorId) continue;
+
+    const ev: PipelineEsteiraHistoricoEvento = {
+      fase_anterior_id: faseAnteriorId,
+      fase_anterior_slug: slugMap.get(faseAnteriorId) ?? null,
+      criado_em: String((row as { criado_em?: string }).criado_em ?? ''),
+      is_retrocesso: Boolean((row as { is_retrocesso?: boolean | null }).is_retrocesso),
+    };
+
+    const list = historico[cardId] ?? [];
+    list.push(ev);
+    historico[cardId] = list;
+  }
+
+  return historico;
+}
+
 function mapPipelineCardRow(raw: RawCard): PipelineCardRow | null {
   const id = String(raw.id ?? '').trim();
   if (!id) return null;
@@ -93,8 +186,8 @@ function mapPipelineCardRow(raw: RawCard): PipelineCardRow | null {
   const kanban = relOne(raw.kanbans as { nome?: string | null } | { nome?: string | null }[] | null);
   const fase = relOne(
     raw.kanban_fases as
-      | { nome?: string | null; slug?: string | null; ordem?: number | null; sla_dias?: number | null; fase_conversao?: boolean | null }
-      | Array<{ nome?: string | null; slug?: string | null; ordem?: number | null; sla_dias?: number | null; fase_conversao?: boolean | null }>
+      | { nome?: string | null; slug?: string | null; ordem?: number | null; sla_dias?: number | null; sla_tipo?: string | null; fase_conversao?: boolean | null }
+      | Array<{ nome?: string | null; slug?: string | null; ordem?: number | null; sla_dias?: number | null; sla_tipo?: string | null; fase_conversao?: boolean | null }>
       | null,
   );
   const rede = relOne(
@@ -118,6 +211,7 @@ function mapPipelineCardRow(raw: RawCard): PipelineCardRow | null {
     fase_slug: fase?.slug != null ? String(fase.slug) : null,
     fase_ordem: Number(fase?.ordem ?? 0),
     fase_sla_dias: fase?.sla_dias != null ? Number(fase.sla_dias) : null,
+    fase_sla_tipo: normalizarSlaTipo(fase?.sla_tipo),
     fase_conversao: Boolean(fase?.fase_conversao),
     rede_franqueado_id: raw.rede_franqueado_id != null ? String(raw.rede_franqueado_id) : null,
     n_franquia: rede?.n_franquia != null ? String(rede.n_franquia) : null,
@@ -136,6 +230,9 @@ function mapPipelineCardRow(raw: RawCard): PipelineCardRow | null {
     responsavel_fase_nome: null,
     projeto_id: projetoId || null,
     projeto_titulo: projeto?.titulo != null ? String(projeto.titulo).trim() || null : null,
+    origem_card_id: raw.origem_card_id != null ? String(raw.origem_card_id).trim() || null : null,
+    processo_step_one_id:
+      raw.processo_step_one_id != null ? String(raw.processo_step_one_id).trim() || null : null,
   };
 
   if ('opcao_assinada' in raw) {
@@ -163,6 +260,13 @@ function mapPipelineCardRow(raw: RawCard): PipelineCardRow | null {
   if ('obra_finalizada' in raw) {
     row.obra_finalizada = raw.obra_finalizada === true;
     row.obra_finalizada_em = raw.obra_finalizada_em != null ? String(raw.obra_finalizada_em) : null;
+  }
+  if ('prev_aprovacao_prefeitura' in raw) {
+    row.prev_aprovacao_prefeitura =
+      raw.prev_aprovacao_prefeitura != null ? String(raw.prev_aprovacao_prefeitura).slice(0, 10) : null;
+  }
+  if ('prev_inicio_obra' in raw) {
+    row.prev_inicio_obra = raw.prev_inicio_obra != null ? String(raw.prev_inicio_obra).slice(0, 10) : null;
   }
 
   return row;
@@ -227,6 +331,136 @@ async function enriquecerResponsavelPipelineCards(
   });
 }
 
+const TAG_ESPECIAL_CARD_IDS_CHUNK = 200;
+
+async function fetchCardIdsComTagEspecial(
+  supabase: SupabaseClient,
+  cardIds: string[],
+): Promise<Set<string>> {
+  const uniq = [...new Set(cardIds.filter(Boolean))];
+  if (uniq.length === 0) return new Set();
+
+  const especialIds = new Set<string>();
+
+  for (let i = 0; i < uniq.length; i += TAG_ESPECIAL_CARD_IDS_CHUNK) {
+    const slice = uniq.slice(i, i + TAG_ESPECIAL_CARD_IDS_CHUNK);
+    const { data, error } = await supabase
+      .from('kanban_card_tags')
+      .select('card_id, kanban_tags(nome)')
+      .in('card_id', slice);
+
+    if (error) {
+      console.error('[fetchCardIdsComTagEspecial]', error.message);
+      continue;
+    }
+
+    for (const raw of data ?? []) {
+      const row = raw as {
+        card_id?: string | null;
+        kanban_tags?: { nome?: string | null } | { nome?: string | null }[] | null;
+      };
+      const cardId = String(row.card_id ?? '').trim();
+      if (!cardId) continue;
+      const tag = relOne(row.kanban_tags);
+      if (isKanbanTagEspecialNome(tag?.nome)) {
+        especialIds.add(cardId);
+      }
+    }
+  }
+
+  return especialIds;
+}
+
+function marcarCardsComTagEspecial(
+  cards: PipelineCardRow[],
+  ids: Set<string>,
+): PipelineCardRow[] {
+  return cards.map((c) => ({
+    ...c,
+    tem_tag_especial: ids.has(c.id),
+  }));
+}
+
+const PROCESSO_PROVISIONADO_CHUNK = 150;
+
+async function enriquecerCardsProcessoProvisionado(
+  supabase: SupabaseClient,
+  cards: PipelineCardRow[],
+): Promise<PipelineCardRow[]> {
+  const procIds = [
+    ...new Set(
+      cards
+        .map((c) => String(c.processo_step_one_id ?? '').trim())
+        .filter(Boolean),
+    ),
+  ];
+  if (procIds.length === 0) return cards;
+
+  type ProcRow = {
+    id: string;
+    prazo_opcao_dias?: number | null;
+    prazo_opcao_sla_tipo?: string | null;
+    prazo_opcao_modo?: string | null;
+    prazo_opcao_fase_id?: string | null;
+    prazo_opcao_data?: string | null;
+  };
+
+  const porId = new Map<string, ProcRow>();
+
+  for (let i = 0; i < procIds.length; i += PROCESSO_PROVISIONADO_CHUNK) {
+    const slice = procIds.slice(i, i + PROCESSO_PROVISIONADO_CHUNK);
+    const { data, error } = await supabase
+      .from('processo_step_one')
+      .select(
+        'id, prazo_opcao_dias, prazo_opcao_sla_tipo, prazo_opcao_modo, prazo_opcao_fase_id, prazo_opcao_data',
+      )
+      .in('id', slice);
+
+    if (error) {
+      if (!/prazo_opcao/i.test(error.message)) {
+        console.error('[enriquecerCardsProcessoProvisionado]', error.message);
+      }
+      continue;
+    }
+
+    for (const row of data ?? []) {
+      const id = String((row as ProcRow).id ?? '').trim();
+      if (id) porId.set(id, row as ProcRow);
+    }
+  }
+
+  if (porId.size === 0) return cards;
+
+  return cards.map((card) => {
+    const pid = String(card.processo_step_one_id ?? '').trim();
+    if (!pid) return card;
+    const proc = porId.get(pid);
+    if (!proc) return card;
+
+    const modoRaw = proc.prazo_opcao_modo;
+    const modo = modoRaw === 'fase' || modoRaw === 'data' ? modoRaw : null;
+
+    return {
+      ...card,
+      prazo_opcao_modo: modo,
+      prazo_opcao_data:
+        proc.prazo_opcao_data != null ? String(proc.prazo_opcao_data).slice(0, 10) : null,
+      prazo_opcao_dias:
+        proc.prazo_opcao_dias != null && Number.isFinite(Number(proc.prazo_opcao_dias))
+          ? Number(proc.prazo_opcao_dias)
+          : null,
+      prazo_opcao_sla_tipo:
+        proc.prazo_opcao_sla_tipo === 'corridos'
+          ? 'corridos'
+          : proc.prazo_opcao_sla_tipo === 'uteis'
+            ? 'uteis'
+            : null,
+      prazo_opcao_fase_id:
+        proc.prazo_opcao_fase_id != null ? String(proc.prazo_opcao_fase_id) : null,
+    };
+  });
+}
+
 function mapFranqueado(raw: RawCard): PipelineFranqueadoUnidade | null {
   const id = String(raw.id ?? '').trim();
   if (!id) return null;
@@ -249,7 +483,7 @@ async function fetchFasesKanbansPipeline(
 
   const { data: rows, error } = await supabase
     .from('kanban_fases')
-    .select('id, nome, ordem, sla_dias, slug, fase_conversao, kanban_id')
+    .select('id, nome, ordem, sla_dias, sla_tipo, slug, fase_conversao, kanban_id')
     .in('kanban_id', uniq)
     .eq('ativo', true)
     .order('ordem');
@@ -265,6 +499,7 @@ async function fetchFasesKanbansPipeline(
       nome?: string | null;
       ordem?: number | null;
       sla_dias?: number | string | null;
+      sla_tipo?: string | null;
       slug?: string | null;
       fase_conversao?: boolean | null;
       kanban_id?: string | null;
@@ -276,6 +511,7 @@ async function fetchFasesKanbansPipeline(
       nome: String(row.nome ?? ''),
       ordem,
       sla_dias: row.sla_dias != null && row.sla_dias !== '' ? Number(row.sla_dias) : null,
+      sla_tipo: normalizarSlaTipo(row.sla_tipo),
       fase_conversao: Boolean(row.fase_conversao),
       slug: row.slug != null ? String(row.slug) : null,
     });
@@ -381,7 +617,7 @@ export async function fetchPipelineCards(
   const mode = opts.mode === 'rede' ? 'franqueadora' : opts.mode;
   const redeId = String(opts.franqueadoId ?? '').trim();
   if (mode === 'unidade' && !redeId) {
-    return { cards: [], franqueados: [] };
+    return { cards: [], franqueados: [], historico: {} };
   }
 
   const comEnrichment = opts.comEnrichment ?? true;
@@ -468,7 +704,13 @@ export async function fetchPipelineCards(
     .map((r) => mapPipelineCardRow(r as RawCard))
     .filter((c): c is PipelineCardRow => c != null);
 
-  const cards = await enriquecerResponsavelPipelineCards(supabase, cardsRaw);
+  const cardsComResp = await enriquecerResponsavelPipelineCards(supabase, cardsRaw);
+  const tagEspecialIds = await fetchCardIdsComTagEspecial(
+    supabase,
+    cardsComResp.map((c) => c.id),
+  );
+  const cardsComTag = marcarCardsComTagEspecial(cardsComResp, tagEspecialIds);
+  const cards = await enriquecerCardsProcessoProvisionado(supabase, cardsComTag);
 
   let enrichment: PipelineFranqueadoraEnrichment | null = null;
   if (comEnrichment) {
@@ -478,5 +720,10 @@ export async function fetchPipelineCards(
         : await fetchUnidadeEnrichment(supabase, cards);
   }
 
-  return { cards, franqueados, enrichment };
+  const esteiraCardIds = cards
+    .filter((c) => (ESTEIRA_KANBAN_IDS as readonly string[]).includes(c.kanban_id))
+    .map((c) => c.id);
+  const historico = await fetchHistoricoEsteiraCards(supabase, esteiraCardIds);
+
+  return { cards, franqueados, historico, enrichment };
 }

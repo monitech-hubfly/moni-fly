@@ -101,10 +101,10 @@ export const FASE_SLUGS = {
   /** Funil Acoplamento — gate Gbox/Acoplamento antes de avançar. */
   MODELAGEM_CASA_GBOX: 'modelagem_casa_gbox',
   APROVACAO_PREFEITURA: 'aprovacao_prefeitura',
+  /** Funil Operações — Transferência do Terreno (slug legado: processos_cartorarios). */
+  PROCESSOS_CARTORARIOS: 'processos_cartorarios',
   /** Funil Operações — fase Em Obra. */
   EM_OBRA:            'em_obra',
-  /** Funil Operações — fase Moní Care (saída = obra finalizada). */
-  MONI_CARE:          'moni_care',
   PROJETO_LEGAL:      'projeto_legal',
   LOTEADOR_JURIDICO:  'loteador_juridico',
   // Gatilhos de VOLTA

@@ -60,6 +60,7 @@ function mapFases(fases: KanbanFase[]) {
     nome: f.nome,
     ordem: f.ordem,
     sla_dias: f.sla_dias,
+    sla_tipo: f.sla_tipo ?? 'uteis',
     fase_conversao: Boolean(f.fase_conversao),
     slug: f.slug ?? null,
   }));
@@ -452,7 +453,7 @@ async function fetchOperacoesFases(
 ): Promise<PainelFaseDTO[]> {
   const { data, error } = await supabase
     .from('kanban_fases')
-    .select('id, nome, ordem, sla_dias, fase_conversao, slug')
+    .select('id, nome, ordem, sla_dias, sla_tipo, fase_conversao, slug')
     .eq('kanban_id', KANBAN_IDS.OPERACOES)
     .order('ordem');
   if (error) return [];
@@ -462,6 +463,7 @@ async function fetchOperacoesFases(
       nome: string;
       ordem: number;
       sla_dias: number | null;
+      sla_tipo?: string | null;
       fase_conversao: boolean | null;
       slug: string | null;
     };
@@ -470,6 +472,7 @@ async function fetchOperacoesFases(
       nome: row.nome,
       ordem: row.ordem,
       sla_dias: row.sla_dias,
+      sla_tipo: row.sla_tipo === 'corridos' ? 'corridos' : 'uteis',
       fase_conversao: Boolean(row.fase_conversao),
       slug: row.slug ?? null,
     };
@@ -527,7 +530,7 @@ async function fetchCreditoObraFases(
 ): Promise<PainelFaseDTO[]> {
   const { data, error } = await supabase
     .from('kanban_fases')
-    .select('id, nome, ordem, sla_dias, fase_conversao, slug')
+    .select('id, nome, ordem, sla_dias, sla_tipo, fase_conversao, slug')
     .eq('kanban_id', KANBAN_IDS.CREDITO_OBRA)
     .order('ordem');
   if (error) return [];
@@ -537,6 +540,7 @@ async function fetchCreditoObraFases(
       nome: string;
       ordem: number;
       sla_dias: number | null;
+      sla_tipo?: string | null;
       fase_conversao: boolean | null;
       slug: string | null;
     };
@@ -545,6 +549,7 @@ async function fetchCreditoObraFases(
       nome: row.nome,
       ordem: row.ordem,
       sla_dias: row.sla_dias,
+      sla_tipo: row.sla_tipo === 'corridos' ? 'corridos' : 'uteis',
       fase_conversao: Boolean(row.fase_conversao),
       slug: row.slug ?? null,
     };

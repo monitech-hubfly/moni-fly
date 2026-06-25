@@ -3,6 +3,7 @@ export type PainelFaseDTO = {
   nome: string;
   ordem: number;
   sla_dias: number | null;
+  sla_tipo?: 'uteis' | 'corridos' | null;
   fase_conversao: boolean;
   slug?: string | null;
 };

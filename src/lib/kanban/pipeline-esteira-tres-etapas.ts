@@ -74,6 +74,22 @@ export function indiceEsteiraTresEtapas(kanbanId: string): number {
   return 0;
 }
 
+/** Índice (0-based) da esteira principal em que o funil paralelo se ramifica. */
+export function indiceRamificacaoFunilParalelo(kanbanId: string): number {
+  const kid = String(kanbanId ?? '').trim();
+  const paralelo = KANBAN_PARALELO.get(kid);
+  if (paralelo) return PARALELO_RAMIFICACAO_MAIN[paralelo.id] ?? 1;
+  return indiceEsteiraTresEtapas(kid);
+}
+
+/** `grid-column` CSS (1-based) para posicionar sub-esteira paralela sob a esteira principal. */
+export function gridColumnSubesteiraParalela(kanbanIds: readonly string[]): string {
+  const indices = kanbanIds.map((kid) => indiceRamificacaoFunilParalelo(kid));
+  const minIdx = Math.min(...indices);
+  const maxIdx = Math.max(...indices);
+  return `${minIdx + 1} / ${maxIdx + 2}`;
+}
+
 export function isFunilParaleloEsteira(kanbanId: string): boolean {
   return KANBAN_PARALELO.has(String(kanbanId ?? '').trim());
 }

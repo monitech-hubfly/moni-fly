@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { aplicarDataEnvioCreditoObraNoPreObra } from '@/lib/pre-obra/credito-obra-envio-data';
+import type { NegocioPrazoModo } from '@/lib/kanban/dados-negocio-prazo';
+import type { SlaTipo } from '@/lib/dias-uteis';
 
 /** Linha `rede_franqueados` para o painel esquerdo do modal Kanban. */
 export type RedeFranqueadoModalRow = {
@@ -66,6 +68,16 @@ export type ProcessoModalNegocioPreObra = {
   data_aprovacao_credito: string | null;
   numero_franquia: string | null;
   origem_rede_franqueados_id: string | null;
+  prazo_opcao_dias: number | null;
+  prazo_opcao_sla_tipo: SlaTipo | null;
+  prazo_opcao_modo: NegocioPrazoModo | null;
+  prazo_opcao_fase_id: string | null;
+  prazo_opcao_data: string | null;
+  prazo_instrumento_garantidor_dias: number | null;
+  prazo_instrumento_garantidor_sla_tipo: SlaTipo | null;
+  prazo_instrumento_garantidor_modo: NegocioPrazoModo | null;
+  prazo_instrumento_garantidor_fase_id: string | null;
+  prazo_instrumento_garantidor_data: string | null;
 };
 
 const REDE_SELECT = [
@@ -138,7 +150,20 @@ const PROCESSO_SELECT_EXTENDED = [
   'comentario_moni_capital_gastos_aporte_inicial',
 ].join(',');
 
-const PROCESSO_SELECT = `${PROCESSO_SELECT_LEGACY},${PROCESSO_SELECT_EXTENDED}`;
+const PROCESSO_SELECT_PRAZO = [
+  'prazo_opcao_dias',
+  'prazo_opcao_sla_tipo',
+  'prazo_opcao_modo',
+  'prazo_opcao_fase_id',
+  'prazo_opcao_data',
+  'prazo_instrumento_garantidor_dias',
+  'prazo_instrumento_garantidor_sla_tipo',
+  'prazo_instrumento_garantidor_modo',
+  'prazo_instrumento_garantidor_fase_id',
+  'prazo_instrumento_garantidor_data',
+].join(',');
+
+const PROCESSO_SELECT = `${PROCESSO_SELECT_LEGACY},${PROCESSO_SELECT_EXTENDED},${PROCESSO_SELECT_PRAZO}`;
 
 function isMissingColumnError(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
@@ -165,6 +190,16 @@ export type ProcessoNegocioUpdatePayload = {
   comentario_moni_capital_seguro_garantia: string | null;
   link_moni_capital_gastos_aporte_inicial: string | null;
   comentario_moni_capital_gastos_aporte_inicial: string | null;
+  prazo_opcao_dias?: number | null;
+  prazo_opcao_sla_tipo?: SlaTipo | null;
+  prazo_opcao_modo?: NegocioPrazoModo | null;
+  prazo_opcao_fase_id?: string | null;
+  prazo_opcao_data?: string | null;
+  prazo_instrumento_garantidor_dias?: number | null;
+  prazo_instrumento_garantidor_sla_tipo?: SlaTipo | null;
+  prazo_instrumento_garantidor_modo?: NegocioPrazoModo | null;
+  prazo_instrumento_garantidor_fase_id?: string | null;
+  prazo_instrumento_garantidor_data?: string | null;
   /** Gerenciados pela seção Dados do Condomínio — omitir ao salvar negócio. */
   nome_condominio?: string | null;
   quadra?: string | null;
@@ -191,14 +226,27 @@ const PROCESSO_UPDATE_EXTENDED_KEYS = [
   'comentario_moni_capital_gastos_aporte_inicial',
 ] as const;
 
+const PROCESSO_UPDATE_PRAZO_KEYS = [
+  'prazo_opcao_dias',
+  'prazo_opcao_sla_tipo',
+  'prazo_opcao_modo',
+  'prazo_opcao_fase_id',
+  'prazo_opcao_data',
+  'prazo_instrumento_garantidor_dias',
+  'prazo_instrumento_garantidor_sla_tipo',
+  'prazo_instrumento_garantidor_modo',
+  'prazo_instrumento_garantidor_fase_id',
+  'prazo_instrumento_garantidor_data',
+] as const;
+
 function pickPayload(
   payload: ProcessoNegocioUpdatePayload,
   keys: readonly string[],
-): Record<string, string | null> {
-  const out: Record<string, string | null> = {};
+): Record<string, string | number | null> {
+  const out: Record<string, string | number | null> = {};
   for (const k of keys) {
     const v = payload[k as keyof ProcessoNegocioUpdatePayload];
-    if (v !== undefined) out[k] = v;
+    if (v !== undefined) out[k] = v as string | number | null;
   }
   return out;
 }
@@ -209,10 +257,22 @@ export async function updateProcessoNegocioCampos(
   processoId: string,
   payload: ProcessoNegocioUpdatePayload,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const full = { ...pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS), ...pickPayload(payload, PROCESSO_UPDATE_EXTENDED_KEYS) };
+  const full = {
+    ...pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS),
+    ...pickPayload(payload, PROCESSO_UPDATE_EXTENDED_KEYS),
+    ...pickPayload(payload, PROCESSO_UPDATE_PRAZO_KEYS),
+  };
   const { error } = await supabase.from('processo_step_one').update(full as never).eq('id', processoId);
   if (!error) return { ok: true };
   if (!isMissingColumnError(error)) return { ok: false, error: error.message };
+
+  const semPrazo = {
+    ...pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS),
+    ...pickPayload(payload, PROCESSO_UPDATE_EXTENDED_KEYS),
+  };
+  const { error: errSemPrazo } = await supabase.from('processo_step_one').update(semPrazo as never).eq('id', processoId);
+  if (!errSemPrazo) return { ok: true };
+  if (!isMissingColumnError(errSemPrazo)) return { ok: false, error: errSemPrazo.message };
 
   const legacyOnly = pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS);
   const { error: errLegacy } = await supabase.from('processo_step_one').update(legacyOnly as never).eq('id', processoId);
@@ -262,6 +322,20 @@ function mapRede(r: Record<string, unknown> | null): RedeFranqueadoModalRow | nu
 function mapProcesso(r: Record<string, unknown> | null): ProcessoModalNegocioPreObra | null {
   if (!r) return null;
   const g = (k: string) => (r[k] != null ? String(r[k]) : null);
+  const gi = (k: string) => {
+    const v = r[k];
+    if (v == null || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const sla = (k: string): SlaTipo | null => {
+    const v = r[k];
+    return v === 'corridos' ? 'corridos' : v === 'uteis' ? 'uteis' : null;
+  };
+  const modo = (k: string): NegocioPrazoModo | null => {
+    const v = r[k];
+    return v === 'fase' || v === 'data' ? v : null;
+  };
   return {
     id: String(r.id),
     tipo_aquisicao_terreno: g('tipo_aquisicao_terreno'),
@@ -297,6 +371,16 @@ function mapProcesso(r: Record<string, unknown> | null): ProcessoModalNegocioPre
     data_aprovacao_credito: g('data_aprovacao_credito')?.slice(0, 10) ?? null,
     numero_franquia: g('numero_franquia'),
     origem_rede_franqueados_id: g('origem_rede_franqueados_id'),
+    prazo_opcao_dias: gi('prazo_opcao_dias'),
+    prazo_opcao_sla_tipo: sla('prazo_opcao_sla_tipo'),
+    prazo_opcao_modo: modo('prazo_opcao_modo'),
+    prazo_opcao_fase_id: g('prazo_opcao_fase_id'),
+    prazo_opcao_data: g('prazo_opcao_data')?.slice(0, 10) ?? null,
+    prazo_instrumento_garantidor_dias: gi('prazo_instrumento_garantidor_dias'),
+    prazo_instrumento_garantidor_sla_tipo: sla('prazo_instrumento_garantidor_sla_tipo'),
+    prazo_instrumento_garantidor_modo: modo('prazo_instrumento_garantidor_modo'),
+    prazo_instrumento_garantidor_fase_id: g('prazo_instrumento_garantidor_fase_id'),
+    prazo_instrumento_garantidor_data: g('prazo_instrumento_garantidor_data')?.slice(0, 10) ?? null,
   };
 }
 

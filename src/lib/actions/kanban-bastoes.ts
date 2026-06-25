@@ -333,8 +333,10 @@ export async function criarCardFilho(
       criadoPor,
     );
 
-    const { aplicarResponsavelFasePadraoAoCard } = await import('@/lib/kanban/responsavel-fase-checklist');
+    const { aplicarResponsavelFasePadraoAoCard, aplicarResponsavelDaFasePadraoSeVazio } =
+      await import('@/lib/kanban/responsavel-fase-checklist');
     await aplicarResponsavelFasePadraoAoCard(db, filhoId, faseId, kanbanDestinoId, criadoPor);
+    await aplicarResponsavelDaFasePadraoSeVazio(db, filhoId, faseId, criadoPor);
 
     return filhoReativado as KanbanCardFilhoCriado;
   }
@@ -407,8 +409,10 @@ export async function criarCardFilho(
     criadoPor,
   );
 
-  const { aplicarResponsavelFasePadraoAoCard } = await import('@/lib/kanban/responsavel-fase-checklist');
+  const { aplicarResponsavelFasePadraoAoCard, aplicarResponsavelDaFasePadraoSeVazio } =
+    await import('@/lib/kanban/responsavel-fase-checklist');
   await aplicarResponsavelFasePadraoAoCard(db, cardFilhoId, faseId, kanbanDestinoId, criadoPor);
+  await aplicarResponsavelDaFasePadraoSeVazio(db, cardFilhoId, faseId, criadoPor);
 
   return filho as KanbanCardFilhoCriado;
 }

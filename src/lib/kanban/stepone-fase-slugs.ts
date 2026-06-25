@@ -146,6 +146,18 @@ export function isDadosCandidatoFaseSlug(slug: string | null | undefined): boole
   return slugMatchesStepOneFase(slug, DADOS_CANDIDATO_FASE_SLUGS);
 }
 
+/** Fases Step One omitidas da calculadora global (franquia / candidato). */
+export function isCalculadoraExcludedStepOneFaseSlug(slug: string | null | undefined): boolean {
+  return isOnboardingFaseSlug(slug) || isDadosCandidatoFaseSlug(slug);
+}
+
+/** Fases ativas do Step One exibidas na calculadora de fases. */
+export function filterStepOneCalculadoraFases(fases: KanbanFase[]): KanbanFase[] {
+  return fases.filter(
+    (f) => !isRemovedStepOneFaseSlug(f.slug) && !isCalculadoraExcludedStepOneFaseSlug(f.slug),
+  );
+}
+
 export function isDadosCondominiosFaseSlug(slug: string | null | undefined): boolean {
   return slugMatchesStepOneFase(slug, DADOS_CONDOMINIOS_FASE_SLUGS);
 }

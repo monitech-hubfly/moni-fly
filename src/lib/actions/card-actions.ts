@@ -1840,6 +1840,8 @@ export type CriarCardKanbanInput = {
   nomeCondominio?: string;
   quadra?: string;
   lote?: string;
+  redeFranqueadoId?: string;
+  origemTipo?: 'hipotese_direta';
 };
 
 /** Card nativo no kanban (`franqueado_id` = utilizador autenticado). */
@@ -1879,18 +1881,21 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
   if (faseErr) return { ok: false, error: faseErr.message };
   if (!faseRow) return { ok: false, error: 'Fase não pertence a este kanban.' };
 
+  const nomeCondominio = (input.nomeCondominio ?? '').trim() || null;
+  const quadra = (input.quadra ?? '').trim() || null;
+  const lote = (input.lote ?? '').trim() || null;
+
   let projetoId: string | null = null;
   if (kanbanId === KANBAN_IDS.PORTFOLIO) {
     projetoId = await tentarCriarProjetoNegocioPortfolio({
       titulo,
       franqueadoUserId: user.id,
-      redeFranqueadoId: null,
+      redeFranqueadoId: (input.redeFranqueadoId ?? '').trim() || null,
+      nomeCondominio,
+      quadra,
+      lote,
     });
   }
-
-  const nomeCondominio = (input.nomeCondominio ?? '').trim() || null;
-  const quadra = (input.quadra ?? '').trim() || null;
-  const lote = (input.lote ?? '').trim() || null;
 
   let tituloFinal = titulo;
   if (isKanbanFunilLoteadoresRef(kanbanId, kanbanNome)) {
@@ -1904,7 +1909,7 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
       }) ?? titulo;
   }
 
-  const { data: cardRow, error } = await supabase.from('kanban_cards').insert({
+  const insertPayload: Record<string, unknown> = {
     kanban_id: kanbanId,
     fase_id: faseId,
     franqueado_id: user.id,
@@ -1914,12 +1919,21 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
     quadra,
     lote,
     ...(projetoId ? { projeto_id: projetoId } : {}),
-  } as never).select('id').single();
+  };
+  const redeId = (input.redeFranqueadoId ?? '').trim();
+  if (redeId) insertPayload.rede_franqueado_id = redeId;
+  if (input.origemTipo === 'hipotese_direta') {
+    insertPayload.origem_tipo = 'hipotese_direta';
+  }
+
+  const { data: cardRow, error } = await supabase.from('kanban_cards').insert(insertPayload as never).select('id').single();
   if (error) return { ok: false, error: error.message };
 
   const cardId = String((cardRow as { id: string }).id);
-  const { aplicarResponsavelFasePadraoAoCard } = await import('@/lib/kanban/responsavel-fase-checklist');
+  const { aplicarResponsavelFasePadraoAoCard, aplicarResponsavelDaFasePadraoSeVazio } =
+    await import('@/lib/kanban/responsavel-fase-checklist');
   await aplicarResponsavelFasePadraoAoCard(supabase, cardId, faseId, kanbanId, user.id);
+  await aplicarResponsavelDaFasePadraoSeVazio(supabase, cardId, faseId, user.id);
 
   const bp = (input.basePath ?? '').trim() || '/';
   revalidatePath(bp);
@@ -2076,8 +2090,10 @@ export async function criarCardFunilStepOne(
     return { ok: false, error: `Card criado, mas falha ao vincular processo: ${processoRes.error}` };
   }
 
-  const { aplicarResponsavelFasePadraoAoCard } = await import('@/lib/kanban/responsavel-fase-checklist');
+  const { aplicarResponsavelFasePadraoAoCard, aplicarResponsavelDaFasePadraoSeVazio } =
+    await import('@/lib/kanban/responsavel-fase-checklist');
   await aplicarResponsavelFasePadraoAoCard(supabase, cardId, faseId, kanbanId, user.id);
+  await aplicarResponsavelDaFasePadraoSeVazio(supabase, cardId, faseId, user.id);
 
   revalidatePath('/funil-stepone');
   revalidatePath('/');
@@ -3939,6 +3955,66 @@ export async function registrarConfirmacaoFasePortfolio(input: {
   return { ok: true };
 }
 
+function timestampCampoCalendarioIso(input: string | null | undefined): string | null {
+  const ymd = dataCampoCalendarioIso(input);
+  if (!ymd) return null;
+  return `${ymd}T12:00:00.000Z`;
+}
+
+export type SalvarDadosPreObraOperacoesInput = {
+  cardId: string;
+  condominio_aprovada_em?: string | null;
+  prefeitura_aprovada_em?: string | null;
+  alvara_emitido_em?: string | null;
+  basePath?: string;
+};
+
+/** Salva datas reais de pré-obra no card nativo do Funil Operações (prev_* recalculados pelo trigger). */
+export async function salvarDadosPreObraOperacoes(
+  input: SalvarDadosPreObraOperacoesInput,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para salvar.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const { data: cardRow, error: cardErr } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  if (cardErr) return { ok: false, error: cardErr.message };
+  if (String((cardRow as { kanban_id?: string | null } | null)?.kanban_id ?? '') !== KANBAN_IDS.OPERACOES) {
+    return { ok: false, error: 'Pré-obra aplicável apenas ao Funil Operações.' };
+  }
+
+  const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+  if (input.condominio_aprovada_em !== undefined) {
+    update.condominio_aprovada_em = timestampCampoCalendarioIso(input.condominio_aprovada_em);
+  }
+  if (input.prefeitura_aprovada_em !== undefined) {
+    const ts = timestampCampoCalendarioIso(input.prefeitura_aprovada_em);
+    update.prefeitura_aprovada_em = ts;
+    update.prefeitura_aprovada = ts != null;
+  }
+  if (input.alvara_emitido_em !== undefined) {
+    update.alvara_emitido_em = timestampCampoCalendarioIso(input.alvara_emitido_em);
+  }
+
+  const { error: updErr } = await supabase.from('kanban_cards').update(update as never).eq('id', cardId);
+  if (updErr) return { ok: false, error: updErr.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
 export async function registrarConfirmacaoFaseOperacoes(input: {
   cardId: string;
   tipo: OperacoesConfirmacaoFaseTipo;
@@ -3956,7 +4032,7 @@ export async function registrarConfirmacaoFaseOperacoes(input: {
 
   const { data: cardRow, error: cardErr } = await supabase
     .from('kanban_cards')
-    .select('kanban_id')
+    .select('kanban_id, obra_iniciada, obra_finalizada')
     .eq('id', cardId)
     .maybeSingle();
   if (cardErr) return { ok: false, error: cardErr.message };
@@ -3965,15 +4041,40 @@ export async function registrarConfirmacaoFaseOperacoes(input: {
   }
 
   const now = new Date().toISOString();
-  const patchByTipo = {
-    prefeitura: { prefeitura_aprovada: true, prefeitura_aprovada_em: now },
-    em_obra: { obra_iniciada: true, obra_iniciada_em: now },
-    moni_care: { obra_finalizada: true, obra_finalizada_em: now },
-  } as const;
+  const cardFlags = cardRow as {
+    obra_iniciada?: boolean | null;
+    obra_finalizada?: boolean | null;
+  } | null;
+
+  let patch: Record<string, boolean | string>;
+  if (tipo === 'prefeitura') {
+    patch = { prefeitura_aprovada: true, prefeitura_aprovada_em: now };
+  } else if (tipo === 'em_obra') {
+    patch = {};
+    if (cardFlags?.obra_iniciada !== true) {
+      patch.obra_iniciada = true;
+      patch.obra_iniciada_em = now;
+    }
+  } else if (tipo === 'entregue') {
+    patch = {};
+    if (cardFlags?.obra_finalizada !== true) {
+      patch.obra_finalizada = true;
+      patch.obra_finalizada_em = now;
+    }
+  } else {
+    return { ok: false, error: 'Tipo de confirmação inválido.' };
+  }
+
+  if (Object.keys(patch).length === 0) {
+    const base = String(input.basePath ?? '/').trim() || '/';
+    revalidatePath(base);
+    revalidatePath('/');
+    return { ok: true };
+  }
 
   const { error: updErr } = await supabase
     .from('kanban_cards')
-    .update(patchByTipo[tipo] as never)
+    .update(patch as never)
     .eq('id', cardId);
 
   if (updErr) return { ok: false, error: updErr.message };
@@ -4080,8 +4181,10 @@ export async function moverCardParaFase(input: {
   await executarBastaoDeVolta(cardId, novaFaseSlug);
   await sincronizarTagAcoplamentoPaiDoFilho(cardId, novaFaseSlug);
 
-  const { propagarResponsavelFaseAoEntrarFase } = await import('@/lib/kanban/responsavel-fase-checklist');
+  const { propagarResponsavelFaseAoEntrarFase, propagarResponsavelDaFaseAoEntrarFase } =
+    await import('@/lib/kanban/responsavel-fase-checklist');
   await propagarResponsavelFaseAoEntrarFase(supabase, cardId, novaFaseId, user.id);
+  await propagarResponsavelDaFaseAoEntrarFase(supabase, cardId, novaFaseId, user.id);
 
   void notificarUniversidadeSeAvancoStep2({
     cardId,

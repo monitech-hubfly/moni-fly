@@ -12,6 +12,7 @@ import {
   isAnonymousAllowedPath,
   isAuthFlowAccessPath,
   isBcaPublicLeituraAccessPath,
+  isCalculadoraPublicLeituraPath,
   isFrankAllowedPath,
   isTeamAllowedPath,
 } from '@/lib/access-matrix';
@@ -43,6 +44,10 @@ export async function updateSession(request: NextRequest) {
     const url = new URL('/login', request.url);
     url.searchParams.set('tab', 'cadastro');
     return NextResponse.redirect(url);
+  }
+
+  if (isCalculadoraPublicLeituraPath(pathname)) {
+    return NextResponse.next({ request });
   }
 
   // Rotas públicas sem cookie de sessão: não chama Supabase (reduz timeout no Edge).

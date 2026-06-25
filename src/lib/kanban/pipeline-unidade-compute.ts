@@ -10,10 +10,9 @@ import type {
   PipelineUnidadeDisplayBloco,
   PipelineUnidadeSaudeMes,
 } from '@/lib/kanban/pipeline-cards-types';
-import { slaCategoriaPipeline } from '@/lib/kanban/pipeline-cards-utils';
+import { PIPELINE_INATIVIDADE_DIAS, slaCategoriaPipeline } from '@/lib/kanban/pipeline-cards-utils';
 import { saudeMesUnidadePipeline } from '@/lib/kanban/pipeline-franqueadora-compute';
 
-const INATIVIDADE_O_QUE_FAZER_DIAS = 15;
 const MAX_O_QUE_FAZER = 10;
 
 export function calcularKpisPipelineUnidadeExtended(
@@ -207,15 +206,16 @@ export function montarOQueFazerHoje(
   }
 
   for (const card of cards) {
-    if (card.diasSemMovimento < INATIVIDADE_O_QUE_FAZER_DIAS) continue;
+    if (!card.inativo) continue;
+    const diasAposSla = card.sla.diasAtraso ?? PIPELINE_INATIVIDADE_DIAS;
     push(
       {
         cardId: card.id,
         titulo: card.titulo,
         fase: card.fase_nome,
         kanbanNome: card.kanban_nome,
-        acao: `Sem movimentação há ${card.diasSemMovimento} dias`,
-        prioridade: 600 + card.diasSemMovimento,
+        acao: `Sem movimentação — ${diasAposSla}+ d.u. após SLA`,
+        prioridade: 600 + diasAposSla,
         href: hrefAbrirCardKanban(card.kanban_nome, card.id),
       },
       `inativo-${card.id}`,

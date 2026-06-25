@@ -21,24 +21,23 @@ import {
 import {
   calcularKpisPipelineFranqueadoraExtended,
   cardsElegiveisFranqueadora,
+  montarBlocoMetaUnidadePipeline,
   montarBlocosUnidadePipeline,
   sortCardsFranqueadoraPrioridade,
 } from '@/lib/kanban/pipeline-franqueadora-compute';
-import { computeFunilMesUnidade } from '@/lib/kanban/pipeline-funil-mes-compute';
+import { computeFunilMesCompact, computeFunilMesUnidade } from '@/lib/kanban/pipeline-funil-mes-compute';
 import {
   calcularKpisPipelineUnidadeExtended,
-  montarBlocosDisplayUnidade,
   montarOQueFazerHoje,
-  saudeMesUnidadePipeline,
 } from '@/lib/kanban/pipeline-unidade-compute';
 import { PipelineCardMiniDrawer } from '@/components/pipeline/PipelineCardMiniDrawer';
+import { PipelineEsteiraTable } from '@/components/pipeline/PipelineEsteiraTable';
 import { PipelineFranqueadoraUnidadeBloco } from '@/components/pipeline/PipelineFranqueadoraUnidadeBloco';
-import { PipelineSaudeMesCondensado } from '@/components/pipeline/PipelineSaudeMesCondensado';
+import { PipelineFunilMesCondensado } from '@/components/pipeline/PipelineFunilMesCondensado';
 import { PipelineUnidadeResumoLinha } from '@/components/pipeline/PipelineUnidadeResumoLinha';
 import { PipelineOQueFazerHoje } from '@/components/pipeline/PipelineOQueFazerHoje';
-import { PipelineUnidadeProjetoBloco } from '@/components/pipeline/PipelineUnidadeProjetoBloco';
-import { PipelineUnidadeCardSolo } from '@/components/pipeline/PipelineUnidadeCardSolo';
 import { PipelineFunilMesRede } from '@/components/pipeline/PipelineFunilMesRede';
+import { PipelineFunilProvisionadoRede } from '@/components/pipeline/PipelineFunilProvisionadoRede';
 import { PipelineFunilMesUnidade } from '@/components/pipeline/PipelineFunilMesUnidade';
 import { excluirFranquiaDosGraficosVisaoGeral } from '@/lib/rede-visibilidade-franqueado';
 import { PIPELINE_READONLY_NOTA } from '@/lib/kanban/pipeline-card-readonly';
@@ -65,7 +64,7 @@ function PipelineKpisBarFranqueadora({ kpis }: { kpis: PipelineCardsKpis }) {
   const items: { label: string; value: number; hint?: string }[] = [
     { label: 'Cards ativos', value: kpis.cardsAtivos },
     { label: 'Cards atrasados', value: kpis.cardsAtrasados },
-    { label: 'Sem movimentação', value: kpis.cardsSemMovimentacao, hint: '7+ dias' },
+    { label: 'Sem movimentação', value: kpis.cardsSemMovimentacao, hint: '7+ d.u. após SLA' },
     { label: 'Próx. vencimentos', value: kpis.cardsVencendoEmBreve },
     { label: 'Gargalos críticos', value: kpis.gargalosCriticos, hint: 'GargaloScore > 70' },
     { label: 'Chamados com trava', value: kpis.chamadosComTrava },
@@ -101,7 +100,7 @@ function PipelineKpisBarUnidade({ kpis }: { kpis: PipelineCardsKpisUnidade }) {
   const items: { label: string; value: number; hint?: string; variant: KpiVariant }[] = [
     { label: 'Cards ativos', value: kpis.cardsAtivos, variant: 'neutral' },
     { label: 'Cards atrasados', value: kpis.cardsAtrasados, variant: 'danger' },
-    { label: 'Sem movimentação', value: kpis.cardsSemMovimentacao, hint: '7+ dias', variant: 'warning' },
+    { label: 'Sem movimentação', value: kpis.cardsSemMovimentacao, hint: '7+ d.u. após SLA', variant: 'warning' },
     { label: 'Próx. vencimentos', value: kpis.proximosVencimentos, variant: 'neutral' },
     { label: 'Funis ativos', value: kpis.funisAtivos, hint: 'Com ≥1 card', variant: 'neutral' },
     { label: 'Chamados com trava', value: kpis.chamadosComTrava, variant: 'neutral' },
@@ -200,6 +199,34 @@ const filterSearchStyle: React.CSSProperties = {
   color: 'var(--moni-text-primary)',
 };
 
+const filterSegmentWrapStyle: React.CSSProperties = {
+  width: '130px',
+  flexShrink: 0,
+  height: '32px',
+  display: 'flex',
+  gap: '2px',
+  padding: '2px',
+  border: '0.5px solid var(--moni-border-default)',
+  borderRadius: 'var(--moni-radius-md)',
+  background: 'var(--moni-surface-100)',
+  boxSizing: 'border-box',
+};
+
+const filterSegmentBtnStyle = (active: boolean): React.CSSProperties => ({
+  flex: 1,
+  minWidth: 0,
+  height: '100%',
+  fontSize: '12px',
+  padding: '0 4px',
+  border: 'none',
+  borderRadius: '6px',
+  background: active ? 'var(--moni-navy-800)' : 'transparent',
+  color: active ? 'var(--moni-text-inverse, #fff)' : 'var(--moni-text-primary)',
+  fontFamily: 'var(--moni-font-sans)',
+  fontWeight: 500,
+  cursor: 'pointer',
+});
+
 export function PipelineCardsView({
   mode,
   franqueadoId,
@@ -212,6 +239,8 @@ export function PipelineCardsView({
   className,
 }: PipelineCardsViewProps) {
   const viewMode = resolvePipelineViewMode(mode);
+  const [funilRedeVisao, setFunilRedeVisao] = useState<'mes' | 'provisionado'>('mes');
+  const [listaLayout, setListaLayout] = useState<'cards' | 'esteira'>('cards');
   const [groupBy, setGroupBy] = useState<PipelineGroupBy>(viewMode === 'franqueadora' ? 'franquia' : defaultGroupBy);
   const [filtros, setFiltros] = useState<PipelineCardsFiltros>(PIPELINE_CARDS_FILTROS_DEFAULT);
   const [drawerCard, setDrawerCard] = useState<PipelineCardDisplay | null>(null);
@@ -256,11 +285,6 @@ export function PipelineCardsView({
     [showKpis, viewMode, cardsFiltrados, dataset.enrichment?.chamados],
   );
 
-  const saudeUnidade = useMemo(
-    () => (viewMode === 'unidade' ? saudeMesUnidadePipeline(cardsEnriquecidos) : null),
-    [viewMode, cardsEnriquecidos],
-  );
-
   const oQueFazerHoje = useMemo(
     () =>
       viewMode === 'unidade'
@@ -269,8 +293,20 @@ export function PipelineCardsView({
     [viewMode, cardsEnriquecidos, dataset.enrichment?.chamados],
   );
 
-  const blocosUnidade = useMemo(
-    () => (viewMode === 'unidade' ? montarBlocosDisplayUnidade(cardsFiltrados) : []),
+  const metaUnidade = useMemo(() => {
+    if (viewMode !== 'unidade') return null;
+    const franqueado = scoped.franqueados[0];
+    if (!franqueado || cardsFiltrados.length === 0) return null;
+    return montarBlocoMetaUnidadePipeline(
+      franqueado,
+      cardsFiltrados,
+      dataset.enrichment?.chamados ?? [],
+      { defaultExpanded: true },
+    );
+  }, [viewMode, scoped.franqueados, cardsFiltrados, dataset.enrichment?.chamados]);
+
+  const cardsUnidadeSorted = useMemo(
+    () => (viewMode === 'unidade' ? sortCardsFranqueadoraPrioridade(cardsFiltrados) : []),
     [viewMode, cardsFiltrados],
   );
 
@@ -295,6 +331,11 @@ export function PipelineCardsView({
 
   const funilMesUnidade = useMemo(
     () => (viewMode === 'unidade' ? computeFunilMesUnidade(scoped.cards) : null),
+    [viewMode, scoped.cards],
+  );
+
+  const funilMesCompactUnidade = useMemo(
+    () => (viewMode === 'unidade' ? computeFunilMesCompact(scoped.cards) : null),
     [viewMode, scoped.cards],
   );
 
@@ -362,18 +403,32 @@ export function PipelineCardsView({
       ) : null}
       {showKpis && viewMode === 'unidade' && kpisUnidade ? <PipelineKpisBarUnidade kpis={kpisUnidade} /> : null}
 
-      {viewMode === 'franqueadora' ? (
-        <PipelineFunilMesRede cards={funilRedeCards} franqueados={funilRedeFranqueados} />
+      {viewMode === 'franqueadora' && funilRedeVisao === 'mes' ? (
+        <PipelineFunilMesRede
+          cards={funilRedeCards}
+          franqueados={funilRedeFranqueados}
+          funilRedeVisao={funilRedeVisao}
+          onFunilRedeVisaoChange={setFunilRedeVisao}
+        />
+      ) : null}
+      {viewMode === 'franqueadora' && funilRedeVisao === 'provisionado' ? (
+        <PipelineFunilProvisionadoRede
+          cards={funilRedeCards}
+          franqueados={funilRedeFranqueados}
+          historico={dataset.historico ?? {}}
+          funilRedeVisao={funilRedeVisao}
+          onFunilRedeVisaoChange={setFunilRedeVisao}
+        />
       ) : null}
 
-      {viewMode === 'unidade' && (saudeUnidade || funilMesUnidade) ? (
+      {viewMode === 'unidade' && (funilMesCompactUnidade || funilMesUnidade) ? (
         <div className="mb-6 px-4 py-4" style={panelStyle}>
           <PipelineUnidadeResumoLinha
             cards={cardsEnriquecidos}
             chamados={dataset.enrichment?.chamados ?? []}
             className="mb-3"
           />
-          {saudeUnidade ? <PipelineSaudeMesCondensado saude={saudeUnidade} /> : null}
+          {funilMesCompactUnidade ? <PipelineFunilMesCondensado funil={funilMesCompactUnidade} /> : null}
           {funilMesUnidade ? <PipelineFunilMesUnidade funil={funilMesUnidade} className="mt-3" /> : null}
         </div>
       ) : null}
@@ -480,6 +535,29 @@ export function PipelineCardsView({
                 <option value="status">Status SLA</option>
               </select>
             ) : null}
+            <div
+              className="flex shrink-0"
+              style={filterSegmentWrapStyle}
+              role="group"
+              aria-label="Visualização do pipeline"
+            >
+              <button
+                type="button"
+                onClick={() => setListaLayout('cards')}
+                style={filterSegmentBtnStyle(listaLayout === 'cards')}
+                aria-pressed={listaLayout === 'cards'}
+              >
+                Cards
+              </button>
+              <button
+                type="button"
+                onClick={() => setListaLayout('esteira')}
+                style={filterSegmentBtnStyle(listaLayout === 'esteira')}
+                aria-pressed={listaLayout === 'esteira'}
+              >
+                Esteira
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -488,7 +566,9 @@ export function PipelineCardsView({
         {cardsFiltrados.length} card{cardsFiltrados.length === 1 ? '' : 's'} · {PIPELINE_READONLY_NOTA}
       </p>
 
-      {viewMode === 'franqueadora' ? (
+      {listaLayout === 'esteira' ? (
+        <PipelineEsteiraTable cards={cardsFiltrados} historico={dataset.historico ?? {}} />
+      ) : viewMode === 'franqueadora' ? (
         blocosFranqueadora.length === 0 ? (
           <p className="rounded-xl border border-dashed px-4 py-10 text-center text-[11px]" style={{ borderColor: 'var(--moni-border-default)', color: 'var(--moni-text-tertiary)' }}>
             Nenhum card encontrado com os filtros atuais.
@@ -506,30 +586,17 @@ export function PipelineCardsView({
             ))}
           </div>
         )
-      ) : blocosUnidade.length === 0 ? (
+      ) : !metaUnidade ? (
         <p className="rounded-xl border border-dashed px-4 py-10 text-center text-[11px]" style={{ borderColor: 'var(--moni-border-default)', color: 'var(--moni-text-tertiary)' }}>
           Nenhum card encontrado com os filtros atuais.
         </p>
       ) : (
-        <div className="space-y-3">
-          {blocosUnidade.map((bloco) =>
-            bloco.tipo === 'projeto' ? (
-              <PipelineUnidadeProjetoBloco
-                key={`projeto-${bloco.grupo.projetoId}`}
-                grupo={bloco.grupo}
-                enrichment={enrichmentSlim}
-                onCardClick={setDrawerCard}
-              />
-            ) : (
-              <PipelineUnidadeCardSolo
-                key={bloco.card.id}
-                card={bloco.card}
-                enrichment={enrichmentSlim}
-                onCardClick={setDrawerCard}
-              />
-            ),
-          )}
-        </div>
+        <PipelineFranqueadoraUnidadeBloco
+          meta={metaUnidade}
+          cards={cardsUnidadeSorted}
+          enrichment={enrichmentSlim}
+          onCardClick={setDrawerCard}
+        />
       )}
 
       <PipelineCardMiniDrawer card={drawerCard} onClose={() => setDrawerCard(null)} />

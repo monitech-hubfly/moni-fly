@@ -70,6 +70,8 @@ function KanbanWrapperInner({
       {enableNovoCardModal && novoAberto ? (
         <NovoCardModal
           kanbanId={kanbanId}
+          kanbanNome={kanbanNome}
+          basePath={basePath}
           onClose={fecharParaBase}
           isAdmin={isAdmin}
           showTipoOrigem={kanbanNome === 'Funil Portfólio'}

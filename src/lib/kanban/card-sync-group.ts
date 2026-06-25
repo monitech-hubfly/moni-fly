@@ -208,6 +208,16 @@ export const PROCESSO_CAMPOS_SYNC = [
   'data_aprovacao_credito',
   'numero_franquia',
   'origem_rede_franqueados_id',
+  'prazo_opcao_dias',
+  'prazo_opcao_sla_tipo',
+  'prazo_opcao_modo',
+  'prazo_opcao_fase_id',
+  'prazo_opcao_data',
+  'prazo_instrumento_garantidor_dias',
+  'prazo_instrumento_garantidor_sla_tipo',
+  'prazo_instrumento_garantidor_modo',
+  'prazo_instrumento_garantidor_fase_id',
+  'prazo_instrumento_garantidor_data',
 ] as const;
 
 export type ProcessoCamposSync = Partial<Record<(typeof PROCESSO_CAMPOS_SYNC)[number], string | null>>;

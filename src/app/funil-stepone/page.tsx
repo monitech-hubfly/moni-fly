@@ -74,6 +74,7 @@ export default async function FunilStepOnePage({
               columnAccent="var(--moni-kanban-stepone)"
               currentUserId={user.id}
               mostrarLinkNovoCard
+              podeCriarCards={isAdmin ? true : undefined}
               kanbanId={kanban.id}
             />
           </main>

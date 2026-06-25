@@ -113,7 +113,7 @@ export function PipelineAnalisesView({ dataset }: Props) {
 
   return (
     <div className="space-y-4">
-      <PanelBox title="Franquias travadas" hint="Cards com 20+ dias na fase e sem movimentação (7+ dias).">
+      <PanelBox title="Franquias travadas" hint="Cards com 20+ dias na fase e sem movimentação (7+ d.u. após SLA).">
         <DataTable
           headers={['Unidade', 'Card', 'Fase', 'Dias parado']}
           rows={analises.franquiasTravadas.map((r) => [

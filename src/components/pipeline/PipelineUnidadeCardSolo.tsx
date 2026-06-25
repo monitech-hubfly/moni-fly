@@ -2,7 +2,7 @@
 
 import type { PipelineCardDisplay, PipelineFranqueadoraEnrichment } from '@/lib/kanban/pipeline-cards-types';
 import { tituloPipelineCardDisplay } from '@/lib/kanban/pipeline-card-readonly';
-import { PipelineSequencialBar } from '@/components/pipeline/PipelineSequencialBar';
+import { PipelineEsteiraPrincipalComSubesteiras } from '@/components/pipeline/PipelineSequencialBar';
 import { PipelineUnidadeCardMetaLinhas } from '@/components/pipeline/PipelineUnidadeCardMetaLinhas';
 
 const panelStyle: React.CSSProperties = {
@@ -29,7 +29,7 @@ export function PipelineUnidadeCardSolo({ card, enrichment, onCardClick }: Props
         {tituloDisplay}
       </h3>
 
-      <PipelineSequencialBar card={card} enrichment={enrichment} className="mb-3" siblingCards={[card]} />
+      <PipelineEsteiraPrincipalComSubesteiras card={card} enrichment={enrichment} className="mb-3" siblingCards={[card]} />
 
       <PipelineUnidadeCardMetaLinhas card={card} onHistorico={onCardClick} />
     </article>

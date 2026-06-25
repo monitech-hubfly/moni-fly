@@ -1,4 +1,4 @@
-import { calcularStatusSLA } from '@/lib/dias-uteis';
+import { calcularStatusSLAPorTipo, normalizarSlaTipo, rotuloUnidadeSla, type SlaTipo } from '@/lib/dias-uteis';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 
 export const TAG_AGUARDANDO_DOCUMENTACAO = 'Aguardando Documentação';
@@ -12,6 +12,7 @@ export type SlaKanbanResult = {
   pausado: boolean;
   diasAtraso?: number;
   diasRestantes?: number;
+  slaTipo?: SlaTipo;
 };
 
 /** Bolinha compacta para cards — atrasado = vermelho + dias úteis; atenção = dourado + dias restantes. */
@@ -19,19 +20,20 @@ export function indicadorBolinhaSlaKanban(
   sla: SlaKanbanResult,
 ): { variante: 'atrasado' | 'atencao'; numero: number; title: string } | null {
   if (sla.pausado || sla.status === 'ok') return null;
+  const unidade = rotuloUnidadeSla(sla.slaTipo);
   if (sla.status === 'atrasado') {
     const n = sla.diasAtraso ?? 0;
     return {
       variante: 'atrasado',
       numero: Math.max(1, n),
-      title: `SLA da fase: ${n} dia(s) útil(eis) em atraso`,
+      title: `SLA da fase: ${n} ${unidade} em atraso`,
     };
   }
   const n = sla.diasRestantes ?? (sla.label === 'Vence hoje' ? 0 : 1);
   return {
     variante: 'atencao',
     numero: n,
-    title: n === 0 ? 'SLA da fase vence hoje' : `SLA da fase vence em ${n} dia(s) útil(eis)`,
+    title: n === 0 ? 'SLA da fase vence hoje' : `SLA da fase vence em ${n} ${unidade}`,
   };
 }
 
@@ -94,6 +96,7 @@ export function calcularSlaKanbanCard(input: {
   alvara_url?: string | null;
   docs_terreno_url?: string | null;
   sla_dias?: number | null;
+  sla_tipo?: SlaTipo | string | null;
 }): SlaKanbanResult {
   const aguardando = creditoObraAguardandoDocumentacao({
     faseSlug: input.faseSlug,
@@ -109,6 +112,7 @@ export function calcularSlaKanbanCard(input: {
   if (!base) {
     return { status: 'ok', label: '', classe: '', pausado: false };
   }
-  const sla = calcularStatusSLA(base, slaDias);
+  const slaTipo = normalizarSlaTipo(input.sla_tipo);
+  const sla = calcularStatusSLAPorTipo(base, slaDias, slaTipo);
   return { ...sla, pausado: false };
 }
