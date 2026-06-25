@@ -903,7 +903,8 @@
 .moni-calculadora-fase-status-col .moni-calc-badge-pass,
 .moni-calculadora-fase-status-col .moni-calc-badge-fut,
 .moni-calculadora-fase-status-col .moni-calc-badge-atu,
-.moni-calculadora-fase-status-col .moni-calc-badge-atu-at {
+.moni-calculadora-fase-status-col .moni-calc-badge-atu-at,
+.moni-calculadora-fase-status-col .moni-calc-badge-atraso-text {
   align-self: flex-end;
   text-align: right;
 }
@@ -1299,6 +1300,22 @@
   background: var(--moni-calc-at-bg);
   color: var(--moni-calc-at-text);
   border: 0.5px solid var(--moni-calc-at-border);
+}
+
+/* Marcos — atraso sem pill (texto simples com cor) */
+.moni-calc-badge-atraso-text {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-weight: 500;
+  color: var(--moni-calc-at-text);
+  text-transform: none;
+  letter-spacing: normal;
+  justify-content: flex-end;
+  text-align: right;
+  white-space: normal;
+  font-size: 9px;
+  line-height: 1.25;
 }
 
 /* Legado — mantido para compatibilidade */

@@ -114,6 +114,19 @@ function statusBadgeClass(status: FaseTimelineStatus): string {
   return `${base} moni-calc-badge-fut`;
 }
 
+/** Marcos: status sempre texto simples (sem pill), com cor de atraso quando aplicável. */
+function marcoStatusBadgeClass(status: FaseTimelineStatus): string {
+  const base = 'moni-calculadora-fase-status';
+  if (status === 'concluida' || status === 'concluida_atraso') {
+    return `${base} moni-calc-badge-pass`;
+  }
+  if (status === 'atual_atrasada') {
+    return `${base} moni-calc-badge-atraso-text`;
+  }
+  if (status === 'atual') return `${base} moni-calc-badge-pass`;
+  return `${base} moni-calc-badge-fut`;
+}
+
 function prazoPillClass(atrasada: boolean): string {
   return `moni-calc-prazo-pill${atrasada ? ' at' : ' undef'}`;
 }
@@ -314,7 +327,7 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
 
       <div className="moni-calculadora-fase-status-col">
         {marco.status ? (
-          <span className={statusBadgeClass(marco.status)}>
+          <span className={marcoStatusBadgeClass(marco.status)}>
             {CALCULADORA_STATUS_LABEL[marco.status]}
           </span>
         ) : null}
@@ -750,14 +763,15 @@ export function KanbanCardModalCalculadoraFases({
 
   useEffect(() => {
     const cid = cardId?.trim() ?? '';
-    if (!cid || gruposFunil.length === 0) return;
-    if (cardInicializadoRef.current === cid) return;
+    const initKey = modoPublico ? '__publico__' : cid;
+    if (!initKey || gruposFunil.length === 0) return;
+    if (cardInicializadoRef.current === initKey) return;
 
-    cardInicializadoRef.current = cid;
+    cardInicializadoRef.current = initKey;
     setCollapsedFunis(collapsedFunisIniciais(gruposFunil));
     setExpandedFases(new Set());
     setEditandoDatas(false);
-  }, [cardId, gruposFunil]);
+  }, [cardId, modoPublico, gruposFunil]);
 
   const toggleFunil = (label: string) => {
     setCollapsedFunis((prev) => {
