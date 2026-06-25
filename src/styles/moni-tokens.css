@@ -15,6 +15,7 @@
   -------------------------------------------------- */
 
   /* Verde Naval */
+  --moni-navy-25:  #f4f7f8;   /* entre branco e navy-50 — fundos sutis */
   --moni-navy-50:  #e8eef1;
   --moni-navy-100: #c0d0d9;
   --moni-navy-200: #94afc0;
@@ -454,7 +455,7 @@
   --moni-calc-custo-amber: var(--moni-text-secondary);
   --moni-calc-custo-text: var(--moni-text-secondary);
   --moni-calc-custo-label: var(--moni-text-tertiary);
-  --moni-calc-custo-bg: var(--moni-navy-50);
+  --moni-calc-custo-bg: var(--moni-navy-25);
   --moni-calc-row-pass-bg: var(--moni-surface-100);
   --moni-calc-row-atu-border: var(--moni-border-strong);
   --moni-calc-row-atu-at-border: var(--moni-calc-at-border);
