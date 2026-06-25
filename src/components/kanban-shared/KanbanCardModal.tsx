@@ -114,6 +114,11 @@ import { filterOperacoesCalculadoraFases } from '@/lib/kanban/operacoes-fase-slu
 import { filterPortfolioCalculadoraFases } from '@/lib/kanban/portfolio-fase-slugs';
 import { PRE_BATALHA_INSTRUCOES_FASE, PRE_BATALHA_TEXTO_EXPLICATIVO_RANKING } from '@/lib/kanban/pre-batalha-checklist';
 import { kanbanExibeSecaoCondominioSidebar } from '@/lib/kanban/kanban-secao-condominio';
+import { fetchCondominioRowById } from '@/lib/condominios';
+import {
+  condominioPrazosSlaFromRow,
+  type CondominioPrazosAprovacaoSla,
+} from '@/lib/kanban/condominio-prazos-aprovacao';
 import { estiloChipTagKanban } from '@/lib/kanban/kanban-tag-especial';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCreditoObraDocumentacao';
@@ -536,6 +541,8 @@ export function KanbanCardModal({
   const [datasManuaisCalculadora, setDatasManuaisCalculadora] = useState<
     Map<string, CalculadoraFaseDataManual>
   >(() => new Map());
+  const [calculadoraSlaCondominio, setCalculadoraSlaCondominio] =
+    useState<CondominioPrazosAprovacaoSla | null>(null);
   const [responsavelDaFaseSalvoPorFase, setResponsavelDaFaseSalvoPorFase] = useState<Map<string, string>>(
     () => new Map(),
   );
@@ -3365,6 +3372,7 @@ export function KanbanCardModal({
         visits,
         ancora: calculadoraAncora,
         overrides: datasManuaisCalculadora,
+        slaCondominio: calculadoraSlaCondominio,
       });
 
       if (linhasEsteira.length > 0) {
@@ -3392,6 +3400,7 @@ export function KanbanCardModal({
         visits,
         ancora: calculadoraAncora,
         overrides: datasManuaisCalculadora,
+        slaCondominio: calculadoraSlaCondominio,
       });
       return {
         linhas,
@@ -3401,7 +3410,7 @@ export function KanbanCardModal({
     } catch {
       return { linhas: [], visits: [], faseIds: [] as string[] };
     }
-  }, [card, fases, fasesEsteiraCalculadora, historico, legadoCronologiaMoves, origem, modalDetalhes.processo, datasManuaisCalculadora]);
+  }, [card, fases, fasesEsteiraCalculadora, historico, legadoCronologiaMoves, origem, modalDetalhes.processo, datasManuaisCalculadora, calculadoraSlaCondominio]);
 
   const calculadoraAncora = useMemo(
     () => calculadoraAncoraFromProcesso(modalDetalhes.processo),
@@ -3492,6 +3501,29 @@ export function KanbanCardModal({
       cancelado = true;
     };
   }, [card?.id, calculadoraFasesPack.faseIds.join('|')]);
+
+  const condominioIdCalculadora =
+    card?.condominio_id?.trim() || modalDetalhes.processo?.condominio_id?.trim() || null;
+
+  useEffect(() => {
+    if (!condominioIdCalculadora) {
+      setCalculadoraSlaCondominio(null);
+      return;
+    }
+
+    let cancelado = false;
+    void (async () => {
+      const supabase = createClient();
+      const row = await fetchCondominioRowById(supabase, condominioIdCalculadora);
+      if (!cancelado) {
+        setCalculadoraSlaCondominio(row ? condominioPrazosSlaFromRow(row) : null);
+      }
+    })();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [condominioIdCalculadora, condominioTick]);
 
   const podeEditarDatasCalculadora =
     modalSessao.roleNorm === 'admin' || modalSessao.roleNorm === 'team';

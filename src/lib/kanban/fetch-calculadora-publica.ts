@@ -26,6 +26,8 @@ import { filterOperacoesCalculadoraFases } from '@/lib/kanban/operacoes-fase-slu
 import { filterPortfolioCalculadoraFases } from '@/lib/kanban/portfolio-fase-slugs';
 import { buscarResponsavelDaFaseSalvoPorFases } from '@/lib/kanban/responsavel-fase-checklist';
 import { filterStepOneCalculadoraFases } from '@/lib/kanban/stepone-fase-slugs';
+import { fetchCondominioRowById } from '@/lib/condominios';
+import { condominioPrazosSlaFromRow } from '@/lib/kanban/condominio-prazos-aprovacao';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -42,6 +44,7 @@ export type CalculadoraPublicaCard = {
   obra_finalizada_em: string | null;
   opcao_assinada_em: string | null;
   processo_step_one_id: string | null;
+  condominio_id: string | null;
 };
 
 export type CalculadoraPublicaPack = {
@@ -137,6 +140,13 @@ async function montarCalculadoraPack(
 
   const overrides = await buscarDatasManuaisCalculadoraPorFases(supabase, card.id, faseIdsPreCalc);
 
+  const condominioId = String(card.condominio_id ?? '').trim() || null;
+  let slaCondominio = null;
+  if (condominioId) {
+    const condominioRow = await fetchCondominioRowById(supabase, condominioId);
+    slaCondominio = condominioPrazosSlaFromRow(condominioRow);
+  }
+
   const linhasEsteira = calcularLinhasCalculadoraFasesEsteira({
     fasesPorKanban: fasesMap,
     cardKanbanId: kanbanId,
@@ -151,6 +161,7 @@ async function montarCalculadoraPack(
     visits,
     ancora: calculadoraAncora,
     overrides,
+    slaCondominio,
   });
 
   let linhas = linhasEsteira;
@@ -177,6 +188,7 @@ async function montarCalculadoraPack(
       visits,
       ancora: calculadoraAncora,
       overrides,
+      slaCondominio,
     });
   }
 
@@ -271,7 +283,7 @@ export async function fetchCalculadoraPublicaByToken(
   const { data: row, error } = await admin
     .from('kanban_cards')
     .select(
-      'id, titulo, kanban_id, fase_id, created_at, entered_fase_at, concluido, concluido_em, contrato_assinado_em, obra_finalizada_em, opcao_assinada_em, processo_step_one_id, status',
+      'id, titulo, kanban_id, fase_id, created_at, entered_fase_at, concluido, concluido_em, contrato_assinado_em, obra_finalizada_em, opcao_assinada_em, processo_step_one_id, condominio_id, status',
     )
     .eq('id', cardId)
     .eq('status', 'ativo')
@@ -299,6 +311,7 @@ export async function fetchCalculadoraPublicaByToken(
       row.opcao_assinada_em != null ? String(row.opcao_assinada_em) : null,
     processo_step_one_id:
       row.processo_step_one_id != null ? String(row.processo_step_one_id).trim() || null : null,
+    condominio_id: row.condominio_id != null ? String(row.condominio_id).trim() || null : null,
   };
 
   return montarCalculadoraPack(admin, card);

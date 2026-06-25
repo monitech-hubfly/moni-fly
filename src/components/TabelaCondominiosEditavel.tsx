@@ -16,6 +16,13 @@ import {
   parseIntegerInput,
   type CondominioRow,
 } from '@/lib/condominios';
+import type { SlaTipo } from '@/lib/dias-uteis';
+import {
+  emptyCondominioPrazosAprovacaoDraft,
+  fmtPrazoAprovacaoLabel,
+  prazosAprovacaoDraftFromRow,
+  prazosAprovacaoPatchFromDraft,
+} from '@/lib/kanban/condominio-prazos-aprovacao';
 import {
   atualizarCondominio,
   criarCondominio,
@@ -41,6 +48,10 @@ type Draft = {
   estimativa_casas_vendidas_ano: string;
   extrato_como_eram_casas: string;
   extrato_tempo_venda: string;
+  prazo_aprovacao_condominio_dias: string;
+  prazo_aprovacao_condominio_sla_tipo: SlaTipo;
+  prazo_aprovacao_prefeitura_dias: string;
+  prazo_aprovacao_prefeitura_sla_tipo: SlaTipo;
 };
 
 function emptyDraft(): Draft {
@@ -58,6 +69,7 @@ function emptyDraft(): Draft {
     estimativa_casas_vendidas_ano: '',
     extrato_como_eram_casas: '',
     extrato_tempo_venda: '',
+    ...emptyCondominioPrazosAprovacaoDraft(),
   };
 }
 
@@ -76,6 +88,7 @@ function rowToDraft(r: CondominioRow): Draft {
     estimativa_casas_vendidas_ano: integerInputFromValue(r.estimativa_casas_vendidas_ano),
     extrato_como_eram_casas: r.extrato_como_eram_casas ?? '',
     extrato_tempo_venda: r.extrato_tempo_venda ?? '',
+    ...prazosAprovacaoDraftFromRow(r),
   };
 }
 
@@ -94,10 +107,22 @@ function draftToPatch(d: Draft) {
     estimativa_casas_vendidas_ano: parseIntegerInput(d.estimativa_casas_vendidas_ano),
     extrato_como_eram_casas: d.extrato_como_eram_casas.trim() || null,
     extrato_tempo_venda: d.extrato_tempo_venda.trim() || null,
+    ...prazosAprovacaoPatchFromDraft({
+      prazo_aprovacao_condominio_dias: d.prazo_aprovacao_condominio_dias,
+      prazo_aprovacao_condominio_sla_tipo: d.prazo_aprovacao_condominio_sla_tipo,
+      prazo_aprovacao_prefeitura_dias: d.prazo_aprovacao_prefeitura_dias,
+      prazo_aprovacao_prefeitura_sla_tipo: d.prazo_aprovacao_prefeitura_sla_tipo,
+    }),
   };
 }
 
-const inputCls = 'w-full min-w-0 rounded-md border border-stone-300 px-2 py-1 text-sm';
+const inputCls =
+  'w-full min-w-0 rounded-md border px-2 py-1 text-sm';
+const inputStyle = {
+  borderWidth: 'var(--moni-border-width)',
+  borderColor: 'var(--moni-border-default)',
+  fontFamily: 'var(--moni-font-sans)',
+} as const;
 
 type Props = {
   rows: CondominioRow[];
@@ -220,7 +245,7 @@ export function TabelaCondominiosEditavel({
       ) : null}
 
       <MoniTabelaScrollSync className="rounded-xl border border-stone-200/90 bg-white shadow-sm">
-        <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
+        <table className="w-full min-w-[1280px] border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-stone-200 bg-stone-50/95">
               <th className={redeTh} scope="col">
@@ -255,6 +280,12 @@ export function TabelaCondominiosEditavel({
               </th>
               <th className={redeTh} scope="col">
                 Extrato — Tempo venda
+              </th>
+              <th className={redeTh} scope="col">
+                Prazo Aprov. Condomínio
+              </th>
+              <th className={redeTh} scope="col">
+                Prazo Aprov. Prefeitura
               </th>
               {canEdit ? (
                 <th
@@ -324,6 +355,18 @@ export function TabelaCondominiosEditavel({
                     <span className="line-clamp-2 text-xs" title={r.extrato_tempo_venda ?? ''}>
                       {r.extrato_tempo_venda?.trim() || '—'}
                     </span>
+                  </td>
+                  <td className="px-3 py-2.5 tabular-nums text-stone-700">
+                    {fmtPrazoAprovacaoLabel(
+                      r.prazo_aprovacao_condominio_dias,
+                      r.prazo_aprovacao_condominio_sla_tipo,
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 tabular-nums text-stone-700">
+                    {fmtPrazoAprovacaoLabel(
+                      r.prazo_aprovacao_prefeitura_dias,
+                      r.prazo_aprovacao_prefeitura_sla_tipo,
+                    )}
                   </td>
                   {canEdit ? (
                     <td className="sticky right-0 z-10 border-l border-stone-200 bg-white px-1 py-2 align-middle group-hover:bg-stone-50/90">
@@ -541,7 +584,24 @@ function CondominioEditRow({
           value={draft.extrato_tempo_venda}
           onChange={(e) => setDraft((d) => ({ ...d, extrato_tempo_venda: e.target.value }))}
           className={`${inputCls} min-w-[10rem]`}
+          style={inputStyle}
           placeholder="Tempo para vender"
+        />
+      </td>
+      <td className="px-3 py-2">
+        <PrazoAprovacaoCell
+          dias={draft.prazo_aprovacao_condominio_dias}
+          slaTipo={draft.prazo_aprovacao_condominio_sla_tipo}
+          onDiasChange={(v) => setDraft((d) => ({ ...d, prazo_aprovacao_condominio_dias: v }))}
+          onSlaChange={(v) => setDraft((d) => ({ ...d, prazo_aprovacao_condominio_sla_tipo: v }))}
+        />
+      </td>
+      <td className="px-3 py-2">
+        <PrazoAprovacaoCell
+          dias={draft.prazo_aprovacao_prefeitura_dias}
+          slaTipo={draft.prazo_aprovacao_prefeitura_sla_tipo}
+          onDiasChange={(v) => setDraft((d) => ({ ...d, prazo_aprovacao_prefeitura_dias: v }))}
+          onSlaChange={(v) => setDraft((d) => ({ ...d, prazo_aprovacao_prefeitura_sla_tipo: v }))}
         />
       </td>
       <td className="sticky right-0 border-l border-stone-200 bg-stone-50 px-1 py-2 align-middle">
@@ -567,5 +627,40 @@ function CondominioEditRow({
         </div>
       </td>
     </tr>
+  );
+}
+
+function PrazoAprovacaoCell({
+  dias,
+  slaTipo,
+  onDiasChange,
+  onSlaChange,
+}: {
+  dias: string;
+  slaTipo: SlaTipo;
+  onDiasChange: (v: string) => void;
+  onSlaChange: (v: SlaTipo) => void;
+}) {
+  return (
+    <div className="flex min-w-[7.5rem] gap-1">
+      <input
+        type="text"
+        inputMode="numeric"
+        value={dias}
+        onChange={(e) => onDiasChange(e.target.value.replace(/\D/g, ''))}
+        placeholder="Ex.: 45"
+        className={`${inputCls} flex-1 tabular-nums`}
+        style={inputStyle}
+      />
+      <select
+        value={slaTipo}
+        onChange={(e) => onSlaChange(e.target.value === 'uteis' ? 'uteis' : 'corridos')}
+        className={`${inputCls} max-w-[4.5rem]`}
+        style={inputStyle}
+      >
+        <option value="corridos">d.c.</option>
+        <option value="uteis">d.u.</option>
+      </select>
+    </div>
   );
 }

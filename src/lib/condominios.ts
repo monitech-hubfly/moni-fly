@@ -20,6 +20,10 @@ export type CondominioRow = {
   recuo_frontal_m: number | null;
   recuo_fundo_m: number | null;
   recuo_lateral_m: number | null;
+  prazo_aprovacao_condominio_dias: number | null;
+  prazo_aprovacao_condominio_sla_tipo: string | null;
+  prazo_aprovacao_prefeitura_dias: number | null;
+  prazo_aprovacao_prefeitura_sla_tipo: string | null;
   criado_por?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -132,6 +136,10 @@ function mapRow(r: Record<string, unknown>): CondominioRow {
     recuo_frontal_m: parseNumericField(r.recuo_frontal_m),
     recuo_fundo_m: parseNumericField(r.recuo_fundo_m),
     recuo_lateral_m: parseNumericField(r.recuo_lateral_m),
+    prazo_aprovacao_condominio_dias: parseIntegerField(r.prazo_aprovacao_condominio_dias),
+    prazo_aprovacao_condominio_sla_tipo: (r.prazo_aprovacao_condominio_sla_tipo as string | null) ?? null,
+    prazo_aprovacao_prefeitura_dias: parseIntegerField(r.prazo_aprovacao_prefeitura_dias),
+    prazo_aprovacao_prefeitura_sla_tipo: (r.prazo_aprovacao_prefeitura_sla_tipo as string | null) ?? null,
     criado_por: (r.criado_por as string | null) ?? null,
     created_at: (r.created_at as string | null) ?? null,
     updated_at: (r.updated_at as string | null) ?? null,
@@ -163,6 +171,17 @@ export async function fetchCondominiosRows(
   return ordenarCondominiosPorNome((data ?? []).map((r) => mapRow(r as Record<string, unknown>)));
 }
 
+export async function fetchCondominioRowById(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  id: string,
+): Promise<CondominioRow | null> {
+  const cid = String(id ?? '').trim();
+  if (!cid) return null;
+  const { data, error } = await supabase.from('condominios').select('*').eq('id', cid).maybeSingle();
+  if (error || !data) return null;
+  return mapRow(data as Record<string, unknown>);
+}
+
 export type CondominioPatch = {
   nome?: string;
   endereco?: string | null;
@@ -177,6 +196,10 @@ export type CondominioPatch = {
   estimativa_casas_vendidas_ano?: number | null;
   extrato_como_eram_casas?: string | null;
   extrato_tempo_venda?: string | null;
+  prazo_aprovacao_condominio_dias?: number | null;
+  prazo_aprovacao_condominio_sla_tipo?: string | null;
+  prazo_aprovacao_prefeitura_dias?: number | null;
+  prazo_aprovacao_prefeitura_sla_tipo?: string | null;
 };
 
 export function parseDecimalInput(raw: string): number | null {

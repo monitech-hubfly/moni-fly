@@ -1,5 +1,6 @@
 /** Formulário compartilhado do cadastro de condomínios (rede + cards kanban). */
 
+import type { SlaTipo } from '@/lib/dias-uteis';
 import {
   decimalInputFromValue,
   integerInputFromValue,
@@ -8,6 +9,12 @@ import {
   type CondominioPatch,
   type CondominioRow,
 } from '@/lib/condominios';
+import {
+  emptyCondominioPrazosAprovacaoDraft,
+  prazosAprovacaoDraftFromRow,
+  prazosAprovacaoPatchFromDraft,
+  type CondominioPrazosAprovacaoDraft,
+} from '@/lib/kanban/condominio-prazos-aprovacao';
 
 export type CondominioFormDraft = {
   nome: string;
@@ -23,6 +30,10 @@ export type CondominioFormDraft = {
   estimativa_casas_vendidas_ano: string;
   extrato_como_eram_casas: string;
   extrato_tempo_venda: string;
+  prazo_aprovacao_condominio_dias: string;
+  prazo_aprovacao_condominio_sla_tipo: SlaTipo;
+  prazo_aprovacao_prefeitura_dias: string;
+  prazo_aprovacao_prefeitura_sla_tipo: SlaTipo;
 };
 
 export function emptyCondominioFormDraft(): CondominioFormDraft {
@@ -40,6 +51,7 @@ export function emptyCondominioFormDraft(): CondominioFormDraft {
     estimativa_casas_vendidas_ano: '',
     extrato_como_eram_casas: '',
     extrato_tempo_venda: '',
+    ...emptyCondominioPrazosAprovacaoDraft(),
   };
 }
 
@@ -58,6 +70,7 @@ export function condominioRowToFormDraft(r: CondominioRow): CondominioFormDraft 
     estimativa_casas_vendidas_ano: integerInputFromValue(r.estimativa_casas_vendidas_ano),
     extrato_como_eram_casas: r.extrato_como_eram_casas ?? '',
     extrato_tempo_venda: r.extrato_tempo_venda ?? '',
+    ...prazosAprovacaoDraftFromRow(r),
   };
 }
 
@@ -76,5 +89,13 @@ export function condominioFormDraftToPatch(d: CondominioFormDraft): CondominioPa
     estimativa_casas_vendidas_ano: parseIntegerInput(d.estimativa_casas_vendidas_ano),
     extrato_como_eram_casas: d.extrato_como_eram_casas.trim() || null,
     extrato_tempo_venda: d.extrato_tempo_venda.trim() || null,
+    ...prazosAprovacaoPatchFromDraft({
+      prazo_aprovacao_condominio_dias: d.prazo_aprovacao_condominio_dias,
+      prazo_aprovacao_condominio_sla_tipo: d.prazo_aprovacao_condominio_sla_tipo,
+      prazo_aprovacao_prefeitura_dias: d.prazo_aprovacao_prefeitura_dias,
+      prazo_aprovacao_prefeitura_sla_tipo: d.prazo_aprovacao_prefeitura_sla_tipo,
+    }),
   };
 }
+
+export type { CondominioPrazosAprovacaoDraft };

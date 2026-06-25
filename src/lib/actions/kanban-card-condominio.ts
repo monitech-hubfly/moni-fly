@@ -3,6 +3,10 @@
 import { revalidatePath } from 'next/cache';
 import { condominioFormDraftToPatch, type CondominioFormDraft } from '@/lib/condominios-form';
 import {
+  prazosAprovacaoPatchFromDraft,
+  type CondominioPrazosAprovacaoDraft,
+} from '@/lib/kanban/condominio-prazos-aprovacao';
+import {
   condominioNomeJaExiste,
   fetchCondominiosRows,
   parseIntegerInput,
@@ -246,6 +250,10 @@ export async function cadastrarCondominioEVincularCard(input: {
     estimativa_casas_vendidas_ano: patch.estimativa_casas_vendidas_ano ?? null,
     extrato_como_eram_casas: patch.extrato_como_eram_casas ?? null,
     extrato_tempo_venda: patch.extrato_tempo_venda ?? null,
+    prazo_aprovacao_condominio_dias: patch.prazo_aprovacao_condominio_dias ?? null,
+    prazo_aprovacao_condominio_sla_tipo: patch.prazo_aprovacao_condominio_sla_tipo ?? null,
+    prazo_aprovacao_prefeitura_dias: patch.prazo_aprovacao_prefeitura_dias ?? null,
+    prazo_aprovacao_prefeitura_sla_tipo: patch.prazo_aprovacao_prefeitura_sla_tipo ?? null,
     descricao_breve: patch.descricao_breve ?? null,
     criado_por: user.id,
     updated_at: new Date().toISOString(),
@@ -313,6 +321,32 @@ export async function salvarQuadraLoteCard(input: {
     if (!sync.ok) return { ok: false, error: sync.error };
   }
 
+  revalidatePath(input.basePath?.trim() || '/');
+  return { ok: true };
+}
+
+export async function salvarPrazosAprovacaoCondominio(input: {
+  condominioId: string;
+  draft: CondominioPrazosAprovacaoDraft;
+  basePath?: string;
+}): Promise<KanbanCondominioActionResult> {
+  const gate = await requireCondominiosStaff();
+  if (!gate.ok) return gate;
+
+  const condominioId = String(input.condominioId ?? '').trim();
+  if (!condominioId) return { ok: false, error: 'Condomínio inválido.' };
+
+  const patch = prazosAprovacaoPatchFromDraft(input.draft);
+  const { error } = await gate.supabase
+    .from('condominios')
+    .update({
+      ...patch,
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq('id', condominioId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/rede-franqueados');
   revalidatePath(input.basePath?.trim() || '/');
   return { ok: true };
 }

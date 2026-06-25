@@ -9,6 +9,7 @@ import {
 } from '@/lib/kanban/responsavel-fase-checklist';
 import { custoPadraoPorSlug } from '@/lib/kanban/custo-padrao-por-slug';
 import { resolverSlaCalculadoraFase } from '@/lib/kanban/sla-fallback-calculadora-por-slug';
+import type { CondominioPrazosAprovacaoSla } from '@/lib/kanban/condominio-prazos-aprovacao';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
 
 export type { FaseTimelineStatus };
@@ -89,6 +90,8 @@ export type CalculadoraFasesInput = {
   ancora?: CalculadoraAncora | null;
   /** Overrides manuais por fase_id — por padrão não propagam; exceção: passagem_wayser. */
   overrides?: Map<string, CalculadoraFaseDataManualOverride>;
+  /** SLA customizado do cadastro de condomínio (aprovacao_condominio / aprovacao_prefeitura). */
+  slaCondominio?: CondominioPrazosAprovacaoSla | null;
 };
 
 /** Slugs cujo override manual recalcula início/fim estimado das fases posteriores. */
@@ -300,10 +303,66 @@ function resolveStatus(
   }
 
   if (faseOrdem > ordemAtual) {
+    if (dataFimReal) {
+      if (dataFimEstimada && dataFimReal > dataFimEstimada) return 'concluida_atraso';
+      return 'concluida';
+    }
     return 'futura';
   }
 
   return 'futura';
+}
+
+/** Fase posterior à atual do card, marcada como concluída manualmente (data fim real). */
+export function faseConcluidaManualmente(
+  linha: Pick<CalculadoraFaseLinha, 'ordem' | 'dataFimReal'>,
+  ordemAtual: number,
+): boolean {
+  return linha.ordem > ordemAtual && Boolean(linha.dataFimReal);
+}
+
+function ordemAtualCalculadoraLinhas(
+  linhas: CalculadoraFaseLinha[],
+  card: CalculadoraFasesInput['card'],
+): number {
+  return (
+    linhas.find((l) => l.faseId === card.fase_id)?.ordem ??
+    linhas.find((l) => l.status === 'atual' || l.status === 'atual_atrasada')?.ordem ??
+    linhas.find((l) => l.status === 'futura')?.ordem ??
+    Number.MAX_SAFE_INTEGER
+  );
+}
+
+/** Reaplica status e atraso em todas as linhas após alterações de datas. */
+export function recomputarStatusAtrasoLinhasCalculadora(
+  linhas: CalculadoraFaseLinha[],
+  card: CalculadoraFasesInput['card'],
+  hojeRef?: Date,
+): CalculadoraFaseLinha[] {
+  if (linhas.length === 0) return linhas;
+  const hoje = hojeYmd(hojeRef);
+  const ordemAtual = ordemAtualCalculadoraLinhas(linhas, card);
+
+  return linhas.map((linha) => {
+    const status = resolveStatus(
+      linha.faseId,
+      card,
+      linha.dataInicioReal,
+      linha.dataFimReal,
+      linha.dataFimEstimada,
+      linha.ordem,
+      ordemAtual,
+      hoje,
+    );
+    const atrasoDias = resolveAtraso(
+      status,
+      linha.dataFimEstimada,
+      linha.dataFimReal,
+      hoje,
+      linha.slaTipo,
+    );
+    return { ...linha, status, atrasoDias };
+  });
 }
 
 function resolveAtraso(
@@ -370,7 +429,12 @@ export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): Ca
       }
 
       const slug = String(fase.slug ?? '').trim();
-      const slaResolvido = resolverSlaCalculadoraFase(slug, fase.sla_dias, fase.sla_tipo);
+      const slaResolvido = resolverSlaCalculadoraFase(
+        slug,
+        fase.sla_dias,
+        fase.sla_tipo,
+        input.slaCondominio,
+      );
       const { slaDias, slaTipo, slaPrazoNaoDefinido } = slaResolvido;
       const dataFimEstimada = dataInicioReal
         ? fimEstimadaPorSla(dataInicioReal, slaDias, slaTipo)
@@ -488,8 +552,10 @@ export function aplicarAncoraCalculadoraLinhas(
       ? fimEstimadaPorSla(dataInicioReal, row.slaDias, row.slaTipo)
       : null;
 
-    const concluida = row.ordem < ordemAtual;
-    const dataFimReal = concluida ? row.dataFimReal : null;
+    const concluidaPorOrdem = row.ordem < ordemAtual;
+    const concluidaManual = faseConcluidaManualmente(row, ordemAtual);
+    const dataFimReal =
+      concluidaPorOrdem || concluidaManual ? row.dataFimReal : null;
 
     const status = resolveStatus(
       row.faseId,
@@ -539,8 +605,10 @@ export function propagarLinhasCalculadoraForward(
       ? fimEstimadaPorSla(dataInicioReal, row.slaDias, row.slaTipo)
       : null;
 
-    const concluida = row.ordem < ordemAtual;
-    const dataFimReal = concluida ? row.dataFimReal : null;
+    const concluidaPorOrdem = row.ordem < ordemAtual;
+    const concluidaManual = faseConcluidaManualmente(row, ordemAtual);
+    const dataFimReal =
+      concluidaPorOrdem || concluidaManual ? row.dataFimReal : null;
 
     const status = resolveStatus(
       row.faseId,
@@ -648,7 +716,7 @@ export function aplicarDatasManuaisCalculadoraLinhas(
     out = propagarLinhasCalculadoraForward(out, propagateIdx, card, ordemAtual, hoje);
   }
 
-  return out;
+  return recomputarStatusAtrasoLinhasCalculadora(out, card, hojeRef);
 }
 
 type EncadeamentoMarcoContratoInput = { contrato_assinado_em?: string | null };
@@ -738,7 +806,8 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
     atrasoDias,
   };
 
-  return propagarLinhasCalculadoraForward(out, idxContrato, card, ordemAtual, hoje);
+  const propagadas = propagarLinhasCalculadoraForward(out, idxContrato, card, ordemAtual, hoje);
+  return recomputarStatusAtrasoLinhasCalculadora(propagadas, card, hojeRef);
 }
 
 /** Preenche fim real a partir da entrada na fase seguinte (quando o histórico não registrou saída). */

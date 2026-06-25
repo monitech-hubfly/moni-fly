@@ -1,6 +1,7 @@
 import type { KanbanFase } from '@/components/kanban-shared/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import type { CondominioPrazosAprovacaoSla } from '@/lib/kanban/condominio-prazos-aprovacao';
 import {
   calcularLinhasCalculadoraFases,
   inferirFimRealPorProximaFase,
@@ -241,6 +242,7 @@ export function calcularLinhasCalculadoraFasesEsteira(input: {
   hoje?: Date;
   ancora?: CalculadoraAncora | null;
   overrides?: Map<string, CalculadoraFaseDataManualOverride>;
+  slaCondominio?: CondominioPrazosAprovacaoSla | null;
 }): CalculadoraFaseLinha[] {
   const meta = montarFasesCalculadoraEsteira(input.fasesPorKanban);
   if (meta.length === 0) return [];
@@ -268,18 +270,20 @@ export function calcularLinhasCalculadoraFasesEsteira(input: {
     card: { ...input.card, fase_id: faseIdCalc },
     visits,
     hoje: input.hoje,
+    slaCondominio: input.slaCondominio,
   });
 
   const comSegmento = aplicarRegrasSegmentoEsteira(linhas, meta, segmentoCard);
   const faseOrdemRelativa =
     meta.some((m) => m.id === input.card.fase_id) ? input.card.fase_id : faseIdCalc;
+  const cardCalc = { ...input.card, fase_id: faseOrdemRelativa };
   const comOrdem = aplicarOrdemRelativaFaseAtual(comSegmento, meta, faseOrdemRelativa);
   const comInferencia = inferirFimRealPorProximaFase(comOrdem);
-  const comAncora = aplicarAncoraCalculadoraLinhas(comInferencia, input.ancora, input.card, input.hoje);
+  const comAncora = aplicarAncoraCalculadoraLinhas(comInferencia, input.ancora, cardCalc, input.hoje);
   return aplicarDatasManuaisCalculadoraLinhas(
     comAncora,
     input.overrides ?? new Map(),
-    input.card,
+    cardCalc,
     input.hoje,
   );
 }
