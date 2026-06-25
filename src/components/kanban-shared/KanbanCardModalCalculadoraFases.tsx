@@ -244,7 +244,7 @@ function CalculadoraResumoExecutivo({
   );
 }
 
-const MARCOS_COM_PREFIXO: ReadonlySet<CalculadoraMarcoId> = new Set(['M0', 'M4']);
+const MARCOS_COM_PREFIXO: ReadonlySet<CalculadoraMarcoId> = new Set(['M0', 'M4', 'M24']);
 
 function marcoDisplayLabel(marco: CalculadoraMarco): string {
   if (MARCOS_COM_PREFIXO.has(marco.id)) return `${marco.id}: ${marco.label}`;
@@ -304,6 +304,7 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
   const fimAtraso =
     marco.status === 'atual_atrasada' ||
     (marco.status === 'concluida_atraso' && Boolean(marco.dataFimReal));
+  const limiteContrato = marco.dataLimiteContrato;
   const custo = String(marco.custo ?? '').trim();
   const temCusto = custo.length > 0 && custo !== '—';
 
@@ -334,7 +335,12 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
         >
           {fmtData(fim)}
         </span>
-        <span className="moni-calculadora-fase-data-label">{fimLabel}</span>
+        <span className="moni-calculadora-fase-data-label">
+          {fimLabel}
+          {limiteContrato && id === 'M4' && !marco.dataFimReal
+            ? ` · limite ${fmtData(limiteContrato)}`
+            : ''}
+        </span>
       </div>
 
       <div className="moni-calculadora-fase-status-col">

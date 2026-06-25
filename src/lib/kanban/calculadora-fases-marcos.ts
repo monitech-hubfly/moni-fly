@@ -1,6 +1,10 @@
 import type { KanbanFase } from '@/components/kanban-shared/types';
 import { FASE_SLUGS } from '@/lib/constants/kanban-ids';
-import { parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
+import {
+  adicionarMesesCalendarioYmd,
+  formatLocalYmd,
+  parseIsoDateOnlyLocal,
+} from '@/lib/dias-uteis';
 import type { CalculadoraFaseLinha, FaseTimelineStatus } from '@/lib/kanban/calculadora-fases';
 import type { FaseVisit } from '@/lib/kanban/kanban-card-timeline';
 import {
@@ -11,7 +15,13 @@ import {
   type NegocioPrazoValores,
 } from '@/lib/kanban/dados-negocio-prazo';
 
-export type CalculadoraMarcoId = 'M0' | 'M4' | 'MO' | 'MIG';
+export type CalculadoraMarcoId = 'M0' | 'M4' | 'M24' | 'MO' | 'MIG';
+
+/** Meses após o fim do contrato (M0) para o limite regulatório do marco M4. */
+export const M4_MESES_APOS_FIM_CONTRATO = 4;
+
+/** Meses após o fim do contrato (M0) para a data limite do marco M24 Liquidação. */
+export const M24_MESES_APOS_FIM_CONTRATO = 24;
 
 export type CalculadoraMarco = {
   id: CalculadoraMarcoId;
@@ -31,6 +41,8 @@ export type CalculadoraMarco = {
   dataInicioReal?: string | null;
   dataFimReal?: string | null;
   dataFimEstimada?: string | null;
+  /** Data limite derivada do fim do contrato (ex.: M4 = +4 meses, M24 = +24 meses). */
+  dataLimiteContrato?: string | null;
 };
 
 export type CalculadoraMarcosInput = {
@@ -84,11 +96,15 @@ const MARCO_DEFS: {
 ];
 
 const MARCOS_PRAZO_NEGOCIO: {
-  id: Extract<CalculadoraMarcoId, 'MO' | 'MIG'>;
+  id: Extract<CalculadoraMarcoId, 'MO' | 'MIG' | 'M24'>;
   label: string;
   custo?: string | null;
   somenteRotulo?: boolean;
-  resolver: (input: CalculadoraMarcosInput, linhas: CalculadoraFaseLinha[]) => MarcoDatas;
+  resolver: (
+    input: CalculadoraMarcosInput,
+    linhas: CalculadoraFaseLinha[],
+    slugs: Map<string, string | null | undefined>,
+  ) => MarcoDatas;
 }[] = [
   {
     id: 'MO',
@@ -105,6 +121,20 @@ const MARCOS_PRAZO_NEGOCIO: {
     somenteRotulo: true,
     resolver: (input, linhas) =>
       resolverDatasPrazoNegocio(input.prazo_instrumento_garantidor, linhas),
+  },
+  {
+    id: 'M24',
+    label: 'Liquidação',
+    somenteRotulo: true,
+    resolver: (input, linhas, slugs) => {
+      const fimContrato = resolverDataFimContrato(input, linhas, slugs);
+      if (!fimContrato) return { dataInicio: null, dataFim: null, isPrevisto: true };
+      const dataLimite = adicionarMesesCalendarioYmd(
+        fimContrato,
+        M24_MESES_APOS_FIM_CONTRATO,
+      );
+      return { dataInicio: null, dataFim: dataLimite, isPrevisto: true };
+    },
   },
 ];
 
@@ -147,6 +177,50 @@ function inicioAposFaseAnterior(
 function dataFimRef(linha: CalculadoraFaseLinha | undefined): string | null {
   if (!linha) return null;
   return linha.dataFimReal ?? linha.dataFimEstimada ?? linha.dataInicioReal;
+}
+
+/** Data fim do contrato (M0): assinatura real ou estimativa da fase Contrato. */
+function resolverDataFimContrato(
+  input: CalculadoraMarcosInput,
+  linhas: CalculadoraFaseLinha[],
+  slugs: Map<string, string | null | undefined>,
+): string | null {
+  const realFim = toYmd(input.contrato_assinado_em);
+  if (realFim) return realFim;
+
+  const idx = findFaseIndex(
+    linhas,
+    slugs,
+    (slug, nome) => slug === FASE_SLUGS.STEP_7 || /^contrato$/i.test(nome.trim()),
+  );
+  const linha = idx >= 0 ? linhas[idx] : undefined;
+  return linha?.dataFimReal ?? linha?.dataFimEstimada ?? dataFimRef(linha);
+}
+
+/** Sinaliza atraso quando a referência ultrapassa o limite em meses após o fim do contrato. */
+function aplicarLimiteMesesAposContrato(
+  marco: CalculadoraMarco,
+  mesesLimite: number,
+  dataFimContrato: string | null,
+  refYmd: string,
+): CalculadoraMarco {
+  if (marco.id !== 'M4' || !dataFimContrato) return marco;
+
+  const limite = adicionarMesesCalendarioYmd(dataFimContrato, mesesLimite);
+  if (!limite) return marco;
+
+  const marcoComLimite: CalculadoraMarco = { ...marco, dataLimiteContrato: limite };
+  if (refYmd <= limite) return marcoComLimite;
+
+  const fimReal = marco.dataFimReal;
+  if (fimReal) {
+    if (fimReal > limite) {
+      return { ...marcoComLimite, status: 'concluida_atraso' };
+    }
+    return marcoComLimite;
+  }
+
+  return { ...marcoComLimite, status: 'atual_atrasada' };
 }
 
 function resolverDatasPrazoNegocio(
@@ -289,12 +363,15 @@ function inserirMarcosPrazoNegocio(
   items: CalculadoraTimelineItem[],
   marcosInput: CalculadoraMarcosInput,
   linhas: CalculadoraFaseLinha[],
+  slugs: Map<string, string | null | undefined>,
 ): CalculadoraTimelineItem[] {
   const candidatos: CalculadoraMarco[] = [];
 
   for (const def of MARCOS_PRAZO_NEGOCIO) {
-    const datas = def.resolver(marcosInput, linhas);
+    const datas = def.resolver(marcosInput, linhas, slugs);
     if (!datas.dataFim && !datas.dataInicio) continue;
+    const dataLimiteContrato =
+      def.id === 'M24' && datas.dataFim ? datas.dataFim : null;
     candidatos.push(
       marcoFromDatas(datas, {
         id: def.id,
@@ -302,6 +379,7 @@ function inserirMarcosPrazoNegocio(
         funilLabel: 'Dados do Negócio',
         custo: def.custo ?? null,
         somenteRotulo: def.somenteRotulo ?? false,
+        dataLimiteContrato,
       }),
     );
   }
@@ -334,6 +412,8 @@ export function montarTimelineCalculadoraComMarcos(
   if (linhas.length === 0) return [];
 
   const slugs = slugPorFaseId(fases);
+  const dataFimContrato = resolverDataFimContrato(marcosInput, linhas, slugs);
+  const refYmd = formatLocalYmd(new Date());
   const insercoes: InsercaoMarco[] = [];
 
   for (const def of MARCO_DEFS) {
@@ -344,18 +424,28 @@ export function montarTimelineCalculadoraComMarcos(
     const datas = resolverDatasMarco(def.id, marcosInput, linhas, slugs);
     const linhaAnchora = def.anchor === 'replace' ? linhas[idx] : undefined;
 
+    let marco = enriquecerMarcoComLinhaAnchora(
+      marcoFromDatas(datas, {
+        id: def.id,
+        label: def.label,
+        funilLabel: def.funilLabel,
+        custo: def.custo ?? linhaAnchora?.custo ?? null,
+      }),
+      linhaAnchora,
+    );
+    if (def.id === 'M4') {
+      marco = aplicarLimiteMesesAposContrato(
+        marco,
+        M4_MESES_APOS_FIM_CONTRATO,
+        dataFimContrato,
+        refYmd,
+      );
+    }
+
     insercoes.push({
       index: insertAt,
       replace: def.anchor === 'replace',
-      marco: enriquecerMarcoComLinhaAnchora(
-        marcoFromDatas(datas, {
-          id: def.id,
-          label: def.label,
-          funilLabel: def.funilLabel,
-          custo: def.custo ?? linhaAnchora?.custo ?? null,
-        }),
-        linhaAnchora,
-      ),
+      marco,
     });
   }
 
@@ -367,7 +457,7 @@ export function montarTimelineCalculadoraComMarcos(
     else items.splice(index, 0, { kind: 'marco', marco });
   }
 
-  items = inserirMarcosPrazoNegocio(items, marcosInput, linhas);
+  items = inserirMarcosPrazoNegocio(items, marcosInput, linhas, slugs);
   return items;
 }
 

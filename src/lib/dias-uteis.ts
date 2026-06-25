@@ -67,6 +67,19 @@ export function formatLocalYmd(data: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+/** Soma meses de calendário a uma data `YYYY-MM-DD` (ajusta overflow de dia, ex.: 31/jan → 28/fev). */
+export function adicionarMesesCalendarioYmd(
+  ymd: string | null | undefined,
+  meses: number,
+): string | null {
+  const base = parseIsoDateOnlyLocal(ymd);
+  if (!base || !Number.isFinite(meses)) return null;
+  const dia = base.getDate();
+  const alvo = new Date(base.getFullYear(), base.getMonth() + meses, dia);
+  if (alvo.getDate() !== dia) alvo.setDate(0);
+  return formatLocalYmd(alvo);
+}
+
 function startOfLocalDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
