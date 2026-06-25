@@ -120,6 +120,7 @@ import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCredito
 import { KanbanCardModalDadosPreObraOperacoes } from './KanbanCardModalDadosPreObraOperacoes';
 import { KanbanCardModalNegocioPrazoField } from './KanbanCardModalNegocioPrazoField';
 import { KanbanCardModalNegociacaoLinhasField } from './KanbanCardModalNegociacaoLinhasField';
+import { KanbanCardModalMoedaField } from './KanbanCardModalMoedaField';
 import {
   NEGOCIO_PRAZO_DRAFT_VAZIO,
   NEGOCIO_PRAZO_OPCAO_DRAFT_PADRAO,
@@ -141,6 +142,7 @@ import {
   negociacaoLinhasToDb,
   type NegociacaoLinhaDraft,
 } from '@/lib/kanban/negociacao-linhas';
+import { moedaCampoValorInicial } from '@/lib/kanban/moeda-campo';
 import { fetchFasesNegocioPrazoOpcoes } from '@/lib/kanban/fetch-kanban-fases';
 import { KanbanCardModalCalculadoraFases } from './KanbanCardModalCalculadoraFases';
 import {
@@ -4116,7 +4118,7 @@ export function KanbanCardModal({
       setFasesNegocioPrazo(opcoes);
       setNegocioDraft({
         tipo_aquisicao_terreno: proc.tipo_aquisicao_terreno ?? '',
-        valor_terreno: proc.valor_terreno != null ? String(proc.valor_terreno) : '',
+        valor_terreno: moedaCampoValorInicial(proc.valor_terreno),
         vgv_pretendido: proc.vgv_pretendido != null ? String(proc.vgv_pretendido) : '',
         produto_modelo_casa: proc.produto_modelo_casa ?? '',
         link_pasta_drive: proc.link_pasta_drive ?? '',
@@ -6870,11 +6872,9 @@ export function KanbanCardModal({
                       </label>
                       <label className="block">
                         <span className="text-[11px] font-medium text-stone-500">Valor do Terreno</span>
-                        <input
-                          type="text"
+                        <KanbanCardModalMoedaField
                           value={negocioDraft.valor_terreno}
-                          onChange={(e) => setNegocioDraft((d) => ({ ...d, valor_terreno: e.target.value }))}
-                          className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
+                          onChange={(valor_terreno) => setNegocioDraft((d) => ({ ...d, valor_terreno }))}
                         />
                       </label>
                       <label className="block">
