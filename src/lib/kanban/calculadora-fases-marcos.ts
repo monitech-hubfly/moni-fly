@@ -20,7 +20,7 @@ export type CalculadoraMarcoId = 'M0' | 'M4' | 'M24' | 'MO' | 'MIG';
 /** Meses após o fim do contrato (M0) para o limite regulatório do marco M4. */
 export const M4_MESES_APOS_FIM_CONTRATO = 4;
 
-/** Meses após o fim do contrato (M0) para a data limite do marco M24 Liquidação. */
+/** Meses após o fim do contrato (M0) para a data limite do marco M24 Fim da Operação. */
 export const M24_MESES_APOS_FIM_CONTRATO = 24;
 
 export type CalculadoraMarco = {
@@ -124,7 +124,7 @@ const MARCOS_PRAZO_NEGOCIO: {
   },
   {
     id: 'M24',
-    label: 'Liquidação',
+    label: 'Fim da Operação',
     somenteRotulo: true,
     resolver: (input, linhas, slugs) => {
       const fimContrato = resolverDataFimContrato(input, linhas, slugs);
