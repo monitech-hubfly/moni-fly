@@ -127,6 +127,18 @@ function marcoStatusBadgeClass(status: FaseTimelineStatus): string {
   return `${base} moni-calc-badge-fut`;
 }
 
+function CalculadoraStatusLabel({ status }: { status: FaseTimelineStatus }) {
+  if (status === 'atual_atrasada') {
+    return (
+      <>
+        <span className="moni-calc-status-stacked-line">Em andamento</span>
+        <span className="moni-calc-status-stacked-sub">(atraso)</span>
+      </>
+    );
+  }
+  return <>{CALCULADORA_STATUS_LABEL[status]}</>;
+}
+
 function prazoPillClass(atrasada: boolean): string {
   return `moni-calc-prazo-pill${atrasada ? ' at' : ' undef'}`;
 }
@@ -328,7 +340,7 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
       <div className="moni-calculadora-fase-status-col">
         {marco.status ? (
           <span className={marcoStatusBadgeClass(marco.status)}>
-            {CALCULADORA_STATUS_LABEL[marco.status]}
+            <CalculadoraStatusLabel status={marco.status} />
           </span>
         ) : null}
       </div>
@@ -441,7 +453,7 @@ function CalculadoraFaseStatusCell({
   if (!editavel) {
     return (
       <span className={statusBadgeClass(row.status)}>
-        {CALCULADORA_STATUS_LABEL[row.status]}
+        <CalculadoraStatusLabel status={row.status} />
       </span>
     );
   }

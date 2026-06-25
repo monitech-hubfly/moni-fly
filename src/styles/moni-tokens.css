@@ -1291,6 +1291,8 @@
 }
 
 .moni-calc-badge-atu-at {
+  flex-direction: column;
+  align-items: flex-end;
   justify-content: flex-end;
   padding: 1px 5px;
   border-radius: var(--moni-radius-pill);
@@ -1306,6 +1308,8 @@
 
 /* Marcos — atraso sem pill (texto simples com cor) */
 .moni-calc-badge-atraso-text {
+  flex-direction: column;
+  align-items: flex-end;
   background: transparent;
   border: none;
   padding: 0;
@@ -1318,6 +1322,18 @@
   white-space: normal;
   font-size: 9px;
   line-height: 1.25;
+}
+
+.moni-calc-status-stacked-line {
+  display: block;
+  line-height: 1.2;
+}
+
+.moni-calc-status-stacked-sub {
+  display: block;
+  font-size: 8px;
+  font-weight: 500;
+  line-height: 1.15;
 }
 
 /* Legado — mantido para compatibilidade */
