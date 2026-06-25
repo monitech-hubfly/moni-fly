@@ -7,7 +7,9 @@ import {
   CALCULADORA_STATUS_LABEL,
   calcularResumoExecutivoCalculadoraFases,
   calculadoraHojeYmd,
+  faseUltrapassouSlaCalculadora,
   labelSufixoDataCalculadora,
+  labelSufixoDataCalculadoraFase,
   type CalculadoraFaseLinha,
   type CalculadoraStatusGeral,
   type FaseTimelineStatus,
@@ -128,12 +130,34 @@ function marcoStatusBadgeClass(status: FaseTimelineStatus): string {
   return `${base} moni-calc-badge-fut`;
 }
 
-function CalculadoraStatusLabel({ status }: { status: FaseTimelineStatus }) {
+function CalculadoraStatusLabel({
+  status,
+  atrasado,
+}: {
+  status: FaseTimelineStatus;
+  atrasado?: boolean;
+}) {
   if (status === 'atual_atrasada') {
     return (
       <>
         <span className="moni-calc-status-stacked-line">Em andamento</span>
-        <span className="moni-calc-status-stacked-sub">(atraso)</span>
+        <span className="moni-calc-status-stacked-sub">(atrasado)</span>
+      </>
+    );
+  }
+  if (status === 'concluida_atraso') {
+    return (
+      <>
+        <span className="moni-calc-status-stacked-line">Concluída</span>
+        <span className="moni-calc-status-stacked-sub">(atrasado)</span>
+      </>
+    );
+  }
+  if (status === 'futura' && atrasado) {
+    return (
+      <>
+        <span className="moni-calc-status-stacked-line">Futura</span>
+        <span className="moni-calc-status-stacked-sub">(atrasado)</span>
       </>
     );
   }
@@ -459,9 +483,15 @@ function CalculadoraFaseStatusCell({
   const [salvando, setSalvando] = useState(false);
 
   if (!editavel) {
+    const atrasado = faseUltrapassouSlaCalculadora(
+      row.status,
+      row.dataFimEstimada,
+      row.dataFimReal,
+      calculadoraHojeYmd(),
+    );
     return (
       <span className={statusBadgeClass(row.status)}>
-        <CalculadoraStatusLabel status={row.status} />
+        <CalculadoraStatusLabel status={row.status} atrasado={atrasado} />
       </span>
     );
   }
@@ -520,14 +550,19 @@ function CalculadoraFaseRow({
   const temCusto = custo.length > 0 && custo !== '—';
   const hasExpand = steps.length > 0;
   const isGargalo = row.atrasoDias !== null && row.atrasoDias > 0;
+  const hoje = calculadoraHojeYmd();
+  const inicioData = row.dataInicioReal;
   const fimData = row.dataFimReal ?? row.dataFimEstimada;
-  const fimLabel = labelSufixoDataCalculadora(Boolean(row.dataFimReal));
-  const inicioLabel = labelSufixoDataCalculadora(Boolean(row.dataInicioReal));
+  const inicioLabel = labelSufixoDataCalculadoraFase(row.status, 'inicio', Boolean(row.dataInicioReal));
+  const fimLabel = labelSufixoDataCalculadoraFase(row.status, 'fim', Boolean(row.dataFimReal));
   const unidadeAtraso = row.slaTipo === 'corridos' ? 'd.c.' : 'd.u.';
 
-  const fimAtraso =
-    row.status === 'atual_atrasada' ||
-    (row.status === 'concluida_atraso' && row.atrasoDias !== null && row.atrasoDias > 0);
+  const fimAtraso = faseUltrapassouSlaCalculadora(
+    row.status,
+    row.dataFimEstimada,
+    row.dataFimReal,
+    hoje,
+  );
 
   return (
     <div
@@ -579,7 +614,7 @@ function CalculadoraFaseRow({
       <CalculadoraFaseDataCell
         faseId={row.faseId}
         campo="inicio"
-        valor={row.dataInicioReal}
+        valor={inicioData}
         label={inicioLabel}
         editando={editandoDatas}
         onSalvarData={onSalvarData}

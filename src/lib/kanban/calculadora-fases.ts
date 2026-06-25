@@ -127,6 +127,32 @@ export function labelSufixoDataCalculadora(temDataReal: boolean): 'est.' | 'real
   return temDataReal ? 'real' : 'est.';
 }
 
+/** Sufixo de data por status da fase: futura → est.; concluída → real; em andamento → início real, fim est. até sair. */
+export function labelSufixoDataCalculadoraFase(
+  status: FaseTimelineStatus,
+  coluna: 'inicio' | 'fim',
+  temDataRealRegistrada: boolean,
+): 'est.' | 'real' {
+  if (status === 'futura') return 'est.';
+  if (status === 'concluida' || status === 'concluida_atraso') return 'real';
+  if (coluna === 'inicio') return 'real';
+  return temDataRealRegistrada ? 'real' : 'est.';
+}
+
+/** Fase ultrapassou o SLA estimado (inclui futuras com previsão vencida). */
+export function faseUltrapassouSlaCalculadora(
+  status: FaseTimelineStatus,
+  dataFimEstimada: string | null,
+  dataFimReal: string | null,
+  hoje: string,
+): boolean {
+  if (!dataFimEstimada) return false;
+  if (status === 'atual_atrasada' || status === 'concluida_atraso') return true;
+  if (status === 'atual' && !dataFimReal && hoje > dataFimEstimada) return true;
+  if (status === 'futura' && hoje > dataFimEstimada) return true;
+  return false;
+}
+
 function addDiasPorTipo(baseYmd: string, dias: number, slaTipo: SlaTipo): string {
   if (dias <= 0) return baseYmd;
   const base = parseIsoDateOnlyLocal(baseYmd);
