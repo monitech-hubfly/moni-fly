@@ -21,8 +21,7 @@ export const CUSTO_PADRAO_POR_SLUG: Record<string, string> = {
   aprovacao_condominio: 'Franqueado: registros de responsabilidade técnica e taxas de aprovação',
   aprovacao_prefeitura:
     'Franqueado: registro de responsabilidade e taxas municipais e protocolos necessários para aprovação de obras.',
-  processos_cartorarios:
-    'Moní: pagamento de entrada · Moní: comissão do corretor · Franqueado: escritura pública, registro de matrícula, autenticações, taxas legais e emissões de documentos.',
+  processos_cartorarios: 'Franqueado: ITBI, impostos e taxas para transferência',
 };
 
 export function custoPadraoPorSlug(slug: string | null | undefined): string | null {

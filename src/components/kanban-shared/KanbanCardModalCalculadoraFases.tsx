@@ -231,6 +231,8 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
   const fim = marco.dataFim ?? marco.data;
   const inicioLabel = marco.isPrevisto ? 'prev.' : 'início';
   const fimLabel = marco.isPrevisto ? 'est.' : 'real';
+  const custo = String(marco.custo ?? '').trim();
+  const temCusto = custo.length > 0 && custo !== '—';
 
   return (
     <div className={`moni-calculadora-marco-row moni-calculadora-marco-row--${id}`} role="separator">
@@ -261,6 +263,17 @@ function CalculadoraMarcoRow({ marco }: { marco: CalculadoraMarco }) {
       </div>
 
       <div className="moni-calculadora-fase-status-col" aria-hidden />
+
+      {temCusto ? (
+        <div className="moni-calc-fcusto-block" title={custo}>
+          <span className="moni-calc-fcusto-label">Custo</span>
+          <ul className="moni-calc-fcusto-list">
+            {custo.split(' · ').map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

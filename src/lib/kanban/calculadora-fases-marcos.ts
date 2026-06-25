@@ -40,8 +40,8 @@ export type CalculadoraTimelineItem =
   | { kind: 'fase'; linha: CalculadoraFaseLinha }
   | { kind: 'marco'; marco: CalculadoraMarco };
 
-const CUSTO_INSTRUMENTO_GARANTIDOR =
-  'Franqueado: instrumento que assegure o terrenista do recebimento do valor do terreno no final da operação';
+const CUSTO_TRANSFERENCIA_TERRENO = 'Franqueado: ITBI, impostos e taxas para transferência';
+const CUSTO_INSTRUMENTO_GARANTIDOR = 'Contratação do Instrumento';
 
 type MarcoDatas = {
   dataInicio: string | null;
@@ -69,7 +69,7 @@ const MARCO_DEFS: {
     id: 'M4',
     label: 'Transferência do Terreno',
     funilLabel: 'Funil Pré Obra e Obra',
-    custo: CUSTO_INSTRUMENTO_GARANTIDOR,
+    custo: CUSTO_TRANSFERENCIA_TERRENO,
     anchor: 'replace',
     match: (slug, nome) =>
       slug === FASE_SLUGS.PROCESSOS_CARTORARIOS ||
