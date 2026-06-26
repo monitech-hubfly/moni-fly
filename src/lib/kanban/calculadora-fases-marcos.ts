@@ -329,14 +329,18 @@ function marcoFromDatas(
   datas: MarcoDatas,
   partial: Omit<CalculadoraMarco, 'data' | 'dataInicio' | 'dataFim' | 'isPrevisto'>,
 ): CalculadoraMarco {
+  let { dataInicio, dataFim } = datas;
+  if (dataInicio && dataFim && dataInicio > dataFim) {
+    dataInicio = dataFim;
+  }
   return {
     ...partial,
-    dataInicio: datas.dataInicio,
-    dataFim: datas.dataFim,
-    data: datas.dataFim,
+    dataInicio,
+    dataFim,
+    data: dataFim,
     isPrevisto: datas.isPrevisto,
-    dataFimReal: !datas.isPrevisto ? datas.dataFim : null,
-    dataFimEstimada: datas.isPrevisto ? datas.dataFim : null,
+    dataFimReal: !datas.isPrevisto ? dataFim : null,
+    dataFimEstimada: datas.isPrevisto ? dataFim : null,
   };
 }
 
@@ -366,14 +370,19 @@ function enriquecerMarcoComLinhaAnchora(
 
   const dataFim =
     linhaAnchora.dataFimReal ?? linhaAnchora.dataFimEstimada ?? marco.dataFim;
-  const dataInicio = linhaAnchora.dataInicioReal ?? marco.dataInicio;
+  let dataInicio = linhaAnchora.dataInicioReal ?? marco.dataInicio;
+  if (dataInicio && dataFim && dataInicio > dataFim) {
+    dataInicio = dataFim;
+  }
 
   return {
     ...marco,
     status: forcarStatusMarco
       ? resolverStatusMarcoSubstituto(linhaAnchora)
       : linhaAnchora.status,
-    dataInicioReal: linhaAnchora.dataInicioReal,
+    dataInicioReal: linhaAnchora.dataInicioReal && dataFim && linhaAnchora.dataInicioReal > dataFim
+      ? dataFim
+      : linhaAnchora.dataInicioReal,
     dataFimReal: linhaAnchora.dataFimReal,
     dataFimEstimada: linhaAnchora.dataFimEstimada,
     dataInicio,

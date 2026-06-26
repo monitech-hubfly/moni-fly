@@ -258,6 +258,57 @@ function inicioPorFimFaseAnterior(fimReal: string | null, fimEstimado: string | 
   return primeiroDiaUtilDe(formatLocalYmd(next));
 }
 
+/**
+ * Quando início propagado ultrapassa fim real (histórico/manual), prioriza entrada da visita
+ * ou limita início ao fim — fim real é a saída autoritativa da fase.
+ */
+function reconciliarInicioComFimReal(
+  dataInicioReal: string | null,
+  dataFimReal: string | null,
+  dataEntrouVisita?: string | null,
+): string | null {
+  if (!dataInicioReal || !dataFimReal || dataInicioReal <= dataFimReal) {
+    return dataInicioReal;
+  }
+  const entrou = dataEntrouVisita ? toYmd(dataEntrouVisita) : null;
+  if (entrou && entrou <= dataFimReal) {
+    const inicioEntrou = primeiroDiaUtilDe(entrou);
+    if (inicioEntrou <= dataFimReal) return inicioEntrou;
+  }
+  return dataFimReal;
+}
+
+/** Garante dataInicioReal <= dataFimReal em todas as linhas; recalcula status/atraso se card informado. */
+export function normalizarIntervaloDatasCalculadoraLinhas(
+  linhas: CalculadoraFaseLinha[],
+  card?: CalculadoraFasesInput['card'],
+  hojeRef?: Date,
+): CalculadoraFaseLinha[] {
+  if (linhas.length === 0) return linhas;
+
+  const out = linhas.map((linha) => {
+    let { dataInicioReal, dataFimReal, dataFimEstimada } = linha;
+    if (!dataInicioReal || !dataFimReal || dataInicioReal <= dataFimReal) {
+      return linha;
+    }
+    dataInicioReal = dataFimReal;
+    if (
+      dataFimEstimada &&
+      dataFimEstimada < dataInicioReal &&
+      linha.slaDias != null &&
+      linha.slaDias > 0
+    ) {
+      dataFimEstimada = fimEstimadaPorSla(dataInicioReal, linha.slaDias, linha.slaTipo);
+    }
+    return { ...linha, dataInicioReal, dataFimEstimada };
+  });
+
+  if (card) {
+    return recomputarStatusAtrasoLinhasCalculadora(out, card, hojeRef);
+  }
+  return out;
+}
+
 function hojeYmd(ref?: Date): string {
   const d = ref ?? new Date();
   return formatLocalYmd(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -543,9 +594,10 @@ export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): Ca
       }
 
       let dataInicioReal = inicioPorFimFaseAnterior(fimFaseAnteriorReal, fimFaseAnteriorEstimado);
+      const entrouVisita = toYmd(last?.entrou);
 
       if (!dataInicioReal) {
-        dataInicioReal = toYmd(last?.entrou);
+        dataInicioReal = entrouVisita;
         if (!dataInicioReal && fase.id === card.fase_id) {
           dataInicioReal = toYmd(card.entered_fase_at) ?? toYmd(card.created_at);
         }
@@ -555,6 +607,8 @@ export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): Ca
         if (dataInicioReal) {
           dataInicioReal = primeiroDiaUtilDe(dataInicioReal);
         }
+      } else {
+        dataInicioReal = reconciliarInicioComFimReal(dataInicioReal, dataFimReal, entrouVisita);
       }
 
       const slug = String(fase.slug ?? '').trim();
@@ -614,12 +668,13 @@ export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): Ca
 
     const comAncora = aplicarAncoraCalculadoraLinhas(linhas, input.ancora, card, input.hoje);
     const comInferencia = inferirFimRealPorProximaFase(comAncora);
-    return aplicarDatasManuaisCalculadoraLinhas(
+    const comDatasManuais = aplicarDatasManuaisCalculadoraLinhas(
       comInferencia,
       input.overrides ?? new Map(),
       card,
       input.hoje,
     );
+    return normalizarIntervaloDatasCalculadoraLinhas(comDatasManuais, card, input.hoje);
   } catch {
     return [];
   }
@@ -696,7 +751,7 @@ export function aplicarAncoraCalculadoraLinhas(
 
   for (let i = idx + 1; i < out.length; i++) {
     const row = out[i]!;
-    const dataInicioReal = inicioPorFimFaseAnterior(fimFaseAnteriorReal, fimFaseAnteriorEstimado);
+    let dataInicioReal = inicioPorFimFaseAnterior(fimFaseAnteriorReal, fimFaseAnteriorEstimado);
     const dataFimEstimada = dataInicioReal
       ? fimEstimadaPorSla(dataInicioReal, row.slaDias, row.slaTipo)
       : null;
@@ -705,6 +760,8 @@ export function aplicarAncoraCalculadoraLinhas(
     const concluidaManual = faseConcluidaManualmente(row, ordemAtual);
     const dataFimReal =
       concluidaPorOrdem || concluidaManual ? row.dataFimReal : null;
+
+    dataInicioReal = reconciliarInicioComFimReal(dataInicioReal, dataFimReal);
 
     const status = resolveStatus(
       row.faseId,
@@ -759,7 +816,7 @@ export function propagarLinhasCalculadoraForward(
 
   for (let i = desdeIdx + 1; i < out.length; i++) {
     const row = out[i]!;
-    const dataInicioReal = inicioPorFimFaseAnterior(fimFaseAnteriorReal, fimFaseAnteriorEstimado);
+    let dataInicioReal = inicioPorFimFaseAnterior(fimFaseAnteriorReal, fimFaseAnteriorEstimado);
     const dataFimEstimada = dataInicioReal
       ? fimEstimadaPorSla(dataInicioReal, row.slaDias, row.slaTipo)
       : null;
@@ -768,6 +825,8 @@ export function propagarLinhasCalculadoraForward(
     const concluidaManual = faseConcluidaManualmente(row, ordemAtual);
     const dataFimReal =
       concluidaPorOrdem || concluidaManual ? row.dataFimReal : null;
+
+    dataInicioReal = reconciliarInicioComFimReal(dataInicioReal, dataFimReal);
 
     const status = resolveStatus(
       row.faseId,
@@ -849,6 +908,8 @@ export function aplicarDatasManuaisCalculadoraLinhas(
         dataFimReal = null;
       }
     }
+
+    dataInicioReal = reconciliarInicioComFimReal(dataInicioReal, dataFimReal);
 
     const status = resolveStatus(
       linha.faseId,
@@ -1001,15 +1062,19 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
     visits,
     overrides,
   );
+  const inicioContratoReconciliado = reconciliarInicioComFimReal(
+    inicioContrato ?? rowContrato.dataInicioReal,
+    realFim,
+  );
   const fimEstimado =
-    inicioContrato && rowContrato.slaDias != null && rowContrato.slaDias > 0
-      ? fimEstimadaPorSla(inicioContrato, rowContrato.slaDias, rowContrato.slaTipo)
+    inicioContratoReconciliado && rowContrato.slaDias != null && rowContrato.slaDias > 0
+      ? fimEstimadaPorSla(inicioContratoReconciliado, rowContrato.slaDias, rowContrato.slaTipo)
       : rowContrato.dataFimEstimada;
 
   const status = resolveStatus(
     rowContrato.faseId,
     card,
-    inicioContrato,
+    inicioContratoReconciliado,
     realFim,
     fimEstimado,
     rowContrato.ordem,
@@ -1020,7 +1085,7 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
   );
   const atrasoDias = resolveAtraso(
     status,
-    inicioContrato,
+    inicioContratoReconciliado,
     fimEstimado,
     realFim,
     hoje,
@@ -1030,7 +1095,7 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
 
   out[idxContrato] = {
     ...rowContrato,
-    dataInicioReal: inicioContrato ?? rowContrato.dataInicioReal,
+    dataInicioReal: inicioContratoReconciliado,
     dataFimReal: realFim,
     dataFimEstimada: fimEstimado,
     status,
@@ -1042,7 +1107,7 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
   if (overrides && overrides.size > 0) {
     result = aplicarDatasManuaisCalculadoraLinhas(result, overrides, card, hojeRef);
   }
-  return result;
+  return normalizarIntervaloDatasCalculadoraLinhas(result, card, hojeRef);
 }
 
 /** Preenche fim real a partir da entrada na fase seguinte (quando o histórico não registrou saída). */
