@@ -57,6 +57,9 @@
   --moni-surface-100: #f2ede8;   /* cards em repouso */
   --moni-surface-200: #e8e2da;   /* hover / separadores */
 
+  /* Neutro — headers de coluna kanban */
+  --moni-neutral-100: #dedfde;
+
   /* Alias semântico (KPIs / painéis) */
   --color-background-secondary: var(--moni-surface-100);
 
@@ -201,8 +204,8 @@
   /* Kanban board — paleta compartilhada (redesign 2026) */
   --moni-kanban-board-bg:       #eceae6;
   --moni-kanban-col-bg:         #e4e2de;
-  --moni-kanban-col-hd:         var(--moni-green-100);
-  --moni-kanban-col-hd-fin:     var(--moni-green-200);
+  --moni-kanban-col-hd:         var(--moni-neutral-100);
+  --moni-kanban-col-hd-fin:     var(--moni-neutral-100);
   --moni-kanban-col-accent:     var(--moni-green-800);
   --moni-kanban-col-accent-fin: var(--moni-green-600);
   --moni-kanban-lime:           #d4edaa;

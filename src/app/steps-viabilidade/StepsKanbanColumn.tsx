@@ -136,7 +136,7 @@ export function StepsKanbanColumn({
     if (etapaKey.startsWith('contabilidade_')) {
       return {
         borderTop: kanbanColumnTopStrip,
-        bgHeader: 'var(--moni-navy-50)',
+        bgHeader: 'var(--moni-kanban-col-hd)',
         textTitle: 'var(--moni-navy-800)',
         textCount: 'var(--moni-navy-600)',
       };
@@ -144,7 +144,7 @@ export function StepsKanbanColumn({
     if (etapaKey.startsWith('credito_')) {
       return {
         borderTop: kanbanColumnTopStrip,
-        bgHeader: 'var(--moni-navy-50)',
+        bgHeader: 'var(--moni-kanban-col-hd)',
         textTitle: 'var(--moni-navy-800)',
         textCount: 'var(--moni-navy-600)',
       };
@@ -152,7 +152,7 @@ export function StepsKanbanColumn({
     // Portfolio/Operações (padrão)
     return {
       borderTop: kanbanColumnTopStrip,
-      bgHeader: 'var(--moni-navy-50)',
+      bgHeader: 'var(--moni-kanban-col-hd)',
       textTitle: 'var(--moni-navy-800)',
       textCount: 'var(--moni-navy-600)',
     };

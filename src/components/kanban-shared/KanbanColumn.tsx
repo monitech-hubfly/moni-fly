@@ -50,7 +50,7 @@ export type KanbanColumnProps = {
   hipotesesOrdemMin?: number | null;
   /** Habilita arrastar cards entre fases e reordenar na coluna. */
   dragEnabled?: boolean;
-  /** Última fase ativa do funil (header verde mais claro). */
+  /** Última fase ativa do funil (header com tom distinto). */
   isUltimaFaseAtiva?: boolean;
   /** Botão «Adicionar card» no rodapé da coluna (primeira fase). */
   exibirAdicionarCard?: boolean;
