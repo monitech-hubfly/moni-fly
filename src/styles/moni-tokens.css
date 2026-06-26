@@ -201,8 +201,8 @@
   /* Kanban board — paleta compartilhada (redesign 2026) */
   --moni-kanban-board-bg:       #eceae6;
   --moni-kanban-col-bg:         #e4e2de;
-  --moni-kanban-col-hd:         var(--moni-green-50);
-  --moni-kanban-col-hd-fin:     var(--moni-green-100);
+  --moni-kanban-col-hd:         var(--moni-green-100);
+  --moni-kanban-col-hd-fin:     var(--moni-green-200);
   --moni-kanban-col-accent:     var(--moni-green-800);
   --moni-kanban-col-accent-fin: var(--moni-green-600);
   --moni-kanban-lime:           #d4edaa;
@@ -2306,7 +2306,7 @@
   margin: 0;
   font-family: var(--moni-font-sans);
   font-size: 11px;
-  font-weight: 500;
+  font-weight: var(--moni-weight-bold);
   line-height: 1.3;
   color: var(--moni-kanban-drawer-header-text);
 }
