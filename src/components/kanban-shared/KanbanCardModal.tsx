@@ -3696,7 +3696,10 @@ export function KanbanCardModal({
   }, []);
 
   const condominioIdCalculadora =
-    modalDetalhes.processo?.condominio_id?.trim() || card?.condominio_id?.trim() || null;
+    contextoCalculadoraSyncGroup?.condominioIdCanonico?.trim() ||
+    modalDetalhes.processo?.condominio_id?.trim() ||
+    card?.condominio_id?.trim() ||
+    null;
 
   useEffect(() => {
     if (!condominioIdCalculadora) {

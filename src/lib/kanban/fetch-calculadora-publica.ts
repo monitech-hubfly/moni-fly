@@ -140,7 +140,8 @@ async function montarCalculadoraPack(
 
   const overrides = await buscarDatasManuaisCalculadoraSyncGroup(supabase, card.id, faseIdsPreCalc);
 
-  const condominioId = String(card.condominio_id ?? '').trim() || null;
+  const condominioId =
+    ctx?.condominioIdCanonico?.trim() || String(card.condominio_id ?? '').trim() || null;
   let slaCondominio = null;
   if (condominioId) {
     const condominioRow = await fetchCondominioRowById(supabase, condominioId);

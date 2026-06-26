@@ -1022,6 +1022,7 @@ export type MarcosCanonicosCalculadora = {
 export type ContextoCalculadoraSyncGroup = {
   createdAtCanonico: string | null;
   marcosCanonicos: MarcosCanonicosCalculadora;
+  condominioIdCanonico: string | null;
   kanbanIdCanonico: string;
   faseIdCanonico: string;
   faseSlugCanonico: string | null;
@@ -1105,6 +1106,7 @@ export async function fetchContextoCalculadoraSyncGroup(
     'concluido_em',
     'titulo',
     'rede_franqueado_id',
+    'condominio_id',
     ...KANBAN_CARD_CAMPOS_BASTAO_CALCULADORA,
   ].join(', ');
 
@@ -1178,9 +1180,36 @@ export async function fetchContextoCalculadoraSyncGroup(
     (createdAtCanonico ?? String(cardAvancado.created_at ?? '').trim()) ||
     new Date().toISOString();
 
+  let condominioIdCanonico: string | null | undefined = undefined;
+  let redeFranqueadoIdCanonico: string | null | undefined = undefined;
+  for (const row of typedRows) {
+    condominioIdCanonico = coalesceTextoMarco(condominioIdCanonico, row.condominio_id);
+    redeFranqueadoIdCanonico = coalesceTextoMarco(redeFranqueadoIdCanonico, row.rede_franqueado_id);
+  }
+
+  let condominioIdResolvido = condominioIdCanonico ?? null;
+  if (!condominioIdResolvido) {
+    const procId = await resolverProcessoStepOneIdDoCard(db, {
+      cardProcessoStepOneId: merged.processo_step_one_id as string | null | undefined,
+      cardProjetoId: merged.projeto_id as string | null | undefined,
+      redeFranqueadoId: redeFranqueadoIdCanonico ?? null,
+      cardTitulo: String(cardAvancado.titulo ?? '').trim() || null,
+    });
+    if (procId) {
+      const { data: proc } = await db
+        .from('processo_step_one')
+        .select('condominio_id')
+        .eq('id', procId)
+        .maybeSingle();
+      condominioIdResolvido =
+        String((proc as { condominio_id?: string | null } | null)?.condominio_id ?? '').trim() || null;
+    }
+  }
+
   return {
     createdAtCanonico: createdAt,
     marcosCanonicos,
+    condominioIdCanonico: condominioIdResolvido,
     kanbanIdCanonico,
     faseIdCanonico,
     faseSlugCanonico,
