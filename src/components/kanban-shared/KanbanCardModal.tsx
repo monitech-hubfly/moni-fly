@@ -4440,11 +4440,10 @@ export function KanbanCardModal({
       role="presentation"
     >
       <div
-        className="moni-card-modal-split relative flex h-[90vh] w-full flex-col overflow-hidden bg-white sm:flex-row"
+        className="moni-kanban-drawer moni-card-modal-split relative flex h-[90vh] w-full flex-col overflow-hidden bg-white sm:flex-row"
         style={{
           maxWidth: 'var(--moni-card-modal-max)',
           borderRadius: 'var(--moni-radius-xl)',
-          border: '0.5px solid var(--moni-border-default)',
           boxShadow: 'var(--moni-shadow-lg)',
         }}
         onClick={(e) => e.stopPropagation()}
@@ -4452,64 +4451,32 @@ export function KanbanCardModal({
         aria-modal="true"
         aria-labelledby="kanban-card-modal-title"
       >
-        <div
-          className="absolute left-0 right-0 top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b bg-white px-6 py-4"
-          style={{
-            borderColor: 'var(--moni-border-default)',
-            borderTopLeftRadius: 'var(--moni-radius-xl)',
-            borderTopRightRadius: 'var(--moni-radius-xl)',
-          }}
-        >
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
-            <h2 id="kanban-card-modal-title" className="min-w-0 truncate text-base font-semibold sm:text-lg" style={{ color: 'var(--moni-text-primary)' }}>
-              {cardTitulo}
-            </h2>
-            <span
-              className="shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-              style={{
-                background: 'var(--moni-surface-100)',
-                color: 'var(--moni-text-secondary)',
-                border: '0.5px solid var(--moni-border-default)',
-              }}
-            >
-              {kanbanNome}
-            </span>
+        <div className="moni-kanban-drawer-header">
+          <div className="moni-kanban-drawer-header-main">
+            <span className="moni-kanban-drawer-eyebrow">{kanbanNome}</span>
+            <div className="moni-kanban-drawer-title-row">
+              <h2 id="kanban-card-modal-title" className="moni-kanban-drawer-title">
+                {cardTitulo}
+              </h2>
             {isLegado ? (
-              <span
-                className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide"
-                style={{
-                  background: 'var(--moni-surface-50)',
-                  color: 'var(--moni-text-tertiary)',
-                  border: '0.5px solid var(--moni-border-subtle)',
-                }}
-              >
-                Legado
-              </span>
+              <span className="moni-kanban-drawer-badge">Legado</span>
             ) : null}
             {!isLegado && cardNativoConcluido ? (
-              <span
-                className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-                style={{
-                  background: 'var(--moni-green-50)',
-                  color: 'var(--moni-green-800)',
-                  border: '0.5px solid var(--moni-green-400)',
-                }}
-              >
-                CONCLUÍDO
-              </span>
+              <span className="moni-kanban-drawer-badge">Concluído</span>
             ) : null}
+            </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 rounded-lg p-2 text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
+            className="moni-kanban-drawer-close"
             aria-label="Fechar"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="flex h-full w-full flex-col sm:flex-row" style={{ paddingTop: '70px' }}>
+        <div className="moni-kanban-drawer-body flex h-full w-full flex-col sm:flex-row">
           {/* Centro — conteúdo principal (mobile: primeiro) */}
           <div
             className={`moni-card-modal-center order-1 flex h-full min-h-0 flex-1 flex-col p-6 sm:order-2 sm:min-w-0 ${
@@ -6049,9 +6016,9 @@ export function KanbanCardModal({
               )}
             </div>
 
-            <div className="mt-auto border-t pt-4" style={{ borderColor: 'var(--moni-border-default)' }}>
+            <div className="mt-auto border-t pt-4" style={{ borderColor: 'var(--moni-kanban-bd)' }}>
               {/* Abas comentários / e-mail */}
-              <div className="mb-3 flex gap-1">
+              <div className="moni-kanban-drawer-tabs mb-3">
                 {(['comentarios', 'email'] as const).map((aba) => {
                   if (aba === 'email' && portalFrank) return null;
                   const ativo = abaComentarios === aba;
@@ -6060,12 +6027,7 @@ export function KanbanCardModal({
                       key={aba}
                       type="button"
                       onClick={() => setAbaComentarios(aba)}
-                      className="rounded-md px-3 py-1 text-xs font-medium transition"
-                      style={{
-                        background: ativo ? 'var(--moni-primary-600)' : 'transparent',
-                        color: ativo ? '#fff' : 'var(--moni-text-secondary)',
-                        border: ativo ? 'none' : '0.5px solid var(--moni-border-default)',
-                      }}
+                      className={`moni-kanban-drawer-tab ${ativo ? 'moni-kanban-drawer-tab--active' : ''}`}
                     >
                       {aba === 'comentarios' ? 'Comentários' : 'E-mail'}
                     </button>
@@ -6655,6 +6617,7 @@ export function KanbanCardModal({
                     </button>
                   </div>
                 ) : !modalAprovacaoFase ? (
+                  <div className="moni-kanban-drawer-footer">
                   <div className="moni-card-modal-movimentacao-grid">
                     <button
                       type="button"
@@ -6686,6 +6649,7 @@ export function KanbanCardModal({
                       </span>
                       <ChevronRight className="moni-card-modal-movimentacao-btn-icon" aria-hidden />
                     </button>
+                  </div>
                   </div>
                 ) : (
                   <div className="space-y-1.5">

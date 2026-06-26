@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePermissoes } from '@/lib/hooks/usePermissoes';
 import { podeComFallbackStaff } from '@/lib/permissoes-types';
@@ -172,23 +171,21 @@ export function KanbanBoard({
     (podeCriarCardsProp !== false &&
       podeComFallbackStaff(pode, 'criar_cards', { roleNorm: userRole }));
   const exibirBotaoNovoCard = Boolean(mostrarLinkNovoCard) && criarCardsPermitido;
+  const novoCardHref = `${basePath}?novo=true`;
+
+  const fasesAtivas = useMemo(() => fases.filter((f) => f.ativo !== false), [fases]);
+  const ordemMinima = useMemo(
+    () => (fasesAtivas.length > 0 ? Math.min(...fasesAtivas.map((f) => f.ordem)) : 1),
+    [fasesAtivas],
+  );
+  const maxOrdemAtiva = useMemo(
+    () => (fasesAtivas.length > 0 ? Math.max(...fasesAtivas.map((f) => f.ordem)) : 0),
+    [fasesAtivas],
+  );
 
   return (
     <div className="min-w-0 space-y-3">
-      <div className="relative flex flex-wrap items-center gap-3">
-        {exibirBotaoNovoCard ? (
-          <Link
-            href={`${basePath}?novo=true`}
-            className="rounded-lg px-4 py-2 text-sm font-medium transition hover:bg-stone-100"
-            style={{
-              background: 'var(--moni-surface-0)',
-              color: 'var(--moni-text-primary)',
-              border: '0.5px solid var(--moni-border-default)',
-            }}
-          >
-            + Novo card
-          </Link>
-        ) : null}
+      <div className="moni-kanban-toolbar relative">
         <button
           ref={filtrosBtnRef}
           type="button"
@@ -201,12 +198,7 @@ export function KanbanBoard({
               setFiltrosOpen(true);
             }
           }}
-          className="rounded-lg border px-4 py-2 text-sm font-medium transition hover:opacity-95"
-          style={{
-            borderColor: 'var(--moni-border-default)',
-            background: 'var(--moni-surface-0)',
-            color: 'var(--moni-text-primary)',
-          }}
+          className="moni-kanban-fpill"
         >
           Filtros ({nAtivos})
         </button>
@@ -216,12 +208,7 @@ export function KanbanBoard({
           onChange={(e) => setBuscaCard(e.target.value)}
           placeholder="Buscar no card (título, franqueado, datas, SLA…)…"
           aria-label="Buscar cards por qualquer informação visível no card"
-          className="w-64 max-w-full rounded-lg px-3 py-2 text-sm placeholder:text-stone-400 focus:outline-none focus:ring-1"
-          style={{
-            border: '0.5px solid var(--moni-border-default)',
-            background: 'var(--moni-surface-0)',
-            color: 'var(--moni-text-primary)',
-          }}
+          className="moni-kanban-fpill moni-kanban-fpill--search"
         />
         {filtrosOpen ? (
           <div
@@ -257,12 +244,14 @@ export function KanbanBoard({
             className="moni-kanban-board-scroll-hint moni-kanban-board-scroll-hint--right pointer-events-none absolute inset-y-0 right-0 z-10 w-12"
           />
         ) : null}
-        <div ref={boardScrollRef} className="moni-kanban-board-scroll w-full min-w-0 overflow-x-auto pb-2">
-          <div className="moni-kanban-board flex min-w-max gap-4">
+        <div ref={boardScrollRef} className="moni-kanban-board-scroll w-full min-w-0 pb-2">
+          <div className="moni-kanban-board">
             {fases.map((fase) => {
               const raw = rawByFase[fase.id] ?? [];
               const vis = cardsByFase[fase.id] ?? [];
               const listaVaziaPorFiltro = clientFiltersActive && raw.length > 0 && vis.length === 0;
+              const isPrimeiraColuna = fase.ordem === ordemMinima;
+              const isUltimaFaseAtiva = fase.ativo !== false && fase.ordem === maxOrdemAtiva;
               return (
                 <KanbanColumn
                   key={fase.id}
@@ -277,6 +266,9 @@ export function KanbanBoard({
                   kanbanNome={kanbanNome}
                   hipotesesOrdemMin={hipotesesOrdemMin}
                   dragEnabled={podeMoverCards}
+                  isUltimaFaseAtiva={isUltimaFaseAtiva}
+                  exibirAdicionarCard={isPrimeiraColuna && exibirBotaoNovoCard}
+                  novoCardHref={novoCardHref}
                 />
               );
             })}

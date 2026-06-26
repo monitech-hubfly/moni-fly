@@ -15,32 +15,27 @@ type BolinhaProps = {
 };
 
 export function KanbanPrazoBolinha({ variante, numero, title, sigla }: BolinhaProps) {
-  const atrasado = variante === 'atrasado';
   const tooltipText = sigla ? `${sigla} — ${title}` : title;
+  const classeVariante =
+    variante === 'atrasado' ? 'moni-kanban-card-sla--atrasado' : 'moni-kanban-card-sla--atencao';
 
   return (
     <span className="group/bol relative inline-flex shrink-0 items-center justify-center">
       <span
-        className="inline-flex h-[14px] min-w-[14px] items-center justify-center rounded-full px-0.5 text-[8px] font-semibold tabular-nums leading-none"
-        style={{
-          background: atrasado ? 'var(--moni-status-overdue-bg)' : 'var(--moni-status-attention-bg)',
-          color: atrasado ? 'var(--moni-status-overdue-text)' : 'var(--moni-status-attention-text)',
-          border: atrasado
-            ? '0.5px solid var(--moni-status-overdue-border)'
-            : '0.5px solid var(--moni-status-attention-border)',
-        }}
+        className={`moni-kanban-card-sla ${classeVariante}`}
         title={tooltipText}
         aria-label={tooltipText}
       >
-        {numero}
+        <span className="moni-kanban-card-sla-dot" aria-hidden />
+        {numero}d
       </span>
       <span
         role="tooltip"
         className="pointer-events-none absolute bottom-[calc(100%+5px)] left-1/2 z-30 w-max max-w-[220px] -translate-x-1/2 rounded-md px-2 py-1 text-center text-[10px] font-medium leading-snug opacity-0 transition-opacity duration-150 group-hover/bol:opacity-100"
         style={{
-          background: 'var(--moni-navy-800)',
+          background: 'var(--moni-kanban-col-hd)',
           color: 'var(--moni-surface-0)',
-          border: '0.5px solid var(--moni-border-default)',
+          border: 'var(--moni-border-width) solid var(--moni-kanban-bd)',
         }}
       >
         {tooltipText}
@@ -49,26 +44,10 @@ export function KanbanPrazoBolinha({ variante, numero, title, sigla }: BolinhaPr
   );
 }
 
-function estiloTextoDataVariante(variante: IndicadorDataKanban['variante']): React.CSSProperties {
-  if (variante === 'atrasado') {
-    return {
-      color: 'var(--moni-status-overdue-text)',
-      background: 'var(--moni-status-overdue-bg)',
-      border: '0.5px solid var(--moni-status-overdue-border)',
-    };
-  }
-  if (variante === 'atencao') {
-    return {
-      color: 'var(--moni-status-attention-text)',
-      background: 'var(--moni-status-attention-bg)',
-      border: '0.5px solid var(--moni-status-attention-border)',
-    };
-  }
-  return {
-    color: 'var(--moni-text-secondary)',
-    background: 'var(--moni-surface-100)',
-    border: '0.5px solid var(--moni-border-subtle)',
-  };
+function estiloTextoDataVariante(variante: IndicadorDataKanban['variante']): string {
+  if (variante === 'atrasado') return 'moni-kanban-card-sla moni-kanban-card-sla--atrasado';
+  if (variante === 'atencao') return 'moni-kanban-card-sla moni-kanban-card-sla--atencao';
+  return 'moni-kanban-card-sla moni-kanban-card-sla--ok';
 }
 
 /** Reunião sempre em texto — nunca bolinha (todos os funis/kanbans). */
@@ -79,29 +58,18 @@ export function TextoReuniaoCard({ dataIso }: { dataIso: string }) {
   const texto = `Reunião: ${dataFmt}`;
 
   return (
-    <span
-      className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium leading-tight"
-      style={estiloTextoDataVariante(ind.variante)}
-      title={ind.title}
-    >
+    <span className={estiloTextoDataVariante(ind.variante)} title={ind.title}>
+      <span className="moni-kanban-card-sla-dot" aria-hidden />
       {texto}
     </span>
   );
 }
 
 function ChipDataOk({ ind }: { ind: IndicadorDataKanban }) {
-  const sigla = 'FU';
   return (
-    <span
-      className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-medium"
-      style={{
-        color: 'var(--moni-text-secondary)',
-        background: 'var(--moni-surface-100)',
-        border: '0.5px solid var(--moni-border-subtle)',
-      }}
-      title={ind.title}
-    >
-      <span style={{ color: 'var(--moni-text-tertiary)' }}>{sigla}</span>
+    <span className="moni-kanban-card-sla moni-kanban-card-sla--ok" title={ind.title}>
+      <span className="moni-kanban-card-sla-dot" aria-hidden />
+      <span style={{ color: 'var(--moni-kanban-tm)' }}>FU</span>
       {ind.rotuloCurto}
     </span>
   );
@@ -162,7 +130,7 @@ export function KanbanCardPrazoIndicadores({
   if (itens.length === 0) return null;
 
   return (
-    <div className={`mt-1.5 flex flex-wrap items-center gap-1 ${className}`.trim()}>{itens}</div>
+    <div className={`moni-kanban-card-indicators ${className}`.trim()}>{itens}</div>
   );
 }
 
@@ -207,7 +175,7 @@ export function KanbanCardSlaBolinha({
   const bol = indicadorBolinhaSlaKanban({ pausado: false, ...sla } as SlaKanbanResult);
   if (!bol) return null;
   return (
-    <div className={`mt-1.5 flex items-center gap-1 ${className}`.trim()}>
+    <div className={`moni-kanban-card-indicators ${className}`.trim()}>
       <KanbanPrazoBolinha {...bol} sigla="SLA" />
     </div>
   );

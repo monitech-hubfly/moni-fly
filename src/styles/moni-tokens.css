@@ -192,6 +192,27 @@
   --moni-kanban-credito-light:  var(--moni-gold-50);
   --moni-kanban-credito-accent: var(--moni-gold-400);
 
+  /* Kanban board — paleta compartilhada (redesign 2026) */
+  --moni-kanban-board-bg:       #eceae6;
+  --moni-kanban-col-bg:         #e4e2de;
+  --moni-kanban-col-hd:         #1c3a2b;
+  --moni-kanban-col-hd-fin:     #1a5c3a;
+  --moni-kanban-lime:           #d4edaa;
+  --moni-kanban-lime-dim:       rgba(212, 237, 170, 0.6);
+  --moni-kanban-t1:             #191917;
+  --moni-kanban-t2:             #555550;
+  --moni-kanban-tm:             #9a9991;
+  --moni-kanban-bd:             rgba(0, 0, 0, 0.09);
+  --moni-kanban-bds:            rgba(0, 0, 0, 0.16);
+  --moni-kanban-card-hover-bd:  rgba(28, 58, 43, 0.3);
+  --moni-kanban-sla-ok-bg:      #eaf3de;
+  --moni-kanban-sla-ok-text:    #3b6d11;
+  --moni-kanban-sla-ok-dot:     #639922;
+  --moni-kanban-drawer-header:  #1c3a2b;
+  --moni-kanban-drawer-tabs-bg: var(--moni-green-800);
+  --moni-kanban-drawer-tab-active: var(--moni-kanban-lime);
+  --moni-kanban-drawer-footer:  #f4f3f0;
+
   /* --------------------------------------------------
      REDE DE FRANQUEADOS — gráficos, mapa e filtros
      (mesma identidade que Painéis: Step One / verde médio Moní)
@@ -249,7 +270,7 @@
   --moni-card-width-min:      240px;
   --moni-card-modal-max:      1180px;  /* largura máx do modal de detalhe */
   --moni-card-modal-acoes-width: 13rem; /* coluna direita (tags, fase, movimentação) */
-  --moni-column-width:        300px;   /* largura da coluna no board */
+  --moni-column-width:        224px;   /* largura da coluna no board */
 
   /* Carômetro — layout de página e headlines */
   --carometro-page-bg: #f4f5f0;
@@ -2167,10 +2188,12 @@
   overflow-y: visible;
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--moni-kanban-bds) transparent;
 }
 
 .moni-kanban-board-scroll::-webkit-scrollbar {
-  height: 8px;
+  height: 4px;
 }
 
 .moni-kanban-board-scroll::-webkit-scrollbar-track {
@@ -2178,14 +2201,14 @@
 }
 
 .moni-kanban-board-scroll::-webkit-scrollbar-thumb {
-  background: var(--moni-navy-200, #cbd5e1);
+  background: var(--moni-kanban-bds);
   border-radius: 999px;
 }
 
 .moni-kanban-board-scroll-hint {
   background: linear-gradient(
     to right,
-    var(--moni-surface-50, #fafaf9) 0%,
+    var(--moni-kanban-board-bg) 0%,
     transparent 100%
   );
 }
@@ -2193,9 +2216,674 @@
 .moni-kanban-board-scroll-hint--right {
   background: linear-gradient(
     to left,
-    var(--moni-surface-50, #fafaf9) 0%,
+    var(--moni-kanban-board-bg) 0%,
     transparent 100%
   );
+}
+
+.moni-kanban-board {
+  display: flex;
+  gap: 10px;
+  padding: 14px 20px;
+  background: var(--moni-kanban-board-bg);
+  border-radius: var(--moni-radius-lg);
+  min-width: max-content;
+}
+
+/* Toolbar do board — filtros e busca */
+.moni-kanban-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.moni-kanban-fpill {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 6px 14px;
+  border: var(--moni-border-width) solid var(--moni-kanban-bd);
+  border-radius: var(--moni-radius-pill);
+  background: var(--moni-surface-0);
+  color: var(--moni-kanban-t2);
+  font-family: var(--moni-font-sans);
+  font-size: 12px;
+  font-weight: var(--moni-weight-medium);
+  line-height: 1.2;
+  transition: border-color var(--moni-transition-fast), background var(--moni-transition-fast);
+}
+
+.moni-kanban-fpill:hover {
+  border-color: var(--moni-kanban-bds);
+  background: var(--moni-surface-50);
+}
+
+.moni-kanban-fpill--search {
+  width: 16rem;
+  max-width: 100%;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.moni-kanban-fpill--search::placeholder {
+  color: var(--moni-kanban-tm);
+}
+
+.moni-kanban-fpill--search:focus {
+  outline: none;
+  border-color: var(--moni-kanban-col-hd);
+}
+
+/* Coluna do kanban */
+.moni-kanban-column {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: var(--moni-column-width);
+  min-width: var(--moni-column-width);
+  overflow: hidden;
+  border-radius: var(--moni-radius-lg);
+  background: var(--moni-kanban-col-bg);
+}
+
+.moni-kanban-column--drag-over {
+  outline: 2px solid var(--moni-kanban-col-hd);
+  outline-offset: -2px;
+}
+
+.moni-kanban-column-hd {
+  box-sizing: border-box;
+  padding: 10px 10px 9px;
+  background: var(--moni-kanban-col-hd);
+  border-bottom: var(--moni-border-width) solid rgba(255, 255, 255, 0.08);
+}
+
+.moni-kanban-column-hd--fin {
+  background: var(--moni-kanban-col-hd-fin);
+}
+
+.moni-kanban-column-hd-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.moni-kanban-column-hd-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.moni-kanban-column-title {
+  margin: 0;
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--moni-surface-0);
+}
+
+.moni-kanban-column-subtitle {
+  margin: 2px 0 0;
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  line-height: 1.3;
+  color: rgba(255, 255, 255, 0.55);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.moni-kanban-column-hd-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.moni-kanban-col-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--moni-radius-pill);
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--moni-surface-0);
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.moni-kanban-col-sla {
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--moni-kanban-lime-dim);
+  white-space: nowrap;
+}
+
+.moni-kanban-col-sort {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--moni-radius-sm);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: default;
+  transition: color var(--moni-transition-fast), background var(--moni-transition-fast);
+}
+
+.moni-kanban-col-sort:hover {
+  color: var(--moni-surface-0);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.moni-kanban-column-body {
+  box-sizing: border-box;
+  flex: 1;
+  max-height: 70vh;
+  padding: 8px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--moni-kanban-bds) transparent;
+}
+
+.moni-kanban-column-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.moni-kanban-column-body::-webkit-scrollbar-thumb {
+  background: var(--moni-kanban-bds);
+  border-radius: 999px;
+}
+
+.moni-kanban-column-empty {
+  padding: 24px 8px;
+  text-align: center;
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  color: var(--moni-kanban-tm);
+}
+
+.moni-kanban-add-card {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border: var(--moni-border-width) dashed var(--moni-kanban-bd);
+  border-radius: var(--moni-radius-md);
+  background: transparent;
+  color: var(--moni-kanban-t2);
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: border-color var(--moni-transition-fast), color var(--moni-transition-fast), background var(--moni-transition-fast);
+}
+
+.moni-kanban-add-card:hover {
+  border-color: var(--moni-kanban-col-hd);
+  color: var(--moni-kanban-col-hd);
+  background: rgba(255, 255, 255, 0.45);
+}
+
+/* Card do kanban */
+.moni-kanban-card-wrap {
+  position: relative;
+  margin-bottom: 6px;
+}
+
+.moni-kanban-card-wrap:last-child {
+  margin-bottom: 0;
+}
+
+.moni-kanban-card-drop-line {
+  pointer-events: none;
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--moni-kanban-col-hd);
+}
+
+.moni-kanban-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 9px 10px;
+  border: var(--moni-border-width) solid var(--moni-kanban-bd);
+  border-radius: var(--moni-radius-md);
+  background: var(--moni-surface-0);
+  text-align: left;
+  transition:
+    border-color var(--moni-transition-fast),
+    box-shadow var(--moni-transition-fast),
+    transform var(--moni-transition-fast);
+}
+
+.moni-kanban-card:hover {
+  border-color: var(--moni-kanban-card-hover-bd);
+  box-shadow: var(--moni-shadow-card);
+  transform: translateY(-1px);
+}
+
+.moni-kanban-card--archived {
+  border-style: dashed;
+  border-color: var(--moni-status-archived-border);
+}
+
+.moni-kanban-card--done {
+  border-style: dashed;
+  border-color: var(--moni-green-400);
+}
+
+.moni-kanban-card--drag-target {
+  border-color: var(--moni-kanban-col-hd);
+  border-width: 2px;
+}
+
+.moni-kanban-card--muted {
+  opacity: 0.6;
+}
+
+.moni-kanban-card--pending {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.moni-kanban-card--draggable {
+  cursor: grab;
+}
+
+.moni-kanban-card--draggable:active {
+  cursor: grabbing;
+}
+
+.moni-kanban-card-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+}
+
+.moni-kanban-card-open--dnd {
+  padding-left: 22px;
+}
+
+.moni-kanban-card-menu {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--moni-radius-sm);
+  background: transparent;
+  color: var(--moni-kanban-t2);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity var(--moni-transition-fast), background var(--moni-transition-fast);
+}
+
+.moni-kanban-card:hover .moni-kanban-card-menu {
+  opacity: 1;
+}
+
+.moni-kanban-card-menu:hover {
+  background: var(--moni-surface-100);
+}
+
+.moni-kanban-card-badges {
+  position: absolute;
+  top: 6px;
+  right: 28px;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.moni-kanban-card-sort {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.moni-kanban-card-sort-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px;
+  border: none;
+  border-radius: var(--moni-radius-sm);
+  background: transparent;
+  color: var(--moni-kanban-tm);
+  cursor: pointer;
+  transition: color var(--moni-transition-fast), background var(--moni-transition-fast);
+}
+
+.moni-kanban-card-sort-btn:hover:not(:disabled) {
+  color: var(--moni-kanban-t2);
+  background: var(--moni-surface-100);
+}
+
+.moni-kanban-card-sort-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.moni-kanban-card-title {
+  margin: 0;
+  font-family: var(--moni-font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--moni-kanban-t1);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.moni-kanban-card-subtitle {
+  margin: 3px 0 0;
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--moni-kanban-tm);
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.moni-kanban-card-divider {
+  margin: 7px 0 6px;
+  border: none;
+  border-top: var(--moni-border-width) solid var(--moni-kanban-bd);
+}
+
+.moni-kanban-card-section-label {
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--moni-kanban-tm);
+}
+
+.moni-kanban-card-section-value {
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--moni-kanban-t2);
+}
+
+.moni-kanban-card-status-badge {
+  border-radius: var(--moni-radius-sm);
+  padding: 2px 6px;
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.moni-kanban-card-status-badge--archived {
+  background: var(--moni-status-archived-bg);
+  color: var(--moni-status-archived-text);
+  border: var(--moni-border-width) solid var(--moni-status-archived-border);
+}
+
+.moni-kanban-card-status-badge--done {
+  background: var(--moni-green-50);
+  color: var(--moni-green-800);
+  border: var(--moni-border-width) solid var(--moni-green-400);
+}
+
+/* Tags SLA compactas nos cards */
+.moni-kanban-card-sla {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: var(--moni-weight-medium);
+  line-height: 1.25;
+  border: var(--moni-border-width) solid transparent;
+}
+
+.moni-kanban-card-sla-dot {
+  flex-shrink: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.moni-kanban-card-sla--ok {
+  background: var(--moni-kanban-sla-ok-bg);
+  color: var(--moni-kanban-sla-ok-text);
+  border-color: rgba(59, 109, 17, 0.2);
+}
+
+.moni-kanban-card-sla--ok .moni-kanban-card-sla-dot {
+  background: var(--moni-kanban-sla-ok-dot);
+}
+
+.moni-kanban-card-sla--atencao {
+  background: var(--moni-status-attention-bg);
+  color: var(--moni-status-attention-text);
+  border-color: var(--moni-status-attention-border);
+}
+
+.moni-kanban-card-sla--atencao .moni-kanban-card-sla-dot {
+  background: var(--moni-gold-400);
+}
+
+.moni-kanban-card-sla--atrasado {
+  background: var(--moni-status-overdue-bg);
+  color: var(--moni-status-overdue-text);
+  border-color: var(--moni-status-overdue-border);
+}
+
+.moni-kanban-card-sla--atrasado .moni-kanban-card-sla-dot {
+  background: var(--moni-status-overdue-border);
+}
+
+.moni-kanban-card-indicators {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+/* Drawer / modal de card */
+.moni-kanban-drawer.moni-card-modal-split {
+  border: var(--moni-border-width) solid var(--moni-kanban-bd);
+}
+
+.moni-kanban-drawer-header {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px 12px;
+  background: var(--moni-kanban-drawer-header);
+  border-top-left-radius: var(--moni-radius-xl);
+  border-top-right-radius: var(--moni-radius-xl);
+}
+
+.moni-kanban-drawer-header-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.moni-kanban-drawer-eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(212, 237, 170, 0.5);
+}
+
+.moni-kanban-drawer-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.moni-kanban-drawer-title {
+  margin: 0;
+  min-width: 0;
+  font-family: var(--moni-font-sans);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--moni-surface-0);
+}
+
+.moni-kanban-drawer-badge {
+  flex-shrink: 0;
+  border-radius: var(--moni-radius-pill);
+  padding: 2px 8px;
+  font-family: var(--moni-font-sans);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: var(--moni-border-width) solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.moni-kanban-drawer-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: var(--moni-radius-md);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  transition: background var(--moni-transition-fast), color var(--moni-transition-fast);
+}
+
+.moni-kanban-drawer-close:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--moni-surface-0);
+}
+
+.moni-kanban-drawer-body {
+  padding-top: 72px;
+}
+
+.moni-kanban-drawer-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--moni-radius-md);
+  background: var(--moni-kanban-drawer-tabs-bg);
+}
+
+.moni-kanban-drawer-tab {
+  flex: 1;
+  min-height: 30px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: var(--moni-radius-sm);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: var(--moni-font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--moni-transition-fast), color var(--moni-transition-fast);
+}
+
+.moni-kanban-drawer-tab:hover {
+  color: var(--moni-surface-0);
+}
+
+.moni-kanban-drawer-tab--active {
+  background: var(--moni-kanban-drawer-tab-active);
+  color: var(--moni-kanban-col-hd);
+  font-weight: 600;
+}
+
+.moni-kanban-drawer-footer {
+  padding: 10px 8px;
+  border: var(--moni-border-width) solid var(--moni-kanban-bd);
+  border-radius: var(--moni-radius-md);
+  background: var(--moni-kanban-drawer-footer);
+}
+
+.moni-kanban-drawer-footer .moni-card-modal-movimentacao-btn {
+  background: var(--moni-surface-0);
+  border-color: var(--moni-kanban-bd);
+  color: var(--moni-kanban-t1);
+}
+
+.moni-kanban-drawer-footer .moni-card-modal-movimentacao-btn:hover:not(:disabled) {
+  background: var(--moni-surface-50);
+}
+
+.moni-kanban-drawer-footer .moni-card-modal-movimentacao-btn--proxima {
+  background: var(--moni-kanban-col-hd);
+  border-color: var(--moni-kanban-col-hd);
+  color: var(--moni-surface-0);
+}
+
+.moni-kanban-drawer-footer .moni-card-modal-movimentacao-btn--proxima:hover:not(:disabled) {
+  background: var(--moni-kanban-col-hd-fin);
+  opacity: 1;
 }
 
 /* Tabelas largas — scroll horizontal nativo + barra fixa na base da tela */
