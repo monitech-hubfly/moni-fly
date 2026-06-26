@@ -1,6 +1,8 @@
 export type FundingTipo = 'Investidor' | 'Broker';
 
 export type FundingCardDraft = {
+  /** Nome ou empresa — gravado em `kanban_cards.titulo`. */
+  funding_nome: string;
   funding_tipo: FundingTipo | '';
   funding_localizacao: string;
   funding_descritivo: string;
@@ -10,6 +12,7 @@ export type FundingCardDraft = {
 
 export function fundingDraftVazio(): FundingCardDraft {
   return {
+    funding_nome: '',
     funding_tipo: '',
     funding_localizacao: '',
     funding_descritivo: '',
@@ -19,6 +22,7 @@ export function fundingDraftVazio(): FundingCardDraft {
 }
 
 export function fundingDraftFromRow(row: {
+  titulo?: string | null;
   funding_tipo?: string | null;
   funding_localizacao?: string | null;
   funding_descritivo?: string | null;
@@ -32,6 +36,7 @@ export function fundingDraftFromRow(row: {
   const funding_prazo_atividade =
     prazoRaw != null && String(prazoRaw).trim() !== '' ? String(prazoRaw).slice(0, 10) : '';
   return {
+    funding_nome: String(row?.titulo ?? ''),
     funding_tipo,
     funding_localizacao: String(row?.funding_localizacao ?? ''),
     funding_descritivo: String(row?.funding_descritivo ?? ''),

@@ -3043,6 +3043,7 @@ export function KanbanCardModal({
     try {
       const res = await salvarDadosFunding({
         cardId: card.id,
+        funding_nome: fundingDraft.funding_nome,
         funding_tipo: fundingDraft.funding_tipo,
         funding_localizacao: fundingDraft.funding_localizacao,
         funding_descritivo: fundingDraft.funding_descritivo,

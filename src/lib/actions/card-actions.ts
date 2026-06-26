@@ -1849,6 +1849,17 @@ export type CriarCardKanbanInput = {
   origemTipo?: 'hipotese_direta';
 };
 
+export type CriarCardFundingInput = {
+  fase_id: string;
+  basePath?: string;
+  funding_nome: string;
+  funding_tipo: FundingTipo;
+  funding_localizacao: string;
+  funding_descritivo?: string;
+  funding_proxima_atividade?: string;
+  funding_prazo_atividade?: string;
+};
+
 /** Card nativo no kanban (`franqueado_id` = utilizador autenticado). */
 export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResult> {
   const supabase = await createClient();
@@ -1967,6 +1978,79 @@ const KANBAN_CARD_STAFF_ROLES = new Set(['admin', 'team', 'consultor', 'supervis
 
 function isKanbanCardStaffRole(role: string | null | undefined): boolean {
   return KANBAN_CARD_STAFF_ROLES.has(String(role ?? '').trim());
+}
+
+/** Card manual no Funil Funding — staff only (página já restringe `?novo=true`). */
+export async function criarCardFunding(input: CriarCardFundingInput): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para criar o card.' };
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (!isKanbanCardStaffRole((profile as { role?: string } | null)?.role)) {
+    return { ok: false, error: 'Sem permissão para criar cards no Funding.' };
+  }
+
+  const titulo = String(input.funding_nome ?? '').trim();
+  if (!titulo) return { ok: false, error: 'Informe o nome.' };
+
+  const tipo = String(input.funding_tipo ?? '').trim();
+  if (tipo !== 'Investidor' && tipo !== 'Broker') {
+    return { ok: false, error: 'Selecione o tipo.' };
+  }
+
+  const localizacao = String(input.funding_localizacao ?? '').trim();
+  if (!localizacao) return { ok: false, error: 'Informe a localização.' };
+
+  const faseId = String(input.fase_id ?? '').trim();
+  if (!faseId) return { ok: false, error: 'Fase inválida.' };
+
+  const { data: faseRow, error: faseErr } = await supabase
+    .from('kanban_fases')
+    .select('id')
+    .eq('id', faseId)
+    .eq('kanban_id', KANBAN_IDS.FUNDING)
+    .eq('ativo', true)
+    .maybeSingle();
+  if (faseErr) return { ok: false, error: faseErr.message };
+  if (!faseRow) return { ok: false, error: 'Fase não pertence ao funil Funding.' };
+
+  const insertPayload: Record<string, unknown> = {
+    kanban_id: KANBAN_IDS.FUNDING,
+    fase_id: faseId,
+    franqueado_id: user.id,
+    titulo,
+    status: 'ativo',
+    funding_tipo: tipo,
+    funding_localizacao: localizacao,
+    funding_descritivo: String(input.funding_descritivo ?? '').trim() || null,
+    funding_proxima_atividade: String(input.funding_proxima_atividade ?? '').trim() || null,
+    funding_prazo_atividade: timestampCampoCalendarioIso(input.funding_prazo_atividade),
+  };
+
+  const { data: cardRow, error } = await supabase
+    .from('kanban_cards')
+    .insert(insertPayload as never)
+    .select('id')
+    .single();
+  if (error) return { ok: false, error: error.message };
+
+  const cardId = String((cardRow as { id: string }).id);
+  const { aplicarResponsavelFasePadraoAoCard, aplicarResponsavelDaFasePadraoSeVazio } =
+    await import('@/lib/kanban/responsavel-fase-checklist');
+  await aplicarResponsavelFasePadraoAoCard(supabase, cardId, faseId, KANBAN_IDS.FUNDING, user.id);
+  await aplicarResponsavelDaFasePadraoSeVazio(supabase, cardId, faseId, user.id);
+
+  const bp = String(input.basePath ?? '/funil-funding').trim() || '/funil-funding';
+  revalidatePath(bp);
+  revalidatePath('/');
+  return { ok: true };
 }
 
 /** Card manual no Funil Step One — cria `kanban_cards` + `processo_step_one` vinculado. */
@@ -4022,6 +4106,7 @@ export async function salvarDadosPreObraOperacoes(
 
 export type SalvarDadosFundingInput = {
   cardId: string;
+  funding_nome?: string | null;
   funding_tipo?: FundingTipo | '' | null;
   funding_localizacao?: string | null;
   funding_descritivo?: string | null;
@@ -4053,6 +4138,11 @@ export async function salvarDadosFunding(input: SalvarDadosFundingInput): Promis
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
+  if (input.funding_nome !== undefined) {
+    const nome = String(input.funding_nome ?? '').trim();
+    if (!nome) return { ok: false, error: 'Informe o nome.' };
+    update.titulo = nome;
+  }
   if (input.funding_tipo !== undefined) {
     const t = String(input.funding_tipo ?? '').trim();
     if (t !== '' && t !== 'Investidor' && t !== 'Broker') {

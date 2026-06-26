@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { NovoCardModal } from '@/app/funil-stepone/NovoCardModal';
+import { NovoCardFundingModal } from '@/app/funil-funding/NovoCardFundingModal';
 import { KanbanCardModal } from './KanbanCardModal';
 import type { CamposPorFaseMap, KanbanFase, KanbanNomeDisplay } from './types';
 
@@ -68,14 +69,18 @@ function KanbanWrapperInner({
         />
       ) : null}
       {enableNovoCardModal && novoAberto ? (
-        <NovoCardModal
-          kanbanId={kanbanId}
-          kanbanNome={kanbanNome}
-          basePath={basePath}
-          onClose={fecharParaBase}
-          isAdmin={isAdmin}
-          showTipoOrigem={kanbanNome === 'Funil Portfólio'}
-        />
+        kanbanNome === 'Funding' ? (
+          <NovoCardFundingModal kanbanId={kanbanId} basePath={basePath} onClose={fecharParaBase} />
+        ) : (
+          <NovoCardModal
+            kanbanId={kanbanId}
+            kanbanNome={kanbanNome}
+            basePath={basePath}
+            onClose={fecharParaBase}
+            isAdmin={isAdmin}
+            showTipoOrigem={kanbanNome === 'Funil Portfólio'}
+          />
+        )
       ) : null}
     </>
   );
