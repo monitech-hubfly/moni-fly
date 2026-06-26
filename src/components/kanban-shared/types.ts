@@ -8,6 +8,7 @@ export type KanbanNomeDisplay =
   | 'Funil Acoplamento'
   | 'Funil Jurídico'
   | 'Funil Moní Capital'
+  | 'Funding'
   | 'Funil Contratações'
   | 'Funil Produto'
   | 'Funil Modelo Virtual'
@@ -108,6 +109,12 @@ export type KanbanCardBrief = {
   /** Responsável preenchido no checklist da fase atual (`responsavel_fase`). */
   responsavel_fase_id?: string | null;
   responsavel_fase_nome?: string | null;
+  /** Funil Funding */
+  funding_tipo?: 'Investidor' | 'Broker' | null;
+  funding_localizacao?: string | null;
+  funding_descritivo?: string | null;
+  funding_proxima_atividade?: string | null;
+  funding_prazo_atividade?: string | null;
 };
 
 /** Conteúdo extra do checklist por `fase_id` (sobrescreve placeholder). */

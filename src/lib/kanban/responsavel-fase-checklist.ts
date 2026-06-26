@@ -70,6 +70,7 @@ export const EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN: Partial<Record<string, string>
   [KANBAN_IDS.PROJETO_LEGAL]: 'elisabete.nucci@moni.casa',
   [KANBAN_IDS.PROJETOS_LOCAIS]: 'larissa.lima@moni.casa',
   [KANBAN_IDS.MONI_CAPITAL]: 'kim@moni.casa',
+  [KANBAN_IDS.FUNDING]: 'kim@moni.casa',
   [KANBAN_IDS.CREDITO_OBRA]: 'kim@moni.casa',
   [KANBAN_IDS.CONTABILIDADE]: 'kim@moni.casa',
   [KANBAN_IDS.JURIDICO]: 'elisabete.nucci@moni.casa',

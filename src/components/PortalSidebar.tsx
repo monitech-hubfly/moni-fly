@@ -55,6 +55,7 @@ const NOVOS_NEGOCIOS_SUBITENS_FRANK: NavItem[] = [
 ];
 const CREDITO_JURIDICO_SUBITENS: NavItem[] = [
   { href: '/funil-moni-capital', label: 'Moní Capital' },
+  { href: '/funil-funding', label: 'Funding' },
   { href: '/funil-credito-obra', label: 'Crédito Obra' },
   { href: '/painel-contabilidade', label: 'Funil Contabilidade' },
 ];
@@ -145,6 +146,7 @@ function isCreditoJuridicoActive(pathname: string) {
   return (
     pathname.startsWith('/funil-juridico') ||
     pathname.startsWith('/funil-moni-capital') ||
+    pathname.startsWith('/funil-funding') ||
     pathname.startsWith('/painel-contabilidade') ||
     pathname.startsWith('/funil-credito-obra')
   );

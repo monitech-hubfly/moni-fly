@@ -29,6 +29,7 @@ import {
   cardLoteadoresPrecisaJustificativaSla,
   faseLoteadoresExigeJustificativaSla,
 } from '@/lib/kanban/loteadores-sla-justificativa';
+import { fundingTipoBadgeClass } from '@/lib/kanban/funding-card-fields';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
 export type KanbanColumnProps = {
@@ -572,6 +573,12 @@ export function KanbanColumn({
                   className={`moni-kanban-card-open ${dndAtivo ? 'moni-kanban-card-open--dnd' : ''}`}
                 >
                   <p className={`moni-kanban-card-title ${paddingTitulo}`}>{card.titulo}</p>
+                  {(() => {
+                    const fundingBadgeCls = fundingTipoBadgeClass(card.funding_tipo);
+                    return fundingBadgeCls ? (
+                      <span className={`mt-1 inline-block ${fundingBadgeCls}`}>{card.funding_tipo}</span>
+                    ) : null;
+                  })()}
                   {subtituloCard ? (
                     <p className="moni-kanban-card-subtitle">{subtituloCard}</p>
                   ) : null}

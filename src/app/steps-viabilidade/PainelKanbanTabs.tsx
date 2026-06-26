@@ -7,6 +7,7 @@ export type PainelKanbanTabsVariant =
   | 'acoplamento'
   | 'juridico'
   | 'moniCapital'
+  | 'funding'
   | 'contratacoes'
   | 'operacoes'
   | 'credito'
@@ -21,6 +22,7 @@ const ACCENT: Record<PainelKanbanTabsVariant, string> = {
   acoplamento: KANBAN_TAB_ACCENT,
   juridico: KANBAN_TAB_ACCENT,
   moniCapital: KANBAN_TAB_ACCENT,
+  funding: KANBAN_TAB_ACCENT,
   contratacoes: KANBAN_TAB_ACCENT,
   operacoes: KANBAN_TAB_ACCENT,
   credito: KANBAN_TAB_ACCENT,

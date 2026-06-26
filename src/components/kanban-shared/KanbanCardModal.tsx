@@ -59,6 +59,7 @@ import {
   salvarDadosNegocioKanban,
   salvarDadosPreObra,
   salvarDadosPreObraOperacoes,
+  salvarDadosFunding,
   salvarFranqueadoCardVinculado,
   salvarInstrucoesFase,
   obterInfoSyncGrupoCard,
@@ -124,6 +125,12 @@ import { estiloChipTagKanban } from '@/lib/kanban/kanban-tag-especial';
 import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCreditoObraDocumentacao';
 import { KanbanCardModalDadosPreObraOperacoes } from './KanbanCardModalDadosPreObraOperacoes';
+import { KanbanCardModalDadosFunding } from './KanbanCardModalDadosFunding';
+import {
+  fundingDraftFromRow,
+  fundingDraftVazio,
+  type FundingCardDraft,
+} from '@/lib/kanban/funding-card-fields';
 import { KanbanCardModalNegocioPrazoField } from './KanbanCardModalNegocioPrazoField';
 import { KanbanCardModalNegociacaoLinhasField } from './KanbanCardModalNegociacaoLinhasField';
 import { KanbanCardModalMoedaField } from './KanbanCardModalMoedaField';
@@ -371,6 +378,11 @@ type Card = {
   contrato_assinado_em?: string | null;
   obra_iniciada_em?: string | null;
   obra_finalizada_em?: string | null;
+  funding_tipo?: 'Investidor' | 'Broker' | null;
+  funding_localizacao?: string | null;
+  funding_descritivo?: string | null;
+  funding_proxima_atividade?: string | null;
+  funding_prazo_atividade?: string | null;
   portfolio_vinculo_rotulo?: string | null;
   tem_filho_juridico?: boolean;
   tem_filho_acoplamento?: boolean;
@@ -569,6 +581,7 @@ export function KanbanCardModal({
     condominio: false,
     novoNegocio: false,
     dadosEmpresas: false,
+    dadosFunding: false,
     preObra: false,
     obra: false,
     documentacaoCreditoObra: true,
@@ -731,6 +744,8 @@ export function KanbanCardModal({
     empresas: null,
   });
   const [preObraDraft, setPreObraDraft] = useState<PreObraDraftKanban>(() => preObraDraftFromProcesso(null));
+  const [fundingDraft, setFundingDraft] = useState<FundingCardDraft>(() => fundingDraftVazio());
+  const [salvandoFunding, setSalvandoFunding] = useState(false);
   const [operacoesPreObraDraft, setOperacoesPreObraDraft] = useState<OperacoesPreObraDraft>(
     () => ({ ...OPERACOES_PRE_OBRA_DRAFT_EMPTY }),
   );
@@ -802,6 +817,7 @@ export function KanbanCardModal({
     setFiltrosOpen(false);
     setModalDetalhes({ rede: null, processo: null, redeIdContrato: null, empresas: null });
     setPreObraDraft(preObraDraftFromProcesso(null));
+    setFundingDraft(fundingDraftVazio());
     setOperacoesPreObraDraft({ ...OPERACOES_PRE_OBRA_DRAFT_EMPTY });
     setCreditoObraAbertura(null);
     setCreditoObraAberturaPending(false);
@@ -1123,6 +1139,11 @@ export function KanbanCardModal({
         contrato_assinado_em?: string | null;
         obra_iniciada_em?: string | null;
         obra_finalizada_em?: string | null;
+        funding_tipo?: 'Investidor' | 'Broker' | null;
+        funding_localizacao?: string | null;
+        funding_descritivo?: string | null;
+        funding_proxima_atividade?: string | null;
+        funding_prazo_atividade?: string | null;
       };
 
       let loaded: LoadedShape | null = null;
@@ -1214,9 +1235,15 @@ export function KanbanCardModal({
           `id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, hora_reuniao, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, ${cardSelectConfirmacao}`;
         const cardSelectPreObra =
           'condominio_aprovada_em, prefeitura_aprovada_em, alvara_emitido_em, prev_aprovacao_condominio, prev_aprovacao_prefeitura, prev_emissao_alvara, prev_envio_credito_obra, prev_inicio_obra';
-        const cardSelectBase = `${cardSelectCore}, ${cardSelectPreObra}`;
+        const cardSelectFunding =
+          'funding_tipo, funding_localizacao, funding_descritivo, funding_proxima_atividade, funding_prazo_atividade';
+        const cardSelectBase = `${cardSelectCore}, ${cardSelectPreObra}, ${cardSelectFunding}`;
         const cardSelectWithSla = `${cardSelectBase}, sla_iniciado_em, entered_fase_at, sla_justificativa, sla_justificativa_em`;
         let cardRes = await supabase.from('kanban_cards').select(cardSelectWithSla).eq('id', cardId).single();
+        if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
+          const cardSelectSemFunding = `${cardSelectCore}, ${cardSelectPreObra}, sla_iniciado_em, entered_fase_at, sla_justificativa, sla_justificativa_em`;
+          cardRes = await supabase.from('kanban_cards').select(cardSelectSemFunding).eq('id', cardId).single();
+        }
         if (cardRes.error && /does not exist/i.test(cardRes.error.message)) {
           cardRes = await supabase.from('kanban_cards').select(`${cardSelectBase}, sla_iniciado_em, entered_fase_at`).eq('id', cardId).single();
         }
@@ -1317,10 +1344,25 @@ export function KanbanCardModal({
             (cardData as { obra_finalizada_em?: string | null }).obra_finalizada_em != null
               ? String((cardData as { obra_finalizada_em?: string | null }).obra_finalizada_em)
               : null,
+          funding_tipo: (() => {
+            const t = String((cardData as { funding_tipo?: string | null }).funding_tipo ?? '').trim();
+            return t === 'Investidor' || t === 'Broker' ? t : null;
+          })(),
+          funding_localizacao:
+            (cardData as { funding_localizacao?: string | null }).funding_localizacao ?? null,
+          funding_descritivo:
+            (cardData as { funding_descritivo?: string | null }).funding_descritivo ?? null,
+          funding_proxima_atividade:
+            (cardData as { funding_proxima_atividade?: string | null }).funding_proxima_atividade ??
+            null,
+          funding_prazo_atividade:
+            (cardData as { funding_prazo_atividade?: string | null }).funding_prazo_atividade ??
+            null,
         };
         nativeRedeFranqueadoId =
           (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? null;
         setOperacoesPreObraDraft(operacoesPreObraDraftFromCard(cardData as Record<string, unknown>));
+        setFundingDraft(fundingDraftFromRow(cardData as Record<string, unknown>));
       }
 
       if (!loaded) {
@@ -2970,6 +3012,32 @@ export function KanbanCardModal({
     }
   }
 
+  async function handleSalvarFunding() {
+    if (!card?.id) return;
+    setSalvandoFunding(true);
+    try {
+      const res = await salvarDadosFunding({
+        cardId: card.id,
+        funding_tipo: fundingDraft.funding_tipo,
+        funding_localizacao: fundingDraft.funding_localizacao,
+        funding_descritivo: fundingDraft.funding_descritivo,
+        funding_proxima_atividade: fundingDraft.funding_proxima_atividade,
+        funding_prazo_atividade: fundingDraft.funding_prazo_atividade,
+        basePath,
+      });
+      if (!res.ok) {
+        alert(res.error);
+        return;
+      }
+      await loadCard({ silencioso: true });
+      router.refresh();
+    } catch {
+      alert('Erro ao salvar dados Funding.');
+    } finally {
+      setSalvandoFunding(false);
+    }
+  }
+
   async function handleSalvarPreObraKanban() {
     const pid = modalDetalhes.processo?.id;
     if (!pid) {
@@ -3919,7 +3987,12 @@ export function KanbanCardModal({
   const maxOrdemFases = fases.length > 0 ? Math.max(...fases.map((f) => f.ordem)) : 0;
   const estaNaUltimaFaseNativo = Boolean(faseAtual && faseAtual.ordem === maxOrdemFases);
   const exibirBotaoFinalizar =
-    !isLegado && estaNaUltimaFaseNativo && !cardNativoConcluido && !cardNativoArquivado;
+    !isLegado &&
+    !cardNativoConcluido &&
+    !cardNativoArquivado &&
+    (card.kanban_id === KANBAN_IDS.FUNDING
+      ? faseSlugAtual === FASE_SLUGS.FUNDING_CONTRATO
+      : estaNaUltimaFaseNativo);
   const rlArch = modalSessao.roleNorm;
   const podeArquivarCardPerm =
     !ocultarGestaoCard &&
@@ -3969,6 +4042,8 @@ export function KanbanCardModal({
     card.kanban_id === KANBAN_IDS.OPERACOES ||
     kanbanNome === 'Funil Pré Obra e Obra' ||
     kanbanNome === 'Funil Operações';
+  const ehFunilFunding =
+    card.kanban_id === KANBAN_IDS.FUNDING || kanbanNome === 'Funding';
   const podeGerenciarRelacionamentos =
     !ocultarGestaoCard && modalSessao.ehAdminOuTeam;
   const painelCentroAlternativo =
@@ -7191,6 +7266,19 @@ export function KanbanCardModal({
                 onSalvo={() => void loadCard({ silencioso: true })}
               />,
             )}
+            {ehFunilFunding && !isLegado
+              ? secaoHead(
+                  'dadosFunding',
+                  'Dados Funding',
+                  <KanbanCardModalDadosFunding
+                    draft={fundingDraft}
+                    onChange={(patch) => setFundingDraft((d) => ({ ...d, ...patch }))}
+                    onSalvar={() => void handleSalvarFunding()}
+                    salvando={salvandoFunding}
+                    podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
+                  />,
+                )
+              : null}
             {secaoHead(
               'preObra',
               'Dados Pré Obra',

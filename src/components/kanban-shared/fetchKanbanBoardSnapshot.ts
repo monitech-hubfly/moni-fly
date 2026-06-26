@@ -1028,6 +1028,19 @@ export async function fetchKanbanBoardSnapshot(
           ? String((cMerged as { entered_fase_at?: string | null }).entered_fase_at)
           : null,
       profiles: profilesLinha,
+      funding_tipo: (() => {
+        const t = String((cMerged as { funding_tipo?: string | null }).funding_tipo ?? '').trim();
+        return t === 'Investidor' || t === 'Broker' ? t : null;
+      })(),
+      funding_localizacao:
+        (cMerged as { funding_localizacao?: string | null }).funding_localizacao ?? null,
+      funding_descritivo:
+        (cMerged as { funding_descritivo?: string | null }).funding_descritivo ?? null,
+      funding_proxima_atividade:
+        (cMerged as { funding_proxima_atividade?: string | null }).funding_proxima_atividade ?? null,
+      funding_prazo_atividade: dataIsoParaInput(
+        (cMerged as { funding_prazo_atividade?: string | null }).funding_prazo_atividade,
+      ),
     };
   };
 

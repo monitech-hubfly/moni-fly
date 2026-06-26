@@ -192,6 +192,12 @@
   --moni-kanban-credito-light:  var(--moni-gold-50);
   --moni-kanban-credito-accent: var(--moni-gold-400);
 
+  /* Funding — badges tipo Investidor / Broker */
+  --moni-funding-investidor-bg:   #E6F1FB;
+  --moni-funding-investidor-text: #185FA5;
+  --moni-funding-broker-bg:       #FAEEDA;
+  --moni-funding-broker-text:     #854F0B;
+
   /* Kanban board — paleta compartilhada (redesign 2026) */
   --moni-kanban-board-bg:       #eceae6;
   --moni-kanban-col-bg:         #e4e2de;
@@ -2670,6 +2676,28 @@
   background: var(--moni-green-50);
   color: var(--moni-green-800);
   border: var(--moni-border-width) solid var(--moni-green-400);
+}
+
+.moni-funding-tipo-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--moni-radius-md);
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: var(--moni-weight-medium);
+  line-height: 1.25;
+  border: var(--moni-border-width) solid transparent;
+}
+
+.moni-funding-tipo-badge--investidor {
+  background: var(--moni-funding-investidor-bg);
+  color: var(--moni-funding-investidor-text);
+}
+
+.moni-funding-tipo-badge--broker {
+  background: var(--moni-funding-broker-bg);
+  color: var(--moni-funding-broker-text);
 }
 
 /* Tags SLA compactas nos cards */

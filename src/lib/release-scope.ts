@@ -33,6 +33,7 @@ export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/funil-acoplamento',
   '/funil-juridico',
   '/funil-moni-capital',
+  '/funil-funding',
   '/funil-produto',
   '/funil-modelo-virtual',
   '/funil-homologacoes',

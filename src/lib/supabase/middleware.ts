@@ -105,6 +105,7 @@ export async function updateSession(request: NextRequest) {
     '/funil-acoplamento',
     '/funil-juridico',
     '/funil-moni-capital',
+    '/funil-funding',
     '/funil-produto',
     '/funil-modelo-virtual',
     '/funil-homologacoes',
@@ -213,6 +214,7 @@ export async function updateSession(request: NextRequest) {
   const funisInternosNegocioPaths = [
     '/funil-juridico',
     '/funil-moni-capital',
+    '/funil-funding',
     '/funil-produto',
     '/funil-modelo-virtual',
     '/funil-homologacoes',

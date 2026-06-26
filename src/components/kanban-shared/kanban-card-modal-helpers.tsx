@@ -401,6 +401,7 @@ export type SecaoEsquerdaId =
   | 'condominio'
   | 'novoNegocio'
   | 'dadosEmpresas'
+  | 'dadosFunding'
   | 'preObra'
   | 'obra'
   | 'documentacaoCreditoObra'

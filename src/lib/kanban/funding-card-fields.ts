@@ -1,0 +1,48 @@
+export type FundingTipo = 'Investidor' | 'Broker';
+
+export type FundingCardDraft = {
+  funding_tipo: FundingTipo | '';
+  funding_localizacao: string;
+  funding_descritivo: string;
+  funding_proxima_atividade: string;
+  funding_prazo_atividade: string;
+};
+
+export function fundingDraftVazio(): FundingCardDraft {
+  return {
+    funding_tipo: '',
+    funding_localizacao: '',
+    funding_descritivo: '',
+    funding_proxima_atividade: '',
+    funding_prazo_atividade: '',
+  };
+}
+
+export function fundingDraftFromRow(row: {
+  funding_tipo?: string | null;
+  funding_localizacao?: string | null;
+  funding_descritivo?: string | null;
+  funding_proxima_atividade?: string | null;
+  funding_prazo_atividade?: string | null;
+} | null | undefined): FundingCardDraft {
+  const tipoRaw = String(row?.funding_tipo ?? '').trim();
+  const funding_tipo: FundingCardDraft['funding_tipo'] =
+    tipoRaw === 'Investidor' || tipoRaw === 'Broker' ? tipoRaw : '';
+  const prazoRaw = row?.funding_prazo_atividade;
+  const funding_prazo_atividade =
+    prazoRaw != null && String(prazoRaw).trim() !== '' ? String(prazoRaw).slice(0, 10) : '';
+  return {
+    funding_tipo,
+    funding_localizacao: String(row?.funding_localizacao ?? ''),
+    funding_descritivo: String(row?.funding_descritivo ?? ''),
+    funding_proxima_atividade: String(row?.funding_proxima_atividade ?? ''),
+    funding_prazo_atividade,
+  };
+}
+
+export function fundingTipoBadgeClass(tipo: string | null | undefined): string | null {
+  const t = String(tipo ?? '').trim();
+  if (t === 'Investidor') return 'moni-funding-tipo-badge moni-funding-tipo-badge--investidor';
+  if (t === 'Broker') return 'moni-funding-tipo-badge moni-funding-tipo-badge--broker';
+  return null;
+}

@@ -23,6 +23,7 @@ import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { montarTituloCardLoteadores, isKanbanFunilLoteadoresRef } from '@/lib/kanban/loteadores-card-titulo';
 import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { calcularDataEnvioCreditoObra } from '@/lib/pre-obra/credito-obra-envio-data';
+import type { FundingTipo } from '@/lib/kanban/funding-card-fields';
 import {
   deveValidarGatePortfolioStep5,
   deveValidarGateLoteadoresComite,
@@ -4008,6 +4009,71 @@ export async function salvarDadosPreObraOperacoes(
   }
   if (input.alvara_emitido_em !== undefined) {
     update.alvara_emitido_em = timestampCampoCalendarioIso(input.alvara_emitido_em);
+  }
+
+  const { error: updErr } = await supabase.from('kanban_cards').update(update as never).eq('id', cardId);
+  if (updErr) return { ok: false, error: updErr.message };
+
+  const base = String(input.basePath ?? '/').trim() || '/';
+  revalidatePath(base);
+  revalidatePath('/');
+  return { ok: true };
+}
+
+export type SalvarDadosFundingInput = {
+  cardId: string;
+  funding_tipo?: FundingTipo | '' | null;
+  funding_localizacao?: string | null;
+  funding_descritivo?: string | null;
+  funding_proxima_atividade?: string | null;
+  funding_prazo_atividade?: string | null;
+  basePath?: string;
+};
+
+/** Salva campos específicos do Funil Funding em `kanban_cards`. */
+export async function salvarDadosFunding(input: SalvarDadosFundingInput): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login para salvar.' };
+
+  const cardId = String(input.cardId ?? '').trim();
+  if (!cardId) return { ok: false, error: 'Card inválido.' };
+
+  const { data: cardRow, error: cardErr } = await supabase
+    .from('kanban_cards')
+    .select('kanban_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  if (cardErr) return { ok: false, error: cardErr.message };
+  if (String((cardRow as { kanban_id?: string | null } | null)?.kanban_id ?? '') !== KANBAN_IDS.FUNDING) {
+    return { ok: false, error: 'Campos Funding aplicáveis apenas ao funil Funding.' };
+  }
+
+  const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+  if (input.funding_tipo !== undefined) {
+    const t = String(input.funding_tipo ?? '').trim();
+    if (t !== '' && t !== 'Investidor' && t !== 'Broker') {
+      return { ok: false, error: 'Tipo inválido.' };
+    }
+    update.funding_tipo = t === '' ? null : t;
+  }
+  if (input.funding_localizacao !== undefined) {
+    const v = String(input.funding_localizacao ?? '').trim();
+    update.funding_localizacao = v === '' ? null : v;
+  }
+  if (input.funding_descritivo !== undefined) {
+    const v = String(input.funding_descritivo ?? '').trim();
+    update.funding_descritivo = v === '' ? null : v;
+  }
+  if (input.funding_proxima_atividade !== undefined) {
+    const v = String(input.funding_proxima_atividade ?? '').trim();
+    update.funding_proxima_atividade = v === '' ? null : v;
+  }
+  if (input.funding_prazo_atividade !== undefined) {
+    update.funding_prazo_atividade = timestampCampoCalendarioIso(input.funding_prazo_atividade);
   }
 
   const { error: updErr } = await supabase.from('kanban_cards').update(update as never).eq('id', cardId);

@@ -30,7 +30,12 @@ export const KANBAN_CARD_SELECT_BASE = `
       origem_card_id,
       ordem_coluna,
       alvara_url,
-      docs_terreno_url
+      docs_terreno_url,
+      funding_tipo,
+      funding_localizacao,
+      funding_descritivo,
+      funding_proxima_atividade,
+      funding_prazo_atividade
     `;
 
 export const KANBAN_CARD_SELECT_WITH_SLA = `${KANBAN_CARD_SELECT_BASE.trim()},

@@ -118,6 +118,13 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   capital_formalizacao: 'moni',
   capital_concluido: 'moni',
   capital_nao_elegivel: 'moni',
+  funding_leads: 'moni',
+  funding_r1: 'moni',
+  funding_evento: 'moni',
+  funding_qualif: 'moni',
+  funding_modelo: 'moni',
+  funding_docs: 'moni',
+  funding_contrato: 'moni',
 
   // Funil Contratações
   rh_vaga: 'moni',
