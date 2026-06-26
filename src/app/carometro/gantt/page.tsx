@@ -1485,6 +1485,7 @@ export default function Page() {
   /** Tabela `adm_cnpjs` ausente no PostgREST — cadastro de CNPJ no drawer ADM não funciona até rodar o SQL. */
   const [admCnpjsTabelaAusente, setAdmCnpjsTabelaAusente] = useState(false)
   const [admCnpjSelecionado, setAdmCnpjSelecionado] = useState(null)
+  const [admCnpjsSelecionados, setAdmCnpjsSelecionados] = useState([])
   const [novoCnpj, setNovoCnpj] = useState('')
   const [novoDescritivo, setNovoDescritivo] = useState('')
   const [cnpjDropdownAberto, setCnpjDropdownAberto] = useState(true)
@@ -3180,16 +3181,8 @@ export default function Page() {
       setError('Selecione uma identificação.')
       return
     }
-    if (isAreaAdm && !admCnpjSelecionado) {
-      if (admCnpjsTabelaAusente) {
-        setError('A tabela adm_cnpjs não existe no banco. Execute o SQL do aviso amarelo acima e recarregue a página (F5).')
-        return
-      }
-      if (criandoCnpj && novoCnpj.trim() && novoDescritivo.trim()) {
-        setError('Salve o CNPJ / empresa (botão Salvar no campo abaixo) antes de adicionar ao plano.')
-        return
-      }
-      setError('Selecione um CNPJ / empresa.')
+    if (isAreaAdm && criandoCnpj && novoCnpj.trim() && novoDescritivo.trim()) {
+      setError('Salve o CNPJ / empresa (botão Salvar no campo abaixo) antes de adicionar ao plano.')
       return
     }
 
@@ -3434,11 +3427,12 @@ export default function Page() {
             String(p.objetivo_id || '') === String(addObjetivoId || '')
         )
       } else if (isAreaAdm) {
-        /** Mesma ação + CNPJ = um registro; CNPJ diferente → insert (empilhamento na grade). */
+        /** Multi-CNPJ ADM: cada CNPJ gera linha separada; CNPJ é opcional. */
+        const _cnpjRef = admCnpjsSelecionados.length > 0 ? admCnpjsSelecionados[0] : null
         existenteNoPeriodo = planejamentoNaArea.find(
           p =>
             p.acao_id === addAcaoId &&
-            String(p.adm_cnpj_id || '') === String(admCnpjSelecionado || '') &&
+            String(p.adm_cnpj_id || '') === String(_cnpjRef || '') &&
             String(p.objetivo_id || '') === String(addObjetivoId || '')
         )
       } else if (isAreaControladoria) {
@@ -3625,6 +3619,40 @@ export default function Page() {
             }
           }
         }
+      } else if (isAreaAdm) {
+        /** Multi-CNPJ ADM: itera cada CNPJ; sem selecao insere sem CNPJ. */
+        const cnpjsAlvoAdm = admCnpjsSelecionados.length > 0 ? admCnpjsSelecionados : [null]
+        for (const cnpjId of cnpjsAlvoAdm) {
+          const existenteAdm = planejamentoNaArea.find(
+            p =>
+              p.acao_id === addAcaoId &&
+              String(p.adm_cnpj_id || '') === String(cnpjId || '') &&
+              String(p.objetivo_id || '') === String(addObjetivoId || '')
+          )
+          const payloadAdm = {
+            acao_id: addAcaoId,
+            responsavel: responsavelStr,
+            semanas_selecionadas: semanas,
+            semana_inicio: null,
+            semana_fim: null,
+            adm_cnpj_id: cnpjId ?? null,
+            franqueado_nome: null,
+            controladoria_cnpj_id: null,
+            comercial_candidato_id: null,
+            portfolio_franqueado_id: null,
+            objetivo_id: addObjetivoId,
+            casa_id: null,
+            periodo_id: periodoId
+          }
+          if (existenteAdm?.id) {
+            const resUp = await supabase.from('gantt_planejamento').update(payloadAdm).eq('id', existenteAdm.id)
+            err = resUp.error
+          } else {
+            const ins = await supabase.from('gantt_planejamento').insert(payloadAdm)
+            err = ins.error
+          }
+          if (err) break
+        }
       } else if (existenteNoPeriodo?.id) {
         const resUp = await supabase
           .from('gantt_planejamento')
@@ -3634,7 +3662,7 @@ export default function Page() {
             semana_inicio: null,
             semana_fim: null,
             franqueado_nome: isAreaFranqueado ? fnAlvo : null,
-            adm_cnpj_id: isAreaAdm ? admCnpjSelecionado : null,
+            adm_cnpj_id: null,
             controladoria_cnpj_id: null,
             comercial_candidato_id: comercialCandidatoIdSalvar,
             portfolio_franqueado_id: isAreaPortfolio ? (portfolioFranqueadoId ?? null) : null,
@@ -3652,7 +3680,7 @@ export default function Page() {
           semana_inicio: null,
           semana_fim: null,
           franqueado_nome: isAreaFranqueado ? fnAlvo : null,
-          adm_cnpj_id: isAreaAdm ? admCnpjSelecionado : null,
+          adm_cnpj_id: null,
           controladoria_cnpj_id: null,
           comercial_candidato_id: comercialCandidatoIdSalvar,
           portfolio_franqueado_id: isAreaPortfolio ? (portfolioFranqueadoId ?? null) : null,
@@ -4110,6 +4138,7 @@ export default function Page() {
 
   const resetAdmCnpjModalAux = useCallback(() => {
     setAdmCnpjSelecionado(null)
+    setAdmCnpjsSelecionados([])
     setCnpjDropdownAberto(true)
     setCriandoCnpj(false)
     setNovoCnpj('')
@@ -8579,8 +8608,8 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                         gap: 10,
                         padding: '9px 12px',
                         cursor: 'pointer',
-                        borderLeft: admCnpjSelecionado ? '3px solid #1a2e1a' : '3px solid transparent',
-                        background: admCnpjSelecionado ? '#f0f6f0' : 'var(--color-background-primary)',
+                        borderLeft: admCnpjsSelecionados.length > 0 ? '3px solid #1a2e1a' : '3px solid transparent',
+                        background: admCnpjsSelecionados.length > 0 ? '#f0f6f0' : 'var(--color-background-primary)',
                         transition: 'background .15s'
                       }}
                     >
@@ -8590,30 +8619,28 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                           height: 14,
                           borderRadius: '50%',
                           flexShrink: 0,
-                          border: `1.5px solid ${admCnpjSelecionado ? '#1a2e1a' : 'var(--color-border-secondary)'}`,
-                          background: admCnpjSelecionado ? '#1a2e1a' : 'transparent',
+                          border: `1.5px solid ${admCnpjsSelecionados.length > 0 ? '#1a2e1a' : 'var(--color-border-secondary)'}`,
+                          background: admCnpjsSelecionados.length > 0 ? '#1a2e1a' : 'transparent',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center'
                         }}
                       >
-                        {admCnpjSelecionado ? (
+                        {admCnpjsSelecionados.length > 0 ? (
                           <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />
                         ) : null}
                       </div>
-                      {admCnpjSelecionado ? (() => {
-                        const item = admCnpjs.find(c => String(c.id) === String(admCnpjSelecionado))
-                        return (
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                            <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', fontFamily: 'monospace' }}>
-                              {item?.cnpj}
-                            </span>
-                            <span style={{ fontSize: 13, fontWeight: 500, color: '#1a2e1a' }}>{item?.descritivo}</span>
-                          </div>
-                        )
-                      })() : (
+                      {admCnpjsSelecionados.length > 0 ? (
+                        <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: '#1a2e1a' }}>
+                          {admCnpjsSelecionados.length === admCnpjs.length
+                            ? 'Todas as empresas'
+                            : admCnpjsSelecionados.length === 1
+                              ? (admCnpjs.find(c => String(c.id) === admCnpjsSelecionados[0])?.descritivo ?? '1 empresa')
+                              : `${admCnpjsSelecionados.length} empresas selecionadas`}
+                        </span>
+                      ) : (
                         <span style={{ flex: 1, fontSize: 13, color: 'var(--color-text-tertiary)' }}>
-                          Selecione uma empresa...
+                          Selecione uma empresa... (opcional)
                         </span>
                       )}
                       <span
@@ -8632,23 +8659,64 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
 
                     {cnpjDropdownAberto ? (
                       <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+                        {admCnpjs.length > 0 ? (
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => {
+                              const todos = admCnpjs.map(c => String(c.id))
+                              const todosSel = todos.length > 0 && todos.every(id => admCnpjsSelecionados.includes(id))
+                              setAdmCnpjsSelecionados(todosSel ? [] : todos)
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                const todos = admCnpjs.map(c => String(c.id))
+                                const todosSel = todos.length > 0 && todos.every(id => admCnpjsSelecionados.includes(id))
+                                setAdmCnpjsSelecionados(todosSel ? [] : todos)
+                              }
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 10,
+                              padding: '8px 12px',
+                              borderBottom: '0.5px solid var(--color-border-tertiary)',
+                              cursor: 'pointer',
+                              background: 'var(--color-background-secondary)',
+                              fontWeight: 600,
+                              fontSize: 12,
+                              color: 'var(--color-text-secondary)'
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              readOnly
+                              checked={admCnpjs.length > 0 && admCnpjs.every(c => admCnpjsSelecionados.includes(String(c.id)))}
+                              style={{ accentColor: '#1a2e1a', width: 14, height: 14, flexShrink: 0, cursor: 'pointer' }}
+                            />
+                            Selecionar todos
+                          </div>
+                        ) : null}
                         {admCnpjs.map(item => {
-                          const selecionado = String(admCnpjSelecionado) === String(item.id)
-                          const selecionar = () => {
-                            setAdmCnpjSelecionado(item.id)
-                            setCnpjDropdownAberto(false)
-                            setCriandoCnpj(false)
+                          const selecionado = admCnpjsSelecionados.includes(String(item.id))
+                          const toggle = () => {
+                            setAdmCnpjsSelecionados(prev =>
+                              prev.includes(String(item.id))
+                                ? prev.filter(id => id !== String(item.id))
+                                : [...prev, String(item.id)]
+                            )
                           }
                           return (
                             <div
                               key={item.id}
                               role="button"
                               tabIndex={0}
-                              onClick={selecionar}
+                              onClick={toggle}
                               onKeyDown={e => {
                                 if (e.key === 'Enter' || e.key === ' ') {
                                   e.preventDefault()
-                                  selecionar()
+                                  toggle()
                                 }
                               }}
                               style={{
@@ -8661,31 +8729,13 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                                 transition: 'background .1s'
                               }}
                             >
-                              <div
-                                style={{
-                                  width: 36,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  flexShrink: 0
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    width: 14,
-                                    height: 14,
-                                    borderRadius: '50%',
-                                    border: `1.5px solid ${selecionado ? '#1a2e1a' : 'var(--color-border-secondary)'}`,
-                                    background: selecionado ? '#1a2e1a' : 'transparent',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                  }}
-                                >
-                                  {selecionado ? (
-                                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />
-                                  ) : null}
-                                </div>
+                              <div style={{ width: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <input
+                                  type="checkbox"
+                                  readOnly
+                                  checked={selecionado}
+                                  style={{ accentColor: '#1a2e1a', width: 14, height: 14, cursor: 'pointer' }}
+                                />
                               </div>
                               <div style={{ flex: 1, padding: '8px 0', display: 'flex', flexDirection: 'column', gap: 2 }}>
                                 <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', fontFamily: 'monospace' }}>
@@ -8842,7 +8892,7 @@ CREATE POLICY "gantt_planejamento_delete" ON gantt_planejamento FOR DELETE USING
                       </div>
                     ) : null}
 
-                    {!cnpjDropdownAberto && admCnpjSelecionado ? (
+                    {!cnpjDropdownAberto && admCnpjsSelecionados.length > 0 ? (
                       <div
                         style={{
                           padding: '5px 12px',
