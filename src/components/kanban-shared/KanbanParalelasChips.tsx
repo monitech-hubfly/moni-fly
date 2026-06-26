@@ -12,47 +12,45 @@ export type KanbanParalelasChipsProps = {
   compact?: boolean;
 };
 
-function tooltipParalela(chip: ParalelaChip): string {
-  const funil = String(chip.funilNome ?? chip.label ?? '').trim();
-  const fase = String(chip.faseNome ?? '').trim();
-  if (funil && fase) return `${funil} · ${fase}`;
-  return funil || fase || chip.label;
+function nomeFunilChip(chip: ParalelaChip): string {
+  return String(chip.funilNome ?? chip.label ?? '').trim() || 'Funil';
+}
+
+function faseAtualChip(chip: ParalelaChip): string {
+  return String(chip.faseNome ?? '').trim() || 'Em andamento';
 }
 
 function ariaParalela(chip: ParalelaChip): string {
-  const base = tooltipParalela(chip);
-  const status = chip.concluido ? 'concluído' : 'em andamento';
-  return `${base} · ${status}`;
+  const funil = nomeFunilChip(chip);
+  const fase = faseAtualChip(chip);
+  const sufixo = chip.concluido ? ' · Concluído' : '';
+  return `${funil} · ${fase}${sufixo}`;
 }
 
 function ParalelaBolinha({ chip }: { chip: ParalelaChip }) {
   const cor = corParalelaKanban(chip.kanbanId);
   const concluido = Boolean(chip.concluido);
-  const tooltip = tooltipParalela(chip);
+  const nomeFunil = nomeFunilChip(chip);
+  const faseAtual = faseAtualChip(chip);
 
   const style: CSSProperties = concluido
-    ? {
-        background: cor,
-        borderColor: cor,
-      }
-    : {
-        background: 'transparent',
-        borderColor: cor,
-      };
+    ? { background: cor, borderColor: cor }
+    : { background: 'transparent', borderColor: cor };
 
   return (
-    <span className="group/par relative inline-flex shrink-0 items-center justify-center">
+    <div className="moni-kanban-paralela-bolinha-wrap">
       <span
         role="img"
         aria-label={ariaParalela(chip)}
-        title={tooltip}
         className="moni-kanban-paralela-bolinha"
         style={style}
       />
       <span role="tooltip" className="moni-kanban-paralela-tooltip">
-        {tooltip}
+        {nomeFunil}
+        <br />
+        <span className="moni-kanban-paralela-tooltip-fase">{faseAtual}</span>
       </span>
-    </span>
+    </div>
   );
 }
 

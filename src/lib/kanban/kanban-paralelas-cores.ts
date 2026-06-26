@@ -3,22 +3,22 @@ import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 /** Chave especial — Crédito Terreno não possui kanban próprio. */
 export const PARALELA_KANBAN_CREDITO_TERRENO = 'credito_terreno' as const;
 
-/** Cor por funil paralelo (tokens Moní — sem hex hardcoded). */
+/** Cor por funil paralelo — tokens em `moni-tokens.css` (`--moni-paralela-*`). */
 export const PARALELA_CORES: Record<string, string> = {
-  [KANBAN_IDS.ACOPLAMENTO]: 'var(--moni-navy-400)',
-  [PARALELA_KANBAN_CREDITO_TERRENO]: 'var(--moni-kanban-credito-accent)',
-  [KANBAN_IDS.CONTABILIDADE]: 'var(--moni-kanban-contab)',
-  [KANBAN_IDS.CREDITO_OBRA]: 'var(--moni-navy-600)',
-  [KANBAN_IDS.JURIDICO]: 'var(--moni-gold-600)',
-  [KANBAN_IDS.MONI_CAPITAL]: 'var(--moni-green-600)',
-  [KANBAN_IDS.PROJETO_LEGAL]: 'var(--moni-gold-800)',
-  [KANBAN_IDS.PROJETOS_LOCAIS]: 'var(--moni-earth-600)',
-  [KANBAN_IDS.PROJETOS_LEGAIS]: 'var(--moni-earth-400)',
-  [KANBAN_IDS.HDM_MODELO_VIRTUAL]: 'var(--moni-green-400)',
-  [KANBAN_IDS.HDM_HOMOLOGACOES]: 'var(--moni-green-800)',
-  [KANBAN_IDS.HDM_PRODUTO]: 'var(--moni-kanban-t2)',
-  [KANBAN_IDS.PORTFOLIO]: 'var(--moni-kanban-portfolio)',
-  [KANBAN_IDS.OPERACOES]: 'var(--moni-kanban-stepone)',
+  [KANBAN_IDS.ACOPLAMENTO]: 'var(--moni-paralela-acoplamento)',
+  [PARALELA_KANBAN_CREDITO_TERRENO]: 'var(--moni-paralela-credito-terreno)',
+  [KANBAN_IDS.CREDITO_OBRA]: 'var(--moni-paralela-credito-obra)',
+  [KANBAN_IDS.CONTABILIDADE]: 'var(--moni-paralela-contabilidade)',
+  [KANBAN_IDS.JURIDICO]: 'var(--moni-paralela-juridico)',
+  [KANBAN_IDS.MONI_CAPITAL]: 'var(--moni-paralela-moni-capital)',
+  [KANBAN_IDS.PROJETO_LEGAL]: 'var(--moni-paralela-projeto-legal)',
+  [KANBAN_IDS.PROJETOS_LOCAIS]: 'var(--moni-paralela-projetos-locais)',
+  [KANBAN_IDS.PROJETOS_LEGAIS]: 'var(--moni-paralela-projetos-legais)',
+  [KANBAN_IDS.HDM_MODELO_VIRTUAL]: 'var(--moni-paralela-hdm-modelo)',
+  [KANBAN_IDS.HDM_HOMOLOGACOES]: 'var(--moni-paralela-hdm-homolog)',
+  [KANBAN_IDS.HDM_PRODUTO]: 'var(--moni-paralela-hdm-produto)',
+  [KANBAN_IDS.PORTFOLIO]: 'var(--moni-paralela-portfolio)',
+  [KANBAN_IDS.OPERACOES]: 'var(--moni-paralela-operacoes)',
 };
 
 /** Nome exibido no tooltip (funil completo). */
@@ -41,7 +41,7 @@ export const PARALELA_FUNIL_NOMES: Record<string, string> = {
 
 export function corParalelaKanban(kanbanId: string | null | undefined): string {
   const id = String(kanbanId ?? '').trim();
-  return PARALELA_CORES[id] ?? 'var(--moni-kanban-col-accent)';
+  return PARALELA_CORES[id] ?? 'var(--moni-paralela-fallback)';
 }
 
 export function nomeFunilParalela(kanbanId: string | null | undefined, fallback?: string): string {
