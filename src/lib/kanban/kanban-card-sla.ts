@@ -15,11 +15,11 @@ export type SlaKanbanResult = {
   slaTipo?: SlaTipo;
 };
 
-/** Tag textual padronizada para cards — SLA ok / SLA atenção / SLA ATRASADO - N D.U. */
+/** Tag textual padronizada para cards — SLA atenção / SLA ATRASADO (ok não exibe tag). */
 export function tagSlaKanbanParaExibicao(
   sla: SlaKanbanResult,
 ): { texto: string; variante: 'ok' | 'atencao' | 'atrasado' } | null {
-  if (sla.pausado) return null;
+  if (sla.pausado || sla.status === 'ok') return null;
   return {
     texto: sla.label,
     variante: sla.status,
