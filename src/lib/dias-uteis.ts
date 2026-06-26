@@ -176,22 +176,23 @@ export function rotuloSlaAtividadeDiasUteis(
 }
 
 /**
- * Calcula quantos dias úteis existem entre duas datas
- * @param dataInicio Data inicial (inclusive)
+ * Calcula quantos dias úteis existem entre duas datas.
+ * Regra global: a contagem começa no dia útil seguinte ao início (início não entra no total).
+ * @param dataInicio Data inicial (marco — não conta como 1º dia útil)
  * @param dataFim Data final (inclusive)
- * @returns Número de dias úteis
+ * @returns Número de dias úteis decorridos
  */
 export function calcularDiasUteis(dataInicio: Date, dataFim: Date): number {
   if (dataFim < dataInicio) return 0;
 
-  let diasUteis = 0;
   const atual = new Date(dataInicio);
   const fim = new Date(dataFim);
 
-  // Normaliza para meia-noite para comparação correta
   atual.setHours(0, 0, 0, 0);
   fim.setHours(0, 0, 0, 0);
+  atual.setDate(atual.getDate() + 1);
 
+  let diasUteis = 0;
   while (atual <= fim) {
     if (isDiaUtil(atual)) {
       diasUteis++;

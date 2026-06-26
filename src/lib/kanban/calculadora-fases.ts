@@ -288,7 +288,12 @@ function primeiroDiaUtilDe(ymd: string): string {
 
 function inicioPorFimFaseAnterior(fimReal: string | null, fimEstimado: string | null): string | null {
   const fim = fimReal ?? fimEstimado;
-  return fim ? primeiroDiaUtilDe(fim) : null;
+  if (!fim) return null;
+  const parsed = parseIsoDateOnlyLocal(fim);
+  if (!parsed) return null;
+  const next = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  next.setDate(next.getDate() + 1);
+  return primeiroDiaUtilDe(formatLocalYmd(next));
 }
 
 function hojeYmd(ref?: Date): string {
@@ -301,7 +306,7 @@ export function calculadoraHojeYmd(ref?: Date): string {
   return hojeYmd(ref);
 }
 
-/** Dias úteis (seg–sex, sem feriados) entre duas datas inclusive no fim. */
+/** Dias úteis (seg–sex) entre duas datas — contagem a partir do dia seguinte ao início. */
 export function businessDaysBetween(inicioYmd: string, fimYmd: string): number {
   const a = parseIsoDateOnlyLocal(inicioYmd);
   const b = parseIsoDateOnlyLocal(fimYmd);
@@ -344,6 +349,39 @@ function calendarDaysBetween(inicioYmd: string, fimYmd: string): number {
   return calcularDiasCorridos(a, b);
 }
 
+function diasDecorridosPorSla(inicioYmd: string, fimYmd: string, slaTipo: SlaTipo): number {
+  return slaTipo === 'corridos'
+    ? calendarDaysBetween(inicioYmd, fimYmd)
+    : businessDaysBetween(inicioYmd, fimYmd);
+}
+
+/** Fase ultrapassou o SLA com base nos dias decorridos (contagem a partir do dia seguinte ao início). */
+function faseUltrapassouSla(
+  dataInicioReal: string | null,
+  dataFimReal: string | null,
+  dataFimEstimada: string | null,
+  slaDias: number | null,
+  slaTipo: SlaTipo,
+): boolean {
+  if (dataInicioReal && dataFimReal && slaDias != null && slaDias > 0) {
+    return diasDecorridosPorSla(dataInicioReal, dataFimReal, slaTipo) > slaDias;
+  }
+  return Boolean(dataFimReal && dataFimEstimada && dataFimReal > dataFimEstimada);
+}
+
+function faseEmAtrasoPorSlaAberta(
+  dataInicioReal: string | null,
+  dataFimEstimada: string | null,
+  hoje: string,
+  slaDias: number | null,
+  slaTipo: SlaTipo,
+): boolean {
+  if (dataInicioReal && slaDias != null && slaDias > 0) {
+    return diasDecorridosPorSla(dataInicioReal, hoje, slaTipo) > slaDias;
+  }
+  return Boolean(dataFimEstimada && hoje > dataFimEstimada);
+}
+
 function resolveStatus(
   faseId: string,
   card: CalculadoraFasesInput['card'],
@@ -353,35 +391,55 @@ function resolveStatus(
   faseOrdem: number,
   ordemAtual: number,
   hoje: string,
+  slaDias: number | null = null,
+  slaTipo: SlaTipo = 'uteis',
 ): FaseTimelineStatus {
   const isCurrent = faseId === card.fase_id;
   const cardAtivo = !card.concluido;
 
   if (isCurrent && cardAtivo) {
-    if (dataFimReal && dataFimEstimada && dataFimReal > dataFimEstimada) {
+    if (
+      dataFimReal &&
+      faseUltrapassouSla(dataInicioReal, dataFimReal, dataFimEstimada, slaDias, slaTipo)
+    ) {
       return 'atual_atrasada';
     }
-    if (!dataFimReal && dataFimEstimada && hoje > dataFimEstimada) return 'atual_atrasada';
+    if (!dataFimReal && faseEmAtrasoPorSlaAberta(dataInicioReal, dataFimEstimada, hoje, slaDias, slaTipo)) {
+      return 'atual_atrasada';
+    }
     return 'atual';
   }
 
   if (isCurrent && !cardAtivo) {
-    if (dataFimEstimada && card.concluido_em) {
-      const fim = toYmd(card.concluido_em);
-      if (fim && fim > dataFimEstimada) return 'concluida_atraso';
+    if (
+      dataFimEstimada &&
+      card.concluido_em &&
+      faseUltrapassouSla(
+        dataInicioReal,
+        toYmd(card.concluido_em),
+        dataFimEstimada,
+        slaDias,
+        slaTipo,
+      )
+    ) {
+      return 'concluida_atraso';
     }
     return 'concluida';
   }
 
   /** Fases anteriores à atual na ordem do funil já foram percorridas — nunca "futura". */
   if (faseOrdem < ordemAtual) {
-    if (dataFimReal && dataFimEstimada && dataFimReal > dataFimEstimada) return 'concluida_atraso';
+    if (faseUltrapassouSla(dataInicioReal, dataFimReal, dataFimEstimada, slaDias, slaTipo)) {
+      return 'concluida_atraso';
+    }
     return 'concluida';
   }
 
   if (faseOrdem > ordemAtual) {
     if (dataFimReal) {
-      if (dataFimEstimada && dataFimReal > dataFimEstimada) return 'concluida_atraso';
+      if (faseUltrapassouSla(dataInicioReal, dataFimReal, dataFimEstimada, slaDias, slaTipo)) {
+        return 'concluida_atraso';
+      }
       return 'concluida';
     }
     return 'futura';
@@ -430,13 +488,17 @@ export function recomputarStatusAtrasoLinhasCalculadora(
       linha.ordem,
       ordemAtual,
       hoje,
+      linha.slaDias,
+      linha.slaTipo,
     );
     const atrasoDias = resolveAtraso(
       status,
+      linha.dataInicioReal,
       linha.dataFimEstimada,
       linha.dataFimReal,
       hoje,
       linha.slaTipo,
+      linha.slaDias,
     );
     return { ...linha, status, atrasoDias };
   });
@@ -444,24 +506,48 @@ export function recomputarStatusAtrasoLinhasCalculadora(
 
 function resolveAtraso(
   status: FaseTimelineStatus,
+  dataInicioReal: string | null,
   dataFimEstimada: string | null,
   dataFimReal: string | null,
   hoje: string,
   slaTipo: SlaTipo = 'uteis',
+  slaDias: number | null = null,
 ): number | null {
-  if (!dataFimEstimada) return null;
   const diff = slaTipo === 'corridos' ? calendarDaysBetween : businessDaysBetween;
+
   if (status === 'atual_atrasada') {
-    if (dataFimReal && dataFimEstimada) {
-      const dias = diff(dataFimEstimada, dataFimReal);
-      if (dias > 0) return dias;
+    if (dataFimReal) {
+      if (dataInicioReal && slaDias != null && slaDias > 0) {
+        const elapsed = diasDecorridosPorSla(dataInicioReal, dataFimReal, slaTipo);
+        const atraso = elapsed - slaDias;
+        if (atraso > 0) return atraso;
+      } else if (dataFimEstimada) {
+        const dias = diff(dataFimEstimada, dataFimReal);
+        if (dias > 0) return dias;
+      }
     }
-    const dias = diff(dataFimEstimada, hoje);
-    return dias > 0 ? dias : null;
+    if (dataInicioReal && slaDias != null && slaDias > 0) {
+      const elapsed = diasDecorridosPorSla(dataInicioReal, hoje, slaTipo);
+      const atraso = elapsed - slaDias;
+      if (atraso > 0) return atraso;
+    }
+    if (dataFimEstimada) {
+      const dias = diff(dataFimEstimada, hoje);
+      return dias > 0 ? dias : null;
+    }
+    return null;
   }
+
   if (status === 'concluida_atraso' && dataFimReal) {
-    const dias = diff(dataFimEstimada, dataFimReal);
-    return dias > 0 ? dias : null;
+    if (dataInicioReal && slaDias != null && slaDias > 0) {
+      const elapsed = diasDecorridosPorSla(dataInicioReal, dataFimReal, slaTipo);
+      const atraso = elapsed - slaDias;
+      return atraso > 0 ? atraso : null;
+    }
+    if (dataFimEstimada) {
+      const dias = diff(dataFimEstimada, dataFimReal);
+      return dias > 0 ? dias : null;
+    }
   }
   return null;
 }
@@ -530,9 +616,19 @@ export function calcularLinhasCalculadoraFases(input: CalculadoraFasesInput): Ca
         fase.ordem,
         ordemAtual,
         hoje,
+        slaDias,
+        slaTipo,
       );
 
-      const atrasoDias = resolveAtraso(status, dataFimEstimada, dataFimReal, hoje, slaTipo);
+      const atrasoDias = resolveAtraso(
+        status,
+        dataInicioReal,
+        dataFimEstimada,
+        dataFimReal,
+        hoje,
+        slaTipo,
+        slaDias,
+      );
 
       linhas.push({
         faseId: fase.id,
@@ -613,13 +709,23 @@ export function aplicarAncoraCalculadoraLinhas(
     ancRow.ordem,
     ordemAtual,
     hoje,
+    ancRow.slaDias,
+    ancRow.slaTipo,
   );
   out[idx] = {
     ...ancRow,
     dataInicioReal: null,
     dataFimReal: ancora.dataFim,
     dataFimEstimada: null,
-    atrasoDias: resolveAtraso(ancStatus, null, ancora.dataFim, hoje, ancRow.slaTipo),
+    atrasoDias: resolveAtraso(
+      ancStatus,
+      null,
+      null,
+      ancora.dataFim,
+      hoje,
+      ancRow.slaTipo,
+      ancRow.slaDias,
+    ),
     status: ancStatus,
   };
 
@@ -647,8 +753,18 @@ export function aplicarAncoraCalculadoraLinhas(
       row.ordem,
       ordemAtual,
       hoje,
+      row.slaDias,
+      row.slaTipo,
     );
-    const atrasoDias = resolveAtraso(status, dataFimEstimada, dataFimReal, hoje, row.slaTipo);
+    const atrasoDias = resolveAtraso(
+      status,
+      dataInicioReal,
+      dataFimEstimada,
+      dataFimReal,
+      hoje,
+      row.slaTipo,
+      row.slaDias,
+    );
 
     out[i] = {
       ...row,
@@ -700,8 +816,18 @@ export function propagarLinhasCalculadoraForward(
       row.ordem,
       ordemAtual,
       hoje,
+      row.slaDias,
+      row.slaTipo,
     );
-    const atrasoDias = resolveAtraso(status, dataFimEstimada, dataFimReal, hoje, row.slaTipo);
+    const atrasoDias = resolveAtraso(
+      status,
+      dataInicioReal,
+      dataFimEstimada,
+      dataFimReal,
+      hoje,
+      row.slaTipo,
+      row.slaDias,
+    );
 
     out[i] = {
       ...row,
@@ -771,8 +897,18 @@ export function aplicarDatasManuaisCalculadoraLinhas(
       linha.ordem,
       ordemAtual,
       hoje,
+      linha.slaDias,
+      linha.slaTipo,
     );
-    const atrasoDias = resolveAtraso(status, dataFimEstimada, dataFimReal, hoje, linha.slaTipo);
+    const atrasoDias = resolveAtraso(
+      status,
+      dataInicioReal,
+      dataFimEstimada,
+      dataFimReal,
+      hoje,
+      linha.slaTipo,
+      linha.slaDias,
+    );
 
     return {
       ...linha,
@@ -910,8 +1046,18 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
     rowContrato.ordem,
     ordemAtual,
     hoje,
+    rowContrato.slaDias,
+    rowContrato.slaTipo,
   );
-  const atrasoDias = resolveAtraso(status, fimEstimado, realFim, hoje, rowContrato.slaTipo);
+  const atrasoDias = resolveAtraso(
+    status,
+    inicioContrato,
+    fimEstimado,
+    realFim,
+    hoje,
+    rowContrato.slaTipo,
+    rowContrato.slaDias,
+  );
 
   out[idxContrato] = {
     ...rowContrato,
