@@ -435,16 +435,6 @@ export function KanbanColumn({
             { labelsCompletos: false },
           );
 
-          const temSecaoInferior =
-            chipsParalelas.length > 0 ||
-            (arquivado && Boolean(motivo)) ||
-            (card.tagsCard?.length ?? 0) > 0 ||
-            aguardandoDoc ||
-            (!arquivado &&
-              !concluido &&
-              !aguardandoDoc &&
-              (sla.status !== 'ok' || Boolean(card.data_reuniao) || Boolean(card.data_followup)));
-
           return (
             <div key={card.id} className="moni-kanban-card-wrap">
               {insertBeforeThis ? <div aria-hidden className="moni-kanban-card-drop-line" /> : null}
@@ -582,7 +572,6 @@ export function KanbanColumn({
                   {subtituloCard ? (
                     <p className="moni-kanban-card-subtitle">{subtituloCard}</p>
                   ) : null}
-                  {temSecaoInferior ? <hr className="moni-kanban-card-divider" /> : null}
                   {chipsParalelas.length > 0 ? (
                     <KanbanParalelasChips chips={chipsParalelas} compact />
                   ) : null}

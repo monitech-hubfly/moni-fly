@@ -244,7 +244,7 @@ export function KanbanBoard({
             className="moni-kanban-board-scroll-hint moni-kanban-board-scroll-hint--right pointer-events-none absolute inset-y-0 right-0 z-10 w-12"
           />
         ) : null}
-        <div ref={boardScrollRef} className="moni-kanban-board-scroll w-full min-w-0 pb-2">
+        <div ref={boardScrollRef} className="moni-kanban-board-scroll w-full min-w-0">
           <div className="moni-kanban-board">
             {fases.map((fase) => {
               const raw = rawByFase[fase.id] ?? [];

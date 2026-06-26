@@ -2164,22 +2164,12 @@
   overflow-x: auto;
   overflow-y: visible;
   -webkit-overflow-scrolling: touch;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  scrollbar-color: var(--moni-kanban-bds) transparent;
+  scrollbar-width: none;
 }
 
 .moni-kanban-board-scroll::-webkit-scrollbar {
-  height: 4px;
-}
-
-.moni-kanban-board-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.moni-kanban-board-scroll::-webkit-scrollbar-thumb {
-  background: var(--moni-kanban-bds);
-  border-radius: 999px;
+  display: none;
+  height: 0;
 }
 
 .moni-kanban-board-scroll-hint {
@@ -2374,17 +2364,23 @@
   max-height: 70vh;
   padding: 8px;
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--moni-kanban-bds) transparent;
+  scrollbar-width: none;
 }
 
 .moni-kanban-column-body::-webkit-scrollbar {
-  width: 4px;
+  display: none;
+  width: 0;
 }
 
-.moni-kanban-column-body::-webkit-scrollbar-thumb {
-  background: var(--moni-kanban-bds);
-  border-radius: 999px;
+/* Scroll invisível — reutilizável em painéis legados */
+.moni-scrollbar-hidden {
+  scrollbar-width: none;
+}
+
+.moni-scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .moni-kanban-column-empty {

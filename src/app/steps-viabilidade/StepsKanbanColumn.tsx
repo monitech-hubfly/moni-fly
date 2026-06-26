@@ -226,7 +226,7 @@ export function StepsKanbanColumn({
           ) : null}
         </div>
       </div>
-      <div className="max-h-[70vh] space-y-2 overflow-y-auto p-3">
+      <div className="moni-scrollbar-hidden max-h-[70vh] space-y-2 overflow-y-auto p-3">
         {processosFiltrados.map((p, i) => (
           <PainelCard
             key={p.id}
