@@ -8,7 +8,6 @@ import {
   calcularResumoExecutivoCalculadoraFases,
   calculadoraHojeYmd,
   faseUltrapassouSlaCalculadora,
-  isCalculadoraFaseMarcoPassagemWayser,
   labelSufixoDataCalculadora,
   labelSufixoDataCalculadoraFase,
   type CalculadoraFaseLinha,
@@ -280,7 +279,7 @@ function CalculadoraResumoExecutivo({
   );
 }
 
-const MARCOS_COM_PREFIXO: ReadonlySet<CalculadoraMarcoId> = new Set(['M0', 'M4', 'M24', 'MW']);
+const MARCOS_COM_PREFIXO: ReadonlySet<CalculadoraMarcoId> = new Set(['M0', 'M4', 'M24']);
 
 function marcoDisplayLabel(marco: CalculadoraMarco): string {
   if (MARCOS_COM_PREFIXO.has(marco.id)) return `${marco.id}: ${marco.label}`;
@@ -900,8 +899,7 @@ export function KanbanCardModalCalculadoraFases({
     () =>
       linhas.find(
         (l) =>
-          (l.faseId === faseAtualId || l.status === 'atual' || l.status === 'atual_atrasada') &&
-          !isCalculadoraFaseMarcoPassagemWayser(l.faseSlug),
+          l.faseId === faseAtualId || l.status === 'atual' || l.status === 'atual_atrasada',
       ),
     [linhas, faseAtualId],
   );
