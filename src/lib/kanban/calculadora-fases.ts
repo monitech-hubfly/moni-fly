@@ -802,6 +802,33 @@ export function aplicarDatasManuaisCalculadoraLinhas(
 
 type EncadeamentoMarcoContratoInput = { contrato_assinado_em?: string | null };
 
+/**
+ * Fim real do marco M0 (Contrato): movimento no kanban tem prioridade sobre assinatura registrada.
+ */
+export function resolverFimRealMarcoContrato(
+  linhaContrato: CalculadoraFaseLinha,
+  idxContrato: number,
+  linhas: CalculadoraFaseLinha[],
+  visits: FaseVisit[] | undefined,
+  contratoAssinadoEm: string | null | undefined,
+): string | null {
+  if (visits?.length) {
+    const visitSaiu = toYmd(lastVisitPerFase(visits).get(linhaContrato.faseId)?.saiu);
+    if (visitSaiu) return visitSaiu;
+  }
+
+  for (let i = idxContrato + 1; i < linhas.length; i++) {
+    const prox = linhas[i]!;
+    if (prox.status === 'futura') continue;
+    const inicio = prox.dataInicioReal;
+    if (inicio) return inicio;
+  }
+
+  if (linhaContrato.dataFimReal) return linhaContrato.dataFimReal;
+
+  return toYmd(contratoAssinadoEm);
+}
+
 function idxFasePorSlugOuNome(
   linhas: CalculadoraFaseLinha[],
   slugs: Map<string, string | null | undefined>,
@@ -823,6 +850,7 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
   fases: KanbanFase[],
   marcosInput: EncadeamentoMarcoContratoInput,
   card: CalculadoraFasesInput['card'],
+  visits?: FaseVisit[],
   hojeRef?: Date,
 ): CalculadoraFaseLinha[] {
   if (linhas.length === 0) return linhas;
@@ -860,7 +888,13 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
     inicioContrato = inicioPorFimFaseAnterior(ant.dataFimReal, ant.dataFimEstimada);
   }
 
-  const realFim = toYmd(marcosInput.contrato_assinado_em);
+  const realFim = resolverFimRealMarcoContrato(
+    rowContrato,
+    idxContrato,
+    out,
+    visits,
+    marcosInput.contrato_assinado_em,
+  );
   const fimEstimado =
     inicioContrato && rowContrato.slaDias != null && rowContrato.slaDias > 0
       ? fimEstimadaPorSla(inicioContrato, rowContrato.slaDias, rowContrato.slaTipo)

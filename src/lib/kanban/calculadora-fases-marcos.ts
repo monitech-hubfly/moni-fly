@@ -5,7 +5,11 @@ import {
   formatLocalYmd,
   parseIsoDateOnlyLocal,
 } from '@/lib/dias-uteis';
-import type { CalculadoraFaseLinha, FaseTimelineStatus } from '@/lib/kanban/calculadora-fases';
+import {
+  resolverFimRealMarcoContrato,
+  type CalculadoraFaseLinha,
+  type FaseTimelineStatus,
+} from '@/lib/kanban/calculadora-fases';
 import type { NegociacaoLinha } from '@/lib/kanban/negociacao-linhas';
 import type { FaseVisit } from '@/lib/kanban/kanban-card-timeline';
 import {
@@ -402,7 +406,6 @@ function resolverDatasMarco(
   const linha = idx >= 0 ? linhas[idx] : undefined;
 
   if (id === 'M0') {
-    const realFim = toYmd(input.contrato_assinado_em);
     const dataInicio =
       linha?.dataInicioReal ??
       (() => {
@@ -417,12 +420,15 @@ function resolverDatasMarco(
         }
         return inicioAposFaseAnterior(linhas, idx, slugs);
       })();
-    const dataFim =
-      realFim ?? linha?.dataFimReal ?? linha?.dataFimEstimada ?? dataFimRef(linha);
+    const fimReal =
+      linha && idx >= 0
+        ? resolverFimRealMarcoContrato(linha, idx, linhas, input.visits, input.contrato_assinado_em)
+        : null;
+    const dataFim = fimReal ?? linha?.dataFimEstimada ?? dataFimRef(linha);
     return {
       dataInicio,
       dataFim,
-      isPrevisto: !realFim && linha?.dataFimReal == null,
+      isPrevisto: fimReal == null,
     };
   }
 

@@ -3611,8 +3611,15 @@ export function KanbanCardModal({
         concluido: card.concluido,
         concluido_em: card.concluido_em,
       },
+      calculadoraFasesPack.visits,
     );
-  }, [card, calculadoraFasesPack.linhas, calculadoraFasesFlat, calculadoraMarcosInput.contrato_assinado_em]);
+  }, [
+    card,
+    calculadoraFasesPack.linhas,
+    calculadoraFasesPack.visits,
+    calculadoraFasesFlat,
+    calculadoraMarcosInput.contrato_assinado_em,
+  ]);
 
   const calculadoraResumo = useMemo(
     () =>
