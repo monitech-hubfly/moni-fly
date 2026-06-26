@@ -122,6 +122,44 @@ export const CALCULADORA_STATUS_GERAL_LABEL: Record<CalculadoraStatusGeral, stri
   concluido: 'Concluído',
 };
 
+/** Slug da fase marco final do Funil Portfólio (substituída por MW na timeline). */
+export function isCalculadoraFaseMarcoPassagemWayser(slug: string | null | undefined): boolean {
+  return String(slug ?? '').trim() === FASE_SLUGS.PASSAGEM_WAYSER;
+}
+
+/** Normaliza linha passagem_wayser: marco concluído/futuro, fora do resumo operacional. */
+export function normalizarLinhaMarcoPassagemWayser(linha: CalculadoraFaseLinha): CalculadoraFaseLinha {
+  if (!isCalculadoraFaseMarcoPassagemWayser(linha.faseSlug)) return linha;
+
+  if (linha.status === 'futura') {
+    return { ...linha, faseAtiva: false, atrasoDias: null };
+  }
+
+  let status: FaseTimelineStatus = 'concluida';
+  if (
+    (linha.dataFimReal &&
+      linha.dataFimEstimada &&
+      linha.dataFimReal > linha.dataFimEstimada) ||
+    linha.status === 'atual_atrasada' ||
+    linha.status === 'concluida_atraso'
+  ) {
+    status = 'concluida_atraso';
+  }
+
+  return {
+    ...linha,
+    status,
+    faseAtiva: false,
+    atrasoDias: null,
+  };
+}
+
+export function normalizarLinhasMarcoPassagemWayser(
+  linhas: CalculadoraFaseLinha[],
+): CalculadoraFaseLinha[] {
+  return linhas.map(normalizarLinhaMarcoPassagemWayser);
+}
+
 /** Sufixo de coluna de data na calculadora: est. (previsão) ou real (registrada). */
 export function labelSufixoDataCalculadora(temDataReal: boolean): 'est.' | 'real' {
   return temDataReal ? 'real' : 'est.';
@@ -795,7 +833,7 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
     slugs,
     (slug, nome) => slug === FASE_SLUGS.STEP_7 || /^contrato$/i.test(nome.trim()),
   );
-  if (idxContrato < 0) return linhas;
+  if (idxContrato < 0) return normalizarLinhasMarcoPassagemWayser(linhas);
 
   const idxDiligencia = idxFasePorSlugOuNome(
     linhas,
@@ -850,7 +888,9 @@ export function aplicarEncadeamentoMarcoContratoNasLinhas(
   };
 
   const propagadas = propagarLinhasCalculadoraForward(out, idxContrato, card, ordemAtual, hoje);
-  return recomputarStatusAtrasoLinhasCalculadora(propagadas, card, hojeRef);
+  return normalizarLinhasMarcoPassagemWayser(
+    recomputarStatusAtrasoLinhasCalculadora(propagadas, card, hojeRef),
+  );
 }
 
 /** Preenche fim real a partir da entrada na fase seguinte (quando o histórico não registrou saída). */
@@ -957,6 +997,7 @@ function resolverMaiorGargalo(linhas: CalculadoraFaseLinha[]): CalculadoraMaiorG
   let melhorAtraso: CalculadoraMaiorGargalo | null = null;
 
   for (const row of linhas) {
+    if (isCalculadoraFaseMarcoPassagemWayser(row.faseSlug)) continue;
     if (faseContribuiAtrasoAcumulado(row.status) && row.atrasoDias != null && row.atrasoDias > 0) {
       if (!melhorAtraso || row.atrasoDias > melhorAtraso.dias) {
         melhorAtraso = {
@@ -1036,7 +1077,11 @@ export function calcularResumoExecutivoCalculadoraFases(
       else atrasoAcumuladoUteis += row.atrasoDias;
     }
 
-    const linhaAtual = linhas.find((l) => l.status === 'atual' || l.status === 'atual_atrasada');
+    const linhaAtual = linhas.find(
+      (l) =>
+        (l.status === 'atual' || l.status === 'atual_atrasada') &&
+        !isCalculadoraFaseMarcoPassagemWayser(l.faseSlug),
+    );
     const diasNaFase =
       linhaAtual?.dataInicioReal != null
         ? diasNaFasePorTipo(linhaAtual.dataInicioReal, hoje, linhaAtual.slaTipo)

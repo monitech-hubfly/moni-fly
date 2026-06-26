@@ -7,6 +7,7 @@ import {
   inferirFimRealPorProximaFase,
   aplicarAncoraCalculadoraLinhas,
   aplicarDatasManuaisCalculadoraLinhas,
+  normalizarLinhasMarcoPassagemWayser,
   type CalculadoraAncora,
   type CalculadoraFaseDataManualOverride,
   type CalculadoraFaseLinha,
@@ -280,12 +281,13 @@ export function calcularLinhasCalculadoraFasesEsteira(input: {
   const comOrdem = aplicarOrdemRelativaFaseAtual(comSegmento, meta, faseOrdemRelativa);
   const comInferencia = inferirFimRealPorProximaFase(comOrdem);
   const comAncora = aplicarAncoraCalculadoraLinhas(comInferencia, input.ancora, cardCalc, input.hoje);
-  return aplicarDatasManuaisCalculadoraLinhas(
+  const comDatasManuais = aplicarDatasManuaisCalculadoraLinhas(
     comAncora,
     input.overrides ?? new Map(),
     cardCalc,
     input.hoje,
   );
+  return normalizarLinhasMarcoPassagemWayser(comDatasManuais);
 }
 
 /** Mescla fases já carregadas do kanban atual no mapa (fallback enquanto busca a esteira). */

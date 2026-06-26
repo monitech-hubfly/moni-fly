@@ -19,6 +19,7 @@ import {
 export type CalculadoraMarcoId =
   | 'M0'
   | 'M4'
+  | 'MW'
   | 'M24'
   | 'MO'
   | 'MIG'
@@ -100,12 +101,14 @@ type MarcoDatas = {
 };
 
 const MARCO_DEFS: {
-  id: Extract<CalculadoraMarcoId, 'M0' | 'M4'>;
+  id: Extract<CalculadoraMarcoId, 'M0' | 'M4' | 'MW'>;
   label: string;
   funilLabel: string;
   custo?: string | null;
   anchor: 'after' | 'before' | 'replace';
   match: (slug: string | null | undefined, nome: string) => boolean;
+  /** Marco operacional — nunca exibe status em andamento. */
+  statusMarco?: boolean;
 }[] = [
   {
     id: 'M0',
@@ -114,6 +117,7 @@ const MARCO_DEFS: {
     anchor: 'replace',
     match: (slug, nome) =>
       slug === FASE_SLUGS.STEP_7 || /^contrato$/i.test(nome.trim()),
+    statusMarco: true,
   },
   {
     id: 'M4',
@@ -124,6 +128,15 @@ const MARCO_DEFS: {
     match: (slug, nome) =>
       slug === FASE_SLUGS.PROCESSOS_CARTORARIOS ||
       /transfer[eê]ncia.*terreno/i.test(nome.trim()),
+  },
+  {
+    id: 'MW',
+    label: 'Passagem para Wayser',
+    funilLabel: 'Funil Portfólio',
+    anchor: 'replace',
+    match: (slug, nome) =>
+      slug === FASE_SLUGS.PASSAGEM_WAYSER || /passagem.*wayser/i.test(nome.trim()),
+    statusMarco: true,
   },
 ];
 
@@ -333,10 +346,27 @@ function marcoFromDatas(
   };
 }
 
+/** Marcos substitutos (M0, MW): concluída ou futura — nunca em andamento operacional. */
+function resolverStatusMarcoSubstituto(
+  linhaAnchora: CalculadoraFaseLinha,
+): FaseTimelineStatus {
+  if (linhaAnchora.status === 'futura') return 'futura';
+
+  const atrasada =
+    (linhaAnchora.dataFimReal &&
+      linhaAnchora.dataFimEstimada &&
+      linhaAnchora.dataFimReal > linhaAnchora.dataFimEstimada) ||
+    linhaAnchora.status === 'atual_atrasada' ||
+    linhaAnchora.status === 'concluida_atraso';
+
+  return atrasada ? 'concluida_atraso' : 'concluida';
+}
+
 /** Copia status e datas reais/estimadas da fase substituída pelo marco. */
 function enriquecerMarcoComLinhaAnchora(
   marco: CalculadoraMarco,
   linhaAnchora: CalculadoraFaseLinha | undefined,
+  forcarStatusMarco = false,
 ): CalculadoraMarco {
   if (!linhaAnchora) return marco;
 
@@ -346,7 +376,9 @@ function enriquecerMarcoComLinhaAnchora(
 
   return {
     ...marco,
-    status: linhaAnchora.status,
+    status: forcarStatusMarco
+      ? resolverStatusMarcoSubstituto(linhaAnchora)
+      : linhaAnchora.status,
     dataInicioReal: linhaAnchora.dataInicioReal,
     dataFimReal: linhaAnchora.dataFimReal,
     dataFimEstimada: linhaAnchora.dataFimEstimada,
@@ -358,7 +390,7 @@ function enriquecerMarcoComLinhaAnchora(
 }
 
 function resolverDatasMarco(
-  id: Extract<CalculadoraMarcoId, 'M0' | 'M4'>,
+  id: Extract<CalculadoraMarcoId, 'M0' | 'M4' | 'MW'>,
   input: CalculadoraMarcosInput,
   linhas: CalculadoraFaseLinha[],
   slugs: Map<string, string | null | undefined>,
@@ -394,7 +426,7 @@ function resolverDatasMarco(
     };
   }
 
-  if (id === 'M4') {
+  if (id === 'M4' || id === 'MW') {
     const dataFim = dataFimRef(linha);
     return {
       dataInicio: inicioAposFaseAnterior(linhas, idx, slugs),
@@ -637,6 +669,7 @@ export function montarTimelineCalculadoraComMarcos(
         custo: def.custo ?? linhaAnchora?.custo ?? null,
       }),
       linhaAnchora,
+      def.statusMarco === true,
     );
     if (def.id === 'M4') {
       marco = aplicarLimiteMesesAposContrato(
