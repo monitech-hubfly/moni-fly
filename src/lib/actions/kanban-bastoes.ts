@@ -19,7 +19,11 @@ import {
   deveDispararBastaoAcoplamentoAutomatico,
   resolverCardPaiParaAcoplamento,
 } from '@/lib/kanban/portfolio-paralelas';
-import { reconciliarFranqueadoNoSyncGroup, resolverTituloCardKanban } from '@/lib/kanban/card-sync-group';
+import {
+  reconciliarFranqueadoNoSyncGroup,
+  resolverTituloCardKanban,
+  sincronizarCamposCalculadoraBastaoFilho,
+} from '@/lib/kanban/card-sync-group';
 
 /** Verifica se já existe card filho no Funil Jurídico para o card pai. */
 export async function existeChamadoJuridicoParaCard(cardPaiId: string): Promise<boolean> {
@@ -81,6 +85,74 @@ export interface KanbanCardFilhoCriado {
 
 const CARD_FILHO_SELECT =
   'id, kanban_id, fase_id, titulo, origem_card_id, projeto_id, rede_franqueado_id, status, franqueado_id, arquivado';
+
+type CamposSyncFilhoOperacoes = {
+  processo_step_one_id?: string | null;
+  projeto_id?: string | null;
+  contrato_assinado_em?: string | null;
+  opcao_assinada_em?: string | null;
+  obra_iniciada_em?: string | null;
+  obra_finalizada_em?: string | null;
+};
+
+/** Espelha processo e marcos do card Portfolio pai no filho de Operações. */
+async function sincronizarFilhoOperacoesComPai(
+  db: ReturnType<typeof createAdminClient>,
+  cardPaiId: string,
+  cardFilhoId: string,
+): Promise<void> {
+  const paiId = String(cardPaiId ?? '').trim();
+  const filhoId = String(cardFilhoId ?? '').trim();
+  if (!paiId || !filhoId) return;
+
+  const { data: paiRow, error: errPai } = await db
+    .from('kanban_cards')
+    .select(
+      'processo_step_one_id, projeto_id, contrato_assinado_em, opcao_assinada_em, obra_iniciada_em, obra_finalizada_em',
+    )
+    .eq('id', paiId)
+    .maybeSingle();
+
+  if (errPai || !paiRow?.id) return;
+
+  const pai = paiRow as CamposSyncFilhoOperacoes;
+  const { data: filhoRow } = await db
+    .from('kanban_cards')
+    .select(
+      'processo_step_one_id, projeto_id, contrato_assinado_em, opcao_assinada_em, obra_iniciada_em, obra_finalizada_em',
+    )
+    .eq('id', filhoId)
+    .maybeSingle();
+
+  const filho = (filhoRow ?? {}) as CamposSyncFilhoOperacoes;
+  const patch: Record<string, string | null> = {};
+
+  const procPai = String(pai.processo_step_one_id ?? '').trim();
+  const procFilho = String(filho.processo_step_one_id ?? '').trim();
+  if (procPai && procPai !== procFilho) patch.processo_step_one_id = procPai;
+
+  const projPai = String(pai.projeto_id ?? '').trim();
+  const projFilho = String(filho.projeto_id ?? '').trim();
+  if (projPai && !projFilho) patch.projeto_id = projPai;
+
+  for (const campo of [
+    'contrato_assinado_em',
+    'opcao_assinada_em',
+    'obra_iniciada_em',
+    'obra_finalizada_em',
+  ] as const) {
+    const valorPai = String(pai[campo] ?? '').trim();
+    const valorFilho = String(filho[campo] ?? '').trim();
+    if (valorPai && !valorFilho) patch[campo] = valorPai;
+  }
+
+  if (Object.keys(patch).length === 0) return;
+
+  const { error: errUpd } = await db.from('kanban_cards').update(patch as never).eq('id', filhoId);
+  if (errUpd) {
+    console.error('[sincronizarFilhoOperacoesComPai]', errUpd.message);
+  }
+}
 
 async function registrarAtividadeBastaoCardFilho(
   db: ReturnType<typeof createAdminClient>,
@@ -220,6 +292,9 @@ export async function criarCardFilho(
   const existente = await buscarCardFilhoExistente(db, cardPaiId, kanbanDestinoId);
 
   if (existente?.id && !Boolean(existente.arquivado)) {
+    if (kanbanDestinoId === KANBAN_IDS.OPERACOES) {
+      await sincronizarFilhoOperacoesComPai(db, cardPaiId, String(existente.id));
+    }
     return null;
   }
 
@@ -338,6 +413,12 @@ export async function criarCardFilho(
     await aplicarResponsavelFasePadraoAoCard(db, filhoId, faseId, kanbanDestinoId, criadoPor);
     await aplicarResponsavelDaFasePadraoSeVazio(db, filhoId, faseId, criadoPor);
 
+    const syncCalc = await sincronizarCamposCalculadoraBastaoFilho(db, cardPaiId, filhoId, {
+      faseDestinoId: faseId,
+      faseDestinoSlug: faseDestinoSlug,
+    });
+    if (!syncCalc.ok) throw new Error(syncCalc.error);
+
     return filhoReativado as KanbanCardFilhoCriado;
   }
 
@@ -413,6 +494,12 @@ export async function criarCardFilho(
     await import('@/lib/kanban/responsavel-fase-checklist');
   await aplicarResponsavelFasePadraoAoCard(db, cardFilhoId, faseId, kanbanDestinoId, criadoPor);
   await aplicarResponsavelDaFasePadraoSeVazio(db, cardFilhoId, faseId, criadoPor);
+
+  const syncCalc = await sincronizarCamposCalculadoraBastaoFilho(db, cardPaiId, cardFilhoId, {
+    faseDestinoId: faseId,
+    faseDestinoSlug: faseDestinoSlug,
+  });
+  if (!syncCalc.ok) throw new Error(syncCalc.error);
 
   return filho as KanbanCardFilhoCriado;
 }
@@ -765,7 +852,24 @@ export async function garantirBastaoPassagemWayser(cardId: string): Promise<bool
   }
 
   const existente = await buscarCardFilhoExistente(db, cid, KANBAN_IDS.OPERACOES);
-  if (existente?.id && !Boolean(existente.arquivado)) return false;
+  if (existente?.id && !Boolean(existente.arquivado)) {
+    const { data: fasePlan } = await db
+      .from('kanban_fases')
+      .select('id')
+      .eq('kanban_id', KANBAN_IDS.OPERACOES)
+      .eq('slug', 'planialtimetrico')
+      .eq('ativo', true)
+      .limit(1)
+      .maybeSingle();
+    const syncHeal = await sincronizarCamposCalculadoraBastaoFilho(db, cid, String(existente.id), {
+      faseDestinoId: fasePlan?.id ? String(fasePlan.id) : undefined,
+      faseDestinoSlug: 'planialtimetrico',
+    });
+    if (!syncHeal.ok) {
+      console.error('[garantirBastaoPassagemWayser] sync calculadora filho existente:', syncHeal.error);
+    }
+    return false;
+  }
 
   await executarBastoes(cid, FASE_SLUGS.PASSAGEM_WAYSER);
 
