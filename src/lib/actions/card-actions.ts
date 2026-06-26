@@ -19,7 +19,7 @@ import { validarMotivoArquivamento } from '@/lib/kanban/motivos-arquivamento';
 import type { PortfolioConfirmacaoFaseTipo } from '@/lib/kanban/portfolio-confirmacao-fase';
 import type { OperacoesConfirmacaoFaseTipo } from '@/lib/kanban/operacoes-confirmacao-fase';
 import { carregarPermissoesMap } from '@/lib/permissoes-load';
-import { FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { montarTituloCardLoteadores, isKanbanFunilLoteadoresRef } from '@/lib/kanban/loteadores-card-titulo';
 import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { calcularDataEnvioCreditoObra } from '@/lib/pre-obra/credito-obra-envio-data';
@@ -64,7 +64,11 @@ import {
 } from '@/lib/kanban/chamados-validacao';
 import type { FaseChecklistItem } from './candidato-actions';
 import { fetchFaseChecklistItens } from '@/lib/kanban/fase-checklist-select';
-import { executarBastaoDeVolta, executarBastoes } from '@/lib/actions/kanban-bastoes';
+import {
+  executarBastaoDeVolta,
+  executarBastoes,
+  garantirBastaoPassagemWayser,
+} from '@/lib/actions/kanban-bastoes';
 import { sincronizarTagAcoplamentoPaiDoFilho } from '@/lib/kanban/acoplamento-tag-pai';
 import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-notify';
 import { payloadInicialNegociacaoPrazo } from '@/lib/kanban/prazo-negociacao';
@@ -4759,6 +4763,11 @@ export async function upsertFaseChecklistResposta(input: {
     { onConflict: 'item_id,card_id' },
   );
   if (error) return { ok: false, error: error.message };
+
+  const faseIdItem = String((itemRow as { fase_id?: string | null } | null)?.fase_id ?? '').trim();
+  if (faseIdItem === FASE_IDS.PORTFOLIO_PASSAGEM_WAYSER) {
+    void garantirBastaoPassagemWayser(input.card_id);
+  }
 
   const campoSlug = String((itemRow as { campo_slug?: string | null } | null)?.campo_slug ?? '').trim();
   if (campoSlug && ['preco_atratividade', 'produto_atratividade', 'showroom_interesse', 'linhas_receita'].includes(campoSlug)) {

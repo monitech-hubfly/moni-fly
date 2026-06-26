@@ -85,6 +85,7 @@ import {
   consultarAberturaCreditoObraPendente,
   recusarAberturaCreditoObra,
 } from '@/lib/actions/credito-obra-abertura-automatica';
+import { garantirBastaoPassagemWayser } from '@/lib/actions/kanban-bastoes';
 import { aplicarDataEnvioCreditoObraNoPreObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import { CreditoObraAberturaAutorizacaoModal } from './CreditoObraAberturaAutorizacaoModal';
 import { isPortfolioKanbanRef, isLoteadoresKanbanRef } from '@/lib/kanban/portfolio-paralelas';
@@ -1840,6 +1841,13 @@ export function KanbanCardModal({
           }
         } else {
           setCreditoObraAbertura(null);
+        }
+
+        if (
+          loaded.kanban_id === KANBAN_IDS.PORTFOLIO &&
+          slugAbertura === FASE_SLUGS.PASSAGEM_WAYSER
+        ) {
+          void garantirBastaoPassagemWayser(loaded.id);
         }
       }
     } catch {
