@@ -198,8 +198,10 @@
   /* Funding — badges tipo Investidor / Broker */
   --moni-funding-investidor-bg:   #E6F1FB;
   --moni-funding-investidor-text: #185FA5;
+  --moni-funding-investidor-border: #185FA5;
   --moni-funding-broker-bg:       #FAEEDA;
   --moni-funding-broker-text:     #854F0B;
+  --moni-funding-broker-border:   #854F0B;
 
   /* Kanban board — paleta compartilhada (redesign 2026) */
   --moni-kanban-board-bg:       #eceae6;
@@ -218,6 +220,7 @@
   --moni-kanban-card-hover-bd:  rgba(28, 58, 43, 0.3);
   --moni-kanban-sla-ok-bg:      #eaf3de;
   --moni-kanban-sla-ok-text:    #3b6d11;
+  --moni-kanban-sla-ok-border:  #639922;
   --moni-kanban-sla-ok-dot:     #639922;
   --moni-kanban-drawer-header:  var(--moni-green-50);
   --moni-kanban-drawer-header-text: var(--moni-green-800);
@@ -361,61 +364,82 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 1px 6px;
+  padding: 2px 8px;
   border-radius: var(--moni-radius-pill);
   font-size: var(--moni-text-tag-sla);
   line-height: 1.25;
   font-weight: var(--moni-weight-medium);
+  font-family: var(--moni-font-sans);
   background: var(--moni-status-attention-bg);
   color: var(--moni-status-attention-text);
-  border: 0.5px solid var(--moni-status-attention-border);
+  border: var(--moni-border-width) solid var(--moni-status-attention-border);
 }
 
 .moni-tag-atrasado {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 1px 6px;
+  padding: 2px 8px;
   border-radius: var(--moni-radius-pill);
   font-size: var(--moni-text-tag-sla);
   line-height: 1.25;
   font-weight: var(--moni-weight-medium);
+  font-family: var(--moni-font-sans);
   background: var(--moni-status-overdue-bg);
   color: var(--moni-status-overdue-text);
-  border: 0.5px solid var(--moni-status-overdue-border);
+  border: var(--moni-border-width) solid var(--moni-status-overdue-border);
 }
 
 .moni-tag-concluido {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   padding: 2px 8px;
   border-radius: var(--moni-radius-pill);
-  font-size: var(--moni-text-xs);
+  font-size: var(--moni-text-tag-sla);
+  line-height: 1.25;
   font-weight: var(--moni-weight-medium);
+  font-family: var(--moni-font-sans);
   background: var(--moni-status-done-bg);
   color: var(--moni-status-done-text);
-  border: 0.5px solid var(--moni-status-done-border);
+  border: var(--moni-border-width) solid var(--moni-status-done-border);
 }
 
 .moni-tag-arquivado {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   padding: 2px 8px;
   border-radius: var(--moni-radius-pill);
-  font-size: var(--moni-text-xs);
+  font-size: var(--moni-text-tag-sla);
+  line-height: 1.25;
   font-weight: var(--moni-weight-medium);
+  font-family: var(--moni-font-sans);
   background: var(--moni-status-archived-bg);
   color: var(--moni-status-archived-text);
-  border: 0.5px solid var(--moni-status-archived-border);
+  border: var(--moni-border-width) solid var(--moni-status-archived-border);
+}
+
+.moni-tag-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px;
+  border-radius: var(--moni-radius-pill);
+  font-size: var(--moni-text-tag-sla);
+  line-height: 1.25;
+  font-weight: var(--moni-weight-medium);
+  font-family: var(--moni-font-sans);
+  background: var(--moni-status-active-bg);
+  color: var(--moni-status-active-text);
+  border: var(--moni-border-width) solid var(--moni-status-active-border);
 }
 
 .moni-tag-especial {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 1px 6px;
+  padding: 2px 8px;
   border-radius: var(--moni-radius-pill);
   font-size: var(--moni-text-tag-sla);
   line-height: 1.25;
@@ -423,7 +447,22 @@
   font-family: var(--moni-font-sans);
   background: var(--moni-gold-50);
   color: var(--moni-gold-800);
-  border: 0.5px solid var(--moni-gold-400);
+  border: var(--moni-border-width) solid var(--moni-gold-400);
+}
+
+/* Tag customizada (cor do cadastro) — contorno pill em todos os funis */
+.moni-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  gap: 2px;
+  padding: 2px 8px;
+  border-radius: var(--moni-radius-pill);
+  font-family: var(--moni-font-sans);
+  font-size: 10px;
+  font-weight: var(--moni-weight-medium);
+  line-height: 1.25;
+  white-space: nowrap;
 }
 
 /* Calculadora Global de Fases — tokens e componentes */
@@ -2646,13 +2685,16 @@
 }
 
 .moni-kanban-card-status-badge {
-  border-radius: var(--moni-radius-sm);
-  padding: 2px 6px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--moni-radius-pill);
+  padding: 2px 8px;
   font-family: var(--moni-font-sans);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  border: var(--moni-border-width) solid transparent;
 }
 
 .moni-kanban-card-status-badge--archived {
@@ -2671,7 +2713,7 @@
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
-  border-radius: var(--moni-radius-md);
+  border-radius: var(--moni-radius-pill);
   font-family: var(--moni-font-sans);
   font-size: 10px;
   font-weight: var(--moni-weight-medium);
@@ -2682,11 +2724,13 @@
 .moni-funding-tipo-badge--investidor {
   background: var(--moni-funding-investidor-bg);
   color: var(--moni-funding-investidor-text);
+  border-color: var(--moni-funding-investidor-border);
 }
 
 .moni-funding-tipo-badge--broker {
   background: var(--moni-funding-broker-bg);
   color: var(--moni-funding-broker-text);
+  border-color: var(--moni-funding-broker-border);
 }
 
 /* Tags SLA / reunião / follow-up — tamanho único nos cards */
@@ -2697,7 +2741,7 @@
   gap: 5px;
   min-height: 18px;
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: var(--moni-radius-pill);
   font-family: var(--moni-font-sans);
   font-size: 9px;
   font-weight: var(--moni-weight-medium);
@@ -2716,7 +2760,7 @@
 .moni-kanban-card-sla--ok {
   background: var(--moni-kanban-sla-ok-bg);
   color: var(--moni-kanban-sla-ok-text);
-  border-color: rgba(59, 109, 17, 0.2);
+  border-color: var(--moni-kanban-sla-ok-border);
 }
 
 .moni-kanban-card-sla--ok .moni-kanban-card-sla-dot {

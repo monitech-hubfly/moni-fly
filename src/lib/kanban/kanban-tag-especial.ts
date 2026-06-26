@@ -22,12 +22,13 @@ export function estiloChipTagKanban(nome: string, cor: string): KanbanTagChipSty
   if (isKanbanTagEspecialNome(nome)) {
     return { className: 'moni-tag-especial' };
   }
+  const c = String(cor ?? '').trim() || '#7a6e65';
   return {
-    className: 'inline-flex max-w-full items-center gap-0.5 rounded-md px-1.5 py-px text-[10px] font-semibold leading-tight',
+    className: 'moni-tag-chip',
     style: {
-      background: `${cor}22`,
-      color: cor,
-      border: `0.5px solid color-mix(in srgb, ${cor} 55%, transparent)`,
+      background: `color-mix(in srgb, ${c} 14%, white)`,
+      color: c,
+      border: `0.5px solid ${c}`,
     },
   };
 }
