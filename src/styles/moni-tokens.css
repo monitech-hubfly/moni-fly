@@ -2794,6 +2794,7 @@
   background: var(--moni-status-overdue-bg);
   color: var(--moni-status-overdue-text);
   border-color: var(--moni-status-overdue-border);
+  font-weight: var(--moni-weight-bold);
 }
 
 .moni-kanban-card-sla--atrasado .moni-kanban-card-sla-dot {
