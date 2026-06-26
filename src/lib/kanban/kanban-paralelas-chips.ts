@@ -62,6 +62,8 @@ export type MontarChipsParalelasInput = {
   temFilhoOperacoes?: boolean;
   /** Portfolio: filho Pré Obra e Obra arquivado (sem filho ativo). */
   filhoOperacoesArquivado?: boolean;
+  /** Portfolio: filho Pré Obra e Obra concluído (`kanban_cards.concluido`). */
+  operacoesFilhoConcluido?: boolean;
   /** Portfolio: fase atual do filho em Pré Obra e Obra (tag de vínculo). */
   operacoesFilhoFaseRotulo?: string | null;
   /** Portfolio: fase atual do filho Jurídico. */
@@ -291,7 +293,7 @@ export function montarChipsParalelas(
         label: opts?.labelsCompletos
           ? `Funil Pré Obra e Obra: ${rotuloFase}`
           : `Pré Obra: ${rotuloFase}`,
-        concluido: temFilhoOperacoes,
+        concluido: temFilhoOperacoes && Boolean(input.operacoesFilhoConcluido),
         icone: '🔗',
         variant: 'vinculo',
         kanbanId: KANBAN_IDS.OPERACOES,
@@ -552,7 +554,7 @@ export async function enrichCardsParalelasContext(
         .in('origem_card_id', cardIds),
       supabase
         .from('kanban_cards')
-        .select('origem_card_id, kanban_fases ( nome, slug )')
+        .select('origem_card_id, concluido, kanban_fases ( nome, slug )')
         .eq('kanban_id', KANBAN_IDS.OPERACOES)
         .eq('arquivado', false)
         .in('origem_card_id', cardIds),
@@ -599,6 +601,7 @@ export async function enrichCardsParalelasContext(
     }
 
     const filhoOperacoesPorPai = new Map<string, string>();
+    const filhoOperacoesConcluidoPorPai = new Map<string, boolean>();
     for (const row of filhosOperacoes ?? []) {
       const oid = String((row as { origem_card_id?: string | null }).origem_card_id ?? '').trim();
       if (!oid) continue;
@@ -609,6 +612,9 @@ export async function enrichCardsParalelasContext(
         oid,
         rotuloFaseOperacoesVinculo(String(fase?.nome ?? ''), String(fase?.slug ?? '')),
       );
+      if (!filhoOperacoesConcluidoPorPai.has(oid)) {
+        filhoOperacoesConcluidoPorPai.set(oid, (row as { concluido?: boolean | null }).concluido === true);
+      }
     }
 
     const paisComFilhoOperacoesArquivado = new Set<string>();
@@ -649,6 +655,7 @@ export async function enrichCardsParalelasContext(
       if (temFilhoOperacoes) {
         patch.tem_filho_operacoes = true;
         patch.operacoes_filho_fase_rotulo = filhoOperacoesPorPai.get(c.id) ?? null;
+        patch.operacoes_filho_concluido = filhoOperacoesConcluidoPorPai.get(c.id) === true;
       }
       if (filhoOperacoesArquivado) patch.filho_operacoes_arquivado = true;
       if (filhoAcop) {

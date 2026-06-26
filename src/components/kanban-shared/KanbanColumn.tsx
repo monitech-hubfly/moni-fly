@@ -430,6 +430,7 @@ export function KanbanColumn({
               filhoAcoplamentoArquivado: card.filho_acoplamento_arquivado,
               temFilhoOperacoes: card.tem_filho_operacoes,
               filhoOperacoesArquivado: card.filho_operacoes_arquivado,
+              operacoesFilhoConcluido: card.operacoes_filho_concluido,
               operacoesFilhoFaseRotulo: card.operacoes_filho_fase_rotulo,
               juridicoFilhoFaseRotulo: card.juridico_filho_fase_nome,
             },
