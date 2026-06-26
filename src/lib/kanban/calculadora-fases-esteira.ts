@@ -8,7 +8,9 @@ import {
   aplicarAncoraCalculadoraLinhas,
   aplicarDatasManuaisCalculadoraLinhas,
   normalizarIntervaloDatasCalculadoraLinhas,
+  calcularResumoExecutivoCalculadoraFases,
   type CalculadoraAncora,
+  type CalculadoraResumoExecutivo,
   type CalculadoraFaseDataManualOverride,
   type CalculadoraFaseLinha,
   type CalculadoraFasesInput,
@@ -16,6 +18,7 @@ import {
 import { fetchKanbanFasesAtivas, mapKanbanFaseRow } from '@/lib/kanban/fetch-kanban-fases';
 import type { FaseVisit } from '@/lib/kanban/kanban-card-timeline';
 import { indiceEsteiraTresEtapas } from '@/lib/kanban/pipeline-esteira-tres-etapas';
+import type { ContextoCalculadoraSyncGroup } from '@/lib/kanban/card-sync-group';
 import { filterStepOneCalculadoraFases, isCalculadoraExcludedStepOneFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { filterOperacoesCalculadoraFases } from '@/lib/kanban/operacoes-fase-slugs';
 import {
@@ -288,6 +291,26 @@ export function calcularLinhasCalculadoraFasesEsteira(input: {
     input.hoje,
   );
   return normalizarIntervaloDatasCalculadoraLinhas(comDatasManuais, cardCalc, input.hoje);
+}
+
+/** Resumo executivo idêntico em todos os cards vinculados do sync group. */
+export function calcularResumoExecutivoCalculadoraSyncGroup(
+  linhasEncadeadas: CalculadoraFaseLinha[],
+  ctx: ContextoCalculadoraSyncGroup | null | undefined,
+  opts?: {
+    cardConcluido?: boolean;
+    visits?: FaseVisit[];
+    ancora?: CalculadoraAncora | null;
+    hoje?: Date;
+  },
+): CalculadoraResumoExecutivo {
+  const cardConcluido = ctx?.cardCalcCanonico.concluido ?? opts?.cardConcluido === true;
+  return calcularResumoExecutivoCalculadoraFases(linhasEncadeadas, {
+    cardConcluido,
+    visits: opts?.visits,
+    ancora: opts?.ancora,
+    hoje: opts?.hoje,
+  });
 }
 
 /** Mescla fases já carregadas do kanban atual no mapa (fallback enquanto busca a esteira). */

@@ -7,7 +7,9 @@ import {
   aplicarEncadeamentoMarcoContratoNasLinhas,
   enriquecerLinhasCalculadoraComCusto,
   enriquecerLinhasCalculadoraComResponsavelDaFase,
+  normalizarIntervaloDatasCalculadoraLinhas,
   type CalculadoraFaseLinha,
+  type CalculadoraResumoExecutivo,
 } from '@/lib/kanban/calculadora-fases';
 import type { CalculadoraMarcosInput } from '@/lib/kanban/calculadora-fases-marcos';
 import { calculadoraMarcosInputFromProcessoRow } from '@/lib/kanban/calculadora-fases-marcos';
@@ -15,6 +17,7 @@ import { parseNegociacaoLinhasFromDb, type NegociacaoLinha } from '@/lib/kanban/
 import {
   CALCULADORA_ESTEIRA_KANBAN_IDS,
   calcularLinhasCalculadoraFasesEsteira,
+  calcularResumoExecutivoCalculadoraSyncGroup,
   fetchCalculadoraEsteiraFasesMap,
   mesclarFasesKanbanAtualNoMapa,
   montarFasesFlatCalculadoraVisitas,
@@ -28,7 +31,6 @@ import { filterOperacoesCalculadoraFases } from '@/lib/kanban/operacoes-fase-slu
 import { filterPortfolioCalculadoraFases } from '@/lib/kanban/portfolio-fase-slugs';
 import { buscarResponsavelDaFaseSalvoPorFases } from '@/lib/kanban/responsavel-fase-checklist';
 import { filterStepOneCalculadoraFases } from '@/lib/kanban/stepone-fase-slugs';
-import { cardKanbanNaEsteiraPrincipalCalculadora } from '@/lib/kanban/calculadora-fases-esteira';
 import { fetchCondominioRowById } from '@/lib/condominios';
 import { condominioPrazosSlaFromRow } from '@/lib/kanban/condominio-prazos-aprovacao';
 import { createClient } from '@/lib/supabase/server';
@@ -54,6 +56,9 @@ export type CalculadoraPublicaCard = {
 export type CalculadoraPublicaPack = {
   card: CalculadoraPublicaCard;
   linhas: CalculadoraFaseLinha[];
+  resumo: CalculadoraResumoExecutivo;
+  faseAtualIdCanonico: string;
+  cardConcluidoCanonico: boolean;
   fasesFlat: KanbanFase[];
   fasesMeta: Map<string, KanbanFase>;
   marcos: CalculadoraMarcosInput;
@@ -95,8 +100,7 @@ async function montarCalculadoraPack(
   const kanbanId = String(card.kanban_id ?? '').trim();
   if (!kanbanId) return null;
 
-  const naEsteira = cardKanbanNaEsteiraPrincipalCalculadora(kanbanId);
-  const ctx = naEsteira ? await fetchContextoCalculadoraSyncGroup(supabase, card.id) : null;
+  const ctx = await fetchContextoCalculadoraSyncGroup(supabase, card.id);
   const kanbanIdCalc = ctx?.kanbanIdCanonico ?? kanbanId;
 
   const [fasesEsteiraMap, fasesKanban, historico] = await Promise.all([
@@ -196,13 +200,7 @@ async function montarCalculadoraPack(
 
     linhas = calcularLinhasCalculadoraFases({
       fases: fasesCalculadora,
-      card: {
-        fase_id: card.fase_id,
-        created_at: card.created_at,
-        entered_fase_at: card.entered_fase_at,
-        concluido: card.concluido,
-        concluido_em: card.concluido_em,
-      },
+      card: cardCalcInput,
       visits,
       ancora: calculadoraAncora,
       overrides,
@@ -225,17 +223,20 @@ async function montarCalculadoraPack(
             ? filterOperacoesCalculadoraFases(fasesKanban)
             : fasesKanban;
 
-  linhas = aplicarEncadeamentoMarcoContratoNasLinhas(
-    linhas,
-    fasesFlatFinal,
-    {
-      contrato_assinado_em:
-        ctx?.marcosCanonicos.contrato_assinado_em ?? card.contrato_assinado_em,
-    },
+  linhas = normalizarIntervaloDatasCalculadoraLinhas(
+    aplicarEncadeamentoMarcoContratoNasLinhas(
+      linhas,
+      fasesFlatFinal,
+      {
+        contrato_assinado_em:
+          ctx?.marcosCanonicos.contrato_assinado_em ?? card.contrato_assinado_em,
+      },
+      cardCalcInput,
+      visits,
+      undefined,
+      overrides,
+    ),
     cardCalcInput,
-    visits,
-    undefined,
-    overrides,
   );
 
   const fasesMeta = new Map<string, KanbanFase>();
@@ -280,9 +281,18 @@ async function montarCalculadoraPack(
     }
   }
 
+  const resumo = calcularResumoExecutivoCalculadoraSyncGroup(linhasEnriquecidas, ctx, {
+    cardConcluido: cardCalcInput.concluido,
+    visits,
+    ancora: calculadoraAncora,
+  });
+
   return {
     card,
     linhas: linhasEnriquecidas,
+    resumo,
+    faseAtualIdCanonico: ctx?.faseIdCanonico ?? card.fase_id,
+    cardConcluidoCanonico: cardCalcInput.concluido === true,
     fasesFlat: fasesFlatFinal,
     fasesMeta,
     marcos,

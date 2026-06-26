@@ -7,6 +7,7 @@ import {
   CALCULADORA_STATUS_LABEL,
   calcularResumoExecutivoCalculadoraFases,
   calculadoraHojeYmd,
+  type CalculadoraResumoExecutivo,
   faseUltrapassouSlaCalculadora,
   labelSufixoDataCalculadora,
   labelSufixoDataCalculadoraFase,
@@ -35,6 +36,8 @@ import { useCalculadoraShareLink } from '@/hooks/useCalculadoraShareLink';
 
 type Props = {
   linhas: CalculadoraFaseLinha[];
+  /** Resumo pré-calculado (sync group) — evita recalcular com contexto local do card. */
+  resumo?: CalculadoraResumoExecutivo;
   faseAtualId: string | null;
   cardConcluido?: boolean;
   visits?: FaseVisit[];
@@ -202,7 +205,7 @@ function CalculadoraResumoExecutivo({
   resumo,
   linhaAtual,
 }: {
-  resumo: ReturnType<typeof calcularResumoExecutivoCalculadoraFases>;
+  resumo: CalculadoraResumoExecutivo;
   linhaAtual: CalculadoraFaseLinha | undefined;
 }) {
   const atrasada = resumo.statusGeral === 'atrasado';
@@ -433,6 +436,8 @@ function CalculadoraNegociacaoRow({ negociacao }: { negociacao: NegociacaoLinhaC
           </div>
         ) : null}
       </div>
+
+      <div aria-hidden />
 
       <div aria-hidden />
 
@@ -864,6 +869,7 @@ function CalculadoraFunilGroup({
 
 export function KanbanCardModalCalculadoraFases({
   linhas,
+  resumo: resumoProp,
   faseAtualId,
   cardConcluido,
   visits = [],
@@ -891,8 +897,10 @@ export function KanbanCardModalCalculadoraFases({
   }, [fasesMeta, fases]);
 
   const resumo = useMemo(
-    () => calcularResumoExecutivoCalculadoraFases(linhas, { cardConcluido, visits }),
-    [linhas, cardConcluido, visits],
+    () =>
+      resumoProp ??
+      calcularResumoExecutivoCalculadoraFases(linhas, { cardConcluido, visits }),
+    [resumoProp, linhas, cardConcluido, visits],
   );
 
   const linhaAtual = useMemo(

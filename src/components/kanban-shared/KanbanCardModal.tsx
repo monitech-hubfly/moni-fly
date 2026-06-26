@@ -314,7 +314,7 @@ import {
 } from '@/lib/kanban/responsavel-fase-checklist';
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
-import { calcularLinhasCalculadoraFases, calcularResumoExecutivoCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase } from '@/lib/kanban/calculadora-fases';
+import { calcularLinhasCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase, normalizarIntervaloDatasCalculadoraLinhas } from '@/lib/kanban/calculadora-fases';
 import {
   buscarDatasManuaisCalculadoraSyncGroup,
   limparDatasManuaisCalculadoraSyncGroup,
@@ -324,6 +324,7 @@ import {
 } from '@/lib/kanban/calculadora-fase-datas';
 import {
   calcularLinhasCalculadoraFasesEsteira,
+  calcularResumoExecutivoCalculadoraSyncGroup,
   CALCULADORA_ESTEIRA_KANBAN_IDS,
   cardKanbanNaEsteiraPrincipalCalculadora,
   fetchCalculadoraEsteiraFasesMap,
@@ -1665,10 +1666,7 @@ export function KanbanCardModal({
           loaded.kanban_id,
         );
         setHistorico(hist);
-        if (
-          origem !== 'legado' &&
-          cardKanbanNaEsteiraPrincipalCalculadora(String(loaded.kanban_id ?? ''))
-        ) {
+        if (origem !== 'legado') {
           const histCalc = await loadHistoricoCalculadoraEsteira(
             supabase,
             cardId,
@@ -3427,8 +3425,7 @@ export function KanbanCardModal({
   const calculadoraFasesPack = useMemo(() => {
     if (!card) return { linhas: [], visits: [], faseIds: [] as string[] };
     try {
-      const naEsteira = cardKanbanNaEsteiraPrincipalCalculadora(String(card.kanban_id ?? ''));
-      if (naEsteira && !contextoCalculadoraCarregado) {
+      if (!contextoCalculadoraCarregado) {
         return { linhas: [], visits: [], faseIds: [] as string[] };
       }
 
@@ -3438,7 +3435,7 @@ export function KanbanCardModal({
         criado_em: h.criado_em,
       }));
 
-      const ctx = naEsteira ? contextoCalculadoraSyncGroup : null;
+      const ctx = contextoCalculadoraSyncGroup;
       const kanbanIdCalc = ctx?.kanbanIdCanonico ?? card.kanban_id;
 
       const fasesEsteiraMap = mesclarFasesKanbanAtualNoMapa(
@@ -3599,17 +3596,9 @@ export function KanbanCardModal({
 
   useEffect(() => {
     const cardId = card?.id?.trim();
-    const kanbanId = String(card?.kanban_id ?? '').trim();
     if (!cardId) {
       setContextoCalculadoraSyncGroup(null);
       setContextoCalculadoraCarregado(false);
-      return;
-    }
-
-    const naEsteira = cardKanbanNaEsteiraPrincipalCalculadora(kanbanId);
-    if (!naEsteira) {
-      setContextoCalculadoraSyncGroup(null);
-      setContextoCalculadoraCarregado(true);
       return;
     }
 
@@ -3627,7 +3616,7 @@ export function KanbanCardModal({
     return () => {
       cancelado = true;
     };
-  }, [card?.id, card?.kanban_id]);
+  }, [card?.id]);
 
   useEffect(() => {
     const cardId = card?.id?.trim();
@@ -3769,8 +3758,7 @@ export function KanbanCardModal({
 
   const calculadoraLinhasEncadeadas = useMemo(() => {
     if (!card) return calculadoraFasesPack.linhas;
-    const naEsteira = cardKanbanNaEsteiraPrincipalCalculadora(String(card.kanban_id ?? ''));
-    const ctx = naEsteira ? contextoCalculadoraSyncGroup : null;
+    const ctx = contextoCalculadoraSyncGroup;
     const cardEncadeamento = ctx
       ? ctx.cardCalcCanonico
       : {
@@ -3780,7 +3768,7 @@ export function KanbanCardModal({
           concluido: card.concluido,
           concluido_em: card.concluido_em,
         };
-    return aplicarEncadeamentoMarcoContratoNasLinhas(
+    const encadeadas = aplicarEncadeamentoMarcoContratoNasLinhas(
       calculadoraFasesPack.linhas,
       calculadoraFasesFlat,
       { contrato_assinado_em: calculadoraMarcosInput.contrato_assinado_em },
@@ -3789,6 +3777,7 @@ export function KanbanCardModal({
       undefined,
       datasManuaisCalculadora,
     );
+    return normalizarIntervaloDatasCalculadoraLinhas(encadeadas, cardEncadeamento);
   }, [
     card,
     contextoCalculadoraSyncGroup,
@@ -3799,14 +3788,26 @@ export function KanbanCardModal({
     datasManuaisCalculadora,
   ]);
 
+  const calculadoraCardConcluidoCanonico =
+    contextoCalculadoraSyncGroup?.cardCalcCanonico.concluido ?? card?.concluido === true;
+
+  const calculadoraFaseAtualIdCanonico =
+    contextoCalculadoraSyncGroup?.faseIdCanonico ?? card?.fase_id ?? null;
+
   const calculadoraResumo = useMemo(
     () =>
-      calcularResumoExecutivoCalculadoraFases(calculadoraLinhasEncadeadas, {
-        cardConcluido: card?.concluido === true,
+      calcularResumoExecutivoCalculadoraSyncGroup(calculadoraLinhasEncadeadas, contextoCalculadoraSyncGroup, {
+        cardConcluido: calculadoraCardConcluidoCanonico,
         visits: calculadoraFasesPack.visits,
         ancora: calculadoraAncora,
       }),
-    [calculadoraLinhasEncadeadas, calculadoraFasesPack.visits, card?.concluido, calculadoraAncora],
+    [
+      calculadoraLinhasEncadeadas,
+      contextoCalculadoraSyncGroup,
+      calculadoraCardConcluidoCanonico,
+      calculadoraFasesPack.visits,
+      calculadoraAncora,
+    ],
   );
 
   const calculadoraLinhasEnriquecidas = useMemo(() => {
@@ -5645,9 +5646,10 @@ export function KanbanCardModal({
                 >
                   <KanbanCardModalCalculadoraFases
                     linhas={calculadoraLinhasEnriquecidas}
+                    resumo={calculadoraResumo}
                     visits={calculadoraFasesPack.visits}
-                    faseAtualId={card.fase_id}
-                    cardConcluido={card.concluido === true}
+                    faseAtualId={calculadoraFaseAtualIdCanonico}
+                    cardConcluido={calculadoraCardConcluidoCanonico}
                     fases={calculadoraFasesFlat}
                     fasesMeta={calculadoraFasesMeta}
                     marcos={calculadoraMarcosInput}

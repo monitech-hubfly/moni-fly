@@ -12,7 +12,7 @@ export default async function CalculadoraPublicaPage({ params }: Props) {
 
   if (!pack) notFound();
 
-  const { card, linhas, fasesFlat, fasesMeta, marcos, negociacaoLinhas } = pack;
+  const { card, linhas, resumo, faseAtualIdCanonico, cardConcluidoCanonico, fasesFlat, fasesMeta, marcos, negociacaoLinhas } = pack;
 
   return (
     <div
@@ -52,8 +52,9 @@ export default async function CalculadoraPublicaPage({ params }: Props) {
 
       <KanbanCardModalCalculadoraFases
         linhas={linhas}
-        faseAtualId={card.fase_id}
-        cardConcluido={card.concluido}
+        resumo={resumo}
+        faseAtualId={faseAtualIdCanonico}
+        cardConcluido={cardConcluidoCanonico}
         fases={fasesFlat}
         fasesMeta={fasesMeta}
         marcos={marcos}
