@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import type { SlaKanbanResult } from '@/lib/kanban/kanban-card-sla';
-import { indicadorBolinhaSlaKanban } from '@/lib/kanban/kanban-card-sla';
+import { tagSlaKanbanParaExibicao } from '@/lib/kanban/kanban-card-sla';
 import type { IndicadorDataKanban } from '@/lib/kanban/kanban-card-datas';
 import { formatDataPtBr, indicadorDataKanban } from '@/lib/kanban/kanban-card-datas';
 
@@ -40,6 +40,29 @@ export function KanbanPrazoBolinha({ variante, numero, title, sigla }: BolinhaPr
       >
         {tooltipText}
       </span>
+    </span>
+  );
+}
+
+function classeTagSlaKanban(variante: 'ok' | 'atencao' | 'atrasado'): string {
+  if (variante === 'atrasado') return 'moni-kanban-card-sla moni-kanban-card-sla--atrasado';
+  if (variante === 'atencao') return 'moni-kanban-card-sla moni-kanban-card-sla--atencao';
+  return 'moni-kanban-card-sla moni-kanban-card-sla--ok';
+}
+
+/** Tag textual de SLA — padrão em todos os funis/kanbans. */
+export function KanbanSlaTag({
+  sla,
+  className = '',
+}: {
+  sla: SlaKanbanResult;
+  className?: string;
+}) {
+  const tag = tagSlaKanbanParaExibicao(sla);
+  if (!tag) return null;
+  return (
+    <span className={`${classeTagSlaKanban(tag.variante)} ${className}`.trim()} title={tag.texto}>
+      {tag.texto}
     </span>
   );
 }
@@ -94,15 +117,9 @@ export function KanbanCardPrazoIndicadores({
   const itens: ReactNode[] = [];
 
   if (!ocultarSla) {
-    const slaBol = indicadorBolinhaSlaKanban(sla);
-    if (slaBol) {
-      itens.push(
-        <KanbanPrazoBolinha
-          key="sla"
-          {...slaBol}
-          sigla="SLA"
-        />,
-      );
+    const slaTag = tagSlaKanbanParaExibicao(sla);
+    if (slaTag) {
+      itens.push(<KanbanSlaTag key="sla" sla={sla} />);
     }
   }
 
@@ -164,19 +181,20 @@ export function KanbanDataIndicador({
   return renderIndicadorData(tipo, dataIso);
 }
 
-/** SLA isolado — útil em cards legados (Painel Step One, etc.). */
+/** SLA isolado — útil em cards legados (Painel Step One, modal, etc.). */
 export function KanbanCardSlaBolinha({
   sla,
   className = '',
 }: {
-  sla: Pick<SlaKanbanResult, 'status' | 'label' | 'diasAtraso' | 'diasRestantes'> & { pausado?: boolean };
+  sla: Pick<SlaKanbanResult, 'status' | 'label'> &
+    Partial<Pick<SlaKanbanResult, 'diasAtraso' | 'diasRestantes' | 'pausado' | 'slaTipo' | 'classe'>>;
   className?: string;
 }) {
-  const bol = indicadorBolinhaSlaKanban({ pausado: false, ...sla } as SlaKanbanResult);
-  if (!bol) return null;
+  const full: SlaKanbanResult = { pausado: false, classe: '', ...sla };
+  if (full.pausado) return null;
   return (
     <div className={`moni-kanban-card-indicators ${className}`.trim()}>
-      <KanbanPrazoBolinha {...bol} sigla="SLA" />
+      <KanbanSlaTag sla={full} />
     </div>
   );
 }

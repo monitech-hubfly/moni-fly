@@ -2681,6 +2681,7 @@
   font-weight: var(--moni-weight-medium);
   line-height: 1.25;
   border: var(--moni-border-width) solid transparent;
+  white-space: nowrap;
 }
 
 .moni-kanban-card-sla-dot {

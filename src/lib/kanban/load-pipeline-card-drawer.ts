@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanFase } from '@/components/kanban-shared/types';
 import type { HistoricoItem } from '@/components/kanban-shared/kanban-card-modal-helpers';
-import { calcularDiasUteis, calcularDiasCorridos, adicionarDiasUteis, adicionarDiasCorridos, rotuloUnidadeSla, normalizarSlaTipo, type SlaTipo } from '@/lib/dias-uteis';
+import { calcularDiasUteis, calcularDiasCorridos, adicionarDiasUteis, adicionarDiasCorridos, labelTagSlaFunil, normalizarSlaTipo, type SlaTipo } from '@/lib/dias-uteis';
 import { augmentKanbanFasesComFasesDosCards, fetchKanbanFasesAtivas } from '@/lib/kanban/fetch-kanban-fases';
 import { loadHistoricoCardModal } from '@/lib/kanban/kanban-card-historico';
 import {
@@ -63,7 +63,6 @@ function calcularSlaHistoricoFase(
   const referencia = saiuEm ? new Date(saiuEm) : new Date();
   referencia.setHours(0, 0, 0, 0);
 
-  const unidade = rotuloUnidadeSla(slaTipo);
   const vencimento =
     slaTipo === 'corridos'
       ? adicionarDiasCorridos(entrada, slaDias)
@@ -78,28 +77,28 @@ function calcularSlaHistoricoFase(
   if (vencimento < referencia) {
     const diasAtraso = diffDias(vencimento, referencia);
     return {
-      label: `Atrasado ${diasAtraso} ${unidade}`,
+      label: labelTagSlaFunil('atrasado', { diasAtraso, slaTipo }),
       classe: 'moni-tag-atrasado',
       atrasado: true,
     };
   }
 
   if (vencimento.getTime() === referencia.getTime()) {
-    return { label: 'Vence na saída', classe: 'moni-tag-atencao', atrasado: false };
+    return { label: labelTagSlaFunil('atencao'), classe: 'moni-tag-atencao', atrasado: false };
   }
 
   const restantes = diffDias(referencia, vencimento);
   if (!saiuEm && restantes === 1) {
-    return { label: `Vence em 1 ${unidade}`, classe: 'moni-tag-atencao', atrasado: false };
+    return { label: labelTagSlaFunil('atencao'), classe: 'moni-tag-atencao', atrasado: false };
   }
 
   if (!saiuEm && restantes === 0) {
-    return { label: 'Vence hoje', classe: 'moni-tag-atencao', atrasado: false };
+    return { label: labelTagSlaFunil('atencao'), classe: 'moni-tag-atencao', atrasado: false };
   }
 
   return {
-    label: saiuEm ? `Dentro do prazo (${slaDias} ${unidade})` : `${restantes} ${unidade} restantes`,
-    classe: saiuEm ? 'moni-tag-concluido' : '',
+    label: labelTagSlaFunil('ok'),
+    classe: 'moni-tag-concluido',
     atrasado: false,
   };
 }

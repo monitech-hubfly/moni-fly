@@ -10,9 +10,8 @@ import {
   TAG_AGUARDANDO_DOCUMENTACAO,
   CLASSE_TAG_AGUARDANDO_DOCUMENTACAO,
   creditoObraAguardandoDocumentacao,
-  indicadorBolinhaSlaKanban,
 } from '@/lib/kanban/kanban-card-sla';
-import { KanbanPrazoBolinha } from '@/components/kanban-shared/KanbanCardPrazoIndicadores';
+import { KanbanSlaTag } from '@/components/kanban-shared/KanbanCardPrazoIndicadores';
 import type { PipelineCardDisplay } from '@/lib/kanban/pipeline-cards-types';
 import {
   loadPipelineCardDrawerData,
@@ -113,7 +112,7 @@ export function PipelineCardMiniDrawer({ card, onClose }: Props) {
     alvara_url: card.alvara_url,
     docs_terreno_url: card.docs_terreno_url,
   });
-  const slaBolinha = !aguardandoDoc ? indicadorBolinhaSlaKanban(card.sla) : null;
+  const exibirSlaTag = !aguardandoDoc && !card.sla.pausado;
 
   const hrefCard = hrefAbrirCardKanban(card.kanban_nome, card.id);
   const statusLabel = drawerData?.statusLabel ?? '—';
@@ -204,13 +203,8 @@ export function PipelineCardMiniDrawer({ card, onClose }: Props) {
               <dd className="mt-0.5">
                 {aguardandoDoc ? (
                   <span className={CLASSE_TAG_AGUARDANDO_DOCUMENTACAO}>{TAG_AGUARDANDO_DOCUMENTACAO}</span>
-                ) : slaBolinha ? (
-                  <KanbanPrazoBolinha
-                    {...slaBolinha}
-                    sigla={slaBolinha.variante === 'atencao' ? 'SLA' : undefined}
-                  />
-                ) : card.sla.status === 'ok' && card.sla.label ? (
-                  <span style={{ color: 'var(--moni-text-secondary)' }}>{card.sla.label}</span>
+                ) : exibirSlaTag ? (
+                  <KanbanSlaTag sla={card.sla} />
                 ) : (
                   <span style={{ color: 'var(--moni-text-secondary)' }}>—</span>
                 )}

@@ -105,6 +105,24 @@ export function rotuloUnidadeSla(tipo: SlaTipo | string | null | undefined): 'd.
   return normalizarSlaTipo(tipo) === 'corridos' ? 'd.c.' : 'd.u.';
 }
 
+/** Sigla em maiúsculas para tags de SLA nos cards (ex.: D.U., D.C.). */
+export function rotuloUnidadeSlaTag(tipo: SlaTipo | string | null | undefined): 'D.U.' | 'D.C.' {
+  return normalizarSlaTipo(tipo) === 'corridos' ? 'D.C.' : 'D.U.';
+}
+
+/** Rótulo padronizado de tag SLA em funis e kanbans. */
+export function labelTagSlaFunil(
+  status: 'ok' | 'atencao' | 'atrasado',
+  opts?: { diasAtraso?: number; slaTipo?: SlaTipo | string | null },
+): string {
+  if (status === 'atrasado') {
+    const n = Math.max(1, opts?.diasAtraso ?? 1);
+    return `SLA ATRASADO - ${n} ${rotuloUnidadeSlaTag(opts?.slaTipo)}`;
+  }
+  if (status === 'atencao') return 'SLA atenção';
+  return 'SLA ok';
+}
+
 export type RotuloSlaAtividadeVariante = 'atrasado' | 'atencao' | 'ok' | 'nenhum';
 
 export type RotuloSlaAtividade = {
@@ -264,7 +282,7 @@ export function calcularStatusSLACorridos(
     const diasAtraso = calcularDiasCorridos(dataVencimento, hoje);
     return {
       status: 'atrasado',
-      label: `Atrasado ${diasAtraso} d.c.`,
+      label: labelTagSlaFunil('atrasado', { diasAtraso, slaTipo: 'corridos' }),
       classe: 'moni-tag-atrasado',
       diasAtraso,
       slaTipo: 'corridos',
@@ -274,7 +292,7 @@ export function calcularStatusSLACorridos(
   if (dataVencimento.getTime() === hoje.getTime()) {
     return {
       status: 'atencao',
-      label: 'Vence hoje',
+      label: labelTagSlaFunil('atencao'),
       classe: 'moni-tag-atencao',
       diasRestantes: 0,
       slaTipo: 'corridos',
@@ -285,7 +303,7 @@ export function calcularStatusSLACorridos(
   if (diasRestantes === 1) {
     return {
       status: 'atencao',
-      label: 'Vence em 1 d.c.',
+      label: labelTagSlaFunil('atencao'),
       classe: 'moni-tag-atencao',
       diasRestantes: 1,
       slaTipo: 'corridos',
@@ -294,8 +312,8 @@ export function calcularStatusSLACorridos(
 
   return {
     status: 'ok',
-    label: `${diasRestantes} d.c. restantes`,
-    classe: '',
+    label: labelTagSlaFunil('ok'),
+    classe: 'moni-tag-concluido',
     diasRestantes,
     slaTipo: 'corridos',
   };
@@ -351,7 +369,7 @@ export function calcularStatusSLA(
     const diasAtraso = calcularDiasUteis(dataVencimento, hoje);
     return {
       status: 'atrasado',
-      label: `Atrasado ${diasAtraso} d.u.`,
+      label: labelTagSlaFunil('atrasado', { diasAtraso, slaTipo: 'uteis' }),
       classe: 'moni-tag-atrasado',
       diasAtraso,
     };
@@ -361,7 +379,7 @@ export function calcularStatusSLA(
   if (dataVencimento.getTime() === hoje.getTime()) {
     return {
       status: 'atencao',
-      label: 'Vence hoje',
+      label: labelTagSlaFunil('atencao'),
       classe: 'moni-tag-atencao',
       diasRestantes: 0,
     };
@@ -371,7 +389,7 @@ export function calcularStatusSLA(
   if (diasUteisRestantes === 1) {
     return {
       status: 'atencao',
-      label: 'Vence em 1 d.u.',
+      label: labelTagSlaFunil('atencao'),
       classe: 'moni-tag-atencao',
       diasRestantes: 1,
     };
@@ -380,8 +398,8 @@ export function calcularStatusSLA(
   // Tudo certo (2+ dias úteis restantes)
   return {
     status: 'ok',
-    label: `${diasUteisRestantes} d.u. restantes`,
-    classe: '',
+    label: labelTagSlaFunil('ok'),
+    classe: 'moni-tag-concluido',
     diasRestantes: diasUteisRestantes,
   };
 }
