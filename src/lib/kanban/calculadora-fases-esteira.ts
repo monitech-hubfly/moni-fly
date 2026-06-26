@@ -36,6 +36,11 @@ export const CALCULADORA_ESTEIRA_FUNIS = [
 
 export const CALCULADORA_ESTEIRA_KANBAN_IDS = CALCULADORA_ESTEIRA_FUNIS.map((f) => f.kanbanId);
 
+/** Mapa de fases carregado para todos os funis da esteira (evita calculadora parcial por kanban). */
+export function esteiraFasesMapPronto(map: Map<string, KanbanFase[]>): boolean {
+  return CALCULADORA_ESTEIRA_KANBAN_IDS.every((id) => (map.get(id)?.length ?? 0) > 0);
+}
+
 export type CalculadoraFaseEsteiraMeta = KanbanFase & {
   kanbanId: string;
   funilLabel: string;

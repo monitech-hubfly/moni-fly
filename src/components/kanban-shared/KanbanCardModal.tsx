@@ -327,6 +327,7 @@ import {
   calcularResumoExecutivoCalculadoraSyncGroup,
   CALCULADORA_ESTEIRA_KANBAN_IDS,
   cardKanbanNaEsteiraPrincipalCalculadora,
+  esteiraFasesMapPronto,
   fetchCalculadoraEsteiraFasesMap,
   mesclarFasesKanbanAtualNoMapa,
   montarFasesFlatCalculadoraVisitas,
@@ -566,6 +567,7 @@ export function KanbanCardModal({
   const [linkCopiado, setLinkCopiado] = useState(false);
   const [fases, setFases] = useState<KanbanFase[]>(fasesProp ?? []);
   const [fasesEsteiraCalculadora, setFasesEsteiraCalculadora] = useState<Map<string, KanbanFase[]>>(new Map());
+  const [fasesEsteiraCalculadoraCarregado, setFasesEsteiraCalculadoraCarregado] = useState(false);
   const [datasManuaisCalculadora, setDatasManuaisCalculadora] = useState<
     Map<string, CalculadoraFaseDataManual>
   >(() => new Map());
@@ -1010,13 +1012,18 @@ export function KanbanCardModal({
   useEffect(() => {
     if (!card) {
       setFasesEsteiraCalculadora(new Map());
+      setFasesEsteiraCalculadoraCarregado(false);
       return;
     }
     let cancelled = false;
+    setFasesEsteiraCalculadoraCarregado(false);
     (async () => {
       const supabase = createClient();
       const map = await fetchCalculadoraEsteiraFasesMap(supabase);
-      if (!cancelled) setFasesEsteiraCalculadora(map);
+      if (!cancelled) {
+        setFasesEsteiraCalculadora(map);
+        setFasesEsteiraCalculadoraCarregado(true);
+      }
     })();
     return () => {
       cancelled = true;
@@ -3441,16 +3448,23 @@ export function KanbanCardModal({
   const calculadoraFasesPack = useMemo(() => {
     if (!card) return { linhas: [], visits: [], faseIds: [] as string[] };
     try {
-      if (!contextoCalculadoraCarregado || (origem !== 'legado' && !visitsCalculadoraCarregado)) {
+      const ctx = contextoCalculadoraSyncGroup;
+      const kanbanIdCalc = ctx?.kanbanIdCanonico ?? card.kanban_id;
+      const precisaEsteiraCompleta =
+        Boolean(ctx) || cardKanbanNaEsteiraPrincipalCalculadora(String(card.kanban_id ?? ''));
+
+      if (
+        !contextoCalculadoraCarregado ||
+        (origem !== 'legado' && !visitsCalculadoraCarregado) ||
+        (precisaEsteiraCompleta &&
+          (!fasesEsteiraCalculadoraCarregado || !esteiraFasesMapPronto(fasesEsteiraCalculadora)))
+      ) {
         return { linhas: [], visits: [], faseIds: [] as string[] };
       }
 
-      const ctx = contextoCalculadoraSyncGroup;
-      const kanbanIdCalc = ctx?.kanbanIdCanonico ?? card.kanban_id;
-
       const fasesEsteiraMap = mesclarFasesKanbanAtualNoMapa(
         fasesEsteiraCalculadora,
-        card.kanban_id,
+        kanbanIdCalc,
         fases,
       );
 
@@ -3508,7 +3522,7 @@ export function KanbanCardModal({
         slaCondominio: calculadoraSlaCondominio,
       });
 
-      if (linhasEsteira.length > 0) {
+      if (linhasEsteira.length > 0 || ctx) {
         return {
           linhas: linhasEsteira,
           visits,
@@ -3543,7 +3557,7 @@ export function KanbanCardModal({
     } catch {
       return { linhas: [], visits: [], faseIds: [] as string[] };
     }
-  }, [card, fases, fasesEsteiraCalculadora, legadoCronologiaMoves, origem, modalDetalhes.processo, datasManuaisCalculadora, calculadoraSlaCondominio, contextoCalculadoraSyncGroup, contextoCalculadoraCarregado, visitsCalculadora, visitsCalculadoraCarregado]);
+  }, [card, fases, fasesEsteiraCalculadora, fasesEsteiraCalculadoraCarregado, legadoCronologiaMoves, origem, modalDetalhes.processo, datasManuaisCalculadora, calculadoraSlaCondominio, contextoCalculadoraSyncGroup, contextoCalculadoraCarregado, visitsCalculadora, visitsCalculadoraCarregado]);
 
   const calculadoraAncora = useMemo(
     () => calculadoraAncoraFromProcesso(modalDetalhes.processo),
@@ -3556,6 +3570,7 @@ export function KanbanCardModal({
       list.push(...(fasesEsteiraCalculadora.get(kid) ?? []));
     }
     if (list.length > 0) return list;
+    if (contextoCalculadoraSyncGroup) return [];
     return card?.kanban_id === KANBAN_IDS.STEP_ONE
       ? filterStepOneCalculadoraFases(fases)
       : card?.kanban_id === KANBAN_IDS.PORTFOLIO
@@ -3563,7 +3578,7 @@ export function KanbanCardModal({
         : card?.kanban_id === KANBAN_IDS.OPERACOES
           ? filterOperacoesCalculadoraFases(fases)
           : fases;
-  }, [fasesEsteiraCalculadora, fases, card?.kanban_id]);
+  }, [fasesEsteiraCalculadora, fases, card?.kanban_id, contextoCalculadoraSyncGroup]);
 
   const calculadoraFasesMeta = useMemo(() => {
     const map = new Map<string, KanbanFase>();
