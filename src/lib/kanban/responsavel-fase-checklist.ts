@@ -1362,10 +1362,29 @@ function resolverValorResponsavelCardComHistorico(
   itemPorFase: Map<string, string>,
   respPorCardItem: Map<string, string>,
 ): string | null {
+  const itemIdAtual = itemPorFase.get(faseIdAtual);
+  if (itemIdAtual) {
+    const atual = respPorCardItem.get(`${cardId}:${itemIdAtual}`);
+    if (atual) return atual;
+  }
+
+  // Responsável do card pode ter sido gravado em fase posterior — usa o mais avançado no funil.
+  let melhorOrdem = -1;
+  let melhorValor: string | null = null;
+  for (const [fid, itemId] of itemPorFase) {
+    const v = respPorCardItem.get(`${cardId}:${itemId}`);
+    if (!v) continue;
+    const ordem = faseOrdemPorId.get(fid) ?? -1;
+    if (ordem > melhorOrdem) {
+      melhorOrdem = ordem;
+      melhorValor = v;
+    }
+  }
+  if (melhorValor) return melhorValor;
+
   const ordemAtual = faseOrdemPorId.get(faseIdAtual);
   if (ordemAtual == null) {
-    const itemId = itemPorFase.get(faseIdAtual);
-    return itemId ? respPorCardItem.get(`${cardId}:${itemId}`) ?? null : null;
+    return itemIdAtual ? respPorCardItem.get(`${cardId}:${itemIdAtual}`) ?? null : null;
   }
 
   const fasesDesc = [...faseOrdemPorId.entries()]
