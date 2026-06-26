@@ -1,6 +1,14 @@
 import { normalizarSlaTipo, type SlaTipo } from '@/lib/dias-uteis';
 import type { CondominioPrazosAprovacaoSla } from '@/lib/kanban/condominio-prazos-aprovacao';
 
+/** SLAs canônicos da calculadora (independem do banco quando definidos). */
+export const SLA_CALCULADORA_CANONICO_POR_SLUG: Record<
+  string,
+  { dias: number; tipo: Extract<SlaTipo, 'corridos' | 'uteis'> }
+> = {
+  aguardando_credito: { dias: 30, tipo: 'corridos' },
+};
+
 /** SLAs padrão da calculadora quando a fase não tem sla_dias no banco. */
 export const SLA_FALLBACK_CALCULADORA_POR_SLUG: Record<
   string,
@@ -25,6 +33,15 @@ export function resolverSlaCalculadoraFase(
   condominioPrazos?: CondominioPrazosAprovacaoSla | null,
 ): SlaCalculadoraResolvido {
   const s = String(slug ?? '').trim();
+  const canonico = s ? SLA_CALCULADORA_CANONICO_POR_SLUG[s] : undefined;
+  if (canonico) {
+    return {
+      slaDias: canonico.dias,
+      slaTipo: canonico.tipo,
+      slaPrazoNaoDefinido: false,
+    };
+  }
+
   const condOverride =
     s === 'aprovacao_condominio'
       ? condominioPrazos?.aprovacao_condominio
