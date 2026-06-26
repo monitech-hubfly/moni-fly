@@ -301,6 +301,7 @@ import {
   RESPONSAVEL_DA_FASE_CHECKLIST_LABEL,
   RESPONSAVEL_FASE_CHECKLIST_LABEL,
   buscarResponsavelDaFaseSalvoPorFases,
+  isValorResponsavelDaFaseLista,
 } from '@/lib/kanban/responsavel-fase-checklist';
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
@@ -3512,6 +3513,18 @@ export function KanbanCardModal({
     };
   }, [card?.id, calculadoraFasesPack.faseIds.join('|')]);
 
+  const onResponsavelDaFaseAlterado = useCallback((faseId: string, valor: string) => {
+    const fid = faseId.trim();
+    if (!fid) return;
+    setResponsavelDaFaseSalvoPorFase((prev) => {
+      const next = new Map(prev);
+      const v = valor.trim();
+      if (v && isValorResponsavelDaFaseLista(v)) next.set(fid, v);
+      else next.delete(fid);
+      return next;
+    });
+  }, []);
+
   const condominioIdCalculadora =
     card?.condominio_id?.trim() || modalDetalhes.processo?.condominio_id?.trim() || null;
 
@@ -6283,6 +6296,7 @@ export function KanbanCardModal({
                     cardId={card.id}
                     faseId={faseIdResponsavelPainel}
                     readOnly={ocultarGestaoCard}
+                    onAlterado={onResponsavelDaFaseAlterado}
                   />
                 </PainelLateralSecao>
               </>

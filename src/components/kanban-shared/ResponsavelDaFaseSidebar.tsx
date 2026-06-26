@@ -17,6 +17,8 @@ type Props = {
   cardId: string;
   faseId: string;
   readOnly?: boolean;
+  /** Notifica o modal após persistir (ex.: atualizar calculadora). */
+  onAlterado?: (faseId: string, valor: string) => void;
 };
 
 function normalizarValorLista(valor: string | null | undefined): string {
@@ -25,7 +27,7 @@ function normalizarValorLista(valor: string | null | undefined): string {
 }
 
 /** Campo «Responsável da fase» no painel lateral — lista Moní ou Franqueado. */
-export function ResponsavelDaFaseSidebar({ cardId, faseId, readOnly = false }: Props) {
+export function ResponsavelDaFaseSidebar({ cardId, faseId, readOnly = false, onAlterado }: Props) {
   const [itemId, setItemId] = useState<string | null>(null);
   const [valor, setValor] = useState('');
   const [salvando, setSalvando] = useState(false);
@@ -101,6 +103,7 @@ export function ResponsavelDaFaseSidebar({ cardId, faseId, readOnly = false }: P
       valor: v || null,
       arquivo_path: null,
     });
+    onAlterado?.(faseId, v);
     setSalvando(false);
   }
 
