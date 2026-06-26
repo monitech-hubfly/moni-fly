@@ -435,15 +435,6 @@ function CalculadoraNegociacaoRow({ negociacao }: { negociacao: NegociacaoLinhaC
         ) : null}
       </div>
 
-      <div>
-        <span
-          className="moni-calculadora-fase-responsavel resp"
-          title={negociacao.vinculoLabel ?? 'Manual'}
-        >
-          {negociacao.vinculoLabel ?? 'Manual'}
-        </span>
-      </div>
-
       <div aria-hidden />
 
       <div className="moni-calculadora-fase-data-cell">
