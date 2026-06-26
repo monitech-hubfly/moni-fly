@@ -3466,7 +3466,7 @@ export function KanbanCardModal({
 
       const fasesEsteiraMap = mesclarFasesKanbanAtualNoMapa(
         fasesEsteiraCalculadora,
-        kanbanIdCalc,
+        card.kanban_id,
         fases,
       );
 

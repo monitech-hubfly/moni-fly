@@ -324,9 +324,14 @@ export function mesclarFasesKanbanAtualNoMapa(
   fasesAtuais: KanbanFase[],
 ): Map<string, KanbanFase[]> {
   const next = new Map(map);
-  if (fasesAtuais.length > 0 && (CALCULADORA_ESTEIRA_KANBAN_IDS as readonly string[]).includes(kanbanId)) {
-    const list = filtrarFasesCalculadoraEsteira(kanbanId, fasesAtuais);
-    next.set(kanbanId, list);
+  const kid = String(kanbanId ?? '').trim();
+  if (
+    fasesAtuais.length > 0 &&
+    (CALCULADORA_ESTEIRA_KANBAN_IDS as readonly string[]).includes(kid)
+  ) {
+    const list = filtrarFasesCalculadoraEsteira(kid, fasesAtuais);
+    // Não sobrescrever fases já carregadas quando o filtro não reconhece slugs do kanban errado.
+    if (list.length > 0) next.set(kid, list);
   }
   return next;
 }
