@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanCardBrief } from '@/components/kanban-shared/types';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { listarKanbanCardIdsSyncGroup } from '@/lib/kanban/card-sync-group';
 import {
   tipoResponsavelDaFasePorSlug,
   type TipoResponsavelDaFasePadrao,
@@ -861,6 +862,27 @@ export async function buscarResponsavelDaFaseSalvoPorFases(
   }
 
   return out;
+}
+
+/** Mescla «Responsável da fase» de todos os cards kanban do grupo de sync (calculadora unificada). */
+export async function buscarResponsavelDaFaseSalvoPorFasesSyncGroup(
+  supabase: SupabaseClient,
+  cardId: string,
+  faseIds: string[],
+): Promise<Map<string, string>> {
+  const kanbanCardIds = await listarKanbanCardIdsSyncGroup(supabase, cardId);
+  if (kanbanCardIds.length <= 1) {
+    return buscarResponsavelDaFaseSalvoPorFases(supabase, cardId, faseIds);
+  }
+
+  const merged = new Map<string, string>();
+  for (const cid of kanbanCardIds) {
+    const parcial = await buscarResponsavelDaFaseSalvoPorFases(supabase, cid, faseIds);
+    for (const [fid, valor] of parcial) {
+      if (!merged.has(fid)) merged.set(fid, valor);
+    }
+  }
+  return merged;
 }
 
 function valorResponsavelValido(valor: string | null | undefined): string | null {

@@ -369,8 +369,12 @@ async function expandirProcessoShadow(db: SyncDb, ids: Set<string>): Promise<voi
   for (const pid of processoIds) {
     ids.add(pid);
 
-    const { data: porProjeto } = await db.from('kanban_cards').select('id').eq('projeto_id', pid);
-    for (const row of porProjeto ?? []) {
+    const { data: porProcesso } = await db
+      .from('kanban_cards')
+      .select('id')
+      .or(`projeto_id.eq.${pid},processo_step_one_id.eq.${pid}`);
+
+    for (const row of porProcesso ?? []) {
       const id = String((row as { id?: string }).id ?? '').trim();
       if (id) ids.add(id);
     }

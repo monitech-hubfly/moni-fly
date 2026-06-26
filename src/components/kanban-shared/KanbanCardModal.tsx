@@ -309,6 +309,7 @@ import {
   RESPONSAVEL_DA_FASE_CHECKLIST_LABEL,
   RESPONSAVEL_FASE_CHECKLIST_LABEL,
   buscarResponsavelDaFaseSalvoPorFases,
+  buscarResponsavelDaFaseSalvoPorFasesSyncGroup,
   isValorResponsavelDaFaseLista,
 } from '@/lib/kanban/responsavel-fase-checklist';
 import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
@@ -595,6 +596,7 @@ export function KanbanCardModal({
   const [historicoCalculadora, setHistoricoCalculadora] = useState<HistoricoItem[]>([]);
   const [contextoCalculadoraSyncGroup, setContextoCalculadoraSyncGroup] =
     useState<ContextoCalculadoraSyncGroup | null>(null);
+  const [contextoCalculadoraCarregado, setContextoCalculadoraCarregado] = useState(false);
   const [comentariosCard, setComentariosCard] = useState<ComentarioCardRow[]>([]);
   const [novoComentarioCard, setNovoComentarioCard] = useState('');
   const [comentarioPendingAnexos, setComentarioPendingAnexos] = useState<File[]>([]);
@@ -3425,13 +3427,17 @@ export function KanbanCardModal({
   const calculadoraFasesPack = useMemo(() => {
     if (!card) return { linhas: [], visits: [], faseIds: [] as string[] };
     try {
+      const naEsteira = cardKanbanNaEsteiraPrincipalCalculadora(String(card.kanban_id ?? ''));
+      if (naEsteira && !contextoCalculadoraCarregado) {
+        return { linhas: [], visits: [], faseIds: [] as string[] };
+      }
+
       const historicoMovs = (historicoCalculadora.length > 0 ? historicoCalculadora : historico).map((h) => ({
         acao: h.acao,
         detalhe: h.detalhe,
         criado_em: h.criado_em,
       }));
 
-      const naEsteira = cardKanbanNaEsteiraPrincipalCalculadora(String(card.kanban_id ?? ''));
       const ctx = naEsteira ? contextoCalculadoraSyncGroup : null;
       const kanbanIdCalc = ctx?.kanbanIdCanonico ?? card.kanban_id;
 
@@ -3535,7 +3541,7 @@ export function KanbanCardModal({
     } catch {
       return { linhas: [], visits: [], faseIds: [] as string[] };
     }
-  }, [card, fases, fasesEsteiraCalculadora, historico, historicoCalculadora, legadoCronologiaMoves, origem, modalDetalhes.processo, datasManuaisCalculadora, calculadoraSlaCondominio, contextoCalculadoraSyncGroup]);
+  }, [card, fases, fasesEsteiraCalculadora, historico, historicoCalculadora, legadoCronologiaMoves, origem, modalDetalhes.processo, datasManuaisCalculadora, calculadoraSlaCondominio, contextoCalculadoraSyncGroup, contextoCalculadoraCarregado]);
 
   const calculadoraAncora = useMemo(
     () => calculadoraAncoraFromProcesso(modalDetalhes.processo),
@@ -3593,22 +3599,35 @@ export function KanbanCardModal({
 
   useEffect(() => {
     const cardId = card?.id?.trim();
+    const kanbanId = String(card?.kanban_id ?? '').trim();
     if (!cardId) {
       setContextoCalculadoraSyncGroup(null);
+      setContextoCalculadoraCarregado(false);
+      return;
+    }
+
+    const naEsteira = cardKanbanNaEsteiraPrincipalCalculadora(kanbanId);
+    if (!naEsteira) {
+      setContextoCalculadoraSyncGroup(null);
+      setContextoCalculadoraCarregado(true);
       return;
     }
 
     let cancelado = false;
+    setContextoCalculadoraCarregado(false);
     void (async () => {
       const supabase = createClient();
       const ctx = await fetchContextoCalculadoraSyncGroup(supabase, cardId);
-      if (!cancelado) setContextoCalculadoraSyncGroup(ctx);
+      if (!cancelado) {
+        setContextoCalculadoraSyncGroup(ctx);
+        setContextoCalculadoraCarregado(true);
+      }
     })();
 
     return () => {
       cancelado = true;
     };
-  }, [card?.id]);
+  }, [card?.id, card?.kanban_id]);
 
   useEffect(() => {
     const cardId = card?.id?.trim();
@@ -3621,7 +3640,7 @@ export function KanbanCardModal({
     let cancelado = false;
     void (async () => {
       const supabase = createClient();
-      const map = await buscarResponsavelDaFaseSalvoPorFases(supabase, cardId, faseIds);
+      const map = await buscarResponsavelDaFaseSalvoPorFasesSyncGroup(supabase, cardId, faseIds);
       if (!cancelado) setResponsavelDaFaseSalvoPorFase(map);
     })();
 
@@ -3663,7 +3682,7 @@ export function KanbanCardModal({
   }, []);
 
   const condominioIdCalculadora =
-    card?.condominio_id?.trim() || modalDetalhes.processo?.condominio_id?.trim() || null;
+    modalDetalhes.processo?.condominio_id?.trim() || card?.condominio_id?.trim() || null;
 
   useEffect(() => {
     if (!condominioIdCalculadora) {
