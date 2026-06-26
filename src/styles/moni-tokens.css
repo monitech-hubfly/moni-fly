@@ -201,8 +201,10 @@
   /* Kanban board — paleta compartilhada (redesign 2026) */
   --moni-kanban-board-bg:       #eceae6;
   --moni-kanban-col-bg:         #e4e2de;
-  --moni-kanban-col-hd:         #1c3a2b;
-  --moni-kanban-col-hd-fin:     #1a5c3a;
+  --moni-kanban-col-hd:         var(--moni-green-50);
+  --moni-kanban-col-hd-fin:     var(--moni-green-100);
+  --moni-kanban-col-accent:     var(--moni-green-800);
+  --moni-kanban-col-accent-fin: var(--moni-green-600);
   --moni-kanban-lime:           #d4edaa;
   --moni-kanban-lime-dim:       rgba(212, 237, 170, 0.6);
   --moni-kanban-t1:             #191917;
@@ -2248,7 +2250,7 @@
 
 .moni-kanban-fpill--search:focus {
   outline: none;
-  border-color: var(--moni-kanban-col-hd);
+  border-color: var(--moni-kanban-col-accent);
 }
 
 /* Coluna do kanban */
@@ -2265,7 +2267,7 @@
 }
 
 .moni-kanban-column--drag-over {
-  outline: 2px solid var(--moni-kanban-col-hd);
+  outline: 2px solid var(--moni-kanban-col-accent);
   outline-offset: -2px;
 }
 
@@ -2273,7 +2275,7 @@
   box-sizing: border-box;
   padding: 10px 10px 9px;
   background: var(--moni-kanban-col-hd);
-  border-bottom: var(--moni-border-width) solid rgba(255, 255, 255, 0.08);
+  border-bottom: var(--moni-border-width) solid var(--moni-kanban-drawer-header-border);
 }
 
 .moni-kanban-column-hd--fin {
@@ -2298,7 +2300,7 @@
   font-size: 11px;
   font-weight: 500;
   line-height: 1.3;
-  color: var(--moni-surface-0);
+  color: var(--moni-kanban-drawer-header-text);
 }
 
 .moni-kanban-column-subtitle {
@@ -2306,7 +2308,7 @@
   font-family: var(--moni-font-sans);
   font-size: 10px;
   line-height: 1.3;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--moni-kanban-drawer-header-muted);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -2328,8 +2330,9 @@
   height: 18px;
   padding: 0 5px;
   border-radius: var(--moni-radius-pill);
-  background: rgba(255, 255, 255, 0.15);
-  color: var(--moni-surface-0);
+  border: var(--moni-border-width) solid var(--moni-kanban-drawer-header-border);
+  background: var(--moni-surface-0);
+  color: var(--moni-kanban-drawer-header-text);
   font-family: var(--moni-font-sans);
   font-size: 10px;
   font-weight: 600;
@@ -2341,7 +2344,7 @@
   font-size: 9px;
   font-weight: 500;
   line-height: 1.2;
-  color: var(--moni-kanban-lime-dim);
+  color: var(--moni-kanban-drawer-header-muted);
   white-space: nowrap;
 }
 
@@ -2355,14 +2358,14 @@
   border: none;
   border-radius: var(--moni-radius-sm);
   background: transparent;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--moni-kanban-drawer-header-muted);
   cursor: default;
   transition: color var(--moni-transition-fast), background var(--moni-transition-fast);
 }
 
 .moni-kanban-col-sort:hover {
-  color: var(--moni-surface-0);
-  background: rgba(255, 255, 255, 0.1);
+  color: var(--moni-kanban-drawer-header-text);
+  background: var(--moni-surface-0);
 }
 
 .moni-kanban-column-body {
@@ -2413,8 +2416,8 @@
 }
 
 .moni-kanban-add-card:hover {
-  border-color: var(--moni-kanban-col-hd);
-  color: var(--moni-kanban-col-hd);
+  border-color: var(--moni-kanban-col-accent);
+  color: var(--moni-kanban-col-accent);
   background: rgba(255, 255, 255, 0.45);
 }
 
@@ -2437,7 +2440,7 @@
   z-index: 10;
   height: 2px;
   border-radius: 999px;
-  background: var(--moni-kanban-col-hd);
+  background: var(--moni-kanban-col-accent);
 }
 
 .moni-kanban-card {
@@ -2472,7 +2475,7 @@
 }
 
 .moni-kanban-card--drag-target {
-  border-color: var(--moni-kanban-col-hd);
+  border-color: var(--moni-kanban-col-accent);
   border-width: 2px;
 }
 
@@ -2881,13 +2884,13 @@
 }
 
 .moni-kanban-drawer-footer .moni-card-modal-movimentacao-btn--proxima {
-  background: var(--moni-kanban-col-hd);
-  border-color: var(--moni-kanban-col-hd);
+  background: var(--moni-kanban-col-accent);
+  border-color: var(--moni-kanban-col-accent);
   color: var(--moni-surface-0);
 }
 
 .moni-kanban-drawer-footer .moni-card-modal-movimentacao-btn--proxima:hover:not(:disabled) {
-  background: var(--moni-kanban-col-hd-fin);
+  background: var(--moni-kanban-col-accent-fin);
   opacity: 1;
 }
 

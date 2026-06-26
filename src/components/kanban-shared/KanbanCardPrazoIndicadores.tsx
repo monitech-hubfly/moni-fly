@@ -33,7 +33,7 @@ export function KanbanPrazoBolinha({ variante, numero, title, sigla }: BolinhaPr
         role="tooltip"
         className="pointer-events-none absolute bottom-[calc(100%+5px)] left-1/2 z-30 w-max max-w-[220px] -translate-x-1/2 rounded-md px-2 py-1 text-center text-[10px] font-medium leading-snug opacity-0 transition-opacity duration-150 group-hover/bol:opacity-100"
         style={{
-          background: 'var(--moni-kanban-col-hd)',
+          background: 'var(--moni-kanban-col-accent)',
           color: 'var(--moni-surface-0)',
           border: 'var(--moni-border-width) solid var(--moni-kanban-bd)',
         }}
