@@ -4,6 +4,7 @@ import {
   type CalculadoraFaseLinha,
   type CalculadoraFasesInput,
 } from '@/lib/kanban/calculadora-fases';
+import { listarKanbanCardIdsSyncGroup } from '@/lib/kanban/card-sync-group';
 
 export type CalculadoraFaseDataManual = {
   dataInicio?: string | null;
@@ -14,6 +15,11 @@ type CalculadoraFaseDataRow = {
   fase_id: string;
   data_inicio: string | null;
   data_fim: string | null;
+};
+
+type CalculadoraFaseDataRowSync = CalculadoraFaseDataRow & {
+  card_id: string;
+  editado_em: string | null;
 };
 
 function toYmd(iso: string | null | undefined): string | null {
@@ -60,6 +66,69 @@ export async function buscarDatasManuaisCalculadoraPorFases(
   return out;
 }
 
+function mergeOverridesPorEditadoEm(
+  rows: CalculadoraFaseDataRowSync[],
+  fids: string[],
+): Map<string, CalculadoraFaseDataManual> {
+  const out = new Map<string, CalculadoraFaseDataManual>();
+  const faseSet = new Set(fids);
+
+  const porFase = new Map<string, CalculadoraFaseDataRowSync[]>();
+  for (const row of rows) {
+    const faseId = String(row.fase_id ?? '').trim();
+    if (!faseId || (fids.length > 0 && !faseSet.has(faseId))) continue;
+    const list = porFase.get(faseId) ?? [];
+    list.push(row);
+    porFase.set(faseId, list);
+  }
+
+  for (const [faseId, list] of porFase) {
+    const sorted = [...list].sort((a, b) => {
+      const ta = a.editado_em ? new Date(a.editado_em).getTime() : 0;
+      const tb = b.editado_em ? new Date(b.editado_em).getTime() : 0;
+      return tb - ta;
+    });
+    const row = sorted[0];
+    if (!row) continue;
+    const manual: CalculadoraFaseDataManual = {};
+    const inicio = toYmd(row.data_inicio);
+    const fim = toYmd(row.data_fim);
+    if (inicio) manual.dataInicio = inicio;
+    if (fim) manual.dataFim = fim;
+    if (manual.dataInicio !== undefined || manual.dataFim !== undefined) {
+      out.set(faseId, manual);
+    }
+  }
+
+  return out;
+}
+
+/** Busca overrides manuais mesclados de todos os cards kanban do grupo de sync. */
+export async function buscarDatasManuaisCalculadoraSyncGroup(
+  supabase: SupabaseClient,
+  cardId: string,
+  faseIds: string[],
+): Promise<Map<string, CalculadoraFaseDataManual>> {
+  const fids = [...new Set(faseIds.map((f) => String(f ?? '').trim()).filter(Boolean))];
+  const kanbanCardIds = await listarKanbanCardIdsSyncGroup(supabase, cardId);
+  if (kanbanCardIds.length === 0 || fids.length === 0) {
+    return buscarDatasManuaisCalculadoraPorFases(supabase, cardId, faseIds);
+  }
+
+  const { data, error } = await supabase
+    .from('kanban_calculadora_fase_datas')
+    .select('card_id, fase_id, data_inicio, data_fim, editado_em')
+    .in('card_id', kanbanCardIds)
+    .in('fase_id', fids);
+
+  if (error) {
+    console.error('[buscarDatasManuaisCalculadoraSyncGroup]', error.message);
+    return buscarDatasManuaisCalculadoraPorFases(supabase, cardId, faseIds);
+  }
+
+  return mergeOverridesPorEditadoEm((data ?? []) as CalculadoraFaseDataRowSync[], fids);
+}
+
 /** Upsert de override manual para uma fase (sem propagar para as demais). */
 export async function salvarDataManualCalculadora(
   supabase: SupabaseClient,
@@ -98,6 +167,33 @@ export async function salvarDataManualCalculadora(
   return { ok: true };
 }
 
+/** Propaga override manual para todos os cards kanban do grupo de sync. */
+export async function salvarDataManualCalculadoraSyncGroup(
+  supabase: SupabaseClient,
+  cardId: string,
+  faseId: string,
+  patch: { dataInicio?: string | null; dataFim?: string | null },
+  userId: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const kanbanCardIds = await listarKanbanCardIdsSyncGroup(supabase, cardId);
+  if (kanbanCardIds.length === 0) {
+    return salvarDataManualCalculadora(supabase, cardId, faseId, patch, userId);
+  }
+
+  const editadoEm = new Date().toISOString();
+  for (const cid of kanbanCardIds) {
+    const result = await salvarDataManualCalculadora(supabase, cid, faseId, patch, userId);
+    if (!result.ok) return result;
+    await supabase
+      .from('kanban_calculadora_fase_datas')
+      .update({ editado_em: editadoEm } as never)
+      .eq('card_id', cid)
+      .eq('fase_id', faseId);
+  }
+
+  return { ok: true };
+}
+
 /** Remove overrides manuais das fases indicadas (ex.: após editar Passagem para Wayser). */
 export async function limparDatasManuaisCalculadoraPorFases(
   supabase: SupabaseClient,
@@ -116,6 +212,34 @@ export async function limparDatasManuaisCalculadoraPorFases(
 
   if (error) {
     console.error('[limparDatasManuaisCalculadoraPorFases]', error.message);
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true };
+}
+
+/** Remove overrides manuais das fases em todos os cards kanban do grupo de sync. */
+export async function limparDatasManuaisCalculadoraSyncGroup(
+  supabase: SupabaseClient,
+  cardId: string,
+  faseIds: string[],
+): Promise<{ ok: boolean; error?: string }> {
+  const kanbanCardIds = await listarKanbanCardIdsSyncGroup(supabase, cardId);
+  if (kanbanCardIds.length === 0) {
+    return limparDatasManuaisCalculadoraPorFases(supabase, cardId, faseIds);
+  }
+
+  const fids = [...new Set(faseIds.map((f) => String(f ?? '').trim()).filter(Boolean))];
+  if (fids.length === 0) return { ok: true };
+
+  const { error } = await supabase
+    .from('kanban_calculadora_fase_datas')
+    .delete()
+    .in('card_id', kanbanCardIds)
+    .in('fase_id', fids);
+
+  if (error) {
+    console.error('[limparDatasManuaisCalculadoraSyncGroup]', error.message);
     return { ok: false, error: error.message };
   }
 

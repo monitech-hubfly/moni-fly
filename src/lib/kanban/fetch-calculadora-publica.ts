@@ -19,14 +19,16 @@ import {
   mesclarFasesKanbanAtualNoMapa,
   montarFasesFlatCalculadoraVisitas,
 } from '@/lib/kanban/calculadora-fases-esteira';
-import { buscarDatasManuaisCalculadoraPorFases } from '@/lib/kanban/calculadora-fase-datas';
+import { buscarDatasManuaisCalculadoraSyncGroup } from '@/lib/kanban/calculadora-fase-datas';
+import { fetchContextoCalculadoraSyncGroup } from '@/lib/kanban/card-sync-group';
 import { fetchKanbanFasesAtivas } from '@/lib/kanban/fetch-kanban-fases';
-import { loadHistoricoCardModal, loadHistoricoCalculadoraEsteira } from '@/lib/kanban/kanban-card-historico';
+import { loadHistoricoCalculadoraEsteira } from '@/lib/kanban/kanban-card-historico';
 import { buildNativeFaseVisits } from '@/lib/kanban/kanban-card-timeline';
 import { filterOperacoesCalculadoraFases } from '@/lib/kanban/operacoes-fase-slugs';
 import { filterPortfolioCalculadoraFases } from '@/lib/kanban/portfolio-fase-slugs';
 import { buscarResponsavelDaFaseSalvoPorFases } from '@/lib/kanban/responsavel-fase-checklist';
 import { filterStepOneCalculadoraFases } from '@/lib/kanban/stepone-fase-slugs';
+import { cardKanbanNaEsteiraPrincipalCalculadora } from '@/lib/kanban/calculadora-fases-esteira';
 import { fetchCondominioRowById } from '@/lib/condominios';
 import { condominioPrazosSlaFromRow } from '@/lib/kanban/condominio-prazos-aprovacao';
 import { createClient } from '@/lib/supabase/server';
@@ -93,14 +95,18 @@ async function montarCalculadoraPack(
   const kanbanId = String(card.kanban_id ?? '').trim();
   if (!kanbanId) return null;
 
+  const naEsteira = cardKanbanNaEsteiraPrincipalCalculadora(kanbanId);
+  const ctx = naEsteira ? await fetchContextoCalculadoraSyncGroup(supabase, card.id) : null;
+  const kanbanIdCalc = ctx?.kanbanIdCanonico ?? kanbanId;
+
   const [fasesEsteiraMap, fasesKanban, historico] = await Promise.all([
     fetchCalculadoraEsteiraFasesMap(supabase),
-    fetchKanbanFasesAtivas(supabase, kanbanId),
+    fetchKanbanFasesAtivas(supabase, kanbanIdCalc),
     loadHistoricoCalculadoraEsteira(supabase, card.id, 'nativo', new Map()),
   ]);
 
-  const fasesMap = mesclarFasesKanbanAtualNoMapa(fasesEsteiraMap, kanbanId, fasesKanban);
-  const fasesParaVisitas = montarFasesFlatCalculadoraVisitas(fasesMap, fasesKanban, kanbanId);
+  const fasesMap = mesclarFasesKanbanAtualNoMapa(fasesEsteiraMap, kanbanIdCalc, fasesKanban);
+  const fasesParaVisitas = montarFasesFlatCalculadoraVisitas(fasesMap, fasesKanban, kanbanIdCalc);
 
   const historicoMovs = historico.map((h) => ({
     acao: h.acao,
@@ -108,14 +114,19 @@ async function montarCalculadoraPack(
     criado_em: h.criado_em,
   }));
 
-  const visits = buildNativeFaseVisits(
-    fasesParaVisitas,
-    { created_at: card.created_at, fase_id: card.fase_id },
-    historicoMovs,
-  );
+  const visitCardBase = ctx
+    ? {
+        created_at: ctx.createdAtCanonico ?? card.created_at,
+        fase_id: ctx.faseIdCanonico,
+      }
+    : { created_at: card.created_at, fase_id: card.fase_id };
+
+  const visits = buildNativeFaseVisits(fasesParaVisitas, visitCardBase, historicoMovs);
 
   const cardFaseSlug =
-    fasesKanban.find((f) => f.id === card.fase_id)?.slug ?? null;
+    ctx?.faseSlugCanonico ??
+    fasesKanban.find((f) => f.id === card.fase_id)?.slug ??
+    null;
 
   let calculadoraAncora = calculadoraAncoraFromProcesso(null);
   const procIdAncora = String(card.processo_step_one_id ?? '').trim();
@@ -141,7 +152,7 @@ async function montarCalculadoraPack(
     return ids;
   })();
 
-  const overrides = await buscarDatasManuaisCalculadoraPorFases(supabase, card.id, faseIdsPreCalc);
+  const overrides = await buscarDatasManuaisCalculadoraSyncGroup(supabase, card.id, faseIdsPreCalc);
 
   const condominioId = String(card.condominio_id ?? '').trim() || null;
   let slaCondominio = null;
@@ -150,17 +161,21 @@ async function montarCalculadoraPack(
     slaCondominio = condominioPrazosSlaFromRow(condominioRow);
   }
 
+  const cardCalcInput = ctx
+    ? ctx.cardCalcCanonico
+    : {
+        fase_id: card.fase_id,
+        created_at: card.created_at,
+        entered_fase_at: card.entered_fase_at,
+        concluido: card.concluido,
+        concluido_em: card.concluido_em,
+      };
+
   const linhasEsteira = calcularLinhasCalculadoraFasesEsteira({
     fasesPorKanban: fasesMap,
-    cardKanbanId: kanbanId,
+    cardKanbanId: kanbanIdCalc,
     cardFaseSlug,
-    card: {
-      fase_id: card.fase_id,
-      created_at: card.created_at,
-      entered_fase_at: card.entered_fase_at,
-      concluido: card.concluido,
-      concluido_em: card.concluido_em,
-    },
+    card: cardCalcInput,
     visits,
     ancora: calculadoraAncora,
     overrides,
@@ -213,14 +228,11 @@ async function montarCalculadoraPack(
   linhas = aplicarEncadeamentoMarcoContratoNasLinhas(
     linhas,
     fasesFlatFinal,
-    { contrato_assinado_em: card.contrato_assinado_em },
     {
-      fase_id: card.fase_id,
-      created_at: card.created_at,
-      entered_fase_at: card.entered_fase_at,
-      concluido: card.concluido,
-      concluido_em: card.concluido_em,
+      contrato_assinado_em:
+        ctx?.marcosCanonicos.contrato_assinado_em ?? card.contrato_assinado_em,
     },
+    cardCalcInput,
     visits,
     undefined,
     overrides,
@@ -240,11 +252,12 @@ async function montarCalculadoraPack(
   );
 
   const marcosBase: Omit<CalculadoraMarcosInput, 'prazo_opcao' | 'prazo_instrumento_garantidor'> = {
-    contrato_assinado_em: card.contrato_assinado_em,
-    obra_iniciada_em: card.obra_iniciada_em,
-    obra_finalizada_em: card.obra_finalizada_em,
-    concluido_em: card.concluido_em,
-    opcao_assinada_em: card.opcao_assinada_em,
+    contrato_assinado_em:
+      ctx?.marcosCanonicos.contrato_assinado_em ?? card.contrato_assinado_em,
+    obra_iniciada_em: ctx?.marcosCanonicos.obra_iniciada_em ?? card.obra_iniciada_em,
+    obra_finalizada_em: ctx?.marcosCanonicos.obra_finalizada_em ?? card.obra_finalizada_em,
+    concluido_em: ctx?.marcosCanonicos.concluido_em ?? card.concluido_em,
+    opcao_assinada_em: ctx?.marcosCanonicos.opcao_assinada_em ?? card.opcao_assinada_em,
     visits,
   };
 

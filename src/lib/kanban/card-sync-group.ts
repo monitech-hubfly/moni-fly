@@ -1,6 +1,10 @@
 import type { createAdminClient } from '@/lib/supabase/admin';
 import type { createClient } from '@/lib/supabase/server';
 import { isKanbanFunilLoteadoresRef, sincronizarTituloCardLoteadores } from '@/lib/kanban/loteadores-card-titulo';
+import {
+  cardKanbanNaEsteiraPrincipalCalculadora,
+  segmentoEsteiraCardCalculadora,
+} from '@/lib/kanban/calculadora-fases-esteira';
 
 type SyncDb = Pick<Awaited<ReturnType<typeof createClient>>, 'from'>;
 
@@ -385,6 +389,26 @@ export async function listarCardIdsSyncGroup(db: SyncDb, startCardId: string): P
   await expandirVinculos(db, ids);
   await expandirProcessoShadow(db, ids);
   return [...ids];
+}
+
+/** Apenas ids de linhas reais em `kanban_cards` (exclui shadow `processo_step_one.id`). */
+export async function listarKanbanCardIdsSyncGroup(db: SyncDb, startCardId: string): Promise<string[]> {
+  const cid = String(startCardId ?? '').trim();
+  if (!cid) return [];
+
+  const ids = await listarCardIdsSyncGroup(db, cid);
+  if (ids.length === 0) return [cid];
+
+  const { data: rows, error } = await db.from('kanban_cards').select('id').in('id', ids);
+  if (error) {
+    console.error('[listarKanbanCardIdsSyncGroup]', error.message);
+    return [cid];
+  }
+
+  const out = (rows ?? [])
+    .map((r) => String((r as { id?: string }).id ?? '').trim())
+    .filter(Boolean);
+  return out.length > 0 ? out : [cid];
 }
 
 export async function contarOutrosCardsSyncGroup(db: SyncDb, cardId: string): Promise<number> {
@@ -981,6 +1005,191 @@ async function resolverCamposCalculadoraCanonicosCadeia(
   if (procResolvido) merged.processo_step_one_id = procResolvido;
 
   return merged;
+}
+
+export type MarcosCanonicosCalculadora = {
+  contrato_assinado_em: string | null;
+  obra_iniciada_em: string | null;
+  obra_finalizada_em: string | null;
+  opcao_assinada_em: string | null;
+  concluido_em: string | null;
+};
+
+export type ContextoCalculadoraSyncGroup = {
+  createdAtCanonico: string | null;
+  marcosCanonicos: MarcosCanonicosCalculadora;
+  kanbanIdCanonico: string;
+  faseIdCanonico: string;
+  faseSlugCanonico: string | null;
+  cardCalcCanonico: {
+    fase_id: string;
+    created_at: string;
+    entered_fase_at: string | null;
+    concluido: boolean;
+    concluido_em: string | null;
+  };
+};
+
+function mergeCamposCalculadoraRows(rows: Record<string, unknown>[]): {
+  merged: Record<string, unknown>;
+  createdAtCanonico: string | null;
+} {
+  const merged: Record<string, unknown> = {};
+  let createdAtCanonico: string | null = null;
+
+  for (const row of rows) {
+    const rowCreated = String(row.created_at ?? '').trim();
+    if (rowCreated && (!createdAtCanonico || new Date(rowCreated) < new Date(createdAtCanonico))) {
+      createdAtCanonico = rowCreated;
+    }
+
+    for (const k of KANBAN_CARD_CAMPOS_BASTAO_CALCULADORA) {
+      const val = row[k];
+      if (k.endsWith('_em')) {
+        const coalesced = coalesceTextoMarco(merged[k], val);
+        if (coalesced !== undefined) merged[k] = coalesced;
+      } else if (typeof val === 'boolean' || val === null) {
+        const coalesced = coalesceBooleanMarco(merged[k], val);
+        if (coalesced !== undefined) merged[k] = coalesced;
+      } else {
+        const coalesced = coalesceTextoMarco(merged[k], val);
+        if (coalesced !== undefined) merged[k] = coalesced;
+      }
+    }
+
+    const concluidoEm = coalesceTextoMarco(merged.concluido_em, row.concluido_em);
+    if (concluidoEm !== undefined) merged.concluido_em = concluidoEm;
+  }
+
+  if (createdAtCanonico) merged.created_at = createdAtCanonico;
+  return { merged, createdAtCanonico };
+}
+
+function marcosCanonicosFromMerged(merged: Record<string, unknown>): MarcosCanonicosCalculadora {
+  const pick = (k: string): string | null => {
+    const v = merged[k];
+    if (v == null || String(v).trim() === '') return null;
+    return String(v).trim();
+  };
+  return {
+    contrato_assinado_em: pick('contrato_assinado_em'),
+    obra_iniciada_em: pick('obra_iniciada_em'),
+    obra_finalizada_em: pick('obra_finalizada_em'),
+    opcao_assinada_em: pick('opcao_assinada_em'),
+    concluido_em: pick('concluido_em'),
+  };
+}
+
+/** Contexto canônico da calculadora global para todo o grupo de sync. */
+export async function fetchContextoCalculadoraSyncGroup(
+  db: SyncDb,
+  cardId: string,
+): Promise<ContextoCalculadoraSyncGroup | null> {
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return null;
+
+  const kanbanCardIds = await listarKanbanCardIdsSyncGroup(db, cid);
+  if (kanbanCardIds.length === 0) return null;
+
+  const selectCols = [
+    'id',
+    'kanban_id',
+    'fase_id',
+    'created_at',
+    'entered_fase_at',
+    'concluido',
+    'concluido_em',
+    'titulo',
+    'rede_franqueado_id',
+    ...KANBAN_CARD_CAMPOS_BASTAO_CALCULADORA,
+  ].join(', ');
+
+  const { data: rows, error } = await db
+    .from('kanban_cards')
+    .select(selectCols)
+    .in('id', kanbanCardIds);
+  if (error || !rows?.length) {
+    if (error) console.error('[fetchContextoCalculadoraSyncGroup]', error.message);
+    return null;
+  }
+
+  const typedRows = rows as unknown as Record<string, unknown>[];
+  const { merged, createdAtCanonico } = mergeCamposCalculadoraRows(typedRows);
+  const marcosCanonicos = marcosCanonicosFromMerged(merged);
+
+  const esteiraRows = typedRows.filter((r) =>
+    cardKanbanNaEsteiraPrincipalCalculadora(String(r.kanban_id ?? '')),
+  );
+  const candidatos = esteiraRows.length > 0 ? esteiraRows : typedRows;
+
+  const faseIds = [
+    ...new Set(candidatos.map((r) => String(r.fase_id ?? '').trim()).filter(Boolean)),
+  ];
+  const ordemPorFase = new Map<string, number>();
+  if (faseIds.length > 0) {
+    const { data: faseRows } = await db
+      .from('kanban_fases')
+      .select('id, ordem')
+      .in('id', faseIds);
+    for (const fr of faseRows ?? []) {
+      const fid = String((fr as { id?: string }).id ?? '').trim();
+      const ordem = Number((fr as { ordem?: number }).ordem ?? 0);
+      if (fid) ordemPorFase.set(fid, ordem);
+    }
+  }
+
+  let cardAvancado = candidatos[0]!;
+  let maxSegmento = -1;
+  let maxOrdemFase = -1;
+
+  for (const row of candidatos) {
+    const kid = String(row.kanban_id ?? '').trim();
+    const fid = String(row.fase_id ?? '').trim();
+    const segmento = segmentoEsteiraCardCalculadora(kid);
+    const ordemFase = ordemPorFase.get(fid) ?? 0;
+
+    if (
+      segmento > maxSegmento ||
+      (segmento === maxSegmento && ordemFase > maxOrdemFase)
+    ) {
+      maxSegmento = segmento;
+      maxOrdemFase = ordemFase;
+      cardAvancado = row;
+    }
+  }
+
+  const kanbanIdCanonico = String(cardAvancado.kanban_id ?? '').trim();
+  const faseIdCanonico = String(cardAvancado.fase_id ?? '').trim();
+  if (!kanbanIdCanonico || !faseIdCanonico) return null;
+
+  let faseSlugCanonico: string | null = null;
+  const { data: faseRow } = await db
+    .from('kanban_fases')
+    .select('slug')
+    .eq('id', faseIdCanonico)
+    .maybeSingle();
+  faseSlugCanonico = String((faseRow as { slug?: string | null } | null)?.slug ?? '').trim() || null;
+
+  const createdAt =
+    (createdAtCanonico ?? String(cardAvancado.created_at ?? '').trim()) ||
+    new Date().toISOString();
+
+  return {
+    createdAtCanonico: createdAt,
+    marcosCanonicos,
+    kanbanIdCanonico,
+    faseIdCanonico,
+    faseSlugCanonico,
+    cardCalcCanonico: {
+      fase_id: faseIdCanonico,
+      created_at: createdAt,
+      entered_fase_at:
+        cardAvancado.entered_fase_at != null ? String(cardAvancado.entered_fase_at) : null,
+      concluido: cardAvancado.concluido === true,
+      concluido_em:
+        cardAvancado.concluido_em != null ? String(cardAvancado.concluido_em) : null,
+    },
+  };
 }
 
 async function espelharHistoricoCalculadoraCadeiaPai(

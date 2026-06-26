@@ -235,7 +235,7 @@ import {
   type KanbanComentarioAnexoRow,
 } from '@/lib/actions/kanban-comentario-anexos';
 import { uploadAnexosComentarioPendentes } from '@/lib/kanban/upload-anexos-comentario-card';
-import { montarTituloCardSync } from '@/lib/kanban/card-sync-group';
+import { montarTituloCardSync, fetchContextoCalculadoraSyncGroup, type ContextoCalculadoraSyncGroup } from '@/lib/kanban/card-sync-group';
 import { dataIsoInputValida } from '@/lib/kanban/kanban-card-datas';
 import { AnexosAtividadeDraft } from './AnexosAtividadeDraft';
 import { parseKanbanFaseMateriais } from '@/lib/kanban/parse-kanban-fase-materiais';
@@ -308,9 +308,9 @@ import { DadosLoteadorPersistentPanel } from './DadosLoteadorPersistentPanel';
 import { deveExibirChecklistCreditoNaFase, deveExibirChecklistLegalNaFase } from '@/lib/checklist-legal/display';
 import { calcularLinhasCalculadoraFases, calcularResumoExecutivoCalculadoraFases, calculadoraAncoraFromProcesso, aplicarEncadeamentoMarcoContratoNasLinhas, enriquecerLinhasCalculadoraComCusto, enriquecerLinhasCalculadoraComResponsavelDaFase } from '@/lib/kanban/calculadora-fases';
 import {
-  buscarDatasManuaisCalculadoraPorFases,
-  limparDatasManuaisCalculadoraPorFases,
-  salvarDataManualCalculadora,
+  buscarDatasManuaisCalculadoraSyncGroup,
+  limparDatasManuaisCalculadoraSyncGroup,
+  salvarDataManualCalculadoraSyncGroup,
   CALCULADORA_FASE_SLUG_PROPAGA_FORWARD,
   type CalculadoraFaseDataManual,
 } from '@/lib/kanban/calculadora-fase-datas';
@@ -580,6 +580,8 @@ export function KanbanCardModal({
   const [legadoCronologiaMoves, setLegadoCronologiaMoves] = useState<ProcessoCardMoveEvt[]>([]);
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
   const [historicoCalculadora, setHistoricoCalculadora] = useState<HistoricoItem[]>([]);
+  const [contextoCalculadoraSyncGroup, setContextoCalculadoraSyncGroup] =
+    useState<ContextoCalculadoraSyncGroup | null>(null);
   const [comentariosCard, setComentariosCard] = useState<ComentarioCardRow[]>([]);
   const [novoComentarioCard, setNovoComentarioCard] = useState('');
   const [comentarioPendingAnexos, setComentarioPendingAnexos] = useState<File[]>([]);
@@ -3361,51 +3363,67 @@ export function KanbanCardModal({
         criado_em: h.criado_em,
       }));
 
+      const naEsteira = cardKanbanNaEsteiraPrincipalCalculadora(String(card.kanban_id ?? ''));
+      const ctx = naEsteira ? contextoCalculadoraSyncGroup : null;
+      const kanbanIdCalc = ctx?.kanbanIdCanonico ?? card.kanban_id;
+
       const fasesEsteiraMap = mesclarFasesKanbanAtualNoMapa(
         fasesEsteiraCalculadora,
-        card.kanban_id,
+        kanbanIdCalc,
         fases,
       );
 
       const fasesParaVisitas = montarFasesFlatCalculadoraVisitas(
         fasesEsteiraMap,
         fases,
-        card.kanban_id,
+        kanbanIdCalc,
       );
+
+      const visitCardBase = ctx
+        ? {
+            created_at: ctx.createdAtCanonico ?? card.created_at,
+            fase_id: ctx.faseIdCanonico,
+          }
+        : { created_at: card.created_at, fase_id: card.fase_id };
 
       const visits =
         origem === 'legado'
           ? buildLegadoFaseVisits(
               fasesParaVisitas,
               {
-                created_at: card.created_at,
-                fase_id: card.fase_id,
+                created_at: visitCardBase.created_at,
+                fase_id: visitCardBase.fase_id,
                 etapa_slug: card.etapa_slug ?? null,
               },
               legadoCronologiaMoves,
             )
           : buildNativeFaseVisits(
               fasesParaVisitas,
-              { created_at: card.created_at, fase_id: card.fase_id },
+              visitCardBase,
               historicoMovs,
             );
 
       const cardFaseSlug =
-        fases.find((f) => f.id === card.fase_id)?.slug ?? card.etapa_slug ?? null;
+        ctx?.faseSlugCanonico ??
+        fases.find((f) => f.id === card.fase_id)?.slug ??
+        card.etapa_slug ??
+        null;
 
       const calculadoraAncora = calculadoraAncoraFromProcesso(modalDetalhes.processo);
 
-      const cardCalcInput = {
-        fase_id: card.fase_id,
-        created_at: card.created_at,
-        entered_fase_at: card.entered_fase_at,
-        concluido: card.concluido,
-        concluido_em: card.concluido_em,
-      };
+      const cardCalcInput = ctx
+        ? ctx.cardCalcCanonico
+        : {
+            fase_id: card.fase_id,
+            created_at: card.created_at,
+            entered_fase_at: card.entered_fase_at,
+            concluido: card.concluido,
+            concluido_em: card.concluido_em,
+          };
 
       const linhasEsteira = calcularLinhasCalculadoraFasesEsteira({
         fasesPorKanban: fasesEsteiraMap,
-        cardKanbanId: card.kanban_id,
+        cardKanbanId: kanbanIdCalc,
         cardFaseSlug,
         card: cardCalcInput,
         visits,
@@ -3449,7 +3467,7 @@ export function KanbanCardModal({
     } catch {
       return { linhas: [], visits: [], faseIds: [] as string[] };
     }
-  }, [card, fases, fasesEsteiraCalculadora, historico, historicoCalculadora, legadoCronologiaMoves, origem, modalDetalhes.processo, datasManuaisCalculadora, calculadoraSlaCondominio]);
+  }, [card, fases, fasesEsteiraCalculadora, historico, historicoCalculadora, legadoCronologiaMoves, origem, modalDetalhes.processo, datasManuaisCalculadora, calculadoraSlaCondominio, contextoCalculadoraSyncGroup]);
 
   const calculadoraAncora = useMemo(
     () => calculadoraAncoraFromProcesso(modalDetalhes.processo),
@@ -3480,12 +3498,13 @@ export function KanbanCardModal({
 
   const calculadoraMarcosInput = useMemo(() => {
     const prazos = negocioPrazoValoresFromProcessoModal(modalDetalhes.processo, fasesNegocioPrazo);
+    const marcos = contextoCalculadoraSyncGroup?.marcosCanonicos;
     return {
-      contrato_assinado_em: card?.contrato_assinado_em ?? null,
-      obra_iniciada_em: card?.obra_iniciada_em ?? null,
-      obra_finalizada_em: card?.obra_finalizada_em ?? null,
-      concluido_em: card?.concluido_em ?? null,
-      opcao_assinada_em: card?.opcao_assinada_em ?? null,
+      contrato_assinado_em: marcos?.contrato_assinado_em ?? card?.contrato_assinado_em ?? null,
+      obra_iniciada_em: marcos?.obra_iniciada_em ?? card?.obra_iniciada_em ?? null,
+      obra_finalizada_em: marcos?.obra_finalizada_em ?? card?.obra_finalizada_em ?? null,
+      concluido_em: marcos?.concluido_em ?? card?.concluido_em ?? null,
+      opcao_assinada_em: marcos?.opcao_assinada_em ?? card?.opcao_assinada_em ?? null,
       prazo_opcao: prazos.prazo_opcao.modo ? prazos.prazo_opcao : null,
       prazo_instrumento_garantidor: prazos.prazo_instrumento_garantidor.modo
         ? prazos.prazo_instrumento_garantidor
@@ -3494,6 +3513,7 @@ export function KanbanCardModal({
     };
   }, [
     modalDetalhes.processo,
+    contextoCalculadoraSyncGroup,
     card?.contrato_assinado_em,
     card?.obra_iniciada_em,
     card?.obra_finalizada_em,
@@ -3502,6 +3522,25 @@ export function KanbanCardModal({
     calculadoraFasesPack.visits,
     fasesNegocioPrazo,
   ]);
+
+  useEffect(() => {
+    const cardId = card?.id?.trim();
+    if (!cardId) {
+      setContextoCalculadoraSyncGroup(null);
+      return;
+    }
+
+    let cancelado = false;
+    void (async () => {
+      const supabase = createClient();
+      const ctx = await fetchContextoCalculadoraSyncGroup(supabase, cardId);
+      if (!cancelado) setContextoCalculadoraSyncGroup(ctx);
+    })();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [card?.id]);
 
   useEffect(() => {
     const cardId = card?.id?.trim();
@@ -3534,7 +3573,7 @@ export function KanbanCardModal({
     let cancelado = false;
     void (async () => {
       const supabase = createClient();
-      const map = await buscarDatasManuaisCalculadoraPorFases(supabase, cardId, faseIds);
+      const map = await buscarDatasManuaisCalculadoraSyncGroup(supabase, cardId, faseIds);
       if (!cancelado) setDatasManuaisCalculadora(map);
     })();
 
@@ -3589,7 +3628,7 @@ export function KanbanCardModal({
       const supabase = createClient();
       const patch =
         campo === 'inicio' ? { dataInicio: valor } : { dataFim: valor };
-      const result = await salvarDataManualCalculadora(
+      const result = await salvarDataManualCalculadoraSyncGroup(
         supabase,
         cardId,
         faseId,
@@ -3606,7 +3645,7 @@ export function KanbanCardModal({
           faseId === FASE_IDS.PORTFOLIO_PASSAGEM_WAYSER;
 
         if (propagaForward && fasesPosteriores.length > 0) {
-          await limparDatasManuaisCalculadoraPorFases(supabase, cardId, fasesPosteriores);
+          await limparDatasManuaisCalculadoraSyncGroup(supabase, cardId, fasesPosteriores);
         }
 
         setDatasManuaisCalculadora((prev) => {
@@ -3643,23 +3682,29 @@ export function KanbanCardModal({
 
   const calculadoraLinhasEncadeadas = useMemo(() => {
     if (!card) return calculadoraFasesPack.linhas;
+    const naEsteira = cardKanbanNaEsteiraPrincipalCalculadora(String(card.kanban_id ?? ''));
+    const ctx = naEsteira ? contextoCalculadoraSyncGroup : null;
+    const cardEncadeamento = ctx
+      ? ctx.cardCalcCanonico
+      : {
+          fase_id: card.fase_id,
+          created_at: card.created_at,
+          entered_fase_at: card.entered_fase_at,
+          concluido: card.concluido,
+          concluido_em: card.concluido_em,
+        };
     return aplicarEncadeamentoMarcoContratoNasLinhas(
       calculadoraFasesPack.linhas,
       calculadoraFasesFlat,
       { contrato_assinado_em: calculadoraMarcosInput.contrato_assinado_em },
-      {
-        fase_id: card.fase_id,
-        created_at: card.created_at,
-        entered_fase_at: card.entered_fase_at,
-        concluido: card.concluido,
-        concluido_em: card.concluido_em,
-      },
+      cardEncadeamento,
       calculadoraFasesPack.visits,
       undefined,
       datasManuaisCalculadora,
     );
   }, [
     card,
+    contextoCalculadoraSyncGroup,
     calculadoraFasesPack.linhas,
     calculadoraFasesPack.visits,
     calculadoraFasesFlat,
